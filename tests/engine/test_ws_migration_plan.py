@@ -658,6 +658,51 @@ def test_an_operator_rule_never_reaches_another_users_copy_of_the_bytes():
     assert _decision(plan, "documents", "c1")["company"] == "cui:" + ALFA
 
 
+def test_another_users_copy_of_a_sheet_named_book_gets_no_strangers_cui(tmp_path):
+    """Verifier finding (2026-09-21, idplan/p11_realstore_plan.py: the real
+    snapshot through a real PublicRoStore): user c8a7883b's copy of the
+    Carniprod book (the owner's name-only rule is scoped to the owner, by
+    design) was identified from its sheet name as CARNIPROD SRL 4705349 —
+    a namesake with no filing — and the plan wrote merge_prefs on
+    workspace 4ceeac4d with {cui 4705349, company_name 'CARNIPROD SRL',
+    signal registry_name_match}. Through a real registry store, the other
+    user's workspace is now keyed by the book's own name, with no CUI."""
+    from engine.public_ro.store import PublicRoStore
+    from engine.workspaces.migration_plan import facts_from_documents
+    from ws_migration_fixture import balance_xlsx, valid_cui
+
+    st = PublicRoStore(tmp_path / "public_ro.db")
+    bare = valid_cui("4700001")
+    try:
+        st.set_identification(int(bare), name="CARNEX SRL", county="SB", locality="Sibiu",
+                              reg_number="J32/9/1993", tip_contrib="PJ", publishable=False, name_source="test")
+        st.ensure_company_stub(int(bare), None)
+        blob = balance_xlsx([], sheet="Carnex", seed=9)
+        members = [{"org_id": "org-u", "user_id": "u", "role": "owner"},
+                   {"org_id": "org-v", "user_id": "v", "role": "owner"}]
+        docs = [dict(_doc("u1", "org-u", period="pu"), original_filename="Carnex Trial Balance 2025.xlsx"),
+                dict(_doc("v1", "org-v", period="pv"), original_filename="Carnex Trial Balance 2025.xlsx")]
+        t = _mini(docs, [{"id": "pu", "org_id": "org-u", "period_start": "2025-12-31", "period_end": "2025-12-31",
+                          "source_document_id": "u1"},
+                         {"id": "pv", "org_id": "org-v", "period_start": "2025-12-31", "period_end": "2025-12-31",
+                          "source_document_id": "v1"}],
+                  metrics=[("pu", "org-u"), ("pv", "org-v")], orgs=("org-u", "org-v"), members=members)
+        rules = [{"user_id": "u", "filename_glob": "Carnex Trial Balance*", "cui": None, "company_name": "Carnex",
+                  "evidence": "u's private ruling: no filing matches"}]
+        facts = facts_from_documents(t, lambda d: (blob, True, None), registry=st, rules=rules)
+        assert facts["v1"].identity.cui is None and facts["v1"].identity.company_key == "name:CARNEX"
+        assert facts["v1"].identity.sources["cui_hint"]["cui"] == bare
+        plan = build_plan(t, facts, migration_date=DATE)
+        stamps = {op["key"]["org_id"]: op["merge"] for op in plan.ops if op["op"] == "merge_prefs"}
+        assert stamps["org-v"]["cui"] is None and stamps["org-v"]["company_name"] == "Carnex"
+        assert bare not in repr(plan.ops)
+        assert "u's private ruling" not in repr(stamps["org-v"])
+        ws = {w["org_id"]: w["company"] for w in plan.workspaces}
+        assert ws["org-v"] == ws["org-u"] == "name:CARNEX"
+    finally:
+        st.close()
+
+
 def test_a_created_workspace_carries_the_industry_its_caen_maps_to():
     """Verifier finding (2026-09-21): every created organization was inserted with
     industry_key None even when the identity's CAEN mapped to one."""

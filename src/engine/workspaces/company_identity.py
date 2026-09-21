@@ -16,7 +16,12 @@ cui
      "Societate:" line, an "... SRL" title line, a non-generic sheet name)
      matches exactly ONE registered company after normalisation — decided
      over EVERY registered name (``registry_match_name``), never over one
-     capped page of prefix hits.
+     capped page of prefix hits — AND that company files financial
+     statements (at least one filing in the registry). A registered name
+     with no filing (dormant, struck off, never filed: "CARNIPROD SRL"
+     4705349 for the brand word on a sheet named "Carniprod", which six
+     registered companies carry) is recorded as ``sources["cui_hint"]``
+     and mints nothing — unless the document prints that CUI's digits.
   3. ``filename_registry_match`` — the same, from a name read out of the
      filename. The weakest signal: only names of at least six letters, only
      an unambiguous exact match, and only when the DOCUMENT corroborates it
@@ -640,9 +645,47 @@ def _normalized_name_index(registry: Any) -> Optional[Dict[str, int]]:
     return index
 
 
+def registry_files(registry: Any, cui: str, row: Optional[Mapping[str, Any]]) -> Optional[bool]:
+    """Does the registered company file financial statements? The row's
+    ``has_filings`` when the registry gives it, else its filings
+    (``get_filings``); None when the registry cannot say."""
+    if row is not None and "has_filings" in row:
+        return bool(row["has_filings"])
+    getter = getattr(registry, "get_filings", None)
+    if getter is None:
+        return None
+    try:
+        return bool(getter(int(cui)))
+    except Exception:  # noqa: BLE001 — a registry that cannot answer is "unsure"
+        return None
+
+
 def registry_match_name(registry: Any, name: str) -> Optional[Tuple[str, Dict[str, Any]]]:
     """(cui, registry row) when EXACTLY one registered company has this
-    normalized name; otherwise None (no match, several, or unsure).
+    normalized name AND it files financial statements; otherwise None (no
+    match, several, unsure — or a company with no filing).
+
+    A registered name with no filing is not an identity: the index covers
+    every registered name, publishable or not (so that "exactly one" is a
+    fact), and the one company whose normalized name is a bare brand word
+    is typically a dormant or struck-off namesake. Verifier finding
+    (2026-09-21, p10_realstore.py / p11_realstore_plan.py): the sheet
+    "Carniprod" resolved to CARNIPROD SRL 4705349 — not publishable, no
+    filing, and not the book's company by the operator's own filing check
+    — and the plan wrote that stranger's CUI into another user's org_prefs.
+    ``identify_text`` records such a match as a hint instead.
+    """
+    hit = _unique_registered_name(registry, name)
+    if hit is None or hit[2] is not True:
+        return None
+    return hit[0], hit[1]
+
+
+def _unique_registered_name(registry: Any, name: str
+                            ) -> Optional[Tuple[str, Dict[str, Any], Optional[bool]]]:
+    """(cui, registry row, files) when EXACTLY one registered company has
+    this normalized name; otherwise None (no match, several, or unsure).
+    ``files`` is ``registry_files`` for that company.
 
     "Exactly one" is decided over EVERY registered name
     (``iter_company_names``, normalized once per registry): "ALFA FOOD SRL"
@@ -669,7 +712,7 @@ def registry_match_name(registry: Any, name: str) -> Optional[Tuple[str, Dict[st
             return None
         cui = normalize_cui(cui_int)
         row = _registry_company(registry, cui) if cui else None
-        return (cui, row) if cui and row else None
+        return (cui, row, registry_files(registry, cui, row)) if cui and row else None
     queries = []
     for q in (str(name).strip(), target, target.split()[0]):
         if q and q not in queries:
@@ -691,7 +734,11 @@ def registry_match_name(registry: Any, name: str) -> Optional[Tuple[str, Dict[st
         return None
     cui_int, row = next(iter(hits.items()))
     cui = normalize_cui(cui_int)
-    return (cui, row) if cui else None
+    # search_companies answers only companies it may publish, and a company
+    # with no filing never qualifies (compliance.publishable_reason: "no
+    # filings (thin row)") — a hit here files by the search's own contract.
+    files = registry_files(registry, cui, row) if cui else None
+    return (cui, row, True if files is None else files) if cui else None
 
 
 # ── CAEN -> industry (the repo's own catalogue) ────────────────────────
@@ -784,17 +831,28 @@ def identify_text(doc: DocumentText, filename: Optional[str], *, registry: Any =
         if file_name and len(normalize_company_name(file_name)) >= FILENAME_NAME_MIN_CHARS:
             candidates.append((file_name, "filename_registry_match", "filename: %s" % filename))
         for name, signal, evidence in candidates:
-            hit = registry_match_name(registry, name)
+            hit = _unique_registered_name(registry, name)
             if not hit:
                 continue
-            if signal == "filename_registry_match" and not _digits_in(lines, hit[0]):
+            printed = _digits_in(lines, hit[0])
+            if signal == "filename_registry_match" and not printed:
                 # A filename is typed by a person: without the document
                 # printing that CUI somewhere in its header, it is a hint.
-                sources["cui_hint"] = {"signal": signal, "cui": hit[0],
-                                       "evidence": "%s == registry %r; the document does not print %s"
-                                                   % (evidence, hit[1].get("name"), hit[0])}
+                sources.setdefault("cui_hint", {
+                    "signal": signal, "cui": hit[0],
+                    "evidence": "%s == registry %r; the document does not print %s"
+                                % (evidence, hit[1].get("name"), hit[0])})
                 break
-            cui, reg_row = hit
+            if hit[2] is not True and not printed:
+                # The one registered company with this name files nothing
+                # (or the registry cannot say): a namesake, not an identity.
+                sources.setdefault("cui_hint", {
+                    "signal": signal, "cui": hit[0],
+                    "evidence": "%s == registry %r, which has %s; the document does not print %s"
+                                % (evidence, hit[1].get("name"),
+                                   "no filing" if hit[2] is False else "no known filing", hit[0])})
+                continue
+            cui, reg_row = hit[0], hit[1]
             sources["cui"] = {"signal": signal,
                               "evidence": "%s == registry %r" % (evidence, reg_row.get("name"))}
             break
