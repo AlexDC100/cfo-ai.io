@@ -21,7 +21,9 @@ OPERATIONS
     saw; a writer that finds neither ``expect`` nor ``set`` in place stops
     (someone else changed the row since the plan).
 ``{"op": "upsert", "table": T, "row": {...}}``
-    put the whole row back (restore only).
+    put the whole row back (restore only) — or, for a bag row created
+    since the snapshot on an owner the snapshot had, its key and an empty
+    bag (``EMPTY_BAGS``).
 ``{"op": "copy_object", "bucket": B, "from_path", "from_org", "to_path",
   "to_org", "document_id", "content_type", "expect_sha256"}``
     copy a storage object to another org's prefix. No row effect; the old
@@ -228,6 +230,61 @@ def apply_ops(tables: Mapping[str, List[Mapping[str, Any]]], ops: Sequence[Mappi
 
 # ── restore ────────────────────────────────────────────────────────────
 
+#: Key/value bags whose row the app reads the same whether it is absent or
+#: its bag is empty (frontend/lib/prefs.ts hydrateOrgPrefs: no org_prefs
+#: row -> ``{}``). ``table: (bag column, owner table, owner column)``. A row
+#: holding nothing but an empty bag EQUALS no row — which is what lets a
+#: restore undo a row the migration CREATED without deleting it.
+EMPTY_BAGS: Dict[str, Tuple[str, str, str]] = {
+    "org_prefs": ("prefs", "organizations", "org_id"),
+}
+
+
+def is_empty_bag(table: str, row: Mapping[str, Any], pk: Sequence[str]) -> bool:
+    """``row`` of an ``EMPTY_BAGS`` table carries nothing (its bag is
+    ``{}`` / NULL and every other non-key column is NULL)."""
+    spec = EMPTY_BAGS.get(table)
+    if spec is None:
+        return False
+    for col, val in row.items():
+        if col in pk or col in VOLATILE_COLUMNS:
+            continue
+        if col == spec[0]:
+            if val not in (None, {}):
+                return False
+        elif val is not None:
+            return False
+    return True
+
+
+def stamped_bags(snapshot: Mapping[str, List[Mapping[str, Any]]],
+                 current: Mapping[str, List[Mapping[str, Any]]], *,
+                 pks: Optional[Mapping[str, Sequence[str]]] = None,
+                 tables: Optional[Iterable[str]] = None) -> List[Tuple[str, Dict[str, Any], List[str]]]:
+    """(table, key, bag keys) of every bag row CREATED since the snapshot
+    for an owner the snapshot already had (a workspace that existed before
+    the migration) that still carries something. The migration's identity
+    stamp (``org_prefs.prefs = {cui, company_name, identity_sources}``) on
+    a pre-existing workspace is exactly this — and rule 1 of the next plan
+    reads it before anything else, so a rollback that leaves it brings the
+    identity it was rolled back for straight back."""
+    names = list(tables) if tables is not None else sorted(snapshot)
+    out: List[Tuple[str, Dict[str, Any], List[str]]] = []
+    for t in names:
+        spec = EMPTY_BAGS.get(t)
+        if spec is None:
+            continue
+        bag, owner_table, owner_col = spec
+        owners = {str(r.get("id")) for r in snapshot.get(owner_table) or []}
+        pk = pk_for(t, pks)
+        snap = index_rows(snapshot.get(t) or [], pk)
+        for r in sorted_rows(current.get(t) or [], pk):
+            if row_key(r, pk) in snap or str(r.get(owner_col)) not in owners or is_empty_bag(t, r, pk):
+                continue
+            out.append((t, key_dict(r, pk), sorted((r.get(bag) or {}).keys())))
+    return out
+
+
 def restore_diff(snapshot: Mapping[str, List[Mapping[str, Any]]],
                  current: Mapping[str, List[Mapping[str, Any]]], *,
                  pks: Optional[Mapping[str, Sequence[str]]] = None,
@@ -235,7 +292,8 @@ def restore_diff(snapshot: Mapping[str, List[Mapping[str, Any]]],
     """Per table: rows whose current state differs from the snapshot
     (``changed`` — with the differing columns), rows the snapshot has and
     production lost (``missing``), rows production has that the snapshot
-    does not (``created``)."""
+    does not (``created``). A row of an ``EMPTY_BAGS`` table that carries
+    nothing equals an absent row, on either side."""
     names = list(tables) if tables is not None else sorted(snapshot)
     out: Dict[str, Dict[str, Any]] = {}
     for t in names:
@@ -251,8 +309,10 @@ def restore_diff(snapshot: Mapping[str, List[Mapping[str, Any]]],
                            and canonical_json(srow.get(c)) != canonical_json(crow.get(c))})
             changed.append({"key": key_dict(srow, pk), "columns": {
                 c: {"now": crow.get(c), "snapshot": srow.get(c)} for c in cols}})
-        missing = [key_dict(snap[k], pk) for k in sorted(snap) if k not in cur]
-        created = [key_dict(cur[k], pk) for k in sorted(cur) if k not in snap]
+        missing = [key_dict(snap[k], pk) for k in sorted(snap)
+                   if k not in cur and not is_empty_bag(t, snap[k], pk)]
+        created = [key_dict(cur[k], pk) for k in sorted(cur)
+                   if k not in snap and not is_empty_bag(t, cur[k], pk)]
         out[t] = {"changed": changed, "missing": missing, "created": created}
     return out
 
@@ -276,7 +336,14 @@ def restore_ops(snapshot: Mapping[str, List[Mapping[str, Any]]],
     (a period erased by ON DELETE CASCADE with its source) is put back with
     ``period_id`` NULL, the periods are put back (their source documents
     now exist), and only then is each such ``period_id`` set — every
-    statement satisfies both immediate foreign keys."""
+    statement satisfies both immediate foreign keys.
+
+    A bag row (``EMPTY_BAGS``) created since the snapshot for an owner the
+    snapshot already had is put back to its empty bag — never deleted:
+    an empty bag is what the app reads for no row at all. The one the
+    migration writes is the identity stamp on a pre-existing workspace, and
+    leaving it made the next plan decide that workspace's company from the
+    very stamp the rollback was meant to undo (verifier, 2026-09-21)."""
     names = list(tables) if tables is not None else sorted(snapshot)
     ordered = [t for t in TABLE_ORDER if t in names] + sorted(t for t in names if t not in TABLE_ORDER)
     diff = restore_diff(snapshot, current, pks=pks, tables=ordered)
@@ -300,8 +367,15 @@ def restore_ops(snapshot: Mapping[str, List[Mapping[str, Any]]],
         if t == "financial_periods" or (t == "documents" and "financial_periods" not in ordered):
             ops.extend(relink)
             relink = []
+        bag = EMPTY_BAGS.get(t)
+        owners = {str(r.get("id")) for r in snapshot.get(bag[1]) or []} if bag else set()
         for key in diff[t]["created"]:
             row = cur[row_key(key, pk)]
+            if bag and str(row.get(bag[2])) in owners:
+                ops.append({"op": "upsert", "table": t, "row": dict(key_dict(row, pk), **{bag[0]: {}})})
+                notes.append("%s %s created after the snapshot for a pre-existing %s: emptied (%s)"
+                             % (t, canonical_json(key), bag[2], ", ".join(sorted((row.get(bag[0]) or {}).keys()))))
+                continue
             rule = ARCHIVE_CREATED.get(t)
             if rule is None:
                 notes.append("%s %s created after the snapshot: no archive column, left in place"

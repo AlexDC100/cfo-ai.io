@@ -7,7 +7,8 @@ WHAT THESE RED ON, with the module correct (TC-11):
   * a customer's name in an analytic account row read as the book's owner;
   * a company KEY minted from a filename alone;
   * the filename overriding a period the document states;
-  * a registry name match on an ambiguous or unsure lookup;
+  * a registry name match on an ambiguous or unsure lookup, or on a
+    registered company with no filing;
   * an operator rule overriding a CUI the document prints.
 """
 from __future__ import annotations
@@ -273,6 +274,72 @@ def test_a_punctuation_variant_of_the_registered_name_is_found(tmp_path):
         _company(st, valid_cui("3881501"), "ROM AGRA FOODS S.R.L.", "4623")
         hit = registry_match_name(st, "Agras Food Factory SRL")
         assert hit is not None and hit[0] == cui and hit[1]["name"] == "AGRA`S FOOD FACTORY S.R.L."
+    finally:
+        st.close()
+
+
+def _namesakes(tmp_path, *, bare_files=False, bare_publishable=False):
+    """The real shape of the brand word "Carniprod" (six registered
+    companies carry it; the one whose normalized name is the bare word has
+    no filing and is not publishable), with invented names and CUIs."""
+    st = PublicRoStore(tmp_path / "public_ro.db")
+    bare = valid_cui("4700001")
+    st.set_identification(int(bare), name="CARNEX SRL", county="SB", locality="Sibiu", reg_number="J32/9/1993",
+                          tip_contrib="PJ", publishable=bare_publishable, name_source="test")
+    st.ensure_company_stub(int(bare), None)
+    if bare_files:
+        st.upsert_filing(cui=int(bare), year=2024, family="UU", dataset_id="ds-test", indicators={},
+                         total_assets=1, net_result=1, caen="1013")
+    for i, name in enumerate(("C.A.R. CARNEX", "SUPER CARNEX S.R.L.", "CARNEX CLASS S.R.L.")):
+        c = valid_cui(str(2400001 + i))
+        st.set_identification(int(c), name=name, county="SB", locality="Sibiu", reg_number="J32/1/2000",
+                              tip_contrib="PJ", publishable=False, name_source="test")
+        st.ensure_company_stub(int(c), None)
+    _company(st, valid_cui("3200001"), "MIXT REAL CARNEX SRL", "4772")
+    return st, bare
+
+
+def test_a_sheet_named_like_a_registered_company_with_no_filing_mints_no_cui(tmp_path):
+    """Verifier finding (2026-09-21, idplan/p10_realstore.py on a real
+    PublicRoStore): the sheet "Carniprod" of the owner's book resolved to
+    CARNIPROD SRL 4705349 — not publishable, no filing, and not the book's
+    company by the operator's own filing check (b36b75ce: "no MF filing
+    matches") — because the name index covers every registered name, and
+    the plan wrote that stranger's CUI into the org_prefs of workspace
+    4ceeac4d (user c8a7883b, whom the owner's name-only rule does not
+    reach). A registered namesake that files nothing is a hint, never an
+    identity — unless the document prints its CUI."""
+    st, bare = _namesakes(tmp_path)
+    try:
+        assert [r for r in st.search_companies("Carnex", limit=100) if str(r["cui"]) == bare] == []
+        assert registry_match_name(st, "Carnex") is None
+        ident = identify_document(balance_xlsx([], sheet="Carnex"), "Carnex Trial Balance 2025.xlsx", registry=st)
+        assert ident.cui is None and ident.company_key == "name:CARNEX"
+        assert ident.company_name == "Carnex" and ident.sources["company_name"]["signal"] == "sheet_name"
+        assert ident.sources["cui_hint"]["cui"] == bare
+        assert ident.sources["cui_hint"]["signal"] == "registry_name_match"
+        assert "no filing" in ident.sources["cui_hint"]["evidence"]
+        # publishable says nothing about filing: a thin row is refused the
+        # same way (the public pages refuse it too: "no filings (thin row)")
+        st.set_identification(int(bare), name="CARNEX SRL", county="SB", locality="Sibiu",
+                              reg_number="J32/9/1993", tip_contrib="PJ", publishable=True, name_source="test")
+        assert registry_match_name(st, "Carnex") is None
+        # the document printing the CUI's digits corroborates the name
+        ident = identify_document(balance_xlsx(["Balanta de verificare", "RO%s" % bare], sheet="Carnex"),
+                                  "b.xlsx", registry=st)
+        assert ident.cui == bare and ident.sources["cui"]["signal"] == "registry_name_match"
+    finally:
+        st.close()
+
+
+def test_the_same_namesake_with_filings_is_matched(tmp_path):
+    """The gate is the filing, not the name: the bare-name company that
+    files is exactly one registered company that files — matched."""
+    st, bare = _namesakes(tmp_path, bare_files=True, bare_publishable=True)
+    try:
+        assert registry_match_name(st, "Carnex")[0] == bare
+        ident = identify_document(balance_xlsx([], sheet="Carnex"), "c.xlsx", registry=st)
+        assert ident.cui == bare and ident.company_name == "CARNEX SRL"
     finally:
         st.close()
 

@@ -28,6 +28,8 @@ from engine.workspaces.migration_plan import (
     build_plan,
     cross_workspace_links,
     empty_live_periods,
+    hidden_conversations,
+    render_report,
     holding_org_id,
     new_org_id,
     period_source_hazards,
@@ -35,9 +37,11 @@ from engine.workspaces.migration_plan import (
 from engine.workspaces.rowstore import (
     apply_ops,
     pk_for,
+    restore_diff,
     restore_ops,
     row_key,
     rows_equal,
+    stamped_bags,
 )
 
 from ws_migration_fixture import (
@@ -113,15 +117,62 @@ def test_workspaces_created_per_company_with_prefs(world):
     assert sf["cui"] == ALFA and sf["display_currency"] == "RON"
 
 
-def test_the_qa_workspace_is_split_and_archived(world):
-    post = world["post"]
+def test_the_qa_workspace_is_split_and_stays_live_for_the_owners_conversations(world):
+    """Verifier finding (2026-09-21; real snapshot: thread 99dbaf2b, 7
+    messages, in the owner's Q&A workspace 98c06428): the plan archived Q&A
+    as a HELD archive while it still held the owner's chat history. The hub
+    hides a held archive and chatRemote.ts lists only the active
+    workspace's threads, so the conversation became unreachable — and the
+    plan and report never mentioned it. This test used to assert exactly
+    that ("archived with the workspace"). Chat history is live content
+    (rule 7): Q&A is split, keeps no book, and stays live; the conversation
+    stays where it is and is listed in the plan."""
+    post, plan = world["post"], world["plan"]
     qa = _row(post, "organizations", id="org-qa")
-    assert qa["archived_at"] == RUN and qa["purge_after"] is None
+    assert qa["archived_at"] is None
     live_in_qa = [d for d in post["documents"] if d["org_id"] == "org-qa" and d["deleted_at"] is None]
     assert live_in_qa == []
+    assert _row(post, "user_prefs", user_id=OWNER)["active_org_id"] == "org-qa"
+    ws = next(w for w in plan.workspaces if w["org_id"] == "org-qa")
+    assert ws["action"] == "keep" and ws["company"] is None
+    ct = _row(post, "chat_threads", id="ct-1")
+    assert ct["org_id"] == "org-qa" and ct["active_period_label"] == "Dec 2025"
+    # its grounding named per-q25, archived into the holding workspace: the
+    # reference is cleared rather than left pointing there (rule 8)
+    assert _row(post, "financial_periods", id="per-q25")["org_id"] == holding_org_id(OWNER)
+    assert ct["active_period_id"] is None
+    chat = next(c for c in plan.chats if c["id"] == "ct-1")
+    assert chat["workspace_after"] == "live" and chat["grounding"].startswith("cleared: period per-q25")
+    assert any("ct-1" in w and "conversation" in w for w in plan.warnings)
+    report = render_report(plan)
+    assert "conversations (never moved or archived)" in report and "ct-1" in report
+    assert hidden_conversations(world["tables"], post) == [] and plan.blocking == []
+
+
+def test_without_conversations_the_split_qa_workspace_is_archived():
+    """The same world with no chat history: rule 7 archives the split Q&A
+    workspace (held) and nobody is left sitting in it."""
+    tables, storage, rules = build_world()
+    tables["chat_threads"] = []
+    plan = build_plan(tables, facts_for(tables, storage, rules), migration_date=DATE)
+    post = apply_ops(tables, plan.ops, now=RUN)
+    qa = _row(post, "organizations", id="org-qa")
+    assert qa["archived_at"] == RUN and qa["purge_after"] is None
     assert _row(post, "user_prefs", user_id=OWNER)["active_org_id"] is None
-    # the user's chat thread stays where it was (archived with the workspace)
-    assert _row(post, "chat_threads", id="ct-1")["org_id"] == "org-qa"
+    assert plan.chats == [] and plan.blocking == []
+
+
+def test_a_conversation_is_never_left_in_an_archived_workspace(world):
+    """The planner's own post-state gate (rule 7): a conversation its user
+    could open, in a workspace the plan archives, blocks the plan. PLANT:
+    the post-state with Q&A archived — what the planner used to produce."""
+    pre, post = world["tables"], world["post"]
+    planted = copy.deepcopy(post)
+    _row(planted, "organizations", id="org-qa")["archived_at"] = RUN
+    assert hidden_conversations(pre, planted) == ["chat_threads ct-1 ('q') in org-qa"]
+    # a thread whose user is not a member was never reachable: not counted
+    _row(planted, "chat_threads", id="ct-1")["user_id"] = SOLO_USER
+    assert hidden_conversations(pre, planted) == []
 
 
 def test_the_2025_book_filed_under_2017_is_re_dated_and_its_hint_corrected(world):
@@ -235,6 +286,11 @@ def test_one_company_per_live_workspace_and_one_live_document_per_company_month(
     for d in post["documents"]:
         if d["org_id"] not in owner_orgs or d["org_id"] not in _live_orgs(post):
             continue
+        if d["org_id"] not in prefs:
+            # a company-less workspace kept live (its owner's conversations)
+            # holds no live book at all
+            assert d["deleted_at"] is not None or d.get("scope") != "financial", d["id"]
+            continue
         ident = facts[d["id"]].identity if d["id"] in facts else None
         key = ident.company_key if ident else None
         want = ("cui:" + prefs[d["org_id"]]["cui"]) if prefs[d["org_id"]].get("cui") else \
@@ -278,7 +334,7 @@ def test_the_current_month_placeholder_stays_and_an_extra_one_is_archived_when_t
                       keep_current_month_placeholder=True).ops == []
     assert _row(post, "financial_periods", id="per-sf-empty")["org_id"] == "org-sf"
     assert _decision(plan, "periods", "per-sf-empty")["action"] == "untouched"
-    assert _row(post, "financial_periods", id="per-qa-empty-a")["org_id"] == "org-qa"      # archived with Q&A
+    assert _row(post, "financial_periods", id="per-qa-empty-a")["org_id"] == "org-qa"      # Q&A's placeholder
     assert _decision(plan, "periods", "per-qa-empty-b")["reason"] == \
         "empty: extra current-month placeholder (per-qa-empty-a kept)"
     assert _row(post, "financial_periods", id="per-qa-empty-b")["org_id"] == holding_org_id(OWNER)
@@ -371,6 +427,10 @@ def test_no_document_or_row_points_into_another_workspace(world):
     _row(planted, "documents", id="d-delta-1")["period_id"] = "per-sf25"
     _row(planted, "briefings", id="br-1")["org_id"] = "org-qa"
     assert len(cross_workspace_links(planted)) == 2
+    # a conversation's grounding (TEXT, no foreign key) is a link too: the
+    # thread left pointing at its period after the period moved
+    _row(planted, "chat_threads", id="ct-1")["active_period_id"] = "per-q25"
+    assert "chat_threads ct-1.active_period_id -> period per-q25" in cross_workspace_links(planted)
 
 
 def test_the_plan_of_the_post_state_is_empty(world):
@@ -400,6 +460,94 @@ def test_g8_restore_on_the_post_state_reproduces_the_pre_state(world):
     assert any("memberships" in n for n in notes) and any("org_prefs" in n for n in notes)
 
 
+def test_a_rollback_leaves_no_identity_stamp_on_a_workspace_that_existed_before(world):
+    """Verifier finding (2026-09-21, dsl/p_prefs_residue.py on the real
+    snapshot): the migration CREATES an org_prefs row on a pre-existing
+    workspace that had none (merge_prefs), and the restore left it in place
+    as "inert". It is not: rule 1 reads org_prefs before anything else, so
+    after a rollback done BECAUSE an identity was wrong, the next plan took
+    that workspace's company from the wrong stamp ('org_prefs') instead of
+    from its books. The restore puts it back to the empty bag — what the
+    app reads for no row — and the next plan decides every pre-existing
+    workspace exactly as it did on the true pre-state."""
+    pre, post = world["tables"], world["post"]
+    assert "org-solo" not in {p["org_id"] for p in pre["org_prefs"]}
+    assert _row(post, "org_prefs", org_id="org-solo")["prefs"]["cui"] == SOLO    # the stamp exists
+    ops, _notes = restore_ops(pre, post)
+    restored = apply_ops(post, ops, now="2026-09-22T00:00:00+00:00")
+    assert _row(restored, "org_prefs", org_id="org-solo")["prefs"] == {}
+    assert stamped_bags(pre, restored) == []
+    assert stamped_bags(pre, post) == [("org_prefs", {"org_id": "org-solo"},
+                                        ["company_name", "cui", "identity_sources"])]
+    # an empty bag IS no row: nothing differs, nothing is "created" for it
+    diff = restore_diff(pre, restored)["org_prefs"]
+    pre_orgs = {o["id"] for o in pre["organizations"]}
+    assert diff["changed"] == [] and diff["missing"] == []
+    assert diff["created"] and all(k["org_id"] not in pre_orgs for k in diff["created"])
+
+    def decided(tables):
+        plan = build_plan(tables, world["facts"], migration_date=DATE)
+        return {w["org_id"]: (w["company"], w["company_source"]) for w in plan.workspaces
+                if w["org_id"] in pre_orgs}
+
+    assert decided(restored) == decided(pre)
+    assert decided(pre)["org-solo"] == ("cui:" + SOLO, "period sources 1/1")
+
+
+def _rolled_back(world):
+    pre, post = world["tables"], world["post"]
+    ops, _notes = restore_ops(pre, post)
+    return apply_ops(post, ops, now="2026-09-22T00:00:00+00:00")
+
+
+def test_a_run_after_a_rollback_brings_back_the_workspaces_the_first_run_created(world):
+    """Found while repairing (wsmig_repair3/r4_rerun_after_rollback.py): the
+    recovery path is migrate -> db_restore -> migrate again. The restore
+    archives (held) every workspace the first run created; the second run
+    derives the SAME ids (uuid5(user, company)), and its 'insert
+    organizations' was a no-op on the archived row — so every surviving
+    period moved into a workspace nobody can see, and neither the plan nor
+    the recount noticed (real snapshot: EEI 57c577ac and Carniprod
+    1dd6da8d). The second plan un-archives them, and ends where the first
+    run ended."""
+    restored = _rolled_back(world)
+    again = build_plan(restored, world["facts"], migration_date=DATE)
+    assert again.blocking == []
+    unarchived = {w["org_id"] for w in again.workspaces if w["action"] == "unarchive"}
+    assert unarchived == {new_org_id(OWNER, k) for k in ("cui:" + BETA, "cui:" + GAMMA, "cui:" + DELTA,
+                                                         "name:CARNEX")}
+    assert not [op for op in again.ops if op["op"] == "insert" and op["table"] == "organizations"
+                and op["row"]["id"] in unarchived]
+    post2 = apply_ops(restored, again.ops, now="2026-09-22T09:00:00+00:00")
+    orgs2 = {o["id"]: o for o in post2["organizations"]}
+    for pr in world["plan"].periods:
+        if pr["action"] == "keep":
+            org = orgs2[_row(post2, "financial_periods", id=pr["id"])["org_id"]]
+            assert org["archived_at"] is None, (pr["id"], org["id"])
+    # the same placement as the first run, and nothing left to do
+    for table in ("financial_periods", "documents"):
+        first = {r["id"]: r["org_id"] for r in world["post"][table]}
+        assert {r["id"]: r["org_id"] for r in post2[table]} == first, table
+    assert {o["id"] for o in world["post"]["organizations"] if not o["archived_at"]} == \
+        {o["id"] for o in post2["organizations"] if not o["archived_at"]}
+    assert build_plan(post2, world["facts"], migration_date=DATE).ops == []
+
+
+def test_a_workspace_its_owner_deleted_is_never_resurrected(world):
+    """A created workspace the OWNER deleted after the first run (archived
+    with a purge date — the hub's "Recently deleted" shelf) is not brought
+    back by a later run: the plan is blocking, and its own post-state gate
+    names every kept period that would land in an archived workspace."""
+    restored = copy.deepcopy(_rolled_back(world))
+    beta = new_org_id(OWNER, "cui:" + BETA)
+    _row(restored, "organizations", id=beta)["purge_after"] = "2026-10-22T00:00:00+00:00"
+    again = build_plan(restored, world["facts"], migration_date=DATE)
+    assert any(b.startswith("workspace %s for cui:%s already exists" % (beta, BETA)) and "deleted by its owner" in b
+               for b in again.blocking), again.blocking
+    assert any(b == "period per-beta is kept but would end in archived workspace %s" % beta
+               for b in again.blocking), again.blocking
+
+
 def test_nothing_is_hard_deleted_and_billing_is_never_written(world):
     pre, post, plan = world["tables"], world["post"], world["plan"]
     for table, rows in pre.items():
@@ -408,7 +556,11 @@ def test_nothing_is_hard_deleted_and_billing_is_never_written(world):
         assert all(row_key(r, pk) in have for r in rows), table
     assert {op["op"] for op in plan.ops} <= {"insert", "merge_prefs", "update", "copy_object"}
     touched = {op.get("table") for op in plan.ops}
-    assert not touched & {"subscriptions", "user_usage", "billing_events", "chat_threads", "chat_messages"}
+    assert not touched & {"subscriptions", "user_usage", "billing_events", "chat_messages"}
+    # a conversation is never moved: its only write is a grounding cleared (rule 8)
+    chat_ops = [op for op in plan.ops if op.get("table") == "chat_threads"]
+    assert chat_ops and all(op["op"] == "update" and op["set"] == {"active_period_id": None}
+                            for op in chat_ops), chat_ops
     for table in ("subscriptions", "user_usage", "billing_events"):
         assert post[table] == pre[table]
 
@@ -581,6 +733,51 @@ def test_an_operator_rule_never_reaches_another_users_copy_of_the_bytes():
     assert _decision(plan, "periods", "pb")["action"] == "unplaced"
     # the same user's unreadable copy still inherits (it is the same file)
     assert _decision(plan, "documents", "c1")["company"] == "cui:" + ALFA
+
+
+def test_another_users_copy_of_a_sheet_named_book_gets_no_strangers_cui(tmp_path):
+    """Verifier finding (2026-09-21, idplan/p11_realstore_plan.py: the real
+    snapshot through a real PublicRoStore): user c8a7883b's copy of the
+    Carniprod book (the owner's name-only rule is scoped to the owner, by
+    design) was identified from its sheet name as CARNIPROD SRL 4705349 —
+    a namesake with no filing — and the plan wrote merge_prefs on
+    workspace 4ceeac4d with {cui 4705349, company_name 'CARNIPROD SRL',
+    signal registry_name_match}. Through a real registry store, the other
+    user's workspace is now keyed by the book's own name, with no CUI."""
+    from engine.public_ro.store import PublicRoStore
+    from engine.workspaces.migration_plan import facts_from_documents
+    from ws_migration_fixture import balance_xlsx, valid_cui
+
+    st = PublicRoStore(tmp_path / "public_ro.db")
+    bare = valid_cui("4700001")
+    try:
+        st.set_identification(int(bare), name="CARNEX SRL", county="SB", locality="Sibiu",
+                              reg_number="J32/9/1993", tip_contrib="PJ", publishable=False, name_source="test")
+        st.ensure_company_stub(int(bare), None)
+        blob = balance_xlsx([], sheet="Carnex", seed=9)
+        members = [{"org_id": "org-u", "user_id": "u", "role": "owner"},
+                   {"org_id": "org-v", "user_id": "v", "role": "owner"}]
+        docs = [dict(_doc("u1", "org-u", period="pu"), original_filename="Carnex Trial Balance 2025.xlsx"),
+                dict(_doc("v1", "org-v", period="pv"), original_filename="Carnex Trial Balance 2025.xlsx")]
+        t = _mini(docs, [{"id": "pu", "org_id": "org-u", "period_start": "2025-12-31", "period_end": "2025-12-31",
+                          "source_document_id": "u1"},
+                         {"id": "pv", "org_id": "org-v", "period_start": "2025-12-31", "period_end": "2025-12-31",
+                          "source_document_id": "v1"}],
+                  metrics=[("pu", "org-u"), ("pv", "org-v")], orgs=("org-u", "org-v"), members=members)
+        rules = [{"user_id": "u", "filename_glob": "Carnex Trial Balance*", "cui": None, "company_name": "Carnex",
+                  "evidence": "u's private ruling: no filing matches"}]
+        facts = facts_from_documents(t, lambda d: (blob, True, None), registry=st, rules=rules)
+        assert facts["v1"].identity.cui is None and facts["v1"].identity.company_key == "name:CARNEX"
+        assert facts["v1"].identity.sources["cui_hint"]["cui"] == bare
+        plan = build_plan(t, facts, migration_date=DATE)
+        stamps = {op["key"]["org_id"]: op["merge"] for op in plan.ops if op["op"] == "merge_prefs"}
+        assert stamps["org-v"]["cui"] is None and stamps["org-v"]["company_name"] == "Carnex"
+        assert bare not in repr(plan.ops)
+        assert "u's private ruling" not in repr(stamps["org-v"])
+        ws = {w["org_id"]: w["company"] for w in plan.workspaces}
+        assert ws["org-v"] == ws["org-u"] == "name:CARNEX"
+    finally:
+        st.close()
 
 
 def test_a_created_workspace_carries_the_industry_its_caen_maps_to():
