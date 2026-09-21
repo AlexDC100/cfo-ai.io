@@ -5839,7 +5839,7 @@ def build_router() -> APIRouter:
         # (its pipeline_started_at) under the same lock, so a racing twin
         # finds it running and is the one archived.
         entry = _enter_run(doc, user_id)
-        if entry.kind in (_doc_dedupe.DUPLICATE, _doc_dedupe.DONE):
+        if entry.kind in (_doc_dedupe.DUPLICATE, _doc_dedupe.DONE, _doc_dedupe.DELETED):
             # A confirmed extra for a document that will not run as a first
             # analysis goes back now, unbilled (verifier P-B).
             from . import _usage_gate as _ug_grant
@@ -5848,6 +5848,11 @@ def build_router() -> APIRouter:
             return RunResponse(document_id=req.document_id, status="duplicate",
                                existing_document_id=entry.hit.existing_document_id if entry.hit else None,
                                period_id=entry.hit.period_id if entry.hit else None)
+        if entry.kind == _doc_dedupe.DELETED:
+            raise HTTPException(409, {
+                "code": "document_deleted",
+                "message": "This document was deleted. Restore it before analysing it.",
+            })
         if entry.kind != _doc_dedupe.CLAIMED:
             # ONE RUN PER DOCUMENT (2026-09-21). This document already has its
             # run (in flight in this process) or its analysis: nothing is
@@ -7377,6 +7382,11 @@ def build_router() -> APIRouter:
         # time: two daemon threads on one document is never a re-run.
         entry = _doc_dedupe.enter_analysis(doc, _user_id_from_jwt(jwt),
                                            now_iso=_now_iso(), mode=_doc_dedupe.RERUN)
+        if entry.kind == _doc_dedupe.DELETED:
+            raise HTTPException(409, {
+                "code": "document_deleted",
+                "message": "This document was deleted. Restore it before re-running it.",
+            })
         if entry.kind == _doc_dedupe.DUPLICATE:
             return RunResponse(document_id=req.document_id, status="duplicate",
                                existing_document_id=entry.hit.existing_document_id if entry.hit else None,

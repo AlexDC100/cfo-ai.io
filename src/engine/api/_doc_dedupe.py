@@ -529,6 +529,8 @@ DUPLICATE = "duplicate"
 BUSY = "busy"
 #: A first analysis asked for a document that is already analysed.
 DONE = "done"
+#: The document is deleted (a user's soft delete): no entry analyses it.
+DELETED = "deleted"
 
 
 @dataclass(frozen=True)
@@ -568,6 +570,22 @@ def _fresh_row(document_id: str, org_id: str) -> Optional[Dict[str, Any]]:
     return dict(rows[0]) if rows else None
 
 
+def _hit_for_marker(original_id: str, org_id: str) -> DuplicateHit:
+    """The hit an archived duplicate's own marker names — read back so the
+    answer links to where the original's analysis lives."""
+    try:
+        with _supabase.admin() as ac:
+            rows = ac.select("documents", filters={
+                "id": f"eq.{original_id}", "org_id": f"eq.{org_id}",
+            }, single=True) or []
+    except Exception:  # noqa: BLE001 — the marker alone still refuses
+        rows = []
+    if rows:
+        return _hit(rows[0])
+    return DuplicateHit(existing_document_id=str(original_id), period_id=None,
+                        original_filename=None, status="")
+
+
 def enter_analysis(doc: Dict[str, Any], caller_id: str, *, now_iso: str, mode: str,
                    hasher: Callable[[Dict[str, Any]], Optional[str]] = hash_stored_object,
                    ) -> Entry:
@@ -586,7 +604,13 @@ def enter_analysis(doc: Dict[str, Any], caller_id: str, *, now_iso: str, mode: s
 
     Only a CLAIMED entry may reserve and enqueue. Every other outcome
     reserves nothing — which is what makes /run on the same id twice (the
-    failed-banner Retry of a run the server did start) count once."""
+    failed-banner Retry of a run the server did start) count once.
+
+    A DELETED row is refused FIRST, before any reservation and before any
+    write (verifier P-F): an archived duplicate answers DUPLICATE with the
+    original its marker names — its marker is never erased and it is never
+    re-run, whatever this process remembers (`_ARCHIVED_HERE` is emptied by
+    every restart) — and a user's soft delete answers DELETED."""
     doc_id = str(doc.get("id") or "")
     org_id = str(doc.get("org_id") or "")
     account = str(caller_id or "")
@@ -596,15 +620,19 @@ def enter_analysis(doc: Dict[str, Any], caller_id: str, *, now_iso: str, mode: s
         row = _fresh_row(doc_id, org_id) or dict(doc)
         if h and not row.get("content_hash"):
             row["content_hash"] = h
+        if row.get("deleted_at"):
+            original = duplicate_of(row.get("error"))
+            if original:
+                return Entry(DUPLICATE, row, hit=_hit_for_marker(original, org_id))
+            return Entry(DELETED, row)
         if in_flight(doc_id):
             return Entry(BUSY, row)
         status = str(row.get("status") or "").lower()
-        if mode == FIRST and status == "analyzed" and not row.get("deleted_at"):
+        if mode == FIRST and status == "analyzed":
             return Entry(DONE, row)
-        if mode == RECOVER and (status != "queued" or row.get("pipeline_started_at")
-                                or row.get("deleted_at")):
+        if mode == RECOVER and (status != "queued" or row.get("pipeline_started_at")):
             return Entry(BUSY, row)
-        if h and not row.get("deleted_at"):
+        if h:
             hit = find_live_original(org_id=org_id, user_id=account, content_hash=h,
                                      hint=row.get("period_end_hint"), self_row=row)
             if hit is not None:

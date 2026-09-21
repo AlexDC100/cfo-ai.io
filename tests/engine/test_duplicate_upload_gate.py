@@ -499,6 +499,40 @@ def test_a_recovery_refused_by_the_meter_gives_its_claim_back(world):
         {"duplicate": False}
 
 
+# ── An archived duplicate stays archived (verifier P-F, 2026-09-21) ──────
+
+
+@pytest.mark.parametrize("route", ["/api/pipeline/run", "/api/pipeline/retry"])
+def test_an_archived_duplicate_is_never_run_even_after_a_restart(world, monkeypatch, route):
+    """The only guard used to be this process's memory (`_ARCHIVED_HERE`),
+    emptied by every restart or deploy — and the re-run's
+    `_admin_set_status('queued')` erased the `duplicate_of:` marker."""
+    db = world["db"]
+    db.rows("documents").extend([
+        _doc("orig", status="analyzed", period_id=PERIOD, created="2026-09-20T12:00:12+00:00"),
+        _doc("copy", created="2026-09-21T13:05:58+00:00"),
+    ])
+    assert world["post"]("/api/pipeline/run", {"document_id": "copy"}).json()["status"] == "duplicate"
+    monkeypatch.setattr(_doc_dedupe, "_ARCHIVED_HERE", set())  # the engine restarted
+    world["meter"].calls.clear()
+    r = world["post"](route, {"document_id": "copy"})
+    assert r.status_code == 202, r.text
+    assert r.json() == {"document_id": "copy", "status": "duplicate",
+                        "existing_document_id": "orig", "period_id": PERIOD}
+    assert world["enqueued"] == [] and world["meter"].calls == []
+    row = _row(world, "copy")
+    assert _doc_dedupe.duplicate_of(row["error"]) == "orig" and row["deleted_at"], row
+
+
+@pytest.mark.parametrize("route", ["/api/pipeline/run", "/api/pipeline/retry"])
+def test_a_deleted_document_is_not_analysed(world, route):
+    world["db"].rows("documents").append(_doc("gone", status="failed", deleted="2026-09-21T10:00:00+00:00"))
+    r = world["post"](route, {"document_id": "gone"})
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "document_deleted", r.text
+    assert world["enqueued"] == [] and world["meter"].calls == []
+    assert _row(world, "gone")["status"] == "failed"
+
+
 # ── One confirmation, one document (verifier P-B, 2026-09-21) ────────────
 
 
