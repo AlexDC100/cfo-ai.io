@@ -198,6 +198,17 @@ export class WorkspaceDouble {
       },
       { key: STORAGE_KEY, session: sessionBlob(), theme: opts.theme, language: opts.language, org: ORG_SCANDIA },
     );
+    // Nothing leaves the machine — enforced, not left to DNS: a request to
+    // any host that is neither the local bundle nor one of the two doubled
+    // hosts is aborted and recorded (each spec prints `unhandled`).
+    await page.route(
+      (url) => !["127.0.0.1", "localhost", SUPABASE_HOST, ENGINE_HOST].includes(url.hostname),
+      (route) => {
+        const u = new URL(route.request().url());
+        this.unhandled.push(`EXTERNAL ${route.request().method()} ${u.hostname}${u.pathname}`);
+        return route.abort();
+      },
+    );
     // The catch-all FIRST: Playwright matches the last-registered route first.
     await page.route(
       (url) => url.hostname === SUPABASE_HOST || url.hostname === ENGINE_HOST,
