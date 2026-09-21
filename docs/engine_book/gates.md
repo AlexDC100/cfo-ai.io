@@ -8071,3 +8071,60 @@ value; a convention painted as a quantity; an FY aggregate missing or not read
 as a served figure; a refused aggregate painted as a number; the TypeScript
 snapshot-id rule disagreeing with the engine's; a magnitude band with no source
 revenue behind it.
+
+## forecast-route — the blast-radius script through the loaded-rows cache (plan/2 B6 follow-up, 2026-09-21)
+
+| | |
+|---|---|
+| canaries | `test_the_blast_radius_script_serves_each_book_its_own_rows`, `test_the_blast_radius_script_is_not_served_a_key_another_caller_left_warm` |
+
+**The defect.** B6 (73e92182) put a loaded-rows cache in front of the route
+(`engine.api._forecast_history._CACHE`, keyed on org id, period id and
+`updated_at`). `scripts/measure_plan_blast_radius.py` files every book under
+the same three (`blast-radius-org`, `blast-radius-period`, the epoch), and its
+`_patched` never cleared the cache, so every book after the first in one
+process was served the first book's rows. From B6 until this repair, every
+table the script printed showed agras's plan for carniprod, realestate and
+retail. No gate saw it: `_call` in test_forecast_route.py clears the cache
+itself, and the script's own `--self-check` reads hand-built lines only.
+
+**Not affected: the committed tables.** Every per-book table in
+`forecast_blast_radius.md` predates the cache. The file was last changed at
+3bd52d26 (B5), and neither that tree nor any earlier one (50cc222 for the
+B4 repair round, 62b6f6f1 for B4b) has a row cache on the route path. The only
+other caches on that path are the pack caches in `engine/forecast`
+(`levers_pack`, `pools`), keyed on the pack, not on a book. After the repair,
+plan-year-one EBITDA deltas against B0 equal the B4b section's figures to the
+cent on all four books.
+
+**The repair.** `_patched` clears `_forecast_history` on entry and on exit.
+The ids are now module constants (`PERIOD_ID`, `ORG_ID`) so the second
+canary can warm the script's key the way another caller could.
+
+**PLANT / RED / REVERT.** Each plant was applied by exact replacement and
+reverted by byte copy (`cmp` clean). Amounts are elided below:
+
+```
+both clears removed (the parent's behaviour)
+  -> E  AssertionError: carniprod measured in one process after agras was served {...}, not its own {...}
+  -> E  AssertionError: carniprod was served the warm agras rows: {...}, not its own {...}
+     2 failed
+exit clear removed
+  -> E  AssertionError: the script left 1 warm key(s) for the next caller
+     1 failed, 1 passed
+entry clear removed
+  -> E  AssertionError: carniprod was served the warm agras rows: {...}, not its own {...}
+     1 failed, 1 passed
+```
+
+**RED (parent commit).** With the script at 708feb1e, the first canary reds
+with the collision above. The second one errors on the missing `PERIOD_ID`,
+because it needs the constants the repair adds.
+
+**After the repair it reds on:** the script's `_patched` not clearing the
+route's loaded-rows cache on entry or on exit. It also reds if the two books
+come to serve equal revenue, which would make the comparison vacuous (TC-3).
+
+**What it cannot see:** a future cache keyed on something other than the three
+ids the row server repeats, or a cache in a module other than
+`_forecast_history`.

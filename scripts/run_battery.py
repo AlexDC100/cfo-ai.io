@@ -365,7 +365,12 @@ def _engine_gates() -> List[Gate]:
                        "test_an_anonymous_call_is_refused",
                        "test_a_horizon_the_engine_does_not_offer_is_refused_by_name",
                        "test_no_projected_figure_carries_actual_provenance",
-                       "test_every_projected_line_names_a_driver_or_a_stated_convention")),
+                       "test_every_projected_line_names_a_driver_or_a_stated_convention",
+                       # plan/2 B6 follow-up: the blast-radius script clears
+                       # the route's loaded-rows cache around each GET, or
+                       # every book after the first is served the first's rows
+                       "test_the_blast_radius_script_serves_each_book_its_own_rows",
+                       "test_the_blast_radius_script_is_not_served_a_key_another_caller_left_warm")),
         # ── plan/2 B0 (plan_contract_v2 28.3): forecast gate wiring ──────
         # Existing, already-passing forecast suites that no named gate ran:
         # they rode the whole-suite `pytest` gate, where a collapse of one

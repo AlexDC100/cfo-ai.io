@@ -1004,3 +1004,21 @@ the floor for all 24 modelled months in every case. The owner ruling's
 "about 35.5M with the template's -5 percent opex" sits between the -15% and
 -20% volume rows; the Recession template itself is B10's, so its exact figure
 is B10's to print. -3.9M is not reachable from the measured split.
+
+## Measuring note (2026-09-21) — the script's cache collision, and why no table above is affected
+
+From B6 (73e92182), `scripts/measure_plan_blast_radius.py` served every book
+after the first in one process the FIRST book's rows. The route's
+loaded-rows cache (`engine.api._forecast_history`) is keyed on org id, period
+id and `updated_at`, and the script files every book under the same three.
+Any table it printed in that window shows agras's plan for carniprod,
+realestate and retail. `_patched` now clears the cache on entry and on exit.
+Two forecast-route canaries go red if it stops doing so (plant log in
+`gates.md`).
+
+Every table in this file predates the cache. The last change to this file is
+3bd52d26 (B5), and neither that tree nor any earlier one has a row cache on
+the route path. After the repair, each book's plan-year-one EBITDA delta
+against B0 equals the B4b section's figure to the cent, and revenue is
+unchanged on all four books. Anyone who kept script output from between B6
+and this repair should discard every book after the first in it.

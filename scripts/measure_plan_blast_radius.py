@@ -48,6 +48,13 @@ rebuild, engine, adapter, contract and boundary guard all run. The row
 server is not a store double and this script is not a gate: it serves
 fixed rows and answers every other table with no rows.
 
+The route's loaded-rows cache (``engine.api._forecast_history``, plan/2 B6)
+is keyed on the org id, the period id and ``updated_at``, and the row server
+gives EVERY book the same three. So ``_patched`` clears that cache on entry
+and on exit: without it, every book after the first in one process was
+served the first book's rows (from B6 until the repair, every table this
+script printed showed agras's plan for carniprod, realestate and retail).
+
 When a later batch changes the wire (fp1.2 at B6) the reader below takes
 the served summary fields when they exist; until then it derives the five
 values from the fp1 figures.
@@ -92,6 +99,10 @@ BOOKS = ("agras", "carniprod", "realestate", "retail")
 FIRM = REPO / "tests" / "engine" / "fixtures" / "firm"
 BASELINE = REPO / "tests" / "engine" / "fixtures" / "forecast" / "base_get_b0.json"
 HORIZON_YEARS = 5
+#: The ids the row server files every book under. Identical for every book,
+#: which is why ``_patched`` clears the route's loaded-rows cache.
+PERIOD_ID = "blast-radius-period"
+ORG_ID = "blast-radius-org"
 BASELINE_SCHEMA = "base_get_b0/1"
 METRICS = ("revenue", "ebitda", "closing_cash", "peak_funding", "first_shortfall")
 METRIC_LABELS = {
@@ -223,15 +234,23 @@ class _RowServer(object):
 
 @contextmanager
 def _patched(book: Dict[str, Any], period_id: str, org_id: str) -> Iterator[None]:
-    from engine.api import _org, _supabase
+    """The two seams replaced, and the route's loaded-rows cache cleared on
+    entry and on exit. The cache key is (org id, period id, updated_at, ...)
+    and the row server gives every book the same three, so a warm entry is
+    ANOTHER book's rows: cleared on entry so this book is never served a
+    key someone else left warm, cleared on exit so this book's rows never
+    reach the next caller in the process."""
+    from engine.api import _forecast_history, _org, _supabase
 
     saved = (_org.resolve_org, _supabase.per_user)
     _org.resolve_org = lambda jwt, requested: ("measure-user", org_id)
     _supabase.per_user = lambda jwt: _RowServer(book, period_id, org_id)
+    _forecast_history.clear_cache()
     try:
         yield
     finally:
         _org.resolve_org, _supabase.per_user = saved
+        _forecast_history.clear_cache()
 
 
 _APP = None
@@ -256,14 +275,12 @@ def _app() -> Any:
 def default_get(book: Dict[str, Any]) -> Tuple[int, Dict[str, Any]]:
     from fastapi.testclient import TestClient
 
-    period_id = "blast-radius-period"
-    org_id = "blast-radius-org"
-    with _patched(book, period_id, org_id):
+    with _patched(book, PERIOD_ID, ORG_ID):
         client = TestClient(_app(), raise_server_exceptions=False)
         res = client.get(
-            "/api/forecast/%s?horizon=%d" % (period_id, HORIZON_YEARS),
+            "/api/forecast/%s?horizon=%d" % (PERIOD_ID, HORIZON_YEARS),
             headers={"Authorization": "Bearer measure",
-                     "X-Org-Id": org_id},
+                     "X-Org-Id": ORG_ID},
             follow_redirects=False)
     try:
         body = res.json()
