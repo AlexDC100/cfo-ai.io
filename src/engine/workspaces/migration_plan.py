@@ -809,6 +809,37 @@ class _Planner:
             out["identity"] = best[2]
         return out
 
+    def _redated_detection(self, pid: str, record: Mapping[str, Any], old_end: str,
+                           new_end: str) -> Dict[str, Any]:
+        """``stage_persist``'s period-detection record, as the engine would
+        have written it had the period been filed under ``new_end``: the
+        resolved date, the signal that decided it (one the engine itself
+        emits, so every reader knows it), the hint the migration corrects
+        alongside, and ``mismatch`` recomputed with the engine's own rule
+        (``pipeline.resolve_period_end_for_persist``: a real detection that
+        points elsewhere). ``migration`` records what changed and why."""
+        src = self.periods[pid].get("source_document_id")
+        ident = self.ident(str(src)) if src else None
+        why = dict((ident.sources.get("period_end") or {}) if ident else {})
+        detected = record.get("detected") if isinstance(record.get("detected"), dict) else {}
+        proposed = detected.get("proposed_period_end")
+        signal = why.get("signal") or "filename"
+        out = dict(record)
+        out.update({
+            "resolved_period_end": new_end,
+            "signal_used": signal,
+            "confidence": detected.get("confidence") if proposed == new_end else record.get("confidence"),
+            "evidence_snippet": "re-dated by the workspace migration (%s): the document's %s says %s (%s)"
+                                % (self.date, signal, new_end, why.get("evidence") or ""),
+            "hint": new_end if str(record.get("hint") or "") == old_end else record.get("hint"),
+            "mismatch": bool(proposed) and proposed != new_end,
+            "migration": {"signal": "ws_migration", "date": self.date, "from": old_end, "to": new_end,
+                          "document_signal": signal, "evidence": why.get("evidence"),
+                          "previous": {k: record.get(k) for k in
+                                       ("resolved_period_end", "signal_used", "hint", "mismatch")}},
+        })
+        return out
+
     # ── operations ────────────────────────────────────────────────────
 
     def _emit_ops(self, user: str, created: Sequence[str], holding: str, uses_holding: bool,
@@ -971,13 +1002,20 @@ class _Planner:
                 ops.append({"op": "update", "table": "documents", "key": {"id": did},
                             "set": {"period_id": None}, "expect": {"period_id": d.get("period_id")}})
 
-        # 6. re-date
+        # 6. re-date — the row AND the engine's period-detection record, which
+        # the Docs panel's mismatch chip and the firm attention layer read
+        # verbatim (a re-dated row under a record still saying "2017-12-31,
+        # mismatch" would be reported as mis-filed forever).
         for pid in sorted(self.redates):
             p = self.periods[pid]
             new_end = self.redates[pid]
-            patch = {"period_end": new_end}
+            patch: Dict[str, Any] = {"period_end": new_end}
             if str(p.get("period_start")) == str(p.get("period_end")):
                 patch["period_start"] = new_end
+            env = p.get("assembled_canonical_v1")
+            if isinstance(env, dict) and isinstance(env.get("period_detection"), dict):
+                patch["assembled_canonical_v1"] = dict(env, period_detection=self._redated_detection(
+                    pid, env["period_detection"], str(p.get("period_end")), new_end))
             ops.append({"op": "update", "table": "financial_periods", "key": {"id": pid},
                         "set": patch, "expect": {c: p.get(c) for c in patch}})
 

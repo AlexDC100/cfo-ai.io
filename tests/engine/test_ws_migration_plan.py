@@ -131,6 +131,28 @@ def test_the_2025_book_filed_under_2017_is_re_dated_and_its_hint_corrected(world
     assert _row(world["post"], "documents", id="q-carnex-src")["period_end_hint"] == "2025-12-31"
 
 
+def test_the_re_date_rewrites_the_engines_period_detection_record(world):
+    """P1 (verifier, 2026-09-21): the Carniprod row was re-dated but its
+    stored period_detection still said resolved 2017-12-31, mismatch true —
+    served verbatim by /api/org/periods-with-documents (the mismatch chip)
+    and read by firm/attention.detect_period_mismatch ('period the file is
+    filed under: 2017-12-31'). The record now says what the row says, and
+    mismatch is the engine's own rule: a detection pointing elsewhere."""
+    pre = _row(world["tables"], "financial_periods", id="per-carnex")["assembled_canonical_v1"]
+    env = _row(world["post"], "financial_periods", id="per-carnex")["assembled_canonical_v1"]
+    rec = env["period_detection"]
+    assert rec["resolved_period_end"] == "2025-12-31" and rec["mismatch"] is False
+    assert rec["signal_used"] == "filename" and rec["hint"] == "2025-12-31"
+    assert rec["detected"] == pre["period_detection"]["detected"]
+    assert rec["migration"]["from"] == "2017-12-31" and rec["migration"]["to"] == "2025-12-31"
+    assert rec["migration"]["previous"]["mismatch"] is True
+    # the rest of the envelope is untouched
+    assert {k: v for k, v in env.items() if k != "period_detection"} == \
+        {k: v for k, v in pre.items() if k != "period_detection"}
+    # what the attention layer reads: no mismatch item any more
+    assert not (isinstance(rec, dict) and rec.get("mismatch") is True)
+
+
 def test_duplicates_failed_copies_and_non_balances_are_archived_with_reasons(world):
     post = world["post"]
     expect = {
