@@ -46,7 +46,11 @@ period_end
   ``engine.api._period_detect.detect_period`` over the header text, so the
   engine's own ranking applies: a period the document states, then a date
   beside closing-balance vocabulary, then the filename. The filename never
-  overrides the document.
+  overrides the document. A period RANGE ("pe perioada 01.01.2025 -
+  31.12.2025", "Ianuarie - Decembrie 2024", in the header or the filename)
+  resolves to its END — the month the book closes — never to its start:
+  the range is recognised lexically and only its end is handed to the
+  engine's reader.
 
 caen_code / industry_key
   the registry's CAEN for the CUI (else a "CAEN: nnnn" printed in the
@@ -788,19 +792,144 @@ def industry_display_name(industry_key: Any) -> Optional[str]:
     return _industry_names().get(str(industry_key)) if industry_key else None
 
 
+# ── period ranges ──────────────────────────────────────────────────────
+#
+# "Balanta de verificare pe perioada 01.01.2025 - 31.12.2025" states a
+# period, and a period is named by its END — the month the book closes. The
+# engine's date reader takes the FIRST date it finds, so the whole line read
+# as January 2025 (and "Ianuarie - Decembrie 2024" as January 2024). A range
+# is recognised here, LEXICALLY, and only its end is handed to the engine's
+# own reader (``detect_period``), so month-end convention, sanity bounds and
+# the "today is never evidence" rule stay where they live (_period_detect W5).
+
+_MONTH_WORDS: Tuple[Tuple[int, Tuple[str, ...]], ...] = (
+    (1, ("ianuarie", "january", "ian", "jan")),
+    (2, ("februarie", "february", "feb")),
+    (3, ("martie", "march", "mar")),
+    (4, ("aprilie", "april", "apr")),
+    (5, ("mai", "may")),
+    (6, ("iunie", "june", "iun", "jun")),
+    (7, ("iulie", "july", "iul", "jul")),
+    (8, ("august", "aug")),
+    (9, ("septembrie", "september", "sept", "sep")),
+    (10, ("octombrie", "october", "oct")),
+    (11, ("noiembrie", "november", "noi", "nov")),
+    (12, ("decembrie", "december", "dec")),
+)
+_MONTH_BY_WORD = {w: m for m, words in _MONTH_WORDS for w in words}
+_LETTERS = "A-Za-zĂÂÎȘŞȚŢăâîșşțţ"
+_MONTH_ALT = "|".join(sorted(_MONTH_BY_WORD, key=len, reverse=True))
+_YEAR_RE = r"(?:19|20)\d{2}"
+
+
+def _side(p: str) -> str:
+    """One end of a range, its parts in named groups prefixed ``p``."""
+    month = r"(?<![%s])(?P<%smw{n}>%s)\.?(?![%s])" % (_LETTERS, p, _MONTH_ALT, _LETTERS)
+    return "(?:" + "|".join((
+        r"(?P<{p}d1>\d{1,2})[./-](?P<{p}m1>\d{1,2})[./-](?P<{p}y1>%s)" % _YEAR_RE,     # 31.12.2025
+        r"(?P<{p}y2>%s)-(?P<{p}m2>\d{1,2})-(?P<{p}d2>\d{1,2})" % _YEAR_RE,              # 2025-12-31
+        r"(?P<{p}d3>\d{1,2})\s+" + month.replace("{n}", "3") + r"\s+(?P<{p}y3>%s)" % _YEAR_RE,  # 31 dec 2025
+        month.replace("{n}", "4") + r"(?:\s+(?P<{p}y4>%s))?" % _YEAR_RE,                     # decembrie [2025]
+        r"(?P<{p}m5>\d{1,2})[./-](?P<{p}y5>%s)" % _YEAR_RE,                                # 12.2025
+    )).replace("{p}", p) + ")"
+
+
+_RANGE_SEP = (r"\s*(?:[\-‐‑–—]{1,2}|\bp[aâ]n[aă](?:\s+la)?\b|\bto\b|\bla\b"
+              r"|\bthrough\b|\bthru\b)\s*")
+_RANGE_RE = re.compile(r"(?<![\d.])" + _side("a_") + _RANGE_SEP + _side("b_") + r"(?![\d])", re.IGNORECASE)
+
+
+def _range_side(m: "re.Match", p: str) -> Optional[Tuple[Optional[int], int, Optional[int]]]:
+    """(year or None, month, day or None) of one side of a range match."""
+    g = m.groupdict()
+    for n in "12345":
+        mw = g.get("%smw%s" % (p, n))
+        num = g.get("%sm%s" % (p, n))
+        if mw is None and num is None:
+            continue
+        month = _MONTH_BY_WORD[mw.lower()] if mw else int(num)
+        year = g.get("%sy%s" % (p, n))
+        day = g.get("%sd%s" % (p, n))
+        if not 1 <= month <= 12:
+            return None
+        return (int(year) if year else None, month, int(day) if day else None)
+    return None
+
+
+def _range_end(m: "re.Match") -> Optional[str]:
+    """The END of a period range as text the engine's reader understands
+    ("31.12.2025", or "<month tag> <year>" for a month), or None when the
+    match is not a period range (no year on either side, an impossible
+    month)."""
+    from engine.api._period_detect import _MONTH_TAGS  # noqa: WPS433 — lazy (pipeline cycle)
+
+    start, end = _range_side(m, "a_"), _range_side(m, "b_")
+    if start is None or end is None:
+        return None
+    year, month, day = end
+    if year is None:
+        if start[0] is None:
+            return None
+        # "Octombrie 2024 - Martie": the end month follows the start month
+        year = start[0] + (1 if month < start[1] else 0)
+    if day is not None:
+        return "%02d.%02d.%04d" % (day, month, year)
+    return "%s %d" % (_MONTH_TAGS[month], year)
+
+
+def _first_period_range(lines: Sequence[str]) -> Optional[Tuple[str, str]]:
+    """(end text, the literal line) of the first period range in reading
+    order, or None."""
+    for line in lines:
+        for m in _RANGE_RE.finditer(line):
+            end = _range_end(m)
+            if end:
+                return end, line.strip()[:160]
+    return None
+
+
+def collapse_period_ranges(text: Optional[str]) -> Optional[str]:
+    """``text`` with every period range replaced by its end ("perioada
+    01.01.2025 - 31.12.2025" -> "perioada 31.12.2025"): a lexical rewrite,
+    so no reader downstream can take a range's START for the period."""
+    if not text:
+        return text
+
+    def _sub(m: "re.Match") -> str:
+        end = _range_end(m)
+        return end if end else m.group(0)
+
+    return _RANGE_RE.sub(_sub, str(text))
+
+
 # ── identification ─────────────────────────────────────────────────────
 
 def _period(header_text: str, filename: Optional[str]) -> Tuple[Optional[str], Optional[Dict[str, str]]]:
     from engine.api._period_detect import detect_period  # noqa: WPS433 — lazy (pipeline cycle)
 
+    lines = [ln for ln in str(header_text or "").split("\n") if ln.strip()]
+    found = _first_period_range(lines)
+    if found is not None:
+        # A period the header states as a range: its END, read by the
+        # engine's own reader; the evidence is the literal line.
+        got = detect_period(extracted={"closing_balance_date": found[0]}, filename=None)
+        end = got.get("proposed_period_end")
+        if end:
+            return end, {"signal": "closing_balance", "evidence": found[1]}
+    text = "\n".join(collapse_period_ranges(ln) or "" for ln in lines)
+    fname = collapse_period_ranges(filename)
     got = detect_period(
-        extracted={"header_text": header_text} if header_text else None,
-        filename=filename,
+        extracted={"header_text": text} if text else None,
+        filename=fname,
     )
     end = got.get("proposed_period_end")
     if not end:
         return None, None
-    return end, {"signal": str(got.get("signal_used")), "evidence": str(got.get("evidence_snippet") or "")}
+    signal = str(got.get("signal_used"))
+    evidence = str(got.get("evidence_snippet") or "")
+    if signal == "filename" and fname != filename:
+        evidence = re.sub(r"\s+", " ", str(filename)).strip()[:160]   # the literal filename
+    return end, {"signal": signal, "evidence": evidence}
 
 
 def filename_period_end(filename: Optional[str]) -> Optional[str]:

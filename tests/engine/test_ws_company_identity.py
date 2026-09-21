@@ -7,6 +7,7 @@ WHAT THESE RED ON, with the module correct (TC-11):
   * a customer's name in an analytic account row read as the book's owner;
   * a company KEY minted from a filename alone;
   * the filename overriding a period the document states;
+  * a period range ("01.01.2025 - 31.12.2025") read as its start;
   * a registry name match on an ambiguous or unsure lookup, or on a
     registered company with no filing;
   * a labelled company name ("Societate: ...") that does not resolve
@@ -26,6 +27,7 @@ from engine.workspaces.company_identity import (
     apply_known_identity,
     cui_control_digit,
     filename_company_name,
+    filename_period_end,
     identify_document,
     industry_key_for_caen,
     match_known_identity,
@@ -176,6 +178,82 @@ def test_an_itinerary_is_not_a_balance_but_names_its_host():
     assert ident.document_kind == "not_a_balance"
     assert ident.company_key == "name:ALFA FOOD"
     assert ident.period_end is None
+
+
+PERIOD_RANGES = [
+    # (the document's period line, the period END it states)
+    ("Balanta de verificare pe perioada 01.01.2025 - 31.12.2025", "2025-12-31"),
+    ("Perioada: 01.01.2024 - 31.12.2024", "2024-12-31"),
+    ("Ianuarie - Decembrie 2024", "2024-12-31"),
+    ("01.01.2025-31.12.2025", "2025-12-31"),
+    ("Balanta de verificare Ianuarie - Decembrie 2024", "2024-12-31"),
+    ("Perioada: ianuarie 2024 - decembrie 2024", "2024-12-31"),
+    ("Balanta de verificare luna Ianuarie 2025 - Martie 2025", "2025-03-31"),
+    ("Balanta de verificare perioada 01.07.2025 - 30.09.2025", "2025-09-30"),
+    ("Perioada 01.01.2024 la 31.12.2024", "2024-12-31"),
+    ("de la 01.01.2024 pana la 31.12.2024", "2024-12-31"),
+    ("Balanta de verificare pe perioada 2025-01-01 - 2025-12-31", "2025-12-31"),
+    ("Balanta de verificare pe perioada 01/01/2025 - 30/09/2025", "2025-09-30"),
+    ("Perioada 01.2025 - 09.2025", "2025-09-30"),
+    ("Balanta ian. - iun. 2025", "2025-06-30"),
+    ("Balanta ian-dec 2024", "2024-12-31"),
+    ("Trial balance January - December 2025", "2025-12-31"),
+    ("Trial balance for the period 01.01.2025 to 31.05.2025", "2025-05-31"),
+    ("Balanta de verificare 01.07.2024 - 30.06.2025", "2025-06-30"),
+    ("Iulie 2024 - Iunie 2025", "2025-06-30"),
+    ("Octombrie 2024 - Martie", "2025-03-31"),
+    ("Perioada 1 ianuarie 2025 - 31 decembrie 2025", "2025-12-31"),
+    ("Solduri 01-01-2025 - 31-03-2025", "2025-03-31"),
+]
+
+
+@pytest.mark.parametrize("line,end", PERIOD_RANGES)
+def test_a_period_range_resolves_to_its_end_not_its_start(line, end):
+    """Verifier finding (2026-09-21): the header tier handed the whole line to
+    the engine's date reader, which takes the FIRST date — "Balanta de
+    verificare pe perioada 01.01.2025 - 31.12.2025" was a January 2025 book,
+    and "Ianuarie - Decembrie 2024" a January one. A period range states its
+    END: that is the month the book closes. Reds if the start is taken."""
+    ident = identify_document(balance_xlsx(["Alfa Food SRL", line]), "export.xlsx")
+    assert ident.period_end == end, (line, ident.period_end)
+    assert ident.sources["period_end"]["signal"] == "closing_balance"
+    assert ident.sources["period_end"]["evidence"] == line      # the literal line, never a rewrite
+
+
+def test_a_period_range_in_a_pdf_header_resolves_to_its_end():
+    content = balance_pdf(["BETA IMOBILIARE SRL c.f. %s" % CUI_B, "Balanta de verificare",
+                           "Perioada: 01.01.2025 - 31.12.2025", "Data tiparirii: 15.01.2026"])
+    ident = identify_document(content, "balanta.pdf")
+    assert ident.period_end == "2025-12-31"
+    assert ident.sources["period_end"]["evidence"] == "Perioada: 01.01.2025 - 31.12.2025"
+
+
+@pytest.mark.parametrize("filename,end", [
+    ("Balanta 01.01.2025-31.12.2025.xlsx", "2025-12-31"),
+    ("balanta_01.01.2025 - 30.09.2025.xls", "2025-09-30"),
+    ("balanta ian-dec 2024.xlsx", "2024-12-31"),
+    ("Balanta Ianuarie - Martie 2025.xlsx", "2025-03-31"),
+])
+def test_a_filename_range_resolves_to_its_end(filename, end):
+    ident = identify_document(balance_xlsx([]), filename)
+    assert ident.period_end == end, (filename, ident.period_end)
+    assert ident.sources["period_end"] == {"signal": "filename", "evidence": filename}
+    assert filename_period_end(filename) == end
+
+
+@pytest.mark.parametrize("line,end", [
+    ("Balanta de verificare la data de 31.12.2025", "2025-12-31"),
+    ("Sibiu   Balanta de Verificare - Decembrie 2024", "2024-12-31"),
+    ("Balanta de verificare 01.12.2025 -- 31.12.2025", "2025-12-31"),
+])
+def test_a_single_date_or_a_one_month_range_is_unchanged(line, end):
+    ident = identify_document(balance_xlsx(["Alfa Food SRL", line]), "export.xlsx")
+    assert ident.period_end == end and ident.sources["period_end"]["signal"] == "closing_balance"
+
+
+def test_days_of_one_month_are_not_a_period_range():
+    """The itinerary's "9 - 15 September 2026" is an event, not a period."""
+    assert identify_document(itinerary_pdf(), "Delegation_Itinerary.pdf").period_end is None
 
 
 @pytest.mark.parametrize("content", [b"", b"%PDF-1.4 garbage", text_pdf([])])
