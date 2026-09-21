@@ -50,6 +50,7 @@ import { MemoryRouter } from "react-router-dom";
 import i18n from "@/i18n";
 import Scenarios from "../Scenarios";
 import { CfoApiError } from "@/lib/cfoApi";
+import { servedSentence } from "@/lib/forecastSentences";
 
 const PERIOD = { id: "p-1", label: "Dec 2025" };
 /** The active period the page reads. A holder, so a test can switch period
@@ -753,8 +754,9 @@ describe("switching period or workspace never paints the previous request", () =
 // on the page that carries a digit must be one of:
 //   · inside a <ProjectedAmount> (`[data-projected="true"]`) — a served
 //     figure painted with its projected mark;
-//   · a served SENTENCE, verbatim (the runway sentence, the funding-rate
-//     basis, a refusal) — the engine's words, digits included;
+//   · a served SENTENCE, verbatim or in the reader's language through
+//     lib/forecastSentences (the runway sentence, the funding-rate basis, a
+//     refusal) — the engine's words, its digits and no other;
 //   · the served runway month count, in the runway row;
 //   · digits that are all served period LABELS (horizon labels, the base
 //     period, the active period's label).
@@ -805,6 +807,19 @@ function expectEveryDigitServed(
     }
     stringsUnder(p.refusal, sentences);
     if (Number.isInteger(p.summary?.runway?.months)) months.add(String(p.summary.runway.months));
+  }
+  // A served sentence is painted IN THE READER'S LANGUAGE, through the one
+  // function the page prints it with. Its Romanian carries exactly the served
+  // digit runs (lib/forecastSentencesRo's digit law, checked on every call and
+  // gated by forecastSentencesRo.test.ts), so accepting the rendering accepts
+  // no digit the engine did not serve.
+  // The gate does not take that on trust: a rendering is accepted only when
+  // its digit runs are the served sentence's, checked HERE, independently.
+  const lang = i18n.language;
+  const runs = (x: string) => (x.match(/\d+/g) ?? []).slice().sort().join(" ");
+  for (const s of [...sentences]) {
+    const said = servedSentence(i18n.t, lang, null, s).trim();
+    if (runs(said) === runs(s)) sentences.add(said);
   }
   const byLength = [...labels].sort((a, b) => b.length - a.length);
   // Chrome, by name: the template picker (declared shock values), the lever

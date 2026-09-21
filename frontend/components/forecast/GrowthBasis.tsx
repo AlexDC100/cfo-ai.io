@@ -21,6 +21,7 @@ import { useTranslation } from "react-i18next";
 
 import type { LeverRef, ProjectionView } from "@/lib/forecastFacts";
 import { displaySuffix, wireToDisplay } from "@/lib/forecastLevers";
+import { useServedText } from "@/lib/forecastSentences";
 
 export interface GrowthBasisProps {
   readonly view: ProjectionView;
@@ -31,6 +32,7 @@ export interface GrowthBasisProps {
 
 export function GrowthBasis({ view, format }: GrowthBasisProps) {
   const { t } = useTranslation();
+  const say = useServedText();
   const lever: LeverRef | null = view.lever("revenue_growth");
   if (!lever) return null;
   const tier = lever.basis.tier;
@@ -104,7 +106,7 @@ export function GrowthBasis({ view, format }: GrowthBasisProps) {
           className="mt-2 font-mono text-[10.5px] uppercase tracking-wider text-ink-mute"
         >
           {t("forecast.growth.macroLine", {
-            source: lever.basis.macro.source,
+            source: say(lever.basis.macro.source),
             date: lever.basis.macro.statedAsOf,
             defaultValue: "{{source}} · stated as of {{date}}",
           })}
@@ -112,7 +114,7 @@ export function GrowthBasis({ view, format }: GrowthBasisProps) {
       ) : null}
 
       <p className="mt-2 text-[12px] leading-snug text-ink-soft">
-        {lever.basis.sentence}
+        {say(lever.basis.sentence)}
       </p>
 
       {/* EVERY RUNG THE LADDER TRIED. A reader who asks "why not the book's
@@ -124,7 +126,7 @@ export function GrowthBasis({ view, format }: GrowthBasisProps) {
         >
           {lever.basis.fallbackSteps.map((step) => (
             <li key={`${step.tier}-${step.outcome}`} data-rung={step.tier}>
-              {t(`forecast.tier.${step.tier}`, step.tier)}: {step.reason}
+              {t(`forecast.tier.${step.tier}`, step.tier)}: {say(step.reason)}
             </li>
           ))}
         </ul>
@@ -139,7 +141,7 @@ export function GrowthBasis({ view, format }: GrowthBasisProps) {
         >
           {view.history.excluded.map((row) => (
             <li key={`${row.periodId}-${row.label}`}>
-              {row.label} — {row.sentence}
+              {row.label} — {say(row.sentence)}
             </li>
           ))}
         </ul>

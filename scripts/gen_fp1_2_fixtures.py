@@ -23,3 +23,10 @@ print(len(body["figures"]), len(one["figures"]))
 # tests/engine/test_scenario_page_templates.py.
 from engine.forecast.scenario_templates import catalogue
 json.dump(catalogue(), open(base + "scenario_catalogue.json", "w"), indent=1, sort_keys=True, ensure_ascii=False)
+# forecast-scenarios-live (RO + EN): every sentence the Forecast and
+# Scenarios pages paint, off the real route on the corpus books, for the
+# Romanian rules' coverage gate (frontend/lib/__tests__/
+# forecastSentencesRo.test.ts). Pinned by tests/engine/
+# test_forecast_served_sentences.py.
+from forecast_sentence_inventory import collect
+json.dump(collect(), open(base + "served_sentences.json", "w"), indent=1, sort_keys=True, ensure_ascii=False)

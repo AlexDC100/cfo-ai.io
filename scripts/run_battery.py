@@ -687,13 +687,30 @@ def _engine_gates() -> List[Gate]:
               "frontend/pages/cfo/__tests__/scenariosSaved.test.tsx",
               "frontend/pages/cfo/__tests__/scenariosEngine.test.tsx",
               "frontend/lib/__tests__/featuresPreview.test.ts",
+              "frontend/lib/__tests__/forecastSentencesRo.test.ts",
               "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=50,
+             # + forecastSentencesRo (RO + EN): every sentence of the engine's
+             # served inventory comes out in Romanian under the digit law and
+             # in English byte for byte. Measured 64, floor 58.
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=58,
              units="page tests (F1 year 0, F5 placeholders, F6 saved scenarios, preview opt-in, served-sentence language)",
              canaries=("gate F1: year 0 is the dashboard's headline",
                        "gate F5 on the Forecast statements",
                        "gate F5: no dash and no zero where the engine served a figure",
-                       "gate F6: a saved scenario survives reload and belongs to its company")),
+                       "gate F6: a saved scenario survives reload and belongs to its company",
+                       "comes out in Romanian, digits exactly the served ones, no English left")),
+        # The engine half of RO + EN: the committed inventory of every
+        # sentence the two pages paint (tests/engine/fixtures/forecast/
+        # served_sentences.json) IS what the real route serves on the corpus
+        # books, so an engine that rewords a sentence reds here before a
+        # Romanian page prints it in English. Measured 164 sentences.
+        # Plant log: gates.md "forecast-served-sentences".
+        Gate("forecast-served-sentences",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_served_sentences.py", "-q", "-s"],
+             work_rx=r"GATE-WORK forecast-served-sentences units=(\d+)", floor=150,
+             units="distinct served sentences the Forecast and Scenarios pages paint",
+             canaries=("SCOPE forecast-served-sentences",
+                       "worlds agras, agras_caen1011, agras_caen1011_paired")),
         # RATIOS: the engine as the one authority for ratio values, bands,
         # deltas, band movements and credit composites (critic
         # authority_decision). Four gates, one per batch, named separately

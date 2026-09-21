@@ -27,7 +27,7 @@ import {
   type ProjectedResult,
   type ProjectionView,
 } from "@/lib/forecastFacts";
-import { servedSentence } from "@/lib/forecastSentences";
+import { servedSentence, useServedText } from "@/lib/forecastSentences";
 import { planYearLabels } from "@/lib/forecastLevers";
 
 /** What one column of the comparison holds. A column is either a served
@@ -173,6 +173,7 @@ function StateCell({ state }: { state: ColumnState }) {
 
 function ColumnNotice({ column }: { column: OutcomeColumn }) {
   const { t } = useTranslation();
+  const say = useServedText();
   if (column.state.kind === "refused") {
     return (
       <div
@@ -184,13 +185,15 @@ function ColumnNotice({ column }: { column: OutcomeColumn }) {
             name: column.title,
           })}
         </span>
-        {/* THE ENGINE'S OWN SENTENCE, verbatim. It names the lever and why the
-            plan could not be built; it is never replaced with a generic line. */}
+        {/* THE ENGINE'S OWN SENTENCE, in the reader's language (re-said under
+            lib/forecastSentences' digit law, or verbatim). It names the lever
+            and why the plan could not be built; it is never replaced with a
+            generic line. */}
         <p
           className="mt-1 text-ink-soft"
           data-testid={`scenarios-refusal-${column.id}-sentence`}
         >
-          {column.state.sentence}
+          {say(column.state.sentence)}
         </p>
       </div>
     );
@@ -213,7 +216,7 @@ function ColumnNotice({ column }: { column: OutcomeColumn }) {
         data-testid={`scenarios-partial-refusal-${column.id}`}
         className="rounded border border-rule bg-surface px-4 py-3 text-[13px] text-ink"
       >
-        {column.title}: {column.state.view.refusal.sentence}
+        {column.title}: {say(column.state.view.refusal.sentence)}
       </div>
     );
   }
@@ -530,7 +533,7 @@ export function ScenarioOutcome({
           {anchorView.summary.fundingRateSentence ? (
             <p data-testid="scenarios-funding-rate">
               {t("scenarios.summary.fundingRate", "How the funding line is priced:")}{" "}
-              {anchorView.summary.fundingRateSentence}
+              {servedSentence(t, i18n.language, null, anchorView.summary.fundingRateSentence)}
             </p>
           ) : null}
           {serveDscr ? null : (

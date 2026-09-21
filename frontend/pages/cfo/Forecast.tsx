@@ -81,6 +81,7 @@ import {
   type LeverEdit,
 } from "@/lib/forecastLevers";
 import { useActiveLocale } from "@/lib/locale";
+import { servedDriverLabel, useServedText } from "@/lib/forecastSentences";
 
 /** The months of plan year one the engine serves alongside the annual
  *  periods. Mirrors `HorizonBody.monthly_months`'s default; the response's own
@@ -182,6 +183,7 @@ function AssumptionSchedule({
   locale: string;
 }) {
   const { t } = useTranslation();
+  const say = useServedText();
   const firstPeriod = view.horizon[0] ?? "";
   const absent = t("forecast.absent", "not measurable from this book");
   return (
@@ -220,7 +222,7 @@ function AssumptionSchedule({
                 className="border-b border-rule-soft/60 align-top last:border-0"
               >
                 <td className="px-4 py-2 text-ink">
-                  {a.label || a.id}
+                  {servedDriverLabel(t, a.id, a.label || a.id)}
                   {a.tier ? (
                     <span
                       data-testid={`forecast-tier-${a.id}`}
@@ -235,13 +237,13 @@ function AssumptionSchedule({
                   {assumptionValue(a, locale, absent)}
                 </td>
                 <td className="px-4 py-2 text-[12px] leading-snug text-ink-soft">
-                  {a.basis}
+                  {say(a.basis)}
                   {a.inert ? (
                     <span
                       data-testid={`forecast-inert-${a.id}`}
                       className="mt-1 block text-ink-mute"
                     >
-                      {a.inert}
+                      {say(a.inert)}
                     </span>
                   ) : null}
                 </td>
@@ -351,7 +353,7 @@ function StatementBlock({
                     row.strong ? "font-medium text-ink" : "text-ink-soft"
                   }`}
                 >
-                  {row.label}
+                  {t(`forecast.row.${row.line}`, row.label)}
                 </td>
                 {periods.map((period) => (
                   <td
@@ -504,6 +506,7 @@ function ForecastForPeriod({
   companyName: string | null;
 }) {
   const { t } = useTranslation();
+  const say = useServedText();
   const locale = useActiveLocale();
   const navigate = useNavigate();
   const scenariosOpen = useFeatureStatus("scenarios") === "active";
@@ -755,12 +758,14 @@ function ForecastForPeriod({
           <span className="font-mono text-[10px] uppercase tracking-wider text-ink-mute">
             {t("forecast.refused", "No projection")}
           </span>
-          {/* THE ENGINE'S OWN SENTENCE, verbatim. It names the driver that
-              could not be measured and the basis that failed to measure it,
-              which is the only thing that tells the reader what to do next.
-              It is never replaced with a generic message. */}
+          {/* THE ENGINE'S OWN SENTENCE, in the reader's language (the served
+              words re-said under lib/forecastSentences' digit law, or verbatim
+              when no rule says them). It names the driver that could not be
+              measured and the basis that failed to measure it, which is the
+              only thing that tells the reader what to do next. It is never
+              replaced with a generic message. */}
           <p className="mt-1 text-ink-soft" data-testid="forecast-refusal-detail">
-            {recomputeError}
+            {recomputeError ? say(recomputeError) : recomputeError}
           </p>
         </div>
       ) : null}
@@ -829,6 +834,7 @@ function ProjectionBody({
   onAdopt: (key: string, values: readonly string[]) => void;
 }) {
   const { t } = useTranslation();
+  const say = useServedText();
   const format = useMemo(
     () => makeFormatter(view.currency, locale),
     [view.currency, locale],
@@ -873,7 +879,7 @@ function ProjectionBody({
           data-testid="forecast-partial-refusal"
           className="rounded border border-rule bg-surface px-4 py-3 text-[13px] text-ink"
         >
-          {view.refusal.sentence}
+          {say(view.refusal.sentence)}
         </div>
       ) : null}
 

@@ -32,7 +32,7 @@ import {
   type LeverEdit,
 } from "@/lib/forecastLevers";
 import type { LeverRef, ProjectionView } from "@/lib/forecastFacts";
-import { servedSentence } from "@/lib/forecastSentences";
+import { servedSentence, useServedText } from "@/lib/forecastSentences";
 
 export interface LeverRailProps {
   readonly view: ProjectionView;
@@ -176,6 +176,7 @@ function LeverRow({
   onAdopt: LeverRailProps["onAdopt"];
 }) {
   const { t } = useTranslation();
+  const say = useServedText();
   const count = lever.shape === "scalar" ? 1 : years.length;
   const isUser = lever.basis.tier === "user";
   // The value the reader is looking at: their own edit if they have made one,
@@ -266,7 +267,7 @@ function LeverRow({
         data-testid={`forecast-lever-basis-${lever.key}`}
         className="mt-1.5 text-[11px] leading-snug text-ink-soft"
       >
-        {lever.basis.sentence}
+        {say(lever.basis.sentence)}
       </p>
 
       {/* THE ONE-TAP OFFER. Rendered from `alternatives`, each labelled with
@@ -288,12 +289,12 @@ function LeverRow({
             {t("forecast.lever.useTier", "Use the {{tier}} figure", {
               tier: t(`forecast.tier.${alt.tier}`, alt.tier),
             })}
-            <span className="text-ink-soft"> — {alt.sentence}</span>
+            <span className="text-ink-soft"> — {say(alt.sentence)}</span>
           </button>
         ))}
 
       {lever.inert ? (
-        <p className="mt-1 text-[11px] leading-snug text-ink-mute">{lever.inert}</p>
+        <p className="mt-1 text-[11px] leading-snug text-ink-mute">{say(lever.inert)}</p>
       ) : null}
     </div>
   );
@@ -352,9 +353,10 @@ export function LeverRail({
           data-testid="forecast-recompute-error"
           className="border-b border-rule bg-alert/5 px-4 py-2 text-[12px] leading-snug text-ink"
         >
-          {/* The engine's refusal, in its own words: it names the lever and
-              why it would not take the value. */}
-          {error}
+          {/* The engine's refusal, in its own words (in the reader's language
+              when a rule says them): it names the lever and why it would not
+              take the value. */}
+          {servedSentence(t, i18n.language, null, error)}
         </p>
       ) : null}
 

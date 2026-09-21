@@ -8810,3 +8810,105 @@ screen, lost on reload, listed on another company, or re-opened with anything
 but its saved template and levers. **It cannot see** RLS on org_prefs (the
 migration's own tests), a two-tab race on the whole saved list (documented in
 lib/savedScenarios.ts), or pixels.
+
+### forecast-f-page — every served sentence in the reader's language (RO + EN)
+
+Found on the Romanian 1440 px screenshots of this branch: the Forecast page's
+statement rows ("Revenue", "Cost of sales", "Trade receivables"), its assumption
+names (the wire ids, "pool fixed share.cost of sales", "dso days") and every
+engine sentence that carries a figure (each lever's basis, the growth card's
+basis and ladder, the funding-line pricing, the runway, every refusal) printed
+in English on a Romanian page. The allowlist of FIXED sentences above covered
+none of them.
+
+The repair: statement rows and driver names come from the locale bundle
+(forecast.row.*, forecast.driver.*, forecast.pool.*, English and Romanian);
+`lib/forecastSentencesRo.ts` re-says each engine sentence template in Romanian,
+anchored at both ends, under a DIGIT LAW — the Romanian carries exactly the
+digit runs the engine served (a figure's two separators swap, 413,727,560.16 ->
+413.727.560,16; years, dates, CAEN codes and account numbers are copied), checked
+on every call; a breach, or a sentence no rule says in full, prints the served
+English. English prints the served text byte for byte.
+`frontend/lib/__tests__/forecastSentencesRo.test.ts` (added to this gate) puts
+all 164 entries of the engine's own inventory (tests/engine/fixtures/forecast/
+served_sentences.json, pinned by forecast-served-sentences) through the one
+function the pages print with; the Scenarios digit gate (section 8 of
+scenariosEngine) accepts a translated served sentence only when its digit runs
+are the served sentence's, checked in the gate itself.
+
+**PLANT ro-rule-invents-digit** — `forecastSentencesRo.ts`: the DSO rule prints
+`x 360 zile` instead of the served day count. **PLANT ro-law-off** — the same,
+with the digit-law check removed. **PLANT ro-english-leak** — the DSO rule
+keeps "days sales outstanding". **PLANT ro-overrules-english** —
+`forecastSentences.ts`: the English guard removed, so English readers get the
+Romanian rules' output. **PLANT ro-number-convention** — a figure keeps the
+English separators. **PLANT gate-trusts-translation** — the law removed and the
+borrowing-rate rule prints "(365 zile)"; run against scenariosEngine's digit
+gate.
+
+```
+RED (plant ro-rule-invents-digit)
+AssertionError: painted in English on a Romanian page: expected [ …(4) ] to deeply equal []
+RED (plant ro-law-off)
+AssertionError: a Romanian rendering changed the served digits: expected [ …(4) ] to deeply equal []
+RED (plant ro-english-leak)
+AssertionError: English left inside a Romanian rendering: expected [ …(4) ] to deeply equal []
+RED (plant ro-overrules-english)
+AssertionError: expected 'Banca Naţională a României — țintă de…' to be 'Banca Naţională a României — flat inf…' // Object.is equality
+RED (plant ro-number-convention)
+AssertionError: a figure left in the English convention: expected [ …(73) ] to deeply equal []
+RED (plant gate-trusts-translation)
+× every digit on the page is a served figure, label or sentence > ro: base plus every template
+AssertionError: a number is painted on the Scenarios page that is not a served figure, label or sentence: expected [ Array(1) ] to deeply equal []
+```
+
+REVERT — every file restored byte-exact (sha256 checked by scratchpad
+fcst_i18n/plants_ro.py); `Tests 64 passed (64)` over the gate's files.
+
+**After the repair it also reds on:** an engine sentence the pages paint that
+comes out in English on a Romanian page; a Romanian rendering whose digit runs
+are not the served ones; English words left in a Romanian rendering; a figure in
+the English convention on a Romanian page; an English page printing anything
+but the served words; a translated sentence on the Scenarios page carrying a
+digit the engine did not serve. **It cannot see** whether the Romanian reads
+well, or sentences the corpus books never provoke (those print in English, as
+served, until the inventory grows to include them).
+
+## forecast-served-sentences
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_forecast_served_sentences.py -q -s` |
+| canary | `SCOPE forecast-served-sentences`, `worlds agras, agras_caen1011, agras_caen1011_paired` |
+| work count | `GATE-WORK forecast-served-sentences units=(\d+)`, floor **150** (measured 164) |
+
+**SCOPE** — `tests/engine/forecast_sentence_inventory.collect()`: the REAL
+`create_app()` over the tenancy double on the four committed corpus books (agras
+is files/agras_tb_2025.xlsx, the preliminary close, not the filed year), agras
+with workspace CAEN 1011, and agras paired with carniprod dated one year back (a
+SYNTHETIC pairing, labelled — the one way a committed book reaches the [book]
+growth rung); GET /api/forecast at horizons 3 and 5, POST /scenario for every
+template of packs/scenarios/templates.yaml and four lever overrides on base and
+recession; every string served where the pages paint a sentence (driver basis,
+alternative, ladder step, inert note, macro source, convention, runway, facility
+limit, funding-rate basis, refused slot, refusal, unserved lever, 4xx detail),
+with its code and kinds. The owner's local books never enter it.
+
+**PLANT engine-sentence-reworded** — `src/engine/forecast/assumptions.py`:
+"HELD flat rather than grown" -> "HELD flat, never grown" (the interest-income
+basis).
+
+```
+RED (plant engine-sentence-reworded)
+E   AssertionError: served_sentences.json is stale (re-capture with scripts/gen_fp1_2_fixtures.py, then re-read frontend/lib/forecastSentencesRo.ts)
+FAILED tests/engine/test_forecast_served_sentences.py::test_the_committed_sentence_inventory_is_what_the_route_serves
+```
+
+**REVERT** — restored byte-exact (sha256 checked); `1 passed`, `GATE-WORK
+forecast-served-sentences units=164`.
+
+**After the repair it reds on:** a sentence the pages paint reworded, added or
+dropped by the engine without the inventory being re-captured — the moment the
+Romanian rules must be re-read, because a rule that no longer matches prints the
+engine's English on a Romanian page. **It cannot see** sentences the corpus
+books never provoke, or whether a sentence is a good explanation.

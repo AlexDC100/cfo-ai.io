@@ -1,23 +1,29 @@
-// THE ENGINE'S FIXED SENTENCES, in the reader's language
-// (forecast-scenarios-live).
+// THE ENGINE'S SENTENCES, in the reader's language
+// (forecast-scenarios-live, RO + EN).
 //
 // The forecast engine serves every explanation as an English sentence with a
-// code ({code, text}); the Forecast and Scenarios pages print it verbatim.
-// Most of those sentences carry the book's own figures (a basis quoting two
-// turnovers, a rate quoting interest and debt) and stay the engine's words.
-// A handful are FIXED — the same words on every book, no figure in them —
-// and those are the ones a Romanian reader met in English on an otherwise
-// Romanian page: the covenant slot's refusal, the runway's "no shortfall",
-// the facility limit, the three executive-strip formulas.
+// code ({code, text}); the Forecast and Scenarios pages print it in the
+// reader's language through this module, and ENGLISH ALWAYS PRINTS THE SERVED
+// TEXT ITSELF, so an engine that rewords a sentence is never overruled by a
+// stale copy here.
 //
-// This module translates exactly that allowlist, by the served CODE (a
-// formula, which the wire serves as a bare string, by its served text).
-// English always prints the served text itself, so an engine that rewords a
-// sentence is never overruled by a stale copy here; any code or formula not
-// on the list — and every sentence carrying a figure — falls through to the
-// served words unchanged. Nothing here reads, writes or formats a number.
+// Two kinds of sentence, two routes into Romanian:
+//   · FIXED — the same words on every book, no figure in them (the covenant
+//     slot's refusal, the runway's "no shortfall", the facility limit, the
+//     lever rail's "not served" list, the three executive-strip formulas):
+//     translated by the served CODE (a formula by its served text) from the
+//     locale bundle, forecast.served.* / forecast.formula.*.
+//   · CARRYING FIGURES — a basis quoting two turnovers, a rate quoting
+//     interest and debt: re-said by lib/forecastSentencesRo.ts, one rule per
+//     engine template, under its DIGIT LAW (every digit printed is one the
+//     engine served; the check runs on every call and a breach prints the
+//     English). A sentence no rule matches in full prints as served.
+// Nothing here reads, computes or rounds a number.
 
 import type { TFunction } from "i18next";
+import { useTranslation } from "react-i18next";
+
+import { driverName, translateServedRo } from "@/lib/forecastSentencesRo";
 
 /** Codes whose served text is the same words on every book. */
 const FIXED_CODES = new Set([
@@ -48,8 +54,27 @@ export function servedSentence(
   code: string | null | undefined,
   text: string,
 ): string {
-  if (isEnglish(lang) || !code || !FIXED_CODES.has(code)) return text;
-  return t(`forecast.served.${code}`, { defaultValue: text });
+  if (isEnglish(lang) || !text) return text;
+  if (code && FIXED_CODES.has(code)) return t(`forecast.served.${code}`, { defaultValue: text });
+  return translateServedRo(t, text) ?? text;
+}
+
+/** A served sentence with no code at hand, in the reader's language. */
+export function servedText(t: TFunction, lang: string | undefined, text: string): string {
+  return servedSentence(t, lang, null, text);
+}
+
+/** A driver's name in the reader's language: the locale bundle's name for
+ *  the served id, the served label when the bundle has none. */
+export function servedDriverLabel(t: TFunction, id: string, served: string): string {
+  return driverName(t, id, served || id);
+}
+
+/** The page-side binding: `say(text, code?)` in the active language. */
+export function useServedText(): (text: string, code?: string | null) => string {
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language;
+  return (text: string, code?: string | null) => servedSentence(t, lang, code ?? null, text);
 }
 
 /** A served formula string in the reader's language. */

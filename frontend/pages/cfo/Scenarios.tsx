@@ -53,6 +53,7 @@ import { cfoApi } from "@/lib/cfoApi";
 import { readProjection, type LeverRef, type ProjectionView } from "@/lib/forecastFacts";
 import { applyLeverEdit, buildRecomputeBody, type LeverEdit } from "@/lib/forecastLevers";
 import { readEngineRefusal } from "@/lib/forecastRefusal";
+import { useServedText } from "@/lib/forecastSentences";
 import {
   BASE_TEMPLATE_ID,
   SCENARIO_HORIZON,
@@ -113,6 +114,7 @@ function ScenariosEngine({
   orgId: string | null;
 }) {
   const { t } = useTranslation();
+  const say = useServedText();
   const locale = useActiveLocale();
   const [templateId, setTemplateId] = useState<string>(BASE_TEMPLATE_ID);
   /** What the reader has typed into the lever rail; `committed` is what has
@@ -345,7 +347,7 @@ function ScenariosEngine({
             {t("scenarios.refusal.title", "No projection")}
           </span>
           <p className="mt-1 text-ink-soft" data-testid="scenarios-refusal-detail">
-            {baseState.kind === "refused" ? baseState.sentence : refusedFallback}
+            {baseState.kind === "refused" ? say(baseState.sentence) : refusedFallback}
           </p>
         </div>
       ) : (

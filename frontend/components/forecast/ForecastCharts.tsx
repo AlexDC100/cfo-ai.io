@@ -53,6 +53,7 @@ import { useMemo, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import { ProjectedAmount } from "@/components/forecast/ProjectedAmount";
+import { useServedText } from "@/lib/forecastSentences";
 import {
   isProjectedFigure,
   unwrapProjected,
@@ -327,6 +328,7 @@ function AxisReadout({
  *  simply stops is a chart with an unexplained edge. */
 function RefusedNote({ points }: { points: readonly Plot[] }) {
   const { t } = useTranslation();
+  const say = useServedText();
   const refused = points.filter((p) => p.minor === null);
   if (!refused.length) return null;
   const first = refused[0].result;
@@ -335,7 +337,7 @@ function RefusedNote({ points }: { points: readonly Plot[] }) {
       {t("forecast.chart.refused", "Not served from {{period}}: ", {
         period: refused[0].period,
       })}
-      {"refused" in first ? first.detail : ""}
+      {"refused" in first ? say(first.detail) : ""}
     </p>
   );
 }
