@@ -24,7 +24,7 @@ import { useWorkspaceName } from "@/lib/workspaceName";
 import { useWorkspaces } from "@/lib/workspaces";
 import { usePeriodStepper } from "@/lib/usePeriodStepper";
 import { useActiveLocale } from "@/lib/locale";
-import { currentMonthEnd, formatPeriodMonth } from "@/lib/orgPeriods";
+import { formatPeriodMonth } from "@/lib/orgPeriods";
 import { useUploadRoute } from "@/lib/previewFeatures";
 
 /** "Workspace · Dec 2025" as a plain string — the Capsule renders the
@@ -35,11 +35,15 @@ export function useCapsuleLabel(): string {
   const locale = useActiveLocale();
   const workspaceName = useWorkspaceName();
   const { selectedEnd } = usePeriodStepper();
-  const periodLabel =
-    formatPeriodMonth(selectedEnd, locale) ??
-    formatPeriodMonth(currentMonthEnd(), locale);
+  // A month the header cannot resolve — the period list still loading, or a
+  // company with no analysed year — is LEFT OUT, never replaced by today's
+  // month. That fallback dates from the permanent empty current-month period
+  // every workspace used to carry; G4 (2026-09-21) creates no period without
+  // an analysed file, so today's month would name a period that does not
+  // exist ("Agras SRL · Sept 2026" over a company whose only year is 2025).
+  const periodLabel = formatPeriodMonth(selectedEnd, locale);
   const name = (workspaceName ?? "").trim();
-  const full = name ? `${name} \u00b7 ${periodLabel}` : periodLabel;
+  const full = name && periodLabel ? `${name} \u00b7 ${periodLabel}` : name || periodLabel || "";
   // 24ch truncation per the directive; the title attr carries the rest.
   return full.length > 24 ? full.slice(0, 23).trimEnd() + "\u2026" : full;
 }
@@ -56,12 +60,9 @@ export function ContextObject() {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 
-  // Same fallback as the old breadcrumb: with nothing resolvable, name the
-  // current month — every workspace keeps a permanent current-month period,
-  // so that is where the app is about to land anyway.
-  const periodLabel =
-    formatPeriodMonth(selectedEnd, locale) ??
-    formatPeriodMonth(currentMonthEnd(), locale);
+  // Nothing resolvable names no month (see useCapsuleLabel): the permanent
+  // current-month period this used to fall back to is no longer created (G4).
+  const periodLabel = formatPeriodMonth(selectedEnd, locale);
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -113,13 +114,17 @@ export function ContextObject() {
           <span className="max-w-[160px] truncate font-medium">
             {workspaceName || t("shell.context.noWorkspace")}
           </span>
-          <span aria-hidden className="text-ink-mute">·</span>
-          <span
-            data-testid="context-object-period"
-            className="whitespace-nowrap font-mono text-[11px] uppercase tracking-[0.1em] tabular-nums text-ink-soft"
-          >
-            {periodLabel}
-          </span>
+          {periodLabel && (
+            <>
+              <span aria-hidden className="text-ink-mute">·</span>
+              <span
+                data-testid="context-object-period"
+                className="whitespace-nowrap font-mono text-[11px] uppercase tracking-[0.1em] tabular-nums text-ink-soft"
+              >
+                {periodLabel}
+              </span>
+            </>
+          )}
           <ChevronDown
             size={12}
             strokeWidth={2}
