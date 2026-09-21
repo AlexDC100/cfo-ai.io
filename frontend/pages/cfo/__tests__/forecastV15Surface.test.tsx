@@ -43,6 +43,23 @@ vi.mock("@/lib/activePeriod", () => ({
 
 const forecast = vi.fn();
 const forecastRecompute = vi.fn();
+// forecast-scenarios-live: the page resolves the COMPANY ON SCREEN
+// (lib/pageCompany) before it projects. These suites are about the
+// projection, so the period above is the one on screen and the workspace
+// layer answers "loaded, nothing else to say".
+vi.mock("@/hooks/useActivePeriodFallback", () => ({
+  useActivePeriodFallback: () => ({ periodId: null, status: "ready" }),
+}));
+vi.mock("@/lib/org", () => ({
+  useActiveOrg: () => ({
+    org: null, orgs: [], archived: [], loading: false, loadError: false,
+    needsOnboarding: false, refresh: async () => undefined, switchOrg: async () => undefined,
+    createWorkspace: async () => null, renameWorkspace: async () => false,
+    setWorkspaceIndustry: async () => false, archiveWorkspace: async () => false,
+    restoreWorkspace: async () => false, purgeWorkspace: async () => false,
+  }),
+  daysUntilPurge: () => 30,
+}));
 vi.mock("@/lib/cfoApi", async () => {
   const actual = await vi.importActual<typeof import("@/lib/cfoApi")>("@/lib/cfoApi");
   return {

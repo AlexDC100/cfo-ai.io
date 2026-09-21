@@ -92,6 +92,7 @@ import {
   type HeadlineProvenance,
 } from "@/lib/headlineProvenance";
 import { resolveHeadlineNetProfit } from "@/lib/headlineFigures";
+import { canonicalMarginsFrom, computeDashboardHeadline } from "@/lib/dashboardHeadline";
 import { FigureProvenanceProvider, type FigureProvenanceMap } from "@/lib/figureProvenanceContext";
 import { CFOBriefingCard } from "@/components/cfo/CFOBriefingCard";
 import "@/components/cfo/dashInstrumentI18n";
@@ -642,15 +643,10 @@ function FinancialStatementsInner() {
   // section so EBITDA margin / Net margin agree with the dashboard tile and
   // the P&L Key Margins block. Falls back to FE arithmetic when the engine
   // row is missing (pre-v2.1 cached period).
-  const dashboardCanonicalMargins = useMemo(() => {
-    const ebitdaRow = remotePeriod.metrics.find((mt) => mt.name === "ebitda_margin");
-    const netRow = remotePeriod.metrics.find((mt) => mt.name === "net_margin");
-    return {
-      ebitdaMargin:
-        typeof ebitdaRow?.value === "number" ? ebitdaRow.value : null,
-      netMargin: typeof netRow?.value === "number" ? netRow.value : null,
-    };
-  }, [remotePeriod.metrics]);
+  const dashboardCanonicalMargins = useMemo(
+    () => canonicalMarginsFrom(remotePeriod.metrics),
+    [remotePeriod.metrics],
+  );
   // ‡ F1.e — Engine canonical statutory net profit (ct.121). Plumbed into
   // the dashboard tile and the CFO AI Summary block so the RON figure
   // agrees with the margin.
@@ -801,47 +797,25 @@ function FinancialStatementsInner() {
   // dashboard read one shared computation — figures can never diverge).
   const headline = useMemo(() => {
     if (!statements || !totals) return null;
-    const pl = pickPLBuilder(
-      {
+    // ONE computation, shared with the Forecast page's year 0
+    // (lib/dashboardHeadline.ts, owner gate F1): operating revenue from the
+    // P&L builder, EBITDA from `assembled_pl.ebitda_statutory` first, net
+    // profit through `resolveHeadlineNetProfit`, the builder's "Total
+    // operating expenses (cash)" subtotal for Simple mode's runway sentence.
+    const { totalOperatingRevenue, tileEbitdaRon, tileNetProfitRon, totalOperatingExpenses, pl } =
+      computeDashboardHeadline({
+        statements,
         lineItems: remotePeriod.lineItems,
-        entity: statements.companyName ?? t("dash.entity"),
-        period: statements.periodLabel,
-        currency: statements.currency,
+        metrics: remotePeriod.metrics,
+        entity: t("dash.entity"),
         canonicalMargins: dashboardCanonicalMargins,
-      },
-      statements,
-    );
-    const totalOperatingRevenue =
-      pl.sections[0]?.subtotalAmount ?? statements.incomeStatement.revenue;
-    // Tile EBITDA: engine `assembled_pl.ebitda_statutory` first (the legally
-    // reported EBITDA incl. 722/758/781), FE operating-view `pl.ebitda` as
-    // the pre-v2.1 fallback — identical routing to the original KPI tile.
-    const tileEbitdaCanonical =
-      typeof statements.assembled_pl?.ebitda_statutory === "number"
-        ? statements.assembled_pl.ebitda_statutory
-        : null;
-    const tileEbitdaRon = tileEbitdaCanonical ?? pl.ebitda;
-    // Net profit: resolved by `lib/headlineFigures`, the one seam this
-    // figure is decided at — see that module for the order and why.
-    const tileNetProfitRon = resolveHeadlineNetProfit(
-      statements,
-      remotePeriod.metrics,
-      pl,
-    );
+      });
     const sourceTooltip =
       remotePeriod.detectedType === "statutory_f30_f10"
         ? t("dash.sourceStatutoryTooltip")
         : remotePeriod.detectedType === "trial_balance"
           ? t("dash.sourceTbTooltip")
           : null;
-    // THE DIAL — the P&L builder's "Total operating expenses (cash)"
-    // subtotal, exactly what the Pro P&L tab renders as that row. Simple
-    // mode's cash-runway sentence divides it; when the builder produced no
-    // such section the sentence simply doesn't render (absent ≠ zero).
-    // Found by label, not index — the 758 section shifts positions.
-    const totalOperatingExpenses =
-      pl.sections.find((s) => s.subtotalLabel?.startsWith("Total operating expenses"))
-        ?.subtotalAmount ?? null;
     return { totalOperatingRevenue, tileEbitdaRon, tileNetProfitRon, sourceTooltip, totalOperatingExpenses, pl };
   }, [statements, totals, remotePeriod.lineItems, remotePeriod.metrics, remotePeriod.detectedType, dashboardCanonicalMargins, t]);
 

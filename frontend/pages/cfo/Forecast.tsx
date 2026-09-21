@@ -46,12 +46,15 @@
 // wearing the same labels.
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { SlidersHorizontal } from "lucide-react";
 
 import { PageHeader as InstrumentPageHeader, Chip } from "@/components/instrument/Panel";
-import { PageHeader } from "@/components/cfo/ui/PageHeader";
+import { CompanyCards } from "@/components/cfo/CompanyCards";
 import { ProjectedAmount } from "@/components/forecast/ProjectedAmount";
+import { YearZeroStrip } from "@/components/forecast/YearZeroStrip";
 import { ExecutiveStrip } from "@/components/forecast/ExecutiveStrip";
 import { GrowthBasis } from "@/components/forecast/GrowthBasis";
 import { LeverRail, cellToWire } from "@/components/forecast/LeverRail";
@@ -61,7 +64,9 @@ import {
   FreeCashFlowChart,
   RevenueEbitdaChart,
 } from "@/components/forecast/ForecastCharts";
-import { useActivePeriod } from "@/lib/activePeriod";
+import type { ActivePeriod } from "@/lib/activePeriod";
+import { usePageCompany } from "@/lib/pageCompany";
+import { useFeatureStatus } from "@/lib/features";
 import { cfoApi, FORECAST_HORIZONS, type ForecastHorizon } from "@/lib/cfoApi";
 import {
   readProjection,
@@ -263,10 +268,17 @@ function AssumptionSchedule({
  *  currency is shown as a chip instead, so the reader is told rather than
  *  silently converted. */
 function makeFormatter(currency: string, locale: string) {
+  // Whole units, EXCEPT a figure under one unit: the engine serves cents,
+  // and a served 0.01 printed "RON 0" is a zero painted where a real value
+  // exists (owner gate F5 — measured on agras: eighteen working-capital
+  // movements of one cent rendered as "RON 0"). A sub-unit figure keeps its
+  // cents; everything else rounds half away from zero, exactly as the
+  // whole-unit format did.
   const fmt = new Intl.NumberFormat(locale, {
     style: "currency",
     currency: currency || "RON",
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
   });
   // THE VALUE ARRIVES IN MAJOR UNITS. `<ProjectedAmount>` calls
   // `projectedDisplay`, whose docstring is explicit — "The single
@@ -282,7 +294,8 @@ function makeFormatter(currency: string, locale: string) {
   //
   // The boundary was right and the page was wrong. Nothing in the
   // producer or the serving lane needed changing.
-  return (value: number) => fmt.format(value);
+  return (value: number) =>
+    fmt.format(Math.abs(value) >= 1 ? Math.sign(value) * Math.round(Math.abs(value)) : value);
 }
 
 function StatementBlock({
@@ -452,10 +465,48 @@ function readRefusal(err: unknown): { text: string; field: string | null } | nul
     : null;
 }
 
+/** THE COMPANY ON SCREEN (forecast-scenarios-live). The forecast always
+ *  works on the active workspace's company and its analysed year. With no
+ *  company, or a company with no analysed year, the page says so in one
+ *  sentence and offers the user's companies — never a blank page, and never
+ *  an upload control (the company page owns uploads). */
 export default function Forecast() {
   const { t } = useTranslation();
+  const onScreen = usePageCompany();
+  const pageName = t("forecast.eyebrow", "Forecast");
+  if (onScreen.status === "ready") {
+    return <ForecastForPeriod key={onScreen.period.id} period={onScreen.period}
+      companyName={onScreen.company?.name ?? null} />;
+  }
+  return (
+    <div className="space-y-4 pb-16">
+      <InstrumentPageHeader
+        eyebrow={pageName}
+        title={t("forecast.title", "Projection")}
+        context={onScreen.company ? <span>{onScreen.company.name}</span> : undefined}
+      />
+      {onScreen.status === "loading" ? (
+        <p className="px-1 text-[13px] text-ink-mute" data-testid="forecast-loading">
+          {t("forecast.loading", "Projecting…")}
+        </p>
+      ) : (
+        <CompanyCards reason={onScreen.status} pageName={pageName} />
+      )}
+    </div>
+  );
+}
+
+function ForecastForPeriod({
+  period,
+  companyName,
+}: {
+  period: ActivePeriod;
+  companyName: string | null;
+}) {
+  const { t } = useTranslation();
   const locale = useActiveLocale();
-  const period = useActivePeriod();
+  const navigate = useNavigate();
+  const scenariosOpen = useFeatureStatus("scenarios") === "active";
   const [horizon, setHorizon] = useState<ForecastHorizon>(5);
   /** FY columns by default. The monthly view is the SAME response — one GET
    *  already carries the months of plan year one and the annual periods after
@@ -562,19 +613,6 @@ export default function Forecast() {
     setCommitted([]);
   }, [horizon, period.id]);
 
-  if (!period.id) {
-    return (
-      <PageHeader
-        eyebrow={t("forecast.eyebrow", "Forecast")}
-        title={t("forecast.empty.title", "Load a period to project from")}
-        subtitle={t(
-          "forecast.empty.subtitle",
-          "A projection stands on one closing balance sheet and one profit and loss account. Upload or open a period and the forecast opens with it.",
-        )}
-      />
-    );
-  }
-
   const projectedLabel = t("forecast.projected", "projected");
 
   const onChange = (key: string, index: number, text: string) => {
@@ -622,24 +660,48 @@ export default function Forecast() {
       <InstrumentPageHeader
         eyebrow={t("forecast.eyebrow", "Forecast")}
         title={t("forecast.title", "Projection")}
+        context={
+          companyName ? (
+            <span data-testid="forecast-company">{companyName}</span>
+          ) : undefined
+        }
         actions={
-          <div className="flex items-center gap-2" data-testid="forecast-horizon">
-            {FORECAST_HORIZONS.map((h) => (
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2" data-testid="forecast-horizon">
+              {FORECAST_HORIZONS.map((h) => (
+                <button
+                  key={h}
+                  type="button"
+                  onClick={() => setHorizon(h)}
+                  aria-pressed={h === horizon}
+                  data-testid={`forecast-horizon-${h}`}
+                  className={`rounded-md border px-3 py-1 font-mono text-[11px] uppercase tracking-wider transition-colors ${
+                    h === horizon
+                      ? "border-brand/60 bg-brand/10 text-ink"
+                      : "border-rule text-ink-mute hover:text-ink"
+                  }`}
+                >
+                  {t("forecast.years", "{{count}} years", { count: h })}
+                </button>
+              ))}
+            </div>
+            {/* THE ONE PRIMARY ACTION of this screen: stress the plan. The
+                Scenarios page opens on the same company and period, and its
+                base column IS this forecast (gate F4). */}
+            {scenariosOpen ? (
               <button
-                key={h}
                 type="button"
-                onClick={() => setHorizon(h)}
-                aria-pressed={h === horizon}
-                data-testid={`forecast-horizon-${h}`}
-                className={`rounded-md px-3 py-1 font-mono text-[11px] uppercase tracking-wider transition-colors ${
-                  h === horizon
-                    ? "bg-brand text-white"
-                    : "border border-rule text-ink-mute hover:text-ink"
-                }`}
+                data-testid="forecast-open-scenarios"
+                data-primary-action="true"
+                onClick={() =>
+                  navigate(`/dashboard/scenarios?period=${encodeURIComponent(period.id as string)}`)
+                }
+                className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3.5 py-1.5 text-[13px] font-medium text-white transition-colors hover:bg-brand-d"
               >
-                {t("forecast.years", "{{count}} years", { count: h })}
+                <SlidersHorizontal size={14} strokeWidth={2} aria-hidden />
+                {t("forecast.openScenarios", "Stress this plan")}
               </button>
-            ))}
+            ) : null}
           </div>
         }
       />
@@ -710,6 +772,10 @@ export default function Forecast() {
         >
           {view.error}
         </div>
+      ) : null}
+
+      {shown ? (
+        <YearZeroStrip period={period} currency={shown.currency} locale={locale} />
       ) : null}
 
       {shown ? (

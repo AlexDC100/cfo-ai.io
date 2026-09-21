@@ -19,6 +19,7 @@ import { describe, expect, it } from "vitest";
 import { resolveHeadlineNetProfit } from "@/lib/headlineFigures";
 
 const PAGE = resolve(__dirname, "../..", "pages/cfo/FinancialStatements.tsx");
+const HEADLINE = resolve(__dirname, "..", "dashboardHeadline.ts");
 const ANCHOR = 36_787_352.75;
 const RECONSTRUCTION = 36_267_963.64;
 
@@ -52,7 +53,19 @@ describe("net profit as filed — the seam", () => {
     const bareLookups = src.match(/\.find\(\s*\(?\s*\w+\s*\)?\s*=>\s*\w+\.name\s*===\s*"net_income_statutory"/g) ?? [];
     expect(bareLookups, `the page looks up net_income_statutory itself ${bareLookups.length} time(s); the seam owns that decision`).toEqual([]);
     expect(src).toMatch(/resolveHeadlineNetProfit\(/);
-    const uses = src.match(/resolveHeadlineNetProfit\(/g) ?? [];
-    expect(uses.length, "the card and canonicalNetIncomeStatutory should both resolve through the seam").toBeGreaterThanOrEqual(2);
+    // The CARD resolves through lib/dashboardHeadline (forecast-scenarios-live:
+    // hoisted so the Forecast page's year 0 is the same computation), and that
+    // module must itself resolve through the seam; canonicalNetIncomeStatutory
+    // still calls the seam on the page. Two sites, one seam, as before.
+    const direct = src.match(/resolveHeadlineNetProfit\(/g) ?? [];
+    const viaHeadline = /computeDashboardHeadline\(\{/.test(src) ? 1 : 0;
+    const headline = readFileSync(HEADLINE, "utf8");
+    expect(headline, "lib/dashboardHeadline.ts no longer resolves net profit through the seam").toMatch(
+      /resolveHeadlineNetProfit\(/,
+    );
+    expect(
+      direct.length + viaHeadline,
+      "the card and canonicalNetIncomeStatutory should both resolve through the seam",
+    ).toBeGreaterThanOrEqual(2);
   });
 });

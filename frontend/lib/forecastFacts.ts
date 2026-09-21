@@ -361,12 +361,43 @@ export interface BookInput {
   readonly value: number | null;
 }
 
+/** The SECTOR evidence a driver stands on (contract 3.3; forecast-scenarios-
+ *  live): the committed Ministry of Finance sector dataset's figure for the
+ *  company's CAEN class and size band. Every field is served; the median is
+ *  its exact decimal at the driver's own scale, never re-divided here. */
+export interface SectorBasisView {
+  readonly caen: string;
+  readonly sectorCaen: string;
+  readonly sectorLabel: string;
+  /** "caen4" (the class) or "caen2" (the division, when the class had no
+   *  usable figure — stated, never silent). */
+  readonly level: string;
+  readonly sizeBand: string;
+  readonly n: number | null;
+  readonly year: number | null;
+  readonly priorYear: number | null;
+  readonly source: string;
+  readonly sourceUrl: string | null;
+}
+
+/** The MACRO evidence a driver stands on: the ro_macro anchor, with its
+ *  source and the date it was stated as of. */
+export interface MacroBasisView {
+  readonly source: string;
+  readonly sourceUrl: string | null;
+  readonly statedAsOf: string;
+}
+
 export interface LeverBasisView {
   readonly tier: DriverTier | null;
   readonly sentence: string;
   readonly bookMethod: string | null;
   readonly bookInputs: readonly BookInput[];
   readonly bookPeriodsUsed: readonly string[];
+  /** Served only when the tier is `sector`; null otherwise (never guessed). */
+  readonly sector: SectorBasisView | null;
+  /** Served only when the tier is `macro`; null otherwise. */
+  readonly macro: MacroBasisView | null;
   /** Each rung the ladder tried and what happened — the honest answer when
    *  the page is asked "why is this tier and not book?". */
   readonly fallbackSteps: readonly {
@@ -732,6 +763,34 @@ const bookInputsOf = (book: RawRecord | null): BookInput[] => {
   });
 };
 
+function sectorBasis(raw: RawRecord | null): SectorBasisView | null {
+  if (!raw) return null;
+  const n = asInt(raw.n);
+  const year = asInt(raw.period_year);
+  const prior = asInt(raw.prior_year);
+  return {
+    caen: asString(raw.caen),
+    sectorCaen: asString(raw.sector_caen),
+    sectorLabel: asString(raw.sector_label),
+    level: asString(raw.caen_level_used),
+    sizeBand: asString(raw.size_band_used),
+    n,
+    year,
+    priorYear: prior,
+    source: asString(raw.source),
+    sourceUrl: asString(raw.source_url) || null,
+  };
+}
+
+function macroBasis(raw: RawRecord | null): MacroBasisView | null {
+  if (!raw) return null;
+  return {
+    source: asString(raw.source),
+    sourceUrl: asString(raw.source_url) || null,
+    statedAsOf: asString(raw.stated_as_of),
+  };
+}
+
 function leverBasis(basis: RawRecord): LeverBasisView {
   const book = asRecord(basis.book);
   const tier = asString(basis.tier);
@@ -746,6 +805,8 @@ function leverBasis(basis: RawRecord): LeverBasisView {
       book && Array.isArray(book.periods_used)
         ? book.periods_used.map((p) => String(p))
         : [],
+    sector: sectorBasis(asRecord(basis.sector)),
+    macro: macroBasis(asRecord(basis.macro)),
     fallbackSteps: (Array.isArray(basis.fallback_steps) ? basis.fallback_steps : [])
       .flatMap((s) => {
         const rec = asRecord(s);

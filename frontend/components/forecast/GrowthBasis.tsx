@@ -8,12 +8,14 @@
 // done here.
 //
 // When there is no prior the ladder falls through and the engine says so, rung
-// by rung, in its own words: book absent because no comparable prior period is
-// loaded, sector absent because no sector source is wired in. That is what is
-// shown — not a flat zero, and not a sector figure this build has no source to
-// label. A flat zero-percent plan is only ever shown when the book's own
-// history measures zero, and then it is a MEASURED zero with two turnovers
-// beside it.
+// by rung, in its own words. A company with only one year grows at its
+// SECTOR's median net-turnover growth (forecast-scenarios-live): the engine
+// serves the evidence — the CAEN class (or the division, stated), the size
+// band, n filers, the two filed years and the source — and this renders it
+// with the served sentence. With no sector figure the macro anchor stands,
+// with its source and the date it was stated as of. A flat zero-percent plan
+// is only ever shown when the book's own history measures zero, and then it
+// is a MEASURED zero with two turnovers beside it.
 
 import { useTranslation } from "react-i18next";
 
@@ -75,6 +77,38 @@ export function GrowthBasis({ view, format }: GrowthBasisProps) {
             </li>
           ))}
         </ul>
+      ) : null}
+
+      {lever.basis.sector ? (
+        <p
+          data-testid="forecast-growth-sector"
+          className="mt-2 font-mono text-[10.5px] uppercase tracking-wider text-ink-mute"
+        >
+          {t("forecast.growth.sectorLine", {
+            caen: lever.basis.sector.sectorCaen,
+            label: lever.basis.sector.sectorLabel,
+            band: t(`forecast.growth.band.${lever.basis.sector.sizeBand}`, lever.basis.sector.sizeBand),
+            n: lever.basis.sector.n ?? "",
+            prior: lever.basis.sector.priorYear ?? "",
+            year: lever.basis.sector.year ?? "",
+            defaultValue: "CAEN {{caen}} · {{band}} · n={{n}} · FY{{prior}}→FY{{year}}",
+          })}
+          {lever.basis.sector.level === "caen2"
+            ? ` · ${t("forecast.growth.division", "CAEN division, not the class")}`
+            : null}
+        </p>
+      ) : null}
+      {lever.basis.macro ? (
+        <p
+          data-testid="forecast-growth-macro"
+          className="mt-2 font-mono text-[10.5px] uppercase tracking-wider text-ink-mute"
+        >
+          {t("forecast.growth.macroLine", {
+            source: lever.basis.macro.source,
+            date: lever.basis.macro.statedAsOf,
+            defaultValue: "{{source}} · stated as of {{date}}",
+          })}
+        </p>
       ) : null}
 
       <p className="mt-2 text-[12px] leading-snug text-ink-soft">
