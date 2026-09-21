@@ -10,7 +10,7 @@
 // existing path:
 //   · rename            → onRename → useWorkspaces().rename (org RPC)
 //   · industry          → onChangeIndustry → useWorkspaces().setIndustry
-//   · period add/delete → PeriodsSection (createEmptyPeriod / deletePeriod)
+//   · period add/delete → PeriodsSection (deletePeriod; a period is created only by analysing its file)
 //   · rules apply/reset → decisionRulesStore (writeDecisionRules / reset)
 //   · financing         → decisionRulesStore.setFinancing
 //   · delete workspace  → onDelete → useWorkspaces().remove (soft, 30 days)

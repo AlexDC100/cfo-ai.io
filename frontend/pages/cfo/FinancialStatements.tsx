@@ -3941,9 +3941,9 @@ async function previewExampleInNewTab(file: string): Promise<void> {
 // an irreversible bulk action behind a confirm dialog; if it ever needs
 // restricting, gate it on workspace role rather than build mode.
 //
-// The workspace is left with no periods, so `useEnsureCurrentPeriod` creates
-// a fresh container for the current month on the next render — the user lands
-// on the dropzone rather than a broken empty screen.
+// The workspace is left with no periods; the dashboard's no-data state (the
+// dropzone) is what the user lands on. No empty container is re-created
+// (G4, 2026-09-21: no period without an analysed file).
 function DashboardDevTools() {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);

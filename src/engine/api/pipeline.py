@@ -1824,6 +1824,79 @@ def resolve_period_end_for_persist(
     return period_end, record
 
 
+# ── G4: no period without an analysed source document ─────────────────
+#
+# `stage_persist` runs BEFORE compute / validate / narrate, so a period row
+# is inserted while its document is still mid-analysis. When a later stage
+# raised, the document was marked `failed` and the freshly inserted period
+# stayed behind — a month in the workspace whose only document failed, with
+# half an analysis under it. The orchestrator now removes a period THIS run
+# inserted when the run fails. Only the INSERT branch records: a re-run of a
+# document that already had its period, and a same-month takeover of an
+# existing period, leave the row where it was (the row predates the run).
+_PERIODS_MINTED_BY_RUN: Dict[str, str] = {}
+_PERIODS_MINTED_LOCK = threading.Lock()
+
+
+def _record_period_minted(document_id: Any, period_id: Any) -> None:
+    if not document_id or not period_id:
+        return
+    with _PERIODS_MINTED_LOCK:
+        _PERIODS_MINTED_BY_RUN[str(document_id)] = str(period_id)
+
+
+def _pop_period_minted(document_id: Any) -> Optional[str]:
+    with _PERIODS_MINTED_LOCK:
+        return _PERIODS_MINTED_BY_RUN.pop(str(document_id or ""), None)
+
+
+def _rollback_period_of_failed_run(document_id: str, org_id: Optional[str]) -> Optional[str]:
+    """Remove the period THIS failed run inserted, when nothing else holds
+    it. Returns the removed period id, or None.
+
+    Every filter names the tenant and the document — under the service role
+    the filter IS the access control — and a period another document now
+    points at is left alone. Derivatives go with the row (their foreign keys
+    cascade); the document's own `period_id` is cleared first so a failed
+    document is never pinned to a month that no longer exists. Never raises:
+    the failure being handled is the one the user sees."""
+    period_id = _pop_period_minted(document_id)
+    if not period_id or not org_id:
+        return None
+    try:
+        with _supabase.admin() as ac:
+            rows = ac.select(
+                "financial_periods",
+                filters={"id": f"eq.{period_id}", "org_id": f"eq.{org_id}",
+                         "source_document_id": f"eq.{document_id}"},
+                columns="id",
+                limit=1,
+            )
+            if not rows:
+                return None
+            others = ac.select(
+                "documents",
+                filters={"period_id": f"eq.{period_id}", "org_id": f"eq.{org_id}",
+                         "id": f"neq.{document_id}"},
+                columns="id",
+                limit=1,
+            )
+            if others:
+                return None
+            ac.update("documents", {"period_id": None},
+                      filters={"id": f"eq.{document_id}", "org_id": f"eq.{org_id}"})
+            ac.delete("financial_periods",
+                      filters={"id": f"eq.{period_id}", "org_id": f"eq.{org_id}",
+                               "source_document_id": f"eq.{document_id}"})
+        logger.info("[pipeline] %s failed — removed the period %s it had created",
+                    document_id, period_id)
+        return period_id
+    except Exception:  # noqa: BLE001 — never mask the failure being handled
+        logger.exception("[pipeline] could not remove the period %s of failed document %s",
+                         period_id, document_id)
+        return None
+
+
 def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[str, Any]) -> str:
     """Lookup-or-create the financial_period for this document's
     (org, period_end, source_document_id) tuple, then refresh its
@@ -1940,6 +2013,11 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
                         returning=True,
                     )
                     period_id = inserted[0]["id"]
+                    # G4 — this run MINTED the row. Recorded so that, if a
+                    # later stage fails, the orchestrator removes it again:
+                    # a period exists only once an analysed source document
+                    # backs it (see `_rollback_period_of_failed_run`).
+                    _record_period_minted(doc.get("id"), period_id)
                 except Exception:
                     # Race-loser: another upload for this month won. Re-select
                     # by (org_id, period_end) and reuse it — same replace
@@ -3917,6 +3995,9 @@ def _commit_pipeline_quota(document_id: str, *, success: bool) -> None:
 
 def _run_pipeline_sync(document_id: str) -> None:
     t0 = time.time()
+    # Bound before the try so the failure handler can name the tenant of the
+    # period this run may have to roll back (G4).
+    doc: Optional[Dict[str, Any]] = None
     try:
         with _supabase.admin() as admin_client:
             doc_rows = admin_client.select("documents", filters={"id": f"eq.{document_id}"}, single=True)
@@ -4047,6 +4128,7 @@ def _run_pipeline_sync(document_id: str) -> None:
                 duration_ms=int((time.time() - t0) * 1000),
                 period_id=period_id,
             )
+            _pop_period_minted(document_id)
             logger.info(
                 "[pipeline] %s ai_lane complete in %dms (jurisdiction=%s, "
                 "period %s)",
@@ -4376,6 +4458,9 @@ def _run_pipeline_sync(document_id: str) -> None:
             duration_ms=int((time.time() - t0) * 1000),
             period_id=period_id,
         )
+        # The period is now backed by an analysed document — nothing to
+        # roll back from here on.
+        _pop_period_minted(document_id)
         # Pricing V3 (gap D) — analysis SUCCEEDED. Convert the
         # reservation made at /api/pipeline/run into a consumed slot.
         # If the doc was flagged `metered_extra`, ALSO bump the
@@ -4395,6 +4480,10 @@ def _run_pipeline_sync(document_id: str) -> None:
             _admin_set_status(document_id, "failed", error=msg, duration_ms=int((time.time() - t0) * 1000))
         except Exception:
             logger.exception("[pipeline] also failed to mark failed")
+        # G4 — a period exists only once an analysed source document backs
+        # it. The period this run inserted (if any) goes with the failure.
+        _rollback_period_of_failed_run(
+            document_id, doc.get("org_id") if isinstance(doc, dict) else None)
         # Pricing V3 (gap D) — analysis FAILED. Release the
         # reservation so the doc doesn't count against quota and the
         # user is not billed for an extra. No-op when disabled.

@@ -139,29 +139,12 @@ export async function fetchWorkspacePeriodsDirect(
   };
 }
 
-/** Create an EMPTY period (a container with no file yet). `periodEnd` must be
- *  the last day of the month, ISO. The pipeline later ADOPTS this row when a
- *  trial balance for the same month is uploaded (stage_persist's replace
- *  branch matches on (org_id, period_end) and takes over source_document_id),
- *  so pre-creating never produces a duplicate month.
- *
- *  Caller must guard against months that already exist: the DB's UNIQUE
- *  (org_id, period_end, source_document_id) can't — source_document_id is
- *  NULL here, and NULLs never collide in Postgres unique constraints. */
-export async function createEmptyPeriod(
-  orgId: string,
-  periodEnd: string,
-): Promise<{ id: string } | { error: string }> {
-  const sb = getSupabase();
-  if (!sb) return { error: "Not signed in." };
-  const { data, error } = await sb
-    .from("financial_periods")
-    .insert({ org_id: orgId, period_start: periodEnd, period_end: periodEnd })
-    .select("id")
-    .single();
-  if (error) return { error: error.message };
-  return { id: data.id as string };
-}
+// `createEmptyPeriod` was DELETED 2026-09-21 (G4): a `financial_periods`
+// row exists only once an analysed source document backs it, and the only
+// writer is the engine's `stage_persist`. Uploading with `periodEndHint`
+// alone files the analysis under the confirmed month — no container first.
+// tests/engine/test_no_empty_period_creators.py reds on any client-side
+// insert into financial_periods.
 
 /** Move an (empty) period to a different month — a direct update of
  *  period_end/period_start under the user's own RLS. Used by the pre-scan
@@ -212,11 +195,10 @@ export function useOrgPeriods() {
 
 // ── The current month is permanent ─────────────────────────────────────
 //
-// Every workspace always has a period for the CURRENT month and year, and
-// that one can't be deleted (2026-07-26 per operator). It's the always-there
-// landing spot: the month you'd file today's trial balance into, guaranteed to
-// exist and to be selectable even in a brand-new workspace with no uploads.
-// `useEnsureCurrentPeriod` creates it; the Workspace page refuses to delete it.
+// The current month used to be created, empty, in every workspace
+// (useEnsureCurrentPeriod — deleted 2026-09-21, G4: no period without an
+// analysed file). The helpers below still recognise a current-month row so
+// the surfaces that read one keep working on the rows that already exist.
 
 /** Last day of the current month, as YYYY-MM-DD. UTC so the boundary doesn't
  *  shift a period into the neighbouring month for users west of Greenwich. */

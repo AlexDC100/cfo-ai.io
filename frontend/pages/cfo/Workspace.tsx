@@ -60,7 +60,6 @@ import { OrgIndustryPills, orgIndustryDisplayLabel, orgIndustryLabel } from "@/c
 import { toast } from "@/components/ui/sonner";
 import { periodQueryKey, useActivePeriod } from "@/lib/activePeriod";
 import {
-  createEmptyPeriod,
   deleteEmptyPeriod,
   fetchWorkspacePeriodsDirect,
   formatPeriodMonth,

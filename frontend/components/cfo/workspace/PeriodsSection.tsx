@@ -24,19 +24,18 @@
 //     the bottom. They never navigate, never show "Activ", never offer
 //     attach; their kebab offers Rename (the actual fix) and Delete.
 //   · Delete: WITH files → confirm dialog listing the files that go with it
-//     (engine soft-delete path); EMPTY → instant, no modal, 5s undo toast
-//     (undo re-creates the same month via createEmptyPeriod). Deleting the
+//     (engine soft-delete path); EMPTY → instant, no modal, no undo (an
+//     empty period is never re-created — G4, 2026-09-21). Deleting the
 //     active period auto-switches ?period= to the most recent remaining one.
 //     The old "current month is permanent" / "keep one period" guards are
-//     gone (2026-08-04 operator decision); note useEnsureCurrentPeriod
-//     re-creates a current-month container app-wide.
+//     gone (2026-08-04 operator decision), and so is useEnsureCurrentPeriod.
 //   · Rename = month-year picker (2000 → next year). Picking an occupied
 //     month prompts a merge: this period's files move to the existing month
 //     (documents.period_id update, same RLS path as every doc patch) and the
 //     empty shell is deleted.
 //
-// Data mutations stay on existing code paths: createEmptyPeriod /
-// updatePeriodEnd / deleteEmptyPeriod (direct RLS), cfoApi.deletePeriod
+// Data mutations stay on existing code paths: updatePeriodEnd /
+// deleteEmptyPeriod (direct RLS), cfoApi.deletePeriod
 // (engine soft-delete), uploadDocument + enqueue for attach.
 //
 // ─── PERIOD-ASSIGNMENT FIX (2026-08-30) — why the confirm step exists ────
@@ -97,7 +96,6 @@ import { pickActiveSourceDoc } from "@/lib/activeSourceDoc";
 import { forgetPeriodVerdictFor } from "@/lib/dataPresence";
 import { formatDateTime, useActiveLocale } from "@/lib/locale";
 import {
-  createEmptyPeriod,
   deleteEmptyPeriod,
   fetchWorkspacePeriodsDirect,
   formatPeriodMonth,
@@ -344,9 +342,9 @@ export function PeriodsSection({ orgId }: { orgId: string }) {
     };
   }
 
-  /** Empty period → instant delete, no modal, 5s undo toast. Undo re-creates
-   *  the same month via the existing create path (new row id — that IS the
-   *  undo for an empty container). */
+  /** Empty period → instant delete, no modal. There is no undo: an empty
+   *  period holds nothing, and re-creating one is exactly what G4 forbids
+   *  (no period without an analysed file). */
   async function deleteEmptyNow(target: OrgPeriod) {
     const lbl = label(target);
     const restore = dropFromCaches(target);
@@ -354,25 +352,7 @@ export function PeriodsSection({ orgId }: { orgId: string }) {
       const errMsg = await deleteEmptyPeriod(target.period_id);
       if (errMsg) throw new Error(errMsg);
       refreshPeriodLists();
-      const periodEnd = target.period_end;
-      toast.success(t("ws.periodDeleted", { label: lbl }), {
-        duration: 5000,
-        action: periodEnd
-          ? {
-              label: t("wsSet.periods.undo"),
-              onClick: () => {
-                void createEmptyPeriod(orgId, periodEnd).then((res) => {
-                  if ("error" in res) {
-                    toast.error(t("ws.cantAddPeriod"), { description: res.error });
-                  } else {
-                    refreshPeriodLists();
-                    toast.success(t("wsSet.periods.restored", { label: lbl }));
-                  }
-                });
-              },
-            }
-          : undefined,
-      });
+      toast.success(t("ws.periodDeleted", { label: lbl }), { duration: 5000 });
     } catch (err) {
       restore();
       toast.error(t("ws.cantDeletePeriod"), {
@@ -509,13 +489,9 @@ export function PeriodsSection({ orgId }: { orgId: string }) {
       result.periodEnd;
     setAttachBusyId(result.periodId ?? req.context?.periodId ?? "pending");
     try {
-      // A month with no period yet: create the container first, so the
-      // hint below adopts that row instead of minting a sibling.
-      if (!result.periodId) {
-        const created = await createEmptyPeriod(orgId, result.periodEnd);
-        if ("error" in created) throw new Error(created.error);
-        refreshPeriodLists();
-      }
+      // No container first (G4): the hint below files the analysis under
+      // the confirmed month, and the engine creates that month's period
+      // only once the file is analysed.
       const { uploadDocument, subscribeToDocumentStatus } = await import("@/lib/supabase");
       const { row, error } = await uploadDocument(file, {
         scope: "financial",
@@ -1435,9 +1411,11 @@ function AddPeriodDialogV2({
     /^\d{4}-\d{2}$/.test(month) && month >= minMonth && month <= maxMonth;
   const duplicate = !attachMode && monthValid && takenMonths.includes(month);
   const monthLabel = formatPeriodMonth(`${month}-15`, locale) ?? month;
+  // A FILE is required in both modes (G4, 2026-09-21): a month with no file
+  // would be an empty period, and no period exists without an analysed file.
   const canSubmit = attachMode
     ? !!file && !busy
-    : monthValid && !duplicate && !busy;
+    : !!file && monthValid && !duplicate && !busy;
 
   const refreshPeriodLists = () => {
     void qc.invalidateQueries({ queryKey: ["org-periods", orgId] });
@@ -1455,40 +1433,21 @@ function AddPeriodDialogV2({
     // A staged file goes to the confirm step, which reads the document and
     // asks the human. Nothing is created or uploaded here — creating the
     // container first would leave an empty month behind whenever the
-    // document turns out to cover a different one.
-    if (file) {
-      onNeedsConfirm({
-        file,
-        mode: "attach",
-        context: {
-          periodId: attachPeriod?.period_id ?? null,
-          periodEnd,
-          reason: "chosen",
-        },
-        replacing: null,
-      });
-      return;
-    }
-
-    setBusy(true);
-    const lbl = formatPeriodMonth(periodEnd, locale) ?? formatPeriodMonthLoose(periodEnd, locale) ?? month;
-    try {
-      if (!attachMode) {
-        const created = await createEmptyPeriod(orgId, periodEnd);
-        if ("error" in created) throw new Error(created.error);
-      }
-      refreshPeriodLists();
-      toast.success(t("ws.periodAdded", { label: lbl }), {
-        description: t("ws.noFileYet"),
-      });
-      onOpenChange(false);
-      setBusy(false);
-    } catch (err) {
-      toast.error(t("ws.cantAddPeriod"), {
-        description: err instanceof Error ? err.message : undefined,
-      });
-      setBusy(false);
-    }
+    // document turns out to cover a different one. Without a file there is
+    // nothing to do (canSubmit is false): G4, 2026-09-21 — the file-less
+    // "add an empty month" path was removed, because no period may exist
+    // without an analysed file behind it.
+    if (!file) return;
+    onNeedsConfirm({
+      file,
+      mode: "attach",
+      context: {
+        periodId: attachPeriod?.period_id ?? null,
+        periodEnd,
+        reason: "chosen",
+      },
+      replacing: null,
+    });
   }
 
   return (

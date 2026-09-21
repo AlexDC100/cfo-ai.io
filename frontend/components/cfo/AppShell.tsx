@@ -57,7 +57,6 @@ import { useWorkspaces } from "@/lib/workspaces";
 import { useDocsPanelOpen } from "@/lib/docsPanel";
 import { useDatasetsPanelOpen } from "@/lib/datasetsPanel";
 import { useToast } from "@/hooks/use-toast";
-import { useEnsureCurrentPeriod } from "@/hooks/useEnsureCurrentPeriod";
 import { useActivePeriod } from "@/lib/activePeriod";
 import { ContentLoader } from "./AppLoader";
 import { UsageWarningBanner } from "./UsageWarningBanner";
@@ -70,10 +69,12 @@ interface Props {
 
 export function AppShell({ children }: Props) {
   const { t } = useTranslation();
-  // A workspace always has at least one period — if the active one has none,
-  // this creates an empty container for the current month. Lives here (one
-  // mount, app-wide) so two surfaces can't race to create the same month.
-  useEnsureCurrentPeriod();
+  // G4 (2026-09-21): no period exists without an analysed file behind it.
+  // This shell used to create an EMPTY current-month period in every
+  // workspace on every page (useEnsureCurrentPeriod, now deleted) — the
+  // source of the file-less 2026-05..09 rows in production. A period is
+  // created by the engine when its trial balance is analysed, and nowhere
+  // else.
   const navigate = useNavigate();
   const location = useLocation();
   const [params] = useSearchParams();

@@ -56,8 +56,8 @@ async function currentMonthPeriodId(uid: string | null): Promise<string | null> 
   const payload = await fetchWorkspacePeriodsDirect(orgId);
   if (!payload) return null;
   const current = payload.periods.find((p) => isCurrentMonthPeriod(p.period_end));
-  // Fall back to the newest period when the current month somehow isn't there
-  // yet (useEnsureCurrentPeriod may still be creating it) — any real month
+  // Fall back to the newest period when there is no current-month row (empty
+  // current-month containers are no longer created — G4) — any real month
   // beats an empty state.
   return current?.period_id ?? payload.periods[0]?.period_id ?? null;
 }
