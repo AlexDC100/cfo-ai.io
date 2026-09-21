@@ -539,6 +539,26 @@ def test_a_held_line_before_an_account_that_never_repeats_its_code_refuses(caplo
     assert refused(caplog, lines, "account 1007.01 follows a line led by the code-shaped 2019")
 
 
+def test_a_parent_beside_its_children_refuses_even_when_the_totals_count_both(caplog):
+    # parents 100 and 510 printed beside their children, the document's own
+    # class totals and grand total counting BOTH levels: every sum ties,
+    # debit == credit — only the codes show the double count
+    rs = rows()
+    for pre in ("100", "510"):
+        kids = [r for r in rs if r.cont.startswith(pre)]
+        parent = Row(pre, "SINTETIC " + pre)
+        parent.v = [sum((k.v[i] for k in kids), Z) for i in range(10)]
+        rs.insert(rs.index(kids[0]), parent)
+    assert refused(caplog, render(rs), "is listed beside its parent")
+
+
+def test_a_dotted_child_beside_its_undotted_parent_refuses(caplog):
+    rs = rows()
+    rs.append(Row("121.07", "Profit analitic", ra=(Z, Decimal("1.00"))))
+    rs.append(Row("5311.07", "Casa", ra=(Decimal("1.00"), Z)))
+    assert refused(caplog, render(rs), "account 121.07 is listed beside its parent 121")
+
+
 def test_too_few_accounts_refuses(caplog):
     assert refused(caplog, render(rows(n=5)[:10]), "10 account lines (< 20)")
 

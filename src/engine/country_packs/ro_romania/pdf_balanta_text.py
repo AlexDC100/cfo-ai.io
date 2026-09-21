@@ -73,7 +73,9 @@ can be checked to the cent — and it refuses unless ALL of these hold:
     accounts must be zero); a printed "Total general:", if any, equals the
     sum of every row on all ten columns;
   * total debit == total credit on each of the five pairs;
-  * no account code appears twice; at least MIN_ACCOUNTS accounts;
+  * no account code appears twice, and none is listed beside its parent
+    (an undotted code that prefixes another's base: "100" / "1000.01",
+    "121" / "121.07"); at least MIN_ACCOUNTS accounts;
   * no other line carries two or more figures (a figure row this reader
     could not attribute to an account is a refusal, never a skip) — and
     neither does the NAME part of an account line, nor does it hold a
@@ -510,6 +512,16 @@ def _parse_five_pair(lines: List[str]) -> Optional[Dict[str, Any]]:
         return _refuse5("%d account lines (< %d)", len(rows), MIN_ACCOUNTS)
     if len({r["cont"] for r in rows}) != len(rows):
         return _refuse5("an account appears twice")
+    # A parent listed beside its own children double-counts them, and the
+    # SAGA path does no parent de-duplication — refused even when the
+    # document's own totals count both levels (then every sum still ties).
+    undotted = {r["cont"] for r in rows if "." not in r["cont"]}
+    for r in rows:
+        base = r["cont"].split(".")[0]
+        for k in range(3, len(base) + 1):
+            parent = base[:k]
+            if parent != r["cont"] and parent in undotted:
+                return _refuse5("account %s is listed beside its parent %s", r["cont"], parent)
     for r in rows:
         v = r["figures"]
         if v[_TR_D] != v[_RA_D] + v[_RL_D] or v[_TR_C] != v[_RA_C] + v[_RL_C]:
