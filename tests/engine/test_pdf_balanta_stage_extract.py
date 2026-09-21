@@ -427,3 +427,32 @@ def test_an_eight_figure_book_with_unreadable_text_lines_keeps_its_fall_back(mon
     with pytest.raises(_ReachedClaude):
         pipeline.stage_extract(_doc())
     assert [f for f, _ in trace["positional"]] == [_doc()["original_filename"]]
+
+
+# ── the refusal names the layout the header actually names ──────────────
+
+
+def _both_layouts_lines():
+    lines = _synthetic_five_pair_lines()
+    lines.insert(1, "Balanta de verificare cu solduri, rulaje, sume totale si solduri finale")
+    return lines
+
+
+def test_a_header_naming_both_layouts_is_refused_as_such(monkeypatch):
+    # before the repair the refusal told the user this PDF "is a balanta de
+    # verificare printed with five column pairs" — a claim its own header
+    # contradicts
+    _on_parser(monkeypatch, "tb_parser_v6")
+    _arm(monkeypatch, _pdf_bytes(_both_layouts_lines()))
+    with pytest.raises(pipeline.BalantaPdfRefusedError) as refused:
+        pipeline.stage_extract(_doc())
+    message = str(refused.value)
+    assert message.startswith("This PDF's header names both balanta layouts")
+    assert "printed with five column pairs" not in message and "is a balanta" not in message
+    assert "Nothing was estimated" in message
+
+
+def test_a_five_pair_refusal_keeps_its_own_message():
+    message = pipeline.balanta_refusal_message("five_pair", "no printed total for class 5")
+    assert message.startswith("This PDF is a balanta de verificare printed with five column pairs")
+    assert "but it was not read: no printed total for class 5. Nothing was estimated" in message

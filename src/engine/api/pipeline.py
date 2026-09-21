@@ -268,7 +268,37 @@ class BalantaPdfRefusedError(Exception):
     `_run_pipeline_sync` marks the document `status='failed'` with this
     message as `documents.error` and releases the quota reservation.
     Nothing is estimated from the document, and Claude never sees it.
+
+    A document whose header names BOTH balanta layouts is refused the same
+    way, with its own message (`balanta_refusal_message`): it is not told
+    it is a five-pair balanta.
     """
+
+
+_BALANTA_REFUSAL_NEXT_STEP = (
+    "Nothing was estimated from it. Upload the same balanta exported as Excel (.xlsx), "
+    "or a PDF printed directly from the accounting program."
+)
+
+
+def balanta_refusal_message(layout: Optional[str], reason: str) -> str:
+    """The user-facing `documents.error` for a balanta PDF the text-line
+    reader refused. It names the layout the header ACTUALLY names: a header
+    naming both layouts is not told it is a five-pair balanta — it is told
+    the header names both, which is why no column can be read from it."""
+    if layout == _pdf_balanta_text.LAYOUT_BOTH:
+        return (
+            "This PDF's header names both balanta layouts — the one printed in four column "
+            "blocks (Solduri initiale / Rulaje / Sume totale / Solduri finale) and the one "
+            "printed in five column pairs (Sold initial / Rulaj anterior / Rulaj curent / "
+            "Total rulaj / Sold final) — so which printed column holds which figure cannot be "
+            "read from it. " + _BALANTA_REFUSAL_NEXT_STEP
+        )
+    return (
+        "This PDF is a balanta de verificare printed with five column pairs "
+        "(Sold initial / Rulaj anterior / Rulaj curent / Total rulaj / Sold final), "
+        "but it was not read: %s. " % reason + _BALANTA_REFUSAL_NEXT_STEP
+    )
 
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
@@ -1271,17 +1301,11 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
                 )
         if _balanta_refusal is not None:
             logger.warning(
-                "[stage_extract] five-pair balanta PDF refused: %s — %s — STOPPING before "
+                "[stage_extract] balanta PDF (%s layout) refused: %s — %s — STOPPING before "
                 "the positional fast-path and Claude",
-                doc.get("original_filename") or "(no filename)", _balanta_refusal,
+                _verdict.layout, doc.get("original_filename") or "(no filename)", _balanta_refusal,
             )
-            raise BalantaPdfRefusedError(
-                "This PDF is a balanta de verificare printed with five column pairs "
-                "(Sold initial / Rulaj anterior / Rulaj curent / Total rulaj / Sold final), "
-                "but it was not read: %s. Nothing was estimated from it. Upload the same "
-                "balanta exported as Excel (.xlsx), or a PDF printed directly from the "
-                "accounting program." % _balanta_refusal
-            )
+            raise BalantaPdfRefusedError(balanta_refusal_message(_verdict.layout, _balanta_refusal))
 
         # ── F3.8c — Deterministic PDF trial-balance fast-path ───────
         # Romanian RAS PDF trial balances (WinMENTOR / SAGA / Ciel /
