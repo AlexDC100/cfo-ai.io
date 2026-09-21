@@ -202,6 +202,37 @@ def test_the_restore_leaves_an_orphan_whose_analysis_finished_to_the_engine(worl
     assert row["uploads_reserved"] == 1
 
 
+def test_a_commit_whose_ledger_write_failed_is_retried_never_counted_twice(world, monkeypatch):
+    """`commit_user_upload` landed but the ledger write after it failed (a
+    transient 5xx). The row still reads reserved; were its heartbeat to
+    stop, the sweep would settle the finished analysis as a commit AGAIN.
+    The process keeps the failed write, heartbeats it and retries it."""
+    meter = world["meter"]
+    world["db"].rows("documents").append(_doc("book", h=EEI))
+    world["post"]("/api/pipeline/run", {"document_id": "book"})
+    real_upsert = world["db"].upsert
+    fails = {"n": 1}
+
+    def flaky(table, rows, **kw):
+        if table == _quota_ledger.TABLE and rows.get("committed_at") and fails["n"]:
+            fails["n"] -= 1
+            raise RuntimeError("PostgREST 503")
+        return real_upsert(table, rows, **kw)
+
+    monkeypatch.setattr(world["db"], "upsert", flaky)
+    world["finish"]("book", "analyzed")
+    assert meter.snapshot()["uploads"] == 1 and _ledger(world, "book")["reserved_at"]
+    assert "book" in pipeline._live_reservation_ids()
+    for r in world["db"].rows(_quota_ledger.TABLE):
+        r["heartbeat_at"] = (datetime.now(timezone.utc) - timedelta(minutes=30)).isoformat()
+    assert _quota_ledger.sweep_stale(is_live=pipeline._reservation_is_live,
+                                     release=pipeline._settle_orphaned_reservation) == []
+    _quota_ledger.retry_pending()
+    assert _ledger(world, "book")["committed_at"] and _ledger(world, "book")["reserved_at"] is None
+    assert "book" not in pipeline._live_reservation_ids()
+    assert meter.snapshot() == {"uploads": 1, "reserved": 0, "extra_billed": 0, "pending": 0}
+
+
 def test_the_heartbeat_keeps_live_reservations_fresh(world):
     world["db"].rows("documents").extend([_doc("live", h=EEI), _doc("dead", h="%064x" % 7)])
     world["post"]("/api/pipeline/run", {"document_id": "live"})

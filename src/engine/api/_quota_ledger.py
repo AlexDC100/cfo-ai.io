@@ -154,21 +154,63 @@ def all_committed_ids() -> Optional[Set[str]]:
 #: What a settled reservation leaves behind (committed or released).
 _CLEARED = {"reserved_at": None, "nonro_reserved_at": None, "owner": None}
 
+# SETTLEMENT WRITES THAT FAILED. The meter already moved (committed or
+# released); only the ledger row still reads "reserved". Left alone, its
+# heartbeat would stop and the sweep would settle it a SECOND time — a
+# finished analysis as another commit. So the process that settled keeps
+# the write, heartbeats the row (`pending_ids`, part of the live set) and
+# retries it every maintenance tick (`retry_pending`) until it lands.
+_PENDING: Dict[str, Dict[str, Any]] = {}
+_PENDING_LOCK = threading.Lock()
+
+
+def pending_ids() -> List[str]:
+    with _PENDING_LOCK:
+        return list(_PENDING.keys())
+
+
+def is_pending(document_id: str) -> bool:
+    with _PENDING_LOCK:
+        return str(document_id) in _PENDING
+
+
+def _write_settlement(document_id: str, write: Dict[str, Any]) -> bool:
+    try:
+        with _supabase.admin() as ac:
+            if write["op"] == "commit":
+                ac.upsert(TABLE, write["row"], on_conflict="document_id")
+            else:
+                ac.update(TABLE, write["patch"], filters={"document_id": f"eq.{document_id}"})
+    except Exception:  # noqa: BLE001
+        return False
+    with _PENDING_LOCK:
+        _PENDING.pop(str(document_id), None)
+    return True
+
+
+def retry_pending() -> None:
+    """Retry every settlement write that failed (a maintenance tick)."""
+    with _PENDING_LOCK:
+        items = list(_PENDING.items())
+    for doc, write in items:
+        if not _write_settlement(doc, write):
+            logger.error("[quota-ledger] the settlement record of %s still cannot be written", doc)
+
 
 def record_commit(document_id: str, *, user_id: str, was_extra: bool, month: str) -> None:
     """THIS document was counted (the settlement's `commit_user_upload`);
     its reservation is settled."""
     now = _now_iso()
-    try:
-        with _supabase.admin() as ac:
-            ac.upsert(TABLE, {
-                "document_id": str(document_id), "user_id": str(user_id), "month": str(month),
-                "was_extra": bool(was_extra), "committed_at": now, "updated_at": now, **_CLEARED,
-            }, on_conflict="document_id")
-    except Exception:  # noqa: BLE001 — the count stands; only its record is missing
+    write = {"op": "commit", "row": {
+        "document_id": str(document_id), "user_id": str(user_id), "month": str(month),
+        "was_extra": bool(was_extra), "committed_at": now, "updated_at": now, **_CLEARED,
+    }}
+    if not _write_settlement(document_id, write):
+        with _PENDING_LOCK:
+            _PENDING[str(document_id)] = write
         logger.exception(
-            "[quota-ledger][billing] could not record the COMMIT of document %s (user=%s) — a "
-            "later re-run of it may be metered again until the record exists", document_id, user_id)
+            "[quota-ledger][billing] could not record the COMMIT of document %s (user=%s) — kept, "
+            "heartbeated and retried until it lands", document_id, user_id)
 
 
 def record_reservation(document_id: str, *, user_id: str, was_extra: bool, month: str) -> None:
@@ -206,12 +248,12 @@ def record_release(document_id: str) -> None:
     """`document_id`'s reservation was released (a failure, a refusal, an
     expired or cancelled grant)."""
     now = _now_iso()
-    try:
-        with _supabase.admin() as ac:
-            ac.update(TABLE, {**_CLEARED, "released_at": now, "updated_at": now},
-                      filters={"document_id": f"eq.{document_id}"})
-    except Exception:  # noqa: BLE001 — the sweep finds it released already
-        logger.exception("[quota-ledger] could not record the release of %s", document_id)
+    write = {"op": "release", "patch": {**_CLEARED, "released_at": now, "updated_at": now}}
+    if not _write_settlement(document_id, write):
+        with _PENDING_LOCK:
+            _PENDING[str(document_id)] = write
+        logger.exception("[quota-ledger] could not record the release of %s — kept, heartbeated "
+                         "and retried until it lands", document_id)
 
 
 def outstanding(document_id: str) -> Optional[Dict[str, Any]]:
@@ -386,8 +428,9 @@ def start_maintenance(*, live_ids: Callable[[], Iterable[str]],
         def loop() -> None:
             while not stop.wait(HEARTBEAT_S):
                 try:
-                    heartbeat(live_ids())
-                    sweep_stale(is_live=is_live, release=settle)
+                    retry_pending()
+                    heartbeat(list(live_ids()) + pending_ids())
+                    sweep_stale(is_live=lambda d: is_pending(d) or is_live(d), release=settle)
                 except Exception:  # noqa: BLE001 — never kill the daemon
                     logger.exception("[quota-ledger] maintenance tick failed")
 

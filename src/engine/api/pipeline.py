@@ -3902,7 +3902,8 @@ def _reservation_is_live(document_id: str) -> bool:
     with _QUOTA_RUNS_LOCK:
         if key in _QUOTA_RUNS:
             return True
-    return _doc_dedupe.in_flight(key) is not None or _ug.has_extra_grant(key)
+    return (_doc_dedupe.in_flight(key) is not None or _ug.has_extra_grant(key)
+            or _quota_ledger.is_pending(key))
 
 
 def _live_reservation_ids() -> List[str]:
@@ -3910,7 +3911,7 @@ def _live_reservation_ids() -> List[str]:
     from . import _usage_gate as _ug
     with _QUOTA_RUNS_LOCK:
         ids = [k for k, r in _QUOTA_RUNS.items() if r.doc_reserved or r.nonro_reserved]
-    return ids + _ug.granted_document_ids()
+    return ids + _ug.granted_document_ids() + _quota_ledger.pending_ids()
 
 
 def _orphan_analysis_finished(document_id: str) -> bool:
