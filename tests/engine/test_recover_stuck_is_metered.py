@@ -50,6 +50,9 @@ def harness(monkeypatch):
     monkeypatch.setattr(pipeline._supabase, "admin", lambda: Client())
     monkeypatch.setattr(pipeline, "_admin_set_status", lambda doc_id, status, **kw: state["status"].append((doc_id, status, kw)))
     monkeypatch.setattr(pipeline, "_enqueue", lambda doc_id: state["enqueued"].append(doc_id))
+    # The reservation ledger is process-wide; an "allowed" recovery records
+    # doc-1 there. Isolate it so no later test settles this one's entry.
+    monkeypatch.setattr(pipeline, "_QUOTA_RUNS", {})
 
     app = FastAPI()
     app.include_router(pipeline.build_router())
