@@ -197,3 +197,73 @@ def test_a_five_pair_balanta_pdf_is_read_on_the_excel_path_without_claude(five_p
     assert Decimal(str(parsed["statutory_net_profit_anchor"])).quantize(Decimal("0.01")) == Decimal("12345.67")
     assert str(parsed.get("period_end")) == "2025-12-31"
     assert parsed.get("accounts"), "no mapped accounts"
+
+
+# ── a five-pair book the reader refuses is REFUSED, never approximated ──
+#
+# Before 2026-09-21 (repair round) a five-pair book the verified reader
+# refused fell through to the positional fast-path, which reads only
+# undotted codes and accepts on the account-121 anchor alone: one row off
+# by a cent came back as source_format pdf_positional with ONE account of
+# twenty-eight; a book printed credit-first came back with the 121 anchor
+# at -12,345.67 (a profit served as a loss).
+
+
+def _tampered(fn):
+    lines = _synthetic_five_pair_lines()
+    return fn(lines)
+
+
+def _off_by_a_cent(lines):
+    out = list(lines)
+    i = next(k for k, l in enumerate(out) if l.startswith("1002.01 "))
+    toks = out[i].split(" ")
+    whole, cents = toks[-1].split(".")
+    toks[-1] = whole + "." + "%02d" % ((int(cents) + 1) % 100)
+    out[i] = " ".join(toks)
+    return out
+
+
+def _credit_first(lines):
+    def swap(line):
+        parts = line.split(" ")
+        tail = parts[-10:]
+        if len(parts) < 11 or not all(any(ch.isdigit() for ch in t) and "." in t for t in tail):
+            return line
+        flipped = []
+        for k in range(0, 10, 2):
+            flipped += [tail[k + 1], tail[k]]
+        return " ".join(parts[:-10] + flipped)
+    return [" ".join(["Credit Debit"] * 5) if l.startswith("Debit Credit") else swap(l) for l in lines]
+
+
+@pytest.mark.parametrize("tamper, why", [
+    (_off_by_a_cent, "sold final != sold initial + total rulaj"),
+    (lambda ls: [l for l in ls if not l.startswith("Total clasa 5:")], "no printed total for class 5"),
+    (lambda ls: ls[:-1] + ["Pagina 1 din 1 1,000.00 2,000.00"], "a page header/footer line carries figures"),
+    (_credit_first, "not followed by the Debit/Credit sub-header"),
+], ids=["row-off-by-a-cent", "class-total-missing", "footer-with-figures", "credit-first"])
+def test_a_five_pair_book_the_reader_refuses_is_refused_not_served(monkeypatch, tamper, why):
+    _arm(monkeypatch, _pdf_bytes(_tampered(tamper)))
+    with pytest.raises(pipeline.BalantaPdfRefusedError) as refused:
+        pipeline.stage_extract(_doc())
+    assert why in str(refused.value)
+    assert "Nothing was estimated" in str(refused.value)
+
+
+def test_the_untampered_five_pair_book_is_still_read(five_pair_pdf):
+    # the control for the refusals above
+    parsed = pipeline.stage_extract(_doc())
+    assert (parsed.get("extraction") or {}).get("source_format") == "saga_10_col"
+
+
+def test_an_eight_figure_refusal_keeps_its_fall_back(monkeypatch):
+    # the eight-figure layout is unchanged: a book it refuses still falls
+    # through (here to the Claude path, which the harness makes
+    # unimportable) — it is never a BalantaPdfRefusedError
+    lines = _synthetic_balanta_lines()
+    lines = [l for l in lines if not l.startswith("Total sume clasa 5")]
+    _arm(monkeypatch, _pdf_bytes(lines))
+    with pytest.raises(Exception) as fell_through:
+        pipeline.stage_extract(_doc())
+    assert not isinstance(fell_through.value, pipeline.BalantaPdfRefusedError)

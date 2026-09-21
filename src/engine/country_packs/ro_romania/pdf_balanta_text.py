@@ -96,7 +96,7 @@ import io
 import logging
 import re
 from decimal import Decimal
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, NamedTuple, NoReturn, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -185,23 +185,61 @@ def _extract_lines(pdf_bytes: bytes) -> Optional[List[str]]:
         return None
 
 
+LAYOUT_FIVE_PAIR = "five_pair"
+LAYOUT_EIGHT_FIGURE = "eight_figure"
+LAYOUT_BOTH = "both"
+
+
+class TextRead(NamedTuple):
+    """What the header names, and what came of reading it.
+
+    `layout` is the layout the document's header names (LAYOUT_FIVE_PAIR,
+    LAYOUT_EIGHT_FIGURE, LAYOUT_BOTH) or None when it names neither;
+    `parsed` the verified read, or None; `refusal` why a five-pair (or
+    both-layouts) document was refused. A caller that recognises the
+    five-pair layout must treat a refusal as final: the positional
+    fast-path reads only undotted codes and would serve a partial balance
+    on the 121 anchor alone.
+    """
+
+    layout: Optional[str]
+    parsed: Optional[Dict[str, Any]]
+    refusal: Optional[str]
+
+
+class _FivePairRefusal(Exception):
+    """Raised by `_refuse5`; carries the logged reason."""
+
+
+def parse_lines_verdict(lines: List[str]) -> TextRead:
+    """`parse_lines`, with the recognised layout and the refusal reason."""
+    folded_all = _fold("\n".join(lines[:40]))
+    eight = all(tok in folded_all for tok in _HEADER_TOKENS)
+    five = all(tok in folded_all for tok in _HEADER_TOKENS_5PAIR)
+    if eight and five:
+        logger.info("[pdf_balanta_text] refused: header matches both layouts")
+        return TextRead(LAYOUT_BOTH, None, "the header matches both balanta layouts")
+    if five:
+        try:
+            return TextRead(LAYOUT_FIVE_PAIR, _parse_five_pair(lines), None)
+        except _FivePairRefusal as refusal:
+            return TextRead(LAYOUT_FIVE_PAIR, None, str(refusal))
+    if eight:
+        return TextRead(LAYOUT_EIGHT_FIGURE, _parse_eight_figure(lines), None)
+    return TextRead(None, None, None)
+
+
 def parse_lines(lines: List[str]) -> Optional[Dict[str, Any]]:
     """The pure core: text lines in, verified rows out (or None).
 
     Returned rows carry the eight figures verbatim as Decimals in document
     order: si_d, si_c, rl_d, rl_c, st_d, st_c, sf_d, sf_c.
     """
-    folded_all = _fold("\n".join(lines[:40]))
-    eight = all(tok in folded_all for tok in _HEADER_TOKENS)
-    five = all(tok in folded_all for tok in _HEADER_TOKENS_5PAIR)
-    if eight and five:
-        logger.info("[pdf_balanta_text] refused: header matches both layouts")
-        return None
-    if five:
-        return _parse_five_pair(lines)
-    if not eight:
-        return None
+    return parse_lines_verdict(lines).parsed
 
+
+def _parse_eight_figure(lines: List[str]) -> Optional[Dict[str, Any]]:
+    """The eight-figure "sume totale" layout — unchanged since 2026-09-21."""
     candidates = []
     for euro, num in ((False, _NUM_SPACE), (True, _NUM_EURO)):
         row_re = re.compile(r"^(\d{3,9})\s+(.*?)((?:\s+" + num + r"){8})\s*$")
@@ -269,9 +307,10 @@ def _fig5(token: str) -> Decimal:
     return Decimal(token.replace(",", ""))
 
 
-def _refuse5(reason: str, *args: Any) -> None:
-    logger.info("[pdf_balanta_text] five-pair refused: " + reason, *args)
-    return None
+def _refuse5(reason: str, *args: Any) -> NoReturn:
+    message = reason % args if args else reason
+    logger.info("[pdf_balanta_text] five-pair refused: %s", message)
+    raise _FivePairRefusal(message)
 
 
 def _five_figures(body: str) -> Optional[List[Decimal]]:
@@ -507,14 +546,34 @@ def to_saga_xlsx(rows: List[Dict[str, Any]]) -> bytes:
     return buf.getvalue()
 
 
+class TextReadResult(NamedTuple):
+    """`read_balanta_text_verdict`'s answer: the workbook and meta on
+    success, else the recognised layout and (five-pair) the reason."""
+
+    layout: Optional[str]
+    workbook: Optional[bytes]
+    meta: Optional[Dict[str, Any]]
+    refusal: Optional[str]
+
+
 def read_balanta_text_pdf(pdf_bytes: bytes) -> Optional[Tuple[bytes, Dict[str, Any]]]:
     """(xlsx_bytes, meta) when the PDF is a verifiable balanta, else None."""
+    got = read_balanta_text_verdict(pdf_bytes)
+    if got.workbook is None or got.meta is None:
+        return None
+    return got.workbook, got.meta
+
+
+def read_balanta_text_verdict(pdf_bytes: bytes) -> TextReadResult:
+    """The PDF's verified read, or the layout its header names and why it
+    was refused (see `TextRead`)."""
     lines = _extract_lines(pdf_bytes)
     if not lines:
-        return None
-    parsed = parse_lines(lines)
+        return TextReadResult(None, None, None, None)
+    verdict = parse_lines_verdict(lines)
+    parsed = verdict.parsed
     if parsed is None:
-        return None
+        return TextReadResult(verdict.layout, None, None, verdict.refusal)
     meta = {
         "layout": parsed.get("layout", "eight_figure"),
         "accounts": len(parsed["rows"]),
@@ -522,4 +581,4 @@ def read_balanta_text_pdf(pdf_bytes: bytes) -> Optional[Tuple[bytes, Dict[str, A
         "classes": parsed["classes"],
         "grand_totals": [str(x) for x in parsed["grand"]],
     }
-    return to_saga_xlsx(parsed["rows"]), meta
+    return TextReadResult(verdict.layout, to_saga_xlsx(parsed["rows"]), meta, None)

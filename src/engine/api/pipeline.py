@@ -246,6 +246,25 @@ class PublicRecordsUnparseableError(Exception):
     """
 
 
+class BalantaPdfRefusedError(Exception):
+    """Raised when stage_extract recognises a five-column-pair balanta PDF
+    (Sold initial / Rulaj anterior / Rulaj curent / Total rulaj / Sold
+    final — `pdf_balanta_text`) and the verified text-line reader REFUSES
+    it, or its verified read cannot be served.
+
+    Without this guard the refused document fell through to the positional
+    fast-path, which reads only undotted account codes and accepts on the
+    account-121 anchor alone — so a book the reader had just refused (one
+    row off by a cent, a class total missing, every pair printed
+    credit-first) was served anyway from a partial read: one account of
+    twenty-eight, or a profit read as a loss. The reader refuses rather
+    than approximates, and so does the pipeline: the outer handler in
+    `_run_pipeline_sync` marks the document `status='failed'` with this
+    message as `documents.error` and releases the quota reservation.
+    Nothing is estimated from the document, and Claude never sees it.
+    """
+
+
 # ─── Helpers ────────────────────────────────────────────────────────────────
 
 
@@ -1160,27 +1179,40 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
         # identities to the cent). On success
         # the balance is handed over as a SAGA 10-column workbook to the
         # SAME parse call an .xlsx upload takes, so anchor, mapping and
-        # rebuild are the Excel path unchanged. A refusal keeps today's
-        # behaviour exactly.
+        # rebuild are the Excel path unchanged. An eight-figure refusal
+        # keeps today's behaviour exactly.
         #
         # It runs BEFORE the positional fast-path: a read it accepts is
         # verified line by line against the document's own printed totals,
         # while the positional ingester keeps only undotted codes — on a
         # five-pair book with analytic codes ("1015.03") it returns the few
         # plain rows, and when account 121 is one of them its fast-path
-        # accepts that partial balance on the anchor alone. The two readers
-        # only overlap when this one verifies the whole document, so every
-        # PDF it refuses takes exactly the path it took before.
+        # accepts that partial balance on the anchor alone. Every
+        # eight-figure or unrecognised PDF it refuses takes exactly the
+        # path it took before.
+        #
+        # A document whose header names the FIVE-PAIR layout never leaves
+        # this block for the positional fast-path: when the reader refuses
+        # it (or its verified read cannot be served), the refusal is final
+        # — `BalantaPdfRefusedError`, raised below outside the broad except
+        # — because the positional ingester keeps only undotted codes and
+        # would serve a partial balance on the 121 anchor alone. The
+        # eight-figure layout keeps its fall-back unchanged.
+        _balanta_refusal: Optional[str] = None
         try:
             _pdf_for_text: Optional[bytes] = _pdf_bytes
         except NameError:
             _pdf_for_text = None
         if _pdf_for_text is not None:
+            _five_pair_named = False
             try:
                 from engine.country_packs.ro_romania import pdf_balanta_text as _pbt
-                _conv = _pbt.read_balanta_text_pdf(_pdf_for_text)
-                if _conv is not None:
-                    _xlsx_bytes, _meta = _conv
+                _verdict = _pbt.read_balanta_text_verdict(_pdf_for_text)
+                _five_pair_named = _verdict.layout in (_pbt.LAYOUT_FIVE_PAIR, _pbt.LAYOUT_BOTH)
+                if _five_pair_named and _verdict.workbook is None:
+                    _balanta_refusal = _verdict.refusal or "the reader refused it"
+                if _verdict.workbook is not None and _verdict.meta is not None:
+                    _xlsx_bytes, _meta = _verdict.workbook, _verdict.meta
                     pack = _ro_pack()
                     tb_rows = pack.parse_trial_balance(_xlsx_bytes, "balanta.xlsx")
                     shaped = pack.accounts_to_assemble_shape(tb_rows) if tb_rows else []
@@ -1197,17 +1229,39 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
                         return _deterministic_tb_parsed(
                             doc, tb_rows, shaped, statutory_anchor, source_quality,
                         )
+                    if _five_pair_named:
+                        _balanta_refusal = (
+                            "its verified read carries no account-121 closing balance "
+                            "to anchor net profit" if statutory_anchor is None
+                            else "its verified read maps no accounts"
+                        )
                     logger.info(
                         "[stage_extract] text-line balanta PDF read but not used "
-                        "(mapped=%d, anchor=%s) — falling back",
+                        "(mapped=%d, anchor=%s) — %s",
                         len(shaped or []), statutory_anchor,
+                        "refusing" if _five_pair_named else "falling back",
                     )
             except Exception as e:  # noqa: BLE001
+                if _five_pair_named and _balanta_refusal is None:
+                    _balanta_refusal = "its verified read could not be parsed (%s)" % type(e).__name__
                 logger.info(
-                    "[stage_extract] text-line balanta PDF path skipped (%s) — "
-                    "falling back to the positional ingester",
+                    "[stage_extract] text-line balanta PDF path skipped (%s) — %s",
                     type(e).__name__,
+                    "refusing" if _five_pair_named else "falling back to the positional ingester",
                 )
+        if _balanta_refusal is not None:
+            logger.warning(
+                "[stage_extract] five-pair balanta PDF refused: %s — %s — STOPPING before "
+                "the positional fast-path and Claude",
+                doc.get("original_filename") or "(no filename)", _balanta_refusal,
+            )
+            raise BalantaPdfRefusedError(
+                "This PDF is a balanta de verificare printed with five column pairs "
+                "(Sold initial / Rulaj anterior / Rulaj curent / Total rulaj / Sold final), "
+                "but it was not read: %s. Nothing was estimated from it. Upload the same "
+                "balanta exported as Excel (.xlsx), or a PDF printed directly from the "
+                "accounting program." % _balanta_refusal
+            )
 
         # ── F3.8c — Deterministic PDF trial-balance fast-path ───────
         # Romanian RAS PDF trial balances (WinMENTOR / SAGA / Ciel /
