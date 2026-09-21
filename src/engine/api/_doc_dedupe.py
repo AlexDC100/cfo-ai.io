@@ -35,8 +35,12 @@ A document DUPLICATES a live one when all four agree:
   * PERIOD   — when the new upload carries a user-confirmed closing date
                (`period_end_hint`), the original matches only if its own
                date — its hint, else the period it was analysed into — is
-               unknown or equal. Without a hint the same bytes are the same
-               period.
+               KNOWN and equal: a running original whose month is not known
+               yet, or periods that cannot be read, prove nothing and
+               refuse nothing (verifier lens R3). Without a hint the same
+               bytes are the same period. The COUNT is kept safe apart
+               from the look: a book is counted once, whatever the look let
+               through (`book_copy_ids`, `pipeline._book_already_counted`).
 
 A duplicate is NOT stored, NOT analysed and NOT counted. The browser asks
 `POST /api/documents/duplicate-check` before it writes a byte to storage;
@@ -178,15 +182,23 @@ def _date10(value: Any) -> Optional[str]:
     return s if re.match(r"^\d{4}-\d{2}-\d{2}$", s) else None
 
 
-def same_period(new_hint: Any, orig_hint: Any, orig_period_end: Any) -> bool:
+def same_period(new_hint: Any, orig_hint: Any, orig_period_end: Any, *,
+                unknown_matches: bool = True) -> bool:
     """The PERIOD clause. No hint on the new upload → the same bytes are the
     same period. A hint → the original's own date (its hint, else its
-    analysed period's end) must be unknown or equal."""
+    analysed period's end) must be equal; an UNKNOWN date matches only when
+    `unknown_matches`. The duplicate look passes False — refusing an upload
+    is the claim that needs proof (verifier lens R3: a FY2024 upload was
+    archived against a run that then landed in FY2025, or behind one
+    financial_periods 503); a count check keeps True — counting a book a
+    second time is the claim that needs proof."""
     new = _date10(new_hint)
     if new is None:
         return True
     orig = _date10(orig_hint) or _date10(orig_period_end)
-    return orig is None or orig == new
+    if orig is None:
+        return unknown_matches
+    return orig == new
 
 
 _ISO_PARTS = re.compile(r"^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}(?::\d{2})?)(?:\.(\d+))?(.*)$")
@@ -313,7 +325,8 @@ def pick_original(
             return False
         pid = row.get("period_id")
         return same_period(hint, row.get("period_end_hint"),
-                           period_end_of.get(str(pid)) if pid else None)
+                           period_end_of.get(str(pid)) if pid else None,
+                           unknown_matches=False)
 
     pool = [r for r in rows if eligible(r)]
     first_copy_wins = self_analyzed and self_state == _HOLDS
@@ -639,10 +652,15 @@ def find_live_original(
 
 def book_copy_ids(row: Dict[str, Any]) -> Optional[List[str]]:
     """The ids of every live copy of `row`'s BOOK — `row` itself included:
-    the same company, uploader (`uploaded_by`), content, scope and period
-    (`same_period` against `row`'s own confirmed date), not deleted. Any
-    status: a counted copy whose analysis later failed is still the book the
-    plan counted (`pipeline._book_already_counted`).
+    the same company, uploader (`uploaded_by`), content, scope and period,
+    not deleted. Any status: a counted copy whose analysis later failed is
+    still the book the plan counted (`pipeline._book_already_counted`).
+
+    PERIOD, for a count: each copy's date is its confirmed hint, else the
+    period it was analysed into; two copies are the same book unless BOTH
+    dates are known and differ — counting a book twice is the claim that
+    needs proof (the look lets an upload of unknown month through; the
+    settlement then counts the book once, in either order).
 
     A row without a content hash is its own book. None when the copies or
     their periods cannot be read — the caller cannot prove the book was
@@ -659,16 +677,22 @@ def book_copy_ids(row: Dict[str, Any]) -> Optional[List[str]]:
     except Exception:  # noqa: BLE001
         logger.exception("[dedupe] could not list the copies of document %s", rid)
         return None
-    info = _period_info(org, [r.get("period_id") for r in rows])
+    info = _period_info(org, [r.get("period_id") for r in rows] + [row.get("period_id")])
     if info is None:
         return None
+
+    def date_of(r: Dict[str, Any]) -> Optional[str]:
+        pid = r.get("period_id")
+        return _date10(r.get("period_end_hint")) or (
+            _date10((info.get(str(pid)) or {}).get("period_end")) if pid else None)
+
+    mine = date_of(row)
     for r in rows:
         cid = str(r.get("id") or "")
         if not cid or cid == rid:
             continue
-        pid = r.get("period_id")
-        if same_period(row.get("period_end_hint"), r.get("period_end_hint"),
-                       (info.get(str(pid)) or {}).get("period_end") if pid else None):
+        theirs = date_of(r)
+        if mine is None or theirs is None or mine == theirs:
             ids.append(cid)
     return ids
 

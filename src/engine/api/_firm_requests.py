@@ -651,9 +651,18 @@ def _prod_reserve(user_id: str) -> Any:
 
 def _prod_find_duplicate(org_id: str, user_id: str, content_hash: str,
                          period_end: str) -> Optional[Dict[str, Any]]:
+    """The landing's look — the same as an analysis entry's, INCLUDING the
+    copies stored without a content hash (hashed from storage, bounded, and
+    written back). It used to pass no row, so a legacy hash-less original
+    was never compared (verifier lens R3), and no /run follows a landing to
+    catch it: the same file was stored, reserved, analysed and counted. The
+    stand-in is the row the landing is about to create."""
     from . import _doc_dedupe
+    incoming = {"id": "", "org_id": org_id, "uploaded_by": user_id, "scope": "financial",
+                "status": "queued", "content_hash": content_hash, "period_end_hint": period_end}
     hit = _doc_dedupe.find_live_original(org_id=org_id, user_id=user_id,
-                                         content_hash=content_hash, hint=period_end)
+                                         content_hash=content_hash, hint=period_end,
+                                         self_row=incoming)
     return hit.to_payload() if hit else None
 
 
