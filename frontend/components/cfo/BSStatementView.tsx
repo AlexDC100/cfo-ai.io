@@ -447,10 +447,17 @@ function BSLineView({
   const cmp = useComparativeContext();
   const cmpOn = !!cmp && !!bases && (cmp.columns.deltaPct || cmp.columns.share);
   // Under a comparative, an absent opening on a row that closes means the
-  // prior book has no such line — "new", never a zero.
-  const absentWord = cmpOn && typeof line.opening !== "number" && typeof line.closing === "number"
-    ? t("statements.cmp.new")
-    : undefined;
+  // prior book has no such line — "new", never a zero. The mirror case —
+  // a prior opening on a row that does not close (the builder appends the
+  // prior period's rows the current period no longer carries) — is "no
+  // longer present", never a 0 closing and never a −100%.
+  const absentWord = !cmpOn
+    ? undefined
+    : typeof line.opening !== "number" && typeof line.closing === "number"
+      ? t("statements.cmp.new")
+      : typeof line.opening === "number" && typeof line.closing !== "number"
+        ? t("statements.cmp.gone")
+        : undefined;
   const lineAttrs = line.bucket ? { [TRACEABLE_TARGET_ATTR]: line.bucket } : {};
   const conceptKey = bucketToConcept(line.bucket);
 

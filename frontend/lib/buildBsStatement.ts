@@ -219,6 +219,69 @@ function syntheticNoteFrom(rec: CanonicalBsReconciliation | null | undefined): s
  *  carried canonical_bs (i.e. the statement is an engine pass-through). */
 export type BSStatementWithCanonical = BSStatement & { canonical?: BSCanonicalMeta };
 
+/** The result row flips its id with its sign: account 121's close is
+ *  served as `current_year_profit` in a profit year and
+ *  `current_year_loss` in a loss year (src/engine/serving/facts.py
+ *  `_RESULT_ROW_IDS`). A prior row whose partner the current period
+ *  carries is the SAME line under its other name, not a line that went
+ *  away — and its sign convention belongs to the engine, so it is left
+ *  absent rather than negated or re-labelled here. */
+const RESULT_ROW_PARTNER: Readonly<Record<string, string>> = {
+  current_year_profit: "current_year_loss",
+  current_year_loss: "current_year_profit",
+};
+
+/**
+ * COMPARATIVES — ROWS ONLY THE PRIOR PERIOD CARRIES.
+ *
+ * The statement is built over the CURRENT period's rows, and each takes
+ * its opening from the prior row of the same id. A row the prior period
+ * had and the current one does not was therefore never rendered at all,
+ * while the section's prior SUBTOTAL — the engine's own figure — still
+ * counted it. Measured live on Scandia Dec 2025 vs Dec 2024: the prior
+ * "Total current" printed 106,860,762.45 over rows summing to
+ * 101,885,227.96; the 4,975,534.49 gap is exactly "Short-term
+ * investments" 4,974,100.00 and "Other receivables" 1,434.49, which the
+ * engine's own variance bridge lists as no longer present.
+ *
+ * Each such row is appended to its section with its prior amount as the
+ * opening and NO closing — absent, never 0 — so Δ is unmeasured and the
+ * view words it "no longer present". It carries no account codes and no
+ * bucket, so no provenance card can claim the current period for it. The
+ * current column, every current subtotal and both grand totals are
+ * untouched: nothing here reads or writes a closing figure.
+ *
+ * Skipped: a flipped result row (see RESULT_ROW_PARTNER), a zero or
+ * non-finite amount (a zero line that went away moves nothing), and a
+ * section the current object does not render.
+ */
+function appendPriorOnlyRows(
+  rowsBySection: Map<string, BSLine[]>,
+  cbs: CanonicalBs,
+  prior: PriorCanonicalBsDto | null | undefined,
+): void {
+  if (!prior) return;
+  const currentIds = new Set(cbs.rows.map((r) => r.id));
+  const renderedSections = new Set(cbs.sections.map((sec) => sec.id));
+  for (const [id, row] of Object.entries(prior.rows)) {
+    if (currentIds.has(id)) continue;
+    const partner = RESULT_ROW_PARTNER[id];
+    if (partner !== undefined && currentIds.has(partner)) continue;
+    const amount = row.amount;
+    if (typeof amount !== "number" || !Number.isFinite(amount) || amount === 0) continue;
+    const section = row.section;
+    if (typeof section !== "string" || !renderedSections.has(section)) continue;
+    const line: BSLine = {
+      label: typeof row.label === "string" && row.label.length > 0 ? row.label : id,
+      opening: amount,
+      style: "item",
+    };
+    const bucket = rowsBySection.get(section);
+    if (bucket) bucket.push(line);
+    else rowsBySection.set(section, [line]);
+  }
+}
+
 /**
  * Pure pass-through of the engine object (contract "Consumption rules"):
  * every row, section subtotal, grand total and the balance status render
@@ -283,6 +346,7 @@ function buildFromCanonicalBs(cbs: CanonicalBs, args: BuildArgs): BSStatementWit
     if (bucket) bucket.push(line);
     else rowsBySection.set(row.section, [line]);
   }
+  appendPriorOnlyRows(rowsBySection, cbs, args.priorCanonicalBs);
 
   // Section order follows the object's `sections` array (engine-ordered);
   // the meta table only says which side each id renders on.
