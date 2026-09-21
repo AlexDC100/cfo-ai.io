@@ -93,6 +93,8 @@ from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Seque
 from engine.workspaces.company_identity import (
     CompanyIdentity,
     filename_period_end,
+    industry_display_name,
+    industry_key_for_caen,
     normalize_company_name,
     normalize_cui,
 )
@@ -895,9 +897,15 @@ class _Planner:
         for company in created:
             oid = self.company_ws[company]
             caen = self._company_caen(company)
+            # The industry the repo's own catalogue maps the CAEN to — the
+            # pair create_workspace() stores; both or neither.
+            industry = industry_key_for_caen(caen) if caen else None
+            label = industry_display_name(industry) if industry else None
+            if not label:
+                industry = None
             ops.append({"op": "insert", "table": "organizations", "row": {
-                "id": oid, "name": self._company_name(company), "industry_key": None,
-                "industry_display_name": None, "default_currency": currency,
+                "id": oid, "name": self._company_name(company), "industry_key": industry,
+                "industry_display_name": label, "default_currency": currency,
                 "caen_code": caen, "caen_code_source": "auto_suggested" if caen else None,
                 "archived_at": None, "purge_after": None}})
         if uses_holding and holding not in self.orgs:

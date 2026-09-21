@@ -309,6 +309,19 @@ def test_a_name_only_rule_pins_a_company_without_cui(registry):
     assert conflict is None and got.cui is None and got.company_key == "name:GAMMA AGRO GROUP"
 
 
+def test_a_rules_caen_layers_on_even_when_the_document_prints_the_same_cui():
+    """P2 (verifier): apply_known_identity returned the document identity
+    unchanged when the CUIs agreed, so the operator's CAEN (EEI's 6820) was
+    never used. The document keeps its CUI; the verified CAEN layers on."""
+    ident = identify_document(balance_xlsx(["Alfa Food SRL", "Cod fiscal: %s" % CUI_A]), "x.xlsx")
+    assert ident.caen_code is None
+    got, conflict = apply_known_identity(ident, {"cui": CUI_A, "caen_code": "6820", "evidence": "verified"})
+    assert conflict is None and got.cui == CUI_A and got.company_name == ident.company_name
+    assert got.caen_code == "6820" and got.sources["caen_code"]["signal"] == "operator_verified"
+    assert got.sources["cui"]["signal"] == "document_header_cui"
+    assert got.industry_key == industry_key_for_caen("6820")
+
+
 def test_a_rule_with_a_bad_cui_is_refused():
     ident = CompanyIdentity()
     got, conflict = apply_known_identity(ident, {"cui": "12345675"})

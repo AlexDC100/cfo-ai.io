@@ -652,6 +652,22 @@ def industry_key_for_caen(caen: Any) -> Optional[str]:
     return _caen_catalogue().get(code) if code else None
 
 
+@functools.lru_cache(maxsize=1)
+def _industry_names() -> Dict[str, str]:
+    """industry_key -> display_name, from the YAML production's
+    ``industry_profiles`` table is seeded from. Empty on any failure."""
+    try:
+        from engine.api.seed.load_industry_catalog import _INDUSTRIES_YAML, _load_yaml
+        rows = _load_yaml(_INDUSTRIES_YAML)
+    except Exception:  # noqa: BLE001
+        return {}
+    return {str(r["key"]): str(r["display_name"]) for r in rows if r.get("key") and r.get("display_name")}
+
+
+def industry_display_name(industry_key: Any) -> Optional[str]:
+    return _industry_names().get(str(industry_key)) if industry_key else None
+
+
 # ── identification ─────────────────────────────────────────────────────
 
 def _period(header_text: str, filename: Optional[str]) -> Tuple[Optional[str], Optional[Dict[str, str]]]:
@@ -811,7 +827,19 @@ def apply_known_identity(identity: CompanyIdentity, rule: Mapping[str, Any], *,
         if rule_cui != identity.cui:
             return identity, ("document prints CUI %s, rule says %s — the document wins"
                               % (identity.cui, rule_cui))
-        return identity, None
+        # Same company: the document keeps its CUI and name; a CAEN the
+        # operator verified still layers on (it used to be dropped here).
+        rule_caen = _normalize_caen(rule.get("caen_code"))
+        if not rule_caen or rule_caen == identity.caen_code:
+            return identity, None
+        sources = dict(identity.sources)
+        sources["caen_code"] = {"signal": "operator_verified", "evidence": evidence}
+        industry = industry_key_for_caen(rule_caen)
+        if industry:
+            sources["industry_key"] = {"signal": "caen_catalogue", "evidence": "CAEN %s" % rule_caen}
+        else:
+            sources.pop("industry_key", None)
+        return replace(identity, caen_code=rule_caen, industry_key=industry, sources=sources), None
 
     sources = dict(identity.sources)
     if rule_cui:

@@ -21,7 +21,7 @@ from pathlib import Path
 
 import pytest
 
-from engine.workspaces.company_identity import CompanyIdentity
+from engine.workspaces.company_identity import CompanyIdentity, industry_key_for_caen
 from engine.workspaces.migration_plan import (
     DocFacts,
     HOLDING_NAME,
@@ -517,6 +517,28 @@ def test_an_operator_rule_never_reaches_another_users_copy_of_the_bytes():
     assert _decision(plan, "periods", "pb")["action"] == "unplaced"
     # the same user's unreadable copy still inherits (it is the same file)
     assert _decision(plan, "documents", "c1")["company"] == "cui:" + ALFA
+
+
+def test_a_created_workspace_carries_the_industry_its_caen_maps_to():
+    """P2 (verifier): every created organization was inserted with
+    industry_key None even when the identity's CAEN mapped to one."""
+    t = _mini([_doc("s", "org-a", period="p1"), _doc("g", "org-a", period="p2")],
+              [{"id": "p1", "org_id": "org-a", "period_start": "2025-12-31", "period_end": "2025-12-31",
+                "source_document_id": "s"},
+               {"id": "p2", "org_id": "org-a", "period_start": "2024-12-31", "period_end": "2024-12-31",
+                "source_document_id": "g"}],
+              metrics=[("p1", "org-a"), ("p2", "org-a")], prefs={"org-a": {"cui": ALFA}})
+    agras = DocFacts(identity=CompanyIdentity(
+        cui=GAMMA, company_name="GAMMA AGRO SRL", period_end="2024-12-31", caen_code="1011",
+        industry_key=industry_key_for_caen("1011"),
+        sources={"company_name": {"signal": "registry", "evidence": ""},
+                 "period_end": {"signal": "in_document", "evidence": ""}},
+        document_kind="trial_balance"))
+    plan = build_plan(t, {"s": _ident(ALFA, "2025-12-31"), "g": agras}, migration_date=DATE)
+    row = next(op["row"] for op in plan.ops if op["op"] == "insert" and op["table"] == "organizations"
+               and op["row"]["id"] == new_org_id("u", "cui:" + GAMMA))
+    assert row["caen_code"] == "1011" and row["industry_key"] == "red_meat_processing"
+    assert row["industry_display_name"] == "Red meat processing"
 
 
 def test_a_company_with_only_failed_uploads_keeps_exactly_one_failed_copy():
