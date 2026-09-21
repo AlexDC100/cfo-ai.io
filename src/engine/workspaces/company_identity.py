@@ -14,10 +14,15 @@ cui
      the checksum is NOT a CUI and is ignored.
   2. ``registry_name_match``  — the company name the document prints (a
      "Societate:" line, an "... SRL" title line, a non-generic sheet name)
-     matches exactly ONE registered company after normalisation.
+     matches exactly ONE registered company after normalisation — decided
+     over EVERY registered name (``registry_match_name``), never over one
+     capped page of prefix hits.
   3. ``filename_registry_match`` — the same, from a name read out of the
-     filename. The weakest signal: only names of at least six letters, and
-     only an unambiguous exact match.
+     filename. The weakest signal: only names of at least six letters, only
+     an unambiguous exact match, and only when the DOCUMENT corroborates it
+     (the CUI's digits appear in its header block). Otherwise the match is
+     recorded as ``sources["cui_hint"]`` for the operator and mints nothing:
+     a filename alone never makes a company key.
   An operator-verified identity (``apply_known_identity``) is applied on top
   by the caller; it never overrides a CUI the document itself prints.
 
@@ -433,12 +438,74 @@ def _header_cui(lines: Sequence[str]) -> Optional[Tuple[str, str]]:
     return None
 
 
+def _digits_in(lines: Sequence[str], cui: str) -> bool:
+    """The CUI printed as a standalone number (RO prefix allowed) anywhere
+    in the header block."""
+    pat = re.compile(r"(?<!\d)(?:RO\s*)?0*%s(?!\d)" % re.escape(str(cui)), re.IGNORECASE)
+    return any(pat.search(line) for line in lines)
+
+
 def _header_caen(lines: Sequence[str]) -> Optional[Tuple[str, str]]:
     for line in lines:
         m = _CAEN_RE.search(line)
         if m:
             return _normalize_caen(m.group(1)), line.strip()[:160]
     return None
+
+
+_TITLE_FORM_RE = re.compile(r"^(.*?)\s+((?:S\.?\s?R\.?\s?L\.?|S\.?\s?A\.?))$")
+#: Lowercase words a company name carries between capitalised ones
+#: ("Casa de Ajutor Reciproc").
+_TITLE_CONNECTORS = frozenset({"de", "si", "și", "şi", "and", "of", "la", "din", "pentru", "&", "-"})
+#: Words that introduce a name rather than belong to it ("Firma ALFA FOOD SRL").
+_TITLE_LABELS = frozenset({"firma", "societatea", "societate", "unitatea", "company", "entity", "client",
+                           "furnizor", "beneficiar", "emitent"})
+TITLE_MAX_TOKENS = 6
+
+
+def _trim_title(capture: str) -> Optional[str]:
+    """The company name inside a "<words> SRL" capture: the run of
+    capitalised words (ALL-CAPS words when the name is written in capitals)
+    directly before the legal form, through lowercase connectors, without a
+    leading label word, at most TITLE_MAX_TOKENS words. "Welcome dinner
+    hosted by Scandia Food S.R.L" -> "Scandia Food S.R.L"; "Firma ALFA FOOD
+    SRL" -> "ALFA FOOD SRL". None when no such run exists."""
+    m = _TITLE_FORM_RE.match(capture.strip())
+    if not m:
+        return None
+    tokens, form = m.group(1).split(), m.group(2)
+    if not tokens:
+        return None
+
+    def caps(tok: str) -> bool:
+        letters = [c for c in tok if c.isalpha()]
+        return bool(letters) and all(c.isupper() for c in letters)
+
+    all_caps = caps(tokens[-1])
+
+    def ok(tok: str) -> bool:
+        if tok == "&" or tok.isdigit():
+            return True
+        return caps(tok) if all_caps else (tok[:1].isupper() or tok[:1].isdigit())
+
+    run: List[str] = []
+    i = len(tokens) - 1
+    while i >= 0:
+        tok = tokens[i]
+        if ok(tok):
+            run.insert(0, tok)
+        elif run and tok.lower() in _TITLE_CONNECTORS and i > 0 and ok(tokens[i - 1]):
+            run.insert(0, tok)
+        else:
+            break
+        i -= 1
+    while run and run[0].lower().strip(".:,") in _TITLE_LABELS:
+        run.pop(0)
+    while run and run[0].lower() in _TITLE_CONNECTORS:
+        run.pop(0)
+    if not run:
+        return None
+    return " ".join(run[-TITLE_MAX_TOKENS:] + [form])
 
 
 def _header_names(lines: Sequence[str]) -> List[Tuple[str, str, str]]:
@@ -452,7 +519,10 @@ def _header_names(lines: Sequence[str]) -> List[Tuple[str, str, str]]:
                 out.append((name, "document_header_label", line.strip()[:160]))
     for line in lines:
         for m in _TITLE_RE.finditer(line):
-            name = _clean_name(m.group(1))
+            trimmed = _trim_title(m.group(1))
+            if not trimmed:
+                continue
+            name = _clean_name(trimmed)
             if len(normalize_company_name(name)) >= 2:
                 out.append((name, "document_header_title", line.strip()[:160]))
     return out
@@ -535,14 +605,71 @@ def _search(registry: Any, q: str) -> List[Dict[str, Any]]:
     return memo[q]
 
 
+#: Per-registry index: normalized name -> the one CUI registered under it,
+#: or AMBIGUOUS when several are. Built once per registry (a full pass over
+#: the spine's names, ~1M rows, seconds) — the only way "exactly one" is a
+#: fact rather than a guess about what a capped prefix page left out.
+_NAME_INDEX_MEMO: "weakref.WeakKeyDictionary[Any, Dict[str, int]]" = weakref.WeakKeyDictionary()
+AMBIGUOUS = -1
+
+
+def _normalized_name_index(registry: Any) -> Optional[Dict[str, int]]:
+    """The registry's names, normalized — or None when the registry cannot
+    list its names (then ``registry_match_name`` falls back to search)."""
+    names = getattr(registry, "iter_company_names", None)
+    if names is None:
+        return None
+    try:
+        cached = _NAME_INDEX_MEMO.get(registry)
+    except TypeError:  # not weak-referenceable
+        cached = None
+    if cached is not None:
+        return cached
+    index: Dict[str, int] = {}
+    for cui, raw in names():
+        norm = normalize_company_name(raw)
+        if not norm:
+            continue
+        cui = int(cui)
+        prev = index.get(norm)
+        index[norm] = cui if prev is None or prev == cui else AMBIGUOUS
+    try:
+        _NAME_INDEX_MEMO[registry] = index
+    except TypeError:
+        pass
+    return index
+
+
 def registry_match_name(registry: Any, name: str) -> Optional[Tuple[str, Dict[str, Any]]]:
     """(cui, registry row) when EXACTLY one registered company has this
-    normalized name; otherwise None (no match, several, or unsure)."""
+    normalized name; otherwise None (no match, several, or unsure).
+
+    "Exactly one" is decided over EVERY registered name
+    (``iter_company_names``, normalized once per registry): "ALFA FOOD SRL"
+    and "ALFA-FOOD S.R.L." are the same name, and a second company with it
+    is found however many other "ALFA …" companies sort before it. Until
+    2026-09-21 uniqueness was decided over the prefix hits of the printed
+    spelling on pages capped at REGISTRY_SEARCH_LIMIT — a full page with
+    one hit was accepted, and punctuation variants were never seen.
+
+    A registry that cannot list its names (a test double, another store)
+    is asked through ``search_companies`` and ANY full page is "unsure"."""
     if registry is None or not name:
         return None
     target = normalize_company_name(name)
     if len(target) < 2:
         return None
+    try:
+        index = _normalized_name_index(registry)
+    except Exception:  # noqa: BLE001 — a registry that fails to list is "unsure"
+        return None
+    if index is not None:
+        cui_int = index.get(target)
+        if cui_int is None or cui_int == AMBIGUOUS:
+            return None
+        cui = normalize_cui(cui_int)
+        row = _registry_company(registry, cui) if cui else None
+        return (cui, row) if cui and row else None
     queries = []
     for q in (str(name).strip(), target, target.split()[0]):
         if q and q not in queries:
@@ -553,11 +680,13 @@ def registry_match_name(registry: Any, name: str) -> Optional[Tuple[str, Dict[st
             rows = _search(registry, q)
         except Exception:  # noqa: BLE001
             return None
+        if len(rows) >= REGISTRY_SEARCH_LIMIT:
+            # A full page may have cut off a second company with this
+            # name: unsure, whatever this page happened to contain.
+            return None
         for r in rows:
             if normalize_company_name(r.get("name")) == target:
                 hits[int(r["cui"])] = dict(r)
-        if len(rows) >= REGISTRY_SEARCH_LIMIT and not hits:
-            return None
     if len(hits) != 1:
         return None
     cui_int, row = next(iter(hits.items()))
@@ -591,6 +720,22 @@ def industry_key_for_caen(caen: Any) -> Optional[str]:
     return _caen_catalogue().get(code) if code else None
 
 
+@functools.lru_cache(maxsize=1)
+def _industry_names() -> Dict[str, str]:
+    """industry_key -> display_name, from the YAML production's
+    ``industry_profiles`` table is seeded from. Empty on any failure."""
+    try:
+        from engine.api.seed.load_industry_catalog import _INDUSTRIES_YAML, _load_yaml
+        rows = _load_yaml(_INDUSTRIES_YAML)
+    except Exception:  # noqa: BLE001
+        return {}
+    return {str(r["key"]): str(r["display_name"]) for r in rows if r.get("key") and r.get("display_name")}
+
+
+def industry_display_name(industry_key: Any) -> Optional[str]:
+    return _industry_names().get(str(industry_key)) if industry_key else None
+
+
 # ── identification ─────────────────────────────────────────────────────
 
 def _period(header_text: str, filename: Optional[str]) -> Tuple[Optional[str], Optional[Dict[str, str]]]:
@@ -604,6 +749,16 @@ def _period(header_text: str, filename: Optional[str]) -> Tuple[Optional[str], O
     if not end:
         return None, None
     return end, {"signal": str(got.get("signal_used")), "evidence": str(got.get("evidence_snippet") or "")}
+
+
+def filename_period_end(filename: Optional[str]) -> Optional[str]:
+    """The period a FILENAME alone names ("…_31.12.2025.xlsx", "…FY2025…"),
+    through the engine's own detector — or None. A corroborating signal,
+    never an identity."""
+    if not filename:
+        return None
+    end, src = _period("", filename)
+    return end if src and src.get("signal") == "filename" else None
 
 
 def identify_text(doc: DocumentText, filename: Optional[str], *, registry: Any = None) -> CompanyIdentity:
@@ -630,11 +785,19 @@ def identify_text(doc: DocumentText, filename: Optional[str], *, registry: Any =
             candidates.append((file_name, "filename_registry_match", "filename: %s" % filename))
         for name, signal, evidence in candidates:
             hit = registry_match_name(registry, name)
-            if hit:
-                cui, reg_row = hit
-                sources["cui"] = {"signal": signal,
-                                  "evidence": "%s == registry %r" % (evidence, reg_row.get("name"))}
+            if not hit:
+                continue
+            if signal == "filename_registry_match" and not _digits_in(lines, hit[0]):
+                # A filename is typed by a person: without the document
+                # printing that CUI somewhere in its header, it is a hint.
+                sources["cui_hint"] = {"signal": signal, "cui": hit[0],
+                                       "evidence": "%s == registry %r; the document does not print %s"
+                                                   % (evidence, hit[1].get("name"), hit[0])}
                 break
+            cui, reg_row = hit
+            sources["cui"] = {"signal": signal,
+                              "evidence": "%s == registry %r" % (evidence, reg_row.get("name"))}
+            break
 
     company_name: Optional[str] = None
     if reg_row and reg_row.get("name"):
@@ -740,7 +903,19 @@ def apply_known_identity(identity: CompanyIdentity, rule: Mapping[str, Any], *,
         if rule_cui != identity.cui:
             return identity, ("document prints CUI %s, rule says %s — the document wins"
                               % (identity.cui, rule_cui))
-        return identity, None
+        # Same company: the document keeps its CUI and name; a CAEN the
+        # operator verified still layers on (it used to be dropped here).
+        rule_caen = _normalize_caen(rule.get("caen_code"))
+        if not rule_caen or rule_caen == identity.caen_code:
+            return identity, None
+        sources = dict(identity.sources)
+        sources["caen_code"] = {"signal": "operator_verified", "evidence": evidence}
+        industry = industry_key_for_caen(rule_caen)
+        if industry:
+            sources["industry_key"] = {"signal": "caen_catalogue", "evidence": "CAEN %s" % rule_caen}
+        else:
+            sources.pop("industry_key", None)
+        return replace(identity, caen_code=rule_caen, industry_key=industry, sources=sources), None
 
     sources = dict(identity.sources)
     if rule_cui:

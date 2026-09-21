@@ -17,12 +17,26 @@ deleted (organizations: archived_at = now, purge_after NULL; documents:
 deleted_at = now). A created row in a table with no archive column is
 reported and left in place. ``--tables migration`` = every snapshot table
 except the billing ones (user_usage, subscriptions, billing_events), which
-are only restored when named. Storage objects need nothing: the migration
-copies objects and never deletes one, so a restored storage_path finds its
-original object.
+are only restored when named.
+
+Storage objects: the migration copies objects and never deletes one, so a
+restored storage_path should find its original object — unless something
+ELSE erased it meanwhile (a workspace purge deletes every object under
+'<org>/'). So the rows are not the whole rollback: every document whose
+object existed when the snapshot was taken (``db_snapshot`` records an
+object inventory) must still resolve. A snapshot without an inventory
+(older format) checks every document row this run restores. Missing
+objects are listed as STORAGE MISSING; with --apply they make the exit 1.
 
 After --apply the tables are re-read and every snapshot row is compared;
-exit 1 if any differs.
+exit 1 if any differs, or if any object above is missing.
+
+RESIDUE. A restore never deletes, so rows created since the snapshot stay:
+organizations / documents archived (held: purge_after NULL — listed
+nowhere, never purgeable from the hub), and memberships / org_prefs rows,
+which have no archive column (they belong to those archived workspaces and
+are inert). They are counted on a RESIDUE line — the rollback is "every
+snapshot row is back", never "production is the snapshot".
 """
 from __future__ import annotations
 
@@ -83,6 +97,34 @@ def print_diff(diff, out=print, limit: int = 50) -> int:
     return total
 
 
+def storage_missing(db: Any, snap: Any, rows: Any, tables: List[str], ops: List[Any]) -> List[str]:
+    """Documents whose snapshot storage object does not resolve now."""
+    if "documents" not in tables:
+        return []
+    snap_docs = {str(d["id"]): d for d in rows.get("documents") or []}
+    objects = snap.get("objects")
+    if objects is not None:
+        want = [(did, o["path"], o["org_id"], "existed at the snapshot")
+                for did, o in sorted(objects.items()) if o.get("exists") is True and did in snap_docs]
+    else:
+        touched = set()
+        for op in ops:
+            if op.get("table") == "documents":
+                touched.add(str((op.get("row") or op.get("key") or {}).get("id")))
+        want = [(did, d["storage_path"], str(d["org_id"]),
+                 "restored by this run; the snapshot has no object inventory")
+                for did, d in sorted(snap_docs.items()) if did in touched and d.get("storage_path")]
+    out: List[str] = []
+    for did, path, org, basis in want:
+        try:
+            ok = db.object_exists("documents", path, org_id=org)
+        except Exception as exc:  # noqa: BLE001 — a check that cannot answer is a failure
+            ok, basis = False, "%s; %s: %s" % (basis, type(exc).__name__, str(exc)[:120])
+        if not ok:
+            out.append("document %s -> %s (%s)" % (did, path, basis))
+    return out
+
+
 def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=print,
          now: Optional[str] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -116,6 +158,8 @@ def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=p
         if args.json:
             Path(args.json).write_text(json.dumps(diff, indent=1, default=str, ensure_ascii=False))
         if not args.apply:
+            for m in storage_missing(db, snap, rows, tables, []):
+                out("  STORAGE MISSING: %s" % m)
             out("DRY-RUN: %d row(s) differ; nothing written." % n)
             return 0
         ops, notes = restore_ops(rows, current, pks=pks, tables=tables)
@@ -128,7 +172,17 @@ def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=p
         bad = sum(len(after[t]["changed"]) + len(after[t]["missing"]) for t in tables)
         out("RESTORE CHECK: %s" % ("every snapshot row is back" if not bad else
                                    "%d snapshot row(s) still differ" % bad))
-        return 0 if not bad else 1
+        residue = {t: len(after[t]["created"]) for t in tables if after[t]["created"]}
+        if residue:
+            out("RESIDUE: %d row(s) created since the snapshot remain (a restore never deletes): %s"
+                % (sum(residue.values()), ", ".join("%s %d" % kv for kv in sorted(residue.items()))))
+        missing = storage_missing(db, snap, rows, tables, ops)
+        for m in missing:
+            out("  STORAGE MISSING: %s" % m)
+        out("STORAGE CHECK: %s" % ("every document object resolves" if not missing else
+                                   "%d document object(s) missing — the rows are back, the files are not"
+                                   % len(missing)))
+        return 0 if not bad and not missing else 1
     finally:
         close = getattr(client, "close", None)
         if close:

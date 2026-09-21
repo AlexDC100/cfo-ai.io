@@ -23,9 +23,11 @@ OPERATIONS
 ``{"op": "upsert", "table": T, "row": {...}}``
     put the whole row back (restore only).
 ``{"op": "copy_object", "bucket": B, "from_path", "from_org", "to_path",
-  "to_org", "document_id", "content_type"}``
+  "to_org", "document_id", "content_type", "expect_sha256"}``
     copy a storage object to another org's prefix. No row effect; the old
-    object is never deleted.
+    object is never deleted. ``expect_sha256`` (when the plan's facts pass
+    read the object) is what the copy must find and write: a source that is
+    gone or different by then stops the run before any row moves.
 
 The value ``"$now"`` in an operation is replaced by the run's timestamp,
 so a plan is free of clocks and two plans of the same state compare equal.
@@ -56,10 +58,16 @@ KNOWN_PKS: Dict[str, Tuple[str, ...]] = {
 #: Columns a database trigger rewrites on every UPDATE; never compared.
 VOLATILE_COLUMNS = frozenset({"updated_at"})
 
-#: Restore order: rows others point at come first.
+#: Restore order: rows others point at come first. ``documents`` and
+#: ``financial_periods`` point at EACH OTHER with immediate foreign keys
+#: (``documents.period_id`` -> financial_periods, schema_phase3.sql:530;
+#: ``financial_periods.source_document_id`` -> documents ON DELETE CASCADE,
+#: schema.sql:571): ``restore_ops`` breaks the cycle in two phases. Parents
+#: of other tables' rows (alerts <- alert_states, sales_datasets <- sku_*)
+#: come before the alphabetical rest.
 TABLE_ORDER = (
     "organizations", "memberships", "org_prefs", "user_prefs",
-    "documents", "financial_periods",
+    "documents", "financial_periods", "alerts", "sales_datasets",
 )
 
 
@@ -261,20 +269,37 @@ def restore_ops(snapshot: Mapping[str, List[Mapping[str, Any]]],
                 current: Mapping[str, List[Mapping[str, Any]]], *,
                 pks: Optional[Mapping[str, Sequence[str]]] = None,
                 tables: Optional[Iterable[str]] = None) -> Tuple[List[Dict[str, Any]], List[str]]:
-    """(operations, notes) that put ``tables`` back to the snapshot."""
+    """(operations, notes) that put ``tables`` back to the snapshot.
+
+    TWO PHASES for the documents <-> financial_periods cycle: a document
+    whose snapshot ``period_id`` names a period production no longer has
+    (a period erased by ON DELETE CASCADE with its source) is put back with
+    ``period_id`` NULL, the periods are put back (their source documents
+    now exist), and only then is each such ``period_id`` set — every
+    statement satisfies both immediate foreign keys."""
     names = list(tables) if tables is not None else sorted(snapshot)
     ordered = [t for t in TABLE_ORDER if t in names] + sorted(t for t in names if t not in TABLE_ORDER)
     diff = restore_diff(snapshot, current, pks=pks, tables=ordered)
     ops: List[Dict[str, Any]] = []
     notes: List[str] = []
+    period_pk = pk_for("financial_periods", pks)
+    periods_now = {row_key(r, period_pk) for r in current.get("financial_periods") or []}
+    relink: List[Dict[str, Any]] = []
     for t in ordered:
         pk = pk_for(t, pks)
         snap = index_rows(snapshot.get(t) or [], pk)
         cur = index_rows(current.get(t) or [], pk)
-        for ch in diff[t]["changed"]:
-            ops.append({"op": "upsert", "table": t, "row": dict(snap[row_key(ch["key"], pk)])})
-        for key in diff[t]["missing"]:
-            ops.append({"op": "upsert", "table": t, "row": dict(snap[row_key(key, pk)])})
+        for key in [ch["key"] for ch in diff[t]["changed"]] + list(diff[t]["missing"]):
+            row = dict(snap[row_key(key, pk)])
+            if t == "documents" and row.get("period_id") is not None \
+                    and (str(row["period_id"]),) not in periods_now:
+                relink.append({"op": "update", "table": t, "key": key_dict(row, pk),
+                               "set": {"period_id": row["period_id"]}, "expect": {"period_id": None}})
+                row["period_id"] = None
+            ops.append({"op": "upsert", "table": t, "row": row})
+        if t == "financial_periods" or (t == "documents" and "financial_periods" not in ordered):
+            ops.extend(relink)
+            relink = []
         for key in diff[t]["created"]:
             row = cur[row_key(key, pk)]
             rule = ARCHIVE_CREATED.get(t)

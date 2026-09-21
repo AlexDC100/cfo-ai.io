@@ -252,7 +252,20 @@ def build_world() -> Tuple[Dict[str, List[Dict[str, Any]]], Dict[str, bytes], Li
         period("per-sf25", "org-sf", "2025-12-31", "d-sf25-lv", canonical={"v": 1}),
         period("per-sf21", "org-sf", "2021-12-31", "d-omega-trash"),
         period("per-sf-empty", "org-sf", "2026-09-30", None, created="2026-09-21"),
-        period("per-carnex", "org-qa", "2017-12-31", "q-carnex-src"),
+        # filed under 2017 by a user-confirmed hint; the engine's own
+        # detection record says so (stage_persist's shape, verbatim keys)
+        period("per-carnex", "org-qa", "2017-12-31", "q-carnex-src", canonical={
+            "canonical_bs": {"v": 1},
+            "period_detection": {
+                "hint": "2017-12-31", "mismatch": True, "confidence": 1.0,
+                "signal_used": "user_confirmed",
+                "evidence_snippet": "user-confirmed period end: 2017-12-31",
+                "resolved_period_end": "2017-12-31",
+                "detected": {"candidates": [{"signal": "filename", "period_end": "2025-12-31",
+                                             "evidence_snippet": "Carnex Trial Balance_FY2025.xlsx"}],
+                             "confidence": 0.6, "signal_used": "filename",
+                             "evidence_snippet": "Carnex Trial Balance_FY2025.xlsx",
+                             "proposed_period_end": "2025-12-31"}}}),
         period("per-q25", "org-qa", "2025-12-31", "q-sf25-src"),
         period("per-beta", "org-qa", "2025-12-31", "q-beta-src"),
         period("per-q24", "org-qa", "2024-12-31", "q-sf24-src"),
@@ -378,6 +391,9 @@ class FakeSupabase:
         self.writes: List[Tuple[str, str, Any]] = []
         self.deletes: List[str] = []
         self.clock = "2026-09-21T12:00:00+00:00"
+        #: Functions the OpenAPI document lists under /rpc/ (read, never
+        #: called — the double serves no RPC).
+        self.rpcs = {"workspace_hold_guard_version"}
 
     def pk(self, t):
         return PKS.get(t, ["id"])
@@ -418,7 +434,8 @@ class FakeSupabase:
         for t, cols in self.columns.items():
             defs[t] = {"properties": {c: {"description": "Note:\nThis is a Primary Key.<pk/>"
                                           if c in self.pk(t) else "", "type": "string"} for c in cols}}
-        return httpx.Response(200, json={"definitions": defs})
+        paths = {"/rpc/%s" % name: {"post": {}} for name in sorted(self.rpcs)}
+        return httpx.Response(200, json={"definitions": defs, "paths": paths})
 
     def _filters(self, req: httpx.Request, table: str):
         out = []

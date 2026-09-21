@@ -18,6 +18,7 @@ import pytest
 
 from engine.public_ro.store import PublicRoStore
 from engine.workspaces.company_identity import (
+    REGISTRY_SEARCH_LIMIT,
     CompanyIdentity,
     apply_known_identity,
     cui_control_digit,
@@ -27,6 +28,7 @@ from engine.workspaces.company_identity import (
     match_known_identity,
     normalize_company_name,
     normalize_cui,
+    registry_match_name,
 )
 
 from ws_migration_fixture import balance_pdf, balance_xlsx, itinerary_pdf, text_pdf, valid_cui
@@ -150,6 +152,22 @@ def test_a_labelled_company_and_ro_prefixed_cui():
     assert ident.cui == valid_cui("4000003") and ident.company_name == "GAMMA AGRO SRL"
 
 
+@pytest.mark.parametrize("line,name", [
+    ("Welcome dinner hosted by Scandia Food S.R.L", "Scandia Food S.R.L"),
+    ("Firma ALFA FOOD SRL", "ALFA FOOD SRL"),
+    ("Casa de Ajutor Reciproc Scandia SA", "Casa de Ajutor Reciproc Scandia SA"),
+    ("BETA IMOBILIARE SRL c.f. 30000024", "BETA IMOBILIARE SRL"),
+])
+def test_a_title_line_yields_the_company_name_not_the_sentence(line, name):
+    """Verifier finding (2026-09-21): the title pattern matched lazily from the leftmost
+    capital, so 'Welcome dinner hosted by Scandia Food S.R.L' keyed the
+    company 'WELCOME DINNER HOSTED BY SCANDIA FOOD' and an itinerary was
+    archived away from the company it names."""
+    ident = identify_document(balance_xlsx([line, "Balanta de verificare la 31.12.2025"]), "x.xlsx")
+    assert ident.company_name == name
+    assert ident.sources["company_name"]["signal"] == "document_header_title"
+
+
 def test_an_itinerary_is_not_a_balance_but_names_its_host():
     ident = identify_document(itinerary_pdf(), "Delegation_Itinerary.pdf")
     assert ident.document_kind == "not_a_balance"
@@ -209,9 +227,78 @@ def test_a_short_filename_word_is_never_looked_up(registry):
     assert ident.cui is None
 
 
-def test_a_longer_filename_name_may_resolve_but_only_uniquely(registry):
+def test_a_filename_registry_match_is_only_a_hint_unless_the_document_prints_the_cui(registry):
+    """Verifier finding (2026-09-21): a filename matched to the registry used to mint a CUI —
+    and so a company key — on its own ('trial Balance Scandia Sibiu
+    12.2019.PDF' -> 13068741, a live workspace created from the filename
+    alone). It is a hint unless the document prints that CUI."""
     ident = identify_document(balance_xlsx([]), "Balanta Alfa Food_FY2025.xlsx", registry=registry)
+    assert ident.cui is None and ident.company_key is None
+    assert ident.sources["cui_hint"]["cui"] == CUI_A
+    assert ident.sources["cui_hint"]["signal"] == "filename_registry_match"
+    # corroborated: the header prints the CUI (unlabelled)
+    ident = identify_document(balance_xlsx(["Balanta de verificare", "RO%s" % CUI_A]),
+                              "Balanta Alfa Food_FY2025.xlsx", registry=registry)
     assert ident.cui == CUI_A and ident.sources["cui"]["signal"] == "filename_registry_match"
+
+
+def test_a_second_company_with_the_name_is_found_past_a_full_search_page(tmp_path):
+    """Verifier finding (p6_ambig.py, 2026-09-21): ALFA FOOD SRL and ALFA-FOOD
+    S.R.L. normalize to the same name; 130 other "ALFA …" companies fill the
+    first-token search page before the second one. The prefix search saw
+    one hit on a full page and handed the book that CUI. Uniqueness is now
+    decided over every registered name: ambiguous -> no CUI."""
+    st = PublicRoStore(tmp_path / "public_ro.db")
+    try:
+        _company(st, valid_cui("3100001"), "ALFA FOOD SRL")
+        _company(st, valid_cui("3100002"), "ALFA-FOOD S.R.L.")
+        for i in range(130):
+            _company(st, valid_cui(str(3200000 + i)), "ALFA CONSTRUCT%03d SRL" % i)
+        assert registry_match_name(st, "ALFA FOOD SRL") is None
+        ident = identify_document(balance_xlsx(["Societate: ALFA FOOD SRL",
+                                                "Balanta de verificare la 31.12.2025"]), "b.xlsx", registry=st)
+        assert ident.cui is None and ident.company_key == "name:ALFA FOOD"
+    finally:
+        st.close()
+
+
+def test_a_punctuation_variant_of_the_registered_name_is_found(tmp_path):
+    """The prefix LIKE never reached "AGRA`S FOOD FACTORY S.R.L." from a
+    printed "Agras Food Factory"; the normalized index does — and only
+    because it is the ONE company with that name."""
+    st = PublicRoStore(tmp_path / "public_ro.db")
+    try:
+        cui = valid_cui("4635509")
+        _company(st, cui, "AGRA`S FOOD FACTORY S.R.L.", "1011")
+        _company(st, valid_cui("3881501"), "ROM AGRA FOODS S.R.L.", "4623")
+        hit = registry_match_name(st, "Agras Food Factory SRL")
+        assert hit is not None and hit[0] == cui and hit[1]["name"] == "AGRA`S FOOD FACTORY S.R.L."
+    finally:
+        st.close()
+
+
+class _SearchOnlyRegistry:
+    """A registry that can only answer capped prefix searches."""
+
+    def __init__(self, rows):
+        self.rows = rows
+
+    def get_company(self, cui):
+        return next((dict(r) for r in self.rows if r["cui"] == int(cui)), None)
+
+    def search_companies(self, q, limit=20):
+        hits = [r for r in sorted(self.rows, key=lambda r: r["name"]) if r["name"].lower().startswith(q.lower())]
+        return [dict(r) for r in hits[:limit]]
+
+
+def test_a_search_only_registry_refuses_on_any_full_page():
+    """Without a name listing, a FULL page is unsure even when it holds one
+    exact hit — the next page may hold a second company with the name."""
+    rows = [{"cui": int(valid_cui("3100001")), "name": "ALFA FOOD SRL", "caen": "1013"}]
+    rows += [{"cui": int(valid_cui(str(3300000 + i))), "name": "ALFA FOOD %03d SRL" % i, "caen": None}
+             for i in range(REGISTRY_SEARCH_LIMIT)]
+    assert registry_match_name(_SearchOnlyRegistry(rows), "ALFA FOOD SRL") is None
+    assert registry_match_name(_SearchOnlyRegistry(rows[:3]), "ALFA FOOD SRL")[0] == valid_cui("3100001")
 
 
 # ── operator-verified identities ───────────────────────────────────────
@@ -246,6 +333,19 @@ def test_a_name_only_rule_pins_a_company_without_cui(registry):
     got, conflict = apply_known_identity(ident, {"cui": None, "company_name": "Gamma Agro (group)",
                                                  "evidence": "no filing"})
     assert conflict is None and got.cui is None and got.company_key == "name:GAMMA AGRO GROUP"
+
+
+def test_a_rules_caen_layers_on_even_when_the_document_prints_the_same_cui():
+    """Verifier finding (2026-09-21): apply_known_identity returned the document identity
+    unchanged when the CUIs agreed, so the operator's CAEN (EEI's 6820) was
+    never used. The document keeps its CUI; the verified CAEN layers on."""
+    ident = identify_document(balance_xlsx(["Alfa Food SRL", "Cod fiscal: %s" % CUI_A]), "x.xlsx")
+    assert ident.caen_code is None
+    got, conflict = apply_known_identity(ident, {"cui": CUI_A, "caen_code": "6820", "evidence": "verified"})
+    assert conflict is None and got.cui == CUI_A and got.company_name == ident.company_name
+    assert got.caen_code == "6820" and got.sources["caen_code"]["signal"] == "operator_verified"
+    assert got.sources["cui"]["signal"] == "document_header_cui"
+    assert got.industry_key == industry_key_for_caen("6820")
 
 
 def test_a_rule_with_a_bad_cui_is_refused():

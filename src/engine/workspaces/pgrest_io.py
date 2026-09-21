@@ -28,6 +28,7 @@ from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Seque
 
 from engine.workspaces.rowstore import (
     KNOWN_PKS,
+    NOW,
     OpConflict,
     canonical_json,
     pk_for,
@@ -66,14 +67,26 @@ class PgRest:
         self.c = client
         self.base = "%s/rest/v1" % client.url
         self.writes: List[Tuple[str, str, Any]] = []
+        self._openapi: Optional[Dict[str, Any]] = None
 
     # ── discovery ─────────────────────────────────────────────────────
 
+    def openapi(self) -> Dict[str, Any]:
+        """PostgREST's OpenAPI document (a GET), read once."""
+        if self._openapi is None:
+            r = self.c._client.get(self.base + "/", headers=self.c._headers)
+            r.raise_for_status()
+            self._openapi = r.json() or {}
+        return self._openapi
+
+    def has_rpc(self, name: str) -> bool:
+        """True when PostgREST exposes the function ``name`` to this role
+        (``/rpc/<name>`` in the OpenAPI paths) — read, never called."""
+        return ("/rpc/%s" % name) in (self.openapi().get("paths") or {})
+
     def discover(self) -> Dict[str, Dict[str, List[str]]]:
         """{table: {"columns": [...], "pk": [...]}} from the OpenAPI document."""
-        r = self.c._client.get(self.base + "/", headers=self.c._headers)
-        r.raise_for_status()
-        defs = (r.json() or {}).get("definitions") or {}
+        defs = self.openapi().get("definitions") or {}
         out: Dict[str, Dict[str, List[str]]] = {}
         for name, d in defs.items():
             props = d.get("properties") or {}
@@ -246,7 +259,29 @@ def build_snapshot(db: PgRest, *, schema: Optional[Mapping[str, Mapping[str, Seq
         rows = sorted(tables[t], key=lambda r: canonical_json([r.get(c) for c in pks[t]]))
         snap["tables"][t] = {"pk": list(pks[t]), "columns": list(live[t]["columns"]),
                              "count": len(rows), "sha256": table_sha256(rows, pks[t]), "rows": rows}
+    objects = object_inventory(db, tables.get("documents") or [])
+    snap["objects"] = objects
+    snap["objects_sha256"] = hashlib.sha256(canonical_json(objects).encode("utf-8")).hexdigest()
     return snap
+
+
+def object_inventory(db: PgRest, documents: Iterable[Mapping[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    """``{document id: {"path", "org_id", "exists"}}`` — whether each
+    document's storage object resolved when the snapshot was taken. The
+    rollback checks the objects that DID exist then still do (a restored
+    ``storage_path`` whose object a purge erased is not a restore).
+    ``exists`` is None when the object could not be asked about."""
+    out: Dict[str, Dict[str, Any]] = {}
+    for d in sorted(documents, key=lambda r: str(r.get("id"))):
+        path = d.get("storage_path")
+        if not path:
+            continue
+        try:
+            exists: Optional[bool] = db.object_exists("documents", str(path), org_id=str(d.get("org_id")))
+        except Exception:  # noqa: BLE001 — a path outside its own org, an outage: unknown
+            exists = None
+        out[str(d["id"])] = {"path": str(path), "org_id": str(d.get("org_id")), "exists": exists}
+    return out
 
 
 def write_snapshot(snap: Mapping[str, Any], path: str) -> str:
@@ -264,6 +299,9 @@ def load_snapshot(path: str) -> Dict[str, Any]:
     for t, meta in snap["tables"].items():
         if table_sha256(meta["rows"], meta["pk"]) != meta["sha256"] or len(meta["rows"]) != meta["count"]:
             raise RuntimeError("snapshot %s: table %s fails its own checksum" % (path, t))
+    if "objects" in snap and hashlib.sha256(canonical_json(snap["objects"]).encode("utf-8")).hexdigest() \
+            != snap.get("objects_sha256"):
+        raise RuntimeError("snapshot %s: the storage object inventory fails its own checksum" % path)
     return snap
 
 
@@ -296,6 +334,21 @@ def verify_snapshot(db: PgRest, snap: Mapping[str, Any]) -> Dict[str, Dict[str, 
 
 # ── the read-before-write executor ─────────────────────────────────────
 
+def applied_at_another_time(row: Mapping[str, Any], raw_set: Mapping[str, Any]) -> bool:
+    """An ``update`` whose ``set`` carries ``"$now"`` is ALREADY IN EFFECT
+    when every other column holds its planned value and every ``$now``
+    column holds a timestamp — the one an earlier, interrupted run wrote.
+    Without this a resumed run compares the first run's timestamp with its
+    own clock, then the untouched ``expect`` (``deleted_at`` NULL) with the
+    first run's write, and stops half-migrated (OpConflict)."""
+    stamped = [c for c, v in raw_set.items() if v == NOW]
+    if not stamped:
+        return False
+    if any(row.get(c) is None for c in stamped):
+        return False
+    return values_match(row, {c: v for c, v in raw_set.items() if v != NOW})
+
+
 def apply_live(db: PgRest, ops: Sequence[Mapping[str, Any]], *, now: str,
                pks: Mapping[str, Sequence[str]], log: Callable[[str], None] = print
                ) -> Dict[str, Any]:
@@ -310,13 +363,24 @@ def apply_live(db: PgRest, ops: Sequence[Mapping[str, Any]], *, now: str,
         kind = op["op"]
         if kind == "copy_object":
             if db.object_exists(op["bucket"], op["to_path"], org_id=op["to_org"]):
-                done["copy_skipped"] += 1
+                done["copy_skipped"] += 1   # its bytes are checked by the recount
                 continue
             content = db.download(op["bucket"], op["from_path"], org_id=op["from_org"])
+            want = op.get("expect_sha256")
             if content is None:
+                if want:
+                    # The plan's facts pass read this object. Moving the row
+                    # now would point a live document at a path with no file.
+                    raise OpConflict("[%d] copy %s: the object the plan read (sha256 %s) is gone — "
+                                     "stopping before any document row moves" % (i, op["from_path"], want[:16]))
                 done["missing_objects"].append(op["from_path"])
-                log("  [%d] copy %s: source object missing — row still moves" % (i, op["from_path"]))
+                log("  [%d] copy %s: source object missing (it was not found when planning either) "
+                    "— row still moves" % (i, op["from_path"]))
                 continue
+            if want and hashlib.sha256(content).hexdigest() != want:
+                raise OpConflict("[%d] copy %s: the object changed since the plan read it (sha256 %s, "
+                                 "planned %s)" % (i, op["from_path"], hashlib.sha256(content).hexdigest()[:16],
+                                                  want[:16]))
             db.upload(op["bucket"], op["to_path"], content, org_id=op["to_org"],
                       content_type=op.get("content_type"))
             done["copied"] += 1
@@ -353,7 +417,7 @@ def apply_live(db: PgRest, ops: Sequence[Mapping[str, Any]], *, now: str,
                 continue
             if cur is None:
                 raise OpConflict("[%d] %s %s: row missing" % (i, table, canonical_json(key)))
-            if values_match(cur, op["set"]):
+            if values_match(cur, op["set"]) or applied_at_another_time(cur, raw["set"]):
                 done["skipped"] += 1
                 continue
             if "expect" in op and not values_match(cur, op["expect"]):

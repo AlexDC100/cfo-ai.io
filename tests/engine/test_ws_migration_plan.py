@@ -21,7 +21,7 @@ from pathlib import Path
 
 import pytest
 
-from engine.workspaces.company_identity import CompanyIdentity
+from engine.workspaces.company_identity import CompanyIdentity, industry_key_for_caen
 from engine.workspaces.migration_plan import (
     DocFacts,
     HOLDING_NAME,
@@ -30,6 +30,7 @@ from engine.workspaces.migration_plan import (
     empty_live_periods,
     holding_org_id,
     new_org_id,
+    period_source_hazards,
 )
 from engine.workspaces.rowstore import (
     apply_ops,
@@ -87,9 +88,12 @@ def test_same_month_periods_elsewhere_are_archived_not_the_served_ones(world):
     assert q24["action"] == "archive" and q24["reason"] == "month_already_served (per-sf24)"
     holding = holding_org_id(OWNER)
     assert _row(world["post"], "financial_periods", id="per-q25")["org_id"] == holding
-    # its source travels with it (ON DELETE CASCADE hazard otherwise)
+    # its source travels with it, and is NOT put in a trash: the source is
+    # ON DELETE CASCADE for the period, and "Clear all" on any trash the
+    # owner can reach hard-deletes what is in it (2026-09-21 verifier finding —
+    # this line used to assert deleted_at IS NOT NULL, i.e. the defect).
     src = _row(world["post"], "documents", id="q-sf25-src")
-    assert src["org_id"] == holding and src["deleted_at"] is not None
+    assert src["org_id"] == holding and src["deleted_at"] is None
 
 
 def test_workspaces_created_per_company_with_prefs(world):
@@ -125,6 +129,28 @@ def test_the_2025_book_filed_under_2017_is_re_dated_and_its_hint_corrected(world
     assert p["period_end"] == p["period_start"] == "2025-12-31"
     assert p["org_id"] == new_org_id(OWNER, "name:CARNEX")
     assert _row(world["post"], "documents", id="q-carnex-src")["period_end_hint"] == "2025-12-31"
+
+
+def test_the_re_date_rewrites_the_engines_period_detection_record(world):
+    """Verifier finding (2026-09-21): the Carniprod row was re-dated but its
+    stored period_detection still said resolved 2017-12-31, mismatch true —
+    served verbatim by /api/org/periods-with-documents (the mismatch chip)
+    and read by firm/attention.detect_period_mismatch ('period the file is
+    filed under: 2017-12-31'). The record now says what the row says, and
+    mismatch is the engine's own rule: a detection pointing elsewhere."""
+    pre = _row(world["tables"], "financial_periods", id="per-carnex")["assembled_canonical_v1"]
+    env = _row(world["post"], "financial_periods", id="per-carnex")["assembled_canonical_v1"]
+    rec = env["period_detection"]
+    assert rec["resolved_period_end"] == "2025-12-31" and rec["mismatch"] is False
+    assert rec["signal_used"] == "filename" and rec["hint"] == "2025-12-31"
+    assert rec["detected"] == pre["period_detection"]["detected"]
+    assert rec["migration"]["from"] == "2017-12-31" and rec["migration"]["to"] == "2025-12-31"
+    assert rec["migration"]["previous"]["mismatch"] is True
+    # the rest of the envelope is untouched
+    assert {k: v for k, v in env.items() if k != "period_detection"} == \
+        {k: v for k, v in pre.items() if k != "period_detection"}
+    # what the attention layer reads: no mismatch item any more
+    assert not (isinstance(rec, dict) and rec.get("mismatch") is True)
 
 
 def test_duplicates_failed_copies_and_non_balances_are_archived_with_reasons(world):
@@ -223,11 +249,95 @@ def test_one_company_per_live_workspace_and_one_live_document_per_company_month(
 
 
 def test_g4_no_empty_period_survives_in_a_live_workspace(world):
-    before = empty_live_periods(world["tables"], orgs={"org-sf", "org-qa"})
-    assert {p for p, _ in before} >= {"per-sf21", "per-sf-empty", "per-qa-empty-a", "per-qa-empty-b"}, \
-        "the gate must see the planted empties in the pre-state"
+    month = DATE[:7]
+    before = empty_live_periods(world["tables"], orgs={"org-sf", "org-qa"}, current_month=month)
+    assert {p for p, _ in before} >= {"per-sf21", "per-qa-empty-b"}, \
+        "the gate must see the planted empties (and the EXTRA placeholder) in the pre-state"
+    # without the current-month exemption the placeholders are empties too
+    assert {"per-sf-empty", "per-qa-empty-a"} <= {p for p, _ in empty_live_periods(world["tables"],
+                                                                                 orgs={"org-sf", "org-qa"})}
     owner_live = {m["org_id"] for m in world["post"]["memberships"] if m["user_id"] == OWNER}
-    assert empty_live_periods(world["post"], orgs=owner_live) == []
+    assert empty_live_periods(world["post"], orgs=owner_live, current_month=month) == []
+
+
+def test_the_current_month_placeholder_stays_and_an_extra_one_is_archived(world):
+    """Verifier finding (2026-09-21): the planner archived every workspace's
+    current-month placeholder as "empty: no source document". The operator
+    rule (2026-07-26, frontend/lib/orgPeriods.ts): every workspace always
+    has a period for the current month, and it can't be deleted —
+    useEnsureCurrentPeriod re-creates it, so every re-run archived the new
+    one and a rollback left two. One per workspace stays; extras go."""
+    post, plan = world["post"], world["plan"]
+    assert _row(post, "financial_periods", id="per-sf-empty")["org_id"] == "org-sf"
+    assert _decision(plan, "periods", "per-sf-empty")["action"] == "untouched"
+    assert _row(post, "financial_periods", id="per-qa-empty-a")["org_id"] == "org-qa"      # archived with Q&A
+    assert _decision(plan, "periods", "per-qa-empty-b")["reason"] == \
+        "empty: extra current-month placeholder (per-qa-empty-a kept)"
+    assert _row(post, "financial_periods", id="per-qa-empty-b")["org_id"] == holding_org_id(OWNER)
+
+
+def test_no_period_is_one_hard_delete_from_erasure(world):
+    """Every period's source document ends in the period's own workspace and
+    out of every trash — a source in a trash (or elsewhere) is erased by the
+    next "Clear all" / purge, and ON DELETE CASCADE takes the period with it.
+    The pre-state HAS such periods (per-sf21's source is in the user's
+    trash); the post-state has none, and the already-trashed source came
+    out of the trash as it moved with its archived period."""
+    pre_hazards = period_source_hazards(world["tables"])
+    assert ("per-sf21", "source document d-omega-trash is in the trash") in pre_hazards, \
+        "the gate must see the planted trashed source in the pre-state"
+    assert period_source_hazards(world["post"]) == []
+    omega = _row(world["post"], "documents", id="d-omega-trash")
+    assert omega["org_id"] == holding_org_id(OWNER) and omega["deleted_at"] is None
+    assert _row(world["post"], "financial_periods", id="per-sf21")["org_id"] == holding_org_id(OWNER)
+    assert world["plan"].blocking == []
+    # PLANT: the migration trashing one archived period's source — exactly
+    # the 10fd52ab behaviour — is seen by the gate.
+    planted = copy.deepcopy(world["post"])
+    _row(planted, "documents", id="q-sf25-src")["deleted_at"] = RUN
+    assert period_source_hazards(planted) == [("per-q25", "source document q-sf25-src is in the trash")]
+
+
+def test_a_move_that_would_break_a_unique_key_blocks_the_plan():
+    """alerts carries UNIQUE (org_id, alert_key) (schema.sql:412). A period
+    moving into its company's workspace brings its alerts; one whose key
+    the target workspace already uses would fail the PATCH with 23505
+    halfway through the run. The planner refuses such a plan up front."""
+    t = _mini([_doc("a1", "org-a", period="pa"), _doc("q1", "org-q", period="pq")],
+              [{"id": "pa", "org_id": "org-a", "period_start": "2025-12-31", "period_end": "2025-12-31",
+                "source_document_id": "a1"},
+               {"id": "pq", "org_id": "org-q", "period_start": "2024-12-31", "period_end": "2024-12-31",
+                "source_document_id": "q1"}],
+              metrics=[("pa", "org-a"), ("pq", "org-q")], orgs=("org-a", "org-q"), prefs={"org-a": {"cui": ALFA}})
+    t["alerts"] = [{"id": "al-a", "org_id": "org-a", "period_id": "pa", "alert_key": "negative_equity"},
+                   {"id": "al-q", "org_id": "org-q", "period_id": "pq", "alert_key": "negative_equity"}]
+    facts = {"a1": _ident(ALFA, "2025-12-31"), "q1": _ident(ALFA, "2024-12-31")}
+    plan = build_plan(t, facts, migration_date=DATE)
+    assert _decision(plan, "periods", "pq")["to_org"] == "org-a"
+    assert any("alerts (org_id, alert_key)" in b and "negative_equity" in b for b in plan.blocking), plan.blocking
+    t["alerts"][1]["alert_key"] = "negative_equity:pq"          # the engine's {rule}:{period} shape
+    assert build_plan(t, facts, migration_date=DATE).blocking == []
+
+
+def test_the_failed_source_of_an_empty_period_follows_it_and_is_not_trashed():
+    """An EMPTY period (its source failed) is archived into the holding
+    workspace; its failed source goes WITH it — never into a live company
+    workspace's trash, where "Clear all" would cascade the period away."""
+    t = _mini([_doc("ok", "org-a", period="p1"),
+               _doc("fail", "org-a", status="failed", period="p2", created="2026-09-02T00:00:00+00:00")],
+              [{"id": "p1", "org_id": "org-a", "period_start": "2025-12-31", "period_end": "2025-12-31",
+                "source_document_id": "ok"},
+               {"id": "p2", "org_id": "org-a", "period_start": "2024-12-31", "period_end": "2024-12-31",
+                "source_document_id": "fail"}],
+              metrics=[("p1", "org-a"), ("p2", "org-a")])
+    facts = {"ok": _ident(ALFA, "2025-12-31"), "fail": _ident(GAMMA, "2024-12-31")}
+    plan = build_plan(t, facts, migration_date=DATE)
+    assert _decision(plan, "periods", "p2")["reason"] == "empty: source document failed"
+    post = apply_ops(t, plan.ops, now=RUN)
+    fail = _row(post, "documents", id="fail")
+    assert fail["org_id"] == _row(post, "financial_periods", id="p2")["org_id"] == holding_org_id("u")
+    assert fail["deleted_at"] is None
+    assert period_source_hazards(post) == [] and plan.blocking == []
 
 
 def test_no_document_or_row_points_into_another_workspace(world):
@@ -329,16 +439,147 @@ def _ident(cui, end, signal="closing_balance"):
                                              document_kind="trial_balance"))
 
 
+def _moving_period(filename="d1.xlsx", hint=None):
+    """p1 (dated 2025-06-30) sits in org-q, a workspace with no company of
+    its own; its company (ALFA) lives in org-a, so p1 MOVES."""
+    doc = dict(_doc("d1", "org-q", period="p1"), original_filename=filename, period_end_hint=hint)
+    return _mini([doc, _doc("keep-a", "org-a")],
+                 [{"id": "p1", "org_id": "org-q", "period_start": "2025-06-30", "period_end": "2025-06-30",
+                   "source_document_id": "d1"}],
+                 metrics=[("p1", "org-q")], orgs=("org-a", "org-q"), prefs={"org-a": {"cui": ALFA}})
+
+
+def _redates(plan):
+    return [op["set"] for op in plan.ops if op.get("table") == "financial_periods" and "period_end" in op["set"]]
+
+
 def test_a_filename_only_disagreement_within_the_year_is_not_re_dated():
-    t = _mini([_doc("d1", "org-a")],
-              [{"id": "p1", "org_id": "org-a", "period_start": "2025-06-30", "period_end": "2025-06-30",
+    plan = build_plan(_moving_period("Balanta_31.12.2025.xlsx"),
+                      {"d1": _ident(ALFA, "2025-12-31", signal="filename")}, migration_date=DATE)
+    assert _decision(plan, "periods", "p1")["to_org"] == "org-a"
+    assert _redates(plan) == []
+    assert any("not re-dated (same year)" in w for w in plan.warnings)
+
+
+def test_a_closing_balance_date_re_dates_a_moving_period_only_when_a_second_signal_agrees():
+    """Verifier finding (p8_printdate.py): a print date beside the title
+    ('tiparit 15.01.2026') reads as a closing-balance date. Alone it is not
+    a period: the filename or the user-confirmed hint must name the same
+    month."""
+    ident = {"d1": _ident(ALFA, "2025-12-31", signal="closing_balance")}
+    plan = build_plan(_moving_period("d1.xlsx"), ident, migration_date=DATE)
+    assert _redates(plan) == []
+    assert any("no second signal agrees" in w for w in plan.warnings)
+    plan = build_plan(_moving_period("Balanta_31.12.2025.xlsx"), ident, migration_date=DATE)
+    assert _redates(plan) == [{"period_end": "2025-12-31", "period_start": "2025-12-31"}]
+    plan = build_plan(_moving_period("d1.xlsx", hint="2025-12-31"), ident, migration_date=DATE)
+    assert _redates(plan) == [{"period_end": "2025-12-31", "period_start": "2025-12-31"}]
+    # the document's own period line needs no second signal
+    plan = build_plan(_moving_period("d1.xlsx"), {"d1": _ident(ALFA, "2025-12-31", signal="in_document")},
+                      migration_date=DATE)
+    assert _redates(plan) == [{"period_end": "2025-12-31", "period_start": "2025-12-31"}]
+
+
+def test_a_served_period_is_never_re_dated():
+    """Verifier findings (p8_printdate.py; data safety probe_cascade case B):
+    a period already in its company's own workspace is the one being
+    served. The 10fd52ab planner re-dated it on any closing-balance hit —
+    'Balanta de verificare decembrie 2025  tiparit 15.01.2026' moved the
+    served December to January. Served months are never re-dated, whatever
+    the signal; the disagreement is a warning for an operator."""
+    t = _mini([dict(_doc("d1", "org-a", period="p1"), original_filename="Balanta Alfa Food 31.12.2025.xlsx",
+                    period_end_hint="2025-12-31")],
+              [{"id": "p1", "org_id": "org-a", "period_start": "2025-12-31", "period_end": "2025-12-31",
                 "source_document_id": "d1"}], metrics=[("p1", "org-a")])
-    plan = build_plan(t, {"d1": _ident(ALFA, "2025-12-31", signal="filename")}, migration_date=DATE)
-    assert not [op for op in plan.ops if op.get("table") == "financial_periods"]
-    assert any("not re-dated" in w for w in plan.warnings)
-    plan = build_plan(t, {"d1": _ident(ALFA, "2025-12-31", signal="closing_balance")}, migration_date=DATE)
-    redate = [op for op in plan.ops if op.get("table") == "financial_periods"]
-    assert redate and redate[0]["set"] == {"period_end": "2025-12-31", "period_start": "2025-12-31"}
+    for signal, says in (("closing_balance", "2026-01-31"), ("in_document", "2025-11-30")):
+        plan = build_plan(t, {"d1": _ident(ALFA, says, signal=signal)}, migration_date=DATE)
+        assert _decision(plan, "periods", "p1")["action"] == "keep"
+        assert _redates(plan) == [] and not [op for op in plan.ops if op.get("key") == {"id": "d1"}], signal
+        assert any("is served in its company's workspace" in w and says in w for w in plan.warnings)
+
+
+def test_an_unidentified_book_in_a_company_workspace_stays_live_and_unmoved():
+    """Verifier finding (2026-09-21): a document whose bytes name no company
+    used to take the company of the workspace it sits in. In production a
+    Scandia Frozen book in a workspace resolving to Carniprod was archived as
+    'other_file_same_period (<Carniprod's source>)'. An unknown company is
+    UNKNOWN: the book stays live where it is, with a warning."""
+    t = _mini([_doc("s", "org-a", period="p1", created="2026-09-01T00:00:00+00:00"),
+               _doc("stranger", "org-a", created="2026-09-02T00:00:00+00:00")],
+              [{"id": "p1", "org_id": "org-a", "period_start": "2025-12-31", "period_end": "2025-12-31",
+                "source_document_id": "s"}], metrics=[("p1", "org-a")], orgs=("org-a", "org-b"))
+    unknown = DocFacts(identity=CompanyIdentity(
+        company_name="Trial Balance Frozen", period_end="2025-12-31",
+        sources={"company_name": {"signal": "filename", "evidence": "x.xlsx"},
+                 "period_end": {"signal": "closing_balance", "evidence": "31.12.2025"}},
+        document_kind="trial_balance"))
+    facts = {"s": _ident(ALFA, "2025-12-31"), "stranger": unknown}
+    plan = build_plan(t, facts, migration_date=DATE)
+    dec = _decision(plan, "documents", "stranger")
+    assert dec["action"] == "untouched" and dec["reason"] == "company unknown", dec
+    assert dec["to_org"] == "org-a"
+    assert not [op for op in plan.ops if op.get("key") == {"id": "stranger"}]
+    assert any("stranger" in w and "company unknown" in w for w in plan.warnings)
+    post = apply_ops(t, plan.ops, now=RUN)
+    d = _row(post, "documents", id="stranger")
+    assert d["deleted_at"] is None and d["org_id"] == "org-a" and d["error"] is None
+
+
+def test_an_operator_rule_never_reaches_another_users_copy_of_the_bytes():
+    """Verifier finding (2026-09-21): the content-hash sibling map spanned every
+    user. User v's unreadable copy of the same file took user u's
+    operator-verified identity, and the plan wrote merge_prefs on v's
+    workspace with u's operator evidence (production: 9cb39c90 stamped
+    cui 16070576 with the owner's rule text). Rules are scoped to a user;
+    so is the inheritance. Within ONE user an unreadable copy still
+    inherits its twin's identity."""
+    members = [{"org_id": "org-a", "user_id": "u", "role": "owner"},
+               {"org_id": "org-b", "user_id": "v", "role": "owner"},
+               {"org_id": "org-c", "user_id": "u", "role": "owner"}]
+    t = _mini([_doc("a1", "org-a", period="pa", sha="same-bytes"),
+               _doc("b1", "org-b", period="pb", sha="same-bytes"),
+               _doc("c1", "org-c", sha="same-bytes", created="2026-09-02T00:00:00+00:00")],
+              [{"id": "pa", "org_id": "org-a", "period_start": "2025-12-31", "period_end": "2025-12-31",
+                "source_document_id": "a1"},
+               {"id": "pb", "org_id": "org-b", "period_start": "2025-12-31", "period_end": "2025-12-31",
+                "source_document_id": "b1"}],
+              metrics=[("pa", "org-a"), ("pb", "org-b")], orgs=("org-a", "org-b", "org-c"), members=members)
+    rule_ident = DocFacts(identity=CompanyIdentity(
+        cui=ALFA, company_name="ALFA FOOD SRL", period_end="2025-12-31",
+        sources={"cui": {"signal": "operator_verified", "evidence": "u's private filing match"},
+                 "company_name": {"signal": "operator_verified", "evidence": "u's private filing match"},
+                 "period_end": {"signal": "closing_balance", "evidence": "31.12.2025"}},
+        document_kind="trial_balance"))
+    unreadable = DocFacts(identity=CompanyIdentity(document_kind="unreadable"), object_exists=False)
+    plan = build_plan(t, {"a1": rule_ident, "b1": unreadable, "c1": unreadable}, migration_date=DATE)
+    assert not [op for op in plan.ops if "org-b" in repr(op)], [op for op in plan.ops if "org-b" in repr(op)]
+    assert "u's private filing match" not in repr([op for op in plan.ops if "org-a" not in repr(op)
+                                                    and "org-c" not in repr(op)])
+    assert _decision(plan, "periods", "pb")["action"] == "unplaced"
+    # the same user's unreadable copy still inherits (it is the same file)
+    assert _decision(plan, "documents", "c1")["company"] == "cui:" + ALFA
+
+
+def test_a_created_workspace_carries_the_industry_its_caen_maps_to():
+    """Verifier finding (2026-09-21): every created organization was inserted with
+    industry_key None even when the identity's CAEN mapped to one."""
+    t = _mini([_doc("s", "org-a", period="p1"), _doc("g", "org-a", period="p2")],
+              [{"id": "p1", "org_id": "org-a", "period_start": "2025-12-31", "period_end": "2025-12-31",
+                "source_document_id": "s"},
+               {"id": "p2", "org_id": "org-a", "period_start": "2024-12-31", "period_end": "2024-12-31",
+                "source_document_id": "g"}],
+              metrics=[("p1", "org-a"), ("p2", "org-a")], prefs={"org-a": {"cui": ALFA}})
+    agras = DocFacts(identity=CompanyIdentity(
+        cui=GAMMA, company_name="GAMMA AGRO SRL", period_end="2024-12-31", caen_code="1011",
+        industry_key=industry_key_for_caen("1011"),
+        sources={"company_name": {"signal": "registry", "evidence": ""},
+                 "period_end": {"signal": "in_document", "evidence": ""}},
+        document_kind="trial_balance"))
+    plan = build_plan(t, {"s": _ident(ALFA, "2025-12-31"), "g": agras}, migration_date=DATE)
+    row = next(op["row"] for op in plan.ops if op["op"] == "insert" and op["table"] == "organizations"
+               and op["row"]["id"] == new_org_id("u", "cui:" + GAMMA))
+    assert row["caen_code"] == "1011" and row["industry_key"] == "red_meat_processing"
+    assert row["industry_display_name"] == "Red meat processing"
 
 
 def test_a_company_with_only_failed_uploads_keeps_exactly_one_failed_copy():
@@ -434,6 +675,42 @@ def test_the_workspace_purge_never_selects_a_null_purge_after():
     assert "archived_at" not in select, fname
 
 
+def test_the_user_purge_refuses_a_held_archive():
+    """The migration archives the holding workspace — and the workspaces it
+    splits — with purge_after NULL and an 'owner' membership. The cron
+    never selects them (above); "Delete forever" (purge_workspace) must not
+    either: the LATEST definition refuses an archived workspace with no
+    deletion date BEFORE it reaches _purge_org_data. A purge_workspace
+    without that guard (schema_phase_workspace_purge_now.sql alone) reds."""
+    fname, body = _latest_function("purge_workspace")
+    b = re.sub(r"\s+", " ", body.lower())
+    guard = b.find("archived_at is not null and purge_after is null")
+    purge = b.find("perform _purge_org_data")
+    assert 0 <= guard < purge, fname
+    assert "raise exception" in b[guard:purge], fname
+    _latest_function("workspace_hold_guard_version")   # the marker --execute requires
+
+
+def test_only_known_callers_reach_the_org_purge_body():
+    """A ratchet: every function whose LATEST definition performs
+    _purge_org_data / _purge_org_content. purge_workspace is guarded (held
+    archives refused), the cron keys on purge_after < now(); the two
+    account-level calls erase everything the user owns, archives included,
+    on purpose (deleting your account deletes your archive). A NEW caller
+    reds here until someone decides what it does to a held archive."""
+    names = set()
+    for f in sorted((REPO / "supabase").glob("*.sql")):
+        for m in re.finditer(r"create or replace function (?:public\.)?(\w+)\s*\(", f.read_text(), re.I):
+            names.add(m.group(1).lower())
+    callers = set()
+    for name in sorted(names - {"_purge_org_data", "_purge_org_content"}):   # the bodies themselves
+        _fname, body = _latest_function(name)
+        if re.search(r"perform\s+_purge_org_(?:data|content)\s*\(", body, re.I):
+            callers.add(name)
+    assert callers == {"purge_workspace", "purge_expired_workspaces", "delete_all_my_data",
+                       "delete_my_account"}, callers
+
+
 def test_an_empty_workspace_is_not_archived_just_for_having_no_company():
     """Only a workspace that was SPLIT (a company's period or document
     moved out of it) is archived. A user's second, empty workspace — or one
@@ -447,5 +724,7 @@ def test_an_empty_workspace_is_not_archived_just_for_having_no_company():
     plan = build_plan(t, {"x": _ident(ALFA, "2025-12-31")}, migration_date=DATE)
     post = apply_ops(t, plan.ops, now=RUN)
     assert _row(post, "organizations", id="org-b")["archived_at"] is None
-    assert _row(post, "financial_periods", id="p-empty")["org_id"] == holding_org_id("u")   # G4 still holds
+    # p-empty is org-b's current-month placeholder: it stays (G4 exempts it)
+    assert _row(post, "financial_periods", id="p-empty")["org_id"] == "org-b"
+    assert empty_live_periods(post, current_month=DATE[:7]) == []
     assert any("nothing to split" in w for w in plan.warnings)
