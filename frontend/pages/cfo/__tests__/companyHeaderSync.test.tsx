@@ -111,6 +111,8 @@ vi.mock("@/lib/uploadsApi", () => ({
 }));
 
 import CompanyPage from "@/pages/cfo/CompanyPage";
+import { useOrgParamHold } from "@/lib/companyOnScreen";
+import { useWorkspaceName } from "@/lib/workspaceName";
 
 /** What the TopHeader prints in its capsule — the real hook. */
 function HeaderProbe() {
@@ -255,6 +257,58 @@ describe("G6 — a company page renders only under a header that names it", () =
     expect(watch.violations.length, "the planted desync went unnoticed").toBeGreaterThan(0);
     vi.doUnmock("@/lib/companyOnScreen");
     vi.resetModules();
+  });
+});
+
+// The dashboard's half: a redesign link carries `?org=`; AppShell holds the
+// page (useOrgParamHold) until the header names that company.
+function OrgParamProbe({ enabled, wanted }: { enabled: boolean; wanted: string | null }) {
+  const holding = useOrgParamHold(enabled, wanted);
+  const name = useWorkspaceName();
+  return (
+    <>
+      <HeaderProbe />
+      <div data-testid="hold" data-holding={String(holding)}>
+        {holding ? null : <span data-company-on-screen={name}>{name}</span>}
+      </div>
+    </>
+  );
+}
+
+describe("G6 — a dashboard link for another company (?org=) holds until the header names it", () => {
+  it("?org=agras while Scandia is active: holds, switches, then shows Agras under Agras", async () => {
+    const { container } = render(
+      <TestProviders>
+        <OrgParamProbe enabled wanted="agras" />
+      </TestProviders>,
+    );
+    const watch = watchForDesync(container);
+    expect(screen.getByTestId("hold")).toHaveAttribute("data-holding", "true");
+    await waitFor(() => expect(switchOrg).toHaveBeenCalledWith("agras"));
+    await waitFor(() => expect(screen.getByTestId("hold")).toHaveAttribute("data-holding", "false"));
+    expect(screen.getByTestId("header-capsule-label").textContent).toMatch(/^Agras/);
+    watch.stop();
+    expect(watch.violations).toEqual([]);
+  });
+
+  it("an org the user is not a member of is ignored — nothing held, nothing switched", () => {
+    render(
+      <TestProviders>
+        <OrgParamProbe enabled wanted="not-mine" />
+      </TestProviders>,
+    );
+    expect(screen.getByTestId("hold")).toHaveAttribute("data-holding", "false");
+    expect(switchOrg).not.toHaveBeenCalled();
+  });
+
+  it("with the redesign off, ?org= changes nothing", () => {
+    render(
+      <TestProviders>
+        <OrgParamProbe enabled={false} wanted="agras" />
+      </TestProviders>,
+    );
+    expect(screen.getByTestId("hold")).toHaveAttribute("data-holding", "false");
+    expect(switchOrg).not.toHaveBeenCalled();
   });
 });
 
