@@ -4247,16 +4247,24 @@ def _correction_rerun(jwt: str, document_id: str, started_at: str) -> None:
     """move-period / make-active's re-run (`_period_move.register_routes`
     `rerun`).
 
-    A correction of an ANALYSED document re-runs exactly as it always did —
-    queued and enqueued, unmetered: the book is already counted, and the
-    move has already re-shaped its periods on the promise of this re-run.
+    EVERY correction enters like /retry does (`_start_rerun`): the
+    one-run-per-document claim, the duplicate look and — only for a book
+    the plan has not counted yet — the meter, 402 / 429 included. A
+    correction of an ANALYSED (or already counted) document re-runs
+    unmetered: the book is counted, and the move has already re-shaped its
+    periods on the promise of this re-run.
 
-    A document that holds NO analysis yet — a failed, undated upload the
-    user gives its month here ("detached by an earlier failure", the
-    planner's no-period branch) — is its first successful analysis and
-    enters like /retry does (`_start_rerun`): the one-run-per-document
-    claim, the duplicate look and the meter, 402 / 429 included. It used to
-    be re-run for free (2026-09-21, the same re-run gap as /retry)."""
+    THE CLAIM IS NOT OPTIONAL (verifier lens S, S6 / S7 / S11, 2026-09-21).
+    The analysed branch used to queue and enqueue with NO claim: while it
+    ran, a Docs-panel /retry, the failed banner's /run or a second move
+    found the document neither in flight nor analysed, claimed it, metered
+    it as the book's first analysis and started a second daemon thread on
+    the same row — whose terminal then dropped the first run's claim. Now
+    the claim is taken (then `mark_running`, then the enqueue), and a
+    document another entry holds is BUSY: not started. The routes refuse a
+    move of a running document before re-filing it
+    (`_period_move.register_routes` `is_running`), so BUSY here is the race
+    between that check and this claim."""
     caller_id = _user_id_from_jwt(jwt)
     try:
         # The caller's own companies are the filter: the id is the document
@@ -4268,19 +4276,30 @@ def _correction_rerun(jwt: str, document_id: str, started_at: str) -> None:
                 rows = ac.select("documents", filters={
                     "id": f"eq.{document_id}", "org_id": "in.(%s)" % ",".join(orgs),
                 }, single=True) or []
-    except Exception:  # noqa: BLE001 — an unreadable row is re-run as before
+    except Exception:  # noqa: BLE001 — an unreadable row is re-run unmetered, claimed
         logger.exception("[pipeline] correction re-run: could not read document %s", document_id)
         rows = []
     row = dict(rows[0]) if rows else None
-    if row is None or str(row.get("status") or "").strip().lower() == "analyzed":
-        _admin_set_status(document_id, "queued", pipeline_started_at=started_at)
-        _enqueue(document_id)
-        return
 
     def start() -> None:
         _admin_set_status(document_id, "queued", pipeline_started_at=started_at)
         _doc_dedupe.mark_running(document_id)
         _enqueue(document_id)
+
+    if row is None:
+        # Unreadable: nothing can be looked up or metered — but the run is
+        # still ONE run: claimed, or not started.
+        if not _doc_dedupe.try_mark_in_flight(document_id):
+            logger.info("[pipeline] correction re-run of %s not started: busy", document_id)
+            return
+        started = False
+        try:
+            start()
+            started = True
+        finally:
+            if not started:
+                _doc_dedupe.clear_in_flight(document_id)
+        return
 
     entry = _start_rerun(row, caller_id, start)
     if entry.kind != _doc_dedupe.CLAIMED:
@@ -6153,8 +6172,12 @@ def build_router() -> APIRouter:
         admin_client=_supabase.admin,
         # A document that holds no analysis yet is metered on its re-run
         # like its first analysis (`_correction_rerun`); an analysed one
-        # re-runs unmetered, as above.
+        # re-runs unmetered, as above. Every correction takes the
+        # one-run-per-document claim.
         rerun=lambda jwt, document_id, started_at: _correction_rerun(jwt, document_id, started_at),
+        # A document whose run is in flight is not re-filed under it
+        # (verifier lens S, S11): 409 before anything is written.
+        is_running=lambda document_id: _doc_dedupe.in_flight(document_id) is not None,
     )
 
     # OBSERVABILITY: GET /api/ops — read-only engine-health snapshot

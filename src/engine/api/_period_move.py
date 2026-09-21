@@ -729,7 +729,8 @@ def register_routes(
     set_status: Any,
     enqueue: Any,
     admin_client: Any,
-    rerun: Any = None
+    rerun: Any = None,
+    is_running: Any = None
 ) -> None:
     """Mount the correction path onto `router`.
 
@@ -745,12 +746,27 @@ def register_routes(
         move is how a failed, undated upload gets its month. May raise the
         meter's 402 / 429 (the move itself has already been written).
         Absent → set_status + enqueue.
+    is_running(document_id) -> bool — optional: True while the document's
+        run is in flight (`_doc_dedupe.in_flight`). A move / make-active of
+        such a document is refused 409 `analysis_in_progress` BEFORE
+        anything is re-filed: the run in flight read the document's month
+        when it started, so its analysis would land in the month the user
+        is correcting away from — and the correction's own re-run cannot
+        start while that run holds the document (verifier lens S, S11).
     """
     from fastapi import Header, HTTPException  # local: keeps this module
     # importable (and unit-testable) without FastAPI installed.
 
     def _refuse(exc: MoveRefused) -> "HTTPException":
         return HTTPException(400, {"code": exc.code, "message": exc.message})
+
+    def _refuse_while_running(document_id: str) -> None:
+        if is_running is not None and is_running(document_id):
+            raise HTTPException(409, {
+                "code": "analysis_in_progress",
+                "message": ("This file is still being analysed. Try again when the "
+                            "analysis has finished."),
+            })
 
     def _requeue(jwt: str, document_id: str, started_at: str) -> None:
         # Deliberately NOT routed through /api/pipeline/run: a correction
@@ -794,6 +810,7 @@ def register_routes(
         """
         jwt = require_jwt(authorization)
         document = verify_owns(jwt, document_id)
+        _refuse_while_running(document_id)
         now = _now_iso()
         try:
             with admin_client() as client:
@@ -822,6 +839,7 @@ def register_routes(
         period; the others stay attached as attachments."""
         jwt = require_jwt(authorization)
         document = verify_owns(jwt, document_id)
+        _refuse_while_running(document_id)
         now = _now_iso()
         try:
             with admin_client() as client:
