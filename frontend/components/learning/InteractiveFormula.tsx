@@ -153,7 +153,10 @@ function TokenRender({ token }: { token: FormulaToken }) {
 
   // Value token — tappable, pushes onto stack.
   const fmt: ValueFormat = token.format ?? "currency";
-  const formatted = formatValue(token.value, fmt, { currency });
+  // `exact`: an operand the reader divides to check the printed result is
+  // printed as served, to the bani — never the compact "3.08M" (see
+  // FormulaToken.exact).
+  const formatted = formatValue(token.value, fmt, { currency, exact: token.exact === true });
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
