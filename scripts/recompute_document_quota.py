@@ -31,10 +31,13 @@ RESERVATIONS (verifier lens S, S8). A run a deploy restart killed used to
 keep its slot in `uploads_reserved` for the rest of the month, and this
 script left the current month alone. `--apply` now first releases every
 reservation in the quota ledger whose owning engine process stopped
-heartbeating (`_quota_ledger.sweep_stale`, compare-and-set — the engine's
-own sweep and this script never release one twice), then sets the current
-month's `uploads_reserved` to the reservations still live — never higher
-than it is. Past months go to 0.
+heartbeating and whose analysis never finished (`_quota_ledger.sweep_stale`,
+compare-and-set — the engine's own sweep and this script never release one
+twice), then sets the current month's `uploads_reserved` to the
+reservations still live — never higher than it is. An orphan whose analysis
+FINISHED is left to the engine, which settles it as the commit it was (this
+script never charges); its slot stays reserved until then. Past months go
+to 0.
 
 Rows stored without a content hash (uploads before the hash existed) are
 hashed from their storage object so identical files collapse — a READ of
@@ -89,6 +92,23 @@ def _select_all(ac: Any, table: str, filters: Optional[Dict[str, str]] = None,
         offset += PAGE
 
 
+def _finished_analyses(document_ids: List[Any]) -> set:
+    """The documents among `document_ids` whose analysis FINISHED (analysed,
+    not an archived duplicate, not deleted): an orphaned reservation of one
+    is the engine's to settle as a commit — this script never charges."""
+    ids = sorted({str(i) for i in document_ids if i})
+    out: set = set()
+    if not ids:
+        return out
+    with _supabase.admin() as ac:
+        for i in range(0, len(ids), 100):
+            for d in ac.select("documents", filters={"id": "in.(%s)" % ",".join(ids[i:i + 100])}) or []:
+                if (str(d.get("status") or "").lower() == "analyzed" and not d.get("deleted_at")
+                        and not _doc_dedupe.is_archived_duplicate(d)):
+                    out.add(str(d.get("id")))
+    return out
+
+
 def included_docs_for(sub: Dict[str, Any]) -> "tuple[str, int]":
     plan = _pricing_config.plan_for(str(sub.get("tier") or sub.get("plan") or ""))
     if plan is None:
@@ -121,10 +141,15 @@ def _read(user: Optional[str], hash_missing: bool) -> Dict[str, List[Dict[str, A
     # must not hand back a count the meter holds (verifier lens S).
     counted = _quota_ledger.all_committed_ids()
     live = _quota_ledger.live_outstanding()
-    if counted is None or live is None:
+    stale = _quota_ledger.stale_outstanding()
+    if counted is None or live is None or stale is None:
         raise RuntimeError("the quota ledger (document_quota_ledger) could not be read — "
                            "apply supabase/schema_phase_document_quota_ledger.sql first")
-    # The reservations some engine process still holds (it heartbeats them).
+    # The reservations some engine process still holds (it heartbeats
+    # them), and the orphans whose analysis finished — the engine settles
+    # those as commits; their slot stays reserved until it does.
+    finished = _finished_analyses([r.get("document_id") for r in stale])
+    live = list(live) + [r for r in stale if str(r.get("document_id")) in finished]
     live_reserved: Dict[tuple, int] = {}
     for r in live:
         key = (str(r.get("user_id") or ""), str(r.get("month") or ""))
@@ -251,13 +276,17 @@ def main(argv: Optional[List[str]] = None) -> int:
             raise RuntimeError("the quota ledger (document_quota_ledger) could not be read")
         if args.user:
             stale = [r for r in stale if str(r.get("user_id")) == args.user]
+        finished = _finished_analyses([r.get("document_id") for r in stale])
         for r in stale:
+            doc = str(r.get("document_id"))
             print("[recompute] orphaned reservation: document %s user %s month %s extra=%s (owner %s, "
-                  "last heartbeat %s)%s" % (r.get("document_id"), r.get("user_id"), r.get("month"),
-                                            bool(r.get("was_extra")), r.get("owner"), r.get("heartbeat_at"),
-                                            "" if args.apply else " — would be released"))
+                  "last heartbeat %s)%s" % (
+                      doc, r.get("user_id"), r.get("month"), bool(r.get("was_extra")), r.get("owner"),
+                      r.get("heartbeat_at"),
+                      " — its analysis FINISHED: left to the engine's settlement (never charged here)"
+                      if doc in finished else ("" if args.apply else " — would be released")))
         if args.apply and stale:
-            wanted = {str(r.get("document_id")) for r in stale}
+            wanted = {str(r.get("document_id")) for r in stale} - finished
             released = _quota_ledger.sweep_stale(is_live=lambda d: d not in wanted)
             print("[recompute] released %d orphaned reservation(s)" % len(released))
         data = load(args.user, hash_missing=not args.no_hash_missing)

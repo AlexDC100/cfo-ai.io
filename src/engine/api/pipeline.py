@@ -3913,12 +3913,64 @@ def _live_reservation_ids() -> List[str]:
     return ids + _ug.granted_document_ids()
 
 
+def _orphan_analysis_finished(document_id: str) -> bool:
+    """Did the orphaned run's analysis FINISH — the document analysed and
+    not an archived duplicate — so that only its settlement was lost?"""
+    try:
+        with _supabase.admin() as ac:
+            found = ac.select("documents", filters={"id": f"eq.{document_id}"}, single=True) or []
+    except Exception:  # noqa: BLE001 — unknown: released, never charged
+        logger.exception("[pipeline] orphan settlement: could not read document %s", document_id)
+        return False
+    doc = dict(found[0]) if found else {}
+    return (str(doc.get("status") or "").lower() == "analyzed"
+            and not _doc_dedupe.is_archived_duplicate(doc) and not doc.get("deleted_at"))
+
+
+def _settle_orphaned_reservation(row: Dict[str, Any]) -> None:
+    """The quota ledger's sweep found `row`'s reservation orphaned (its
+    owning process stopped heartbeating; nothing here holds it). Settle it
+    as the dead run's terminal would have:
+
+      * the analysis never finished → released (`_quota_ledger.release_rpcs`);
+      * the analysis FINISHED and only the settlement was lost (the restart
+        landed between `analyzed` and `_commit_pipeline_quota`) → settled
+        as a SUCCESS through the one settlement — re-hydrated from the row —
+        with its backstops: an archived duplicate, or a book already counted
+        (a later run of it, a re-upload), is released, never counted twice.
+        Releasing it would have left a book the banner counts and the meter
+        never did (verifier lens S, the restart fix's "not analysed")."""
+    doc_id = str(row.get("document_id") or "")
+    if not doc_id or not _orphan_analysis_finished(doc_id):
+        _quota_ledger.release_rpcs(row)
+        return
+    run = _QuotaRun()
+    run.user_id = str(row.get("user_id") or "") or None
+    run.was_extra = bool(row.get("was_extra"))
+    run.doc_reserved = bool(run.user_id)
+    run.month = row.get("month") or None
+    if row.get("nonro_reserved_at") and row.get("nonro_user_id"):
+        run.nonro_user = str(row.get("nonro_user_id"))
+        run.nonro_reserved = True
+        run.nonro_extra = bool(row.get("nonro_was_extra"))
+        run.nonro_month = row.get("nonro_month") or None
+    with _QUOTA_RUNS_LOCK:
+        if doc_id in _QUOTA_RUNS:
+            return  # a run of it in this process holds its own reservation
+        _QUOTA_RUNS[doc_id] = run
+    logger.warning("[pipeline] quota: settling the orphaned reservation of %s as the success its "
+                   "finished analysis was (user=%s month=%s extra=%s)", doc_id, run.user_id,
+                   run.month, run.was_extra)
+    _commit_pipeline_quota(doc_id, success=True)
+
+
 def start_quota_ledger_maintenance() -> bool:
-    """Heartbeat this process's reservations and release the ones a dead
-    process left behind (`_quota_ledger.start_maintenance`). Started once by
-    `server.create_app`."""
+    """Heartbeat this process's reservations and settle the ones a dead
+    process left behind (`_quota_ledger.start_maintenance`,
+    `_settle_orphaned_reservation`). Started once by `server.create_app`."""
     return _quota_ledger.start_maintenance(live_ids=_live_reservation_ids,
-                                           is_live=_reservation_is_live)
+                                           is_live=_reservation_is_live,
+                                           settle=_settle_orphaned_reservation)
 
 
 def _doc_slot_holder(document_id: str) -> Optional[str]:

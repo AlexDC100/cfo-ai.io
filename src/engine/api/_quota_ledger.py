@@ -40,9 +40,13 @@ policy, every privilege revoked from anon / authenticated.
         two sweepers (the old and the new container during a deploy)
         release it once. A deploy's boot-probe container sees the running
         container's reservations heartbeating and leaves them alone;
-      - scripts/recompute_document_quota.py runs the same sweep and resets
-        the current month's `uploads_reserved` to the reservations still
-        live.
+      - an orphan whose analysis FINISHED (only its settlement was lost)
+        is settled by the engine as the success it was
+        (`pipeline._settle_orphaned_reservation`); the rest are released;
+      - scripts/recompute_document_quota.py releases the orphans whose
+        analysis never finished (it never charges: a finished one is left
+        to the engine) and resets the current month's `uploads_reserved`
+        to the reservations still live or awaiting that settlement.
 
 FAILURE POLICY. Every read returns None when the table cannot be read (a
 database without the migration, a transient 5xx): the caller then decides
@@ -363,10 +367,13 @@ _MAINTENANCE_LOCK = threading.Lock()
 
 
 def start_maintenance(*, live_ids: Callable[[], Iterable[str]],
-                      is_live: Callable[[str], bool]) -> bool:
+                      is_live: Callable[[str], bool],
+                      settle: Callable[[Dict[str, Any]], None] = release_rpcs) -> bool:
     """Start (once per process) the daemon that heartbeats this process's
-    reservations and sweeps the orphaned ones. Off when the database is not
-    configured or ENGINE_QUOTA_LEDGER_MAINTENANCE=0. True when running."""
+    reservations and sweeps the orphaned ones (`settle`: the engine commits
+    one whose analysis finished, releases the rest). Off when the database
+    is not configured or ENGINE_QUOTA_LEDGER_MAINTENANCE=0. True when
+    running."""
     if os.environ.get("ENGINE_QUOTA_LEDGER_MAINTENANCE", "1") == "0":
         return False
     if not (os.environ.get("VITE_SUPABASE_URL") and os.environ.get("SUPABASE_SERVICE_ROLE_KEY")):
@@ -380,7 +387,7 @@ def start_maintenance(*, live_ids: Callable[[], Iterable[str]],
             while not stop.wait(HEARTBEAT_S):
                 try:
                     heartbeat(live_ids())
-                    sweep_stale(is_live=is_live)
+                    sweep_stale(is_live=is_live, release=settle)
                 except Exception:  # noqa: BLE001 — never kill the daemon
                     logger.exception("[quota-ledger] maintenance tick failed")
 
