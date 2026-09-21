@@ -543,6 +543,43 @@ def test_commit_does_not_store_analyse_or_count_a_duplicate(app, world):
     assert r.json()["status"] == "queued", r.text[:300]
 
 
+def test_an_allowed_reservation_is_settled_by_the_run_ledger_and_nothing_bumps_at_enqueue(app, world, monkeypatch):
+    """The meter's reservation is recorded in the run ledger the terminal
+    settles (commit on `analyzed`, release on failure); the legacy
+    enqueue-time bump that counted every upload twice is not called."""
+    from engine.api import _usage_limits
+
+    bumps = []  # type: List[Any]
+    monkeypatch.setattr(_usage_limits, "record_usage", lambda *a, **kw: bumps.append(a))
+    world.identities["balanta.xlsx"] = _identity(cui=CUI_SCANDIA)
+    world.decision = "allowed"
+    out = commit(app, target_org_id=ORG_SCANDIA, period_end="2025-12-31").json()
+    run = pipeline._take_quota_run(out["document_id"])
+    assert run is not None and run.user_id == USER and run.doc_reserved and not run.was_extra, out
+    assert bumps == []
+
+
+def test_a_twin_that_slipped_past_the_first_check_is_archived_at_the_claim(app, world, monkeypatch):
+    """Two drops of one file at once: both pass the pre-store check, the
+    first claims the run, the second is found at the CLAIM (the same
+    `_doc_dedupe.claim_or_duplicate` /api/pipeline/run uses) — archived, not
+    analysed, its reservation handed back."""
+    body = b"PK\x03\x04 the same bytes"
+    world.identities["balanta.xlsx"] = _identity(cui=CUI_SCANDIA)
+    twin = _seed_doc(world, org=ORG_SCANDIA, body=body, status="queued", with_period=False)
+    twin["pipeline_started_at"] = "2026-09-21T10:00:00+00:00"          # the twin is running
+    monkeypatch.setattr(_uploads, "find_duplicate", lambda **kw: None)  # the race window
+    world.decision = "allowed"
+    r = commit(app, body=body, target_org_id=ORG_SCANDIA, period_end="2025-12-31")
+    assert r.status_code == 200, r.text[:300]
+    out = r.json()
+    assert out["status"] == "duplicate" and out["document_id"] == twin["id"], out
+    (mine,) = [d for d in world.docs(org_id=ORG_SCANDIA) if d["id"] != twin["id"]]
+    assert mine["deleted_at"] and str(mine["error"]).startswith("duplicate_of:" + twin["id"]), mine
+    assert world.enqueued == [] and world.released == [(USER, False)]
+    assert pipeline._take_quota_run(mine["id"]) is None
+
+
 def test_commit_creates_a_new_company_with_its_owner_and_identity(app, world):
     world.identities["balanta.xlsx"] = _identity(cui=CUI_NEW, name="Nou Business SRL", caen="1011",
                                                  industry="food_manufacturing")
@@ -598,6 +635,7 @@ def test_the_meter_answers_like_pipeline_run_and_before_anything_is_created(app,
 
 def test_a_failed_document_insert_removes_the_object_and_hands_the_reservation_back(app, world, monkeypatch):
     world.identities["balanta.xlsx"] = _identity(cui=CUI_SCANDIA)
+    world.decision = "allowed"
     real_insert = world.db.insert
 
     def _refuse(table: str, rows: Any, **kw: Any) -> Any:
@@ -614,6 +652,7 @@ def test_a_failed_document_insert_removes_the_object_and_hands_the_reservation_b
 
 def test_a_failed_store_hands_the_reservation_back(app, world, monkeypatch):
     world.identities["balanta.xlsx"] = _identity(cui=CUI_SCANDIA)
+    world.decision = "allowed"
 
     def _boom(*a: Any, **kw: Any) -> None:
         raise RuntimeError("Storage upload failed (HTTP 500)")
@@ -622,6 +661,10 @@ def test_a_failed_store_hands_the_reservation_back(app, world, monkeypatch):
     r = commit(app, target_org_id=ORG_SCANDIA, period_end="2025-12-31")
     assert r.status_code == 500, r.text[:200]
     assert world.released == [(USER, False)] and world.enqueued == [] and world.docs() == []
+    # Nothing reserved (metering off for this user): nothing to hand back.
+    world.decision, world.released = "disabled", []
+    assert commit(app, target_org_id=ORG_SCANDIA, period_end="2025-12-31").status_code == 500
+    assert world.released == []
 
 
 def test_the_industry_chosen_on_the_card_is_the_companys(app, world):

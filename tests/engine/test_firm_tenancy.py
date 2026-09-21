@@ -1941,6 +1941,16 @@ CLIENT_DATA_TABLES = ("organizations", "financial_periods", "documents", "statem
 DECLARED_CLIENT_DATA_READERS = (
     "engine.actions", "engine.ai.numerals", "engine.ai_lane", "engine.ai_lane.routes",
     "engine.api._benchmarks", "engine.api._billing", "engine.api._capsule_tools",
+    # PRODUCT helper, under the membership gates of its callers (2026-09-21):
+    # the duplicate-upload check reads `documents` / `financial_periods` for
+    # an org the caller was already walled into — `POST /api/documents/
+    # duplicate-check` via `_org.resolve_org` (403 on a non-member org),
+    # /run and /retry via `_verify_user_may_write_document`, recover-stuck
+    # via `_only_member_orgs` — and every select names that org_id. The
+    # banner count names the caller's own `member_org_ids`. No route of its
+    # own, never under a firm prefix. Pinned by
+    # tests/engine/test_duplicate_upload_gate.py.
+    "engine.api._doc_dedupe",
     "engine.api._features", "engine.api._firm", "engine.api._firm_attention",
     # PRODUCT route, under its own membership gate: `GET
     # /api/forecast/{period_id}` resolves the workspace through

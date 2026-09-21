@@ -135,7 +135,12 @@ describe("W1 — the confirmation channel at the wire", () => {
     // per-key check would miss.
     await uploadDocument(file(), { scope: "financial" });
     const keys = Object.keys(state.inserted[0]).sort();
+    // `content_hash` is CONTENT-derived (SHA-256 of the bytes), not period-
+    // derived; production always sent it. It was missing here only because
+    // jsdom's File has no arrayBuffer() — the hash now falls back to
+    // FileReader, so the test row matches the production row (2026-09-21).
     expect(keys).toEqual([
+      "content_hash",
       "detected_type",
       "id",
       "mime_type",

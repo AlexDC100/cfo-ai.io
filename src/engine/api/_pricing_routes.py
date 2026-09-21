@@ -104,7 +104,18 @@ def build_router() -> APIRouter:
         jwt = _require_jwt(authorization)
         uid = _user_id_from_jwt(jwt)
         state = _plan_state.get_plan_state(uid)
-        return _plan_state.state_to_public_dict(state)
+        out = _plan_state.state_to_public_dict(state)
+        # "Documents used" = UNIQUE SUCCESSFUL documents this month
+        # (2026-09-21): analysed, not an archived duplicate, one per
+        # (company, content, period). Read from the documents themselves so
+        # the banner can never again show 51 for a handful of books; the
+        # counter the meter reserves against stays alongside for support.
+        from . import _doc_dedupe
+        unique = _doc_dedupe.unique_successful_docs_in_month(uid, state.period_month_bucket)
+        out["docs_used_counter"] = out.get("docs_used")
+        if unique is not None:
+            out["docs_used"] = unique
+        return out
 
     # ─── Doc-quota dry-run preview (used by the FE before upload) ──
     @router.get("/api/plan/check-doc")
@@ -158,6 +169,12 @@ def build_router() -> APIRouter:
         # don't store the reservation when the decision is
         # `extra_required`.
         decision = _ug.reserve_document(uid)
+        if decision.kind == "allowed" and not decision.was_extra:
+            # The pre-flight is NOT a pure read: under the cap the RPC
+            # reserved a slot. Give it back before refusing — otherwise every
+            # stray confirm leaked one reservation into `uploads_reserved`,
+            # which the meter counts against the plan.
+            _ug.release_document(uid, was_extra=False)
         if decision.kind != "extra_required":
             raise HTTPException(
                 409,

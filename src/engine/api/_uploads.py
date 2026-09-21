@@ -89,11 +89,6 @@ IDENTITY_FIELDS = ("cui", "company_name", "period_end", "caen_code", "industry_k
 #: these is not a period the document states, so it is dropped.
 FILENAME_SIGNALS = frozenset({"filename", "file_name", "filename_date"})
 
-#: Document statuses that are not a stored analysis a duplicate can point
-#: at: a failed upload may be sent again.
-_NOT_A_DUPLICATE_STATUSES = frozenset({"failed"})
-
-
 # ── Small, pure helpers ─────────────────────────────────────────────────
 
 
@@ -336,42 +331,22 @@ def my_companies(client: Any, user_id: str) -> List[Dict[str, Any]]:
 # ── Duplicates ─────────────────────────────────────────────────────────
 
 
-def find_duplicate(client: Any, *, content_hash: str, user_id: str, org_id: str,
+def find_duplicate(*, content_hash: str, user_id: str, org_id: str,
                    period_end: Optional[str]) -> Optional[Dict[str, Any]]:
-    """The live document this upload would duplicate, or None.
+    """The live document this upload would duplicate, as the contract's
+    `{document_id, period_id, org_id}`, or None.
 
-    Same bytes (content hash) + same account (`uploaded_by`) + same company
-    (`org_id`) + same period. A document's period is its period row's
-    `period_end` once analysed, else the period it was filed with
-    (`period_end_hint`). A soft-deleted or failed document is not a
-    duplicate: the user may send it again. With the period still unknown
-    (identify, before the card asks), identical bytes already here are
-    reported — the period is read off those same bytes."""
-    docs = client.select(
-        "documents",
-        filters={"org_id": "eq.%s" % org_id, "content_hash": "eq.%s" % content_hash,
-                 "uploaded_by": "eq.%s" % user_id, "deleted_at": "is.null"},
-        columns="id,org_id,period_id,period_end_hint,status,created_at",
-        order="created_at.desc",
-    ) or []
-    docs = [d for d in docs if str(d.get("status") or "").lower() not in _NOT_A_DUPLICATE_STATUSES]
-    if not docs:
+    ONE definition: `_doc_dedupe.find_live_original` — the same check
+    `/api/documents/duplicate-check` and `/api/pipeline/run` make (same bytes,
+    same account, same company, same period; a failed, deleted or
+    never-started copy is not an original). With the period still unknown
+    (identify, before the card asks) the same bytes are the same period."""
+    from . import _doc_dedupe
+    hit = _doc_dedupe.find_live_original(org_id=org_id, user_id=user_id,
+                                         content_hash=content_hash, hint=period_end)
+    if hit is None:
         return None
-    period_ids = sorted(set(str(d["period_id"]) for d in docs if d.get("period_id")))
-    period_end_of = {}  # type: Dict[str, Optional[str]]
-    if period_ids:
-        rows = client.select("financial_periods",
-                             filters={"org_id": "eq.%s" % org_id,
-                                      "id": "in.(%s)" % ",".join(period_ids)},
-                             columns="id,period_end") or []
-        period_end_of = dict((str(r["id"]), _iso_date(r.get("period_end"))) for r in rows)
-    for d in docs:
-        pid = str(d.get("period_id") or "") or None
-        existing = (period_end_of.get(pid) if pid else None) or _iso_date(d.get("period_end_hint"))
-        if period_end is None or existing == period_end:
-            return {"document_id": d["id"], "period_id": pid if pid in period_end_of else None,
-                    "org_id": org_id}
-    return None
+    return {"document_id": hit.existing_document_id, "period_id": hit.period_id, "org_id": org_id}
 
 
 # ── Company creation ───────────────────────────────────────────────────
@@ -497,6 +472,28 @@ def _detected_type(filename: str, mime: str) -> str:
     if mime.startswith("image/"):
         return "image"
     return "unknown"
+
+
+def _release(user_id: str, was_extra: bool) -> None:
+    """Hand back a reservation no run will settle. Never raises."""
+    try:
+        from . import _usage_gate as _ug
+        _ug.release_document(user_id, was_extra=was_extra)
+    except Exception:  # noqa: BLE001
+        logger.exception("[uploads] reservation release failed")
+
+
+def _row_exists(org_id: str, doc_id: str) -> bool:
+    """Whether the documents row made it in (an object with a row is the
+    row's, never an orphan to delete). Unknown counts as existing: a
+    storage object is never removed on a guess."""
+    try:
+        with _supabase.admin() as ac:
+            return bool(ac.select("documents", filters={"id": "eq.%s" % doc_id, "org_id": "eq.%s" % org_id},
+                                  columns="id", limit=1))
+    except Exception:  # noqa: BLE001
+        logger.exception("[uploads] could not tell whether document %s exists", doc_id)
+        return True
 
 
 def _require_jwt(authorization: Optional[str]) -> str:
@@ -653,7 +650,7 @@ def build_router() -> APIRouter:
             target = resolve_target(identity, companies, on_screen)
             duplicate = None
             if target.get("org_id"):
-                duplicate = find_duplicate(client, content_hash=content_hash, user_id=user_id,
+                duplicate = find_duplicate(content_hash=content_hash, user_id=user_id,
                                            org_id=target["org_id"], period_end=identity.get("period_end"))
         return {"content_hash": content_hash, "identity": identity, "target": target,
                 "duplicate": duplicate, "companies": companies}
@@ -712,7 +709,7 @@ def build_router() -> APIRouter:
                 company = None
 
             if company is not None:
-                dup = find_duplicate(client, content_hash=content_hash, user_id=user_id,
+                dup = find_duplicate(content_hash=content_hash, user_id=user_id,
                                      org_id=company["org_id"], period_end=confirmed_end)
                 if dup is not None:
                     return dict(dup, status="duplicate", company_name=company["name"])
@@ -720,9 +717,14 @@ def build_router() -> APIRouter:
         # THE METER — the same reservation /api/pipeline/run takes (429 /
         # 402 unchanged). Nothing has been written yet.
         from . import pipeline as _pipeline
-        was_extra = _pipeline.reserve_upload_or_refuse(user_id)
+        decision = _pipeline.reserve_upload_or_refuse(user_id)
+        was_extra = bool(getattr(decision, "was_extra", False))
+        reserved = getattr(decision, "kind", "disabled") == "allowed"
         created = False
         stored = None  # type: Optional[Tuple[str, str]]
+        doc_id = None  # type: Optional[str]
+        claimed = None  # type: Optional[Dict[str, Any]]
+        queued = False
         try:
             if company is None:
                 spec = dict(spec or {})
@@ -763,30 +765,54 @@ def build_router() -> APIRouter:
                 client.insert("documents", row, returning=False)
                 if not created:
                     _after_commit_to_existing(client, company, identity, companies, chosen_industry)
-        except Exception:
-            # Nothing was analysed: remove an object no document row points
-            # at, and hand the reservation back.
-            if stored is not None:
-                try:
-                    with _supabase.admin() as admin_client:
-                        admin_client.delete_object(DOC_BUCKET, stored[0], org_id=stored[1])
-                except Exception:  # noqa: BLE001
-                    logger.exception("[uploads] orphaned object %s not removed", stored[0])
-            try:
-                from . import _usage_gate as _ug
-                if _ug.enforcement_enabled():
-                    _ug.release_document(user_id, was_extra=was_extra)
-            except Exception:  # noqa: BLE001
-                logger.exception("[uploads] reservation release failed after a failed commit")
-            raise
 
-        _pipeline._admin_set_status(doc_id, "queued", pipeline_started_at=_pipeline._now_iso())
-        _pipeline._enqueue(doc_id)
-        try:
-            from . import _usage_limits
-            _usage_limits.record_usage(user_id, "upload")
-        except Exception:  # noqa: BLE001 — the legacy counter is soft
-            logger.exception("[uploads] record_usage failed (soft counter)")
+            # THE CLAIM — the analysis-entry check /api/pipeline/run makes,
+            # under the (company, account, content) lock: a racing twin
+            # committed a moment earlier is found RUNNING and this row is
+            # archived as its duplicate (never analysed, never counted);
+            # otherwise this row claims the run.
+            from . import _doc_dedupe
+            claimed = dict(row, deleted_at=None, pipeline_started_at=None)
+            hit = _doc_dedupe.claim_or_duplicate(claimed, user_id,
+                                                 now_iso=_pipeline._now_iso(), claim=True)
+            if hit is not None:
+                claimed = None  # archived as the duplicate: nothing to release
+                if reserved:
+                    _release(user_id, was_extra)
+                return {"status": "duplicate", "document_id": hit.existing_document_id,
+                        "period_id": hit.period_id, "org_id": org_id,
+                        "company_name": company["name"]}
+
+            # The run ledger: the terminal settles exactly this reservation
+            # (committed on `analyzed`, released on failure).
+            if reserved:
+                _pipeline._register_quota_run(doc_id, user_id=user_id, was_extra=was_extra)
+            _pipeline._admin_set_status(doc_id, "queued", pipeline_started_at=_pipeline._now_iso())
+            _pipeline._enqueue(doc_id)
+            queued = True
+        except Exception:
+            if not queued:
+                # Nothing is analysed. An object no document row points at
+                # (the row insert failed) is removed; a claimed row gives its
+                # claim back, so it never passes for a running original; and
+                # a reservation no run will settle is handed back.
+                if stored is not None and doc_id and not _row_exists(stored[1], doc_id):
+                    try:
+                        with _supabase.admin() as admin_client:
+                            admin_client.delete_object(DOC_BUCKET, stored[0], org_id=stored[1])
+                    except Exception:  # noqa: BLE001
+                        logger.exception("[uploads] orphaned object %s not removed", stored[0])
+                if claimed is not None:
+                    from . import _doc_dedupe
+                    _doc_dedupe.release_claim(claimed)
+                if reserved:
+                    if doc_id:
+                        _pipeline._take_quota_run(doc_id)  # drop a ledger entry, if written
+                    _release(user_id, was_extra)
+            raise
+        # No `_usage_limits.record_usage` here: the legacy enqueue-time bump
+        # double-counted every upload (the owner's "51 documents used"); the
+        # V3 commit at the run's end is the one counter.
         return {"status": "queued", "document_id": doc_id, "org_id": org_id,
                 "company_name": company["name"], "period_end": confirmed_end,
                 "created_company": created}

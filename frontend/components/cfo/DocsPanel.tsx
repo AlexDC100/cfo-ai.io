@@ -54,9 +54,10 @@ import { blockedByScan } from "@/lib/scanGuard";
 import { periodQueryKey } from "@/lib/activePeriod";
 import {
   getSupabase,
-  retryPipeline,
+  retryPipelineDetailed,
   signedDocumentUrl,
 } from "@/lib/supabase";
+import { alreadyUploadedHref } from "@/lib/alreadyUploaded";
 import { useToast } from "@/hooks/use-toast";
 import { formatDateOnly, formatDateTime } from "@/lib/locale";
 
@@ -776,6 +777,7 @@ function DocRowItem({ doc }: { doc: DocRow }) {
   const { t } = useTranslation();
   const qc = useQueryClient();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [renaming, setRenaming] = useState(false);
   const [draftName, setDraftName] = useState(doc.display_name);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -825,7 +827,23 @@ function DocRowItem({ doc }: { doc: DocRow }) {
   }
 
   async function handleRerun() {
-    const ok = await retryPipeline(doc.id);
+    const { ok, duplicate } = await retryPipelineDetailed(doc.id);
+    if (ok && duplicate) {
+      // This copy duplicates a live analysis of the same file: the server
+      // archived it instead of re-running it. Not a failure.
+      const href = alreadyUploadedHref(duplicate);
+      toast({
+        title: t("upload.alreadyUploaded"),
+        description: t("upload.alreadyUploadedBody"),
+        action: (
+          <ToastAction altText={t("upload.alreadyUploaded")} onClick={() => navigate(href)}>
+            {t("upload.openExisting")}
+          </ToastAction>
+        ),
+      });
+      invalidate();
+      return;
+    }
     if (ok) {
       toast({ title: t("panels.rerunningAnalysis"), description: doc.display_name });
       invalidate();
