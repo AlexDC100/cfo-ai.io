@@ -5384,3 +5384,121 @@ cards and none at all when no document was served. What these gates cannot
 see: whether the medians are right (`test_benchmarks_ro.py`), the tenancy of
 the fetch (`test_sector_benchmark_route_real_app.py`), and the rendered pixel
 layout at phone width (`e2e/i18n-mobile-sweep.spec.ts` walks `/benchmark`).
+
+## statements-anchor-gap
+
+Parser v6 (owner ruling 2026-09-18: the 609/709 double count is a P0;
+2026-09-21: v6 is correct and ships as its own deploy). Ported from
+wave/forecast-v15's plan/2 B4a (ca2e40c, 4d97d9b, 6f2db0f, 22fb9db,
+641d519) onto the production tree without any forecast/plan code.
+`tests/engine/test_statements_anchor_gap.py`, registered in
+`scripts/run_battery.py` beside `cron-auth`.
+
+THE DEFECT. Saga exports that close class 6/7 into account 121 print each
+P&L row's cumulative value on both turnover sides ("mirrored"). For an
+account whose nature is contra to the bucket it lands in — 609 supplier
+discounts in operating expenses, 709 customer reductions in revenue — the
+exporters disagree on the sign: the frozen Scandia golden and both local
+Scandia years write the reductions NEGATIVE, the retail, agras and
+carniprod exports write them POSITIVE. `accounts_to_assemble_shape` took
+the printed sign as the entry's direction, so on the positive-writing books
+every supplier discount was ADDED to operating cost and every customer
+reduction ADDED to revenue: retail opex 16,640,349.00 for 14,105,136.48,
+revenue 79,510,264.65 for 79,018,306.77, and a reconstruction that missed
+account 121 by 2,043,254.64. The served-P&L guard `pl_sanity` (PL3) pinned
+the same reading as its law, so the correct statement would have been
+refused by the live pipeline.
+
+THE REPAIR. Each contra FAMILY (609 cost reductions, 709 revenue
+reductions) is decided once per document from that family's own mirrored
+rows (`trial_balance_parser.contra_reading`: the net is positive only when
+reductions print positive; a family with no mirrored row decides nothing
+and nothing flips; a document whose families disagree is served as
+`mixed`) — never a per-row guess. Under `entry_magnitude` a mirrored contra
+row enters its bucket negated; under `natural_signed` it enters as printed.
+The contra nature is the canonical schema's declared sign meaning of the
+leaf, never a hand-kept list. `pl_sanity.class_movement` reads the same
+row through the same `contra_reading`. `PARSER_VERSION` moves
+`tb_parser_v5` -> `tb_parser_v6`, so a re-parsed period is told from a
+stale one.
+
+WHAT THE GATE CHECKS. On every corpus book, the Scandia regression baseline
+(aggregates only) and any book in `PLAN_LOCAL_XLSX`,
+`|account 121 - reconstruction|` is printed and must be within a floor
+rendered from `packs/ro/statements_anchor.yaml#anchor_gap` and the book
+(TC-10): the cent tolerance plus the turnover of the book's 711/712 rows.
+On retail, which has no 711, the floor is one cent. Then: retail
+reproduces 121 to the cent; every mirrored contra row of every corpus xlsx
+enters as a reduction under its document's convention; the metamorphic
+pair (the same ledger rewritten into the other convention) is identical on
+revenue, cost of sales, operating cost and the reconstruction; 781 is
+never contra to its bucket; four test-built documents (609-only, 709-only,
+mixed, storno-heavy) each decide by their own family's net.
+
+| | |
+|---|---|
+| work count | `GATE-WORK statements-anchor-gap units=(\d+)` (books judged + mirrored contra rows checked + metamorphic comparisons + decision-rule documents; measured 63 on the port), floor 58 |
+| canaries | `SCOPE statements-anchor-gap (plan/2 B4a, contract 5.1)`, `floor from packs/ro/statements_anchor.yaml#anchor_gap`, `convention per document`, `mirrored contra rows checked` |
+
+**SCOPE** — printed: `SCOPE statements-anchor-gap (plan/2 B4a, contract
+5.1): books examined 14 (6 carry account 121), floor from
+packs/ro/statements_anchor.yaml#anchor_gap`, one line per book with gap,
+floor, hidden turnover and decided convention, then `convention per
+document: ... saga_10_col natural_signed (3 mirrored contra rows, net
+-226845.35); saga_10_col_agras entry_magnitude (4 ..., net 3956453.98);
+saga_10_col_carniprod entry_magnitude (7 ..., net 2617417.71);
+saga_10_col_realestate not_decided (0 ...); saga_10_col_retail
+entry_magnitude (7 ..., net 1513585.20)` and `mirrored contra rows checked
+21; metamorphic comparisons 16`.
+
+**GREEN** (port) — `9 passed`: retail 0.00 (floor 0.01), agras
+1,071,687.03 (192,091,846.34), carniprod 186,849.53 (88,453,995.51),
+realestate 29,589,814.24 (29,589,814.25), saga_10_col 231,203.19
+(82,948,008.60), regression baseline 519,389.11 (630,091,698.20).
+
+**RED (parent commit, the v5 parser)** — the gate file committed first,
+run on f7fec0f9's parser, `9 failed`:
+
+```
+E   AssertionError: corpus saga_10_col_retail: |121 - reconstruction| = 2043254.64 exceeds the floor 0.01: the reconstruction misses account 121 by more than the production-variation turnover of this book can hide, so a class-6/7 row entered a statement bucket with the wrong sign
+E   AssertionError: retail: the build-up reaches 1161957.98, account 121 filed 3205212.62
+```
+
+(the contra-sign and decision-rule checks red on the missing helpers).
+
+**PLANTS, observed on the port tree** (each applied by string replacement,
+the gate run, the file restored from its byte copy; sha1 checked before
+and after; `48 passed, 6 skipped` over this gate plus `test_pl_sanity.py`
+after the reverts):
+
+| # | Plant | Result | Excerpt |
+|---|---|---|---|
+| P1 | `ContraReading.reads_as_reduction` returns False (the exporter's sign taken as printed) | `6 failed, 3 passed` | `corpus saga_10_col_retail: \|121 - reconstruction\| = 2043254.64 exceeds the floor 0.01` |
+| P2 | `_pl_contra_to_bucket` returns `code.startswith(("609", "709", "781"))` (a hand-kept list) | `4 failed, 5 passed` | `assert not True` (781); `saga_10_col net_income_reconstructed: natural_signed 171665.97, the same ledger in the other exporter convention (entry_magnitude) -437661.51` |
+| P4 | a natural-signed document flipped too (`!= CONTRA_NOT_DECIDED`) | `2 failed, 7 passed` | `saga_10_col 709101: printed -202772.78 under natural_signed entered 202772.78, want -202772.78` |
+| P5 | `hidden_net_prefixes` deleted from the pack (TC-10 liveness) | `1 failed, 8 passed` | `KeyError: 'hidden_net_prefixes'` |
+| P6 | `pl_sanity.class_movement` reads the printed class-70 sum (gate `tests/engine/test_pl_sanity.py`) | `7 failed, 32 passed, 6 skipped` | `saga_10_col_agras would be refused: PL3_REVENUE_IS_NOT_THE_CLASS70_CREDIT — Served revenue 110,798,309.14 does not equal the trial balance's one-sided class-70 credit 118,576,819.64` |
+| R11 | the document net forced onto both families (`decided = None`) | `1 failed, 8 passed` | `SYNTHETIC mixed (709 natural-signed, 609 magnitudes): opex_excluding_cogs_and_da 16640349.00, the same ledger printed in one convention gives 14105136.48 (delta 2535212.52)` |
+
+**REVERT** — every plant restored from the byte copy taken before it
+(`scratchpad/v6_verify/plants.py`): sha1 trial_balance_parser.py
+516daac7df64e1481726b28d0ae8b89c80868e3c, pl_sanity.py
+d00db72b4aa0eb791e12ad267f3ee56168c09297, statements_anchor.yaml
+d1a6219a12d88ef45ef8cbb066096b756cb1d124 before every plant and after
+every revert; GREEN after: `48 passed, 6 skipped`.
+
+**After the repair it reds on (TC-11):** a class-6/7 row entering its
+bucket with the wrong sign on a book whose production-variation turnover
+cannot hide it; a mirrored contra row entering with the exporter's sign
+on an entry-magnitude document; a natural-signed document flipped; a
+contra account read from a hand-kept list; a family forced onto another
+family's decision; a floor written as a code literal; a scope with no
+document of either convention or no book carrying account 121 (TC-3).
+
+**It cannot see:** a wrong sign on a book whose 711 turnover is larger
+than the error (agras and carniprod: the residual beyond the production
+stock movement — 1,018,671.15 and 185,677.27 — is PRINTED, not judged);
+non-mirrored rows (the one-side SAGA path is covered by the corpus
+replay); the served statements of periods persisted before v6 (a stored
+period keeps its v5 line items until its document is re-parsed —
+`extraction.parser_version` tells them apart).
