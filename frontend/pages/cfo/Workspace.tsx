@@ -71,6 +71,7 @@ import {
 } from "@/lib/orgPeriods";
 import { forgetPeriodVerdictFor } from "@/lib/dataPresence";
 import { useUploadEnqueue } from "@/hooks/useUploadEnqueue";
+import { FilePickerInput, fileDropProps } from "@/components/cfo/upload/UploadDrop";
 import { FINANCIAL_UPLOAD_ACCEPT, isAcceptedFinancialUpload } from "@/lib/uploadAccept";
 import { pickActiveSourceDoc } from "@/lib/activeSourceDoc";
 import {
@@ -781,7 +782,7 @@ export function StepUpload({ busy, onUpload }: { busy: boolean; onUpload: (f: Fi
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
 
-  function pick(files: FileList | null) {
+  function pick(files: FileList | File[] | null) {
     if (!files || files.length === 0) return;
     const f = files[0];
     // Drag-and-drop bypasses the `accept` attribute, so re-check here — and
@@ -802,9 +803,8 @@ export function StepUpload({ busy, onUpload }: { busy: boolean; onUpload: (f: Fi
         title={t("ws.stepUploadTitle")}
         body={t("ws.stepUploadBody")}
       />
-      <input
+      <FilePickerInput
         ref={inputRef}
-        type="file"
         accept={FINANCIAL_UPLOAD_ACCEPT}
         className="hidden"
         onChange={(e) => pick(e.target.files)}
@@ -813,9 +813,7 @@ export function StepUpload({ busy, onUpload }: { busy: boolean; onUpload: (f: Fi
           drag-over — the atmospheric glow / oversized cloud mark retired
           with the identity rebuild. */}
       <div
-        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={(e) => { e.preventDefault(); setDragOver(false); pick(e.dataTransfer.files); }}
+        {...fileDropProps({ onFiles: (files) => pick(files), onActiveChange: setDragOver })}
         data-testid="onboarding-dropzone"
         className={`rounded-md border border-dashed p-6 sm:p-7 flex flex-col items-center justify-center text-center min-h-[200px] transition-colors duration-micro ${
           dragOver

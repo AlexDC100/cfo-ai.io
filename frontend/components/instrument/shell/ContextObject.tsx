@@ -25,6 +25,7 @@ import { useWorkspaces } from "@/lib/workspaces";
 import { usePeriodStepper } from "@/lib/usePeriodStepper";
 import { useActiveLocale } from "@/lib/locale";
 import { currentMonthEnd, formatPeriodMonth } from "@/lib/orgPeriods";
+import { useUploadRoute } from "@/lib/previewFeatures";
 
 /** "Workspace · Dec 2025" as a plain string — the Capsule renders the
  *  identity inline instead of mounting the whole popover component.
@@ -85,10 +86,13 @@ export function ContextObject() {
     if (id !== currentId) void select(id);
   }
 
+  const period = params.get("period");
+  const uploadTo = useUploadRoute(
+    period ? `/dashboard?period=${encodeURIComponent(period)}` : "/dashboard",
+  );
   function goUpload() {
     setOpen(false);
-    const period = params.get("period");
-    navigate(period ? `/dashboard?period=${encodeURIComponent(period)}` : "/dashboard");
+    navigate(uploadTo);
   }
 
   return (

@@ -139,6 +139,7 @@ import {
   verdictAppliesTo,
 } from "./periodFiling";
 import "./wsSetI18n";
+import { FilePickerInput, fileDropProps } from "@/components/cfo/upload/UploadDrop";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -531,22 +532,12 @@ export function PeriodsSection({ orgId }: { orgId: string }) {
 
   function dropHandlers(p: OrgPeriod) {
     if (isImplausiblePeriod(p.period_end)) return {};
-    return {
-      onDragOver: (e: React.DragEvent) => {
-        if (e.dataTransfer?.types?.includes("Files")) {
-          e.preventDefault();
-          setDragOverId(p.period_id);
-        }
-      },
-      onDragLeave: () =>
-        setDragOverId((cur) => (cur === p.period_id ? null : cur)),
-      onDrop: (e: React.DragEvent) => {
-        e.preventDefault();
-        setDragOverId(null);
-        const f = e.dataTransfer.files?.[0];
-        if (f) requestAttach(p, f, "dropped");
-      },
-    };
+    // Drag handling from the one upload component's primitives.
+    return fileDropProps({
+      onFiles: (files) => requestAttach(p, files[0]!, "dropped"),
+      onActiveChange: (active) =>
+        setDragOverId((cur) => (active ? p.period_id : cur === p.period_id ? null : cur)),
+    });
   }
 
   // ── row pieces ───────────────────────────────────────────────────────────
@@ -1164,9 +1155,8 @@ export function PeriodsSection({ orgId }: { orgId: string }) {
 
       {/* "Replace file" file picker — invisible; the confirm step is what
           the user actually sees. */}
-      <input
+      <FilePickerInput
         ref={replaceInputRef}
-        type="file"
         accept=".pdf,.xlsx,.xls,.csv"
         className="hidden"
         data-testid="wsset-period-replace-input"
@@ -1505,9 +1495,8 @@ function AddPeriodDialogV2({
               </div>
             )}
 
-            <input
+            <FilePickerInput
               ref={fileRef}
-              type="file"
               accept=".pdf,.xlsx,.xls,.csv"
               className="hidden"
               onChange={(e) => {
@@ -1519,14 +1508,7 @@ function AddPeriodDialogV2({
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
-              onDragLeave={() => setDragging(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setDragging(false);
-                const f = e.dataTransfer.files?.[0];
-                if (f) setFile(f);
-              }}
+              {...fileDropProps({ onFiles: (files) => setFile(files[0]!), onActiveChange: setDragging })}
               data-testid="workspace-add-period-file"
               className={`w-full flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed px-4 py-6 text-center transition-colors ${
                 dragging

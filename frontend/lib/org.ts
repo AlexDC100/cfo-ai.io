@@ -302,6 +302,53 @@ export async function refreshActiveOrg(): Promise<Organization | null> {
   return cachedOrg;
 }
 
+/**
+ * Make `orgId` the active workspace from OUTSIDE a useActiveOrg() instance —
+ * the upload flow and the company page use it (workspace redesign,
+ * 2026-09-21). Same side effects as the hook's switchOrg (cache wipe, prefs
+ * re-hydrate, cross-device record, sibling instances told), with two
+ * differences that are the reason it exists:
+ *
+ *   · it does not need the org to be in any hook's current list. A company the
+ *     commit route JUST created is not in that list yet, and switchOrg would
+ *     silently refuse it. `listChanged` drops the memoised list so every
+ *     instance re-reads it — without that, resolveActive would not find the
+ *     new id in the stale list and fall back to the oldest workspace,
+ *     overwriting the choice this call just made.
+ *   · `name` is written to the header cache immediately, so the header names
+ *     the company on screen from the first frame of the switch rather than
+ *     one list round-trip later.
+ *
+ * No-op (resolves false) when signed out.
+ */
+export async function activateWorkspace(
+  orgId: string,
+  opts: { name?: string | null; listChanged?: boolean } = {},
+): Promise<boolean> {
+  const supabase = getSupabase();
+  if (!supabase || !orgId) return false;
+  const { data } = await supabase.auth.getSession();
+  const userId = data.session?.user?.id;
+  if (!userId) return false;
+  const prior = getActiveOrgId(userId);
+  if (opts.listChanged) cachedOrgListPromise = null;
+  if (prior === orgId && !opts.listChanged) {
+    if (opts.name) writeWorkspaceName(opts.name);
+    return true;
+  }
+  setActiveOrgId(userId, orgId);
+  if (opts.name) writeWorkspaceName(opts.name);
+  if (prior !== orgId) {
+    queryClient.clear();
+    clearDataPresence();
+    clearWorkspaceScopedData();
+    void hydrateOrgPrefs(orgId);
+  }
+  await writeRemoteActiveOrgId(userId, orgId);
+  emitOrgChange();
+  return true;
+}
+
 /** Update the active org's name / industry. */
 export async function updateActiveOrg(patch: {
   name?: string;

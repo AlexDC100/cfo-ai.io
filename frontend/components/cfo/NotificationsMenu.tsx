@@ -12,6 +12,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { Bell, Loader2 } from "lucide-react";
 
 import {
@@ -24,6 +25,13 @@ import {
 import { fetchAlerts, type AlertRow, type AlertSeverity } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import { activeLocale } from "@/lib/locale";
+import { activateWorkspace } from "@/lib/org";
+import {
+  markUploadNoticesRead,
+  unreadUploadNotices,
+  useUploadNotices,
+  type UploadNotice,
+} from "@/lib/uploadNotices";
 
 /** Chip colours per severity — mirrors the ladder used elsewhere in the
  *  app (critical/high read as alert, medium as caution, low/info muted). */
@@ -48,9 +56,13 @@ function formatWhen(iso: string): string {
 
 export function NotificationsMenu({ variant = "icon" }: { variant?: "icon" | "row" } = {}) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [alerts, setAlerts] = useState<AlertRow[]>([]);
   const [loading, setLoading] = useState(true);
+  // Finished analyses (workspace redesign). Only that flow writes them, so
+  // with the redesign off this list is empty and the bell is unchanged.
+  const notices = useUploadNotices();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -65,8 +77,22 @@ export function NotificationsMenu({ variant = "icon" }: { variant?: "icon" | "ro
   // opened an hour later isn't showing an hour-old list.
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { if (open) void load(); }, [open, load]);
+  // Opening the list reads the analyses in it.
+  useEffect(() => { if (open) markUploadNoticesRead(); }, [open]);
 
-  const badgeCount = alerts.filter((a) => BADGED.includes(a.severity)).length;
+  const badgeCount =
+    alerts.filter((a) => BADGED.includes(a.severity)).length + unreadUploadNotices(notices);
+
+  const openNotice = async (n: UploadNotice) => {
+    setOpen(false);
+    // Switch first: the header must name the company whose page opens.
+    await activateWorkspace(n.orgId, { name: n.companyName });
+    navigate(
+      n.kind === "done" && n.periodId
+        ? `/dashboard?period=${encodeURIComponent(n.periodId)}&org=${encodeURIComponent(n.orgId)}`
+        : `/workspace/${encodeURIComponent(n.orgId)}`,
+    );
+  };
 
   return (
     <>
@@ -124,12 +150,53 @@ export function NotificationsMenu({ variant = "icon" }: { variant?: "icon" | "ro
           {/* Capped height so a noisy workspace scrolls inside the modal
               instead of pushing the dialog past the viewport. */}
           <div className="max-h-[60vh] overflow-y-auto chat-scroll -mx-1 px-1">
+            {notices.length > 0 && (
+              <div className="mb-4" data-testid="notifications-analyses">
+                <div className="mb-1.5 font-mono text-[10.5px] uppercase tracking-[0.14em] text-ink-mute">
+                  {t("wsV2.bell.heading")}
+                </div>
+                <ul className="divide-y divide-rule/60">
+                  {notices.map((n) => (
+                    <li key={n.id}>
+                      <button
+                        type="button"
+                        onClick={() => void openNotice(n)}
+                        data-testid="notifications-analysis"
+                        data-kind={n.kind}
+                        className="flex w-full items-start gap-3 rounded-sm py-2.5 text-left hover:bg-bg-2/60"
+                      >
+                        <span
+                          aria-hidden
+                          className={cn(
+                            "mt-1.5 h-2 w-2 shrink-0 rounded-full",
+                            n.kind === "done" ? "bg-brand" : "bg-alert",
+                          )}
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-[13.5px] text-ink">
+                            {n.kind === "done"
+                              ? t("wsV2.bell.done", { company: n.companyName })
+                              : t("wsV2.bell.failed", { company: n.companyName })}
+                          </span>
+                          <span className="block truncate text-[12px] text-ink-soft">
+                            {n.kind === "failed" && n.error ? n.error : n.filename}
+                          </span>
+                          <span className="mt-0.5 block text-[11px] text-ink-mute">
+                            {formatWhen(new Date(n.at).toISOString())}
+                          </span>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {loading ? (
               <div className="py-10 flex items-center justify-center gap-2 text-[13px] text-ink-soft">
                 <Loader2 size={14} className="animate-spin" />
                 {t("common.loading")}
               </div>
-            ) : alerts.length === 0 ? (
+            ) : alerts.length === 0 && notices.length > 0 ? null : alerts.length === 0 ? (
               <div className="py-10 text-center">
                 <p className="text-[13px] text-ink">{t("panels.notificationsEmpty")}</p>
                 <p className="mt-1 text-[12px] text-ink-mute">

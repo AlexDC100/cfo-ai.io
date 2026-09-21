@@ -22,6 +22,7 @@ import { AnimatePresence } from "framer-motion";
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Paperclip, ArrowUp, Square } from "lucide-react";
+import { FilePickerInput } from "@/components/cfo/upload/UploadDrop";
 import { CFOFilePreview } from "./CFOFilePreview";
 import { readDraft, writeDraft } from "./chatDrafts";
 import "./chatDegradedI18n";
@@ -283,9 +284,10 @@ export const CFOComposer = forwardRef<CFOComposerHandle, Props>(function CFOComp
           >
             <Paperclip size={15} strokeWidth={1.75} />
           </button>
-          <input
+          {/* The one file input primitive (components/cfo/upload) — a chat
+              attachment is context for one message, not a company document. */}
+          <FilePickerInput
             ref={fileRef}
-            type="file"
             accept={ACCEPT}
             onChange={(e) => onFiles(e.target.files)}
             className="hidden"
