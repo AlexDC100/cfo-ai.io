@@ -40,9 +40,13 @@ policy, every privilege revoked from anon / authenticated.
         two sweepers (the old and the new container during a deploy)
         release it once. A deploy's boot-probe container sees the running
         container's reservations heartbeating and leaves them alone;
-      - scripts/recompute_document_quota.py runs the same sweep and resets
-        the current month's `uploads_reserved` to the reservations still
-        live.
+      - an orphan whose analysis FINISHED (only its settlement was lost)
+        is settled by the engine as the success it was
+        (`pipeline._settle_orphaned_reservation`); the rest are released;
+      - scripts/recompute_document_quota.py releases the orphans whose
+        analysis never finished (it never charges: a finished one is left
+        to the engine) and resets the current month's `uploads_reserved`
+        to the reservations still live or awaiting that settlement.
 
 FAILURE POLICY. Every read returns None when the table cannot be read (a
 database without the migration, a transient 5xx): the caller then decides
@@ -150,21 +154,63 @@ def all_committed_ids() -> Optional[Set[str]]:
 #: What a settled reservation leaves behind (committed or released).
 _CLEARED = {"reserved_at": None, "nonro_reserved_at": None, "owner": None}
 
+# SETTLEMENT WRITES THAT FAILED. The meter already moved (committed or
+# released); only the ledger row still reads "reserved". Left alone, its
+# heartbeat would stop and the sweep would settle it a SECOND time — a
+# finished analysis as another commit. So the process that settled keeps
+# the write, heartbeats the row (`pending_ids`, part of the live set) and
+# retries it every maintenance tick (`retry_pending`) until it lands.
+_PENDING: Dict[str, Dict[str, Any]] = {}
+_PENDING_LOCK = threading.Lock()
+
+
+def pending_ids() -> List[str]:
+    with _PENDING_LOCK:
+        return list(_PENDING.keys())
+
+
+def is_pending(document_id: str) -> bool:
+    with _PENDING_LOCK:
+        return str(document_id) in _PENDING
+
+
+def _write_settlement(document_id: str, write: Dict[str, Any]) -> bool:
+    try:
+        with _supabase.admin() as ac:
+            if write["op"] == "commit":
+                ac.upsert(TABLE, write["row"], on_conflict="document_id")
+            else:
+                ac.update(TABLE, write["patch"], filters={"document_id": f"eq.{document_id}"})
+    except Exception:  # noqa: BLE001
+        return False
+    with _PENDING_LOCK:
+        _PENDING.pop(str(document_id), None)
+    return True
+
+
+def retry_pending() -> None:
+    """Retry every settlement write that failed (a maintenance tick)."""
+    with _PENDING_LOCK:
+        items = list(_PENDING.items())
+    for doc, write in items:
+        if not _write_settlement(doc, write):
+            logger.error("[quota-ledger] the settlement record of %s still cannot be written", doc)
+
 
 def record_commit(document_id: str, *, user_id: str, was_extra: bool, month: str) -> None:
     """THIS document was counted (the settlement's `commit_user_upload`);
     its reservation is settled."""
     now = _now_iso()
-    try:
-        with _supabase.admin() as ac:
-            ac.upsert(TABLE, {
-                "document_id": str(document_id), "user_id": str(user_id), "month": str(month),
-                "was_extra": bool(was_extra), "committed_at": now, "updated_at": now, **_CLEARED,
-            }, on_conflict="document_id")
-    except Exception:  # noqa: BLE001 — the count stands; only its record is missing
+    write = {"op": "commit", "row": {
+        "document_id": str(document_id), "user_id": str(user_id), "month": str(month),
+        "was_extra": bool(was_extra), "committed_at": now, "updated_at": now, **_CLEARED,
+    }}
+    if not _write_settlement(document_id, write):
+        with _PENDING_LOCK:
+            _PENDING[str(document_id)] = write
         logger.exception(
-            "[quota-ledger][billing] could not record the COMMIT of document %s (user=%s) — a "
-            "later re-run of it may be metered again until the record exists", document_id, user_id)
+            "[quota-ledger][billing] could not record the COMMIT of document %s (user=%s) — kept, "
+            "heartbeated and retried until it lands", document_id, user_id)
 
 
 def record_reservation(document_id: str, *, user_id: str, was_extra: bool, month: str) -> None:
@@ -202,12 +248,12 @@ def record_release(document_id: str) -> None:
     """`document_id`'s reservation was released (a failure, a refusal, an
     expired or cancelled grant)."""
     now = _now_iso()
-    try:
-        with _supabase.admin() as ac:
-            ac.update(TABLE, {**_CLEARED, "released_at": now, "updated_at": now},
-                      filters={"document_id": f"eq.{document_id}"})
-    except Exception:  # noqa: BLE001 — the sweep finds it released already
-        logger.exception("[quota-ledger] could not record the release of %s", document_id)
+    write = {"op": "release", "patch": {**_CLEARED, "released_at": now, "updated_at": now}}
+    if not _write_settlement(document_id, write):
+        with _PENDING_LOCK:
+            _PENDING[str(document_id)] = write
+        logger.exception("[quota-ledger] could not record the release of %s — kept, heartbeated "
+                         "and retried until it lands", document_id)
 
 
 def outstanding(document_id: str) -> Optional[Dict[str, Any]]:
@@ -225,19 +271,32 @@ def adopt(document_id: str, *, user_id: str, take_extra: bool) -> Optional[Dict[
 
     Only a reservation made for the same verified `user_id`; a confirmed
     extra (`was_extra`) only when `take_extra` (the document's own run).
-    Returns the row adopted, else None (the caller reserves as usual)."""
+    Compare-and-set against the sweep: the row is taken by swapping its
+    `reservation_id` while it still carries the one read, and the swap is
+    read back — a sweeper that read the row before the adoption then
+    matches nothing and releases nothing. Returns the row adopted, else
+    None (the caller reserves as usual)."""
     row = outstanding(document_id)
     if row is None or str(row.get("user_id") or "") != str(user_id):
         return None
     if row.get("was_extra") and not take_extra:
         return None
+    old_rid = row.get("reservation_id")
+    if not old_rid:
+        return None
+    new_rid = uuid.uuid4().hex
     try:
         with _supabase.admin() as ac:
-            ac.update(TABLE, {"owner": PROCESS_ID, "heartbeat_at": _now_iso(), "updated_at": _now_iso()},
-                      filters={"document_id": f"eq.{document_id}",
-                               "reservation_id": f"eq.{row.get('reservation_id')}"})
-    except Exception:  # noqa: BLE001 — adopting is still right; the heartbeat catches up
-        logger.exception("[quota-ledger] could not take ownership of %s's reservation", document_id)
+            ac.update(TABLE, {"reservation_id": new_rid, "owner": PROCESS_ID,
+                              "heartbeat_at": _now_iso(), "updated_at": _now_iso()},
+                      filters={"document_id": f"eq.{document_id}", "reservation_id": f"eq.{old_rid}",
+                               "reserved_at": "not.is.null"})
+        back = (rows_for([document_id]) or {}).get(str(document_id)) or {}
+    except Exception:  # noqa: BLE001 — not adopted; the caller reserves, the sweep frees the orphan
+        logger.exception("[quota-ledger] could not take over %s's reservation", document_id)
+        return None
+    if back.get("reservation_id") != new_rid:
+        return None  # a sweeper released it first
     logger.warning("[quota-ledger] document %s: adopted the reservation a restart orphaned "
                    "(user=%s month=%s extra=%s)", document_id, user_id, row.get("month"),
                    bool(row.get("was_extra")))
@@ -350,10 +409,13 @@ _MAINTENANCE_LOCK = threading.Lock()
 
 
 def start_maintenance(*, live_ids: Callable[[], Iterable[str]],
-                      is_live: Callable[[str], bool]) -> bool:
+                      is_live: Callable[[str], bool],
+                      settle: Callable[[Dict[str, Any]], None] = release_rpcs) -> bool:
     """Start (once per process) the daemon that heartbeats this process's
-    reservations and sweeps the orphaned ones. Off when the database is not
-    configured or ENGINE_QUOTA_LEDGER_MAINTENANCE=0. True when running."""
+    reservations and sweeps the orphaned ones (`settle`: the engine commits
+    one whose analysis finished, releases the rest). Off when the database
+    is not configured or ENGINE_QUOTA_LEDGER_MAINTENANCE=0. True when
+    running."""
     if os.environ.get("ENGINE_QUOTA_LEDGER_MAINTENANCE", "1") == "0":
         return False
     if not (os.environ.get("VITE_SUPABASE_URL") and os.environ.get("SUPABASE_SERVICE_ROLE_KEY")):
@@ -366,8 +428,9 @@ def start_maintenance(*, live_ids: Callable[[], Iterable[str]],
         def loop() -> None:
             while not stop.wait(HEARTBEAT_S):
                 try:
-                    heartbeat(live_ids())
-                    sweep_stale(is_live=is_live)
+                    retry_pending()
+                    heartbeat(list(live_ids()) + pending_ids())
+                    sweep_stale(is_live=lambda d: is_pending(d) or is_live(d), release=settle)
                 except Exception:  # noqa: BLE001 — never kill the daemon
                     logger.exception("[quota-ledger] maintenance tick failed")
 

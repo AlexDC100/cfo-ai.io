@@ -95,6 +95,49 @@ def test_the_sweep_gives_back_a_reservation_whose_run_died(world):
     assert meter.calls == ["reserve_user_upload", "release_user_upload"]
 
 
+def test_a_sweeper_that_read_the_row_before_the_adoption_releases_nothing(world, monkeypatch):
+    """Two processes during a deploy: the old container's sweep reads the
+    orphaned row, then the document's re-run in the new container adopts
+    it, then the sweep's release lands. Adoption swaps the reservation id
+    (compare-and-set), so the stale sweep matches nothing — the slot the
+    adopted run holds is never given back under it."""
+    meter = world["meter"]
+    world["db"].rows("documents").append(_doc("book", h=EEI))
+    world["post"]("/api/pipeline/run", {"document_id": "book"})
+    _restart()
+    read_before = _quota_ledger.stale_outstanding(now=_later(11))
+    assert [r["document_id"] for r in read_before] == ["book"]
+    assert world["post"]("/api/pipeline/retry", {"document_id": "book"}).json()["status"] == "queued"
+    monkeypatch.setattr(_quota_ledger, "stale_outstanding", lambda **kw: read_before)
+    assert _quota_ledger.sweep_stale(is_live=lambda _d: False) == []
+    assert meter.snapshot()["reserved"] == 1
+    world["finish"]("book", "analyzed")
+    assert meter.snapshot() == {"uploads": 1, "reserved": 0, "extra_billed": 0, "pending": 0}
+
+
+def test_a_reservation_the_sweep_released_first_is_never_adopted(world, monkeypatch):
+    """The other order: the re-run reads the orphaned row, a sweeper
+    releases it, then the re-run takes it over. Adopting a reservation the
+    meter no longer holds would let the run's commit consume ANOTHER run's
+    slot. Adoption is a compare-and-set on the row still being reserved;
+    it loses, and the re-run reserves its own slot."""
+    meter = world["meter"]
+    world["db"].rows("documents").extend([_doc("book", h=EEI), _doc("other", h="%064x" % 3)])
+    world["post"]("/api/pipeline/run", {"document_id": "book"})
+    world["post"]("/api/pipeline/run", {"document_id": "other"})   # stays in flight
+    pipeline._QUOTA_RUNS.pop("book")
+    _doc_dedupe._IN_FLIGHT.pop("book")
+    read_before = _quota_ledger.outstanding("book")
+    assert [r["document_id"] for r in _quota_ledger.sweep_stale(
+        is_live=pipeline._reservation_is_live, now=_later(11))] == ["book"]
+    assert meter.reserved == 1                                   # only `other` holds a slot
+    monkeypatch.setattr(_quota_ledger, "outstanding", lambda _d: dict(read_before))
+    assert world["post"]("/api/pipeline/retry", {"document_id": "book"}).json()["status"] == "queued"
+    world["finish"]("book", "analyzed")
+    assert meter.snapshot()["uploads"] == 1
+    assert meter.snapshot()["reserved"] == 1, ("the adopted run consumed `other`'s slot", meter.snapshot())
+
+
 def test_the_sweep_never_releases_a_run_live_in_this_process(world):
     meter = world["meter"]
     world["db"].rows("documents").append(_doc("book", h=EEI))
@@ -102,6 +145,91 @@ def test_the_sweep_never_releases_a_run_live_in_this_process(world):
     assert _quota_ledger.sweep_stale(is_live=pipeline._reservation_is_live, now=_later(60)) == []
     assert meter.reserved == 1
     world["finish"]("book", "analyzed")
+    assert meter.snapshot() == {"uploads": 1, "reserved": 0, "extra_billed": 0, "pending": 0}
+
+
+def _run_finished_but_its_settlement_was_lost(world, doc_id="book", *, extra=False):
+    """The daemon thread wrote `analyzed` and the restart killed it before
+    `_commit_pipeline_quota` ran: the reservation is outstanding, the
+    analysis exists."""
+    meter = world["meter"]
+    world["db"].rows("documents").append(_doc(doc_id, h=EEI))
+    if extra:
+        meter.uploads = 15
+        assert world["post"]("/api/pipeline/run", {"document_id": doc_id}).status_code == 402
+        assert _confirm(world, doc_id).status_code == 200
+    assert world["post"]("/api/pipeline/run", {"document_id": doc_id}).json()["status"] == "queued"
+    world["db"].update("documents", {"status": "analyzed", "period_id": "ce72e080-32a2-4d5c-8c7f-a10d84212b2e"},
+                       filters={"id": "eq.%s" % doc_id})
+    _restart()
+
+
+def test_the_sweep_settles_an_orphan_whose_analysis_finished_as_a_commit(world):
+    meter = world["meter"]
+    _run_finished_but_its_settlement_was_lost(world)
+    released = _quota_ledger.sweep_stale(is_live=pipeline._reservation_is_live,
+                                         release=pipeline._settle_orphaned_reservation, now=_later(11))
+    assert [r["document_id"] for r in released] == ["book"]
+    assert meter.snapshot() == {"uploads": 1, "reserved": 0, "extra_billed": 0, "pending": 0}
+    assert _ledger(world, "book")["committed_at"] and _ledger(world, "book")["reserved_at"] is None
+    # ... and the book is counted: its re-run is free
+    calls = list(meter.calls)
+    world["post"]("/api/pipeline/retry", {"document_id": "book"})
+    world["finish"]("book", "analyzed")
+    assert meter.calls == calls
+
+
+def test_the_sweep_settles_an_orphaned_paid_extra_whose_analysis_finished_once(world):
+    meter = world["meter"]
+    _run_finished_but_its_settlement_was_lost(world, extra=True)
+    for _ in range(2):  # two containers sweeping
+        _quota_ledger.sweep_stale(is_live=pipeline._reservation_is_live,
+                                  release=pipeline._settle_orphaned_reservation, now=_later(11))
+    assert meter.snapshot() == {"uploads": 16, "reserved": 0, "extra_billed": 1, "pending": 0}
+    assert [b["reservation_id"] for b in world["billed"]] == ["book"]
+
+
+def test_the_restore_leaves_an_orphan_whose_analysis_finished_to_the_engine(world, restore):
+    """The restore never charges: an orphan whose analysis finished is the
+    engine's to settle (as a commit, billed if it was a confirmed extra) —
+    the script neither releases its slot nor counts it."""
+    _run_finished_but_its_settlement_was_lost(world)
+    row = _mirror_usage(world)
+    for r in world["db"].rows(_quota_ledger.TABLE):
+        r["heartbeat_at"] = (datetime.now(timezone.utc) - timedelta(minutes=30)).isoformat()
+    assert restore.main(["--apply", "--no-hash-missing"]) == 0
+    assert world["meter"].reserved == 1 and _ledger(world, "book")["reserved_at"]
+    assert row["uploads_reserved"] == 1
+
+
+def test_a_commit_whose_ledger_write_failed_is_retried_never_counted_twice(world, monkeypatch):
+    """`commit_user_upload` landed but the ledger write after it failed (a
+    transient 5xx). The row still reads reserved; were its heartbeat to
+    stop, the sweep would settle the finished analysis as a commit AGAIN.
+    The process keeps the failed write, heartbeats it and retries it."""
+    meter = world["meter"]
+    world["db"].rows("documents").append(_doc("book", h=EEI))
+    world["post"]("/api/pipeline/run", {"document_id": "book"})
+    real_upsert = world["db"].upsert
+    fails = {"n": 1}
+
+    def flaky(table, rows, **kw):
+        if table == _quota_ledger.TABLE and rows.get("committed_at") and fails["n"]:
+            fails["n"] -= 1
+            raise RuntimeError("PostgREST 503")
+        return real_upsert(table, rows, **kw)
+
+    monkeypatch.setattr(world["db"], "upsert", flaky)
+    world["finish"]("book", "analyzed")
+    assert meter.snapshot()["uploads"] == 1 and _ledger(world, "book")["reserved_at"]
+    assert "book" in pipeline._live_reservation_ids()
+    for r in world["db"].rows(_quota_ledger.TABLE):
+        r["heartbeat_at"] = (datetime.now(timezone.utc) - timedelta(minutes=30)).isoformat()
+    assert _quota_ledger.sweep_stale(is_live=pipeline._reservation_is_live,
+                                     release=pipeline._settle_orphaned_reservation) == []
+    _quota_ledger.retry_pending()
+    assert _ledger(world, "book")["committed_at"] and _ledger(world, "book")["reserved_at"] is None
+    assert "book" not in pipeline._live_reservation_ids()
     assert meter.snapshot() == {"uploads": 1, "reserved": 0, "extra_billed": 0, "pending": 0}
 
 
