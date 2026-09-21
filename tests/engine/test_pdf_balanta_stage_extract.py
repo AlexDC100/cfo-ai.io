@@ -270,16 +270,71 @@ def test_the_untampered_five_pair_book_is_still_read(five_pair_pdf):
     assert (parsed.get("extraction") or {}).get("source_format") == "saga_10_col"
 
 
+class _ReachedClaude(Exception):
+    """Raised by the fake Claude parse route: the fall-back got that far."""
+
+
+def _trace_fall_back(monkeypatch):
+    """Record the fall-back path: every positional-ingester parse (the
+    filename it was handed, and the rows it returned or what it raised —
+    the fast-path swallows a raise and falls through), then stop the Claude
+    extractor at its door with `_ReachedClaude` (carrying the filename it
+    was asked to parse)."""
+    trace = {"positional": [], "claude": []}
+    real_pack = pipeline._ro_pack
+
+    class _PackSpy:
+        def __init__(self, pack):
+            self._pack = pack
+
+        def parse_trial_balance(self, data, filename):
+            try:
+                out = self._pack.parse_trial_balance(data, filename)
+            except Exception as e:
+                trace["positional"].append((filename, type(e).__name__))
+                raise
+            trace["positional"].append((filename, len(out or [])))
+            return out
+
+        def __getattr__(self, name):
+            return getattr(self._pack, name)
+
+    class _Route:
+        name = "parse_document"
+
+        @staticmethod
+        def endpoint(req):
+            trace["claude"].append(req.original_filename)
+            raise _ReachedClaude(req.original_filename)
+
+    class _Router:
+        routes = [_Route()]
+
+    from engine.api import financial_statements
+
+    monkeypatch.setattr(pipeline, "_ro_pack", lambda: _PackSpy(real_pack()))
+    monkeypatch.setattr(financial_statements, "build_router", lambda: _Router())
+    return trace
+
+
 def test_an_eight_figure_refusal_keeps_its_fall_back(monkeypatch):
-    # the eight-figure layout is unchanged: a book it refuses still falls
-    # through (here to the Claude path, which the harness makes
-    # unimportable) — it is never a BalantaPdfRefusedError
+    # the eight-figure layout is unchanged: a book its reader refuses takes
+    # exactly the path it took before — the positional ingester on the PDF
+    # itself, which does not serve it, then the Claude extractor — and is
+    # never a BalantaPdfRefusedError
+    from engine.country_packs.ro_romania import pdf_balanta_text
+
     lines = _synthetic_balanta_lines()
     lines = [l for l in lines if not l.startswith("Total sume clasa 5")]
-    _arm(monkeypatch, _pdf_bytes(lines))
-    with pytest.raises(Exception) as fell_through:
+    content = _pdf_bytes(lines)
+    verdict = pdf_balanta_text.read_balanta_text_verdict(content)
+    assert (verdict.layout, verdict.workbook, verdict.refusal) == (pdf_balanta_text.LAYOUT_EIGHT_FIGURE, None, None)
+    _arm(monkeypatch, content)
+    trace = _trace_fall_back(monkeypatch)
+    with pytest.raises(_ReachedClaude):
         pipeline.stage_extract(_doc())
-    assert not isinstance(fell_through.value, pipeline.BalantaPdfRefusedError)
+    assert [f for f, _ in trace["positional"]] == [_doc()["original_filename"]]  # the PDF, not a workbook
+    assert trace["claude"] == [_doc()["original_filename"]]
 
 
 # ── the deploy-order guard: never served on a parser that adds 709 ──────
@@ -368,6 +423,7 @@ def test_an_eight_figure_book_with_unreadable_text_lines_keeps_its_fall_back(mon
     monkeypatch.setattr(pdf_balanta_text, "_extract_lines", lambda _b: None)
     verdict = pdf_balanta_text.read_balanta_text_verdict(content)
     assert verdict.layout is None and verdict.refusal is None and verdict.workbook is None
-    with pytest.raises(Exception) as fell_through:
+    trace = _trace_fall_back(monkeypatch)
+    with pytest.raises(_ReachedClaude):
         pipeline.stage_extract(_doc())
-    assert not isinstance(fell_through.value, pipeline.BalantaPdfRefusedError)
+    assert [f for f, _ in trace["positional"]] == [_doc()["original_filename"]]
