@@ -539,6 +539,71 @@ def test_a_held_line_before_an_account_that_never_repeats_its_code_refuses(caplo
     assert refused(caplog, lines, "account 1007.01 follows a line led by the code-shaped 2019")
 
 
+# ── only the layout's STRUCTURE decides a wrap, never a recurring number ──
+#
+# Before the repair a wrapped row handed its figures to a number in its own
+# name whenever that number appeared a second time on the figure line: the
+# reader took ANY second occurrence of the leading number as "the account
+# repeats its own code". The layout prints that repeat in fixed slots only —
+# right after the code, right before the figures, or ending a continuation
+# line — and a held line is the previous account's continuation only when it
+# ends with that account's code.
+
+
+def test_a_wrapped_row_whose_name_repeats_the_leading_number_mid_line_refuses(caplog):
+    # "4111.05 Client" / "404 Media 404 SRL <ten figures>": 404 recurs by
+    # coincidence — read as account 404, the receivable served as a
+    # fixed-asset supplier and 4111.05 vanished; every total tied.
+    lines = _wrap(_book_with_a_client("Client 404 Media 404 SRL"), "4111.05", "4111.05 Client")
+    assert refused(caplog, lines, "account 404 follows a line led by the code-shaped 4111.05")
+
+
+def test_a_wrapped_row_whose_name_ends_with_the_leading_number_refuses(caplog):
+    # the recurrence sits where the layout prints a repeated code (right
+    # before the figures) — still no evidence that 404 is an account: the
+    # held line does not end with the previous account's code
+    lines = _wrap(_book_with_a_client("Client 404 Media SRL 404"), "4111.05", "4111.05 Client")
+    assert refused(caplog, lines, "account 404 follows a line led by the code-shaped 4111.05")
+
+
+def test_the_coincidence_books_are_read_unwrapped():
+    # the control for the two tests above: printed on one line, both names
+    # are read whole on 4111.05, and no account 404 appears
+    for text in ("Client 404 Media 404 SRL", "Client 404 Media SRL 404"):
+        got = P.parse_lines(_book_with_a_client(text))
+        assert got is not None and by_cont(got, "4111.05")["name"] == text
+        assert not any(r["cont"] == "404" for r in got["rows"])
+
+
+def test_a_held_line_that_does_not_end_with_the_previous_code_refuses(caplog):
+    # "2019 extins" continues 1006.01 or is row 2019's first line — nothing
+    # in the layout says which, so no account but 2019 may follow it, even
+    # one that repeats its own code
+    rs = rows()
+    for r in rs:
+        if r.cont == "1006.01":
+            r.cont_lines = ("2019 extins",)
+        if r.cont == "1007.01":
+            r.text = "CAPITAL 7 1007.01"
+    assert refused(caplog, render(rs), "account 1007.01 follows a line led by the code-shaped 2019")
+
+
+def test_a_repeat_in_the_middle_of_the_name_is_not_the_layouts_repeat(caplog):
+    lines = _held_line_then("CAPITAL 1007.01 SAPTE")
+    assert refused(caplog, lines, "account 1007.01 follows a line led by the code-shaped 2019")
+
+
+def test_a_repeat_in_the_middle_of_a_continuation_line_is_not_the_layouts_repeat(caplog):
+    lines = _held_line_then("CAPITAL 7", cont_lines=("REZERVA 1007.01 NOUA",))
+    assert refused(caplog, lines, "account 1007.01 follows a line led by the code-shaped 2019")
+
+
+def test_the_repeat_may_come_right_after_the_code():
+    # the layout's other slot ("121 121 Profit ..."): read
+    got = P.parse_lines(_held_line_then("1007.01 CAPITAL 7"))
+    assert got is not None and by_cont(got, "1007.01")["name"] == "CAPITAL 7"
+
+
 def test_a_parent_beside_its_children_refuses_even_when_the_totals_count_both(caplog):
     # parents 100 and 510 printed beside their children, the document's own
     # class totals and grand total counting BOTH levels: every sum ties,

@@ -83,10 +83,16 @@ can be checked to the cent — and it refuses unless ALL of these hold:
     could not attribute to an account is a refusal, never a skip) — and
     neither does the NAME part of an account line, nor does it hold a
     code followed by a figure (two rows merged onto one text line);
-  * a wrapped row cannot hand its figures to another code: after a
-    figure-less line led by a code-shaped token X (not the current
-    account's code), the next account line must be account X or repeat
-    its own code on its line or a continuation line.
+  * a wrapped row cannot hand its figures to another code, and only the
+    layout's own structure — never a number that happens to recur — says
+    which code a line belongs to. A figure-less line led by a code-shaped
+    token X (not the current account's code) is the current account's
+    continuation only when it ENDS with that account's code, as the
+    layout ends its continuation lines; the next account line must then
+    repeat its own code where the layout prints it (right after the
+    code, right before the figures, or ending a continuation line).
+    Otherwise the line is held, and no account line but X's own may
+    follow it.
 
 Negative figures are carried verbatim: a storno is a negative movement on
 its own side, never a flipped side. The workbook maps SI = Sold initial,
@@ -150,16 +156,32 @@ _COLUMN_PHRASES_5PAIR = ("cont denumire", "sold initial", "rulaj anterior", "rul
 # as a loss and the bank as a negative asset.
 _SUB_HEADER_5PAIR = " ".join(["debit credit"] * 5)
 _SIDE_WORDS_5PAIR = frozenset({"debit", "credit"})
-# _WRAP_RULE — a wrapped row cannot hand its figures to another code. When
-# a figure-less line is led by a code-shaped token X that is not the
-# current account's code, the next account line must either BE account X
-# (the held line was its first line: its text becomes that account's
-# name) or carry its own code twice — repeated on its line or on one of
-# its continuation lines, as this layout prints codes. Otherwise a row
-# printed "4111.05 Client" / "404 Media SRL <ten figures>" would read as
-# account 404 with 4111.05's figures, and every total would still tie.
+# _WRAP_RULE — a wrapped row cannot hand its figures to another code. A
+# figure-less line led by a code-shaped token X that is not the current
+# account's code is either the current account's continuation (a name
+# that goes on with a number, a year) or the first line of a wrapped row
+# X whose figures follow on a line led by some number from its name:
+# "4111.05 Client" / "404 Media SRL <ten figures>" would read as account
+# 404 with 4111.05's figures, and every total would still tie.
+#
+# Only STRUCTURE decides, never a number that happens to recur on the
+# figure line ("404 Media 404 SRL" repeats 404 by coincidence):
+#   * the layout ends a continuation line with the account's code
+#     ("... 1006.01"), so a line led by X that ENDS with the current
+#     account's code is that account's continuation — and the next account
+#     line must then repeat its own code in one of the layout's slots
+#     (`_repeats_in_a_slot`: right after the code, right before the
+#     figures, or ending one of its continuation lines);
+#   * any other such line is HELD, and the only account line that may
+#     follow it is X's own (the held line was that row's first line).
+#     Another account's line refuses the book.
+_HELD_REFUSAL = ("account %s follows a line led by the code-shaped %s, which neither ends with the "
+                 "previous account's code nor is followed by its own figures (a wrapped row could "
+                 "hand its figures to another code)")
 _WRAP_REFUSAL = ("account %s follows a line led by the code-shaped %s but never repeats its own "
-                 "code (a wrapped row could hand its figures to another code)")
+                 "code where the layout prints it — right after the code, right before the "
+                 "figures, or ending a continuation line (a wrapped row could hand its figures "
+                 "to another code)")
 # Document column order, five (debit, credit) pairs.
 _SI_D, _SI_C, _RA_D, _RA_C, _RL_D, _RL_C, _TR_D, _TR_C, _SF_D, _SF_C = range(10)
 
@@ -343,6 +365,14 @@ def _five_figures(body: str) -> Optional[List[Decimal]]:
     return [_fig5(t) for t in tokens]
 
 
+def _repeats_in_a_slot(code: str, printed: List[str]) -> bool:
+    """True when an account line repeats its code where the layout prints
+    it: right after the code ("121 121 Profit ...") or right before the
+    figures ("Casa in lei 531.01 <figures>"). A repeat anywhere else in the
+    name is a number that happens to recur, not the layout's evidence."""
+    return bool(printed) and (printed[0] == code or printed[-1] == code)
+
+
 def _parse_five_pair(lines: List[str]) -> Optional[Dict[str, Any]]:
     """The five-pair layout: every check in the module docstring, or None."""
     rows: List[Dict[str, Any]] = []
@@ -351,15 +381,16 @@ def _parse_five_pair(lines: List[str]) -> Optional[Dict[str, Any]]:
     last: Optional[Dict[str, Any]] = None
     column_headers = 0
     expect_sub_header = False
-    # A figure-less line led by a code-shaped token X that is not the
-    # current account's code is AMBIGUOUS: it may continue the current
-    # account's name, or it may be the first line of a wrapped row whose
-    # figures follow on a line led by some other number. It is held here
-    # until the next account line decides it (see `_WRAP_RULE`).
+    # _WRAP_RULE state. `pending`: a HELD line — a figure-less line led by
+    # a code-shaped token X that is neither the current account's code nor
+    # ends with it; no account line but X's own may follow it.
+    # `need_repeat`: a line led by X that ended with the current account's
+    # code was read as that account's continuation; the next account line
+    # must repeat its own code in one of the layout's slots.
+    # `unrepeated`: that account line, until one of its continuation lines
+    # ends with its code — refused if its block ends first.
     pending: Optional[Dict[str, Any]] = None
-    # The account line that followed such a line under a different code:
-    # it must repeat its own code (on its line or a continuation line)
-    # before its block ends, or the book is refused.
+    need_repeat: Optional[str] = None
     unrepeated: Optional[Dict[str, Any]] = None
 
     def _settle_to_owner(held: Optional[Dict[str, Any]]) -> None:
@@ -445,7 +476,8 @@ def _parse_five_pair(lines: List[str]) -> Optional[Dict[str, Any]]:
                 extra = rest[len(rest) - run:len(rest) - 10]
                 if any(x != code for x in extra):
                     return _refuse5("account %s carries %d figures, not 10", code, run)
-                name = [x for x in rest[:len(rest) - 10] if x != code]
+                printed = rest[:len(rest) - 10]  # the name as printed, repeated codes included
+                name = [x for x in printed if x != code]
                 # Figures the reader cannot attribute are a refusal, never
                 # a skip — and that holds for the NAME part of an account
                 # line too. Two rows on one text line put the first row's
@@ -464,15 +496,16 @@ def _parse_five_pair(lines: List[str]) -> Optional[Dict[str, Any]]:
                     "figures": [_fig5(x) for x in rest[len(rest) - 10:]],
                 }
                 if pending is not None:
-                    if code == pending["x"]:
-                        # the held line was this row's first line
-                        lead = [x for x in pending["text"] if x != code]
-                        row["name"] = " ".join(lead + name).rstrip(" -")
-                    else:
-                        _settle_to_owner(pending)
-                        if code not in rest[:len(rest) - 10]:
-                            unrepeated = {"row": row, "x": pending["x"]}
+                    if code != pending["x"]:
+                        return _refuse5(_HELD_REFUSAL, code, pending["x"])
+                    # the held line was this row's first line
+                    lead = [x for x in pending["text"] if x != code]
+                    row["name"] = " ".join(lead + name).rstrip(" -")
                     pending = None
+                if need_repeat is not None:
+                    if not _repeats_in_a_slot(code, printed):
+                        unrepeated = {"row": row, "x": need_repeat}
+                    need_repeat = None
                 last = row
                 rows.append(last)
                 continue
@@ -481,16 +514,24 @@ def _parse_five_pair(lines: List[str]) -> Optional[Dict[str, Any]]:
                 return _refuse5("account %s carries %d figures, not 10", code, run)
             if last is None or code != last["cont"]:
                 # led by a code-shaped token that is not the current
-                # account's: hold it until the next account line decides
+                # account's (see `_WRAP_RULE`)
                 if sum(1 for x in tokens if _FIG_5PAIR.match(x) and x != code
                        and (last is None or x != last["cont"])) >= 2:
                     return _refuse5("a line with figures is neither an account nor a total: %r", line[:60])
-                _settle_to_owner(pending)
-                pending = {"x": code, "text": tokens, "owner": last}
-                continue
-            # led by the current account's own code: its continuation
-            _settle_to_owner(pending)
-            pending = None
+                if pending is not None:
+                    if code != pending["x"]:
+                        return _refuse5(_HELD_REFUSAL, code, pending["x"])
+                    pending["text"].extend(tokens)  # the held row's code printed again
+                    continue
+                if last is None or tokens[-1] != last["cont"]:
+                    pending = {"x": code, "text": tokens, "owner": last}
+                    continue
+                # it ends with the current account's code: that account's
+                # continuation, read below — and the next account line
+                # must repeat its own code in a slot
+                need_repeat = code
+            elif pending is not None:
+                return _refuse5(_HELD_REFUSAL, code, pending["x"])
 
         # A continuation line: the rest of the previous account's name (or
         # of the held line, while one is held).
@@ -501,7 +542,7 @@ def _parse_five_pair(lines: List[str]) -> Optional[Dict[str, Any]]:
         if pending is not None:
             pending["text"].extend(tokens)
             continue
-        if unrepeated is not None and unrepeated["row"] is last and own in tokens:
+        if unrepeated is not None and unrepeated["row"] is last and tokens[-1] == own:
             unrepeated = None
         if last is not None and kept:
             last["name"] = (last["name"] + " " + " ".join(kept)).strip().rstrip(" -")
