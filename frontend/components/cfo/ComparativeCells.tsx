@@ -216,8 +216,10 @@ export function BsCmpCells({
   closing: number | null | undefined;
   baseCurrent: number | null;
   basePrior: number | null;
-  /** The word for "the prior period has no such line" — the view knows
-   *  whether the opening was unfilled because the prior lacked the row. */
+  /** The word for a line one period lacks — "new" (the prior period has
+   *  no such line) or "no longer present" (the current period has none).
+   *  The view knows which side was unfilled because a period lacked the
+   *  row. */
   absentWord?: string;
 }) {
   const ctx = useComparativeContext();
@@ -239,6 +241,8 @@ export function BsCmpCells({
       pctNode = text === null ? gap() : <span className={`cmp-cell ${signClass(ratio)}`}>{text}</span>;
     }
   } else if (!isNum(opening) && isNum(closing) && absentWord) {
+    pctNode = word(absentWord);
+  } else if (isNum(opening) && !isNum(closing) && absentWord) {
     pctNode = word(absentWord);
   }
 

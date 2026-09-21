@@ -26,8 +26,10 @@
 //    This is the one that was measured, and it is the reason the module
 //    is shaped around a comparability decision rather than a
 //    subtraction. `PriorPeriod` carries `balanceSheet` and
-//    `incomeStatement` and NOTHING ELSE — no `absentInputs`, no
-//    `reportedTotals`, no `assembled_*`. On the repo's own two-period
+//    `incomeStatement` — no `absentInputs`, no `reportedTotals` — plus,
+//    when the prior came from a served statements block, its
+//    `assembled_pl` and its `served` headline figures (see rule 4). On
+//    the repo's own two-period
 //    AAPL envelope the current side declares sixteen absent inputs and
 //    the adapter plugs `otherNonCurrentAssets` with 294,341M so the
 //    reconstructed total assets reproduces the filed 364,980M. The
@@ -46,10 +48,25 @@
 //    refusal names the input. On a Romanian trial balance neither
 //    condition holds — the line items ARE the source — so the private
 //    path gets every line the moment a prior period reaches it.
+//
+// 4. IT NEVER SUBTRACTS A RECONSTRUCTION FROM A FILED FIGURE EITHER.
+//    The caller overrides the CURRENT side of net income, total assets
+//    and total equity with the figures the document prints (account 121
+//    as filed; the servedFacts gateway's totals). The prior side used to
+//    stay on `deriveTotals` over the prior's legacy buckets — measured
+//    live on Scandia Dec 2025 vs Dec 2024: net income "+7,511,697
+//    (+25.7%)" against the class-6/7 reconstruction 29,275,655.32 where
+//    account 121 closed at 32,108,059.51 (+4,679,293.24, +14.6%), and
+//    total assets "+7,031,375 (+2.5%)" against a bucket sum that drops a
+//    216,194.00 Unclassified row (+6,815,180.79, +2.4%). So a prior that
+//    carries `served` figures — resolved through the SAME authorities
+//    (`comparatives.priorServedFiguresOf`) — is compared on those; a
+//    prior without them keeps the `deriveTotals` reading, unchanged.
 
 import {
   deriveTotals,
   type PriorPeriod,
+  type PriorServedFigures,
   type ReportedTotalKey,
   type StatementInput,
   type Statements,
@@ -194,6 +211,22 @@ function varianceOf(current: number | null, comparison: number | null): Variance
 interface Side {
   incomeStatement: Statements["incomeStatement"];
   totals: ReturnType<typeof deriveTotals>;
+  /** A prior's figures resolved through the current side's authorities
+   *  (`PriorPeriod.served`). Null on the current side and on a prior that
+   *  carries none. */
+  served: PriorServedFigures | null;
+}
+
+/** The comparison side's figure for one line: the served figure when the
+ *  prior carries a finite one for this line, else the line's own reading
+ *  of the side (the pre-existing `deriveTotals` path, unchanged). */
+function sideFigure(spec: LineSpec, side: Side): number | null {
+  const served = side.served;
+  if (served && Object.prototype.hasOwnProperty.call(served, spec.key)) {
+    const v = served[spec.key as keyof PriorServedFigures];
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+  }
+  return spec.of(side);
 }
 
 interface LineSpec {
@@ -335,7 +368,7 @@ export function buildComparatives(
   s: Statements,
   currentOverrides: Readonly<Record<string, number | null>> = {},
 ): Comparatives {
-  const currentSide: Side = { incomeStatement: s.incomeStatement, totals: deriveTotals(s) };
+  const currentSide: Side = { incomeStatement: s.incomeStatement, totals: deriveTotals(s), served: null };
   const currentOf = (spec: LineSpec): number | null =>
     Object.prototype.hasOwnProperty.call(currentOverrides, spec.key)
       ? currentOverrides[spec.key]
@@ -396,7 +429,13 @@ export function buildComparatives(
   }
 
   const sideFor = (p: PriorPeriod | null): Side | null =>
-    p === null ? null : { incomeStatement: p.incomeStatement, totals: deriveTotals(shellFor(s, p)) };
+    p === null
+      ? null
+      : {
+          incomeStatement: p.incomeStatement,
+          totals: deriveTotals(shellFor(s, p)),
+          served: p.served ?? null,
+        };
   const priorSide = sideFor(priorPeriod);
   const yearSide = sideFor(priorYear);
 
@@ -410,7 +449,7 @@ export function buildComparatives(
       const against = (side: Side | null, noPeriod: string): Variance => {
         if (blocked !== null) return degraded(blocked);
         if (side === null) return degraded(noPeriod);
-        return varianceOf(currentOf(spec), spec.of(side));
+        return varianceOf(currentOf(spec), sideFigure(spec, side));
       };
       return {
         key: spec.key,

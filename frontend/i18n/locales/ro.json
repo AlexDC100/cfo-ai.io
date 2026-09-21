@@ -3176,6 +3176,11 @@
       "description": "Miști pârghiile de preț, volum și cost și vezi cum se mișcă profitul, cashul și marja față de covenants.",
       "requirement": "Se activează după lansare"
     },
+    "forecast": {
+      "title": "Prognoză",
+      "description": "Proiecție pe trei situații financiare legate, construită din perioada încărcată, pe 3 sau 5 ani. Fiecare cifră este marcată ca PROIECTATĂ, iar lista de ipoteze arată fiecare factor, valoarea lui și baza din care a fost măsurat.",
+      "requirement": "Se activează după lansare"
+    },
     "variance": {
       "title": "Comparativ",
       "description": "Compară perioada curentă cu perioada precedentă și cu aceeași perioadă din anul trecut, linie cu linie. Coloana de buget se deblochează când încarci un buget.",
