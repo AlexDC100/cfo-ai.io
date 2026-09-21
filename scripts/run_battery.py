@@ -742,6 +742,26 @@ def _engine_gates() -> List[Gate]:
              work_rx=r"GATE-WORK forecast-boundary-cockpit units=(\d+)", floor=3,
              units="files naming a door of the cockpit gateway",
              canaries=("GATE-WORK forecast-boundary-cockpit",)),
+        # The forecast COCKPIT (forecast-scenarios-live, owner-approved spec):
+        # four numbers, one chart, sliders, computed by the engine through
+        # POST /api/forecast/{id}/cockpit — the page does no math. F1-F9 as
+        # they apply to the cockpit (year 0 = the dashboard, every case and
+        # every slider extreme balances, same bytes twice and across hash
+        # seeds, the base case IS the forecast and a lever moves only its
+        # lines by what its basis states, no placeholder and interest on debt
+        # and on a drawn line, saved cases per company, growth from the
+        # book's own history, a priced credit line below the floor, a bridge
+        # from base that sums exactly), the routes and the export, and p95
+        # slider latency inside the pack's budget. Measured 12242 on the four
+        # corpus books (FORECAST_LOCAL_SCANDIA adds the owner's pair). Plant
+        # log: gates.md "forecast-cockpit".
+        Gate("forecast-cockpit",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_cockpit.py", "-q", "-s"],
+             work_rx=r"GATE-WORK forecast-cockpit units=(\d+)", floor=11000,
+             units="year-zero figures, balance/cash ties, byte comparisons, moved-line and "
+                   "magnitude checks, figures walked, bridge steps and timed slider moves",
+             canaries=("SCOPE forecast-cockpit (forecast-scenarios-live)",
+                       "C-F1 books: agras, carniprod, retail, realestate")),
         # RATIOS: the engine as the one authority for ratio values, bands,
         # deltas, band movements and credit composites (critic
         # authority_decision). Four gates, one per batch, named separately

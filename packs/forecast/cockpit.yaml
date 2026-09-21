@@ -1,0 +1,531 @@
+# THE FORECAST COCKPIT — four numbers, one chart, sliders (forecast-scenarios-live,
+# owner-approved spec "Forecast as an interactive cockpit").
+#
+# Pack data, never code (TC-10): every lever, its range, what it compiles to,
+# every case, every threshold's SOURCE and every sentence the cockpit prints
+# lives here and is read through src/engine/forecast/cockpit.py. A sentence
+# carries no numeral: every figure, year, count, date and threshold in it is
+# rendered by the engine from the numbers it computed (placeholders in
+# braces). Values are decimal strings, parsed exactly, never through a float.
+#
+# THE PAGE DOES NO MATH. A slider sends its lever id and a decimal string to
+# POST /api/forecast/{period_id}/cockpit; the ENGINE compiles the lever set
+# onto its own drivers (the overrides and shocks of packs/forecast/levers.yaml
+# #registry) and runs engine.forecast.levers.project_levers — the one entry
+# point the Forecast GET, the lever recompute and the Scenarios page also run
+# through. A lever at its default compiles to NOTHING, so the base case IS the
+# forecast (gate F4). The same payload feeds the bank export
+# (POST .../cockpit/export), so the page and the report the bank receives
+# print the same engine numbers.
+
+schema_version: "forecast_cockpit/1"
+pack_id: "forecast-cockpit"
+
+# The plan the cockpit projects: five plan years, the first one monthly.
+horizon:
+  total_years: 5
+  monthly_months: 12
+
+# ── the levers ──────────────────────────────────────────────────────────
+# unit pct: a decimal fraction (0.052 = 5.2%); days: days. shape per_year:
+# one value for every plan year, or a list with one value per plan year;
+# scalar: one value for the whole plan. group primary is on the face of the
+# cockpit; more sits behind "Mai multe". compiles_to says which engine
+# drivers the lever moves and how; `drivers` is the list the F4 gate checks
+# every moved line against.
+levers:
+  - id: revenue_growth
+    group: primary
+    unit: pct
+    shape: per_year
+    range: {min: "-0.30", max: "0.30", step: "0.001"}
+    compiles_to: {kind: override, drivers: [revenue_growth]}
+    label: {ro: "Creștere venituri/an", en: "Revenue growth / year"}
+  - id: inflation
+    group: primary
+    unit: pct
+    shape: per_year
+    range: {min: "0", max: "0.15", step: "0.001"}
+    compiles_to: {kind: override, drivers: [inflation]}
+    label: {ro: "Inflație/an", en: "Inflation / year"}
+  - id: raw_material_price
+    group: primary
+    unit: pct
+    shape: scalar
+    range: {min: "-0.30", max: "0.50", step: "0.01"}
+    # The move is applied to the raw-material SHARE of cost of sales, measured
+    # from the book's own cost-of-sales rows (the methodology's raw materials:
+    # 601 + 602); the rest of cost of sales (merchandise, 607) keeps its price.
+    compiles_to: {kind: input_price_share, drivers: [input_price_index],
+                  cost_prefixes: ["601", "602"]}
+    label: {ro: "Preț materie primă (față de {year0})", en: "Raw-material price (vs {year0})"}
+  - id: wage_growth
+    group: primary
+    unit: pct
+    shape: per_year
+    # The ceiling keeps five compounded years inside the pool level's own
+    # bound (packs/forecast/levers.yaml#registry."pool_level.*").
+    range: {min: "0", max: "0.20", step: "0.001"}
+    # Default: personnel cost follows inflation (the engine's convention for a
+    # fixed cost). A value moves the personnel pool's level by the ratio of
+    # (1 + wage growth) to (1 + inflation) each year, so the pool grows at the
+    # wage growth the reader set.
+    compiles_to: {kind: pool_growth_over_inflation, drivers: [pool_level.personnel],
+                  pool: personnel}
+    label: {ro: "Creștere salarii/an (incl. salariul minim)", en: "Wage growth / year (incl. minimum wage)"}
+  - id: energy_price
+    group: more
+    unit: pct
+    shape: scalar
+    range: {min: "-0.50", max: "1.00", step: "0.01"}
+    compiles_to: {kind: pool_level, drivers: [pool_level.energy_utilities],
+                  pool: energy_utilities}
+    label: {ro: "Preț energie (față de {year0})", en: "Energy price (vs {year0})"}
+  - id: eur_ron
+    group: more
+    unit: pct
+    shape: scalar
+    range: {min: "-0.20", max: "0.30", step: "0.005"}
+    # A move of the EUR/RON rate reaches only the imported share of cost of
+    # sales the reader states (imported_share): a trial balance does not split
+    # purchases by currency.
+    compiles_to: {kind: fx_on_imported, drivers: [input_price_index],
+                  share_lever: imported_share}
+    label: {ro: "Curs EUR/RON pe inputuri importate (față de {year0})", en: "EUR/RON on imported inputs (vs {year0})"}
+  - id: imported_share
+    group: more
+    unit: pct
+    shape: scalar
+    range: {min: "0", max: "1", step: "0.01"}
+    compiles_to: {kind: parameter_of, lever: eur_ron, drivers: [input_price_index]}
+    label: {ro: "Pondere inputuri importate în costul vânzărilor", en: "Imported share of cost of sales"}
+  - id: dso_days
+    group: more
+    unit: days
+    shape: per_year
+    range: {min: "0", max: "365", step: "1"}
+    compiles_to: {kind: override, drivers: [dso_days]}
+    label: {ro: "Zile încasare clienți (DSO)", en: "Days sales outstanding (DSO)"}
+  - id: dio_days
+    group: more
+    unit: days
+    shape: per_year
+    range: {min: "0", max: "365", step: "1"}
+    compiles_to: {kind: override, drivers: [dio_cogs_days]}
+    label: {ro: "Zile stoc (DIO)", en: "Days inventory (DIO)"}
+  - id: dpo_days
+    group: more
+    unit: days
+    shape: per_year
+    range: {min: "0", max: "365", step: "1"}
+    compiles_to: {kind: override, drivers: [dpo_cogs_days]}
+    label: {ro: "Zile plată furnizori (DPO)", en: "Days payables outstanding (DPO)"}
+  - id: capex
+    group: more
+    unit: pct
+    shape: per_year
+    range: {min: "0", max: "0.30", step: "0.001"}
+    compiles_to: {kind: override, drivers: [capex_pct_of_revenue]}
+    label: {ro: "Investiții (% din venituri)", en: "Capital expenditure (% of revenue)"}
+  - id: interest_rate
+    group: more
+    unit: pct
+    shape: per_year
+    # The floor is above nil: interest is never zero while the company
+    # carries debt (gate F5).
+    range: {min: "0.01", max: "0.25", step: "0.0005"}
+    compiles_to: {kind: override, drivers: [interest_rate_debt, revolver_rate]}
+    label: {ro: "Rata dobânzii", en: "Interest rate"}
+  - id: dividend_payout
+    group: more
+    unit: pct
+    shape: per_year
+    range: {min: "0", max: "1", step: "0.05"}
+    compiles_to: {kind: override, drivers: [dividend_payout_pct]}
+    label: {ro: "Dividende (% din profitul net)", en: "Dividends (% of net profit)"}
+
+# ── what the book measures, for the lever bases ─────────────────────────
+# The pools and prefixes a basis names. The prefixes are the engine's own
+# (packs/forecast/cost_behaviour.yaml#prefix_to_pool) for personnel and
+# energy; raw materials are the methodology's 601 + 602 above.
+measures:
+  personnel_prefixes: ["641", "642", "643", "644", "645", "646"]
+  energy_prefixes: ["605"]
+
+# ── the credit line on a book that cannot price one ─────────────────────
+# A book with no interest-bearing debt measures no borrowing rate, and the
+# engine refuses to draw an unpriced credit line (never 0%). When a plan
+# draws it and the reader has not set the interest lever, the cockpit prices
+# it at this dated series (packs/forecast/ro_macro.yaml#series), says so on
+# the interest lever and on the funding-line block, and moves nothing else.
+funding_line_reference:
+  series: bnr_lending_facility_rate
+  drivers: [revolver_rate]
+
+# ── the DSCR the bank asks for ──────────────────────────────────────────
+# The RATIO TABLE's formula (engine.ratios.credit_model, metric dscr):
+# EBITDA / (interest expense + short-term debt). On the projection, interest
+# is the debt interest plus the funding-line interest, and short-term debt is
+# the short-term debt plus the funding-line balance at the close of plan year
+# one. The threshold is the ratio table's own "healthy" band for dscr
+# (engine.country_packs.ro_romania.chart_of_accounts), never a literal here.
+dscr:
+  metric: dscr
+  threshold_band: healthy
+  formula:
+    ro: "EBITDA / (dobânzi + datorii pe termen scurt), formula din tabelul de indicatori"
+    en: "EBITDA / (interest + short-term debt), the ratio table's formula"
+
+# ── the cases ───────────────────────────────────────────────────────────
+# Each built-in case is a lever set the ENGINE builds from sourced figures:
+# a rule names the reading or the dated series (packs/forecast/ro_macro.yaml
+# #series) a lever takes. A lever a case does not name stays at its default.
+cases:
+  - id: base
+    label: {ro: "Bază", en: "Base"}
+    in_sentence: {ro: "de bază", en: "base"}
+    levers: {}
+    basis:
+      ro: "prognoza motorului: fiecare pârghie la valoarea măsurată sau declarată în baza ei"
+      en: "the engine's forecast: every lever at the value its basis measures or states"
+  - id: optimist
+    label: {ro: "Optimist", en: "Optimist"}
+    in_sentence: {ro: "optimist", en: "optimist"}
+    levers:
+      # the best of the growth readings the engine holds for this book: its
+      # own history, its sector median, the BNR inflation anchor
+      revenue_growth: {rule: best_growth_reading}
+      # the lower edge of the BNR inflation target's own tolerance band
+      inflation: {rule: anchor_band_low, anchor: inflation}
+    basis:
+      ro: "veniturile cresc cu {growth} ({growth_source}); inflația la marginea de jos a intervalului țintei BNR, {inflation} ({inflation_source})"
+      en: "revenue grows at {growth} ({growth_source}); inflation at the lower edge of the BNR target band, {inflation} ({inflation_source})"
+  - id: pesimist
+    label: {ro: "Pesimist", en: "Pessimist"}
+    in_sentence: {ro: "pesimist", en: "pessimist"}
+    levers:
+      # the BNR's own projected path, year by year; plan years after its last
+      # point hold that last point
+      inflation: {rule: dated_path, series: bnr_inflation_projection}
+      # raw materials dearer by the last twelve months' rise in manufacturing
+      # producer prices
+      raw_material_price: {rule: dated_last, series: ins_ippi_manufacturing}
+    basis:
+      ro: "inflația pe traiectoria proiectată de BNR ({path}; {inflation_source}); materia primă mai scumpă cu {raw}, cât au crescut prețurile producției industriale în industria prelucrătoare în ultimele douăsprezece luni ({raw_source})"
+      en: "inflation on the BNR's projected path ({path}; {inflation_source}); raw materials dearer by {raw}, the rise in manufacturing producer prices over the last twelve months ({raw_source})"
+
+# A saved case (the reader's own lever set) lives in the company's prefs bag
+# (org_prefs.prefs, key below), one list per company, each entry naming its
+# company; the engine reads it through the caller's own client and never
+# computes an entry that names another company.
+saved_cases:
+  prefs_key: "forecast_cases"
+  id_prefix: "saved:"
+  refusals:
+    not_found:
+      code: "case_not_found"
+      text: "no saved case {case_id} in this company's saved cases"
+    other_company:
+      code: "case_of_another_company"
+      text: "saved case {case_id} names another company, so it is not computed here"
+    malformed:
+      code: "case_malformed"
+      text: "saved case {case_id} is not a lever set this engine reads"
+
+# ── lever bases (RO / EN) ───────────────────────────────────────────────
+# Rendered per book from the engine's own readings. `sep` joins the parts.
+basis:
+  sep: " · "
+  revenue_growth:
+    book:
+      ro: "istoric {growth} ({prior_year}→{year}, cifra de afaceri din balanțele firmei)"
+      en: "history {growth} ({prior_year}→{year}, turnover in the company's own trial balances)"
+    sector_offer:
+      ro: "mediana sectorului {growth} (CAEN {caen}, {n} firme, {prior_year}→{year}, MF / data.gov.ro)"
+      en: "sector median {growth} (CAEN {caen}, {n} filers, {prior_year}→{year}, Ministry of Finance / data.gov.ro)"
+    sector:
+      ro: "fără an anterior comparabil încărcat: mediana sectorului {growth} (CAEN {caen}, {n} firme, {prior_year}→{year}, MF / data.gov.ro)"
+      en: "no comparable prior year loaded: sector median {growth} (CAEN {caen}, {n} filers, {prior_year}→{year}, Ministry of Finance / data.gov.ro)"
+    macro:
+      ro: "fără an anterior comparabil și fără mediană de sector: ancora de inflație BNR {growth}, creștere nominală la volum constant"
+      en: "no comparable prior year and no sector median: the BNR inflation anchor {growth}, a nominal continuation at constant volume"
+    convention:
+      ro: "fără istoric, fără sector și fără ancoră macro: veniturile rămân la nivelul din {year0}"
+      en: "no history, no sector and no macro anchor: revenue is held at its {year0} level"
+    sector_absent:
+      ro: "mediana sectorului nu se poate citi: {reason}"
+      en: "no sector median: {reason}"
+    sector_reasons:
+      caen_absent: {ro: "firma nu are cod CAEN în spațiul de lucru", en: "this workspace carries no CAEN code"}
+      turnover_absent: {ro: "firma nu raportează cifră de afaceri pozitivă", en: "the company reports no positive turnover"}
+      sector_not_in_dataset: {ro: "codul CAEN nu este în setul de date sectoriale", en: "the CAEN code is not in the sector dataset"}
+      insufficient_peers: {ro: "prea puține firme în sector pentru o mediană", en: "too few filers in the sector for a median"}
+      below_min_n: {ro: "prea puține firme în sector pentru o mediană", en: "too few filers in the sector for a median"}
+      ratio_not_in_dataset: {ro: "setul de date nu publică creșterea cifrei de afaceri pentru acest sector", en: "the dataset publishes no turnover growth for this sector"}
+      not_consulted: {ro: "sectorul nu a fost consultat", en: "the sector was not consulted"}
+  inflation:
+    macro:
+      ro: "ținta BNR {anchor} ±{band} (confirmată {anchor_as_of})"
+      en: "BNR target {anchor} ±{band} (confirmed {anchor_as_of})"
+    convention:
+      ro: "nicio ancoră macro pentru această jurisdicție: costurile fixe rămân la nivelul din {year0}"
+      en: "no macro anchor for this jurisdiction: fixed costs are held at their {year0} level"
+    projection:
+      ro: "proiecția BNR {path} ({source}, {published})"
+      en: "BNR projection {path} ({source}, {published})"
+    print:
+      ro: "INS: {rate} în {month} ({published})"
+      en: "INS: {rate} in {month} ({published})"
+  raw_material_price:
+    measured:
+      ro: "materii prime și consumabile (conturile {prefixes}) {amount} = {share} din costul vânzărilor de {cogs} în {year0}, deci o mișcare a prețului lor mută costul vânzărilor cu {share} din ea"
+      en: "raw materials and consumables (accounts {prefixes}) {amount} = {share} of the {cogs} cost of sales in {year0}, so a move in their price moves cost of sales by {share} of it"
+    absent:
+      ro: "costul vânzărilor din {year0} nu conține materii prime (conturile {prefixes}), deci prețul lor nu mută nimic în acest plan"
+      en: "the {year0} cost of sales carries no raw materials (accounts {prefixes}), so their price moves nothing in this plan"
+    reference:
+      ro: "INS: prețurile producției industriale în industria prelucrătoare {rate}, {month} față de anul anterior"
+      en: "INS: manufacturing producer prices {rate}, {month} on the year before"
+  wage_growth:
+    measured:
+      ro: "cheltuieli cu personalul (conturile {prefixes}) {amount} în {year0}; implicit cresc cu inflația"
+      en: "personnel cost (accounts {prefixes}) {amount} in {year0}; by default it grows with inflation"
+    absent:
+      ro: "balanța din {year0} nu are cheltuieli cu personalul (conturile {prefixes}), deci salariile nu mută nimic în acest plan"
+      en: "the {year0} trial balance carries no personnel cost (accounts {prefixes}), so wages move nothing in this plan"
+    minimum_wage:
+      ro: "salariul minim brut {from_amount} lei → {to_amount} lei de la {to_month} ({change}; {source}, {published})"
+      en: "gross minimum wage RON {from_amount} → RON {to_amount} from {to_month} ({change}; {source}, {published})"
+  energy_price:
+    measured:
+      ro: "energie și utilități (cont {prefixes}) {amount} = {share} din venituri în {year0}; partea variabilă urmează volumul"
+      en: "energy and utilities (account {prefixes}) {amount} = {share} of revenue in {year0}; its variable part follows volume"
+    absent:
+      ro: "balanța din {year0} nu are cheltuieli cu energia (cont {prefixes}), deci prețul energiei nu mută nimic în acest plan"
+      en: "the {year0} trial balance carries no energy cost (account {prefixes}), so the energy price moves nothing in this plan"
+  eur_ron:
+    stated:
+      ro: "balanța nu separă achizițiile din import de cele interne; cursul mută doar ponderea importată declarată ({share} din costul vânzărilor)"
+      en: "a trial balance does not split purchases by currency; the rate moves only the stated imported share ({share} of cost of sales)"
+    inert:
+      ro: "balanța nu separă achizițiile din import de cele interne; până declari ponderea importată, cursul nu mută nimic"
+      en: "a trial balance does not split purchases by currency; until the imported share is stated, the rate moves nothing"
+  imported_share:
+    stated:
+      ro: "nemăsurabil din balanță, declarat de tine: {share} din costul vânzărilor cumpărat în EUR"
+      en: "not measurable from a trial balance, stated by you: {share} of cost of sales bought in EUR"
+    default:
+      ro: "nemăsurabil din balanță (nicio balanță nu separă furnizorii externi); declară ponderea din costul vânzărilor cumpărată în EUR"
+      en: "not measurable from a trial balance (none splits foreign suppliers); state the share of cost of sales bought in EUR"
+  dso_days:
+    book:
+      ro: "{days} zile = creanțe comerciale {balance} / venituri {flow} × 365 ({year0})"
+      en: "{days} days = trade receivables {balance} / revenue {flow} × 365 ({year0})"
+  dio_days:
+    book:
+      ro: "{days} zile de cost al vânzărilor = stocuri {balance} / cost al vânzărilor {flow} × 365 ({year0})"
+      en: "{days} days of cost of sales = inventory {balance} / cost of sales {flow} × 365 ({year0})"
+  dpo_days:
+    book:
+      ro: "{days} zile de cost al vânzărilor = datorii comerciale {balance} / cost al vânzărilor {flow} × 365 ({year0})"
+      en: "{days} days of cost of sales = trade payables {balance} / cost of sales {flow} × 365 ({year0})"
+  days_absent:
+    ro: "nemăsurat în balanța din {year0}: soldul rămâne cel de deschidere până îl setezi"
+    en: "not measured on the {year0} trial balance: the balance is held until you set it"
+  capex:
+    maintenance:
+      ro: "convenție: investițiile înlocuiesc amortizarea de {amount} ({share} din venituri); o balanță nu arată un plan de investiții"
+      en: "convention: capital expenditure replaces the {amount} depreciation charge ({share} of revenue); a trial balance shows no investment plan"
+    none:
+      ro: "fără amortizare de înlocuit în {year0}: nu se investește nimic până setezi"
+      en: "no depreciation charge to replace in {year0}: nothing is invested until you set it"
+  interest_rate:
+    book:
+      ro: "{rate} = dobânzi {interest} / datorii purtătoare de dobândă {debt} ({year0}); aceeași rată se aplică liniei de credit"
+      en: "{rate} = interest {interest} / interest-bearing debt {debt} ({year0}); the same rate prices the credit line"
+    absent:
+      ro: "rata nu se poate măsura din balanța din {year0} (fără datorii purtătoare de dobândă): setează rata oferită de banca ta"
+      en: "the rate cannot be measured on the {year0} trial balance (no interest-bearing debt): set your bank's rate"
+    reference:
+      ro: "dacă planul trage pe linia de credit, aceasta e evaluată la rata facilității de creditare BNR, {rate} ({published}) — un minim, sub ce cere o bancă unei firme"
+      en: "if the plan draws the credit line, it is priced at the BNR lending facility rate, {rate} ({published}) — a floor, below what a bank charges a company"
+  dividend_payout:
+    none:
+      ro: "o balanță de închidere nu arată dividendele distribuite; implicit nu se distribuie nimic"
+      en: "a closing trial balance does not show distributions; by default nothing is distributed"
+  untranslated:
+    ro: "baza motorului (în engleză): {sentence}"
+    en: "{sentence}"
+
+# ── the plain-language sentence under the numbers ───────────────────────
+# Written by the ENGINE from the computed results; no AI.
+sentence:
+  frame:
+    ro: "În scenariul {case}, {cash}; {dscr}; {ebitda}."
+    en: "In the {case} case, {cash}; {dscr}; {ebitda}."
+  saved_case:
+    ro: "„{name}”"
+    en: "“{name}”"
+  funding:
+    ro: "ai nevoie de o linie de credit de până la {amount} începând din {when}"
+    en: "you need a credit line of up to {amount} starting in {when}"
+  no_funding:
+    ro: "numerarul nu scade sub zero, cu un minim de {amount} în {when}"
+    en: "cash never goes below zero, with a low of {amount} in {when}"
+  dscr_below:
+    ro: "DSCR scade sub pragul băncii: {dscr} în {year} față de {threshold}"
+    en: "DSCR falls below the bank's threshold: {dscr} in {year} against {threshold}"
+  dscr_above:
+    ro: "DSCR rămâne peste pragul băncii: {dscr} în {year} față de {threshold}"
+    en: "DSCR stays above the bank's threshold: {dscr} in {year} against {threshold}"
+  dscr_none:
+    ro: "în {year} nu există serviciu al datoriei, deci DSCR nu se calculează"
+    en: "there is no debt service in {year}, so DSCR is not computed"
+  ebitda:
+    ro: "EBITDA ajunge la {amount} în {year}, cu o marjă de {margin} față de {margin0} azi"
+    en: "EBITDA reaches {amount} in {year}, a margin of {margin} against {margin0} today"
+  ebitda_no_revenue:
+    ro: "EBITDA ajunge la {amount} în {year}"
+    en: "EBITDA reaches {amount} in {year}"
+
+# ── refusals of a cockpit request ───────────────────────────────────────
+refusals:
+  unknown_lever: {code: "unknown_lever", text: "{lever} is not a lever of this cockpit; the levers are {levers}"}
+  unknown_case: {code: "unknown_case", text: "{case} is not a case of this cockpit; the cases are {cases}"}
+  not_decimal: {code: "not_decimal", text: "{lever}: {value} is not a decimal string"}
+  out_of_range: {code: "lever_out_of_range", text: "{lever}: {value} is outside {low} to {high}"}
+  per_year_length: {code: "lever_length", text: "{lever} takes one value or one value per plan year ({years}), got {got}"}
+  scalar_only: {code: "lever_scalar", text: "{lever} holds one value for the whole plan"}
+  unset_needs_value: {code: "lever_not_measured", text: "{lever} is not measured on this book, so it has no default; set it"}
+
+# ── the statements' line labels (the bank export prints them) ───────────
+lines:
+  pl.revenue: {ro: "Cifra de afaceri", en: "Revenue"}
+  pl.cost_of_sales: {ro: "Costul vânzărilor", en: "Cost of sales"}
+  pl.operating_costs: {ro: "Cheltuieli de exploatare", en: "Operating costs"}
+  pl.other_operating_income: {ro: "Alte venituri din exploatare", en: "Other operating income"}
+  pl.ebitda: {ro: "EBITDA", en: "EBITDA"}
+  pl.depreciation: {ro: "Amortizarea imobilizărilor corporale", en: "Depreciation"}
+  pl.amortisation: {ro: "Amortizarea imobilizărilor necorporale", en: "Amortisation"}
+  pl.ebit: {ro: "Rezultat din exploatare (EBIT)", en: "Operating result (EBIT)"}
+  pl.interest_expense_debt: {ro: "Dobânzi la datorii", en: "Interest on debt"}
+  pl.interest_expense_funding_line: {ro: "Dobânzi la linia de credit", en: "Interest on the credit line"}
+  pl.interest_income: {ro: "Venituri din dobânzi", en: "Interest income"}
+  pl.other_financial_income: {ro: "Alte venituri financiare", en: "Other financial income"}
+  pl.other_financial_expense: {ro: "Alte cheltuieli financiare", en: "Other financial expense"}
+  pl.pretax_result: {ro: "Rezultat înainte de impozit", en: "Pre-tax result"}
+  pl.income_tax: {ro: "Impozit pe profit", en: "Income tax"}
+  pl.net_income: {ro: "Profit net", en: "Net profit"}
+  bs.cash: {ro: "Numerar", en: "Cash"}
+  bs.ar: {ro: "Creanțe comerciale", en: "Trade receivables"}
+  bs.inventory: {ro: "Stocuri", en: "Inventory"}
+  bs.other_current_assets: {ro: "Alte active curente", en: "Other current assets"}
+  bs.ppe_net: {ro: "Imobilizări corporale", en: "Property, plant and equipment"}
+  bs.intangibles_net: {ro: "Imobilizări necorporale", en: "Intangible assets"}
+  bs.investment_property: {ro: "Investiții imobiliare", en: "Investment property"}
+  bs.other_non_current_assets: {ro: "Alte active imobilizate", en: "Other non-current assets"}
+  bs.ap: {ro: "Datorii comerciale", en: "Trade payables"}
+  bs.other_current_liabilities: {ro: "Alte datorii curente", en: "Other current liabilities"}
+  bs.st_debt: {ro: "Datorii financiare pe termen scurt", en: "Short-term debt"}
+  bs.revolver: {ro: "Linie de credit (finanțare necesară)", en: "Credit line (funding need)"}
+  bs.lt_debt: {ro: "Datorii financiare pe termen lung", en: "Long-term debt"}
+  bs.other_non_current_liabilities: {ro: "Alte datorii pe termen lung", en: "Other non-current liabilities"}
+  bs.equity_contributed: {ro: "Capital social și prime", en: "Contributed equity"}
+  bs.equity_reserves: {ro: "Rezerve", en: "Reserves"}
+  bs.equity_retained: {ro: "Rezultat reportat și al exercițiului", en: "Retained earnings"}
+  bs.equity_other: {ro: "Alte capitaluri", en: "Other equity"}
+  bs_totals.assets: {ro: "Total active", en: "Total assets"}
+  bs_totals.equity: {ro: "Total capitaluri proprii", en: "Total equity"}
+  bs_totals.equity_plus_liabilities: {ro: "Total capitaluri și datorii", en: "Total equity and liabilities"}
+  cf.net_income: {ro: "Profit net", en: "Net profit"}
+  cf.depreciation: {ro: "Amortizare corporală", en: "Depreciation"}
+  cf.amortisation: {ro: "Amortizare necorporală", en: "Amortisation"}
+  cf.change_in_receivables: {ro: "Variația creanțelor", en: "Change in receivables"}
+  cf.change_in_inventory: {ro: "Variația stocurilor", en: "Change in inventory"}
+  cf.change_in_payables: {ro: "Variația datoriilor comerciale", en: "Change in payables"}
+  cf.cash_from_operating: {ro: "Numerar din exploatare", en: "Cash from operations"}
+  cf.capital_expenditure: {ro: "Investiții în imobilizări corporale", en: "Capital expenditure"}
+  cf.intangible_additions: {ro: "Investiții în imobilizări necorporale", en: "Intangible additions"}
+  cf.cash_from_investing: {ro: "Numerar din investiții", en: "Cash from investing"}
+  cf.debt_drawdowns: {ro: "Trageri de credite", en: "Debt drawdowns"}
+  cf.debt_repayments: {ro: "Rambursări de credite", en: "Debt repayments"}
+  cf.dividends_paid: {ro: "Dividende plătite", en: "Dividends paid"}
+  cf.funding_line_movement: {ro: "Mișcarea liniei de credit", en: "Credit line movement"}
+  cf.cash_from_financing: {ro: "Numerar din finanțare", en: "Cash from financing"}
+  cf.net_change_in_cash: {ro: "Variația numerarului", en: "Net change in cash"}
+  cf.opening_cash: {ro: "Numerar la început", en: "Opening cash"}
+  cf.closing_cash: {ro: "Numerar la sfârșit", en: "Closing cash"}
+
+# A year-0 cell of the statements where the actual book does not carry the
+# line the way the projection splits it (depreciation apart from
+# amortisation, debt interest apart from the credit line): a stated refusal,
+# never a dash or a zero.
+year0_not_split:
+  code: "year0_not_split"
+  ro: "balanța anului de bază nu separă această linie așa cum o separă proiecția"
+  en: "the base year's trial balance does not split this line the way the projection does"
+
+# ── the bridge from base (gate F9) ──────────────────────────────────────
+# Every step is a difference of cumulative served flows (case minus base)
+# over the window; they sum exactly to the difference in closing cash
+# because opening cash is the same in both and the cash-flow statement
+# closes every period.
+bridge:
+  steps:
+    - {id: revenue, label: {ro: "Venituri", en: "Revenue"}}
+    - {id: costs, label: {ro: "Costuri de exploatare", en: "Operating costs"}}
+    - {id: ebitda, subtotal: true, label: {ro: "EBITDA", en: "EBITDA"}}
+    - {id: working_capital, label: {ro: "Capital de lucru", en: "Working capital"}}
+    - {id: capex, label: {ro: "Investiții", en: "Capital expenditure"}}
+    - {id: interest_tax, label: {ro: "Dobânzi și impozit", en: "Interest and tax"}}
+    - {id: dividends, label: {ro: "Dividende", en: "Dividends"}}
+    - {id: debt, label: {ro: "Datorii și linia de credit", en: "Debt and the credit line"}}
+    - {id: cash, total: true, label: {ro: "Numerar la sfârșit", en: "Closing cash"}}
+
+# The months, for the dates the sentence and the numbers print.
+months:
+  ro: ["ianuarie", "februarie", "martie", "aprilie", "mai", "iunie", "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie"]
+  en: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+
+# How money prints in the sentence and the four numbers: millions above the
+# unit, thousands below it, one decimal.
+money_display:
+  million: {ro: "{value} mil. lei", en: "RON {value}M"}
+  thousand: {ro: "{value} mii lei", en: "RON {value}k"}
+
+# ── the bank export (POST .../cockpit/export) ───────────────────────────
+# The DATA the CFO-Report PDF pipeline prints: the cockpit payload itself
+# and an assumptions page built from it. The page renders it in the report's
+# print style and posts the HTML to /api/report/pdf; no figure is computed
+# outside the engine.
+export:
+  title: {ro: "Prognoză financiară pentru bancă", en: "Financial forecast for the bank"}
+  assumptions_title: {ro: "Ipoteze", en: "Assumptions"}
+  sections:
+    numbers: {ro: "Cele patru cifre", en: "The four numbers"}
+    chart: {ro: "EBITDA și numerar", en: "EBITDA and cash"}
+    statements: {ro: "Situații proiectate", en: "Projected statements"}
+    bridge: {ro: "Punte față de scenariul de bază", en: "Bridge from the base case"}
+    levers: {ro: "Pârghii și baza lor", en: "Levers and their basis"}
+    cost_behaviour: {ro: "Costuri fixe și variabile (măsurate din balanță)", en: "Fixed and variable costs (measured from the trial balance)"}
+    conventions: {ro: "Convenții ale modelului", en: "Model conventions"}
+    not_modelled: {ro: "Ce nu modelează această prognoză", en: "What this forecast does not model"}
+    sources: {ro: "Surse externe", en: "External sources"}
+  projected_note:
+    ro: "Toate cifrele marcate ◇ sunt proiectate de motor din balanța de verificare a firmei și din ipotezele de mai jos; nu sunt date raportate."
+    en: "Every figure marked ◇ is projected by the engine from the company's trial balance and the assumptions below; none is a reported figure."
+  origin:
+    default: {ro: "implicit", en: "default"}
+    case: {ro: "din scenariu", en: "from the case"}
+    user: {ro: "setat de utilizator", en: "set by the user"}
+  pools:
+    cost_of_sales: {ro: "Costul vânzărilor", en: "Cost of sales"}
+    personnel: {ro: "Personal", en: "Personnel"}
+    energy_utilities: {ro: "Energie și utilități", en: "Energy and utilities"}
+    rent_insurance: {ro: "Chirii și asigurări", en: "Rent and insurance"}
+    transport_logistics: {ro: "Transport și logistică", en: "Transport and logistics"}
+    third_party_services: {ro: "Servicii terți", en: "Third-party services"}
+    other_operating: {ro: "Alte cheltuieli de exploatare", en: "Other operating costs"}
+    materials_non_inventory: {ro: "Materiale nestocate", en: "Non-inventory materials"}
+    unallocated_operating: {ro: "Cheltuieli nealocate", en: "Unallocated operating costs"}
+    operating_costs: {ro: "Cheltuieli de exploatare (nedivizate)", en: "Operating costs (not split)"}

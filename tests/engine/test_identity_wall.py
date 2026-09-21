@@ -175,6 +175,11 @@ DECLARED = {
     # forecast-scenarios-live (R6): the same loader and project_levers as
     # /recompute, with an engine-compiled template; writes no table.
     ("POST", "/api/forecast/{period_id}/scenario"): "read-only compute: projects a period the caller's membership reads under a named template; writes no table",
+    # forecast-scenarios-live (the cockpit): the same loader, membership
+    # resolution and project_levers; it READS the company's own org_prefs
+    # row for a saved case and writes no table.
+    ("POST", "/api/forecast/{period_id}/cockpit"): "read-only compute: projects a period the caller's membership reads under a lever set; reads the resolved company's org_prefs for a saved case; writes no table",
+    ("POST", "/api/forecast/{period_id}/cockpit/export"): "read-only compute: the cockpit payload plus its assumptions page for the bank export; writes no table",
     # operator-gated: an engine bearer / admin allowlist on a VERIFIED id
     ("POST", "/api/admin/calibration/rules/{rule_id}/approve"): "operator: _require_engine_admin (engine bearer)",
     ("POST", "/api/admin/calibration/rules/{rule_id}/reject"): "operator: _require_engine_admin (engine bearer)",
