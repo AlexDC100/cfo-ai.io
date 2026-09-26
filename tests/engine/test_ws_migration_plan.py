@@ -585,12 +585,49 @@ def test_every_moved_document_gets_its_object_copied_under_the_new_workspace(wor
             continue
         assert d["storage_path"].startswith(d["org_id"] + "/")
         assert d["storage_path"].split("/", 1)[1] == old["storage_path"].split("/", 1)[1]
-        if world["facts"].get(d["id"]) and world["facts"][d["id"]].object_exists is False:
-            assert d["id"] not in copies
+        op = copies[d["id"]]
+        assert (op["from_path"], op["from_org"], op["to_path"], op["to_org"]) == (
+            old["storage_path"], old["org_id"], d["storage_path"], d["org_id"])
+        f = world["facts"].get(d["id"])
+        if f and f.object_exists is False:
+            # missing at the snapshot and when planning: the copy is
+            # attempted, not required (rule 9) — the only way a row moves
+            # without a file
+            assert f.recorded_exists is False
+            assert op["must_exist"] is False and op["expect_sha256"] is None
         else:
-            op = copies[d["id"]]
-            assert (op["from_path"], op["from_org"], op["to_path"], op["to_org"]) == (
-                old["storage_path"], old["org_id"], d["storage_path"], d["org_id"])
+            assert op["must_exist"] is True and op["expect_sha256"] == f.sha256
+
+
+def test_a_document_whose_object_the_snapshot_recorded_but_planning_cannot_read_blocks(world):
+    """Rule 9 (verifier p6, 2026-09-26): a transient 404 in the facts pass
+    on a document whose identity comes from a rule dropped its copy and
+    the row still moved. The snapshot's inventory says the object was
+    there: blocking, and no row operation for that document."""
+    tables, storage, rules = build_world()
+    facts = dict(world["facts"])
+    f = facts["q-carnex-src"]
+    assert f.object_exists is True and f.recorded_exists is True
+    facts["q-carnex-src"] = DocFacts(identity=f.identity, sha256=None, object_exists=False,
+                                     read_error="storage object missing", recorded_exists=True)
+    plan = build_plan(tables, facts, migration_date=DATE)
+    assert any(b.startswith("document q-carnex-src ") and "could not be read when planning" in b
+               and "inventory recorded it" in b for b in plan.blocking), plan.blocking
+    assert not [op for op in plan.ops if op.get("table") == "documents" and op.get("key") == {"id": "q-carnex-src"}]
+    assert not [op for op in plan.ops if op["op"] == "copy_object" and op["document_id"] == "q-carnex-src"]
+    # no inventory at all: the row's own size says it had an object
+    facts["q-carnex-src"] = DocFacts(identity=f.identity, sha256=None, object_exists=False,
+                                     read_error="storage object missing")
+    plan = build_plan(tables, facts, migration_date=DATE)
+    assert any(b.startswith("document q-carnex-src ") and "sized" in b for b in plan.blocking), plan.blocking
+    # the inventory says it was missing then too: the row moves, the copy is opportunistic
+    facts["q-carnex-src"] = DocFacts(identity=f.identity, sha256=None, object_exists=False,
+                                     read_error="storage object missing", recorded_exists=False)
+    plan = build_plan(tables, facts, migration_date=DATE)
+    assert plan.blocking == []
+    op = next(op for op in plan.ops if op["op"] == "copy_object" and op["document_id"] == "q-carnex-src")
+    assert op["must_exist"] is False
+    assert any("q-carnex-src" in w and "was missing when the snapshot was taken" in w for w in plan.warnings)
 
 
 # ── rules in isolation ─────────────────────────────────────────────────

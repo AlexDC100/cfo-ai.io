@@ -5,8 +5,9 @@ REFUSES every DELETE.
 
 The double is not production: it cannot prove what PostgREST accepts. What
 these prove is the scripts' own contract — the dry-run writes nothing, the
-execute refuses on drift / a different plan, applies exactly the plan, is a
-no-op when re-run, survives an interruption, the recount agrees, and the
+execute refuses on drift / a different plan / no reviewed plan sha, applies
+exactly the plan, is a no-op when re-run, survives an interruption, the
+recount agrees (rows, copies, every moved document's object), and the
 restore puts every snapshot row back without a single delete.
 """
 from __future__ import annotations
@@ -19,10 +20,15 @@ from pathlib import Path
 import pytest
 
 from engine.workspaces import pgrest_io
-from engine.workspaces.migration_plan import cross_workspace_links, empty_live_periods, holding_org_id
+from engine.workspaces.migration_plan import (
+    cross_workspace_links,
+    empty_live_periods,
+    holding_org_id,
+    new_org_id,
+)
 from engine.workspaces.rowstore import OpConflict, pk_for, row_key, rows_equal
 
-from ws_migration_fixture import OWNER, FakeSupabase, build_world
+from ws_migration_fixture import BETA, OWNER, FakeSupabase, build_world
 
 REPO = Path(__file__).resolve().parents[2]
 RUN = "2026-09-21T15:00:00+00:00"
@@ -66,8 +72,18 @@ def _migrate(env, *extra, snap=None):
                               now=RUN, registry=None)
 
 
+def _plan_path(env):
+    return str(env["tmp"] / "out" / "plan_2026-09-21.json")
+
+
+def _plan(env):
+    return json.loads(Path(_plan_path(env)).read_text())
+
+
 def _plan_sha(env):
-    return json.loads((env["tmp"] / "out" / "plan_2026-09-21.json").read_text())["ops_sha256"]
+    return _plan(env)["ops_sha256"]
+
+
 
 
 # ── snapshot ───────────────────────────────────────────────────────────
@@ -143,9 +159,26 @@ def test_a_second_run_on_a_fresh_snapshot_does_nothing(env):
     assert _migrate(env, "--execute", "--expect-plan-sha", _plan_sha(env), snap=snap) == 0
     writes = len(env["fake"].writes)
     snap2 = _snapshot(env, "snap2.json.gz")
-    assert _migrate(env, "--execute", snap=snap2) == 0
+    assert _migrate(env, snap=snap2) == 0      # the empty plan, reviewed like any other
+    assert _migrate(env, "--execute", "--expect-plan-sha", _plan_sha(env), snap=snap2) == 0
     assert any("NOTHING TO DO" in l for l in env["lines"])
     assert len(env["fake"].writes) == writes
+
+
+def test_execute_refuses_without_the_reviewed_plan_sha(env):
+    """Verifier p6-g (2026-09-26): the plan is recomputed at execute time,
+    and one transient storage 404 in that facts pass dropped a copy from it
+    (604 ops instead of the reviewed 605); with --expect-plan-sha optional
+    the un-reviewed plan ran and a document row moved to a path with no
+    object. --execute without the reviewed sha is refused before anything
+    is read."""
+    snap = _snapshot(env)
+    assert _migrate(env, snap=snap) == 0
+    with pytest.raises(SystemExit, match="--expect-plan-sha"):
+        _migrate(env, "--execute", snap=snap)
+    with pytest.raises(SystemExit, match="--expect-plan-sha"):
+        _migrate(env, "--execute", "--resume", snap=snap)
+    assert env["fake"].writes == []
 
 
 def test_an_interrupted_run_resumes_to_the_same_result(env, monkeypatch):
@@ -331,9 +364,138 @@ def test_execute_refuses_a_snapshot_of_another_database(env):
     raw["source"] = "https://another-project.supabase.co"
     with gzip.open(snap_path, "wb") as fh:
         fh.write(json.dumps(raw).encode("utf-8"))
-    assert _migrate(env, "--execute", "--resume", snap=snap_path) == 2
+    assert _migrate(env, "--execute", "--resume", "--expect-plan-sha", "0" * 64, snap=snap_path) == 2
     assert any(l.startswith("SOURCE MISMATCH") for l in env["lines"])
     assert env["fake"].writes == []
+
+
+def test_a_document_whose_object_cannot_be_read_when_planning_blocks_the_plan(env):
+    """Verifier p6 (2026-09-26): a document identified by an operator rule
+    keeps its identity without its bytes, so a 404 during the facts pass
+    silently dropped its copy_object (the planner's "object_exists is
+    False -> no copy, row still moves" branch) while the row still moved.
+    The snapshot's object inventory recorded the object: the plan is
+    BLOCKING for that document — the row does not move without its file —
+    and --execute refuses."""
+    snap = _snapshot(env)
+    fake = env["fake"]
+    assert pgrest_io.load_snapshot(snap)["objects"]["q-carnex-src"]["exists"] is True
+    gone = fake.objects.pop("documents/org-qa/uploads/q-carnex-src.xlsx")   # a 404 from now on
+    assert _migrate(env, snap=snap) == 0
+    plan = _plan(env)
+    blocking = [b for b in plan["blocking"] if b.startswith("document q-carnex-src ")]
+    assert blocking and "could not be read when planning" in blocking[0] \
+        and "inventory recorded it" in blocking[0], plan["blocking"]
+    assert not [op for op in plan["ops"] if op.get("table") == "documents" and op.get("key") == {"id": "q-carnex-src"}]
+    assert not [op for op in plan["ops"] if op["op"] == "copy_object" and op["document_id"] == "q-carnex-src"]
+    assert _migrate(env, "--execute", "--expect-plan-sha", plan["ops_sha256"], snap=snap) == 2
+    assert any("REFUSED" in l and "blocking" in l for l in env["lines"])
+    assert fake.writes == []
+    # the object is back: the plan moves the document with a verified copy
+    fake.objects["documents/org-qa/uploads/q-carnex-src.xlsx"] = gone
+    assert _migrate(env, snap=snap) == 0
+    plan = _plan(env)
+    assert plan["blocking"] == []
+    copy_op = next(op for op in plan["ops"] if op["op"] == "copy_object" and op["document_id"] == "q-carnex-src")
+    assert copy_op["expect_sha256"] and copy_op["must_exist"] is True
+    # ... and a transient 404 during the EXECUTE-time facts pass changes the
+    # plan (blocking, fewer ops): the reviewed sha refuses it, nothing written
+    sha = plan["ops_sha256"]
+    real = fake.handle
+    hits = {"n": 0}
+
+    def transient(req):
+        if req.method == "POST" and req.url.path.endswith("/object/sign/documents/org-qa/uploads/q-carnex-src.xlsx"):
+            hits["n"] += 1
+            if hits["n"] == 1:
+                import httpx
+                return httpx.Response(400, json={"statusCode": "404", "error": "not_found"})
+        return real(req)
+
+    fake.handle = transient
+    assert _migrate(env, "--execute", "--expect-plan-sha", sha, snap=snap) == 2
+    fake.handle = real
+    assert fake.writes == []
+    assert any(l.startswith("REFUSED") for l in env["lines"])
+
+
+def test_a_document_the_snapshot_recorded_without_an_object_still_moves(env):
+    """The one case a row moves without a file: the object was missing when
+    the snapshot was taken AND when planning (a failed upload whose object
+    never landed). Its copy is opportunistic (must_exist false), the run
+    logs it, and the recount does not require the object."""
+    snap = _snapshot(env)
+    assert pgrest_io.load_snapshot(snap)["objects"]["d-beta-fail-2"]["exists"] is False
+    assert _migrate(env, snap=snap) == 0
+    plan = _plan(env)
+    copy_op = next(op for op in plan["ops"] if op["op"] == "copy_object" and op["document_id"] == "d-beta-fail-2")
+    assert copy_op["must_exist"] is False and copy_op["expect_sha256"] is None
+    assert any("d-beta-fail-2" in w and "was missing when the snapshot was taken" in w for w in plan["warnings"])
+    assert _migrate(env, "--execute", "--expect-plan-sha", plan["ops_sha256"], snap=snap) == 0
+    assert any("[" in l and "d-beta-fail-2" in l and "row still moves" in l for l in env["lines"])
+    assert any(l.startswith("RECOUNT: production equals the plan") for l in env["lines"])
+    moved = next(d for d in env["fake"].tables["documents"] if d["id"] == "d-beta-fail-2")
+    assert moved["org_id"] == new_org_id(OWNER, "cui:" + BETA)
+
+
+def test_a_copy_the_snapshot_recorded_that_is_gone_at_copy_time_stops_the_run(env, monkeypatch):
+    """A copy without a sha (the facts pass never read the bytes — a
+    non-financial source, say) whose source is gone at copy time: the
+    inventory recorded the object, so the run stops before any document
+    row moves — never "row still moves"."""
+    snap = _snapshot(env)
+    real_build = migration_cli.build_plan
+
+    def unread(*a, **kw):
+        built = real_build(*a, **kw)
+        built.ops = [dict(op, expect_sha256=None) if op["op"] == "copy_object" and op["document_id"] == "q-carnex-src"
+                     else op for op in built.ops]
+        return built
+
+    monkeypatch.setattr(migration_cli, "build_plan", unread)
+    assert _migrate(env, snap=snap) == 0
+    sha = _plan_sha(env)
+    op = next(op for op in _plan(env)["ops"] if op["op"] == "copy_object" and op["document_id"] == "q-carnex-src")
+    assert op["expect_sha256"] is None and op["must_exist"] is True
+    real = pgrest_io.PgRest.download
+    seen = {"n": 0}
+
+    def vanishing(self, bucket, path, *, org_id):
+        if path == "org-qa/uploads/q-carnex-src.xlsx":
+            seen["n"] += 1
+            if seen["n"] > 1:          # the facts pass got it; the copy does not
+                return None
+        return real(self, bucket, path, org_id=org_id)
+
+    monkeypatch.setattr(pgrest_io.PgRest, "download", vanishing)
+    with pytest.raises(OpConflict, match="q-carnex-src.xlsx: the object is gone, and the snapshot recorded it present"):
+        _migrate(env, "--execute", "--expect-plan-sha", sha, snap=snap)
+    assert not [w for w in env["fake"].writes if w[0] == "patch" and w[1] == "documents"]
+
+
+def test_the_recount_checks_every_moved_documents_object_not_only_the_planned_copies(env, monkeypatch):
+    """PLANT the p6 shape at the recount: a plan that LOST a copy (its copy
+    op stripped) but still moves the row. 8ff706e3's recount verified the
+    planned copies only, so it said "production equals the plan" while the
+    document pointed at a path with nothing under it. Every moved
+    document's storage_path must resolve."""
+    snap = _snapshot(env)
+    real_build = migration_cli.build_plan
+
+    def losing_a_copy(*a, **kw):
+        built = real_build(*a, **kw)
+        built.ops = [op for op in built.ops
+                     if not (op["op"] == "copy_object" and op["document_id"] == "q-carnex-src")]
+        return built
+
+    monkeypatch.setattr(migration_cli, "build_plan", losing_a_copy)
+    assert _migrate(env, snap=snap) == 0
+    assert _migrate(env, "--execute", "--expect-plan-sha", _plan_sha(env), snap=snap) == 1
+    moved = next(d for d in env["fake"].tables["documents"] if d["id"] == "q-carnex-src")
+    assert moved["org_id"] != "org-qa" and ("documents/" + moved["storage_path"]) not in env["fake"].objects
+    assert any(l.startswith("RECOUNT: FAILED") for l in env["lines"])
+    assert any("MISMATCH: storage" in l and "q-carnex-src" in l and "no object" in l for l in env["lines"]), \
+        "\n".join(env["lines"][-12:])
 
 
 # ── restore ────────────────────────────────────────────────────────────

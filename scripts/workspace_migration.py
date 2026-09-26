@@ -7,11 +7,12 @@
     #    to Supabase; the plan / facts / report land in --out-dir)
     python3 scripts/workspace_migration.py --snapshot /app/data/ws_migration/snap.json.gz \
         --known-identities /app/data/ws_migration/known_identities.json
-    # 3. execute exactly the reviewed plan
+    # 3. execute exactly the reviewed plan (--expect-plan-sha is required)
     python3 scripts/workspace_migration.py --execute --snapshot /app/data/ws_migration/snap.json.gz \
         --known-identities /app/data/ws_migration/known_identities.json --expect-plan-sha <sha>
-    # rollback
-    python3 scripts/db_restore.py /app/data/ws_migration/snap.json.gz --apply --tables migration
+    # rollback: undo exactly that plan's operations (dry-run first)
+    python3 scripts/db_restore.py /app/data/ws_migration/snap.json.gz \
+        --plan /app/data/ws_migration/plan_<date>.json [--apply]
 
 --dry-run (the default) identifies every stored document from its own bytes
 (``engine.workspaces.company_identity``), plans the migration
@@ -22,16 +23,21 @@
 --execute refuses unless: the snapshot exists and ``db_snapshot --verify``
 would call it EQUAL to production (no drift since the dry-run — override
 only with --resume after an interrupted run), the recomputed plan's
-operations hash equals --expect-plan-sha (when given), and the plan has no
-blocking item (a document mid-analysis). It then applies the operations in
-order — workspaces + memberships + org_prefs, storage copies, period-scoped
-rows, periods, documents, re-dates, workspace archives, user_prefs — reading
+operations hash equals --expect-plan-sha (REQUIRED: the plan is recomputed
+at execute time, and a transient storage error during that recomputation
+once dropped a copy from it — an un-reviewed plan never runs), and the
+plan has no blocking item (a document mid-analysis, a document whose
+object could not be read). It then applies the operations in order —
+workspaces + memberships + org_prefs, storage copies, period-scoped rows,
+periods, documents, re-dates, workspace archives, user_prefs — reading
 every row before writing it (an op already in effect is skipped, so a
 re-run is a no-op; a row in neither the planned-from nor the planned-to
 state stops the run). Finally it RE-READS production and compares every
 row the plan touched, and every touched table's row count, with the plan's
-expected post-state: exit 1 with the diff otherwise. Rows the plan did not
-touch that changed meanwhile are reported as drift.
+expected post-state, and checks that every copied object holds the bytes
+the plan read and that EVERY moved document's storage_path resolves: exit
+1 with the diff otherwise. Rows the plan did not touch that changed
+meanwhile are reported as drift.
 
 Never: a DELETE of a row or a storage object, a write to subscriptions /
 user_usage / billing_events / auth, a Stripe or Anthropic call.
@@ -44,7 +50,7 @@ import json
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence
 
 
 def _add_src_to_path() -> None:
@@ -121,9 +127,10 @@ def open_registry(path: Optional[str], disabled: bool) -> Any:
 
 
 def compute_facts(db: pgrest_io.PgRest, tables: Mapping[str, List[Dict[str, Any]]], *,
-                  registry: Any, rules: Sequence[Mapping[str, Any]], log: Callable[[str], None]
-                  ) -> Dict[str, DocFacts]:
-    """Download every financial document (GET only) and identify it."""
+                  registry: Any, rules: Sequence[Mapping[str, Any]], log: Callable[[str], None],
+                  objects: Optional[Mapping[str, Mapping[str, Any]]] = None) -> Dict[str, DocFacts]:
+    """Download every financial document (GET only) and identify it.
+    ``objects`` is the snapshot's storage object inventory."""
     def fetch(d: Mapping[str, Any]):
         path = d.get("storage_path")
         if not path:
@@ -137,7 +144,39 @@ def compute_facts(db: pgrest_io.PgRest, tables: Mapping[str, List[Dict[str, Any]
         return content, True, None
 
     return facts_from_documents(tables, fetch, registry=registry, rules=rules,
-                                log=lambda m: log("  " + m))
+                                log=lambda m: log("  " + m), objects=objects)
+
+
+def moved_objects_missing(db: pgrest_io.PgRest, ops: Sequence[Mapping[str, Any]],
+                          missing_sources: Iterable[str]) -> List[str]:
+    """Every document the plan MOVED whose new ``storage_path`` does not
+    resolve — not only the planned copies: a plan that lost a copy (a
+    transient storage error in its facts pass) still moved the row, and the
+    copy check alone said nothing (verifier p6, 2026-09-26). Documents whose
+    source the snapshot recorded missing and the copy step found missing
+    again (``missing_sources``) are the one exception — they never had a
+    file to move."""
+    exempt = set(missing_sources)
+    sources = {op["document_id"]: op["from_path"] for op in ops if op["op"] == "copy_object"}
+    out: List[str] = []
+    for op in ops:
+        if op["op"] != "update" or op.get("table") != "documents" or "storage_path" not in (op.get("set") or {}):
+            continue
+        did = str(op["key"].get("id"))
+        path = op["set"]["storage_path"]
+        if sources.get(did) in exempt:
+            continue
+        org = op["set"].get("org_id") or str(path).split("/", 1)[0]
+        try:
+            ok = db.object_exists("documents", path, org_id=str(org))
+        except Exception as exc:  # noqa: BLE001 — a check that cannot answer is a failure
+            ok = False
+            out.append("storage %s: could not be checked for document %s (%s: %s)"
+                       % (path, did, type(exc).__name__, str(exc)[:120]))
+            continue
+        if not ok:
+            out.append("storage %s: the moved document %s points at a path with no object" % (path, did))
+    return out
 
 
 # ── the post-state check ───────────────────────────────────────────────
@@ -281,12 +320,16 @@ def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=p
     ap.add_argument("--migration-date", help="YYYY-MM-DD for the holding workspace name "
                                              "(default: the snapshot's date)")
     ap.add_argument("--out-dir", default=DEFAULT_OUT_DIR)
-    ap.add_argument("--expect-plan-sha", help="refuse to execute unless the plan hashes to this")
+    ap.add_argument("--expect-plan-sha", help="the reviewed plan's ops sha256 (required with --execute): "
+                                              "refuse unless the recomputed plan hashes to this")
     ap.add_argument("--resume", action="store_true",
                     help="execute although production drifted from the snapshot (an interrupted run)")
     args = ap.parse_args(argv)
     if args.execute and not args.snapshot:
         raise SystemExit("--execute needs --snapshot")
+    if args.execute and not args.expect_plan_sha:
+        raise SystemExit("--execute needs --expect-plan-sha <the reviewed plan's ops sha256> — the plan is "
+                         "recomputed at execute time and only the reviewed one may run")
 
     if client_factory is None:
         from engine.api import _supabase
@@ -326,8 +369,10 @@ def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=p
                     return 2
 
         rules = load_known_identities(args.known_identities)
-        facts = compute_facts(db, tables, registry=reg, rules=rules, log=out)
-        plan = build_plan(tables, facts, migration_date=date, pks=pks, stale_before=stale_before)
+        objects = snap.get("objects")
+        facts = compute_facts(db, tables, registry=reg, rules=rules, log=out, objects=objects)
+        plan = build_plan(tables, facts, migration_date=date, pks=pks, stale_before=stale_before,
+                          objects=objects)
         report = render_report(plan)
         out(report)
 
@@ -355,7 +400,7 @@ def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=p
             out("DRY-RUN: nothing was written to production.")
             return 0
 
-        if args.expect_plan_sha and args.expect_plan_sha != plan.ops_sha256():
+        if args.expect_plan_sha != plan.ops_sha256():
             out("REFUSED: plan sha %s is not the reviewed %s" % (plan.ops_sha256(), args.expect_plan_sha))
             return 2
         if plan.blocking:
@@ -417,6 +462,8 @@ def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=p
                 check["problems"].append("storage %s: copy holds sha256 %s, the plan read %s (document %s)"
                                          % (op["to_path"], hashlib.sha256(got).hexdigest()[:16], want[:16],
                                             op.get("document_id")))
+        # Every MOVED document's path resolves — planned copy or not.
+        check["problems"].extend(moved_objects_missing(db, plan.ops, done["missing_objects"]))
         g4 = empty_live_periods(current, current_month=date[:7])
         links = cross_workspace_links(current)
         # A period whose source is trashed / in another workspace is one
@@ -436,8 +483,8 @@ def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=p
         for p in check["problems"]:
             out("  MISMATCH: %s" % p)
         if check["problems"]:
-            out("RECOUNT: FAILED — %d mismatch(es); rollback: db_restore.py %s --apply --tables migration"
-                % (len(check["problems"]), args.snapshot))
+            out("RECOUNT: FAILED — %d mismatch(es); rollback: db_restore.py %s --plan %s [--apply]"
+                % (len(check["problems"]), args.snapshot, out_dir / ("plan_%s.json" % date)))
             return 1
         out("RECOUNT: production equals the plan (%d drift line(s) outside it)" % len(check["drift"]))
         return 0

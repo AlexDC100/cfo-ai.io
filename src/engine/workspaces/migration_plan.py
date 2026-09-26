@@ -111,6 +111,18 @@ data would change what the other members see).
    workspace keeps its ``active_period_label`` and has
    ``active_period_id`` cleared — the next message grounds it again.
 
+9. A document that changes workspace takes its storage object with it:
+   a ``copy_object`` carrying the sha256 the facts pass read, so the copy
+   step stops before any row moves if the object is gone or different by
+   then. A document whose bytes the facts pass could NOT read — a 404, a
+   storage error — while the snapshot's object inventory (``db_snapshot``
+   ``objects``, or, without one, a ``size_bytes`` above zero) says it had
+   an object, makes the plan BLOCKING: a transient storage error once
+   dropped a copy from the plan and the row moved to a path with nothing
+   under it (verifier p6, 2026-09-26). Only a document the inventory ALSO
+   recorded as missing moves without a file (its copy is opportunistic:
+   ``must_exist`` false).
+
 Nothing is ever hard-deleted; Stripe, auth and billing tables are never
 touched; ``chat_messages`` is never written, and a ``chat_threads`` row
 only ever has its ``org_id`` (rule 7) and ``active_period_id`` (rule 8)
@@ -163,6 +175,9 @@ class DocFacts:
     #: True / False when the storage object was (not) found, None unknown.
     object_exists: Optional[bool] = None
     read_error: Optional[str] = None
+    #: What the SNAPSHOT's object inventory said (``db_snapshot`` objects):
+    #: True / False, None when there was no inventory or it could not ask.
+    recorded_exists: Optional[bool] = None
 
     @classmethod
     def coerce(cls, value: Any) -> "DocFacts":
@@ -176,13 +191,14 @@ class DocFacts:
                 ident = CompanyIdentity.from_dict(ident)
             return cls(identity=ident, sha256=value.get("sha256"),
                        object_exists=value.get("object_exists"),
-                       read_error=value.get("read_error"))
+                       read_error=value.get("read_error"),
+                       recorded_exists=value.get("recorded_exists"))
         return cls()
 
     def to_dict(self) -> Dict[str, Any]:
         return {"identity": self.identity.to_dict() if self.identity else None,
                 "sha256": self.sha256, "object_exists": self.object_exists,
-                "read_error": self.read_error}
+                "read_error": self.read_error, "recorded_exists": self.recorded_exists}
 
 
 @dataclass
@@ -264,11 +280,14 @@ class _Planner:
     def __init__(self, tables: Mapping[str, List[Mapping[str, Any]]],
                  facts: Mapping[str, Any], *, migration_date: str,
                  pks: Optional[Mapping[str, Sequence[str]]] = None,
-                 stale_before: Optional[str] = None) -> None:
+                 stale_before: Optional[str] = None,
+                 objects: Optional[Mapping[str, Mapping[str, Any]]] = None) -> None:
         self.t = tables
         self.pks = pks
         self.date = migration_date
         self.stale_before = stale_before
+        #: The snapshot's storage object inventory (``db_snapshot`` objects).
+        self.objects = objects
         self.plan = Plan(migration_date=migration_date)
         self.facts: Dict[str, DocFacts] = {str(k): DocFacts.coerce(v) for k, v in (facts or {}).items()}
 
@@ -345,6 +364,22 @@ class _Planner:
         d = self.docs.get(doc_id) or {}
         f = self.facts.get(doc_id)
         return d.get("content_hash") or (f.sha256 if f else None)
+
+    def recorded_exists(self, doc_id: str) -> Optional[bool]:
+        """Whether the document's storage object existed when the SNAPSHOT
+        was taken: the facts' record, else the inventory handed to the
+        planner, else — no inventory at all — the row's own ``size_bytes``
+        (a document sized above zero had an object). None: unknown."""
+        f = self.facts.get(doc_id)
+        if f is not None and f.recorded_exists is not None:
+            return f.recorded_exists
+        if self.objects is not None:
+            inv = self.objects.get(doc_id)
+            if inv is not None and inv.get("exists") is not None:
+                return bool(inv["exists"])
+            return None
+        d = self.docs.get(doc_id) or {}
+        return (d.get("size_bytes") or 0) > 0
 
     def status(self, doc_id: str) -> str:
         d = self.docs[doc_id]
@@ -1186,13 +1221,39 @@ class _Planner:
                     new_path = "%s/%s" % (final, rest)
                     patch["storage_path"] = new_path
                     f = self.facts.get(did)
-                    if not (f and f.object_exists is False):
-                        # expect_sha256: the facts pass READ this object; the
-                        # copy must find exactly these bytes (None: unknown).
-                        ops.append({"op": "copy_object", "bucket": "documents", "document_id": did,
-                                    "from_path": path, "from_org": cur, "to_path": new_path,
-                                    "to_org": final, "content_type": d.get("mime_type"),
-                                    "expect_sha256": f.sha256 if f and f.object_exists and f.sha256 else None})
+                    recorded = self.recorded_exists(did)
+                    read = bool(f and f.object_exists is True and f.sha256)
+                    if not read and recorded is not False and f is not None:
+                        # Asked for and not read (a 404, a storage error)
+                        # while nothing recorded the object missing (rule 9):
+                        # never "row still moves" — an operator decides.
+                        if recorded is True:
+                            basis = ("the snapshot's object inventory recorded it"
+                                     if self.objects is not None or f.recorded_exists is not None
+                                     else "the row is sized %s bytes" % d.get("size_bytes"))
+                        else:
+                            basis = "nothing recorded it missing"
+                        self.plan.blocking.append(
+                            "document %s (%r): its storage object %r could not be read when planning (%s), "
+                            "yet %s — a transient storage error or an object deleted since; the row does "
+                            "not move without its file. Re-run the dry-run, or check the object." % (
+                                did, d.get("original_filename"), path,
+                                f.read_error or ("not found" if f.object_exists is False else "unknown"), basis))
+                        continue
+                    if not read and recorded is False:
+                        self.plan.warnings.append(
+                            "document %s (%r): its storage object %r was missing when the snapshot was taken "
+                            "and when planning — the row moves; the copy is attempted, not required"
+                            % (did, d.get("original_filename"), path))
+                    # expect_sha256: the facts pass READ this object; the
+                    # copy must find exactly these bytes (None: unknown).
+                    # must_exist: the copy step stops the run if the object
+                    # is gone — unless the inventory recorded it missing.
+                    ops.append({"op": "copy_object", "bucket": "documents", "document_id": did,
+                                "from_path": path, "from_org": cur, "to_path": new_path,
+                                "to_org": final, "content_type": d.get("mime_type"),
+                                "expect_sha256": f.sha256 if read else None,
+                                "must_exist": recorded is not False})
             if dd["action"] == "archive" and d.get("deleted_at") is None:
                 patch["deleted_at"] = NOW
                 patch["error"] = dd["reason"]
@@ -1324,10 +1385,15 @@ class _Planner:
 
 def build_plan(tables: Mapping[str, List[Mapping[str, Any]]], facts: Mapping[str, Any], *,
                migration_date: str, pks: Optional[Mapping[str, Sequence[str]]] = None,
-               stale_before: Optional[str] = None) -> Plan:
-    """The migration plan for ``tables``. See the module docstring."""
+               stale_before: Optional[str] = None,
+               objects: Optional[Mapping[str, Mapping[str, Any]]] = None) -> Plan:
+    """The migration plan for ``tables``. See the module docstring.
+    ``objects`` is the snapshot's storage object inventory (``db_snapshot``
+    ``objects``: ``{document id: {"path", "org_id", "exists"}}``) — what
+    decides whether a document whose bytes could not be read may move
+    without a file (rule 9)."""
     return _Planner(tables, facts, migration_date=migration_date, pks=pks,
-                    stale_before=stale_before).build()
+                    stale_before=stale_before, objects=objects).build()
 
 
 # ── facts from stored bytes ────────────────────────────────────────────
@@ -1335,14 +1401,18 @@ def build_plan(tables: Mapping[str, List[Mapping[str, Any]]], facts: Mapping[str
 def facts_from_documents(tables: Mapping[str, List[Mapping[str, Any]]],
                          fetch: Callable[[Mapping[str, Any]], Tuple[Optional[bytes], Optional[bool], Optional[str]]],
                          *, registry: Any = None, rules: Sequence[Mapping[str, Any]] = (),
-                         log: Callable[[str], None] = lambda _m: None) -> Dict[str, DocFacts]:
+                         log: Callable[[str], None] = lambda _m: None,
+                         objects: Optional[Mapping[str, Mapping[str, Any]]] = None) -> Dict[str, DocFacts]:
     """Identify every financial document from its bytes.
 
     ``fetch(document_row) -> (content or None, object_exists, read_error)``
     is the only I/O, injected (the migration script downloads through the
     tenant-asserting storage client; tests pass bytes). Operator-verified
     identities (``rules``) are layered on with ``apply_known_identity``: a
-    CUI the document prints always wins over a rule."""
+    CUI the document prints always wins over a rule. ``objects`` — the
+    snapshot's object inventory — is recorded on each fact
+    (``recorded_exists``) so the planner can tell a transient read failure
+    from an object that was already missing."""
     from engine.workspaces.company_identity import (
         apply_known_identity,
         identify_document,
@@ -1368,7 +1438,9 @@ def facts_from_documents(tables: Mapping[str, List[Mapping[str, Any]]],
             ident, conflict = apply_known_identity(ident, rule, registry=registry)
             if conflict:
                 log("identity conflict on %s (%r): %s" % (did, d.get("original_filename"), conflict))
-        facts[did] = DocFacts(identity=ident, sha256=sha, object_exists=exists, read_error=err)
+        recorded = (objects.get(did) or {}).get("exists") if objects is not None else None
+        facts[did] = DocFacts(identity=ident, sha256=sha, object_exists=exists, read_error=err,
+                              recorded_exists=None if recorded is None else bool(recorded))
     return facts
 
 

@@ -355,7 +355,15 @@ def build_world() -> Tuple[Dict[str, List[Dict[str, Any]]], Dict[str, bytes], Li
     return tables, storage, rules
 
 
-def facts_for(tables, storage, rules, registry=None):
+def inventory_for(tables, storage):
+    """What ``db_snapshot`` records: per document, whether its object
+    resolved when the snapshot was taken."""
+    return {str(d["id"]): {"path": d["storage_path"], "org_id": d["org_id"],
+                           "exists": d["storage_path"] in storage}
+            for d in tables.get("documents") or [] if d.get("storage_path")}
+
+
+def facts_for(tables, storage, rules, registry=None, objects="from_storage"):
     from engine.workspaces.migration_plan import facts_from_documents
 
     def fetch(d):
@@ -364,7 +372,9 @@ def facts_for(tables, storage, rules, registry=None):
             return storage[path], True, None
         return None, False, "storage object missing"
 
-    return facts_from_documents(tables, fetch, registry=registry, rules=rules)
+    if objects == "from_storage":
+        objects = inventory_for(tables, storage)
+    return facts_from_documents(tables, fetch, registry=registry, rules=rules, objects=objects)
 
 
 # ── a PostgREST + Storage double ───────────────────────────────────────
