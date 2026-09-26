@@ -204,6 +204,51 @@ def test_the_period_read_filters_on_the_resolved_workspace():
     assert filters.get("id") == "eq.p-1", filters
 
 
+def test_the_period_read_hands_the_model_the_rows_it_read():
+    """RED ON: `_load_period` dropping the statement rows it already reads.
+
+    The model tells a nil profit-tax charge a class-69 row stands behind
+    (a measured nil) from an absent one by counting those rows
+    (`PlHistory.tax_charge_rows`). A served payload without them counts
+    None, which the rule reads as absent (B4RV-3) — so a book that files
+    a 691 row closing at 0.00 would be taxed at the statutory rate on the
+    served GET while the model, given the rows, measures its nil."""
+    from engine.api import _forecast_routes as FR
+    from engine.forecast.history import pl_history_from_payload
+
+    period_row = {"id": "p-1", "org_id": "org-7", "period_end": "2025-12-31",
+                  "period_label": "FY2025", "currency": "RON",
+                  "assembled_canonical_v1": None}
+    rows = [
+        {"statement": "pl", "bucket": "revenue", "ro_account_code": "701",
+         "ro_account_name": "Venituri", "amount": 100.0},
+        {"statement": "pl", "bucket": "taxExpense", "ro_account_code": "691",
+         "ro_account_name": "Cheltuieli cu impozitul pe profit", "amount": 0.0},
+    ]
+
+    class _Client(object):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def select(self, table, **kw):
+            return [dict(period_row)] if table == "financial_periods" else [
+                dict(r) for r in rows]
+
+    from engine.api import _supabase as real
+    original = real.per_user
+    real.per_user = lambda jwt: _Client()
+    try:
+        loaded = FR._load_period("jwt", "org-7", "p-1")
+    finally:
+        real.per_user = original
+
+    assert loaded.get("line_items") == rows, loaded.get("line_items")
+    assert pl_history_from_payload(loaded).tax_charge_rows == 1
+
+
 @pytest.mark.parametrize("name", BOOKS)
 @pytest.mark.parametrize("horizon", (3, 5))
 def test_every_real_book_produces_a_servable_projection(name, horizon):

@@ -87,8 +87,22 @@ function servedBook(book: Book): Served {
 
 const NONE: readonly PeriodMetric[] = [];
 
+// Under tb_parser_v6 (the 609/709 contra-convention repair, plan/2 B4)
+// retail's class-6/7 reconstruction closes to its account 121 to the cent,
+// so retail no longer carries the disagreement this gate is about; the
+// other three books still do, and retail is pinned to its closure below so
+// it rejoins this list the moment its reconstruction drifts again.
+const DISAGREEING: readonly Book[] = BOOKS.filter((b) => b !== "retail");
+
 describe("the books actually carry the disagreement this gate is about", () => {
-  it.each(BOOKS)("%s serves an anchor, and a builder figure that is not it", (book) => {
+  it("retail: the v6 reconstruction IS account 121, and the builder reproduces it", () => {
+    const s = servedBook("retail");
+    expect(Number.isFinite(s.anchor)).toBe(true);
+    expect(s.reconstruction).toBe(s.anchor);
+    expect(s.pl.netProfitStatutory).toBeCloseTo(s.reconstruction, 2);
+  });
+
+  it.each(DISAGREEING)("%s serves an anchor, and a builder figure that is not it", (book) => {
     const s = servedBook(book);
     expect(Number.isFinite(s.anchor)).toBe(true);
     // The envelope says the reconstruction differs from the anchor…

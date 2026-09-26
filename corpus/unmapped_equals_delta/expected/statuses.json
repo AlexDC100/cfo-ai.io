@@ -14,7 +14,7 @@
     "model": null,
     "origin": "deterministic",
     "original_difference": 300.0,
-    "parser_version": "tb_parser_v5",
+    "parser_version": "tb_parser_v6",
     "placement": "balance_sheet",
     "placement_detail": "bs",
     "prompt_version": null,

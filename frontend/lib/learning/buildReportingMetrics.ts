@@ -75,6 +75,21 @@ export function buildReportingMetricsSnapshot(
   // returns it positive because `fcf = cfo − capex` requires that, and a
   // "raise capex 10%" lever reads on a magnitude. Keep the two agreeing.
   const capexTotal = cfNum("capex_total");
+  // INTEREST EXPENSE — the denominator of the Ratios card's
+  // `interest_coverage` and so of its "How it's computed" popover. It was
+  // never set, and the concept printed `Interest 0 RON` under every served
+  // coverage (retail 0.32x, agras 28.14x, Scandia 13.27x): operands that
+  // do not recompute the figure beside them. Read from the authority the
+  // engine's row divides — `assembled_pl.interest_expense`, else the
+  // income statement's line (the same `pick` financialReport.ts uses for
+  // this figure). ABSENT stays absent, never 0: a source that declares the
+  // line absent, or carries no number for it, has no interest to print.
+  const interestDeclaredAbsent = (statements.absentInputs ?? []).includes("interestExpense");
+  const finite = (v: unknown): number | undefined =>
+    typeof v === "number" && Number.isFinite(v) ? v : undefined;
+  const interestExpense = interestDeclaredAbsent
+    ? undefined
+    : (finite(statements.assembled_pl?.interest_expense) ?? finite(is.interestExpense));
   const t = deriveTotals(statements);
   return {
     // ── Income statement ──────────────────────────────────────
@@ -87,6 +102,7 @@ export function buildReportingMetricsSnapshot(
     ebitda: t.ebitda,
     ebit: t.ebit,
     netFinancialResult: t.netFinancialResult,
+    interestExpense,
     incomeTax: is.taxExpense,
     netProfit: t.netIncome,
     // ── Balance sheet ────────────────────────────────────────

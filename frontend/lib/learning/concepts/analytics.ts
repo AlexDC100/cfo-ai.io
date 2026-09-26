@@ -7,7 +7,7 @@
 //
 // Mirrors the methodology in CLAUDE.md Appendix A §5–§7.
 
-import type { Concept } from "./_schema";
+import type { Concept, FormulaToken } from "./_schema";
 // THE zone mapping — the same function `zoneFor` backs, and therefore the
 // same one behind the Risks-tab chip, the credit component sentence, the
 // workbook and the printed report. See `altman_z_score` below for what
@@ -503,6 +503,29 @@ const debt_to_assets: Concept = {
 
 // ─── Coverage ratios ──────────────────────────────────────────────────────
 
+/** One operand of a coverage formula, ABSENT-aware. A figure the snapshot
+ *  carries prints as a tappable value token; a figure it does not carry
+ *  prints "not reported" as plain text — never a value token reading 0,
+ *  which would be a number nobody reported printed beneath a ratio that
+ *  was not computed from it (the `Interest 0 RON` defect).
+ *
+ *  A carried figure prints EXACT (to the bani, thousands separators),
+ *  never compact: the reader checks the card by dividing the two printed
+ *  operands, and compact ones divide to a different number on most books
+ *  with interest (agras `7.82M ÷ 278K` = 28.13 under a 28.14× card;
+ *  realestate `−29.10M ÷ 1.16M` = −25.09 under −25.13×). */
+function coverageOperand(
+  value: number | undefined,
+  conceptKey: string,
+  label: string,
+  locale: "en" | "ro" | undefined,
+): FormulaToken {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return { type: "value", value, conceptKey, label, format: "currency", exact: true };
+  }
+  return { type: "literal", text: `${label} ${locale === "ro" ? "neraportat" : "not reported"}` };
+}
+
 const interest_coverage: Concept = {
   key: "interest_coverage",
   name: { en: "Interest Coverage", ro: "Acoperirea dobânzii" },
@@ -528,9 +551,9 @@ const interest_coverage: Concept = {
       result: { value: v, format: "ratio" },
       layout: "fraction",
       tokens: [
-        { type: "value", value: m.ebit ?? 0, conceptKey: "ebit", label: "EBIT", format: "currency" },
+        coverageOperand(m.ebit, "ebit", "EBIT", ctx.locale),
         { type: "operator", op: "÷" },
-        { type: "value", value: m.interestExpense ?? 0, conceptKey: "interest_expense", label: "Interest", format: "currency" },
+        coverageOperand(m.interestExpense, "interest_expense", "Interest", ctx.locale),
       ],
     };
   },

@@ -48,7 +48,26 @@ export function FeatureRoute({
 
   if (loading) return <RegistryHold />;
 
-  if (features[featureKey]?.status === "active") return <>{children}</>;
+  if (features[featureKey]?.status === "active") {
+    if (!features[featureKey]?.beta) return <>{children}</>;
+    // Early access: the page works but is still being finished — say so
+    // above it, once, without moving the page's own layout.
+    return (
+      <>
+        <div className="px-6 sm:px-10 pt-4" data-testid="feature-beta-label">
+          <span className="inline-flex items-center gap-2 rounded-sm border border-brand/40 px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider text-brand-dark">
+            Beta
+            <span className="normal-case tracking-normal font-sans text-ink-soft">
+              {t("pending.betaNote", {
+                defaultValue: "Early access — figures may still change.",
+              })}
+            </span>
+          </span>
+        </div>
+        {children}
+      </>
+    );
+  }
 
   return (
     <PendingState

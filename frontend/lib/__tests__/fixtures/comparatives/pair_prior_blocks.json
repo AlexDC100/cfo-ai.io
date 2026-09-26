@@ -453,11 +453,11 @@
     "statement": "PL",
     "steps": [
      {
-      "amount": 19152079.48,
-      "current": 118576819.64,
+      "amount": 16288369.18,
+      "current": 110798309.14,
       "key": "pl.revenue",
       "label": "Net turnover",
-      "prior": 99424740.16,
+      "prior": 94509939.96,
       "status": "delta"
      },
      {
@@ -477,11 +477,11 @@
       "status": "delta"
      },
      {
-      "amount": 3823116.2,
-      "current": 29989304.23,
+      "amount": 3637478.44,
+      "current": 29854906.77,
       "key": "pl.opex_total",
       "label": "Operating expenses",
-      "prior": 33812420.43,
+      "prior": 33492385.21,
       "status": "delta"
      },
      {
@@ -509,11 +509,11 @@
       "status": "delta"
      },
      {
-      "amount": -2164510.56,
-      "current": -6572426.01,
+      "amount": 884837.5,
+      "current": 1071687.03,
       "key": "pl.statutory_adjustment",
       "label": "Statutory adjustment (722 capitalised own work; account-121 anchor)",
-      "prior": -4407915.45,
+      "prior": 186849.53,
       "status": "delta"
      }
     ],
@@ -522,14 +522,14 @@
   },
   "columns": [
    {
-    "current": 118576819.64,
+    "current": 110798309.14,
     "current_disclosure": "reported",
-    "delta": 19152079.48,
-    "delta_pct": 0.192629,
+    "delta": 16288369.18,
+    "delta_pct": 0.172346,
     "key": "pl.revenue",
     "label": "Net turnover",
     "note": "both periods reported Net turnover",
-    "prior": 99424740.16,
+    "prior": 94509939.96,
     "prior_disclosure": "reported",
     "requires": "synthetic",
     "statement": "PL",
@@ -552,14 +552,14 @@
     "unit": "money"
    },
    {
-    "current": 48019704.96,
+    "current": 40241194.46,
     "current_disclosure": "reported",
-    "delta": 6024761.03,
-    "delta_pct": 0.143464,
+    "delta": 3161050.73,
+    "delta_pct": 0.085249,
     "key": "pl.gross_profit",
     "label": "Gross profit",
     "note": "both periods reported Gross profit",
-    "prior": 41994943.93,
+    "prior": 37080143.73,
     "prior_disclosure": "reported",
     "requires": "synthetic",
     "statement": "PL",
@@ -567,14 +567,14 @@
     "unit": "money"
    },
    {
-    "current": 29989304.23,
+    "current": 29854906.77,
     "current_disclosure": "reported",
-    "delta": -3823116.2,
-    "delta_pct": -0.113068,
+    "delta": -3637478.44,
+    "delta_pct": -0.108606,
     "key": "pl.opex_total",
     "label": "Operating expenses",
     "note": "both periods reported Operating expenses",
-    "prior": 33812420.43,
+    "prior": 33492385.21,
     "prior_disclosure": "reported",
     "requires": "synthetic",
     "statement": "PL",
@@ -612,14 +612,14 @@
     "unit": "money"
    },
    {
-    "current": 18420491.28,
+    "current": 10776378.24,
     "current_disclosure": "reported",
-    "delta": 8831746.71,
-    "delta_pct": 0.921053,
+    "delta": 5782398.65,
+    "delta_pct": 1.157874,
     "key": "pl.ebitda",
     "label": "EBITDA",
     "note": "both periods reported EBITDA",
-    "prior": 9588744.57,
+    "prior": 4993979.59,
     "prior_disclosure": "reported",
     "requires": "synthetic",
     "statement": "PL",
@@ -627,14 +627,14 @@
     "unit": "money"
    },
    {
-    "current": 15465144.89,
+    "current": 7821031.85,
     "current_disclosure": "reported",
-    "delta": 9571925.91,
-    "delta_pct": 1.624227,
+    "delta": 6522577.85,
+    "delta_pct": 5.023341,
     "key": "pl.ebit",
     "label": "EBIT",
     "note": "both periods reported EBIT",
-    "prior": 5893218.98,
+    "prior": 1298454.0,
     "prior_disclosure": "reported",
     "requires": "synthetic",
     "statement": "PL",
@@ -717,14 +717,14 @@
     "unit": "money"
    },
    {
-    "current": 15577652.03,
+    "current": 7933538.99,
     "current_disclosure": "reported",
-    "delta": 9446516.99,
-    "delta_pct": 1.540745,
+    "delta": 6397168.93,
+    "delta_pct": 4.16382,
     "key": "pl.pretax",
     "label": "Profit before tax",
     "note": "both periods reported Profit before tax",
-    "prior": 6131135.04,
+    "prior": 1536370.06,
     "prior_disclosure": "reported",
     "requires": "synthetic",
     "statement": "PL",
@@ -747,14 +747,14 @@
     "unit": "money"
    },
    {
-    "current": 14106102.03,
+    "current": 6461988.99,
     "current_disclosure": "reported",
-    "delta": 8262652.99,
-    "delta_pct": 1.414003,
+    "delta": 5213304.93,
+    "delta_pct": 4.175039,
     "key": "pl.net_income_operational",
     "label": "Net income — operational (excl. 722)",
     "note": "both periods reported Net income — operational (excl. 722)",
-    "prior": 5843449.04,
+    "prior": 1248684.06,
     "prior_disclosure": "reported",
     "requires": "synthetic",
     "statement": "PL",
@@ -1300,77 +1300,77 @@
    },
    {
     "base_key": "pl.revenue",
-    "current_share": 0.595033,
-    "delta_pts": 1.7412,
+    "current_share": 0.636807,
+    "delta_pts": 2.9148,
     "key": "pl.cogs",
     "note": "share of pl.revenue in both periods",
-    "prior_share": 0.577621,
+    "prior_share": 0.607659,
     "statement": "PL",
     "status": "compared"
    },
    {
     "base_key": "pl.revenue",
-    "current_share": 0.404967,
-    "delta_pts": -1.7412,
+    "current_share": 0.363193,
+    "delta_pts": -2.9148,
     "key": "pl.gross_profit",
     "note": "share of pl.revenue in both periods",
-    "prior_share": 0.422379,
+    "prior_share": 0.392341,
     "statement": "PL",
     "status": "compared"
    },
    {
     "base_key": "pl.revenue",
-    "current_share": 0.25291,
-    "delta_pts": -8.717,
+    "current_share": 0.269453,
+    "delta_pts": -8.4927,
     "key": "pl.opex_total",
     "note": "share of pl.revenue in both periods",
-    "prior_share": 0.340081,
+    "prior_share": 0.354379,
     "statement": "PL",
     "status": "compared"
    },
    {
     "base_key": "pl.revenue",
-    "current_share": 0.003256,
-    "delta_pts": -0.6258,
+    "current_share": 0.003485,
+    "delta_pts": -0.6524,
     "key": "pl.other_operating_income",
     "note": "share of pl.revenue in both periods",
-    "prior_share": 0.009514,
+    "prior_share": 0.010009,
     "statement": "PL",
     "status": "compared"
    },
    {
     "base_key": "pl.revenue",
-    "current_share": 0.024923,
-    "delta_pts": -1.2246,
+    "current_share": 0.026673,
+    "delta_pts": -1.2429,
     "key": "pl.depreciation",
     "note": "share of pl.revenue in both periods",
-    "prior_share": 0.037169,
+    "prior_share": 0.039102,
     "statement": "PL",
     "status": "compared"
    },
    {
     "base_key": "pl.revenue",
-    "current_share": 0.155346,
-    "delta_pts": 5.8904,
+    "current_share": 0.097261,
+    "delta_pts": 4.442,
     "key": "pl.ebitda",
     "note": "share of pl.revenue in both periods",
-    "prior_share": 0.096442,
+    "prior_share": 0.052841,
     "statement": "PL",
     "status": "compared"
    },
    {
     "base_key": "pl.revenue",
-    "current_share": 0.130423,
-    "delta_pts": 7.115,
+    "current_share": 0.070588,
+    "delta_pts": 5.6849,
     "key": "pl.ebit",
     "note": "share of pl.revenue in both periods",
-    "prior_share": 0.059273,
+    "prior_share": 0.013739,
     "statement": "PL",
     "status": "compared"
    },
    {
     "base_key": "pl.revenue",
-    "current_share": 0.002344,
+    "current_share": 0.002508,
     "delta_pts": null,
     "key": "pl.interest_expense",
     "note": "Dec 2024 did not report Interest expense; absent, which is not zero — no change is computed against it",
@@ -1390,71 +1390,71 @@
    },
    {
     "base_key": "pl.revenue",
-    "current_share": 0.003849,
-    "delta_pts": 0.0223,
+    "current_share": 0.004119,
+    "delta_pts": 0.0304,
     "key": "pl.financial_income",
     "note": "share of pl.revenue in both periods",
-    "prior_share": 0.003626,
+    "prior_share": 0.003815,
     "statement": "PL",
     "status": "compared"
    },
    {
     "base_key": "pl.revenue",
-    "current_share": 0.0029,
-    "delta_pts": 0.1667,
+    "current_share": 0.003104,
+    "delta_pts": 0.1806,
     "key": "pl.financial_expense",
     "note": "share of pl.revenue in both periods",
-    "prior_share": 0.001233,
+    "prior_share": 0.001298,
     "statement": "PL",
     "status": "compared"
    },
    {
     "base_key": "pl.revenue",
-    "current_share": 0.000949,
-    "delta_pts": -0.1444,
+    "current_share": 0.001015,
+    "delta_pts": -0.1502,
     "key": "pl.net_financial_result",
     "note": "share of pl.revenue in both periods",
-    "prior_share": 0.002393,
+    "prior_share": 0.002517,
     "statement": "PL",
     "status": "compared"
    },
    {
     "base_key": "pl.revenue",
-    "current_share": 0.131372,
-    "delta_pts": 6.9706,
+    "current_share": 0.071603,
+    "delta_pts": 5.5347,
     "key": "pl.pretax",
     "note": "share of pl.revenue in both periods",
-    "prior_share": 0.061666,
+    "prior_share": 0.016256,
     "statement": "PL",
     "status": "compared"
    },
    {
     "base_key": "pl.revenue",
-    "current_share": 0.01241,
-    "delta_pts": 0.9517,
+    "current_share": 0.013281,
+    "delta_pts": 1.0237,
     "key": "pl.tax",
     "note": "share of pl.revenue in both periods",
-    "prior_share": 0.002894,
+    "prior_share": 0.003044,
     "statement": "PL",
     "status": "compared"
    },
    {
     "base_key": "pl.revenue",
-    "current_share": 0.118962,
-    "delta_pts": 6.0189,
+    "current_share": 0.058322,
+    "delta_pts": 4.511,
     "key": "pl.net_income_operational",
     "note": "share of pl.revenue in both periods",
-    "prior_share": 0.058773,
+    "prior_share": 0.013212,
     "statement": "PL",
     "status": "compared"
    },
    {
     "base_key": "pl.revenue",
-    "current_share": 0.063534,
-    "delta_pts": 4.9096,
+    "current_share": 0.067995,
+    "delta_pts": 5.2805,
     "key": "pl.net_income",
     "note": "share of pl.revenue in both periods",
-    "prior_share": 0.014438,
+    "prior_share": 0.015189,
     "statement": "PL",
     "status": "compared"
    },
@@ -1864,10 +1864,10 @@
     ],
     "PL": [
      "pl.revenue",
-     118576819.64
+     110798309.14
     ]
    },
-   "below_floor": 4,
+   "below_floor": 3,
    "deteriorated": [
     {
      "base_key": "bs.total_assets",
@@ -1891,8 +1891,22 @@
      "favorable": "down",
      "key": "pl.cogs",
      "label": "Cost of goods sold",
-     "materiality": 0.110707,
+     "materiality": 0.118479,
      "prior": 57429796.23,
+     "statement": "PL",
+     "status": "compared",
+     "verdict": "deteriorated"
+    },
+    {
+     "base_key": "pl.revenue",
+     "current": 386101.85,
+     "delta": -559801.74,
+     "delta_pct": -0.591817,
+     "favorable": "up",
+     "key": "pl.other_operating_income",
+     "label": "Other operating income",
+     "materiality": 0.005052,
+     "prior": 945903.59,
      "statement": "PL",
      "status": "compared",
      "verdict": "deteriorated"
@@ -1915,28 +1929,28 @@
     },
     {
      "base_key": "pl.revenue",
-     "current": 118576819.64,
-     "delta": 19152079.48,
-     "delta_pct": 0.192629,
+     "current": 110798309.14,
+     "delta": 16288369.18,
+     "delta_pct": 0.172346,
      "favorable": "up",
      "key": "pl.revenue",
      "label": "Net turnover",
-     "materiality": 0.161516,
-     "prior": 99424740.16,
+     "materiality": 0.147009,
+     "prior": 94509939.96,
      "statement": "PL",
      "status": "compared",
      "verdict": "improved"
     },
     {
      "base_key": "pl.revenue",
-     "current": 29989304.23,
-     "delta": -3823116.2,
-     "delta_pct": -0.113068,
+     "current": 29854906.77,
+     "delta": -3637478.44,
+     "delta_pct": -0.108606,
      "favorable": "down",
      "key": "pl.opex_total",
      "label": "Operating expenses",
-     "materiality": 0.032242,
-     "prior": 33812420.43,
+     "materiality": 0.03283,
+     "prior": 33492385.21,
      "statement": "PL",
      "status": "compared",
      "verdict": "improved"
@@ -2029,20 +2043,6 @@
      "verdict": null
     },
     {
-     "base_key": "pl.revenue",
-     "current": 118576819.64,
-     "delta": 19152079.48,
-     "delta_pct": 0.192629,
-     "favorable": "up",
-     "key": "pl.revenue",
-     "label": "Net turnover",
-     "materiality": 0.161516,
-     "prior": 99424740.16,
-     "statement": "PL",
-     "status": "compared",
-     "verdict": "improved"
-    },
-    {
      "base_key": "bs.total_assets",
      "current": 7554847.25,
      "delta": -5837898.98,
@@ -2055,6 +2055,20 @@
      "statement": "BS",
      "status": "compared",
      "verdict": null
+    },
+    {
+     "base_key": "pl.revenue",
+     "current": 110798309.14,
+     "delta": 16288369.18,
+     "delta_pct": 0.172346,
+     "favorable": "up",
+     "key": "pl.revenue",
+     "label": "Net turnover",
+     "materiality": 0.147009,
+     "prior": 94509939.96,
+     "statement": "PL",
+     "status": "compared",
+     "verdict": "improved"
     }
    ]
   },
@@ -2350,31 +2364,31 @@
     "direction": "higher",
     "name": "revenue",
     "unit": "RON",
-    "value": 99424740.16
+    "value": 94509939.96
    },
    {
     "direction": "higher",
     "name": "gross_profit",
     "unit": "RON",
-    "value": 41994943.93
+    "value": 37080143.73
    },
    {
     "direction": "higher",
     "name": "ebitda",
     "unit": "RON",
-    "value": 9588744.57
+    "value": 4993979.59
    },
    {
     "direction": "higher",
     "name": "ebitda_cash",
     "unit": "RON",
-    "value": 9588744.57
+    "value": 4993979.59
    },
    {
     "direction": "higher",
     "name": "ebitda_statutory_with_711",
     "unit": "RON",
-    "value": 98042740.07
+    "value": 93447975.09
    },
    {
     "direction": "neutral",
@@ -2386,19 +2400,19 @@
     "direction": "higher",
     "name": "operating_profit",
     "unit": "RON",
-    "value": 5893218.98
+    "value": 1298454.0
    },
    {
     "direction": "higher",
     "name": "net_income",
     "unit": "RON",
-    "value": 5843449.04
+    "value": 1248684.06
    },
    {
     "direction": "higher",
     "name": "net_income_operational",
     "unit": "RON",
-    "value": 5843449.04
+    "value": 1248684.06
    },
    {
     "direction": "higher",
@@ -2410,19 +2424,19 @@
     "direction": "higher",
     "name": "ebitda_statutory",
     "unit": "RON",
-    "value": 9588744.57
+    "value": 4993979.59
    },
    {
     "direction": "higher",
     "name": "total_operating_revenue",
     "unit": "RON",
-    "value": 99424740.16
+    "value": 94509939.96
    },
    {
     "direction": "higher",
     "name": "total_operating_revenue_statutory",
     "unit": "RON",
-    "value": 187878735.66
+    "value": 182963935.46
    },
    {
     "direction": "neutral",
@@ -2434,19 +2448,19 @@
     "direction": "higher",
     "name": "gross_margin",
     "unit": "ratio",
-    "value": 0.4224
+    "value": 0.3923
    },
    {
     "direction": "higher",
     "name": "ebitda_margin",
     "unit": "ratio",
-    "value": 0.0964
+    "value": 0.0528
    },
    {
     "direction": "higher",
     "name": "net_margin",
     "unit": "ratio",
-    "value": 0.0144
+    "value": 0.0152
    },
    {
     "direction": "neutral",
@@ -2506,7 +2520,7 @@
     "direction": "higher",
     "name": "roic",
     "unit": "ratio",
-    "value": 0.0463
+    "value": 0.0102
    },
    {
     "direction": "higher",
@@ -2524,7 +2538,7 @@
     "direction": "higher",
     "name": "adjusted_ebitda",
     "unit": "RON",
-    "value": 8182523.5
+    "value": 3587758.52
    },
    {
     "direction": "neutral",
@@ -2566,7 +2580,7 @@
     "direction": "lower",
     "name": "net_debt_to_ebitda",
     "unit": "ratio",
-    "value": -1.0559
+    "value": -2.0274
    },
    {
     "direction": "higher",
@@ -2608,61 +2622,61 @@
     "direction": "higher",
     "name": "asset_turnover",
     "unit": "ratio",
-    "value": 0.7898
+    "value": 0.7508
    },
    {
     "direction": "lower",
     "name": "dso",
     "unit": "days",
-    "value": 39.7572
+    "value": 41.8247
    },
    {
     "direction": "lower",
     "name": "dio",
     "unit": "days",
-    "value": 37.662
+    "value": 37.7894
    },
    {
     "direction": "higher",
     "name": "dpo",
     "unit": "days",
-    "value": 51.4901
+    "value": 51.6642
    },
    {
     "direction": "lower",
     "name": "ccc",
     "unit": "days",
-    "value": 25.9292
+    "value": 27.9499
    },
    {
     "direction": "higher",
     "name": "inventory_turnover",
     "unit": "ratio",
-    "value": 9.6915
+    "value": 9.6588
    },
    {
     "direction": "higher",
     "name": "operating_margin",
     "unit": "ratio",
-    "value": 0.0593
+    "value": 0.0137
    },
    {
     "direction": "higher",
     "name": "core_ebitda_margin",
     "unit": "ratio",
-    "value": 0.0823
+    "value": 0.038
    },
    {
     "direction": "higher",
     "name": "core_ebitda",
     "unit": "RON",
-    "value": 8182523.5
+    "value": 3587758.52
    },
    {
     "direction": "higher",
     "name": "altman_z_score",
     "unit": "ratio",
-    "value": 6.62
+    "value": 6.38
    },
    {
     "direction": "higher",
@@ -2680,7 +2694,7 @@
     "direction": "higher",
     "name": "altman_x3",
     "unit": "ratio",
-    "value": 0.0468
+    "value": 0.0103
    },
    {
     "direction": "higher",
@@ -2704,7 +2718,7 @@
     "direction": "higher",
     "name": "credit_subscore_profitability",
     "unit": "score",
-    "value": 5.3
+    "value": 5.5
    },
    {
     "direction": "higher",
@@ -2752,183 +2766,6 @@
      "ccc"
     ],
     "findings": [
-     {
-      "body": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 1012.01 (Nnsefni mkxmwzem dnzmnf 2420.42): return on invested capital in Dec 2024 — 4.6%; return on invested capital in Dec 2025 — 47.1%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 1012.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_roic fires when strong rung of return on invested capital is at or above 15.0%; observed 47.1%. Impact: the numerator of return on invested capital at the strong rung, versus as held moves from RON 4,134,643 to RON 12,991,048. For a mid-size inventory-heavy operator, return on invested capital on 711 / 7015.01 / 1012.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the return on invested capital movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 1012.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 1012.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-      "body_template": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 1012.01 (Nnsefni mkxmwzem dnzmnf 2420.42): return on invested capital in Dec 2024 — 4.6%; return on invested capital in Dec 2025 — 47.1%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 1012.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_roic fires when strong rung of return on invested capital is at or above 15.0%; observed 47.1%. Impact: the numerator of return on invested capital at the strong rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. For a mid-size inventory-heavy operator, return on invested capital on 711 / 7015.01 / 1012.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the return on invested capital movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 1012.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 1012.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-      "category": "margin",
-      "contract_elements": {
-       "action": {
-        "steps": [
-         {
-          "artefact": "two-period balance listing for accounts 711, 7015.01, 1012.01",
-          "horizon": "before the next board pack",
-          "imperative": "Reconcile the return on invested capital movement from Dec 2024 to Dec 2025 to the ledger",
-          "lang": "en",
-          "provider": "the financial controller"
-         },
-         {
-          "artefact": "list of non-recurring entries on accounts 711, 7015.01, 1012.01 in Dec 2025",
-          "horizon": null,
-          "imperative": "Confirm the move past the strong rung comes from recurring trading, not a single posting",
-          "lang": "en",
-          "provider": "the financial controller"
-         }
-        ]
-       },
-       "confidence": {
-        "basis": "profile inventory_operator/band_mid/fin_related_party_funded resolved from structure",
-        "caveat": "Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
-        "level": "medium"
-       },
-       "evidence": {
-        "comparison_basis": {
-         "basis_unit": "percent",
-         "basis_value": 0.0463,
-         "description": "the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision",
-         "kind": "prior_period"
-        },
-        "figures": [
-         {
-          "fact": "roic__prior",
-          "label": "return on invested capital in Dec 2024",
-          "unit": "percent",
-          "value": 0.0463
-         },
-         {
-          "fact": "roic__current",
-          "label": "return on invested capital in Dec 2025",
-          "unit": "percent",
-          "value": 0.47130000000000005
-         }
-        ],
-        "provenance": {
-         "line_refs": [
-          "711",
-          "7015.01",
-          "1012.01"
-         ],
-         "period_id": "period-agras-fy2025",
-         "prior_period_id": "period-carniprod-fy2024",
-         "snapshot_id": null,
-         "source": "assembled_canonical_v1"
-        }
-       },
-       "impact": {
-        "adjusted": 12991048.015364999,
-        "adjusted_fact": "band_numerator_held",
-        "baseline": 4134642.9074999997,
-        "baseline_fact": "band_numerator_at_rung",
-        "currency": "RON",
-        "delta": 8856405.107864998,
-        "kind": "headroom",
-        "metric": "band_roic",
-        "metric_label": "the numerator of return on invested capital at the strong rung, versus as held",
-        "unit": "money"
-       },
-       "subject": {
-        "accounts": [
-         {
-          "bucket": "otherIncome",
-          "code": "711",
-          "name": "144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn",
-          "statement": "PL"
-         },
-         {
-          "bucket": "revenue",
-          "code": "7015.01",
-          "name": "Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41",
-          "statement": "PL"
-         },
-         {
-          "bucket": "shareCapital",
-          "code": "1012.01",
-          "name": "Nnsefni mkxmwzem dnzmnf 2420.42",
-          "statement": "BS"
-         }
-        ],
-        "scope": "Return on invested capital on 711 / 7015.01 / 1012.01"
-       },
-       "threshold": {
-        "comparator": ">=",
-        "limit": 0.15,
-        "observed": 0.47130000000000005,
-        "parameter": "strong",
-        "parameter_label": "strong rung of return on invested capital",
-        "rule_id": "band_roic",
-        "source": "general_sme_fallback#roic.strong",
-        "unit": "percent"
-       },
-       "why_here": {
-        "anchors": [
-         "mid-size inventory-heavy operator",
-         "inventory-heavy operator",
-         "mid-size company",
-         "inventory-heavy operator",
-         "related-party funded",
-         "bank debt outstanding",
-         "foreign-currency exposure",
-         "related-party balances on the books",
-         "revaluation reserve in equity"
-        ],
-        "profile_id": "inventory_operator",
-        "profile_label": "mid-size inventory-heavy operator",
-        "rationale": "For a mid-size inventory-heavy operator, return on invested capital on 711 / 7015.01 / 1012.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together.",
-        "signals": [
-         "bank_debt",
-         "fx_exposure",
-         "related_party",
-         "revaluation_reserve"
-        ]
-       }
-      },
-      "demoted": false,
-      "demotion_reasons": [],
-      "direction": "improved",
-      "fact_units": {
-       "band_numerator_at_rung": "money",
-       "band_numerator_held": "money",
-       "roic__current": "unknown",
-       "roic__prior": "unknown"
-      },
-      "facts_cited": {
-       "band_numerator_at_rung": 4134642.9074999997,
-       "band_numerator_held": 12991048.015364999,
-       "roic__current": 0.47130000000000005,
-       "roic__prior": 0.0463
-      },
-      "finding_id": "band_roic:critical->strong",
-      "lane": "c_bands",
-      "missing_elements": [],
-      "narrative_source": "deterministic",
-      "profile_fingerprint": "c8f2df71eb5e40c9",
-      "profile_id": "inventory_operator",
-      "rank": 1,
-      "ratio_key": "roic",
-      "rule_key": "band_roic",
-      "rungs_crossed": 3,
-      "severity": "low",
-      "so_what": {
-       "key": "statements.ratioCmp.bandFinding.improved",
-       "placeholders": {
-        "current_label": "Dec 2025",
-        "current_value": "47.1",
-        "delta": "+42.5",
-        "delta_unit": "pp",
-        "from": "critical",
-        "headroom_money": "8856405.11",
-        "label_key": "ratioTable.roic.label",
-        "prior_label": "Dec 2024",
-        "prior_value": "4.6",
-        "rung": "strong",
-        "rung_value": "15",
-        "to": "strong"
-       }
-      },
-      "source_currency": "RON",
-      "surfaced": true,
-      "title": "Return on invested capital on 711 / 7015.01 / 1012.01 at 47.1% — at or above the 15.0% strong rung of return on invested capital for mid-size inventory-heavy operator",
-      "title_template": "Return on invested capital on 711 / 7015.01 / 1012.01 at 47.1% — at or above the 15.0% strong rung of return on invested capital for mid-size inventory-heavy operator"
-     },
      {
       "body": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 2131.01 (Pvbgcqptfxt xtbfrerngvt (pqhgfg, mxgeqwt hg gfhxqeqxgg ot emvjm) 0363.13): return on assets in Dec 2024 — 1.1%; return on assets in Dec 2025 — 19.2%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 2131.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_roa fires when strong rung of return on assets is at or above 10.0%; observed 19.2%. Impact: the numerator of return on assets at the strong rung, versus as held moves from RON 3,931,911 to RON 7,533,676. For a mid-size inventory-heavy operator, return on assets on 711 / 7015.01 / 2131.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the return on assets movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 2131.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 2131.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
       "body_template": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 2131.01 (Pvbgcqptfxt xtbfrerngvt (pqhgfg, mxgeqwt hg gfhxqeqxgg ot emvjm) 0363.13): return on assets in Dec 2024 — 1.1%; return on assets in Dec 2025 — 19.2%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 2131.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_roa fires when strong rung of return on assets is at or above 10.0%; observed 19.2%. Impact: the numerator of return on assets at the strong rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. For a mid-size inventory-heavy operator, return on assets on 711 / 7015.01 / 2131.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the return on assets movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 2131.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 2131.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
@@ -3077,9 +2914,9 @@
       "lane": "c_bands",
       "missing_elements": [],
       "narrative_source": "deterministic",
-      "profile_fingerprint": "c8f2df71eb5e40c9",
+      "profile_fingerprint": "d251df531749c7e2",
       "profile_id": "inventory_operator",
-      "rank": 2,
+      "rank": 1,
       "ratio_key": "roa",
       "rule_key": "band_roa",
       "rungs_crossed": 3,
@@ -3105,6 +2942,183 @@
       "surfaced": true,
       "title": "Return on assets on 711 / 7015.01 / 2131.01 at 19.2% — at or above the 10.0% strong rung of return on assets for mid-size inventory-heavy operator",
       "title_template": "Return on assets on 711 / 7015.01 / 2131.01 at 19.2% — at or above the 10.0% strong rung of return on assets for mid-size inventory-heavy operator"
+     },
+     {
+      "body": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 1012.01 (Nnsefni mkxmwzem dnzmnf 2420.42): return on invested capital in Dec 2024 — 1.0%; return on invested capital in Dec 2025 — 23.8%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 1012.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_roic fires when strong rung of return on invested capital is at or above 15.0%; observed 23.8%. Impact: the numerator of return on invested capital at the strong rung, versus as held moves from RON 4,134,643 to RON 6,568,569. For a mid-size inventory-heavy operator, return on invested capital on 711 / 7015.01 / 1012.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the return on invested capital movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 1012.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 1012.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body_template": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 1012.01 (Nnsefni mkxmwzem dnzmnf 2420.42): return on invested capital in Dec 2024 — 1.0%; return on invested capital in Dec 2025 — 23.8%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 1012.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_roic fires when strong rung of return on invested capital is at or above 15.0%; observed 23.8%. Impact: the numerator of return on invested capital at the strong rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. For a mid-size inventory-heavy operator, return on invested capital on 711 / 7015.01 / 1012.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the return on invested capital movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 1012.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 1012.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "category": "margin",
+      "contract_elements": {
+       "action": {
+        "steps": [
+         {
+          "artefact": "two-period balance listing for accounts 711, 7015.01, 1012.01",
+          "horizon": "before the next board pack",
+          "imperative": "Reconcile the return on invested capital movement from Dec 2024 to Dec 2025 to the ledger",
+          "lang": "en",
+          "provider": "the financial controller"
+         },
+         {
+          "artefact": "list of non-recurring entries on accounts 711, 7015.01, 1012.01 in Dec 2025",
+          "horizon": null,
+          "imperative": "Confirm the move past the strong rung comes from recurring trading, not a single posting",
+          "lang": "en",
+          "provider": "the financial controller"
+         }
+        ]
+       },
+       "confidence": {
+        "basis": "profile inventory_operator/band_mid/fin_related_party_funded resolved from structure",
+        "caveat": "Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
+        "level": "medium"
+       },
+       "evidence": {
+        "comparison_basis": {
+         "basis_unit": "percent",
+         "basis_value": 0.0102,
+         "description": "the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision",
+         "kind": "prior_period"
+        },
+        "figures": [
+         {
+          "fact": "roic__prior",
+          "label": "return on invested capital in Dec 2024",
+          "unit": "percent",
+          "value": 0.0102
+         },
+         {
+          "fact": "roic__current",
+          "label": "return on invested capital in Dec 2025",
+          "unit": "percent",
+          "value": 0.2383
+         }
+        ],
+        "provenance": {
+         "line_refs": [
+          "711",
+          "7015.01",
+          "1012.01"
+         ],
+         "period_id": "period-agras-fy2025",
+         "prior_period_id": "period-carniprod-fy2024",
+         "snapshot_id": null,
+         "source": "assembled_canonical_v1"
+        }
+       },
+       "impact": {
+        "adjusted": 6568569.365715,
+        "adjusted_fact": "band_numerator_held",
+        "baseline": 4134642.9074999997,
+        "baseline_fact": "band_numerator_at_rung",
+        "currency": "RON",
+        "delta": 2433926.458215,
+        "kind": "headroom",
+        "metric": "band_roic",
+        "metric_label": "the numerator of return on invested capital at the strong rung, versus as held",
+        "unit": "money"
+       },
+       "subject": {
+        "accounts": [
+         {
+          "bucket": "otherIncome",
+          "code": "711",
+          "name": "144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn",
+          "statement": "PL"
+         },
+         {
+          "bucket": "revenue",
+          "code": "7015.01",
+          "name": "Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41",
+          "statement": "PL"
+         },
+         {
+          "bucket": "shareCapital",
+          "code": "1012.01",
+          "name": "Nnsefni mkxmwzem dnzmnf 2420.42",
+          "statement": "BS"
+         }
+        ],
+        "scope": "Return on invested capital on 711 / 7015.01 / 1012.01"
+       },
+       "threshold": {
+        "comparator": ">=",
+        "limit": 0.15,
+        "observed": 0.2383,
+        "parameter": "strong",
+        "parameter_label": "strong rung of return on invested capital",
+        "rule_id": "band_roic",
+        "source": "general_sme_fallback#roic.strong",
+        "unit": "percent"
+       },
+       "why_here": {
+        "anchors": [
+         "mid-size inventory-heavy operator",
+         "inventory-heavy operator",
+         "mid-size company",
+         "inventory-heavy operator",
+         "related-party funded",
+         "bank debt outstanding",
+         "foreign-currency exposure",
+         "related-party balances on the books",
+         "revaluation reserve in equity"
+        ],
+        "profile_id": "inventory_operator",
+        "profile_label": "mid-size inventory-heavy operator",
+        "rationale": "For a mid-size inventory-heavy operator, return on invested capital on 711 / 7015.01 / 1012.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together.",
+        "signals": [
+         "bank_debt",
+         "fx_exposure",
+         "related_party",
+         "revaluation_reserve"
+        ]
+       }
+      },
+      "demoted": false,
+      "demotion_reasons": [],
+      "direction": "improved",
+      "fact_units": {
+       "band_numerator_at_rung": "money",
+       "band_numerator_held": "money",
+       "roic__current": "unknown",
+       "roic__prior": "unknown"
+      },
+      "facts_cited": {
+       "band_numerator_at_rung": 4134642.9074999997,
+       "band_numerator_held": 6568569.365715,
+       "roic__current": 0.2383,
+       "roic__prior": 0.0102
+      },
+      "finding_id": "band_roic:critical->strong",
+      "lane": "c_bands",
+      "missing_elements": [],
+      "narrative_source": "deterministic",
+      "profile_fingerprint": "d251df531749c7e2",
+      "profile_id": "inventory_operator",
+      "rank": 2,
+      "ratio_key": "roic",
+      "rule_key": "band_roic",
+      "rungs_crossed": 3,
+      "severity": "low",
+      "so_what": {
+       "key": "statements.ratioCmp.bandFinding.improved",
+       "placeholders": {
+        "current_label": "Dec 2025",
+        "current_value": "23.8",
+        "delta": "+22.8",
+        "delta_unit": "pp",
+        "from": "critical",
+        "headroom_money": "2433926.46",
+        "label_key": "ratioTable.roic.label",
+        "prior_label": "Dec 2024",
+        "prior_value": "1.0",
+        "rung": "strong",
+        "rung_value": "15",
+        "to": "strong"
+       }
+      },
+      "source_currency": "RON",
+      "surfaced": true,
+      "title": "Return on invested capital on 711 / 7015.01 / 1012.01 at 23.8% — at or above the 15.0% strong rung of return on invested capital for mid-size inventory-heavy operator",
+      "title_template": "Return on invested capital on 711 / 7015.01 / 1012.01 at 23.8% — at or above the 15.0% strong rung of return on invested capital for mid-size inventory-heavy operator"
      },
      {
       "body": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 1012.01 (Nnsefni mkxmwzem dnzmnf 2420.42): return on equity in Dec 2024 — 1.3%; return on equity in Dec 2025 — 31.5%. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 711, 7015.01, 1012.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_roe fires when strong rung of return on equity is at or above 20.0%; observed 31.5%. Impact: the numerator of return on equity at the strong rung, versus as held moves from RON 4,784,817 to RON 7,533,676. For a mid-size inventory-heavy operator, return on equity on 711 / 7015.01 / 1012.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the return on equity movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 1012.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 1012.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
@@ -3254,7 +3268,7 @@
       "lane": "c_bands",
       "missing_elements": [],
       "narrative_source": "deterministic",
-      "profile_fingerprint": "c8f2df71eb5e40c9",
+      "profile_fingerprint": "d251df531749c7e2",
       "profile_id": "inventory_operator",
       "rank": 3,
       "ratio_key": "roe",
@@ -3431,7 +3445,7 @@
       "lane": "c_bands",
       "missing_elements": [],
       "narrative_source": "deterministic",
-      "profile_fingerprint": "c8f2df71eb5e40c9",
+      "profile_fingerprint": "d251df531749c7e2",
       "profile_id": "inventory_operator",
       "rank": 4,
       "ratio_key": "cash_ratio",
@@ -3461,8 +3475,8 @@
       "title_template": "Cash ratio on 5121.07 / 5311.09 / 401.01 at 0.09× — below the 0.10× watch rung of cash ratio for mid-size inventory-heavy operator"
      },
      {
-      "body": "401.01 (Zchgynjhy ygbohgy - 940.40 940.40), 401.110 (Ypurclfuc BVN 976.667), 601.201 (Xr.kvy.dxmka kaiag.zvxba 258.658): days payables outstanding in Dec 2024 — 51 days; days payables outstanding in Dec 2025 — 27 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 401.01, 401.110, 601.201; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_dpo fires when healthy rung of days payables outstanding is below 45 days; observed 27 days. Impact: the numerator of days payables outstanding at the healthy rung, versus as held moves from RON 12,760,492 to RON 7,554,835. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; days payables outstanding on 401.01 / 401.110 / 601.201 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the days payables outstanding movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 401.01, 401.110, 601.201, from the financial controller (before the next board pack). 2) Quantify what returns days payables outstanding to the healthy rung — headroom schedule for the numerator and the denominator of days payables outstanding, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-      "body_template": "401.01 (Zchgynjhy ygbohgy - 940.40 940.40), 401.110 (Ypurclfuc BVN 976.667), 601.201 (Xr.kvy.dxmka kaiag.zvxba 258.658): days payables outstanding in Dec 2024 — 51 days; days payables outstanding in Dec 2025 — 27 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 401.01, 401.110, 601.201; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_dpo fires when healthy rung of days payables outstanding is below 45 days; observed 27 days. Impact: the numerator of days payables outstanding at the healthy rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; days payables outstanding on 401.01 / 401.110 / 601.201 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the days payables outstanding movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 401.01, 401.110, 601.201, from the financial controller (before the next board pack). 2) Quantify what returns days payables outstanding to the healthy rung — headroom schedule for the numerator and the denominator of days payables outstanding, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body": "401.01 (Zchgynjhy ygbohgy - 940.40 940.40), 401.110 (Ypurclfuc BVN 976.667), 601.201 (Xr.kvy.dxmka kaiag.zvxba 258.658): days payables outstanding in Dec 2024 — 52 days; days payables outstanding in Dec 2025 — 27 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 401.01, 401.110, 601.201; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_dpo fires when healthy rung of days payables outstanding is below 45 days; observed 27 days. Impact: the numerator of days payables outstanding at the healthy rung, versus as held moves from RON 12,743,922 to RON 7,554,852. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; days payables outstanding on 401.01 / 401.110 / 601.201 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the days payables outstanding movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 401.01, 401.110, 601.201, from the financial controller (before the next board pack). 2) Quantify what returns days payables outstanding to the healthy rung — headroom schedule for the numerator and the denominator of days payables outstanding, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body_template": "401.01 (Zchgynjhy ygbohgy - 940.40 940.40), 401.110 (Ypurclfuc BVN 976.667), 601.201 (Xr.kvy.dxmka kaiag.zvxba 258.658): days payables outstanding in Dec 2024 — 52 days; days payables outstanding in Dec 2025 — 27 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 401.01, 401.110, 601.201; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_dpo fires when healthy rung of days payables outstanding is below 45 days; observed 27 days. Impact: the numerator of days payables outstanding at the healthy rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; days payables outstanding on 401.01 / 401.110 / 601.201 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the days payables outstanding movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 401.01, 401.110, 601.201, from the financial controller (before the next board pack). 2) Quantify what returns days payables outstanding to the healthy rung — headroom schedule for the numerator and the denominator of days payables outstanding, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
       "category": "working_capital",
       "contract_elements": {
        "action": {
@@ -3491,7 +3505,7 @@
        "evidence": {
         "comparison_basis": {
          "basis_unit": "days",
-         "basis_value": 51.4901,
+         "basis_value": 51.6642,
          "description": "the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision",
          "kind": "prior_period"
         },
@@ -3500,13 +3514,13 @@
           "fact": "dpo__prior",
           "label": "days payables outstanding in Dec 2024",
           "unit": "days",
-          "value": 51.4901
+          "value": 51.6642
          },
          {
           "fact": "dpo__current",
           "label": "days payables outstanding in Dec 2025",
           "unit": "days",
-          "value": 26.6422
+          "value": 26.6769
          }
         ],
         "provenance": {
@@ -3522,12 +3536,12 @@
         }
        },
        "impact": {
-        "adjusted": 7554834.880755234,
+        "adjusted": 7554851.8770709485,
         "adjusted_fact": "band_numerator_held",
-        "baseline": 12760491.612328768,
+        "baseline": 12743922.062465753,
         "baseline_fact": "band_numerator_at_rung",
         "currency": "RON",
-        "delta": -5205656.731573534,
+        "delta": -5189070.185394805,
         "kind": "headroom",
         "metric": "band_dpo",
         "metric_label": "the numerator of days payables outstanding at the healthy rung, versus as held",
@@ -3559,7 +3573,7 @@
        "threshold": {
         "comparator": "<",
         "limit": 45.0,
-        "observed": 26.6422,
+        "observed": 26.6769,
         "parameter": "healthy",
         "parameter_label": "healthy rung of days payables outstanding",
         "rule_id": "band_dpo",
@@ -3599,16 +3613,16 @@
        "dpo__prior": "unknown"
       },
       "facts_cited": {
-       "band_numerator_at_rung": 12760491.612328768,
-       "band_numerator_held": 7554834.880755234,
-       "dpo__current": 26.6422,
-       "dpo__prior": 51.4901
+       "band_numerator_at_rung": 12743922.062465753,
+       "band_numerator_held": 7554851.8770709485,
+       "dpo__current": 26.6769,
+       "dpo__prior": 51.6642
       },
       "finding_id": "band_dpo:healthy->watch",
       "lane": "c_bands",
       "missing_elements": [],
       "narrative_source": "deterministic",
-      "profile_fingerprint": "c8f2df71eb5e40c9",
+      "profile_fingerprint": "d251df531749c7e2",
       "profile_id": "inventory_operator",
       "rank": 5,
       "ratio_key": "dpo",
@@ -3620,13 +3634,13 @@
        "placeholders": {
         "current_label": "Dec 2025",
         "current_value": "27",
-        "delta": "-24",
+        "delta": "-25",
         "delta_unit": "days",
         "from": "healthy",
-        "headroom_money": "5205656.73",
+        "headroom_money": "5189070.19",
         "label_key": "ratioTable.dpo.label",
         "prior_label": "Dec 2024",
-        "prior_value": "51",
+        "prior_value": "52",
         "rung": "healthy",
         "rung_value": "45",
         "to": "watch"
@@ -3785,7 +3799,7 @@
       "lane": "c_bands",
       "missing_elements": [],
       "narrative_source": "deterministic",
-      "profile_fingerprint": "c8f2df71eb5e40c9",
+      "profile_fingerprint": "d251df531749c7e2",
       "profile_id": "inventory_operator",
       "rank": 6,
       "ratio_key": "quick_ratio",
@@ -3962,7 +3976,7 @@
       "lane": "c_bands",
       "missing_elements": [],
       "narrative_source": "deterministic",
-      "profile_fingerprint": "c8f2df71eb5e40c9",
+      "profile_fingerprint": "d251df531749c7e2",
       "profile_id": "inventory_operator",
       "rank": 7,
       "ratio_key": "current_ratio",
@@ -3992,8 +4006,8 @@
       "title_template": "Current ratio on 4511.01 / 4111.01 / 401.01 at 2.10× — at or above the 2.00× strong rung of current ratio for mid-size inventory-heavy operator"
      },
      {
-      "body": "4511.01 (Ndqe te cnifmfy NLC 3299.59), 4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): credit composite in Dec 2024 — 79.3; credit composite in Dec 2025 — 80.7. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the credit model's letter ladder (CREDIT_LETTER_LADDER) under credit model revision 2. Source: period period-agras-fy2025; accounts 4511.01, 4111.01, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_letter_grade fires when AA rung of credit composite is at or above 80.0; observed 80.7. Impact: the credit composite against the AA rung, in notches of the 10.0-point band moves from 0.00 notches to 0.07 notches (+0.07 notches). The letter is how a mid-size inventory-heavy operator is graded in one word by the group treasury and the statutory auditor; credit letter grade on 4511.01 / 4111.01 / 401.01 moving a notch changes that grade. Do this: 1) Reconcile the credit letter grade movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4511.01, 4111.01, 401.01, from the financial controller (before the next board pack). 2) Confirm the move past the AA rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4511.01, 4111.01, 401.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-      "body_template": "4511.01 (Ndqe te cnifmfy NLC 3299.59), 4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): credit composite in Dec 2024 — 79.3; credit composite in Dec 2025 — 80.7. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the credit model's letter ladder (CREDIT_LETTER_LADDER) under credit model revision 2. Source: period period-agras-fy2025; accounts 4511.01, 4111.01, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_letter_grade fires when AA rung of credit composite is at or above 80.0; observed 80.7. Impact: the credit composite against the AA rung, in notches of the 10.0-point band moves from 0.00 notches to 0.07 notches (+0.07 notches). The letter is how a mid-size inventory-heavy operator is graded in one word by the group treasury and the statutory auditor; credit letter grade on 4511.01 / 4111.01 / 401.01 moving a notch changes that grade. Do this: 1) Reconcile the credit letter grade movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4511.01, 4111.01, 401.01, from the financial controller (before the next board pack). 2) Confirm the move past the AA rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4511.01, 4111.01, 401.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body": "4511.01 (Ndqe te cnifmfy NLC 3299.59), 4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): credit composite in Dec 2024 — 79.3; credit composite in Dec 2025 — 81.0. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the credit model's letter ladder (CREDIT_LETTER_LADDER) under credit model revision 2. Source: period period-agras-fy2025; accounts 4511.01, 4111.01, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_letter_grade fires when AA rung of credit composite is at or above 80.0; observed 81.0. Impact: the credit composite against the AA rung, in notches of the 10.0-point band moves from 0.00 notches to 0.10 notches (+0.10 notches). The letter is how a mid-size inventory-heavy operator is graded in one word by the group treasury and the statutory auditor; credit letter grade on 4511.01 / 4111.01 / 401.01 moving a notch changes that grade. Do this: 1) Reconcile the credit letter grade movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4511.01, 4111.01, 401.01, from the financial controller (before the next board pack). 2) Confirm the move past the AA rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4511.01, 4111.01, 401.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body_template": "4511.01 (Ndqe te cnifmfy NLC 3299.59), 4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): credit composite in Dec 2024 — 79.3; credit composite in Dec 2025 — 81.0. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the credit model's letter ladder (CREDIT_LETTER_LADDER) under credit model revision 2. Source: period period-agras-fy2025; accounts 4511.01, 4111.01, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_letter_grade fires when AA rung of credit composite is at or above 80.0; observed 81.0. Impact: the credit composite against the AA rung, in notches of the 10.0-point band moves from 0.00 notches to 0.10 notches (+0.10 notches). The letter is how a mid-size inventory-heavy operator is graded in one word by the group treasury and the statutory auditor; credit letter grade on 4511.01 / 4111.01 / 401.01 moving a notch changes that grade. Do this: 1) Reconcile the credit letter grade movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4511.01, 4111.01, 401.01, from the financial controller (before the next board pack). 2) Confirm the move past the AA rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4511.01, 4111.01, 401.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
       "category": "leverage",
       "contract_elements": {
        "action": {
@@ -4037,7 +4051,7 @@
           "fact": "letter_grade__current",
           "label": "credit composite in Dec 2025",
           "unit": "score",
-          "value": 80.7
+          "value": 81.0
          }
         ],
         "provenance": {
@@ -4053,12 +4067,12 @@
         }
        },
        "impact": {
-        "adjusted": 0.07000000000000028,
+        "adjusted": 0.1,
         "adjusted_fact": null,
         "baseline": 0.0,
         "baseline_fact": null,
         "currency": null,
-        "delta": 0.07000000000000028,
+        "delta": 0.1,
         "kind": "headroom",
         "metric": "band_letter_grade",
         "metric_label": "the credit composite against the AA rung, in notches of the 10.0-point band",
@@ -4090,7 +4104,7 @@
        "threshold": {
         "comparator": ">=",
         "limit": 80.0,
-        "observed": 80.7,
+        "observed": 81.0,
         "parameter": "AA",
         "parameter_label": "AA rung of credit composite",
         "rule_id": "band_letter_grade",
@@ -4128,14 +4142,14 @@
        "letter_grade__prior": "unknown"
       },
       "facts_cited": {
-       "letter_grade__current": 80.7,
+       "letter_grade__current": 81.0,
        "letter_grade__prior": 79.3
       },
       "finding_id": "band_letter_grade:A->AA",
       "lane": "c_bands",
       "missing_elements": [],
       "narrative_source": "deterministic",
-      "profile_fingerprint": "c8f2df71eb5e40c9",
+      "profile_fingerprint": "d251df531749c7e2",
       "profile_id": "inventory_operator",
       "rank": 8,
       "ratio_key": "letter_grade",
@@ -4161,12 +4175,12 @@
       },
       "source_currency": "RON",
       "surfaced": true,
-      "title": "Credit letter grade on 4511.01 / 4111.01 / 401.01 at 80.7 — at or above the 80.0 AA rung of credit composite for mid-size inventory-heavy operator",
-      "title_template": "Credit letter grade on 4511.01 / 4111.01 / 401.01 at 80.7 — at or above the 80.0 AA rung of credit composite for mid-size inventory-heavy operator"
+      "title": "Credit letter grade on 4511.01 / 4111.01 / 401.01 at 81.0 — at or above the 80.0 AA rung of credit composite for mid-size inventory-heavy operator",
+      "title_template": "Credit letter grade on 4511.01 / 4111.01 / 401.01 at 81.0 — at or above the 80.0 AA rung of credit composite for mid-size inventory-heavy operator"
      },
      {
-      "body": "4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 301.201 (Uxsyann zanpy - fxaby 467.067), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): cash conversion cycle in Dec 2024 — 26 days; cash conversion cycle in Dec 2025 — 31 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 4111.01, 301.201, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_ccc fires when strong rung of cash conversion cycle is above 30 days; observed 31 days. Impact: the working capital cash conversion cycle ties up at the strong rung, versus as held moves from RON 9,746,040 to RON 10,092,642. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; cash conversion cycle on 4111.01 / 301.201 / 401.01 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the cash conversion cycle movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4111.01, 301.201, 401.01, from the financial controller (before the next board pack). 2) Quantify what returns cash conversion cycle to the strong rung — headroom schedule for the numerator and the denominator of cash conversion cycle, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-      "body_template": "4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 301.201 (Uxsyann zanpy - fxaby 467.067), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): cash conversion cycle in Dec 2024 — 26 days; cash conversion cycle in Dec 2025 — 31 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 4111.01, 301.201, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_ccc fires when strong rung of cash conversion cycle is above 30 days; observed 31 days. Impact: the working capital cash conversion cycle ties up at the strong rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; cash conversion cycle on 4111.01 / 301.201 / 401.01 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the cash conversion cycle movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4111.01, 301.201, 401.01, from the financial controller (before the next board pack). 2) Quantify what returns cash conversion cycle to the strong rung — headroom schedule for the numerator and the denominator of cash conversion cycle, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body": "4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 301.201 (Uxsyann zanpy - fxaby 467.067), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): cash conversion cycle in Dec 2024 — 28 days; cash conversion cycle in Dec 2025 — 33 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 4111.01, 301.201, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_ccc fires when strong rung of cash conversion cycle is above 30 days; observed 33 days. Impact: the working capital cash conversion cycle ties up at the strong rung, versus as held moves from RON 9,106,710 to RON 9,990,972. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; cash conversion cycle on 4111.01 / 301.201 / 401.01 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the cash conversion cycle movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4111.01, 301.201, 401.01, from the financial controller (before the next board pack). 2) Quantify what returns cash conversion cycle to the strong rung — headroom schedule for the numerator and the denominator of cash conversion cycle, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body_template": "4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 301.201 (Uxsyann zanpy - fxaby 467.067), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): cash conversion cycle in Dec 2024 — 28 days; cash conversion cycle in Dec 2025 — 33 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 4111.01, 301.201, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_ccc fires when strong rung of cash conversion cycle is above 30 days; observed 33 days. Impact: the working capital cash conversion cycle ties up at the strong rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; cash conversion cycle on 4111.01 / 301.201 / 401.01 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the cash conversion cycle movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4111.01, 301.201, 401.01, from the financial controller (before the next board pack). 2) Quantify what returns cash conversion cycle to the strong rung — headroom schedule for the numerator and the denominator of cash conversion cycle, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
       "category": "working_capital",
       "contract_elements": {
        "action": {
@@ -4195,7 +4209,7 @@
        "evidence": {
         "comparison_basis": {
          "basis_unit": "days",
-         "basis_value": 25.9292,
+         "basis_value": 27.9499,
          "description": "the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision",
          "kind": "prior_period"
         },
@@ -4204,13 +4218,13 @@
           "fact": "ccc__prior",
           "label": "cash conversion cycle in Dec 2024",
           "unit": "days",
-          "value": 25.9292
+          "value": 27.9499
          },
          {
           "fact": "ccc__current",
           "label": "cash conversion cycle in Dec 2025",
           "unit": "days",
-          "value": 31.0669
+          "value": 32.913
          }
         ],
         "provenance": {
@@ -4226,12 +4240,12 @@
         }
        },
        "impact": {
-        "adjusted": 10092641.638558675,
+        "adjusted": 9990971.914314574,
         "adjusted_fact": "band_numerator_held",
-        "baseline": 9746039.97041096,
+        "baseline": 9106710.340273973,
         "baseline_fact": "band_numerator_at_rung",
         "currency": "RON",
-        "delta": 346601.6681477148,
+        "delta": 884261.574040601,
         "kind": "headroom",
         "metric": "band_ccc",
         "metric_label": "the working capital cash conversion cycle ties up at the strong rung, versus as held",
@@ -4263,7 +4277,7 @@
        "threshold": {
         "comparator": ">",
         "limit": 30.0,
-        "observed": 31.0669,
+        "observed": 32.913,
         "parameter": "strong",
         "parameter_label": "strong rung of cash conversion cycle",
         "rule_id": "band_ccc",
@@ -4303,16 +4317,16 @@
        "ccc__prior": "unknown"
       },
       "facts_cited": {
-       "band_numerator_at_rung": 9746039.97041096,
-       "band_numerator_held": 10092641.638558675,
-       "ccc__current": 31.0669,
-       "ccc__prior": 25.9292
+       "band_numerator_at_rung": 9106710.340273973,
+       "band_numerator_held": 9990971.914314574,
+       "ccc__current": 32.913,
+       "ccc__prior": 27.9499
       },
       "finding_id": "band_ccc:strong->healthy",
       "lane": "c_bands",
       "missing_elements": [],
       "narrative_source": "deterministic",
-      "profile_fingerprint": "c8f2df71eb5e40c9",
+      "profile_fingerprint": "d251df531749c7e2",
       "profile_id": "inventory_operator",
       "rank": 9,
       "ratio_key": "ccc",
@@ -4323,14 +4337,14 @@
        "key": "statements.ratioCmp.bandFinding.deteriorated",
        "placeholders": {
         "current_label": "Dec 2025",
-        "current_value": "31",
+        "current_value": "33",
         "delta": "+5",
         "delta_unit": "days",
         "from": "strong",
-        "headroom_money": "346601.67",
+        "headroom_money": "884261.57",
         "label_key": "ratioTable.ccc.label",
         "prior_label": "Dec 2024",
-        "prior_value": "26",
+        "prior_value": "28",
         "rung": "strong",
         "rung_value": "30",
         "to": "healthy"
@@ -4338,13 +4352,13 @@
       },
       "source_currency": "RON",
       "surfaced": true,
-      "title": "Cash conversion cycle on 4111.01 / 301.201 / 401.01 at 31 days — above the 30 days strong rung of cash conversion cycle for mid-size inventory-heavy operator",
-      "title_template": "Cash conversion cycle on 4111.01 / 301.201 / 401.01 at 31 days — above the 30 days strong rung of cash conversion cycle for mid-size inventory-heavy operator"
+      "title": "Cash conversion cycle on 4111.01 / 301.201 / 401.01 at 33 days — above the 30 days strong rung of cash conversion cycle for mid-size inventory-heavy operator",
+      "title_template": "Cash conversion cycle on 4111.01 / 301.201 / 401.01 at 33 days — above the 30 days strong rung of cash conversion cycle for mid-size inventory-heavy operator"
      }
     ],
     "improved": [
-     "roic",
      "roa",
+     "roic",
      "roe",
      "current_ratio",
      "letter_grade"
@@ -4588,7 +4602,7 @@
        {
         "name": "x3",
         "source": "credit_model.altman_x3",
-        "value": 0.3938
+        "value": 0.1991
        },
        {
         "name": "x4",
@@ -4597,15 +4611,15 @@
        }
       ],
       "reason": null,
-      "value": 7.31,
-      "value_q": "7.31"
+      "value": 6.01,
+      "value_q": "6.01"
      },
      "delta": {
-      "favourable": "improved",
+      "favourable": "deteriorated",
       "pct_change": null,
       "reason_code": null,
       "unit": "z",
-      "value": "+0.69"
+      "value": "-0.37"
      },
      "display_unit": "z",
      "finding_id": null,
@@ -4649,7 +4663,7 @@
        {
         "name": "x3",
         "source": "credit_model.altman_x3",
-        "value": 0.0468
+        "value": 0.0103
        },
        {
         "name": "x4",
@@ -4658,8 +4672,8 @@
        }
       ],
       "reason": null,
-      "value": 6.62,
-      "value_q": "6.62"
+      "value": 6.38,
+      "value_q": "6.38"
      }
     },
     {
@@ -4672,7 +4686,7 @@
        {
         "name": "credit_composite",
         "source": "credit_model.credit_composite",
-        "value": 80.7
+        "value": 81.0
        }
       ],
       "reason": {
@@ -4681,15 +4695,15 @@
         "letter_grade"
        ]
       },
-      "value": 80.7,
-      "value_q": "80.7"
+      "value": 81.0,
+      "value_q": "81.0"
      },
      "delta": {
       "favourable": "improved",
       "pct_change": null,
       "reason_code": null,
       "unit": "points",
-      "value": "+1.4"
+      "value": "+1.7"
      },
      "display_unit": "score",
      "finding_id": null,
@@ -4776,11 +4790,11 @@
        {
         "name": "credit_composite",
         "source": "credit_model.credit_composite",
-        "value": 80.7
+        "value": 81.0
        }
       ],
       "reason": null,
-      "value": 80.7,
+      "value": 81.0,
       "value_q": "AA"
      },
      "delta": {
@@ -4800,8 +4814,8 @@
      "movement": {
       "band_width": "10.0",
       "band_width_basis": "closed",
-      "distance_fraction": "0.070",
-      "distance_past_rung": "0.7",
+      "distance_fraction": "0.100",
+      "distance_past_rung": "1.0",
       "from": "A",
       "materiality": null,
       "reason_code": null,
@@ -4923,14 +4937,14 @@
       },
       "x1": 0.3683,
       "x2": 0.1903,
-      "x3": 0.3938,
+      "x3": 0.1991,
       "x4": 1.554,
-      "z": 7.31,
+      "z": 6.01,
       "zone": "safe"
      },
      "as_filed": null,
      "as_filed_differs": false,
-     "composite": 80.7,
+     "composite": 81.0,
      "declared_rungs": {},
      "ladder": [
       {
@@ -4981,9 +4995,9 @@
        "source": "derived: on the D4 domain TL >= share x TA and BE <= TA, so BE / TL <= 1 / share"
       },
       "altman_z": {
-       "bound": 114.826714,
+       "bound": 113.51832999999999,
        "bound_is": "6.56 x altman_x1.max + 3.26 x X2 + 6.72 x X3 + 1.05 x altman_x4.max",
-       "derivation": "6.56 x 1 + 3.26 x 0.1903 + 6.72 x 0.3938 + 1.05 x 100 = 114.8267",
+       "derivation": "6.56 x 1 + 3.26 x 0.1903 + 6.72 x 0.1991 + 1.05 x 100 = 113.5183",
        "file": "packs/credit/model.yaml",
        "source": "derived from the component bounds above with the book's own measured X2 and X3; X2 and X3 have no structural bound and are required finite"
       },
@@ -5010,7 +5024,7 @@
       "equity": 100.0,
       "leverage": 90.0,
       "liquidity": 74.1,
-      "profitability": 31.7
+      "profitability": 33.2
      },
      "weights": {
       "altman": 0.3,
@@ -5030,9 +5044,9 @@
       },
       "x1": 0.1132,
       "x2": -0.1073,
-      "x3": 0.0468,
+      "x3": 0.0103,
       "x4": 5.6337,
-      "z": 6.62,
+      "z": 6.38,
       "zone": "safe"
      },
      "as_filed": null,
@@ -5105,9 +5119,9 @@
        "source": "derived: on the D4 domain TL >= share x TA and BE <= TA, so BE / TL <= 1 / share"
       },
       "altman_z": {
-       "bound": 111.524698,
+       "bound": 111.27941799999999,
        "bound_is": "6.56 x altman_x1.max + 3.26 x X2 + 6.72 x X3 + 1.05 x altman_x4.max",
-       "derivation": "6.56 x 1 + 3.26 x -0.1073 + 6.72 x 0.0468 + 1.05 x 100 = 111.5247",
+       "derivation": "6.56 x 1 + 3.26 x -0.1073 + 6.72 x 0.0103 + 1.05 x 100 = 111.2794",
        "file": "packs/credit/model.yaml",
        "source": "derived from the component bounds above with the book's own measured X2 and X3; X2 and X3 have no structural bound and are required finite"
       },
@@ -5134,7 +5148,7 @@
       "equity": 100.0,
       "leverage": 100.0,
       "liquidity": 97.3,
-      "profitability": 5.3
+      "profitability": 5.5
      },
      "weights": {
       "altman": 0.3,
@@ -5194,13 +5208,13 @@
        "result": "fail"
       },
       {
-       "detail": "5.93% -> 13.04%",
+       "detail": "1.37% -> 7.06%",
        "key": "margin_improving",
        "label": "Operating margin improving",
        "result": "pass"
       },
       {
-       "detail": "0.790x -> 3.016x",
+       "detail": "0.751x -> 2.818x",
        "key": "asset_turnover_improving",
        "label": "Asset turnover improving",
        "result": "pass"
@@ -5562,7 +5576,7 @@
        {
         "name": "gross_margin",
         "source": "metrics.gross_margin",
-        "value": 0.405
+        "value": 0.3632
        }
       ],
       "reason": {
@@ -5571,15 +5585,15 @@
         "industry_signal.block_sector_content"
        ]
       },
-      "value": 40.5,
-      "value_q": "40.5"
+      "value": 36.32,
+      "value_q": "36.3"
      },
      "delta": {
       "favourable": "deteriorated",
       "pct_change": null,
       "reason_code": null,
       "unit": "pp",
-      "value": "-1.7"
+      "value": "-2.9"
      },
      "display_unit": "pct",
      "finding_id": null,
@@ -5610,7 +5624,7 @@
        {
         "name": "gross_margin",
         "source": "metrics.gross_margin",
-        "value": 0.4224
+        "value": 0.3923
        }
       ],
       "reason": {
@@ -5619,8 +5633,8 @@
         "industry_signal.block_sector_content"
        ]
       },
-      "value": 42.24,
-      "value_q": "42.2"
+      "value": 39.23,
+      "value_q": "39.2"
      }
     },
     {
@@ -5633,7 +5647,7 @@
        {
         "name": "ebitda_margin",
         "source": "metrics.ebitda_margin",
-        "value": 0.1553
+        "value": 0.0973
        }
       ],
       "reason": {
@@ -5642,15 +5656,15 @@
         "industry_signal.block_sector_content"
        ]
       },
-      "value": 15.53,
-      "value_q": "15.5"
+      "value": 9.73,
+      "value_q": "9.7"
      },
      "delta": {
       "favourable": "improved",
       "pct_change": null,
       "reason_code": null,
       "unit": "pp",
-      "value": "+5.9"
+      "value": "+4.4"
      },
      "display_unit": "pct",
      "finding_id": null,
@@ -5681,7 +5695,7 @@
        {
         "name": "ebitda_margin",
         "source": "metrics.ebitda_margin",
-        "value": 0.0964
+        "value": 0.0528
        }
       ],
       "reason": {
@@ -5690,8 +5704,8 @@
         "industry_signal.block_sector_content"
        ]
       },
-      "value": 9.64,
-      "value_q": "9.6"
+      "value": 5.28,
+      "value_q": "5.3"
      }
     },
     {
@@ -5704,7 +5718,7 @@
        {
         "name": "net_margin",
         "source": "metrics.net_margin",
-        "value": 0.0635
+        "value": 0.068
        }
       ],
       "reason": {
@@ -5713,15 +5727,15 @@
         "industry_signal.block_sector_content"
        ]
       },
-      "value": 6.35,
-      "value_q": "6.3"
+      "value": 6.800000000000001,
+      "value_q": "6.8"
      },
      "delta": {
       "favourable": "improved",
       "pct_change": null,
       "reason_code": null,
       "unit": "pp",
-      "value": "+4.9"
+      "value": "+5.3"
      },
      "display_unit": "pct",
      "finding_id": null,
@@ -5752,7 +5766,7 @@
        {
         "name": "net_margin",
         "source": "metrics.net_margin",
-        "value": 0.0144
+        "value": 0.0152
        }
       ],
       "reason": {
@@ -5761,8 +5775,8 @@
         "industry_signal.block_sector_content"
        ]
       },
-      "value": 1.44,
-      "value_q": "1.4"
+      "value": 1.52,
+      "value_q": "1.5"
      }
     },
     {
@@ -5813,9 +5827,9 @@
       "from": "critical",
       "materiality": {
        "basis_key": "revenue",
-       "basis_value": "118576819.64",
+       "basis_value": "110798309.14",
        "headroom_money": "3601764.61",
-       "share": "0.0304"
+       "share": "0.0325"
       },
       "reason_code": null,
       "rung_crossed": {
@@ -5900,9 +5914,9 @@
       "from": "critical",
       "materiality": {
        "basis_key": "revenue",
-       "basis_value": "118576819.64",
+       "basis_value": "110798309.14",
        "headroom_money": "2748859.28",
-       "share": "0.0232"
+       "share": "0.0248"
       },
       "reason_code": null,
       "rung_crossed": {
@@ -5953,19 +5967,19 @@
        {
         "name": "roic",
         "source": "metrics.roic",
-        "value": 0.4713
+        "value": 0.2383
        }
       ],
       "reason": null,
-      "value": 47.13,
-      "value_q": "47.1"
+      "value": 23.830000000000002,
+      "value_q": "23.8"
      },
      "delta": {
       "favourable": "improved",
       "pct_change": null,
       "reason_code": null,
       "unit": "pp",
-      "value": "+42.5"
+      "value": "+22.8"
      },
      "display_unit": "pct",
      "finding_id": "band_roic:critical->strong",
@@ -5977,14 +5991,14 @@
      "movement": {
       "band_width": "5.0",
       "band_width_basis": "adjacent",
-      "distance_fraction": "6.426",
-      "distance_past_rung": "32.1",
+      "distance_fraction": "1.766",
+      "distance_past_rung": "8.8",
       "from": "critical",
       "materiality": {
        "basis_key": "revenue",
-       "basis_value": "118576819.64",
-       "headroom_money": "8856405.11",
-       "share": "0.0747"
+       "basis_value": "110798309.14",
+       "headroom_money": "2433926.46",
+       "share": "0.0220"
       },
       "reason_code": null,
       "rung_crossed": {
@@ -6008,12 +6022,12 @@
        {
         "name": "roic",
         "source": "metrics.roic",
-        "value": 0.0463
+        "value": 0.0102
        }
       ],
       "reason": null,
-      "value": 4.63,
-      "value_q": "4.6"
+      "value": 1.02,
+      "value_q": "1.0"
      }
     },
     {
@@ -6040,7 +6054,7 @@
        {
         "name": "revenue",
         "source": "incomeStatement.revenue",
-        "value": 118576819.64
+        "value": 110798309.14
        },
        {
         "name": "costOfGoodsSold",
@@ -6050,7 +6064,7 @@
        {
         "name": "operatingExpenses",
         "source": "incomeStatement.operatingExpenses",
-        "value": 29989304.23
+        "value": 29854906.77
        },
        {
         "name": "otherIncome",
@@ -6059,15 +6073,15 @@
        }
       ],
       "reason": null,
-      "value": 0.19761700568498633,
-      "value_q": "0.20"
+      "value": 0.3377945956358713,
+      "value_q": "0.34"
      },
      "delta": {
       "favourable": "deteriorated",
       "pct_change": null,
       "reason_code": null,
       "unit": "turns",
-      "value": "+0.20"
+      "value": "+0.34"
      },
      "display_unit": "x",
      "finding_id": null,
@@ -6112,7 +6126,7 @@
        {
         "name": "revenue",
         "source": "incomeStatement.revenue",
-        "value": 99424740.16
+        "value": 94509939.96
        },
        {
         "name": "costOfGoodsSold",
@@ -6122,7 +6136,7 @@
        {
         "name": "operatingExpenses",
         "source": "incomeStatement.operatingExpenses",
-        "value": 33812420.43
+        "value": 33492385.21
        },
        {
         "name": "otherIncome",
@@ -6406,12 +6420,12 @@
        {
         "name": "interest_coverage",
         "source": "metrics.interest_coverage",
-        "value": 55.644
+        "value": 28.1403
        }
       ],
       "reason": null,
-      "value": 55.644,
-      "value_q": "55.64"
+      "value": 28.1403,
+      "value_q": "28.14"
      },
      "delta": {
       "favourable": null,
@@ -6449,7 +6463,7 @@
        {
         "name": "revenue",
         "source": "incomeStatement.revenue",
-        "value": 99424740.16
+        "value": 94509939.96
        },
        {
         "name": "costOfGoodsSold",
@@ -6459,7 +6473,7 @@
        {
         "name": "operatingExpenses",
         "source": "incomeStatement.operatingExpenses",
-        "value": 33812420.43
+        "value": 33492385.21
        },
        {
         "name": "otherIncome",
@@ -6501,12 +6515,12 @@
        {
         "name": "dscr",
         "source": "metrics.dscr",
-        "value": 7.4345
+        "value": 4.3493
        }
       ],
       "reason": null,
-      "value": 7.4345,
-      "value_q": "7.43"
+      "value": 4.3493,
+      "value_q": "4.35"
      },
      "delta": {
       "favourable": null,
@@ -6544,7 +6558,7 @@
        {
         "name": "ebitda_statutory",
         "source": "assembled_pl.ebitda_statutory",
-        "value": 9588744.57
+        "value": 4993979.59
        },
        {
         "name": "interestExpense",
@@ -6652,12 +6666,12 @@
        {
         "name": "dscr_with_lt_principal",
         "source": "metrics.dscr_with_lt_principal",
-        "value": 40.2209
+        "value": 23.5301
        }
       ],
       "reason": null,
-      "value": 40.2209,
-      "value_q": "40.22"
+      "value": 23.5301,
+      "value_q": "23.53"
      },
      "delta": {
       "favourable": null,
@@ -6695,7 +6709,7 @@
        {
         "name": "ebitda_statutory",
         "source": "assembled_pl.ebitda_statutory",
-        "value": 9588744.57
+        "value": 4993979.59
        },
        {
         "name": "interestExpense",
@@ -6733,7 +6747,7 @@
        {
         "name": "revenue",
         "source": "incomeStatement.revenue",
-        "value": 118576819.64
+        "value": 110798309.14
        },
        {
         "name": "period_days",
@@ -6747,8 +6761,8 @@
         "industry_signal.block_sector_content"
        ]
       },
-      "value": 26.205674261074325,
-      "value_q": "26"
+      "value": 28.045423567553193,
+      "value_q": "28"
      },
      "delta": {
       "favourable": "improved",
@@ -6791,7 +6805,7 @@
        {
         "name": "revenue",
         "source": "incomeStatement.revenue",
-        "value": 99424740.16
+        "value": 94509939.96
        },
        {
         "name": "period_days",
@@ -6805,8 +6819,8 @@
         "industry_signal.block_sector_content"
        ]
       },
-      "value": 39.757189047603745,
-      "value_q": "40"
+      "value": 41.824682062257025,
+      "value_q": "42"
      }
     },
     {
@@ -6819,7 +6833,7 @@
        {
         "name": "dio",
         "source": "metrics.dio",
-        "value": 31.5035
+        "value": 31.5444
        }
       ],
       "reason": {
@@ -6828,7 +6842,7 @@
         "industry_signal.block_sector_content"
        ]
       },
-      "value": 31.5035,
+      "value": 31.5444,
       "value_q": "32"
      },
      "delta": {
@@ -6867,7 +6881,7 @@
        {
         "name": "dio",
         "source": "metrics.dio",
-        "value": 37.662
+        "value": 37.7894
        }
       ],
       "reason": {
@@ -6876,7 +6890,7 @@
         "industry_signal.block_sector_content"
        ]
       },
-      "value": 37.662,
+      "value": 37.7894,
       "value_q": "38"
      }
     },
@@ -6894,11 +6908,11 @@
        {
         "name": "dpo",
         "source": "metrics.dpo",
-        "value": 26.6422
+        "value": 26.6769
        }
       ],
       "reason": null,
-      "value": 26.6422,
+      "value": 26.6769,
       "value_q": "27"
      },
      "delta": {
@@ -6906,7 +6920,7 @@
       "pct_change": null,
       "reason_code": null,
       "unit": "days",
-      "value": "-24"
+      "value": "-25"
      },
      "display_unit": "days",
      "finding_id": "band_dpo:healthy->watch",
@@ -6918,14 +6932,14 @@
      "movement": {
       "band_width": "15",
       "band_width_basis": "adjacent",
-      "distance_fraction": "1.224",
+      "distance_fraction": "1.222",
       "distance_past_rung": "18",
       "from": "healthy",
       "materiality": {
        "basis_key": "total_assets",
        "basis_value": "39319114.09",
-       "headroom_money": "5205656.73",
-       "share": "0.1324"
+       "headroom_money": "5189070.19",
+       "share": "0.1320"
       },
       "reason_code": null,
       "rung_crossed": {
@@ -6949,12 +6963,12 @@
        {
         "name": "dpo",
         "source": "metrics.dpo",
-        "value": 51.4901
+        "value": 51.6642
        }
       ],
       "reason": null,
-      "value": 51.4901,
-      "value_q": "51"
+      "value": 51.6642,
+      "value_q": "52"
      }
     },
     {
@@ -6971,12 +6985,12 @@
        {
         "name": "ccc",
         "source": "metrics.ccc",
-        "value": 31.0669
+        "value": 32.913
        }
       ],
       "reason": null,
-      "value": 31.0669,
-      "value_q": "31"
+      "value": 32.913,
+      "value_q": "33"
      },
      "delta": {
       "favourable": "deteriorated",
@@ -6995,14 +7009,14 @@
      "movement": {
       "band_width": "30",
       "band_width_basis": "closed",
-      "distance_fraction": "0.036",
-      "distance_past_rung": "1",
+      "distance_fraction": "0.097",
+      "distance_past_rung": "3",
       "from": "strong",
       "materiality": {
        "basis_key": "total_assets",
        "basis_value": "39319114.09",
-       "headroom_money": "346601.67",
-       "share": "0.0088"
+       "headroom_money": "884261.57",
+       "share": "0.0225"
       },
       "reason_code": null,
       "rung_crossed": {
@@ -7026,12 +7040,12 @@
        {
         "name": "ccc",
         "source": "metrics.ccc",
-        "value": 25.9292
+        "value": 27.9499
        }
       ],
       "reason": null,
-      "value": 25.9292,
-      "value_q": "26"
+      "value": 27.9499,
+      "value_q": "28"
      }
     },
     {
@@ -7044,7 +7058,7 @@
        {
         "name": "revenue",
         "source": "incomeStatement.revenue",
-        "value": 118576819.64
+        "value": 110798309.14
        },
        {
         "name": "total_assets",
@@ -7058,15 +7072,15 @@
         "industry_signal.block_sector_content"
        ]
       },
-      "value": 3.0157551202344495,
-      "value_q": "3.02"
+      "value": 2.8179248618467536,
+      "value_q": "2.82"
      },
      "delta": {
       "favourable": "improved",
-      "pct_change": "+282.3",
+      "pct_change": "+276.0",
       "reason_code": null,
       "unit": "turns",
-      "value": "+2.23"
+      "value": "+2.07"
      },
      "display_unit": "x",
      "finding_id": null,
@@ -7097,7 +7111,7 @@
        {
         "name": "revenue",
         "source": "incomeStatement.revenue",
-        "value": 99424740.16
+        "value": 94509939.96
        },
        {
         "name": "total_assets",
@@ -7111,8 +7125,8 @@
         "industry_signal.block_sector_content"
        ]
       },
-      "value": 0.7897986123625275,
-      "value_q": "0.79"
+      "value": 0.7507569978533779,
+      "value_q": "0.75"
      }
     },
     {
@@ -7129,19 +7143,19 @@
        {
         "name": "net_debt_to_ebitda",
         "source": "metrics.net_debt_to_ebitda",
-        "value": 0.1342
+        "value": 0.2294
        }
       ],
       "reason": null,
-      "value": 0.1342,
-      "value_q": "0.13"
+      "value": 0.2294,
+      "value_q": "0.23"
      },
      "delta": {
       "favourable": "deteriorated",
-      "pct_change": "+112.3",
+      "pct_change": "+111.3",
       "reason_code": null,
       "unit": "turns",
-      "value": "+1.19"
+      "value": "+2.26"
      },
      "display_unit": "x",
      "finding_id": null,
@@ -7176,12 +7190,12 @@
        {
         "name": "net_debt_to_ebitda",
         "source": "metrics.net_debt_to_ebitda",
-        "value": -1.0559
+        "value": -2.0274
        }
       ],
       "reason": null,
-      "value": -1.0559,
-      "value_q": "-1.06"
+      "value": -2.0274,
+      "value_q": "-2.03"
      }
     },
     {
@@ -7267,12 +7281,12 @@
        {
         "name": "ebitda_to_interest",
         "source": "metrics.ebitda_to_interest",
-        "value": 66.2774
+        "value": 38.7737
        }
       ],
       "reason": null,
-      "value": 66.2774,
-      "value_q": "66.28"
+      "value": 38.7737,
+      "value_q": "38.77"
      },
      "delta": {
       "favourable": null,
@@ -7333,7 +7347,7 @@
        {
         "name": "operating_margin",
         "source": "metrics.operating_margin",
-        "value": 0.1304
+        "value": 0.0706
        }
       ],
       "reason": {
@@ -7342,15 +7356,15 @@
         "industry_signal.block_sector_content"
        ]
       },
-      "value": 13.04,
-      "value_q": "13.0"
+      "value": 7.06,
+      "value_q": "7.1"
      },
      "delta": {
       "favourable": "improved",
       "pct_change": null,
       "reason_code": null,
       "unit": "pp",
-      "value": "+7.1"
+      "value": "+5.7"
      },
      "display_unit": "pct",
      "finding_id": null,
@@ -7381,7 +7395,7 @@
        {
         "name": "operating_margin",
         "source": "metrics.operating_margin",
-        "value": 0.0593
+        "value": 0.0137
        }
       ],
       "reason": {
@@ -7390,8 +7404,8 @@
         "industry_signal.block_sector_content"
        ]
       },
-      "value": 5.93,
-      "value_q": "5.9"
+      "value": 1.37,
+      "value_q": "1.4"
      }
     },
     {
@@ -7404,7 +7418,7 @@
        {
         "name": "core_ebitda_margin",
         "source": "metrics.core_ebitda_margin",
-        "value": 0.1521
+        "value": 0.0937
        }
       ],
       "reason": {
@@ -7413,15 +7427,15 @@
         "industry_signal.block_sector_content"
        ]
       },
-      "value": 15.21,
-      "value_q": "15.2"
+      "value": 9.370000000000001,
+      "value_q": "9.4"
      },
      "delta": {
       "favourable": "improved",
       "pct_change": null,
       "reason_code": null,
       "unit": "pp",
-      "value": "+7.0"
+      "value": "+5.6"
      },
      "display_unit": "pct",
      "finding_id": null,
@@ -7452,7 +7466,7 @@
        {
         "name": "core_ebitda_margin",
         "source": "metrics.core_ebitda_margin",
-        "value": 0.0823
+        "value": 0.038
        }
       ],
       "reason": {
@@ -7461,8 +7475,8 @@
         "industry_signal.block_sector_content"
        ]
       },
-      "value": 8.23,
-      "value_q": "8.2"
+      "value": 3.8,
+      "value_q": "3.8"
      }
     },
     {
@@ -7475,7 +7489,7 @@
        {
         "name": "inventory_turnover",
         "source": "metrics.inventory_turnover",
-        "value": 11.586
+        "value": 11.571
        }
       ],
       "reason": {
@@ -7484,15 +7498,15 @@
         "industry_signal.block_sector_content"
        ]
       },
-      "value": 11.586,
-      "value_q": "11.59"
+      "value": 11.571,
+      "value_q": "11.57"
      },
      "delta": {
       "favourable": "improved",
-      "pct_change": "+19.6",
+      "pct_change": "+19.8",
       "reason_code": null,
       "unit": "turns",
-      "value": "+1.90"
+      "value": "+1.91"
      },
      "display_unit": "x",
      "finding_id": null,
@@ -7523,7 +7537,7 @@
        {
         "name": "inventory_turnover",
         "source": "metrics.inventory_turnover",
-        "value": 9.6915
+        "value": 9.6588
        }
       ],
       "reason": {
@@ -7532,8 +7546,8 @@
         "industry_signal.block_sector_content"
        ]
       },
-      "value": 9.6915,
-      "value_q": "9.69"
+      "value": 9.6588,
+      "value_q": "9.66"
      }
     }
    ],
@@ -7672,7 +7686,7 @@
        {
         "name": "credit_subscore_profitability",
         "source": "credit_model.credit_subscore_profitability",
-        "value": 31.7
+        "value": 33.2
        }
       ],
       "reason": {
@@ -7681,15 +7695,15 @@
         "credit_subscore_profitability"
        ]
       },
-      "value": 31.7,
-      "value_q": "31.7"
+      "value": 33.2,
+      "value_q": "33.2"
      },
      "delta": {
       "favourable": "improved",
       "pct_change": null,
       "reason_code": null,
       "unit": "points",
-      "value": "+26.4"
+      "value": "+27.7"
      },
      "display_unit": "score",
      "finding_id": null,
@@ -7720,7 +7734,7 @@
        {
         "name": "credit_subscore_profitability",
         "source": "credit_model.credit_subscore_profitability",
-        "value": 5.3
+        "value": 5.5
        }
       ],
       "reason": {
@@ -7729,8 +7743,8 @@
         "credit_subscore_profitability"
        ]
       },
-      "value": 5.3,
-      "value_q": "5.3"
+      "value": 5.5,
+      "value_q": "5.5"
      }
     },
     {

@@ -63,13 +63,30 @@ describe("C9 — one EBITDA", () => {
     }
   });
 
-  it("the two definitions differ in SIGN on a real book", () => {
+  it("the two definitions differ by exactly other operating income, and materially, on every real book", () => {
     // Not a curiosity — it is why this cannot be left to "close enough".
-    const pl = capture("retail").statements.assembled_pl;
-    const withoutOther =
-      (pl.revenue ?? 0) - (pl.cogs ?? 0) - (pl.opex_excluding_cogs_and_da ?? 0);
-    expect(pl.ebitda).toBeGreaterThan(0);
-    expect(withoutOther).toBeLessThan(0);
+    // RESTATED (plan/2 B4a): this used to show a SIGN flip on retail
+    // (EBITDA +220,162.84 against -506,705.80 without other income). That
+    // flip existed only because retail's opex carried its mirrored 609
+    // supplier discounts twice; read as reductions, retail's EBITDA is
+    // 2,263,417.48 and no corpus book flips sign. The law that survives:
+    // the gap between the two definitions IS other_operating_income to the
+    // cent, on every real book, and it is never nil — its share of EBITDA
+    // is printed in the assertion so the reader sees how far "close enough"
+    // would be from the served figure.
+    for (const name of BOOKS) {
+      const pl = capture(name).statements.assembled_pl;
+      const withoutOther =
+        (pl.revenue ?? 0) - (pl.cogs ?? 0) - (pl.opex_excluding_cogs_and_da ?? 0);
+      const gap = (pl.ebitda ?? 0) - withoutOther;
+      const share = pl.ebitda ? gap / pl.ebitda : NaN;
+      expect(
+        Math.abs(gap - (pl.other_operating_income ?? 0)),
+        `${name}: the two definitions differ by ${gap}, other_operating_income is ${pl.other_operating_income}`,
+      ).toBeLessThan(0.02);
+      expect(gap, `${name}: other operating income is nil, the two definitions coincide`).not.toBe(0);
+      expect(Number.isFinite(share), `${name}: EBITDA is nil (share ${share})`).toBe(true);
+    }
   });
 
   it("the statement builder renders the SERVED figure, not its own", () => {
