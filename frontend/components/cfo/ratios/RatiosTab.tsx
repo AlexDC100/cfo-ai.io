@@ -28,7 +28,8 @@
 // inline. That path, and its three formats of its own, is deleted; a
 // grep gate in ratioCompareTab.test.tsx reds if it returns.
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useInRouterContext, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { useRatioCompareView } from "@/components/cfo/ComparativesPanel";
@@ -54,6 +55,37 @@ import {
 } from "@/lib/ratioCompareView";
 import { RATIO_DELTA_SECONDARY_CLOSE, RATIO_DELTA_SECONDARY_OPEN } from "@/lib/ratioTable";
 
+/** EVIDENCE RECEIVER (design C4): `?ratio=<key>` on the ratios tab opens
+ *  that ratio's detail drawer — the command bar's Răspuns and "Ce contează
+ *  acum" items open the row they were read from. Closing the drawer drops
+ *  the parameter, so Back and a second open behave. Mounted only inside a
+ *  router. */
+function RatioParam({ ratios, selected, onOpen }: {
+  ratios: Ratio[];
+  selected: Ratio | null;
+  onOpen: (r: Ratio) => void;
+}) {
+  const [params, setParams] = useSearchParams();
+  const wanted = params.get("ratio");
+  const opened = useRef<string | null>(null);
+  useEffect(() => {
+    if (!wanted || opened.current === wanted) return;
+    const hit = ratios.find((r) => r.key === wanted);
+    if (hit) {
+      opened.current = wanted;
+      onOpen(hit);
+    }
+  }, [wanted, ratios, onOpen]);
+  useEffect(() => {
+    if (selected !== null || !opened.current || wanted !== opened.current) return;
+    opened.current = null;
+    const next = new URLSearchParams(params);
+    next.delete("ratio");
+    setParams(next, { replace: true });
+  }, [selected, wanted, params, setParams]);
+  return null;
+}
+
 // Wrapper around all 6 RatioGroupSections that owns the selected-ratio
 // state and renders the premium explainer drawer. Owning state here
 // keeps the Ratios surface self-contained — no upstream prop drilling,
@@ -77,8 +109,14 @@ export function RatiosTabContent({
   const { t } = useTranslation();
   const view = useRatioCompareView();
   const [selected, setSelected] = useState<Ratio | null>(null);
+  const inRouter = useInRouterContext();
+  const allRatios = [
+    ...ratios.liquidity, ...ratios.profitability, ...ratios.leverage,
+    ...ratios.coverage, ...ratios.efficiency, ...(altman ? [altman] : []),
+  ];
   return (
     <>
+      {inRouter ? <RatioParam ratios={allRatios} selected={selected} onOpen={setSelected} /> : null}
       {view ? <BandMovementLists view={view} /> : null}
       <RatioGroupSection title={t("dash.ratioLiquidity")}            ratios={ratios.liquidity}     onPick={setSelected} />
       <div data-guide="ratios-profitability">

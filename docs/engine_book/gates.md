@@ -10676,6 +10676,16 @@ draft probed four-digit codes, which the word rule (5+ letters) never fuzzes —
 it stayed GREEN with the digit rule removed, and was rewritten before landing.
 Verdict: proven RED.
 
+**Evidence receivers (design C4, part):** `?ratio=<key>` on the ratios tab
+opens that ratio's detail drawer (closing it drops the parameter);
+`/benchmark?row=<key>` highlights and scrolls to the sector row
+(`evidenceReceivers.test.tsx`, in this gate). Plants (direct vitest, each
+reverted): the ratio receiver unmounted — `× the bar's link lands on the drawer
+for that ratio, and closing it drops the parameter`; the row receiver unmounted
+— `AssertionError: expected [] to deeply equal [ 'net_margin' ]`. The account
+view (`?account=`) is not built: a Cont row lands on its statement tab with the
+account's bucket highlighted.
+
 ### cmdbar — the live half (hermetic bundle; not in the battery)
 
 `e2e/design/cmdbar.spec.ts` against the REAL production bundle built for

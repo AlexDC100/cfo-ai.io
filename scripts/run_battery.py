@@ -1056,8 +1056,9 @@ def _engine_gates() -> List[Gate]:
               "frontend/components/instrument/shell/__tests__/capsuleCraft.test.tsx",
               "frontend/components/cfo/chat/__tests__/roleChips.test.tsx",
               "frontend/lib/__tests__/companyFit.test.ts",
+              "frontend/components/cfo/__tests__/evidenceReceivers.test.tsx",
               "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=85,
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=88,
              units="command-bar tests",
              canaries=("the rows ARE the served items, in the served rank, each with its figure",
                        "two companies, one fixture shape: different figures (S1) and different words (S2)",
@@ -1066,7 +1067,8 @@ def _engine_gates() -> List[Gate]:
                        "planted model text in every field the bar must not read never reaches it",
                        "a code one digit off never silently picks another account",
                        "one caveat node, referenced by the listbox, never repeated on an item",
-                       "any other company (or an unknown one) is never offered the rent-only DSCR")),
+                       "any other company (or an unknown one) is never offered the rent-only DSCR",
+                       "the bar's link lands on the drawer for that ratio, and closing it drops the parameter")),
         # FLOOR SUBSTITUTES, batch C3 (owner rulings R-D5 / R-D6 / R-OTHER,
         # 2026-09-15): the valuation DCF, the AI briefing's citable
         # ratios, the RO pack's ROA check and the served period day count.

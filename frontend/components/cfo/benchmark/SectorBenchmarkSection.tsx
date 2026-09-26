@@ -6,7 +6,8 @@
 // under the table — or a sentence saying why it is not compared. There is
 // no "—" and no empty bar: absent is words.
 
-import { createContext, useContext } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
+import { useInRouterContext, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
@@ -68,14 +69,33 @@ function MovementList({ title, tone, items, empty }: {
   );
 }
 
+/** EVIDENCE RECEIVER (design C4): `/benchmark?row=<key>` — the command
+ *  bar's "worst ratio vs sector" item opens the sector row it was read
+ *  from. Scrolls the row into view once it is on screen and reports the
+ *  key to highlight. Mounted only inside a router. */
+function SectorRowParam({ onRow }: { onRow: (key: string | null) => void }) {
+  const [params] = useSearchParams();
+  const wanted = params.get("row");
+  useEffect(() => {
+    onRow(wanted);
+    if (!wanted) return;
+    const el = document.querySelector<HTMLElement>(`[data-sector-row="${CSS.escape(wanted)}"]`);
+    el?.scrollIntoView?.({ block: "center" });
+  }, [wanted, onRow]);
+  return null;
+}
+
 export function SectorBenchmarkView({ doc }: { doc: SectorBenchmarkDoc }) {
   const { t, i18n } = useTranslation();
   const loc = i18n.language;
   const rows = printSectorRows(doc, loc);
+  const inRouter = useInRouterContext();
+  const [highlight, setHighlight] = useState<string | null>(null);
   const moves = printSectorMovements(doc, loc);
   const refusedLabels = doc.refused.map((r) => t(`benchmarkPage.sector.refusedRatio.${r.key}`));
   return (
     <section className="mt-6 space-y-4" data-testid="sector-benchmark" data-status={doc.status}>
+      {inRouter ? <SectorRowParam onRow={setHighlight} /> : null}
       <header>
         <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft">{t("benchmarkPage.sector.title")}</h2>
         <p className="mt-1 text-[12.5px] text-ink-2" data-testid="sector-context">{sectorContextText(doc, loc)}</p>
@@ -100,7 +120,10 @@ export function SectorBenchmarkView({ doc }: { doc: SectorBenchmarkDoc }) {
                 data-testid="sector-row"
                 data-sector-row={r.key}
                 data-status={r.status}
-                className="grid grid-cols-1 sm:grid-cols-[minmax(0,1.5fr)_minmax(0,0.8fr)_minmax(0,1.4fr)_minmax(0,1.3fr)] gap-x-3 gap-y-1.5 border-t border-rule-soft px-4 py-3"
+                data-highlighted={highlight === r.key ? "true" : undefined}
+                className={`grid grid-cols-1 sm:grid-cols-[minmax(0,1.5fr)_minmax(0,0.8fr)_minmax(0,1.4fr)_minmax(0,1.3fr)] gap-x-3 gap-y-1.5 border-t border-rule-soft px-4 py-3 ${
+                  highlight === r.key ? "bg-brand-tint/40 ring-1 ring-inset ring-brand/50" : ""
+                }`}
               >
                 <div className="min-w-0">
                   <div className="text-[12.5px] text-ink" data-cell="label">{r.label}</div>
