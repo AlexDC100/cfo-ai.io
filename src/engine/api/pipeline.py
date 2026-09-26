@@ -271,7 +271,10 @@ class BalantaPdfRefusedError(Exception):
 
     A document whose header names BOTH balanta layouts is refused the same
     way, with its own message (`balanta_refusal_message`): it is not told
-    it is a five-pair balanta.
+    it is a five-pair balanta. So is a balanta printed with FOUR column
+    pairs whose zeros print as blank cells (Sold initial / Rulaje / Total /
+    Solduri finale — LAYOUT_FOUR_PAIR_COLUMNS): read strictly, each figure
+    placed by the column it is printed in, or refused with its own message.
     """
 
 
@@ -286,6 +289,12 @@ def balanta_refusal_message(layout: Optional[str], reason: str) -> str:
     reader refused. It names the layout the header ACTUALLY names: a header
     naming both layouts is not told it is a five-pair balanta — it is told
     the header names both, which is why no column can be read from it."""
+    if layout == _pdf_balanta_text.LAYOUT_FOUR_PAIR_COLUMNS:
+        return (
+            "This PDF is a balanta de verificare printed with four column pairs "
+            "(Sold initial / Rulaje / Total / Solduri finale), but it was not read: %s. "
+            % reason + _BALANTA_REFUSAL_NEXT_STEP
+        )
     if layout == _pdf_balanta_text.LAYOUT_BOTH:
         return (
             "This PDF's header names both balanta layouts — the one printed in four column "
@@ -1205,13 +1214,16 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
         # print space-thousands figures ("12 345.00"), so those went to
         # Claude — which fails outright without Anthropic credit and never
         # captures the account-121 anchor. `pdf_balanta_text` reads the
-        # PDF's text lines — two layouts, chosen by header tokens and, for
+        # PDF's text lines — three layouts, chosen by header tokens and, for
         # the five-pair one, by structure (rows of ten figure columns name
         # it whatever the header's wording): the eight-figure "sume totale"
-        # balanta and the WinMentor/SceptrumERP five-pair one (Sold initial
-        # / Rulaj anterior / Rulaj curent / Total rulaj / Sold final). The
-        # five-pair reader places every line by the column its first word
-        # is printed in (pdfplumber word positions), never by its text. It
+        # balanta, the WinMentor/SceptrumERP five-pair one (Sold initial
+        # / Rulaj anterior / Rulaj curent / Total rulaj / Sold final) and
+        # the four-pair one whose zeros print as blank cells (Sold initial
+        # / Rulaje / Total / Solduri finale, 2026-09-26). The five-pair
+        # reader places every line by the column its first word is printed
+        # in, the four-pair reader every FIGURE by the column it is printed
+        # in (pdfplumber word positions), never by its text. It
         # REFUSES unless every account line
         # carries its layout's full figure count, each class sums to the
         # document's own printed class total and debit == credit on every
@@ -1231,9 +1243,10 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
         # eight-figure or unrecognised PDF it refuses takes exactly the
         # path it took before.
         #
-        # A document whose header names the FIVE-PAIR layout never leaves
-        # this block for the positional fast-path or Claude: it is read by
-        # the strict reader, or the refusal is final —
+        # A document whose header names the FIVE-PAIR layout or the FOUR-
+        # PAIR one (`names_strict_layout`) never leaves this block for the
+        # positional fast-path or Claude: it is read by its strict reader,
+        # or the refusal is final —
         # `BalantaPdfRefusedError`, raised below outside the broad except —
         # because the positional ingester keeps only undotted codes and
         # would serve a partial balance on the 121 anchor alone. That holds
@@ -1241,8 +1254,8 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
         # names the layout before anything can fail (with a second opinion
         # from the first page's PyMuPDF / pypdf text when the text lines
         # name none), and anything this block raises after that is a
-        # refusal for a five-pair document. The eight-figure layout keeps
-        # its fall-back unchanged.
+        # refusal for such a document. The eight-figure layout keeps its
+        # fall-back unchanged.
         _balanta_refusal: Optional[str] = None
         try:
             _pdf_for_text: Optional[bytes] = _pdf_bytes
@@ -1251,7 +1264,8 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
         if _pdf_for_text is not None:
             _verdict = _pdf_balanta_text.read_balanta_text_verdict(_pdf_for_text)  # never raises
             _five_pair_named = _pdf_balanta_text.names_five_pair(_verdict.layout)
-            if _five_pair_named and _verdict.workbook is None:
+            _strict_named = _pdf_balanta_text.names_strict_layout(_verdict.layout)
+            if _strict_named and _verdict.workbook is None:
                 _balanta_refusal = _verdict.refusal or "the reader refused it"
             try:
                 if (_verdict.workbook is not None and _five_pair_named
@@ -1296,7 +1310,7 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
                             )
                             _parsed_tb["period_end"] = _printed_end
                         return _parsed_tb
-                    if _five_pair_named:
+                    if _strict_named:
                         _balanta_refusal = (
                             "its verified read carries no account-121 closing balance "
                             "to anchor net profit" if statutory_anchor is None
@@ -1306,15 +1320,15 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
                         "[stage_extract] text-line balanta PDF read but not used "
                         "(mapped=%d, anchor=%s) — %s",
                         len(shaped or []), statutory_anchor,
-                        "refusing" if _five_pair_named else "falling back",
+                        "refusing" if _strict_named else "falling back",
                     )
             except Exception as e:  # noqa: BLE001
-                if _five_pair_named and _balanta_refusal is None:
+                if _strict_named and _balanta_refusal is None:
                     _balanta_refusal = "its verified read could not be parsed (%s)" % type(e).__name__
                 logger.info(
                     "[stage_extract] text-line balanta PDF path skipped (%s) — %s",
                     type(e).__name__,
-                    "refusing" if _five_pair_named else "falling back to the positional ingester",
+                    "refusing" if _strict_named else "falling back to the positional ingester",
                 )
         if _balanta_refusal is not None:
             logger.warning(

@@ -21,6 +21,7 @@ import pytest
 
 fitz = pytest.importorskip("fitz")
 
+import _four_pair_book as FOUR  # noqa: E402
 from engine.api import pipeline  # noqa: E402
 
 
@@ -758,3 +759,125 @@ def test_a_pdf_in_that_dialect_printed_credit_first_is_refused_never_served(monk
         pipeline.stage_extract(_doc())
     assert "column header reads" in str(refused.value) and "Nothing was estimated" in str(refused.value)
     assert trace["positional"] == [] and trace["claude"] == []
+
+
+# ── the four-pair column layout: zeros printed blank (2026-09-26) ───────
+#
+# A balanta printed with four column pairs — Sold initial / Rulaje / Total
+# / Solduri finale, sub-headed "1 Ianuarie" / "luna curenta" / "sume
+# cumulate" — whose zeros print as BLANK cells named no layout before, and
+# went to the positional fast-path and then Claude: with the Anthropic
+# balance empty, every such upload failed. It is read now from the column
+# each figure is printed in (`_four_pair_book`: invented company, codes and
+# figures), served on the Excel path with the account-121 anchor and the
+# period it prints — or refused with the plain refusal, never a partial
+# positional read, never Claude.
+
+
+def test_a_four_pair_balanta_pdf_is_read_on_the_excel_path_without_claude(monkeypatch):
+    _arm(monkeypatch, FOUR.pdf())
+    trace = _trace_fall_back(monkeypatch)
+    parsed = pipeline.stage_extract(_named("balanta.pdf"))   # the filename carries no period
+    ext = parsed.get("extraction") or {}
+    assert ext.get("source_format") == "saga_10_col" and ext.get("method") == "deterministic", ext
+    assert Decimal(str(parsed["statutory_net_profit_anchor"])).quantize(Decimal("0.01")) == Decimal("12345.67")
+    assert parsed["period_end"] == "2025-12-31"
+    period_end, record = pipeline.resolve_period_end_for_persist(_named("balanta.pdf"), parsed)
+    assert (period_end, record["signal_used"]) == ("2025-12-31", "in_document")
+    codes = {a["code"]: a for a in parsed["accounts"]}
+    # the analytics are the accounts; an account printed with analytics has
+    # no line of its own
+    assert {"4518.1", "4518.2", "5112.1", "5112.2", "5113"} <= set(codes) and "4518" not in codes
+    assert Decimal(str(codes["5113"]["amount"])).quantize(Decimal("0.01")) == Decimal("148.89")
+    # the pack parsed the reader's workbook, never the PDF itself; Claude never reached
+    assert [f for f, _ in trace["positional"]] == ["balanta.xlsx"] and trace["claude"] == []
+
+
+def test_the_period_a_four_pair_book_prints_wins_over_the_filename(monkeypatch):
+    title = FOUR.TITLE[:3] + ["01/11/2025 - 30/11/2025"]
+    _arm(monkeypatch, FOUR.render(FOUR.pages(FOUR.book_lines(), title=title)))
+    parsed = pipeline.stage_extract(_doc())  # the filename says dec 2025
+    assert parsed["period_end"] == "2025-11-30"
+
+
+def _four_tampered(fn):
+    return FOUR.render(FOUR.pages(fn(FOUR.book_lines())))
+
+
+def _four_shift(table):
+    line = next(l for l in table if l.kind == "account" and l.meta["base"] == "5113")
+    edge = FOUR.EDGES[5] - FOUR.PAD
+    i = next(k for k, (x, _, right) in enumerate(line.segments) if right and abs(x - edge) < 1e-6)
+    x, text, right = line.segments[i]
+    line.segments[i] = (x - 6.0, text, right)
+    return table
+
+
+def _four_own_line(table):
+    i = next(k for k, l in enumerate(table) if l.kind == "account" and l.meta["base"] == "5321")
+    extra = FOUR.account_line("5321", "1", "Timbre postale", FOUR.account(Decimal("35.27"), Decimal("10.13"), FOUR.Z),
+                              {6, 7}, "space")
+    return table[:i + 1] + [extra] + table[i + 1:]
+
+
+@pytest.mark.parametrize("tamper, why", [
+    (_four_shift, "do not end at one x"),
+    (lambda t: [l for l in t if not (l.kind == "class" and l.meta["class"] == "5")], "no printed total for class 5"),
+    (_four_own_line, "is printed both on its own line (analytic 0) and with the analytics 1"),
+], ids=["figure-out-of-its-column", "class-total-missing", "own-line-beside-analytics"])
+def test_a_four_pair_book_the_reader_refuses_is_refused_not_served(monkeypatch, tamper, why):
+    _arm(monkeypatch, _four_tampered(tamper))
+    trace = _trace_fall_back(monkeypatch)
+    with pytest.raises(pipeline.BalantaPdfRefusedError) as refused:
+        pipeline.stage_extract(_doc())
+    message = str(refused.value)
+    assert message.startswith("This PDF is a balanta de verificare printed with four column pairs")
+    assert why in message and "Nothing was estimated" in message
+    assert trace["positional"] == [] and trace["claude"] == []  # never left the reader block
+
+
+def test_a_four_pair_book_printed_credit_first_is_refused_never_served(monkeypatch):
+    content = FOUR.render(FOUR.pages(FOUR.book_lines(), header=FOUR.header_lines(sides=("Credit", "Debit") * 4)))
+    _arm(monkeypatch, content)
+    trace = _trace_fall_back(monkeypatch)
+    with pytest.raises(pipeline.BalantaPdfRefusedError) as refused:
+        pipeline.stage_extract(_doc())
+    assert "side labels read" in str(refused.value)
+    assert trace["positional"] == [] and trace["claude"] == []
+
+
+@pytest.mark.parametrize("break_it, why", [
+    (lambda m, P: m.setattr(P, "_parse_four_pair", _crash), "the reader failed on it (RuntimeError)"),
+    (lambda m, P: m.setattr(P, "to_saga_xlsx", _crash), "the reader failed on it (RuntimeError)"),
+    (lambda m, P: m.setattr(P, "_extract_lines", lambda _b: None),
+     "another text extraction of its first page names the four-pair column layout"),
+    (lambda m, P: m.setattr(pipeline, "_deterministic_tb_parsed", _crash),
+     "its verified read could not be parsed (RuntimeError)"),
+], ids=["reader-crash", "workbook-crash", "text-lines-unavailable", "payload-crash"])
+def test_a_four_pair_book_is_refused_whatever_fails_in_the_reader_block(monkeypatch, break_it, why):
+    from engine.country_packs.ro_romania import pdf_balanta_text
+
+    _arm(monkeypatch, FOUR.pdf())
+    break_it(monkeypatch, pdf_balanta_text)
+    trace = _trace_fall_back(monkeypatch)
+    with pytest.raises(pipeline.BalantaPdfRefusedError) as refused:
+        pipeline.stage_extract(_doc())
+    assert why in str(refused.value) and "Nothing was estimated" in str(refused.value)
+    # never the positional fast-path on the PDF itself (the reader's own
+    # workbook may have been parsed before the failure), never Claude
+    assert [f for f, _ in trace["positional"] if f != "balanta.xlsx"] == [] and trace["claude"] == []
+
+
+def test_a_four_pair_refusal_keeps_its_own_message():
+    message = pipeline.balanta_refusal_message("four_pair_columns", "no printed total for class 5")
+    assert message.startswith("This PDF is a balanta de verificare printed with four column pairs "
+                              "(Sold initial / Rulaje / Total / Solduri finale)")
+    assert "but it was not read: no printed total for class 5. Nothing was estimated" in message
+    assert "five column pairs" not in message
+
+
+def test_the_real_jurisdiction_gate_resolves_the_four_pair_book_to_ro():
+    from engine import ai_lane
+
+    resolution = ai_lane.resolve_jurisdiction(_doc(), FOUR.pdf())
+    assert str(resolution.get("jurisdiction") or "RO") == "RO"
