@@ -873,6 +873,11 @@ def _deterministic_tb_parsed(
         "parser_unmapped": list(getattr(shaped, "unmapped", None) or []),
         "parser_excluded": list(getattr(shaped, "excluded", None) or []),
         "source_account_census": _ro_pack().deterministic_source_census(shaped),
+        # Net 711 / net 72x evidence (owner ruling 2026-09-26), measured
+        # HERE because this is the last seam that holds the parsed rows:
+        # stage_map decides the one EBITDA from it and stage_persist stores
+        # it on the envelope for every later rebuild.
+        "stock_variation_evidence": _ro_pack().measure_stock_variation(tb_rows),
     }
 
 
@@ -1537,6 +1542,9 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
                             "method": "deterministic",
                             "source_format": "statutory_f30_f10",
                         },
+                        # The filed return prints the stock variation NET
+                        # (rows sold C / sold D) — the measurement itself.
+                        "stock_variation_evidence": _sp.stock_variation_evidence(extraction),
                         "statutory": {
                             "pl_data": extraction.pl_data,
                             "bs_data": extraction.bs_data,
@@ -1803,6 +1811,13 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
     # the NO_ANCHOR default applies: there is no file totals row to
     # reconcile against on this path.
     data["extraction"] = {"method": "llm", "source_format": "llm_freeform"}
+    # No trial-balance columns reach this path (one amount per account), so
+    # net 711 cannot be measured: it refuses — with this reason — on a book
+    # that posts to 711, and the one EBITDA with it.
+    from engine.country_packs.ro_romania import stock_variation as _stock_variation
+    data["stock_variation_evidence"] = _stock_variation.absent_evidence(
+        _stock_variation.REASON_NO_TB_COLUMNS
+    )
 
     return data
 
@@ -1849,6 +1864,10 @@ def stage_map(doc: Dict[str, Any], parsed: Dict[str, Any], industry: Optional[st
         extraction_meta=parsed.get("extraction"),
         source_account_census=parsed.get("source_account_census"),
         extra_unmapped=parsed.get("parser_unmapped"),
+        # Net 711 / net 72x (owner ruling 2026-09-26): measured off the
+        # rows in stage_extract; absent on a path that holds no rows (the
+        # LLM extraction) → 711 refuses on a book that posts to it.
+        stock_variation_evidence=parsed.get("stock_variation_evidence"),
     )
     # Parser-level exclusions (class 8 incl. 891/892, 581 transit) are
     # dropped BEFORE assembly, so the assembler can't record them itself
@@ -5732,6 +5751,56 @@ def _anchor_kwargs(assembler: Any, anchor: Optional[float]) -> Dict[str, Any]:
     return {"account_121_anchor_override": float(anchor)}
 
 
+def _stock_variation_evidence_for(
+    period_row: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """The `stock_variation/1` evidence a period was persisted with — read
+    back for a REBUILD (owner ruling 2026-09-26: net 711 / net 72x are
+    measured off the trial balance at persist time; the rows are never
+    stored, so the envelope block is the only witness a rebuild has).
+
+    Sources: ``period.assembled_canonical_v1.stock_variation`` (the full
+    envelope), or a flat ``stock_variation`` alias a light projection may
+    select (``stock_variation:assembled_canonical_v1->stock_variation``).
+
+    Absent → an absence marker whose reason says which absence it is:
+    the envelope was read and carries no block (a period written before
+    the measurement existed — it is reprocessed at deploy), or the row
+    handed here never selected the envelope at all. Either way net 711
+    REFUSES on a book that posts to 711; it is never read off the line
+    amount (the gross production stocked) and never 0.00.
+    """
+    from engine.country_packs.ro_romania import stock_variation as _stock_variation
+
+    row = period_row or {}
+    flat = row.get("stock_variation")
+    if _stock_variation.is_measured(flat):
+        return dict(flat)
+    env = row.get("assembled_canonical_v1")
+    if isinstance(env, dict):
+        block = env.get("stock_variation")
+        if _stock_variation.is_measured(block):
+            return dict(block)
+        return _stock_variation.absent_evidence(_stock_variation.REASON_PREDATES)
+    return _stock_variation.absent_evidence(_stock_variation.REASON_ENVELOPE_NOT_READ)
+
+
+def _evidence_kwargs(assembler: Any, evidence: Dict[str, Any]) -> Dict[str, Any]:
+    """`{"stock_variation_evidence": evidence}` when `assembler` accepts it
+    — the same capability probe as `_anchor_kwargs`, for the same reason
+    (the review/reanalyze route may assemble through the HU pack)."""
+    try:
+        import inspect
+        params = inspect.signature(assembler).parameters
+    except (TypeError, ValueError):  # pragma: no cover — builtins/C funcs
+        return {}
+    if "stock_variation_evidence" not in params and not any(
+        p.kind is p.VAR_KEYWORD for p in params.values()
+    ):
+        return {}
+    return {"stock_variation_evidence": evidence}
+
+
 def _assemble_with_statutory_anchor(
     assembler: Any,
     accounts: List[Dict[str, Any]],
@@ -5750,10 +5819,20 @@ def _assemble_with_statutory_anchor(
     means a new rebuild seam either goes through here and is correct, or
     does not and is visible to `test_every_rebuild_call_site_threads_
     the_anchor`.
+
+    The stock-variation evidence (net 711 / net 72x, the ONE EBITDA) is
+    threaded by the same call for the same reason: a rebuild seam that
+    re-assembled without it would serve a refused 711 on every
+    manufacturer — or, worse, a seam that forgot it once read the line
+    amount. `_stock_variation_evidence_for` is the only reader.
     """
     anchor, source = _statutory_anchor_for(period_row, line_items)
     anchor_kwargs = _anchor_kwargs(assembler, anchor)
-    assembled = assembler(accounts, **assemble_kwargs, **anchor_kwargs)
+    evidence_kwargs = _evidence_kwargs(
+        assembler, _stock_variation_evidence_for(period_row)
+    )
+    assembled = assembler(accounts, **assemble_kwargs, **anchor_kwargs,
+                          **evidence_kwargs)
     _annotate_net_income_anchor(
         assembled, anchor, source,
         applied=_anchor_reached_the_assembler(assembled, anchor, anchor_kwargs),

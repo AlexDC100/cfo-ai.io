@@ -593,6 +593,7 @@ class RomaniaPack:
         extraction_meta: Optional[dict] = None,
         source_account_census: Optional[int] = None,
         extra_unmapped: Optional[List[dict]] = None,
+        stock_variation_evidence: Optional[dict] = None,
     ) -> AssembledEnvelope:
         """Delegate to `_ro_coa.assemble_statements()`. Accepts either
         the legacy dict shape or `ParsedAccount` instances and
@@ -619,6 +620,12 @@ class RomaniaPack:
         extraction provenance and the external-conservation anchor per
         docs/CANONICAL_BS_V2_CONTRACT.md. All default None — callers that
         don't plumb them keep the builder's defensive defaults.
+
+        `stock_variation_evidence` (owner ruling 2026-09-26): the
+        `stock_variation/1` block measured off the trial balance
+        (`measure_stock_variation`) or read back from a period envelope.
+        None → net 711 is refused on any book that posts to 711, and the
+        one EBITDA with it (see `stock_variation`).
         """
         dict_accounts = [_account_to_dict(a) for a in accounts]
         return _legacy_coa.assemble_statements(
@@ -633,6 +640,19 @@ class RomaniaPack:
             extraction_meta=extraction_meta,
             source_account_census=source_account_census,
             extra_unmapped=extra_unmapped,
+            stock_variation_evidence=stock_variation_evidence,
+        )
+
+    def measure_stock_variation(self, tb_rows: Any) -> dict:
+        """The `stock_variation/1` evidence block off parsed 10-col rows —
+        book state, the 711 / 72x turnovers, account 121's opening and its
+        clearing, unread class-6/7 activity (`stock_variation.measure`).
+        ONE code object for the pipeline's persist seam and the offline
+        seam below."""
+        from . import stock_variation as _stock_variation
+
+        return _stock_variation.measure(
+            [r for r in (tb_rows or []) if isinstance(r, dict)]
         )
 
     # ── 6b. canonical_bs v2 integration glue ─────────────────
@@ -780,6 +800,7 @@ class RomaniaPack:
         """
         shaped = self.accounts_to_assemble_shape(tb_rows)
         statutory_anchor = self.compute_statutory_net_profit_anchor(tb_rows)
+        stock_variation_evidence = self.measure_stock_variation(tb_rows)
         assembled = self.assemble_statements(
             list(shaped),
             company_name=company_name,
@@ -792,6 +813,7 @@ class RomaniaPack:
             extraction_meta=getattr(tb_rows, "extraction", None),
             source_account_census=self.deterministic_source_census(shaped),
             extra_unmapped=list(getattr(shaped, "unmapped", None) or []),
+            stock_variation_evidence=stock_variation_evidence,
         )
         self.merge_parser_exclusions(
             assembled, list(getattr(shaped, "excluded", None) or [])

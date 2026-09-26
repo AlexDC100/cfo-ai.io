@@ -1074,6 +1074,23 @@ def _synth_accounts_from_extraction(
     return rows
 
 
+def stock_variation_evidence(extraction: StatutoryExtractionResult) -> Dict[str, Any]:
+    """The `stock_variation/1` evidence of a statutory return: the filed
+    variation is printed NET on the stock-variation rows (sold C − sold D),
+    so it IS the measurement — the same net value the synthesized 711 line
+    carries (`_synth_accounts_from_extraction`)."""
+    from engine.country_packs.ro_romania import stock_variation as _stock_variation
+
+    pl = extraction.pl_data or {}
+    var_net = (float(pl.get("variatie_stocuri_credit", 0) or 0)
+               - float(pl.get("variatie_stocuri_debit", 0) or 0))
+    # The synthesized line drops |var_net| <= 1 as template rounding; the
+    # evidence follows it so the line and the measurement never disagree.
+    return _stock_variation.evidence_from_statutory_return(
+        var_net if abs(var_net) > 1 else 0.0
+    )
+
+
 def accounts_to_assemble_shape(extraction: StatutoryExtractionResult) -> List[Dict[str, Any]]:
     """Public synthesizer: turn a parsed statutory extraction into the same
     `{code, name, amount}` accounts list `_trial_balance_parser.accounts_
