@@ -213,6 +213,12 @@
       "affordances": 0,
       "why": "OPENED 2026-09-04. Three formatTokens() — the same account telemetry as AccountMenu, in the Command Center surface. Nothing claimed."
     },
+    "frontend/components/cfo/evidence/EvidenceDrawer.tsx": {
+      "bucket": "HAS_SHOWS",
+      "sites": 8,
+      "affordances": 7,
+      "why": "OPENED 2026-09-27 (design C4, stage CB-F2): the ACCOUNT VIEW, the receiver for ?account= / ?line=. Every leaf balance, served total and balance-sheet row it prints comes from the served period body (line_items, canonical_bs rows) and wears {accounts: the code, source: <document> · <sheet>, method, pack} — the same claim the balance sheet's own rows make (BSStatementView bsRowProvenance). The statement line's served figure prints its served path as visible text beside it ('read from assembled_pl.<field>') and wears no dot: it is an engine field, not a sheet cell. An absent account prints a sentence and no figure (evidenceLanding.test.tsx)."
+    },
     "frontend/components/cfo/findings/AllChecksList.tsx": {
       "bucket": "HAS_SHOWS",
       "sites": 2,

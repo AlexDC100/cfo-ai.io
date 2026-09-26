@@ -392,8 +392,13 @@ const FLOOR_SITES = 598;
  *  its evidence (the statement row, the ratio, the benchmark row, the
  *  account), and the bar's figures carry their served source path
  *  (CommandPalette.tsx, registered HAS_MISSING — the hover dot on those
- *  rows is the named remaining work). */
-const RATCHET_AFFORDANCES = 74;
+ *  rows is the named remaining work).
+ *
+ *  74 → 81 (2026-09-27, stage CB-F2): the account view
+ *  (components/cfo/evidence/EvidenceDrawer.tsx) — seven dots on the leaf
+ *  balances, the served totals and the balance-sheet rows it lists, each
+ *  naming the account, the document and sheet, the method and the pack. */
+const RATCHET_AFFORDANCES = 81;
 /** .ts files that BUILD figure strings — they cannot wear the affordance
  *  and are not registered, but a collapse here is a walk that broke.
  *  Measured 23 (was 28). The DEFINITION changed, not the tree: R6 stopped
@@ -590,6 +595,15 @@ const SURFACES = {
     witness: "live (hermetic): e2e/design/cmdbar.spec.ts; jsdom: frontend/components/instrument/shell/__tests__/commandBar.test.tsx (cmdbar-figures)",
     files: [
       "frontend/components/instrument/shell/CommandPalette.tsx",
+    ],
+  },
+  // 2026-09-27 — the account view (design C4): where the bar's Cont rows,
+  // statement answers and "Ce contează acum" items land.
+  evidence: {
+    ratchet: 7, // MEASURED, exact — no headroom (see RATCHET above)
+    witness: "live (hermetic): e2e/design/cmdbar.spec.ts G5; jsdom: frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx (every leaf amount wears its provenance)",
+    files: [
+      "frontend/components/cfo/evidence/EvidenceDrawer.tsx",
     ],
   },
   variance: {
