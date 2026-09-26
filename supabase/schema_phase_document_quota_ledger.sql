@@ -31,9 +31,37 @@
 --                   whose owner stopped heartbeating is released (the
 --                   engine's sweep, scripts/recompute_document_quota.py).
 --     nonro_*       the same for the non-RO meter's reservation.
+--     settling_at   THE MARK BEFORE THE MOVE (P1 RESTART, second shape,
+--                   2026-09-26). A settlement is two writes — the meter RPC
+--                   and this row's record. A record that failed followed by
+--                   a restart left a row reading "reserved" for a meter that
+--                   had already moved, and the sweep settled the finished
+--                   analysis as a commit AGAIN (a paid extra billed twice).
+--                   The engine now stamps settling_at (compare-and-set on
+--                   reservation_id) before every commit / release RPC; a row
+--                   reserved + settling + not committed is "the meter may
+--                   already have moved": never released, committed, adopted
+--                   or metered again by the engine — listed by
+--                   scripts/recompute_document_quota.py for a human. Retired
+--                   once commit_user_upload takes p_document_id and writes
+--                   this row in the same statement.
 --   Backfill: every document analysed before this table existed is taken to
 --   have been counted (the meter counted analysed documents; a re-run of an
 --   analysed document was already a free correction).
+--
+-- THE LEDGER BEFORE THE STATUS (P1 METERING BYPASS, 2026-09-26)
+--   The engine asks THIS TABLE first and `documents.status` only when the
+--   table cannot be read: a document whose book is counted here re-runs
+--   free whatever its status says; a document that reads `analyzed` but
+--   holds NO count here is metered like an upload on its next re-run —
+--   reserved, committed and, at the cap, billed. Two consequences:
+--     * a status the browser wrote (every column of `documents` is
+--       browser-writable) no longer skips the meter;
+--     * a document analysed while USAGE_LIMITS_ENABLED was OFF — its
+--       settlement recorded a release here, never a count — meters ONCE on
+--       its next re-run, after which it is counted like any other book.
+--   Only when this table is absent (the migration not yet applied) or
+--   unreadable does the status rule decide: analysed → free, else metered.
 --
 -- ACCESS MODEL
 --   Service role only. RLS is enabled with no policies and every privilege
@@ -71,6 +99,7 @@ create table if not exists document_quota_ledger (
   release_token      text,
   owner              text,
   heartbeat_at       timestamptz,
+  settling_at        timestamptz,
   nonro_user_id      uuid,
   nonro_was_extra    boolean not null default false,
   nonro_month        text,
@@ -78,6 +107,9 @@ create table if not exists document_quota_ledger (
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
 );
+
+-- A database that carries the table from before the mark existed.
+alter table document_quota_ledger add column if not exists settling_at timestamptz;
 
 create index if not exists document_quota_ledger_outstanding_idx
   on document_quota_ledger (heartbeat_at)

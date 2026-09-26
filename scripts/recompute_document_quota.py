@@ -39,6 +39,16 @@ FINISHED is left to the engine, which settles it as the commit it was (this
 script never charges); its slot stays reserved until then. Past months go
 to 0.
 
+SETTLING (P1 RESTART, second shape, 2026-09-26). A reservation whose row
+reads reserved + `settling_at` + no `committed_at` was being SETTLED by an
+engine process that died before the record landed: the meter MAY already
+have moved (a commit, or a release). Nothing automated moves it again — the
+engine's sweep skips it and never meters its book a second time — and this
+script neither releases nor counts it: it prints the row under SETTLING
+with what a human must decide (compare `user_usage` against the analysis
+that exists, then either record the commit on the row or clear the
+reservation), and leaves it exactly as it is.
+
 Rows stored without a content hash (uploads before the hash existed) are
 hashed from their storage object so identical files collapse — a READ of
 the bucket. `--no-hash-missing` skips that (those rows then count once
@@ -277,8 +287,19 @@ def main(argv: Optional[List[str]] = None) -> int:
         if args.user:
             stale = [r for r in stale if str(r.get("user_id")) == args.user]
         finished = _finished_analyses([r.get("document_id") for r in stale])
+        settling = {str(r.get("document_id")) for r in stale if _quota_ledger.is_settling(r)}
         for r in stale:
             doc = str(r.get("document_id"))
+            if doc in settling:
+                print("[recompute] SETTLING reservation: document %s user %s month %s extra=%s "
+                      "(reservation %s, owner %s, settling since %s, last heartbeat %s) — its owner "
+                      "began moving the meter and the record never landed: the meter MAY already "
+                      "have moved. Neither released nor counted here; analysis %s. A human rules: "
+                      "record the commit on the row, or clear the reservation." % (
+                          doc, r.get("user_id"), r.get("month"), bool(r.get("was_extra")),
+                          r.get("reservation_id"), r.get("owner"), r.get("settling_at"),
+                          r.get("heartbeat_at"), "FINISHED" if doc in finished else "did not finish"))
+                continue
             print("[recompute] orphaned reservation: document %s user %s month %s extra=%s (owner %s, "
                   "last heartbeat %s)%s" % (
                       doc, r.get("user_id"), r.get("month"), bool(r.get("was_extra")), r.get("owner"),
@@ -286,7 +307,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                       " — its analysis FINISHED: left to the engine's settlement (never charged here)"
                       if doc in finished else ("" if args.apply else " — would be released")))
         if args.apply and stale:
-            wanted = {str(r.get("document_id")) for r in stale} - finished
+            wanted = {str(r.get("document_id")) for r in stale} - finished - settling
             released = _quota_ledger.sweep_stale(is_live=lambda d: d not in wanted)
             print("[recompute] released %d orphaned reservation(s)" % len(released))
         data = load(args.user, hash_missing=not args.no_hash_missing)

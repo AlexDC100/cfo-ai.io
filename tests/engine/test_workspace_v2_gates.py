@@ -546,6 +546,42 @@ def test_g3_the_same_bytes_for_another_period_or_company_are_not_duplicates(app,
     assert r.json()["status"] == "queued", r.text[:300]
 
 
+def test_g3_a_confirmed_extra_on_the_card_is_one_reservation_its_run_holds_as_its_own(app, gw, monkeypatch):
+    """The card's 402 -> Confirm -> the same commit with confirm_extra=1,
+    the quota ledger present. The confirm records the extra's reservation
+    in the ledger (fix/dedupe-quota, the reservation-outstanding repair);
+    the commit's run registers THAT reservation as its own. Recording it a
+    second time is refused as outstanding — and that refusal gave the
+    confirmed slot straight back and left the run unmetered, the extra
+    never counted."""
+    from engine.api import _plan_state
+
+    rpcs = []  # type: List[str]
+
+    def _rpc(fn: str, params: Any) -> Any:
+        rpcs.append(fn)
+        return {"used": 15, "reserved": 1} if fn == "reserve_user_upload_extra" else {}
+
+    monkeypatch.setattr(_usage_gate, "_rpc", _rpc)
+    monkeypatch.setattr(_plan_state, "get_plan_state", lambda uid: types.SimpleNamespace(
+        docs_used_this_period=15,
+        plan=types.SimpleNamespace(key="professional", extra_doc_eur=3.0, included_docs=15)))
+    c = commit(app, agras_workbook(), "balanta.xlsx", target_org_id=ORG_AGRAS, period_end="2025-12-31",
+               output_language="ro", confirm_extra="1")
+    assert c.status_code == 200 and c.json()["status"] == "queued", c.text[:300]
+    doc_id = c.json()["document_id"]
+    (row,) = [r for r in gw.db.rows("document_quota_ledger") if r["document_id"] == doc_id]
+    run = pipeline._QUOTA_RUNS.get(doc_id)
+    assert run is not None and run.was_extra, "G3: the confirmed extra's run holds no reservation"
+    assert run.reservation_id == row["reservation_id"], "the run recorded a second reservation"
+    assert gw.meter.released == [] and gw.meter.reserved == [], "the confirmed slot was given back"
+    assert rpcs.count("reserve_user_upload_extra") == 1, rpcs
+    doc = run_analysis(gw, doc_id)
+    assert doc["status"] == "analyzed", (doc["status"], doc.get("error"))
+    assert gw.meter.committed == [(USER, True)], "the confirmed extra is counted once, as the extra"
+    assert gw.meter.released == []
+
+
 # ══════════════════════════════════════════════════════════════════════
 # G7 — drop -> one tap -> the five stages -> the analysed dashboard
 # ══════════════════════════════════════════════════════════════════════

@@ -4162,7 +4162,7 @@ def _persist_sku_analysis(doc: Dict[str, Any], parsed: Dict[str, Any], narrative
 
 
 class _QuotaRun:
-    __slots__ = ("user_id", "was_extra", "doc_reserved", "month",
+    __slots__ = ("user_id", "was_extra", "doc_reserved", "month", "reservation_id",
                  "nonro_user", "nonro_reserved", "nonro_extra", "nonro_month")
 
     def __init__(self) -> None:
@@ -4171,6 +4171,9 @@ class _QuotaRun:
         self.doc_reserved = False
         #: The month the reservation was made in — where it settles.
         self.month: Optional[str] = None
+        #: The ledger row's `reservation_id` this run holds — the
+        #: settlement's compare-and-set key (`_quota_ledger.mark_settling`).
+        self.reservation_id: Optional[str] = None
         self.nonro_user: Optional[str] = None
         self.nonro_reserved = False
         self.nonro_extra = False
@@ -4182,11 +4185,26 @@ _QUOTA_RUNS_LOCK = threading.Lock()
 
 
 def _register_quota_run(document_id: str, *, user_id: str, was_extra: bool,
-                        month: Optional[str] = None) -> None:
+                        month: Optional[str] = None,
+                        reservation_id: Optional[str] = None) -> bool:
     """Record that THIS run of `document_id` holds a document-slot
     reservation made under the verified `user_id` in `month` (default: now)
     — in process, for the run's own terminal, and in the quota ledger, for
-    a restart."""
+    a restart.
+
+    Returns False — holding NOTHING: the slot just reserved is given back to
+    the meter and the in-process entry dropped — when the document's ledger
+    row already carries an OUTSTANDING reservation (P2-B, 2026-09-26): a
+    colleague's run of this document that a restart orphaned, or one in
+    flight in another container. The record used to overwrite that row,
+    and the colleague's slot leaked for the month; adopting it instead
+    would charge the colleague for this caller's run. The caller refuses
+    the run (409 `reservation_outstanding`); the sweep frees the orphan.
+
+    `reservation_id`: the ledger reservation this run ALREADY holds — a
+    confirmed extra's (recorded by the confirm) or an adopted orphan's
+    (`_quota_ledger.adopt`): registered as the run's own, never recorded a
+    second time."""
     from . import _usage_gate as _ug
     month = month or _ug._month_bucket()
     with _QUOTA_RUNS_LOCK:
@@ -4195,8 +4213,28 @@ def _register_quota_run(document_id: str, *, user_id: str, was_extra: bool,
         run.was_extra = bool(was_extra)
         run.doc_reserved = True
         run.month = month
-    _quota_ledger.record_reservation(str(document_id), user_id=str(user_id),
-                                     was_extra=bool(was_extra), month=month)
+    if reservation_id:
+        with _QUOTA_RUNS_LOCK:
+            run = _QUOTA_RUNS.get(str(document_id))
+            if run is not None:
+                run.reservation_id = str(reservation_id)
+        return True
+    rid = _quota_ledger.record_reservation(str(document_id), user_id=str(user_id),
+                                           was_extra=bool(was_extra), month=month)
+    if isinstance(rid, _quota_ledger.Outstanding):
+        with _QUOTA_RUNS_LOCK:
+            _QUOTA_RUNS.pop(str(document_id), None)
+        _ug.release_document(str(user_id), was_extra=bool(was_extra), month=month)
+        logger.warning(
+            "[pipeline][quota] document %s: its ledger row holds an outstanding reservation of user "
+            "%s (%s) — this run's slot was given back, the run is not started",
+            document_id, rid.user_id, rid.row.get("reservation_id"))
+        return False
+    with _QUOTA_RUNS_LOCK:
+        run = _QUOTA_RUNS.get(str(document_id))
+        if run is not None:
+            run.reservation_id = rid
+    return True
 
 
 def _register_nonro_reservation(document_id: str, *, user_id: str, was_extra: bool) -> None:
@@ -4220,6 +4258,8 @@ def _release_run_reservation(document_id: str, run: Optional["_QuotaRun"]) -> No
     if run is None:
         return
     from . import _usage_gate as _ug
+    if run.doc_reserved or run.nonro_reserved:
+        _quota_ledger.mark_settling(str(document_id), reservation_id=run.reservation_id)
     if run.doc_reserved and run.user_id:
         _ug.release_document(run.user_id, was_extra=run.was_extra, month=run.month)
     if run.nonro_reserved and run.nonro_user:
@@ -4274,8 +4314,24 @@ def _settle_orphaned_reservation(row: Dict[str, Any]) -> None:
         with its backstops: an archived duplicate, or a book already counted
         (a later run of it, a re-upload), is released, never counted twice.
         Releasing it would have left a book the banner counts and the meter
-        never did (verifier lens S, the restart fix's "not analysed")."""
+        never did (verifier lens S, the restart fix's "not analysed");
+      * the row reads SETTLING (`_quota_ledger.is_settling`: reserved,
+        stamped, not committed) → NOTHING. Its owner had begun moving the
+        meter — a commit that landed with its record lost, or a release —
+        and the restart came before the record. The meter may already have
+        moved; releasing or committing it here is the double count / the
+        double `record_metered_extra_doc` (P1 RESTART, second shape). Logged
+        at ERROR for scripts/recompute_document_quota.py. The sweep never
+        hands such a row here (it skips them before claiming); this is the
+        guard for any other caller."""
     doc_id = str(row.get("document_id") or "")
+    if _quota_ledger.is_settling(row):
+        logger.error("[pipeline][billing] quota: REFUSED to settle the orphaned reservation of %s — "
+                     "it was SETTLING when its owner died (reservation %s, user=%s month=%s "
+                     "extra=%s): the meter may already have moved. Left for the restore script.",
+                     doc_id, row.get("reservation_id"), row.get("user_id"), row.get("month"),
+                     bool(row.get("was_extra")))
+        return
     if not doc_id or not _orphan_analysis_finished(doc_id):
         _quota_ledger.release_rpcs(row)
         return
@@ -4284,6 +4340,7 @@ def _settle_orphaned_reservation(row: Dict[str, Any]) -> None:
     run.was_extra = bool(row.get("was_extra"))
     run.doc_reserved = bool(run.user_id)
     run.month = row.get("month") or None
+    run.reservation_id = str(row.get("reservation_id") or "") or None
     if row.get("nonro_reserved_at") and row.get("nonro_user_id"):
         run.nonro_user = str(row.get("nonro_user_id"))
         run.nonro_reserved = True
@@ -4368,7 +4425,8 @@ def _commit_pipeline_quota(document_id: str, *, success: bool) -> None:
                 "or billed", document_id,
             )
             settle_as_success = False
-        if settle_as_success and run.doc_reserved and _run_book_already_counted(document_id):
+        if settle_as_success and run.doc_reserved and _run_book_already_counted(
+                document_id, own_reservation_id=run.reservation_id):
             # ONE COUNT PER BOOK, whatever entry reserved (verifier lens S):
             # the document — or a live copy of the same book — was already
             # counted (the quota ledger). Released, never committed or billed.
@@ -4377,6 +4435,20 @@ def _commit_pipeline_quota(document_id: str, *, success: bool) -> None:
                 "already counted; released instead, never counted or billed", document_id,
             )
             settle_as_success = False
+
+        # THE MARK BEFORE THE MOVE (P1 RESTART, second shape, 2026-09-26).
+        # The meter RPC and its record are two writes. A record that failed
+        # (kept in `_quota_ledger._PENDING` and retried) followed by a
+        # restart left a row that read "reserved" for a meter that had
+        # already moved, and the new process's sweep settled the finished
+        # analysis as a commit AGAIN — a paid extra billed twice. The row is
+        # stamped SETTLING (compare-and-set on this run's reservation id)
+        # before any RPC below; a settling row is never settled by the sweep,
+        # never adopted, and its book is never metered again — it waits for
+        # the restore script. Best-effort like every ledger write: a failed
+        # stamp is logged and the settlement proceeds.
+        if run.doc_reserved or run.nonro_reserved:
+            _quota_ledger.mark_settling(document_id, reservation_id=run.reservation_id)
 
         if run.doc_reserved and run.user_id:
             if settle_as_success:
@@ -4469,17 +4541,20 @@ def _commit_pipeline_quota(document_id: str, *, success: bool) -> None:
         )
 
 
-def _run_book_already_counted(document_id: str) -> bool:
+def _run_book_already_counted(document_id: str, *, own_reservation_id: Optional[str] = None) -> bool:
     """The settlement's backstop: the document as it is NOW — is its book
     already counted? Unknown (unreadable) → False: the run's own
-    reservation is settled as it always was."""
+    reservation is settled as it always was. `own_reservation_id`: the
+    reservation THIS settlement holds — its settling mark (the sweep's
+    claim, or this run's own stamp) is not another settlement's."""
     try:
         with _supabase.admin() as ac:
             found = ac.select("documents", filters={"id": f"eq.{document_id}"}, single=True) or []
     except Exception:  # noqa: BLE001
         logger.exception("[pipeline] settlement: could not re-read document %s", document_id)
         return False
-    return bool(_book_already_counted(dict(found[0]) if found else None))
+    return bool(_book_already_counted(dict(found[0]) if found else None,
+                                      own_reservation_id=own_reservation_id))
 
 
 def _enter_run(doc: Dict[str, Any], user_id: str) -> "_doc_dedupe.Entry":
@@ -4509,12 +4584,21 @@ def _meter_first_analysis(document_id: str, user_id: str) -> Any:
     against this document. What this adds is the ledger: an `allowed`
     reservation goes into it — in the month it was made — BEFORE any other
     write, so a write that fails after it finds the reservation there to
-    release it. The caller gives its claim back (and releases whatever the
-    ledger holds) when it does not hand the run off."""
+    release it — or, when the document's ledger row already holds another
+    member's OUTSTANDING reservation, gives the slot straight back and
+    answers 409 `reservation_outstanding` (fix/dedupe-quota P2-B). The
+    caller gives its claim back (and releases whatever the ledger holds)
+    when it does not hand the run off."""
     decision = reserve_upload_or_refuse(user_id, document_id)
     if decision.kind == "allowed":
-        _register_quota_run(document_id, user_id=user_id, was_extra=bool(decision.was_extra),
-                            month=getattr(decision, "month", "") or None)
+        if not _register_quota_run(document_id, user_id=user_id, was_extra=bool(decision.was_extra),
+                                   month=getattr(decision, "month", "") or None,
+                                   reservation_id=getattr(decision, "reservation_id", "") or None):
+            raise HTTPException(409, {
+                "code": "reservation_outstanding",
+                "message": ("This document's analysis is still reserved by the member who started "
+                            "it. Try again in a few minutes."),
+            })
     # `allowed` or `disabled` — the caller hands the run off.
     return decision
 
@@ -4536,7 +4620,8 @@ def _adopt_reservation(document_id: str, user_id: str, *, take_extra: bool) -> A
         return None
     return _ug.DocReserveDecision(
         kind="allowed", plan_key="", used=0, reserved=0, cap=0, extra_doc_eur=None,
-        message="", was_extra=bool(row.get("was_extra")), month=str(row.get("month") or ""))
+        message="", was_extra=bool(row.get("was_extra")), month=str(row.get("month") or ""),
+        reservation_id=str(row.get("reservation_id") or ""))
 
 
 def _release_unstarted(entry: "_doc_dedupe.Entry", document_id: str) -> None:
@@ -4548,21 +4633,25 @@ def _release_unstarted(entry: "_doc_dedupe.Entry", document_id: str) -> None:
     _release_run_reservation(document_id, _take_quota_run(document_id))
 
 
-def _book_already_counted(row: Optional[Dict[str, Any]]) -> Optional[bool]:
+def _book_already_counted(row: Optional[Dict[str, Any]], *,
+                          own_reservation_id: Optional[str] = None) -> Optional[bool]:
     """Has the plan already COUNTED this document's book? True when the
     document itself, or any live copy of the same book (company, uploader,
     content, scope, period — `_doc_dedupe.book_copy_ids`), carries a commit
     in the quota ledger (`_quota_ledger`, a table the browser cannot
-    write). None when that cannot be read."""
+    write) — or a reservation whose settlement is undetermined
+    (`_quota_ledger.is_settling`: the meter may have counted it; never
+    metered again, the restore script rules). None when that cannot be
+    read."""
     if not row:
         return None
     ids = _doc_dedupe.book_copy_ids(row)
     if ids is None:
         return None
-    committed = _quota_ledger.committed_ids(ids)
-    if committed is None:
+    counted = _quota_ledger.counted_ids(ids, except_reservation=own_reservation_id)
+    if counted is None:
         return None
-    return bool(committed)
+    return bool(counted)
 
 
 def _needs_metering(entry: "_doc_dedupe.Entry") -> bool:
@@ -4582,21 +4671,50 @@ def _needs_metering(entry: "_doc_dedupe.Entry") -> bool:
     period; a PDF on an empty Anthropic balance, §24), and the next /retry,
     the failed banner's /run or a re-upload of the same bytes then counted
     it a second time — at the cap as a PAID EXTRA. What the plan counted is
-    now read from the quota ledger the settlement writes. When the ledger
-    cannot be read the status rule decides, logged."""
-    if str(entry.status or "").strip().lower() == "analyzed":
-        return False
+    now read from the quota ledger the settlement writes.
+
+    THE LEDGER BEFORE THE STATUS (P1 METERING BYPASS, 2026-09-26). The
+    `analyzed` short-circuit used to come FIRST — before the ledger was
+    consulted. Every column of `documents` is browser-writable, so a member
+    who PATCHed status='analyzed' onto a fresh upload and POSTed /retry got
+    an analysis that was never reserved, committed or billed. The order is
+    now: the ledger decides whenever it can be read — counted → unmetered;
+    readable and NOT counted → metered like /run whatever the status says
+    (a status the browser wrote, or a document analysed with enforcement
+    OFF, whose settlement recorded a release and never a count: it meters
+    ONCE on its next re-run — stated in the migration header). ONLY an
+    unreadable or absent ledger falls back to the status rule, logged."""
+    status = str(entry.status or "").strip().lower()
     counted = _book_already_counted(entry.row)
-    if counted is None:
-        logger.error(
-            "[pipeline][quota] the quota ledger could not be read for document %s — metering "
-            "by its status (%s); supabase/schema_phase_document_quota_ledger.sql applied?",
-            entry.row.get("id"), entry.status)
+    if counted is not None:
+        if counted:
+            logger.info("[pipeline][quota] document %s: its book was already counted — re-run "
+                        "unmetered", entry.row.get("id"))
+            return False
+        if status == "analyzed":
+            logger.warning(
+                "[pipeline][quota] document %s reads `analyzed` but the quota ledger holds no "
+                "count for its book — metered like /run (analysed with enforcement off, or a "
+                "status the browser wrote)", entry.row.get("id"))
         return True
-    if counted:
-        logger.info("[pipeline][quota] document %s: its book was already counted — re-run "
-                    "unmetered", entry.row.get("id"))
-    return not counted
+    # The ledger cannot be read (absent, or a transient failure): the status
+    # rule is the fallback — an analysed document re-runs free (metering it
+    # by guess would count a book twice), anything else is metered.
+    # A ledger known to be ABSENT (the migration not applied — the window's
+    # one INFO line said so) is not an error per document: INFO. A read that
+    # failed for any other reason keeps its ERROR.
+    level = logging.INFO if _quota_ledger.absent() else logging.ERROR
+    if status == "analyzed":
+        logger.log(level,
+                   "[pipeline][quota] the quota ledger could not be read for document %s — an "
+                   "analysed document re-runs unmetered by its status; "
+                   "supabase/schema_phase_document_quota_ledger.sql applied?", entry.row.get("id"))
+        return False
+    logger.log(level,
+               "[pipeline][quota] the quota ledger could not be read for document %s — metering "
+               "by its status (%s); supabase/schema_phase_document_quota_ledger.sql applied?",
+               entry.row.get("id"), entry.status)
+    return True
 
 
 def _start_rerun(doc: Dict[str, Any], caller_id: str, start: Any) -> "_doc_dedupe.Entry":
@@ -4759,8 +4877,12 @@ def _recover_one(row: Dict[str, Any], caller_id: str) -> Tuple[str, Dict[str, An
             logger.exception("[pipeline] recovery: meter unreachable for doc %s", doc_id)
             return "needs_confirmation", {"reason": "metering_unavailable"}
         if decision.kind == "allowed":
-            _register_quota_run(doc_id, user_id=caller_id, was_extra=bool(decision.was_extra),
-                                month=decision.month or None)
+            if not _register_quota_run(doc_id, user_id=caller_id, was_extra=bool(decision.was_extra),
+                                       month=decision.month or None,
+                                       reservation_id=decision.reservation_id or None):
+                # Another member's reservation of it is outstanding: left for
+                # the sweep; the next mount recovers it.
+                return "skipped", {}
         if decision.kind not in ("allowed", "disabled"):
             logger.info("[pipeline] recovery: doc %s not re-enqueued — meter says %s",
                         doc_id, decision.kind)
@@ -7445,12 +7567,33 @@ def build_router() -> APIRouter:
 
     @router.post("/api/documents/{document_id}/restore")
     def restore_document(document_id: str, authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
-        """Restore a soft-deleted document."""
+        """Restore a soft-deleted document.
+
+        AN ARCHIVED DUPLICATE (P2-C, 2026-09-26). `archive_as_duplicate`
+        leaves the copy `deleted_at` + status='analyzed' (a terminal state
+        for a tab watching it) + the `duplicate_of:` marker. Clearing
+        `deleted_at` alone left a live row that read analysed yet held no
+        analysis, that every counter skipped by its marker, that /run refused
+        as DONE and /retry re-ran unmetered. It goes back as a PLAIN COPY —
+        the marker cleared, `queued`, never started — that the next entry
+        re-checks (recover-stuck on the next mount, or its own /run):
+        archived again while the original is live, analysed — and metered —
+        as the book's first analysis once it is not."""
         jwt = _require_jwt(authorization)
-        _verify_user_may_write_document(jwt, document_id)  # the WRITE wall (FC1x, D4)
+        doc = _verify_user_may_write_document(jwt, document_id)  # the WRITE wall (FC1x, D4)
+        was_duplicate = _doc_dedupe.is_archived_duplicate(doc)
+        patch: Dict[str, Any] = {"deleted_at": None}
+        if was_duplicate:
+            patch.update({"error": None, "status": "queued", "pipeline_started_at": None})
         with _supabase.per_user(jwt) as client:
-            client.update("documents", {"deleted_at": None}, filters={"id": f"eq.{document_id}"})
-            return {"document_id": document_id, "restored": True}
+            client.update("documents", patch, filters={"id": f"eq.{document_id}"})
+        if was_duplicate:
+            # This process's own memory of the archive would otherwise make
+            # the settlement refuse the restored copy's successful run.
+            _doc_dedupe.forget_archived_here(document_id)
+            logger.info("[docs] document %s restored from its duplicate archive as a plain copy — "
+                        "the next entry re-checks it", document_id)
+        return {"document_id": document_id, "restored": True, "was_duplicate": was_duplicate}
 
     @router.delete("/api/documents/{document_id}/permanent")
     def permanent_delete_document(

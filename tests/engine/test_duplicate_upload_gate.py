@@ -152,6 +152,21 @@ def _row(world, doc_id):
     return next(d for d in world["db"].rows("documents") if d["id"] == doc_id)
 
 
+def _counted(world, doc_id, *, user=OWNER, extra=False, month="2026-09",
+             at="2026-09-20T10:00:00+00:00"):
+    """The plan COUNTED this document — the quota ledger's row, as the
+    settlement writes it and as the migration backfills it for every
+    document analysed before the ledger existed. Since the ledger decides
+    before the status (P-1 METERING BYPASS, 2026-09-26) an `analyzed` row
+    alone models a status the browser could have written; a counted book is
+    modelled by this record."""
+    world["db"].rows("document_quota_ledger").append({
+        "document_id": doc_id, "user_id": user, "month": month, "was_extra": bool(extra),
+        "committed_at": at, "reserved_at": None, "released_at": None, "reservation_id": None,
+        "settling_at": None, "updated_at": at,
+    })
+
+
 def _confirm(world, doc_id=None, user=OWNER):
     """The €-dialog's Confirm, through the REAL route: POST
     /api/plan/confirm-extra-doc naming the document it was shown for."""
@@ -350,18 +365,14 @@ def test_retrying_the_first_of_two_legacy_analysed_copies_keeps_it(world):
 
 
 def test_g3_recover_stuck_archives_a_duplicate_instead_of_enqueuing_it(world):
-    # The copy sits INSIDE recover-stuck's window (older than its 5 s
-    # upload→enqueue race, younger than its 24 h zombie cap): a stuck row of
-    # any age past the cap is marked failed, never re-enqueued, so a fixed
-    # calendar date here read as a zombie once the day moved on
-    # (2026-09-26: `duplicates_count` 0, the row `stale_failed`). Relative
-    # ages keep the gate on what it holds — a stuck COPY is archived as the
-    # duplicate it is, not run again.
-    from datetime import datetime, timedelta, timezone
-    ago = lambda **kw: (datetime.now(timezone.utc) - timedelta(**kw)).isoformat()  # noqa: E731
+    """The stuck copy is created a minute ago, RELATIVE to the clock: the
+    route marks any queued row older than 24h `failed` BEFORE the duplicate
+    look runs, so a fixed date turned this gate red by the calendar
+    (2026-09-22T07:00Z) while the property still held. It reds on
+    recover-stuck enqueuing (or metering) a fresh stuck duplicate."""
     world["db"].rows("documents").extend([
-        _doc("orig", status="analyzed", period_id=PERIOD, created=ago(days=1, hours=1)),
-        _doc("stuck-copy", created=ago(hours=2)),
+        _doc("orig", status="analyzed", period_id=PERIOD, created="2026-09-20T12:00:12+00:00"),
+        _doc("stuck-copy", created=_ago(60)),
     ])
     body = world["post"]("/api/pipeline/recover-stuck", None).json()
     assert body["recovered_count"] == 0 and body["duplicates_count"] == 1
@@ -668,6 +679,7 @@ def multi_nonro(world, monkeypatch):
 def test_a_retry_of_a_counted_non_ro_document_settles_nothing(world, multi_nonro):
     world["db"].rows("documents").append(_doc("hu-book", h=EEI, status="analyzed", period_id=PERIOD,
                                               started="2026-09-21T10:00:00+00:00"))
+    _counted(world, "hu-book")
     assert world["post"]("/api/pipeline/retry", {"document_id": "hu-book"}).json()["status"] == "queued"
     pipeline._run_pipeline_sync("hu-book")
     assert multi_nonro["calls"] == [], multi_nonro["calls"]
@@ -1006,6 +1018,7 @@ def test_a_success_counts_exactly_once_and_a_re_run_never_again(world):
 def test_a_re_run_of_a_once_paid_extra_is_not_billed_again(world):
     meter = world["meter"]
     world["db"].rows("documents").append(_doc("paid", status="analyzed", period_id=PERIOD, metered_extra=True))
+    _counted(world, "paid", extra=True)
     assert world["post"]("/api/pipeline/retry", {"document_id": "paid"}).json()["status"] == "queued"
     world["finish"]("paid", "analyzed")
     assert meter.snapshot()["extra_billed"] == 0 and world["billed"] == [] and meter.calls == []
@@ -1292,6 +1305,7 @@ def test_a_move_of_an_analysed_book_is_a_free_correction(world):
     meter = world["meter"]
     world["db"].rows("documents").append(_doc("book", status="analyzed", period_id=PERIOD,
                                               started="2026-09-20T10:00:00+00:00", metered_extra=True))
+    _counted(world, "book", extra=True)
     r = world["post"]("/api/documents/book/move-period", {"period_end": "2024-12-31"})
     assert r.status_code == 200, r.text
     assert world["enqueued"] == ["book"]
@@ -1310,3 +1324,59 @@ def test_the_fake_database_takes_the_real_clients_signature(method):
     fake = inspect.signature(getattr(FakeDB, method))
     assert [(p.name, p.kind) for p in real.parameters.values()] == \
         [(p.name, p.kind) for p in fake.parameters.values()], (method, real, fake)
+
+
+# ── A RESTORED DUPLICATE IS A PLAIN COPY AGAIN (P-2C, 2026-09-26) ─────────
+#
+# `archive_as_duplicate` leaves the copy `deleted_at` + status='analyzed' (a
+# terminal state for a tab watching it) + the `duplicate_of:` marker. POST
+# /api/documents/{id}/restore cleared `deleted_at` ALONE: a live row that
+# read analysed yet held no analysis, that every counter skipped by its
+# marker, that /run refused as DONE and /retry re-ran unmetered. Restoring
+# now clears the marker and puts the row back as a plain, never-started
+# copy (`queued`) that the next entry re-checks: archived again while the
+# original is live, analysed — and metered — as the book's first analysis
+# once it is not.
+#
+# WHAT THESE RED ON, with the defect repaired (TC-11): a restored duplicate
+# keeping its marker or its `analyzed`; its next entry not re-checking it;
+# a user's own soft-deleted document restored any differently than before.
+
+
+def test_p2c_restoring_an_archived_duplicate_makes_it_a_plain_copy_the_next_entry_re_checks(world):
+    db, meter = world["db"], world["meter"]
+    db.rows("documents").extend([
+        _doc("orig", status="analyzed", period_id=PERIOD, created="2026-09-20T12:00:12+00:00"),
+        _doc("copy", created="2026-09-21T13:05:58+00:00"),
+    ])
+    _counted(world, "orig")
+    assert world["post"]("/api/pipeline/run", {"document_id": "copy"}).json()["status"] == "duplicate"
+    r = world["post"]("/api/documents/copy/restore", None)
+    assert r.status_code == 200, r.text
+    row = _row(world, "copy")
+    assert row["deleted_at"] is None and row["error"] is None, row
+    assert row["status"] == "queued" and row["pipeline_started_at"] is None, row
+    assert not _doc_dedupe.is_archived_duplicate(row)
+    # the original still live: the next entry archives it again — nothing metered
+    r = world["post"]("/api/pipeline/run", {"document_id": "copy"})
+    assert r.json()["status"] == "duplicate" and r.json()["existing_document_id"] == "orig", r.text
+    assert meter.calls == [] and world["enqueued"] == []
+    assert _row(world, "copy")["deleted_at"] and _doc_dedupe.duplicate_of(_row(world, "copy")["error"]) == "orig"
+    # the original gone: the restored copy IS the book's first analysis — metered like /run
+    db.update("documents", {"deleted_at": "2026-09-22T09:00:00+00:00"}, filters={"id": "eq.orig"})
+    assert world["post"]("/api/documents/copy/restore", None).status_code == 200
+    assert world["post"]("/api/pipeline/run", {"document_id": "copy"}).json()["status"] == "queued"
+    world["finish"]("copy", "analyzed")
+    assert meter.snapshot() == {"uploads": 1, "reserved": 0, "extra_billed": 0, "pending": 0}, meter.calls
+    assert _banner(world)["docs_used"] == 1
+
+
+def test_p2c_restoring_a_users_own_deleted_document_changes_nothing_else(world):
+    """Positive control: a user's soft delete restored keeps its status and
+    its error — only `deleted_at` goes."""
+    world["db"].rows("documents").append(_doc("gone", status="failed", deleted="2026-09-21T10:00:00+00:00",
+                                              error="HTTPException: 502: Claude extraction failed"))
+    assert world["post"]("/api/documents/gone/restore", None).status_code == 200
+    row = _row(world, "gone")
+    assert row["deleted_at"] is None and row["status"] == "failed" \
+        and row["error"] == "HTTPException: 502: Claude extraction failed", row

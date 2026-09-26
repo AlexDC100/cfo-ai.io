@@ -598,8 +598,10 @@ class LandingDeps:
     # a duplicate is not stored, not analysed and not counted.
     find_duplicate: Optional[Callable[[str, str, str, str], Optional[Dict[str, Any]]]] = None
     # (document_id, user_id, was_extra) — tells the pipeline which run holds
-    # the reservation so its terminal settles exactly that one.
-    register_reservation: Optional[Callable[[str, str, bool], None]] = None
+    # the reservation so its terminal settles exactly that one. False (the
+    # production seam, P2-B) = the row already held another reservation and
+    # the slot was given back inside: the landing is refused, not started.
+    register_reservation: Optional[Callable[[str, str, bool], Optional[bool]]] = None
     # (document_id, user_id, was_extra) — gives back a reservation whose
     # landing failed before its run was handed off (storage 503, insert
     # error). None → the production release (`_prod_release_reservation`):
@@ -666,9 +668,11 @@ def _prod_find_duplicate(org_id: str, user_id: str, content_hash: str,
     return hit.to_payload() if hit else None
 
 
-def _prod_register_reservation(doc_id: str, user_id: str, was_extra: bool) -> None:
+def _prod_register_reservation(doc_id: str, user_id: str, was_extra: bool) -> bool:
+    """False when the document's ledger row already holds another
+    reservation (P2-B): the slot just reserved was given back inside."""
     from . import pipeline as _pipeline
-    _pipeline._register_quota_run(doc_id, user_id=user_id, was_extra=was_extra)
+    return _pipeline._register_quota_run(doc_id, user_id=user_id, was_extra=was_extra)
 
 
 def _prod_release_reservation(doc_id: str, user_id: str, was_extra: bool) -> None:
@@ -842,7 +846,13 @@ def land_file(request_row: Dict[str, Any], content: bytes, filename: str, mime: 
             inserted = deps.insert_document(row)
             started = _iso(deps.now())
             if reserved and deps.register_reservation is not None:
-                deps.register_reservation(doc_id, str(requested_by), was_extra)
+                if deps.register_reservation(doc_id, str(requested_by), was_extra) is False:
+                    reserved = False  # already given back by the registration
+                    raise LandingRefused(409, {
+                        "code": "reservation_outstanding",
+                        "message": ("This document's analysis is already reserved. "
+                                    "Try again in a few minutes."),
+                    })
             deps.set_status(doc_id, "queued", started)
             _doc_dedupe.mark_running(doc_id)
             deps.enqueue(doc_id)

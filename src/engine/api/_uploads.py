@@ -940,10 +940,22 @@ def build_router() -> APIRouter:
             claimed = entry.released_row()
 
             # The run ledger: the terminal settles exactly this reservation
-            # (committed on `analyzed`, released on failure).
-            if reserved:
-                _pipeline._register_quota_run(doc_id, user_id=user_id, was_extra=was_extra,
-                                              month=getattr(decision, "month", "") or None)
+            # (committed on `analyzed`, released on failure). A confirmed
+            # extra's grant already holds its ledger reservation — it is
+            # registered as the run's own, never recorded a second time
+            # (fix/dedupe-quota P2-B: the ledger refuses a second record).
+            if reserved and not _pipeline._register_quota_run(
+                    doc_id, user_id=user_id, was_extra=was_extra,
+                    month=getattr(decision, "month", "") or None,
+                    reservation_id=getattr(decision, "reservation_id", "") or None):
+                # The document's ledger row holds another reservation: the
+                # slot just reserved was given back inside — never twice.
+                reserved = False
+                raise HTTPException(409, {
+                    "code": "reservation_outstanding",
+                    "message": ("This document's analysis is still reserved. "
+                                "Try again in a few minutes."),
+                })
             _pipeline._admin_set_status(doc_id, "queued", pipeline_started_at=_pipeline._now_iso())
             _doc_dedupe.mark_running(doc_id)
             _pipeline._enqueue(doc_id)
