@@ -30,7 +30,9 @@ from engine.workspaces.migration_plan import (
 )
 from engine.workspaces.rowstore import OpConflict, pk_for, row_key, rows_equal, same_value, undo_ops
 
-from ws_migration_fixture import BETA, GAMMA, OWNER, SOLO, FakeSupabase, build_world
+from ws_migration_fixture import (
+    BETA, GAMMA, OWNER, SOLO, SOLO_USER, FakeSupabase, build_world, plant_second_user_move,
+)
 
 REPO = Path(__file__).resolve().parents[2]
 RUN = "2026-09-21T15:00:00+00:00"
@@ -332,6 +334,75 @@ def test_a_copy_whose_source_vanished_after_planning_stops_before_any_row_moves(
     doc = next(d for d in env["fake"].tables["documents"] if d["id"] == "q-carnex-src")
     assert doc["storage_path"] == "org-qa/uploads/q-carnex-src.xlsx" and doc["org_id"] == "org-qa"
     assert not [w for w in env["fake"].writes if w[0] == "patch" and w[1] == "documents"]
+
+
+def _second_user_moves_too(env):
+    """The second user's workspace gets a document of another company (a
+    copy in ITS block of the plan); the snapshot is taken after."""
+    fake = env["fake"]
+    storage = {k[len("documents/"):]: v for k, v in fake.objects.items()}
+    did = plant_second_user_move(fake.tables, storage)
+    path = "org-solo/uploads/%s.pdf" % did
+    fake.objects["documents/" + path] = storage[path]
+    env["pre"] = copy.deepcopy(fake.tables)
+    return did
+
+
+def test_every_storage_copy_lands_before_the_first_row_write(env):
+    """Rule 9's order on the wire: on a full run every upload the double
+    records precedes every row write — the copies of BOTH users."""
+    did = _second_user_moves_too(env)
+    snap = _snapshot(env)
+    assert _migrate(env, snap=snap) == 0
+    plan = _plan(env)
+    copies = [op for op in plan["ops"] if op["op"] == "copy_object"]
+    assert {op["from_org"] for op in copies} >= {"org-qa", "org-solo"}
+    assert _migrate(env, "--execute", "--expect-plan-sha", plan["ops_sha256"], snap=snap) == 0, \
+        "\n".join(env["lines"][-20:])
+    kinds = [w[0] for w in env["fake"].writes]
+    assert "upload" in kinds and kinds.index("upload") == 0
+    last_upload = max(i for i, k in enumerate(kinds) if k == "upload")
+    first_row = min(i for i, k in enumerate(kinds) if k != "upload")
+    assert last_upload < first_row, kinds[:40]
+    moved = next(d for d in env["fake"].tables["documents"] if d["id"] == did)
+    assert moved["org_id"] == new_org_id(SOLO_USER, "cui:" + BETA)
+    assert ("documents/" + moved["storage_path"]) in env["fake"].objects
+
+
+def test_a_copy_conflict_in_a_later_users_block_leaves_no_user_half_applied(env, monkeypatch):
+    """Verifier (2026-09-26): the plan was emitted per user — the first
+    user's inserts and row moves, THEN the second user's copies. The
+    second user's copy source vanishing at copy time stopped the run with
+    the first user fully migrated and the second not at all: a half-applied
+    production that only --resume could finish. Now every copy of every
+    user precedes the first row operation: the same conflict stops the run
+    before ONE row has been written, for anybody."""
+    did = _second_user_moves_too(env)
+    snap = _snapshot(env)
+    assert _migrate(env, snap=snap) == 0
+    sha = _plan_sha(env)
+    real = pgrest_io.PgRest.download
+    seen = {"n": 0}
+
+    def vanishing(self, bucket, path, *, org_id):
+        if path == "org-solo/uploads/%s.pdf" % did:
+            seen["n"] += 1
+            if seen["n"] > 1:          # the facts pass read it; the copy step does not find it
+                return None
+        return real(self, bucket, path, org_id=org_id)
+
+    monkeypatch.setattr(pgrest_io.PgRest, "download", vanishing)
+    with pytest.raises(OpConflict, match="%s.pdf: the object the plan read" % did):
+        _migrate(env, "--execute", "--expect-plan-sha", sha, snap=snap)
+    fake = env["fake"]
+    assert fake.row_writes() == [], "rows were written before the copy conflict: %s" % fake.row_writes()[:5]
+    assert [w for w in fake.writes if w[0] == "upload"], "the earlier copies did land (idempotent residue)"
+    # production is still the snapshot: no --resume needed, a plain re-run
+    # (once the object is back) applies the whole reviewed plan
+    assert snapshot_cli.main(["--verify", snap], client_factory=fake.client, out=env["out"]) == 0
+    monkeypatch.setattr(pgrest_io.PgRest, "download", real)
+    assert _migrate(env, "--execute", "--expect-plan-sha", sha, snap=snap) == 0, "\n".join(env["lines"][-12:])
+    assert any(l.startswith("RECOUNT: production equals the plan") for l in env["lines"])
 
 
 def test_a_copy_with_the_wrong_bytes_fails_the_recount(env, monkeypatch):

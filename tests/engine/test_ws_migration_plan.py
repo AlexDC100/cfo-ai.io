@@ -47,6 +47,7 @@ from engine.workspaces.rowstore import (
 
 from ws_migration_fixture import (
     ALFA, BETA, DELTA, GAMMA, OWNER, SOLO, SOLO_USER, TEAM_A, build_world, facts_for,
+    plant_second_user_move,
 )
 
 DATE = "2026-09-21"
@@ -602,6 +603,31 @@ def test_every_moved_document_gets_its_object_copied_under_the_new_workspace(wor
             assert op["must_exist"] is False and op["expect_sha256"] is None
         else:
             assert op["must_exist"] is True and op["expect_sha256"] == f.sha256
+
+
+def test_every_storage_copy_of_every_user_precedes_the_first_row_operation():
+    """Rule 9, the order (2026-09-26): the executor applies the plan in
+    order and stops at the first copy whose source is gone or different.
+    Emitted per user, the second user's copies came after the first user's
+    rows had already moved, so one copy conflict left the first user
+    half-applied. Every copy of every user now comes before the first row
+    operation of the plan — and the copies are the only thing that moved:
+    the row operations keep their emitted order."""
+    tables, storage, rules = build_world()
+    planted = plant_second_user_move(tables, storage)
+    plan = build_plan(tables, facts_for(tables, storage, rules), migration_date=DATE)
+    assert plan.blocking == []
+    kinds = [op["op"] for op in plan.ops]
+    copies = [op for op in plan.ops if op["op"] == "copy_object"]
+    assert {op["from_org"] for op in copies} >= {"org-qa", "org-solo"}, "copies of BOTH users are in the plan"
+    assert next(op for op in copies if op["document_id"] == planted)["to_org"] == new_org_id(SOLO_USER, "cui:" + BETA)
+    last_copy = max(i for i, k in enumerate(kinds) if k == "copy_object")
+    first_row = min(i for i, k in enumerate(kinds) if k != "copy_object")
+    assert last_copy < first_row, "a row operation at %d precedes the copy at %d" % (first_row, last_copy)
+    # the row operations are the ones a per-user emission produces, in that order
+    rows = [op for op in plan.ops if op["op"] != "copy_object"]
+    assert rows[0]["op"] == "insert" and rows[0]["table"] == "organizations"
+    assert [op["table"] for op in rows if op["table"] == "financial_periods"], "periods still move"
 
 
 def test_a_document_whose_object_the_snapshot_recorded_but_planning_cannot_read_blocks(world):

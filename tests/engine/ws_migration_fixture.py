@@ -355,6 +355,22 @@ def build_world() -> Tuple[Dict[str, List[Dict[str, Any]]], Dict[str, bytes], Li
     return tables, storage, rules
 
 
+def plant_second_user_move(tables, storage):
+    """A failed upload of BETA's PDF in the SECOND user's one-company
+    workspace: its bytes name another company, so the plan creates BETA's
+    workspace for that user and MOVES the document — the second user's
+    block of the plan then carries a storage copy of its own. Returns the
+    document id. (Every other test sees the world without it.)"""
+    src = next(d for d in tables["documents"] if d["id"] == "q-beta-src")
+    did = "s-beta-fail"
+    doc = dict(src, id=did, org_id="org-solo", status="failed", period_id=None, uploaded_by=SOLO_USER,
+               storage_path="org-solo/uploads/%s.pdf" % did, error="HTTPException: 502: extraction failed",
+               created_at=_ts("2026-08-05"), updated_at=_ts("2026-08-05"))
+    tables["documents"].append(doc)
+    storage[doc["storage_path"]] = storage[src["storage_path"]]
+    return did
+
+
 def inventory_for(tables, storage):
     """What ``db_snapshot`` records: per document, whether its object
     resolved when the snapshot was taken."""

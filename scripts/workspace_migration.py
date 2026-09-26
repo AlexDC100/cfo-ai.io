@@ -28,11 +28,13 @@ at execute time, and a transient storage error during that recomputation
 once dropped a copy from it — an un-reviewed plan never runs), and the
 plan has no blocking item (a document mid-analysis, a document whose
 object could not be read). It then applies the operations in order —
-workspaces + memberships + org_prefs, storage copies, period-scoped rows,
-periods, documents, re-dates, workspace archives, user_prefs — reading
-every row before writing it (an op already in effect is skipped, so a
-re-run is a no-op; a row in neither the planned-from nor the planned-to
-state stops the run). Finally it RE-READS production and compares every
+FIRST every storage copy of every user (idempotent: an object already at
+its new path is skipped; a source gone or different by then stops the run
+before any row has moved, for any user), then per user workspaces +
+memberships + org_prefs, period-scoped rows, periods, documents,
+re-dates, workspace archives, user_prefs — reading every row before
+writing it (an op already in effect is skipped, so a re-run is a no-op; a
+row in neither the planned-from nor the planned-to state stops the run). Finally it RE-READS production and compares every
 row the plan touched, and every touched table's row count, with the plan's
 expected post-state, and checks that every copied object holds the bytes
 the plan read and that EVERY moved document's storage_path resolves: exit

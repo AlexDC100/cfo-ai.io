@@ -121,7 +121,13 @@ data would change what the other members see).
    dropped a copy from the plan and the row moved to a path with nothing
    under it (verifier p6, 2026-09-26). Only a document the inventory ALSO
    recorded as missing moves without a file (its copy is opportunistic:
-   ``must_exist`` false).
+   ``must_exist`` false). EVERY copy — of every user — comes before the
+   first row operation of the plan (``_copies_first``): the executor
+   applies the plan in order and stops at a copy whose source is gone or
+   different, so emitted per user a copy conflict in the second user's
+   block landed after the first user's rows had already moved (a
+   half-applied run). Copies are idempotent (an object already at its new
+   path is skipped) and touch no row, so nothing depends on their place.
 
 Nothing is ever hard-deleted; Stripe, auth and billing tables are never
 touched; ``chat_messages`` is never written, and a ``chat_threads`` row
@@ -411,8 +417,19 @@ class _Planner:
                     "workspace %s (%r) has %d members — not migrated" % (org_id, org.get("name"), n))
         for user in users:
             self.build_user(user)
+        self._copies_first()
         self._refuse_new_cascade_hazards()
         return self.plan
+
+    def _copies_first(self) -> None:
+        """Every ``copy_object`` — of EVERY user — ahead of the first row
+        operation, the users' row operations in their emitted order after
+        them (rule 9). The executor stops at the first copy whose source is
+        gone or different; with the copies inside each user's block, that
+        stop came after the earlier users' rows had moved."""
+        ops = self.plan.ops
+        self.plan.ops = ([op for op in ops if op["op"] == "copy_object"]
+                         + [op for op in ops if op["op"] != "copy_object"])
 
     def _refuse_new_cascade_hazards(self) -> None:
         """The plan's own post-state may not hold a period that is one hard
