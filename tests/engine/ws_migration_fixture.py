@@ -50,6 +50,7 @@ GAMMA = valid_cui("4000003")     # agro (the failed PDF + an analysed xlsx)
 DELTA = valid_cui("5000004")     # the sister development company (no period)
 SOLO = valid_cui("6000005")      # the second user's company
 TEAM = valid_cui("7000006")
+SIGMA = valid_cui("8000007")     # a failed PDF whose layout the reader refuses
 
 OWNER = "user-owner"
 SOLO_USER = "user-solo"
@@ -110,6 +111,19 @@ def balance_pdf(header: List[str], *, seed: int = 0, n: int = 14) -> bytes:
     return text_pdf(lines)
 
 
+def refused_layout_pdf(header: List[str], *, seed: int = 0, n: int = 14) -> bytes:
+    """A balanță whose rows the account-row reader cannot parse: every row
+    starts with a label, not the account code, so no line matches the
+    reader's row shape — readable text, zero account rows (the 2026-09-26
+    production shape: the deterministic readers refused the layout and the
+    Claude fallback had no credit, so the upload failed)."""
+    lines = list(header) + ["Simbol cont | Denumire cont | Sold initial | Rulaj debitor | Rulaj creditor | Sold final"]
+    for i in range(n):
+        v = 3000 + seed + i
+        lines.append("Cont %d | Cont %d | %d,00 | 0,00 | 0,00 | %d,00" % (1011 + i * 7, i, v, v))
+    return text_pdf(lines)
+
+
 def itinerary_pdf() -> bytes:
     return text_pdf([
         "OFFICIAL PROGRAMME",
@@ -150,6 +164,8 @@ def build_world() -> Tuple[Dict[str, List[Dict[str, Any]]], Dict[str, bytes], Li
                               "Balanta de verificare la data de 31.12.2025"], seed=11),
         "TEAM": balance_xlsx(["Team Co SRL", "Cod fiscal: %s" % TEAM,
                               "Balanta de verificare la data de 31.12.2025"], seed=12),
+        "SIGMA_PDF": refused_layout_pdf(["Balanta de verificare Decembrie 2020", "SIGMA MOTORS SRL",
+                                         "CUI: RO%s" % SIGMA, "Sibiu, str. Uzinei 4"], seed=13),
     }
     sha = {k: hashlib.sha256(v).hexdigest() for k, v in blobs.items()}
 
@@ -211,8 +227,13 @@ def build_world() -> Tuple[Dict[str, List[Dict[str, Any]]], Dict[str, bytes], Li
         created="2026-09-20", error="HTTPException: 502: extraction failed")
     doc("d-beta-fail-2", "org-sf", "balanta verificare BETA dec 2025.pdf", "BETA", status="failed",
         created="2026-09-21", error="HTTPException: 502: extraction failed", stored=False)
+    # a failed PDF of GAMMA whose bytes are NOT the analysed xlsx's: left for a retry
     doc("d-gamma-pdf", "org-sf", "Balanta GAMMA_FY2025.pdf", "GAMMA_PDF", status="failed",
         created="2026-09-20", error="HTTPException: 502: extraction failed")
+    # a failed balanță whose row layout the reader refuses; its header
+    # prints the company and its CUI (the 2026-09-26 production shape)
+    doc("d-sigma-pdf", "org-sf", "Balanta Decembrie 2020 - Sigma Motors.pdf", "SIGMA_PDF", status="failed",
+        created="2026-09-21", hour=15, error="HTTPException: 502: Claude extraction failed")
     doc("d-omega-trash", "org-sf", "Omega Retail Trial Balance.xlsx", "OMEGA", period="per-sf21",
         created="2026-09-20", deleted=_ts("2026-09-20", 18))
 
@@ -220,8 +241,10 @@ def build_world() -> Tuple[Dict[str, List[Dict[str, Any]]], Dict[str, bytes], Li
     doc("q-carnex-src", "org-qa", "Carnex Trial Balance_FY2025.xlsx", "CARNEX", period="per-carnex",
         created="2026-09-20", hint="2017-12-31")
     doc("q-carnex-old", "org-qa", "Carnex Trial Balance 2025.xlsx", "CARNEX", created="2026-05-30", hashed=False)
+    # a failed copy of the SAME bytes as the analysed source (hashed at
+    # upload), whose object never landed: a duplicate, archived
     doc("q-carnex-fail", "org-qa", "Carnex Trial Balance 2025.xlsx", "CARNEX", status="failed",
-        created="2026-05-30", hashed=False, stored=False, error="Pipeline never started")
+        created="2026-05-30", stored=False, error="Pipeline never started")
     doc("q-sf25-src", "org-qa", "alfa trial balance 2025.xlsx", "ALFA25C", period="per-q25", created="2026-09-08")
     doc("q-delta-2", "org-qa", "Trial_Balance_Alfa_Dev_31.12.2025.xlsx", "DELTA", period="per-q25", created="2026-09-06")
     doc("q-gamma", "org-qa", "Gamma Trial Balance 2025.xlsx", "GAMMA_XLSX", period="per-q25", created="2026-09-07")
@@ -371,15 +394,17 @@ def build_world() -> Tuple[Dict[str, List[Dict[str, Any]]], Dict[str, bytes], Li
 
 
 def plant_second_user_move(tables, storage):
-    """A failed upload of BETA's PDF in the SECOND user's one-company
-    workspace: its bytes name another company, so the plan creates BETA's
-    workspace for that user and MOVES the document — the second user's
-    block of the plan then carries a storage copy of its own. Returns the
-    document id. (Every other test sees the world without it.)"""
+    """An ANALYSED book of BETA (no period of its own) in the SECOND user's
+    one-company workspace: its bytes name another company, so the plan
+    creates BETA's workspace for that user and MOVES the document (chosen
+    for re-analysis) — the second user's block of the plan then carries a
+    storage copy of its own. Returns the document id. (Every other test
+    sees the world without it. Analysed, not failed: a failed upload that
+    is no copy of a live document stays where it is, rule 5.)"""
     src = next(d for d in tables["documents"] if d["id"] == "q-beta-src")
-    did = "s-beta-fail"
-    doc = dict(src, id=did, org_id="org-solo", status="failed", period_id=None, uploaded_by=SOLO_USER,
-               storage_path="org-solo/uploads/%s.pdf" % did, error="HTTPException: 502: extraction failed",
+    did = "s-beta-book"
+    doc = dict(src, id=did, org_id="org-solo", status="analyzed", period_id=None, uploaded_by=SOLO_USER,
+               storage_path="org-solo/uploads/%s.pdf" % did, error=None,
                created_at=_ts("2026-08-05"), updated_at=_ts("2026-08-05"))
     tables["documents"].append(doc)
     storage[doc["storage_path"]] = storage[src["storage_path"]]

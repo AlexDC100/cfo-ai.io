@@ -176,8 +176,39 @@ def test_a_title_line_yields_the_company_name_not_the_sentence(line, name):
 def test_an_itinerary_is_not_a_balance_but_names_its_host():
     ident = identify_document(itinerary_pdf(), "Delegation_Itinerary.pdf")
     assert ident.document_kind == "not_a_balance"
+    assert ident.sources["document_kind"]["signal"] == "not_a_balance"
     assert ident.company_key == "name:ALFA FOOD"
     assert ident.period_end is None
+
+
+def test_a_balance_the_reader_cannot_parse_is_never_not_a_balance():
+    """2026-09-26: a balanță whose row layout the deterministic reader
+    refused (every row starts with a label, so no line matches the
+    account-row shape) was classified not_a_balance although its header
+    printed the company and its CUI. "not_a_balance" is asserted only when
+    the bytes were parsed and are demonstrably not a trial balance: no
+    account rows AND no CUI, no balance title (header or filename), no
+    ledger columns. Anything else with too few rows is "uncertain" — the
+    reader failed, not the document."""
+    from ws_migration_fixture import SIGMA, refused_layout_pdf, text_pdf
+    ident = identify_document(refused_layout_pdf(["Balanta de verificare Decembrie 2020", "SIGMA MOTORS SRL",
+                                                  "CUI: RO%s" % SIGMA, "Sibiu, str. Uzinei 4"]),
+                              "Balanta Decembrie 2020 - Sigma Motors.pdf")
+    assert ident.document_kind == "uncertain" and ident.cui == SIGMA
+    assert ident.company_key == "cui:" + SIGMA and ident.period_end == "2020-12-31"
+    kind = ident.sources["document_kind"]
+    assert kind["signal"] == "unparsed_balance" and "prints CUI %s" % SIGMA in kind["evidence"] \
+        and "balance title" in kind["evidence"] and "ledger columns" in kind["evidence"]
+    # each signal alone is enough: a title in the filename only; ledger columns only
+    assert identify_document(refused_layout_pdf(["Situatie contabila", "Sigma"]), "balanta dec 2020.pdf") \
+        .document_kind == "uncertain"
+    columns_only = text_pdf(["Raport intern", "Sold initial Rulaj debitor Rulaj creditor Sold final"] +
+                            ["Cont %d | %d,00 | 0,00" % (1011 + i * 7, 3000 + i) for i in range(12)])
+    assert identify_document(columns_only, "raport.pdf").document_kind == "uncertain"
+    # readable prose with none of the signals stays demonstrably not a balance
+    prose = text_pdf(["OFFICIAL PROGRAMME", "Partner Delegation - Romania Visit", "9 - 15 September 2026",
+                      "Hosted and coordinated by Alfa Food. Institutional meetings, site visits, hospitality."])
+    assert identify_document(prose, "programme.pdf").document_kind == "not_a_balance"
 
 
 PERIOD_RANGES = [

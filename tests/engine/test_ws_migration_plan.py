@@ -48,7 +48,7 @@ from engine.workspaces.rowstore import (
 )
 
 from ws_migration_fixture import (
-    ALFA, BETA, DELTA, GAMMA, OWNER, SOLO, SOLO_USER, TEAM_A, build_world, facts_for,
+    ALFA, BETA, DELTA, GAMMA, OWNER, SIGMA, SOLO, SOLO_USER, TEAM_A, build_world, facts_for,
     plant_second_user_move,
 )
 
@@ -311,7 +311,8 @@ def test_duplicates_failed_copies_and_non_balances_are_archived_with_reasons(wor
         "d-sf24-copy": "archived: duplicate_of_source (d-sf24-src)",
         "d-sf25-xls": "archived: other_file_same_period (d-sf25-lv)",
         "d-beta-fail-1": "archived: duplicate_of_source (q-beta-src)",
-        "d-gamma-pdf": "archived: failed_superseded (q-gamma)",
+        "d-beta-fail-2": "archived: duplicate_of_source (q-beta-src)",
+        "q-carnex-fail": "archived: duplicate_of_source (q-carnex-src)",
         "q-carnex-old": "archived: duplicate_of_source (q-carnex-src)",
         "q-delta-2": "archived: duplicate (d-delta-1)",
         "q-itin": "archived: not_a_balance (q-itin)",
@@ -319,6 +320,65 @@ def test_duplicates_failed_copies_and_non_balances_are_archived_with_reasons(wor
     for did, err in expect.items():
         d = _row(post, "documents", id=did)
         assert d["deleted_at"] == RUN and d["error"] == err, did
+    # a failed upload whose bytes are not a copy of a live document is not
+    # "superseded": it stays (rule 5)
+    assert _row(post, "documents", id="d-gamma-pdf")["deleted_at"] is None
+
+
+def test_a_failed_upload_the_reader_refused_stays_untouched_for_a_retry(world):
+    """2026-09-26: a NEW user's failed upload — a balanță whose row layout
+    the deterministic readers refused while the Claude fallback had no
+    credit, its header printing the company and its CUI — was archived as
+    not_a_balance and moved into that user's holding archive. The failure
+    was the reader's. A failed upload that is not a copy of a live
+    document stays UNTOUCHED in its workspace (no row operation, no move,
+    never a keeper), whatever the workspace decision, so it can be retried
+    once the reader ships; only a copy of a live document is archived."""
+    plan, post, facts = world["plan"], world["post"], world["facts"]
+    pre = _row(world["tables"], "documents", id="d-sigma-pdf")
+    ident = facts["d-sigma-pdf"].identity
+    assert ident.document_kind == "uncertain" and ident.cui == SIGMA
+    assert ident.sources["document_kind"]["signal"] == "unparsed_balance"
+    dec = _decision(plan, "documents", "d-sigma-pdf")
+    assert dec["action"] == "untouched" and dec["reason"].startswith("failed upload left for a retry"), dec
+    assert dec["to_org"] == "org-sf" and dec["company"] == "cui:" + SIGMA
+    assert not [op for op in plan.ops if op.get("key") == {"id": "d-sigma-pdf"} or op.get("document_id") == "d-sigma-pdf"]
+    d = _row(post, "documents", id="d-sigma-pdf")
+    assert {k: d[k] for k in ("org_id", "deleted_at", "error", "storage_path", "period_id")} == \
+        {k: pre[k] for k in ("org_id", "deleted_at", "error", "storage_path", "period_id")}
+    assert not any(o["id"] == new_org_id(OWNER, "cui:" + SIGMA) for o in post["organizations"]), "no workspace for it"
+    assert not [n for n in plan.needs_reanalysis if n["document_id"] == "d-sigma-pdf"]
+    assert any("d-sigma-pdf" in w and "left in its workspace for a retry" in w for w in plan.warnings)
+    # the other failed uploads: a different file of GAMMA stays too; copies
+    # of live books (the same bytes) are archived and travel with them
+    g = _row(post, "documents", id="d-gamma-pdf")
+    assert g["deleted_at"] is None and g["org_id"] == "org-sf" and g["error"] == pre["error"].replace("Claude ", "")
+    assert _decision(plan, "documents", "d-gamma-pdf")["action"] == "untouched"
+    for did in ("d-beta-fail-1", "d-beta-fail-2"):
+        b = _row(post, "documents", id=did)
+        assert b["deleted_at"] == RUN and b["org_id"] == new_org_id(OWNER, "cui:" + BETA), did
+    c = _row(post, "documents", id="q-carnex-fail")
+    assert c["deleted_at"] == RUN and c["error"] == "archived: duplicate_of_source (q-carnex-src)"
+
+
+def test_a_company_less_workspace_holding_a_retryable_failed_upload_stays_live():
+    """Rule 7's consequence: a failed upload left for a retry is live
+    content its owner must be able to reach, so the company-less workspace
+    it sits in is left live (reported) — like one holding an unidentified
+    book — rather than archived out of reach."""
+    t = _moving_period()
+    t["documents"].append(_doc("f-beta", "org-q", status="failed", sha="hb", created="2026-09-02T00:00:00+00:00"))
+    facts = {"d1": _ident(ALFA, "2025-06-30", signal="in_document"), "keep-a": _ident(ALFA, "2025-12-31"),
+             "f-beta": _ident(BETA, "2025-12-31")}
+    plan = build_plan(t, facts, migration_date=DATE)
+    assert _decision(plan, "periods", "p1")["to_org"] == "org-a"                     # the split happens
+    assert _decision(plan, "documents", "f-beta")["action"] == "untouched"
+    assert next(w for w in plan.workspaces if w["org_id"] == "org-q")["action"] == "keep"
+    assert any("org-q" in w and "still holds 1 live item(s)" in w for w in plan.warnings)
+    post = apply_ops(t, plan.ops, now=RUN)
+    assert _row(post, "organizations", id="org-q")["archived_at"] is None
+    assert _row(post, "documents", id="f-beta")["org_id"] == "org-q"
+    assert not any(o["id"] == new_org_id("u", "cui:" + BETA) for o in post["organizations"])
 
 
 def test_an_unreadable_copy_inherits_the_identity_of_identical_bytes(world):
@@ -391,6 +451,10 @@ def test_one_company_per_live_workspace_and_one_live_document_per_company_month(
             # a company-less workspace kept live (its owner's conversations)
             # holds no live book at all
             assert d["deleted_at"] is not None or d.get("scope") != "financial", d["id"]
+            continue
+        if d.get("status") == "failed":
+            # a failed upload left in place for a retry is not a book of the
+            # workspace's company (rule 5); it decides nothing
             continue
         ident = facts[d["id"]].identity if d["id"] in facts else None
         key = ident.company_key if ident else None
@@ -947,7 +1011,12 @@ def test_a_created_workspace_carries_the_industry_its_caen_maps_to():
     assert row["industry_display_name"] == "Red meat processing"
 
 
-def test_a_company_with_only_failed_uploads_keeps_exactly_one_failed_copy():
+def test_a_company_with_only_failed_uploads_keeps_one_copy_in_place_and_gets_no_workspace():
+    """Two failed uploads of the same bytes, no analysed book of their
+    company: the latest stays untouched where it is (for a retry), the
+    other is archived as its copy IN PLACE; nothing is moved, no workspace
+    is created for a company nobody has analysed, nothing needs
+    re-analysis (rule 5, 2026-09-26 — a failed upload is never a keeper)."""
     t = _mini([_doc("s", "org-a", period="p1"),
                _doc("f1", "org-a", status="failed", sha="h", created="2026-09-01T00:00:00+00:00"),
                _doc("f2", "org-a", status="failed", sha="h", created="2026-09-02T00:00:00+00:00")],
@@ -957,9 +1026,11 @@ def test_a_company_with_only_failed_uploads_keeps_exactly_one_failed_copy():
     plan = build_plan(t, facts, migration_date=DATE)
     post = apply_ops(t, plan.ops, now=RUN)
     f1, f2 = (_row(post, "documents", id=x) for x in ("f1", "f2"))
-    assert f2["deleted_at"] is None and f2["org_id"] == new_org_id("u", "cui:" + BETA)
-    assert f1["deleted_at"] == RUN and f1["error"] == "archived: duplicate (f2)"
-    assert plan.needs_reanalysis[0]["document_id"] == "f2" and plan.needs_reanalysis[0]["status"] == "failed"
+    assert f2["deleted_at"] is None and f2["org_id"] == "org-a" and f2["error"] is None
+    assert f1["deleted_at"] == RUN and f1["error"] == "archived: duplicate (f2)" and f1["org_id"] == "org-a"
+    assert not any(o["id"] == new_org_id("u", "cui:" + BETA) for o in post["organizations"])
+    assert plan.needs_reanalysis == []
+    assert _decision(plan, "documents", "f2")["reason"].startswith("failed upload left for a retry")
 
 
 def test_two_workspaces_claiming_one_company_keep_one_and_split_the_other():

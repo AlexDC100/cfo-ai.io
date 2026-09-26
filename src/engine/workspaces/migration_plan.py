@@ -70,13 +70,24 @@ data would change what the other members see).
    ``period_record_disagreements`` is the gate: a re-dated period whose
    records still disagree with its row makes the plan blocking, and the
    recount checks the same after the run.
-5. Per company per month exactly one live document: the surviving period's
-   source. Copies (same content hash), other files for the same company and
-   month, superseded failed uploads and non-financial documents are
-   archived (``deleted_at`` + ``error = "archived: <reason> (<id>)"``). A
-   company+month with documents but no period keeps ONE live document (the
-   latest analysed, else the latest failed) and is listed in
-   ``needs_reanalysis``.
+5. Per company per month exactly one live ANALYSED document: the surviving
+   period's source. Copies (same content hash), other analysed files for
+   the same company and month and non-financial documents are archived
+   (``deleted_at`` + ``error = "archived: <reason> (<id>)"``). A
+   company+month with analysed documents but no period keeps ONE live
+   document (the latest analysed) and is listed in ``needs_reanalysis``.
+   A FAILED upload is archived only when its bytes are a copy of a live
+   document (a period's source, a kept book — nothing is lost); otherwise
+   it is left UNTOUCHED in its workspace, whatever happens to the
+   workspace, so its owner can retry it once the reader that refused it
+   ships (2026-09-26: the failure was the reader's — a balanță the
+   deterministic readers could not parse and the Claude fallback had no
+   credit for). It is never a keeper and never moved; a company-less
+   workspace holding one stays live, like one holding an unidentified
+   book (rule 7). Among failed uploads of the same bytes one stays and
+   the rest are archived as its copies, in place. ``not_a_balance`` is
+   asserted by the identifier only when the bytes were parsed and are
+   demonstrably not a trial balance (``company_identity.balance_signals``).
 6. ARCHIVING A PERIOD: ``financial_periods`` has no archive column, so the
    period, every row scoped to it, and its source document move into the
    user's holding workspace "Arhivă (migrare <date>)" (``archived_at`` set,
@@ -956,6 +967,7 @@ class _Planner:
                            if pr["action"] == "archive" and pr.get("source_document_id")}
 
         groups: Dict[Tuple[str, Optional[str]], List[str]] = defaultdict(list)
+        failed: List[str] = []
         for did in sorted(self.in_scope_docs):
             d = self.docs[did]
             org = str(d["org_id"])
@@ -1030,6 +1042,11 @@ class _Planner:
                 dec[did] = dict(base, action="archive", reason="archived: not_a_balance (%s)" % did,
                                 _place="company")
                 continue
+            if status == FAILED:
+                # decided after the groups: a copy of a live document, or
+                # left in place for a retry (rule 5)
+                failed.append(did)
+                continue
             month = None
             if ident and ident.period_end:
                 month = _month(ident.period_end)
@@ -1061,15 +1078,52 @@ class _Planner:
                 d = self.docs[did]
                 if keep_sha and self.sha(did) == keep_sha:
                     why = "duplicate_of_source" if pid else "duplicate"
-                elif self.status(did) == FAILED:
-                    why = "failed_superseded"
                 else:
                     why = "other_file_same_period"
                 dec[did] = {"id": did, "from_org": str(d["org_id"]), "filename": d.get("original_filename"),
                             "status": d.get("status"), "company": company, "live": True,
                             "action": "archive", "reason": "archived: %s (%s)" % (why, keeper),
                             "_place": "company"}
+        self._failed_decisions(failed, dec, kept_source)
         return dec
+
+    def _failed_decisions(self, failed: Sequence[str], dec: Dict[str, Dict[str, Any]],
+                          kept_source: Mapping[str, str]) -> None:
+        """A FAILED upload (rule 5, 2026-09-26): archived only when its bytes
+        are a copy of a live document that stays (a period's source, a kept
+        book) — nothing is lost, the same bytes remain analysable — and then
+        it travels with its company like any archived copy. Otherwise it is
+        left UNTOUCHED in its workspace, whatever happens to the workspace:
+        its owner retries it once the reader that refused it ships. Never a
+        keeper, never moved. Among failed uploads of the same bytes the
+        latest stays and the others are archived as its copies, in place."""
+        live_by_sha: Dict[str, str] = {}
+        for did, dd in sorted(dec.items()):
+            if dd["action"] == "keep" and self.sha(did):
+                live_by_sha.setdefault(str(self.sha(did)), did)
+        kept: Dict[str, str] = {}
+        for did in sorted(failed, key=lambda x: (str(self.docs[x].get("created_at") or ""), x), reverse=True):
+            d = self.docs[did]
+            sha = self.sha(did)
+            base = {"id": did, "from_org": str(d["org_id"]), "filename": d.get("original_filename"),
+                    "status": d.get("status"), "company": self.key(did), "live": True}
+            if sha and sha in live_by_sha:
+                ref = live_by_sha[sha]
+                why = "duplicate_of_source" if ref in kept_source else "duplicate"
+                dec[did] = dict(base, action="archive", reason="archived: %s (%s)" % (why, ref), _place="company")
+                continue
+            if sha and sha in kept:
+                dec[did] = dict(base, action="archive", reason="archived: duplicate (%s)" % kept[sha],
+                                _place="stay")
+                continue
+            if sha:
+                kept[sha] = did
+            dec[did] = dict(base, action="untouched",
+                            reason="failed upload left for a retry (not a copy of a live document)",
+                            _place="stay")
+            self.plan.warnings.append(
+                "document %s (%r): failed upload, not a copy of any live document — left in its workspace for "
+                "a retry (the reader refused it, the document is not condemned)" % (did, d.get("original_filename")))
 
     def _choose(self, dids: Sequence[str]) -> str:
         analysed = [d for d in dids if self.status(d) == ANALYZED]
