@@ -59,6 +59,10 @@ export type UploadSurface = "financial" | "sku";
 
 interface PendingExtra {
   documentId: string;
+  /** Where the upload was made from — the retry after Confirm answers a
+   *  duplicate with the SAME "open it" destination as the first call
+   *  (P2-C, 2026-09-26: a Products upload's retry linked to the dashboard). */
+  surface: UploadSurface;
   planKey: string;
   docsUsed: number;
   docsIncluded: number;
@@ -121,15 +125,16 @@ export function useUploadEnqueue() {
    *  has reached a terminal state (queued, cancelled, blocked, failed). */
   const enqueue = useCallback(
     async (documentId: string, opts: { surface?: UploadSurface } = {}): Promise<UploadOutcome> => {
+      const surface = opts.surface ?? "financial";
       const first = await enqueuePipeline(documentId);
       if (first.kind === "duplicate") {
         notifyAlreadyUploaded(
           { existingDocumentId: first.existingDocumentId, periodId: first.periodId },
-          opts.surface ?? "financial",
+          surface,
         );
         return { kind: "duplicate", existingDocumentId: first.existingDocumentId, periodId: first.periodId };
       }
-      return _resolveEnqueueOutcome(first, documentId);
+      return _resolveEnqueueOutcome(first, documentId, surface);
     },
     [notifyAlreadyUploaded],
   );
@@ -141,10 +146,17 @@ export function useUploadEnqueue() {
     async (
       result: EnqueuePipelineResult,
       documentId: string,
+      surface: UploadSurface,
     ): Promise<UploadOutcome> => {
       if (result.kind === "queued") return { kind: "queued" };
       if (result.kind === "duplicate") {
-        notifyAlreadyUploaded({ existingDocumentId: result.existingDocumentId, periodId: result.periodId });
+        // The server caught it (the browser's pre-check was skipped, or the
+        // original landed meanwhile): the same message as the first call,
+        // leading where THIS upload's surface leads — never a failure.
+        notifyAlreadyUploaded(
+          { existingDocumentId: result.existingDocumentId, periodId: result.periodId },
+          surface,
+        );
         return { kind: "duplicate", existingDocumentId: result.existingDocumentId, periodId: result.periodId };
       }
       if (result.kind === "transport_failed") {
@@ -178,6 +190,7 @@ export function useUploadEnqueue() {
       return new Promise<UploadOutcome>((resolve) => {
         const next: PendingExtra = {
           documentId,
+          surface,
           planKey: result.planKey,
           docsUsed: result.docsUsed,
           docsIncluded: result.docsIncluded,
@@ -214,7 +227,7 @@ export function useUploadEnqueue() {
     // After confirm, retry the enqueue. The server now sees the
     // reserved extra slot and should return 202.
     const retry = await enqueuePipeline(owned.documentId);
-    owned.resolve(await _resolveEnqueueOutcome(retry, owned.documentId));
+    owned.resolve(await _resolveEnqueueOutcome(retry, owned.documentId, owned.surface));
   }, [_resolveEnqueueOutcome]);
 
   const handleNonRoClose = useCallback(() => {

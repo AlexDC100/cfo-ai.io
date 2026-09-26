@@ -1318,3 +1318,59 @@ def test_the_fake_database_takes_the_real_clients_signature(method):
     fake = inspect.signature(getattr(FakeDB, method))
     assert [(p.name, p.kind) for p in real.parameters.values()] == \
         [(p.name, p.kind) for p in fake.parameters.values()], (method, real, fake)
+
+
+# ── A RESTORED DUPLICATE IS A PLAIN COPY AGAIN (P2-C, 2026-09-26) ─────────
+#
+# `archive_as_duplicate` leaves the copy `deleted_at` + status='analyzed' (a
+# terminal state for a tab watching it) + the `duplicate_of:` marker. POST
+# /api/documents/{id}/restore cleared `deleted_at` ALONE: a live row that
+# read analysed yet held no analysis, that every counter skipped by its
+# marker, that /run refused as DONE and /retry re-ran unmetered. Restoring
+# now clears the marker and puts the row back as a plain, never-started
+# copy (`queued`) that the next entry re-checks: archived again while the
+# original is live, analysed — and metered — as the book's first analysis
+# once it is not.
+#
+# WHAT THESE RED ON, with the defect repaired (TC-11): a restored duplicate
+# keeping its marker or its `analyzed`; its next entry not re-checking it;
+# a user's own soft-deleted document restored any differently than before.
+
+
+def test_p2c_restoring_an_archived_duplicate_makes_it_a_plain_copy_the_next_entry_re_checks(world):
+    db, meter = world["db"], world["meter"]
+    db.rows("documents").extend([
+        _doc("orig", status="analyzed", period_id=PERIOD, created="2026-09-20T12:00:12+00:00"),
+        _doc("copy", created="2026-09-21T13:05:58+00:00"),
+    ])
+    _counted(world, "orig")
+    assert world["post"]("/api/pipeline/run", {"document_id": "copy"}).json()["status"] == "duplicate"
+    r = world["post"]("/api/documents/copy/restore", None)
+    assert r.status_code == 200, r.text
+    row = _row(world, "copy")
+    assert row["deleted_at"] is None and row["error"] is None, row
+    assert row["status"] == "queued" and row["pipeline_started_at"] is None, row
+    assert not _doc_dedupe.is_archived_duplicate(row)
+    # the original still live: the next entry archives it again — nothing metered
+    r = world["post"]("/api/pipeline/run", {"document_id": "copy"})
+    assert r.json()["status"] == "duplicate" and r.json()["existing_document_id"] == "orig", r.text
+    assert meter.calls == [] and world["enqueued"] == []
+    assert _row(world, "copy")["deleted_at"] and _doc_dedupe.duplicate_of(_row(world, "copy")["error"]) == "orig"
+    # the original gone: the restored copy IS the book's first analysis — metered like /run
+    db.update("documents", {"deleted_at": "2026-09-22T09:00:00+00:00"}, filters={"id": "eq.orig"})
+    assert world["post"]("/api/documents/copy/restore", None).status_code == 200
+    assert world["post"]("/api/pipeline/run", {"document_id": "copy"}).json()["status"] == "queued"
+    world["finish"]("copy", "analyzed")
+    assert meter.snapshot() == {"uploads": 1, "reserved": 0, "extra_billed": 0, "pending": 0}, meter.calls
+    assert _banner(world)["docs_used"] == 1
+
+
+def test_p2c_restoring_a_users_own_deleted_document_changes_nothing_else(world):
+    """Positive control: a user's soft delete restored keeps its status and
+    its error — only `deleted_at` goes."""
+    world["db"].rows("documents").append(_doc("gone", status="failed", deleted="2026-09-21T10:00:00+00:00",
+                                              error="HTTPException: 502: Claude extraction failed"))
+    assert world["post"]("/api/documents/gone/restore", None).status_code == 200
+    row = _row(world, "gone")
+    assert row["deleted_at"] is None and row["status"] == "failed" \
+        and row["error"] == "HTTPException: 502: Claude extraction failed", row

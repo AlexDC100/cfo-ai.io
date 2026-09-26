@@ -7137,12 +7137,33 @@ def build_router() -> APIRouter:
 
     @router.post("/api/documents/{document_id}/restore")
     def restore_document(document_id: str, authorization: Optional[str] = Header(None)) -> Dict[str, Any]:
-        """Restore a soft-deleted document."""
+        """Restore a soft-deleted document.
+
+        AN ARCHIVED DUPLICATE (P2-C, 2026-09-26). `archive_as_duplicate`
+        leaves the copy `deleted_at` + status='analyzed' (a terminal state
+        for a tab watching it) + the `duplicate_of:` marker. Clearing
+        `deleted_at` alone left a live row that read analysed yet held no
+        analysis, that every counter skipped by its marker, that /run refused
+        as DONE and /retry re-ran unmetered. It goes back as a PLAIN COPY —
+        the marker cleared, `queued`, never started — that the next entry
+        re-checks (recover-stuck on the next mount, or its own /run):
+        archived again while the original is live, analysed — and metered —
+        as the book's first analysis once it is not."""
         jwt = _require_jwt(authorization)
-        _verify_user_may_write_document(jwt, document_id)  # the WRITE wall (FC1x, D4)
+        doc = _verify_user_may_write_document(jwt, document_id)  # the WRITE wall (FC1x, D4)
+        was_duplicate = _doc_dedupe.is_archived_duplicate(doc)
+        patch: Dict[str, Any] = {"deleted_at": None}
+        if was_duplicate:
+            patch.update({"error": None, "status": "queued", "pipeline_started_at": None})
         with _supabase.per_user(jwt) as client:
-            client.update("documents", {"deleted_at": None}, filters={"id": f"eq.{document_id}"})
-            return {"document_id": document_id, "restored": True}
+            client.update("documents", patch, filters={"id": f"eq.{document_id}"})
+        if was_duplicate:
+            # This process's own memory of the archive would otherwise make
+            # the settlement refuse the restored copy's successful run.
+            _doc_dedupe.forget_archived_here(document_id)
+            logger.info("[docs] document %s restored from its duplicate archive as a plain copy — "
+                        "the next entry re-checks it", document_id)
+        return {"document_id": document_id, "restored": True, "was_duplicate": was_duplicate}
 
     @router.delete("/api/documents/{document_id}/permanent")
     def permanent_delete_document(

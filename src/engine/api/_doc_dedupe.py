@@ -177,6 +177,15 @@ def archived_here(document_id: str) -> bool:
         return str(document_id) in _ARCHIVED_HERE
 
 
+def forget_archived_here(document_id: str) -> None:
+    """The document was RESTORED from its duplicate archive as a plain copy
+    (P2-C): this process's record of having archived it goes too — a run
+    of the restored copy that succeeds is the book's first analysis and is
+    committed, not refused as "archived while it ran"."""
+    with _ARCHIVED_HERE_LOCK:
+        _ARCHIVED_HERE.discard(str(document_id))
+
+
 def _date10(value: Any) -> Optional[str]:
     s = str(value or "").strip()[:10]
     return s if re.match(r"^\d{4}-\d{2}-\d{2}$", s) else None
