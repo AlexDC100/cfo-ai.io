@@ -16,9 +16,10 @@ from __future__ import annotations
 import io
 import logging
 from decimal import Decimal
-from typing import List, Optional
+from typing import Iterable, List, Optional, Tuple
 
 import openpyxl
+import pytest
 
 from engine.country_packs.ro_romania import pdf_balanta_text as P
 
@@ -89,22 +90,74 @@ def rows(n: int = 12) -> List[Row]:
     return out
 
 
-def render(rs: List[Row], *, grand: bool = True, page_break_after: Optional[str] = None) -> List[str]:
-    lines = list(HEADER)
+def _layout(rs: List[Row], *, grand: bool = True,
+            page_break_after: Optional[str] = None) -> List[Tuple[str, str]]:
+    """(column, text) per line: every line starts in the code column except
+    a name's continuation lines, which the layout prints in the name
+    column."""
+    out = [("code", l) for l in HEADER]
     for cls in sorted({r.cont[0] for r in rs}):
-        lines.append(f"Clasa {cls}")
+        out.append(("code", f"Clasa {cls}"))
         mine = [r for r in rs if r.cont[0] == cls]
         for r in mine:
-            lines.append(r.line())
+            out.append(("code", r.line()))
             if r.cont == page_break_after:
-                lines.extend(FOOTER + HEADER[4:])
-            lines.extend(r.cont_lines)
+                out.extend(("code", l) for l in FOOTER + HEADER[4:])
+            out.extend(("name", c) for c in r.cont_lines)
         tot = [sum((r.v[i] for r in mine), Z) for i in range(10)]
-        lines.append(f"Total clasa {cls}: " + " ".join(fmt(x) for x in tot))
+        out.append(("code", f"Total clasa {cls}: " + " ".join(fmt(x) for x in tot)))
     if grand:
         tot = [sum((r.v[i] for r in rs), Z) for i in range(10)]
-        lines.append("Total general: " + " ".join(fmt(x) for x in tot))
-    return lines + FOOTER
+        out.append(("code", "Total general: " + " ".join(fmt(x) for x in tot)))
+    return out + [("code", l) for l in FOOTER]
+
+
+def render(rs: List[Row], **kw) -> List[str]:
+    """The book as plain text lines — no positions, as a caller handing
+    the reader text alone would (the eight-figure tests' shape)."""
+    return [text for _, text in _layout(rs, **kw)]
+
+
+# ── positioned lines: the layout's two columns, as `_extract_lines` reads them ──
+#
+# The real layout prints every account's code at one x (the code column)
+# and every name, and every continuation line, at another (the name
+# column); pdfplumber gives each word's x-position and the reader decides
+# what a line is by the column its first word is printed in.
+CODE_X, NAME_X = 10.0, 75.0
+
+
+def at(text: str, x: float) -> P.Line:
+    """`text` as a positioned line whose first word starts at `x`; on a
+    code-column line the second word starts at the name column, as the
+    layout prints a name after its code."""
+    words: List[P.Word] = []
+    cursor = x
+    for i, tok in enumerate(text.split()):
+        if i == 1 and x == CODE_X:
+            cursor = NAME_X
+        words.append(P.Word(tok, cursor, cursor + 5.0 * len(tok)))
+        cursor = words[-1].x1 + 4.0
+    return P.Line(text, tuple(words))
+
+
+def in_code_column(text: str) -> P.Line:
+    return at(text, CODE_X)
+
+
+def in_name_column(text: str) -> P.Line:
+    return at(text, NAME_X)
+
+
+def render_positioned(rs: List[Row], **kw) -> List[P.Line]:
+    return [in_code_column(t) if col == "code" else in_name_column(t) for col, t in _layout(rs, **kw)]
+
+
+def positioned(lines: List[str], name_column: Iterable[str] = ()) -> List[P.Line]:
+    """Plain lines given positions: every line in the code column except
+    those listed in `name_column`, which start at the name column."""
+    nc = set(name_column)
+    return [in_name_column(l) if l in nc else in_code_column(l) for l in lines]
 
 
 def book(**kw) -> List[str]:
@@ -451,11 +504,15 @@ def test_a_single_figure_shaped_word_in_a_name_is_still_read():
     assert got is not None and by_cont(got, "1004.01")["name"] == "CAPITAL 4.50 PROCENT"
 
 
-def _book_with_a_client(client_text: str = "Client 404 Media SRL") -> List[str]:
+def _client_rows(client_text: str = "Client 404 Media SRL") -> List[Row]:
     rs = rows()
-    rs.append(Row("4111.05", client_text, si=(Decimal("7000.00"), Z), rl=(Decimal("500.00"), Z)))
     rs.append(Row("4011.09", "Furnizor Y", si=(Z, Decimal("7000.00")), rl=(Z, Decimal("500.00"))))
-    return render(rs)
+    rs.append(Row("4111.05", client_text, si=(Decimal("7000.00"), Z), rl=(Decimal("500.00"), Z)))
+    return rs
+
+
+def _book_with_a_client(client_text: str = "Client 404 Media SRL") -> List[str]:
+    return render(_client_rows(client_text))
 
 
 def _wrap(lines: List[str], cont: str, first_line: str) -> List[str]:
@@ -469,166 +526,252 @@ def _wrap(lines: List[str], cont: str, first_line: str) -> List[str]:
     return out
 
 
+def _wrap_placed(pairs: List[Tuple[str, str]], cont: str, first_line: str,
+                 figure_line_column: float) -> List[P.Line]:
+    """`_layout` pairs with `cont`'s row wrapped: `first_line` in the code
+    column, the rest of the row (after "<cont> Client") on a line printed
+    in `figure_line_column`; every other line where the layout prints
+    it."""
+    out: List[P.Line] = []
+    for col, text in pairs:
+        if text.startswith(cont + " "):
+            out.append(in_code_column(first_line))
+            out.append(at(" ".join(text.split(" ")[2:]), figure_line_column))
+        else:
+            out.append(in_code_column(text) if col == "code" else in_name_column(text))
+    return out
+
+
+def _wrapped_client(client_text: str = "Client 404 Media SRL", first_line: str = "4111.05 Client",
+                    figure_line_column: float = NAME_X) -> List[P.Line]:
+    """The client book with 4111.05's row wrapped — `first_line` in the
+    code column, the rest of the row on a line printed in
+    `figure_line_column` — every other line where the layout prints it."""
+    return _wrap_placed(_layout(_client_rows(client_text)), "4111.05", first_line, figure_line_column)
+
+
 def test_the_client_book_is_read():  # the control for the wrap tests below
     got = P.parse_lines(_book_with_a_client())
     assert by_cont(got, "4111.05")["figures"][8] == Decimal("7500.00")
 
 
-def test_a_wrapped_row_whose_second_line_starts_with_a_number_refuses(caplog):
-    # "4111.05 Client" / "404 Media SRL <ten figures>": read naively, the
-    # receivable is served as account 404 (fixed-asset suppliers, a
-    # liability) and 4111.05 vanishes — both class 4, every total ties.
-    lines = _wrap(_book_with_a_client(), "4111.05", "4111.05 Client")
-    assert refused(caplog, lines, "account 404 follows a line led by the code-shaped 4111.05")
+def test_the_positioned_book_is_read_like_the_plain_one():
+    plain, placed = P.parse_lines(render(rows())), P.parse_lines(render_positioned(rows()))
+    assert placed is not None
+    assert [(r["cont"], r["name"], r["v"]) for r in placed["rows"]] == \
+        [(r["cont"], r["name"], r["v"]) for r in plain["rows"]]
+    assert by_cont(placed, "1068.07")["name"] == "Rezerva de test pentru exemplu fictiv"
 
 
-def test_a_wrapped_row_with_the_code_alone_on_its_first_line_refuses(caplog):
-    lines = _wrap(_book_with_a_client(), "4111.05", "4111.05")
-    assert refused(caplog, lines, "account 404 follows a line led by the code-shaped 4111.05")
+# ── only the layout's STRUCTURE decides a wrap — the column a line's first
+#    word is printed in — never the text ──
+#
+# Round 3 settled a figure-less line led by a code-shaped word by TEXT: it
+# was the previous account's continuation when it ended with that
+# account's code, and the next account line then had to repeat its own
+# code in one of the layout's slots. Round 4 found the coincidence that
+# still steers a row's figures to the wrong account: a wrapped client row
+# whose first line happens to end with the previous code, and whose figure
+# line repeats a number from the name right before the figures —
+#     4011.09 Furnizor Y <figures>
+#     4111.05 Client 4011.09
+#     404 Media SRL 404 <figures>
+# read as account 404 (fixed-asset suppliers, a liability) carrying the
+# receivable, "4111.05 Client" folded into the supplier's name, every total
+# tied. Now the layout's columns decide: "4111.05" is printed in the code
+# column (that row's first line), "404" in the name column (name text), so
+# the figures are 4111.05's — and plain text, which has no columns, is
+# refused rather than settled.
 
 
-def test_a_wrapped_row_that_prints_its_code_again_is_read_whole():
-    # the figure line repeats the held line's code: the held line was the
-    # row's first line, and its text is the start of that account's name
-    lines = _book_with_a_client()
-    i = next(k for k, l in enumerate(lines) if l.startswith("4111.05 "))
-    toks = lines[i].split(" ")
-    lines[i:i + 1] = ["4111.05 Client 404", "4111.05 " + " ".join(toks[3:])]
-    got = P.parse_lines(lines)
+def test_a_wrapped_row_whose_first_line_ends_with_the_previous_code_is_refused_in_plain_text(caplog):
+    # the round-4 coincidence, as plain text: no text rule may settle it
+    lines = _wrap(_book_with_a_client("Client 404 Media SRL 404"), "4111.05", "4111.05 Client 4011.09")
+    assert refused(caplog, lines, "the line led by the code-shaped 4111.05 carries no column position")
+
+
+def test_a_wrapped_row_whose_first_line_ends_with_the_previous_code_is_read_by_its_columns():
+    # the same book with the layout's positions: the held first line is in
+    # the code column, its figure line in the name column — the receivable
+    # is 4111.05's, whole, and no account 404 exists
+    got = P.parse_lines(_wrapped_client("Client 404 Media SRL 404", "4111.05 Client 4011.09"))
     assert got is not None
     client = by_cont(got, "4111.05")
-    assert client["name"] == "Client 404 Media SRL" and client["figures"][8] == Decimal("7500.00")
+    assert client["name"] == "Client 4011.09 404 Media SRL 404" and client["figures"][8] == Decimal("7500.00")
+    assert by_cont(got, "4011.09")["name"] == "Furnizor Y"
     assert not any(r["cont"] == "404" for r in got["rows"])
 
 
-def test_a_code_plus_name_line_then_a_code_plus_figures_line_names_the_right_account():
-    lines = book()
-    i = next(k for k, l in enumerate(lines) if l.startswith("1007.01 "))
-    toks = lines[i].split(" ")
-    lines[i:i + 1] = [" ".join(toks[:3]), "1007.01 " + " ".join(toks[3:])]
-    got = P.parse_lines(lines)
-    assert by_cont(got, "1007.01")["name"] == "CAPITAL 7"
-    assert by_cont(got, "1006.01")["name"] == "CAPITAL 6"
+@pytest.mark.parametrize("client_text, first_line", [
+    ("Client 404 Media SRL", "4111.05 Client"),
+    ("Client 404 Media SRL", "4111.05"),
+    ("Client 404 Media 404 SRL", "4111.05 Client"),   # 404 recurs mid-line
+    ("Client 404 Media SRL 404", "4111.05 Client"),   # 404 recurs right before the figures
+], ids=["name-then-number", "code-alone", "number-recurs-mid-line", "number-recurs-before-figures"])
+def test_a_wrapped_row_in_plain_text_refuses_whatever_the_figure_line_repeats(caplog, client_text, first_line):
+    # "4111.05 Client" / "404 Media SRL <ten figures>": read naively, the
+    # receivable is served as account 404 and 4111.05 vanishes — both
+    # class 4, every total ties; and no recurrence of 404 is evidence
+    lines = _wrap(_book_with_a_client(client_text), "4111.05", first_line)
+    assert refused(caplog, lines, "the line led by the code-shaped 4111.05 carries no column position")
 
 
-def _held_line_then(next_text: str, cont_lines: tuple = ()) -> List[str]:
-    """A continuation of 1006.01 led by a code-shaped word (a year), then
-    account 1007.01 printed as `next_text` — the real layout's one such
-    line per book, where the next account repeats its code."""
-    rs = rows()
-    for r in rs:
-        if r.cont == "1006.01":
-            r.cont_lines = ("2019 1006.01",)
-        if r.cont == "1007.01":
-            r.text, r.cont_lines = next_text, cont_lines
-    return render(rs)
-
-
-def test_a_held_line_before_an_account_that_repeats_its_code_is_a_continuation():
-    got = P.parse_lines(_held_line_then("CAPITAL 7 1007.01"))
+@pytest.mark.parametrize("client_text, first_line", [
+    ("Client 404 Media SRL", "4111.05 Client"),
+    ("Client 404 Media SRL", "4111.05"),
+    ("Client 404 Media 404 SRL", "4111.05 Client"),
+    ("Client 404 Media SRL 404", "4111.05 Client"),
+], ids=["name-then-number", "code-alone", "number-recurs-mid-line", "number-recurs-before-figures"])
+def test_a_wrapped_row_is_read_whole_when_its_figure_line_is_in_the_name_column(client_text, first_line):
+    got = P.parse_lines(_wrapped_client(client_text, first_line))
     assert got is not None
-    assert by_cont(got, "1006.01")["name"] == "CAPITAL 6 2019"
-    assert by_cont(got, "1007.01")["name"] == "CAPITAL 7"
+    client = by_cont(got, "4111.05")
+    # the name as the two lines print it ("4111.05" alone on the first
+    # line leaves the figure line to carry the name from its second word)
+    printed = client_text if first_line.endswith(" Client") else client_text.split(" ", 1)[1]
+    assert client["name"] == printed and client["figures"][8] == Decimal("7500.00")
+    assert not any(r["cont"] == "404" for r in got["rows"])
 
 
-def test_the_repeat_may_come_on_the_accounts_continuation_line():
-    got = P.parse_lines(_held_line_then("CAPITAL 7", cont_lines=("REZERVA 1007.01",)))
-    assert got is not None and by_cont(got, "1007.01")["name"] == "CAPITAL 7 REZERVA"
-
-
-def test_a_held_line_before_an_account_that_never_repeats_its_code_refuses(caplog):
-    lines = _held_line_then("CAPITAL 7")
-    assert refused(caplog, lines, "account 1007.01 follows a line led by the code-shaped 2019")
-
-
-# ── only the layout's STRUCTURE decides a wrap, never a recurring number ──
-#
-# Before the repair a wrapped row handed its figures to a number in its own
-# name whenever that number appeared a second time on the figure line: the
-# reader took ANY second occurrence of the leading number as "the account
-# repeats its own code". The layout prints that repeat in fixed slots only —
-# right after the code, right before the figures, or ending a continuation
-# line — and a held line is the previous account's continuation only when it
-# ends with that account's code.
-
-
-def test_a_wrapped_row_whose_name_repeats_the_leading_number_mid_line_refuses(caplog):
-    # "4111.05 Client" / "404 Media 404 SRL <ten figures>": 404 recurs by
-    # coincidence — read as account 404, the receivable served as a
-    # fixed-asset supplier and 4111.05 vanished; every total tied.
-    lines = _wrap(_book_with_a_client("Client 404 Media 404 SRL"), "4111.05", "4111.05 Client")
-    assert refused(caplog, lines, "account 404 follows a line led by the code-shaped 4111.05")
-
-
-def test_a_wrapped_row_whose_name_ends_with_the_leading_number_refuses(caplog):
-    # the recurrence sits where the layout prints a repeated code (right
-    # before the figures) — still no evidence that 404 is an account: the
-    # held line does not end with the previous account's code
-    lines = _wrap(_book_with_a_client("Client 404 Media SRL 404"), "4111.05", "4111.05 Client")
-    assert refused(caplog, lines, "account 404 follows a line led by the code-shaped 4111.05")
+def test_a_wrapped_rows_figure_line_in_the_code_column_refuses(caplog):
+    # "404 Media SRL <figures>" printed in the CODE column is account 404's
+    # line — and then 4111.05's first line never got its figures
+    lines = _wrapped_client(figure_line_column=CODE_X)
+    assert refused(caplog, lines, "account 404 follows a line led by the code-shaped 4111.05 that is "
+                                  "printed in the code column without its ten figures")
 
 
 def test_the_coincidence_books_are_read_unwrapped():
-    # the control for the two tests above: printed on one line, both names
-    # are read whole on 4111.05, and no account 404 appears
+    # the control: printed on one line, both names are read whole on
+    # 4111.05, and no account 404 appears
     for text in ("Client 404 Media 404 SRL", "Client 404 Media SRL 404"):
         got = P.parse_lines(_book_with_a_client(text))
         assert got is not None and by_cont(got, "4111.05")["name"] == text
         assert not any(r["cont"] == "404" for r in got["rows"])
 
 
-def test_a_held_line_that_does_not_end_with_the_previous_code_refuses(caplog):
-    # "2019 extins" continues 1006.01 or is row 2019's first line — nothing
-    # in the layout says which, so no account but 2019 may follow it, even
-    # one that repeats its own code
+def _continued_by(cont_line: str, next_text: str = "CAPITAL 7", cont_lines: tuple = ()) -> List[Row]:
+    """1006.01 continued by `cont_line` (led by a code-shaped word, a
+    year), then 1007.01 printed as `next_text` — the real layout's one
+    such line per book."""
     rs = rows()
     for r in rs:
         if r.cont == "1006.01":
-            r.cont_lines = ("2019 extins",)
+            r.cont_lines = (cont_line,)
         if r.cont == "1007.01":
-            r.text = "CAPITAL 7 1007.01"
-    assert refused(caplog, render(rs), "account 1007.01 follows a line led by the code-shaped 2019")
+            r.text, r.cont_lines = next_text, cont_lines
+    return rs
 
 
-def test_a_repeat_in_the_middle_of_the_name_is_not_the_layouts_repeat(caplog):
-    lines = _held_line_then("CAPITAL 1007.01 SAPTE")
-    assert refused(caplog, lines, "account 1007.01 follows a line led by the code-shaped 2019")
+@pytest.mark.parametrize("cont_line", ["2019 1006.01", "2019 extins", "2019"],
+                         ids=["ends-with-the-code", "does-not", "number-alone"])
+def test_a_continuation_led_by_a_number_is_name_text_in_the_name_column(cont_line):
+    # whatever the line reads — ending with the previous code or not — its
+    # column says it is name text; and 1007.01 need not repeat its code
+    got = P.parse_lines(render_positioned(_continued_by(cont_line)))
+    assert got is not None
+    assert by_cont(got, "1006.01")["name"] == ("CAPITAL 6 " + cont_line.replace(" 1006.01", "")).strip()
+    assert by_cont(got, "1007.01")["name"] == "CAPITAL 7"
 
 
-def test_a_repeat_in_the_middle_of_a_continuation_line_is_not_the_layouts_repeat(caplog):
-    lines = _held_line_then("CAPITAL 7", cont_lines=("REZERVA 1007.01 NOUA",))
-    assert refused(caplog, lines, "account 1007.01 follows a line led by the code-shaped 2019")
+@pytest.mark.parametrize("cont_line, next_text, cont_lines", [
+    ("2019 1006.01", "CAPITAL 7 1007.01", ()),         # round 3 read this: ends with the code, repeat before the figures
+    ("2019 1006.01", "1007.01 CAPITAL 7", ()),         # ... repeat right after the code
+    ("2019 1006.01", "CAPITAL 7", ("REZERVA 1007.01",)),  # ... repeat ending a continuation line
+    ("2019 1006.01", "CAPITAL 7", ()),
+    ("2019 extins", "CAPITAL 7 1007.01", ()),
+    ("2019 1006.01", "CAPITAL 1007.01 SAPTE", ()),
+], ids=["repeat-before-figures", "repeat-after-code", "repeat-on-continuation", "no-repeat",
+        "no-code-at-the-end", "repeat-mid-name"])
+def test_a_continuation_led_by_a_number_is_refused_in_plain_text_whatever_the_text_says(
+        caplog, cont_line, next_text, cont_lines):
+    # no text rule settles a code-shaped first word: not the line ending
+    # with the previous code, not the next account repeating its own
+    lines = render(_continued_by(cont_line, next_text, cont_lines))
+    assert refused(caplog, lines, "the line led by the code-shaped 2019 carries no column position")
 
 
-def test_the_repeat_may_come_right_after_the_code():
-    # the layout's other slot ("121 121 Profit ..."): read
-    got = P.parse_lines(_held_line_then("1007.01 CAPITAL 7"))
-    assert got is not None and by_cont(got, "1007.01")["name"] == "CAPITAL 7"
+def test_a_continuation_holding_only_the_accounts_own_code_is_read_in_plain_text():
+    # the one code-led line plain text CAN place: the current account's
+    # own code (the layout's repeat) — a second row with that code would
+    # be a duplicate, refused
+    got = P.parse_lines(book())
+    assert got is not None and by_cont(got, "5125.01")["name"] == "Sume in curs de decontare"
+
+
+def test_a_code_alone_in_the_code_column_is_a_held_first_line_not_a_repeat(caplog):
+    # the layout prints the repeated code in the NAME column; in the code
+    # column it is a row's first line without its figures
+    lines = render_positioned(rows())
+    i = next(k for k, l in enumerate(lines) if l.text == "5125.01")
+    lines[i] = in_code_column("5125.01")
+    assert refused(caplog, lines, "the line led by the code-shaped 5125.01 is followed by 'Total clasa 5:'")
+
+
+# ── anything the structure cannot place is refused ──────────────────────
+
+
+def test_a_line_between_the_columns_refuses(caplog):
+    lines = render_positioned(_continued_by("2019 extins"))
+    i = next(k for k, l in enumerate(lines) if l.text == "2019 extins")
+    lines[i] = at("2019 extins", (CODE_X + NAME_X) / 2)
+    assert refused(caplog, lines, "starts between the code column (x=10.0) and the name column (x=75.0)")
+
+
+def test_a_line_in_the_code_column_that_is_not_an_account_refuses(caplog):
+    lines = render_positioned(rows())
+    i = next(k for k, l in enumerate(lines) if l.text == "pentru exemplu fictiv 1068.07")
+    lines[i] = in_code_column("pentru exemplu fictiv 1068.07")
+    assert refused(caplog, lines, "is printed in the code column but is not an account line")
+
+
+def test_an_account_line_in_the_name_column_refuses(caplog):
+    # ten figures on a name-column line with no row held: figures the
+    # layout attributes to no account
+    lines = render_positioned(rows())
+    i = next(k for k, l in enumerate(lines) if l.text.startswith("1007.01 "))
+    lines[i] = in_name_column(lines[i].text)
+    assert refused(caplog, lines, "a line with figures is neither an account nor a total")
+
+
+def test_columns_that_cannot_be_told_apart_refuse(caplog):
+    lines = [P.Line(l.text, tuple(P.Word(w.text, min(w.x0, CODE_X + 3.0), w.x1) for w in l.words))
+             for l in render_positioned(rows())]
+    assert refused(caplog, lines, "the code column (x=10.0) and the name column (x=13.0) cannot be told apart")
+
+
+def test_a_wrapped_row_may_continue_over_several_name_column_lines():
+    lines = _wrapped_client("Client 404 Media SRL", "4111.05 Client")
+    j = next(k for k, l in enumerate(lines) if l.text == "4111.05 Client") + 1
+    figure_line = lines[j].text
+    lines[j:j + 1] = [in_name_column("404 Media"), in_name_column("SRL " + figure_line.split(" ", 3)[3])]
+    got = P.parse_lines(lines)
+    assert got is not None and by_cont(got, "4111.05")["name"] == "Client 404 Media SRL"
+    assert by_cont(got, "4111.05")["figures"][8] == Decimal("7500.00")
 
 
 # ── a wrapped row whose two lines straddle a heading or total ────────────
 #
-# Before the repair a heading or total between a held line and its figure
-# line settled the held line into the previous account's name and read the
-# figure line as an account on its own, unchecked: the client's figures
-# went to account 404 and 4111.05 vanished — every total still tied.
+# A heading or total between a held line and its figure line must never
+# settle the held line into the previous account's name and let the figure
+# line through as an account of its own: the client's figures would go to
+# account 404 and 4111.05 vanish — every total still tied.
 
 
 def _client_after_a_supplier() -> List[str]:
-    rs = rows()
-    rs.append(Row("4011.09", "Furnizor Y", si=(Z, Decimal("7000.00")), rl=(Z, Decimal("500.00"))))
-    rs.append(Row("4111.05", "Client 404 Media SRL", si=(Decimal("7000.00"), Z), rl=(Decimal("500.00"), Z)))
-    return render(rs)
+    return render(_client_rows())
 
 
-def _split_client_by(between: str, move: bool = False) -> List[str]:
+def _split_client_by(between: str, move: bool = False) -> List[P.Line]:
     """Wrap 4111.05 as "4111.05 Client" / "404 Media SRL <ten figures>", with
-    `between` printed between the two lines — moved there from where the
-    book prints it when `move`."""
-    out = _wrap(_client_after_a_supplier(), "4111.05", "4111.05 Client")
+    `between` printed between the two lines (in the code column, where the
+    layout prints headings, totals and page headers) — moved there from
+    where the book prints it when `move`."""
+    out = _wrap_placed(_layout(_client_rows()), "4111.05", "4111.05 Client", NAME_X)
     if move:
-        out.remove(between)
-    out.insert(out.index("4111.05 Client") + 1, between)
+        out.remove(in_code_column(between))
+    i = next(k for k, l in enumerate(out) if l.text == "4111.05 Client")
+    out.insert(i + 1, in_code_column(between))
     return out
 
 
@@ -640,22 +783,37 @@ def test_the_supplier_then_client_book_is_read():  # the control for the tests b
 
 def test_a_class_heading_between_the_two_lines_of_a_wrapped_row_refuses(caplog):
     # the heading repeated where a page breaks inside the row
-    lines = _split_client_by("Clasa 4")
-    assert refused(caplog, lines, "the line led by the code-shaped 4111.05 is followed by 'Clasa 4'")
+    assert refused(caplog, _split_client_by("Clasa 4"),
+                   "the line led by the code-shaped 4111.05 is followed by 'Clasa 4'")
 
 
 def test_a_class_total_between_the_two_lines_of_a_wrapped_row_refuses(caplog):
     # the printed class-4 total still counts the client's figures, and so
     # does 404 (a class-4 code): every sum ties
     total = next(l for l in _client_after_a_supplier() if l.startswith("Total clasa 4:"))
-    lines = _split_client_by(total, move=True)
-    assert refused(caplog, lines, "the line led by the code-shaped 4111.05 is followed by 'Total clasa 4:")
+    assert refused(caplog, _split_client_by(total, move=True),
+                   "the line led by the code-shaped 4111.05 is followed by 'Total clasa 4:")
+
+
+def test_a_page_header_between_the_two_lines_of_a_wrapped_row_refuses(caplog):
+    assert refused(caplog, _split_client_by(FOOTER[1]),
+                   "the line led by the code-shaped 4111.05 is followed by a page header or footer")
+
+
+def test_a_column_header_between_the_two_lines_of_a_wrapped_row_refuses(caplog):
+    assert refused(caplog, _split_client_by(HEADER[4]),
+                   "the line led by the code-shaped 4111.05 is followed by a page header")
 
 
 def test_a_held_line_at_the_end_of_the_document_refuses(caplog):
-    lines = book()
-    lines.insert(lines.index(FOOTER[0]), "4111.05 Client")
+    lines = render_positioned(rows()) + [in_code_column("4111.05 Client")]
     assert refused(caplog, lines, "the line led by the code-shaped 4111.05 is followed by the end of the document")
+
+
+def test_a_held_line_before_the_page_footer_refuses(caplog):
+    lines = render_positioned(rows())
+    lines.insert(next(k for k, l in enumerate(lines) if l.text == FOOTER[0]), in_code_column("4111.05 Client"))
+    assert refused(caplog, lines, "the line led by the code-shaped 4111.05 is followed by a page header or footer")
 
 
 def test_a_parent_beside_its_children_refuses_even_when_the_totals_count_both(caplog):
@@ -873,9 +1031,11 @@ def test_a_month_and_year_in_an_account_name_is_not_the_period():
     assert got is not None and got["period"] is None
 
 
-def test_a_header_matching_neither_layout_refuses():
-    lines = [l for l in book() if not l.startswith("Cont Denumire")]
-    assert P.parse_lines(lines) is None
+def test_a_book_without_a_column_header_is_refused_as_a_five_pair_book():
+    lines = [l for l in book() if l not in HEADER[4:]]
+    verdict = P.parse_lines_verdict(lines)
+    assert verdict.layout == P.LAYOUT_FIVE_PAIR and verdict.parsed is None
+    assert "printed before the column header" in verdict.refusal
 
 
 def test_a_reader_crash_is_a_refusal_never_an_exception(monkeypatch):
@@ -889,11 +1049,75 @@ def test_a_reader_crash_is_a_refusal_never_an_exception(monkeypatch):
     assert verdict.refusal == "the reader failed on it (RuntimeError)"
 
 
-def test_the_layout_is_named_by_the_header_alone():
+def test_the_layout_is_named_by_the_header_or_by_the_rows_ten_figure_columns():
     assert P.detect_layout(book()) == P.LAYOUT_FIVE_PAIR
     assert P.names_five_pair(P.LAYOUT_FIVE_PAIR) and P.names_five_pair(P.LAYOUT_BOTH)
     assert not P.names_five_pair(P.LAYOUT_EIGHT_FIGURE) and not P.names_five_pair(None)
-    assert P.detect_layout([l for l in book() if not l.startswith("Cont Denumire")]) is None
+    # no column header at all: the rows' ten figure columns name it
+    assert P.detect_layout([l for l in book() if not l.startswith("Cont Denumire")]) == P.LAYOUT_FIVE_PAIR
+    # neither a header nor such rows
+    assert P.detect_layout([l for l in book() if not l.startswith("Cont Denumire")][:5]) is None
+
+
+# ── P1 (round 4): a five-pair book never escapes this reader on the wording
+#    of its column header ──
+#
+# Before the repair the layout was named by header tokens alone: a header
+# with a wording variant — an abbreviation, a stray space inside a phrase,
+# the header wrapped over two lines — named no layout, and the book left
+# the reader block for the positional fast-path (undotted codes only,
+# accepted on the account-121 anchor alone). The rows' ten figure columns
+# now name the layout structurally; once named, the book is read strictly
+# or refused with the plain refusal.
+
+
+def _with_column_header(*header: str) -> List[str]:
+    """The book with its column header replaced by `header` — and, when
+    there is none, without the Debit/Credit sub-header either."""
+    lines = book()
+    i = lines.index(HEADER[4])
+    return lines[:i] + list(header) + lines[i + (1 if header else 2):]
+
+
+@pytest.mark.parametrize("header, why", [
+    ("Cont Denumire Sold init. Rulaj ant. Rulaj crt. Total rulaj Sold final", "column header reads"),
+    ("Cont Denumire Sold initial Rulaj anterior Rulaj curent Total rulaj Sold final Obs.", "column header reads"),
+    ("Cont Denumire Sold initial Rulaj anterior\nRulaj curent Total rulaj Sold final", "column header reads"),
+    ("", "account 1000.01 is printed before the column header"),
+], ids=["abbreviated", "extra-column", "wrapped-over-two-lines", "absent"])
+def test_a_five_pair_book_with_a_header_variant_is_refused_never_unnamed(caplog, header, why):
+    lines = _with_column_header(*header.split("\n")) if header else _with_column_header()
+    assert P.detect_layout(lines) == P.LAYOUT_FIVE_PAIR
+    caplog.clear()
+    with caplog.at_level(logging.INFO, logger=P.logger.name):
+        verdict = P.parse_lines_verdict(lines)
+    assert verdict.layout == P.LAYOUT_FIVE_PAIR and verdict.parsed is None
+    assert why in (verdict.refusal or ""), verdict.refusal
+
+
+@pytest.mark.parametrize("header", [
+    "Cont Denumire Sold  initial Rulaj anterior Rulaj curent Total  rulaj Sold final",
+    "Cont Denumire Sold iniţial Rulaj anterior Rulaj curent Total rulaj Sold final",
+    "  Cont Denumire Sold initial Rulaj anterior Rulaj curent Total rulaj Sold final  ",
+], ids=["double-spaces", "diacritics", "padding"])
+def test_a_five_pair_book_with_a_spacing_or_diacritics_variant_is_read(header):
+    verdict = P.parse_lines_verdict(_with_column_header(header))
+    assert verdict.layout == P.LAYOUT_FIVE_PAIR and verdict.parsed is not None, verdict.refusal
+    assert len(verdict.parsed["rows"]) == 28
+
+
+def test_an_eight_figure_header_over_ten_figure_rows_is_a_five_pair_book_whose_header_is_refused():
+    lines = _with_column_header("Solduri initiale an Rulaje perioada Sume totale Solduri finale",
+                                "Cont Denumirea contului")
+    lines[0] = "Balanta de verificare"
+    assert P.detect_layout(lines) == P.LAYOUT_FIVE_PAIR
+    verdict = P.parse_lines_verdict(lines)
+    assert verdict.parsed is None and "column header reads" in verdict.refusal
+
+
+def test_two_stray_ten_figure_lines_do_not_name_the_layout():
+    lines = ["Raport", "Situatie"] + [l for l in book() if l.startswith("1000.01 ") or l.startswith("1001.01 ")]
+    assert P.detect_layout(lines) is None
 
 
 def test_an_eight_figure_book_keeps_its_own_reader():

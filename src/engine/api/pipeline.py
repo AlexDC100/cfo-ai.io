@@ -1205,10 +1205,14 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
         # print space-thousands figures ("12 345.00"), so those went to
         # Claude — which fails outright without Anthropic credit and never
         # captures the account-121 anchor. `pdf_balanta_text` reads the
-        # PDF's text lines — two layouts, chosen by header tokens: the
-        # eight-figure "sume totale" balanta and the WinMentor/SceptrumERP
-        # five-pair one (Sold initial / Rulaj anterior / Rulaj curent /
-        # Total rulaj / Sold final). It REFUSES unless every account line
+        # PDF's text lines — two layouts, chosen by header tokens and, for
+        # the five-pair one, by structure (rows of ten figure columns name
+        # it whatever the header's wording): the eight-figure "sume totale"
+        # balanta and the WinMentor/SceptrumERP five-pair one (Sold initial
+        # / Rulaj anterior / Rulaj curent / Total rulaj / Sold final). The
+        # five-pair reader places every line by the column its first word
+        # is printed in (pdfplumber word positions), never by its text. It
+        # REFUSES unless every account line
         # carries its layout's full figure count, each class sums to the
         # document's own printed class total and debit == credit on every
         # column pair (the five-pair layout also checks both per-row

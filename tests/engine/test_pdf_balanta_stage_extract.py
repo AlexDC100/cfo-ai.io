@@ -504,3 +504,135 @@ def test_a_printed_period_outside_the_sane_range_is_ignored(five_pair_pdf, monke
     _arm(monkeypatch, _pdf_bytes(_printing_period("Decembrie 1999")))
     parsed = pipeline.stage_extract(_doc())
     assert parsed["period_end"] == "2025-12-31"
+
+
+# ── round 4: the layout is named by the rows' ten figure columns too ────
+#
+# Before the repair the layout was named by header tokens alone. A five-
+# pair PDF whose column header used a wording variant (an abbreviation,
+# the header wrapped over two lines) named no layout, and the book left
+# the reader block: the positional fast-path read its undotted rows and
+# served them on the account-121 anchor alone, or the Claude extractor was
+# reached. Now the rows name the layout, and the book is read strictly or
+# refused with the plain refusal — it never falls through.
+
+
+def _with_header(lines, *header: str):
+    i = next(k for k, l in enumerate(lines) if l.startswith("Cont Denumire"))
+    return lines[:i] + list(header) + lines[i + 1:]
+
+
+@pytest.mark.parametrize("header, why", [
+    (("Cont Denumire Sold init. Rulaj ant. Rulaj crt. Total rulaj Sold final",), "column header reads"),
+    (("Cont Denumire Sold initial Rulaj anterior", "Rulaj curent Total rulaj Sold final"), "column header reads"),
+], ids=["abbreviated", "wrapped-over-two-lines"])
+def test_a_five_pair_pdf_with_a_header_variant_is_refused_never_served(monkeypatch, header, why):
+    from engine.country_packs.ro_romania import pdf_balanta_text
+
+    _on_parser(monkeypatch, "tb_parser_v6")
+    content = _pdf_bytes(_with_header(_synthetic_five_pair_lines(), *header))
+    verdict = pdf_balanta_text.read_balanta_text_verdict(content)
+    assert verdict.layout == pdf_balanta_text.LAYOUT_FIVE_PAIR and verdict.workbook is None
+    _arm(monkeypatch, content)
+    trace = _trace_fall_back(monkeypatch)
+    with pytest.raises(pipeline.BalantaPdfRefusedError) as refused:
+        pipeline.stage_extract(_doc())
+    assert why in str(refused.value) and "Nothing was estimated" in str(refused.value)
+    assert trace["positional"] == [] and trace["claude"] == []  # never left the reader block
+
+
+# ── round 4: a wrapped row is placed by the layout's columns, never by text ──
+#
+# The five-pair layout prints every account's code in one column and every
+# continuation line in the name column; the reader reads those columns
+# from pdfplumber's word positions. A row wrapped over two lines is read
+# whole when its figure line is printed in the name column, and refused
+# when that line is printed in the code column (an account line without
+# its figures, then another account's) — whatever the lines' text says.
+# The PDFs here are laid out in those columns: the code at x=20, the name
+# and the figures at x=80, a continuation line at x=80.
+
+
+def _pdf_bytes_placed(placed) -> bytes:
+    """A PDF from lines given as [(x, text), ...] segments per line."""
+    doc = fitz.open()
+    page = doc.new_page(width=1400, height=1000)
+    y = 30
+    for segments in placed:
+        for x, text in segments:
+            page.insert_text((x, y), text, fontsize=8)
+        y += 14
+    return doc.tobytes()
+
+
+CODE_X, NAME_X = 20, 80
+
+
+def _placed(lines, name_column=()):
+    """Every account line as code at CODE_X + the rest at NAME_X; the lines
+    in `name_column` at NAME_X; every other line at CODE_X."""
+    out = []
+    for line in lines:
+        toks = line.split(" ")
+        if line in name_column:
+            out.append([(NAME_X, line)])
+        elif len(toks) >= 11 and toks[0][0].isdigit() and all("." in t for t in toks[-10:]):
+            out.append([(CODE_X, toks[0]), (NAME_X, " ".join(toks[1:]))])
+        else:
+            out.append([(CODE_X, line)])
+    return out
+
+
+def _wrapped_client_lines():
+    """The synthetic book with a supplier and a client whose row is wrapped
+    — its first line ending, by coincidence, with the supplier's code, its
+    figure line led by a number from its name that recurs right before
+    the figures (the round-4 coincidence)."""
+    z = Decimal(0)
+    lines = _synthetic_five_pair_lines()
+    si, rl = Decimal("7000.00"), Decimal("500.00")
+    supplier = [z, si, z, z, z, rl, z, rl, z, si + rl]
+    client = [si, z, z, z, rl, z, rl, z, si + rl, z]
+    block = ["Clasa 4",
+             "4011.09 Furnizor Y " + " ".join(_fmt5(x) for x in supplier),
+             "4111.05 Client 4011.09",
+             "404 Media SRL 404 " + " ".join(_fmt5(x) for x in client),
+             "Total clasa 4: " + " ".join(_fmt5(a + b) for a, b in zip(supplier, client))]
+    i = next(k for k, l in enumerate(lines) if l.startswith("Clasa 5"))
+    out = lines[:i] + block + lines[i:]
+    g = next(k for k, l in enumerate(out) if l.startswith("Total general:"))
+    grand = [Decimal(x.replace(",", "")) for x in out[g].split(" ")[2:]]
+    out[g] = "Total general: " + " ".join(_fmt5(a + b + c) for a, b, c in zip(grand, supplier, client))
+    return out
+
+
+def test_a_wrapped_row_in_a_pdf_is_read_whole_by_its_columns(monkeypatch):
+    lines = _wrapped_client_lines()
+    figure_line = next(l for l in lines if l.startswith("404 Media"))
+    _on_parser(monkeypatch, "tb_parser_v6")
+    _arm(monkeypatch, _pdf_bytes_placed(_placed(lines, name_column={figure_line})))
+    parsed = pipeline.stage_extract(_doc())
+    assert (parsed.get("extraction") or {}).get("source_format") == "saga_10_col"
+    codes = {a["code"]: a for a in parsed["accounts"]}
+    assert "4111.05" in codes and "404" not in codes
+    assert Decimal(str(codes["4111.05"]["amount"])).quantize(Decimal("0.01")) == Decimal("7500.00")
+
+
+def test_a_wrapped_row_in_a_pdf_whose_figure_line_is_in_the_code_column_is_refused(monkeypatch):
+    _on_parser(monkeypatch, "tb_parser_v6")
+    _arm(monkeypatch, _pdf_bytes_placed(_placed(_wrapped_client_lines())))
+    with pytest.raises(pipeline.BalantaPdfRefusedError) as refused:
+        pipeline.stage_extract(_doc())
+    assert ("account 404 follows a line led by the code-shaped 4111.05 that is printed in the "
+            "code column without its ten figures") in str(refused.value)
+
+
+def test_the_same_wrapped_row_as_plain_text_lines_is_refused(monkeypatch):
+    # a PDF whose every line starts at one x has no columns to read: the
+    # first line ends with the supplier's code, the figure line repeats
+    # 404 — nothing in the text may settle it
+    _on_parser(monkeypatch, "tb_parser_v6")
+    _arm(monkeypatch, _pdf_bytes(_wrapped_client_lines()))
+    with pytest.raises(pipeline.BalantaPdfRefusedError) as refused:
+        pipeline.stage_extract(_doc())
+    assert "4111.05" in str(refused.value) and "Nothing was estimated" in str(refused.value)

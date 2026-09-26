@@ -51,8 +51,16 @@ dotted analytic codes ("1015.03", "167.305"), the code repeated inside or
 after the name ("121 121 Profit sau pierdere", a continuation line holding
 only the code), "Clasa N" section headings and "Total clasa N:" totals.
 
-The layout is chosen by header tokens; a document whose header matches both
-layouts, or neither, is refused. The five-pair reader is stricter than the
+The layout is chosen by header tokens AND by structure: a document whose
+rows carry ten figure columns (`_STRUCTURAL_MIN_ROWS` lines led by an
+account code and ending in ten comma-thousands figures) is a five-pair
+book whatever its column header says — a wording variant (an
+abbreviation, a header wrapped over two lines) must not let a five-pair
+book escape this reader to one that approximates. A document whose header
+names both layouts, or neither and has no such rows, is refused. Once the
+five-pair layout is named, by either signal, the book is read strictly or
+refused: a header this reader cannot read as the five-pair column order is
+a refusal, not a fall-through. The five-pair reader is stricter than the
 eight-figure one because the document states two identities per row that
 can be checked to the cent — and it refuses unless ALL of these hold:
 
@@ -88,16 +96,17 @@ can be checked to the cent — and it refuses unless ALL of these hold:
     neither does the NAME part of an account line, nor does it hold a
     code followed by a figure (two rows merged onto one text line);
   * a wrapped row cannot hand its figures to another code, and only the
-    layout's own structure — never a number that happens to recur — says
-    which code a line belongs to. A figure-less line led by a code-shaped
-    token X (not the current account's code) is the current account's
-    continuation only when it ENDS with that account's code, as the
-    layout ends its continuation lines; the next account line must then
-    repeat its own code where the layout prints it (right after the
-    code, right before the figures, or ending a continuation line).
-    Otherwise the line is held, and the ONLY thing that may follow it is
-    account X's figure line — not another account, not a class heading or
-    total (a wrapped row split by a heading), not the end of the document.
+    layout's own STRUCTURE — the column a line's first word is printed
+    in, read from the words' x-positions — says which code a line belongs
+    to; never the text (a number that recurs in a name, a line that
+    happens to end with a code). See `_WRAP_RULE` below: the layout
+    prints every account's code in ONE column and every continuation
+    line in the name column, so a line led by a code-shaped token is an
+    account line when that token sits in the code column and name text
+    when it sits in the name column. Whatever cannot be placed — a line
+    without positions, a first word between the two columns, a code-
+    column line without its ten figures that is not followed by them —
+    is refused, never settled by a text heuristic.
 
 The PERIOD comes from the document when it prints one: the title block
 (the lines before the first column header) carries it as "<Luna> <an>"
@@ -179,31 +188,48 @@ _SIDE_WORDS_5PAIR = frozenset({"debit", "credit"})
 # "4111.05 Client" / "404 Media SRL <ten figures>" would read as account
 # 404 with 4111.05's figures, and every total would still tie.
 #
-# Only STRUCTURE decides, never a number that happens to recur on the
-# figure line ("404 Media 404 SRL" repeats 404 by coincidence):
-#   * the layout ends a continuation line with the account's code
-#     ("... 1006.01"), so a line led by X that ENDS with the current
-#     account's code is that account's continuation — and the next account
-#     line must then repeat its own code in one of the layout's slots
-#     (`_repeats_in_a_slot`: right after the code, right before the
-#     figures, or ending one of its continuation lines);
-#   * any other such line is HELD, and the only thing that may follow it
-#     is account X's figure line (the held line was that row's first
-#     line). Another account's line refuses the book — and so does a
-#     "Clasa N" heading, a class or grand total, or the end of the
-#     document: a row whose two lines straddle a heading is exactly the
-#     wrap this rule exists to catch, and settling the held line into the
-#     previous account's name there let the figure line through unchecked.
-_HELD_REFUSAL = ("account %s follows a line led by the code-shaped %s, which neither ends with the "
-                 "previous account's code nor is followed by its own figures (a wrapped row could "
-                 "hand its figures to another code)")
+# Only the layout's STRUCTURE decides — never the text. The text rules
+# tried before (round 3: "a line ending with the previous code is its
+# continuation, and the next account must repeat its own code in a slot")
+# still steered a row's figures to the wrong account when a name happened
+# to end with the previous code and the figure line repeated a number
+# from the name ("4111.05 Client 4011.09" / "404 Media SRL 404 <figures>"
+# read as account 404). The layout fixes two columns, and pdfplumber gives
+# every word's x-position (`Line.words`):
+#   * the CODE column: every account line starts with its code there
+#     (`_Geometry.code_x`, the leftmost lead among the ten-figure lines);
+#   * the NAME column: every continuation line — the rest of a wrapped
+#     name, the code printed again — starts there (`_Geometry.name_x`,
+#     the leftmost first name word of the account lines).
+# So a line led by a code-shaped token is an account line when that token
+# sits in the code column, and name text when it sits in the name column,
+# whatever the token reads. A code-column line without its ten figures is
+# HELD (the row's first line) and only its own figures may follow, on a
+# name-column line; anything else — another code-column line, a heading
+# or total, a page header, the end of the document — refuses the book.
+# Anything the structure cannot place is refused: a line that carries no
+# positions (a caller handing plain text), a first word printed between
+# the two columns, a line in the code column that is not an account line.
+_HELD_REFUSAL = ("account %s follows a line led by the code-shaped %s that is printed in the code "
+                 "column without its ten figures (a wrapped row could hand its figures to "
+                 "another code)")
 _HELD_UNRESOLVED_REFUSAL = ("the line led by the code-shaped %s is followed by %s, not by its own "
                             "figures (a wrapped row whose lines straddle a heading or total could "
                             "hand its figures to another code)")
-_WRAP_REFUSAL = ("account %s follows a line led by the code-shaped %s but never repeats its own "
-                 "code where the layout prints it — right after the code, right before the "
-                 "figures, or ending a continuation line (a wrapped row could hand its figures "
-                 "to another code)")
+_UNPLACED_REFUSAL = ("the line led by the code-shaped %s carries no column position, so whether it "
+                     "starts account %s or continues account %s cannot be read from the layout "
+                     "(a wrapped row could hand its figures to another code)")
+_BETWEEN_REFUSAL = ("the line %r starts between the code column (x=%.1f) and the name column "
+                    "(x=%.1f), in neither")
+_CODE_COLUMN_REFUSAL = ("the line %r is printed in the code column but is not an account line, "
+                        "a heading or a total")
+# A first word within this many points of a column's x is in that column;
+# the real layout's spread is 0.1 pt and the columns are 65 pt apart.
+_COLUMN_TOLERANCE = 2.0
+# A book whose rows carry ten figure columns is a five-pair book whatever
+# its header says (P1, round 4): this many lines led by an account code
+# and ending in ten comma-thousands figures name the layout structurally.
+_STRUCTURAL_MIN_ROWS = 3
 # Document column order, five (debit, credit) pairs.
 _SI_D, _SI_C, _RA_D, _RA_C, _RL_D, _RL_C, _TR_D, _TR_C, _SF_D, _SF_C = range(10)
 
@@ -218,16 +244,70 @@ def _to_decimal(token: str, euro: bool) -> Decimal:
     return Decimal(t)
 
 
-def _extract_lines(pdf_bytes: bytes) -> Optional[List[str]]:
+class Word(NamedTuple):
+    """One word of a text line with its horizontal extent on the page."""
+
+    text: str
+    x0: float
+    x1: float
+
+
+class Line(NamedTuple):
+    """One text line: its text, and its words with x-positions when the
+    source carries them (`None` for plain text — then nothing that needs
+    the layout's columns can be decided, and is refused)."""
+
+    text: str
+    words: Optional[Tuple[Word, ...]]
+
+
+def _as_line(raw: Any) -> Line:
+    if isinstance(raw, Line):
+        return raw
+    return Line(str(raw), None)
+
+
+def _extract_lines(pdf_bytes: bytes) -> Optional[List[Line]]:
+    """The PDF's text lines, each with its words' x-positions.
+
+    Built the way `page.extract_text()` builds its lines — the same words
+    (`extract_words`, default tolerances) clustered on `doctop` with the
+    same y-tolerance, joined with single spaces — so the TEXT the reader
+    sees is exactly what it saw when it read plain `extract_text()` lines;
+    the positions are added, never a different segmentation. That is
+    checked per page: a page whose rebuilt lines are not `extract_text()`'s
+    keeps the text lines and carries no positions, so the five-pair reader
+    refuses anything on it that needs the columns rather than read a
+    layout it cannot place.
+    """
     try:
         import pdfplumber  # type: ignore
+        from pdfplumber.utils import cluster_objects  # type: ignore
     except ImportError:
         return None
     try:
-        lines: List[str] = []
+        from operator import itemgetter
+
+        lines: List[Line] = []
         with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
             for page in pdf.pages:
-                lines.extend((page.extract_text() or "").splitlines())
+                text_lines = (page.extract_text() or "").splitlines()
+                built: List[Line] = []
+                try:
+                    words = page.extract_words()
+                    for cluster in cluster_objects(words, itemgetter("doctop"), 3):
+                        built.append(Line(" ".join(w["text"] for w in cluster),
+                                          tuple(Word(w["text"], float(w["x0"]), float(w["x1"]))
+                                                for w in cluster)))
+                except Exception:  # noqa: BLE001 — positions are additive; the text stays
+                    logger.info("[pdf_balanta_text] word positions unavailable on a page", exc_info=True)
+                    built = []
+                if [b.text for b in built] == text_lines:
+                    lines.extend(built)
+                else:
+                    logger.info("[pdf_balanta_text] word positions do not rebuild the page's text "
+                                "lines — the page is read without positions")
+                    lines.extend(Line(t, None) for t in text_lines)
         return lines
     except Exception:  # noqa: BLE001 — an unreadable PDF is a refusal, never a crash
         logger.info("[pdf_balanta_text] text extraction failed", exc_info=True)
@@ -284,20 +364,56 @@ def names_five_pair(layout: Optional[str]) -> bool:
     return layout in (LAYOUT_FIVE_PAIR, LAYOUT_BOTH)
 
 
-def _layout_of(folded: str) -> Optional[str]:
+# Ten consecutive comma-thousands figures in a whitespace-flattened text —
+# the five-pair layout's rows as PyMuPDF / pypdf flatten a page (each
+# figure column's cells run together, so a page yields many such runs).
+_TEN_FIGURE_RUN = re.compile(r"(?:(?<!\S)-?\d{1,3}(?:,\d{3})*\.\d{2}(?!\S)\s+){9}"
+                             r"-?\d{1,3}(?:,\d{3})*\.\d{2}(?!\S)")
+
+
+def _ten_figure_row(text: str) -> bool:
+    """A line led by an account code and ending in ten comma-thousands
+    figures — one row of the five-pair layout, whatever the header says."""
+    tokens = text.split()
+    return (len(tokens) >= 11 and bool(_CODE_5PAIR.match(tokens[0]))
+            and all(_FIG_5PAIR.match(t) for t in tokens[-10:]))
+
+
+def _flattened_names_five_pair(flattened: str) -> bool:
+    """The five-pair STRUCTURE in a whitespace-flattened page text (the
+    second opinions): `_STRUCTURAL_MIN_ROWS` runs of ten comma-thousands
+    figures. An eight-figure page flattens to no such run — its figures
+    are space- or dot-thousands, and a run breaks at every account code."""
+    return len(_TEN_FIGURE_RUN.findall(flattened)) >= _STRUCTURAL_MIN_ROWS
+
+
+def _layout_of(folded: str, structural_five: bool = False) -> Optional[str]:
+    """The layout named by header tokens in `folded`, or — when the header
+    names only the eight-figure layout, or neither — by the five-pair
+    STRUCTURE the caller found (`structural_five`). A header naming both
+    layouts is LAYOUT_BOTH regardless; a header naming the eight-figure
+    layout over rows of ten figures is a five-pair book whose header this
+    reader then refuses."""
     eight = all(tok in folded for tok in _HEADER_TOKENS)
     five = all(tok in folded for tok in _HEADER_TOKENS_5PAIR)
     if eight and five:
         return LAYOUT_BOTH
-    return LAYOUT_FIVE_PAIR if five else LAYOUT_EIGHT_FIGURE if eight else None
+    if five or structural_five:
+        return LAYOUT_FIVE_PAIR
+    return LAYOUT_EIGHT_FIGURE if eight else None
 
 
-def detect_layout(lines: List[str]) -> Optional[str]:
-    """The layout a document's header names, from its first 40 text lines
-    (LAYOUT_FIVE_PAIR, LAYOUT_EIGHT_FIGURE, LAYOUT_BOTH), or None. Pure and
-    total: it cannot raise, so the layout is known before any reading can
-    go wrong."""
-    return _layout_of(_fold("\n".join(str(x) for x in lines[:40])))
+def detect_layout(lines: List[Any]) -> Optional[str]:
+    """The layout a document names (LAYOUT_FIVE_PAIR, LAYOUT_EIGHT_FIGURE,
+    LAYOUT_BOTH), or None: by its header, from the first 40 text lines,
+    and by its STRUCTURE — `_STRUCTURAL_MIN_ROWS` lines anywhere in the
+    document led by an account code and ending in ten comma-thousands
+    figures name the five-pair layout however the column header is
+    worded, spaced, abbreviated or wrapped. Pure and total: it cannot
+    raise, so the layout is known before any reading can go wrong."""
+    texts = [_as_line(x).text for x in lines]
+    structural = sum(1 for t in texts if _ten_figure_row(t)) >= _STRUCTURAL_MIN_ROWS
+    return _layout_of(_fold("\n".join(texts[:40])), structural)
 
 
 def _first_page_texts(pdf_bytes: bytes) -> List[str]:
@@ -332,7 +448,13 @@ def parse_lines_verdict(lines: List[str]) -> TextRead:
     anything the reader throws is a refusal (the caller must not fall
     through to a reader that approximates). An eight-figure read that
     throws is None, and keeps its fall-back.
+
+    `lines` are `Line`s (text with word x-positions, as `_extract_lines`
+    builds them) or plain strings; plain strings carry no positions, so
+    the five-pair reader refuses anything on them that only the layout's
+    columns could decide.
     """
+    lines = [_as_line(x) for x in lines]
     layout = detect_layout(lines)
     if layout == LAYOUT_BOTH:
         logger.info("[pdf_balanta_text] refused: header matches both layouts")
@@ -375,7 +497,7 @@ def _parse_eight_figure(lines: List[str]) -> Optional[Dict[str, Any]]:
         class_totals: Dict[str, List[Decimal]] = {}
         last: Optional[Dict[str, Any]] = None
         for raw in lines:
-            line = raw.strip()
+            line = _as_line(raw).text.strip()
             if not line:
                 continue
             if _TOTAL_CLASS.match(_fold(line)):
@@ -479,12 +601,63 @@ def _printed_period(title_block: List[str]) -> Optional[Dict[str, Any]]:
     return {"text": text, "year": year, "month": month, "end": "%04d-%02d-%02d" % (year, month, last)}
 
 
-def _repeats_in_a_slot(code: str, printed: List[str]) -> bool:
-    """True when an account line repeats its code where the layout prints
-    it: right after the code ("121 121 Profit ...") or right before the
-    figures ("Casa in lei 531.01 <figures>"). A repeat anywhere else in the
-    name is a number that happens to recur, not the layout's evidence."""
-    return bool(printed) and (printed[0] == code or printed[-1] == code)
+class _Geometry(NamedTuple):
+    """The two columns the five-pair layout fixes, read from the words'
+    x-positions: `code_x`, where every account line's code starts, and
+    `name_x`, where every name (and every continuation line) starts."""
+
+    code_x: float
+    name_x: Optional[float]
+
+
+def _geometry(lines: List[Line]) -> Optional[_Geometry]:
+    """The layout's columns, or None when no line carries positions.
+
+    `code_x` is the leftmost first word among the lines led by a code and
+    ending in ten figures (an account line printed with its figures on a
+    name-column line, a wrapped row, sits to the right and never pulls the
+    column left); `name_x` the leftmost first name word of the lines whose
+    lead is in that column — None when no account line prints a name.
+    Refuses when the two columns cannot be told apart.
+    """
+    leads: List[Tuple[Tuple[Word, ...], int]] = []
+    for ln in lines:
+        if not ln.words:
+            continue
+        tokens = ln.text.split()
+        if len(tokens) != len(ln.words) or not _ten_figure_row(ln.text):
+            continue
+        run = 0
+        while run < len(tokens) - 1 and _FIG_5PAIR.match(tokens[-1 - run]):
+            run += 1
+        leads.append((ln.words, len(tokens) - run))  # the name is words[1:first figure]
+    if not leads:
+        return None  # no account line to read the columns from: read as plain text
+    code_x = min(words[0].x0 for words, _ in leads)
+    names = [words[1].x0 for words, first_figure in leads
+             if words[0].x0 <= code_x + _COLUMN_TOLERANCE and first_figure > 1]
+    name_x = min(names) if names else None
+    if name_x is not None and name_x - code_x <= 2 * _COLUMN_TOLERANCE:
+        _refuse5("the code column (x=%.1f) and the name column (x=%.1f) cannot be told apart",
+                 code_x, name_x)
+    return _Geometry(code_x, name_x)
+
+
+_ZONE_CODE, _ZONE_NAME, _ZONE_BETWEEN = "code", "name", "between"
+
+
+def _zone(ln: Line, geo: Optional[_Geometry]) -> Optional[str]:
+    """Which column a line's first word is printed in — _ZONE_CODE,
+    _ZONE_NAME, _ZONE_BETWEEN (neither: ambiguous, refused by the caller) —
+    or None when the line carries no positions."""
+    if geo is None or not ln.words:
+        return None
+    x0 = ln.words[0].x0
+    if x0 <= geo.code_x + _COLUMN_TOLERANCE:
+        return _ZONE_CODE
+    if geo.name_x is not None and x0 >= geo.name_x - _COLUMN_TOLERANCE:
+        return _ZONE_NAME
+    return _ZONE_BETWEEN
 
 
 def _vsum(group: List[Dict[str, Any]]) -> List[Decimal]:
@@ -593,7 +766,7 @@ def _subtotal_refusal(rows: List[Dict[str, Any]]) -> Optional[str]:
     return None
 
 
-def _parse_five_pair(lines: List[str]) -> Optional[Dict[str, Any]]:
+def _parse_five_pair(lines: List[Line]) -> Optional[Dict[str, Any]]:
     """The five-pair layout: every check in the module docstring, or None."""
     rows: List[Dict[str, Any]] = []
     class_totals: Dict[str, List[Decimal]] = {}
@@ -602,20 +775,44 @@ def _parse_five_pair(lines: List[str]) -> Optional[Dict[str, Any]]:
     column_headers = 0
     expect_sub_header = False
     title_block: List[str] = []  # the lines before the first column header — the printed period
-    # _WRAP_RULE state. `pending`: a HELD line — a figure-less line led by
-    # a code-shaped token X that is neither the current account's code nor
-    # ends with it; nothing but account X's figure line may follow it.
-    # `need_repeat`: a line led by X that ended with the current account's
-    # code was read as that account's continuation; the next account line
-    # must repeat its own code in one of the layout's slots.
-    # `unrepeated`: that account line, until one of its continuation lines
-    # ends with its code — refused if its block ends first.
-    pending: Optional[Dict[str, Any]] = None
-    need_repeat: Optional[str] = None
-    unrepeated: Optional[Dict[str, Any]] = None
+    # _WRAP_RULE state: the layout's two columns, read from the words'
+    # x-positions (None when the lines carry none), and the one row that
+    # may be HELD — a code-column line printed without its ten figures,
+    # waiting for them on a name-column line. Nothing else may follow it.
+    geo = _geometry(lines)
+    held: Optional[Dict[str, Any]] = None
+
+    def account_row(code: str, lead: List[str], rest: List[str], run: int) -> Dict[str, Any]:
+        """A row from its code, the words printed before this line (a held
+        first line), and this line's words after the code, whose last
+        `run` are figure-shaped (ten, or more when the layout prints a
+        figure-shaped code right before them)."""
+        extra = rest[len(rest) - run:len(rest) - 10]
+        if any(x != code for x in extra):
+            _refuse5("account %s carries %d figures, not 10", code, run)
+        printed = lead + rest[:len(rest) - 10]  # the name as printed, repeated codes included
+        name = [x for x in printed if x != code]
+        # Figures the reader cannot attribute are a refusal, never a
+        # skip — and that holds for the NAME part of an account line
+        # too. Two rows on one text line put the first row's ten figures
+        # (and the second row's code) into the name, and the first code
+        # would take the second row's figures.
+        in_name = sum(1 for x in name if _FIG_5PAIR.match(x))
+        if in_name >= 2:
+            _refuse5("account %s: its name carries %d figure-shaped tokens "
+                     "(two rows on one line?)", code, in_name)
+        if any(_CODE_5PAIR.match(a) and _FIG_5PAIR.match(b) for a, b in zip(name, name[1:])):
+            _refuse5("account %s: its name holds a code followed by a figure "
+                     "(two rows on one line?)", code)
+        return {
+            "cont": code,
+            "name": " ".join(name).rstrip(" -"),
+            "figures": [_fig5(x) for x in rest[len(rest) - 10:]],
+        }
 
     for raw in lines:
-        line = raw.strip()
+        ln = _as_line(raw)
+        line = ln.text.strip()
         if not line:
             continue
         f = _fold(line)
@@ -634,6 +831,8 @@ def _parse_five_pair(lines: List[str]) -> Optional[Dict[str, Any]]:
             if any(p in norm for p in _COLUMN_PHRASES_5PAIR):
                 if norm != _COLUMN_HEADER_5PAIR:
                     return _refuse5("column header reads %r, not the five-pair column order", line[:120])
+                if held is not None:
+                    return _refuse5(_HELD_UNRESOLVED_REFUSAL, held["x"], "a page header")
                 column_headers += 1
                 expect_sub_header = True
                 continue  # page header — a name may continue after it
@@ -646,12 +845,9 @@ def _parse_five_pair(lines: List[str]) -> Optional[Dict[str, Any]]:
 
         ends_block = bool(_TOTAL_CLASS_5PAIR.match(f) or _TOTAL_GENERAL_5PAIR.match(f)
                           or _CLASS_HEADING_5PAIR.match(f))
-        if ends_block:
-            if pending is not None:
-                heading = line.split(":", 1)[0] + (":" if ":" in line else "")  # never its figures
-                return _refuse5(_HELD_UNRESOLVED_REFUSAL, pending["x"], repr(heading))
-            if unrepeated is not None:
-                return _refuse5(_WRAP_REFUSAL, unrepeated["row"]["cont"], unrepeated["x"])
+        if ends_block and held is not None:
+            heading = line.split(":", 1)[0] + (":" if ":" in line else "")  # never its figures
+            return _refuse5(_HELD_UNRESOLVED_REFUSAL, held["x"], repr(heading))
 
         t = _TOTAL_CLASS_5PAIR.match(f)
         if t:
@@ -677,96 +873,72 @@ def _parse_five_pair(lines: List[str]) -> Optional[Dict[str, Any]]:
         if f.startswith(_SKIP_PREFIXES_5PAIR) or "utilizator:" in f:
             if sum(1 for x in tokens if _FIG_5PAIR.match(x)) >= 2:
                 return _refuse5("a page header/footer line carries figures: %r", line[:60])
+            if held is not None:
+                return _refuse5(_HELD_UNRESOLVED_REFUSAL, held["x"], "a page header or footer")
             continue  # page header / footer — a name may continue after it
 
-        if _CODE_5PAIR.match(tokens[0]):
-            code, rest = tokens[0], tokens[1:]
-            run = 0
-            while run < len(rest) and _FIG_5PAIR.match(rest[-1 - run]):
-                run += 1
-            if run >= 10:
-                if not column_headers:
-                    return _refuse5("account %s is printed before the column header", code)
-                if unrepeated is not None:
-                    return _refuse5(_WRAP_REFUSAL, unrepeated["row"]["cont"], unrepeated["x"])
-                extra = rest[len(rest) - run:len(rest) - 10]
-                if any(x != code for x in extra):
-                    return _refuse5("account %s carries %d figures, not 10", code, run)
-                printed = rest[:len(rest) - 10]  # the name as printed, repeated codes included
-                name = [x for x in printed if x != code]
-                # Figures the reader cannot attribute are a refusal, never
-                # a skip — and that holds for the NAME part of an account
-                # line too. Two rows on one text line put the first row's
-                # ten figures (and the second row's code) into the name,
-                # and the first code would take the second row's figures.
-                in_name = sum(1 for x in name if _FIG_5PAIR.match(x))
-                if in_name >= 2:
-                    return _refuse5("account %s: its name carries %d figure-shaped tokens "
-                                    "(two rows on one line?)", code, in_name)
-                if any(_CODE_5PAIR.match(a) and _FIG_5PAIR.match(b) for a, b in zip(name, name[1:])):
-                    return _refuse5("account %s: its name holds a code followed by a figure "
-                                    "(two rows on one line?)", code)
-                row = {
-                    "cont": code,
-                    "name": " ".join(name).rstrip(" -"),
-                    "figures": [_fig5(x) for x in rest[len(rest) - 10:]],
-                }
-                if pending is not None:
-                    if code != pending["x"]:
-                        return _refuse5(_HELD_REFUSAL, code, pending["x"])
-                    # the held line was this row's first line
-                    lead = [x for x in pending["text"] if x != code]
-                    row["name"] = " ".join(lead + name).rstrip(" -")
-                    pending = None
-                if need_repeat is not None:
-                    if not _repeats_in_a_slot(code, printed):
-                        unrepeated = {"row": row, "x": need_repeat}
-                    need_repeat = None
-                last = row
-                rows.append(last)
-                continue
-            known = {code} | ({last["cont"]} if last is not None else set())
-            if run and any(x not in known for x in rest[len(rest) - run:]):
-                return _refuse5("account %s carries %d figures, not 10", code, run)
-            if last is None or code != last["cont"]:
-                # led by a code-shaped token that is not the current
-                # account's (see `_WRAP_RULE`)
-                if sum(1 for x in tokens if _FIG_5PAIR.match(x) and x != code
-                       and (last is None or x != last["cont"])) >= 2:
-                    return _refuse5("a line with figures is neither an account nor a total: %r", line[:60])
-                if pending is not None:
-                    if code != pending["x"]:
-                        return _refuse5(_HELD_REFUSAL, code, pending["x"])
-                    pending["text"].extend(tokens)  # the held row's code printed again
-                    continue
-                if last is None or tokens[-1] != last["cont"]:
-                    pending = {"x": code, "text": tokens}
-                    continue
-                # it ends with the current account's code: that account's
-                # continuation, read below — and the next account line
-                # must repeat its own code in a slot
-                need_repeat = code
-            elif pending is not None:
-                return _refuse5(_HELD_REFUSAL, code, pending["x"])
+        lead_is_code = bool(_CODE_5PAIR.match(tokens[0]))
+        body = tokens[1:] if lead_is_code else tokens
+        run = 0
+        while run < len(body) and _FIG_5PAIR.match(body[-1 - run]):
+            run += 1
+        # The column the line's first word is printed in decides what the
+        # line is (`_WRAP_RULE`) — once the column header has been read;
+        # the title block before it holds no rows.
+        zone = _zone(ln, geo) if column_headers else None
+        if zone == _ZONE_BETWEEN:
+            return _refuse5(_BETWEEN_REFUSAL, line[:60], geo.code_x, geo.name_x)
 
-        # A continuation line: the rest of the previous account's name (or
-        # of the held line, while one is held).
+        if lead_is_code and run >= 10 and zone != _ZONE_NAME:
+            # an account line: its code in the code column (or plain text,
+            # where nothing else is read as one), its ten figures last
+            if not column_headers:
+                return _refuse5("account %s is printed before the column header", tokens[0])
+            if held is not None:
+                return _refuse5(_HELD_REFUSAL, tokens[0], held["x"])
+            last = account_row(tokens[0], [], body, run)
+            rows.append(last)
+            continue
+        if zone == _ZONE_NAME:
+            # name text, whatever its first word reads: the continuation of
+            # the held row (with its figures) or of the current account
+            if held is not None:
+                if run >= 10:
+                    last = account_row(held["x"], held["text"], tokens, run)
+                    rows.append(last)
+                    held = None
+                else:
+                    held["text"].extend(tokens)
+                continue
+        else:
+            if lead_is_code and run:
+                known = {tokens[0]} | ({last["cont"]} if last is not None else set())
+                if any(x not in known for x in body[len(body) - run:]):
+                    return _refuse5("account %s carries %d figures, not 10", tokens[0], run)
+            if zone == _ZONE_CODE:
+                if not lead_is_code:
+                    return _refuse5(_CODE_COLUMN_REFUSAL, line[:60])
+                # the row's first line, printed without its figures: held
+                # until they follow on a name-column line
+                if held is not None:
+                    return _refuse5(_HELD_REFUSAL, tokens[0], held["x"])
+                held = {"x": tokens[0], "text": list(body)}
+                continue
+            if lead_is_code and (last is None or tokens[0] != last["cont"]):
+                # plain text: a code-shaped first word that is not the
+                # current account's code cannot be placed in either column
+                return _refuse5(_UNPLACED_REFUSAL, tokens[0], tokens[0], last["cont"] if last else "none")
+
+        # A continuation line: the rest of the previous account's name.
         own = last["cont"] if last is not None else None
         kept = [x for x in tokens if x != own]
         if sum(1 for x in kept if _FIG_5PAIR.match(x)) >= 2:
             return _refuse5("a line with figures is neither an account nor a total: %r", line[:60])
-        if pending is not None:
-            pending["text"].extend(tokens)
-            continue
-        if unrepeated is not None and unrepeated["row"] is last and tokens[-1] == own:
-            unrepeated = None
         if last is not None and kept:
             last["name"] = (last["name"] + " " + " ".join(kept)).strip().rstrip(" -")
 
-    if pending is not None:
-        return _refuse5(_HELD_UNRESOLVED_REFUSAL, pending["x"], "the end of the document")
-    if unrepeated is not None:
-        return _refuse5(_WRAP_REFUSAL, unrepeated["row"]["cont"], unrepeated["x"])
+    if held is not None:
+        return _refuse5(_HELD_UNRESOLVED_REFUSAL, held["x"], "the end of the document")
     if expect_sub_header:
         return _refuse5("the column header is not followed by the Debit/Credit sub-header: end of document")
     if len(rows) < MIN_ACCOUNTS:
@@ -888,7 +1060,7 @@ def _read_verdict(pdf_bytes: bytes, seen: Dict[str, Optional[str]]) -> TextReadR
     seen["layout"] = detect_layout(lines)  # known before anything below can fail
     if seen["layout"] is None:
         for text in _first_page_texts(pdf_bytes):
-            other = _layout_of(text)
+            other = _layout_of(text, _flattened_names_five_pair(text))
             if names_five_pair(other):
                 reason = ("another text extraction of its first page names the five-pair layout, "
                           "but its text lines do not, so its columns cannot be read line by line")
