@@ -3010,9 +3010,10 @@ Verdict: proven RED.
 ## comparatives-depth-parity
 
 A compare column is each period's OWN served figure, whatever depth the two
-books are kept at. THE INCIDENT (owner screenshot 2026-09-23, diagnosed
-09-26): on `/dashboard?period=<Dec 2024>&tab=pl`, "Compare with Dec 2025"
-printed operating revenue 2,727,103.68 and EBITDA -36,676.13 while `GET
+books are kept at — and whatever SHAPE the served line items arrive in. THE
+INCIDENT (owner screenshot 2026-09-23, diagnosed 09-26): on
+`/dashboard?period=<Dec 2024>&tab=pl`, "Compare with Dec 2025" printed
+operating revenue 2,727,103.68 and EBITDA -36,676.13 while `GET
 /api/period/<Dec 2025>` served 413,727,560.16 / 54,443,833.33. The Dec 2024
 file is the external condensed balanță (220 rows, four-digit codes), the
 Dec 2025 file the full ledger (653 rows, six-digit codes), so the first
@@ -3030,36 +3031,96 @@ column is for the period to hold another book — and the served document
 now names each period's `source_document` so a reader can see which file
 a column holds.
 
-Over every ordered pair of the five real corpus books (20 pairs) and each
-book beside its own four-digit re-aggregation
-(`_comparatives_fixtures.reaggregate_to_synthetic`: rows folded to the
-synthetic boundary in cents, debit and credit sides kept apart, run through
-the SAME `assemble_parsed_tb`), both orientations: every headline column's
-`current` / `prior` equals THAT period's served `assembled_pl` /
-`assembled_bs` figure to the cent (BS totals through the same
-`_apply_envelope_truth_to_statements` override `/api/period` applies, so
-the authority is the canonical sheet); Δ is their difference and Δ % the
+THE SECOND DEFECT (verifier P1, measured on the real served pair the same
+day): nine bucket-backed sub-aggregate lines — interest income, third-party
+services, related-party receivables, FX cash, assets under construction,
+fixed-asset advances, dividends payable, doubtful receivables, receivable
+provisions — were served `absent_both` ("neither period reported …") while
+each period's served assembled field was non-zero, and the movers ranked
+without a related-party movement that sat above its own floor.
+`stage_persist` strips the assembler's `canonical_bucket` (not a
+`statement_line_items` column) and `GET /api/period` serves the persisted
+legacy `bucket` alone (`interest_income` as `financialIncome`,
+`ar_intercompany` as `otherCurrentAssets`, `cash_fx` as `cash`, …), so a
+coverage read matched on bucket names never met a fine bucket — and
+`read_value` ran the coverage check BEFORE reading the field, refusing a
+balance the statement held. This gate stayed green (63 passed) because its
+fixtures came off `run_deterministic_tb`, whose line items still carry the
+canonical name: a key production never serves. The repair (`fc4f1c15`)
+keeps one authority: the assembled field is the fact and a value above the
+zero floor is returned whatever coverage says; coverage decides ZEROS only
+(a fed 0.00 is a disclosed zero, an unfed one an absence), and for that
+case the served shape is read correctly — `canonical_bucket_of_line_item`
+(the RO pack) resolves each served item's canonical bucket from the pack's
+rule for its account code, carried beside the persisted name by
+`envelope_from_payload`.
+
+OFFLINE, over `compare_payloads` with SERVED-SHAPED envelopes (the
+persisted columns only — `_comparatives_fixtures.served_line_item` drops
+`canonical_bucket` exactly as `stage_persist` does, and a test holds the
+shape so it cannot grow back): over every ordered pair of the five real
+corpus books (20 pairs) and each book beside its own four-digit
+re-aggregation (`_comparatives_fixtures.reaggregate_to_synthetic`: rows
+folded to the synthetic boundary in cents, debit and credit sides kept
+apart, run through the SAME `assemble_parsed_tb`), both orientations: every
+headline column's `current` / `prior` — the P&L spine, the balance-sheet
+spine and the nine sub-aggregates — equals THAT period's served
+`assembled_pl` / `assembled_bs` figure to the cent (BS totals through the
+same `_apply_envelope_truth_to_statements` override `/api/period` applies,
+so the authority is the canonical sheet); Δ is their difference and Δ % the
 engine's ratio or the stated no-base refusal; across the depth difference
 the P&L headline moves NOTHING (the roll-up is measured lossless on every
 book here, not asserted from `levels.py`); the three bridges close; a
 headline the prior cannot build is `absent_prior` with no Δ and a bridge
 that names the field — never a partial sum; no served label lists account
-codes; and the incident pair itself (`eei_dec_2025` beside
-`scandia_fy2025`, committed baselines) serves each book's own revenue in
-both orientations. An absence is honoured only when the book justifies it
-(disclosure absent, served field below the zero floor, not one leaf in the
-bucket — the retail and real-estate books carry no income-tax row, so
+codes; the incident pair itself (`eei_dec_2025` beside `scandia_fy2025`,
+committed baselines) serves each book's own revenue in both orientations;
+the column model reads every non-zero headline even on the RAW served
+shape (no canonical bucket resolved); a fine bucket a book feeds at zero is
+a disclosed 0.00 (planted — no corpus book carries one); and the top movers
+are the served columns' own ranking with the sub-aggregates in it (a
+sub-aggregate ranks in the top eight on 15 of the 20 real pairs). An
+absence is honoured only when the book justifies it (disclosure absent,
+served field below the zero floor, not one leaf in the bucket by the pack's
+rule — the retail and real-estate books carry no income-tax row, so
 `pl.tax` reads absent on them, not 0.00). The balance sheet is NOT claimed
 lossless across depth: a synthetic account whose sub-accounts close on both
 sides nets when merged, exactly as a real condensed export prints it
 (retail: total assets move 11,247.93); each side still equals its own
 served figure, which is the claim.
 
+AND THROUGH THE REAL APP. Every real book AND its condensed counterpart
+(`_comparatives_fixtures.condensed_tb_rows`, the same folded rows) is
+carried through the production write seam — parse -> `stage_map` ->
+`stage_persist` over `corpus_replay.fake_persist_seam` — what
+`stage_persist` INSERTED is seeded into the projection-faithful tenancy
+double (`firm_postgrest_double`) beside a `documents` row naming each
+file, and the periods are read back through `engine.api.create_app()`
+itself with a real ES256 bearer: `GET /api/period/{id}` for each of the ten
+periods and `GET /api/period/{cur}/comparatives?prior={pri}` for all 30
+served pairs (the 20 real pairs and each book beside its counterpart, both
+orientations). Asserted: each served body's line items are exactly the
+inserted rows, persisted columns only, legacy buckets only, at least one
+fine bucket hidden per period (non-vacuity of the shape); on every served
+pair every headline side is that period's served figure or a justified
+absence; the nine lines are `reported` to the cent wherever a period holds
+them (eight of nine held somewhere — all but receivable provisions, which
+the pack emits as contra `ar`; over a hundred reported sides); the served
+document IS `compare_payloads` over the two bodies the same app served —
+columns, movers, bridges, common size, coverage, comparability and both
+period blocks byte for byte, so the offline half and the served half gate
+ONE document; each period block names the seeded file; the movers are the
+columns' own ranking and their figures the bodies'; a sub-aggregate ranks
+among the served movers on at least ten pairs; the self pairs move nothing
+on the P&L and close their bridges; and the offline envelope and the served
+body carry the same headline figures to the cent on every book and every
+condensed counterpart.
+
 | | |
 |---|---|
 | command | `python -m pytest tests/engine/test_comparatives_depth_parity.py -q` |
-| work count | junit-xml, floor **60** tests (measured 63) |
-| canary | `test_every_headline_column_is_each_periods_own_served_figure_on_every_real_pair`, `test_a_book_against_its_own_4_digit_re_aggregation_moves_nothing_on_the_pl`, `test_the_pl_roll_up_is_measured_lossless_on_every_real_book`, `test_a_headline_the_prior_cannot_build_is_an_honest_refusal_never_a_partial_sum`, `test_the_incident_pair_serves_each_books_own_revenue_so_only_the_period_content_can_print_another_books_figure` |
+| work count | junit-xml, floor **200** tests (measured 225) |
+| canary | `test_every_headline_column_is_each_periods_own_served_figure_on_every_real_pair`, `test_a_book_against_its_own_4_digit_re_aggregation_moves_nothing_on_the_pl`, `test_the_pl_roll_up_is_measured_lossless_on_every_real_book`, `test_a_headline_the_prior_cannot_build_is_an_honest_refusal_never_a_partial_sum`, `test_the_incident_pair_serves_each_books_own_revenue_so_only_the_period_content_can_print_another_books_figure`, `test_every_headline_a_period_holds_is_its_served_figure_through_the_real_routes`, `test_the_nine_sub_aggregate_lines_are_reported_through_the_real_route_wherever_a_period_holds_them`, `test_the_top_movers_are_the_served_columns_own_ranking_through_the_real_route`, `test_the_served_document_is_compare_payloads_over_the_two_bodies_the_same_app_served` |
 
 **Reds on, after the repair (TC-11):** a column read that sums leaves by
 code depth, exact code or modal depth instead of the assembled bucket
@@ -3070,25 +3131,37 @@ disclosed; a registry label carrying an account-code list or "combined"; a
 re-aggregation helper that nets debit against credit or rounds before
 summing (the condensed side would then disagree with the ledger by more
 than the measured cent and the lossless assertion reds); a corpus book
-losing its input (the pair census collapses below the floor).
+losing its input (the pair census collapses below the floor); coverage
+matched on the persisted bucket names again — `envelope_from_payload` no
+longer resolving the canonical bucket from the code, or `read_value`
+refusing a non-zero served field on a coverage miss (every sub-aggregate a
+book holds reads absent, offline and through the app); a fed zero reading
+absent; a fixture that carries `canonical_bucket`; a mover ranking that is
+not the columns' own; a second composition on the comparatives route; the
+route serving anything but the persisted rows; the offline assembler and
+the served path disagreeing on a headline.
 **Cannot see:** the month-replace itself (a workspace-lane seam, gated
 there); the frontend's rendering of the column
 (`frontend/lib/__tests__/plCompareColumn.test.tsx` holds that the P&L tab's
 prior cell prints the served `prior` on a four-digit aggregates-path book,
 refuses on a one-cent parity miss, prints the word for an absence, lists
 every revenue family the book holds on the row's chip and carries the
-source-document title on the column header); the route's HTTP path
-(comparatives-route).
+source-document title on the column header;
+`compareHeaderSourceTitles.test.tsx` holds the same title on the balance
+sheet tab, the CFO Report and the workbook; `plFootnoteRentalFamily.test.tsx`
+holds that the footnote's rental-dominance test reads the 706 family off
+the book's own revenue families); the route's wall (comparatives-route).
 
-**GREEN** — `63 passed in 3.85s` (direct pytest; through the battery the
-junit count is 63).
+**GREEN** — `225 passed in 50.51s` (direct pytest; through the battery the
+junit count is 225).
 
-**PLANT** — `src/engine/comparatives/lines.py` `read_value`: after the
+**PLANT 1** — `src/engine/comparatives/lines.py` `read_value`: after the
 coverage check, sum the envelope's `lineItems` in the line's buckets whose
 `ro_account_code` is exactly four characters long and return that instead
 of the assembled field — a pairing keyed on code depth.
 
-**RED** — `32 failed, 31 passed in 3.89s`:
+**RED** — `32 failed, 31 passed in 3.89s` (recorded against the 63-test
+gate; the plant reds every pair of the extended gate the same way):
 
 ```
 E   AssertionError: pl.revenue current 0.0 is not saga_10_col_carniprod's served 94509939.96
@@ -3106,6 +3179,36 @@ plant does not touch them — which is the point of naming the canaries.)
 
 **REVERT** — `git checkout -- src/engine/comparatives/lines.py`;
 `63 passed in 3.68s`. Verdict: proven RED.
+
+**PLANT 2 (2026-09-26)** — the repair itself reverted:
+`git diff fc4f1c15~1 fc4f1c15 -- src/ | git apply -R` (`read_value` runs
+the coverage check before reading the field again; `envelope_from_payload`
+serves the persisted `bucket` alone; the pack resolver is gone).
+
+**RED** — `65 failed, 160 passed in 20.04s`:
+
+```
+E   AssertionError: pl.interest_income current reads absent while saga_10_col_carniprod serves 145945.47
+E   assert 145945.47 < 0.005
+FAILED tests/engine/test_comparatives_depth_parity.py::test_every_headline_a_period_holds_is_its_served_figure_through_the_real_routes[saga_10_col_carniprod-vs-saga_10_col]
+...
+FAILED tests/engine/test_comparatives_depth_parity.py::test_every_headline_column_is_each_periods_own_served_figure_on_every_real_pair[saga_10_col_agras-vs-saga_10_col_retail]
+FAILED tests/engine/test_comparatives_depth_parity.py::test_the_nine_sub_aggregate_lines_are_reported_through_the_real_route_wherever_a_period_holds_them
+FAILED tests/engine/test_comparatives_depth_parity.py::test_a_sub_aggregate_ranks_among_the_top_movers_through_the_real_route
+E   assert 0 >= 10
+```
+
+(All 30 served pairs through the app, all 20 offline pairs, all 10
+self-pair orientations, the raw-shape column-model test, the fed-zero
+plant and both sub-aggregate mover censuses red — `pl.interest_income` is
+the first sub-aggregate in the headline order, so it is the assertion every
+pair stops on. The route-equality test stays green, as it must: both sides
+of it run the same reverted code, and it gates drift between two
+compositions, not the composition itself. The bridge, BS-authority,
+refusal, label and file-naming tests stay green too.)
+
+**REVERT** — `git checkout -- src/`; `225 passed in 50.51s`. Verdict:
+proven RED.
 
 ## served-range
 

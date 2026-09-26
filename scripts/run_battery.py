@@ -489,15 +489,28 @@ def _engine_gates() -> List[Gate]:
         # where a month-replaced period printed another book's 2,727,103.68
         # under the client's label). Reds on a leaf read keyed by code depth,
         # a plugged bridge, a partial sum for a refusal, a code-listing label.
-        # Floor 60 = the measured 63. Plant log: docs/engine_book/gates.md.
+        # SERVED PATH (later the same day, after the nine-line verifier P1):
+        # the offline half now reads SERVED-SHAPED envelopes (persisted
+        # columns only, legacy buckets only), and every real book plus its
+        # condensed counterpart is also carried through the real persist seam
+        # into the tenancy double and read back through create_app()'s own
+        # GET /api/period and /comparatives routes for all 30 served pairs.
+        # Reds on coverage matched on the persisted names again (a non-zero
+        # served sub-aggregate reading "neither period reported"), a mover
+        # ranking that is not the columns' own, a second composition on the
+        # route. Floor 200 = the measured 225. Plant log: docs/engine_book/gates.md.
         Gate("comparatives-depth-parity",
              [PY, "-m", "pytest", "tests/engine/test_comparatives_depth_parity.py", "-q"],
-             work_junit=True, floor=60, units="tests",
+             work_junit=True, floor=200, units="tests",
              canaries=("test_every_headline_column_is_each_periods_own_served_figure_on_every_real_pair",
                        "test_a_book_against_its_own_4_digit_re_aggregation_moves_nothing_on_the_pl",
                        "test_the_pl_roll_up_is_measured_lossless_on_every_real_book",
                        "test_a_headline_the_prior_cannot_build_is_an_honest_refusal_never_a_partial_sum",
-                       "test_the_incident_pair_serves_each_books_own_revenue_so_only_the_period_content_can_print_another_books_figure")),
+                       "test_the_incident_pair_serves_each_books_own_revenue_so_only_the_period_content_can_print_another_books_figure",
+                       "test_every_headline_a_period_holds_is_its_served_figure_through_the_real_routes",
+                       "test_the_nine_sub_aggregate_lines_are_reported_through_the_real_route_wherever_a_period_holds_them",
+                       "test_the_top_movers_are_the_served_columns_own_ranking_through_the_real_route",
+                       "test_the_served_document_is_compare_payloads_over_the_two_bodies_the_same_app_served")),
         # FLOOR SUBSTITUTES, batch C3 (owner rulings R-D5 / R-D6 / R-OTHER,
         # 2026-09-15): the valuation DCF, the AI briefing's citable
         # ratios, the RO pack's ROA check and the served period day count.

@@ -117,25 +117,27 @@ def envelope_for(case_id: str) -> Dict[str, Any]:
     return copy.deepcopy(_CACHE[case_id])
 
 
-def reaggregate_to_synthetic(case_id: str) -> Tuple[Dict[str, Any], int]:
-    """The same book as the external condensed balanță would print it:
-    every analytic row folded into its grade-II synthetic account.
+_CONDENSED_ROWS_CACHE: Dict[str, Tuple[List[Dict[str, Any]], Dict[str, Any], Dict[str, Any], int]] = {}
+
+
+def condensed_tb_rows(case_id: str) -> Tuple[TrialBalanceParseResult, int]:
+    """The parsed rows of one corpus book folded to the synthetic boundary
+    — what an external condensed balanță of the same book would print.
 
     Rows are merged on the first `SYNTHETIC_MAX_DIGITS` digits of the
     code (separators stripped exactly as the detail-level detector strips
     them), each of the eight figure columns summed in cents — debit and
     credit balances kept on their own sides, as a real condensed book
-    keeps them — and the merged rows are run through the SAME post-parse
-    assembler (`assemble_parsed_tb`) the pipeline runs. Nothing here
-    touches a statement figure: the condensed book's figures are whatever
-    the assembler makes of the condensed rows, so a comparison against the
-    original is a comparison of two assemblies, not of one assembly and a
-    hand-edited copy of it.
+    keeps them. Exposed on its own so a gate can carry the SAME rows
+    through the production write seam (`stage_map` -> `stage_persist`)
+    and read them back through the served route, not only through the
+    offline assembler (`reaggregate_to_synthetic`).
 
-    Returns `(envelope, merged_row_count)`. A book already at the
-    boundary merges zero rows and comes back as itself.
+    Returns `(rows, merged_row_count)`; the rows are a fresh
+    `TrialBalanceParseResult` each call. A book already at the boundary
+    merges zero rows and comes back as itself.
     """
-    if case_id not in _REAGG_CACHE:
+    if case_id not in _CONDENSED_ROWS_CACHE:
         pack = RomaniaPack()
         path = CORPUS / case_id / "input.xlsx"
         tb_rows = pack.parse_trial_balance(path.read_bytes(), path.name)
@@ -165,12 +167,35 @@ def reaggregate_to_synthetic(case_id: str) -> Tuple[Dict[str, Any], int]:
                 merged_row[f] = float(
                     merged_row[f].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
             rows.append(merged_row)
-        condensed = TrialBalanceParseResult(
+        _CONDENSED_ROWS_CACHE[case_id] = (
             rows,
-            extraction=dict(getattr(tb_rows, "extraction", None) or {}),
-            source_anchor=dict(getattr(tb_rows, "source_anchor", None) or {}),
+            dict(getattr(tb_rows, "extraction", None) or {}),
+            dict(getattr(tb_rows, "source_anchor", None) or {}),
+            merged,
         )
-        assembled = pack.assemble_parsed_tb(condensed)[2]
+    rows, extraction, source_anchor, merged = _CONDENSED_ROWS_CACHE[case_id]
+    condensed = TrialBalanceParseResult(
+        [dict(r) for r in rows],
+        extraction=dict(extraction),
+        source_anchor=dict(source_anchor),
+    )
+    return condensed, merged
+
+
+def reaggregate_to_synthetic(case_id: str) -> Tuple[Dict[str, Any], int]:
+    """The same book as the external condensed balanță would print it,
+    assembled offline: the folded rows of `condensed_tb_rows` run through
+    the SAME post-parse assembler (`assemble_parsed_tb`) the pipeline
+    runs. Nothing here touches a statement figure: the condensed book's
+    figures are whatever the assembler makes of the condensed rows, so a
+    comparison against the original is a comparison of two assemblies,
+    not of one assembly and a hand-edited copy of it.
+
+    Returns `(envelope, merged_row_count)`.
+    """
+    if case_id not in _REAGG_CACHE:
+        condensed, merged = condensed_tb_rows(case_id)
+        assembled = RomaniaPack().assemble_parsed_tb(condensed)[2]
         _REAGG_CACHE[case_id] = (_envelope_of(assembled), merged)
     env, merged = _REAGG_CACHE[case_id]
     return copy.deepcopy(env), merged
