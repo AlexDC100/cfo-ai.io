@@ -92,6 +92,12 @@ export interface AnalysisJob {
   updatedAt: number;
   /** True once the host has announced the terminal state (toast + bell). */
   announced: boolean;
+  /** The 0-based step the document was on when its status turned `failed`
+   *  — the last live status it reported (queued → 0 … narrating → 4). The
+   *  card marks THAT step as failed and keeps the earlier ones done; it
+   *  used to reset to step 1 for every failure. Null while not failed (and
+   *  on a job persisted before this field existed → step 1). */
+  failedStep: number | null;
 }
 
 const IDLE: FlowState = {
@@ -433,7 +439,7 @@ export function readAnalysisJobs(): AnalysisJob[] {
   return readJobs();
 }
 
-export function addJob(job: Omit<AnalysisJob, "startedAt" | "updatedAt" | "announced" | "status" | "periodId" | "error"> & { status?: DocumentStatus }): AnalysisJob {
+export function addJob(job: Omit<AnalysisJob, "startedAt" | "updatedAt" | "announced" | "status" | "periodId" | "error" | "failedStep"> & { status?: DocumentStatus }): AnalysisJob {
   const now = Date.now();
   const next: AnalysisJob = {
     ...job,
@@ -443,6 +449,7 @@ export function addJob(job: Omit<AnalysisJob, "startedAt" | "updatedAt" | "annou
     startedAt: now,
     updatedAt: now,
     announced: false,
+    failedStep: null,
   };
   writeJobs([next, ...readJobs().filter((j) => j.docId !== job.docId)].slice(0, 12));
   return next;
@@ -462,6 +469,12 @@ export function patchJob(docId: string, patch: Partial<Omit<AnalysisJob, "docId"
     stepOrdinal(patch.status) < stepOrdinal(cur.status)
   ) {
     next.status = cur.status;
+  }
+  // The failure lands on the step the document was on: the last live
+  // status it reported names it (a document that failed while "computing"
+  // failed at step 4, with steps 1-3 done).
+  if (patch.status === "failed" && !isJobDone(cur)) {
+    next.failedStep = stepOrdinal(cur.status);
   }
   const copy = list.slice();
   copy[i] = next;

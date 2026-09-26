@@ -891,7 +891,9 @@ export function ProgressView({ job, onOpen }: { job: AnalysisJob | null; onOpen:
   }
   const failed = job.status === "failed";
   const done = job.status === "analyzed";
-  const ordinal = stepOrdinal(job.status);
+  // The step on screen: the running one, or — failed — the one the document
+  // was on when it failed (the earlier steps stay done).
+  const ordinal = failed ? Math.min(job.failedStep ?? 0, ANALYSIS_STEP_COUNT - 1) : stepOrdinal(job.status);
   const current = Math.min(ordinal + 1, ANALYSIS_STEP_COUNT);
   const title = failed
     ? t("wsV2.progress.failedTitle", { company: job.companyName })
@@ -910,7 +912,7 @@ export function ProgressView({ job, onOpen }: { job: AnalysisJob | null; onOpen:
         )}
         <ol className="space-y-2.5">
           {Array.from({ length: ANALYSIS_STEP_COUNT }, (_, i) => {
-            const stepDone = done || (!failed && i < ordinal);
+            const stepDone = done || i < ordinal;
             const running = !failed && !done && i === ordinal;
             const broke = failed && i === ordinal;
             return (

@@ -304,6 +304,52 @@ describe("confirmation card", () => {
     expect(await screen.findByTestId("notifications-analysis")).toHaveAttribute("data-kind", "failed");
   });
 
+  it("a failure while calculating marks THAT step as failed and keeps the earlier steps done", async () => {
+    // Owner-reported: every failed analysis showed step 1 ("Recognising the
+    // document") as the one that failed and reset the completed steps —
+    // whatever the document's status had reached. The card marks the step
+    // the document was on when it failed, from the statuses it reported.
+    api.identifyUpload.mockResolvedValue(identity());
+    api.commitUpload.mockResolvedValue({ status: "queued", document_id: "doc-3", org_id: "agras", company_name: "Agras SA" });
+    renderHome();
+    await dropOnHome();
+    await screen.findByText("Check before we analyse");
+    fireEvent.click(within(card()).getByTestId("upload-card-analyse"));
+    await screen.findByText("Analysing Agras SA");
+    await waitFor(() => expect(status.listeners.has("doc-3")).toBe(true));
+    act(() => status.listeners.get("doc-3")!({ id: "doc-3", status: "mapping", error: null, period_id: null }));
+    act(() => status.listeners.get("doc-3")!({ id: "doc-3", status: "computing", error: null, period_id: null }));
+    expect(screen.getByTestId("upload-progress-step-3")).toHaveAttribute("data-state", "running");
+    act(() =>
+      status.listeners.get("doc-3")!({ id: "doc-3", status: "failed", error: "RuntimeError: compute failed", period_id: null }),
+    );
+    expect(await screen.findByText("The analysis of Agras SA failed")).toBeInTheDocument();
+    expect(screen.getByTestId("upload-card-progress")).toHaveAttribute("data-status", "failed");
+    for (const done of [0, 1, 2]) {
+      expect(screen.getByTestId(`upload-progress-step-${done}`), `step ${done + 1} was done before the failure`).toHaveAttribute("data-state", "done");
+    }
+    expect(screen.getByTestId("upload-progress-step-3"), "the step that failed").toHaveAttribute("data-state", "failed");
+    expect(screen.getByTestId("upload-progress-step-4"), "never reached").toHaveAttribute("data-state", "waiting");
+    expect(screen.getByText("RuntimeError: compute failed")).toBeInTheDocument();
+  });
+
+  it("a failure before anything was read marks the first step, and nothing as done", async () => {
+    api.identifyUpload.mockResolvedValue(identity());
+    api.commitUpload.mockResolvedValue({ status: "queued", document_id: "doc-4", org_id: "agras", company_name: "Agras SA" });
+    renderHome();
+    await dropOnHome();
+    await screen.findByText("Check before we analyse");
+    fireEvent.click(within(card()).getByTestId("upload-card-analyse"));
+    await screen.findByText("Analysing Agras SA");
+    await waitFor(() => expect(status.listeners.has("doc-4")).toBe(true));
+    act(() => status.listeners.get("doc-4")!({ id: "doc-4", status: "failed", error: "The file is empty.", period_id: null }));
+    await screen.findByText("The analysis of Agras SA failed");
+    expect(screen.getByTestId("upload-progress-step-0")).toHaveAttribute("data-state", "failed");
+    for (const later of [1, 2, 3, 4]) {
+      expect(screen.getByTestId(`upload-progress-step-${later}`)).toHaveAttribute("data-state", "waiting");
+    }
+  });
+
   it("a duplicate is refused: nothing stored, 'Already uploaded — open it' opens that period", async () => {
     api.identifyUpload.mockResolvedValue(
       identity({ duplicate: { document_id: "doc-old", period_id: "p-agras-2025", org_id: "agras" } }),
