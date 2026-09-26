@@ -67,6 +67,7 @@
     "total_assets": 39272501.03,
     "total_debt": 3640202.33,
     "total_equity": 23924083.72,
+    "total_operating_expense": 103367367.84,
     "total_operating_revenue": 111188399.69,
     "working_capital": 14463080.17
   },
@@ -138,6 +139,7 @@
     "total_assets": 125886192.51,
     "total_debt": 0.0,
     "total_equity": 106895967.91,
+    "total_operating_expense": 94617707.03,
     "total_operating_revenue": 95916161.03,
     "working_capital": 14253248.16
   },
@@ -209,6 +211,7 @@
     "total_assets": 83417653.88,
     "total_debt": 18550212.45,
     "total_equity": 40284134.73,
+    "total_operating_expense": 29280043.3,
     "total_operating_revenue": 178985.74,
     "working_capital": 48679793.08
   },
@@ -280,6 +283,7 @@
     "total_assets": 70089631.84,
     "total_debt": 27859009.64,
     "total_equity": 25224176.6,
+    "total_operating_expense": 78958595.58,
     "total_operating_revenue": 79745175.41,
     "working_capital": -7063092.84
   }

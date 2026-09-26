@@ -2568,6 +2568,12 @@
     "value": 4993979.59
    },
    {
+    "direction": "neutral",
+    "name": "total_operating_expense",
+    "unit": "RON",
+    "value": 94617707.03
+   },
+   {
     "direction": "higher",
     "name": "gross_margin",
     "unit": "ratio",
@@ -16756,6 +16762,12 @@
     "name": "ebitda_before_stock_variation",
     "unit": "RON",
     "value": 10776378.24
+   },
+   {
+    "direction": "neutral",
+    "name": "total_operating_expense",
+    "unit": "RON",
+    "value": 103367367.84
    },
    {
     "direction": "higher",

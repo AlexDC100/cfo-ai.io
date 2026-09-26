@@ -1181,6 +1181,12 @@
       "value": 5256298.14
      },
      {
+      "direction": "neutral",
+      "name": "total_operating_expense",
+      "unit": "RON",
+      "value": 46141587.81
+     },
+     {
       "direction": "higher",
       "name": "gross_margin",
       "unit": "ratio",
@@ -7570,6 +7576,12 @@
       "value": 10776378.24
      },
      {
+      "direction": "neutral",
+      "name": "total_operating_expense",
+      "unit": "RON",
+      "value": 103367367.84
+     },
+     {
       "direction": "higher",
       "name": "gross_margin",
       "unit": "ratio",
@@ -13922,6 +13934,12 @@
       "value": -29038838.12
      },
      {
+      "direction": "neutral",
+      "name": "total_operating_expense",
+      "unit": "RON",
+      "value": 29280043.3
+     },
+     {
       "direction": "higher",
       "name": "gross_margin",
       "unit": "ratio",
@@ -19704,6 +19722,12 @@
       "name": "ebitda_before_stock_variation",
       "unit": "RON",
       "value": 2263417.48
+     },
+     {
+      "direction": "neutral",
+      "name": "total_operating_expense",
+      "unit": "RON",
+      "value": 78958595.58
      },
      {
       "direction": "higher",

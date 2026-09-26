@@ -17,30 +17,38 @@ import pytest
 from engine.api import _benchmark_engine as be
 
 
+#: Since the one-EBITDA ruling (2026-09-26) the page RECOMPUTES the EBITDA
+#: margin from the one EBITDA over turnover and refuses every EBITDA figure
+#: on rows stamped before it, so the unit law is held on the stored row the
+#: page passes through as stored: net margin, on rows stamped revision 3.
+_STAMP = {"name": "credit_model_revision", "value": 3, "unit": "revision"}
+
+
 def _margin(rows):
-    return be.compute_company_metrics(rows, [])["ebitda_margin"]
+    return be.compute_company_metrics([_STAMP] + rows, [])["net_margin"]
 
 
 def test_stored_pct_is_not_doubled():
     # Already a display percentage -> passes through untouched.
-    assert _margin([{"name": "ebitda_margin", "value": 15.53, "unit": "pct"}]) == pytest.approx(15.53)
+    assert _margin([{"name": "net_margin", "value": 15.53, "unit": "pct"}]) == pytest.approx(15.53)
 
 
 def test_stored_ratio_is_scaled_once():
     # The engine's own stage_compute unit ("ratio", 0..1).
-    assert _margin([{"name": "ebitda_margin", "value": 0.1553, "unit": "ratio"}]) == pytest.approx(15.53)
+    assert _margin([{"name": "net_margin", "value": 0.1553, "unit": "ratio"}]) == pytest.approx(15.53)
 
 
 def test_legacy_row_without_unit_keeps_the_name_fallback():
     # Pre-unit-column rows still convert — the fallback exists for them.
-    assert _margin([{"name": "ebitda_margin", "value": 0.1553}]) == pytest.approx(15.53)
+    assert _margin([{"name": "net_margin", "value": 0.1553}]) == pytest.approx(15.53)
 
 
 def test_ratio_DISPLAY_metric_is_never_scaled():
     # debt_to_ebitda is displayed as a multiple, not a percent: a
     # "ratio" unit here must NOT trigger the x100 path.
     out = be.compute_company_metrics(
-        [{"name": "debt_to_ebitda", "value": 2.05, "unit": "ratio"}], [])
+        [_STAMP, {"name": "ebitda", "value": 1_000.0, "unit": "RON"},
+         {"name": "debt_to_ebitda", "value": 2.05, "unit": "ratio"}], [])
     assert out["debt_to_ebitda"] == pytest.approx(2.05)
 
 
@@ -48,7 +56,7 @@ def test_every_pct_display_metric_round_trips_from_ratio():
     """The whole pct family, not just the three that broke."""
     pct_names = [n for n, d in be.METRIC_DISPLAY.items() if d.get("fmt") == "pct"]
     assert "ebitda_margin" in pct_names and len(pct_names) >= 3
-    rows = [{"name": n, "value": 0.10, "unit": "ratio"} for n in pct_names]
+    rows = [_STAMP] + [{"name": n, "value": 0.10, "unit": "ratio"} for n in pct_names]
     out = be.compute_company_metrics(rows, [])
     for n in pct_names:
         if n in out:  # some are recomputed downstream from line items

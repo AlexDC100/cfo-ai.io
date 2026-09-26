@@ -820,6 +820,13 @@ def compute_period_metrics(
         {"name": "inventory_variation", "value": money(figures["inventory_variation"]), "unit": "RON", "direction": "neutral"},
         {"name": "ebitda_before_stock_variation", "value": money(figures["ebitda_before_stock_variation"]),
          "unit": "RON", "direction": "higher"},
+        # The margin rule's ACTIVITY basis (engine.ratios.margin_meaning:
+        # cost of sales + operating expenses + depreciation — the same sum
+        # as assembled_pl.total_operating_expense), persisted beside turnover
+        # so a reader of stored rows (the Section 9 benchmark) asks the ONE
+        # margin rule instead of printing a margin it cannot judge.
+        {"name": "total_operating_expense", "value": round(cogs + opex + depreciation, 2),
+         "unit": "RON", "direction": "neutral"},
         {"name": "gross_margin",       "value": safe(gross_profit, revenue),"unit": "ratio","direction": "higher"},
         {"name": "ebitda_margin",      "value": safe(ebitda, revenue),     "unit": "ratio", "direction": "higher"},
         # ── Every ratio with net income in it reads the ANCHOR ─────────
@@ -1286,6 +1293,9 @@ ONE_EBITDA_REVISED_METRICS: Tuple[str, ...] = (
     "operating_margin", "core_ebitda", "core_ebitda_margin", "adjusted_ebitda",
     "inventory_variation", "ebitda_before_stock_variation",
 )
+#: Rows revision 3 added that carry no EBITDA (a stored-row reader's
+#: operands): absent from a revision-2 filing, never back-filled.
+REVISION_3_ADDED_METRICS: Tuple[str, ...] = ("total_operating_expense",)
 RETIRED_METRICS: Tuple[str, ...] = (
     "ebitda_statutory_with_711", "inventory_variation_memo", "total_operating_revenue_statutory",
 )

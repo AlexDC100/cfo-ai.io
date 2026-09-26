@@ -278,6 +278,11 @@ _MONEY_FACTS = frozenset([
     # figure and declined to render it.
     "total_operating_revenue", "ebitda_cash", "ebitda_operating",
     "net_income_operating",
+    # The benchmark headline's account-121 profit (2026-09-20 headline
+    # anchor) was declared in METRIC_DISPLAY and never here — found by
+    # check_metric_declared on the one-EBITDA pass (2026-09-26), red at
+    # the base commit already.
+    "net_income_statutory",
     # serving/facts._MARKET_METRICS: all five were undeclared. A listed
     # company's price and capitalisation are money like any other.
     "price", "market_cap", "enterprise_value",

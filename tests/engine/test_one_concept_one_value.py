@@ -153,6 +153,11 @@ def test_no_name_carries_two_values_across_the_two_served_halves(served):
         metrics = served[name]["metrics"]
         for key in sorted(set(apl) & set(metrics)):
             a, m = apl[key], metrics[key]
+            if isinstance(a, dict) and "value" in a:
+                # A figure the assembler serves as a block (the one-EBITDA
+                # components: `inventory_variation` = net 711 with its
+                # provenance) — its value IS the concept.
+                a = a["value"]
             if a is None or m is None:
                 continue
             if abs(float(a) - float(m)) > 0.005:

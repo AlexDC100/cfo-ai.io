@@ -128,7 +128,8 @@ def _revised() -> set:
     the retired rows and the credit family built on them."""
     from engine.ratios import credit_model as CM
 
-    return set(CM.DEFINITION_REVISED_METRICS) | set(CM.CREDIT_FAMILY_METRICS)
+    return (set(CM.DEFINITION_REVISED_METRICS) | set(CM.CREDIT_FAMILY_METRICS)
+            | set(CM.REVISION_3_ADDED_METRICS))
 
 
 def _untouched(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -443,6 +444,10 @@ def test_every_one_ebitda_row_is_the_assembled_definition(name, case, io_forbidd
         "dscr": div(a["ebitda"], interest + bs["shortTermDebt"]),
         "dscr_with_lt_principal": div(a["ebitda"], interest + bs["longTermDebt"] / 8.0),
     }
+    apl = statements.get("assembled_pl") or {}
+    if "total_operating_expense" in apl:
+        # the margin rule's activity basis, as the assembly states it
+        want["total_operating_expense"] = round(apl["total_operating_expense"], 2)
     bad = ["%s: served %r, the definition gives %r" % (k, rows.get(k), v)
            for k, v in want.items() if rows.get(k) != v]
     assert not bad, "[%s] %s" % (name, "\n  ".join(bad))
