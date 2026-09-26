@@ -1069,6 +1069,38 @@ def _engine_gates() -> List[Gate]:
                        "one caveat node, referenced by the listbox, never repeated on an item",
                        "any other company (or an unknown one) is never offered the rent-only DSCR",
                        "the bar's link lands on the drawer for that ratio, and closing it drops the parameter")),
+        # THE EVIDENCE RECEIVERS, frontend stage CB-F2 (design C4):
+        #   evidence-lines   the account view's statement lines ARE the
+        #                    engine's comparatives lines: the served path,
+        #                    the buckets that feed each (a derived line's
+        #                    declared constituents sum to its served figure),
+        #                    every line a link can name declared, one name.
+        #   cmdbar-evidence  EVERY link the bar builds — each "Ce contează
+        #                    acum" item, every Cont row, every Răspuns row —
+        #                    opened on the receiver the page mounts
+        #                    (EvidenceDrawer ?account= / ?line=, RatiosTab
+        #                    ?ratio=, /benchmark?row=) lands on a rendered,
+        #                    HIGHLIGHTED target that is the thing it named;
+        #                    no total the engine did not serve, never 0 for
+        #                    an absent account, no retired tab slug in source.
+        #                    Plant log: docs/engine_book/gates.md.
+        Gate("evidence-lines",
+             [PY, "-m", "pytest", "tests/engine/test_evidence_lines.py", "-q", "-s"],
+             work_rx=r"GATE-WORK evidence-lines lines=(\d+)", floor=12,
+             units="evidence lines held to the engine's line registry",
+             canaries=("GATE-WORK evidence-lines lines=",)),
+        Gate("cmdbar-evidence",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx",
+              "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=22,
+             units="evidence-landing tests",
+             canaries=("scandia: each served item opens a rendered, highlighted target that IS the item",
+                       "pair: each served item opens a rendered, highlighted target that IS the item",
+                       "scandia: every served line item's Cont row opens the account view on that exact leaf (model, all rows)",
+                       "agras: every ratio answer lands on its ratio-table row (tile or not)",
+                       "a synthetic code shows its leaves and NO total the engine did not serve",
+                       "no source file links a statement tab by a slug the dashboard does not have")),
         # FLOOR SUBSTITUTES, batch C3 (owner rulings R-D5 / R-D6 / R-OTHER,
         # 2026-09-15): the valuation DCF, the AI briefing's citable
         # ratios, the RO pack's ROA check and the served period day count.

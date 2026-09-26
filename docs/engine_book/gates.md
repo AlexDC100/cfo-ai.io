@@ -10683,8 +10683,8 @@ opens that ratio's detail drawer (closing it drops the parameter);
 reverted): the ratio receiver unmounted — `× the bar's link lands on the drawer
 for that ratio, and closing it drops the parameter`; the row receiver unmounted
 — `AssertionError: expected [] to deeply equal [ 'net_margin' ]`. The account
-view (`?account=`) is not built: a Cont row lands on its statement tab with the
-account's bucket highlighted. A third plant came from the LIVE run: the first
+view (`?account=` / `?line=`) came in stage CB-F2 — see `cmdbar-evidence`
+below, which also holds every link the bar builds. A third plant came from the LIVE run: the first
 ratio receiver dropped `?ratio=` in the same commit it opened the drawer (the
 open is a state update, so `selected` still read null) — live, the URL came
 back `…&tab=ratios` with the parameter gone. The jsdom test then asserted the
@@ -10747,3 +10747,165 @@ benchmark `?row=` receiver is held in jsdom: /benchmark reads
   Capsule surface and will fail live; `run_playwright_gate.mjs` still names
   `capsule.spec.ts::ANCHORS` in MUST_PASS and floors the three capsule specs.
   They must be retired together, with the playwright baseline re-recorded.
+
+## evidence-lines
+
+The account view (`frontend/components/cfo/evidence/EvidenceDrawer.tsx`, design
+C4, stage CB-F2) opens a statement line — `?line=pl.revenue` — by printing its
+served figure and listing the accounts that feed it. It learns both from
+`frontend/lib/evidence/evidenceLines.json`, a MIRROR of the engine's
+comparatives line registry (`src/engine/comparatives/lines.py`). This gate holds
+the mirror to the registry: the served path (`assembled_<statement>.<field>`,
+the column's own `current`); the buckets (the registry's `source_buckets` — its
+coverage mechanism, "which leaves feed this line"); a derived line's declared
+constituents (`bs.total_debt` = short-term + long-term debt,
+`chart_of_accounts.py`) summing to its served figure to the cent on the three
+committed bodies; `accounts` only on the pack's `requires_anchor` line (the net
+result IS account 121); every line a link can name (the attention pack's
+statement lines, the findings' statement evidence, the bar's answers) declared;
+one name per metric (the pack's subject, else the bar's answer, else the
+registry label).
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_evidence_lines.py -q -s` |
+| work count | `GATE-WORK evidence-lines lines=(\d+)`, floor **12** (measured 14) |
+| canary | `GATE-WORK evidence-lines lines=` |
+
+**Reds on, after the repair (TC-11):** a mirror path or bucket list that
+drifts from the registry (the view would list the wrong accounts under a line,
+or print another figure); a derived line whose declared constituents do not
+sum to the served figure; a pack line, finding line or answer with no entry (its
+link would open "a line the product does not know"); a name renamed on one
+side only. **Cannot see:** the rendered view (cmdbar-evidence).
+
+**GREEN** — `PASS evidence-lines (1.3s, 14 evidence lines held to the engine's
+line registry)` (through `run_battery.main`, gate list narrowed).
+
+**PLANTS** — each through `run_battery.main`, each reverted to GREEN:
+```
+### PLANT evidence-lines — bs.cash loses its cash_fx bucket
+FAIL evidence-lines (exit 1, 1.4s)
+E   AssertionError: ('bs.cash', ['cash'], ('cash', 'cash_fx'))
+FAILED tests/engine/test_evidence_lines.py::test_every_entry_reads_the_registry_path_and_its_buckets
+### PLANT evidence-lines — the bs.ppe_net entry deleted (a finding's evidence line)
+FAIL evidence-lines (exit 1, 1.4s)
+E   AssertionError: no evidence entry for ['bs.ppe_net']
+FAILED tests/engine/test_evidence_lines.py::test_every_line_an_evidence_link_can_name_is_declared
+### PLANT evidence-lines — bs.total_debt declared as short-term debt alone
+FAIL evidence-lines (exit 1, 1.4s)
+E   AssertionError: ('bs.total_debt', 32986478.75, [16967214.51])
+FAILED tests/engine/test_evidence_lines.py::test_a_derived_line_is_the_served_sum_of_its_declared_lines
+### PLANT evidence-lines — bs.cash (ro) renamed Numerar
+FAIL evidence-lines (exit 1, 1.4s)
+E   AssertionError: ('bs.cash', 'ro', 'Numerar', 'Numerar și echivalente')
+FAILED tests/engine/test_evidence_lines.py::test_one_metric_one_name
+REVERT (each): PASS evidence-lines (1.3s, 14 evidence lines held to the engine's line registry)
+```
+Verdict: proven RED.
+
+## cmdbar-evidence
+
+EVERY link the command bar builds lands on a rendered, HIGHLIGHTED target
+(design C4, stage CB-F2). The hrefs are built by the bar's OWN view functions
+(`nowItemView`, `accountView`, `statementView`, `ratioView`) over served
+documents — the engine-composed "Ce contează acum" fixtures (Scandia, Agras, the
+comparatives pair, the letter-grade pair), the e2e period bodies, the
+comparatives pair — and each is opened on the receiver the page mounts:
+`EvidenceDrawer` for `?account=` / `?line=`, `RatiosTabContent` for `?ratio=`,
+`SectorBenchmarkView` for `/benchmark?row=`. The landing is asserted: the target
+exists, carries `data-highlighted="true"`, is the thing the link named (same
+line, same code, same key), and prints the served figure through the same
+reader. Plus the account rules (a synthetic code lists its leaves and prints no
+total the engine did not serve; account 121 prints the canonical row's served
+total; an absent code is a sentence, never a figure; provenance on every leaf;
+closing drops the parameters), EN/RO key parity, the statement spellings
+producers have used (bs / cf / pnl / p_and_l) mapping to real tab ids, and no
+source file linking a retired slug.
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx --reporter=verbose` |
+| work count | `Tests … (\d+) passed`, floor **22** (measured 25) |
+| canary | six test titles named in `scripts/run_battery.py` (each world's items, the Cont model sweep, the ratio sweep, no unserved total, no retired slug) |
+
+**Reds on, after the repair (TC-11):** an item whose evidence opens no receiver
+or a receiver that marks nothing; a Cont row that lands on its tab with its
+account nowhere (the pre-CB-F2 link: `tab` + a bucket `highlight`); a
+statement answer printing a figure other than its one reader's; a ratio key
+with no tile landing on a tab with nothing marked (the ratio table serves
+`net_debt_to_ebitda`, `debt_to_assets`, `operating_margin`, …, and the
+composites `credit_composite` / `letter_grade`, which the tiles do not carry);
+a synthetic code printed with a sum; an absent account printed as a figure; a
+link to `?tab=bs|cf|pnl|p_and_l|statements`, built at runtime or written in
+source. **Cannot see:** pixels and real scrolling, and whether the REAL
+dashboard mounts the drawer — both are the live G5 in `e2e/design/cmdbar.spec.ts`
+(below).
+
+**GREEN** — `PASS cmdbar-evidence (5.8s, 25 evidence-landing tests)`.
+
+**PLANTS** — each through `run_battery.main` (and the same file under vitest for
+the failing titles), each reverted:
+```
+### PLANT cmdbar-evidence — Cont row href = tab + bucket highlight, no account (the pre-CB-F2 link)
+FAIL cmdbar-evidence (exit 1, 7.7s)
+   × … every Cont row lands on its account, highlighted > scandia: every served line item's Cont row opens the account view on that exact leaf (model, all rows)
+   × … scandia: rendered, the requested leaf is marked and prints the served balance   (+ the two agras twins)
+TypeError: Cannot read properties of null (reading 'accounts')
+TestingLibraryElementError: Unable to find an element by: [data-testid="evidence-drawer"]
+### PLANT cmdbar-evidence — statement item href = its tab only (no line, no cited accounts)
+FAIL cmdbar-evidence (exit 1, 5.8s)
+   × … scandia / agras / pair: each served item opens a rendered, highlighted target that IS the item
+Error: /dashboard?period=5ea5…51f5&org=0a9a…0051&tab=pl opens no receiver
+### PLANT cmdbar-evidence — a synthetic code printed with the sum of its leaves as its total
+FAIL cmdbar-evidence (exit 1, 5.9s)
+   × … a synthetic code shows its leaves and NO total the engine did not serve
+AssertionError: expected <div class="space-y-0.5" …(1)>…(2)</div> to be null
+### PLANT cmdbar-evidence — an absent account printed as a figure
+FAIL cmdbar-evidence (exit 1, 5.7s)
+   × … an account absent from the book says so — never 0; a code one digit off picks nothing
+AssertionError: expected '4112 —' to be 'Account 4112 is not in this period\'s…'
+### PLANT cmdbar-evidence — RatiosTab stops passing the wanted key to the ratio table (the pre-CB-F2 receiver)
+FAIL cmdbar-evidence (exit 1, 3.1s)
+   × … agras / pair_letter items; × … scandia / agras / pair: every ratio answer lands on its ratio-table row (tile or not)
+AssertionError: …&tab=ratios&ratio=letter_grade: the letter_grade row is not marked: expected undefined to be 'true'
+### PLANT cmdbar-evidence — LearningPopover links ?tab=p_and_l again
+FAIL cmdbar-evidence (exit 1, 5.9s)
+   × … no source file links a statement tab by a slug the dashboard does not have
+### PLANT cmdbar-evidence — realStatementTab passes 'bs' through
+FAIL cmdbar-evidence (exit 1, 6.0s)
+   × … every statement spelling a producer has used opens a REAL tab
+AssertionError: bs: expected 'bs' to be 'balance_sheet'
+### PLANT cmdbar-evidence — the account view marks nothing (every data-highlighted dropped)
+FAIL cmdbar-evidence (exit 1, 5.4s)
+   × 8 titles: the items, the rendered Cont rows, the statement answers
+REVERT (each): PASS cmdbar-evidence (… 25 evidence-landing tests)
+```
+The absent-account plant was first run against an earlier assertion (a
+whitespace-bounded regex for a lone `0`) and stayed GREEN: `textContent` glues
+the planted figure to its neighbours. The assertion was rewritten to require the
+exact sentence, no total and no zero figure before landing; the `bs` plant
+likewise stayed GREEN until the spelling test was added (no bar flow passes
+`bs` today — the attention pack already serves real tab ids). Verdict: proven
+RED.
+
+### cmdbar-evidence — the live half (hermetic G5, not in the battery)
+
+`e2e/design/cmdbar.spec.ts` G5 gained two tests on the REAL dashboard (the
+production bundle built for `harness.invalid` / `engine.invalid`): typing
+`411101` and picking the Cont row opens the account view with
+`leaf:411101` highlighted and Escape drops `?account=`; picking Scandia's
+"Ce contează acum" item `financial_position` opens `line:pl.net_financial_result`
+with the cited accounts highlighted.
+
+**GREEN** — `3 passed` (G5), full spec `13 passed (30.0s)`.
+**PLANT** — the dashboard's `<EvidenceDrawer>` mount disabled (`{false && …}`),
+bundle rebuilt. **RED**:
+```
+  ✓  1 … G5 › a ratio answer opens the ratios tab with its drawer
+  ✘  2 … G5 › a Cont row opens the account view on that leaf, highlighted (20.8s)
+  ✘  3 … G5 › a 'Ce contează acum' item that names a line opens that line's evidence (20.9s)
+    Error: expect(locator).toBeVisible() failed — element(s) not found
+```
+**REVERT** (rebuilt) — `13 passed (30.0s)`. Verdict: proven RED.
+
