@@ -74,8 +74,10 @@ def _one_run_per_document_registries_are_per_test(monkeypatch):
     for name, empty in (("_EXTRA_GRANTS", dict), ("_LAST_EXTRA_REQUIRED", dict)):
         if hasattr(_usage_gate, name):
             monkeypatch.setattr(_usage_gate, name, empty())
-    # The quota ledger's failed settlement writes, kept for retry.
+    # The quota ledger's failed settlement writes, kept for retry — and the
+    # settling rows it has already reported (once per process, at ERROR).
     monkeypatch.setattr(_quota_ledger, "_PENDING", {})
+    monkeypatch.setattr(_quota_ledger, "_SETTLING_REPORTED", set())
     yield
 
 

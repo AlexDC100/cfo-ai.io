@@ -31,6 +31,20 @@
 --                   whose owner stopped heartbeating is released (the
 --                   engine's sweep, scripts/recompute_document_quota.py).
 --     nonro_*       the same for the non-RO meter's reservation.
+--     settling_at   THE MARK BEFORE THE MOVE (P1 RESTART, second shape,
+--                   2026-09-26). A settlement is two writes — the meter RPC
+--                   and this row's record. A record that failed followed by
+--                   a restart left a row reading "reserved" for a meter that
+--                   had already moved, and the sweep settled the finished
+--                   analysis as a commit AGAIN (a paid extra billed twice).
+--                   The engine now stamps settling_at (compare-and-set on
+--                   reservation_id) before every commit / release RPC; a row
+--                   reserved + settling + not committed is "the meter may
+--                   already have moved": never released, committed, adopted
+--                   or metered again by the engine — listed by
+--                   scripts/recompute_document_quota.py for a human. Retired
+--                   once commit_user_upload takes p_document_id and writes
+--                   this row in the same statement.
 --   Backfill: every document analysed before this table existed is taken to
 --   have been counted (the meter counted analysed documents; a re-run of an
 --   analysed document was already a free correction).
@@ -71,6 +85,7 @@ create table if not exists document_quota_ledger (
   release_token      text,
   owner              text,
   heartbeat_at       timestamptz,
+  settling_at        timestamptz,
   nonro_user_id      uuid,
   nonro_was_extra    boolean not null default false,
   nonro_month        text,
@@ -78,6 +93,9 @@ create table if not exists document_quota_ledger (
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
 );
+
+-- A database that carries the table from before the mark existed.
+alter table document_quota_ledger add column if not exists settling_at timestamptz;
 
 create index if not exists document_quota_ledger_outstanding_idx
   on document_quota_ledger (heartbeat_at)

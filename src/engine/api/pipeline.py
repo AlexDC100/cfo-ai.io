@@ -3828,7 +3828,7 @@ def _persist_sku_analysis(doc: Dict[str, Any], parsed: Dict[str, Any], narrative
 
 
 class _QuotaRun:
-    __slots__ = ("user_id", "was_extra", "doc_reserved", "month",
+    __slots__ = ("user_id", "was_extra", "doc_reserved", "month", "reservation_id",
                  "nonro_user", "nonro_reserved", "nonro_extra", "nonro_month")
 
     def __init__(self) -> None:
@@ -3837,6 +3837,9 @@ class _QuotaRun:
         self.doc_reserved = False
         #: The month the reservation was made in — where it settles.
         self.month: Optional[str] = None
+        #: The ledger row's `reservation_id` this run holds — the
+        #: settlement's compare-and-set key (`_quota_ledger.mark_settling`).
+        self.reservation_id: Optional[str] = None
         self.nonro_user: Optional[str] = None
         self.nonro_reserved = False
         self.nonro_extra = False
@@ -3861,8 +3864,12 @@ def _register_quota_run(document_id: str, *, user_id: str, was_extra: bool,
         run.was_extra = bool(was_extra)
         run.doc_reserved = True
         run.month = month
-    _quota_ledger.record_reservation(str(document_id), user_id=str(user_id),
-                                     was_extra=bool(was_extra), month=month)
+    rid = _quota_ledger.record_reservation(str(document_id), user_id=str(user_id),
+                                           was_extra=bool(was_extra), month=month)
+    with _QUOTA_RUNS_LOCK:
+        run = _QUOTA_RUNS.get(str(document_id))
+        if run is not None:
+            run.reservation_id = rid
 
 
 def _register_nonro_reservation(document_id: str, *, user_id: str, was_extra: bool) -> None:
@@ -3886,6 +3893,8 @@ def _release_run_reservation(document_id: str, run: Optional["_QuotaRun"]) -> No
     if run is None:
         return
     from . import _usage_gate as _ug
+    if run.doc_reserved or run.nonro_reserved:
+        _quota_ledger.mark_settling(str(document_id), reservation_id=run.reservation_id)
     if run.doc_reserved and run.user_id:
         _ug.release_document(run.user_id, was_extra=run.was_extra, month=run.month)
     if run.nonro_reserved and run.nonro_user:
@@ -3940,8 +3949,24 @@ def _settle_orphaned_reservation(row: Dict[str, Any]) -> None:
         with its backstops: an archived duplicate, or a book already counted
         (a later run of it, a re-upload), is released, never counted twice.
         Releasing it would have left a book the banner counts and the meter
-        never did (verifier lens S, the restart fix's "not analysed")."""
+        never did (verifier lens S, the restart fix's "not analysed");
+      * the row reads SETTLING (`_quota_ledger.is_settling`: reserved,
+        stamped, not committed) → NOTHING. Its owner had begun moving the
+        meter — a commit that landed with its record lost, or a release —
+        and the restart came before the record. The meter may already have
+        moved; releasing or committing it here is the double count / the
+        double `record_metered_extra_doc` (P1 RESTART, second shape). Logged
+        at ERROR for scripts/recompute_document_quota.py. The sweep never
+        hands such a row here (it skips them before claiming); this is the
+        guard for any other caller."""
     doc_id = str(row.get("document_id") or "")
+    if _quota_ledger.is_settling(row):
+        logger.error("[pipeline][billing] quota: REFUSED to settle the orphaned reservation of %s — "
+                     "it was SETTLING when its owner died (reservation %s, user=%s month=%s "
+                     "extra=%s): the meter may already have moved. Left for the restore script.",
+                     doc_id, row.get("reservation_id"), row.get("user_id"), row.get("month"),
+                     bool(row.get("was_extra")))
+        return
     if not doc_id or not _orphan_analysis_finished(doc_id):
         _quota_ledger.release_rpcs(row)
         return
@@ -3950,6 +3975,7 @@ def _settle_orphaned_reservation(row: Dict[str, Any]) -> None:
     run.was_extra = bool(row.get("was_extra"))
     run.doc_reserved = bool(run.user_id)
     run.month = row.get("month") or None
+    run.reservation_id = str(row.get("reservation_id") or "") or None
     if row.get("nonro_reserved_at") and row.get("nonro_user_id"):
         run.nonro_user = str(row.get("nonro_user_id"))
         run.nonro_reserved = True
@@ -4034,7 +4060,8 @@ def _commit_pipeline_quota(document_id: str, *, success: bool) -> None:
                 "or billed", document_id,
             )
             settle_as_success = False
-        if settle_as_success and run.doc_reserved and _run_book_already_counted(document_id):
+        if settle_as_success and run.doc_reserved and _run_book_already_counted(
+                document_id, own_reservation_id=run.reservation_id):
             # ONE COUNT PER BOOK, whatever entry reserved (verifier lens S):
             # the document — or a live copy of the same book — was already
             # counted (the quota ledger). Released, never committed or billed.
@@ -4043,6 +4070,20 @@ def _commit_pipeline_quota(document_id: str, *, success: bool) -> None:
                 "already counted; released instead, never counted or billed", document_id,
             )
             settle_as_success = False
+
+        # THE MARK BEFORE THE MOVE (P1 RESTART, second shape, 2026-09-26).
+        # The meter RPC and its record are two writes. A record that failed
+        # (kept in `_quota_ledger._PENDING` and retried) followed by a
+        # restart left a row that read "reserved" for a meter that had
+        # already moved, and the new process's sweep settled the finished
+        # analysis as a commit AGAIN — a paid extra billed twice. The row is
+        # stamped SETTLING (compare-and-set on this run's reservation id)
+        # before any RPC below; a settling row is never settled by the sweep,
+        # never adopted, and its book is never metered again — it waits for
+        # the restore script. Best-effort like every ledger write: a failed
+        # stamp is logged and the settlement proceeds.
+        if run.doc_reserved or run.nonro_reserved:
+            _quota_ledger.mark_settling(document_id, reservation_id=run.reservation_id)
 
         if run.doc_reserved and run.user_id:
             if settle_as_success:
@@ -4135,17 +4176,20 @@ def _commit_pipeline_quota(document_id: str, *, success: bool) -> None:
         )
 
 
-def _run_book_already_counted(document_id: str) -> bool:
+def _run_book_already_counted(document_id: str, *, own_reservation_id: Optional[str] = None) -> bool:
     """The settlement's backstop: the document as it is NOW — is its book
     already counted? Unknown (unreadable) → False: the run's own
-    reservation is settled as it always was."""
+    reservation is settled as it always was. `own_reservation_id`: the
+    reservation THIS settlement holds — its settling mark (the sweep's
+    claim, or this run's own stamp) is not another settlement's."""
     try:
         with _supabase.admin() as ac:
             found = ac.select("documents", filters={"id": f"eq.{document_id}"}, single=True) or []
     except Exception:  # noqa: BLE001
         logger.exception("[pipeline] settlement: could not re-read document %s", document_id)
         return False
-    return bool(_book_already_counted(dict(found[0]) if found else None))
+    return bool(_book_already_counted(dict(found[0]) if found else None,
+                                      own_reservation_id=own_reservation_id))
 
 
 def _enter_run(doc: Dict[str, Any], user_id: str) -> "_doc_dedupe.Entry":
@@ -4246,21 +4290,25 @@ def _release_unstarted(entry: "_doc_dedupe.Entry", document_id: str) -> None:
     _release_run_reservation(document_id, _take_quota_run(document_id))
 
 
-def _book_already_counted(row: Optional[Dict[str, Any]]) -> Optional[bool]:
+def _book_already_counted(row: Optional[Dict[str, Any]], *,
+                          own_reservation_id: Optional[str] = None) -> Optional[bool]:
     """Has the plan already COUNTED this document's book? True when the
     document itself, or any live copy of the same book (company, uploader,
     content, scope, period — `_doc_dedupe.book_copy_ids`), carries a commit
     in the quota ledger (`_quota_ledger`, a table the browser cannot
-    write). None when that cannot be read."""
+    write) — or a reservation whose settlement is undetermined
+    (`_quota_ledger.is_settling`: the meter may have counted it; never
+    metered again, the restore script rules). None when that cannot be
+    read."""
     if not row:
         return None
     ids = _doc_dedupe.book_copy_ids(row)
     if ids is None:
         return None
-    committed = _quota_ledger.committed_ids(ids)
-    if committed is None:
+    counted = _quota_ledger.counted_ids(ids, except_reservation=own_reservation_id)
+    if counted is None:
         return None
-    return bool(committed)
+    return bool(counted)
 
 
 def _needs_metering(entry: "_doc_dedupe.Entry") -> bool:

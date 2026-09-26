@@ -53,6 +53,31 @@ database without the migration, a transient 5xx): the caller then decides
 by the status rule it used before and logs it. Every write is best-effort
 and logged at ERROR — a settlement is never undone because its record could
 not be written.
+
+SETTLING (P1 RESTART, second shape, 2026-09-26)
+===============================================
+A settlement is TWO writes: the meter RPC (`commit_user_upload` /
+`release_user_upload`) and this row's record (`committed_at` /
+`released_at`). When the record failed and the process restarted before the
+in-process retry (`_PENDING`) landed, the row still read "reserved", its
+heartbeat stopped, and the sweep settled the finished analysis AS A COMMIT
+again: uploads + 2, and a confirmed extra billed twice through
+`record_metered_extra_doc`. The property "never settled a second time by
+the sweep" held only in-process.
+
+Now every settlement stamps `settling_at` on the row (`mark_settling`,
+compare-and-set on `reservation_id`) BEFORE the meter moves. A row that
+reads reserved + settling + no `committed_at` (`is_settling`) means "the
+meter MAY already have moved": nothing automated moves it again — the
+sweep neither releases nor commits it, adoption refuses it, and a run of
+its book is never metered again (`counted_ids`). It is logged at ERROR
+once per process, for scripts/recompute_document_quota.py, which lists it
+for a human to rule on. The sweep itself CLAIMS an orphan with the same
+mark (it used to pre-clear the row as *released* — wrong on its face for
+one it was about to COMMIT, and it defeated the mark) and lets its
+callback record the terminal state. The one-transaction fix —
+`commit_user_upload(p_document_id)` writing this row in the same
+statement — is the RPC change that retires the mark.
 """
 
 from __future__ import annotations
@@ -63,7 +88,7 @@ import socket
 import threading
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Dict, Iterable, List, Optional, Set
+from typing import Any, Callable, Dict, Iterable, List, Optional, Set, Tuple
 
 from . import _supabase
 
@@ -121,6 +146,22 @@ def committed_ids(document_ids: Iterable[Any]) -> Optional[Set[str]]:
     return {d for d, r in rows.items() if r.get("committed_at")}
 
 
+def counted_ids(document_ids: Iterable[Any], *,
+                except_reservation: Optional[str] = None) -> Optional[Set[str]]:
+    """The ids among `document_ids` the plan COUNTED — or whose settlement
+    is undetermined (`is_settling`: the meter may have counted it). Neither
+    is ever metered again. `except_reservation`: the caller's OWN
+    reservation, which it is settling right now — its settling mark is the
+    caller's, not evidence of another settlement. None = unreadable."""
+    rows = rows_for(document_ids)
+    if rows is None:
+        return None
+    return {d for d, r in rows.items()
+            if r.get("committed_at")
+            or (is_settling(r) and not (except_reservation
+                                        and str(r.get("reservation_id")) == str(except_reservation)))}
+
+
 def committed_document_ids_for_user(user_id: str) -> Optional[Set[str]]:
     """Every document counted to `user_id`. None = unreadable."""
     try:
@@ -151,8 +192,9 @@ def all_committed_ids() -> Optional[Set[str]]:
         return None
 
 
-#: What a settled reservation leaves behind (committed or released).
-_CLEARED = {"reserved_at": None, "nonro_reserved_at": None, "owner": None}
+#: What a settled reservation leaves behind (committed or released): no
+#: outstanding reservation, no owner, no settling mark.
+_CLEARED = {"reserved_at": None, "nonro_reserved_at": None, "owner": None, "settling_at": None}
 
 # SETTLEMENT WRITES THAT FAILED. The meter already moved (committed or
 # released); only the ledger row still reads "reserved". Left alone, its
@@ -213,22 +255,28 @@ def record_commit(document_id: str, *, user_id: str, was_extra: bool, month: str
             "heartbeated and retried until it lands", document_id, user_id)
 
 
-def record_reservation(document_id: str, *, user_id: str, was_extra: bool, month: str) -> None:
+def record_reservation(document_id: str, *, user_id: str, was_extra: bool,
+                       month: str) -> Optional[str]:
     """THIS process holds a reservation of `document_id`'s slot (a run's,
-    or a confirmed extra granted to it)."""
+    or a confirmed extra granted to it). Returns the `reservation_id`
+    written — the settlement's compare-and-set key (`mark_settling`) — or
+    None when the write failed."""
     now = _now_iso()
+    rid = uuid.uuid4().hex
     try:
         with _supabase.admin() as ac:
             ac.upsert(TABLE, {
                 "document_id": str(document_id), "user_id": str(user_id), "month": str(month),
-                "was_extra": bool(was_extra), "reservation_id": uuid.uuid4().hex,
+                "was_extra": bool(was_extra), "reservation_id": rid,
                 "reserved_at": now, "owner": PROCESS_ID, "heartbeat_at": now,
-                "release_token": None, "updated_at": now,
+                "release_token": None, "settling_at": None, "updated_at": now,
             }, on_conflict="document_id")
     except Exception:  # noqa: BLE001 — the in-process ledger still settles it
         logger.exception(
             "[quota-ledger] could not record the reservation of document %s (user=%s) — a "
             "restart before it settles would leave it outstanding", document_id, user_id)
+        return None
+    return rid
 
 
 def record_nonro_reservation(document_id: str, *, user_id: str, was_extra: bool, month: str) -> None:
@@ -256,6 +304,58 @@ def record_release(document_id: str) -> None:
                          "and retried until it lands", document_id)
 
 
+def is_settling(row: Optional[Dict[str, Any]]) -> bool:
+    """Reserved, stamped `settling_at`, not committed: the process holding
+    it began moving the meter and the record never landed. The meter MAY
+    already have moved — nothing automated moves it again."""
+    return bool(row and row.get("reserved_at") and row.get("settling_at")
+                and not row.get("committed_at"))
+
+
+def mark_settling(document_id: str, *, reservation_id: Optional[str]) -> bool:
+    """Stamp `document_id`'s outstanding reservation SETTLING — the meter is
+    about to move for it. Compare-and-set on `reservation_id` when the
+    caller holds it (a run's own reservation), else on the row still being
+    reserved (a grant). Best-effort: False, logged at ERROR, when the write
+    failed — the settlement proceeds as it always did; only the restart
+    protection is missing for this one."""
+    now = _now_iso()
+    filters = {"document_id": f"eq.{document_id}", "reserved_at": "not.is.null"}
+    if reservation_id:
+        filters["reservation_id"] = f"eq.{reservation_id}"
+    try:
+        with _supabase.admin() as ac:
+            ac.update(TABLE, {"settling_at": now, "updated_at": now}, filters=filters)
+    except Exception:  # noqa: BLE001
+        logger.exception(
+            "[quota-ledger][billing] could not mark document %s's reservation as settling — the "
+            "meter moves without it; a restart before its record lands could settle it twice",
+            document_id)
+        return False
+    return True
+
+
+#: The settling rows THIS process has reported (once each, at ERROR).
+_SETTLING_REPORTED: Set[Tuple[str, str]] = set()
+_SETTLING_LOCK = threading.Lock()
+
+
+def _report_settling(row: Dict[str, Any]) -> None:
+    """A stale reservation the sweep must leave alone — for the operator."""
+    key = (str(row.get("document_id") or ""), str(row.get("reservation_id") or ""))
+    with _SETTLING_LOCK:
+        if key in _SETTLING_REPORTED:
+            return
+        _SETTLING_REPORTED.add(key)
+    logger.error(
+        "[quota-ledger][billing] document %s: reservation %s (user=%s month=%s extra=%s, owner %s) "
+        "was SETTLING when its owner stopped heartbeating (last %s) — the meter may already have "
+        "moved (commit or release) and the record never landed. Neither released nor committed "
+        "here; scripts/recompute_document_quota.py lists it for a human to rule on.",
+        key[0], key[1], row.get("user_id"), row.get("month"), bool(row.get("was_extra")),
+        row.get("owner"), row.get("heartbeat_at"))
+
+
 def outstanding(document_id: str) -> Optional[Dict[str, Any]]:
     """`document_id`'s outstanding reservation row, or None (none, or
     unreadable)."""
@@ -279,6 +379,13 @@ def adopt(document_id: str, *, user_id: str, take_extra: bool) -> Optional[Dict[
     row = outstanding(document_id)
     if row is None or str(row.get("user_id") or "") != str(user_id):
         return None
+    if is_settling(row):
+        # The meter may already have moved for it: adopting it would let
+        # this run's terminal move it a second time. The caller's
+        # `_needs_metering` reads the same row as counted (`counted_ids`).
+        logger.error("[quota-ledger][billing] document %s: refused to adopt a SETTLING reservation "
+                     "(%s) — its settlement is undetermined", document_id, row.get("reservation_id"))
+        return None
     if row.get("was_extra") and not take_extra:
         return None
     old_rid = row.get("reservation_id")
@@ -290,7 +397,7 @@ def adopt(document_id: str, *, user_id: str, take_extra: bool) -> Optional[Dict[
             ac.update(TABLE, {"reservation_id": new_rid, "owner": PROCESS_ID,
                               "heartbeat_at": _now_iso(), "updated_at": _now_iso()},
                       filters={"document_id": f"eq.{document_id}", "reservation_id": f"eq.{old_rid}",
-                               "reserved_at": "not.is.null"})
+                               "reserved_at": "not.is.null", "settling_at": "is.null"})
         back = (rows_for([document_id]) or {}).get(str(document_id)) or {}
     except Exception:  # noqa: BLE001 — not adopted; the caller reserves, the sweep frees the orphan
         logger.exception("[quota-ledger] could not take over %s's reservation", document_id)
@@ -321,7 +428,10 @@ def heartbeat(document_ids: Iterable[Any]) -> None:
 
 def release_rpcs(row: Dict[str, Any]) -> None:
     """Give an orphaned reservation back to the meter, in the month it was
-    made in (the slot, and the non-RO slot when it holds one)."""
+    made in (the slot, and the non-RO slot when it holds one), and record
+    the release (`record_release`: a failed record is kept and retried like
+    every settlement write). The caller (`sweep_stale`) has already claimed
+    the row SETTLING."""
     from . import _usage_gate as _ug
     _ug.release_document(str(row.get("user_id")), was_extra=bool(row.get("was_extra")),
                          month=row.get("month") or None)
@@ -329,11 +439,13 @@ def release_rpcs(row: Dict[str, Any]) -> None:
         _ug.release_nonro_document(str(row.get("nonro_user_id")),
                                    was_extra=bool(row.get("nonro_was_extra")),
                                    month=row.get("nonro_month") or None)
+    record_release(str(row.get("document_id") or ""))
 
 
 def stale_outstanding(*, now: Optional[datetime] = None,
                       stale_after_s: int = STALE_AFTER_S) -> Optional[List[Dict[str, Any]]]:
-    """Outstanding reservations whose owner stopped heartbeating. None =
+    """Outstanding reservations whose owner stopped heartbeating — the
+    SETTLING ones included (the restore script reports them). None =
     unreadable."""
     cutoff = ((now or datetime.now(timezone.utc)) - timedelta(seconds=stale_after_s)).isoformat()
     try:
@@ -364,44 +476,54 @@ def sweep_stale(*, is_live: Callable[[str], bool],
                 release: Callable[[Dict[str, Any]], None] = release_rpcs,
                 now: Optional[datetime] = None,
                 stale_after_s: int = STALE_AFTER_S) -> List[Dict[str, Any]]:
-    """Release every reservation whose owner stopped heartbeating and that
+    """Settle every reservation whose owner stopped heartbeating and that
     is not live here (`is_live(document_id)`: in flight, in the in-process
-    ledger, or a grant this process holds). Returns the rows released.
+    ledger, or a grant this process holds) through `release` — the meter
+    release, or the engine's orphan settlement (a commit when the analysis
+    finished). Returns the rows settled.
 
-    Compare-and-set: the row is cleared only while it still carries the
-    reservation read (`reservation_id`), stamped with a fresh
-    `release_token`, and the meter is released only by the sweeper whose
-    token is read back — two sweepers release one reservation once."""
-    released: List[Dict[str, Any]] = []
+    Compare-and-set: the row is CLAIMED — stamped `settling_at` and a fresh
+    `release_token` — only while it still carries the reservation read
+    (`reservation_id`) and is not settling, and `release` runs only in the
+    sweeper whose token is read back: two sweepers settle one reservation
+    once, and a run that adopted it first is never touched. `release`
+    records the terminal state (`released_at` / `committed_at`); a row
+    whose settlement began and never recorded stays SETTLING (`is_settling`)
+    and is skipped — reported at ERROR once — for the restore script: the
+    meter may already have moved for it."""
+    settled: List[Dict[str, Any]] = []
     for row in stale_outstanding(now=now, stale_after_s=stale_after_s) or []:
         doc = str(row.get("document_id") or "")
         rid = row.get("reservation_id")
         if not doc or not rid or is_live(doc):
             continue
+        if is_settling(row):
+            _report_settling(row)
+            continue
         token = uuid.uuid4().hex
         try:
             with _supabase.admin() as ac:
-                ac.update(TABLE, {**_CLEARED, "released_at": _now_iso(), "release_token": token,
-                                  "updated_at": _now_iso()},
+                ac.update(TABLE, {"settling_at": _now_iso(), "release_token": token,
+                                  "owner": PROCESS_ID, "updated_at": _now_iso()},
                           filters={"document_id": f"eq.{doc}", "reservation_id": f"eq.{rid}",
-                                   "reserved_at": "not.is.null"})
+                                   "reserved_at": "not.is.null", "settling_at": "is.null"})
             back = (rows_for([doc]) or {}).get(doc) or {}
         except Exception:  # noqa: BLE001 — the next sweep retries
-            logger.exception("[quota-ledger] could not release the stale reservation of %s", doc)
+            logger.exception("[quota-ledger] could not claim the stale reservation of %s", doc)
             continue
         if back.get("release_token") != token:
-            continue  # another sweeper released it (or the run adopted it)
+            continue  # another sweeper claimed it (or the run adopted it)
         try:
             release(row)
         except Exception:  # noqa: BLE001
-            logger.exception("[quota-ledger][billing] the meter release of %s's stale reservation "
-                             "failed — the slot stays reserved until the restore script", doc)
+            logger.exception("[quota-ledger][billing] settling %s's stale reservation failed — the "
+                             "row stays SETTLING (the meter may have moved) for the restore script", doc)
             continue
-        logger.warning("[quota-ledger] released the reservation of document %s (user=%s month=%s "
+        logger.warning("[quota-ledger] settled the reservation of document %s (user=%s month=%s "
                        "extra=%s): its owner %s stopped heartbeating", doc, row.get("user_id"),
                        row.get("month"), bool(row.get("was_extra")), row.get("owner"))
-        released.append(row)
-    return released
+        settled.append(row)
+    return settled
 
 
 _MAINTENANCE: Dict[str, Any] = {"thread": None}

@@ -367,6 +367,7 @@ def _expire_extra_grants() -> None:
     for doc, g in stale:
         logger.info("[usage-gate] extra-document grant for %s expired unclaimed — "
                     "reservation released, nothing billed", doc)
+        _quota_ledger.mark_settling(doc, reservation_id=None)  # the mark before the move
         release_document(g.user_id, was_extra=True, month=g.decision.month or None)
         _quota_ledger.record_release(doc)
 
@@ -422,6 +423,7 @@ def cancel_extra_grant(document_id: str) -> None:
     with _GRANTS_LOCK:
         grant = _EXTRA_GRANTS.pop(str(document_id), None)
     if grant is not None:
+        _quota_ledger.mark_settling(str(document_id), reservation_id=None)  # the mark before the move
         release_document(grant.user_id, was_extra=True, month=grant.decision.month or None)
         _quota_ledger.record_release(str(document_id))
 

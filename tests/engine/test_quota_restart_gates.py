@@ -31,6 +31,22 @@ WHAT THESE RED ON, with the defect repaired (TC-11):
   * a live run's (or a fresh heartbeat's) reservation being released;
   * one stale reservation released twice;
   * a lost confirmed extra re-opening the dialog, or never given back.
+
+THE MARK BEFORE THE MOVE (the second RESTART defect, 2026-09-26). The
+settlement is two writes — the meter RPC and the ledger record. A record
+that failed (kept in `_PENDING`, retried in-process) followed by a restart
+left a row reading "reserved" for a meter that had already moved; the new
+process's sweep found the analysis finished and settled it AS A COMMIT
+again: uploads + 2, a confirmed extra billed twice through
+`record_metered_extra_doc`. The `settling_at` gates below red on:
+  * a finished analysis committed a second time, or a paid extra billed a
+    second time, by the sweep after a restart;
+  * the meter moving before the row is stamped SETTLING;
+  * a book whose settlement is undetermined being metered again (a retry,
+    a failed free correction's retry), or its row adopted;
+  * the sweep's OWN commit — whose record failed — counting the book twice;
+  * the restore script releasing, or failing to report, a settling row;
+  * a settled row (committed or released) still carrying the mark.
 """
 from __future__ import annotations
 
@@ -365,3 +381,194 @@ def test_the_restore_keeps_a_live_runs_reservation(world, restore):
     assert row["uploads_reserved"] == 1
     assert restore.main(["--apply", "--no-hash-missing"]) == 0
     assert row["uploads_reserved"] == 1 and world["meter"].reserved == 1
+
+
+# ── THE MARK BEFORE THE MOVE (the second RESTART defect) ──────────────
+
+
+def _commit_record_fails(world, monkeypatch):
+    """The ledger's COMMIT record (the upsert carrying `committed_at`)
+    fails — a transient PostgREST 5xx after the meter RPC landed. Returns
+    the restore of the real upsert."""
+    real_upsert = world["db"].upsert
+
+    def flaky(table, rows, **kw):
+        if table == _quota_ledger.TABLE and rows.get("committed_at"):
+            raise RuntimeError("PostgREST 503")
+        return real_upsert(table, rows, **kw)
+
+    monkeypatch.setattr(world["db"], "upsert", flaky)
+    return lambda: monkeypatch.setattr(world["db"], "upsert", real_upsert)
+
+
+def _restart_with_pending_lost():
+    """A restart before the in-process retry of the failed record landed."""
+    _restart()
+    _quota_ledger._PENDING.clear()
+
+
+def _sweep(world, minutes=11):
+    return _quota_ledger.sweep_stale(is_live=pipeline._reservation_is_live,
+                                     release=pipeline._settle_orphaned_reservation, now=_later(minutes))
+
+
+def test_r1_a_commit_whose_record_was_lost_in_a_restart_is_never_committed_again_by_the_sweep(
+        world, monkeypatch, caplog):
+    """probe_restart.py::test_R1 (laneA verify, 2026-09-26). commit_user_upload
+    landed, the ledger write after it failed, the process restarted before
+    the retry landed. The row reads reserved; the sweep finds the analysis
+    finished — and must NOT settle it as a commit again."""
+    import logging
+    meter = world["meter"]
+    world["db"].rows("documents").append(_doc("book", h=EEI))
+    world["post"]("/api/pipeline/run", {"document_id": "book"})
+    restore_upsert = _commit_record_fails(world, monkeypatch)
+    world["finish"]("book", "analyzed")
+    assert meter.snapshot()["uploads"] == 1 and _ledger(world, "book")["reserved_at"]
+    restore_upsert()
+    _restart_with_pending_lost()
+    with caplog.at_level(logging.ERROR, logger="engine.api._quota_ledger"):
+        assert _sweep(world) == []
+    assert meter.snapshot()["uploads"] == 1, ("the finished analysis was committed a second time", meter.calls)
+    assert meter.calls == ["reserve_user_upload", "commit_user_upload"], meter.calls
+    row = _ledger(world, "book")
+    assert row["reserved_at"] and row["settling_at"] and row.get("committed_at") is None, (
+        "the evidence for the restore script was cleared", row)
+    errors = [r for r in caplog.records if r.levelno >= logging.ERROR and "SETTLING" in r.getMessage()
+              and "book" in r.getMessage()]
+    assert errors, "a settling row the sweep left alone must be reported at ERROR"
+    # once per process: a second tick neither settles nor reports it again
+    caplog.clear()
+    with caplog.at_level(logging.ERROR, logger="engine.api._quota_ledger"):
+        assert _sweep(world, 20) == []
+    assert not [r for r in caplog.records if "SETTLING" in r.getMessage()]
+    assert meter.snapshot() == {"uploads": 1, "reserved": 0, "extra_billed": 0, "pending": 0}
+
+
+def test_r2_a_paid_extra_whose_record_was_lost_in_a_restart_is_billed_once(world, monkeypatch):
+    """probe_restart.py::test_R2: the same at the cap, after Confirm —
+    `record_metered_extra_doc` was called twice with reservation_id='book'."""
+    meter = world["meter"]
+    meter.uploads = 15
+    world["db"].rows("documents").append(_doc("book", h=EEI))
+    assert world["post"]("/api/pipeline/run", {"document_id": "book"}).status_code == 402
+    assert _confirm(world, "book").status_code == 200
+    assert world["post"]("/api/pipeline/run", {"document_id": "book"}).json()["status"] == "queued"
+    restore_upsert = _commit_record_fails(world, monkeypatch)
+    world["finish"]("book", "analyzed")
+    assert meter.snapshot() == {"uploads": 16, "reserved": 0, "extra_billed": 1, "pending": 0}
+    restore_upsert()
+    _restart_with_pending_lost()
+    for _ in range(2):  # two containers sweeping
+        assert _sweep(world) == []
+    assert meter.snapshot() == {"uploads": 16, "reserved": 0, "extra_billed": 1, "pending": 0}, meter.calls
+    assert [b["reservation_id"] for b in world["billed"]] == ["book"], ("billed twice", world["billed"])
+
+
+def test_the_settling_mark_lands_before_the_meter_moves(world, monkeypatch):
+    """Every settlement stamps the row BEFORE the RPC that moves the meter
+    — a commit and a release alike — with a compare-and-set on the run's
+    own reservation id; a settled row carries no mark."""
+    meter = world["meter"]
+    seen = {}
+    real = meter.rpc
+
+    def rpc(name, payload):
+        if name in ("commit_user_upload", "release_user_upload"):
+            row = _ledger(world, payload_doc[0])
+            seen[name] = (row.get("settling_at"), row.get("reservation_id"))
+        return real(name, payload)
+
+    payload_doc = ["book"]
+    monkeypatch.setattr(_usage_gate, "_rpc", rpc)
+    world["db"].rows("documents").extend([_doc("book", h=EEI), _doc("bad", h="%064x" % 5)])
+    world["post"]("/api/pipeline/run", {"document_id": "book"})
+    rid = _ledger(world, "book")["reservation_id"]
+    assert rid and pipeline._QUOTA_RUNS["book"].reservation_id == rid, "the run holds its ledger reservation id"
+    world["finish"]("book", "analyzed")
+    assert seen["commit_user_upload"] == (seen["commit_user_upload"][0], rid) and seen["commit_user_upload"][0], (
+        "the meter moved before the row was stamped SETTLING", seen)
+    row = _ledger(world, "book")
+    assert row["committed_at"] and row["reserved_at"] is None and row["settling_at"] is None, row
+    payload_doc[0] = "bad"
+    world["post"]("/api/pipeline/run", {"document_id": "bad"})
+    world["finish"]("bad", "failed")
+    assert seen["release_user_upload"][0], ("released before the row was stamped SETTLING", seen)
+    row = _ledger(world, "bad")
+    assert row["released_at"] and row["reserved_at"] is None and row["settling_at"] is None, row
+    assert meter.snapshot() == {"uploads": 1, "reserved": 0, "extra_billed": 0, "pending": 0}
+
+
+def test_a_book_whose_settlement_is_undetermined_is_never_metered_again(world, monkeypatch):
+    """After R1 (reserved + settling, record lost, restart): the meter may
+    already have counted the book. Its re-run is unmetered; a free
+    correction that FAILS and the retry after it are still unmetered — the
+    status rule would have counted it again — and the row keeps its
+    evidence for the restore script. Adoption refuses it outright."""
+    meter = world["meter"]
+    world["db"].rows("documents").append(_doc("book", h=EEI))
+    world["post"]("/api/pipeline/run", {"document_id": "book"})
+    restore_upsert = _commit_record_fails(world, monkeypatch)
+    world["finish"]("book", "analyzed")
+    restore_upsert()
+    _restart_with_pending_lost()
+    before = dict(_ledger(world, "book"))
+    assert _quota_ledger.adopt("book", user_id=OWNER, take_extra=True) is None
+    assert _ledger(world, "book") == before, "adoption touched a settling row"
+    calls = list(meter.calls)
+    assert world["post"]("/api/pipeline/retry", {"document_id": "book"}).json()["status"] == "queued"
+    world["finish"]("book", "failed")
+    assert world["post"]("/api/pipeline/retry", {"document_id": "book"}).json()["status"] == "queued"
+    world["finish"]("book", "analyzed")
+    assert meter.calls == calls, ("a book whose settlement is undetermined was metered again", meter.calls)
+    assert meter.snapshot() == {"uploads": 1, "reserved": 0, "extra_billed": 0, "pending": 0}
+    row = _ledger(world, "book")
+    assert row["reserved_at"] and row["settling_at"] and row.get("committed_at") is None, row
+
+
+def test_the_sweeps_own_commit_whose_record_was_lost_never_counts_the_book_twice(world, monkeypatch):
+    """The sweep settles an orphan whose analysis finished as a commit; ITS
+    record fails; restart. The sweep used to pre-clear the row as
+    *released* before committing — so the row read released, the meter read
+    committed, and the failed free correction's retry metered the book
+    again. Now the sweep CLAIMS the row SETTLING and leaves it so."""
+    meter = world["meter"]
+    _run_finished_but_its_settlement_was_lost(world)
+    restore_upsert = _commit_record_fails(world, monkeypatch)
+    assert [r["document_id"] for r in _sweep(world)] == ["book"]
+    assert meter.snapshot()["uploads"] == 1
+    row = _ledger(world, "book")
+    assert row["reserved_at"] and row["settling_at"] and not row.get("committed_at") and not row.get("released_at"), row
+    restore_upsert()
+    _restart_with_pending_lost()
+    assert _sweep(world, 20) == [] and meter.snapshot()["uploads"] == 1
+    world["post"]("/api/pipeline/retry", {"document_id": "book"})
+    world["finish"]("book", "failed")
+    world["post"]("/api/pipeline/retry", {"document_id": "book"})
+    world["finish"]("book", "analyzed")
+    assert meter.snapshot() == {"uploads": 1, "reserved": 0, "extra_billed": 0, "pending": 0}, meter.calls
+    assert meter.calls == ["reserve_user_upload", "commit_user_upload"], meter.calls
+
+
+def test_the_restore_reports_a_settling_reservation_and_leaves_it_alone(world, restore, monkeypatch, capsys):
+    """The restore script never rules on a settling row: it prints it under
+    SETTLING with what a human must decide, releases nothing, and the row
+    keeps its evidence."""
+    meter = world["meter"]
+    world["db"].rows("documents").append(_doc("book", h=EEI))
+    world["post"]("/api/pipeline/run", {"document_id": "book"})
+    restore_upsert = _commit_record_fails(world, monkeypatch)
+    world["finish"]("book", "analyzed")
+    restore_upsert()
+    _restart_with_pending_lost()
+    usage = _mirror_usage(world)
+    for r in world["db"].rows(_quota_ledger.TABLE):
+        r["heartbeat_at"] = (datetime.now(timezone.utc) - timedelta(minutes=30)).isoformat()
+    before = dict(_ledger(world, "book"))
+    assert restore.main(["--apply", "--no-hash-missing"]) == 0
+    out = capsys.readouterr().out
+    assert "SETTLING reservation: document book" in out and "FINISHED" in out, out
+    assert "would be released" not in out and "released 1" not in out, out
+    assert _ledger(world, "book") == before, "the restore touched a settling row"
+    assert meter.snapshot() == {"uploads": 1, "reserved": 0, "extra_billed": 0, "pending": 0}
+    assert usage["uploads"] == 1 and usage["uploads_reserved"] == 0
