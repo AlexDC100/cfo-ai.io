@@ -56,6 +56,8 @@ function Slider({
     ? leverText(lever, ticks, locale, days)
     : served || t("forecast.cockpit.levers.notMeasured", "not measured");
   const disabled = lever.locked !== null;
+  const basis = pick(lever.basis, lang);
+  const inert = lever.inert ? pick(lever.inert, lang) : null;
   return (
     <div
       data-testid={id}
@@ -63,6 +65,7 @@ function Slider({
       data-origin={lever.origin}
       data-locked={disabled ? "true" : "false"}
       data-moved={moved ? "true" : "false"}
+      data-inert={inert ? "true" : "false"}
       className={`min-w-0 rounded-lg border px-3.5 py-3 ${
         refused ? "border-alert/50 bg-alert/5" : "border-rule bg-surface"
       }`}
@@ -117,17 +120,23 @@ function Slider({
         }}
         className="cockpit-range mt-2 w-full accent-[hsl(var(--brand))] disabled:opacity-40"
       />
-      <p data-testid={`${id}-basis`} className="mt-1.5 text-[11.5px] leading-snug text-ink-mute">
-        {pick(lever.basis, lang)}
+      <p
+        data-testid={`${id}-basis`}
+        className={`mt-1.5 text-[11.5px] leading-snug ${inert && inert === basis ? "text-caution" : "text-ink-mute"}`}
+      >
+        {basis}
       </p>
       {lever.locked ? (
         <p data-testid={`${id}-locked`} className="mt-1 text-[11.5px] leading-snug text-alert">
           {lever.locked}
         </p>
       ) : null}
-      {lever.inert ? (
+      {/* The engine may say why the lever reaches nothing in the SAME words it
+          gives as the basis (EUR/RON with no imported share stated): one
+          sentence, said once — the basis line then carries the caution tone. */}
+      {inert && inert !== basis ? (
         <p data-testid={`${id}-inert`} className="mt-1 text-[11.5px] leading-snug text-caution">
-          {pick(lever.inert, lang)}
+          {inert}
         </p>
       ) : null}
     </div>
