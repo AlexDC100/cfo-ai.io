@@ -55,6 +55,7 @@ SIGMA = valid_cui("8000007")     # a failed PDF whose layout the reader refuses
 OWNER = "user-owner"
 SOLO_USER = "user-solo"
 TEAM_A, TEAM_B = "user-team-a", "user-team-b"
+PROSPECT = "user-prospect"       # a new user whose only upload failed
 
 
 # ── files ──────────────────────────────────────────────────────────────
@@ -186,6 +187,11 @@ def build_world() -> Tuple[Dict[str, List[Dict[str, Any]]], Dict[str, bytes], Li
          "default_currency": "RON", "caen_code": None, "caen_code_source": None,
          "caen_code_confirmed_at": None, "archived_at": None, "purge_after": None,
          "created_at": _ts("2026-08-02"), "updated_at": _ts("2026-08-02")},
+        # a new user's first workspace: no company of its own, one failed upload
+        {"id": "org-prospect", "name": "Prospect's organization", "industry_key": None,
+         "industry_display_name": None, "default_currency": "RON", "caen_code": None, "caen_code_source": None,
+         "caen_code_confirmed_at": None, "archived_at": None, "purge_after": None,
+         "created_at": _ts("2026-09-21"), "updated_at": _ts("2026-09-21")},
     ]
     memberships = [
         {"org_id": "org-sf", "user_id": OWNER, "role": "owner", "created_at": _ts("2026-09-09")},
@@ -193,6 +199,7 @@ def build_world() -> Tuple[Dict[str, List[Dict[str, Any]]], Dict[str, bytes], Li
         {"org_id": "org-solo", "user_id": SOLO_USER, "role": "owner", "created_at": _ts("2026-08-01")},
         {"org_id": "org-team", "user_id": TEAM_A, "role": "owner", "created_at": _ts("2026-08-02")},
         {"org_id": "org-team", "user_id": TEAM_B, "role": "member", "created_at": _ts("2026-08-02")},
+        {"org_id": "org-prospect", "user_id": PROSPECT, "role": "owner", "created_at": _ts("2026-09-21")},
     ]
 
     docs: List[Dict[str, Any]] = []
@@ -210,7 +217,7 @@ def build_world() -> Tuple[Dict[str, List[Dict[str, Any]]], Dict[str, bytes], Li
             "created_at": _ts(created, hour), "deleted_at": deleted, "is_active": True,
             "metered_extra": False, "period_end_hint": hint,
             "uploaded_by": OWNER if org in ("org-sf", "org-qa") else
-            (SOLO_USER if org == "org-solo" else TEAM_A),
+            (SOLO_USER if org == "org-solo" else PROSPECT if org == "org-prospect" else TEAM_A),
             "scope": scope, "error": error, "storage_path": path, "updated_at": _ts(created, hour)})
         if stored:
             storage[path] = blobs[blob]
@@ -227,15 +234,18 @@ def build_world() -> Tuple[Dict[str, List[Dict[str, Any]]], Dict[str, bytes], Li
         created="2026-09-20", error="HTTPException: 502: extraction failed")
     doc("d-beta-fail-2", "org-sf", "balanta verificare BETA dec 2025.pdf", "BETA", status="failed",
         created="2026-09-21", error="HTTPException: 502: extraction failed", stored=False)
-    # a failed PDF of GAMMA whose bytes are NOT the analysed xlsx's: left for a retry
+    # a failed PDF of GAMMA (its header prints GAMMA's CUI) whose bytes are
+    # NOT the analysed xlsx's: another company's identified failed upload in
+    # this company's workspace — it moves to GAMMA's (the Agras shape)
     doc("d-gamma-pdf", "org-sf", "Balanta GAMMA_FY2025.pdf", "GAMMA_PDF", status="failed",
         created="2026-09-20", error="HTTPException: 502: extraction failed")
-    # a failed balanță whose row layout the reader refuses; its header
-    # prints the company and its CUI (the 2026-09-26 production shape)
-    doc("d-sigma-pdf", "org-sf", "Balanta Decembrie 2020 - Sigma Motors.pdf", "SIGMA_PDF", status="failed",
-        created="2026-09-21", hour=15, error="HTTPException: 502: Claude extraction failed")
     doc("d-omega-trash", "org-sf", "Omega Retail Trial Balance.xlsx", "OMEGA", period="per-sf21",
         created="2026-09-20", deleted=_ts("2026-09-20", 18))
+    # a new user's only upload: a balanță whose row layout the reader
+    # refuses, its header printing the company and its CUI (the production
+    # prospect's shape) — in a workspace with no company of its own
+    doc("d-sigma-pdf", "org-prospect", "Balanta Decembrie 2020 - Sigma Motors.pdf", "SIGMA_PDF", status="failed",
+        created="2026-09-21", hour=15, error="HTTPException: 502: Claude extraction failed")
 
     # Q&A — no company of its own
     doc("q-carnex-src", "org-qa", "Carnex Trial Balance_FY2025.xlsx", "CARNEX", period="per-carnex",

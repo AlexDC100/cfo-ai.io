@@ -81,15 +81,29 @@ data would change what the other members see).
    company+month with analysed documents but no period keeps ONE live
    document (the latest analysed) and is listed in ``needs_reanalysis``.
    A FAILED upload is archived only when its bytes are a copy of a live
-   document (a period's source, a kept book — nothing is lost); otherwise
-   it is left UNTOUCHED in its workspace, whatever happens to the
-   workspace, so its owner can retry it once the reader that refused it
-   ships (2026-09-26: the failure was the reader's — a balanță the
+   document (a period's source, a kept book — nothing is lost). Otherwise
+   (2026-09-26/27, the failure was the reader's — a balanță the
    deterministic readers could not parse and the Claude fallback had no
-   credit for). It is never a keeper and never moved; a company-less
-   workspace holding one stays live, like one holding an unidentified
-   book (rule 7). Among failed uploads of the same bytes one stays and
-   the rest are archived as its copies, in place. ``not_a_balance`` is
+   credit for):
+     * its company IDENTIFIED (a CUI read from its own bytes, or an
+       operator-verified identity — never a name inference) and not its
+       workspace's company: it MOVES to its company's workspace, still
+       failed, and is listed in ``needs_reanalysis`` — "Agras out of
+       Scandia into its own company" holds for a failed upload too. From
+       a COMPANY workspace that workspace is created if missing (the same
+       path as for analysed books, named from the registry). From a
+       company-LESS workspace it moves only when its user already has (or
+       this plan gives them) a workspace of that company: a company is
+       never created for a lone failed upload there — the upload flow
+       adopts that workspace on the retry;
+     * otherwise (unidentified; its workspace's own company; a
+       company-less workspace whose user has no such company) it is left
+       UNTOUCHED in its workspace so its owner can retry it once the
+       reader ships, and a company-less workspace holding one stays live,
+       like one holding an unidentified book (rule 7).
+   It is never a keeper. Among failed uploads of the same bytes the
+   latest decides and the rest are archived as its copies — travelling
+   with it when it moves, in place otherwise. ``not_a_balance`` is
    asserted by the identifier only when the bytes were parsed and are
    demonstrably not a trial balance (``company_identity.balance_signals``).
 6. ARCHIVING A PERIOD: ``financial_periods`` has no archive column, so the
@@ -393,6 +407,19 @@ class _Planner:
             return own
         return self.sibling.get((self.doc_user(str(doc_id)), str(digest))) or own
 
+    def identified(self, doc_id: str) -> bool:
+        """The document's company is IDENTIFIED, not inferred: a CUI read
+        from its own bytes (``document_header_cui``) or an operator-verified
+        identity (a rule's CUI, or its name for a company with no known
+        CUI). A registry name match, a sheet name or a filename is an
+        inference — a failed upload never moves on one (rule 5)."""
+        ident = self.ident(doc_id)
+        if ident is None or not ident.company_key:
+            return False
+        if ident.cui:
+            return (ident.sources.get("cui") or {}).get("signal") in ("document_header_cui", "operator_verified")
+        return (ident.sources.get("company_name") or {}).get("signal") == "operator_verified"
+
     def sha(self, doc_id: str) -> Optional[str]:
         d = self.docs.get(doc_id) or {}
         f = self.facts.get(doc_id)
@@ -480,7 +507,7 @@ class _Planner:
         archived_after = {str(o["id"]) for o in after.get("organizations") or [] if o.get("archived_at")}
         for kind, rows in (("period", self.plan.periods), ("document", self.plan.documents)):
             for row in rows:
-                if row.get("action") == "keep" and str(row.get("to_org")) in archived_after:
+                if row.get("action") in ("keep", "move_failed") and str(row.get("to_org")) in archived_after:
                     self.plan.blocking.append("%s %s is kept but would end in archived workspace %s"
                                               % (kind, row["id"], row.get("to_org")))
 
@@ -537,9 +564,13 @@ class _Planner:
         # 2. documents: one live document per company+month
         doc_dec = self._document_decisions(survivors, decisions)
 
-        # 3. a workspace for every company that keeps something live
+        # 3. a workspace for every company that keeps something live — and
+        # for the company of a failed upload leaving a COMPANY workspace
+        # (rule 5; never for one leaving a company-less workspace)
         needed = sorted({c for (c, _m) in survivors} |
-                        {dd["company"] for dd in doc_dec.values() if dd["action"] == "keep" and dd.get("company")})
+                        {dd["company"] for dd in doc_dec.values() if dd["action"] == "keep" and dd.get("company")} |
+                        {dd["company"] for dd in doc_dec.values()
+                         if dd["action"] == "move_failed" and dd.get("_create") and dd.get("company")})
         created: List[str] = []
         reused: List[str] = []
         for company in needed:
@@ -561,6 +592,7 @@ class _Planner:
                             "deleted by its owner, purge_after %s" % prior.get("purge_after"))
                             if prior.get("archived_at") else "live, but its company is not %s" % company))
         self.company_ws = company_ws
+        self._resolve_failed_moves(doc_dec, company_ws)
         holding = holding_org_id(user)
         used_holding = [False]
 
@@ -583,18 +615,30 @@ class _Planner:
             pr["to_org"] = final
             self.period_final_org[pid] = final
 
+        followers: List[Tuple[str, Dict[str, Any], str]] = []
         for did, dd in sorted(doc_dec.items()):
             cur = str(self.docs[did]["org_id"])
             where = dd.pop("_place")
             period = dd.pop("_period", None)
+            follows = dd.pop("_doc", None)
             if where == "company":
                 final = _place(company_ws.get(dd.get("company") or ""))
             elif where == "with_period":
                 final = self.period_final_org.get(period, cur)
                 if final == holding:
                     used_holding[0] = True
+            elif where == "with_doc":
+                followers.append((did, dd, str(follows)))
+                continue
             else:
                 final = cur
+            dd["to_org"] = final
+            self.doc_final_org[did] = final
+        # an archived copy of a failed upload follows it when it moves (to
+        # its company's workspace), and stays where it is otherwise
+        for did, dd, follows in followers:
+            cur = str(self.docs[did]["org_id"])
+            final = self.doc_final_org.get(follows, cur) if doc_dec[follows]["action"] == "move_failed" else cur
             dd["to_org"] = final
             self.doc_final_org[did] = final
 
@@ -1095,14 +1139,17 @@ class _Planner:
 
     def _failed_decisions(self, failed: Sequence[str], dec: Dict[str, Dict[str, Any]],
                           kept_source: Mapping[str, str]) -> None:
-        """A FAILED upload (rule 5, 2026-09-26): archived only when its bytes
+        """A FAILED upload (rule 5, 2026-09-26/27): archived when its bytes
         are a copy of a live document that stays (a period's source, a kept
-        book) — nothing is lost, the same bytes remain analysable — and then
-        it travels with its company like any archived copy. Otherwise it is
-        left UNTOUCHED in its workspace, whatever happens to the workspace:
-        its owner retries it once the reader that refused it ships. Never a
-        keeper, never moved. Among failed uploads of the same bytes the
-        latest stays and the others are archived as its copies, in place."""
+        book) — nothing is lost — travelling with its company like any
+        archived copy. Otherwise, when its company is IDENTIFIED
+        (``identified``) and is not its workspace's company, it MOVES to its
+        company's workspace, still failed (``move_failed``; created if
+        missing only from a company workspace — ``_create`` — and resolved
+        against the user's company workspaces in ``build_user`` from a
+        company-less one). Anything else is left UNTOUCHED for a retry. Among
+        failed uploads of the same bytes the latest decides and the others
+        are archived as its copies, following it (``with_doc``)."""
         live_by_sha: Dict[str, str] = {}
         for did, dd in sorted(dec.items()):
             if dd["action"] == "keep" and self.sha(did):
@@ -1111,8 +1158,10 @@ class _Planner:
         for did in sorted(failed, key=lambda x: (str(self.docs[x].get("created_at") or ""), x), reverse=True):
             d = self.docs[did]
             sha = self.sha(did)
-            base = {"id": did, "from_org": str(d["org_id"]), "filename": d.get("original_filename"),
-                    "status": d.get("status"), "company": self.key(did), "live": True}
+            org = str(d["org_id"])
+            company = self.key(did)
+            base = {"id": did, "from_org": org, "filename": d.get("original_filename"),
+                    "status": d.get("status"), "company": company, "live": True}
             if sha and sha in live_by_sha:
                 ref = live_by_sha[sha]
                 why = "duplicate_of_source" if ref in kept_source else "duplicate"
@@ -1120,16 +1169,53 @@ class _Planner:
                 continue
             if sha and sha in kept:
                 dec[did] = dict(base, action="archive", reason="archived: duplicate (%s)" % kept[sha],
-                                _place="stay")
+                                _place="with_doc", _doc=kept[sha])
                 continue
             if sha:
                 kept[sha] = did
+            own = self.own.get(org)
+            if company and company != own and self.identified(did):
+                ident = self.ident(did)
+                dec[did] = dict(base, action="move_failed",
+                                reason="failed upload of %s: to its company's workspace, for a retry" % company,
+                                _place="company", _create=own is not None,
+                                _month=_month(ident.period_end) if ident else None)
+                continue
             dec[did] = dict(base, action="untouched",
-                            reason="failed upload left for a retry (not a copy of a live document)",
+                            reason="failed upload left for a retry (%s)" % (
+                                "not a copy of a live document; its company is not identified" if not company
+                                or not self.identified(did) else
+                                "not a copy of a live document; its workspace's own company"),
                             _place="stay")
             self.plan.warnings.append(
                 "document %s (%r): failed upload, not a copy of any live document — left in its workspace for "
                 "a retry (the reader refused it, the document is not condemned)" % (did, d.get("original_filename")))
+
+    def _resolve_failed_moves(self, doc_dec: Dict[str, Dict[str, Any]], company_ws: Mapping[str, str]) -> None:
+        """A failed upload moving out of a company-LESS workspace (rule 5)
+        moves only into a workspace of its company that its user has (or
+        this plan gives them); a workspace is never created for it — the
+        upload flow adopts its workspace on the retry. The moves that stand
+        are listed in ``needs_reanalysis``."""
+        for did, dd in sorted(doc_dec.items()):
+            if dd.get("action") != "move_failed":
+                continue
+            create = dd.pop("_create", False)
+            month = dd.pop("_month", None)
+            if not create and dd.get("company") not in company_ws:
+                dd.update(action="untouched", _place="stay",
+                          reason="failed upload left for a retry (its company %s has no workspace of this user and "
+                                 "its own workspace names no company: a company is never created for a lone failed "
+                                 "upload — the upload flow adopts the workspace)" % dd.get("company"))
+                self.plan.warnings.append(
+                    "document %s (%r): failed upload of %s in a workspace with no company of its own; its user has "
+                    "no workspace of that company — left in place for a retry"
+                    % (did, dd.get("filename"), dd.get("company")))
+                continue
+            self.plan.needs_reanalysis.append({
+                "user_id": self.user, "company": dd.get("company"), "company_name": None, "month": month,
+                "document_id": did, "filename": dd.get("filename"), "status": dd.get("status"),
+                "why": "failed upload moved to its company"})
 
     def _choose(self, dids: Sequence[str]) -> str:
         analysed = [d for d in dids if self.status(d) == ANALYZED]

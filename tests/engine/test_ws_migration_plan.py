@@ -48,7 +48,7 @@ from engine.workspaces.rowstore import (
 )
 
 from ws_migration_fixture import (
-    ALFA, BETA, DELTA, GAMMA, OWNER, SIGMA, SOLO, SOLO_USER, TEAM_A, build_world, facts_for,
+    ALFA, BETA, DELTA, GAMMA, OWNER, PROSPECT, SIGMA, SOLO, SOLO_USER, TEAM_A, build_world, facts_for,
     plant_second_user_move,
 )
 
@@ -321,39 +321,35 @@ def test_duplicates_failed_copies_and_non_balances_are_archived_with_reasons(wor
         d = _row(post, "documents", id=did)
         assert d["deleted_at"] == RUN and d["error"] == err, did
     # a failed upload whose bytes are not a copy of a live document is not
-    # "superseded": it stays (rule 5)
+    # "superseded": it is never archived (rule 5)
     assert _row(post, "documents", id="d-gamma-pdf")["deleted_at"] is None
 
 
-def test_a_failed_upload_the_reader_refused_stays_untouched_for_a_retry(world):
-    """2026-09-26: a NEW user's failed upload — a balanță whose row layout
-    the deterministic readers refused while the Claude fallback had no
-    credit, its header printing the company and its CUI — was archived as
-    not_a_balance and moved into that user's holding archive. The failure
-    was the reader's. A failed upload that is not a copy of a live
-    document stays UNTOUCHED in its workspace (no row operation, no move,
-    never a keeper), whatever the workspace decision, so it can be retried
-    once the reader ships; only a copy of a live document is archived."""
+def test_an_identified_failed_upload_in_another_companys_workspace_moves_to_its_company(world):
+    """Production, 2026-09-27: the owner's failed Agras PDF — its CUI read
+    from its own header, failed on 09-20 when no reader existed — stayed in
+    the Scandia Food workspace under "left for a retry", while the owner's
+    rule is Agras out of Scandia into its own company. A failed upload whose
+    company is IDENTIFIED and is not its workspace's company moves to its
+    company's workspace, still failed, and is listed for re-analysis (the
+    five-pair reader reads it on the retry). Here: GAMMA's failed PDF in the
+    ALFA workspace goes to GAMMA's."""
     plan, post, facts = world["plan"], world["post"], world["facts"]
-    pre = _row(world["tables"], "documents", id="d-sigma-pdf")
-    ident = facts["d-sigma-pdf"].identity
-    assert ident.document_kind == "uncertain" and ident.cui == SIGMA
-    assert ident.sources["document_kind"]["signal"] == "unparsed_balance"
-    dec = _decision(plan, "documents", "d-sigma-pdf")
-    assert dec["action"] == "untouched" and dec["reason"].startswith("failed upload left for a retry"), dec
-    assert dec["to_org"] == "org-sf" and dec["company"] == "cui:" + SIGMA
-    assert not [op for op in plan.ops if op.get("key") == {"id": "d-sigma-pdf"} or op.get("document_id") == "d-sigma-pdf"]
-    d = _row(post, "documents", id="d-sigma-pdf")
-    assert {k: d[k] for k in ("org_id", "deleted_at", "error", "storage_path", "period_id")} == \
-        {k: pre[k] for k in ("org_id", "deleted_at", "error", "storage_path", "period_id")}
-    assert not any(o["id"] == new_org_id(OWNER, "cui:" + SIGMA) for o in post["organizations"]), "no workspace for it"
-    assert not [n for n in plan.needs_reanalysis if n["document_id"] == "d-sigma-pdf"]
-    assert any("d-sigma-pdf" in w and "left in its workspace for a retry" in w for w in plan.warnings)
-    # the other failed uploads: a different file of GAMMA stays too; copies
-    # of live books (the same bytes) are archived and travel with them
-    g = _row(post, "documents", id="d-gamma-pdf")
-    assert g["deleted_at"] is None and g["org_id"] == "org-sf" and g["error"] == pre["error"].replace("Claude ", "")
-    assert _decision(plan, "documents", "d-gamma-pdf")["action"] == "untouched"
+    ident = facts["d-gamma-pdf"].identity
+    assert ident.cui == GAMMA and ident.sources["cui"]["signal"] == "document_header_cui"
+    pre = _row(world["tables"], "documents", id="d-gamma-pdf")
+    gamma = new_org_id(OWNER, "cui:" + GAMMA)
+    dec = _decision(plan, "documents", "d-gamma-pdf")
+    assert dec["action"] == "move_failed" and dec["to_org"] == gamma, dec
+    d = _row(post, "documents", id="d-gamma-pdf")
+    assert d["org_id"] == gamma and d["storage_path"] == "%s/uploads/d-gamma-pdf.pdf" % gamma
+    assert d["status"] == "failed" and d["deleted_at"] is None and d["error"] == pre["error"]   # still failed
+    copy_op = next(op for op in plan.ops if op["op"] == "copy_object" and op["document_id"] == "d-gamma-pdf")
+    assert copy_op["must_exist"] is True and copy_op["expect_sha256"] == facts["d-gamma-pdf"].sha256
+    item = next(n for n in plan.needs_reanalysis if n["document_id"] == "d-gamma-pdf")
+    assert item["org_id"] == gamma and item["status"] == "failed" and item["why"] == "failed upload moved to its company"
+    assert _row(post, "organizations", id=gamma)["archived_at"] is None
+    # copies of live books (the same bytes) are archived and travel with them
     for did in ("d-beta-fail-1", "d-beta-fail-2"):
         b = _row(post, "documents", id=did)
         assert b["deleted_at"] == RUN and b["org_id"] == new_org_id(OWNER, "cui:" + BETA), did
@@ -361,11 +357,39 @@ def test_a_failed_upload_the_reader_refused_stays_untouched_for_a_retry(world):
     assert c["deleted_at"] == RUN and c["error"] == "archived: duplicate_of_source (q-carnex-src)"
 
 
+def test_a_prospects_failed_upload_in_a_company_less_workspace_stays_untouched(world):
+    """The production prospect: a new user's only upload failed (a balanță
+    whose row layout the readers refused; its header prints a CUI), in a
+    workspace with no company of its own, and that CUI belongs to no company
+    of theirs. Identified — and still left UNTOUCHED: a company is never
+    created for a lone failed upload in a company-less workspace (the upload
+    flow adopts that workspace on the retry). No operation, no workspace,
+    and the workspace stays live."""
+    plan, post, facts = world["plan"], world["post"], world["facts"]
+    ident = facts["d-sigma-pdf"].identity
+    assert ident.document_kind == "uncertain" and ident.cui == SIGMA
+    assert ident.sources["cui"]["signal"] == "document_header_cui"
+    assert ident.sources["document_kind"]["signal"] == "unparsed_balance"
+    pre = _row(world["tables"], "documents", id="d-sigma-pdf")
+    dec = _decision(plan, "documents", "d-sigma-pdf")
+    assert dec["action"] == "untouched" and dec["to_org"] == "org-prospect", dec
+    assert "never created for a lone failed upload" in dec["reason"]
+    assert not [op for op in plan.ops if op.get("key") == {"id": "d-sigma-pdf"} or op.get("document_id") == "d-sigma-pdf"
+                or "org-prospect" in repr(op) or PROSPECT in repr(op)]
+    d = _row(post, "documents", id="d-sigma-pdf")
+    assert {k: v for k, v in d.items() if k != "updated_at"} == {k: v for k, v in pre.items() if k != "updated_at"}
+    assert not any(o["id"] == new_org_id(PROSPECT, "cui:" + SIGMA) for o in post["organizations"])
+    assert _row(post, "organizations", id="org-prospect")["archived_at"] is None
+    assert not [n for n in plan.needs_reanalysis if n["document_id"] == "d-sigma-pdf"]
+    assert any("d-sigma-pdf" in w and "left in place for a retry" in w for w in plan.warnings)
+
+
 def test_a_company_less_workspace_holding_a_retryable_failed_upload_stays_live():
-    """Rule 7's consequence: a failed upload left for a retry is live
-    content its owner must be able to reach, so the company-less workspace
-    it sits in is left live (reported) — like one holding an unidentified
-    book — rather than archived out of reach."""
+    """Rule 7's consequence: a failed upload left for a retry — here
+    unidentified (its company is inferred from a registry name, not read) —
+    is live content its owner must be able to reach, so the company-less
+    workspace it sits in is left live (reported), like one holding an
+    unidentified book, rather than archived out of reach."""
     t = _moving_period()
     t["documents"].append(_doc("f-beta", "org-q", status="failed", sha="hb", created="2026-09-02T00:00:00+00:00"))
     facts = {"d1": _ident(ALFA, "2025-06-30", signal="in_document"), "keep-a": _ident(ALFA, "2025-12-31"),
@@ -394,8 +418,10 @@ def test_the_itinerary_is_filed_with_the_company_it_names(world):
 
 def test_companies_with_documents_but_no_period_need_reanalysis(world):
     items = {(n["company"], n["document_id"]) for n in world["plan"].needs_reanalysis}
-    assert items == {("cui:" + DELTA, "d-delta-1"), ("cui:" + GAMMA, "q-gamma")}
-    for did in ("d-delta-1", "q-gamma"):
+    # the analysed keepers of companies with no period, and the failed
+    # upload that moved to its company (rule 5)
+    assert items == {("cui:" + DELTA, "d-delta-1"), ("cui:" + GAMMA, "q-gamma"), ("cui:" + GAMMA, "d-gamma-pdf")}
+    for did in ("d-delta-1", "q-gamma", "d-gamma-pdf"):
         d = _row(world["post"], "documents", id=did)
         assert d["deleted_at"] is None and d["period_id"] is None
 
@@ -846,6 +872,24 @@ def _ident(cui, end, signal="closing_balance"):
                                              document_kind="trial_balance"))
 
 
+def _read(cui, end, *, name=None, cui_signal="document_header_cui"):
+    """Facts of a document whose company is IDENTIFIED: its CUI read from
+    its own header (or given by an operator rule: ``cui_signal``)."""
+    return DocFacts(identity=CompanyIdentity(cui=cui, company_name=name or "C" + cui, period_end=end,
+                                             sources={"cui": {"signal": cui_signal, "evidence": ""},
+                                                      "company_name": {"signal": "registry", "evidence": ""},
+                                                      "period_end": {"signal": "closing_balance", "evidence": ""}},
+                                             document_kind="uncertain"))
+
+
+def _named(name, end, signal):
+    """Facts of a document keyed by a NAME (no CUI): an operator rule's
+    name (identified) or a sheet / filename name (inferred)."""
+    return DocFacts(identity=CompanyIdentity(company_name=name, period_end=end,
+                                             sources={"company_name": {"signal": signal, "evidence": ""}},
+                                             document_kind="trial_balance"))
+
+
 def _moving_period(filename="d1.xlsx", hint=None):
     """p1 (dated 2025-06-30) sits in org-q, a workspace with no company of
     its own; its company (ALFA) lives in org-a, so p1 MOVES."""
@@ -858,6 +902,133 @@ def _moving_period(filename="d1.xlsx", hint=None):
 
 def _redates(plan):
     return [op["set"] for op in plan.ops if op.get("table") == "financial_periods" and "period_end" in op["set"]]
+
+
+def _ops_on(plan, did):
+    return [op for op in plan.ops if op.get("key") == {"id": did} or op.get("document_id") == did]
+
+
+def test_an_identified_failed_upload_creates_its_company_from_a_company_workspace():
+    """Rule 5, the creation path: a failed upload whose CUI its own header
+    prints, sitting in ANOTHER company's workspace, whose company its user
+    has no workspace for: that workspace is created exactly as for an
+    analysed book (uuid5 id, named from the identity — the registry's name
+    when there is one, org_prefs stamped with the CUI), the upload moves
+    there still failed and is listed for re-analysis."""
+    t = _mini([_doc("s", "org-a", period="p1"),
+               _doc("f-beta", "org-a", status="failed", sha="hb", created="2026-09-02T00:00:00+00:00")],
+              [{"id": "p1", "org_id": "org-a", "period_start": "2025-12-31", "period_end": "2025-12-31",
+                "source_document_id": "s"}], metrics=[("p1", "org-a")], prefs={"org-a": {"cui": ALFA}})
+    facts = {"s": _ident(ALFA, "2025-12-31"), "f-beta": _read(BETA, "2025-12-31", name="BETA IMOBILIARE SRL")}
+    plan = build_plan(t, facts, migration_date=DATE)
+    beta = new_org_id("u", "cui:" + BETA)
+    assert plan.blocking == []
+    assert next(w for w in plan.workspaces if w["org_id"] == beta)["action"] == "create"
+    ins = next(op for op in plan.ops if op["op"] == "insert" and op["table"] == "organizations" and op["row"]["id"] == beta)
+    assert ins["row"]["name"] == "BETA IMOBILIARE SRL" and ins["row"]["archived_at"] is None
+    stamp = next(op for op in plan.ops if op["op"] == "merge_prefs" and op["key"] == {"org_id": beta})
+    assert stamp["merge"]["cui"] == BETA
+    assert stamp["merge"]["identity_sources"]["identity"]["signal"] == "document_header_cui"
+    post = apply_ops(t, plan.ops, now=RUN)
+    f = _row(post, "documents", id="f-beta")
+    assert f["org_id"] == beta and f["status"] == "failed" and f["deleted_at"] is None
+    item = next(n for n in plan.needs_reanalysis if n["document_id"] == "f-beta")
+    assert item["org_id"] == beta and item["company_name"] == "BETA IMOBILIARE SRL" and item["month"] == "2025-12"
+    assert _row(post, "documents", id="s")["org_id"] == "org-a"          # the workspace's own book stays
+
+
+def test_a_failed_upload_whose_company_is_only_inferred_or_its_own_stays_in_place():
+    """Rule 5: a failed upload moves only on an IDENTIFIED company. A CUI
+    found by a registry NAME match, a company named by a sheet or a
+    filename — an inference — leaves it where it is; so does one of the
+    workspace's own company. A name pinned by an operator rule is
+    identified (the Carniprod shape: no CUI anywhere) and moves."""
+    t = _mini([_doc("s", "org-a", period="p1"),
+               _doc("f-namematch", "org-a", status="failed", sha="h1"),
+               _doc("f-sheet", "org-a", status="failed", sha="h2"),
+               _doc("f-own", "org-a", status="failed", sha="h3"),
+               _doc("f-rule", "org-a", status="failed", sha="h4")],
+              [{"id": "p1", "org_id": "org-a", "period_start": "2025-12-31", "period_end": "2025-12-31",
+                "source_document_id": "s"}], metrics=[("p1", "org-a")], prefs={"org-a": {"cui": ALFA}})
+    facts = {"s": _ident(ALFA, "2025-12-31"),
+             "f-namematch": _read(BETA, "2025-12-31", cui_signal="registry_name_match"),
+             "f-sheet": _named("Gamma Agro", "2025-12-31", "sheet_name"),
+             "f-own": _read(ALFA, "2025-11-30"),
+             "f-rule": _named("Carnex", "2025-12-31", "operator_verified")}
+    plan = build_plan(t, facts, migration_date=DATE)
+    for did in ("f-namematch", "f-sheet", "f-own"):
+        dec = _decision(plan, "documents", did)
+        assert dec["action"] == "untouched" and dec["to_org"] == "org-a" and not _ops_on(plan, did), (did, dec)
+    assert "its company is not identified" in _decision(plan, "documents", "f-namematch")["reason"]
+    assert "its workspace's own company" in _decision(plan, "documents", "f-own")["reason"]
+    assert not any(w["org_id"] in (new_org_id("u", "cui:" + BETA), new_org_id("u", "name:GAMMA AGRO"))
+                   for w in plan.workspaces)
+    rule = _decision(plan, "documents", "f-rule")
+    assert rule["action"] == "move_failed" and rule["to_org"] == new_org_id("u", "name:CARNEX")
+
+
+def test_a_failed_upload_leaves_a_company_less_workspace_only_for_a_company_its_user_has():
+    """From a workspace with no company of its own (the Q&A shape) an
+    identified failed upload moves to its company's workspace when its user
+    has one — here ALFA's — and is left in place when they do not (BETA's:
+    never created for a lone failed upload). The workspace, still holding
+    that one, stays live; with nothing left it is archived like any split."""
+    t = _moving_period()
+    t["documents"] += [_doc("f-alfa", "org-q", status="failed", sha="ha", created="2026-09-02T00:00:00+00:00"),
+                       _doc("f-beta", "org-q", status="failed", sha="hb", created="2026-09-03T00:00:00+00:00")]
+    facts = {"d1": _ident(ALFA, "2025-06-30", signal="in_document"), "keep-a": _ident(ALFA, "2025-12-31"),
+             "f-alfa": _read(ALFA, "2025-11-30"), "f-beta": _read(BETA, "2025-12-31")}
+    plan = build_plan(t, facts, migration_date=DATE)
+    assert _decision(plan, "documents", "f-alfa")["action"] == "move_failed"
+    assert _decision(plan, "documents", "f-alfa")["to_org"] == "org-a"
+    stays = _decision(plan, "documents", "f-beta")
+    assert stays["action"] == "untouched" and stays["to_org"] == "org-q" and not _ops_on(plan, "f-beta")
+    assert "never created for a lone failed upload" in stays["reason"]
+    assert not any(w["org_id"] == new_org_id("u", "cui:" + BETA) for w in plan.workspaces)
+    assert [n["document_id"] for n in plan.needs_reanalysis if n.get("why")] == ["f-alfa"]
+    assert next(w for w in plan.workspaces if w["org_id"] == "org-q")["action"] == "keep"
+    post = apply_ops(t, plan.ops, now=RUN)
+    assert _row(post, "documents", id="f-alfa")["org_id"] == "org-a"
+    assert _row(post, "organizations", id="org-q")["archived_at"] is None
+    # without the BETA upload the company-less workspace empties and is archived
+    t2 = _moving_period()
+    t2["documents"].append(_doc("f-alfa", "org-q", status="failed", sha="ha", created="2026-09-02T00:00:00+00:00"))
+    plan2 = build_plan(t2, {k: v for k, v in facts.items() if k != "f-beta"}, migration_date=DATE)
+    assert next(w for w in plan2.workspaces if w["org_id"] == "org-q")["action"] == "archive"
+    post2 = apply_ops(t2, plan2.ops, now=RUN)
+    assert _row(post2, "documents", id="f-alfa")["org_id"] == "org-a"
+
+
+def test_a_lone_failed_upload_in_an_empty_cui_less_workspace_is_left_to_the_upload_flow():
+    """A user whose only workspace is empty but for one failed upload whose
+    header prints a CUI: nothing is created, moved or archived — the upload
+    flow adopts that workspace when the file is retried."""
+    t = _mini([_doc("f", "org-n", status="failed", sha="hf")], [], orgs=("org-n",))
+    plan = build_plan(t, {"f": _read(BETA, "2020-12-31")}, migration_date=DATE)
+    assert plan.ops == [] and plan.blocking == [] and plan.needs_reanalysis == []
+    dec = _decision(plan, "documents", "f")
+    assert dec["action"] == "untouched" and dec["to_org"] == "org-n"
+    assert next(w for w in plan.workspaces if w["org_id"] == "org-n")["action"] == "keep"
+
+
+def test_identical_failed_uploads_follow_the_one_that_moves():
+    """Two failed uploads of the same bytes, identified as BETA, in ALFA's
+    workspace: the latest moves to BETA's workspace (created), the older is
+    archived as its copy and travels WITH it — no copy of BETA is left in
+    ALFA's trash, where it would be restorable into the wrong company."""
+    t = _mini([_doc("s", "org-a", period="p1"),
+               _doc("f1", "org-a", status="failed", sha="h", created="2026-09-01T00:00:00+00:00"),
+               _doc("f2", "org-a", status="failed", sha="h", created="2026-09-02T00:00:00+00:00")],
+              [{"id": "p1", "org_id": "org-a", "period_start": "2025-12-31", "period_end": "2025-12-31",
+                "source_document_id": "s"}], metrics=[("p1", "org-a")], prefs={"org-a": {"cui": ALFA}})
+    facts = {"s": _ident(ALFA, "2025-12-31"), "f1": _read(BETA, "2025-12-31"), "f2": _read(BETA, "2025-12-31")}
+    plan = build_plan(t, facts, migration_date=DATE)
+    beta = new_org_id("u", "cui:" + BETA)
+    post = apply_ops(t, plan.ops, now=RUN)
+    f1, f2 = (_row(post, "documents", id=x) for x in ("f1", "f2"))
+    assert f2["org_id"] == beta and f2["deleted_at"] is None and f2["status"] == "failed"
+    assert f1["org_id"] == beta and f1["deleted_at"] == RUN and f1["error"] == "archived: duplicate (f2)"
+    assert [n["document_id"] for n in plan.needs_reanalysis] == ["f2"]
 
 
 def test_a_filename_only_disagreement_within_the_year_is_not_re_dated():
