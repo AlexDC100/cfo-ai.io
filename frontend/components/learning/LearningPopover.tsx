@@ -53,6 +53,7 @@ import { useReportingMetrics } from "./ReportingContextProvider";
 // refactor (move PopoverStackRenderer inside the provider, OR migrate
 // the provider to a global store) just removes this direct read.
 import { useActivePeriod } from "@/lib/activePeriod";
+import { EVIDENCE_ACCOUNT_PARAM, dashboardEvidenceHref } from "@/lib/evidence/evidenceLink";
 // LEARN-FIX-2 — same workaround for the ReportingMetrics snapshot
 // (revenue / ebitda / total_debt etc.) so the FORMULA path inside
 // the popover renders real operand values. Without this the EBIT
@@ -897,6 +898,7 @@ function SeeInStatementAction({
 }) {
   const { clear } = usePopoverStack();
   const navigate = useNavigate();
+  const period = useActivePeriod();
 
   // Resolve which statement this concept lives on by inspecting the
   // first matching line item. STATIC_SOURCE_ACCOUNTS holds the
@@ -923,19 +925,23 @@ function SeeInStatementAction({
   }
   if (!statement) return null;
 
-  const tab = statement === "pl" ? "p_and_l" : "balance_sheet";
+  const tab = statement === "pl" ? "pl" : "balance_sheet";
   const label = statement === "pl" ? "P&L" : "Balance Sheet";
-  const topCode = accounts[0]?.code;
+  const codes = accounts.map((a) => a.code);
 
   const handleClick = () => {
     clear();
     onLeave();
-    // Deep-link to the right tab; downstream `?highlight=` picks up
-    // the matching row when the highlight hook is wired (graceful no-op
-    // when not).
-    const url = topCode
-      ? `/dashboard?tab=${tab}&highlight=${encodeURIComponent(topCode)}`
-      : `/dashboard?tab=${tab}`;
+    // The account view (design C4, `?account=`): every account of the
+    // concept, its served leaves highlighted, on the concept's statement,
+    // IN THE PERIOD ON SCREEN. This used to send `?tab=p_and_l` (a slug the
+    // dashboard does not know) and `&highlight=<account code>` (no row is
+    // tagged with a code), and dropped `?period=` — it landed on whatever
+    // the dashboard defaulted to, with nothing marked.
+    const url = dashboardEvidenceHref(
+      { periodId: period.id, orgId: period.organizationId },
+      { tab, [EVIDENCE_ACCOUNT_PARAM]: codes },
+    );
     navigate(url);
   };
 
