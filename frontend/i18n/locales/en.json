@@ -1889,7 +1889,7 @@
     "createWorkspace": "Create workspace",
     "selectWorkspaceAria": "Select {{name}}",
     "activeWorkspace": "Active workspace",
-    "untitledWorkspace": "Untitled workspace",
+    "untitledWorkspace": "Untitled company",
     "noIndustrySet": "No industry set",
     "deletesInDays_one": "Deletes in {{count}} day",
     "deletesInDays_other": "Deletes in {{count}} days",
@@ -2861,16 +2861,17 @@
       "danger": "Danger zone"
     },
     "general": {
-      "editName": "Edit workspace name",
+      "editName": "Edit company name",
       "saveName": "Save name",
       "cancelEdit": "Cancel editing",
-      "nameSaved": "Workspace renamed.",
+      "nameSaved": "Company renamed.",
       "changeIndustry": "Change industry",
       "searchIndustry": "Search industries…",
       "noneFound": "No industry matches your search.",
-      "industryNote": "Changing the industry updates the sector benchmarks and the decision-rule presets this workspace is graded with.",
+      "industryNote": "Changing the industry updates the sector benchmarks and the decision-rule presets this company is graded with.",
       "industryChanged": "Industry updated.",
-      "noIndustry": "No industry set yet — pick one so benchmarks match this company."
+      "noIndustry": "No industry set yet — pick one so benchmarks match this company.",
+      "catalogIndustry": "Set when the first file was analysed. Change it below if it's wrong."
     },
     "industries": {
       "real_estate": {
@@ -3012,7 +3013,7 @@
       "resetBody": "Puts thresholds, combination logic and financing assumptions back to the catalog defaults.",
       "deleteTitle": "Delete this workspace",
       "deleteNote": "Restorable from “Recently deleted” for 30 days.",
-      "cannotDelete": "This is your only workspace — it can't be deleted."
+      "cannotDelete": "This is your only company — it can't be deleted."
     }
   },
   "pci": {

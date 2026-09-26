@@ -1899,7 +1899,7 @@
     "createWorkspace": "Creează workspace",
     "selectWorkspaceAria": "Selectează {{name}}",
     "activeWorkspace": "Workspace activ",
-    "untitledWorkspace": "Workspace fără nume",
+    "untitledWorkspace": "Companie fără nume",
     "noIndustrySet": "Industrie nesetată",
     "deletesInDays_one": "Se șterge într-o zi",
     "deletesInDays_few": "Se șterge în {{count}} zile",
@@ -2885,16 +2885,17 @@
       "danger": "Zonă periculoasă"
     },
     "general": {
-      "editName": "Editează numele workspace-ului",
+      "editName": "Editează numele companiei",
       "saveName": "Salvează numele",
       "cancelEdit": "Renunță la editare",
-      "nameSaved": "Workspace-ul a fost redenumit.",
+      "nameSaved": "Compania a fost redenumită.",
       "changeIndustry": "Schimbă industria",
       "searchIndustry": "Caută industrii…",
       "noneFound": "Nicio industrie nu se potrivește căutării.",
-      "industryNote": "Schimbarea industriei actualizează benchmark-urile sectoriale și preseturile regulilor de decizie cu care este evaluat acest workspace.",
+      "industryNote": "Schimbarea industriei actualizează benchmark-urile sectoriale și preseturile regulilor de decizie cu care este evaluată această companie.",
       "industryChanged": "Industria a fost actualizată.",
-      "noIndustry": "Nicio industrie setată încă — alege una ca benchmark-urile să se potrivească firmei."
+      "noIndustry": "Nicio industrie setată încă — alege una ca benchmark-urile să se potrivească firmei.",
+      "catalogIndustry": "Setată la analiza primului fișier. Schimb-o mai jos dacă nu e corectă."
     },
     "industries": {
       "real_estate": {
@@ -3036,7 +3037,7 @@
       "resetBody": "Readuce pragurile, logica de combinare și ipotezele de finanțare la valorile implicite.",
       "deleteTitle": "Șterge acest workspace",
       "deleteNote": "Recuperabil din „Șterse recent” timp de 30 de zile.",
-      "cannotDelete": "Acesta este singurul tău workspace — nu poate fi șters."
+      "cannotDelete": "Aceasta este singura ta companie — nu poate fi ștearsă."
     }
   },
   "pci": {
