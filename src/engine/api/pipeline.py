@@ -9124,6 +9124,28 @@ def build_router() -> APIRouter:
         except Exception:  # noqa: BLE001
             logger.exception("[pipeline] industry signal failed for period %s", period.get("id"))
 
+        # ── Is a margin meaningful on this book? ONE rule ───────────────
+        # (engine.ratios.margin_meaning, packs/ratios/margin_meaning.yaml).
+        # Served on `statements` so every reader of the served statements —
+        # the dashboard's KPI cards, the P&L key margins, the ratio bundle,
+        # the printed report — asks the same verdict before it prints a
+        # margin, and none decides it again. The ratio table below reads the
+        # same rule over the same operands. The one note the pack names (a
+        # property developer's capitalised 711) rides on the same block.
+        # Served ONLY where the rule refuses: every other book's body is the
+        # body it always was, byte for byte, and a statements block with no
+        # verdict refuses nothing (tests/engine/test_margin_meaning.py).
+        # Non-fatal: a failure serves no verdict, which refuses nothing.
+        try:
+            from engine.ratios import margin_meaning as _margin_meaning
+
+            _margin_block = _margin_meaning.period_block(statements, industry_signal_block)
+            if _margin_block.get("status") == _margin_meaning.NOT_MEANINGFUL:
+                statements["margin_meaning"] = _margin_block
+        except Exception:  # noqa: BLE001
+            logger.exception("[/api/period] margin meaning failed for period %s (non-fatal)",
+                             period.get("id"))
+
         # ── The served ratio table + the serve-time credit model ─────────
         # (ratios B4). `build_ratio_table(..., serve_time_metrics=True)`
         # runs the credit model on these statements. The credit envelope

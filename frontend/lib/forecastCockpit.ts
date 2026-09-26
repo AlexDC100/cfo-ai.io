@@ -275,6 +275,14 @@ export interface CockpitView {
       readonly amount: Bilingual;
       readonly margin: Bilingual | null;
       readonly marginYear0: Bilingual | null;
+      /** The ENGINE's refusal of the final plan year's margin / today's
+       *  margin (engine.ratios.margin_meaning: turnover negligible against
+       *  operating activity), served IN PLACE of the percent — never both. */
+      readonly marginRefused: Bilingual | null;
+      readonly marginYear0Refused: Bilingual | null;
+      /** The one note the engine serves for its one case (a developer's
+       *  capitalised 711, with the figure and the year it belongs to). */
+      readonly note: Bilingual | null;
     };
     readonly fcf: { readonly from: string; readonly to: string; readonly amount: Bilingual; readonly formula: Bilingual | null };
     readonly cash: CashNumber;
@@ -558,6 +566,9 @@ export function readCockpit(payload: unknown): CockpitView | null {
         amount: ebitdaAmount as Bilingual,
         margin: lang2(ebitdaRaw.display, "margin"),
         marginYear0: lang2(ebitdaRaw.display, "margin_year0"),
+        marginRefused: lang2(ebitdaRaw.display, "margin_refused"),
+        marginYear0Refused: lang2(ebitdaRaw.display, "margin_year0_refused"),
+        note: lang2(ebitdaRaw.display, "note"),
       },
       fcf: {
         from: str(fcfRaw.from),

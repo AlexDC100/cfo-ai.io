@@ -118,6 +118,11 @@ export function absenceSentence(
   // `lang`, which produces the very thing this module exists to stop —
   // half a sentence in each language.
   const opts = (extra: Record<string, unknown> = {}) => ({ lng: lang, ...extra });
+  // A margin the ENGINE ruled not meaningful: its sentence arrived rendered
+  // in both languages, with the share it read — printed, never re-worded.
+  if (a.kind === "not_meaningful") {
+    return lang.toLowerCase().startsWith("ro") ? a.display.ro : a.display.en;
+  }
   if (d.key === "undefinedRatio") {
     return t(
       "ratioAbsence.undefinedRatio",

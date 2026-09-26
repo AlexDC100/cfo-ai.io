@@ -53,6 +53,7 @@ import { spellLadder } from "./creditModel";
 // the block decision are all computed once in
 // `src/engine/industry/structural_signal.py`.
 import { blocksSectorContent, readIndustrySignal } from "./industrySignal";
+import { marginNoteOf, readMarginMeaning } from "./marginMeaning";
 // CHARTS + THE DOCUMENT SHELL — `frontend/lib/charts/`. Server-generated
 // SVG, no chart library, no runtime dependency: every figure in every
 // chart is drawn into the bytes this function returns, so a gate can
@@ -615,6 +616,12 @@ export interface Statements {
    *  `GET /api/period/{id}`. Absent on older payloads, which blocks
    *  nothing. */
   industry_signal?: unknown;
+  /** The engine's verdict on whether a margin over turnover is meaningful
+   *  for this period (`engine.ratios.margin_meaning`, served on
+   *  `GET /api/period`). Read through `lib/marginMeaning`, never decided
+   *  here. Absent on older payloads and on non-engine sources, which
+   *  refuses nothing. */
+  margin_meaning?: unknown;
   currency: string;
   periodLabel: string; // e.g. "FY 2025"
   balanceSheet: BalanceSheet;
@@ -1120,14 +1127,19 @@ function inputWord(name: string): string {
  *  non-React fallback). Both are built from this one function, so the two
  *  spellings can never diverge in substance. */
 export function absenceI18n(a: FigureAbsence): {
-  /** Key under the `ratioAbsence` bundle (components/cfo/ratioAbsenceI18n). */
-  key: "undefinedRatio" | "missingNamed" | "missingUnnamed";
+  /** Key under the `ratioAbsence` bundle (components/cfo/ratioAbsenceI18n).
+   *  `notMeaningful` carries no key text of its own: the engine served the
+   *  sentence, per language, in `a.display` — the renderer prints it. */
+  key: "undefinedRatio" | "missingNamed" | "missingUnnamed" | "notMeaningful";
   /** Interpolation values, already reader-worded (never camelCase). */
   vars: { denominator?: string; inputs?: string };
   /** Canonical input words, in order — for a caller that lays them out
    *  itself rather than using the joined string. */
   inputWords: readonly string[];
 } {
+  if (a.kind === "not_meaningful") {
+    return { key: "notMeaningful", vars: {}, inputWords: [] };
+  }
   if (a.kind === "undefined_ratio") {
     return { key: "undefinedRatio", vars: { denominator: a.denominator }, inputWords: [] };
   }
@@ -1151,8 +1163,14 @@ export function absenceI18n(a: FigureAbsence): {
  *  `components/cfo/ratioAbsenceI18n`; this stays for the outputs that are
  *  English by contract (generated HTML report, Excel workbook). */
 export function describeAbsence(a: FigureAbsence): string {
+  // The engine's own English account of the refusal: what "activity" is and
+  // the threshold it was read against (the card's value states the share,
+  // so the commentary under it explains the rule rather than repeating it).
+  if (a.kind === "not_meaningful") return a.basis?.en ?? a.display.en;
   const d = absenceI18n(a);
   switch (d.key) {
+    case "notMeaningful":
+      return "";
     case "undefinedRatio":
       return `Undefined — ${d.vars.denominator} is zero, so this ratio has no value for this period.`;
     case "missingUnnamed":
@@ -1490,17 +1508,35 @@ export function computeRatios(
   // below says why on the card.
   const costOfSales = I("costOfGoodsSold");
   const grossMarginHasCostBase = costOfSales.value !== null && costOfSales.value !== 0;
-  const grossMargin = mPctOr("gross_margin", pctOf(grossProfit, revenue, "revenue"));
-  const ebitdaMargin = m("ebitda_margin") !== null
+  // ── A MARGIN OVER A NEGLIGIBLE TURNOVER ─────────────────────────────
+  //
+  // Measured on the `realestate` book (a developer in a building year):
+  // this card printed "EBITDA Margin −17,884.9%" over 162,365 of rent
+  // against 29,280,043 of construction cost. The ENGINE rules such a
+  // margin not meaningful (engine.ratios.margin_meaning, served on
+  // `statements.margin_meaning`), and every margin over turnover then
+  // refuses with the engine's own sentence — the served metric, the
+  // canonical pair and the arithmetic below are all skipped, because each
+  // of them is the same meaningless division. Nothing here decides it.
+  const marginVerdict = readMarginMeaning(s.margin_meaning);
+  const notMeaningful: Fig | null =
+    marginVerdict && marginVerdict.refused && marginVerdict.display
+      ? {
+          value: null,
+          absence: { kind: "not_meaningful", display: marginVerdict.display, basis: marginVerdict.basis },
+        }
+      : null;
+  const grossMargin = notMeaningful ?? mPctOr("gross_margin", pctOf(grossProfit, revenue, "revenue"));
+  const ebitdaMargin = notMeaningful ?? (m("ebitda_margin") !== null
     ? known((m("ebitda_margin") as number) * 100)
     : (canonicalMargins?.ebitdaMargin != null
         ? known(canonicalMargins.ebitdaMargin * 100)
-        : pctOf(ebitda, revenue, "revenue"));
-  const netMargin = m("net_margin") !== null
+        : pctOf(ebitda, revenue, "revenue")));
+  const netMargin = notMeaningful ?? (m("net_margin") !== null
     ? known((m("net_margin") as number) * 100)
     : (canonicalMargins?.netMargin != null
         ? known(canonicalMargins.netMargin * 100)
-        : pctOf(netIncome, revenue, "revenue"));
+        : pctOf(netIncome, revenue, "revenue")));
   // BOTH OPERANDS, NOT ONE. `bsPctOr` makes the FE computation win so the
   // ratio divides the balance sheet this document PRINTS (canonical), not
   // the legacy assembly. But the numerator has an anchor of its own: the
@@ -2825,6 +2861,10 @@ export function formatRatio(r: Ratio): string {
   // expense has not been entered…"), never "not reported" above a table
   // that states why (B8 verifier, adjusted_dscr).
   if (r.printed !== undefined) return r.printed;
+  // A margin the ENGINE ruled not meaningful prints the engine's sentence
+  // (English: this formatter serves the English-by-contract outputs), so
+  // no surface reads "not reported" over a turnover that WAS reported.
+  if (r.value === null && r.unavailable?.kind === "not_meaningful") return r.unavailable.display.en;
   // A refused ratio has no spelling as a number. Every caller — the HTML
   // report, the Excel export, the drawer — gets the same word, so none of
   // them can print "0.00×" for a figure nothing computed.
@@ -2879,6 +2919,11 @@ export function verdictLabel(v: RatioVerdict): string {
 /** The badge word for a ratio row: the served band's word on a row read
  *  off the served table, the verdict's word otherwise. */
 export function ratioBadgeLabel(r: Ratio): string {
+  // A margin the ENGINE ruled not meaningful was reported — it is refused
+  // for what it would mean, so its badge says that, not "Not reported".
+  if (r.bandLabel === undefined && r.value === null && r.unavailable?.kind === "not_meaningful") {
+    return "Not meaningful";
+  }
   return r.bandLabel ?? verdictLabel(r.verdict);
 }
 
@@ -3249,7 +3294,9 @@ function overlayOne(rt: Ratio, row: RatioCompareRow): Ratio {
     spelledFe !== "" && rt.benchmark.startsWith(`${spelledFe} — `) ? rt.benchmark.slice(spelledFe.length + 3) : "";
   const keptNote = note !== "" && !/\d/.test(note) && rt.value !== null ? note : "";
   const servedBenchmark =
-    sentence ?? (side.reason ? reasonText(side.reason.code, RATIO_CMP_EXPORT_LOCALE, side.reason.inputs) : bandLabel);
+    sentence ?? (side.reason
+      ? reasonText(side.reason.code, RATIO_CMP_EXPORT_LOCALE, side.reason.inputs, side.reason)
+      : bandLabel);
   const benchmark = sentence !== null && keptNote !== "" ? `${servedBenchmark} — ${keptNote}` : servedBenchmark;
   // The card's own commentary survives only where it cannot contradict the
   // served side: same verdict, and the same digits as the served figure
@@ -3416,6 +3463,17 @@ export function renderReportHtml(
     const rt = ratioNamed(key);
     return rt === undefined ? UNREPORTED_WORD : formatRatio(rt);
   };
+  // A margin the ENGINE ruled not meaningful prints its sentence alone —
+  // "…turnover is 0.6% of activity margin" is not a sentence.
+  const marginLine = (key: string): string => {
+    const rt = ratioNamed(key);
+    return rt !== undefined && rt.value === null && rt.unavailable?.kind === "not_meaningful"
+      ? formatRatio(rt)
+      : `${printedRatio(key)} margin`;
+  };
+  // The engine's one note for its one case (a developer's capitalised 711),
+  // under the EBITDA it speaks of — English, like the rest of this document.
+  const marginNote = marginNoteOf(s);
   const recs = generateRecommendations(s, r);
   // THE ONE ALTMAN, and the letter that travels with it.
   const altman = altmanRatio(credit);
@@ -5512,7 +5570,8 @@ export function renderReportHtml(
         method: "assembled_pl.ebitda_statutory",
         snapshot: `${s.companyName} · ${s.periodLabel}`,
       })}>${money(ebitdaStatutory, s.currency)}</div>
-      <div class="meta">${escapeHtml(printedRatio("ebitda_margin"))} margin</div>
+      <div class="meta">${escapeHtml(marginLine("ebitda_margin"))}</div>
+      ${marginNote ? `<div class="meta" data-margin-note="1">${escapeHtml(marginNote.display.en)}</div>` : ""}
     </div>
     <div class="ratio-card">
       <div class="label">Net Income (account 121, as filed)</div>
@@ -5526,8 +5585,8 @@ export function renderReportHtml(
       })}>${money(netIncomeStatutory, s.currency)}</div>
       ${
         hasBridge
-          ? `<div class="meta"><span data-variant="pl-filed">account 121, as filed &mdash; ${escapeHtml(printedRatio("net_margin"))} margin</span><span data-variant="pl-reconstructed">reconstructed from class 6/7: ${money(reconstructedNetIncome, s.currency)} &mdash; <span class="no-variant">margin not restated; the served margin is built on the filed close</span></span></div>`
-          : `<div class="meta">account 121, as filed &mdash; ${escapeHtml(printedRatio("net_margin"))} margin</div>`
+          ? `<div class="meta"><span data-variant="pl-filed">account 121, as filed &mdash; ${escapeHtml(marginLine("net_margin"))}</span><span data-variant="pl-reconstructed">reconstructed from class 6/7: ${money(reconstructedNetIncome, s.currency)} &mdash; <span class="no-variant">margin not restated; the served margin is built on the filed close</span></span></div>`
+          : `<div class="meta">account 121, as filed &mdash; ${escapeHtml(marginLine("net_margin"))}</div>`
       }
     </div>
     <div class="ratio-card">

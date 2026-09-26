@@ -217,8 +217,28 @@ export function buildBankExportHtml(input: BankExportInput): string {
           n.dscr.below ? "bad" : "good",
         )
       : `<div class="kpi"><div class="l">${esc(t("forecast.cockpit.numbers.dscr", "DSCR {{year}}", { year: year(n.dscr.period) }))}</div><div class="s">${esc(t("forecast.cockpit.numbers.dscrNone", "Not applicable: the plan carries no debt service in {{year}}", { year: year(n.dscr.period) }))}</div></div>`;
+  // The same sub-line the page prints: the margin with today's beside it,
+  // or — where the ENGINE refused the margin because turnover is negligible
+  // against operating activity — the engine's sentence, never a percent.
+  const refusedMargin = n.ebitda.marginRefused ?? n.ebitda.marginYear0Refused;
   const ebitdaSub = n.ebitda.margin
-    ? `${esc(t("forecast.cockpit.numbers.margin", "margin"))} <span class="num" data-projected="true">${esc(pick(n.ebitda.margin, lang))}${MARK}</span>${n.ebitda.marginYear0 ? ` · ${esc(t("forecast.cockpit.numbers.today", "today"))} ${esc(pick(n.ebitda.marginYear0, lang))}` : ""}`
+    ? `${esc(t("forecast.cockpit.numbers.margin", "margin"))} <span class="num" data-projected="true">${esc(pick(n.ebitda.margin, lang))}${MARK}</span>${
+        n.ebitda.marginYear0
+          ? ` · ${esc(t("forecast.cockpit.numbers.today", "today"))} ${esc(pick(n.ebitda.marginYear0, lang))}`
+          : n.ebitda.marginYear0Refused
+            ? ` · ${esc(t("forecast.cockpit.numbers.today", "today"))}: <span data-margin-refused="today">${esc(pick(n.ebitda.marginYear0Refused, lang))}</span>`
+            : ""
+      }`
+    : refusedMargin
+      ? `<span data-margin-refused="final">${esc(pick(refusedMargin, lang))}</span>${
+          n.ebitda.marginRefused && !n.ebitda.marginYear0Refused && n.ebitda.marginYear0
+            ? ` · ${esc(t("forecast.cockpit.numbers.today", "today"))} ${esc(pick(n.ebitda.marginYear0, lang))}`
+            : ""
+        }`
+      : "";
+  // The engine's one note for its one case (a developer's capitalised 711).
+  const marginNote = n.ebitda.note
+    ? `<p class="note" data-margin-note="1">${esc(pick(n.ebitda.note, lang))}</p>`
     : "";
 
   const bridgeOf = (b: CockpitView["bridge"]["horizon"], title: string) =>
@@ -338,6 +358,7 @@ export function buildBankExportHtml(input: BankExportInput): string {
     ${cash}
     ${dscr}
   </div>
+  ${marginNote}
   <p class="sentence">${esc(pick(two(doc.sentence) ?? c.sentence, lang))}</p>
   <h3>${esc(section("chart", t("forecast.cockpit.chart.aria", "EBITDA and cash")))}</h3>
   ${chartSvg(c)}

@@ -83,6 +83,11 @@ export interface PLKeyMargin {
    *  "Net margin 0.00%" beside a net profit of 7,533,676 on the same screen. */
   value: number | null;
   pct: boolean;
+  /** The ENGINE's refusal of this margin, per language, when turnover is
+   *  negligible against operating activity (engine.ratios.margin_meaning,
+   *  served on `statements.margin_meaning`). Present iff `value` is null
+   *  for that reason; the view prints it in place of a percent. */
+  refusal?: { readonly ro: string; readonly en: string };
 }
 
 export interface PLStatement {

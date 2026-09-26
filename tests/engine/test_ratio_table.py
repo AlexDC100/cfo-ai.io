@@ -93,6 +93,7 @@ import pytest
 from _pytest.monkeypatch import MonkeyPatch
 
 from engine.country_packs.ro_romania.chart_of_accounts import _GENERAL_SME_BAND_DEFINITIONS
+from engine.ratios import margin_meaning as MM
 from engine.ratios import table as T
 
 REPO = Path(__file__).resolve().parents[2]
@@ -170,6 +171,45 @@ def tables() -> Dict[Tuple[str, str], Dict[str, Any]]:
     return {(b, v): T.build_ratio_table(payload_for(b, v)) for b in BOOKS for v in VARIANTS}
 
 
+#: The one committed book whose margins the margin rule refuses
+#: (engine.ratios.margin_meaning: turnover 0.6% of its operating activity).
+MARGIN_REFUSED_BOOKS = frozenset({"realestate"})
+
+
+def _margin_refused(table: Dict[str, Any]) -> frozenset:
+    """The census keys the margin rule refused on this table."""
+    return frozenset(r["key"] for r in table["rows"]
+                     if (r.get("reason") or {}).get("code") == MM.MARGIN_NOT_MEANINGFUL)
+
+
+def services_shaped_payload() -> Dict[str, Any]:
+    """TC-3 COVERAGE FOR ``withheld_basis`` / ``no_cost_of_sales``. SYNTHETIC,
+    labelled: the retail book with its cost of sales reported inside its
+    operating expenses — the shape of a services company, meaningful
+    turnover and no cost of sales — and no served gross-margin metric, so the
+    table divides its own statements. Until the margin rule (2026-09-26) the
+    developer's gross margin reached this branch; since it, the developer's
+    margins are refused as not meaningful, so no committed book does, and a
+    battery without it would check ``withheld_basis`` vacuously."""
+    payload = payload_for("retail", "served")
+    st = payload["statements"]
+    inc = dict(st["incomeStatement"])
+    inc["operatingExpenses"] = inc["operatingExpenses"] + inc["costOfGoodsSold"]
+    inc["costOfGoodsSold"] = 0.0
+    st["incomeStatement"] = inc
+    payload["metrics"] = [m for m in payload["metrics"] if m["name"] != "gross_margin"]
+    return payload
+
+
+@pytest.fixture(scope="module")
+def coverage_tables(tables) -> Dict[Tuple[str, str], Dict[str, Any]]:
+    """The battery the coverage checks walk: every committed table, plus the
+    services-shaped retail table (see ``services_shaped_payload``)."""
+    out = dict(tables)
+    out[("retail", "services_shaped")] = T.build_ratio_table(services_shaped_payload())
+    return out
+
+
 @pytest.fixture(scope="module")
 def captures() -> Dict[str, Dict[str, Any]]:
     out = {}
@@ -214,9 +254,9 @@ def test_census_is_every_fe_row_plus_every_pack_banded_key(tables, captures):
 # ── direction ───────────────────────────────────────────────────────────────
 
 
-def test_every_row_carries_higher_is_better_and_it_is_the_packs(tables):
+def test_every_row_carries_higher_is_better_and_it_is_the_packs(coverage_tables):
     statuses = set()
-    for (book, variant), table in tables.items():
+    for (book, variant), table in coverage_tables.items():
         for row in table["rows"]:
             statuses.add(row["band_status"])
             assert isinstance(row.get("higher_is_better"), bool), (
@@ -260,7 +300,11 @@ def test_engine_value_is_the_printed_fe_value_on_every_shared_key(tables, captur
             if fe["value"] is None:
                 kind = fe["absence"]["kind"]
                 expected = {"undefined_ratio": {"zero_denominator"},
-                            "missing": {"operand_absent", "user_input_absent"}}[kind]
+                            "missing": {"operand_absent", "user_input_absent"},
+                            # the margin rule (engine.ratios.margin_meaning):
+                            # the FE honours the served verdict, the table
+                            # decides it over the same statements
+                            "not_meaningful": {"margin_not_meaningful"}}[kind]
                 if row["reason"]["code"] not in expected:
                     failures.append("%s/%s %s: FE refused as %s, engine as %s" % (
                         book, variant, key, kind, row["reason"]["code"]))
@@ -386,12 +430,12 @@ def test_ladders_are_the_pack_rungs_in_display_units_as_strings(tables):
     assert checked == 3 * len(_GENERAL_SME_BAND_DEFINITIONS)
 
 
-def test_a_withheld_row_carries_no_ladder_even_where_the_pack_bands_it(tables):
+def test_a_withheld_row_carries_no_ladder_even_where_the_pack_bands_it(coverage_tables):
     """TC-3 for the rule above: the battery must contain withheld rows of a
     pack-banded key, or `ladder is None` was only ever checked on keys the
     pack does not band."""
     withheld_banded = [
-        (b, v, r["key"], r["band_status"]) for (b, v), t in tables.items() for r in t["rows"]
+        (b, v, r["key"], r["band_status"]) for (b, v), t in coverage_tables.items() for r in t["rows"]
         if r["band_status"] in ("ungraded_sector", "withheld_sign", "withheld_basis")
         and r["key"] in _GENERAL_SME_BAND_DEFINITIONS]
     statuses = {w[3] for w in withheld_banded}
@@ -401,9 +445,9 @@ def test_a_withheld_row_carries_no_ladder_even_where_the_pack_bands_it(tables):
 # ── enums, coverage, sector withholding ─────────────────────────────────────
 
 
-def test_reason_codes_and_statuses_are_closed_and_coverage_ties(tables):
+def test_reason_codes_and_statuses_are_closed_and_coverage_ties(coverage_tables):
     seen_codes = set()
-    for (book, variant), table in tables.items():
+    for (book, variant), table in coverage_tables.items():
         cov = table["coverage"]
         served_keys = set()
         for row in table["rows"]:
@@ -428,8 +472,16 @@ def test_reason_codes_and_statuses_are_closed_and_coverage_ties(tables):
         assert cov["served"] + len(cov["refused"]) == cov["census_count"]
         assert set(cov["band_withheld"]) <= served_keys
     for needed in ("zero_denominator", "user_input_absent", "engine_metric_absent", "sector_unconfirmed",
-                   "negative_denominator", "no_cost_of_sales"):
+                   "negative_denominator", "no_cost_of_sales", "margin_not_meaningful"):
         assert needed in seen_codes, "reason %s never produced — its branch is untested" % needed
+    # the margin rule refuses exactly the pack's margin keys, on exactly the
+    # book it was measured to refuse, in every variant
+    for (book, variant), table in coverage_tables.items():
+        refused_by_rule = _margin_refused(table)
+        if book in MARGIN_REFUSED_BOOKS:
+            assert refused_by_rule == frozenset(MM.margin_keys()), (book, variant, sorted(refused_by_rule))
+        else:
+            assert not refused_by_rule, (book, variant, sorted(refused_by_rule))
 
 
 #: The sector-withheld set, declared (not derived from the module): the
@@ -459,8 +511,12 @@ def test_sector_withholding_follows_the_payload_signal(tables):
         assert withheld == DECLARED_SECTOR_WITHHELD & valued, (
             "%s disputed: withheld %s, declared %s" % (
                 book, sorted(withheld), sorted(DECLARED_SECTOR_WITHHELD & valued)))
-        # TC-3 — the metric-only members must have been met with a value.
-        assert {"operating_margin", "core_ebitda_margin", "inventory_turnover"} <= valued, book
+        # TC-3 — the metric-only members must have been met with a value —
+        # or, on the book the margin rule refuses, refused as not
+        # meaningful (a margin with no value has no band to withhold).
+        refused_by_rule = _margin_refused(tables[(book, "disputed")])
+        assert {"operating_margin", "core_ebitda_margin", "inventory_turnover"} <= valued | refused_by_rule, book
+        assert bool(refused_by_rule) == (book in MARGIN_REFUSED_BOOKS), (book, sorted(refused_by_rule))
         for key in T.CENSUS:
             assert served[key]["band_status"] != "ungraded_sector", (book, key)
 
@@ -508,11 +564,19 @@ def test_declared_precedence_is_what_computeRatios_does_under_perturbed_metrics(
         served = captures[book]["variants"]["served"]
         pert = captures[book]["variants"]["perturbed"]
         engine = _rows(tables[(book, "perturbed")])
+        refused_by_rule = _margin_refused(tables[(book, "perturbed")])
         for key, fe_key in T.FE_KEY_OF.items():
             decl = T.PRECEDENCE[key]
             metric = _metric(book, key)
             s_row, p_row, e_row = served[fe_key], pert[fe_key], engine[key]
             sources = [o["source"] for o in e_row["operands"]]
+            if key in refused_by_rule:
+                # The margin rule refuses before any precedence applies:
+                # both sides refuse, and neither side's source is chosen.
+                if p_row["value"] is not None or (p_row["absence"] or {}).get("kind") != "not_meaningful":
+                    failures.append("%s %s refused by the margin rule, FE perturbed %r" % (
+                        book, key, p_row["value"]))
+                continue
             if decl == "mOr" and metric is not None:
                 scale = 100.0 if T._SPEC_BY_KEY[key].display_unit == "pct" else 1.0
                 expected = (metric * METRIC_PERTURBATION) * scale if scale != 1.0 else metric * METRIC_PERTURBATION
@@ -589,12 +653,24 @@ def test_a_period_with_no_metric_rows_serves_the_metrics_own_formula(route_bodie
     for book in BOOKS:
         body = route_bodies[book]
         assert not body.get("metrics"), "%s: the route body carries metric rows — the fallback is not exercised" % book
-        rows = _rows(T.build_ratio_table(body))
+        table = T.build_ratio_table(body)
+        rows = _rows(table)
+        refused_by_rule = _margin_refused(table)
+        assert bool(refused_by_rule) == (book in MARGIN_REFUSED_BOOKS), (book, sorted(refused_by_rule))
         for key, p in T.PRECEDENCE.items():
             if p != "mOr":
                 continue
             metric, row = _metric(book, key), rows[key]
             if metric is None:
+                continue
+            if key in refused_by_rule:
+                # Refused by the margin rule, on the route's own verdict:
+                # checked against the rule instead of the metric's formula
+                # (both are the authority for this key on this book), so it
+                # counts as compared.
+                if body["statements"]["margin_meaning"]["status"] != MM.NOT_MEANINGFUL:
+                    failures.append("%s %s refused by the margin rule the route did not serve" % (book, key))
+                compared += 1
                 continue
             if row["value"] is None:
                 failures.append("%s %s: metric %r served, the fallback refused %s" % (book, key, metric, row["reason"]))
@@ -648,10 +724,18 @@ def test_metric_only_rows_are_the_served_metric_graded_on_the_pack(tables):
         if variant != "served":
             continue
         rows = _rows(table)
+        refused_by_rule = _margin_refused(table)
         for key, p in T.PRECEDENCE.items():
             if p != "metric_only":
                 continue
             row, metric = rows[key], _metric(book, key)
+            if key in refused_by_rule:
+                # A margin the rule refuses is served as the refusal, never
+                # as the metric: no value, no band, the share and threshold.
+                assert book in MARGIN_REFUSED_BOOKS, (book, key)
+                assert row["value"] is None and row["band_status"] == "refused", (book, key, row)
+                assert row["reason"]["threshold"] == MM.margin_meaning_pack().share_below_text, row["reason"]
+                continue
             if metric is None:
                 assert row["value"] is None and row["reason"] == {
                     "code": "engine_metric_absent", "inputs": ["metrics." + key]}, (book, key, row)

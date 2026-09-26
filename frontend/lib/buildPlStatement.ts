@@ -23,6 +23,7 @@ import {
   sumByPrefix,
 } from "./plStructure";
 import type { IncomeStatement, Statements } from "./financialReport";
+import { marginRefusalOf } from "./marginMeaning";
 import { ROUNDED_MONEY_ZERO_FLOOR } from "./changeKind";
 
 
@@ -617,6 +618,29 @@ export function pickPLBuilder(
   },
   statements: Statements,
 ): PLStatement {
+  return withMarginRefusal(pickPLBuilderUnjudged(args, statements), statements);
+}
+
+/** THE KEY MARGINS OVER A NEGLIGIBLE TURNOVER. When the ENGINE ruled the
+ *  period's margins not meaningful (`statements.margin_meaning`, the one
+ *  rule in engine.ratios.margin_meaning), every Key Margins row refuses with
+ *  the engine's sentence — the canonical pair, the arithmetic fallback and
+ *  the legacy rows are all the same meaningless division. Measured on the
+ *  `realestate` book: "EBITDA margin −17,884.9%". A payload with no verdict
+ *  keeps its margins. */
+function withMarginRefusal(pl: PLStatement, statements: Statements): PLStatement {
+  const refusal = marginRefusalOf(statements);
+  if (!refusal) return pl;
+  return {
+    ...pl,
+    keyMargins: pl.keyMargins.map((m) => ({ ...m, value: null, refusal })),
+  };
+}
+
+function pickPLBuilderUnjudged(
+  args: Parameters<typeof pickPLBuilder>[0],
+  statements: Statements,
+): PLStatement {
   const items = args.lineItems ?? [];
   const plItems = items.filter((li) => li.statement === "PL");
   if (plItems.length === 0) {
@@ -654,6 +678,21 @@ export function pickPLBuilder(
 }
 
 export function buildPLStatementFromAggregates(
+  statements: Statements,
+  canonicalMargins?: { ebitdaMargin: number | null; netMargin: number | null },
+  servedEbitda?: number | null,
+  opts: {
+    revenueChip?: string;
+    revenueFamilies?: Record<string, number>;
+  } = {},
+): PLStatement {
+  return withMarginRefusal(
+    buildPLStatementFromAggregatesUnjudged(statements, canonicalMargins, servedEbitda, opts),
+    statements,
+  );
+}
+
+function buildPLStatementFromAggregatesUnjudged(
   statements: Statements,
   // F1.e — see BuildArgs.canonicalMargins for the full rationale. Mirrored
   // here so the aggregates-path caller can supply the same canonical pair.

@@ -10198,3 +10198,161 @@ comes back live and `analyzed` beside the replacement that serves its
 month; and the GateDouble models no `ON DELETE CASCADE`, so derivative rows
 of a removed staged row stay in the double (production's foreign keys take
 them).
+
+## margin-meaning
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_margin_meaning.py -q -s` |
+| canary | `SCOPE margin-meaning (packs/ratios/margin_meaning.yaml)`, `MM-DEVELOPER saga_10_col_realestate refused on 5 ratio rows`, `MM-PLANTS: …` |
+| work count | `GATE-WORK margin-meaning units=(\d+)`, floor **150** (measured 187) |
+
+**SCOPE** — the incident (measured live 2026-09-26, reproduced here on the
+corpus twin `saga_10_col_realestate`): a property developer in a building year
+books its construction cost through class 6 and capitalises it into stock
+through account 711; its turnover is a little rent (0.55% of its operating
+expense). The ratio table served an EBITDA margin of −17,884.9%, the forecast
+cockpit printed "margin −17,886.1% · today −17,884.9%" and its sentence
+repeated both. ONE rule now decides when a margin over turnover is not
+meaningful — `|turnover| < max(floor, share_below × total operating expense)`,
+`packs/ratios/margin_meaning.yaml` (share_below 0.10, floor 1 currency unit,
+chosen from the measured corpus shares stated in the pack) — in
+`engine.ratios.margin_meaning`, asked by the ratio table (the five margin rows
+refuse as `margin_not_meaningful` with the share, the threshold and the text),
+by `GET /api/period` (`statements.margin_meaning`, which the dashboard reads)
+and by the forecast cockpit (both margins, the sentence, `base_period`, the
+bank export); the sector benchmark's company side refuses the margin the card
+refused. The verdict is served only where the rule refuses, so every other
+book's body is the body it always was. The gate: the rule's boundaries (strict at the threshold, exact
+on floats, the floor, what it does not judge); a broken pack refused at first
+use and at boot; the note's money display equal to the cockpit's; the pack's
+comment table equal to the measurement; the one note's every requirement; and,
+on EVERY corpus book the real write path and the real route serve (17 — every
+RO trial-balance lane, the mocked scanned-PDF lane, the mocked HU lane;
+`public_summary_ro` is declared not a period), the served body with the rule IS
+the body with the rule neutralised, byte for byte, and carries no verdict,
+except the developer, where exactly its five margin rows (and the coverage
+entries counting them) move and the verdict is served; the developer's refusal and note, RO and EN, on the
+served period, the ratio rows, the cockpit (both margins, the sentence with no
+margin clause, `base_period`, the note naming its year), a moved slider and the
+bank export, and the benchmark page's net margin; every other cockpit
+byte-identical; the frontend fixtures
+(`tests/engine/fixtures/firm/margin_meaning.json`,
+`tests/engine/fixtures/forecast/cockpit_realestate_{base,export}.json`) equal
+to what the route serves today.
+
+Plants, each applied alone to a clean tree by `scratchpad/margin_work/plants.py`
+(the named subset run, then the file restored byte-exact — the script asserts
+the bytes), eight of eight RED:
+
+**PLANT threshold-reaches-a-normal-book** — `packs/ratios/margin_meaning.yaml`
+`share_below: "0.10"` → `"0.999"` (carniprod's turnover is 99.89% of its costs).
+```
+RED (-k "measured_shares or no_corpus_book")
+E   AssertionError: ['saga_10_col_carniprod', 'saga_10_col_realestate']
+E   assert ['saga_10_col...l_realestate'] == ['saga_10_col_realestate']
+```
+**PLANT threshold-under-the-developer** — `share_below: "0.10"` → `"0.001"`.
+```
+RED (-k "developer_shows or developers_cockpit or no_cockpit")
+E   AssertionError: THE DEVELOPER PRINTS A MARGIN:
+E       the developer's served verdict is 'meaningful', not not_meaningful
+E       gross_margin printed '100.0' on the developer
+```
+**PLANT table-ignores-the-verdict** — `engine/ratios/table.py`:
+`refused_margins = frozenset()`.
+```
+RED (-k "developer_shows or no_corpus_book")
+E   AssertionError: THE RULE MOVED A BOOK IT MUST NOT:
+E       saga_10_col_realestate: the rows that moved are [], not the five margins
+```
+**PLANT cockpit-prints-the-margin** — `engine/forecast/cockpit.py`: the final
+year's margin computed whatever the verdict (`if final["pl.revenue"] else None`).
+```
+RED (-k no_cockpit)
+E   AssertionError: THE COCKPIT:
+E       cockpit developer ro prints margins '−17.886,1%' / None
+E       cockpit developer en prints margins '−17,886.1%' / None
+```
+**PLANT period-serves-no-verdict** — `engine/api/pipeline.py`: the refusing
+verdict is computed and not put on `statements`.
+```
+RED (-k "developer_shows or measured_shares")
+E   AssertionError: ('saga_10_col_realestate', None)
+E   assert (None is not None)
+```
+**PLANT every-book-serves-a-verdict** — `engine/api/pipeline.py`: the verdict is
+served whatever it says (`if True:`), so every normal body grows a block.
+```
+RED (-k "measured_shares or no_corpus_book")
+E   AssertionError: ('contra_sign_flip', 'a verdict that refuses nothing is not served', {'activity': '0.000000', …})
+```
+**PLANT benchmark-restates-the-margin** — `engine/benchmarks_ro/sector.py`: the
+card's refusal is not recognised, so the page restates the margin.
+```
+RED (-k benchmark_page)
+E   AssertionError: {'basis': 'restated_on_filed_basis', …, 'reason': None, 'value': -4.937036115932539}
+```
+**PLANT note-on-every-refused-book** — `engine/ratios/margin_meaning.py`: the
+note's real-estate requirement dropped (`if not (verdict.refused …`).
+```
+RED (-k "only_the_developer_carries_the_note or one_case_only")
+E   AssertionError: manufacturing
+E   assert {'display': {'en': 'For a property developer, construction costs are capitalised …'}, …} is None
+```
+The in-file plants (`test_plant_*`) run the same checkers on every gate run:
+a threshold that reaches a normal book, a threshold under the developer, a
+ratio table that ignores the verdict, a cockpit that ignores it — each must red.
+
+**REVERT** — every file restored byte-exact; the clean tree:
+```
+GATE-WORK margin-meaning units=187
+32 passed
+```
+
+CANNOT SEE: what the pages paint (`margin-meaning-page`), a book outside the
+corpus, whether 10% is the right threshold (the pack states why it was
+chosen; the owner rules).
+
+## margin-meaning-page
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/lib/__tests__/marginMeaning.test.tsx --reporter=verbose` |
+| canary | `THE ACCEPTANCE RULE: no percent of a thousand or more anywhere in the developer's document`, `the bank export prints the refusal and the note, and no percent of a thousand or more` |
+| work count | `Tests N passed`, floor **15** (measured 18) |
+
+**SCOPE** — the pages' half of `margin-meaning`, over REAL ENGINE OUTPUT (the
+four firm books as the route serves them — `exportBooks.statementsFor` joins
+the captured verdict — and the developer's cockpit and bank export captured
+from the real route): on the developer, the P&L key margins, the dashboard's
+KPI margin card, the ratio bundle behind the Ratios tab fallback / drawer /
+printed report / workbook, the EBITDA reconciliation, the served ratio rows,
+the cockpit's four numbers and the bank export print the ENGINE's refusal, in
+RO and EN, never a percent; the note prints on the developer (RO and EN) and
+on no other book; every other book's margins, key margins and printed report
+are the same bytes with and without the verdict; and THE OWNER'S ACCEPTANCE
+RULE — no percent of a thousand or more in the developer's printed report or
+bank export.
+
+Plants, each applied alone by `scratchpad/margin_work/plants_fe.py` (restored
+byte-exact, asserted), six of six RED:
+```
+PLANT ratio-bundle-ignores-the-verdict (lib/financialReport.ts) — 3 failed:
+  × refuses the developer's three margins with the engine's sentence
+  × the developer's EBITDA card states the refusal and the note; its margin cards print no figure
+  × THE ACCEPTANCE RULE: no percent of a thousand or more anywhere in the developer's document
+PLANT key-margins-ignore-the-verdict (lib/buildPlStatement.ts) — 1 failed:
+  × the P&L key margins > refuse on the developer, in both languages, and print no percent
+PLANT kpi-card-ignores-the-refusal (components/dashboard/MetricCard.tsx) — 1 failed:
+  × the developer's EBITDA-margin card states the refusal, RO and EN
+PLANT cockpit-numbers-ignore-the-refusal (components/forecast/cockpit/HeadlineNumbers.tsx) — 1 failed:
+  × the four numbers print the refusal, RO and EN, and no margin percent
+PLANT bank-export-ignores-the-refusal (lib/forecastBankExport.ts) — 1 failed:
+  × the bank export prints the refusal and the note, and no percent of a thousand or more
+PLANT books-served-without-the-verdict (lib/__tests__/exportBooks.ts: the developer served as before the rule) — 8 failed, among them:
+  AssertionError: the document prints -17884.9%: expected [ '-17884.9%', … ] to be null
+```
+**REVERT** — the clean tree: `Tests 18 passed (18)`.
+
+CANNOT SEE: the verdict itself (the engine gate decides it), pixels.

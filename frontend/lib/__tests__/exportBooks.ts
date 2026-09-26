@@ -33,6 +33,16 @@ const SERVED_METRICS = JSON.parse(
   readFileSync(firm("served_metrics.json"), "utf-8"),
 ) as Record<Book, Record<string, number | null>>;
 
+/** `statements.margin_meaning` as `GET /api/period` serves it for each book
+ *  (engine.ratios.margin_meaning), captured by
+ *  tests/engine/fixtures/firm/capture_margin_meaning.py and held to the
+ *  route by tests/engine/test_margin_meaning.py. The write-path capture
+ *  predates the verdict, so it is joined here — the developer (`realestate`)
+ *  with its margins refused and its note, every other book refusing nothing. */
+const MARGIN_MEANING = JSON.parse(
+  readFileSync(firm("margin_meaning.json"), "utf-8"),
+) as Record<Book, unknown>;  // null: the route serves no verdict on that book
+
 export type BookStatements = Statements & {
   assembled_pl?: Record<string, number>;
   assembled_bs?: Record<string, number>;
@@ -85,9 +95,15 @@ export function statementsFor(book: Book): BookStatements {
         `is incomplete, and rendering without it prints an unbalanced balance sheet.`,
     );
   }
+  const verdict = MARGIN_MEANING[book];
+  if (verdict === undefined) {
+    throw new Error(`margin_meaning.json does not name ${book}; rerun capture_margin_meaning.py`);
+  }
   return {
     ...fx.statements,
     canonical_bs: cbs,
+    // served only where the rule refuses — no key at all on any other book
+    ...(verdict === null ? {} : { margin_meaning: verdict }),
     supplementary: {
       ...fx.statements.supplementary,
       periodDays: servedPeriodDays(fx),

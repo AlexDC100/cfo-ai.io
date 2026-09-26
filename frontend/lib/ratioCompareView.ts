@@ -457,7 +457,9 @@ export function ladderText(
   if (!side) return t("statements.ratioCmp.reason.period_absent");
   const ladder = side.ladder;
   if (side.band_status !== "graded" || !isObj(ladder) || unit === "grade") {
-    const reason = side.reason ? reasonText(side.reason.code, loc, side.reason.inputs) : formatRatioBand(side, loc);
+    const reason = side.reason
+      ? reasonText(side.reason.code, loc, side.reason.inputs, side.reason)
+      : formatRatioBand(side, loc);
     return t("statements.ratioCmp.ui.ladderUnread", { reason });
   }
   const parts: string[] = [];

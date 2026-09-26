@@ -11,15 +11,27 @@
 
 import type { CanonicalMetrics } from "@/lib/canonicalMetrics";
 import { formatCanonicalFull, formatCanonicalPct } from "@/lib/canonicalMetrics";
+import { pickMargin, type MarginBilingual } from "@/lib/marginMeaning";
 import { Info } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface Props {
   metrics: CanonicalMetrics;
   currency?: string;
   testid?: string;
+  /** The ENGINE's refusal of every margin over turnover for this period
+   *  (`statements.margin_meaning`): the footer states it instead of the two
+   *  margins this panel would otherwise divide. */
+  marginRefusal?: MarginBilingual | null;
 }
 
-export function EbitdaReconciliationPanel({ metrics, currency = "RON", testid = "ebitda-reconciliation-panel" }: Props) {
+export function EbitdaReconciliationPanel({
+  metrics,
+  currency = "RON",
+  testid = "ebitda-reconciliation-panel",
+  marginRefusal = null,
+}: Props) {
+  const { i18n } = useTranslation();
   const { ebitda } = metrics;
   const hasAdjustments = ebitda.adjustments.length > 0;
 
@@ -100,13 +112,19 @@ export function EbitdaReconciliationPanel({ metrics, currency = "RON", testid = 
       </ol>
 
       <footer className="mt-4 pt-3 border-t border-rule/60 flex items-center justify-between gap-3 flex-wrap text-[11.5px] text-ink-mute">
-        <span>
-          Reported margin{" "}
-          <span className="text-ink-soft tabular-nums">{formatCanonicalPct(ebitda.reported_margin_pct)}</span>
-          <span className="mx-1.5">·</span>
-          Core margin{" "}
-          <span className="text-ink-soft tabular-nums">{formatCanonicalPct(ebitda.core_margin_pct)}</span>
-        </span>
+        {marginRefusal ? (
+          <span data-testid="ebitda-recon-margin-refused" className="text-ink-soft">
+            {pickMargin(marginRefusal, i18n.language)}
+          </span>
+        ) : (
+          <span>
+            Reported margin{" "}
+            <span className="text-ink-soft tabular-nums">{formatCanonicalPct(ebitda.reported_margin_pct)}</span>
+            <span className="mx-1.5">·</span>
+            Core margin{" "}
+            <span className="text-ink-soft tabular-nums">{formatCanonicalPct(ebitda.core_margin_pct)}</span>
+          </span>
+        )}
         <span className="text-ink-mute">
           Bridge math: every figure traces to {metrics.provenance.source ?? "the trial balance"} — no engine recompute.
         </span>

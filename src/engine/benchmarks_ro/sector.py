@@ -40,6 +40,11 @@ from typing import Any, Dict, List, Mapping, Optional, Tuple
 from . import definitions as D
 from .dataset import load_dataset, lookup
 
+#: The ratio table's reason for a margin the one margin rule refused
+#: (engine.ratios.margin_meaning.MARGIN_NOT_MEANINGFUL, spelled here so this
+#: pure seam imports nothing from the ratio layer at module load).
+MARGIN_NOT_MEANINGFUL = "margin_not_meaningful"
+
 SCHEMA = "sector_benchmark/1"
 
 #: A percentile needs at least this many peers AND the distribution.
@@ -247,6 +252,19 @@ def company_figures(payload: Mapping[str, Any],
     for key, (num, den, scale) in restated.items():
         card_key = SAME_AS_CARD.get(key)
         row = _table_row(payload, card_key) if card_key else None
+        refusal = (row.get("reason") or {}) if row is not None else {}
+        if row is not None and row.get("value") is None and \
+                refusal.get("code") == MARGIN_NOT_MEANINGFUL:
+            # The ONE margin rule (engine.ratios.margin_meaning) refused the
+            # card's margin: turnover is negligible against the company's
+            # operating activity. The page refuses the same figure for the
+            # same reason — never a percent restated from the filed basis
+            # beside a card that declined to print one (the page and the
+            # card cannot disagree).
+            put(key, None, {"code": "company_margin_not_meaningful",
+                            "inputs": list(refusal.get("inputs") or [])},
+                "ratio_table.%s" % card_key, list(row.get("operands") or []))
+            continue
         if (row is not None and _is_num(row.get("value"))
                 and _card_states_its_filed_basis(row)):
             # Table pct rows are 0-100; the dataset holds fractions.

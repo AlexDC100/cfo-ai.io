@@ -98,6 +98,13 @@ export interface RatioOperand {
 export interface RatioReason {
   code: string;
   inputs: string[];
+  /** Served on a `margin_not_meaningful` refusal only: the engine's own
+   *  sentence per language, with the share it read and the pack threshold
+   *  (engine.ratios.margin_meaning). Printed verbatim — the reader never
+   *  re-derives the share or re-states the threshold. */
+  display?: { ro?: string; en?: string } | null;
+  share?: string | null;
+  threshold?: string | null;
 }
 
 /** Rungs in the value's DISPLAY unit (pct rows are percent, not fractions),
@@ -438,6 +445,8 @@ export const RATIO_REASON_CODES = [
   "engine_metric_absent",
   "user_input_absent",
   "source_declares_absence",
+  // a margin over a turnover negligible against operating activity
+  "margin_not_meaningful",
   // band withheld (value kept)
   "sector_unconfirmed",
   "negative_denominator",
@@ -653,7 +662,30 @@ export function operandWords(inputs: readonly string[] | null | undefined, local
   return operandWordsT(tFor(locale), inputs);
 }
 
-function reasonSentence(t: T, code: string | null | undefined, inputs?: readonly string[] | null): string {
+/** The sentence the ENGINE rendered for a refusal, in `locale`, when the
+ *  served reason carries one (a margin ruled not meaningful: its share is
+ *  the engine's, so the words are too). */
+function servedReasonText(
+  code: string | null | undefined,
+  served: { display?: unknown } | null | undefined,
+  locale: RatioLocale,
+): string | null {
+  if (code !== "margin_not_meaningful" || !served || typeof served !== "object") return null;
+  const display = (served as { display?: unknown }).display;
+  if (!display || typeof display !== "object") return null;
+  const text = (display as Record<string, unknown>)[locale];
+  return typeof text === "string" && text !== "" ? text : null;
+}
+
+function reasonSentence(
+  t: T,
+  code: string | null | undefined,
+  inputs?: readonly string[] | null,
+  served?: { display?: unknown } | null,
+  locale?: RatioLocale,
+): string {
+  const rendered = servedReasonText(code, served, locale ?? ratioLocale(i18n.language));
+  if (rendered !== null) return rendered;
   const vars: Record<string, string> = { code: code ?? "" };
   if (code && RATIO_REASON_CODES_WITH_INPUTS.has(code)) {
     vars.inputs = operandWordsT(t, inputs);
@@ -666,8 +698,11 @@ export function reasonText(
   reasonCode: string | null | undefined,
   locale?: string,
   inputs?: readonly string[] | null,
+  /** The served reason object, when the caller has it: a refusal the engine
+   *  rendered (margin_not_meaningful) prints the engine's sentence. */
+  served?: { display?: unknown } | null,
 ): string {
-  return reasonSentence(tFor(locale), reasonCode, inputs);
+  return reasonSentence(tFor(locale), reasonCode, inputs, served, ratioLocale(locale ?? i18n.language));
 }
 
 /** A plain quantized decimal: optional sign, digits, optional fraction. */
@@ -725,7 +760,7 @@ export function formatRatioSide(
   if (!DISPLAY_UNIT_SET.has(unit)) return unrecognised(t, "display_unit", unit);
   const served: unknown = side.value_q;
   if (served === null || served === undefined) {
-    return reasonSentence(t, side.reason?.code ?? null, side.reason?.inputs);
+    return reasonSentence(t, side.reason?.code ?? null, side.reason?.inputs, side.reason, loc);
   }
   if (typeof served !== "string") return t("statements.ratioCmp.reason.malformed_value");
   if (unit === "grade") {

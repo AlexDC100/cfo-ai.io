@@ -15,8 +15,15 @@ the owner's local pair for the frontend's lever-scale gate
 (frontend/pages/cfo/__tests__/forecastCockpitLeverScale.test.tsx, which reads
 them through FORECAST_LOCAL_COCKPIT_FIXTURES=<dir>):
     python scripts/gen_cockpit_fixtures.py --book scandia_local --out <dir OUTSIDE the repo>
-The script refuses an --out inside the repository for any book but agras:
-a client's figures never land in git.
+The script refuses an --out inside the repository for any book but the
+committed corpus books: a client's figures never land in git.
+
+THE DEVELOPER (2026-09-26). The committed corpus developer (realestate) is
+captured too, for its base case and its bank export only, so the frontend's
+margin gates read the cockpit the engine serves a book whose margins the rule
+refuses (engine.ratios.margin_meaning) rather than a hand-typed copy:
+    python scripts/gen_cockpit_fixtures.py --book realestate --requests base,export
+Pinned by tests/engine/test_margin_meaning.py.
 """
 import argparse
 import json
@@ -28,22 +35,31 @@ import test_forecast_cockpit as C  # noqa: E402
 
 BASE = "tests/engine/fixtures/forecast/"
 
+#: The committed corpus books (anonymized, already in git): their cockpit
+#: bytes may be written inside the repository. Any other book may not.
+CORPUS_BOOKS = ("agras", "carniprod", "retail", "realestate")
+
 
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--book", default="agras")
     ap.add_argument("--out", default=None)
+    ap.add_argument("--requests", default=None,
+                    help="comma-separated fixture names (default: every FIXTURE_REQUESTS entry)")
     args = ap.parse_args()
     out = args.out or BASE
     repo = os.path.realpath(os.getcwd())
-    if args.book != "agras":
+    if args.book not in CORPUS_BOOKS:
         if not args.out:
-            sys.exit("--out is required for a book other than agras (never inside the repo)")
+            sys.exit("--out is required for a book outside the corpus (never inside the repo)")
         if os.path.realpath(out).startswith(repo + os.sep) or os.path.realpath(out) == repo:
             sys.exit("refusing to write %s's bytes inside the repository" % args.book)
+    wanted = None if not args.requests else set(x.strip() for x in args.requests.split(",") if x.strip())
     os.makedirs(out, exist_ok=True)
     with C._World(args.book) as world:
         for name, route, body in C.FIXTURE_REQUESTS:
+            if wanted is not None and name not in wanted:
+                continue
             served = world.ok(body, route=route)
             served.pop("recompute_ms", None)
             if "cockpit" in served:

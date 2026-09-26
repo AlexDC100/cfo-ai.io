@@ -67,6 +67,12 @@ import {
   statementsFor,
 } from "./exportBooks";
 import { periodDaysLabel } from "../financialReport";
+import { MARGIN_CONCEPT_KEYS, marginRefusalOf } from "../marginMeaning";
+
+/** The book's served margin refusal (engine.ratios.margin_meaning), when the
+ *  engine ruled its margins not meaningful — then every margin card prints
+ *  the engine's sentence and no formula is recomputed against it. */
+const refusalOf = (book: Book) => marginRefusalOf(statementsFor(book));
 
 type Env = {
   pl: Record<string, number>;
@@ -502,6 +508,18 @@ describe("G4 — every rendered ratio equals its stated formula", () => {
       for (const sp of SPECS) {
         const label = typeof sp.label === "function" ? sp.label(env) : sp.label;
         const card = cardNamed(doc, label);
+        const refusal = refusalOf(book as Book);
+        if (refusal && MARGIN_CONCEPT_KEYS.has(sp.key)) {
+          // The engine refused every margin on this book: the card states
+          // the refusal and no figure, whatever the formula divides to.
+          if (card.value !== refusal.en) {
+            failures.push(
+              `${book}: “${label}” prints ${JSON.stringify(card.value)} where the engine refused the ` +
+                `margin (${JSON.stringify(refusal.en)})`,
+            );
+          }
+          continue;
+        }
         const rendered = parsePrinted(card.value);
         const expected = sp.recompute(env);
         if (expected === null || !Number.isFinite(expected)) {
@@ -539,10 +557,21 @@ describe("G4 — every rendered ratio equals its stated formula", () => {
       const env = envOf(book as Book);
       const anchored: string[] = [];
       const cannotTell: string[] = [];
+      const refusedByRule: string[] = [];
       const failures: string[] = [];
+      const refusal = refusalOf(book as Book);
       for (const sp of SPECS) {
         if (sp.onReconstruction === undefined) continue;
         const label = typeof sp.label === "function" ? sp.label(env) : sp.label;
+        if (refusal && MARGIN_CONCEPT_KEYS.has(sp.key)) {
+          // A margin the engine refused reads no net income at all: it is
+          // considered, and it must print the refusal.
+          if (cardNamed(doc, label).value !== refusal.en) {
+            failures.push(`${book}: “${label}” is refused by the engine and prints a figure`);
+          }
+          refusedByRule.push(label);
+          continue;
+        }
         const rendered = parsePrinted(cardNamed(doc, label).value);
         const onFiled = sp.recompute(env);
         const onRebuilt = sp.onReconstruction(env);
@@ -574,7 +603,7 @@ describe("G4 — every rendered ratio equals its stated formula", () => {
         }
       }
       expect(
-        anchored.length + cannotTell.length,
+        anchored.length + cannotTell.length + refusedByRule.length,
         `${book}: not every net-income ratio was considered`,
       ).toBe(3);
       DISCRIMINATING.set(book, anchored.length);

@@ -98,6 +98,13 @@ reader can print a cutoff beside a badge that was not decided by it
                    (gross margin with no cost of sales);
   not_banded       value present, the pack bands no such key;
   refused          no value; ``reason`` names why.
+A MARGIN THAT IS NOT MEANINGFUL (``margin_not_meaningful``) is refused, not
+withheld: every key ``packs/ratios/margin_meaning.yaml`` lists (the margins
+over turnover) carries no value and no percent when turnover is negligible
+against operating activity — the ONE rule ``engine.ratios.margin_meaning``
+decides for this table, the served period and the forecast cockpit alike.
+Its ``reason`` carries the share, the threshold and the refusal text beside
+the code (TC-10: the threshold is the pack's, never prose).
 Every ``reason.code`` is one of ``REASON_CODES``. ``higher_is_better`` is
 present on EVERY row, refused and ungraded rows included.
 
@@ -142,6 +149,7 @@ writes reaches the table.
 """
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import math
@@ -172,6 +180,9 @@ REASON_CODES: Tuple[str, ...] = (
     "engine_metric_absent",
     "user_input_absent",
     "source_declares_absence",
+    # a margin over a turnover negligible against operating activity
+    # (engine.ratios.margin_meaning, packs/ratios/margin_meaning.yaml)
+    "margin_not_meaningful",
     # band withheld (value kept)
     "sector_unconfirmed",
     "negative_denominator",
@@ -881,6 +892,20 @@ def build_ratio_table(served_payload: Mapping[str, Any], *,
     else:
         figs, sign, has_cost_base, _denoms = _compute_figs(payload, statements)
 
+    # ONE rule for every margin over turnover (engine.ratios.margin_meaning):
+    # decided once per period, over the same served operands the dashboard's
+    # verdict reads, and applied to every margin key the pack lists.
+    from engine.ratios import margin_meaning as _mm
+
+    margin_refusal: Optional[Dict[str, Any]] = None
+    if not declares_absence:
+        verdict, verdict_inputs = _mm.period_verdict(statements)
+        if verdict.refused:
+            raw_ccy = statements.get("currency")
+            margin_refusal = _mm.reason_block(
+                verdict, verdict_inputs, raw_ccy if isinstance(raw_ccy, str) and raw_ccy else None)
+    refused_margins = frozenset(_mm.margin_keys()) if margin_refusal is not None else frozenset()
+
     rows: List[Dict[str, Any]] = []
     refused: Dict[str, str] = {}
     withheld: Dict[str, str] = {}
@@ -917,6 +942,12 @@ def build_ratio_table(served_payload: Mapping[str, Any], *,
             continue
         fig = figs[spec.key]
         row["operands"] = _operands(fig)
+        if spec.key in refused_margins:
+            reason = copy.deepcopy(margin_refusal)
+            row["reason"] = reason
+            refused[spec.key] = reason["code"]
+            rows.append(row)
+            continue
         if fig.value is None:
             reason = _reason_of(fig.absence or ("missing", ()))
             row["reason"] = reason
