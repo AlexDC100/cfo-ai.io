@@ -46,9 +46,9 @@ it (bare single-letter markers are file-level attributions).
 
 | invariant | meaning | defined in | enforced by |
 |---|---|---|---|
-| `P0` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_findings_multi_period.py`, `tests/engine/test_firm_tenancy.py`, `tests/engine/test_launch_anonymous_egress.py`, `tests/engine/test_launch_survival.py`, `tests/engine/test_period_id_tenant_boundary.py`, `tests/engine/test_service_role_tenant_filter.py`, `tests/engine/test_storage_tenant_paths.py` |
-| `P1` | Source cents never mutate through the pipeline. | — | `tests/engine/test_check_served_periods.py`, `tests/engine/test_findings_multi_period.py`, `tests/engine/test_properties.py` |
-| `P2` | Adjustments are strictly additive. | — | `tests/engine/test_check_served_periods.py`, `tests/engine/test_findings_multi_period.py`, `tests/engine/test_properties.py` |
+| `P0` | (uncatalogued — add a curated meaning in scripts/generate_engine_book.py) | — | `tests/engine/test_findings_multi_period.py`, `tests/engine/test_firm_tenancy.py`, `tests/engine/test_launch_anonymous_egress.py`, `tests/engine/test_launch_survival.py`, `tests/engine/test_period_id_tenant_boundary.py`, `tests/engine/test_service_role_tenant_filter.py`, `tests/engine/test_storage_tenant_paths.py`, `tests/engine/test_ws_migration_plan.py` |
+| `P1` | Source cents never mutate through the pipeline. | — | `tests/engine/test_check_served_periods.py`, `tests/engine/test_findings_multi_period.py`, `tests/engine/test_properties.py`, `tests/engine/test_ws_migration_scripts.py` |
+| `P2` | Adjustments are strictly additive. | — | `tests/engine/test_archived_workspace_writes.py`, `tests/engine/test_check_served_periods.py`, `tests/engine/test_findings_multi_period.py`, `tests/engine/test_properties.py`, `tests/engine/test_ws_migration_plan.py`, `tests/engine/test_ws_migration_scripts.py` |
 | `P3` | Conservation, including unclassified value (AI-lane half under P8). | — | `tests/engine/test_findings_multi_period.py`, `tests/engine/test_firm_route.py`, `tests/engine/test_properties.py` |
 | `P4` | Auto-reconcile triggers iff 0 < ratio <= 0.001. | — | `tests/engine/test_properties.py`, `tests/engine/test_report_pdf_route.py` |
 | `P5` | RECONCILED is never serialized as BALANCED, on any surface. | — | `tests/engine/test_properties.py` |
