@@ -847,7 +847,7 @@ def test_the_whole_table_restore_is_explicit_and_refuses_users_rows_created_sinc
     writes = len(fake.writes)
     assert restore_cli.main([snap, "--whole-tables"], client_factory=fake.client, out=env["out"]) == 0
     assert len(fake.writes) == writes
-    assert any(l.startswith("USER DATA:") and "documents 1" in l for l in env["lines"]), env["lines"][-4:]
+    assert any(l.startswith("USER DATA:") and "documents: created 1" in l for l in env["lines"]), env["lines"][-4:]
     env["lines"].clear()
     assert restore_cli.main([snap, "--whole-tables", "--apply", "--tables", "migration"], client_factory=fake.client,
                             out=env["out"], now="2026-09-22T00:00:00+00:00") == 2
@@ -859,6 +859,36 @@ def test_the_whole_table_restore_is_explicit_and_refuses_users_rows_created_sinc
                             out=env["out"], now="2026-09-22T00:00:00+00:00") == 0, env["lines"][-8:]
     assert any(l.startswith("RESTORE CHECK: every snapshot row is back") for l in env["lines"])
     assert next(d for d in fake.tables["documents"] if d["id"] == "d-new-upload")["deleted_at"]   # accepted
+    assert fake.deletes == []
+
+
+def test_the_whole_table_restore_refuses_a_row_a_user_changed_since_the_snapshot(env):
+    """P1-A (2026-09-26): --whole-tables refused only rows CREATED since
+    the snapshot. A user's edit of a row the snapshot has (a renamed
+    workspace, a restored document, a changed preference) is not a
+    creation, so --apply went ahead and silently reverted it. Now ANY row
+    created, changed or vanished since the snapshot refuses --apply unless
+    --i-accept-user-data-changes; the dry-run names them."""
+    fake = env["fake"]
+    snap = _snapshot(env)                                   # no migration ran
+    ws = next(o for o in fake.tables["organizations"] if o["id"] == "org-sf")
+    ws["name"] = "alfa food (renamed by its owner)"          # a change, not a creation
+    env["lines"].clear()
+    writes = len(fake.writes)
+    assert restore_cli.main([snap, "--whole-tables"], client_factory=fake.client, out=env["out"]) == 0
+    assert len(fake.writes) == writes
+    assert any(l.startswith("USER DATA:") and "organizations: created 0, changed 1" in l for l in env["lines"]), \
+        env["lines"][-4:]
+    env["lines"].clear()
+    assert restore_cli.main([snap, "--whole-tables", "--apply", "--tables", "migration"], client_factory=fake.client,
+                            out=env["out"], now="2026-09-22T00:00:00+00:00") == 2
+    assert len(fake.writes) == writes and any(l.startswith("REFUSED") and "changed" in l for l in env["lines"])
+    assert ws["name"] == "alfa food (renamed by its owner)"
+    env["lines"].clear()
+    assert restore_cli.main([snap, "--whole-tables", "--apply", "--tables", "migration",
+                             "--i-accept-user-data-changes"], client_factory=fake.client,
+                            out=env["out"], now="2026-09-22T00:00:00+00:00") == 0, env["lines"][-8:]
+    assert ws["name"] == "alfa food"                         # accepted explicitly
     assert fake.deletes == []
 
 

@@ -8,35 +8,44 @@ the plan that ran, nothing else.
     # the table-wide restore, an operator tool — see WHOLE TABLES below
     python3 scripts/db_restore.py SNAP.json.gz --whole-tables [--apply --tables migration]
 
-PLAN-SCOPED UNDO (--plan). ``PLAN.json`` is the ``plan_<date>.json`` the
-migration wrote and executed. Its operations are inverted in reverse
-order (``rowstore.undo_ops``):
+PLAN-SCOPED UNDO (--plan) — THE ROLLBACK. ``PLAN.json`` is the
+``plan_<date>.json`` the migration wrote and executed (its ops digest is
+checked: a file that is not the plan that ran is refused). The plan's
+operations are inverted in REVERSE order (``rowstore.undo_ops``), and
+ONLY rows the plan named are ever read for writing or written:
 
   * an ``update`` puts back the values the plan recorded before writing
-    (its ``expect``), guarded by what it wrote (its ``set``): a row that
-    still holds the plan's values is undone; one already at its pre-image
-    is skipped; one holding NEITHER — something changed it since the run
-    — is a CONFLICT, listed and never overwritten;
-  * a ``merge_prefs`` takes exactly its keys out of the bag (the pre-image
-    of those keys comes from the snapshot); every other key stays;
-  * a workspace the plan inserted is archived (held: ``purge_after`` NULL —
-    a later run brings the same id back, never deleted); an inserted
-    membership has no archive column and stays (RESIDUE);
-  * a storage copy is never deleted (RESIDUE);
-  * a row the plan named that is GONE (hard-deleted since) comes back from
-    the snapshot — the snapshot is the pre-image of exactly those keys.
+    (its ``expect``), guarded by the values the row holds now: a row that
+    still holds what the plan wrote (its ``set``) is put back; one already
+    at its pre-image is skipped ("done"); one that no longer matches the
+    op's ``set`` NOR its pre-image — someone changed it since the run — is
+    a CONFLICT: listed by table and key, never overwritten;
+  * a ``merge_prefs`` empties exactly the keys the plan merged into that
+    ``org_prefs`` bag (their pre-image comes from the snapshot); every key
+    a user added or changed since stays;
+  * an ``organizations`` row the plan inserted is ARCHIVED, held
+    (``archived_at`` set, ``purge_after`` NULL — listed nowhere, never
+    purged; the next run brings the same id back by un-archiving it);
+    a ``memberships`` row the plan inserted has no archive column and is
+    left in place (RESIDUE, counted) — it belongs to a held archive nobody
+    can open, and this script never deletes;
+  * a storage copy the plan made is kept (RESIDUE, counted): the original
+    object was never deleted, the document row points back at it;
+  * a row the plan named that is GONE (hard-deleted since — a purge, a
+    "Clear all") comes back from the snapshot, the pre-image of exactly
+    that key; a document and its period come back in the order both
+    immediate foreign keys allow.
 
-Rows the plan did not name are never read for writing and never written:
-a document uploaded after the run, a workspace its owner created, a
-preference another user changed, a conversation's new title, a message —
-all stay. The 8ff706e3 restore was a table-wide snapshot restore instead:
-it trashed a user's post-run upload (leaving its period one hard delete
-from erasure), archived a workspace the owner had created (held: listed
-nowhere, no user recovery), reverted another user's preference and a
-conversation's title, and printed "every snapshot row is back" (verifier
-p2, 2026-09-26). The migration never creates documents, periods or chat
-rows, so archiving "created since" rows in those tables could only ever
-hit users' own data.
+A row the plan did not name is never touched, whatever changed in it: a
+document uploaded after the run and its period, a workspace its owner
+created (with its membership and prefs), a preference another user set,
+an onboarding prefs row on a workspace the plan never named, a
+conversation's new title, a message. The 8ff706e3 restore was a
+table-wide snapshot restore instead: it trashed a user's post-run upload
+(leaving its period one hard delete from erasure), archived a workspace
+the owner had created (held: listed nowhere, no user recovery), reverted
+another user's preference and a conversation's title, and printed "every
+snapshot row is back" (verifier p2, 2026-09-26).
 
 --apply refuses (exit 2, nothing written) while there are conflicts,
 unless --leave-conflicts: then the conflicting rows are left as they are
@@ -44,19 +53,24 @@ and the exit is 1. After --apply the rows are re-read: UNDO CHECK is exact
 when a second undo would find nothing to do; STORAGE CHECK verifies that
 every document put back at its old path finds its object there (the
 migration never deletes one, but a purge could have). Exit 0 only when
-both hold.
+both hold. The rollback is scoped and restorable: after it, a fresh
+snapshot and a new dry-run reproduce the migration (the workspaces come
+back by un-archive, never created twice).
 
-WHOLE TABLES (--whole-tables). Every changed or vanished row of the named
-tables is upserted back to its snapshot value; rows created since the
-snapshot are ARCHIVED, never deleted (organizations: archived_at = now,
-purge_after NULL; documents: deleted_at = now); an org_prefs row created
-since for a workspace the snapshot had is put back to its EMPTY bag. This
-touches USERS' data written after the snapshot: --apply refuses when any
-row was created since the snapshot unless --i-accept-user-data-changes.
-``--tables migration`` = every snapshot table except the billing ones
-(user_usage, subscriptions, billing_events), which are only restored when
-named. Missing storage objects are listed as STORAGE MISSING; with --apply
-they make the exit 1.
+WHOLE TABLES (--whole-tables) — NOT the rollback: an operator tool.
+Every changed or vanished row of the named tables is upserted back to its
+snapshot value; rows created since the snapshot are ARCHIVED, never
+deleted (organizations: archived_at = now, purge_after NULL; documents:
+deleted_at = now; a table with no archive column: listed, left); an
+org_prefs row created since for a workspace the snapshot had is put back
+to its EMPTY bag. This reaches USERS' data written after the snapshot,
+so --apply REFUSES whenever ANY row was created, changed or vanished
+since the snapshot — the dry-run lists them — unless
+--i-accept-user-data-changes is given explicitly. ``--tables migration``
+= every snapshot table except the billing ones (user_usage,
+subscriptions, billing_events), which are only restored when named.
+Missing storage objects are listed as STORAGE MISSING; with --apply they
+make the exit 1.
 """
 from __future__ import annotations
 
@@ -289,24 +303,29 @@ def run_whole_tables(db: pgrest_io.PgRest, snap: Mapping[str, Any], *, apply: bo
     n = print_diff(diff, out)
     if json_path:
         Path(json_path).write_text(json.dumps(diff, indent=1, default=str, ensure_ascii=False))
-    created = {t: len(diff[t]["created"]) for t in tables if diff[t]["created"]}
+    # Every difference from the snapshot is somebody's write since it — a
+    # user's, the migration's, a purge's. A whole-table restore reverts them
+    # all, so any of them needs the explicit acceptance.
+    since = {t: "created %d, changed %d, vanished %d" % (len(diff[t]["created"]), len(diff[t]["changed"]),
+                                                          len(diff[t]["missing"]))
+             for t in tables if diff[t]["created"] or diff[t]["changed"] or diff[t]["missing"]}
+    since_n = sum(len(diff[t]["created"]) + len(diff[t]["changed"]) + len(diff[t]["missing"]) for t in tables)
     if not apply:
         for t, key, bag in stamped_bags(rows, current, pks=pks, tables=tables):
             out("  STAMPED: %s %s carries %s on a pre-existing workspace — --apply empties it"
                 % (t, canonical_json(key), ", ".join(bag)))
         for m in storage_missing(db, snap, rows, tables, []):
             out("  STORAGE MISSING: %s" % m)
-        if created:
-            out("USER DATA: %d row(s) were created since the snapshot (%s) — --apply archives them and needs "
-                "--i-accept-user-data-changes" % (sum(created.values()),
-                                                  ", ".join("%s %d" % kv for kv in sorted(created.items()))))
+        if since:
+            out("USER DATA: %d row(s) were created, changed or vanished since the snapshot (%s) — --apply "
+                "reverts them all (created rows are archived) and needs --i-accept-user-data-changes"
+                % (since_n, "; ".join("%s: %s" % kv for kv in sorted(since.items()))))
         out("DRY-RUN: %d row(s) differ; nothing written." % n)
         return 0
-    if created and not accept_user_data:
-        out("REFUSED: %d row(s) were created since the snapshot (%s) — users' data; a whole-table restore "
-            "would archive them. The rollback of a migration is --plan; to restore anyway, "
-            "--i-accept-user-data-changes." % (sum(created.values()),
-                                               ", ".join("%s %d" % kv for kv in sorted(created.items()))))
+    if since and not accept_user_data:
+        out("REFUSED: %d row(s) were created, changed or vanished since the snapshot (%s) — users' data; a "
+            "whole-table restore would revert them all. The rollback of a migration is --plan; to restore "
+            "anyway, --i-accept-user-data-changes." % (since_n, "; ".join("%s: %s" % kv for kv in sorted(since.items()))))
         return 2
     ops, notes = restore_ops(rows, current, pks=pks, tables=tables)
     for note in notes:
