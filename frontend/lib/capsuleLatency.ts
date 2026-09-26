@@ -144,6 +144,11 @@ export const LAT_FIRST_TOKEN = "capsule.model.firstToken";
 export const LAT_INDEX_BUILD = "capsule.index.build";
 /** One speculative (as-you-type) resolve. */
 export const LAT_SPECULATIVE = "capsule.speculative.resolve";
+/** The command bar: one keystroke's search and its rows, every group
+ *  except "Întreabă CFO AI" (design C2: < 100 ms, zero fetches). */
+export const LAT_CMDBAR_SEARCH = "cmdbar.search";
+/** The command bar's index, rebuilt when a cached document lands. */
+export const LAT_CMDBAR_INDEX = "cmdbar.index.build";
 
 /** The contract this lane is held to. Budgets, not measurements — the
  *  measurements come out of `latencyReport()`, and where one misses its
@@ -153,6 +158,8 @@ export const LATENCY_BUDGETS_MS: Readonly<Record<string, number>> = Object.freez
   [LAT_TIER1_FACT_CARD]: 500,
   [LAT_FIRST_TOKEN]: 1200,
   [LAT_INDEX_BUILD]: 100,
+  [LAT_CMDBAR_SEARCH]: 100,
+  [LAT_CMDBAR_INDEX]: 100,
 });
 
 // ─── Reporting ─────────────────────────────────────────────────────────

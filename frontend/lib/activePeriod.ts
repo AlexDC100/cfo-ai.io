@@ -294,7 +294,7 @@ function isUuid(s: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s);
 }
 
-interface PeriodApiResponse {
+export interface PeriodApiResponse {
   period: {
     id: string;
     period_end: string;
@@ -325,6 +325,12 @@ interface PeriodApiResponse {
   assembled_metrics?: Record<string, unknown>;
   /** F1.k — canonical version stamp ("v2.0", "v2.1", ...). */
   canonical_version?: string;
+  /** The structural industry signal (engine `industry_signal`,
+   *  structural-industry-signal/1): which family the ACCOUNT MIX reads as
+   *  (manufacturing / trade / services / real_estate) and whether that is
+   *  decided. Read by the command bar and the chat's prompt set so a
+   *  question that only fits one family is offered only to it. */
+  industry_signal?: { family?: string | null; verdict?: string | null; [k: string]: unknown } | null;
 }
 
 /**

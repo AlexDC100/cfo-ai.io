@@ -1,0 +1,157 @@
+{
+  "_doc": "The command bar's synonym table and its declared joins, as DATA (design C2). Terms are matched after foldQuery (lowercase, diacritics folded), so each is written once, with or without accents. `answers` are the statement figures Răspuns can print: `line` is the comparatives column key (src/engine/comparatives/lines.py) whose `current` is the same served path the value is read from; `reader` names the ONE adapter in cmdbarSources.ts that reads it; `margin` is the ratio_table row printed as its share of net turnover; `ratio` a ratio_table row printed beside it; `sector` the sector-benchmark row key. `ratioAliases` add words to ratio_table rows (their labels in both languages are indexed automatically). `accountMetrics` maps an account-code prefix to the ratio_table row that is that account's key metric; the longest prefix wins.",
+  "answers": [
+    {
+      "id": "turnover",
+      "line": "pl.revenue",
+      "reader": "line",
+      "statement": "pl",
+      "field": "revenue",
+      "tab": "pl",
+      "sector": "revenue_growth",
+      "terms": ["cifra de afaceri", "cifra de afaceri neta", "cifra de afaceri netă", "cifra afaceri", "ca", "venituri", "venituri din vanzari", "vanzari", "vânzări", "revenue", "revenues", "turnover", "net turnover", "sales"]
+    },
+    {
+      "id": "ebitda",
+      "line": "pl.ebitda",
+      "reader": "ebitda",
+      "tab": "pl",
+      "margin": "ebitda_margin",
+      "terms": ["ebitda", "marja ebitda", "ebitda margin"]
+    },
+    {
+      "id": "operating_result",
+      "line": "pl.ebit",
+      "reader": "line",
+      "statement": "pl",
+      "field": "ebit",
+      "tab": "pl",
+      "margin": "operating_margin",
+      "terms": ["rezultat din exploatare", "rezultatul din exploatare", "rezultat operational", "profit operational", "profit din exploatare", "ebit", "operating result", "operating profit", "operating income"]
+    },
+    {
+      "id": "net_result",
+      "line": "pl.net_income",
+      "reader": "net_result",
+      "tab": "pl",
+      "margin": "net_margin",
+      "sector": "net_margin",
+      "terms": ["profit", "profitul", "profit net", "profitul net", "rezultat", "rezultatul", "rezultat net", "rezultatul net", "rezultatul exercitiului", "pierdere", "pierderea", "contul 121", "121", "net profit", "net income", "net result", "profit after tax", "loss", "bottom line"]
+    },
+    {
+      "id": "cash",
+      "line": "bs.cash",
+      "reader": "line",
+      "statement": "bs",
+      "field": "cash",
+      "tab": "balance_sheet",
+      "ratio": "cash_ratio",
+      "terms": ["numerar", "numerarul", "disponibilitati", "disponibilități", "bani", "banca", "cash", "cash and equivalents", "cash & equivalents", "bank"]
+    },
+    {
+      "id": "debt",
+      "line": "bs.total_debt",
+      "reader": "line",
+      "statement": "bs",
+      "field": "total_debt",
+      "tab": "balance_sheet",
+      "ratio": "net_debt_to_ebitda",
+      "terms": ["datorii", "datoriile", "datorie", "datorie totala", "datorii financiare", "credite", "creditele", "imprumuturi", "împrumuturi", "debt", "total debt", "borrowings", "loans"]
+    },
+    {
+      "id": "inventory",
+      "line": "bs.inventory",
+      "reader": "line",
+      "statement": "bs",
+      "field": "inventory",
+      "tab": "balance_sheet",
+      "inventoryDays": true,
+      "sector": "inventory_days_on_turnover",
+      "terms": ["stoc", "stocuri", "stocurile", "stocul", "marfa", "marfuri", "zile stoc", "zile de stoc", "zile stocuri", "inventory", "stock", "stocks", "inventory days", "days inventory"]
+    },
+    {
+      "id": "receivables",
+      "line": "bs.trade_receivables_net",
+      "reader": "line",
+      "statement": "bs",
+      "field": "ar_net",
+      "tab": "balance_sheet",
+      "ratio": "dso",
+      "sector": "receivables_days",
+      "terms": ["clienti", "clienții", "clientii", "creante", "creanțe", "creantele", "creanțele", "creante comerciale", "zile clienti", "receivables", "trade receivables", "customers", "clients", "debtors"]
+    },
+    {
+      "id": "payables",
+      "line": "bs.trade_payables",
+      "reader": "line",
+      "statement": "bs",
+      "field": "ap",
+      "tab": "balance_sheet",
+      "ratio": "dpo",
+      "terms": ["furnizori", "furnizorii", "datorii comerciale", "datorii furnizori", "zile furnizori", "payables", "trade payables", "suppliers", "creditors"]
+    },
+    {
+      "id": "equity",
+      "line": "bs.total_equity",
+      "reader": "line",
+      "statement": "bs",
+      "field": "total_equity",
+      "tab": "balance_sheet",
+      "ratio": "equity_ratio",
+      "sector": "equity_ratio",
+      "terms": ["capitaluri proprii", "capitalurile proprii", "capital propriu", "capitaluri", "equity", "total equity", "own funds", "net worth"]
+    },
+    {
+      "id": "total_assets",
+      "line": "bs.total_assets",
+      "reader": "line",
+      "statement": "bs",
+      "field": "total_assets",
+      "tab": "balance_sheet",
+      "terms": ["active", "activele", "total active", "activ total", "total assets", "assets", "balance sheet total"]
+    }
+  ],
+  "ratioAliases": {
+    "dso": ["zile clienti", "zile de incasare", "dso", "days sales outstanding"],
+    "dpo": ["zile furnizori", "zile de plata", "dpo", "days payables outstanding"],
+    "dio": ["zile stoc", "zile de stoc", "dio", "days inventory"],
+    "ccc": ["ciclul de conversie", "ccc", "cash conversion"],
+    "current_ratio": ["lichiditate", "lichiditatea curenta", "current ratio", "liquidity"],
+    "quick_ratio": ["lichiditate rapida", "acid test", "quick ratio"],
+    "cash_ratio": ["lichiditate imediata", "cash ratio"],
+    "net_margin": ["marja", "marja neta", "margin", "net margin"],
+    "ebitda_margin": ["marja", "marja ebitda", "margin"],
+    "gross_margin": ["marja", "marja bruta", "margin", "gross margin"],
+    "operating_margin": ["marja", "marja operationala", "margin", "operating margin"],
+    "roe": ["rentabilitate", "roe", "return on equity"],
+    "roa": ["rentabilitate", "roa", "return on assets"],
+    "debt_to_ebitda": ["datorii ebitda", "leverage", "indatorare"],
+    "net_debt_to_ebitda": ["datorii nete ebitda", "net debt", "datorie neta", "leverage", "indatorare"],
+    "debt_to_equity": ["indatorare", "gearing", "leverage"],
+    "equity_ratio": ["autonomie financiara", "solvabilitate", "solvency"],
+    "interest_coverage": ["acoperirea dobanzilor", "dobanzi", "interest cover"],
+    "dscr": ["dscr", "serviciul datoriei", "debt service"],
+    "altman_z": ["altman", "z score", "scor z", "faliment", "bankruptcy"],
+    "credit_composite": ["rating", "scor credit", "credit score"],
+    "letter_grade": ["rating", "credit rating", "nota credit"]
+  },
+  "accountMetrics": {
+    "411": "dso",
+    "413": "dso",
+    "418": "dso",
+    "401": "dpo",
+    "403": "dpo",
+    "408": "dpo",
+    "3": "dio",
+    "512": "cash_ratio",
+    "531": "cash_ratio",
+    "532": "cash_ratio",
+    "541": "cash_ratio",
+    "542": "cash_ratio",
+    "162": "net_debt_to_ebitda",
+    "519": "net_debt_to_ebitda",
+    "1621": "net_debt_to_ebitda",
+    "70": "net_margin",
+    "121": "net_margin"
+  }
+}

@@ -113,6 +113,25 @@ function write(orgId: string, v: ComparativesView): void {
   }
 }
 
+/** Same-tab signal that a company's choice was written outside the
+ *  provider (the command bar's "compare" action); the provider re-reads. */
+export const COMPARATIVES_VIEW_EVENT = "cfo:comparatives-view";
+
+/** Write a company's comparison choice from outside the dashboard — the
+ *  command bar's "Compară cu anul trecut" turns a switched-off comparison
+ *  back on. Same storage and same preference bag the provider writes; the
+ *  provider mounted on the dashboard picks it up through the event. */
+export function storeComparisonPrior(orgId: string, priorPeriodId: string | null | "none"): void {
+  const next = { ...readComparativesView(orgId), priorPeriodId };
+  write(orgId, next);
+  if (prefsOrgId() === orgId) setPref("org", PREF_KEY, next);
+  try {
+    window.dispatchEvent(new CustomEvent(COMPARATIVES_VIEW_EVENT, { detail: { orgId } }));
+  } catch {
+    /* no window */
+  }
+}
+
 interface Store {
   /** The company this choice belongs to (null: no company yet — the default
    *  view, nothing persisted). */
@@ -191,8 +210,17 @@ export function ComparativesViewProvider({
     function onStorage(e: StorageEvent) {
       if (e.key === storageKey(orgId as string)) setHeld({ orgId, view: readComparativesView(orgId) });
     }
+    function onSameTab(e: Event) {
+      if ((e as CustomEvent<{ orgId?: string }>).detail?.orgId === orgId) {
+        setHeld({ orgId, view: readComparativesView(orgId) });
+      }
+    }
     window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    window.addEventListener(COMPARATIVES_VIEW_EVENT, onSameTab);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener(COMPARATIVES_VIEW_EVENT, onSameTab);
+    };
   }, [orgId]);
 
   const value = useMemo<Store>(

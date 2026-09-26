@@ -1,0 +1,202 @@
+{
+  "en": {
+    "cmdbar": {
+      "header": {
+        "searching": "Searching {{company}} · {{period}}",
+        "noPeriod": "Searching {{company}} · no analysed period",
+        "noCompany": "No company open",
+        "otherCompany": "The open period belongs to another company — {{company}} has none open",
+        "loading": "loading"
+      },
+      "placeholder": "Ask, or find a figure, an account, a page…",
+      "keys": "↑↓ move · Enter open · Tab ask CFO AI · esc",
+      "group": {
+        "answer": "Answer",
+        "account": "Account",
+        "page": "Page",
+        "action": "Action",
+        "ask": "Ask CFO AI",
+        "recent": "Recent"
+      },
+      "now": {
+        "title": "What matters now",
+        "loading": "Reading this period…",
+        "unavailable": "What matters now could not be read for this period.",
+        "none": "Nothing material stands out in this period.",
+        "noPeriod": "Open a period to see what matters in it.",
+        "actions": "Actions",
+        "position": "{{position}}",
+        "vsPrior": "{{change}} vs {{prior}}"
+      },
+      "figure": {
+        "pending": "loading",
+        "noPrior": "no comparable prior period",
+        "comparisonOff": "comparison switched off",
+        "vsPrior": "{{change}} vs {{prior}}",
+        "fromAccount121": "from account 121",
+        "sector": "vs sector — {{what}}: {{position}}",
+        "sectorBasis": "vs sector — {{what}}: {{position}} ({{basis}})",
+        "inventoryBasis": "closing stock ÷ total operating cost — one date, not an average",
+        "inventoryDays": "{{label}} {{value}}",
+        "delta": "{{delta}}"
+      },
+      "absent": {
+        "line_absent": "not in this book",
+        "ebitda_absent": "EBITDA is not served for this period",
+        "net_result_not_account_121": "the net result is not anchored to account 121 ({{status}})",
+        "net_result_absent": "the account-121 result is not in this book",
+        "inventory_days_absent": "inventory days are not served for this period",
+        "no_711_activity": "no stock variation to measure",
+        "reprocess_required": "this period must be re-read before EBITDA is served",
+        "unknown": "not in this book ({{code}})"
+      },
+      "account": {
+        "keyMetric": "{{label}} {{value}}",
+        "more": "{{n}} more accounts start with {{code}}",
+        "statementBS": "balance sheet",
+        "statementPL": "profit and loss"
+      },
+      "page": {
+        "companyYear": "{{company}} · {{year}}",
+        "benchmark": "Sector benchmark",
+        "report": "CFO report",
+        "forecast": "Forecast",
+        "scenarios": "Scenarios",
+        "settings": "Settings"
+      },
+      "action": {
+        "upload": "Upload a trial balance",
+        "addPeriod": "Add a period for {{company}}",
+        "switchCompany": "Switch to {{company}}",
+        "exportPdf": "Export the CFO report (PDF)",
+        "compare": "Compare with the previous period"
+      },
+      "ask": {
+        "row": "Ask CFO AI: “{{query}}”",
+        "empty": "Ask CFO AI",
+        "hint": "Sends the question to the chat, grounded in {{company}} · {{period}}"
+      },
+      "noMatch": "Nothing in {{company}} is called that.",
+      "answer": {
+        "turnover": "Net turnover",
+        "ebitda": "EBITDA",
+        "operating_result": "Operating result",
+        "net_result": "Net result",
+        "cash": "Cash & equivalents",
+        "debt": "Total debt",
+        "inventory": "Inventory",
+        "receivables": "Trade receivables, net",
+        "payables": "Trade payables",
+        "equity": "Total equity",
+        "total_assets": "Total assets"
+      },
+      "vsSector": {
+        "worse": "worse than the sector",
+        "better": "better than the sector"
+      },
+      "sectorBasis": {
+        "inventory_days_on_turnover": "filed basis (stock ÷ net turnover) — not the same as the inventory days in the analysis"
+      }
+    }
+  },
+  "ro": {
+    "cmdbar": {
+      "header": {
+        "searching": "Caut în {{company}} · {{period}}",
+        "noPeriod": "Caut în {{company}} · nicio perioadă analizată",
+        "noCompany": "Nicio firmă deschisă",
+        "otherCompany": "Perioada deschisă aparține altei firme — {{company}} nu are una deschisă",
+        "loading": "se încarcă"
+      },
+      "placeholder": "Întreabă sau caută o cifră, un cont, o pagină…",
+      "keys": "↑↓ navighezi · Enter deschizi · Tab întrebi CFO AI · esc",
+      "group": {
+        "answer": "Răspuns",
+        "account": "Cont",
+        "page": "Pagină",
+        "action": "Acțiune",
+        "ask": "Întreabă CFO AI",
+        "recent": "Recente"
+      },
+      "now": {
+        "title": "Ce contează acum",
+        "loading": "Citesc perioada…",
+        "unavailable": "„Ce contează acum” nu a putut fi citit pentru această perioadă.",
+        "none": "Nimic material nu iese în evidență în această perioadă.",
+        "noPeriod": "Deschide o perioadă ca să vezi ce contează în ea.",
+        "actions": "Acțiuni",
+        "position": "{{position}}",
+        "vsPrior": "{{change}} față de {{prior}}"
+      },
+      "figure": {
+        "pending": "se încarcă",
+        "noPrior": "nicio perioadă anterioară comparabilă",
+        "comparisonOff": "comparația este oprită",
+        "vsPrior": "{{change}} față de {{prior}}",
+        "fromAccount121": "din contul 121",
+        "sector": "față de sector — {{what}}: {{position}}",
+        "sectorBasis": "față de sector — {{what}}: {{position}} ({{basis}})",
+        "inventoryBasis": "stoc la închidere ÷ cheltuieli totale de exploatare — o singură dată, nu o medie",
+        "inventoryDays": "{{label}} {{value}}",
+        "delta": "{{delta}}"
+      },
+      "absent": {
+        "line_absent": "nu apare în balanță",
+        "ebitda_absent": "EBITDA nu este servită pentru această perioadă",
+        "net_result_not_account_121": "rezultatul net nu este ancorat în contul 121 ({{status}})",
+        "net_result_absent": "rezultatul din contul 121 nu apare în balanță",
+        "inventory_days_absent": "zilele de stoc nu sunt servite pentru această perioadă",
+        "no_711_activity": "nu există variație a stocurilor de măsurat",
+        "reprocess_required": "perioada trebuie recitită înainte ca EBITDA să fie servită",
+        "unknown": "nu apare în balanță ({{code}})"
+      },
+      "account": {
+        "keyMetric": "{{label}} {{value}}",
+        "more": "încă {{n}} conturi încep cu {{code}}",
+        "statementBS": "bilanț",
+        "statementPL": "cont de profit și pierdere"
+      },
+      "page": {
+        "companyYear": "{{company}} · {{year}}",
+        "benchmark": "Comparație cu sectorul",
+        "report": "Raportul CFO",
+        "forecast": "Prognoză",
+        "scenarios": "Scenarii",
+        "settings": "Setări"
+      },
+      "action": {
+        "upload": "Încarcă o balanță",
+        "addPeriod": "Adaugă o perioadă pentru {{company}}",
+        "switchCompany": "Treci la {{company}}",
+        "exportPdf": "Exportă raportul CFO (PDF)",
+        "compare": "Compară cu perioada anterioară"
+      },
+      "ask": {
+        "row": "Întreabă CFO AI: „{{query}}”",
+        "empty": "Întreabă CFO AI",
+        "hint": "Trimite întrebarea în chat, cu cifrele din {{company}} · {{period}}"
+      },
+      "noMatch": "Nimic din {{company}} nu se numește așa.",
+      "answer": {
+        "turnover": "Cifra de afaceri netă",
+        "ebitda": "EBITDA",
+        "operating_result": "Rezultatul din exploatare",
+        "net_result": "Rezultatul net",
+        "cash": "Numerar și echivalente",
+        "debt": "Datorie totală",
+        "inventory": "Stocuri",
+        "receivables": "Creanțe comerciale nete",
+        "payables": "Datorii către furnizori",
+        "equity": "Capitaluri proprii",
+        "total_assets": "Total active"
+      },
+      "vsSector": {
+        "worse": "mai slab decât sectorul",
+        "better": "mai bun decât sectorul"
+      },
+      "sectorBasis": {
+        "inventory_days_on_turnover": "bază depusă (stoc ÷ cifra de afaceri) — nu aceeași cu zilele de stoc din analiză"
+      }
+    }
+  }
+}
