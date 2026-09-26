@@ -673,7 +673,7 @@ def test_an_unknown_surface_is_refused():
 #: route its response through the boundary, add it to `SURFACES`, then list
 #: it.
 CREDIT_READERS = {
-    "pipeline.py": "GET /api/period, /comparatives and stage_narrate: all three call the boundary (asserted below)",
+    "pipeline.py": "GET /api/period, /comparatives, /attention and stage_narrate: all four call the boundary (asserted below)",
     "_pricing_tiers.py": "plan feature copy: names the feature, serves no figure",
     "findings/c_bands.py": "band findings over ratio_table rows that already passed the boundary's block check",
 }
@@ -688,6 +688,9 @@ def test_every_credit_reader_in_the_api_layer_is_behind_the_boundary():
     src = (api / "pipeline.py").read_text(encoding="utf-8")
     assert src.count('_credit_boundary.enforce_credit_boundary(_period_body, surface="period")') == 1
     assert 'surface="comparatives")' in src
+    # /attention re-serves comparatives rows (the composite letter among
+    # them) and leaves through its own surface
+    assert '_credit_boundary.enforce_credit_boundary(doc, surface="attention")' in src
     assert "_credit_boundary.enforce_metric_rows(metrics, assembled[\"statements\"])" in src
     # and no credit-family value is read off the persisted rows in the route
     assert "withhold_persisted" not in src and "lawful_persisted_rows" not in src

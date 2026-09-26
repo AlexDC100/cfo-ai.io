@@ -64,7 +64,7 @@ logger = logging.getLogger(__name__)
 #: Every surface that serves credit content. A route that serves credit
 #: figures and is not named here is a defect (test_credit_boundary.py reads
 #: the source tree for readers of the credit family outside this list).
-SURFACES: Tuple[str, ...] = ("period", "comparatives", "narrate_payload")
+SURFACES: Tuple[str, ...] = ("period", "comparatives", "narrate_payload", "attention")
 
 #: Keys the walk never descends into: large, and never credit content.
 _SKIP_KEYS = frozenset({"line_items", "prior_line_items", "statements", "prior_statements", "lineItems"})

@@ -9433,18 +9433,39 @@ def build_router() -> APIRouter:
         serves — never a second assembly.
         """
         from . import _comparatives as _cmp
-        from . import _sector_benchmark as _sb
-        from engine.benchmarks_ro import sector as _sector
 
         jwt = _require_jwt(authorization)
         _user_id, org_id = _org.resolve_org(jwt, x_org_id)
         try:
             with _supabase.per_user(jwt) as client:
                 cur_row = _cmp.load_period_in_org(client, period_id, org_id=org_id)
-                prior_id, prior_reason = _sb.find_prior_period(client, cur_row, org_id=org_id)
-                caen = _org.caen_for_org(client, org_id)
+                inputs = _sector_benchmark_inputs(client, cur_row, org_id=org_id)
         except _cmp.ComparativesRefused as exc:
             raise HTTPException(exc.status, {"code": exc.code, "message": exc.message})
+        return _sector_benchmark_document(
+            period_id=period_id, jwt=jwt, inputs=inputs,
+            payload_of=lambda pid: get_period(pid, authorization))
+
+    def _sector_benchmark_inputs(client: Any, cur_row: Dict[str, Any], *,
+                                 org_id: str) -> Tuple[Optional[str], Optional[Dict[str, Any]], Optional[str]]:
+        """(prior period id, prior reason, workspace CAEN) — the database reads
+        the sector document needs, org in every filter, on the caller's
+        per-user client (the current row already loaded org-filtered)."""
+        from . import _sector_benchmark as _sb
+
+        prior_id, prior_reason = _sb.find_prior_period(client, cur_row, org_id=org_id)
+        return prior_id, prior_reason, _org.caen_for_org(client, org_id)
+
+    def _sector_benchmark_document(*, period_id: str, jwt: str, inputs: Tuple[Any, Any, Any],
+                                   payload_of: Any) -> Dict[str, Any]:
+        """THE sector-benchmark document for one period: the one composition
+        GET /sector-benchmark serves and GET /attention reads (so the command
+        bar's "worst ratio vs sector" is the benchmark page's row, never a
+        second computation). `payload_of(period_id)` is `get_period` (the
+        attention route passes a cache over it)."""
+        from engine.benchmarks_ro import sector as _sector
+
+        prior_id, prior_reason, caen = inputs
         # CAEN: the workspace's own code first (the ONE authority the
         # comparatives, Capsule and Radar read — a workspace is one
         # company); only when it is absent, the per-period industry choice
@@ -9458,11 +9479,11 @@ def build_router() -> APIRouter:
                     caen, caen_source = picked, "period_industry_choice"
             except Exception:  # noqa: BLE001 — a classification is not worth a 500
                 logger.exception("[sector-benchmark] period CAEN lookup failed for %s", period_id)
-        cur_payload = get_period(period_id, authorization)
+        cur_payload = payload_of(period_id)
         pri_payload = None
         if prior_id is not None:
             try:
-                pri_payload = get_period(prior_id, authorization)
+                pri_payload = payload_of(prior_id)
             except HTTPException:
                 prior_reason = {"code": "prior_period_not_servable", "inputs": [prior_id]}
         doc = _sector.build_sector_benchmark(
@@ -9474,6 +9495,79 @@ def build_router() -> APIRouter:
             raise HTTPException(500, {"code": "sector_benchmark_unlawful",
                                       "message": "a sector figure lacked its source, year or n"})
         return doc
+
+    @router.get("/api/period/{period_id}/attention")
+    def get_period_attention(
+        period_id: str,
+        prior: Optional[str] = Query(
+            None, description="auto (default) | none | a period id of the same workspace"),
+        authorization: Optional[str] = Header(None),
+        x_org_id: Optional[str] = Header(None, alias="X-Org-Id"),
+    ) -> Dict[str, Any]:
+        """"Ce contează acum" — the command bar's empty state (attention/1).
+
+        Same wall as comparatives: the organization is resolved from the
+        VERIFIED bearer + X-Org-Id, the current period, the prior and every
+        candidate period are read with the org IN THE FILTER. The document
+        is composed ONLY from what this app serves: the two GET /api/period
+        bodies, the comparatives document for the same company's previous
+        period of the same length (`_comparatives.compare_payloads`, the
+        /comparatives composition, through the same credit boundary), the
+        sector-benchmark document (`_sector_benchmark_document`, the
+        /sector-benchmark composition) and the period's deterministic
+        findings. Recommendations, the briefing, alerts and every narrated
+        field are not read (`engine.attention.EXCLUDED_SOURCES`; gate
+        attention-served-only). No model is called.
+        """
+        import copy as _copy
+
+        from . import _attention as _att
+        from . import _comparatives as _cmp
+        from . import _features as _feat
+        from engine.attention import compose_attention
+
+        jwt = _require_jwt(authorization)
+        _user_id, org_id = _org.resolve_org(jwt, x_org_id)
+        payloads: Dict[str, Dict[str, Any]] = {}
+
+        def payload_of(pid: str) -> Dict[str, Any]:
+            # One GET /api/period read per period for the whole document;
+            # every consumer gets its own copy (a composer may annotate).
+            if pid not in payloads:
+                payloads[pid] = get_period(pid, authorization)
+            return _copy.deepcopy(payloads[pid])
+
+        try:
+            with _supabase.per_user(jwt) as client:
+                cur_row = _cmp.load_period_in_org(client, period_id, org_id=org_id)
+                prior_desc, pri_row = _att.resolve_prior(
+                    client, cur_row, org_id=org_id, requested=prior)
+                sector_inputs = _sector_benchmark_inputs(client, cur_row, org_id=org_id)
+        except _cmp.ComparativesRefused as exc:
+            raise HTTPException(exc.status, {"code": exc.code, "message": exc.message})
+        caen = sector_inputs[2]
+        sector_doc = _sector_benchmark_document(
+            period_id=period_id, jwt=jwt, inputs=sector_inputs, payload_of=payload_of)
+
+        comparatives = None
+        comparatives_reason = None
+        if pri_row is not None:
+            try:
+                comparatives = _credit_boundary.enforce_credit_boundary(
+                    _cmp.compare_payloads(
+                        payload_of(period_id), payload_of(str(pri_row["id"])),
+                        current_row=cur_row, prior_row=pri_row, caen=caen),
+                    surface="comparatives")
+            except _cmp.ComparativesRefused as exc:
+                comparatives_reason = {"code": exc.code, "inputs": [str(pri_row["id"])]}
+            except HTTPException as exc:
+                comparatives_reason = {"code": "prior_period_not_servable",
+                                       "inputs": [str(pri_row["id"]), exc.status_code]}
+        features = {k: (v or {}).get("status") for k, v in _feat.served_registry().items()}
+        doc = compose_attention(
+            payload_of(period_id), prior=prior_desc, comparatives=comparatives,
+            comparatives_reason=comparatives_reason, sector=sector_doc, features=features)
+        return _credit_boundary.enforce_credit_boundary(doc, surface="attention")
 
     @router.put("/api/period/{period_id}/valuation-assumptions")
     def save_valuation_assumptions(

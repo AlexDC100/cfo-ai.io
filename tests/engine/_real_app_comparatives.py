@@ -60,6 +60,14 @@ def migration_columns() -> Dict[str, List[str]]:
     # refuses any other projection.
     out.setdefault("valuations", ["id", "period_id", "org_id"])
     out.setdefault("user_valuation_assumptions", ["user_id", "period_id"])
+    # `documents.deleted_at` (the soft delete) exists in production — every
+    # document listing filters `deleted_at=is.null`, and
+    # schema_phase6_dedupe.sql indexes `where deleted_at is null` — but no
+    # migration in this repository adds it. Declared so a route that lists a
+    # workspace's live documents (the attention route's same-length prior)
+    # can be driven through the double; nothing else is widened.
+    if "documents" in out and "deleted_at" not in out["documents"]:
+        out["documents"] = list(out["documents"]) + ["deleted_at"]
     return out
 
 
