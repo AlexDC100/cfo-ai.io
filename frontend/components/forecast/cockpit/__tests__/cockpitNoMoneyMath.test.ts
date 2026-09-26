@@ -15,28 +15,44 @@
  * (`data-funding-gap=` is not a subtraction). Then:
  *
  *   R1  no `.reduce(` — a list folded into a total;
- *   R2  no `amount_minor` / `amountMinor` / `as unknown as number` — the wire
- *       amount or the opaque amount reached around the gateway;
+ *   R2  no `amount_minor` / `amountMinor` (the wire amount read around the
+ *       gateway), no `as unknown as …` AT ALL (any laundering cast — not only
+ *       to `number`: the 2026-09-26 verifier plant forged a CockpitMinor from
+ *       a derived number with `as unknown as CockpitMinor`), and no cast to
+ *       the opaque types (`as CockpitMinor`, `as ProjectedMinor`);
  *   R3  no arithmetic operator beside a MONEY-named operand (amount, minor,
  *       ebitda, cash, revenue, fcf, funding, profit, interest, capex, debt,
  *       bridge, revolver, income), and no `Math.*` applied to one;
  *   R4  the PAINTERS reach no value at all: they NAME none of the doors
- *       (`cockpitDisplay`, `cockpitPlot`, and the fp1 lane's `unwrapProjected`,
- *       `projectedDisplay`) — they paint the engine's own formatted text, or
- *       hand an amount to <CockpitAmountView>;
+ *       (`cockpitDisplay`, `cockpitPlot`, the chart's `plotValue`, and the
+ *       fp1 lane's `unwrapProjected`, `projectedDisplay`) — they paint the
+ *       engine's own formatted text, or hand an amount to <CockpitAmountView>;
  *   R5  each DOOR has exactly one user of each kind: <CockpitAmountView>
  *       displays (one `cockpitDisplay`), the CHART plots (one `cockpitPlot`,
  *       in `plotValue`, and formats no number itself), the BANK EXPORT paints
  *       once (`cockpitDisplay`, in `paint`) and plots once (`cockpitPlot`, in
- *       `plotValue`); the GATEWAY (lib/forecastCockpit.ts) opens the opaque
- *       amount in exactly two places and divides minor units by 100 in
- *       exactly one;
+ *       `plotValue`); `plotValue` itself is a door — ONE call per geometry
+ *       site (the bar, the cash point, the gap), each fed a SERVED amount,
+ *       and the gap site reads the engine's `cashBeforeFunding`, never a
+ *       subtraction; the GATEWAY (lib/forecastCockpit.ts) opens the opaque
+ *       amount in exactly two places, seals it in exactly two, and divides
+ *       minor units by 100 in exactly one;
  *   R6  THE ROSTER IS WHOLE: every non-test file under
  *       components/forecast/cockpit/ is scanned — a new cockpit module cannot
- *       slip in unexamined.
+ *       slip in unexamined;
+ *   R7  no AMOUNT LITERAL outside the gateway: an object literal carrying a
+ *       `minor:` key, or `kind: "projected"` / `kind: "actual"` — a
+ *       CockpitAmount is made only by lib/forecastCockpit.ts from served
+ *       bytes, never assembled in a painter and handed to <CockpitAmountView>
+ *       (string literal text is KEPT for this rule, comments still dropped);
+ *   R8  no PLOTTED VALUE COMBINED: `plotValue(…)` / `cockpitPlot(…)` never
+ *       stands beside an arithmetic operator, cast or not.
  *
  * PLANT-PROVEN: the planted snippets below each red their rule; the real-file
- * plants are logged in docs/engine_book/gates.md "forecast-cockpit-no-math".
+ * plants are logged in docs/engine_book/gates.md "forecast-cockpit-page"
+ * (2026-09-26: the verifier's PC — the chart deriving the gap behind
+ * `plotValue` and painting a forged CockpitAmount — passed R1–R6 and is what
+ * R2's widening, R7 and R8 exist for).
  * CANNOT SEE: arithmetic on a money value held under a neutral name (`v`,
  * `value`) outside the chart and export geometry — that is what the opaque
  * type is for; a dynamic import built from a string.
@@ -66,13 +82,26 @@ const AMOUNT = "frontend/components/forecast/cockpit/CockpitAmountView.tsx";
 const CHART = "frontend/components/forecast/cockpit/CockpitChart.tsx";
 const EXPORT = "frontend/lib/forecastBankExport.ts";
 const GATEWAY = "frontend/lib/forecastCockpit.ts";
-const DOORS = /\b(cockpitDisplay|cockpitPlot|unwrapProjected|projectedDisplay)\b/g;
+const DOORS = /\b(cockpitDisplay|cockpitPlot|plotValue|unwrapProjected|projectedDisplay)\b/g;
+/** An amount literal: the opaque field, or the served kind as a literal. */
+const AMOUNT_LITERAL = /\bminor\s*:|\bkind\s*:\s*["'`](?:projected|actual)["'`]/g;
+/** A plotted value beside an operator, cast or not. */
+const PLOT = String.raw`(?:plotValue|cockpitPlot)\s*\([^()]*\)`;
+const PLOTTED_COMBINED = new RegExp(
+  String.raw`${PLOT}\s*(?:as\s+number\s*)?\)?\s*[-+*/%](?![=>])|(?<![=>+\-*/%<!])[-+*/%]\s*\(*\s*${PLOT}`,
+  "g",
+);
+/** One `plotValue` call per geometry site, each fed a SERVED amount. */
+const PLOT_SITES = /\bplotValue\s*\(\s*(?:p\.cash|p\.cashBeforeFunding|b\.amount)\s*\)/g;
+const GAP_SITE = /gap:\s*p\.gap\s*\?\s*plotValue\(p\.cashBeforeFunding\)\s*:\s*null/;
 const COCKPIT_DIR = "frontend/components/forecast/cockpit";
 
 const MONEY = /(amount|minor|ebitda|cash|revenue|fcf|funding|profit|interest|capex|debt|bridge|revolver|income)/i;
 
-/** Source as code only: comments gone, literal TEXT blanked, `${}` kept. */
-export function codeOnly(src: string): string {
+/** Source as code only: comments gone, literal TEXT blanked, `${}` kept.
+ *  With `keepLiterals` the text of string and template literals stays (R7
+ *  reads a `kind: "projected"` literal); comments are still dropped. */
+export function codeOnly(src: string, keepLiterals = false): string {
   let out = "";
   let i = 0;
   const n = src.length;
@@ -105,7 +134,7 @@ export function codeOnly(src: string): string {
         prevSig = "{";
         return;
       }
-      out += src[i] === "\n" ? "\n" : " ";
+      out += src[i] === "\n" ? "\n" : keepLiterals ? src[i] : " ";
       i += 1;
     }
   };
@@ -130,7 +159,7 @@ export function codeOnly(src: string): string {
           blankTo(i + 2);
           continue;
         }
-        out += " ";
+        out += keepLiterals ? src[i] : " ";
         i += 1;
       }
       if (i < n) {
@@ -205,9 +234,10 @@ export function moneyMathViolations(src: string): Violation[] {
   const hit = (rule: string, index: number, text: string) =>
     found.push({ rule, line: lineOf(code, index), text: text.trim() });
   for (const m of code.matchAll(/\.reduce\s*\(/g)) hit("R1 .reduce", m.index ?? 0, m[0]);
-  for (const m of code.matchAll(/\bamount_minor\b|\bamountMinor\b|as\s+unknown\s+as\s+number/g)) {
+  for (const m of code.matchAll(/\bamount_minor\b|\bamountMinor\b|\bas\s+unknown\s+as\b|\bas\s+(?:CockpitMinor|ProjectedMinor)\b/g)) {
     hit("R2 wire/opaque amount", m.index ?? 0, m[0]);
   }
+  for (const m of code.matchAll(PLOTTED_COMBINED)) hit("R8 a plotted value combined", m.index ?? 0, m[0]);
   const ident = String.raw`[A-Za-z_$][\w$]*(?:\??\.[A-Za-z_$][\w$]*)*`;
   const opAfter = new RegExp(String.raw`(${ident})\s*(\+\+|--|[-+*/%](?![=>/*]))`, "g");
   for (const m of code.matchAll(opAfter)) {
@@ -232,6 +262,16 @@ export function moneyMathViolations(src: string): Violation[] {
     if (MONEY.test(tail)) hit("R3 Math on a money operand", m.index ?? 0, m[0]);
   }
   return found;
+}
+
+/** R7 — an amount assembled outside the gateway (literal text kept). */
+export function amountLiteralViolations(src: string): Violation[] {
+  const code = codeOnly(src, true);
+  return Array.from(code.matchAll(AMOUNT_LITERAL)).map((m) => ({
+    rule: "R7 an amount literal outside the gateway",
+    line: lineOf(code, m.index ?? 0),
+    text: m[0].trim(),
+  }));
 }
 
 const read = (p: string) => readFileSync(resolve(REPO, p), "utf8");
@@ -267,6 +307,11 @@ describe("gate forecast-cockpit-no-math — the cockpit sources", () => {
     expect(violations, `${path}:\n${violations.map((v) => `  ${v.rule} @${v.line}: ${v.text}`).join("\n")}`).toEqual([]);
   });
 
+  it.each([...PAINTERS, AMOUNT, CHART, EXPORT])("%s: no amount literal — a CockpitAmount is made only by the gateway (R7)", (path) => {
+    const violations = amountLiteralViolations(read(path));
+    expect(violations, `${path}:\n${violations.map((v) => `  ${v.rule} @${v.line}: ${v.text}`).join("\n")}`).toEqual([]);
+  });
+
   it.each(PAINTERS)("%s reaches no value (R4)", (path) => {
     const code = codeOnly(read(path));
     // NAMED at all, not only called: an alias (`const f = cockpitDisplay`)
@@ -290,6 +335,12 @@ describe("gate forecast-cockpit-no-math — the cockpit sources", () => {
     expect(calls(code, "cockpitPlot")).toBe(1);
     expect(refs(code, "cockpitPlot"), "the import and the one call — no alias").toBe(2);
     expect(/function\s+plotValue\s*\([^)]*\)[^{]*\{[^}]*cockpitPlot\s*\(/.test(code)).toBe(true);
+    // plotValue is a door too: its definition and ONE call per geometry
+    // site (the bar, the cash point, the gap), each fed a served amount; the
+    // gap is the engine's cash-before-funding, never a subtraction
+    expect(calls(code, "plotValue"), "the definition and the three geometry sites").toBe(4);
+    expect(count(code, PLOT_SITES), "each call fed a SERVED amount").toBe(3);
+    expect(GAP_SITE.test(code), "the gap site reads p.cashBeforeFunding as served").toBe(true);
     expect(refs(code, "cockpitDisplay") + refs(code, "unwrapProjected") + refs(code, "projectedDisplay")).toBe(0);
     for (const banned of ["toFixed(", "toLocaleString(", "Intl."]) {
       expect(code.includes(banned), `${CHART} formats a number with ${banned}`).toBe(false);
@@ -305,12 +356,17 @@ describe("gate forecast-cockpit-no-math — the cockpit sources", () => {
     expect(refs(code, "cockpitPlot")).toBe(2);
     expect(/function\s+paint\s*\([^)]*\)[^{]*\{[\s\S]*?cockpitDisplay\s*\(/.test(code)).toBe(true);
     expect(/function\s+plotValue\s*\([^)]*\)[^{]*\{[^}]*cockpitPlot\s*\(/.test(code)).toBe(true);
+    expect(calls(code, "plotValue"), "the definition and the three geometry sites").toBe(4);
+    expect(count(code, PLOT_SITES), "each call fed a SERVED amount").toBe(3);
+    expect(GAP_SITE.test(code), "the gap site reads p.cashBeforeFunding as served").toBe(true);
   });
 
   it("R5: the GATEWAY opens the opaque amount in exactly two places and divides once", () => {
     const code = codeOnly(read(GATEWAY));
     expect(count(code, /\.reduce\s*\(/g), "a fold in the gateway").toBe(0);
     expect(count(code, /as\s+unknown\s+as\s+number/g), "the two doors, and nowhere else").toBe(2);
+    expect(count(code, /as\s+unknown\s+as\s+CockpitMinor/g), "sealed in exactly two places (amountOf, bookAmount)").toBe(2);
+    expect(count(code, /as\s+unknown\s+as\b/g), "no other laundering cast in the gateway").toBe(4);
     expect(count(code, /\/\s*100\b/g), "the one division, minor to major").toBe(1);
     // every money arithmetic the scan finds is that one division
     const money = moneyMathViolations(read(GATEWAY)).filter((v) => v.rule.startsWith("R3"));
@@ -329,6 +385,14 @@ describe("gate forecast-cockpit-no-math — plants (each must red its rule)", ()
     ["the opaque amount laundered", "const v = fig.amountMinor as unknown as number;", /R2/],
     ["Math over a money operand", "const big = Math.abs(cashBeforeFunding);", /R3/],
     ["compound assignment onto money", "let t = 0; t += interest;", /R3/],
+    // 2026-09-26, the verifier's PC: a forged amount and a gap derived behind plotValue
+    ["the opaque amount forged from a derived number", "const d = { kind: p.kind, period: p.period, minor: (x - y) as unknown as CockpitMinor, refusal: null };", /R2/],
+    ["a cast to the opaque type", "const m = n as CockpitMinor;", /R2/],
+    ["the fp1 lane's opaque type cast", "const m = n as ProjectedMinor;", /R2/],
+    ["any laundering cast, whatever the target", "const n = amt as unknown as bigint;", /R2/],
+    ["two plotted values combined", "const g = (plotValue(p.cash) as number) - (plotValue(p.fundingLine) as number);", /R8/],
+    ["a plotted value scaled", "const h = plotValue(b.amount) * 2;", /R8/],
+    ["a plotted value on the right of an operator", "const k = 1 - cockpitPlot(a);", /R8/],
   ];
   it.each(PLANTS)("plant: %s", (_name, snippet, rule) => {
     const v = moneyMathViolations(snippet);
@@ -349,8 +413,26 @@ describe("gate forecast-cockpit-no-math — plants (each must red its rule)", ()
     for (const src of clean) expect(moneyMathViolations(src), src).toEqual([]);
   });
 
+  it("an amount literal outside the gateway reds R7; the page's own literals do not", () => {
+    const red = [
+      'const d = { kind: "projected", period, minor: null, refusal: null };',
+      "const d = { kind: p.kind, period, minor: v, refusal: null };",
+      "const d = { kind: 'actual', period };",
+      "const d = { minor: fig as unknown as CockpitMinor };",
+    ];
+    for (const src of red) expect(amountLiteralViolations(src).length, src).toBeGreaterThan(0);
+    const clean = [
+      'const a: ActiveCase = { kind: "engine", id };',
+      "// kind: \"projected\" is the gateway's\nconst a = 1;",
+      'const s = b.amount.kind === "actual" ? "x" : "y";',
+      "<div data-kind={b.amount.kind} />",
+    ];
+    for (const src of clean) expect(amountLiteralViolations(src), src).toEqual([]);
+  });
+
   it("a PAINTER planted with a door, or an alias of one, reds R4", () => {
     expect(codeOnly("const x = cockpitPlot(a);").match(DOORS)).toEqual(["cockpitPlot"]);
+    expect(codeOnly("const x = plotValue(a);").match(DOORS)).toEqual(["plotValue"]);
     expect(codeOnly("const door = cockpitDisplay; door(a, (v) => v);").match(DOORS)).toEqual(["cockpitDisplay"]);
     expect(codeOnly("const y = unwrapProjected(f, b, (m) => m);").match(DOORS)).toEqual(["unwrapProjected"]);
     // …but the NAME in a comment or a string is prose, not a door

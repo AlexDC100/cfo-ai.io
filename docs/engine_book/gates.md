@@ -9089,11 +9089,17 @@ double with the `set_org_pref` one-key merge, and a reportPdf double.
   `amount_minor / 100` within one unit; the chart and the statements agree on
   the same served EBITDA; plan year one's painted revenue sits inside a
   halving-to-doubling band of year 0's.
-- **The no-math source scan** (cockpitNoMoneyMath.test.ts, R1–R6): no
-  `.reduce`, no wire amount, no arithmetic beside a money-named operand, no
-  door named in a painter, each door with exactly one user of each kind, the
-  gateway opening the opaque amount in exactly two places and dividing once,
-  and a roster that reds on an unscanned cockpit module.
+- **The no-math source scan** (cockpitNoMoneyMath.test.ts, R1–R8): no
+  `.reduce`, no wire amount, no laundering cast at all (`as unknown as …`,
+  whatever the target) and no cast to the opaque types, no arithmetic beside
+  a money-named operand, no door named in a painter (`plotValue` is a door),
+  each door with exactly one user of each kind and `plotValue` one call per
+  geometry site fed a served amount with the gap read from the engine's
+  `cashBeforeFunding`, the gateway opening the opaque amount in exactly two
+  places and sealing it in exactly two and dividing once, a roster that reds
+  on an unscanned cockpit module, no amount literal (`minor:` or
+  `kind: "projected"|"actual"`) outside the gateway (R7), and no plotted
+  value combined (R8).
 - **The lever-scale gate** (forecastCockpitLeverScale.test.tsx, 2026-09-26):
   a slider's tick scale is the lever's FIXED, served `decimals` (engine gate
   F10) and a position is the exact decimal the wire carries. Replayed over
@@ -9196,6 +9202,31 @@ Tests 1 failed | 23 skipped (24)
 card and the export say "during {year}" / "în cursul anului {year}" for an
 annual first draw, the month otherwise); `Tests 74 passed (74)` over the
 cockpit page, lever-scale and component suites.
+
+**PLANT PC — a derived amount behind plotValue, painted as a CockpitAmount**
+(2026-09-26, the verifier's adversarial plant, scratchpad
+cockpit_verify/plants_no_math.py, applied by string replacement to
+`CockpitChart.tsx` and restored byte-exact, sha1 checked): the gap computed
+as `(plotValue(p.cash) as number) - (plotValue(p.fundingLine) as number)`,
+and `derived: { kind: "projected", period, minor: (…) as unknown as
+CockpitMinor, refusal: null }` handed to the painter.
+```
+BLIND (the gate before the repair, R1–R6): Tests 41 passed (41), exit code 0
+  — PA (a painter sums two amounts) and PB (a fold through the door) red;
+  PC passed: R2 read only `as unknown as number`, no rule saw an amount
+  literal, and plotValue was not a door.
+RED (the gate after the repair): Tests 3 failed | 60 passed (63), exit code 1
+  × CockpitChart.tsx: no .reduce, no wire amount, no arithmetic on money (R1–R3, R8)
+  × CockpitChart.tsx: no amount literal — a CockpitAmount is made only by the gateway (R7)
+  × R5: the chart plots ONCE, for geometry, and formats no number itself  (plotValue: 9 calls, not the definition + 3 sites)
+```
+**REVERT** — `CockpitChart.tsx` restored byte-exact
+(08e2a62cad60bd2d5a1dc8d320ab6fb7af72ed8b before and after); PA and PB still
+red (`1 failed`, `2 failed`); the clean tree `Tests 63 passed (63)`. The
+in-file plants gained the same shapes (a forged opaque amount, `as
+CockpitMinor`, `as ProjectedMinor`, any laundering cast, two plotted values
+combined, a plotted value scaled or on the right of an operator, amount
+literals for R7 beside the page's own `kind: "engine"` and `data-kind`).
 
 **After the repair it reds on:** a number on the cockpit that is not the
 engine's, or a projected one without ◇; a DSCR verdict the page decided; a
