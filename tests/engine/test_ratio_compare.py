@@ -76,6 +76,8 @@ from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
+REPO = Path(__file__).resolve().parents[2]
+
 import pytest
 
 from engine.api import _comparatives as C
@@ -454,13 +456,22 @@ def test_the_switch_precondition_no_zone_or_letter_moves_against_the_persisted_r
 
 
 def test_the_scandia_baseline_discloses_its_as_filed_composite():
+    """The Scandia baseline as production persisted it (the revision-2 rows
+    stage_compute inserted, tests/engine/fixtures/credit_model): since the
+    one-EBITDA ruling its envelope — persisted before the stock variation was
+    measured — refuses the served EBITDA and with it the composite, and the
+    filed 71.7 A is DISCLOSED as filed, never served as the verdict."""
     bk = SB.book(SB.SCANDIA)
-    persisted = CM.compute_period_metrics(copy.deepcopy(bk.persist_assembled["statements"]))
+    golden = json.loads((REPO / "tests" / "engine" / "fixtures" / "credit_model"
+                         / "stage_compute_rows_pre_extraction.json").read_text("utf-8"))
+    persisted = [dict(r) for r in golden["cases"]["scandia_fy2025_baseline"]["rows"]]
     body = SB.routed_body(bk, metrics=persisted)
     credit = body["assembled_metrics"]["credit"]
     assert credit["as_filed_differs"] is True, credit
-    assert credit["as_filed"]["letter"] == credit["letter_grade"] == "A"
-    assert credit["as_filed"]["composite"] != credit["composite_score"]
+    assert credit["as_filed"]["letter"] == "A" and credit["as_filed"]["composite"] == 71.7, credit["as_filed"]
+    assert credit["letter_grade"] is None and credit["composite_score"] is None, credit
+    assert credit["reason"]["code"] == CM.CREDIT_COMPONENT_UNDEFINED
+    assert {c["cause"] for c in credit["reason"]["components"]} == {CM.EBITDA_REFUSED}
 
 
 # ── 7. one credit model per response ───────────────────────────────────────
@@ -500,8 +511,12 @@ def _envelope_figures(body: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _scandia_with_rows(stale_composite=None):
-    bk = SB.book(SB.SCANDIA)
+def _scored_with_rows(stale_composite=None):
+    """A served book the credit model SCORES, with its persisted rows. Since
+    the one-EBITDA ruling the Scandia baseline's envelope (persisted before
+    the stock variation was measured) refuses its composite, so the scoring
+    book here is agras (81.0 AA through the real route)."""
+    bk = SB.book("agras")
     persisted = CM.compute_period_metrics(copy.deepcopy(bk.persist_assembled["statements"]))
     if stale_composite is not None:
         for r in persisted:
@@ -512,13 +527,13 @@ def _scandia_with_rows(stale_composite=None):
 
 @pytest.mark.parametrize("stale", [None, 69.9])
 def test_a_credit_card_reads_one_model_from_the_served_body(stale):
-    persisted, body = _scandia_with_rows(stale)
+    persisted, body = _scored_with_rows(stale)
     env = body["assembled_metrics"]["credit"]
     assert env["basis"] == "serve", env
     read, served = _card_reads(body), _envelope_figures(body)
     mixed = {k: (read[k], served[k]) for k in read if read[k] != served[k]}
     assert not mixed, (
-        "scandia_baseline (persisted composite %s): the card reads %s from the metrics rows "
+        "agras (persisted composite %s): the card reads %s from the metrics rows "
         "while the envelope serves the serve-time model" % (stale, mixed))
     assert read["composite"] is not None
     assert env["letter_grade"] == CM.composite_to_letter_grade(read["composite"]), (
@@ -533,11 +548,11 @@ def test_a_credit_card_reads_one_model_from_the_served_body(stale):
         for r in persisted if r["name"] not in family]
     if stale is not None:
         assert env["as_filed_differs"] is True and env["as_filed"]["composite"] == stale
-        assert env["as_filed"]["letter"] == "BBB" and env["letter_grade"] == "A"
+        assert env["as_filed"]["letter"] == "BBB" and env["letter_grade"] == "AA"
 
 
 def test_the_comparatives_rebuild_still_discloses_the_as_filed_composite():
-    _persisted, body = _scandia_with_rows(69.9)
+    _persisted, body = _scored_with_rows(69.9)
     prior = SB.served_body("agras")
     out = C.compare_payloads(body, prior,
                              current_row={"id": body["period"]["id"], "period_end": "2025-12-31"},
@@ -579,17 +594,20 @@ def _real_pair_ratios(cur_body=None, pri_body=None):
 #:   current_ratio  2.1033878684 - 2 = 0.1033878684; x 13,012,976.77 current
 #:                  liabilities / 1 = 1,345,383.93; / 39,319,114.09 total
 #:                  assets = 0.0342
-#:   ebitda_margin  critical -> watch past rung 8: 9.73 - 8 = 1.73 pp;
-#:                  x 110,798,309.14 revenue / 100 = 1,916,810.75;
-#:                  / revenue = 0.0173
+#:   ebitda_margin  critical -> watch past rung 8, on THE ONE EBITDA (owner
+#:                  ruling 2026-09-26; net 711 1,071,687.03 inside):
+#:                  11,848,065.27 / 110,798,309.14 = 10.69 % (stored
+#:                  0.1069); 10.69 - 8 = 2.69 pp; x 110,798,309.14 revenue
+#:                  / 100 = 2,980,474.52; / revenue = 0.0269 (9.73 / 1.73
+#:                  / 1,916,810.75 / 0.0173 on the EBITDA without 711)
 #:   dso            8,513,384.96 / 110,798,309.14 x 365 = 28.0454235676;
 #:                  30 - 28.0454235676 = 1.9545764324 days; x 110,798,309.14
 #:                  revenue / 365 = 593,325.38; / total assets = 0.0151
 HAND_MATERIALITY = {
     "current_ratio": ("0.10", {"basis_key": "total_assets", "basis_value": "39319114.09",
                                "headroom_money": "1345383.93", "share": "0.0342"}),
-    "ebitda_margin": ("1.7", {"basis_key": "revenue", "basis_value": "110798309.14",
-                              "headroom_money": "1916810.75", "share": "0.0173"}),
+    "ebitda_margin": ("2.7", {"basis_key": "revenue", "basis_value": "110798309.14",
+                              "headroom_money": "2980474.52", "share": "0.0269"}),
     "dso": ("2", {"basis_key": "total_assets", "basis_value": "39319114.09",
                   "headroom_money": "593325.38", "share": "0.0151"}),
 }

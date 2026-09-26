@@ -657,3 +657,53 @@ def test_no_refusal_ever_reads_as_a_movement():
             low = col.note.lower()
             for word in banned:
                 assert word not in low, "%s note says %r: %s" % (col.key, word, col.note)
+
+
+# ── the one EBITDA (owner ruling 2026-09-26): a refusal is not an absence ──
+
+
+def test_a_refused_ebitda_is_a_refused_column_with_its_reason_never_absent():
+    """The assembly REFUSES EBITDA, EBIT, gross profit, PBT and the net 711
+    when the stock variation cannot be measured (`assembled_pl.
+    ebitda_refusal`, whose `fields` name them). The column says `refused`
+    with the reason — not "did not report" (that the book fed nothing),
+    and never a delta; lines the refusal does not name still compare."""
+    refusal = {"code": "book_state_mixed", "text_en": "the trial balance is partly closed",
+               "fields": ["ebitda", "ebit", "gross_profit", "pretax"]}
+    cur = _env(pl={"revenue": 120.0, "ebitda": None, "ebit": None, "gross_profit": None,
+                   "pretax": None, "ebitda_refusal": refusal,
+                   "inventory_variation": {"value": None, "refusal": refusal}},
+               buckets=["revenue"])
+    pri = _env(pl={"revenue": 100.0, "ebitda": 30.0, "ebit": 20.0, "gross_profit": 50.0, "pretax": 18.0,
+                   "inventory_variation": {"value": 4.0}},
+               buckets=["revenue"])
+    t = CO.build_comparative_columns(cur, pri, current_level=ANALYTIC, prior_level=ANALYTIC)
+    for key in ("pl.ebitda", "pl.ebit", "pl.gross_profit", "pl.pretax", "pl.inventory_variation"):
+        col = _col(t, key)
+        assert col.status == CO.STATUS_REFUSED, (key, col.status)
+        assert col.current_disclosure == CO.DISCLOSURE_REFUSED and col.prior_disclosure == "reported", key
+        assert col.delta is None and col.delta_pct is None and not col.has_movement, key
+        assert "the trial balance is partly closed" in col.note, (key, col.note)
+    assert _col(t, "pl.revenue").status == CO.STATUS_COMPARED
+    # the same book without the refusal: absent reads absent, not refused
+    absent = CO.build_comparative_columns(_env(pl={"revenue": 120.0}, buckets=["revenue"]), pri,
+                                          current_level=ANALYTIC, prior_level=ANALYTIC)
+    assert _col(absent, "pl.ebitda").status == CO.STATUS_ABSENT_CURRENT
+
+
+def test_the_stock_variation_and_own_work_are_lines_of_their_own():
+    """Net 711 ("Variația stocurilor de produse", beside cost of sales) and
+    net 72x are read from the blocks the assembler serves — a measured 0.00
+    is a reported zero, not an absence."""
+    keys = [s.key for s in LN.LINE_SPECS]
+    assert keys.index("pl.inventory_variation") == keys.index("pl.cogs") + 1
+    assert LN.spec_for("pl.inventory_variation").label.startswith("Variația stocurilor de produse")
+    assert LN.spec_for("pl.inventory_variation").path == ("assembled_pl", "inventory_variation", "value")
+    assert LN.spec_for("pl.capitalized_own_work").path == ("assembled_pl", "capitalized_own_work", "value")
+    t = CO.build_comparative_columns(
+        _env(pl={"inventory_variation": {"value": 0.0}, "capitalized_own_work": {"value": 0.0}}, buckets=[]),
+        _env(pl={"inventory_variation": {"value": 1071687.03}, "capitalized_own_work": {"value": 0.0}},
+             buckets=[]),
+        current_level=ANALYTIC, prior_level=ANALYTIC)
+    inv = _col(t, "pl.inventory_variation")
+    assert inv.status == CO.STATUS_COMPARED and inv.current == 0.0 and inv.delta == -1071687.03

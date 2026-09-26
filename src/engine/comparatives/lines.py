@@ -49,6 +49,7 @@ __all__ = [
     "unwrap_envelope",
     "coverage_from_envelope",
     "read_value",
+    "refusal_of",
 ]
 
 #: Every figure in this registry is a money amount in the envelope's own
@@ -97,6 +98,14 @@ def _bs(key, label, field, buckets, requires=SYNTHETIC):
                     source_buckets=tuple(buckets), requires=requires)
 
 
+def _pl_path(key, label, path_tail, buckets=()):
+    """A P&L line read from a NESTED field of the assembled P&L (the
+    one-EBITDA components the assembler serves as blocks)."""
+    return LineSpec(key="pl." + key, statement="PL", label=label,
+                    path=("assembled_pl",) + tuple(path_tail), unit=UNIT_MONEY,
+                    source_buckets=tuple(buckets))
+
+
 def _analytic(key, label, field):
     """A figure that only exists BELOW the synthetic boundary.
 
@@ -119,11 +128,21 @@ LINE_SPECS: Tuple[LineSpec, ...] = (
     # ── P&L, the statement spine ─────────────────────────────────────
     _pl("revenue", "Net turnover", "revenue", ("revenue",)),
     _pl("cogs", "Cost of goods sold", "cogs", ("cogs",)),
+    # THE ONE EBITDA (owner ruling 2026-09-26): the stock variation beside
+    # cost of sales, signed, as the assembler MEASURED it (the 121 bridge on
+    # a closed book, the 711 movement on an open one, 0.00 with no 711
+    # postings — never the gross 711 credit turnover); REFUSED where the
+    # assembly refused it. A derived line: presence is the measurement.
+    _pl_path("inventory_variation", "Variația stocurilor de produse (711)",
+             ("inventory_variation", "value")),
     _pl("gross_profit", "Gross profit", "gross_profit", ()),
     _pl("opex_total", "Operating expenses", "opex_total",
         ("operatingExpenses", "opex_third_party")),
     _pl("other_operating_income", "Other operating income",
         "other_income_758", ("otherIncome",)),
+    # Own work capitalised (72x): operating, inside EBITDA, outside turnover.
+    _pl_path("capitalized_own_work", "Own work capitalised (72x)",
+             ("capitalized_own_work", "value")),
     _pl("depreciation", "Depreciation & amortisation", "depreciation",
         ("depreciation",)),
     _pl("ebitda", "EBITDA", "ebitda", ()),
@@ -140,7 +159,8 @@ LINE_SPECS: Tuple[LineSpec, ...] = (
     _pl("net_financial_result", "Net financial result", "net_financial_result", ()),
     _pl("pretax", "Profit before tax", "pretax", ()),
     _pl("tax", "Income tax", "tax", ("taxExpense",)),
-    _pl("net_income_operational", "Net income — operational (excl. 722)",
+    _pl("net_income_operational",
+        "Net income — build-up before the stock variation and own work (excl. 711, 72x)",
         "net_income_operational", ()),
     _pl("net_income", "Net income", "net_income_statutory", ()),
     # ── Balance sheet, the statement spine ───────────────────────────
@@ -273,6 +293,25 @@ def coverage_from_envelope(
         if bucket:
             buckets.add(str(bucket))
     return frozenset(buckets)
+
+
+def refusal_of(envelope: Mapping[str, Any], spec: LineSpec) -> Optional[Mapping[str, Any]]:
+    """The typed refusal the period's assembled P&L serves for this line,
+    or None. Since the one-EBITDA ruling (2026-09-26) the assembler REFUSES
+    EBITDA, EBIT, gross profit, PBT and the net 711 itself when the stock
+    variation cannot be measured on a book that posts to 711
+    (`assembled_pl.ebitda_refusal`, whose `fields` name every refused
+    figure). A refused line is not an absent one: the period DID say
+    something about it — that it cannot be stated — and the column says
+    so with the reason."""
+    if len(spec.path) < 2 or spec.path[0] != "assembled_pl":
+        return None
+    apl = (unwrap_envelope(envelope).get("statements") or {}).get("assembled_pl")
+    refusal = apl.get("ebitda_refusal") if isinstance(apl, Mapping) else None
+    if not isinstance(refusal, Mapping):
+        return None
+    fields = set(refusal.get("fields") or ()) | {"inventory_variation"}
+    return refusal if spec.path[1] in fields else None
 
 
 def read_value(

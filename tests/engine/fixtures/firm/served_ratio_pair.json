@@ -4,11 +4,11 @@
   "altman_components": {
    "x1": 0.3683,
    "x2": 0.1903,
-   "x3": 0.1991,
+   "x3": 0.2264,
    "x4": 1.554
   },
   "altman_variant": "Z\"",
-  "altman_z_score": 6.01,
+  "altman_z_score": 6.19,
   "altman_zone": "safe",
   "as_filed": null,
   "as_filed_differs": false,
@@ -23,7 +23,7 @@
    "liquidity": 0.1,
    "profitability": 0.2
   },
-  "credit_model_revision": 2,
+  "credit_model_revision": 3,
   "declared_rungs": {},
   "letter_grade": "AA",
   "letter_grade_bands": [
@@ -74,9 +74,9 @@
     "source": "derived: on the D4 domain TL >= share x TA and BE <= TA, so BE / TL <= 1 / share"
    },
    "altman_z": {
-    "bound": 113.51832999999999,
+    "bound": 113.701786,
     "bound_is": "6.56 x altman_x1.max + 3.26 x X2 + 6.72 x X3 + 1.05 x altman_x4.max",
-    "derivation": "6.56 x 1 + 3.26 x 0.1903 + 6.72 x 0.1991 + 1.05 x 100 = 113.5183",
+    "derivation": "6.56 x 1 + 3.26 x 0.1903 + 6.72 x 0.2264 + 1.05 x 100 = 113.7018",
     "file": "packs/credit/model.yaml",
     "source": "derived from the component bounds above with the book's own measured X2 and X3; X2 and X3 have no structural bound and are required finite"
    },
@@ -179,6 +179,183 @@
     "ccc"
    ],
    "findings": [
+    {
+     "body": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 1012.01 (Nnsefni mkxmwzem dnzmnf 2420.42): return on invested capital in Dec 2024 — 1.2%; return on invested capital in Dec 2025 — 27.1%. Basis: the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-dec2025; accounts 711, 7015.01, 1012.01; assembled_canonical_v1; vs period period-carniprod-dec2024. Rule band_roic fires when strong rung of return on invested capital is at or above 15.0%; observed 27.1%. Impact: the numerator of return on invested capital at the strong rung, versus as held moves from RON 4,134,643 to RON 7,469,922. For a mid-size inventory-heavy operator, return on invested capital on 711 / 7015.01 / 1012.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the return on invested capital movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 1012.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 1012.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+     "body_template": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 1012.01 (Nnsefni mkxmwzem dnzmnf 2420.42): return on invested capital in Dec 2024 — 1.2%; return on invested capital in Dec 2025 — 27.1%. Basis: the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-dec2025; accounts 711, 7015.01, 1012.01; assembled_canonical_v1; vs period period-carniprod-dec2024. Rule band_roic fires when strong rung of return on invested capital is at or above 15.0%; observed 27.1%. Impact: the numerator of return on invested capital at the strong rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. For a mid-size inventory-heavy operator, return on invested capital on 711 / 7015.01 / 1012.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the return on invested capital movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 1012.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 1012.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+     "category": "margin",
+     "contract_elements": {
+      "action": {
+       "steps": [
+        {
+         "artefact": "two-period balance listing for accounts 711, 7015.01, 1012.01",
+         "horizon": "before the next board pack",
+         "imperative": "Reconcile the return on invested capital movement from Dec 2024 to Dec 2025 to the ledger",
+         "lang": "en",
+         "provider": "the financial controller"
+        },
+        {
+         "artefact": "list of non-recurring entries on accounts 711, 7015.01, 1012.01 in Dec 2025",
+         "horizon": null,
+         "imperative": "Confirm the move past the strong rung comes from recurring trading, not a single posting",
+         "lang": "en",
+         "provider": "the financial controller"
+        }
+       ]
+      },
+      "confidence": {
+       "basis": "profile inventory_operator/band_mid/fin_related_party_funded resolved from structure",
+       "caveat": "Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
+       "level": "medium"
+      },
+      "evidence": {
+       "comparison_basis": {
+        "basis_unit": "percent",
+        "basis_value": 0.011699999999999999,
+        "description": "the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision",
+        "kind": "prior_period"
+       },
+       "figures": [
+        {
+         "fact": "roic__prior",
+         "label": "return on invested capital in Dec 2024",
+         "unit": "percent",
+         "value": 0.011699999999999999
+        },
+        {
+         "fact": "roic__current",
+         "label": "return on invested capital in Dec 2025",
+         "unit": "percent",
+         "value": 0.271
+        }
+       ],
+       "provenance": {
+        "line_refs": [
+         "711",
+         "7015.01",
+         "1012.01"
+        ],
+        "period_id": "period-agras-dec2025",
+        "prior_period_id": "period-carniprod-dec2024",
+        "snapshot_id": null,
+        "source": "assembled_canonical_v1"
+       }
+      },
+      "impact": {
+       "adjusted": 7469921.519549999,
+       "adjusted_fact": "band_numerator_held",
+       "baseline": 4134642.9074999997,
+       "baseline_fact": "band_numerator_at_rung",
+       "currency": "RON",
+       "delta": 3335278.6120499996,
+       "kind": "headroom",
+       "metric": "band_roic",
+       "metric_label": "the numerator of return on invested capital at the strong rung, versus as held",
+       "unit": "money"
+      },
+      "subject": {
+       "accounts": [
+        {
+         "bucket": "otherIncome",
+         "code": "711",
+         "name": "144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn",
+         "statement": "PL"
+        },
+        {
+         "bucket": "revenue",
+         "code": "7015.01",
+         "name": "Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41",
+         "statement": "PL"
+        },
+        {
+         "bucket": "shareCapital",
+         "code": "1012.01",
+         "name": "Nnsefni mkxmwzem dnzmnf 2420.42",
+         "statement": "BS"
+        }
+       ],
+       "scope": "Return on invested capital on 711 / 7015.01 / 1012.01"
+      },
+      "threshold": {
+       "comparator": ">=",
+       "limit": 0.15,
+       "observed": 0.271,
+       "parameter": "strong",
+       "parameter_label": "strong rung of return on invested capital",
+       "rule_id": "band_roic",
+       "source": "general_sme_fallback#roic.strong",
+       "unit": "percent"
+      },
+      "why_here": {
+       "anchors": [
+        "mid-size inventory-heavy operator",
+        "inventory-heavy operator",
+        "mid-size company",
+        "inventory-heavy operator",
+        "related-party funded",
+        "bank debt outstanding",
+        "foreign-currency exposure",
+        "related-party balances on the books",
+        "revaluation reserve in equity"
+       ],
+       "profile_id": "inventory_operator",
+       "profile_label": "mid-size inventory-heavy operator",
+       "rationale": "For a mid-size inventory-heavy operator, return on invested capital on 711 / 7015.01 / 1012.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together.",
+       "signals": [
+        "bank_debt",
+        "fx_exposure",
+        "related_party",
+        "revaluation_reserve"
+       ]
+      }
+     },
+     "demoted": false,
+     "demotion_reasons": [],
+     "direction": "improved",
+     "fact_units": {
+      "band_numerator_at_rung": "money",
+      "band_numerator_held": "money",
+      "roic__current": "unknown",
+      "roic__prior": "unknown"
+     },
+     "facts_cited": {
+      "band_numerator_at_rung": 4134642.9074999997,
+      "band_numerator_held": 7469921.519549999,
+      "roic__current": 0.271,
+      "roic__prior": 0.011699999999999999
+     },
+     "finding_id": "band_roic:critical->strong",
+     "lane": "c_bands",
+     "missing_elements": [],
+     "narrative_source": "deterministic",
+     "profile_fingerprint": "9bd3f9bbbe9f789b",
+     "profile_id": "inventory_operator",
+     "rank": 1,
+     "ratio_key": "roic",
+     "rule_key": "band_roic",
+     "rungs_crossed": 3,
+     "severity": "low",
+     "so_what": {
+      "key": "statements.ratioCmp.bandFinding.improved",
+      "placeholders": {
+       "current_label": "Dec 2025",
+       "current_value": "27.1",
+       "delta": "+25.9",
+       "delta_unit": "pp",
+       "from": "critical",
+       "headroom_money": "3335278.61",
+       "label_key": "ratioTable.roic.label",
+       "prior_label": "Dec 2024",
+       "prior_value": "1.2",
+       "rung": "strong",
+       "rung_value": "15",
+       "to": "strong"
+      }
+     },
+     "source_currency": "RON",
+     "surfaced": true,
+     "title": "Return on invested capital on 711 / 7015.01 / 1012.01 at 27.1% — at or above the 15.0% strong rung of return on invested capital for mid-size inventory-heavy operator",
+     "title_template": "Return on invested capital on 711 / 7015.01 / 1012.01 at 27.1% — at or above the 15.0% strong rung of return on invested capital for mid-size inventory-heavy operator"
+    },
     {
      "body": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 2131.01 (Pvbgcqptfxt xtbfrerngvt (pqhgfg, mxgeqwt hg gfhxqeqxgg ot emvjm) 0363.13): return on assets in Dec 2024 — 1.1%; return on assets in Dec 2025 — 19.2%. Basis: the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-dec2025; accounts 711, 7015.01, 2131.01; assembled_canonical_v1; vs period period-carniprod-dec2024. Rule band_roa fires when strong rung of return on assets is at or above 10.0%; observed 19.2%. Impact: the numerator of return on assets at the strong rung, versus as held moves from RON 3,931,911 to RON 7,533,676. For a mid-size inventory-heavy operator, return on assets on 711 / 7015.01 / 2131.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the return on assets movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 2131.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 2131.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
      "body_template": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 2131.01 (Pvbgcqptfxt xtbfrerngvt (pqhgfg, mxgeqwt hg gfhxqeqxgg ot emvjm) 0363.13): return on assets in Dec 2024 — 1.1%; return on assets in Dec 2025 — 19.2%. Basis: the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-dec2025; accounts 711, 7015.01, 2131.01; assembled_canonical_v1; vs period period-carniprod-dec2024. Rule band_roa fires when strong rung of return on assets is at or above 10.0%; observed 19.2%. Impact: the numerator of return on assets at the strong rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. For a mid-size inventory-heavy operator, return on assets on 711 / 7015.01 / 2131.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the return on assets movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 2131.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 2131.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
@@ -329,7 +506,7 @@
      "narrative_source": "deterministic",
      "profile_fingerprint": "9bd3f9bbbe9f789b",
      "profile_id": "inventory_operator",
-     "rank": 1,
+     "rank": 2,
      "ratio_key": "roa",
      "rule_key": "band_roa",
      "rungs_crossed": 3,
@@ -355,183 +532,6 @@
      "surfaced": true,
      "title": "Return on assets on 711 / 7015.01 / 2131.01 at 19.2% — at or above the 10.0% strong rung of return on assets for mid-size inventory-heavy operator",
      "title_template": "Return on assets on 711 / 7015.01 / 2131.01 at 19.2% — at or above the 10.0% strong rung of return on assets for mid-size inventory-heavy operator"
-    },
-    {
-     "body": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 1012.01 (Nnsefni mkxmwzem dnzmnf 2420.42): return on invested capital in Dec 2024 — 1.0%; return on invested capital in Dec 2025 — 23.8%. Basis: the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-dec2025; accounts 711, 7015.01, 1012.01; assembled_canonical_v1; vs period period-carniprod-dec2024. Rule band_roic fires when strong rung of return on invested capital is at or above 15.0%; observed 23.8%. Impact: the numerator of return on invested capital at the strong rung, versus as held moves from RON 4,134,643 to RON 6,568,569. For a mid-size inventory-heavy operator, return on invested capital on 711 / 7015.01 / 1012.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the return on invested capital movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 1012.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 1012.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-     "body_template": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 1012.01 (Nnsefni mkxmwzem dnzmnf 2420.42): return on invested capital in Dec 2024 — 1.0%; return on invested capital in Dec 2025 — 23.8%. Basis: the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-dec2025; accounts 711, 7015.01, 1012.01; assembled_canonical_v1; vs period period-carniprod-dec2024. Rule band_roic fires when strong rung of return on invested capital is at or above 15.0%; observed 23.8%. Impact: the numerator of return on invested capital at the strong rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. For a mid-size inventory-heavy operator, return on invested capital on 711 / 7015.01 / 1012.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the return on invested capital movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 1012.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 1012.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-     "category": "margin",
-     "contract_elements": {
-      "action": {
-       "steps": [
-        {
-         "artefact": "two-period balance listing for accounts 711, 7015.01, 1012.01",
-         "horizon": "before the next board pack",
-         "imperative": "Reconcile the return on invested capital movement from Dec 2024 to Dec 2025 to the ledger",
-         "lang": "en",
-         "provider": "the financial controller"
-        },
-        {
-         "artefact": "list of non-recurring entries on accounts 711, 7015.01, 1012.01 in Dec 2025",
-         "horizon": null,
-         "imperative": "Confirm the move past the strong rung comes from recurring trading, not a single posting",
-         "lang": "en",
-         "provider": "the financial controller"
-        }
-       ]
-      },
-      "confidence": {
-       "basis": "profile inventory_operator/band_mid/fin_related_party_funded resolved from structure",
-       "caveat": "Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
-       "level": "medium"
-      },
-      "evidence": {
-       "comparison_basis": {
-        "basis_unit": "percent",
-        "basis_value": 0.0102,
-        "description": "the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision",
-        "kind": "prior_period"
-       },
-       "figures": [
-        {
-         "fact": "roic__prior",
-         "label": "return on invested capital in Dec 2024",
-         "unit": "percent",
-         "value": 0.0102
-        },
-        {
-         "fact": "roic__current",
-         "label": "return on invested capital in Dec 2025",
-         "unit": "percent",
-         "value": 0.2383
-        }
-       ],
-       "provenance": {
-        "line_refs": [
-         "711",
-         "7015.01",
-         "1012.01"
-        ],
-        "period_id": "period-agras-dec2025",
-        "prior_period_id": "period-carniprod-dec2024",
-        "snapshot_id": null,
-        "source": "assembled_canonical_v1"
-       }
-      },
-      "impact": {
-       "adjusted": 6568569.365715,
-       "adjusted_fact": "band_numerator_held",
-       "baseline": 4134642.9074999997,
-       "baseline_fact": "band_numerator_at_rung",
-       "currency": "RON",
-       "delta": 2433926.458215,
-       "kind": "headroom",
-       "metric": "band_roic",
-       "metric_label": "the numerator of return on invested capital at the strong rung, versus as held",
-       "unit": "money"
-      },
-      "subject": {
-       "accounts": [
-        {
-         "bucket": "otherIncome",
-         "code": "711",
-         "name": "144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn",
-         "statement": "PL"
-        },
-        {
-         "bucket": "revenue",
-         "code": "7015.01",
-         "name": "Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41",
-         "statement": "PL"
-        },
-        {
-         "bucket": "shareCapital",
-         "code": "1012.01",
-         "name": "Nnsefni mkxmwzem dnzmnf 2420.42",
-         "statement": "BS"
-        }
-       ],
-       "scope": "Return on invested capital on 711 / 7015.01 / 1012.01"
-      },
-      "threshold": {
-       "comparator": ">=",
-       "limit": 0.15,
-       "observed": 0.2383,
-       "parameter": "strong",
-       "parameter_label": "strong rung of return on invested capital",
-       "rule_id": "band_roic",
-       "source": "general_sme_fallback#roic.strong",
-       "unit": "percent"
-      },
-      "why_here": {
-       "anchors": [
-        "mid-size inventory-heavy operator",
-        "inventory-heavy operator",
-        "mid-size company",
-        "inventory-heavy operator",
-        "related-party funded",
-        "bank debt outstanding",
-        "foreign-currency exposure",
-        "related-party balances on the books",
-        "revaluation reserve in equity"
-       ],
-       "profile_id": "inventory_operator",
-       "profile_label": "mid-size inventory-heavy operator",
-       "rationale": "For a mid-size inventory-heavy operator, return on invested capital on 711 / 7015.01 / 1012.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together.",
-       "signals": [
-        "bank_debt",
-        "fx_exposure",
-        "related_party",
-        "revaluation_reserve"
-       ]
-      }
-     },
-     "demoted": false,
-     "demotion_reasons": [],
-     "direction": "improved",
-     "fact_units": {
-      "band_numerator_at_rung": "money",
-      "band_numerator_held": "money",
-      "roic__current": "unknown",
-      "roic__prior": "unknown"
-     },
-     "facts_cited": {
-      "band_numerator_at_rung": 4134642.9074999997,
-      "band_numerator_held": 6568569.365715,
-      "roic__current": 0.2383,
-      "roic__prior": 0.0102
-     },
-     "finding_id": "band_roic:critical->strong",
-     "lane": "c_bands",
-     "missing_elements": [],
-     "narrative_source": "deterministic",
-     "profile_fingerprint": "9bd3f9bbbe9f789b",
-     "profile_id": "inventory_operator",
-     "rank": 2,
-     "ratio_key": "roic",
-     "rule_key": "band_roic",
-     "rungs_crossed": 3,
-     "severity": "low",
-     "so_what": {
-      "key": "statements.ratioCmp.bandFinding.improved",
-      "placeholders": {
-       "current_label": "Dec 2025",
-       "current_value": "23.8",
-       "delta": "+22.8",
-       "delta_unit": "pp",
-       "from": "critical",
-       "headroom_money": "2433926.46",
-       "label_key": "ratioTable.roic.label",
-       "prior_label": "Dec 2024",
-       "prior_value": "1.0",
-       "rung": "strong",
-       "rung_value": "15",
-       "to": "strong"
-      }
-     },
-     "source_currency": "RON",
-     "surfaced": true,
-     "title": "Return on invested capital on 711 / 7015.01 / 1012.01 at 23.8% — at or above the 15.0% strong rung of return on invested capital for mid-size inventory-heavy operator",
-     "title_template": "Return on invested capital on 711 / 7015.01 / 1012.01 at 23.8% — at or above the 15.0% strong rung of return on invested capital for mid-size inventory-heavy operator"
     },
     {
      "body": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 1012.01 (Nnsefni mkxmwzem dnzmnf 2420.42): return on equity in Dec 2024 — 1.3%; return on equity in Dec 2025 — 31.5%. Basis: the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-dec2025; accounts 711, 7015.01, 1012.01; assembled_canonical_v1; vs period period-carniprod-dec2024. Rule band_roe fires when strong rung of return on equity is at or above 20.0%; observed 31.5%. Impact: the numerator of return on equity at the strong rung, versus as held moves from RON 4,784,817 to RON 7,533,676. For a mid-size inventory-heavy operator, return on equity on 711 / 7015.01 / 1012.01 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the return on equity movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 1012.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 1012.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
@@ -1596,8 +1596,8 @@
      "title_template": "Net margin on 711 / 7015.01 / 707.093 at 6.8% — at or above the 3.0% watch rung of net margin for mid-size inventory-heavy operator"
     },
     {
-     "body": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329): operating margin in Dec 2024 — 1.4%; operating margin in Dec 2025 — 7.1%. Basis: the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-dec2025; accounts 711, 7015.01, 707.093; assembled_canonical_v1; vs period period-carniprod-dec2024. Rule band_operating_margin fires when watch rung of operating margin is at or above 4.0%; observed 7.1%. Impact: the numerator of operating margin at the watch rung, versus as held moves from RON 4,431,932 to RON 7,822,361. For a mid-size inventory-heavy operator, operating margin on 711 / 7015.01 / 707.093 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the operating margin movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 707.093, from the financial controller (before the next board pack). 2) Confirm the move past the watch rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 707.093 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-     "body_template": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329): operating margin in Dec 2024 — 1.4%; operating margin in Dec 2025 — 7.1%. Basis: the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-dec2025; accounts 711, 7015.01, 707.093; assembled_canonical_v1; vs period period-carniprod-dec2024. Rule band_operating_margin fires when watch rung of operating margin is at or above 4.0%; observed 7.1%. Impact: the numerator of operating margin at the watch rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. For a mid-size inventory-heavy operator, operating margin on 711 / 7015.01 / 707.093 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the operating margin movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 707.093, from the financial controller (before the next board pack). 2) Confirm the move past the watch rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 707.093 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+     "body": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329): operating margin in Dec 2024 — 1.6%; operating margin in Dec 2025 — 8.0%. Basis: the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-dec2025; accounts 711, 7015.01, 707.093; assembled_canonical_v1; vs period period-carniprod-dec2024. Rule band_operating_margin fires when watch rung of operating margin is at or above 4.0%; observed 8.0%. Impact: the numerator of operating margin at the watch rung, versus as held moves from RON 4,431,932 to RON 8,897,104. For a mid-size inventory-heavy operator, operating margin on 711 / 7015.01 / 707.093 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the operating margin movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 707.093, from the financial controller (before the next board pack). 2) Confirm the move past the watch rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 707.093 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+     "body_template": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329): operating margin in Dec 2024 — 1.6%; operating margin in Dec 2025 — 8.0%. Basis: the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-dec2025; accounts 711, 7015.01, 707.093; assembled_canonical_v1; vs period period-carniprod-dec2024. Rule band_operating_margin fires when watch rung of operating margin is at or above 4.0%; observed 8.0%. Impact: the numerator of operating margin at the watch rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. For a mid-size inventory-heavy operator, operating margin on 711 / 7015.01 / 707.093 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the operating margin movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 707.093, from the financial controller (before the next board pack). 2) Confirm the move past the watch rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 707.093 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
      "category": "margin",
      "contract_elements": {
       "action": {
@@ -1626,7 +1626,7 @@
       "evidence": {
        "comparison_basis": {
         "basis_unit": "percent",
-        "basis_value": 0.0137,
+        "basis_value": 0.0157,
         "description": "the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision",
         "kind": "prior_period"
        },
@@ -1635,13 +1635,13 @@
          "fact": "operating_margin__prior",
          "label": "operating margin in Dec 2024",
          "unit": "percent",
-         "value": 0.0137
+         "value": 0.0157
         },
         {
          "fact": "operating_margin__current",
          "label": "operating margin in Dec 2025",
          "unit": "percent",
-         "value": 0.0706
+         "value": 0.0803
         }
        ],
        "provenance": {
@@ -1657,12 +1657,12 @@
        }
       },
       "impact": {
-       "adjusted": 7822360.625283999,
+       "adjusted": 8897104.223941999,
        "adjusted_fact": "band_numerator_held",
        "baseline": 4431932.3656,
        "baseline_fact": "band_numerator_at_rung",
        "currency": "RON",
-       "delta": 3390428.2596839992,
+       "delta": 4465171.858341998,
        "kind": "headroom",
        "metric": "band_operating_margin",
        "metric_label": "the numerator of operating margin at the watch rung, versus as held",
@@ -1694,7 +1694,7 @@
       "threshold": {
        "comparator": ">=",
        "limit": 0.04,
-       "observed": 0.0706,
+       "observed": 0.0803,
        "parameter": "watch",
        "parameter_label": "watch rung of operating margin",
        "rule_id": "band_operating_margin",
@@ -1735,9 +1735,9 @@
      },
      "facts_cited": {
       "band_numerator_at_rung": 4431932.3656,
-      "band_numerator_held": 7822360.625283999,
-      "operating_margin__current": 0.0706,
-      "operating_margin__prior": 0.0137
+      "band_numerator_held": 8897104.223941999,
+      "operating_margin__current": 0.0803,
+      "operating_margin__prior": 0.0157
      },
      "finding_id": "band_operating_margin:critical->watch",
      "lane": "c_bands",
@@ -1754,14 +1754,14 @@
       "key": "statements.ratioCmp.bandFinding.improved",
       "placeholders": {
        "current_label": "Dec 2025",
-       "current_value": "7.1",
-       "delta": "+5.7",
+       "current_value": "8.0",
+       "delta": "+6.4",
        "delta_unit": "pp",
        "from": "critical",
-       "headroom_money": "3390428.26",
+       "headroom_money": "4465171.86",
        "label_key": "ratioTable.operating_margin.label",
        "prior_label": "Dec 2024",
-       "prior_value": "1.4",
+       "prior_value": "1.6",
        "rung": "watch",
        "rung_value": "4",
        "to": "watch"
@@ -1769,12 +1769,12 @@
      },
      "source_currency": "RON",
      "surfaced": true,
-     "title": "Operating margin on 711 / 7015.01 / 707.093 at 7.1% — at or above the 4.0% watch rung of operating margin for mid-size inventory-heavy operator",
-     "title_template": "Operating margin on 711 / 7015.01 / 707.093 at 7.1% — at or above the 4.0% watch rung of operating margin for mid-size inventory-heavy operator"
+     "title": "Operating margin on 711 / 7015.01 / 707.093 at 8.0% — at or above the 4.0% watch rung of operating margin for mid-size inventory-heavy operator",
+     "title_template": "Operating margin on 711 / 7015.01 / 707.093 at 8.0% — at or above the 4.0% watch rung of operating margin for mid-size inventory-heavy operator"
     },
     {
-     "body": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329): EBITDA margin in Dec 2024 — 5.3%; EBITDA margin in Dec 2025 — 9.7%. Basis: the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-dec2025; accounts 711, 7015.01, 707.093; assembled_canonical_v1; vs period period-carniprod-dec2024. Rule band_ebitda_margin fires when watch rung of EBITDA margin is at or above 8.0%; observed 9.7%. Impact: the numerator of EBITDA margin at the watch rung, versus as held moves from RON 8,863,865 to RON 10,780,675. For a mid-size inventory-heavy operator, EBITDA margin on 711 / 7015.01 / 707.093 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the EBITDA margin movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 707.093, from the financial controller (before the next board pack). 2) Confirm the move past the watch rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 707.093 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-     "body_template": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329): EBITDA margin in Dec 2024 — 5.3%; EBITDA margin in Dec 2025 — 9.7%. Basis: the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-dec2025; accounts 711, 7015.01, 707.093; assembled_canonical_v1; vs period period-carniprod-dec2024. Rule band_ebitda_margin fires when watch rung of EBITDA margin is at or above 8.0%; observed 9.7%. Impact: the numerator of EBITDA margin at the watch rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. For a mid-size inventory-heavy operator, EBITDA margin on 711 / 7015.01 / 707.093 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the EBITDA margin movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 707.093, from the financial controller (before the next board pack). 2) Confirm the move past the watch rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 707.093 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+     "body": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329): EBITDA margin in Dec 2024 — 5.5%; EBITDA margin in Dec 2025 — 10.7%. Basis: the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-dec2025; accounts 711, 7015.01, 707.093; assembled_canonical_v1; vs period period-carniprod-dec2024. Rule band_ebitda_margin fires when watch rung of EBITDA margin is at or above 8.0%; observed 10.7%. Impact: the numerator of EBITDA margin at the watch rung, versus as held moves from RON 8,863,865 to RON 11,844,339. For a mid-size inventory-heavy operator, EBITDA margin on 711 / 7015.01 / 707.093 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the EBITDA margin movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 707.093, from the financial controller (before the next board pack). 2) Confirm the move past the watch rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 707.093 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+     "body_template": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329): EBITDA margin in Dec 2024 — 5.5%; EBITDA margin in Dec 2025 — 10.7%. Basis: the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-dec2025; accounts 711, 7015.01, 707.093; assembled_canonical_v1; vs period period-carniprod-dec2024. Rule band_ebitda_margin fires when watch rung of EBITDA margin is at or above 8.0%; observed 10.7%. Impact: the numerator of EBITDA margin at the watch rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. For a mid-size inventory-heavy operator, EBITDA margin on 711 / 7015.01 / 707.093 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the EBITDA margin movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 707.093, from the financial controller (before the next board pack). 2) Confirm the move past the watch rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 707.093 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
      "category": "margin",
      "contract_elements": {
       "action": {
@@ -1803,7 +1803,7 @@
       "evidence": {
        "comparison_basis": {
         "basis_unit": "percent",
-        "basis_value": 0.0528,
+        "basis_value": 0.0548,
         "description": "the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision",
         "kind": "prior_period"
        },
@@ -1812,13 +1812,13 @@
          "fact": "ebitda_margin__prior",
          "label": "EBITDA margin in Dec 2024",
          "unit": "percent",
-         "value": 0.0528
+         "value": 0.0548
         },
         {
          "fact": "ebitda_margin__current",
          "label": "EBITDA margin in Dec 2025",
          "unit": "percent",
-         "value": 0.0973
+         "value": 0.1069
         }
        ],
        "provenance": {
@@ -1834,12 +1834,12 @@
        }
       },
       "impact": {
-       "adjusted": 10780675.479322001,
+       "adjusted": 11844339.247065999,
        "adjusted_fact": "band_numerator_held",
        "baseline": 8863864.7312,
        "baseline_fact": "band_numerator_at_rung",
        "currency": "RON",
-       "delta": 1916810.748122001,
+       "delta": 2980474.5158659983,
        "kind": "headroom",
        "metric": "band_ebitda_margin",
        "metric_label": "the numerator of EBITDA margin at the watch rung, versus as held",
@@ -1871,7 +1871,7 @@
       "threshold": {
        "comparator": ">=",
        "limit": 0.08,
-       "observed": 0.0973,
+       "observed": 0.1069,
        "parameter": "watch",
        "parameter_label": "watch rung of EBITDA margin",
        "rule_id": "band_ebitda_margin",
@@ -1912,9 +1912,9 @@
      },
      "facts_cited": {
       "band_numerator_at_rung": 8863864.7312,
-      "band_numerator_held": 10780675.479322001,
-      "ebitda_margin__current": 0.0973,
-      "ebitda_margin__prior": 0.0528
+      "band_numerator_held": 11844339.247065999,
+      "ebitda_margin__current": 0.1069,
+      "ebitda_margin__prior": 0.0548
      },
      "finding_id": "band_ebitda_margin:critical->watch",
      "lane": "c_bands",
@@ -1931,14 +1931,14 @@
       "key": "statements.ratioCmp.bandFinding.improved",
       "placeholders": {
        "current_label": "Dec 2025",
-       "current_value": "9.7",
-       "delta": "+4.4",
+       "current_value": "10.7",
+       "delta": "+5.2",
        "delta_unit": "pp",
        "from": "critical",
-       "headroom_money": "1916810.75",
+       "headroom_money": "2980474.52",
        "label_key": "ratioTable.ebitda_margin.label",
        "prior_label": "Dec 2024",
-       "prior_value": "5.3",
+       "prior_value": "5.5",
        "rung": "watch",
        "rung_value": "8",
        "to": "watch"
@@ -1946,8 +1946,185 @@
      },
      "source_currency": "RON",
      "surfaced": true,
-     "title": "EBITDA margin on 711 / 7015.01 / 707.093 at 9.7% — at or above the 8.0% watch rung of EBITDA margin for mid-size inventory-heavy operator",
-     "title_template": "EBITDA margin on 711 / 7015.01 / 707.093 at 9.7% — at or above the 8.0% watch rung of EBITDA margin for mid-size inventory-heavy operator"
+     "title": "EBITDA margin on 711 / 7015.01 / 707.093 at 10.7% — at or above the 8.0% watch rung of EBITDA margin for mid-size inventory-heavy operator",
+     "title_template": "EBITDA margin on 711 / 7015.01 / 707.093 at 10.7% — at or above the 8.0% watch rung of EBITDA margin for mid-size inventory-heavy operator"
+    },
+    {
+     "body": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329): core EBITDA margin in Dec 2024 — 4.0%; core EBITDA margin in Dec 2025 — 10.3%. Basis: the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-dec2025; accounts 711, 7015.01, 707.093; assembled_canonical_v1; vs period period-carniprod-dec2024. Rule band_core_ebitda_margin fires when watch rung of core EBITDA margin is at or above 8.0%; observed 10.3%. Impact: the numerator of core EBITDA margin at the watch rung, versus as held moves from RON 8,863,865 to RON 11,456,545. For a mid-size inventory-heavy operator, core EBITDA margin on 711 / 7015.01 / 707.093 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the core EBITDA margin movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 707.093, from the financial controller (before the next board pack). 2) Confirm the move past the watch rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 707.093 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+     "body_template": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329): core EBITDA margin in Dec 2024 — 4.0%; core EBITDA margin in Dec 2025 — 10.3%. Basis: the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-dec2025; accounts 711, 7015.01, 707.093; assembled_canonical_v1; vs period period-carniprod-dec2024. Rule band_core_ebitda_margin fires when watch rung of core EBITDA margin is at or above 8.0%; observed 10.3%. Impact: the numerator of core EBITDA margin at the watch rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. For a mid-size inventory-heavy operator, core EBITDA margin on 711 / 7015.01 / 707.093 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the core EBITDA margin movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 707.093, from the financial controller (before the next board pack). 2) Confirm the move past the watch rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 707.093 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+     "category": "margin",
+     "contract_elements": {
+      "action": {
+       "steps": [
+        {
+         "artefact": "two-period balance listing for accounts 711, 7015.01, 707.093",
+         "horizon": "before the next board pack",
+         "imperative": "Reconcile the core EBITDA margin movement from Dec 2024 to Dec 2025 to the ledger",
+         "lang": "en",
+         "provider": "the financial controller"
+        },
+        {
+         "artefact": "list of non-recurring entries on accounts 711, 7015.01, 707.093 in Dec 2025",
+         "horizon": null,
+         "imperative": "Confirm the move past the watch rung comes from recurring trading, not a single posting",
+         "lang": "en",
+         "provider": "the financial controller"
+        }
+       ]
+      },
+      "confidence": {
+       "basis": "profile inventory_operator/band_mid/fin_related_party_funded resolved from structure",
+       "caveat": "Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
+       "level": "medium"
+      },
+      "evidence": {
+       "comparison_basis": {
+        "basis_unit": "percent",
+        "basis_value": 0.0399,
+        "description": "the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision",
+        "kind": "prior_period"
+       },
+       "figures": [
+        {
+         "fact": "core_ebitda_margin__prior",
+         "label": "core EBITDA margin in Dec 2024",
+         "unit": "percent",
+         "value": 0.0399
+        },
+        {
+         "fact": "core_ebitda_margin__current",
+         "label": "core EBITDA margin in Dec 2025",
+         "unit": "percent",
+         "value": 0.10339999999999999
+        }
+       ],
+       "provenance": {
+        "line_refs": [
+         "711",
+         "7015.01",
+         "707.093"
+        ],
+        "period_id": "period-agras-dec2025",
+        "prior_period_id": "period-carniprod-dec2024",
+        "snapshot_id": null,
+        "source": "assembled_canonical_v1"
+       }
+      },
+      "impact": {
+       "adjusted": 11456545.165076,
+       "adjusted_fact": "band_numerator_held",
+       "baseline": 8863864.7312,
+       "baseline_fact": "band_numerator_at_rung",
+       "currency": "RON",
+       "delta": 2592680.4338760003,
+       "kind": "headroom",
+       "metric": "band_core_ebitda_margin",
+       "metric_label": "the numerator of core EBITDA margin at the watch rung, versus as held",
+       "unit": "money"
+      },
+      "subject": {
+       "accounts": [
+        {
+         "bucket": "otherIncome",
+         "code": "711",
+         "name": "144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn",
+         "statement": "PL"
+        },
+        {
+         "bucket": "revenue",
+         "code": "7015.01",
+         "name": "Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41",
+         "statement": "PL"
+        },
+        {
+         "bucket": "revenue",
+         "code": "707.093",
+         "name": "Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329",
+         "statement": "PL"
+        }
+       ],
+       "scope": "Core EBITDA margin on 711 / 7015.01 / 707.093"
+      },
+      "threshold": {
+       "comparator": ">=",
+       "limit": 0.08,
+       "observed": 0.10339999999999999,
+       "parameter": "watch",
+       "parameter_label": "watch rung of core EBITDA margin",
+       "rule_id": "band_core_ebitda_margin",
+       "source": "general_sme_fallback#core_ebitda_margin.watch",
+       "unit": "percent"
+      },
+      "why_here": {
+       "anchors": [
+        "mid-size inventory-heavy operator",
+        "inventory-heavy operator",
+        "mid-size company",
+        "inventory-heavy operator",
+        "related-party funded",
+        "bank debt outstanding",
+        "foreign-currency exposure",
+        "related-party balances on the books",
+        "revaluation reserve in equity"
+       ],
+       "profile_id": "inventory_operator",
+       "profile_label": "mid-size inventory-heavy operator",
+       "rationale": "For a mid-size inventory-heavy operator, core EBITDA margin on 711 / 7015.01 / 707.093 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together.",
+       "signals": [
+        "bank_debt",
+        "fx_exposure",
+        "related_party",
+        "revaluation_reserve"
+       ]
+      }
+     },
+     "demoted": false,
+     "demotion_reasons": [],
+     "direction": "improved",
+     "fact_units": {
+      "band_numerator_at_rung": "money",
+      "band_numerator_held": "money",
+      "core_ebitda_margin__current": "unknown",
+      "core_ebitda_margin__prior": "unknown"
+     },
+     "facts_cited": {
+      "band_numerator_at_rung": 8863864.7312,
+      "band_numerator_held": 11456545.165076,
+      "core_ebitda_margin__current": 0.10339999999999999,
+      "core_ebitda_margin__prior": 0.0399
+     },
+     "finding_id": "band_core_ebitda_margin:critical->watch",
+     "lane": "c_bands",
+     "missing_elements": [],
+     "narrative_source": "deterministic",
+     "profile_fingerprint": "9bd3f9bbbe9f789b",
+     "profile_id": "inventory_operator",
+     "rank": 11,
+     "ratio_key": "core_ebitda_margin",
+     "rule_key": "band_core_ebitda_margin",
+     "rungs_crossed": 1,
+     "severity": "low",
+     "so_what": {
+      "key": "statements.ratioCmp.bandFinding.improved",
+      "placeholders": {
+       "current_label": "Dec 2025",
+       "current_value": "10.3",
+       "delta": "+6.3",
+       "delta_unit": "pp",
+       "from": "critical",
+       "headroom_money": "2592680.43",
+       "label_key": "ratioTable.core_ebitda_margin.label",
+       "prior_label": "Dec 2024",
+       "prior_value": "4.0",
+       "rung": "watch",
+       "rung_value": "8",
+       "to": "watch"
+      }
+     },
+     "source_currency": "RON",
+     "surfaced": true,
+     "title": "Core EBITDA margin on 711 / 7015.01 / 707.093 at 10.3% — at or above the 8.0% watch rung of core EBITDA margin for mid-size inventory-heavy operator",
+     "title_template": "Core EBITDA margin on 711 / 7015.01 / 707.093 at 10.3% — at or above the 8.0% watch rung of core EBITDA margin for mid-size inventory-heavy operator"
     },
     {
      "body": "4511.01 (Ndqe te cnifmfy NLC 3299.59), 4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): current ratio in Dec 2024 — 1.82×; current ratio in Dec 2025 — 2.10×. Basis: the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-dec2025; accounts 4511.01, 4111.01, 401.01; assembled_canonical_v1; vs period period-carniprod-dec2024. Rule band_current_ratio fires when strong rung of current ratio is at or above 2.00×; observed 2.10×. Impact: the numerator of current ratio at the strong rung, versus as held moves from RON 26,025,954 to RON 27,371,337. Short-term cover is the first read for the group treasury and the statutory auditor on a mid-size inventory-heavy operator: current ratio on 4511.01 / 4111.01 / 401.01 changing band between the two periods changes that conversation before any covenant is tested. Do this: 1) Reconcile the current ratio movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4511.01, 4111.01, 401.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4511.01, 4111.01, 401.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
@@ -2099,7 +2276,7 @@
      "narrative_source": "deterministic",
      "profile_fingerprint": "9bd3f9bbbe9f789b",
      "profile_id": "inventory_operator",
-     "rank": 11,
+     "rank": 12,
      "ratio_key": "current_ratio",
      "rule_key": "band_current_ratio",
      "rungs_crossed": 1,
@@ -2125,183 +2302,6 @@
      "surfaced": true,
      "title": "Current ratio on 4511.01 / 4111.01 / 401.01 at 2.10× — at or above the 2.00× strong rung of current ratio for mid-size inventory-heavy operator",
      "title_template": "Current ratio on 4511.01 / 4111.01 / 401.01 at 2.10× — at or above the 2.00× strong rung of current ratio for mid-size inventory-heavy operator"
-    },
-    {
-     "body": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329): core EBITDA margin in Dec 2024 — 3.8%; core EBITDA margin in Dec 2025 — 9.4%. Basis: the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-dec2025; accounts 711, 7015.01, 707.093; assembled_canonical_v1; vs period period-carniprod-dec2024. Rule band_core_ebitda_margin fires when watch rung of core EBITDA margin is at or above 8.0%; observed 9.4%. Impact: the numerator of core EBITDA margin at the watch rung, versus as held moves from RON 8,863,865 to RON 10,381,802. For a mid-size inventory-heavy operator, core EBITDA margin on 711 / 7015.01 / 707.093 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the core EBITDA margin movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 707.093, from the financial controller (before the next board pack). 2) Confirm the move past the watch rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 707.093 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-     "body_template": "711 (144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41), 707.093 (Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329): core EBITDA margin in Dec 2024 — 3.8%; core EBITDA margin in Dec 2025 — 9.4%. Basis: the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-dec2025; accounts 711, 7015.01, 707.093; assembled_canonical_v1; vs period period-carniprod-dec2024. Rule band_core_ebitda_margin fires when watch rung of core EBITDA margin is at or above 8.0%; observed 9.4%. Impact: the numerator of core EBITDA margin at the watch rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. For a mid-size inventory-heavy operator, core EBITDA margin on 711 / 7015.01 / 707.093 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together. Do this: 1) Reconcile the core EBITDA margin movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 711, 7015.01, 707.093, from the financial controller (before the next board pack). 2) Confirm the move past the watch rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 711, 7015.01, 707.093 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-     "category": "margin",
-     "contract_elements": {
-      "action": {
-       "steps": [
-        {
-         "artefact": "two-period balance listing for accounts 711, 7015.01, 707.093",
-         "horizon": "before the next board pack",
-         "imperative": "Reconcile the core EBITDA margin movement from Dec 2024 to Dec 2025 to the ledger",
-         "lang": "en",
-         "provider": "the financial controller"
-        },
-        {
-         "artefact": "list of non-recurring entries on accounts 711, 7015.01, 707.093 in Dec 2025",
-         "horizon": null,
-         "imperative": "Confirm the move past the watch rung comes from recurring trading, not a single posting",
-         "lang": "en",
-         "provider": "the financial controller"
-        }
-       ]
-      },
-      "confidence": {
-       "basis": "profile inventory_operator/band_mid/fin_related_party_funded resolved from structure",
-       "caveat": "Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
-       "level": "medium"
-      },
-      "evidence": {
-       "comparison_basis": {
-        "basis_unit": "percent",
-        "basis_value": 0.038,
-        "description": "the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision",
-        "kind": "prior_period"
-       },
-       "figures": [
-        {
-         "fact": "core_ebitda_margin__prior",
-         "label": "core EBITDA margin in Dec 2024",
-         "unit": "percent",
-         "value": 0.038
-        },
-        {
-         "fact": "core_ebitda_margin__current",
-         "label": "core EBITDA margin in Dec 2025",
-         "unit": "percent",
-         "value": 0.0937
-        }
-       ],
-       "provenance": {
-        "line_refs": [
-         "711",
-         "7015.01",
-         "707.093"
-        ],
-        "period_id": "period-agras-dec2025",
-        "prior_period_id": "period-carniprod-dec2024",
-        "snapshot_id": null,
-        "source": "assembled_canonical_v1"
-       }
-      },
-      "impact": {
-       "adjusted": 10381801.566418001,
-       "adjusted_fact": "band_numerator_held",
-       "baseline": 8863864.7312,
-       "baseline_fact": "band_numerator_at_rung",
-       "currency": "RON",
-       "delta": 1517936.8352180012,
-       "kind": "headroom",
-       "metric": "band_core_ebitda_margin",
-       "metric_label": "the numerator of core EBITDA margin at the watch rung, versus as held",
-       "unit": "money"
-      },
-      "subject": {
-       "accounts": [
-        {
-         "bucket": "otherIncome",
-         "code": "711",
-         "name": "144 Lndufklu apnlndfn mjcfkluojl cfjmkluojl in yljikcn",
-         "statement": "PL"
-        },
-        {
-         "bucket": "revenue",
-         "code": "7015.01",
-         "name": "Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41",
-         "statement": "PL"
-        },
-        {
-         "bucket": "revenue",
-         "code": "707.093",
-         "name": "Ldfzgjiz uzf kbfpbidb nbiqjizxci STRXWQG HUJNT UDCU CPN 131.329",
-         "statement": "PL"
-        }
-       ],
-       "scope": "Core EBITDA margin on 711 / 7015.01 / 707.093"
-      },
-      "threshold": {
-       "comparator": ">=",
-       "limit": 0.08,
-       "observed": 0.0937,
-       "parameter": "watch",
-       "parameter_label": "watch rung of core EBITDA margin",
-       "rule_id": "band_core_ebitda_margin",
-       "source": "general_sme_fallback#core_ebitda_margin.watch",
-       "unit": "percent"
-      },
-      "why_here": {
-       "anchors": [
-        "mid-size inventory-heavy operator",
-        "inventory-heavy operator",
-        "mid-size company",
-        "inventory-heavy operator",
-        "related-party funded",
-        "bank debt outstanding",
-        "foreign-currency exposure",
-        "related-party balances on the books",
-        "revaluation reserve in equity"
-       ],
-       "profile_id": "inventory_operator",
-       "profile_label": "mid-size inventory-heavy operator",
-       "rationale": "For a mid-size inventory-heavy operator, core EBITDA margin on 711 / 7015.01 / 707.093 is the earnings line everything else is sized from by the group treasury and the statutory auditor, so a change of band year on year moves the valuation and the credit view together.",
-       "signals": [
-        "bank_debt",
-        "fx_exposure",
-        "related_party",
-        "revaluation_reserve"
-       ]
-      }
-     },
-     "demoted": false,
-     "demotion_reasons": [],
-     "direction": "improved",
-     "fact_units": {
-      "band_numerator_at_rung": "money",
-      "band_numerator_held": "money",
-      "core_ebitda_margin__current": "unknown",
-      "core_ebitda_margin__prior": "unknown"
-     },
-     "facts_cited": {
-      "band_numerator_at_rung": 8863864.7312,
-      "band_numerator_held": 10381801.566418001,
-      "core_ebitda_margin__current": 0.0937,
-      "core_ebitda_margin__prior": 0.038
-     },
-     "finding_id": "band_core_ebitda_margin:critical->watch",
-     "lane": "c_bands",
-     "missing_elements": [],
-     "narrative_source": "deterministic",
-     "profile_fingerprint": "9bd3f9bbbe9f789b",
-     "profile_id": "inventory_operator",
-     "rank": 12,
-     "ratio_key": "core_ebitda_margin",
-     "rule_key": "band_core_ebitda_margin",
-     "rungs_crossed": 1,
-     "severity": "low",
-     "so_what": {
-      "key": "statements.ratioCmp.bandFinding.improved",
-      "placeholders": {
-       "current_label": "Dec 2025",
-       "current_value": "9.4",
-       "delta": "+5.6",
-       "delta_unit": "pp",
-       "from": "critical",
-       "headroom_money": "1517936.84",
-       "label_key": "ratioTable.core_ebitda_margin.label",
-       "prior_label": "Dec 2024",
-       "prior_value": "3.8",
-       "rung": "watch",
-       "rung_value": "8",
-       "to": "watch"
-      }
-     },
-     "source_currency": "RON",
-     "surfaced": true,
-     "title": "Core EBITDA margin on 711 / 7015.01 / 707.093 at 9.4% — at or above the 8.0% watch rung of core EBITDA margin for mid-size inventory-heavy operator",
-     "title_template": "Core EBITDA margin on 711 / 7015.01 / 707.093 at 9.4% — at or above the 8.0% watch rung of core EBITDA margin for mid-size inventory-heavy operator"
     },
     {
      "body": "4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 4111.10 (Urqkjfq qjf.VUF 5444.43 5444.43), 7015.01 (Vcuzvbmz hzu stuxtmct rmohbfceom azuzvc 2413.41): days sales outstanding in Dec 2024 — 42 days; days sales outstanding in Dec 2025 — 28 days. Basis: the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-dec2025; accounts 4111.01, 4111.10, 7015.01; assembled_canonical_v1; vs period period-carniprod-dec2024. Rule band_dso fires when strong rung of days sales outstanding is at or below 30 days; observed 28 days. Impact: the numerator of days sales outstanding at the strong rung, versus as held moves from RON 9,106,710 to RON 8,513,385. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; days sales outstanding on 4111.01 / 4111.10 / 7015.01 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the days sales outstanding movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4111.01, 4111.10, 7015.01, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4111.01, 4111.10, 7015.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
@@ -2481,8 +2481,8 @@
      "title_template": "Days sales outstanding on 4111.01 / 4111.10 / 7015.01 at 28 days — at or below the 30 days strong rung of days sales outstanding for mid-size inventory-heavy operator"
     },
     {
-     "body": "4511.01 (Ndqe te cnifmfy NLC 3299.59), 4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): credit composite in Dec 2024 — 79.3; credit composite in Dec 2025 — 81.0. Basis: the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the credit model's letter ladder (CREDIT_LETTER_LADDER) under credit model revision 2. Source: period period-agras-dec2025; accounts 4511.01, 4111.01, 401.01; assembled_canonical_v1; vs period period-carniprod-dec2024. Rule band_letter_grade fires when AA rung of credit composite is at or above 80.0; observed 81.0. Impact: the credit composite against the AA rung, in notches of the 10.0-point band moves from 0.00 notches to 0.10 notches (+0.10 notches). The letter is how a mid-size inventory-heavy operator is graded in one word by the group treasury and the statutory auditor; credit letter grade on 4511.01 / 4111.01 / 401.01 moving a notch changes that grade. Do this: 1) Reconcile the credit letter grade movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4511.01, 4111.01, 401.01, from the financial controller (before the next board pack). 2) Confirm the move past the AA rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4511.01, 4111.01, 401.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-     "body_template": "4511.01 (Ndqe te cnifmfy NLC 3299.59), 4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): credit composite in Dec 2024 — 79.3; credit composite in Dec 2025 — 81.0. Basis: the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the credit model's letter ladder (CREDIT_LETTER_LADDER) under credit model revision 2. Source: period period-agras-dec2025; accounts 4511.01, 4111.01, 401.01; assembled_canonical_v1; vs period period-carniprod-dec2024. Rule band_letter_grade fires when AA rung of credit composite is at or above 80.0; observed 81.0. Impact: the credit composite against the AA rung, in notches of the 10.0-point band moves from 0.00 notches to 0.10 notches (+0.10 notches). The letter is how a mid-size inventory-heavy operator is graded in one word by the group treasury and the statutory auditor; credit letter grade on 4511.01 / 4111.01 / 401.01 moving a notch changes that grade. Do this: 1) Reconcile the credit letter grade movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4511.01, 4111.01, 401.01, from the financial controller (before the next board pack). 2) Confirm the move past the AA rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4511.01, 4111.01, 401.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+     "body": "4511.01 (Ndqe te cnifmfy NLC 3299.59), 4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): credit composite in Dec 2024 — 79.3; credit composite in Dec 2025 — 81.0. Basis: the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the credit model's letter ladder (CREDIT_LETTER_LADDER) under credit model revision 3. Source: period period-agras-dec2025; accounts 4511.01, 4111.01, 401.01; assembled_canonical_v1; vs period period-carniprod-dec2024. Rule band_letter_grade fires when AA rung of credit composite is at or above 80.0; observed 81.0. Impact: the credit composite against the AA rung, in notches of the 10.0-point band moves from 0.00 notches to 0.10 notches (+0.10 notches). The letter is how a mid-size inventory-heavy operator is graded in one word by the group treasury and the statutory auditor; credit letter grade on 4511.01 / 4111.01 / 401.01 moving a notch changes that grade. Do this: 1) Reconcile the credit letter grade movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4511.01, 4111.01, 401.01, from the financial controller (before the next board pack). 2) Confirm the move past the AA rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4511.01, 4111.01, 401.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+     "body_template": "4511.01 (Ndqe te cnifmfy NLC 3299.59), 4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): credit composite in Dec 2024 — 79.3; credit composite in Dec 2025 — 81.0. Basis: the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the credit model's letter ladder (CREDIT_LETTER_LADDER) under credit model revision 3. Source: period period-agras-dec2025; accounts 4511.01, 4111.01, 401.01; assembled_canonical_v1; vs period period-carniprod-dec2024. Rule band_letter_grade fires when AA rung of credit composite is at or above 80.0; observed 81.0. Impact: the credit composite against the AA rung, in notches of the 10.0-point band moves from 0.00 notches to 0.10 notches (+0.10 notches). The letter is how a mid-size inventory-heavy operator is graded in one word by the group treasury and the statutory auditor; credit letter grade on 4511.01 / 4111.01 / 401.01 moving a notch changes that grade. Do this: 1) Reconcile the credit letter grade movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4511.01, 4111.01, 401.01, from the financial controller (before the next board pack). 2) Confirm the move past the AA rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4511.01, 4111.01, 401.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
      "category": "leverage",
      "contract_elements": {
       "action": {
@@ -2512,7 +2512,7 @@
        "comparison_basis": {
         "basis_unit": "score",
         "basis_value": 79.3,
-        "description": "the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the credit model's letter ladder (CREDIT_LETTER_LADDER) under credit model revision 2",
+        "description": "the same company's Dec 2025 (period period-agras-dec2025) against Dec 2024 (period period-carniprod-dec2024), both graded on the credit model's letter ladder (CREDIT_LETTER_LADDER) under credit model revision 3",
         "kind": "prior_period"
        },
        "figures": [
@@ -2832,15 +2832,15 @@
     }
    ],
    "improved": [
-    "roa",
     "roic",
+    "roa",
     "roe",
     "asset_turnover",
     "net_margin",
     "operating_margin",
     "ebitda_margin",
-    "current_ratio",
     "core_ebitda_margin",
+    "current_ratio",
     "dso",
     "letter_grade"
    ],
@@ -3059,7 +3059,7 @@
       {
        "name": "x3",
        "source": "credit_model.altman_x3",
-       "value": 0.1991
+       "value": 0.2264
       },
       {
        "name": "x4",
@@ -3068,15 +3068,15 @@
       }
      ],
      "reason": null,
-     "value": 6.01,
-     "value_q": "6.01"
+     "value": 6.19,
+     "value_q": "6.19"
     },
     "delta": {
      "favourable": "deteriorated",
      "pct_change": null,
      "reason_code": null,
      "unit": "z",
-     "value": "-0.37"
+     "value": "-0.20"
     },
     "display_unit": "z",
     "finding_id": null,
@@ -3120,7 +3120,7 @@
       {
        "name": "x3",
        "source": "credit_model.altman_x3",
-       "value": 0.0103
+       "value": 0.0118
       },
       {
        "name": "x4",
@@ -3129,8 +3129,8 @@
       }
      ],
      "reason": null,
-     "value": 6.38,
-     "value_q": "6.38"
+     "value": 6.39,
+     "value_q": "6.39"
     }
    },
    {
@@ -3394,9 +3394,9 @@
      },
      "x1": 0.3683,
      "x2": 0.1903,
-     "x3": 0.1991,
+     "x3": 0.2264,
      "x4": 1.554,
-     "z": 6.01,
+     "z": 6.19,
      "zone": "safe"
     },
     "as_filed": null,
@@ -3452,9 +3452,9 @@
       "source": "derived: on the D4 domain TL >= share x TA and BE <= TA, so BE / TL <= 1 / share"
      },
      "altman_z": {
-      "bound": 113.51832999999999,
+      "bound": 113.701786,
       "bound_is": "6.56 x altman_x1.max + 3.26 x X2 + 6.72 x X3 + 1.05 x altman_x4.max",
-      "derivation": "6.56 x 1 + 3.26 x 0.1903 + 6.72 x 0.1991 + 1.05 x 100 = 113.5183",
+      "derivation": "6.56 x 1 + 3.26 x 0.1903 + 6.72 x 0.2264 + 1.05 x 100 = 113.7018",
       "file": "packs/credit/model.yaml",
       "source": "derived from the component bounds above with the book's own measured X2 and X3; X2 and X3 have no structural bound and are required finite"
      },
@@ -3473,7 +3473,7 @@
     },
     "reason": null,
     "refused_subscores": {},
-    "revision": 2,
+    "revision": 3,
     "subscores": {
      "altman": 100.0,
      "coverage": 95.0,
@@ -3501,9 +3501,9 @@
      },
      "x1": 0.1132,
      "x2": -0.1073,
-     "x3": 0.0103,
+     "x3": 0.0118,
      "x4": 5.6337,
-     "z": 6.38,
+     "z": 6.39,
      "zone": "safe"
     },
     "as_filed": null,
@@ -3576,9 +3576,9 @@
       "source": "derived: on the D4 domain TL >= share x TA and BE <= TA, so BE / TL <= 1 / share"
      },
      "altman_z": {
-      "bound": 111.27941799999999,
+      "bound": 111.289498,
       "bound_is": "6.56 x altman_x1.max + 3.26 x X2 + 6.72 x X3 + 1.05 x altman_x4.max",
-      "derivation": "6.56 x 1 + 3.26 x -0.1073 + 6.72 x 0.0103 + 1.05 x 100 = 111.2794",
+      "derivation": "6.56 x 1 + 3.26 x -0.1073 + 6.72 x 0.0118 + 1.05 x 100 = 111.2895",
       "file": "packs/credit/model.yaml",
       "source": "derived from the component bounds above with the book's own measured X2 and X3; X2 and X3 have no structural bound and are required finite"
      },
@@ -3597,7 +3597,7 @@
     },
     "reason": null,
     "refused_subscores": {},
-    "revision": 2,
+    "revision": 3,
     "subscores": {
      "altman": 100.0,
      "coverage": 95.0,
@@ -3665,7 +3665,7 @@
       "result": "fail"
      },
      {
-      "detail": "1.37% -> 7.06%",
+      "detail": "1.57% -> 8.03%",
       "key": "margin_improving",
       "label": "Operating margin improving",
       "result": "pass"
@@ -4037,19 +4037,19 @@
       {
        "name": "gross_margin",
        "source": "metrics.gross_margin",
-       "value": 0.3632
+       "value": 0.3729
       }
      ],
      "reason": null,
-     "value": 36.32,
-     "value_q": "36.3"
+     "value": 37.29,
+     "value_q": "37.3"
     },
     "delta": {
      "favourable": "deteriorated",
      "pct_change": null,
      "reason_code": null,
      "unit": "pp",
-     "value": "-2.9"
+     "value": "-2.1"
     },
     "display_unit": "pct",
     "finding_id": null,
@@ -4084,12 +4084,12 @@
       {
        "name": "gross_margin",
        "source": "metrics.gross_margin",
-       "value": 0.3923
+       "value": 0.3943
       }
      ],
      "reason": null,
-     "value": 39.23,
-     "value_q": "39.2"
+     "value": 39.43,
+     "value_q": "39.4"
     }
    },
    {
@@ -4106,19 +4106,19 @@
       {
        "name": "ebitda_margin",
        "source": "metrics.ebitda_margin",
-       "value": 0.0973
+       "value": 0.1069
       }
      ],
      "reason": null,
-     "value": 9.73,
-     "value_q": "9.7"
+     "value": 10.69,
+     "value_q": "10.7"
     },
     "delta": {
      "favourable": "improved",
      "pct_change": null,
      "reason_code": null,
      "unit": "pp",
-     "value": "+4.4"
+     "value": "+5.2"
     },
     "display_unit": "pct",
     "finding_id": "band_ebitda_margin:critical->watch",
@@ -4130,14 +4130,14 @@
     "movement": {
      "band_width": "7.0",
      "band_width_basis": "closed",
-     "distance_fraction": "0.247",
-     "distance_past_rung": "1.7",
+     "distance_fraction": "0.384",
+     "distance_past_rung": "2.7",
      "from": "critical",
      "materiality": {
       "basis_key": "revenue",
       "basis_value": "110798309.14",
-      "headroom_money": "1916810.75",
-      "share": "0.0173"
+      "headroom_money": "2980474.52",
+      "share": "0.0269"
      },
      "reason_code": null,
      "rung_crossed": {
@@ -4161,12 +4161,12 @@
       {
        "name": "ebitda_margin",
        "source": "metrics.ebitda_margin",
-       "value": 0.0528
+       "value": 0.0548
       }
      ],
      "reason": null,
-     "value": 5.28,
-     "value_q": "5.3"
+     "value": 5.48,
+     "value_q": "5.5"
     }
    },
    {
@@ -4434,19 +4434,19 @@
       {
        "name": "roic",
        "source": "metrics.roic",
-       "value": 0.2383
+       "value": 0.271
       }
      ],
      "reason": null,
-     "value": 23.830000000000002,
-     "value_q": "23.8"
+     "value": 27.1,
+     "value_q": "27.1"
     },
     "delta": {
      "favourable": "improved",
      "pct_change": null,
      "reason_code": null,
      "unit": "pp",
-     "value": "+22.8"
+     "value": "+25.9"
     },
     "display_unit": "pct",
     "finding_id": "band_roic:critical->strong",
@@ -4458,14 +4458,14 @@
     "movement": {
      "band_width": "5.0",
      "band_width_basis": "adjacent",
-     "distance_fraction": "1.766",
-     "distance_past_rung": "8.8",
+     "distance_fraction": "2.420",
+     "distance_past_rung": "12.1",
      "from": "critical",
      "materiality": {
       "basis_key": "revenue",
       "basis_value": "110798309.14",
-      "headroom_money": "2433926.46",
-      "share": "0.0220"
+      "headroom_money": "3335278.61",
+      "share": "0.0301"
      },
      "reason_code": null,
      "rung_crossed": {
@@ -4489,12 +4489,12 @@
       {
        "name": "roic",
        "source": "metrics.roic",
-       "value": 0.0102
+       "value": 0.0117
       }
      ],
      "reason": null,
-     "value": 1.02,
-     "value_q": "1.0"
+     "value": 1.17,
+     "value_q": "1.2"
     }
    },
    {
@@ -4519,36 +4519,21 @@
        "value": 1440419.23
       },
       {
-       "name": "revenue",
-       "source": "incomeStatement.revenue",
-       "value": 110798309.14
-      },
-      {
-       "name": "costOfGoodsSold",
-       "source": "incomeStatement.costOfGoodsSold",
-       "value": 70557114.68
-      },
-      {
-       "name": "operatingExpenses",
-       "source": "incomeStatement.operatingExpenses",
-       "value": 29854906.77
-      },
-      {
-       "name": "otherIncome",
-       "source": "incomeStatement.otherIncome",
-       "value": 390090.55
+       "name": "ebitda",
+       "source": "assembled_pl.ebitda",
+       "value": 11848065.27
       }
      ],
      "reason": null,
-     "value": 0.3377945956358713,
-     "value_q": "0.34"
+     "value": 0.3072402326493936,
+     "value_q": "0.31"
     },
     "delta": {
      "favourable": "deteriorated",
      "pct_change": null,
      "reason_code": null,
      "unit": "turns",
-     "value": "+0.34"
+     "value": "+0.31"
     },
     "display_unit": "x",
     "finding_id": null,
@@ -4591,24 +4576,9 @@
        "value": 0.0
       },
       {
-       "name": "revenue",
-       "source": "incomeStatement.revenue",
-       "value": 94509939.96
-      },
-      {
-       "name": "costOfGoodsSold",
-       "source": "incomeStatement.costOfGoodsSold",
-       "value": 57429796.23
-      },
-      {
-       "name": "operatingExpenses",
-       "source": "incomeStatement.operatingExpenses",
-       "value": 33492385.21
-      },
-      {
-       "name": "otherIncome",
-       "source": "incomeStatement.otherIncome",
-       "value": 1406221.07
+       "name": "ebitda",
+       "source": "assembled_pl.ebitda",
+       "value": 5180829.12
       }
      ],
      "reason": null,
@@ -4887,12 +4857,12 @@
       {
        "name": "interest_coverage",
        "source": "metrics.interest_coverage",
-       "value": 28.1403
+       "value": 31.9962
       }
      ],
      "reason": null,
-     "value": 28.1403,
-     "value_q": "28.14"
+     "value": 31.9962,
+     "value_q": "32.00"
     },
     "delta": {
      "favourable": null,
@@ -4928,29 +4898,9 @@
      "ladder_floor": null,
      "operands": [
       {
-       "name": "revenue",
-       "source": "incomeStatement.revenue",
-       "value": 94509939.96
-      },
-      {
-       "name": "costOfGoodsSold",
-       "source": "incomeStatement.costOfGoodsSold",
-       "value": 57429796.23
-      },
-      {
-       "name": "operatingExpenses",
-       "source": "incomeStatement.operatingExpenses",
-       "value": 33492385.21
-      },
-      {
-       "name": "otherIncome",
-       "source": "incomeStatement.otherIncome",
-       "value": 1406221.07
-      },
-      {
-       "name": "depreciationAmortization",
-       "source": "incomeStatement.depreciationAmortization",
-       "value": 3695525.59
+       "name": "ebit",
+       "source": "assembled_pl.operating_result",
+       "value": 1485303.53
       },
       {
        "name": "interestExpense",
@@ -4982,12 +4932,12 @@
       {
        "name": "dscr",
        "source": "metrics.dscr",
-       "value": 4.3493
+       "value": 4.7819
       }
      ],
      "reason": null,
-     "value": 4.3493,
-     "value_q": "4.35"
+     "value": 4.7819,
+     "value_q": "4.78"
     },
     "delta": {
      "favourable": null,
@@ -5023,9 +4973,9 @@
      "ladder_floor": null,
      "operands": [
       {
-       "name": "ebitda_statutory",
-       "source": "assembled_pl.ebitda_statutory",
-       "value": 4993979.59
+       "name": "ebitda",
+       "source": "assembled_pl.ebitda",
+       "value": 5180829.12
       },
       {
        "name": "interestExpense",
@@ -5133,12 +5083,12 @@
       {
        "name": "dscr_with_lt_principal",
        "source": "metrics.dscr_with_lt_principal",
-       "value": 23.5301
+       "value": 25.8701
       }
      ],
      "reason": null,
-     "value": 23.5301,
-     "value_q": "23.53"
+     "value": 25.8701,
+     "value_q": "25.87"
     },
     "delta": {
      "favourable": null,
@@ -5174,9 +5124,9 @@
      "ladder_floor": null,
      "operands": [
       {
-       "name": "ebitda_statutory",
-       "source": "assembled_pl.ebitda_statutory",
-       "value": 4993979.59
+       "name": "ebitda",
+       "source": "assembled_pl.ebitda",
+       "value": 5180829.12
       },
       {
        "name": "interestExpense",
@@ -5620,19 +5570,19 @@
       {
        "name": "net_debt_to_ebitda",
        "source": "metrics.net_debt_to_ebitda",
-       "value": 0.2294
+       "value": 0.2087
       }
      ],
      "reason": null,
-     "value": 0.2294,
-     "value_q": "0.23"
+     "value": 0.2087,
+     "value_q": "0.21"
     },
     "delta": {
      "favourable": "deteriorated",
-     "pct_change": "+111.3",
+     "pct_change": "+110.8",
      "reason_code": null,
      "unit": "turns",
-     "value": "+2.26"
+     "value": "+2.16"
     },
     "display_unit": "x",
     "finding_id": null,
@@ -5667,12 +5617,12 @@
       {
        "name": "net_debt_to_ebitda",
        "source": "metrics.net_debt_to_ebitda",
-       "value": -2.0274
+       "value": -1.9543
       }
      ],
      "reason": null,
-     "value": -2.0274,
-     "value_q": "-2.03"
+     "value": -1.9543,
+     "value_q": "-1.95"
     }
    },
    {
@@ -5758,12 +5708,12 @@
       {
        "name": "ebitda_to_interest",
        "source": "metrics.ebitda_to_interest",
-       "value": 38.7737
+       "value": 42.6296
       }
      ],
      "reason": null,
-     "value": 38.7737,
-     "value_q": "38.77"
+     "value": 42.6296,
+     "value_q": "42.63"
     },
     "delta": {
      "favourable": null,
@@ -5828,19 +5778,19 @@
       {
        "name": "operating_margin",
        "source": "metrics.operating_margin",
-       "value": 0.0706
+       "value": 0.0803
       }
      ],
      "reason": null,
-     "value": 7.06,
-     "value_q": "7.1"
+     "value": 8.03,
+     "value_q": "8.0"
     },
     "delta": {
      "favourable": "improved",
      "pct_change": null,
      "reason_code": null,
      "unit": "pp",
-     "value": "+5.7"
+     "value": "+6.4"
     },
     "display_unit": "pct",
     "finding_id": "band_operating_margin:critical->watch",
@@ -5852,14 +5802,14 @@
     "movement": {
      "band_width": "6.0",
      "band_width_basis": "closed",
-     "distance_fraction": "0.510",
-     "distance_past_rung": "3.1",
+     "distance_fraction": "0.672",
+     "distance_past_rung": "4.0",
      "from": "critical",
      "materiality": {
       "basis_key": "revenue",
       "basis_value": "110798309.14",
-      "headroom_money": "3390428.26",
-      "share": "0.0306"
+      "headroom_money": "4465171.86",
+      "share": "0.0403"
      },
      "reason_code": null,
      "rung_crossed": {
@@ -5883,12 +5833,12 @@
       {
        "name": "operating_margin",
        "source": "metrics.operating_margin",
-       "value": 0.0137
+       "value": 0.0157
       }
      ],
      "reason": null,
-     "value": 1.37,
-     "value_q": "1.4"
+     "value": 1.5699999999999998,
+     "value_q": "1.6"
     }
    },
    {
@@ -5905,19 +5855,19 @@
       {
        "name": "core_ebitda_margin",
        "source": "metrics.core_ebitda_margin",
-       "value": 0.0937
+       "value": 0.1034
       }
      ],
      "reason": null,
-     "value": 9.370000000000001,
-     "value_q": "9.4"
+     "value": 10.34,
+     "value_q": "10.3"
     },
     "delta": {
      "favourable": "improved",
      "pct_change": null,
      "reason_code": null,
      "unit": "pp",
-     "value": "+5.6"
+     "value": "+6.3"
     },
     "display_unit": "pct",
     "finding_id": "band_core_ebitda_margin:critical->watch",
@@ -5929,14 +5879,14 @@
     "movement": {
      "band_width": "7.0",
      "band_width_basis": "closed",
-     "distance_fraction": "0.196",
-     "distance_past_rung": "1.4",
+     "distance_fraction": "0.334",
+     "distance_past_rung": "2.3",
      "from": "critical",
      "materiality": {
       "basis_key": "revenue",
       "basis_value": "110798309.14",
-      "headroom_money": "1517936.84",
-      "share": "0.0137"
+      "headroom_money": "2592680.43",
+      "share": "0.0234"
      },
      "reason_code": null,
      "rung_crossed": {
@@ -5960,12 +5910,12 @@
       {
        "name": "core_ebitda_margin",
        "source": "metrics.core_ebitda_margin",
-       "value": 0.038
+       "value": 0.0399
       }
      ],
      "reason": null,
-     "value": 3.8,
-     "value_q": "3.8"
+     "value": 3.9899999999999998,
+     "value_q": "4.0"
     }
    },
    {
@@ -6048,7 +5998,7 @@
      "source": "general_sme_fallback",
      "table_sha256": "5fd90c0ea1cca27abf18dc5097082d258d561255254e00590f53c6c64eb58f12"
     },
-    "credit_model_revision": 2,
+    "credit_model_revision": 3,
     "currency": "RON",
     "methodology_version": null,
     "metrics_basis": "serve",
@@ -6074,7 +6024,7 @@
      "source": "general_sme_fallback",
      "table_sha256": "5fd90c0ea1cca27abf18dc5097082d258d561255254e00590f53c6c64eb58f12"
     },
-    "credit_model_revision": 2,
+    "credit_model_revision": 3,
     "currency": "RON",
     "methodology_version": null,
     "metrics_basis": "serve",

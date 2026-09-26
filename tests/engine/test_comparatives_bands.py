@@ -652,7 +652,11 @@ def test_no_finding_names_a_contra_account_and_subjects_rank_by_signed_amount():
             den = _eligible(body["line_items"], set(denominator), want)[:CB.SUBJECT_DENOMINATOR_ACCOUNTS]
             assert codes == want + den, (where, codes, want + den)
             checked += 1
-    assert checked >= 300, "non-vacuity: %d findings checked" % checked
+    # Measured 274 since the one-EBITDA ruling (2026-09-26): the developer's
+    # EBITDA turned from -29.0M to +0.55M and the manufacturers' margins
+    # moved with net 711, so fewer EBITDA-family ratios cross a band between
+    # the corpus pairs (>= 300 on the EBITDA without 711 / 72x).
+    assert checked >= 270, "non-vacuity: %d findings checked" % checked
 
 
 def test_a_provision_or_an_opposite_side_line_never_outranks_the_bucket():

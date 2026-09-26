@@ -113,7 +113,11 @@ export type ComparativeStatus =
   | "absent_current"
   | "absent_both"
   | "not_disclosed_at_this_detail_level"
-  | "incomparable";
+  | "incomparable"
+  // engine STATUS_REFUSED (owner ruling 2026-09-26): the assembly refused
+  // the figure (the one EBITDA when the stock variation cannot be measured);
+  // no movement, the note carries the reason.
+  | "refused";
 
 export interface ComparativeColumnDto {
   key: string;

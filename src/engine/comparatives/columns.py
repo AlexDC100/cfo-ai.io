@@ -48,6 +48,7 @@ from .lines import (
     LineSpec,
     coverage_from_envelope,
     read_value,
+    refusal_of,
     unwrap_envelope,
 )
 
@@ -58,6 +59,7 @@ __all__ = [
     "DISCLOSURE_REPORTED",
     "DISCLOSURE_ABSENT",
     "DISCLOSURE_NOT_AT_LEVEL",
+    "DISCLOSURE_REFUSED",
     "STATUS_COMPARED",
     "STATUS_COMPARED_NO_BASE",
     "STATUS_ABSENT_PRIOR",
@@ -65,6 +67,7 @@ __all__ = [
     "STATUS_ABSENT_BOTH",
     "STATUS_NOT_DISCLOSED",
     "STATUS_INCOMPARABLE",
+    "STATUS_REFUSED",
     "MOVEMENT_STATUSES",
     "COVERAGE_FROM_LINE_ITEMS",
     "COVERAGE_UNKNOWN",
@@ -92,6 +95,10 @@ DISCLOSURE_ABSENT = "absent"
 #: The line is a subdivision below the synthetic boundary and this period
 #: is not kept at that depth. Not absent — not disclosable.
 DISCLOSURE_NOT_AT_LEVEL = "not_disclosed_at_this_detail_level"
+#: The period's assembly REFUSED this figure with a typed reason (the one
+#: EBITDA and the lines built on it, when the stock variation could not be
+#: measured). Not absent and not zero: stated as refused, with the reason.
+DISCLOSURE_REFUSED = "refused"
 
 # ── What the pair permits ────────────────────────────────────────────
 STATUS_COMPARED = "compared"
@@ -101,6 +108,9 @@ STATUS_ABSENT_CURRENT = "absent_current"
 STATUS_ABSENT_BOTH = "absent_both"
 STATUS_NOT_DISCLOSED = "not_disclosed_at_this_detail_level"
 STATUS_INCOMPARABLE = "incomparable"
+#: Either period's assembly refused the figure (DISCLOSURE_REFUSED): no
+#: movement; the note carries the reason.
+STATUS_REFUSED = "refused"
 
 #: The ONLY statuses that carry a movement. A narrator that reads columns
 #: through `ComparativeTable.movements()` cannot describe a refusal as a
@@ -188,8 +198,15 @@ def _disclosure(
         return None, DISCLOSURE_NOT_AT_LEVEL
     value = read_value(envelope, spec, coverage)
     if value is None:
+        if refusal_of(envelope, spec) is not None:
+            return None, DISCLOSURE_REFUSED
         return None, DISCLOSURE_ABSENT
     return value, DISCLOSURE_REPORTED
+
+
+def _refusal_text(envelope: Mapping[str, Any], spec: LineSpec) -> str:
+    refusal = refusal_of(envelope, spec) or {}
+    return str(refusal.get("text_en") or refusal.get("code") or "refused")
 
 
 def build_comparative_columns(
@@ -254,6 +271,15 @@ def build_comparative_columns(
                 "not disclosed at this detail level by %s — no movement is "
                 "computed" % (spec.label, " and ".join(withheld))
             )
+        elif DISCLOSURE_REFUSED in (cur_disc, pri_disc):
+            status = STATUS_REFUSED
+            sides = []
+            if cur_disc == DISCLOSURE_REFUSED:
+                sides.append("%s: %s" % (current_label, _refusal_text(current_envelope, spec)))
+            if pri_disc == DISCLOSURE_REFUSED:
+                sides.append("%s: %s" % (prior_label, _refusal_text(prior_envelope, spec)))
+            note = ("%s is refused, so no change is computed — %s"
+                    % (spec.label, "; ".join(sides)))
         elif cur_disc == DISCLOSURE_REPORTED and pri_disc == DISCLOSURE_REPORTED:
             delta = _round_money(cur_val - pri_val)
             # THE ONE CLASSIFIER decides whether a percentage may exist at

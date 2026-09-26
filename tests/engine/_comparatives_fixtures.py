@@ -246,13 +246,19 @@ def condense(envelope: Dict[str, Any], revenue_factor: float = 0.97) -> Dict[str
     out["statements"]["assembled_bs"]["ar_doubtful_gross"] = 0.0
     pl = out["statements"]["assembled_pl"]
     pl["revenue"] = round(pl["revenue"] * revenue_factor, 2)
-    pl["ebitda"] = round(pl["revenue"] + pl["other_operating_income"]
-                         - pl["cogs"] - pl["opex_total"], 2)
+    # The one EBITDA (owner ruling 2026-09-26): net 72x and the measured net
+    # 711 inside; the unexplained remainder vs account 121 kept as it was.
+    net_72x = pl["capitalized_own_work"]["value"]
+    net_711 = pl["inventory_variation"]["value"]
+    unexplained = pl.get("net_income_unexplained_vs_121") or 0.0
+    pl["ebitda_before_stock_variation"] = round(
+        pl["revenue"] + pl["other_operating_income"] - pl["cogs"] - pl["opex_total"], 2)
+    pl["ebitda"] = round(pl["ebitda_before_stock_variation"] + net_72x + net_711, 2)
     pl["ebit"] = round(pl["ebitda"] - pl["depreciation"], 2)
     pl["pretax"] = round(pl["ebit"] + pl["net_financial_result"], 2)
-    pl["net_income_operational"] = round(pl["pretax"] - pl["tax"], 2)
-    pl["net_income_statutory"] = round(
-        pl["net_income_operational"] + (pl.get("capitalized_own_work_memo") or 0.0), 2)
+    pl["net_income_operational"] = round(
+        pl["ebitda_before_stock_variation"] - pl["depreciation"] + pl["net_financial_result"] - pl["tax"], 2)
+    pl["net_income_statutory"] = round(pl["pretax"] - pl["tax"] + unexplained, 2)
     return out
 
 

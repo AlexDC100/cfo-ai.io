@@ -144,11 +144,16 @@ def test_a_line_only_one_period_carries_is_a_named_new_step():
     # Fold the removed cost into the chain so the assembler's identity
     # still holds on the constructed prior.
     pl["cogs"] = 0.0
-    pl["ebitda"] = round(pl["revenue"] + pl["other_operating_income"] - pl["cogs"] - pl["opex_total"], 2)
+    net_72x = pl["capitalized_own_work"]["value"]
+    net_711 = pl["inventory_variation"]["value"]
+    pl["ebitda_before_stock_variation"] = round(
+        pl["revenue"] + pl["other_operating_income"] - pl["cogs"] - pl["opex_total"], 2)
+    pl["ebitda"] = round(pl["ebitda_before_stock_variation"] + net_72x + net_711, 2)
     pl["ebit"] = round(pl["ebitda"] - pl["depreciation"], 2)
     pl["pretax"] = round(pl["ebit"] + pl["net_financial_result"], 2)
-    pl["net_income_operational"] = round(pl["pretax"] - pl["tax"], 2)
-    pl["net_income_statutory"] = round(pl["net_income_operational"] + (pl.get("capitalized_own_work_memo") or 0.0), 2)
+    pl["net_income_operational"] = round(
+        pl["ebitda_before_stock_variation"] - pl["depreciation"] + pl["net_financial_result"] - pl["tax"], 2)
+    pl["net_income_statutory"] = round(pl["pretax"] - pl["tax"], 2)
     t = _table(ANALYTIC, pri)
     assert t.by_key("pl.cogs").status == "absent_prior"
     b = pl_bridge(ANALYTIC, pri, t)
@@ -158,15 +163,57 @@ def test_a_line_only_one_period_carries_is_a_named_new_step():
     assert b.closes, b.reason
 
 
+def _named_lines(pl):
+    return (pl["net_income_operational"] + pl["capitalized_own_work"]["value"]
+            + pl["inventory_variation"]["value"])
+
+
 def test_the_statutory_adjustment_is_an_explicit_step():
-    """statutory - operational (capitalised own work 722 and the account-121
-    anchor) walks as a NAMED step on both sides."""
+    """What account 121 holds beyond every NAMED line — the operational
+    build-up, net 72x and the measured net 711 (the one EBITDA, owner ruling
+    2026-09-26) — walks as a NAMED step on both sides. Where net 711 came off
+    the 121 bridge the step is 0.00 by construction; it is never where 711
+    hides (the step names net 711 separately)."""
     b = pl_bridge(ANALYTIC, SYNTHETIC)
     adj = next(s for s in b.steps if s.key == "pl.statutory_adjustment")
+    inv = next(s for s in b.steps if s.key == "pl.inventory_variation")
+    cap = next(s for s in b.steps if s.key == "pl.capitalized_own_work")
     pl_s = SYNTHETIC["statements"]["assembled_pl"]
     pl_a = ANALYTIC["statements"]["assembled_pl"]
-    assert abs(adj.prior - (pl_s["net_income_statutory"] - pl_s["net_income_operational"])) < ZERO_FLOOR
-    assert abs(adj.current - (pl_a["net_income_statutory"] - pl_a["net_income_operational"])) < ZERO_FLOOR
+    assert abs(adj.prior - (pl_s["net_income_statutory"] - _named_lines(pl_s))) < ZERO_FLOOR
+    assert abs(adj.current - (pl_a["net_income_statutory"] - _named_lines(pl_a))) < ZERO_FLOOR
+    assert inv.current == pl_a["inventory_variation"]["value"] and inv.prior == pl_s["inventory_variation"]["value"]
+    assert cap.current == pl_a["capitalized_own_work"]["value"]
+
+
+def test_the_walk_passes_through_the_one_ebitda_on_both_sides():
+    """EBITDA = turnover + other operating income + net 72x − cost of sales
+    + net 711 − operating expenses, on the CURRENT and the PRIOR envelope,
+    to the cent — the identity the walk's steps sum (owner ruling
+    2026-09-26; before it, the walk had no 711 and no 72x step and the
+    statutory adjustment carried both)."""
+    for env in (ANALYTIC, SYNTHETIC, CONDENSED):
+        pl = env["statements"]["assembled_pl"]
+        built = (pl["revenue"] + pl["other_operating_income"] + pl["capitalized_own_work"]["value"]
+                 - pl["cogs"] + pl["inventory_variation"]["value"] - pl["opex_total"])
+        assert abs(built - pl["ebitda"]) < 0.01, (built, pl["ebitda"])
+    keys = [s.key for s in pl_bridge(ANALYTIC, CONDENSED).steps]
+    assert keys.index("pl.inventory_variation") == keys.index("pl.cogs") + 1  # beside cost of sales
+
+
+def test_a_refused_ebitda_refuses_the_bridge_with_its_reason():
+    """A period whose one EBITDA is refused has no stock variation to walk:
+    the bridge refuses by name, on either side, and computes no step."""
+    import copy as _copy
+    pri = _copy.deepcopy(CONDENSED)
+    pri["statements"]["assembled_pl"]["ebitda_refusal"] = {
+        "code": "book_state_mixed", "text_en": "the trial balance is partly closed",
+        "fields": ["ebitda", "ebit", "gross_profit", "pretax"]}
+    pri["statements"]["assembled_pl"]["inventory_variation"]["value"] = None
+    for cur, prior, side in ((ANALYTIC, pri, "prior"), (pri, ANALYTIC, "current")):
+        b = pl_bridge(cur, prior)
+        assert b.closes is False and b.residual is None and b.steps == ()
+        assert "the %s period (book_state_mixed" % side in b.reason, b.reason
 
 
 # ── movers ────────────────────────────────────────────────────────────
