@@ -600,6 +600,64 @@ describe("confirmation card", () => {
     expect(await screen.findByText("Analysing Agras SA")).toBeInTheDocument();
   });
 
+  // Live walkthrough, 2026-09-26: a new company's commit at the plan's
+  // workspace cap answered 500 and the card read "We couldn't save the file".
+  // The engine answers 402 workspace_cap_reached; the card says how many
+  // companies the plan allows, with the upgrade path and the choice of one of
+  // the user's companies.
+  it("the plan's company cap (402): the plan's words, the upgrade path and one of my companies — never 'couldn't save'", async () => {
+    api.identifyUpload.mockResolvedValue(
+      identity({ target: { org_id: null, name: "Carniprod SRL", is_new: true, reason: "new_cui" } }, { cui: "RO999999", company_name: "Carniprod SRL" }),
+    );
+    api.commitUpload.mockResolvedValue({ status: "cap_reached", plan: "trial", cap: 1, message: "Your plan allows 1 company." });
+    renderHome();
+    const file = await dropOnHome();
+    await screen.findByText("Check before we analyse");
+    fireEvent.click(within(card()).getByTestId("upload-card-analyse"));
+
+    const cap = await within(card()).findByTestId("upload-card-cap");
+    expect(within(cap).getByTestId("upload-card-cap-body")).toHaveTextContent(
+      "Your plan allows 1 company — this file would be a new one. Upgrade to add it, or put the file in one of your companies.",
+    );
+    expect(within(cap).getByTestId("upload-card-cap-upgrade")).toHaveAttribute("href", "/pricing");
+    expect(within(cap).getByTestId("upload-card-cap-upgrade")).toHaveTextContent("View plans");
+    expect(card()).not.toHaveTextContent("We couldn't save the file");
+    expect(within(card()).queryByTestId("upload-card-error")).toBeNull();
+    // Analysing again would only meet the same cap.
+    expect(within(card()).getByTestId("upload-card-analyse")).toBeDisabled();
+    expect(activateWorkspace).not.toHaveBeenCalled();
+
+    // "Choose one of your companies" opens Change; choosing one clears the cap.
+    fireEvent.click(within(cap).getByTestId("upload-card-cap-choose"));
+    const panel = await screen.findByTestId("upload-card-change-panel");
+    fireEvent.click(within(panel).getByTestId("upload-change-company-scandia"));
+    expect(within(card()).queryByTestId("upload-card-cap")).toBeNull();
+    expect(within(card()).getByTestId("upload-card-analyse")).not.toBeDisabled();
+    api.commitUpload.mockResolvedValue({ status: "queued", document_id: "doc-cap", org_id: "scandia", company_name: "Scandia Food SRL" });
+    fireEvent.click(within(card()).getByTestId("upload-card-analyse"));
+    await waitFor(() =>
+      expect(api.commitUpload).toHaveBeenLastCalledWith(expect.objectContaining({ file, targetOrgId: "scandia", createCompany: null })),
+    );
+  });
+
+  it("Romanian: 'Planul tău permite 5 companii — …'", async () => {
+    await i18n.changeLanguage("ro");
+    api.identifyUpload.mockResolvedValue(
+      identity({ target: { org_id: null, name: "Carniprod SRL", is_new: true, reason: "new_cui" } }, { cui: "RO999999", company_name: "Carniprod SRL" }),
+    );
+    api.commitUpload.mockResolvedValue({ status: "cap_reached", plan: "pro", cap: 5, message: "Your plan allows 5 companies." });
+    renderHome();
+    await dropOnHome();
+    await screen.findByText("Verifică înainte să analizăm");
+    fireEvent.click(within(card()).getByTestId("upload-card-analyse"));
+    const cap = await within(card()).findByTestId("upload-card-cap");
+    expect(within(cap).getByTestId("upload-card-cap-body")).toHaveTextContent(
+      "Planul tău permite 5 companii — fișierul ăsta ar fi o companie nouă.",
+    );
+    expect(within(cap).getByTestId("upload-card-cap-upgrade")).toHaveTextContent("Vezi planurile");
+    expect(card()).not.toHaveTextContent("N-am putut salva fișierul");
+  });
+
   it("dismissing the extra-document question leaves the card as it was, saying nothing ran", async () => {
     api.identifyUpload.mockResolvedValue(identity());
     api.commitUpload.mockResolvedValueOnce({

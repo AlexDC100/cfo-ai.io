@@ -3885,6 +3885,13 @@
       "body": "This exact file is already analysed for {{company}}. It wasn't saved again and it doesn't count.",
       "open": "Already uploaded — open it"
     },
+    "cap": {
+      "body_one": "Your plan allows {{count}} company — this file would be a new one.",
+      "body_other": "Your plan allows {{count}} companies — this file would be a new one.",
+      "hint": "Upgrade to add it, or put the file in one of your companies.",
+      "choose": "Choose one of your companies",
+      "upgrade": "View plans"
+    },
     "errors": {
       "unsupported": "We can't read this kind of file. Use PDF, Excel (.xlsx, .xls), CSV or a photo.",
       "identify": "We couldn't read the file.",

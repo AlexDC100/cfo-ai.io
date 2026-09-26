@@ -52,6 +52,11 @@ THE METER is `pipeline.reserve_upload_or_refuse` — the function
   refused (429) exactly like every other upload, and an `allowed`
   reservation goes into the same run ledger the terminal settles.
 
+THE PLAN'S WORKSPACE CAP (the `create_workspace` SQL floor) is an answer,
+  never a 500: 402 `{code: "workspace_cap_reached", plan, cap, message}`,
+  nothing stored, the meter's reservation handed back
+  (`workspace_cap_refusal`). No plan or cap is decided here.
+
 Module-scope Pydantic models only (tests/engine/test_route_bindings.py).
 Python 3.9 — no `match`, no `X | Y` unions.
 """
@@ -355,6 +360,40 @@ def find_duplicate(*, content_hash: str, user_id: str, org_id: str,
 
 # ── Company creation ───────────────────────────────────────────────────
 
+#: The plan's workspace cap, as `create_workspace` raises it — the SQL hard
+#: floor in supabase/schema_phase_plan_caps.sql:
+#:   'workspace_cap_reached: your % plan allows % workspace(s). Upgrade to add more.'
+#: PostgREST answers 400 with that message and `SupabaseClient.rpc` raises it
+#: inside its RuntimeError text. Read here, never changed here: the plans and
+#: their caps belong to the pricing lane.
+WORKSPACE_CAP_CODE = "workspace_cap_reached"
+_WORKSPACE_CAP_RE = re.compile(
+    r"workspace_cap_reached:\s*your\s+(?P<plan>[A-Za-z0-9_\-]+)\s+plan\s+allows\s+(?P<cap>\d+)\s+workspace",
+    re.IGNORECASE,
+)
+
+
+def workspace_cap_refusal(exc: BaseException) -> Optional[HTTPException]:
+    """The plan's workspace cap as the route's answer — 402
+    `{code: "workspace_cap_reached", plan, cap, message}` — when `exc` is
+    the `create_workspace` RPC refusing at the cap; None for anything else.
+
+    It used to escape the commit as a 500, and the card read "We couldn't
+    save the file" (live walkthrough, 2026-09-26). The card now says, in the
+    reader's language, how many companies the plan allows, with the upgrade
+    path and the choice of one of the caller's companies."""
+    m = _WORKSPACE_CAP_RE.search(str(exc))
+    if not m:
+        return None
+    plan, cap = m.group("plan").lower(), int(m.group("cap"))
+    return HTTPException(402, {
+        "code": WORKSPACE_CAP_CODE,
+        "plan": plan,
+        "cap": cap,
+        "message": ("Your plan allows %d %s. Upgrade to add another, or choose one of your "
+                    "companies for this file." % (cap, "company" if cap == 1 else "companies")),
+    })
+
 
 def _create_company(jwt: str, user_id: str, spec: Dict[str, Any],
                     identity_sources: Dict[str, Any]) -> Dict[str, Any]:
@@ -368,8 +407,16 @@ def _create_company(jwt: str, user_id: str, spec: Dict[str, Any],
     industry_key = spec.get("industry_key") or None
     with _supabase.per_user(jwt) as client:
         label, _label_ro = _industry_label(client, industry_key)
-        org_id = client.rpc("create_workspace", {
-            "p_name": name, "p_industry_key": industry_key, "p_industry_display": label})
+        try:
+            org_id = client.rpc("create_workspace", {
+                "p_name": name, "p_industry_key": industry_key, "p_industry_display": label})
+        except Exception as exc:  # noqa: BLE001 — the cap is an answer; anything else stays an error
+            refusal = workspace_cap_refusal(exc)
+            if refusal is None:
+                raise
+            logger.info("[uploads] user %s is at the plan's workspace cap (%s)", user_id,
+                        refusal.detail.get("cap"))
+            raise refusal
         org_id = str(org_id or "").strip().strip('"')
         if not org_id:
             raise HTTPException(502, {"code": "company_not_created",

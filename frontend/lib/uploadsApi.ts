@@ -137,6 +137,11 @@ export type CommitResult =
    *  anything is stored, so the flow shows the unchanged extra-document
    *  dialog and, once confirmed, sends the same commit again. */
   | { status: "needs_confirmation"; confirmation: ExtraDocConfirmation }
+  /** 402 `workspace_cap_reached` — a NEW company would pass the plan's
+   *  company cap (the `create_workspace` SQL floor). Nothing was stored; the
+   *  card says how many companies the plan allows and offers the upgrade or
+   *  one of the user's companies. */
+  | { status: "cap_reached"; plan: string; cap: number; message: string }
   | { status: "refused"; message: string; httpStatus: number };
 
 export interface CompanyYear {
@@ -340,6 +345,14 @@ export async function commitUpload(input: CommitInput): Promise<CommitResult> {
 
   if (res.status === 402) {
     const d = asRecord(rec?.detail) ?? rec ?? {};
+    if (d.code === "workspace_cap_reached" && typeof d.cap === "number" && Number.isFinite(d.cap)) {
+      return {
+        status: "cap_reached",
+        plan: typeof d.plan === "string" ? d.plan : "",
+        cap: d.cap,
+        message: typeof d.message === "string" ? d.message : "",
+      };
+    }
     if (d.code === "extra_doc_confirmation_required") {
       return {
         status: "needs_confirmation",

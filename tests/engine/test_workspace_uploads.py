@@ -156,6 +156,19 @@ class _UserClient(object):
             name = str(params.get("p_name") or "").strip()
             if not name:
                 raise RuntimeError("rpc create_workspace failed (400): name required")
+            # The plan's cap, exactly as schema_phase_plan_caps.sql raises it
+            # (P0001) and SupabaseClient.rpc reports it: live memberships at
+            # or over the cap refuse. No cap set: the plan allows enough.
+            plan = self.db.plans.get(self.uid)
+            if plan is not None:
+                live = [m for m in self.db.rows("memberships") if m["user_id"] == self.uid
+                        and not any(o["id"] == m["org_id"] and o.get("archived_at")
+                                    for o in self.db.rows("organizations"))]
+                if len(live) >= plan[1]:
+                    raise RuntimeError("rpc create_workspace failed (400): %s" % {
+                        "code": "P0001", "details": None, "hint": None,
+                        "message": "workspace_cap_reached: your %s plan allows %d workspace(s). "
+                                   "Upgrade to add more." % plan})
             org = self.db.add("organizations", {"id": None, "name": name,
                                                 "industry_key": params.get("p_industry_key"),
                                                 "industry_display_name": params.get("p_industry_display")})
@@ -181,6 +194,8 @@ class WorkspaceDouble(D.PostgrestDouble):
         super(WorkspaceDouble, self).__init__(columns=_migration_columns())
         self.storage = {}  # type: Dict[str, bytes]
         self.rpcs = []  # type: List[Any]
+        #: user id -> (plan, workspace cap) for `create_workspace`'s SQL floor.
+        self.plans = {}  # type: Dict[str, Any]
 
     def upload_object(self, bucket: str, path: str, content: bytes, *, org_id: str,
                       content_type: str = "application/octet-stream") -> None:
@@ -615,6 +630,47 @@ def test_commit_creates_a_new_company_with_its_owner_and_identity(app, world):
     r = commit(app, body=b"PK\x03\x04 next year", create_company=spec, period_end="2024-12-31")
     assert r.json()["org_id"] == org_id and r.json()["created_company"] is False, r.json()
     assert len([o for o in world.db.rows("organizations") if o["name"] == "Nou Business SRL"]) == 1
+
+
+@pytest.mark.parametrize("decision", ["allowed", "disabled"])
+def test_the_plans_workspace_cap_is_a_402_with_the_plan_and_cap_never_a_500(app, world, decision):
+    """Live walkthrough, 2026-09-26: a new company's commit at the plan's
+    workspace cap answered 500 — `create_workspace` raises
+    'workspace_cap_reached: your % plan allows % workspace(s)…' — and the
+    card read "We couldn't save the file". The cap is an ANSWER: 402
+    {code, plan, cap, message}; no company, no document, no object; the
+    meter's reservation handed back; nothing analysed."""
+    world.db.plans[USER] = ("trial", 2)       # Scandia and Agras are live: at the cap
+    world.identities["balanta.xlsx"] = _identity(cui=CUI_NEW, name="Nou Business SRL")
+    world.decision = decision
+    before = world.db.snapshot()
+    r = commit(app, create_company={"name": "Nou Business SRL", "cui": CUI_NEW}, period_end="2025-12-31")
+    assert r.status_code == 402, (r.status_code, r.text[:400])
+    assert r.json()["detail"] == {
+        "code": "workspace_cap_reached", "plan": "trial", "cap": 2,
+        "message": "Your plan allows 2 companies. Upgrade to add another, or choose one of your "
+                   "companies for this file."}, r.json()
+    assert world.db.snapshot() == before, "a company, a row or an object exists after the cap refused"
+    assert [f for f, _uid, _p in world.db.rpcs] == ["create_workspace"]
+    assert world.enqueued == []
+    assert world.released == ([(USER, False)] if decision == "allowed" else [])
+    # One company fewer and the same commit creates it: the cap is the plan's, not a rule of the route.
+    world.db.plans[USER] = ("trial", 3)
+    r = commit(app, create_company={"name": "Nou Business SRL", "cui": CUI_NEW}, period_end="2025-12-31")
+    assert r.status_code == 200 and r.json()["created_company"] is True, r.text[:300]
+
+
+def test_the_cap_parser_reads_the_sql_floors_own_words_and_nothing_else():
+    exc = RuntimeError("rpc create_workspace failed (400): {'code': 'P0001', 'details': None, 'hint': None, "
+                       "'message': 'workspace_cap_reached: your solo plan allows 1 workspace(s). Upgrade to add more.'}")
+    got = _uploads.workspace_cap_refusal(exc)
+    assert got is not None and got.status_code == 402
+    assert got.detail["plan"] == "solo" and got.detail["cap"] == 1
+    assert got.detail["message"].startswith("Your plan allows 1 company.")
+    for other in (RuntimeError("rpc create_workspace failed (400): name required"),
+                  RuntimeError("rpc create_workspace failed (401): not authenticated"),
+                  RuntimeError("Workspace limit reached")):
+        assert _uploads.workspace_cap_refusal(other) is None, other
 
 
 def test_commit_with_create_company_for_a_cui_i_hold_uses_that_company(app, world):

@@ -18,7 +18,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { AlertCircle, Check, FileText, Loader2, X } from "lucide-react";
 
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -473,6 +473,10 @@ function ConfirmView({
     !!flow.onScreenOrgId &&
     choice.orgId !== flow.onScreenOrgId &&
     activeOrg?.id === flow.onScreenOrgId;
+  // The plan's company cap (402 workspace_cap_reached): said in words while
+  // the file is still headed for a NEW company — never "We couldn't save
+  // the file". Choosing one of the user's companies clears it.
+  const capReached = flow.error?.code === "cap" && choice.mode === "new" ? flow.error.cap ?? null : null;
 
   return (
     <>
@@ -531,7 +535,39 @@ function ConfirmView({
             {blocker === "period" ? t("wsV2.card.pickPeriod") : t("wsV2.card.pickCompany")}
           </p>
         )}
-        {flow.error && (
+        {capReached && (
+          <div
+            className="mt-2 rounded-sm bg-caution-tint px-3 py-2.5 text-[12.5px] leading-snug text-ink"
+            role="alert"
+            data-testid="upload-card-cap"
+          >
+            <p className="flex items-start gap-1.5">
+              <AlertCircle size={14} className="mt-px shrink-0 text-caution" aria-hidden />
+              <span data-testid="upload-card-cap-body">
+                {t("wsV2.cap.body", { count: capReached.count })} {t("wsV2.cap.hint")}
+              </span>
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2 pl-5">
+              <button
+                type="button"
+                onClick={() => setChanging(true)}
+                data-testid="upload-card-cap-choose"
+                className="inline-flex h-8 items-center justify-center rounded-sm border border-rule bg-surface px-3 text-[12.5px] font-medium text-ink transition-colors duration-micro hover:bg-bg-2"
+              >
+                {t("wsV2.cap.choose")}
+              </button>
+              <Link
+                to="/pricing"
+                onClick={closeUploadFlow}
+                data-testid="upload-card-cap-upgrade"
+                className="inline-flex h-8 items-center justify-center rounded-sm bg-brand px-3 text-[12.5px] font-medium text-paper transition-colors duration-micro hover:bg-brand-dark"
+              >
+                {t("wsV2.cap.upgrade")}
+              </Link>
+            </div>
+          </div>
+        )}
+        {flow.error && flow.error.code !== "cap" && (
           <p className="mt-2 flex items-start gap-1.5 text-[12px] text-alert" role="alert" data-testid="upload-card-error">
             <AlertCircle size={14} className="mt-px shrink-0" aria-hidden />
             <span>
@@ -558,7 +594,7 @@ function ConfirmView({
         <button
           type="button"
           onClick={onAnalyse}
-          disabled={saving || !!blocker}
+          disabled={saving || !!blocker || !!capReached}
           data-testid="upload-card-analyse"
           className="inline-flex h-9 items-center justify-center gap-2 rounded-sm bg-brand px-5 text-[13px] font-medium text-paper transition-colors duration-micro hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-40"
         >
