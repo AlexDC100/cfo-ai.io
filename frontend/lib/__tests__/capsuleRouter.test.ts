@@ -191,7 +191,7 @@ describe("ambiguous input returns both readings", () => {
   it("a question that names a page keeps the page reachable", () => {
     const result = run("is the balance sheet balanced");
     expect(result.classification.lane).toBe("ask");
-    expect(result.rows.some((r) => r.to?.includes("balance-sheet"))).toBe(true);
+    expect(result.rows.some((r) => r.to?.includes("tab=balance_sheet"))).toBe(true);
     expect(result.rows[0].kind).toBe("ask");
   });
 
@@ -219,7 +219,7 @@ describe("lane details", () => {
 
   it("carries the destination and the command id the host needs", () => {
     expect(run("cash flow").rows[0].to)
-      .toBe("/dashboard?tab=statements#cash-flow");
+      .toBe("/dashboard?tab=cash_flow");
     expect(run("upload trial balance").rows[0].commandId)
       .toBe("capsule.upload");
   });

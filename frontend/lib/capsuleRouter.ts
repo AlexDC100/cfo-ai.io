@@ -241,18 +241,23 @@ export const CAPSULE_ROUTES: readonly CapsuleRouteRule[] = Object.freeze([
     tokens: ["inventory", "stocuri"],
   },
   {
-    id: "route.balanceSheet", to: "/dashboard?tab=statements#balance-sheet",
+    // THE REAL TABS. These three pointed at "?tab=statements#…", a legacy
+    // slug the dashboard resolves to the P&L, and anchors no page carries —
+    // so "bilanț" and "cash flow" opened the P&L (critic, 2026-09-26).
+    id: "route.balanceSheet", to: "/dashboard?tab=balance_sheet",
     labelKey: "capsuleRouter.route.balanceSheet",
     tokens: ["balance sheet", "bilant", "situatia pozitiei financiare"],
   },
   {
-    id: "route.profitLoss", to: "/dashboard?tab=statements#profit-loss",
+    id: "route.profitLoss", to: "/dashboard?tab=pl",
     labelKey: "capsuleRouter.route.profitLoss",
-    tokens: ["profit and loss", "profit & loss", "p&l", "pnl", "profit",
+    // No bare "profit": in the command bar "profit" is a FIGURE (Răspuns,
+    // the account-121 result), not a destination (design C4).
+    tokens: ["profit and loss", "profit & loss", "p&l", "pnl",
              "cont de profit si pierdere"],
   },
   {
-    id: "route.cashFlow", to: "/dashboard?tab=statements#cash-flow",
+    id: "route.cashFlow", to: "/dashboard?tab=cash_flow",
     labelKey: "capsuleRouter.route.cashFlow",
     tokens: ["cash flow", "cashflow", "cash", "flux de numerar", "numerar"],
   },

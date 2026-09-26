@@ -556,8 +556,8 @@ function AppRoutes() {
 
           {/* ── Legacy redirects (query string preserved where relevant) ─── */}
           <Route path="/upload" element={<RedirectPreservingQuery to="/dashboard" />} />
-          <Route path="/cash" element={<Navigate to="/dashboard?tab=statements#cash-flow" replace />} />
-          <Route path="/profit" element={<Navigate to="/dashboard?tab=statements#profit-loss" replace />} />
+          <Route path="/cash" element={<Navigate to="/dashboard?tab=cash_flow" replace />} />
+          <Route path="/profit" element={<Navigate to="/dashboard?tab=pl" replace />} />
           <Route path="/financial-statements" element={<RedirectPreservingQuery to="/dashboard" />} />
           <Route path="/today"                element={<RedirectPreservingQuery to="/dashboard" />} />
           <Route path="/app"                  element={<RedirectPreservingQuery to="/dashboard" />} />
