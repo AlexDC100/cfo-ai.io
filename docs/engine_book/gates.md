@@ -9382,3 +9382,49 @@ leaving the source; the off-path tripwire or the preview gate returning.
 holds F1-F9), what the sidebar paints for an active row (vitest
 `featuresPreview.test.ts` holds `pending`/`beta` for a synthetic registry),
 the walk's screenshots.
+
+### forecast-cockpit — the one-engine cell: the Scenarios route agrees with the cockpit (2026-09-26)
+
+The owner's rollout says "Scenarios consistent with the cockpit cases (one
+engine)". scenario-one-engine already holds scenario(base) == the forecast
+GET, and C-F4 holds cockpit(base) == the forecast GET; this cell closes the
+triangle UNDER LEVERS. `test_c_one_engine_the_scenarios_route_agrees_with_
+the_cockpit_on_the_same_levers`: on every corpus book, the cockpit's optimist
+case and a slider set of every override-kind lever (revenue growth,
+inflation, DSO, capex, the interest rate, the payout) are compiled by the
+cockpit and REPORTED in `engine_request.overrides`; those very decimals go
+to POST /api/forecast/{id}/scenario (template base) as `overrides`, and
+every statement line of every plan year must agree to the cent (550 figures
+per book; an override-kind lever that compiles to a shock is a red on its
+own). Measured 550 × 4 books.
+
+**PLANTS, each observed RED** (`scratchpad/one_engine_plants/plants.py`,
+string replacement on `engine/forecast/cockpit.py`, the cell run, the file
+restored byte-exact, sha1 `ae217363…` before and after):
+
+| # | Plant | Result | Excerpt |
+|---|---|---|---|
+| PA | `compile_levers` adds a hidden shock (`cockpit.hidden`, input_price_index +1%) whenever an override is set | `4 failed` | `('agras', 'optimist', 'an override-kind lever compiled to a shock')` |
+| PB | the served `engine_request.overrides` is one step off the request that was projected (`x + 1/1000`) | `4 failed` | `agras/optimist: cockpit pl.operating_costs FY2026 = -3038047083, the scenario route serves -3040255169` |
+
+**REVERT** — `4 passed`.
+
+**After the repair it reds on (TC-11):** the cockpit projecting anything its
+`engine_request` does not report (a second cascade, a hidden shock, a
+mis-reported decimal); the Scenarios route and the cockpit route disagreeing
+on the same overrides by one cent on any line of any plan year; an
+override-kind lever compiling to a shock.
+**It cannot see:** the shock-kind levers (raw-material price, energy,
+EUR/RON, wages over inflation): the Scenarios route takes no client shock,
+so their agreement rests on C-F4 (each moves only the lines its drivers
+drive) and on scenario-one-engine (one `project_levers` on both routes).
+
+**The walk's harness** (`scratchpad/harness/`, copied to the owner's
+specs-durable/cockpit_harness/): `serve_engine.py` serves the REAL
+`create_app()` over the tenancy double holding the owner's local books
+(never committed) on 127.0.0.1:8765; the Vite bundle is built with
+`VITE_SUPABASE_URL=http://harness.invalid VITE_API_URL=` and served by
+`vite preview`; `shots.mjs` (Playwright) answers every `/rest/v1` and
+`/auth/v1` call itself and forwards every `/api` call to the engine with the
+bearer and the active workspace. The screenshots are in the owner's
+specs-durable/cockpit_shots/, named `<screen>-<width>-<theme>-<lang>.png`.

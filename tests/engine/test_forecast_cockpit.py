@@ -451,6 +451,69 @@ def test_c_f4_the_base_case_is_the_forecast_and_one_lever_moves_only_its_lines(n
     WORK["units"] += compared
 
 
+#: The override-kind levers (packs/forecast/cockpit.yaml#levers.compiles_to
+#: kind override): what the cockpit compiles them to is a plain driver
+#: override, which the Scenarios route accepts as-is — so the two pages can be
+#: asked the same question and must give the same answer.
+ONE_ENGINE_LEVERS = {"revenue_growth": "0.08", "inflation": "0.06", "dso_days": "70",
+                     "capex": "0.06", "interest_rate": "0.09", "dividend_payout": "0.5"}
+
+
+def _scenario_overrides(engine_request: Dict[str, Any]) -> Dict[str, Any]:
+    """The cockpit's compiled overrides in the Scenarios route's own body
+    shape ({driver: {values: [...]}}), byte for byte the same decimals."""
+    return dict((key, {"values": list(values)})
+                for key, values in engine_request["overrides"].items())
+
+
+@pytest.mark.parametrize("name", CORPUS)
+def test_c_one_engine_the_scenarios_route_agrees_with_the_cockpit_on_the_same_levers(name):
+    """SCENARIOS CONSISTENT WITH THE COCKPIT CASES (one engine). The Scenarios
+    page reads POST /api/forecast/{id}/scenario; the cockpit reads POST
+    .../cockpit. Both must be project_levers and nothing else, so: the
+    cockpit's optimist case (revenue growth + inflation, override-kind
+    levers) and a slider set of every override-kind lever, sent to the
+    Scenarios route as the very overrides the cockpit compiled them to
+    (`engine_request.overrides`), serve the same figure for every statement
+    line of every plan year — to the cent. A cockpit that compiled a lever
+    differently from what it reports, or a second cascade on either route,
+    reds here."""
+    pack = _pack()
+    with _World(name) as world:
+        base = world.ok()
+        if base["funding_line"]["priced_at"] == "reference":
+            print("C-ONE-ENGINE %s: the base draws an unpriceable line; not compared" % name)
+            return
+        compared = 0
+        probes = [("optimist", {"case_id": "optimist"}),
+                  ("sliders", {"levers": dict(ONE_ENGINE_LEVERS)})]
+        for label, body in probes:
+            status, ck = world.cockpit(body)
+            if status != 200:
+                assert ck["detail"]["code"] in REFUSED_BY_NAME, (name, label, ck)
+                continue
+            assert ck["engine_request"]["shocks"] == [], (name, label, "an override-kind lever compiled to a shock")
+            overrides = _scenario_overrides(ck["engine_request"])
+            assert overrides, (name, label, "the cockpit compiled these levers to nothing")
+            r = world.client.post("/api/forecast/%s/scenario" % CUR, headers=world.headers(), json={
+                "template": "base",
+                "horizon": {"total_years": pack.total_years, "monthly_months": pack.monthly_months},
+                "overrides": overrides})
+            assert r.status_code == 200, (name, label, r.status_code, r.text[:400])
+            served = dict(((f["line"], f["period"]), f.get("amount_minor")) for f in r.json()["figures"])
+            for (line, period), amount in _rows(ck).items():
+                if line.startswith("bs_totals.current"):
+                    continue
+                want = served.get((line, period))
+                assert want is not None, "%s/%s: the scenario route serves no %s %s" % (name, label, line, period)
+                assert amount == want, "%s/%s: cockpit %s %s = %d, the scenario route serves %d" % (
+                    name, label, line, period, amount, want)
+                compared += 1
+        print("C-ONE-ENGINE %s: %d figures agree between the cockpit and the scenario route" % (name, compared))
+        assert compared > 0, name
+        WORK["units"] += compared
+
+
 def _line(body: Dict[str, Any], line: str) -> List[int]:
     rows = _rows(body)
     return [rows[(line, y)] for y in body["horizon"]["years"]]

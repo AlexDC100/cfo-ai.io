@@ -766,8 +766,14 @@ def _engine_gates() -> List[Gate]:
              work_rx=r"GATE-WORK forecast-cockpit units=(\d+)", floor=11000,
              units="year-zero figures, balance/cash ties, byte comparisons, moved-line and "
                    "magnitude checks, figures walked, bridge steps and timed slider moves",
+             # + the one-engine cell (2026-09-26): the Scenarios route, sent
+             # the very overrides the cockpit compiled a case or a slider set
+             # to, serves every statement figure the cockpit serves, to the
+             # cent — the two pages are one engine. Measured 550 figures per
+             # corpus book (14442 units on the four books).
              canaries=("SCOPE forecast-cockpit (forecast-scenarios-live)",
-                       "C-F1 books: agras, carniprod, retail, realestate")),
+                       "C-F1 books: agras, carniprod, retail, realestate",
+                       "C-ONE-ENGINE agras: 550 figures agree between the cockpit and the scenario route")),
         # RATIOS: the engine as the one authority for ratio values, bands,
         # deltas, band movements and credit composites (critic
         # authority_decision). Four gates, one per batch, named separately
