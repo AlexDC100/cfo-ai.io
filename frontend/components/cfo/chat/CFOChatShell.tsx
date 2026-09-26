@@ -83,6 +83,10 @@ interface Props {
   onPickConversationFromHistory?: () => void;
 }
 
+/** How long a handed-off question waits for the shell to be grounded
+ *  before it is left in the composer instead of sent. */
+const ASK_GROUNDING_GRACE_MS = 6000;
+
 // Whether the entrance freeze has already played this session.
 // Module-level on purpose: it must survive the shell unmounting on every
 // tab switch, which is what made the freeze re-apply on every return.
@@ -228,6 +232,14 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
       store.createNew({ organizationId: null, periodId, periodLabel });
       pendingAskRef.current = prompt;
       setAskTick((n) => n + 1);
+      // A grounding that never arrives (the period failed to load) must
+      // not swallow the question: after a grace period it lands in the
+      // composer for the reader to send.
+      setTimeout(() => {
+        if (pendingAskRef.current !== prompt) return;
+        pendingAskRef.current = null;
+        composerRef.current?.setText(prompt);
+      }, ASK_GROUNDING_GRACE_MS);
     },
   }));
 

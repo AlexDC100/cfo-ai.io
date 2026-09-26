@@ -96,14 +96,16 @@ export function useCmdbarData(opts: { open: boolean }): CmdbarData {
     if (!periodId) return { ...base, status: "no_period" };
     const listed = periods.find((p) => p.period_id === periodId);
     const end = payload?.period?.period_end ?? listed?.period_end ?? null;
-    if (!result) return { ...base, periodEnd: end, status: periodQ.isLoading || periodQ.isFetching ? "loading" : "loading" };
+    // No answer yet: the period body is in flight (or queued behind the
+    // workspace list) — the header names the month, the facts say "loading".
+    if (!result) return { ...base, periodEnd: end, status: "loading" };
     if (result.kind !== "ok") return { ...base, periodEnd: end, status: "unreadable" };
     const bodyOrg = payload?.organization?.id ?? null;
     if (bodyOrg && bodyOrg !== org.id) return { ...base, periodEnd: end, status: "other_company" };
     const empty = (payload?.line_items?.length ?? 0) === 0 && (payload?.metrics?.length ?? 0) === 0;
     if (empty) return { ...base, periodEnd: end, status: "unreadable" };
     return { ...base, periodEnd: end, status: "ready" };
-  }, [org, periodId, periods, payload, result, periodQ.isLoading, periodQ.isFetching]);
+  }, [org, periodId, periods, payload, result]);
 
   const ready = scope.status === "ready";
   const companyId = ready ? scope.orgId : null;
