@@ -94,9 +94,37 @@ def detail_level_of(payload: Mapping[str, Any]):
     return classify_detail_level(codes, row_count=len(items))
 
 
+def _source_document_of(payload: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
+    """The document the served period's figures were read from, as
+    `GET /api/period` names it (`period.source_document`). Served beside
+    each column so a reader can see WHICH FILE a compare column holds.
+
+    Why: a period is a slot in a workspace, and `stage_persist`'s
+    same-month replace re-points the slot at whatever was uploaded for
+    that month last — on 2026-09-22 another company's balanță took over
+    a client's Dec 2025 period, and the compare column then printed that
+    book's revenue (2,727,103.68, the `eei_dec_2025` baseline to the
+    cent) under the client's label with nothing on screen naming the
+    file. This is not an identity wall — that needs a persisted fiscal
+    code, the workspace lane's work — it is the fact the reader can
+    check. None when the payload carries no document block."""
+    period = payload.get("period")
+    if not isinstance(period, Mapping):
+        return None
+    doc = period.get("source_document")
+    if not isinstance(doc, Mapping):
+        return None
+    return {
+        "id": doc.get("id"),
+        "filename": doc.get("filename"),
+        "detected_type": doc.get("detected_type"),
+    }
+
+
 def _period_block(row: Mapping[str, Any], payload: Mapping[str, Any], level) -> Dict[str, Any]:
     statements = payload.get("statements") or {}
     return {
+        "source_document": _source_document_of(payload),
         "period_id": row.get("id"),
         "period_end": row.get("period_end"),
         "period_start": row.get("period_start"),

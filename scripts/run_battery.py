@@ -482,6 +482,22 @@ def _engine_gates() -> List[Gate]:
                        "test_the_committed_frontend_fixture_is_what_this_route_serves_for_the_pair",
                        "test_a_prior_from_another_workspace_is_not_found",
                        "test_a_current_period_from_another_workspace_is_not_found")),
+        # DEPTH PARITY (2026-09-26): a compare column is each period's OWN
+        # served figure — every ordered pair of the five real corpus books,
+        # and each book beside its own four-digit re-aggregation through the
+        # same assembler (the condensed-vs-ledger pair of the 09-23 incident,
+        # where a month-replaced period printed another book's 2,727,103.68
+        # under the client's label). Reds on a leaf read keyed by code depth,
+        # a plugged bridge, a partial sum for a refusal, a code-listing label.
+        # Floor 60 = the measured 63. Plant log: docs/engine_book/gates.md.
+        Gate("comparatives-depth-parity",
+             [PY, "-m", "pytest", "tests/engine/test_comparatives_depth_parity.py", "-q"],
+             work_junit=True, floor=60, units="tests",
+             canaries=("test_every_headline_column_is_each_periods_own_served_figure_on_every_real_pair",
+                       "test_a_book_against_its_own_4_digit_re_aggregation_moves_nothing_on_the_pl",
+                       "test_the_pl_roll_up_is_measured_lossless_on_every_real_book",
+                       "test_a_headline_the_prior_cannot_build_is_an_honest_refusal_never_a_partial_sum",
+                       "test_the_incident_pair_serves_each_books_own_revenue_so_only_the_period_content_can_print_another_books_figure")),
         # FLOOR SUBSTITUTES, batch C3 (owner rulings R-D5 / R-D6 / R-OTHER,
         # 2026-09-15): the valuation DCF, the AI briefing's citable
         # ratios, the RO pack's ROA check and the served period day count.

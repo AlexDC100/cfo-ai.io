@@ -1854,7 +1854,8 @@
    "label": "Dec 2025",
    "period_end": "2025-12-31",
    "period_id": "period-agras-fy2025",
-   "period_start": null
+   "period_start": null,
+   "source_document": null
   },
   "movers": {
    "bases": {
@@ -2118,7 +2119,8 @@
    "label": "Dec 2024",
    "period_end": "2024-12-31",
    "period_id": "period-carniprod-fy2024",
-   "period_start": null
+   "period_start": null,
+   "source_document": null
   },
   "prior_canonical_bs": {
    "facts": {

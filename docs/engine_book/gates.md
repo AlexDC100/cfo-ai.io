@@ -3007,6 +3007,106 @@ committed fixture's current_ratio prior `1.82` -> `1.83` (`{'current_ratio':
 **REVERT** — `PASS comparatives-route (5.9s, 6 tests)` after each plant.
 Verdict: proven RED.
 
+## comparatives-depth-parity
+
+A compare column is each period's OWN served figure, whatever depth the two
+books are kept at. THE INCIDENT (owner screenshot 2026-09-23, diagnosed
+09-26): on `/dashboard?period=<Dec 2024>&tab=pl`, "Compare with Dec 2025"
+printed operating revenue 2,727,103.68 and EBITDA -36,676.13 while `GET
+/api/period/<Dec 2025>` served 413,727,560.16 / 54,443,833.33. The Dec 2024
+file is the external condensed balanță (220 rows, four-digit codes), the
+Dec 2025 file the full ledger (653 rows, six-digit codes), so the first
+reading was a pairing keyed on code depth that dropped the 701 family. It
+was not: `engine.comparatives.lines` reads the assembled statement fields
+(bucket sums over each period's own leaves), and the two served payloads
+replayed through `compare_payloads` offline give 413,727,560.16 to the cent.
+The printed figures are the committed `eei_dec_2025` baseline's revenue and
+EBITDA to the cent — another company's book, which `stage_persist`'s
+"duplicate-month = REPLACE" had re-pointed the Dec 2025 period at on 09-22.
+The route compared faithfully; the slot held the wrong file. The month-
+replace is the workspace lane's (CUI routing); this gate owns the other
+half of the promise — the only way to see another book's revenue in the
+column is for the period to hold another book — and the served document
+now names each period's `source_document` so a reader can see which file
+a column holds.
+
+Over every ordered pair of the five real corpus books (20 pairs) and each
+book beside its own four-digit re-aggregation
+(`_comparatives_fixtures.reaggregate_to_synthetic`: rows folded to the
+synthetic boundary in cents, debit and credit sides kept apart, run through
+the SAME `assemble_parsed_tb`), both orientations: every headline column's
+`current` / `prior` equals THAT period's served `assembled_pl` /
+`assembled_bs` figure to the cent (BS totals through the same
+`_apply_envelope_truth_to_statements` override `/api/period` applies, so
+the authority is the canonical sheet); Δ is their difference and Δ % the
+engine's ratio or the stated no-base refusal; across the depth difference
+the P&L headline moves NOTHING (the roll-up is measured lossless on every
+book here, not asserted from `levels.py`); the three bridges close; a
+headline the prior cannot build is `absent_prior` with no Δ and a bridge
+that names the field — never a partial sum; no served label lists account
+codes; and the incident pair itself (`eei_dec_2025` beside
+`scandia_fy2025`, committed baselines) serves each book's own revenue in
+both orientations. An absence is honoured only when the book justifies it
+(disclosure absent, served field below the zero floor, not one leaf in the
+bucket — the retail and real-estate books carry no income-tax row, so
+`pl.tax` reads absent on them, not 0.00). The balance sheet is NOT claimed
+lossless across depth: a synthetic account whose sub-accounts close on both
+sides nets when merged, exactly as a real condensed export prints it
+(retail: total assets move 11,247.93); each side still equals its own
+served figure, which is the claim.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_comparatives_depth_parity.py -q` |
+| work count | junit-xml, floor **60** tests (measured 63) |
+| canary | `test_every_headline_column_is_each_periods_own_served_figure_on_every_real_pair`, `test_a_book_against_its_own_4_digit_re_aggregation_moves_nothing_on_the_pl`, `test_the_pl_roll_up_is_measured_lossless_on_every_real_book`, `test_a_headline_the_prior_cannot_build_is_an_honest_refusal_never_a_partial_sum`, `test_the_incident_pair_serves_each_books_own_revenue_so_only_the_period_content_can_print_another_books_figure` |
+
+**Reds on, after the repair (TC-11):** a column read that sums leaves by
+code depth, exact code or modal depth instead of the assembled bucket
+figure; a served BS total that is not the canonical sheet's; a bridge
+plugged to close or a residual hidden; a percentage divided without the
+base floor; a refusal served as a partial sum or a zero the book never
+disclosed; a registry label carrying an account-code list or "combined"; a
+re-aggregation helper that nets debit against credit or rounds before
+summing (the condensed side would then disagree with the ledger by more
+than the measured cent and the lossless assertion reds); a corpus book
+losing its input (the pair census collapses below the floor).
+**Cannot see:** the month-replace itself (a workspace-lane seam, gated
+there); the frontend's rendering of the column
+(`frontend/lib/__tests__/plCompareColumn.test.tsx` holds that the P&L tab's
+prior cell prints the served `prior` on a four-digit aggregates-path book,
+refuses on a one-cent parity miss, prints the word for an absence, lists
+every revenue family the book holds on the row's chip and carries the
+source-document title on the column header); the route's HTTP path
+(comparatives-route).
+
+**GREEN** — `63 passed in 3.85s` (direct pytest; through the battery the
+junit count is 63).
+
+**PLANT** — `src/engine/comparatives/lines.py` `read_value`: after the
+coverage check, sum the envelope's `lineItems` in the line's buckets whose
+`ro_account_code` is exactly four characters long and return that instead
+of the assembled field — a pairing keyed on code depth.
+
+**RED** — `32 failed, 31 passed in 3.89s`:
+
+```
+E   AssertionError: pl.revenue current 0.0 is not saga_10_col_carniprod's served 94509939.96
+E   assert False
+E    +  where False = _cents(0.0, 94509939.96)
+FAILED tests/engine/test_comparatives_depth_parity.py::test_every_headline_column_is_each_periods_own_served_figure_on_every_real_pair[saga_10_col_carniprod-vs-saga_10_col]
+...
+FAILED tests/engine/test_comparatives_depth_parity.py::test_a_book_against_its_own_4_digit_re_aggregation_moves_nothing_on_the_pl[saga_10_col/ledger-current]
+FAILED tests/engine/test_comparatives_depth_parity.py::test_the_incident_pair_serves_each_books_own_revenue_so_only_the_period_content_can_print_another_books_figure
+```
+
+(Every real pair, every self-pair orientation and the incident pair red;
+the bridge, BS-authority, refusal and label tests stay green because the
+plant does not touch them — which is the point of naming the canaries.)
+
+**REVERT** — `git checkout -- src/engine/comparatives/lines.py`;
+`63 passed in 3.68s`. Verdict: proven RED.
+
 ## served-range
 
 THE SERVED-RANGE LAW (ruling R-RANGE, 2026-09-15; owner 2026-09-18: the

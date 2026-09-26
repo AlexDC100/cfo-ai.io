@@ -18,6 +18,8 @@ reason rather than pass over one book compared with itself.
 from __future__ import annotations
 
 import copy
+from collections import OrderedDict
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -25,9 +27,13 @@ from engine.country_packs.ro_romania.detail_level import (
     ANALYTIC,
     SYNTHETIC,
     SYNTHETIC_MAX_DIGITS,
+    account_code_depth,
     classify_detail_level,
 )
 from engine.country_packs.ro_romania.pack import RomaniaPack
+from engine.country_packs.ro_romania.trial_balance_parser import (
+    TrialBalanceParseResult,
+)
 
 REPO = Path(__file__).resolve().parents[2]
 CORPUS = REPO / "corpus"
@@ -44,7 +50,32 @@ CANDIDATES = (
     "rounding_004pct",
 )
 
+#: The real (anonymised) full-ledger books: every one is kept deeper than
+#: the synthetic boundary, so each has a condensed counterpart to derive.
+#: The depth-parity gate pairs every ordered pair of these and each one
+#: against its own re-aggregation.
+REAL_BOOKS = (
+    "saga_10_col_carniprod",
+    "saga_10_col",
+    "saga_10_col_agras",
+    "saga_10_col_retail",
+    "saga_10_col_realestate",
+)
+
 _CACHE: Dict[str, Dict[str, Any]] = {}
+_REAGG_CACHE: Dict[str, Tuple[Dict[str, Any], int]] = {}
+
+#: The eight figure columns of a parsed 10-column row.
+_FIGURE_FIELDS = ("si_d", "si_c", "r_d", "r_c", "st_d", "st_c", "sf_d", "sf_c")
+
+
+def _envelope_of(assembled: Dict[str, Any]) -> Dict[str, Any]:
+    statements = dict(assembled["statements"])
+    cv1 = assembled.get("assembled_canonical_v1") or {}
+    statements["assembled_canonical_v1"] = cv1
+    if isinstance(cv1, dict) and cv1.get("canonical_bs"):
+        statements["canonical_bs"] = cv1["canonical_bs"]
+    return {"statements": statements, "lineItems": list(assembled["lineItems"])}
 
 
 def envelope_for(case_id: str) -> Dict[str, Any]:
@@ -54,13 +85,67 @@ def envelope_for(case_id: str) -> Dict[str, Any]:
         path = CORPUS / case_id / "input.xlsx"
         data = path.read_bytes()
         assembled = RomaniaPack().run_deterministic_tb(data, filename=path.name)[2]
-        statements = dict(assembled["statements"])
-        cv1 = assembled.get("assembled_canonical_v1") or {}
-        statements["assembled_canonical_v1"] = cv1
-        if isinstance(cv1, dict) and cv1.get("canonical_bs"):
-            statements["canonical_bs"] = cv1["canonical_bs"]
-        _CACHE[case_id] = {"statements": statements, "lineItems": list(assembled["lineItems"])}
+        _CACHE[case_id] = _envelope_of(assembled)
     return copy.deepcopy(_CACHE[case_id])
+
+
+def reaggregate_to_synthetic(case_id: str) -> Tuple[Dict[str, Any], int]:
+    """The same book as the external condensed balanță would print it:
+    every analytic row folded into its grade-II synthetic account.
+
+    Rows are merged on the first `SYNTHETIC_MAX_DIGITS` digits of the
+    code (separators stripped exactly as the detail-level detector strips
+    them), each of the eight figure columns summed in cents — debit and
+    credit balances kept on their own sides, as a real condensed book
+    keeps them — and the merged rows are run through the SAME post-parse
+    assembler (`assemble_parsed_tb`) the pipeline runs. Nothing here
+    touches a statement figure: the condensed book's figures are whatever
+    the assembler makes of the condensed rows, so a comparison against the
+    original is a comparison of two assemblies, not of one assembly and a
+    hand-edited copy of it.
+
+    Returns `(envelope, merged_row_count)`. A book already at the
+    boundary merges zero rows and comes back as itself.
+    """
+    if case_id not in _REAGG_CACHE:
+        pack = RomaniaPack()
+        path = CORPUS / case_id / "input.xlsx"
+        tb_rows = pack.parse_trial_balance(path.read_bytes(), path.name)
+        agg = OrderedDict()  # type: OrderedDict[str, Dict[str, Any]]
+        merged = 0
+        for row in tb_rows:
+            code = str(row.get("cont") or "")
+            depth = account_code_depth(code)
+            if depth is None:
+                key = code
+            else:
+                digits = "".join(ch for ch in code if ch.isdigit())
+                key = digits[:SYNTHETIC_MAX_DIGITS]
+            if key not in agg:
+                merged_row = dict(row)
+                merged_row["cont"] = key
+                for f in _FIGURE_FIELDS:
+                    merged_row[f] = Decimal(str(row.get(f) or 0))
+                agg[key] = merged_row
+            else:
+                merged += 1
+                for f in _FIGURE_FIELDS:
+                    agg[key][f] += Decimal(str(row.get(f) or 0))
+        rows = []
+        for merged_row in agg.values():
+            for f in _FIGURE_FIELDS:
+                merged_row[f] = float(
+                    merged_row[f].quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+            rows.append(merged_row)
+        condensed = TrialBalanceParseResult(
+            rows,
+            extraction=dict(getattr(tb_rows, "extraction", None) or {}),
+            source_anchor=dict(getattr(tb_rows, "source_anchor", None) or {}),
+        )
+        assembled = pack.assemble_parsed_tb(condensed)[2]
+        _REAGG_CACHE[case_id] = (_envelope_of(assembled), merged)
+    env, merged = _REAGG_CACHE[case_id]
+    return copy.deepcopy(env), merged
 
 
 def level_of(env: Dict[str, Any]) -> str:
