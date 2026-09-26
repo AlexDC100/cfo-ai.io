@@ -89,24 +89,36 @@ data would change what the other members see).
    gate: the plan is refused (``blocking``) if its post-state has a period
    whose source is trashed or in another workspace that the pre-state did
    not have.
-7. A workspace with no company of its own is archived once split, unless
-   something live is still in it that could not be placed (then it stays,
-   reported) or it would leave the user with no live workspace. The
-   owner's CHAT HISTORY is such live content: a conversation is never
-   moved or archived by this migration (chat_threads lists only the active
-   workspace's threads — frontend chatRemote.ts — and the hub hides a held
-   archive, so a thread in an archived workspace is unreachable). Every
-   conversation is listed in the plan (``chats``) with what happens to it.
+7. A workspace with no company of its own is archived once split (the
+   same held archive as the holding workspace — restorable by the scoped
+   rollback), unless something live is still in it that could not be
+   placed (then it stays, reported) or it would leave the user with no
+   live workspace. The owner's CHAT HISTORY follows its company (owner's
+   ruling, 2026-09-21: "a conversation follows its company"): a
+   conversation moves (``chat_threads.org_id``; its ``chat_messages``
+   follow by ``thread_id`` and are never written) to the company workspace
+   its grounded period (``active_period_id``) lands in — or, when that
+   period is archived, to its company's workspace. A conversation that
+   names no company stays where it is; when that workspace is archived it
+   goes to the owner's main company workspace (the one holding the most
+   analysed periods), and the owner's ``user_prefs.active_org_id`` lands
+   there too. Only an owner with no company workspace at all keeps such a
+   workspace live for a conversation. chat_threads lists only the active
+   workspace's threads (frontend chatRemote.ts) and the hub hides a held
+   archive, so the plan is refused if any conversation would end where its
+   user cannot open it (``hidden_conversations``). Every conversation is
+   listed in the plan (``chats``) with where it goes and why.
 8. Every document's ``period_id`` ends up NULL or pointing at a period in
    the SAME workspace (a re-analysis must never write into another
    tenant's period). So does every conversation's ``active_period_id`` (a
-   text reference): a thread whose grounded period moves to another
-   workspace keeps its place and its ``active_period_label`` and has
+   text reference): a thread whose grounded period ends in another
+   workspace keeps its ``active_period_label`` and has
    ``active_period_id`` cleared — the next message grounds it again.
 
 Nothing is ever hard-deleted; Stripe, auth and billing tables are never
 touched; ``chat_messages`` is never written, and a ``chat_threads`` row
-only ever has its ``active_period_id`` cleared (rule 8).
+only ever has its ``org_id`` (rule 7) and ``active_period_id`` (rule 8)
+changed.
 """
 from __future__ import annotations
 
@@ -511,8 +523,19 @@ class _Planner:
             dd["to_org"] = final
             self.doc_final_org[did] = final
 
-        # 4. workspaces with no company of their own: archived once empty
+        # 3b. where each of the owner's conversations goes (rule 7): with its
+        # company. Decided before the archive step, because a conversation
+        # that has nowhere to go keeps its workspace live.
         company_orgs = set(company_ws.values())
+        self.home = self._home_workspace(company_ws, decisions)
+        self.thread_target: Dict[str, Tuple[Optional[str], str]] = {}
+        for o in live:
+            for th in self.threads_by_org.get(o, []):
+                if str(th.get("user_id")) == user:
+                    self.thread_target[str(th["id"])] = self._thread_target(th, decisions, company_ws,
+                                                                            company_orgs)
+
+        # 4. workspaces with no company of their own: archived once empty
         live_after = set(company_orgs)
         pending: List[str] = []
         for o in live:
@@ -526,15 +549,19 @@ class _Planner:
                 dd = doc_dec.get(d)
                 if dd is None or (dd["action"] != "archive" and self.doc_final_org.get(d) == o):
                     left.append(d)
-            # The owner's conversations: never moved, never archived (rule 7).
+            # The owner's conversations follow their company (rule 7); one
+            # with no company of its own goes to the owner's main company
+            # workspace. Only when the owner HAS no company workspace does a
+            # conversation keep this workspace live.
             chats = [th for th in self.threads_by_org.get(o, []) if str(th.get("user_id")) == user]
-            if chats:
-                left.extend("chat_thread:%s" % th["id"] for th in chats)
+            stuck = [th for th in chats if self.thread_target[str(th["id"])][0] is None and self.home is None]
+            if stuck:
+                left.extend("chat_thread:%s" % th["id"] for th in stuck)
                 self.plan.warnings.append(
-                    "workspace %s (%r) holds %d conversation(s) of its owner (%s) — chat history is never "
-                    "moved or archived, so the workspace stays live" % (
-                        o, self.orgs[o].get("name"), len(chats),
-                        "; ".join("%s %r" % (th["id"], th.get("title")) for th in chats)))
+                    "workspace %s (%r) holds %d conversation(s) of its owner (%s) and the owner has no company "
+                    "workspace to move them to — the workspace stays live" % (
+                        o, self.orgs[o].get("name"), len(stuck),
+                        "; ".join("%s %r" % (th["id"], th.get("title")) for th in stuck)))
             split = any(decisions[p]["action"] in ("keep", "archive") and self.period_final_org.get(p) != o
                         and not str(decisions[p].get("reason") or "").startswith("empty")
                         for p in self.periods_by_org.get(o, []))
@@ -590,7 +617,7 @@ class _Planner:
         for did, dd in sorted(doc_dec.items()):
             self.plan.documents.append(dd)
 
-        self._plan_chats(user, live_after)
+        self._plan_chats(user, live_after, archive_orgs)
         self._emit_ops(user, created, holding, used_holding[0], archive_orgs, doc_dec, reused)
         self.plan.users.append({
             "user_id": user, "workspaces_in_scope": len(live),
@@ -601,35 +628,109 @@ class _Planner:
 
     # ── pieces ────────────────────────────────────────────────────────
 
-    def _plan_chats(self, user: str, live_after: Set[str]) -> None:
-        """Every conversation in this user's migrated workspaces: it stays
-        where it is (rule 7). One grounded in a period the plan moves OUT of
-        the conversation's workspace has that reference cleared (rule 8) —
-        the reply is grounded by the page it is continued from, and
-        ``active_period_label`` keeps what it referred to."""
-        self.chat_clears: List[Dict[str, Any]] = []
+    def _home_workspace(self, company_ws: Mapping[str, str],
+                        decisions: Mapping[str, Mapping[str, Any]]) -> Optional[str]:
+        """The owner's main company workspace: the live company workspace
+        holding the most analysed periods after the plan (then one that
+        already exists, then the older, then the id). Where a conversation
+        with no company of its own goes when its workspace is archived."""
+        counts: Counter = Counter()
+        for pid, pr in decisions.items():
+            if pr.get("action") == "keep":
+                counts[self.period_final_org.get(pid)] += 1
+        best: Optional[Tuple[int, int, str, str]] = None
+        for oid in sorted(set(company_ws.values())):
+            org = self.orgs.get(oid)
+            existing = org is not None and not org.get("archived_at")
+            cand = (-counts.get(oid, 0), 0 if existing else 1, str((org or {}).get("created_at") or "~"), oid)
+            if best is None or cand < best:
+                best = cand
+        return best[3] if best else None
+
+    def _thread_target(self, th: Mapping[str, Any], decisions: Mapping[str, Mapping[str, Any]],
+                       company_ws: Mapping[str, str], company_orgs: Set[str]) -> Tuple[Optional[str], str]:
+        """(the company workspace a conversation follows, why) — or (None,
+        why) when it names no company: no grounding, a grounding outside
+        this user's plan, or a period of no known company."""
+        pid = str(th.get("active_period_id") or "")
+        if not pid:
+            return None, "not grounded in a period"
+        if pid not in decisions:
+            return None, ("its period %s is not in this user's workspaces" % pid if pid in self.periods
+                          else "its period %s no longer exists" % pid)
+        final = self.period_final_org.get(pid)
+        if final in company_orgs:
+            return final, "follows its period %s" % pid
+        company = decisions[pid].get("company")
+        if company and company in company_ws:
+            return company_ws[company], "follows its company %s (its period %s is archived)" % (company, pid)
+        return None, "its period %s names no company with a workspace" % pid
+
+    def _plan_chats(self, user: str, live_after: Set[str], archive_orgs: Sequence[str]) -> None:
+        """Every conversation in this user's migrated workspaces, and where
+        it ends (rule 7): the owner's conversation follows its company — to
+        the workspace its grounded period lands in, or, when that period is
+        archived, to its company's workspace. One that names no company
+        stays where it is, unless its workspace is archived: then it goes to
+        the owner's main company workspace (``_home_workspace``).
+        ``chat_messages`` follow by ``thread_id`` and are never written.
+
+        A conversation whose grounding would point into another workspace
+        afterwards has ``active_period_id`` cleared (rule 8) — the reply is
+        grounded by the page it is continued from, and
+        ``active_period_label`` keeps what it referred to. A cross-workspace
+        grounding the pre-state already had is left as is when neither the
+        conversation nor its period moves."""
+        self.chat_ops: List[Dict[str, Any]] = []
+        archived = set(archive_orgs)
         for o in self.live:
             for th in self.threads_by_org.get(o, []):
+                tid = str(th["id"])
+                own = str(th.get("user_id")) == user
+                target, why = self.thread_target.get(tid, (None, "not the workspace owner's conversation"))
+                if not own:
+                    final, why = o, "not the workspace owner's conversation"
+                elif target is not None:
+                    final = target
+                elif o in archived and self.home is not None:
+                    final, why = self.home, "%s; its workspace is archived — to the owner's main company " \
+                                            "workspace" % why
+                else:
+                    final = o
                 pid = str(th.get("active_period_id") or "")
                 period = self.periods.get(pid) if pid else None
-                row = {"id": th["id"], "org_id": o, "user_id": th.get("user_id"), "title": th.get("title"),
-                       "updated_at": th.get("updated_at"), "active_period_id": th.get("active_period_id"),
-                       "active_period_label": th.get("active_period_label"),
-                       "workspace_after": "live" if o in live_after else "archived"}
+                period_after = (self.period_final_org.get(pid, str(period.get("org_id"))) if period else None)
+                clear = False
                 if period is None:
-                    row["grounding"] = "none" if not pid else "period no longer exists (left as is)"
-                elif str(period.get("org_id")) != o:
-                    row["grounding"] = "period in another workspace before the migration (left as is)"
-                elif self.period_final_org.get(pid, o) != o:
-                    row["grounding"] = "cleared: period %s moves to %s" % (pid, self.period_final_org[pid])
-                    self.chat_clears.append(th)
-                    self.plan.warnings.append(
-                        "conversation %s (%r) in %s is grounded in period %s, which moves to %s — its "
-                        "active_period_id is cleared; the conversation stays" % (
-                            th["id"], th.get("title"), o, pid, self.period_final_org[pid]))
+                    grounding = "none" if not pid else "period no longer exists (left as is)"
+                elif period_after == final:
+                    grounding = "unchanged"
+                elif final == o and str(period.get("org_id")) != o and period_after == str(period.get("org_id")):
+                    grounding = "period in another workspace before the migration (left as is)"
                 else:
-                    row["grounding"] = "unchanged"
+                    clear = True
+                    grounding = "cleared: period %s ends in %s" % (pid, period_after)
+                row = {"id": th["id"], "org_id": o, "to_org": final, "user_id": th.get("user_id"),
+                       "title": th.get("title"), "updated_at": th.get("updated_at"),
+                       "active_period_id": th.get("active_period_id"),
+                       "active_period_label": th.get("active_period_label"),
+                       "action": "move" if final != o else "stay", "why": why,
+                       "workspace_after": "live" if final in live_after and final not in archived else "archived",
+                       "grounding": grounding}
                 self.plan.chats.append(row)
+                patch: Dict[str, Any] = {}
+                if final != o:
+                    patch["org_id"] = final
+                    self.plan.warnings.append(
+                        "conversation %s (%r) moves from %s to %s — %s" % (th["id"], th.get("title"), o, final, why))
+                if clear:
+                    patch["active_period_id"] = None
+                    self.plan.warnings.append(
+                        "conversation %s (%r) was grounded in period %s, which ends in %s — its "
+                        "active_period_id is cleared" % (th["id"], th.get("title"), pid, period_after))
+                if patch:
+                    self.chat_ops.append({"op": "update", "table": "chat_threads", "key": {"id": th["id"]},
+                                          "set": patch, "expect": {c: th.get(c) for c in patch}})
 
     def _name_links(self, live: Sequence[str]) -> Dict[str, str]:
         """normalized company name -> cui key, for this user's documents and
@@ -1185,12 +1286,10 @@ class _Planner:
                 ops.append({"op": "update", "table": "documents", "key": {"id": did},
                             "set": {"period_id": None}, "expect": {"period_id": d.get("period_id")}})
 
-        # 5b. conversations stay; a grounding that would point into another
-        # workspace is cleared (rule 8). chat_messages is never written.
-        for th in self.chat_clears:
-            ops.append({"op": "update", "table": "chat_threads", "key": {"id": th["id"]},
-                        "set": {"active_period_id": None},
-                        "expect": {"active_period_id": th.get("active_period_id")}})
+        # 5b. conversations follow their company (rule 7); a grounding that
+        # would point into another workspace is cleared (rule 8).
+        # chat_messages is never written: messages follow by thread_id.
+        ops.extend(self.chat_ops)
 
         # 6. re-date — the row AND the engine's period-detection record, which
         # the Docs panel's mismatch chip and the firm attention layer read
@@ -1209,7 +1308,9 @@ class _Planner:
             ops.append({"op": "update", "table": "financial_periods", "key": {"id": pid},
                         "set": patch, "expect": {c: p.get(c) for c in patch}})
 
-        # 7. archive the split workspaces; nobody is left sitting in one
+        # 7. archive the split workspaces; nobody is left sitting in one — the
+        # owner who had one open lands in the main company workspace, where
+        # the conversations without a company of their own went.
         for o in archive_orgs:
             ops.append({"op": "update", "table": "organizations", "key": {"id": o},
                         "set": {"archived_at": NOW, "purge_after": None},
@@ -1217,7 +1318,7 @@ class _Planner:
         for up in self.t.get("user_prefs") or []:
             if str(up.get("user_id")) == user and up.get("active_org_id") in archive_orgs:
                 ops.append({"op": "update", "table": "user_prefs", "key": {"user_id": user},
-                            "set": {"active_org_id": None},
+                            "set": {"active_org_id": self.home},
                             "expect": {"active_org_id": up.get("active_org_id")}})
 
         # fill names into the reanalysis list
@@ -1363,19 +1464,30 @@ def cross_workspace_links(tables: Mapping[str, List[Mapping[str, Any]]]) -> List
     return out
 
 
+def _reachable_threads(tables: Mapping[str, List[Mapping[str, Any]]]) -> Set[str]:
+    """Ids of the conversations their user can open: the thread's workspace
+    is live and the user is a member of it — the RLS of
+    schema_phase_chat.sql (``user_id = auth.uid() and is_member_of(org_id)``)
+    plus the frontend's listing (chatRemote.ts: the ACTIVE workspace's
+    threads; an archived workspace is never the active one)."""
+    live = {str(o["id"]) for o in tables.get("organizations") or [] if not o.get("archived_at")}
+    members = {(str(m.get("org_id")), str(m.get("user_id"))) for m in tables.get("memberships") or []}
+    return {str(th.get("id")) for th in tables.get("chat_threads") or []
+            if str(th.get("org_id")) in live and (str(th.get("org_id")), str(th.get("user_id"))) in members}
+
+
 def hidden_conversations(before: Mapping[str, List[Mapping[str, Any]]],
                          after: Mapping[str, List[Mapping[str, Any]]]) -> List[str]:
-    """Conversations their user could open in ``before`` (a member of a
-    live workspace — the RLS of schema_phase_chat.sql) whose workspace is
-    archived in ``after`` (rule 7): the chat list shows only the active
-    workspace's threads, and a held archive is shown nowhere."""
-    live_before = {str(o["id"]) for o in before.get("organizations") or [] if not o.get("archived_at")}
-    archived_after = {str(o["id"]) for o in after.get("organizations") or [] if o.get("archived_at")}
-    members = {(str(m.get("org_id")), str(m.get("user_id"))) for m in before.get("memberships") or []}
+    """Conversations their user could open in ``before`` and cannot in
+    ``after`` (rule 7): left in a workspace that is archived, or moved into
+    an archived workspace or one the user is not a member of. The chat list
+    shows only the active workspace's threads, and a held archive is shown
+    nowhere."""
+    was = _reachable_threads(before)
+    now = _reachable_threads(after)
     return ["chat_threads %s (%r) in %s" % (th.get("id"), th.get("title"), th.get("org_id"))
             for th in sorted(after.get("chat_threads") or [], key=lambda r: str(r.get("id")))
-            if str(th.get("org_id")) in live_before & archived_after
-            and (str(th.get("org_id")), str(th.get("user_id"))) in members]
+            if str(th.get("id")) in was and str(th.get("id")) not in now]
 
 
 def period_source_hazards(tables: Mapping[str, List[Mapping[str, Any]]]) -> List[Tuple[str, str]]:
@@ -1483,10 +1595,11 @@ def render_report(plan: Plan) -> str:
         chats = [c for c in plan.chats
                  if any(ws["org_id"] == c["org_id"] and ws["user_id"] == uid for ws in plan.workspaces)]
         if chats:
-            w("  conversations (never moved or archived)")
+            w("  conversations (each follows its company; messages follow their conversation)")
             for c in chats:
-                w("    %s %s %-44s workspace %s  grounding: %s" % (
-                    c["id"], c["org_id"][:8], repr(c.get("title"))[:44], c["workspace_after"], c["grounding"]))
+                w("    %-5s %s %s -> %s %-44s workspace %s  grounding: %s  (%s)" % (
+                    c["action"], c["id"], c["org_id"][:8], str(c.get("to_org") or "")[:8],
+                    repr(c.get("title"))[:44], c["workspace_after"], c["grounding"], c.get("why")))
         items = [n for n in plan.needs_reanalysis if n["user_id"] == uid]
         if items:
             w("  needs_reanalysis")

@@ -13,7 +13,8 @@ here, in memory. The SHAPES are the owner's production ones (2026-09-21):
     company, same-month periods colliding with the company workspace's
     served ones, a 2025 book filed under 2017, duplicates with and without
     a content hash, failed copies, a delegation itinerary PDF (not a
-    balance), trash, two empty months with the SAME date;
+    balance), trash, two empty months with the SAME date, and the owner's
+    conversation (with its messages) grounded in one of its periods;
   * a second user with a clean one-company workspace;
   * a two-member team workspace (never migrated).
 
@@ -325,6 +326,11 @@ def build_world() -> Tuple[Dict[str, List[Dict[str, Any]]], Dict[str, bytes], Li
         "chat_threads": [{"id": "ct-1", "org_id": "org-qa", "user_id": OWNER, "title": "q",
                           "active_period_id": "per-q25", "active_period_label": "Dec 2025",
                           "created_at": _ts("2026-09-10"), "updated_at": _ts("2026-09-10")}],
+        # no workspace column: a message belongs to its conversation
+        "chat_messages": [{"id": "cm-q-1", "thread_id": "ct-1", "role": "user", "content": "q",
+                           "grounded_period": "Dec 2025", "created_at": _ts("2026-09-10")},
+                          {"id": "cm-q-2", "thread_id": "ct-1", "role": "assistant", "content": "a",
+                           "grounded_period": "Dec 2025", "created_at": _ts("2026-09-10", 11)}],
         "billing_events": [{"id": "be-1", "org_id": "org-sf", "event_type": "x", "payload": {},
                             "stripe_event_id": None, "created_at": _ts("2026-09-10")}],
         "subscriptions": [{"id": "sub-1", "user_id": OWNER, "plan": "professional", "status": "trial",

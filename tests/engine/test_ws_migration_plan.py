@@ -117,62 +117,94 @@ def test_workspaces_created_per_company_with_prefs(world):
     assert sf["cui"] == ALFA and sf["display_currency"] == "RON"
 
 
-def test_the_qa_workspace_is_split_and_stays_live_for_the_owners_conversations(world):
-    """Verifier finding (2026-09-21; real snapshot: thread 99dbaf2b, 7
-    messages, in the owner's Q&A workspace 98c06428): the plan archived Q&A
-    as a HELD archive while it still held the owner's chat history. The hub
-    hides a held archive and chatRemote.ts lists only the active
-    workspace's threads, so the conversation became unreachable — and the
-    plan and report never mentioned it. This test used to assert exactly
-    that ("archived with the workspace"). Chat history is live content
-    (rule 7): Q&A is split, keeps no book, and stays live; the conversation
-    stays where it is and is listed in the plan."""
-    post, plan = world["post"], world["plan"]
+def _listed_for(tables, user):
+    """The conversations the frontend lists for ``user`` on first load: the
+    active workspace (user_prefs.active_org_id, if live — else the oldest
+    live one, frontend/lib/org.ts resolveActive) and chatRemote.ts's
+    fetchConversations (``org_id = active``) under the RLS of
+    schema_phase_chat.sql (``user_id = auth.uid() and is_member_of``)."""
+    live = [o for o in sorted(tables["organizations"], key=lambda o: str(o.get("created_at")))
+            if not o.get("archived_at")]
+    mine = [o["id"] for o in live if (o["id"], user) in {(m["org_id"], m["user_id"]) for m in tables["memberships"]}]
+    pref = next((u.get("active_org_id") for u in tables.get("user_prefs") or [] if u["user_id"] == user), None)
+    active = pref if pref in mine else (mine[0] if mine else None)
+    return active, sorted(th["id"] for th in tables.get("chat_threads") or []
+                          if th["org_id"] == active and th["user_id"] == user)
+
+
+def test_a_conversation_follows_its_company_and_the_emptied_qa_workspace_is_archived(world):
+    """Owner's ruling (2026-09-21, P0): the real Q&A workspace (98c06428) was
+    left LIVE because the owner has one conversation in it (99dbaf2b) —
+    7369afa6 made chat history pin a company-less workspace, and this test
+    asserted exactly that. A conversation follows its company: ct-1 is
+    grounded in per-q25, ALFA's Dec 2025, archived as month_already_served,
+    so it moves to ALFA's workspace (org-sf) with its messages untouched.
+    Q&A is then empty and archived like any split workspace (held,
+    restorable), and the owner still sees the conversation: it is in the
+    workspace the owner lands in, under the frontend's listing rule."""
+    pre, post, plan = world["tables"], world["post"], world["plan"]
     qa = _row(post, "organizations", id="org-qa")
-    assert qa["archived_at"] is None
-    live_in_qa = [d for d in post["documents"] if d["org_id"] == "org-qa" and d["deleted_at"] is None]
-    assert live_in_qa == []
-    assert _row(post, "user_prefs", user_id=OWNER)["active_org_id"] == "org-qa"
+    assert qa["archived_at"] == RUN and qa["purge_after"] is None
     ws = next(w for w in plan.workspaces if w["org_id"] == "org-qa")
-    assert ws["action"] == "keep" and ws["company"] is None
+    assert ws["action"] == "archive" and ws["company"] is None
+    assert not [d for d in post["documents"] if d["org_id"] == "org-qa" and d["deleted_at"] is None]
     ct = _row(post, "chat_threads", id="ct-1")
-    assert ct["org_id"] == "org-qa" and ct["active_period_label"] == "Dec 2025"
+    assert ct["org_id"] == "org-sf" and ct["user_id"] == OWNER and ct["title"] == "q"
+    assert ct["active_period_label"] == "Dec 2025"
     # its grounding named per-q25, archived into the holding workspace: the
     # reference is cleared rather than left pointing there (rule 8)
     assert _row(post, "financial_periods", id="per-q25")["org_id"] == holding_org_id(OWNER)
     assert ct["active_period_id"] is None
+    # the messages are never written: they follow their conversation
+    assert post["chat_messages"] == pre["chat_messages"]
+    assert {m["thread_id"] for m in post["chat_messages"]} == {"ct-1"}
+    # still visible to its owner: the owner lands in org-sf, where it is listed
+    assert _listed_for(pre, OWNER) == ("org-qa", ["ct-1"])
+    assert _listed_for(post, OWNER) == ("org-sf", ["ct-1"])
     chat = next(c for c in plan.chats if c["id"] == "ct-1")
-    assert chat["workspace_after"] == "live" and chat["grounding"].startswith("cleared: period per-q25")
-    assert any("ct-1" in w and "conversation" in w for w in plan.warnings)
+    assert (chat["action"], chat["org_id"], chat["to_org"], chat["workspace_after"]) == \
+        ("move", "org-qa", "org-sf", "live")
+    assert chat["why"] == "follows its company cui:%s (its period per-q25 is archived)" % ALFA
+    assert chat["grounding"] == "cleared: period per-q25 ends in %s" % holding_org_id(OWNER)
+    assert any(w.startswith("conversation ct-1 ('q') moves from org-qa to org-sf") for w in plan.warnings)
     report = render_report(plan)
-    assert "conversations (never moved or archived)" in report and "ct-1" in report
-    assert hidden_conversations(world["tables"], post) == [] and plan.blocking == []
+    assert "conversations (each follows its company" in report and "move  ct-1 org-qa -> org-sf" in report
+    assert hidden_conversations(pre, post) == [] and plan.blocking == []
 
 
 def test_without_conversations_the_split_qa_workspace_is_archived():
     """The same world with no chat history: rule 7 archives the split Q&A
-    workspace (held) and nobody is left sitting in it."""
+    workspace (held) and its owner lands in the main company workspace
+    (org-sf: the most analysed periods)."""
     tables, storage, rules = build_world()
     tables["chat_threads"] = []
     plan = build_plan(tables, facts_for(tables, storage, rules), migration_date=DATE)
     post = apply_ops(tables, plan.ops, now=RUN)
     qa = _row(post, "organizations", id="org-qa")
     assert qa["archived_at"] == RUN and qa["purge_after"] is None
-    assert _row(post, "user_prefs", user_id=OWNER)["active_org_id"] is None
+    assert _row(post, "user_prefs", user_id=OWNER)["active_org_id"] == "org-sf"
     assert plan.chats == [] and plan.blocking == []
 
 
-def test_a_conversation_is_never_left_in_an_archived_workspace(world):
+def test_a_conversation_is_never_left_where_its_user_cannot_open_it(world):
     """The planner's own post-state gate (rule 7): a conversation its user
-    could open, in a workspace the plan archives, blocks the plan. PLANT:
-    the post-state with Q&A archived — what the planner used to produce."""
+    could open, that ends in an archived workspace or in one its user is not
+    a member of, blocks the plan. PLANTS: ct-1 left in the archived Q&A
+    (what 10fd52ab produced), moved into the holding archive, moved into
+    another user's workspace."""
     pre, post = world["tables"], world["post"]
+    assert hidden_conversations(pre, post) == []
+    for org in ("org-qa", holding_org_id(OWNER), "org-solo"):
+        planted = copy.deepcopy(post)
+        _row(planted, "chat_threads", id="ct-1")["org_id"] = org
+        assert hidden_conversations(pre, planted) == ["chat_threads ct-1 ('q') in %s" % org], org
+    # a thread whose user was never a member was never reachable: not counted
     planted = copy.deepcopy(post)
-    _row(planted, "organizations", id="org-qa")["archived_at"] = RUN
-    assert hidden_conversations(pre, planted) == ["chat_threads ct-1 ('q') in org-qa"]
-    # a thread whose user is not a member was never reachable: not counted
     _row(planted, "chat_threads", id="ct-1")["user_id"] = SOLO_USER
-    assert hidden_conversations(pre, planted) == []
+    _row(planted, "chat_threads", id="ct-1")["org_id"] = "org-qa"
+    before = copy.deepcopy(pre)
+    _row(before, "chat_threads", id="ct-1")["user_id"] = SOLO_USER
+    assert hidden_conversations(before, planted) == []
 
 
 def test_the_2025_book_filed_under_2017_is_re_dated_and_its_hint_corrected(world):
@@ -557,10 +589,11 @@ def test_nothing_is_hard_deleted_and_billing_is_never_written(world):
     assert {op["op"] for op in plan.ops} <= {"insert", "merge_prefs", "update", "copy_object"}
     touched = {op.get("table") for op in plan.ops}
     assert not touched & {"subscriptions", "user_usage", "billing_events", "chat_messages"}
-    # a conversation is never moved: its only write is a grounding cleared (rule 8)
+    # a conversation row only changes workspace (rule 7) and grounding (rule 8)
     chat_ops = [op for op in plan.ops if op.get("table") == "chat_threads"]
-    assert chat_ops and all(op["op"] == "update" and op["set"] == {"active_period_id": None}
+    assert chat_ops and all(op["op"] == "update" and set(op["set"]) <= {"org_id", "active_period_id"}
                             for op in chat_ops), chat_ops
+    assert post["chat_messages"] == pre["chat_messages"]
     for table in ("subscriptions", "user_usage", "billing_events"):
         assert post[table] == pre[table]
 
@@ -833,6 +866,87 @@ def test_two_workspaces_claiming_one_company_keep_one_and_split_the_other():
     assert _row(post, "organizations", id="org-a")["archived_at"] == RUN
     assert build_plan(post, {"a1": _ident(ALFA, "2025-12-31"), "b1": _ident(ALFA, "2024-12-31")},
                       migration_date=DATE).ops == []
+
+
+def _period_row(pid, org, end, src):
+    return {"id": pid, "org_id": org, "period_start": end, "period_end": end, "source_document_id": src}
+
+
+def _thread(tid, org, period=None, user="u"):
+    return {"id": tid, "org_id": org, "user_id": user, "title": tid, "active_period_id": period,
+            "active_period_label": "label" if period else None}
+
+
+def test_a_conversation_with_no_company_goes_to_the_main_company_workspace():
+    """Owner's ruling (2026-09-21): with no period, a conversation goes to
+    the owner's live company workspace holding the MOST analysed periods
+    (real snapshot: scandia food e23280a9). Here that is BETA's workspace,
+    created by the plan (three periods), not the pre-existing ALFA one (two)
+    nor GAMMA's (two). org-q has no company of its own (BETA 3 of 6)."""
+    books = [("a1", "org-a", ALFA, "2025-12-31"), ("q-a", "org-q", ALFA, "2023-12-31"),
+             ("q-b1", "org-q", BETA, "2023-12-31"), ("q-b2", "org-q", BETA, "2024-12-31"),
+             ("q-b3", "org-q", BETA, "2025-12-31"), ("q-g1", "org-q", GAMMA, "2024-12-31"),
+             ("q-g2", "org-q", GAMMA, "2025-12-31")]
+    t = _mini([_doc(d, o, period="p-" + d) for d, o, _c, _e in books],
+              [_period_row("p-" + d, o, e, d) for d, o, _c, e in books],
+              metrics=[("p-" + d, o) for d, o, _c, _e in books], orgs=("org-a", "org-q"),
+              prefs={"org-a": {"cui": ALFA}})
+    t["chat_threads"] = [_thread("t-none", "org-q"), _thread("t-gone", "org-q", period="no-such-period"),
+                         _thread("t-a", "org-a")]
+    t["user_prefs"] = [{"user_id": "u", "active_org_id": "org-q"}]
+    facts = {d: _ident(c, e) for d, _o, c, e in books}
+    plan = build_plan(t, facts, migration_date=DATE)
+    beta = new_org_id("u", "cui:" + BETA)
+    post = apply_ops(t, plan.ops, now=RUN)
+    assert _row(post, "organizations", id="org-q")["archived_at"] == RUN
+    assert _row(post, "chat_threads", id="t-none")["org_id"] == beta
+    gone = _row(post, "chat_threads", id="t-gone")
+    assert gone["org_id"] == beta and gone["active_period_id"] == "no-such-period"   # nothing to point at: left
+    # a period-less conversation in a company workspace is that company's: it stays
+    assert _row(post, "chat_threads", id="t-a")["org_id"] == "org-a"
+    assert _row(post, "user_prefs", user_id="u")["active_org_id"] == beta
+    assert _listed_for(post, "u") == (beta, ["t-gone", "t-none"])
+    assert hidden_conversations(t, post) == [] and plan.blocking == []
+    assert build_plan(post, facts, migration_date=DATE).ops == []
+
+
+def test_a_conversation_follows_its_period_out_of_a_company_workspace():
+    """A conversation in ALFA's workspace grounded in BETA's book follows the
+    book to BETA's workspace, its grounding intact; one grounded in ALFA's
+    own period stays."""
+    t = _mini([_doc("a1", "org-a", period="pa"), _doc("b1", "org-a", period="pb")],
+              [_period_row("pa", "org-a", "2025-12-31", "a1"), _period_row("pb", "org-a", "2024-12-31", "b1")],
+              metrics=[("pa", "org-a"), ("pb", "org-a")], prefs={"org-a": {"cui": ALFA}})
+    t["chat_threads"] = [_thread("t-b", "org-a", period="pb"), _thread("t-a", "org-a", period="pa")]
+    facts = {"a1": _ident(ALFA, "2025-12-31"), "b1": _ident(BETA, "2024-12-31")}
+    plan = build_plan(t, facts, migration_date=DATE)
+    post = apply_ops(t, plan.ops, now=RUN)
+    beta = new_org_id("u", "cui:" + BETA)
+    tb = _row(post, "chat_threads", id="t-b")
+    assert tb["org_id"] == beta and tb["active_period_id"] == "pb"
+    assert _row(post, "financial_periods", id="pb")["org_id"] == beta
+    assert _row(post, "chat_threads", id="t-a")["org_id"] == "org-a"
+    assert next(c for c in plan.chats if c["id"] == "t-b")["why"] == "follows its period pb"
+    assert cross_workspace_links(post) == [] and plan.blocking == []
+    assert build_plan(post, facts, migration_date=DATE).ops == []
+
+
+def test_a_conversation_with_nowhere_to_go_keeps_its_workspace_live():
+    """No company workspace at all (the only book is not a balance, archived
+    into the holding workspace): the conversation cannot follow a company,
+    so its workspace is not archived out from under it."""
+    t = _mini([_doc("x", "org-q", status="failed")], [], orgs=("org-q", "org-b"))
+    t["chat_threads"] = [_thread("t", "org-q")]
+    not_a_balance = DocFacts(identity=CompanyIdentity(
+        company_name="ALFA FOOD SRL", sources={"company_name": {"signal": "document_header_title", "evidence": ""}},
+        document_kind="not_a_balance"))
+    plan = build_plan(t, {"x": not_a_balance}, migration_date=DATE)
+    post = apply_ops(t, plan.ops, now=RUN)
+    assert _row(post, "documents", id="x")["org_id"] == holding_org_id("u")
+    assert _row(post, "organizations", id="org-q")["archived_at"] is None
+    assert _row(post, "chat_threads", id="t")["org_id"] == "org-q"
+    assert any("no company workspace to move them to" in w for w in plan.warnings)
+    assert hidden_conversations(t, post) == [] and plan.blocking == []
 
 
 def test_a_users_only_workspace_is_never_archived():
