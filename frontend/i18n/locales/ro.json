@@ -188,7 +188,10 @@
     "full_name": "Nume complet",
     "company": "Numele companiei",
     "back_to_home": "Înapoi la pagina principală",
-    "welcome": "Bun venit la CFO AI"
+    "welcome": "Bun venit la CFO AI",
+    "signing_in": "Te conectăm…",
+    "still_signing_in": "Încă te conectăm — închide celelalte file CFO AI sau reîncarcă pagina.",
+    "reload": "Reîncarcă"
   },
   "settings": {
     "language": "Limbă",

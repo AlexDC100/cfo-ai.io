@@ -14,10 +14,12 @@
 // Deliberately quiet: the mark, a slim indeterminate bar, one line of copy.
 // No percentage (we can't know one) and no spinner-in-the-middle-of-nowhere.
 
+import type { ReactNode } from "react";
+
 import { Logo } from "./Logo";
 
 /** Mark + indeterminate bar + caption. Shared by both loaders. */
-function LoaderBody({ label }: { label: string }) {
+function LoaderBody({ label, children }: { label: string; children?: ReactNode }) {
   return (
     <div className="flex flex-col items-center gap-5 px-6">
       <Logo size={40} />
@@ -38,6 +40,7 @@ function LoaderBody({ label }: { label: string }) {
       <p className="text-[12.5px] text-ink-mute text-center max-w-[280px] leading-relaxed">
         {label}
       </p>
+      {children}
     </div>
   );
 }
@@ -45,9 +48,11 @@ function LoaderBody({ label }: { label: string }) {
 interface Props {
   /** Optional line under the bar — say what's being waited on. */
   label?: string;
+  /** Rendered under the caption (e.g. a "still waiting" hint and its action). */
+  children?: ReactNode;
 }
 
-export function AppLoader({ label = "Loading your workspace…" }: Props) {
+export function AppLoader({ label = "Loading your workspace…", children }: Props) {
   return (
     <div
       className="fixed inset-0 z-50 grid place-items-center bg-bg"
@@ -55,7 +60,7 @@ export function AppLoader({ label = "Loading your workspace…" }: Props) {
       aria-live="polite"
       data-testid="app-loader"
     >
-      <LoaderBody label={label} />
+      <LoaderBody label={label}>{children}</LoaderBody>
     </div>
   );
 }
