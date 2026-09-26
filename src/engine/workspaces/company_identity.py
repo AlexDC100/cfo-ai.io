@@ -174,8 +174,11 @@ class CompanyIdentity:
     industry_key: Optional[str] = None
     sources: Dict[str, Dict[str, str]] = field(default_factory=dict, hash=False)
     #: "trial_balance" (account rows read), "not_a_balance" (readable text,
-    #: no account rows — e.g. a delegation itinerary), "uncertain",
-    #: "unreadable" (no bytes / unparseable / image-only).
+    #: no account rows AND none of the signals a balance carries — a printed
+    #: CUI, a balance title, ledger columns; e.g. a delegation itinerary),
+    #: "uncertain" (too few rows read — a layout the reader refused is
+    #: never condemned as "not a balance"), "unreadable" (no bytes /
+    #: unparseable / image-only).
     document_kind: str = "uncertain"
 
     @property
@@ -450,6 +453,34 @@ def _header_cui(lines: Sequence[str]) -> Optional[Tuple[str, str]]:
             if cui:
                 return cui, line.strip()[:160]
     return None
+
+
+#: A balance names itself ("Balanta de verificare", "Balanță", "trial
+#: balance") and its columns (sold / rulaj / debit / credit / cont).
+_BALANCE_TITLE_RE = re.compile(r"(?i)\bbalan[tţț][aăâ]?\b|\btrial\s*balance\b")
+_LEDGER_WORDS_RE = re.compile(r"(?i)\b(?:sold(?:uri)?|rulaj(?:e)?|debit(?:oare)?|credit(?:oare)?|cont(?:uri)?)\b")
+
+
+def balance_signals(lines: Sequence[str], filename: Optional[str], printed_cui: Optional[str]) -> List[str]:
+    """Why readable text with no account rows is still NOT "demonstrably
+    not a trial balance": the header prints a CUI, the header (or the file)
+    names a balance in its title, or the header carries the ledger's column
+    vocabulary. Any of these means the row READER refused the layout — the
+    2026-09-26 case: a balanță whose rows the deterministic readers could
+    not parse, whose header printed the company and its CUI, was classified
+    not_a_balance, archived and moved into a holding archive."""
+    out: List[str] = []
+    if printed_cui:
+        out.append("prints CUI %s" % printed_cui)
+    text = "\n".join(lines)
+    if _BALANCE_TITLE_RE.search(text):
+        out.append("a balance title in the header")
+    elif filename and _BALANCE_TITLE_RE.search(str(filename)):
+        out.append("a balance title in the filename")
+    words = sorted({m.group(0).lower()[:4] for m in _LEDGER_WORDS_RE.finditer(text)})
+    if len(words) >= 2:
+        out.append("ledger columns (%s)" % ", ".join(words))
+    return out
 
 
 def _digits_in(lines: Sequence[str], cui: str) -> bool:
@@ -1032,6 +1063,25 @@ def identify_text(doc: DocumentText, filename: Optional[str], *, registry: Any =
     if period_src:
         sources["period_end"] = period_src
 
+    # "not_a_balance" is asserted ONLY when the bytes were parsed and are
+    # demonstrably not a trial balance: readable text, no account rows, and
+    # none of the signals a balance carries. A balance whose row layout the
+    # reader refused is "uncertain" — the failure is the reader's.
+    kind = doc.document_kind
+    if kind == "not_a_balance":
+        signals = balance_signals(lines, filename, found[0] if found else None)
+        if signals:
+            kind = "uncertain"
+            sources["document_kind"] = {
+                "signal": "unparsed_balance",
+                "evidence": "%d account row(s) read, yet %s — the reader refused the layout, the document "
+                            "is not condemned" % (doc.account_lines, "; ".join(signals))}
+        else:
+            sources["document_kind"] = {
+                "signal": "not_a_balance",
+                "evidence": "readable text (%d chars), %d account row(s), no CUI, no balance title, no ledger "
+                            "columns" % (doc.text_chars, doc.account_lines)}
+
     return CompanyIdentity(
         cui=cui,
         company_name=company_name,
@@ -1039,7 +1089,7 @@ def identify_text(doc: DocumentText, filename: Optional[str], *, registry: Any =
         caen_code=caen,
         industry_key=industry,
         sources=sources,
-        document_kind=doc.document_kind,
+        document_kind=kind,
     )
 
 

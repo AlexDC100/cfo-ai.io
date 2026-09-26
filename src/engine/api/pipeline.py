@@ -6454,11 +6454,36 @@ def _serialize_valuation(valuation: Optional[Dict[str, Any]],
     }
 
 
+def _workspace_is_archived(client: Any, org_id: Optional[str]) -> bool:
+    """True when `org_id` names an ARCHIVED workspace (`organizations.
+    archived_at` set — in its recovery window or HELD by the workspace
+    migration, `purge_after` NULL). Nothing in an archived workspace is
+    shown anywhere, so nothing in it may be hard-deleted through the
+    product: `clear_recently_deleted` answers such a workspace with
+    nothing, and `delete_period`, `permanent_delete_document` and the
+    empty-period drop refuse it (2026-09-26 — a held archive keeps the
+    originals a migration rollback points documents back at, and
+    `financial_periods.source_document_id` is ON DELETE CASCADE). An org
+    that cannot be read is treated as archived: a hard delete whose
+    workspace cannot be named has no wall to pass."""
+    org = str(org_id or "").strip()
+    if not org:
+        return True
+    rows = client.select("organizations", filters={"id": f"eq.{org}"}, columns="id,archived_at", limit=1)
+    if not rows:
+        return True
+    return rows[0].get("archived_at") is not None
+
+
 def _maybe_drop_empty_period(period_id: str, *, org_id: str = "") -> None:
     """Hard-delete the period row when NO documents (live OR soft-deleted)
     reference it. Skipped when the period was created < 5 minutes ago
     (safety window — a freshly-uploaded doc may not yet have stage_persist
-    pinned its period_id, and we don't want to race-delete its parent).
+    pinned its period_id, and we don't want to race-delete its parent), and
+    REFUSED when the period's workspace is archived (`_workspace_is_archived`:
+    a held archive's periods are shown nowhere and must outlive any
+    per-document cleanup; the rollback of the workspace migration needs
+    them).
 
     Bug-A fix (May 2026): previously this NULLed sibling documents'
     period_id BEFORE dropping the period, then deleted the period. With
@@ -6486,6 +6511,11 @@ def _maybe_drop_empty_period(period_id: str, *, org_id: str = "") -> None:
             single=True,
         )
         if not period_rows:
+            return
+        # An archived workspace's period is never dropped: its trash is
+        # shown nowhere, and a held archive is the migration's to keep.
+        if _workspace_is_archived(client, org_id or period_rows[0].get("org_id")):
+            logger.info("[docs] period %s is in an archived workspace — not dropped", period_id)
             return
         created_at = period_rows[0].get("created_at")
         if created_at:
@@ -7638,6 +7668,13 @@ def build_router() -> APIRouter:
         # Storage + cascade cleanup use the admin client (RLS doesn't gate
         # us once we've passed the membership wall above).
         with _supabase.admin() as admin:
+            # Never in an archived workspace: its trash is shown nowhere,
+            # and a held archive keeps the originals the workspace
+            # migration's rollback points documents back at.
+            if _workspace_is_archived(admin, doc.get("org_id")):
+                raise HTTPException(
+                    409, "This document's workspace is archived; restore the workspace before "
+                         "permanently deleting anything in it.")
             # 1) Remove the underlying blob. Log + continue on failure — a
             # missing blob shouldn't block the DB cleanup.
             if storage_path:
@@ -10219,6 +10256,14 @@ def build_router() -> APIRouter:
         # underlying Storage blob recoverable from "Recently deleted" for 30
         # days. (The cleanup-cron handles the hard-delete after that.)
         with _supabase.admin() as ac:
+            # 1c. Never in an archived workspace (2026-09-26): nothing in it
+            # is shown, and a HELD archive (the workspace migration's) keeps
+            # the periods and originals its rollback needs. Restore the
+            # workspace first, then clear.
+            if _workspace_is_archived(ac, org_id):
+                raise HTTPException(
+                    409, "This period's workspace is archived; restore the workspace before "
+                         "clearing a period in it.")
             attached = ac.select(
                 "documents",
                 filters={"period_id": f"eq.{period_id}"},

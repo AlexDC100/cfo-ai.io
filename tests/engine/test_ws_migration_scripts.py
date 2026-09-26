@@ -5,9 +5,11 @@ REFUSES every DELETE.
 
 The double is not production: it cannot prove what PostgREST accepts. What
 these prove is the scripts' own contract — the dry-run writes nothing, the
-execute refuses on drift / a different plan, applies exactly the plan, is a
-no-op when re-run, survives an interruption, the recount agrees, and the
-restore puts every snapshot row back without a single delete.
+execute refuses on drift / a different plan / no reviewed plan sha, applies
+exactly the plan, is a no-op when re-run, survives an interruption, the
+recount agrees (rows, copies, every moved document's object), and the
+rollback undoes exactly the plan's own writes — without a single delete,
+and without touching what users did after the run.
 """
 from __future__ import annotations
 
@@ -19,10 +21,18 @@ from pathlib import Path
 import pytest
 
 from engine.workspaces import pgrest_io
-from engine.workspaces.migration_plan import cross_workspace_links, empty_live_periods, holding_org_id
-from engine.workspaces.rowstore import OpConflict, pk_for, row_key, rows_equal
+from engine.workspaces.migration_plan import (
+    cross_workspace_links,
+    empty_live_periods,
+    holding_org_id,
+    new_org_id,
+    period_source_hazards,
+)
+from engine.workspaces.rowstore import OpConflict, pk_for, row_key, rows_equal, same_value, undo_ops
 
-from ws_migration_fixture import OWNER, FakeSupabase, build_world
+from ws_migration_fixture import (
+    BETA, GAMMA, OWNER, SOLO, SOLO_USER, FakeSupabase, build_world, plant_second_user_move,
+)
 
 REPO = Path(__file__).resolve().parents[2]
 RUN = "2026-09-21T15:00:00+00:00"
@@ -66,8 +76,30 @@ def _migrate(env, *extra, snap=None):
                               now=RUN, registry=None)
 
 
+def _plan_path(env):
+    return str(env["tmp"] / "out" / "plan_2026-09-21.json")
+
+
+def _plan(env):
+    return json.loads(Path(_plan_path(env)).read_text())
+
+
 def _plan_sha(env):
-    return json.loads((env["tmp"] / "out" / "plan_2026-09-21.json").read_text())["ops_sha256"]
+    return _plan(env)["ops_sha256"]
+
+
+def _rollback(env, snap, *extra, now="2026-09-22T00:00:00+00:00"):
+    return restore_cli.main([snap, "--plan", _plan_path(env)] + list(extra), client_factory=env["fake"].client,
+                            out=env["out"], now=now)
+
+
+def _migrated(env):
+    """snapshot -> dry-run -> execute; returns the snapshot path."""
+    snap = _snapshot(env)
+    assert _migrate(env, snap=snap) == 0
+    assert _migrate(env, "--execute", "--expect-plan-sha", _plan_sha(env), snap=snap) == 0, \
+        "\n".join(env["lines"][-20:])
+    return snap
 
 
 # ── snapshot ───────────────────────────────────────────────────────────
@@ -145,9 +177,26 @@ def test_a_second_run_on_a_fresh_snapshot_does_nothing(env):
     assert _migrate(env, "--execute", "--expect-plan-sha", _plan_sha(env), snap=snap) == 0
     writes = len(env["fake"].writes)
     snap2 = _snapshot(env, "snap2.json.gz")
-    assert _migrate(env, "--execute", snap=snap2) == 0
+    assert _migrate(env, snap=snap2) == 0      # the empty plan, reviewed like any other
+    assert _migrate(env, "--execute", "--expect-plan-sha", _plan_sha(env), snap=snap2) == 0
     assert any("NOTHING TO DO" in l for l in env["lines"])
     assert len(env["fake"].writes) == writes
+
+
+def test_execute_refuses_without_the_reviewed_plan_sha(env):
+    """Verifier p6-g (2026-09-26): the plan is recomputed at execute time,
+    and one transient storage 404 in that facts pass dropped a copy from it
+    (604 ops instead of the reviewed 605); with --expect-plan-sha optional
+    the un-reviewed plan ran and a document row moved to a path with no
+    object. --execute without the reviewed sha is refused before anything
+    is read."""
+    snap = _snapshot(env)
+    assert _migrate(env, snap=snap) == 0
+    with pytest.raises(SystemExit, match="--expect-plan-sha"):
+        _migrate(env, "--execute", snap=snap)
+    with pytest.raises(SystemExit, match="--expect-plan-sha"):
+        _migrate(env, "--execute", "--resume", snap=snap)
+    assert env["fake"].writes == []
 
 
 def test_an_interrupted_run_resumes_to_the_same_result(env, monkeypatch):
@@ -210,6 +259,131 @@ def test_execute_refuses_while_the_purge_hold_guard_is_missing(env):
     assert _migrate(env, "--execute", "--expect-plan-sha", _plan_sha(env), snap=snap) == 2
     assert any("hold guard is not installed" in l for l in env["lines"])
     assert env["fake"].writes == []
+
+
+def test_execute_refuses_while_the_archive_hold_guard_is_missing(env):
+    """The archive-guard item (2026-09-26): the plan's held archives are safe from "Delete
+    forever" only. Without supabase/schema_phase_archive_hold_guard.sql,
+    archive_workspace() gives a held archive a deletion date (the cron
+    purge erases it a month later) and restore_workspace() lets its owner
+    bring it back live. The dry-run says so; --execute refuses before any
+    write — with the purge guard present."""
+    env["fake"].rpcs = {"workspace_hold_guard_version"}
+    snap = _snapshot(env)
+    assert _migrate(env, snap=snap) == 0
+    assert any(l.startswith("ARCHIVE HOLD GUARD MISSING") and "schema_phase_archive_hold_guard.sql" in l
+               for l in env["lines"])
+    assert not any(l.startswith("HOLD GUARD MISSING") for l in env["lines"])
+    assert _migrate(env, "--execute", "--expect-plan-sha", _plan_sha(env), snap=snap) == 2
+    assert any("REFUSED: the archive/restore hold guard is not installed" in l for l in env["lines"])
+    assert env["fake"].writes == []
+    # both markers present: the same plan executes
+    env["fake"].rpcs = {"workspace_hold_guard_version", "workspace_archive_hold_guard_version"}
+    assert _migrate(env, "--execute", "--expect-plan-sha", _plan_sha(env), snap=snap) == 0, env["lines"][-6:]
+
+
+BOTH_SQL = "supabase/schema_phase_workspace_purge_now_hold.sql, supabase/schema_phase_archive_hold_guard.sql"
+
+
+def test_the_acceptance_flag_runs_past_missing_hold_guards_under_a_loud_warning(env):
+    """The owner applies the two guard files AFTER the run (2026-09-26).
+    Without --i-accept-missing-archive-guard the refusal is exactly as
+    before; with it the run proceeds, a WARNING block naming the exact SQL
+    files and the risk heads and ends the run output, and the very last
+    line is "SQL STILL TO APPLY: <files>" — as it is for every run whose
+    guard is missing, the dry-run and the refusal included."""
+    fake = env["fake"]
+    fake.rpcs = set()                                     # both guards missing
+    snap = _snapshot(env)
+    assert _migrate(env, snap=snap) == 0
+    assert env["lines"][-2] == "SQL STILL TO APPLY: " + BOTH_SQL and env["lines"][-1].startswith("DRY-RUN")
+    sha = _plan_sha(env)
+    # without the flag: refused exactly as before, the SQL named last
+    env["lines"].clear()
+    assert _migrate(env, "--execute", "--expect-plan-sha", sha, snap=snap) == 2
+    assert "REFUSED: the purge_workspace hold guard is not installed (see HOLD GUARD MISSING)." in env["lines"]
+    assert env["lines"][-1] == "SQL STILL TO APPLY: " + BOTH_SQL
+    assert fake.writes == [] and not any(l.startswith("WARNING") for l in env["lines"])
+    # with the flag: the run proceeds, warned at the top and at the bottom
+    env["lines"].clear()
+    assert _migrate(env, "--execute", "--expect-plan-sha", sha, "--i-accept-missing-archive-guard", snap=snap) == 0, \
+        "\n".join(env["lines"][-12:])
+    lines = env["lines"]
+    warn = [i for i, l in enumerate(lines) if l.startswith("WARNING: HOLD GUARD(S) NOT INSTALLED")]
+    exec_at = next(i for i, l in enumerate(lines) if l.startswith("EXECUTE at"))
+    recount = next(i for i, l in enumerate(lines) if l.startswith("RECOUNT: production equals the plan"))
+    assert len(warn) == 2 and warn[0] < exec_at < recount < warn[1], (warn, exec_at, recount)
+    # the held archives of this plan: the holding workspace and the split Q&A
+    held = [op for op in _plan(env)["ops"] if op.get("table") == "organizations"
+            and (op.get("row") or op.get("set")).get("archived_at") == "$now"
+            and (op.get("row") or op.get("set")).get("purge_after") is None]
+    assert len(held) == 2
+    for start in warn:
+        block = "\n".join(lines[start:start + 9])
+        assert "supabase/schema_phase_workspace_purge_now_hold.sql" in block
+        assert "supabase/schema_phase_archive_hold_guard.sql" in block
+        assert "purged by a direct RPC call" in block and "archives 2 workspace(s) with no deletion date (HELD)" in block
+    assert lines[-1] == "SQL STILL TO APPLY: " + BOTH_SQL
+    assert fake.deletes == []
+    run = json.loads(next((env["tmp"] / "out").glob("run_2026*.json")).read_text())
+    assert run["sql_still_to_apply"] == ["supabase/schema_phase_workspace_purge_now_hold.sql",
+                                         "supabase/schema_phase_archive_hold_guard.sql"]
+
+
+def test_the_acceptance_flag_names_only_the_guard_that_is_missing(env):
+    fake = env["fake"]
+    fake.rpcs = {"workspace_hold_guard_version"}          # only the archive guard missing
+    snap = _snapshot(env)
+    assert _migrate(env, snap=snap) == 0
+    assert env["lines"][-2] == "SQL STILL TO APPLY: supabase/schema_phase_archive_hold_guard.sql"
+    sha = _plan_sha(env)
+    env["lines"].clear()
+    assert _migrate(env, "--execute", "--expect-plan-sha", sha, snap=snap) == 2
+    assert "REFUSED: the archive/restore hold guard is not installed (see ARCHIVE HOLD GUARD MISSING)." in env["lines"]
+    assert env["lines"][-1] == "SQL STILL TO APPLY: supabase/schema_phase_archive_hold_guard.sql" and fake.writes == []
+    env["lines"].clear()
+    assert _migrate(env, "--execute", "--expect-plan-sha", sha, "--i-accept-missing-archive-guard", snap=snap) == 0
+    block = "\n".join(l for l in env["lines"] if l.startswith("WARNING") or l.startswith("  "))
+    assert "schema_phase_archive_hold_guard.sql" in block and "purge_now_hold" not in block
+    assert env["lines"][-1] == "SQL STILL TO APPLY: supabase/schema_phase_archive_hold_guard.sql"
+    # both guards present: no warning, no trailer
+    fake.rpcs = {"workspace_hold_guard_version", "workspace_archive_hold_guard_version"}
+    snap2 = _snapshot(env, "snap2.json.gz")
+    env["lines"].clear()
+    assert _migrate(env, snap=snap2) == 0
+    assert not any("SQL STILL TO APPLY" in l or "GUARD MISSING" in l for l in env["lines"])
+
+
+def test_the_known_identities_file_is_validated_on_load(tmp_path):
+    """A rule that could never match (a misspelt key, no user, neither or
+    both matchers) or that would name a company wrongly (a CUI failing its
+    control digit, a null CUI without a name) is refused by index — never
+    silently ignored."""
+    good = {"user_id": OWNER, "filename_glob": "Balanta Alfa Food_*", "cui": "RO " + SOLO,
+            "company_name": "SOLO SERVICES SRL", "caen_code": "6201", "evidence": "synthetic"}
+    named = {"user_id": OWNER, "content_sha256": "ab" * 32, "cui": None, "company_name": "Carnex"}
+
+    def load(*rules, bare=False):
+        p = tmp_path / "known.json"
+        p.write_text(json.dumps(list(rules) if bare else {"version": 2, "rules": list(rules)}))
+        return migration_cli.load_known_identities(str(p))
+
+    assert load(good, named) == [good, named]
+    assert load(good, bare=True) == [good]
+    assert migration_cli.load_known_identities(None) == []
+    for bad, why in (
+        (dict(good, filename_globb="x"), "unknown key"),
+        ({k: v for k, v in good.items() if k != "user_id"}, "user_id is required"),
+        (dict(good, content_sha256="ab" * 32), "exactly one of"),
+        ({k: v for k, v in good.items() if k != "filename_glob"}, "exactly one of"),
+        (dict(named, content_sha256="zz"), "64 hex"),
+        (dict(good, cui="12345678"), "control digit"),
+        ({k: v for k, v in good.items() if k != "cui"}, "cui is required"),
+        ({k: v for k, v in named.items() if k != "company_name"}, "must name the company"),
+        (dict(good, caen_code="ABCD"), "caen_code"),
+    ):
+        with pytest.raises(SystemExit, match=why):
+            load(good, bad)                                # the bad one is rule #1
 
 
 def _interrupt_on(monkeypatch, nth):
@@ -289,6 +463,75 @@ def test_a_copy_whose_source_vanished_after_planning_stops_before_any_row_moves(
     assert not [w for w in env["fake"].writes if w[0] == "patch" and w[1] == "documents"]
 
 
+def _second_user_moves_too(env):
+    """The second user's workspace gets a document of another company (a
+    copy in ITS block of the plan); the snapshot is taken after."""
+    fake = env["fake"]
+    storage = {k[len("documents/"):]: v for k, v in fake.objects.items()}
+    did = plant_second_user_move(fake.tables, storage)
+    path = "org-solo/uploads/%s.pdf" % did
+    fake.objects["documents/" + path] = storage[path]
+    env["pre"] = copy.deepcopy(fake.tables)
+    return did
+
+
+def test_every_storage_copy_lands_before_the_first_row_write(env):
+    """Rule 9's order on the wire: on a full run every upload the double
+    records precedes every row write — the copies of BOTH users."""
+    did = _second_user_moves_too(env)
+    snap = _snapshot(env)
+    assert _migrate(env, snap=snap) == 0
+    plan = _plan(env)
+    copies = [op for op in plan["ops"] if op["op"] == "copy_object"]
+    assert {op["from_org"] for op in copies} >= {"org-qa", "org-solo"}
+    assert _migrate(env, "--execute", "--expect-plan-sha", plan["ops_sha256"], snap=snap) == 0, \
+        "\n".join(env["lines"][-20:])
+    kinds = [w[0] for w in env["fake"].writes]
+    assert "upload" in kinds and kinds.index("upload") == 0
+    last_upload = max(i for i, k in enumerate(kinds) if k == "upload")
+    first_row = min(i for i, k in enumerate(kinds) if k != "upload")
+    assert last_upload < first_row, kinds[:40]
+    moved = next(d for d in env["fake"].tables["documents"] if d["id"] == did)
+    assert moved["org_id"] == new_org_id(SOLO_USER, "cui:" + BETA)
+    assert ("documents/" + moved["storage_path"]) in env["fake"].objects
+
+
+def test_a_copy_conflict_in_a_later_users_block_leaves_no_user_half_applied(env, monkeypatch):
+    """Verifier (2026-09-26): the plan was emitted per user — the first
+    user's inserts and row moves, THEN the second user's copies. The
+    second user's copy source vanishing at copy time stopped the run with
+    the first user fully migrated and the second not at all: a half-applied
+    production that only --resume could finish. Now every copy of every
+    user precedes the first row operation: the same conflict stops the run
+    before ONE row has been written, for anybody."""
+    did = _second_user_moves_too(env)
+    snap = _snapshot(env)
+    assert _migrate(env, snap=snap) == 0
+    sha = _plan_sha(env)
+    real = pgrest_io.PgRest.download
+    seen = {"n": 0}
+
+    def vanishing(self, bucket, path, *, org_id):
+        if path == "org-solo/uploads/%s.pdf" % did:
+            seen["n"] += 1
+            if seen["n"] > 1:          # the facts pass read it; the copy step does not find it
+                return None
+        return real(self, bucket, path, org_id=org_id)
+
+    monkeypatch.setattr(pgrest_io.PgRest, "download", vanishing)
+    with pytest.raises(OpConflict, match="%s.pdf: the object the plan read" % did):
+        _migrate(env, "--execute", "--expect-plan-sha", sha, snap=snap)
+    fake = env["fake"]
+    assert fake.row_writes() == [], "rows were written before the copy conflict: %s" % fake.row_writes()[:5]
+    assert [w for w in fake.writes if w[0] == "upload"], "the earlier copies did land (idempotent residue)"
+    # production is still the snapshot: no --resume needed, a plain re-run
+    # (once the object is back) applies the whole reviewed plan
+    assert snapshot_cli.main(["--verify", snap], client_factory=fake.client, out=env["out"]) == 0
+    monkeypatch.setattr(pgrest_io.PgRest, "download", real)
+    assert _migrate(env, "--execute", "--expect-plan-sha", sha, snap=snap) == 0, "\n".join(env["lines"][-12:])
+    assert any(l.startswith("RECOUNT: production equals the plan") for l in env["lines"])
+
+
 def test_a_copy_with_the_wrong_bytes_fails_the_recount(env, monkeypatch):
     """PLANT: the storage write lands different bytes (a truncated upload).
     The recount compares every copied object with the sha256 the plan read."""
@@ -333,12 +576,174 @@ def test_execute_refuses_a_snapshot_of_another_database(env):
     raw["source"] = "https://another-project.supabase.co"
     with gzip.open(snap_path, "wb") as fh:
         fh.write(json.dumps(raw).encode("utf-8"))
-    assert _migrate(env, "--execute", "--resume", snap=snap_path) == 2
+    assert _migrate(env, "--execute", "--resume", "--expect-plan-sha", "0" * 64, snap=snap_path) == 2
     assert any(l.startswith("SOURCE MISMATCH") for l in env["lines"])
     assert env["fake"].writes == []
 
 
-# ── restore ────────────────────────────────────────────────────────────
+def test_a_document_whose_object_cannot_be_read_when_planning_blocks_the_plan(env):
+    """Verifier p6 (2026-09-26): a document identified by an operator rule
+    keeps its identity without its bytes, so a 404 during the facts pass
+    silently dropped its copy_object (the planner's "object_exists is
+    False -> no copy, row still moves" branch) while the row still moved.
+    The snapshot's object inventory recorded the object: the plan is
+    BLOCKING for that document — the row does not move without its file —
+    and --execute refuses."""
+    snap = _snapshot(env)
+    fake = env["fake"]
+    assert pgrest_io.load_snapshot(snap)["objects"]["q-carnex-src"]["exists"] is True
+    gone = fake.objects.pop("documents/org-qa/uploads/q-carnex-src.xlsx")   # a 404 from now on
+    assert _migrate(env, snap=snap) == 0
+    plan = _plan(env)
+    blocking = [b for b in plan["blocking"] if b.startswith("document q-carnex-src ")]
+    assert blocking and "could not be read when planning" in blocking[0] \
+        and "inventory recorded it" in blocking[0], plan["blocking"]
+    assert not [op for op in plan["ops"] if op.get("table") == "documents" and op.get("key") == {"id": "q-carnex-src"}]
+    assert not [op for op in plan["ops"] if op["op"] == "copy_object" and op["document_id"] == "q-carnex-src"]
+    assert _migrate(env, "--execute", "--expect-plan-sha", plan["ops_sha256"], snap=snap) == 2
+    assert any("REFUSED" in l and "blocking" in l for l in env["lines"])
+    assert fake.writes == []
+    # the object is back: the plan moves the document with a verified copy
+    fake.objects["documents/org-qa/uploads/q-carnex-src.xlsx"] = gone
+    assert _migrate(env, snap=snap) == 0
+    plan = _plan(env)
+    assert plan["blocking"] == []
+    copy_op = next(op for op in plan["ops"] if op["op"] == "copy_object" and op["document_id"] == "q-carnex-src")
+    assert copy_op["expect_sha256"] and copy_op["must_exist"] is True
+    # ... and a transient 404 during the EXECUTE-time facts pass changes the
+    # plan (blocking, fewer ops): the reviewed sha refuses it, nothing written
+    sha = plan["ops_sha256"]
+    real = fake.handle
+    hits = {"n": 0}
+
+    def transient(req):
+        if req.method == "POST" and req.url.path.endswith("/object/sign/documents/org-qa/uploads/q-carnex-src.xlsx"):
+            hits["n"] += 1
+            if hits["n"] == 1:
+                import httpx
+                return httpx.Response(400, json={"statusCode": "404", "error": "not_found"})
+        return real(req)
+
+    fake.handle = transient
+    assert _migrate(env, "--execute", "--expect-plan-sha", sha, snap=snap) == 2
+    fake.handle = real
+    assert fake.writes == []
+    assert any(l.startswith("REFUSED") for l in env["lines"])
+
+
+def test_a_document_the_snapshot_recorded_without_an_object_still_moves(env):
+    """The one case a row moves without a file: the object was missing when
+    the snapshot was taken AND when planning (a failed upload whose object
+    never landed). Its copy is opportunistic (must_exist false), the run
+    logs it, and the recount does not require the object."""
+    snap = _snapshot(env)
+    assert pgrest_io.load_snapshot(snap)["objects"]["d-beta-fail-2"]["exists"] is False
+    assert _migrate(env, snap=snap) == 0
+    plan = _plan(env)
+    copy_op = next(op for op in plan["ops"] if op["op"] == "copy_object" and op["document_id"] == "d-beta-fail-2")
+    assert copy_op["must_exist"] is False and copy_op["expect_sha256"] is None
+    assert any("d-beta-fail-2" in w and "was missing when the snapshot was taken" in w for w in plan["warnings"])
+    assert _migrate(env, "--execute", "--expect-plan-sha", plan["ops_sha256"], snap=snap) == 0
+    assert any("[" in l and "d-beta-fail-2" in l and "row still moves" in l for l in env["lines"])
+    assert any(l.startswith("RECOUNT: production equals the plan") for l in env["lines"])
+    moved = next(d for d in env["fake"].tables["documents"] if d["id"] == "d-beta-fail-2")
+    assert moved["org_id"] == new_org_id(OWNER, "cui:" + BETA)
+
+
+def test_a_copy_the_snapshot_recorded_that_is_gone_at_copy_time_stops_the_run(env, monkeypatch):
+    """A copy without a sha (the facts pass never read the bytes — a
+    non-financial source, say) whose source is gone at copy time: the
+    inventory recorded the object, so the run stops before any document
+    row moves — never "row still moves"."""
+    snap = _snapshot(env)
+    real_build = migration_cli.build_plan
+
+    def unread(*a, **kw):
+        built = real_build(*a, **kw)
+        built.ops = [dict(op, expect_sha256=None) if op["op"] == "copy_object" and op["document_id"] == "q-carnex-src"
+                     else op for op in built.ops]
+        return built
+
+    monkeypatch.setattr(migration_cli, "build_plan", unread)
+    assert _migrate(env, snap=snap) == 0
+    sha = _plan_sha(env)
+    op = next(op for op in _plan(env)["ops"] if op["op"] == "copy_object" and op["document_id"] == "q-carnex-src")
+    assert op["expect_sha256"] is None and op["must_exist"] is True
+    real = pgrest_io.PgRest.download
+    seen = {"n": 0}
+
+    def vanishing(self, bucket, path, *, org_id):
+        if path == "org-qa/uploads/q-carnex-src.xlsx":
+            seen["n"] += 1
+            if seen["n"] > 1:          # the facts pass got it; the copy does not
+                return None
+        return real(self, bucket, path, org_id=org_id)
+
+    monkeypatch.setattr(pgrest_io.PgRest, "download", vanishing)
+    with pytest.raises(OpConflict, match="q-carnex-src.xlsx: the object is gone, and the snapshot recorded it present"):
+        _migrate(env, "--execute", "--expect-plan-sha", sha, snap=snap)
+    assert not [w for w in env["fake"].writes if w[0] == "patch" and w[1] == "documents"]
+
+
+def test_the_recount_checks_a_re_dated_periods_records_not_only_the_plans_columns(env, monkeypatch):
+    """PLANT: a plan that re-dates the row but forgot the §7 detection
+    envelope (its op stripped of the column, set and expect alike). The
+    plan is internally consistent, so it runs; the recount must read the
+    period's stored records against its row and fail naming the envelope
+    — never "production equals the plan" over a period whose envelope
+    still says another date."""
+    snap = _snapshot(env)
+    real_build = migration_cli.build_plan
+
+    def forgetting_the_envelope(*a, **kw):
+        built = real_build(*a, **kw)
+        for op in built.ops:
+            if op.get("table") == "financial_periods" and op.get("key") == {"id": "per-carnex"} \
+                    and "period_end" in op["set"]:
+                op["set"].pop("detection_envelope", None)
+                op["expect"].pop("detection_envelope", None)
+        return built
+
+    monkeypatch.setattr(migration_cli, "build_plan", forgetting_the_envelope)
+    assert _migrate(env, snap=snap) == 0
+    assert _plan(env)["blocking"] == []
+    assert _migrate(env, "--execute", "--expect-plan-sha", _plan_sha(env), snap=snap) == 1
+    row = next(p for p in env["fake"].tables["financial_periods"] if p["id"] == "per-carnex")
+    assert row["period_end"] == "2025-12-31" and row["detection_envelope"]["period_end"] == "2026-09-20"
+    assert any(l.startswith("RECOUNT: FAILED") for l in env["lines"])
+    assert any("MISMATCH: RE-DATED period per-carnex: detection_envelope.period_end says 2026-09-20, the row "
+               "2025-12-31" in l for l in env["lines"]), "\n".join(env["lines"][-12:])
+    # the real plan carries the envelope: the run ends with every record agreeing
+    monkeypatch.setattr(migration_cli, "build_plan", real_build)
+    env["lines"].clear()
+
+
+def test_the_recount_checks_every_moved_documents_object_not_only_the_planned_copies(env, monkeypatch):
+    """PLANT the p6 shape at the recount: a plan that LOST a copy (its copy
+    op stripped) but still moves the row. 8ff706e3's recount verified the
+    planned copies only, so it said "production equals the plan" while the
+    document pointed at a path with nothing under it. Every moved
+    document's storage_path must resolve."""
+    snap = _snapshot(env)
+    real_build = migration_cli.build_plan
+
+    def losing_a_copy(*a, **kw):
+        built = real_build(*a, **kw)
+        built.ops = [op for op in built.ops
+                     if not (op["op"] == "copy_object" and op["document_id"] == "q-carnex-src")]
+        return built
+
+    monkeypatch.setattr(migration_cli, "build_plan", losing_a_copy)
+    assert _migrate(env, snap=snap) == 0
+    assert _migrate(env, "--execute", "--expect-plan-sha", _plan_sha(env), snap=snap) == 1
+    moved = next(d for d in env["fake"].tables["documents"] if d["id"] == "q-carnex-src")
+    assert moved["org_id"] != "org-qa" and ("documents/" + moved["storage_path"]) not in env["fake"].objects
+    assert any(l.startswith("RECOUNT: FAILED") for l in env["lines"])
+    assert any("MISMATCH: storage" in l and "q-carnex-src" in l and "no object" in l for l in env["lines"]), \
+        "\n".join(env["lines"][-12:])
+
+
+# ── rollback ───────────────────────────────────────────────────────────
 
 
 def test_the_snapshot_records_which_document_objects_existed(env):
@@ -350,16 +755,165 @@ def test_the_snapshot_records_which_document_objects_existed(env):
     assert env["fake"].writes == []
 
 
-def test_a_restore_after_a_purge_erased_the_originals_is_not_a_clean_rollback(env):
+def _plant_after_the_run(env):
+    """What users do between the run and a rollback: a new upload in the
+    company workspace (document + period + metric + object), a workspace
+    the owner creates (with membership and prefs), a preference changed
+    on a row the plan stamped, an onboarding prefs row on a pre-existing
+    workspace the plan never named, a renamed and continued conversation."""
+    fake = env["fake"]
+    tmpl = next(d for d in fake.tables["documents"] if d["id"] == "d-sf25-lv")
+    doc = dict(tmpl, id="d-new-upload", original_filename="Balanta Alfa Food_31.01.2026.xlsx",
+               period_id="per-new", content_hash="f" * 64, created_at="2026-09-22T08:00:00+00:00",
+               updated_at="2026-09-22T08:00:00+00:00", storage_path="org-sf/uploads/d-new-upload.xlsx",
+               period_end_hint="2026-01-31", deleted_at=None, error=None)
+    fake.tables["documents"].append(doc)
+    fake.objects["documents/" + doc["storage_path"]] = b"PK-new-upload-bytes"
+    per = dict(next(p for p in fake.tables["financial_periods"] if p["id"] == "per-sf25"), id="per-new",
+               period_start="2026-01-31", period_end="2026-01-31", source_document_id="d-new-upload",
+               created_at="2026-09-22T08:01:00+00:00", updated_at="2026-09-22T08:01:00+00:00")
+    fake.tables["financial_periods"].append(per)
+    fake.tables["calculated_metrics"].append(dict(next(m for m in fake.tables["calculated_metrics"]
+                                                       if m["period_id"] == "per-sf25"),
+                                                  id="cm-new", period_id="per-new"))
+    fake.tables["organizations"].append(dict(next(o for o in fake.tables["organizations"] if o["id"] == "org-sf"),
+                                             id="org-new", name="Alfa Retail SRL", archived_at=None,
+                                             purge_after=None, created_at="2026-09-22T09:00:00+00:00"))
+    fake.tables["memberships"].append({"org_id": "org-new", "user_id": OWNER, "role": "owner",
+                                       "created_at": "2026-09-22T09:00:00+00:00"})
+    fake.tables["org_prefs"].append({"org_id": "org-new", "prefs": {"display_currency": "EUR"},
+                                     "updated_at": "2026-09-22T09:00:10+00:00"})
+    sf = next(p for p in fake.tables["org_prefs"] if p["org_id"] == "org-sf")
+    assert sf["prefs"].get("cui") == "2000001" + sf["prefs"]["cui"][-1]   # stamped by the plan
+    sf["prefs"] = dict(sf["prefs"], display_currency="EUR")
+    assert not any(p["org_id"] == "org-team" for p in fake.tables["org_prefs"])
+    fake.tables["org_prefs"].append({"org_id": "org-team", "prefs": {"workspace_onboarded": True},
+                                     "updated_at": "2026-09-22T10:30:00+00:00"})
+    th = next(t for t in fake.tables["chat_threads"] if t["id"] == "ct-1")
+    assert th["org_id"] == "org-sf"                                        # moved by the plan
+    th["title"] = "renamed by the owner after the migration"
+    fake.tables["chat_messages"].append({"id": "cm-q-3", "thread_id": "ct-1", "role": "user", "content": "more",
+                                         "grounded_period": None, "created_at": "2026-09-22T11:00:00+00:00"})
+    return copy.deepcopy(fake.tables)
+
+
+def test_the_rollback_undoes_the_plans_own_writes_and_nothing_else(env):
+    """Verifier p2 (2026-09-26): the 8ff706e3 rollback was a table-wide
+    snapshot restore. After a real run it trashed a document uploaded
+    AFTER the snapshot (leaving its period with its source in the trash:
+    a cascade hazard and a G4 offender), archived a workspace the owner had
+    created as a HELD archive (listed nowhere, no user recovery), reverted
+    another user's post-run preference, emptied a pre-existing workspace's
+    NEW org_prefs row (onboarding) and reverted a conversation's title —
+    while printing "every snapshot row is back" and exiting 0. The rollback
+    is now the undo of exactly the plan's operations."""
+    fake = env["fake"]
+    snap = _migrated(env)
+    plan = _plan(env)
+    planted = _plant_after_the_run(env)
+    pks = pgrest_io.snapshot_pks(pgrest_io.load_snapshot(snap))
+    # dry-run: writes nothing
+    env["lines"].clear()
+    writes = len(fake.writes)
+    assert _rollback(env, snap) == 0
+    assert len(fake.writes) == writes and any(l.startswith("DRY-RUN") for l in env["lines"])
+    assert any(l.startswith("UNDO: ") and "0 conflict(s)" in l for l in env["lines"]), env["lines"][-3:]
+    # apply
+    env["lines"].clear()
+    assert _rollback(env, snap, "--apply") == 0, "\n".join(env["lines"][-25:])
+    assert fake.deletes == []
+    assert any(l.startswith("UNDO CHECK: every row the plan touched is back") for l in env["lines"])
+    assert any(l.startswith("STORAGE CHECK: every moved document finds its object") for l in env["lines"])
+    after = fake.tables
+    # every column the plan wrote is back at its pre-image (a second undo finds nothing)
+    again = undo_ops(plan["ops"], after, env["pre"], pks=pks)
+    assert again["ops"] == [] and again["conflicts"] == []
+    for op in plan["ops"]:
+        if op["op"] != "update":
+            continue
+        row = next(r for r in after[op["table"]] if row_key(r, pk_for(op["table"], pks)) ==
+                   row_key(op["key"], pk_for(op["table"], pks)))
+        for c, v in op["expect"].items():
+            assert same_value(row.get(c), v), (op["table"], op["key"], c, row.get(c), v)
+    # the workspaces the plan created are held; the stamp on org-solo is gone
+    pre_orgs = {o["id"] for o in env["pre"]["organizations"]}
+    for w in plan["workspaces"]:
+        if w["action"] == "create":
+            o = next(x for x in after["organizations"] if x["id"] == w["org_id"])
+            assert o["archived_at"] and o["purge_after"] is None, o
+    assert next(p for p in after["org_prefs"] if p["org_id"] == "org-solo")["prefs"] == {}
+    # PLANTED: everything users did after the run is untouched
+    d = next(x for x in after["documents"] if x["id"] == "d-new-upload")
+    assert d["deleted_at"] is None and d["period_id"] == "per-new" and d["error"] is None
+    assert ("documents/" + d["storage_path"]) in fake.objects
+    assert next(p for p in after["financial_periods"] if p["id"] == "per-new")["source_document_id"] == "d-new-upload"
+    assert any(m["id"] == "cm-new" for m in after["calculated_metrics"])
+    assert [h for h in period_source_hazards(after) if h[0] == "per-new"] == []
+    assert [g for g in empty_live_periods(after, current_month="2026-09") if g[0] == "per-new"] == []
+    o = next(x for x in after["organizations"] if x["id"] == "org-new")
+    assert o["archived_at"] is None and o["purge_after"] is None
+    assert next(p for p in after["org_prefs"] if p["org_id"] == "org-new")["prefs"] == {"display_currency": "EUR"}
+    sf = next(p for p in after["org_prefs"] if p["org_id"] == "org-sf")["prefs"]
+    assert sf == {"display_currency": "EUR"}, sf        # the user's change kept, the plan's keys gone
+    assert next(p for p in after["org_prefs"] if p["org_id"] == "org-team")["prefs"] == {"workspace_onboarded": True}
+    th = next(t for t in after["chat_threads"] if t["id"] == "ct-1")
+    assert th["org_id"] == "org-qa" and th["active_period_id"] == "per-q25"      # undone
+    assert th["title"] == "renamed by the owner after the migration"           # kept
+    assert any(m["id"] == "cm-q-3" for m in after["chat_messages"])
+    # rows the plan never named are exactly as planted (updated_at aside)
+    named = {(op["table"], row_key(op.get("row") or op.get("key"), pk_for(op["table"], pks)))
+             for op in plan["ops"] if op["op"] != "copy_object"}
+    for table, rows in planted.items():
+        cur = {row_key(r, pk_for(table, pks)): r for r in after[table]}
+        for r in rows:
+            key = row_key(r, pk_for(table, pks))
+            if (table, key) not in named:
+                assert rows_equal(r, cur[key]), (table, key)
+    # what stays is counted, never deleted
+    residue = [l for l in env["lines"] if l.startswith("RESIDUE: ")]
+    assert residue and "memberships" in residue[0] and "storage copies" in residue[0], env["lines"][-6:]
+    assert all(("documents/" + x["storage_path"]) in fake.objects for x in planted["documents"]
+               if ("documents/" + x["storage_path"]) in fake.objects)
+    # a second rollback finds nothing to do
+    env["lines"].clear()
+    writes = len(fake.writes)
+    assert _rollback(env, snap, "--apply") == 0
+    assert len(fake.writes) == writes
+    assert any(l.startswith("UNDO: 0 operation(s) to apply") for l in env["lines"]), env["lines"][:3]
+
+
+def test_the_rollback_refuses_while_a_row_the_plan_touched_changed_since(env):
+    """A row the plan wrote that a user changed afterwards holds neither
+    the plan's values nor its pre-image: the rollback names it and refuses
+    to write anything; --leave-conflicts undoes everything else, leaves
+    that row as the user left it, and exits 1 (not exact)."""
+    fake = env["fake"]
+    snap = _migrated(env)
+    dup = next(d for d in fake.tables["documents"] if d["id"] == "d-sf24-copy")
+    assert dup["deleted_at"] and dup["error"].startswith("archived: duplicate")   # archived by the plan
+    dup["deleted_at"] = None                                                     # the owner restores it
+    env["lines"].clear()
+    writes = len(fake.writes)
+    assert _rollback(env, snap, "--apply") == 2
+    assert len(fake.writes) == writes
+    assert any(l.startswith("  CONFLICT: documents") and "d-sf24-copy" in l for l in env["lines"])
+    assert any(l.startswith("REFUSED") for l in env["lines"])
+    env["lines"].clear()
+    assert _rollback(env, snap, "--apply", "--leave-conflicts") == 1
+    assert next(d for d in fake.tables["documents"] if d["id"] == "d-sf24-copy")["deleted_at"] is None
+    assert next(p for p in fake.tables["financial_periods"] if p["id"] == "per-beta")["org_id"] == "org-qa"
+    assert any(l.startswith("UNDO CHECK: 1 row(s)") for l in env["lines"]), env["lines"][-6:]
+    assert fake.deletes == []
+
+
+def test_a_rollback_after_a_purge_erased_the_originals_is_not_a_clean_rollback(env):
     """The owner "Delete forever"s the archived Q&A workspace after the
     migration (verifier case 2): _purge_org_data deletes its rows by org_id
-    and every object under 'org-qa/'. db_restore puts every ROW back — and
-    used to print "every snapshot row is back" and exit 0 while 11 restored
-    documents pointed at objects that no longer exist. It must exit 1 and
-    name them."""
-    snap = _snapshot(env)
-    assert _migrate(env, snap=snap) == 0
-    assert _migrate(env, "--execute", "--expect-plan-sha", _plan_sha(env), snap=snap) == 0
+    and every object under 'org-qa/'. The rollback re-inserts the rows the
+    plan named from the snapshot (their pre-image) — and must exit 1 naming
+    the documents whose objects no longer exist, never "every row is back"
+    alone."""
+    snap = _migrated(env)
     fake = env["fake"]
     for key in [k for k in fake.objects if k.startswith("documents/org-qa/")]:
         del fake.objects[key]
@@ -367,84 +921,30 @@ def test_a_restore_after_a_purge_erased_the_originals_is_not_a_clean_rollback(en
         col = "id" if table == "organizations" else "org_id"
         fake.tables[table] = [r for r in fake.tables[table] if r.get(col) != "org-qa"]
     env["lines"].clear()
-    assert restore_cli.main([snap, "--apply", "--tables", "migration"], client_factory=fake.client,
-                            out=env["out"], now="2026-09-22T00:00:00+00:00") == 1
-    assert any(l.startswith("RESTORE CHECK: every snapshot row is back") for l in env["lines"])
+    assert _rollback(env, snap, "--apply") == 1
+    assert any(l.startswith("  re-insert organizations") and "org-qa" in l for l in env["lines"])
+    assert any(l.startswith("UNDO CHECK: every row the plan touched is back") for l in env["lines"])
     missing = [l for l in env["lines"] if l.startswith("  STORAGE MISSING: document q-carnex-src ")]
     assert missing, "\n".join(env["lines"][-20:])
     assert any(l.startswith("STORAGE CHECK: ") and "missing" in l for l in env["lines"])
+    assert next(o for o in fake.tables["organizations"] if o["id"] == "org-qa")["archived_at"] is None
     assert fake.deletes == []
-
-def test_restore_puts_every_snapshot_row_back_without_deleting(env):
-    snap = _snapshot(env)
-    assert _migrate(env, snap=snap) == 0
-    assert _migrate(env, "--execute", "--expect-plan-sha", _plan_sha(env), snap=snap) == 0
-    # the migration stamped a workspace that had no org_prefs row before it
-    solo = [p for p in env["fake"].tables["org_prefs"] if p["org_id"] == "org-solo"]
-    assert solo and solo[0]["prefs"]["company_name"] == "Solo Services SRL", solo
-    env["lines"].clear()
-    assert restore_cli.main([snap], client_factory=env["fake"].client, out=env["out"]) == 0
-    assert any("DRY-RUN" in l for l in env["lines"])
-    assert any(l.startswith("documents") and "changed=" in l for l in env["lines"])
-    writes = len(env["fake"].writes)
-    assert restore_cli.main([snap], client_factory=env["fake"].client, out=env["out"]) == 0
-    assert len(env["fake"].writes) == writes, "the dry-run wrote"
-    with pytest.raises(SystemExit):   # --apply without --tables is refused
-        restore_cli.main([snap, "--apply"], client_factory=env["fake"].client, out=env["out"])
-    assert restore_cli.main([snap, "--apply", "--tables", "migration"], client_factory=env["fake"].client,
-                            out=env["out"], now="2026-09-22T00:00:00+00:00") == 0, "\n".join(env["lines"][-20:])
-    fake = env["fake"]
-    assert fake.deletes == []
-    for table, rows in env["pre"].items():
-        pk = pk_for(table, pgrest_io.snapshot_pks(pgrest_io.load_snapshot(snap)))
-        cur = {row_key(r, pk): r for r in fake.tables[table]}
-        for r in rows:
-            assert rows_equal(r, cur[row_key(r, pk)]), (table, r)
-    pre_orgs = {o["id"] for o in env["pre"]["organizations"]}
-    for o in fake.tables["organizations"]:
-        if o["id"] not in pre_orgs:
-            assert o["archived_at"] and o["purge_after"] is None
-    # Verifier finding (2026-09-21, dsl/p_prefs_residue.py): the identity
-    # stamp the migration CREATED on a pre-existing workspace used to stay,
-    # and the next plan read it first (rule 1). Nothing created since the
-    # snapshot may speak for a workspace that existed before it.
-    had_prefs = {p["org_id"] for p in env["pre"]["org_prefs"]}
-    for p in fake.tables["org_prefs"]:
-        if p["org_id"] in pre_orgs and p["org_id"] not in had_prefs:
-            assert p["prefs"] == {}, p
-    assert any(l.startswith("  note: org_prefs") and "org-solo" in l and "emptied" in l for l in env["lines"])
-    # never "production is the snapshot": what stays is counted — the rows
-    # of the workspaces the migration created
-    residue = [l for l in env["lines"] if l.startswith("RESIDUE: ")]
-    assert residue and "memberships" in residue[0] and "org_prefs" in residue[0], env["lines"][-6:]
-    created = {o["id"] for o in fake.tables["organizations"]} - pre_orgs
-    left = [p for p in fake.tables["org_prefs"] if p["org_id"] not in had_prefs and p["prefs"]]
-    assert left and all(p["org_id"] in created for p in left), left
-    # a second restore finds nothing to do
-    env["lines"].clear()
-    assert restore_cli.main([snap], client_factory=fake.client, out=env["out"]) == 0
-    assert not any(l.startswith("  STAMPED") for l in env["lines"])
-    assert any(l.startswith("org_prefs") and "created_since=%d" % len(left) in l for l in env["lines"]), \
-        [l for l in env["lines"] if l.startswith("org_prefs")]
 
 
 def test_a_run_after_a_rollback_ends_where_the_first_run_ended(env):
-    """Found while repairing: migrate -> db_restore --apply -> a fresh
-    snapshot -> migrate --execute (the documented recovery). The restore
-    archives the workspaces the first run created; the second run used to
-    'insert' them (a no-op on the archived rows) and move every surviving
-    period into a workspace nobody can see — with RECOUNT agreeing. It now
-    brings them back, and production ends where the first run ended."""
+    """Found while repairing: migrate -> db_restore -> a fresh snapshot ->
+    migrate --execute (the documented recovery). The rollback archives the
+    workspaces the first run created; the second run used to 'insert' them
+    (a no-op on the archived rows) and move every surviving period into a
+    workspace nobody can see — with RECOUNT agreeing. It now brings them
+    back, and production ends where the first run ended."""
     fake = env["fake"]
-    snap = _snapshot(env)
-    assert _migrate(env, snap=snap) == 0
-    assert _migrate(env, "--execute", "--expect-plan-sha", _plan_sha(env), snap=snap) == 0
+    snap = _migrated(env)
     first = copy.deepcopy(fake.tables)
-    assert restore_cli.main([snap, "--apply", "--tables", "migration"], client_factory=fake.client,
-                            out=env["out"], now="2026-09-22T00:00:00+00:00") == 0
+    assert _rollback(env, snap, "--apply") == 0, env["lines"][-10:]
     snap2 = _snapshot(env, "snap2.json.gz")
     assert _migrate(env, snap=snap2) == 0
-    plan = json.loads((env["tmp"] / "out" / "plan_2026-09-21.json").read_text())
+    plan = _plan(env)
     assert sorted(w["action"] for w in plan["workspaces"] if w["action"] in ("create", "unarchive")) == \
         ["unarchive"] * 4 and plan["blocking"] == []
     env["lines"].clear()
@@ -458,31 +958,98 @@ def test_a_run_after_a_rollback_ends_where_the_first_run_ended(env):
     assert fake.deletes == []
 
 
-def test_a_restore_that_leaves_a_stamp_on_a_pre_existing_workspace_fails(env, monkeypatch):
-    """PLANT: the restore's emptying of a created org_prefs row does not
-    happen (an op dropped, a write swallowed). The dry-run names the stamp,
-    and --apply must end in exit 1 — never "every snapshot row is back"."""
-    snap = _snapshot(env)
-    assert _migrate(env, snap=snap) == 0
-    assert _migrate(env, "--execute", "--expect-plan-sha", _plan_sha(env), snap=snap) == 0
+def test_a_rollback_that_leaves_a_stamp_on_a_pre_existing_workspace_fails(env, monkeypatch):
+    """PLANT: the undo of the plan's merge_prefs on org-solo does not
+    happen (an op dropped, a write swallowed). The dry-run names the undo,
+    and --apply must end in exit 1 — never "every row ... is back"."""
+    snap = _migrated(env)
     env["lines"].clear()
-    assert restore_cli.main([snap], client_factory=env["fake"].client, out=env["out"]) == 0
-    stamped = [l for l in env["lines"] if l.startswith("  STAMPED: org_prefs")]
-    assert stamped and "org-solo" in stamped[0] and "company_name" in stamped[0], env["lines"][-8:]
-    real = restore_cli.restore_ops
+    assert _rollback(env, snap) == 0
+    assert any(l.startswith("  undo org_prefs") and "org-solo" in l and "company_name" in l for l in env["lines"]), \
+        env["lines"][:12]
+    real = restore_cli.undo_ops
 
     def dropping(*a, **kw):
-        ops, notes = real(*a, **kw)
-        return [op for op in ops if not (op.get("table") == "org_prefs" and op["op"] == "upsert"
-                                         and op["row"].get("prefs") == {})], notes
+        undo = real(*a, **kw)
+        undo["ops"] = [op for op in undo["ops"] if not (op.get("table") == "org_prefs"
+                                                        and op["key"].get("org_id") == "org-solo")]
+        return undo
 
-    monkeypatch.setattr(restore_cli, "restore_ops", dropping)
+    monkeypatch.setattr(restore_cli, "undo_ops", dropping)
     env["lines"].clear()
-    assert restore_cli.main([snap, "--apply", "--tables", "migration"], client_factory=env["fake"].client,
-                            out=env["out"], now="2026-09-22T00:00:00+00:00") == 1
-    check = [l for l in env["lines"] if l.startswith("RESTORE CHECK: ")]
-    assert check and "still carry a row created since the snapshot" in check[0], check
-    assert any(l.startswith("  STAMPED: org_prefs") and "org-solo" in l for l in env["lines"])
+    assert _rollback(env, snap, "--apply") == 1
+    check = [l for l in env["lines"] if l.startswith("UNDO CHECK: ")]
+    assert check and "not at their pre-image" in check[0], check
+    assert any(l.startswith("  NOT UNDONE: org_prefs") and "org-solo" in l for l in env["lines"])
+    assert next(p for p in env["fake"].tables["org_prefs"] if p["org_id"] == "org-solo")["prefs"]["cui"] == SOLO
+
+
+def test_the_rollback_refuses_a_plan_that_is_not_the_one_that_ran(env):
+    snap = _migrated(env)
+    plan = _plan(env)
+    plan["ops"] = plan["ops"][:-1]
+    Path(_plan_path(env)).write_text(json.dumps(plan))
+    with pytest.raises(SystemExit, match="not the plan that ran"):
+        _rollback(env, snap, "--apply")
+    with pytest.raises(SystemExit, match="--plan"):
+        restore_cli.main([snap], client_factory=env["fake"].client, out=env["out"])
+    assert not [w for w in env["fake"].writes if w[0] != "upload"][len(env["fake"].row_writes()):]
+
+
+def test_the_whole_table_restore_is_explicit_and_refuses_users_rows_created_since(env):
+    """The table-wide restore stays as an operator tool behind
+    --whole-tables. It archives rows created since the snapshot — users'
+    data — so --apply refuses them unless --i-accept-user-data-changes."""
+    fake = env["fake"]
+    snap = _migrated(env)
+    _plant_after_the_run(env)
+    env["lines"].clear()
+    writes = len(fake.writes)
+    assert restore_cli.main([snap, "--whole-tables"], client_factory=fake.client, out=env["out"]) == 0
+    assert len(fake.writes) == writes
+    assert any(l.startswith("USER DATA:") and "documents: created 1" in l for l in env["lines"]), env["lines"][-4:]
+    env["lines"].clear()
+    assert restore_cli.main([snap, "--whole-tables", "--apply", "--tables", "migration"], client_factory=fake.client,
+                            out=env["out"], now="2026-09-22T00:00:00+00:00") == 2
+    assert len(fake.writes) == writes and any(l.startswith("REFUSED") for l in env["lines"])
+    assert next(d for d in fake.tables["documents"] if d["id"] == "d-new-upload")["deleted_at"] is None
+    env["lines"].clear()
+    assert restore_cli.main([snap, "--whole-tables", "--apply", "--tables", "migration",
+                             "--i-accept-user-data-changes"], client_factory=fake.client,
+                            out=env["out"], now="2026-09-22T00:00:00+00:00") == 0, env["lines"][-8:]
+    assert any(l.startswith("RESTORE CHECK: every snapshot row is back") for l in env["lines"])
+    assert next(d for d in fake.tables["documents"] if d["id"] == "d-new-upload")["deleted_at"]   # accepted
+    assert fake.deletes == []
+
+
+def test_the_whole_table_restore_refuses_a_row_a_user_changed_since_the_snapshot(env):
+    """The rollback item, its last net (2026-09-26): --whole-tables refused only rows CREATED since
+    the snapshot. A user's edit of a row the snapshot has (a renamed
+    workspace, a restored document, a changed preference) is not a
+    creation, so --apply went ahead and silently reverted it. Now ANY row
+    created, changed or vanished since the snapshot refuses --apply unless
+    --i-accept-user-data-changes; the dry-run names them."""
+    fake = env["fake"]
+    snap = _snapshot(env)                                   # no migration ran
+    ws = next(o for o in fake.tables["organizations"] if o["id"] == "org-sf")
+    ws["name"] = "alfa food (renamed by its owner)"          # a change, not a creation
+    env["lines"].clear()
+    writes = len(fake.writes)
+    assert restore_cli.main([snap, "--whole-tables"], client_factory=fake.client, out=env["out"]) == 0
+    assert len(fake.writes) == writes
+    assert any(l.startswith("USER DATA:") and "organizations: created 0, changed 1" in l for l in env["lines"]), \
+        env["lines"][-4:]
+    env["lines"].clear()
+    assert restore_cli.main([snap, "--whole-tables", "--apply", "--tables", "migration"], client_factory=fake.client,
+                            out=env["out"], now="2026-09-22T00:00:00+00:00") == 2
+    assert len(fake.writes) == writes and any(l.startswith("REFUSED") and "changed" in l for l in env["lines"])
+    assert ws["name"] == "alfa food (renamed by its owner)"
+    env["lines"].clear()
+    assert restore_cli.main([snap, "--whole-tables", "--apply", "--tables", "migration",
+                             "--i-accept-user-data-changes"], client_factory=fake.client,
+                            out=env["out"], now="2026-09-22T00:00:00+00:00") == 0, env["lines"][-8:]
+    assert ws["name"] == "alfa food"                         # accepted explicitly
+    assert fake.deletes == []
 
 
 def test_a_write_the_database_silently_drops_fails_the_recount(env, monkeypatch):

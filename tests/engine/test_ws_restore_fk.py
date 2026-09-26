@@ -14,6 +14,8 @@ foreign keys (``PRAGMA foreign_keys=ON``, immediate). WHAT IT REDS ON:
   * a restore that cannot put back a document + period pair the cascade
     erased (the single-phase restore did);
   * a restore that leaves any snapshot row different;
+  * a plan-scoped undo (``undo_ops``, the rollback proper) that re-inserts
+    a document and its period in an order the keys refuse;
   * the store not enforcing the keys at all (the non-vacuity check).
 """
 from __future__ import annotations
@@ -32,6 +34,8 @@ from engine.workspaces.rowstore import (
     restore_ops,
     row_key,
     rows_equal,
+    undo_ops,
+    undo_remaining,
     values_match,
 )
 
@@ -202,3 +206,34 @@ def test_restore_puts_back_a_document_and_period_the_cascade_erased(migrated):
             got = now_rows.get(row_key(r, pk))
             assert got is not None and rows_equal({k: v for k, v in r.items()},
                                                   {k: got.get(k) for k in r}), (table, r, got)
+
+
+def test_the_undo_puts_back_a_document_and_period_the_cascade_erased():
+    """The rollback proper (db_restore --plan) re-inserts only the rows the
+    plan named that are gone: the document first with its period link cut,
+    the period (its source now exists), the period's rows, then the link —
+    every statement satisfying both immediate keys. Found while repairing:
+    a first cut counted the re-inserted period as "present" and put the
+    document back pointing at it before it existed."""
+    tables, storage, rules = build_world()
+    facts = facts_for(tables, storage, rules)
+    plan = build_plan(tables, facts, migration_date=DATE)
+    store = FkStore(tables)
+    store.apply(plan.ops, now=RUN)
+    store.hard_delete_document("q-sf25-src")        # per-q25 + its metrics cascade away
+    store.hard_delete_document("d-omega-trash")     # per-sf21 too
+    current = store.rows()
+    undo = undo_ops(plan.ops, current, tables)
+    assert undo["conflicts"] == []
+    assert {t for t, _k in undo["reinserted"]} >= {"documents", "financial_periods", "calculated_metrics"}
+    store.apply(undo["ops"], now="2026-09-22T00:00:00+00:00")   # raises IntegrityError on a wrong order
+    after = store.rows()
+    assert undo_remaining(plan.ops, after, tables) == []
+    for table, rows in tables.items():
+        pk = pk_for(table)
+        now_rows = {row_key(r, pk): r for r in after[table]}
+        named = {row_key(op.get("row") or op.get("key"), pk) for op in plan.ops if op.get("table") == table}
+        for r in rows:
+            if row_key(r, pk) in named and table != "org_prefs":
+                got = now_rows.get(row_key(r, pk))
+                assert got is not None and rows_equal(r, {k: got.get(k) for k in r}), (table, r, got)

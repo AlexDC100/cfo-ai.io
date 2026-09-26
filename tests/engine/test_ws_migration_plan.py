@@ -32,7 +32,9 @@ from engine.workspaces.migration_plan import (
     render_report,
     holding_org_id,
     new_org_id,
+    period_record_disagreements,
     period_source_hazards,
+    redated_envelope,
 )
 from engine.workspaces.rowstore import (
     apply_ops,
@@ -42,10 +44,12 @@ from engine.workspaces.rowstore import (
     row_key,
     rows_equal,
     stamped_bags,
+    undo_ops,
 )
 
 from ws_migration_fixture import (
-    ALFA, BETA, DELTA, GAMMA, OWNER, SOLO, SOLO_USER, TEAM_A, build_world, facts_for,
+    ALFA, BETA, DELTA, GAMMA, OWNER, SIGMA, SOLO, SOLO_USER, TEAM_A, build_world, facts_for,
+    plant_second_user_move,
 )
 
 DATE = "2026-09-21"
@@ -236,13 +240,79 @@ def test_the_re_date_rewrites_the_engines_period_detection_record(world):
     assert not (isinstance(rec, dict) and rec.get("mismatch") is True)
 
 
+def test_the_re_date_makes_the_detection_envelope_say_the_new_date(world):
+    """The envelope item (2026-09-26): the re-dated Carniprod row's §7 detection_envelope
+    (a second stored record of the period's date, persisted by
+    stage_persist and copied verbatim by the 3b5 backfill snapshot) kept
+    its old dates — in production not even the row's 2017-12-31 but the
+    day of the last re-analysis. After the re-date every stored record
+    says what the row says; the rest of the envelope is untouched."""
+    pre = _row(world["tables"], "financial_periods", id="per-carnex")
+    post = _row(world["post"], "financial_periods", id="per-carnex")
+    assert pre["detection_envelope"]["period_end"] == "2026-09-20" != pre["period_end"]     # inconsistent before
+    env = post["detection_envelope"]
+    assert (env["period_end"], env["period_start"], env["fiscal_year_end"]) == ("2025-12-31",) * 3
+    assert {k: v for k, v in env.items() if k not in ("period_end", "period_start", "fiscal_year_end")} == \
+        {k: v for k, v in pre["detection_envelope"].items() if k not in ("period_end", "period_start", "fiscal_year_end")}
+    assert period_record_disagreements(world["post"], period_ids=["per-carnex"]) == []
+    # the op carries the envelope, guarded by its pre-image
+    op = next(op for op in world["plan"].ops if op.get("table") == "financial_periods"
+              and op.get("key") == {"id": "per-carnex"} and "period_end" in op["set"])
+    assert op["set"]["detection_envelope"] == env and op["expect"]["detection_envelope"] == pre["detection_envelope"]
+    # non-vacuity: the gate names every record that disagrees with the row
+    assert period_record_disagreements(world["tables"], period_ids=["per-carnex"]) == [
+        "period per-carnex: detection_envelope.fiscal_year_end says 2026-09-20, the row 2017-12-31",
+        "period per-carnex: detection_envelope.period_end says 2026-09-20, the row 2017-12-31"]
+    half = copy.deepcopy(world["tables"])
+    _row(half, "financial_periods", id="per-carnex")["period_end"] = "2025-12-31"   # the row alone re-dated
+    assert period_record_disagreements(half, period_ids=["per-carnex"]) == [
+        "period per-carnex: detection_envelope.fiscal_year_end says 2026-09-20, the row 2025-12-31",
+        "period per-carnex: detection_envelope.period_end says 2026-09-20, the row 2025-12-31",
+        "period per-carnex: period_detection.mismatch is True, but the detection proposes 2025-12-31 and the "
+        "row is 2025-12-31",
+        "period per-carnex: period_detection.resolved_period_end says 2017-12-31, the row 2025-12-31"]
+    assert period_record_disagreements(half, period_ids=[]) == []                     # scoped to the re-dated
+
+
+def test_redated_envelope_moves_only_the_dates():
+    one_day = {"detection_envelope_version": "1.0.0", "period_start": "2026-09-20", "period_end": "2026-09-20",
+               "fiscal_year_end": "2026-09-20", "currency": "RON"}
+    assert redated_envelope(one_day, "2025-12-31") == dict(one_day, period_start="2025-12-31", period_end="2025-12-31",
+                                                           fiscal_year_end="2025-12-31")
+    span = dict(one_day, period_start="2017-01-01", period_end="2017-12-31", fiscal_year_end="2017-12-31")
+    assert redated_envelope(span, "2025-12-31") == dict(span, period_end="2025-12-31", fiscal_year_end="2025-12-31")
+    empty = dict(one_day, period_start="", period_end="", fiscal_year_end="")
+    assert redated_envelope(empty, "2025-12-31") == dict(empty, period_start="2025-12-31", period_end="2025-12-31",
+                                                         fiscal_year_end="2025-12-31")
+    assert one_day["period_end"] == "2026-09-20"                                     # the input is untouched
+
+
+def test_a_plan_that_leaves_a_re_dated_periods_record_behind_is_blocking(monkeypatch):
+    """The planner checks its own post-state: a re-date whose stored
+    records still say another date (PLANT: the envelope rewrite and the
+    period_detection rewrite made no-ops) is refused, never executed."""
+    import engine.workspaces.migration_plan as mp
+    tables, storage, rules = build_world()
+    facts = facts_for(tables, storage, rules)
+    assert build_plan(tables, facts, migration_date=DATE).blocking == []
+    monkeypatch.setattr(mp, "redated_envelope", lambda envelope, new_end: dict(envelope))
+    plan = build_plan(tables, facts, migration_date=DATE)
+    assert [b for b in plan.blocking if "re-dated period" in b and "detection_envelope.period_end says 2026-09-20, "
+            "the row 2025-12-31" in b], plan.blocking
+    monkeypatch.setattr(mp._Planner, "_redated_detection", lambda self, pid, record, old, new: dict(record))
+    plan = build_plan(tables, facts, migration_date=DATE)
+    assert [b for b in plan.blocking if "period_detection.resolved_period_end says 2017-12-31, the row 2025-12-31" in b]
+    assert [b for b in plan.blocking if "period_detection.mismatch is True" in b]
+
+
 def test_duplicates_failed_copies_and_non_balances_are_archived_with_reasons(world):
     post = world["post"]
     expect = {
         "d-sf24-copy": "archived: duplicate_of_source (d-sf24-src)",
         "d-sf25-xls": "archived: other_file_same_period (d-sf25-lv)",
         "d-beta-fail-1": "archived: duplicate_of_source (q-beta-src)",
-        "d-gamma-pdf": "archived: failed_superseded (q-gamma)",
+        "d-beta-fail-2": "archived: duplicate_of_source (q-beta-src)",
+        "q-carnex-fail": "archived: duplicate_of_source (q-carnex-src)",
         "q-carnex-old": "archived: duplicate_of_source (q-carnex-src)",
         "q-delta-2": "archived: duplicate (d-delta-1)",
         "q-itin": "archived: not_a_balance (q-itin)",
@@ -250,6 +320,65 @@ def test_duplicates_failed_copies_and_non_balances_are_archived_with_reasons(wor
     for did, err in expect.items():
         d = _row(post, "documents", id=did)
         assert d["deleted_at"] == RUN and d["error"] == err, did
+    # a failed upload whose bytes are not a copy of a live document is not
+    # "superseded": it stays (rule 5)
+    assert _row(post, "documents", id="d-gamma-pdf")["deleted_at"] is None
+
+
+def test_a_failed_upload_the_reader_refused_stays_untouched_for_a_retry(world):
+    """2026-09-26: a NEW user's failed upload — a balanță whose row layout
+    the deterministic readers refused while the Claude fallback had no
+    credit, its header printing the company and its CUI — was archived as
+    not_a_balance and moved into that user's holding archive. The failure
+    was the reader's. A failed upload that is not a copy of a live
+    document stays UNTOUCHED in its workspace (no row operation, no move,
+    never a keeper), whatever the workspace decision, so it can be retried
+    once the reader ships; only a copy of a live document is archived."""
+    plan, post, facts = world["plan"], world["post"], world["facts"]
+    pre = _row(world["tables"], "documents", id="d-sigma-pdf")
+    ident = facts["d-sigma-pdf"].identity
+    assert ident.document_kind == "uncertain" and ident.cui == SIGMA
+    assert ident.sources["document_kind"]["signal"] == "unparsed_balance"
+    dec = _decision(plan, "documents", "d-sigma-pdf")
+    assert dec["action"] == "untouched" and dec["reason"].startswith("failed upload left for a retry"), dec
+    assert dec["to_org"] == "org-sf" and dec["company"] == "cui:" + SIGMA
+    assert not [op for op in plan.ops if op.get("key") == {"id": "d-sigma-pdf"} or op.get("document_id") == "d-sigma-pdf"]
+    d = _row(post, "documents", id="d-sigma-pdf")
+    assert {k: d[k] for k in ("org_id", "deleted_at", "error", "storage_path", "period_id")} == \
+        {k: pre[k] for k in ("org_id", "deleted_at", "error", "storage_path", "period_id")}
+    assert not any(o["id"] == new_org_id(OWNER, "cui:" + SIGMA) for o in post["organizations"]), "no workspace for it"
+    assert not [n for n in plan.needs_reanalysis if n["document_id"] == "d-sigma-pdf"]
+    assert any("d-sigma-pdf" in w and "left in its workspace for a retry" in w for w in plan.warnings)
+    # the other failed uploads: a different file of GAMMA stays too; copies
+    # of live books (the same bytes) are archived and travel with them
+    g = _row(post, "documents", id="d-gamma-pdf")
+    assert g["deleted_at"] is None and g["org_id"] == "org-sf" and g["error"] == pre["error"].replace("Claude ", "")
+    assert _decision(plan, "documents", "d-gamma-pdf")["action"] == "untouched"
+    for did in ("d-beta-fail-1", "d-beta-fail-2"):
+        b = _row(post, "documents", id=did)
+        assert b["deleted_at"] == RUN and b["org_id"] == new_org_id(OWNER, "cui:" + BETA), did
+    c = _row(post, "documents", id="q-carnex-fail")
+    assert c["deleted_at"] == RUN and c["error"] == "archived: duplicate_of_source (q-carnex-src)"
+
+
+def test_a_company_less_workspace_holding_a_retryable_failed_upload_stays_live():
+    """Rule 7's consequence: a failed upload left for a retry is live
+    content its owner must be able to reach, so the company-less workspace
+    it sits in is left live (reported) — like one holding an unidentified
+    book — rather than archived out of reach."""
+    t = _moving_period()
+    t["documents"].append(_doc("f-beta", "org-q", status="failed", sha="hb", created="2026-09-02T00:00:00+00:00"))
+    facts = {"d1": _ident(ALFA, "2025-06-30", signal="in_document"), "keep-a": _ident(ALFA, "2025-12-31"),
+             "f-beta": _ident(BETA, "2025-12-31")}
+    plan = build_plan(t, facts, migration_date=DATE)
+    assert _decision(plan, "periods", "p1")["to_org"] == "org-a"                     # the split happens
+    assert _decision(plan, "documents", "f-beta")["action"] == "untouched"
+    assert next(w for w in plan.workspaces if w["org_id"] == "org-q")["action"] == "keep"
+    assert any("org-q" in w and "still holds 1 live item(s)" in w for w in plan.warnings)
+    post = apply_ops(t, plan.ops, now=RUN)
+    assert _row(post, "organizations", id="org-q")["archived_at"] is None
+    assert _row(post, "documents", id="f-beta")["org_id"] == "org-q"
+    assert not any(o["id"] == new_org_id("u", "cui:" + BETA) for o in post["organizations"])
 
 
 def test_an_unreadable_copy_inherits_the_identity_of_identical_bytes(world):
@@ -322,6 +451,10 @@ def test_one_company_per_live_workspace_and_one_live_document_per_company_month(
             # a company-less workspace kept live (its owner's conversations)
             # holds no live book at all
             assert d["deleted_at"] is not None or d.get("scope") != "financial", d["id"]
+            continue
+        if d.get("status") == "failed":
+            # a failed upload left in place for a retry is not a book of the
+            # workspace's company (rule 5); it decides nothing
             continue
         ident = facts[d["id"]].identity if d["id"] in facts else None
         key = ident.company_key if ident else None
@@ -472,7 +605,9 @@ def test_the_plan_of_the_post_state_is_empty(world):
     assert again.blocking == []
 
 
-def test_g8_restore_on_the_post_state_reproduces_the_pre_state(world):
+def test_g8_whole_table_restore_on_the_post_state_reproduces_the_pre_state(world):
+    """The table-wide restore (db_restore --whole-tables), an operator tool;
+    the rollback proper is the plan-scoped undo (test_ws_migration_rollback)."""
     pre, post = world["tables"], world["post"]
     ops, notes = restore_ops(pre, post)
     restored = apply_ops(post, ops, now="2026-09-22T00:00:00+00:00")
@@ -527,9 +662,11 @@ def test_a_rollback_leaves_no_identity_stamp_on_a_workspace_that_existed_before(
 
 
 def _rolled_back(world):
+    """The real rollback: the plan's own operations undone (db_restore --plan)."""
     pre, post = world["tables"], world["post"]
-    ops, _notes = restore_ops(pre, post)
-    return apply_ops(post, ops, now="2026-09-22T00:00:00+00:00")
+    undo = undo_ops(world["plan"].ops, post, pre)
+    assert undo["conflicts"] == []
+    return apply_ops(post, undo["ops"], now="2026-09-22T00:00:00+00:00")
 
 
 def test_a_run_after_a_rollback_brings_back_the_workspaces_the_first_run_created(world):
@@ -608,12 +745,74 @@ def test_every_moved_document_gets_its_object_copied_under_the_new_workspace(wor
             continue
         assert d["storage_path"].startswith(d["org_id"] + "/")
         assert d["storage_path"].split("/", 1)[1] == old["storage_path"].split("/", 1)[1]
-        if world["facts"].get(d["id"]) and world["facts"][d["id"]].object_exists is False:
-            assert d["id"] not in copies
+        op = copies[d["id"]]
+        assert (op["from_path"], op["from_org"], op["to_path"], op["to_org"]) == (
+            old["storage_path"], old["org_id"], d["storage_path"], d["org_id"])
+        f = world["facts"].get(d["id"])
+        if f and f.object_exists is False:
+            # missing at the snapshot and when planning: the copy is
+            # attempted, not required (rule 9) — the only way a row moves
+            # without a file
+            assert f.recorded_exists is False
+            assert op["must_exist"] is False and op["expect_sha256"] is None
         else:
-            op = copies[d["id"]]
-            assert (op["from_path"], op["from_org"], op["to_path"], op["to_org"]) == (
-                old["storage_path"], old["org_id"], d["storage_path"], d["org_id"])
+            assert op["must_exist"] is True and op["expect_sha256"] == f.sha256
+
+
+def test_every_storage_copy_of_every_user_precedes_the_first_row_operation():
+    """Rule 9, the order (2026-09-26): the executor applies the plan in
+    order and stops at the first copy whose source is gone or different.
+    Emitted per user, the second user's copies came after the first user's
+    rows had already moved, so one copy conflict left the first user
+    half-applied. Every copy of every user now comes before the first row
+    operation of the plan — and the copies are the only thing that moved:
+    the row operations keep their emitted order."""
+    tables, storage, rules = build_world()
+    planted = plant_second_user_move(tables, storage)
+    plan = build_plan(tables, facts_for(tables, storage, rules), migration_date=DATE)
+    assert plan.blocking == []
+    kinds = [op["op"] for op in plan.ops]
+    copies = [op for op in plan.ops if op["op"] == "copy_object"]
+    assert {op["from_org"] for op in copies} >= {"org-qa", "org-solo"}, "copies of BOTH users are in the plan"
+    assert next(op for op in copies if op["document_id"] == planted)["to_org"] == new_org_id(SOLO_USER, "cui:" + BETA)
+    last_copy = max(i for i, k in enumerate(kinds) if k == "copy_object")
+    first_row = min(i for i, k in enumerate(kinds) if k != "copy_object")
+    assert last_copy < first_row, "a row operation at %d precedes the copy at %d" % (first_row, last_copy)
+    # the row operations are the ones a per-user emission produces, in that order
+    rows = [op for op in plan.ops if op["op"] != "copy_object"]
+    assert rows[0]["op"] == "insert" and rows[0]["table"] == "organizations"
+    assert [op["table"] for op in rows if op["table"] == "financial_periods"], "periods still move"
+
+
+def test_a_document_whose_object_the_snapshot_recorded_but_planning_cannot_read_blocks(world):
+    """Rule 9 (verifier p6, 2026-09-26): a transient 404 in the facts pass
+    on a document whose identity comes from a rule dropped its copy and
+    the row still moved. The snapshot's inventory says the object was
+    there: blocking, and no row operation for that document."""
+    tables, storage, rules = build_world()
+    facts = dict(world["facts"])
+    f = facts["q-carnex-src"]
+    assert f.object_exists is True and f.recorded_exists is True
+    facts["q-carnex-src"] = DocFacts(identity=f.identity, sha256=None, object_exists=False,
+                                     read_error="storage object missing", recorded_exists=True)
+    plan = build_plan(tables, facts, migration_date=DATE)
+    assert any(b.startswith("document q-carnex-src ") and "could not be read when planning" in b
+               and "inventory recorded it" in b for b in plan.blocking), plan.blocking
+    assert not [op for op in plan.ops if op.get("table") == "documents" and op.get("key") == {"id": "q-carnex-src"}]
+    assert not [op for op in plan.ops if op["op"] == "copy_object" and op["document_id"] == "q-carnex-src"]
+    # no inventory at all: the row's own size says it had an object
+    facts["q-carnex-src"] = DocFacts(identity=f.identity, sha256=None, object_exists=False,
+                                     read_error="storage object missing")
+    plan = build_plan(tables, facts, migration_date=DATE)
+    assert any(b.startswith("document q-carnex-src ") and "sized" in b for b in plan.blocking), plan.blocking
+    # the inventory says it was missing then too: the row moves, the copy is opportunistic
+    facts["q-carnex-src"] = DocFacts(identity=f.identity, sha256=None, object_exists=False,
+                                     read_error="storage object missing", recorded_exists=False)
+    plan = build_plan(tables, facts, migration_date=DATE)
+    assert plan.blocking == []
+    op = next(op for op in plan.ops if op["op"] == "copy_object" and op["document_id"] == "q-carnex-src")
+    assert op["must_exist"] is False
+    assert any("q-carnex-src" in w and "was missing when the snapshot was taken" in w for w in plan.warnings)
 
 
 # ── rules in isolation ─────────────────────────────────────────────────
@@ -835,7 +1034,12 @@ def test_a_created_workspace_carries_the_industry_its_caen_maps_to():
     assert row["industry_display_name"] == "Red meat processing"
 
 
-def test_a_company_with_only_failed_uploads_keeps_exactly_one_failed_copy():
+def test_a_company_with_only_failed_uploads_keeps_one_copy_in_place_and_gets_no_workspace():
+    """Two failed uploads of the same bytes, no analysed book of their
+    company: the latest stays untouched where it is (for a retry), the
+    other is archived as its copy IN PLACE; nothing is moved, no workspace
+    is created for a company nobody has analysed, nothing needs
+    re-analysis (rule 5, 2026-09-26 — a failed upload is never a keeper)."""
     t = _mini([_doc("s", "org-a", period="p1"),
                _doc("f1", "org-a", status="failed", sha="h", created="2026-09-01T00:00:00+00:00"),
                _doc("f2", "org-a", status="failed", sha="h", created="2026-09-02T00:00:00+00:00")],
@@ -845,9 +1049,11 @@ def test_a_company_with_only_failed_uploads_keeps_exactly_one_failed_copy():
     plan = build_plan(t, facts, migration_date=DATE)
     post = apply_ops(t, plan.ops, now=RUN)
     f1, f2 = (_row(post, "documents", id=x) for x in ("f1", "f2"))
-    assert f2["deleted_at"] is None and f2["org_id"] == new_org_id("u", "cui:" + BETA)
-    assert f1["deleted_at"] == RUN and f1["error"] == "archived: duplicate (f2)"
-    assert plan.needs_reanalysis[0]["document_id"] == "f2" and plan.needs_reanalysis[0]["status"] == "failed"
+    assert f2["deleted_at"] is None and f2["org_id"] == "org-a" and f2["error"] is None
+    assert f1["deleted_at"] == RUN and f1["error"] == "archived: duplicate (f2)" and f1["org_id"] == "org-a"
+    assert not any(o["id"] == new_org_id("u", "cui:" + BETA) for o in post["organizations"])
+    assert plan.needs_reanalysis == []
+    assert _decision(plan, "documents", "f2")["reason"].startswith("failed upload left for a retry")
 
 
 def test_two_workspaces_claiming_one_company_keep_one_and_split_the_other():
@@ -1023,6 +1229,52 @@ def test_the_user_purge_refuses_a_held_archive():
     assert 0 <= guard < purge, fname
     assert "raise exception" in b[guard:purge], fname
     _latest_function("workspace_hold_guard_version")   # the marker --execute requires
+
+
+def _functions_in(path):
+    """{name: body} of every `create or replace function` in one file."""
+    text = path.read_text()
+    return {m.group(1).lower(): m.group(2) for m in re.finditer(
+        r"create or replace function (?:public\.)?(\w+)\s*\(.*?\$\$(.*?)\$\$", text, re.S | re.I)}
+
+
+def test_a_held_archive_is_never_archived_again_nor_restored_by_its_owner():
+    """The archive-guard item (2026-09-26) — supabase/schema_phase_archive_hold_guard.sql
+    (the owner applies it; --execute requires its marker). A held archive
+    (archived_at set, purge_after NULL) reached two more RPCs:
+    archive_workspace gave it a deletion date (the cron purge then erased
+    it), restore_workspace let its owner bring it back live. The guard
+    file's archive_workspace updates ONLY a live row (`and archived_at is
+    null`) and raises when no row matched; its restore_workspace refuses a
+    held archive unless the caller is the service role; the file ends with
+    the schema reload NOTIFY. Reds too when ANOTHER migration redefines
+    either function — a later file would silently drop the guard unless
+    it is listed here as carrying it."""
+    guard = REPO / "supabase" / "schema_phase_archive_hold_guard.sql"
+    fns = _functions_in(guard)
+    archive = re.sub(r"\s+", " ", fns["archive_workspace"].lower())
+    where = archive.find("where id = p_org_id and archived_at is null")
+    assert where > archive.find("update organizations") > 0
+    assert "get diagnostics" in archive and "row_count" in archive
+    raised = archive.find("raise exception", where)
+    assert 0 < raised < archive.find("update user_prefs")          # raised BEFORE the bounce, on 0 rows
+    assert "if v_rows = 0 then" in archive[where:raised]
+    assert "count(*)" not in archive, "the 2026-07-25 rule (the last workspace may be archived) is kept"
+    restore = re.sub(r"\s+", " ", fns["restore_workspace"].lower())
+    held = restore.find("archived_at is not null and purge_after is null")
+    assert 0 < held < restore.find("update organizations")
+    assert "'service_role'" in restore and "not v_service and exists" in restore
+    assert "raise exception" in restore[held:restore.find("update organizations")]
+    assert "workspace_archive_hold_guard_version" in fns
+    text = guard.read_text()
+    assert re.search(r"notify pgrst, 'reload schema';\s*$", text, re.I)
+    assert "grant execute on function workspace_archive_hold_guard_version() to service_role" in text
+    # nothing applied later may redefine these without the guard
+    carriers = {"schema_phase_multi_workspace.sql", "schema_phase_allow_delete_last_workspace.sql",
+                "schema_phase_archive_hold_guard.sql"}
+    for f in sorted((REPO / "supabase").glob("*.sql")):
+        defined = set(_functions_in(f)) & {"archive_workspace", "restore_workspace"}
+        assert not defined or f.name in carriers, (f.name, defined)
 
 
 def test_only_known_callers_reach_the_org_purge_body():

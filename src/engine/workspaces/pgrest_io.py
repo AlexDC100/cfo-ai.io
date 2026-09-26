@@ -373,8 +373,14 @@ def apply_live(db: PgRest, ops: Sequence[Mapping[str, Any]], *, now: str,
                     # now would point a live document at a path with no file.
                     raise OpConflict("[%d] copy %s: the object the plan read (sha256 %s) is gone — "
                                      "stopping before any document row moves" % (i, op["from_path"], want[:16]))
+                if op.get("must_exist", True):
+                    # Nothing recorded this object missing (the snapshot's
+                    # inventory had it, or never asked): a row moved now
+                    # would point at a path with no file.
+                    raise OpConflict("[%d] copy %s: the object is gone, and the snapshot recorded it present — "
+                                     "stopping before any document row moves" % (i, op["from_path"]))
                 done["missing_objects"].append(op["from_path"])
-                log("  [%d] copy %s: source object missing (it was not found when planning either) "
+                log("  [%d] copy %s: source object missing (the snapshot recorded it missing too) "
                     "— row still moves" % (i, op["from_path"]))
                 continue
             if want and hashlib.sha256(content).hexdigest() != want:

@@ -63,14 +63,35 @@ data would change what the other members see).
    own period line; on a closing-balance date only when a second signal
    agrees (the filename, or the user-confirmed hint — a print date beside
    the title is not a period); on a filename-only signal only when the YEAR
-   differs (the "2025 book filed under 2017" shape).
-5. Per company per month exactly one live document: the surviving period's
-   source. Copies (same content hash), other files for the same company and
-   month, superseded failed uploads and non-financial documents are
-   archived (``deleted_at`` + ``error = "archived: <reason> (<id>)"``). A
-   company+month with documents but no period keeps ONE live document (the
-   latest analysed, else the latest failed) and is listed in
-   ``needs_reanalysis``.
+   differs (the "2025 book filed under 2017" shape). A re-date rewrites
+   the row AND both stored records that describe its date, so none keeps
+   saying the old one: ``assembled_canonical_v1.period_detection``
+   (``resolved_period_end``, the hint, ``mismatch`` by the engine's own
+   rule — read verbatim by the Docs panel's mismatch chip and the firm
+   attention layer) and the §7 ``detection_envelope`` column
+   (``period_end`` / ``fiscal_year_end`` / ``period_start`` — persisted by
+   stage_persist, copied verbatim by the 3b5 backfill snapshot).
+   ``period_record_disagreements`` is the gate: a re-dated period whose
+   records still disagree with its row makes the plan blocking, and the
+   recount checks the same after the run.
+5. Per company per month exactly one live ANALYSED document: the surviving
+   period's source. Copies (same content hash), other analysed files for
+   the same company and month and non-financial documents are archived
+   (``deleted_at`` + ``error = "archived: <reason> (<id>)"``). A
+   company+month with analysed documents but no period keeps ONE live
+   document (the latest analysed) and is listed in ``needs_reanalysis``.
+   A FAILED upload is archived only when its bytes are a copy of a live
+   document (a period's source, a kept book — nothing is lost); otherwise
+   it is left UNTOUCHED in its workspace, whatever happens to the
+   workspace, so its owner can retry it once the reader that refused it
+   ships (2026-09-26: the failure was the reader's — a balanță the
+   deterministic readers could not parse and the Claude fallback had no
+   credit for). It is never a keeper and never moved; a company-less
+   workspace holding one stays live, like one holding an unidentified
+   book (rule 7). Among failed uploads of the same bytes one stays and
+   the rest are archived as its copies, in place. ``not_a_balance`` is
+   asserted by the identifier only when the bytes were parsed and are
+   demonstrably not a trial balance (``company_identity.balance_signals``).
 6. ARCHIVING A PERIOD: ``financial_periods`` has no archive column, so the
    period, every row scoped to it, and its source document move into the
    user's holding workspace "Arhivă (migrare <date>)" (``archived_at`` set,
@@ -114,6 +135,24 @@ data would change what the other members see).
    text reference): a thread whose grounded period ends in another
    workspace keeps its ``active_period_label`` and has
    ``active_period_id`` cleared — the next message grounds it again.
+
+9. A document that changes workspace takes its storage object with it:
+   a ``copy_object`` carrying the sha256 the facts pass read, so the copy
+   step stops before any row moves if the object is gone or different by
+   then. A document whose bytes the facts pass could NOT read — a 404, a
+   storage error — while the snapshot's object inventory (``db_snapshot``
+   ``objects``, or, without one, a ``size_bytes`` above zero) says it had
+   an object, makes the plan BLOCKING: a transient storage error once
+   dropped a copy from the plan and the row moved to a path with nothing
+   under it (verifier p6, 2026-09-26). Only a document the inventory ALSO
+   recorded as missing moves without a file (its copy is opportunistic:
+   ``must_exist`` false). EVERY copy — of every user — comes before the
+   first row operation of the plan (``_copies_first``): the executor
+   applies the plan in order and stops at a copy whose source is gone or
+   different, so emitted per user a copy conflict in the second user's
+   block landed after the first user's rows had already moved (a
+   half-applied run). Copies are idempotent (an object already at its new
+   path is skipped) and touch no row, so nothing depends on their place.
 
 Nothing is ever hard-deleted; Stripe, auth and billing tables are never
 touched; ``chat_messages`` is never written, and a ``chat_threads`` row
@@ -167,6 +206,9 @@ class DocFacts:
     #: True / False when the storage object was (not) found, None unknown.
     object_exists: Optional[bool] = None
     read_error: Optional[str] = None
+    #: What the SNAPSHOT's object inventory said (``db_snapshot`` objects):
+    #: True / False, None when there was no inventory or it could not ask.
+    recorded_exists: Optional[bool] = None
 
     @classmethod
     def coerce(cls, value: Any) -> "DocFacts":
@@ -180,13 +222,14 @@ class DocFacts:
                 ident = CompanyIdentity.from_dict(ident)
             return cls(identity=ident, sha256=value.get("sha256"),
                        object_exists=value.get("object_exists"),
-                       read_error=value.get("read_error"))
+                       read_error=value.get("read_error"),
+                       recorded_exists=value.get("recorded_exists"))
         return cls()
 
     def to_dict(self) -> Dict[str, Any]:
         return {"identity": self.identity.to_dict() if self.identity else None,
                 "sha256": self.sha256, "object_exists": self.object_exists,
-                "read_error": self.read_error}
+                "read_error": self.read_error, "recorded_exists": self.recorded_exists}
 
 
 @dataclass
@@ -269,12 +312,15 @@ class _Planner:
                  facts: Mapping[str, Any], *, migration_date: str,
                  pks: Optional[Mapping[str, Sequence[str]]] = None,
                  stale_before: Optional[str] = None,
-                 keep_current_month_placeholder: bool = False) -> None:
+                 keep_current_month_placeholder: bool = False,
+                 objects: Optional[Mapping[str, Mapping[str, Any]]] = None) -> None:
         self.t = tables
         self.pks = pks
         self.date = migration_date
         self.stale_before = stale_before
         self.keep_placeholder = bool(keep_current_month_placeholder)
+        #: The snapshot's storage object inventory (``db_snapshot`` objects).
+        self.objects = objects
         self.plan = Plan(migration_date=migration_date)
         self.facts: Dict[str, DocFacts] = {str(k): DocFacts.coerce(v) for k, v in (facts or {}).items()}
 
@@ -352,6 +398,22 @@ class _Planner:
         f = self.facts.get(doc_id)
         return d.get("content_hash") or (f.sha256 if f else None)
 
+    def recorded_exists(self, doc_id: str) -> Optional[bool]:
+        """Whether the document's storage object existed when the SNAPSHOT
+        was taken: the facts' record, else the inventory handed to the
+        planner, else — no inventory at all — the row's own ``size_bytes``
+        (a document sized above zero had an object). None: unknown."""
+        f = self.facts.get(doc_id)
+        if f is not None and f.recorded_exists is not None:
+            return f.recorded_exists
+        if self.objects is not None:
+            inv = self.objects.get(doc_id)
+            if inv is not None and inv.get("exists") is not None:
+                return bool(inv["exists"])
+            return None
+        d = self.docs.get(doc_id) or {}
+        return (d.get("size_bytes") or 0) > 0
+
     def status(self, doc_id: str) -> str:
         d = self.docs[doc_id]
         s = str(d.get("status") or "")
@@ -382,8 +444,19 @@ class _Planner:
                     "workspace %s (%r) has %d members — not migrated" % (org_id, org.get("name"), n))
         for user in users:
             self.build_user(user)
+        self._copies_first()
         self._refuse_new_cascade_hazards()
         return self.plan
+
+    def _copies_first(self) -> None:
+        """Every ``copy_object`` — of EVERY user — ahead of the first row
+        operation, the users' row operations in their emitted order after
+        them (rule 9). The executor stops at the first copy whose source is
+        gone or different; with the copies inside each user's block, that
+        stop came after the earlier users' rows had moved."""
+        ops = self.plan.ops
+        self.plan.ops = ([op for op in ops if op["op"] == "copy_object"]
+                         + [op for op in ops if op["op"] != "copy_object"])
 
     def _refuse_new_cascade_hazards(self) -> None:
         """The plan's own post-state may not hold a period that is one hard
@@ -401,6 +474,8 @@ class _Planner:
                 self.plan.blocking.append("the post-state points into another workspace (rule 8): %s" % line)
         for line in hidden_conversations(self.t, after):
             self.plan.blocking.append("a conversation would end up in an archived workspace (rule 7): %s" % line)
+        for line in period_record_disagreements(after, period_ids=redated_period_ids(self.plan.ops)):
+            self.plan.blocking.append("a re-dated period's stored record still says another date (rule 4): %s" % line)
         # What the plan KEEPS must end where somebody can see it.
         archived_after = {str(o["id"]) for o in after.get("organizations") or [] if o.get("archived_at")}
         for kind, rows in (("period", self.plan.periods), ("document", self.plan.documents)):
@@ -898,6 +973,7 @@ class _Planner:
                            if pr["action"] == "archive" and pr.get("source_document_id")}
 
         groups: Dict[Tuple[str, Optional[str]], List[str]] = defaultdict(list)
+        failed: List[str] = []
         for did in sorted(self.in_scope_docs):
             d = self.docs[did]
             org = str(d["org_id"])
@@ -972,6 +1048,11 @@ class _Planner:
                 dec[did] = dict(base, action="archive", reason="archived: not_a_balance (%s)" % did,
                                 _place="company")
                 continue
+            if status == FAILED:
+                # decided after the groups: a copy of a live document, or
+                # left in place for a retry (rule 5)
+                failed.append(did)
+                continue
             month = None
             if ident and ident.period_end:
                 month = _month(ident.period_end)
@@ -1003,15 +1084,52 @@ class _Planner:
                 d = self.docs[did]
                 if keep_sha and self.sha(did) == keep_sha:
                     why = "duplicate_of_source" if pid else "duplicate"
-                elif self.status(did) == FAILED:
-                    why = "failed_superseded"
                 else:
                     why = "other_file_same_period"
                 dec[did] = {"id": did, "from_org": str(d["org_id"]), "filename": d.get("original_filename"),
                             "status": d.get("status"), "company": company, "live": True,
                             "action": "archive", "reason": "archived: %s (%s)" % (why, keeper),
                             "_place": "company"}
+        self._failed_decisions(failed, dec, kept_source)
         return dec
+
+    def _failed_decisions(self, failed: Sequence[str], dec: Dict[str, Dict[str, Any]],
+                          kept_source: Mapping[str, str]) -> None:
+        """A FAILED upload (rule 5, 2026-09-26): archived only when its bytes
+        are a copy of a live document that stays (a period's source, a kept
+        book) — nothing is lost, the same bytes remain analysable — and then
+        it travels with its company like any archived copy. Otherwise it is
+        left UNTOUCHED in its workspace, whatever happens to the workspace:
+        its owner retries it once the reader that refused it ships. Never a
+        keeper, never moved. Among failed uploads of the same bytes the
+        latest stays and the others are archived as its copies, in place."""
+        live_by_sha: Dict[str, str] = {}
+        for did, dd in sorted(dec.items()):
+            if dd["action"] == "keep" and self.sha(did):
+                live_by_sha.setdefault(str(self.sha(did)), did)
+        kept: Dict[str, str] = {}
+        for did in sorted(failed, key=lambda x: (str(self.docs[x].get("created_at") or ""), x), reverse=True):
+            d = self.docs[did]
+            sha = self.sha(did)
+            base = {"id": did, "from_org": str(d["org_id"]), "filename": d.get("original_filename"),
+                    "status": d.get("status"), "company": self.key(did), "live": True}
+            if sha and sha in live_by_sha:
+                ref = live_by_sha[sha]
+                why = "duplicate_of_source" if ref in kept_source else "duplicate"
+                dec[did] = dict(base, action="archive", reason="archived: %s (%s)" % (why, ref), _place="company")
+                continue
+            if sha and sha in kept:
+                dec[did] = dict(base, action="archive", reason="archived: duplicate (%s)" % kept[sha],
+                                _place="stay")
+                continue
+            if sha:
+                kept[sha] = did
+            dec[did] = dict(base, action="untouched",
+                            reason="failed upload left for a retry (not a copy of a live document)",
+                            _place="stay")
+            self.plan.warnings.append(
+                "document %s (%r): failed upload, not a copy of any live document — left in its workspace for "
+                "a retry (the reader refused it, the document is not condemned)" % (did, d.get("original_filename")))
 
     def _choose(self, dids: Sequence[str]) -> str:
         analysed = [d for d in dids if self.status(d) == ANALYZED]
@@ -1192,13 +1310,39 @@ class _Planner:
                     new_path = "%s/%s" % (final, rest)
                     patch["storage_path"] = new_path
                     f = self.facts.get(did)
-                    if not (f and f.object_exists is False):
-                        # expect_sha256: the facts pass READ this object; the
-                        # copy must find exactly these bytes (None: unknown).
-                        ops.append({"op": "copy_object", "bucket": "documents", "document_id": did,
-                                    "from_path": path, "from_org": cur, "to_path": new_path,
-                                    "to_org": final, "content_type": d.get("mime_type"),
-                                    "expect_sha256": f.sha256 if f and f.object_exists and f.sha256 else None})
+                    recorded = self.recorded_exists(did)
+                    read = bool(f and f.object_exists is True and f.sha256)
+                    if not read and recorded is not False and f is not None:
+                        # Asked for and not read (a 404, a storage error)
+                        # while nothing recorded the object missing (rule 9):
+                        # never "row still moves" — an operator decides.
+                        if recorded is True:
+                            basis = ("the snapshot's object inventory recorded it"
+                                     if self.objects is not None or f.recorded_exists is not None
+                                     else "the row is sized %s bytes" % d.get("size_bytes"))
+                        else:
+                            basis = "nothing recorded it missing"
+                        self.plan.blocking.append(
+                            "document %s (%r): its storage object %r could not be read when planning (%s), "
+                            "yet %s — a transient storage error or an object deleted since; the row does "
+                            "not move without its file. Re-run the dry-run, or check the object." % (
+                                did, d.get("original_filename"), path,
+                                f.read_error or ("not found" if f.object_exists is False else "unknown"), basis))
+                        continue
+                    if not read and recorded is False:
+                        self.plan.warnings.append(
+                            "document %s (%r): its storage object %r was missing when the snapshot was taken "
+                            "and when planning — the row moves; the copy is attempted, not required"
+                            % (did, d.get("original_filename"), path))
+                    # expect_sha256: the facts pass READ this object; the
+                    # copy must find exactly these bytes (None: unknown).
+                    # must_exist: the copy step stops the run if the object
+                    # is gone — unless the inventory recorded it missing.
+                    ops.append({"op": "copy_object", "bucket": "documents", "document_id": did,
+                                "from_path": path, "from_org": cur, "to_path": new_path,
+                                "to_org": final, "content_type": d.get("mime_type"),
+                                "expect_sha256": f.sha256 if read else None,
+                                "must_exist": recorded is not False})
             if dd["action"] == "archive" and d.get("deleted_at") is None:
                 patch["deleted_at"] = NOW
                 patch["error"] = dd["reason"]
@@ -1291,10 +1435,12 @@ class _Planner:
         # chat_messages is never written: messages follow by thread_id.
         ops.extend(self.chat_ops)
 
-        # 6. re-date — the row AND the engine's period-detection record, which
-        # the Docs panel's mismatch chip and the firm attention layer read
-        # verbatim (a re-dated row under a record still saying "2017-12-31,
-        # mismatch" would be reported as mis-filed forever).
+        # 6. re-date — the row AND both stored records of its date: the
+        # engine's period-detection record, which the Docs panel's mismatch
+        # chip and the firm attention layer read verbatim (a re-dated row
+        # under a record still saying "2017-12-31, mismatch" would be
+        # reported as mis-filed forever), and the §7 detection envelope
+        # column (period_end / fiscal_year_end / period_start).
         for pid in sorted(self.redates):
             p = self.periods[pid]
             new_end = self.redates[pid]
@@ -1305,6 +1451,9 @@ class _Planner:
             if isinstance(env, dict) and isinstance(env.get("period_detection"), dict):
                 patch["assembled_canonical_v1"] = dict(env, period_detection=self._redated_detection(
                     pid, env["period_detection"], str(p.get("period_end")), new_end))
+            envelope = p.get("detection_envelope")
+            if isinstance(envelope, dict):
+                patch["detection_envelope"] = redated_envelope(envelope, new_end)
             ops.append({"op": "update", "table": "financial_periods", "key": {"id": pid},
                         "set": patch, "expect": {c: p.get(c) for c in patch}})
 
@@ -1328,10 +1477,78 @@ class _Planner:
                 item["org_id"] = self.company_ws.get(item["company"])
 
 
+def redated_envelope(envelope: Mapping[str, Any], new_end: str) -> Dict[str, Any]:
+    """The §7 detection envelope (``financial_periods.detection_envelope``,
+    ``engine.detection.build_detection_envelope``) as ``stage_persist``
+    would have written it for a period filed under ``new_end``:
+    ``period_end`` and ``fiscal_year_end`` say the new date; so does
+    ``period_start`` when the envelope carried one date for both (the
+    pipeline passes the parsed period end as both) or none. Every other
+    field is untouched — the envelope's shape is a contract."""
+    out = dict(envelope)
+    start, end = envelope.get("period_start"), envelope.get("period_end")
+    out["period_end"] = new_end
+    out["fiscal_year_end"] = new_end
+    if not start or start == end:
+        out["period_start"] = new_end
+    return out
+
+
+def redated_period_ids(ops: Sequence[Mapping[str, Any]]) -> List[str]:
+    """The periods a plan re-dates: its ``financial_periods`` updates that
+    set ``period_end``."""
+    return sorted({str(op["key"]["id"]) for op in ops
+                   if op.get("op") == "update" and op.get("table") == "financial_periods"
+                   and "period_end" in (op.get("set") or {})})
+
+
+def period_record_disagreements(tables: Mapping[str, List[Mapping[str, Any]]], *,
+                                period_ids: Optional[Iterable[str]] = None) -> List[str]:
+    """Periods whose stored records of their date disagree with the row:
+    ``assembled_canonical_v1.period_detection`` — ``resolved_period_end``
+    must be the row's ``period_end``, and ``mismatch`` must be what the
+    engine's own rule gives (``pipeline.resolve_period_end_for_persist``:
+    a detection proposing ANOTHER date than the row's) — and the §7
+    ``detection_envelope`` column (``period_end`` / ``fiscal_year_end``).
+    Both are read verbatim (the Docs panel's mismatch chip, the firm
+    attention layer; the 3b5 backfill snapshot copies the envelope), so a
+    re-dated row under records still saying the old date is reported as
+    mis-filed forever. ``period_ids`` narrows the check to the periods a
+    plan re-dated (the rest is not this migration's to judge)."""
+    wanted = {str(p) for p in period_ids} if period_ids is not None else None
+    out: List[str] = []
+    for p in tables.get("financial_periods") or []:
+        pid = str(p["id"])
+        if wanted is not None and pid not in wanted:
+            continue
+        end = str(p.get("period_end") or "")
+        env = p.get("assembled_canonical_v1")
+        rec = env.get("period_detection") if isinstance(env, dict) else None
+        if isinstance(rec, dict):
+            resolved = rec.get("resolved_period_end")
+            if resolved and str(resolved) != end:
+                out.append("period %s: period_detection.resolved_period_end says %s, the row %s"
+                           % (pid, resolved, end))
+            detected = rec.get("detected") if isinstance(rec.get("detected"), dict) else {}
+            proposed = detected.get("proposed_period_end")
+            should = bool(proposed) and str(proposed) != end
+            if bool(rec.get("mismatch")) != should:
+                out.append("period %s: period_detection.mismatch is %s, but the detection proposes %s and the "
+                           "row is %s" % (pid, rec.get("mismatch"), proposed or "nothing", end))
+        envelope = p.get("detection_envelope")
+        if isinstance(envelope, dict):
+            for col in ("period_end", "fiscal_year_end"):
+                val = envelope.get(col)
+                if val and str(val) != end:
+                    out.append("period %s: detection_envelope.%s says %s, the row %s" % (pid, col, val, end))
+    return sorted(out)
+
+
 def build_plan(tables: Mapping[str, List[Mapping[str, Any]]], facts: Mapping[str, Any], *,
                migration_date: str, pks: Optional[Mapping[str, Sequence[str]]] = None,
                stale_before: Optional[str] = None,
-               keep_current_month_placeholder: bool = False) -> Plan:
+               keep_current_month_placeholder: bool = False,
+               objects: Optional[Mapping[str, Mapping[str, Any]]] = None) -> Plan:
     """The migration plan for ``tables``. See the module docstring.
 
     ``keep_current_month_placeholder``: rule 2's exemption. OFF by default
@@ -1340,10 +1557,16 @@ def build_plan(tables: Mapping[str, List[Mapping[str, Any]]], facts: Mapping[str
     tests/engine/test_no_empty_period_creators.py), so it is an empty period
     like any other and is archived. ON only for a run against a production
     whose frontend still re-creates it (the rollback and re-run hazards
-    rule 2 describes)."""
+    rule 2 describes).
+
+    ``objects`` is the snapshot's storage object inventory (``db_snapshot``
+    ``objects``: ``{document id: {"path", "org_id", "exists"}}``) — what
+    decides whether a document whose bytes could not be read may move
+    without a file (rule 9)."""
     return _Planner(tables, facts, migration_date=migration_date, pks=pks,
                     stale_before=stale_before,
-                    keep_current_month_placeholder=keep_current_month_placeholder).build()
+                    keep_current_month_placeholder=keep_current_month_placeholder,
+                    objects=objects).build()
 
 
 # ── facts from stored bytes ────────────────────────────────────────────
@@ -1351,14 +1574,18 @@ def build_plan(tables: Mapping[str, List[Mapping[str, Any]]], facts: Mapping[str
 def facts_from_documents(tables: Mapping[str, List[Mapping[str, Any]]],
                          fetch: Callable[[Mapping[str, Any]], Tuple[Optional[bytes], Optional[bool], Optional[str]]],
                          *, registry: Any = None, rules: Sequence[Mapping[str, Any]] = (),
-                         log: Callable[[str], None] = lambda _m: None) -> Dict[str, DocFacts]:
+                         log: Callable[[str], None] = lambda _m: None,
+                         objects: Optional[Mapping[str, Mapping[str, Any]]] = None) -> Dict[str, DocFacts]:
     """Identify every financial document from its bytes.
 
     ``fetch(document_row) -> (content or None, object_exists, read_error)``
     is the only I/O, injected (the migration script downloads through the
     tenant-asserting storage client; tests pass bytes). Operator-verified
     identities (``rules``) are layered on with ``apply_known_identity``: a
-    CUI the document prints always wins over a rule."""
+    CUI the document prints always wins over a rule. ``objects`` — the
+    snapshot's object inventory — is recorded on each fact
+    (``recorded_exists``) so the planner can tell a transient read failure
+    from an object that was already missing."""
     from engine.workspaces.company_identity import (
         apply_known_identity,
         identify_document,
@@ -1384,7 +1611,9 @@ def facts_from_documents(tables: Mapping[str, List[Mapping[str, Any]]],
             ident, conflict = apply_known_identity(ident, rule, registry=registry)
             if conflict:
                 log("identity conflict on %s (%r): %s" % (did, d.get("original_filename"), conflict))
-        facts[did] = DocFacts(identity=ident, sha256=sha, object_exists=exists, read_error=err)
+        recorded = (objects.get(did) or {}).get("exists") if objects is not None else None
+        facts[did] = DocFacts(identity=ident, sha256=sha, object_exists=exists, read_error=err,
+                              recorded_exists=None if recorded is None else bool(recorded))
     return facts
 
 
