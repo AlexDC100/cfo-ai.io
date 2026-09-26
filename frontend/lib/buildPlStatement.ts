@@ -323,6 +323,7 @@ export function buildPLStatement(args: BuildArgs): PLStatement {
   const totalOperatingRevenue = revRental + revCapOwnWork + revDiscounts + revOther;
 
   const operatingRevenue: PLSection = {
+    role: "operatingRevenue",
     header: "OPERATING REVENUE",
     lines: operatingRevenueLines,
     subtotalLabel: "Total operating revenue",
@@ -345,6 +346,7 @@ export function buildPLStatement(args: BuildArgs): PLStatement {
     ? [{ accountCode: "758", label: labelFor("758"), amount: revOtherOperating, style: "item", bucket: "otherOperatingIncome" }]
     : [];
   const otherOperatingIncomeSection: PLSection = {
+    role: "otherOperatingIncome",
     header: "OTHER OPERATING INCOME",
     lines: otherOperatingIncomeLines,
     subtotalLabel: "Total other operating income (excluded from operating revenue / EBITDA above)",
@@ -372,6 +374,7 @@ export function buildPLStatement(args: BuildArgs): PLStatement {
   const totalOpexCash = opexLines.reduce((s, l) => s + (l.amount ?? 0), 0);
 
   const operatingExpenses: PLSection = {
+    role: "operatingExpenses",
     header: "OPERATING EXPENSES (excl. D&A)",
     lines: opexLines,
     subtotalLabel: "Total operating expenses (cash)",
@@ -386,6 +389,7 @@ export function buildPLStatement(args: BuildArgs): PLStatement {
   const depreciation = sumByPrefix(items, "6811", "6812");
 
   const depreciationSection: PLSection = {
+    role: "depreciation",
     header: "",
     lines: depreciation
       ? [{ accountCode: "6811", label: labelFor("6811"), amount: depreciation, style: "item", bucket: "depreciationAmortization" }]
@@ -428,6 +432,7 @@ export function buildPLStatement(args: BuildArgs): PLStatement {
     dividendIncome + fxGain + interestIncome - fxLoss - interestExpense;
 
   const financialItems: PLSection = {
+    role: "financialItems",
     header: "FINANCIAL ITEMS",
     lines: financialLines,
     subtotalLabel: "Net financial result",
@@ -456,6 +461,7 @@ export function buildPLStatement(args: BuildArgs): PLStatement {
   const netProfitStatutory = netProfit + revCapOwnWork;           // includes 722
 
   const closingSection: PLSection = {
+    role: "closing",
     header: "",
     lines: plLines([
       { label: "Profit before tax", amount: profitBeforeTax, style: "subtotal", bucket: "pretax" },
@@ -720,6 +726,7 @@ export function buildPLStatementFromAggregates(
   const totalOperatingRevenue = revenue + capOwnWork;
 
   const operatingRevenue: PLSection = {
+    role: "operatingRevenue",
     header: "OPERATING REVENUE",
     lines: operatingRevenueLines,
     subtotalLabel: "Total operating revenue",
@@ -757,6 +764,7 @@ export function buildPLStatementFromAggregates(
     });
   }
   const otherOperatingIncomeSection: PLSection = {
+    role: "otherOperatingIncome",
     header: "OTHER OPERATING INCOME",
     lines: otherOperatingIncomeLines,
     subtotalLabel: "Total other operating income (excluded from operating revenue / EBITDA above)",
@@ -788,6 +796,7 @@ export function buildPLStatementFromAggregates(
   const totalOpexCash = cogs + opex;
 
   const operatingExpenses: PLSection = {
+    role: "operatingExpenses",
     header: "OPERATING EXPENSES (excl. D&A)",
     lines: opexLines,
     subtotalLabel: "Total operating expenses (cash)",
@@ -801,6 +810,7 @@ export function buildPLStatementFromAggregates(
 
   // ── D&A → EBIT ───────────────────────────────────────────────────────
   const depreciationSection: PLSection = {
+    role: "depreciation",
     header: "",
     lines: dna > 0
       ? [{ accountCode: "6811", label: "Depreciation & amortization", amount: dna, style: "item", bucket: "depreciationAmortization" }]
@@ -851,6 +861,7 @@ export function buildPLStatementFromAggregates(
   const netFinancialResult = finIncome - interestExpense - finExpense;
 
   const financialItems: PLSection = {
+    role: "financialItems",
     header: "FINANCIAL ITEMS",
     lines: financialLines,
     subtotalLabel: "Net financial result",
@@ -869,6 +880,7 @@ export function buildPLStatementFromAggregates(
   const netProfitStatutory = netProfit + capOwnWork;        // includes 722
 
   const closingSection: PLSection = {
+    role: "closing",
     header: "",
     lines: plLines([
       { label: "Profit before tax", amount: profitBeforeTax, style: "subtotal", bucket: "pretax" },

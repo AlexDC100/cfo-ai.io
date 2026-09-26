@@ -32,7 +32,25 @@ export interface PLLine {
   bucket?: string;
 }
 
+/** The part a section plays in the reference layout. PLStatementView places
+ *  each section BY ITS ROLE — the EBITDA box after the operating expenses,
+ *  the profit-before-tax-to-net-profit block last — never by its index:
+ *  the optional OTHER OPERATING INCOME section (account 758) shifts every
+ *  index after it. */
+export type PLSectionRole =
+  | "operatingRevenue"
+  | "otherOperatingIncome"
+  | "operatingExpenses"
+  | "depreciation"
+  | "financialItems"
+  | "closing";
+
 export interface PLSection {
+  /** The section's place in the reference layout. Both RO builders set it
+   *  on every section; a statement that sets none (the public-company
+   *  adapter) is read positionally, as before — see PLStatementView's
+   *  `plLayout`. */
+  role?: PLSectionRole;
   /** Section header, e.g. "OPERATING REVENUE". Empty string = no header. */
   header: string;
   /** Line items in display order. */

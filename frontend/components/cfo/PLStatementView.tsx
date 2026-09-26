@@ -10,7 +10,7 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { PLStatement, PLSection, PLLine } from "@/lib/plStructure";
+import type { PLStatement, PLSection, PLSectionRole, PLLine } from "@/lib/plStructure";
 import { formatPercent } from "@/lib/formatRon";
 import { useAmountFormatter, useDisplayCurrency } from "@/stores/currency";
 // THE DIAL — Simple mode opens statements totals-first: item rows hide
@@ -38,6 +38,47 @@ import { GuideMeButton } from "@/components/learning/GuideMeButton";
 import { PL_GUIDE } from "@/components/learning/pageGuides";
 import { AccountChip, splitAccountParen, StatementCurrencyChip } from "./AccountChip";
 import "./plStatementView.css";
+
+/**
+ * THE REFERENCE LAYOUT'S SECTIONS, BY ROLE.
+ *
+ * Both RO builders insert an OTHER OPERATING INCOME section (account 758)
+ * after operating revenue whenever the book carries one — most books. This
+ * view used to read the sections by INDEX, `[revenue, opex, d&a,
+ * financial, closing]`, so on such a book the 758 section took the
+ * operating-expenses slot, the EBITDA box landed between it and the
+ * operating expenses, and the sixth section — profit before tax, income
+ * tax, net profit — was never rendered at all. Sections that name their
+ * `role` are now placed by it. A statement that names none keeps the old
+ * positional reading, unchanged: that is the public-company adapter, whose
+ * SIX sections (revenue, cost of revenue, operating expenses, EBIT,
+ * financial items, net profit) this reading mis-places the same way — its
+ * NET PROFIT section is not rendered either. That page is a separate fix:
+ * its operating expenses include D&A, so the EBITDA box has no place in
+ * its structure that this layout could choose for it.
+ */
+function plLayout(sections: readonly PLSection[]): {
+  operatingRevenue?: PLSection;
+  otherOperatingIncome?: PLSection;
+  operatingExpenses?: PLSection;
+  depreciationSection?: PLSection;
+  financialItems?: PLSection;
+  closingSection?: PLSection;
+} {
+  if (sections.some((s) => s.role)) {
+    const by = (role: PLSectionRole) => sections.find((s) => s.role === role);
+    return {
+      operatingRevenue: by("operatingRevenue"),
+      otherOperatingIncome: by("otherOperatingIncome"),
+      operatingExpenses: by("operatingExpenses"),
+      depreciationSection: by("depreciation"),
+      financialItems: by("financialItems"),
+      closingSection: by("closing"),
+    };
+  }
+  const [operatingRevenue, operatingExpenses, depreciationSection, financialItems, closingSection] = sections;
+  return { operatingRevenue, operatingExpenses, depreciationSection, financialItems, closingSection };
+}
 
 interface Props {
   statement: PLStatement;
@@ -70,8 +111,14 @@ export function PLStatementView({ statement, showFootnote = true, hideGuide = fa
   const [showAll, setShowAll] = useState(false);
   const keyOnly = isSimple && !showAll;
 
-  const [operatingRevenue, operatingExpenses, depreciationSection, financialItems, closingSection] =
-    statement.sections;
+  const {
+    operatingRevenue,
+    otherOperatingIncome,
+    operatingExpenses,
+    depreciationSection,
+    financialItems,
+    closingSection,
+  } = plLayout(statement.sections);
 
   return (
     <div
@@ -112,11 +159,20 @@ export function PLStatementView({ statement, showFootnote = true, hideGuide = fa
       <div className="pl-body">
         {/* OPERATING REVENUE */}
         <div data-guide="pl-revenue">
-          <PLSectionView section={operatingRevenue} currency={statement.currency} keyOnly={keyOnly} />
+          {operatingRevenue && (
+            <PLSectionView section={operatingRevenue} currency={statement.currency} keyOnly={keyOnly} />
+          )}
         </div>
 
+        {/* OTHER OPERATING INCOME (758) — present only when the book carries it */}
+        {otherOperatingIncome && (
+          <PLSectionView section={otherOperatingIncome} currency={statement.currency} keyOnly={keyOnly} />
+        )}
+
         {/* OPERATING EXPENSES */}
-        <PLSectionView section={operatingExpenses} currency={statement.currency} keyOnly={keyOnly} />
+        {operatingExpenses && (
+          <PLSectionView section={operatingExpenses} currency={statement.currency} keyOnly={keyOnly} />
+        )}
 
         {/* EBITDA — boxed off with double borders. */}
         <div
@@ -136,14 +192,20 @@ export function PLStatementView({ statement, showFootnote = true, hideGuide = fa
         </div>
 
         {/* D&A → EBIT */}
-        <PLSectionView section={depreciationSection} currency={statement.currency} keyOnly={keyOnly} />
+        {depreciationSection && (
+          <PLSectionView section={depreciationSection} currency={statement.currency} keyOnly={keyOnly} />
+        )}
 
         {/* FINANCIAL ITEMS */}
-        <PLSectionView section={financialItems} currency={statement.currency} keyOnly={keyOnly} />
+        {financialItems && (
+          <PLSectionView section={financialItems} currency={statement.currency} keyOnly={keyOnly} />
+        )}
 
         {/* PBT → NET PROFIT (operational headline) */}
         <div data-guide="pl-net-profit">
-          <PLSectionView section={closingSection} currency={statement.currency} keyOnly={keyOnly} />
+          {closingSection && (
+            <PLSectionView section={closingSection} currency={statement.currency} keyOnly={keyOnly} />
+          )}
         </div>
 
         {statement.capitalizedOwnWorkMemo != null &&
@@ -421,7 +483,9 @@ function PLFootnote({ statement }: { statement: PLStatement }) {
     (statement.sections[0]?.lines.find((l) => l.accountCode === "767")?.amount ?? 0);
   const rentalDominated =
     revenueExOwnWork > 0 && rentalOnly / revenueExOwnWork >= 0.6;
-  const opexExcl628 = (statement.sections[1]?.subtotalAmount ?? 0) - ext628;
+  // The OPERATING EXPENSES section, by role — `sections[1]` is the 758
+  // section on a book that carries one (see `plLayout`).
+  const opexExcl628 = (plLayout(statement.sections).operatingExpenses?.subtotalAmount ?? 0) - ext628;
   return (
     <div className="pl-footnote" data-testid="pl-footnote">
       <p>
