@@ -259,6 +259,27 @@ def test_execute_refuses_while_the_purge_hold_guard_is_missing(env):
     assert env["fake"].writes == []
 
 
+def test_execute_refuses_while_the_archive_hold_guard_is_missing(env):
+    """P2 (2), 2026-09-26: the plan's held archives are safe from "Delete
+    forever" only. Without supabase/schema_phase_archive_hold_guard.sql,
+    archive_workspace() gives a held archive a deletion date (the cron
+    purge erases it a month later) and restore_workspace() lets its owner
+    bring it back live. The dry-run says so; --execute refuses before any
+    write — with the purge guard present."""
+    env["fake"].rpcs = {"workspace_hold_guard_version"}
+    snap = _snapshot(env)
+    assert _migrate(env, snap=snap) == 0
+    assert any(l.startswith("ARCHIVE HOLD GUARD MISSING") and "schema_phase_archive_hold_guard.sql" in l
+               for l in env["lines"])
+    assert not any(l.startswith("HOLD GUARD MISSING") for l in env["lines"])
+    assert _migrate(env, "--execute", "--expect-plan-sha", _plan_sha(env), snap=snap) == 2
+    assert any("REFUSED: the archive/restore hold guard is not installed" in l for l in env["lines"])
+    assert env["fake"].writes == []
+    # both markers present: the same plan executes
+    env["fake"].rpcs = {"workspace_hold_guard_version", "workspace_archive_hold_guard_version"}
+    assert _migrate(env, "--execute", "--expect-plan-sha", _plan_sha(env), snap=snap) == 0, env["lines"][-6:]
+
+
 def _interrupt_on(monkeypatch, nth):
     real = pgrest_io.PgRest.update
     calls = {"n": 0}

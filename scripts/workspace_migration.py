@@ -1,16 +1,25 @@
 #!/usr/bin/env python3
-"""One company per workspace — the migration of existing data.
+r"""One company per workspace — the migration of existing data.
 
+    # 0. once, in Supabase Studio, each followed by Dashboard -> Settings -> API
+    #    -> "Reload schema cache": the two hold guards (in this order)
+    #      supabase/schema_phase_workspace_purge_now_hold.sql
+    #      supabase/schema_phase_archive_hold_guard.sql
+    #    (--execute refuses to create a held archive while either marker is
+    #    missing from PostgREST's OpenAPI document)
     # 1. snapshot (read-only)
     python3 scripts/db_snapshot.py --out /app/data/ws_migration/snap.json.gz
     # 2. plan (read-only; downloads documents to identify them, writes nothing
     #    to Supabase; the plan / facts / report land in --out-dir)
     python3 scripts/workspace_migration.py --snapshot /app/data/ws_migration/snap.json.gz \
         --known-identities /app/data/ws_migration/known_identities.json
-    # 3. execute exactly the reviewed plan (--expect-plan-sha is required)
+    # 3. execute exactly the reviewed plan (--expect-plan-sha is required);
+    #    the run ends with the RECOUNT (production equals the plan)
     python3 scripts/workspace_migration.py --execute --snapshot /app/data/ws_migration/snap.json.gz \
         --known-identities /app/data/ws_migration/known_identities.json --expect-plan-sha <sha>
-    # rollback: undo exactly that plan's operations (dry-run first)
+    # 4. a re-run on a FRESH snapshot plans zero operations (NOTHING TO DO)
+    # rollback: undo exactly that plan's own operations, never a row it did
+    # not name (dry-run first; --apply then re-reads: UNDO CHECK, STORAGE CHECK)
     python3 scripts/db_restore.py /app/data/ws_migration/snap.json.gz \
         --plan /app/data/ws_migration/plan_<date>.json [--apply]
 
@@ -93,6 +102,11 @@ PROTECTED_TABLES = frozenset({"subscriptions", "user_usage", "billing_events"})
 #: the purge_workspace guard that refuses a HELD archive (archived,
 #: purge_after NULL). Read from the OpenAPI document, never called.
 HOLD_GUARD_RPC = "workspace_hold_guard_version"
+#: Installed by supabase/schema_phase_archive_hold_guard.sql, next to the
+#: archive_workspace guard (a held archive is never archived again with a
+#: deletion date) and the restore_workspace guard (a held archive is not
+#: restored by its owner). Read from the OpenAPI document, never called.
+ARCHIVE_HOLD_GUARD_RPC = "workspace_archive_hold_guard_version"
 
 
 def archives_held_workspaces(ops: Sequence[Mapping[str, Any]]) -> bool:
@@ -395,12 +409,19 @@ def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=p
         if touched:  # structural guard; the planner never emits these
             out("REFUSED: the plan writes billing tables %s" % sorted(touched))
             return 2
-        hold_unguarded = archives_held_workspaces(plan.ops) and not db.has_rpc(HOLD_GUARD_RPC)
+        holds = archives_held_workspaces(plan.ops)
+        hold_unguarded = holds and not db.has_rpc(HOLD_GUARD_RPC)
         if hold_unguarded:
             out("HOLD GUARD MISSING: the plan archives workspaces with no deletion date, and "
                 "purge_workspace() would let their owner erase them (and the originals the rollback "
                 "needs). Apply supabase/schema_phase_workspace_purge_now_hold.sql, reload the schema "
                 "cache, then execute.")
+        archive_unguarded = holds and not db.has_rpc(ARCHIVE_HOLD_GUARD_RPC)
+        if archive_unguarded:
+            out("ARCHIVE HOLD GUARD MISSING: the plan archives workspaces with no deletion date, and "
+                "archive_workspace() would give one a deletion date (the cron purge erases it 30 days "
+                "later) while restore_workspace() would let its owner bring it back live. Apply "
+                "supabase/schema_phase_archive_hold_guard.sql, reload the schema cache, then execute.")
         if not args.execute:
             out("DRY-RUN: nothing was written to production.")
             return 0
@@ -413,6 +434,9 @@ def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=p
             return 2
         if hold_unguarded:
             out("REFUSED: the purge_workspace hold guard is not installed (see HOLD GUARD MISSING).")
+            return 2
+        if archive_unguarded:
+            out("REFUSED: the archive/restore hold guard is not installed (see ARCHIVE HOLD GUARD MISSING).")
             return 2
         if not plan.ops:
             out("NOTHING TO DO: the plan is empty (already migrated).")

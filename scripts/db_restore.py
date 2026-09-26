@@ -71,6 +71,17 @@ since the snapshot — the dry-run lists them — unless
 subscriptions, billing_events), which are only restored when named.
 Missing storage objects are listed as STORAGE MISSING; with --apply they
 make the exit 1.
+
+THE HOLD GUARDS. A workspace this script archives is HELD (archived_at
+set, purge_after NULL). Production must carry both guards before any
+migration run — supabase/schema_phase_workspace_purge_now_hold.sql
+(purge_workspace refuses a held archive) and
+supabase/schema_phase_archive_hold_guard.sql (archive_workspace never
+archives an archived workspace again, so a held one never gets the
+deletion date the cron purge keys on; restore_workspace refuses a held
+archive unless the caller is the service role), each followed by the
+Dashboard "Reload schema cache" click. scripts/workspace_migration.py
+--execute refuses while either marker is missing.
 """
 from __future__ import annotations
 

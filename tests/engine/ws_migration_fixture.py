@@ -439,8 +439,8 @@ class FakeSupabase:
         self.deletes: List[str] = []
         self.clock = "2026-09-21T12:00:00+00:00"
         #: Functions the OpenAPI document lists under /rpc/ (read, never
-        #: called — the double serves no RPC).
-        self.rpcs = {"workspace_hold_guard_version"}
+        #: called — the double serves no RPC): the two hold-guard markers.
+        self.rpcs = {"workspace_hold_guard_version", "workspace_archive_hold_guard_version"}
 
     def pk(self, t):
         return PKS.get(t, ["id"])

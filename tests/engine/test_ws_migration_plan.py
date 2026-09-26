@@ -1137,6 +1137,52 @@ def test_the_user_purge_refuses_a_held_archive():
     _latest_function("workspace_hold_guard_version")   # the marker --execute requires
 
 
+def _functions_in(path):
+    """{name: body} of every `create or replace function` in one file."""
+    text = path.read_text()
+    return {m.group(1).lower(): m.group(2) for m in re.finditer(
+        r"create or replace function (?:public\.)?(\w+)\s*\(.*?\$\$(.*?)\$\$", text, re.S | re.I)}
+
+
+def test_a_held_archive_is_never_archived_again_nor_restored_by_its_owner():
+    """P2 (2), 2026-09-26 — supabase/schema_phase_archive_hold_guard.sql
+    (the owner applies it; --execute requires its marker). A held archive
+    (archived_at set, purge_after NULL) reached two more RPCs:
+    archive_workspace gave it a deletion date (the cron purge then erased
+    it), restore_workspace let its owner bring it back live. The guard
+    file's archive_workspace updates ONLY a live row (`and archived_at is
+    null`) and raises when no row matched; its restore_workspace refuses a
+    held archive unless the caller is the service role; the file ends with
+    the schema reload NOTIFY. Reds too when ANOTHER migration redefines
+    either function — a later file would silently drop the guard unless
+    it is listed here as carrying it."""
+    guard = REPO / "supabase" / "schema_phase_archive_hold_guard.sql"
+    fns = _functions_in(guard)
+    archive = re.sub(r"\s+", " ", fns["archive_workspace"].lower())
+    where = archive.find("where id = p_org_id and archived_at is null")
+    assert where > archive.find("update organizations") > 0
+    assert "get diagnostics" in archive and "row_count" in archive
+    raised = archive.find("raise exception", where)
+    assert 0 < raised < archive.find("update user_prefs")          # raised BEFORE the bounce, on 0 rows
+    assert "if v_rows = 0 then" in archive[where:raised]
+    assert "count(*)" not in archive, "the 2026-07-25 rule (the last workspace may be archived) is kept"
+    restore = re.sub(r"\s+", " ", fns["restore_workspace"].lower())
+    held = restore.find("archived_at is not null and purge_after is null")
+    assert 0 < held < restore.find("update organizations")
+    assert "'service_role'" in restore and "not v_service and exists" in restore
+    assert "raise exception" in restore[held:restore.find("update organizations")]
+    assert "workspace_archive_hold_guard_version" in fns
+    text = guard.read_text()
+    assert re.search(r"notify pgrst, 'reload schema';\s*$", text, re.I)
+    assert "grant execute on function workspace_archive_hold_guard_version() to service_role" in text
+    # nothing applied later may redefine these without the guard
+    carriers = {"schema_phase_multi_workspace.sql", "schema_phase_allow_delete_last_workspace.sql",
+                "schema_phase_archive_hold_guard.sql"}
+    for f in sorted((REPO / "supabase").glob("*.sql")):
+        defined = set(_functions_in(f)) & {"archive_workspace", "restore_workspace"}
+        assert not defined or f.name in carriers, (f.name, defined)
+
+
 def test_only_known_callers_reach_the_org_purge_body():
     """A ratchet: every function whose LATEST definition performs
     _purge_org_data / _purge_org_content. purge_workspace is guarded (held
