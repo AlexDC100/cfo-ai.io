@@ -68,17 +68,29 @@ function RatioParam({ ratios, selected, onOpen }: {
   const [params, setParams] = useSearchParams();
   const wanted = params.get("ratio");
   const opened = useRef<string | null>(null);
+  // Whether the drawer this receiver opened has actually been SEEN open —
+  // the open is a state update, so in the commit that requests it
+  // `selected` is still null, and reading that as "closed" would drop the
+  // parameter the same instant it was honoured.
+  const shown = useRef(false);
   useEffect(() => {
     if (!wanted || opened.current === wanted) return;
     const hit = ratios.find((r) => r.key === wanted);
     if (hit) {
       opened.current = wanted;
+      shown.current = false;
       onOpen(hit);
     }
   }, [wanted, ratios, onOpen]);
   useEffect(() => {
-    if (selected !== null || !opened.current || wanted !== opened.current) return;
+    if (!opened.current) return;
+    if (selected !== null) {
+      shown.current = true;
+      return;
+    }
+    if (!shown.current || wanted !== opened.current) return;
     opened.current = null;
+    shown.current = false;
     const next = new URLSearchParams(params);
     next.delete("ratio");
     setParams(next, { replace: true });

@@ -10684,7 +10684,12 @@ reverted): the ratio receiver unmounted — `× the bar's link lands on the draw
 for that ratio, and closing it drops the parameter`; the row receiver unmounted
 — `AssertionError: expected [] to deeply equal [ 'net_margin' ]`. The account
 view (`?account=`) is not built: a Cont row lands on its statement tab with the
-account's bucket highlighted.
+account's bucket highlighted. A third plant came from the LIVE run: the first
+ratio receiver dropped `?ratio=` in the same commit it opened the drawer (the
+open is a state update, so `selected` still read null) — live, the URL came
+back `…&tab=ratios` with the parameter gone. The jsdom test then asserted the
+link while open; the pre-fix receiver planted back reds it:
+`AssertionError: expected '?tab=ratios' to contain 'ratio=current_ratio'`.
 
 ### cmdbar — the live half (hermetic bundle; not in the battery)
 
@@ -10701,7 +10706,11 @@ the viewport at 1440 and 390, Terminal and Paper, RO and EN. Run recipe in the
 spec's header (`E2E_HERMETIC=1`; skipped otherwise, because a dev server built
 from `.env` would intercept nothing).
 
-**GREEN** — `10 passed (28.5s)`; 32 screenshots (Scandia and Agras × empty and
+G5 opens a ratio answer and requires the ratios tab with its drawer (the
+benchmark `?row=` receiver is held in jsdom: /benchmark reads
+`/api/benchmarks/report/{period}`, which the double holds no capture for).
+
+**GREEN** — `11 passed (29.8s)`; 32 screenshots (Scandia and Agras × empty and
 "profit" × 1440/390 × Terminal/Paper × RO/EN).
 **PLANT** — the keystroke fetch above, built into the bundle. **RED**:
 ```

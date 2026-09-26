@@ -200,6 +200,24 @@ test.describe("G1/G2/G3 — the bar on each company", () => {
   });
 });
 
+test.describe("G5 — an item opens its evidence", () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+  test.setTimeout(60_000);
+  // The benchmark page's `?row=` receiver is held in jsdom
+  // (evidenceReceivers.test.tsx): /benchmark reads
+  // /api/benchmarks/report/{period}, which the double holds no capture for,
+  // and the double invents no engine answer.
+  test("a ratio answer opens the ratios tab with its drawer", async ({ page }) => {
+    const double = new WorkspaceDouble({ theme: "light", language: "en" });
+    await openDashboard(page, double, COMPANIES[0]);
+    await openBar(page);
+    await typeQuery(page, "current ratio");
+    await page.locator('[data-row-id="ratio:current_ratio"]').click();
+    await expect(page).toHaveURL(/tab=ratios.*ratio=current_ratio|ratio=current_ratio.*tab=ratios/);
+    await expect(page.getByTestId("ratio-detail-drawer")).toBeVisible({ timeout: 20_000 });
+  });
+});
+
 // ── G4 + the screenshot loop ────────────────────────────────────────────
 for (const vp of [{ label: "1440", width: 1440, height: 900 }, { label: "390", width: 390, height: 844 }]) {
   for (const theme of ["dark", "light"] as const) {

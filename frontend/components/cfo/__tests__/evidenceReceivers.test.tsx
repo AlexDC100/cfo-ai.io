@@ -60,6 +60,10 @@ describe("?ratio= opens the ratio's drawer", () => {
     const drawer = await screen.findByTestId("ratio-detail-drawer");
     const label = [...ratios.liquidity].find((r) => r.key === "current_ratio")!.label;
     expect(drawer.textContent).toContain(label);
+    // While the drawer is open the link stays what the reader followed (a
+    // receiver that dropped it in the same commit it opened would make
+    // Back and reload lose the evidence — caught live, 2026-09-27).
+    expect(screen.getByTestId("where").textContent).toContain("ratio=current_ratio");
     await act(async () => {
       (document.activeElement as HTMLElement | null)?.dispatchEvent(
         new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
