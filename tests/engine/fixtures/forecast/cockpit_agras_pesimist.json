@@ -802,6 +802,7 @@
     "en": "no comparable prior year and no sector median: the BNR inflation anchor 2.5%, a nominal continuation at constant volume · no sector median: this workspace carries no CAEN code",
     "ro": "fără an anterior comparabil și fără mediană de sector: ancora de inflație BNR 2,5%, creștere nominală la volum constant · mediana sectorului nu se poate citi: firma nu are cod CAEN în spațiul de lucru"
    },
+   "decimals": 3,
    "default": "0.025",
    "display": {
     "en": "2.5%",
@@ -842,6 +843,7 @@
     "en": "BNR target 2.5% ±1.0 pp (confirmed 2026-09-08) · BNR projection 6.1% December 2026, 3.4% December 2027, 2.8% June 2028 (Banca Naţională a României — Raport asupra inflaţiei, august 2026, 2026-08-13) · INS: 6.17% in August 2026 (2026-09-11)",
     "ro": "ținta BNR 2,5% ±1,0 pp (confirmată 2026-09-08) · proiecția BNR 6,1% decembrie 2026, 3,4% decembrie 2027, 2,8% iunie 2028 (Banca Naţională a României — Raport asupra inflaţiei, august 2026, 2026-08-13) · INS: 6,17% în august 2026 (2026-09-11)"
    },
+   "decimals": 3,
    "default": "0.025",
    "display": {
     "en": "6.1%",
@@ -931,6 +933,7 @@
     "en": "raw materials and consumables (accounts 601, 602) RON 44.1M = 62.5% of the RON 70.6M cost of sales in 2025, so a move in their price moves cost of sales by 62.5% of it · INS: manufacturing producer prices +9.65%, July 2026 on the year before",
     "ro": "materii prime și consumabile (conturile 601, 602) 44,1 mil. lei = 62,5% din costul vânzărilor de 70,6 mil. lei în 2025, deci o mișcare a prețului lor mută costul vânzărilor cu 62,5% din ea · INS: prețurile producției industriale în industria prelucrătoare +9,65%, iulie 2026 față de anul anterior"
    },
+   "decimals": 2,
    "default": "0",
    "display": {
     "en": "9.7%",
@@ -993,6 +996,7 @@
     "en": "personnel cost (accounts 641, 642, 643, 644, 645, 646) RON 20.6M in 2025; by default it grows with inflation · gross minimum wage RON 4,050 → RON 4,325 from July 2026 (+6.8%; HG, 2026-03-12)",
     "ro": "cheltuieli cu personalul (conturile 641, 642, 643, 644, 645, 646) 20,6 mil. lei în 2025; implicit cresc cu inflația · salariul minim brut 4.050 lei → 4.325 lei de la iulie 2026 (+6,8%; HG, 2026-03-12)"
    },
+   "decimals": 3,
    "default": "0.025",
    "display": {
     "en": "6.1%",
@@ -1061,6 +1065,7 @@
     "en": "energy and utilities (account 605) RON 2.5M = 2.3% of revenue in 2025; its variable part follows volume",
     "ro": "energie și utilități (cont 605) 2,5 mil. lei = 2,3% din venituri în 2025; partea variabilă urmează volumul"
    },
+   "decimals": 2,
    "default": "0",
    "display": {
     "en": "0.0%",
@@ -1104,6 +1109,7 @@
     "en": "a trial balance does not split purchases by currency; until the imported share is stated, the rate moves nothing",
     "ro": "balanța nu separă achizițiile din import de cele interne; până declari ponderea importată, cursul nu mută nimic"
    },
+   "decimals": 3,
    "default": "0",
    "display": {
     "en": "0.0%",
@@ -1144,6 +1150,7 @@
     "en": "not measurable from a trial balance (none splits foreign suppliers); state the share of cost of sales bought in EUR",
     "ro": "nemăsurabil din balanță (nicio balanță nu separă furnizorii externi); declară ponderea din costul vânzărilor cumpărată în EUR"
    },
+   "decimals": 2,
    "default": "0",
    "display": {
     "en": "0.0%",
@@ -1181,6 +1188,7 @@
     "en": "28.0 days = trade receivables RON 8.5M / revenue RON 110.8M × 365 (2025)",
     "ro": "28,0 zile = creanțe comerciale 8,5 mil. lei / venituri 110,8 mil. lei × 365 (2025)"
    },
+   "decimals": 0,
    "default": "28.045424",
    "display": {
     "en": "28.0",
@@ -1220,6 +1228,7 @@
     "en": "46.2 days of cost of sales = inventory RON 8.9M / cost of sales RON 70.6M × 365 (2025)",
     "ro": "46,2 zile de cost al vânzărilor = stocuri 8,9 mil. lei / cost al vânzărilor 70,6 mil. lei × 365 (2025)"
    },
+   "decimals": 0,
    "default": "46.213147",
    "display": {
     "en": "46.2",
@@ -1259,6 +1268,7 @@
     "en": "37.2 days of cost of sales = trade payables RON 7.2M / cost of sales RON 70.6M × 365 (2025)",
     "ro": "37,2 zile de cost al vânzărilor = datorii comerciale 7,2 mil. lei / cost al vânzărilor 70,6 mil. lei × 365 (2025)"
    },
+   "decimals": 0,
    "default": "37.175931",
    "display": {
     "en": "37.2",
@@ -1298,6 +1308,7 @@
     "en": "convention: capital expenditure replaces the RON 3.0M depreciation charge (2.7% of revenue); a trial balance shows no investment plan",
     "ro": "convenție: investițiile înlocuiesc amortizarea de 3,0 mil. lei (2,7% din venituri); o balanță nu arată un plan de investiții"
    },
+   "decimals": 3,
    "default": "0.026673",
    "display": {
     "en": "2.7%",
@@ -1337,6 +1348,7 @@
     "en": "7.64% = interest RON 277.9k / interest-bearing debt RON 3.6M (2025); the same rate prices the credit line",
     "ro": "7,64% = dobânzi 277,9 mii lei / datorii purtătoare de dobândă 3,6 mil. lei (2025); aceeași rată se aplică liniei de credit"
    },
+   "decimals": 4,
    "default": "0.07635",
    "display": {
     "en": "7.6%",
@@ -1377,6 +1389,7 @@
     "en": "a closing trial balance does not show distributions; by default nothing is distributed",
     "ro": "o balanță de închidere nu arată dividendele distribuite; implicit nu se distribuie nimic"
    },
+   "decimals": 2,
    "default": "0",
    "display": {
     "en": "0.0%",
@@ -1529,8 +1542,8 @@
  },
  "period_id": "c-cur",
  "pins": {
-  "body_hash": "sha256:796285c0850e3dd2706f32a87ff67d3620c1641399e576df661c641c41458275",
-  "cockpit_pack": "sha256:19a11d8d50807d7df64db5213885c82f418fcbda1b29929f0e1f27fe154402cd",
+  "body_hash": "sha256:5fd5788b9c3e1b38a37790455a0e165c44832d3f6e1d9c8acfe535ee7e5c328a",
+  "cockpit_pack": "sha256:765c368b007887f2a2cdc68aad23fea27df4b630a9c1c13b66bd91a6c86fd617",
   "engine_version": "0.1.0",
   "macro_pack": "sha256:786eec084a31392dca0f4be9c16faff90fcf6532c94bc8ed5823d5a05ff548b3",
   "pack_id": "forecast-cockpit"

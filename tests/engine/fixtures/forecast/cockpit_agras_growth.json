@@ -37,14 +37,14 @@
     "kind": "projected"
    },
    "closing_cash_case": {
-    "amount_minor": 3542856258,
+    "amount_minor": 4406658309,
     "kind": "projected"
    },
    "period": "FY2030",
    "steps": [
     {
      "figure": {
-      "amount_minor": 0,
+      "amount_minor": 4589000979,
       "kind": "projected"
      },
      "id": "revenue",
@@ -57,7 +57,7 @@
     },
     {
      "figure": {
-      "amount_minor": 0,
+      "amount_minor": -3244289336,
       "kind": "projected"
      },
      "id": "costs",
@@ -70,7 +70,7 @@
     },
     {
      "figure": {
-      "amount_minor": 0,
+      "amount_minor": 1344711643,
       "kind": "projected"
      },
      "id": "ebitda",
@@ -83,7 +83,7 @@
     },
     {
      "figure": {
-      "amount_minor": 0,
+      "amount_minor": -148645037,
       "kind": "projected"
      },
      "id": "working_capital",
@@ -96,7 +96,7 @@
     },
     {
      "figure": {
-      "amount_minor": 0,
+      "amount_minor": -122402423,
       "kind": "projected"
      },
      "id": "capex",
@@ -109,7 +109,7 @@
     },
     {
      "figure": {
-      "amount_minor": 0,
+      "amount_minor": -209862132,
       "kind": "projected"
      },
      "id": "interest_tax",
@@ -148,7 +148,7 @@
     },
     {
      "figure": {
-      "amount_minor": 0,
+      "amount_minor": 863802051,
       "kind": "projected"
      },
      "id": "cash",
@@ -169,14 +169,14 @@
     "kind": "projected"
    },
    "closing_cash_case": {
-    "amount_minor": 772123738,
+    "amount_minor": 807392979,
     "kind": "projected"
    },
    "period": "2026-12",
    "steps": [
     {
      "figure": {
-      "amount_minor": 0,
+      "amount_minor": 276995773,
       "kind": "projected"
      },
      "id": "revenue",
@@ -189,7 +189,7 @@
     },
     {
      "figure": {
-      "amount_minor": 0,
+      "amount_minor": -195827902,
       "kind": "projected"
      },
      "id": "costs",
@@ -202,7 +202,7 @@
     },
     {
      "figure": {
-      "amount_minor": 0,
+      "amount_minor": 81167871,
       "kind": "projected"
      },
      "id": "ebitda",
@@ -215,7 +215,7 @@
     },
     {
      "figure": {
-      "amount_minor": 0,
+      "amount_minor": -25650860,
       "kind": "projected"
      },
      "id": "working_capital",
@@ -228,7 +228,7 @@
     },
     {
      "figure": {
-      "amount_minor": 0,
+      "amount_minor": -7388308,
       "kind": "projected"
      },
      "id": "capex",
@@ -241,7 +241,7 @@
     },
     {
      "figure": {
-      "amount_minor": 0,
+      "amount_minor": -12859462,
       "kind": "projected"
      },
      "id": "interest_tax",
@@ -280,7 +280,7 @@
     },
     {
      "figure": {
-      "amount_minor": 0,
+      "amount_minor": 35269241,
       "kind": "projected"
      },
      "id": "cash",
@@ -302,7 +302,7 @@
    "en": "Base",
    "ro": "Bază"
   },
-  "modified": false,
+  "modified": true,
   "name": null
  },
  "cases": [
@@ -381,8 +381,8 @@
     "period": "FY2025"
    },
    {
-    "cash_before_funding_minor": 148978821,
-    "cash_minor": 148978821,
+    "cash_before_funding_minor": 132858573,
+    "cash_minor": 132858573,
     "funding_line_minor": 0,
     "gap": false,
     "granularity": "monthly",
@@ -390,8 +390,8 @@
     "period": "2026-01"
    },
    {
-    "cash_before_funding_minor": 201209777,
-    "cash_minor": 201209777,
+    "cash_before_funding_minor": 185387623,
+    "cash_minor": 185387623,
     "funding_line_minor": 0,
     "gap": false,
     "granularity": "monthly",
@@ -399,8 +399,8 @@
     "period": "2026-02"
    },
    {
-    "cash_before_funding_minor": 259038809,
-    "cash_minor": 259038809,
+    "cash_before_funding_minor": 248383917,
+    "cash_minor": 248383917,
     "funding_line_minor": 0,
     "gap": false,
     "granularity": "monthly",
@@ -408,8 +408,8 @@
     "period": "2026-03"
    },
    {
-    "cash_before_funding_minor": 315004379,
-    "cash_minor": 315004379,
+    "cash_before_funding_minor": 309352064,
+    "cash_minor": 309352064,
     "funding_line_minor": 0,
     "gap": false,
     "granularity": "monthly",
@@ -417,8 +417,8 @@
     "period": "2026-04"
    },
    {
-    "cash_before_funding_minor": 372837423,
-    "cash_minor": 372837423,
+    "cash_before_funding_minor": 372356385,
+    "cash_minor": 372356385,
     "funding_line_minor": 0,
     "gap": false,
     "granularity": "monthly",
@@ -426,8 +426,8 @@
     "period": "2026-05"
    },
    {
-    "cash_before_funding_minor": 428806796,
-    "cash_minor": 428806796,
+    "cash_before_funding_minor": 433332134,
+    "cash_minor": 433332134,
     "funding_line_minor": 0,
     "gap": false,
     "granularity": "monthly",
@@ -435,8 +435,8 @@
     "period": "2026-06"
    },
    {
-    "cash_before_funding_minor": 486643685,
-    "cash_minor": 486643685,
+    "cash_before_funding_minor": 496344151,
+    "cash_minor": 496344151,
     "funding_line_minor": 0,
     "gap": false,
     "granularity": "monthly",
@@ -444,8 +444,8 @@
     "period": "2026-07"
    },
    {
-    "cash_before_funding_minor": 544482468,
-    "cash_minor": 544482468,
+    "cash_before_funding_minor": 559359950,
+    "cash_minor": 559359950,
     "funding_line_minor": 0,
     "gap": false,
     "granularity": "monthly",
@@ -453,8 +453,8 @@
     "period": "2026-08"
    },
    {
-    "cash_before_funding_minor": 600457275,
-    "cash_minor": 600457275,
+    "cash_before_funding_minor": 620346573,
+    "cash_minor": 620346573,
     "funding_line_minor": 0,
     "gap": false,
     "granularity": "monthly",
@@ -462,8 +462,8 @@
     "period": "2026-09"
    },
    {
-    "cash_before_funding_minor": 658299666,
-    "cash_minor": 658299666,
+    "cash_before_funding_minor": 683369589,
+    "cash_minor": 683369589,
     "funding_line_minor": 0,
     "gap": false,
     "granularity": "monthly",
@@ -471,8 +471,8 @@
     "period": "2026-10"
    },
    {
-    "cash_before_funding_minor": 714277891,
-    "cash_minor": 714277891,
+    "cash_before_funding_minor": 744363047,
+    "cash_minor": 744363047,
     "funding_line_minor": 0,
     "gap": false,
     "granularity": "monthly",
@@ -480,8 +480,8 @@
     "period": "2026-11"
    },
    {
-    "cash_before_funding_minor": 772123738,
-    "cash_minor": 772123738,
+    "cash_before_funding_minor": 807392979,
+    "cash_minor": 807392979,
     "funding_line_minor": 0,
     "gap": false,
     "granularity": "monthly",
@@ -489,8 +489,8 @@
     "period": "2026-12"
    },
    {
-    "cash_before_funding_minor": 1441723310,
-    "cash_minor": 1441723310,
+    "cash_before_funding_minor": 1575828507,
+    "cash_minor": 1575828507,
     "funding_line_minor": 0,
     "gap": false,
     "granularity": "annual",
@@ -498,8 +498,8 @@
     "period": "FY2027"
    },
    {
-    "cash_before_funding_minor": 2129441495,
-    "cash_minor": 2129441495,
+    "cash_before_funding_minor": 2431303874,
+    "cash_minor": 2431303874,
     "funding_line_minor": 0,
     "gap": false,
     "granularity": "annual",
@@ -507,8 +507,8 @@
     "period": "FY2028"
    },
    {
-    "cash_before_funding_minor": 2826592998,
-    "cash_minor": 2826592998,
+    "cash_before_funding_minor": 3369642141,
+    "cash_minor": 3369642141,
     "funding_line_minor": 0,
     "gap": false,
     "granularity": "annual",
@@ -516,8 +516,8 @@
     "period": "FY2029"
    },
    {
-    "cash_before_funding_minor": 3542856258,
-    "cash_minor": 3542856258,
+    "cash_before_funding_minor": 4406658309,
+    "cash_minor": 4406658309,
     "funding_line_minor": 0,
     "gap": false,
     "granularity": "annual",
@@ -532,27 +532,27 @@
     "period": "FY2025"
    },
    {
-    "amount_minor": 1103603543,
+    "amount_minor": 1184771414,
     "kind": "projected",
     "period": "FY2026"
    },
    {
-    "amount_minor": 1130218405,
+    "amount_minor": 1298641738,
     "kind": "projected",
     "period": "FY2027"
    },
    {
-    "amount_minor": 1157498639,
+    "amount_minor": 1419620135,
     "kind": "projected",
     "period": "FY2028"
    },
    {
-    "amount_minor": 1185460879,
+    "amount_minor": 1548097367,
     "kind": "projected",
     "period": "FY2029"
    },
    {
-    "amount_minor": 1214122175,
+    "amount_minor": 1684484630,
     "kind": "projected",
     "period": "FY2030"
    }
@@ -694,12 +694,12 @@
    },
    "kind": "projected",
    "numerator": {
-    "amount_minor": 1103603543,
+    "amount_minor": 1184771414,
     "kind": "projected"
    },
    "period": "FY2026",
    "status": "above",
-   "value_micros": 4454123
+   "value_micros": 4781714
   },
   {
    "denominator": {
@@ -708,12 +708,12 @@
    },
    "kind": "projected",
    "numerator": {
-    "amount_minor": 1130218405,
+    "amount_minor": 1298641738,
     "kind": "projected"
    },
    "period": "FY2027",
    "status": "above",
-   "value_micros": 4561540
+   "value_micros": 5241293
   },
   {
    "denominator": {
@@ -722,12 +722,12 @@
    },
    "kind": "projected",
    "numerator": {
-    "amount_minor": 1157498639,
+    "amount_minor": 1419620135,
     "kind": "projected"
    },
    "period": "FY2028",
    "status": "above",
-   "value_micros": 4670207
+   "value_micros": 5727799
   },
   {
    "denominator": {
@@ -736,12 +736,12 @@
    },
    "kind": "projected",
    "numerator": {
-    "amount_minor": 1185460879,
+    "amount_minor": 1548097367,
     "kind": "projected"
    },
    "period": "FY2029",
    "status": "above",
-   "value_micros": 4784497
+   "value_micros": 6248091
   },
   {
    "denominator": {
@@ -750,16 +750,24 @@
    },
    "kind": "projected",
    "numerator": {
-    "amount_minor": 1214122175,
+    "amount_minor": 1684484630,
     "kind": "projected"
    },
    "period": "FY2030",
    "status": "above",
-   "value_micros": 4900174
+   "value_micros": 6798547
   }
  ],
  "engine_request": {
-  "overrides": {},
+  "overrides": {
+   "revenue_growth": [
+    "0.05",
+    "0.05",
+    "0.05",
+    "0.05",
+    "0.05"
+   ]
+  },
   "shocks": []
  },
  "funding_line": {
@@ -789,8 +797,8 @@
    "decimals": 3,
    "default": "0.025",
    "display": {
-    "en": "2.5%",
-    "ro": "2,5%"
+    "en": "5.0%",
+    "ro": "5,0%"
    },
    "engine_drivers": [
     "revenue_growth"
@@ -799,14 +807,14 @@
    "group": "primary",
    "id": "revenue_growth",
    "inert": null,
-   "is_default": true,
+   "is_default": false,
    "label": {
     "en": "Revenue growth / year",
     "ro": "Creștere venituri/an"
    },
    "locked": null,
    "measured": false,
-   "origin": "default",
+   "origin": "user",
    "range": {
     "max": "0.3",
     "min": "-0.3",
@@ -820,7 +828,7 @@
     "tier": "macro"
    },
    "unit": "pct",
-   "value": "0.025"
+   "value": "0.05"
   },
   {
    "basis": {
@@ -1423,16 +1431,16 @@
   "cash": {
    "display": {
     "en": {
-     "amount": "RON 1.5M",
+     "amount": "RON 1.3M",
      "when": "January 2026"
     },
     "ro": {
-     "amount": "1,5 mil. lei",
+     "amount": "1,3 mil. lei",
      "when": "ianuarie 2026"
     }
    },
    "figure": {
-    "amount_minor": 148978821,
+    "amount_minor": 132858573,
     "kind": "projected"
    },
    "granularity_note": {
@@ -1444,11 +1452,11 @@
   },
   "cumulative_fcf": {
    "display": {
-    "en": "RON 34.3M",
-    "ro": "34,3 mil. lei"
+    "en": "RON 42.9M",
+    "ro": "42,9 mil. lei"
    },
    "figure": {
-    "amount_minor": 3426051554,
+    "amount_minor": 4289853605,
     "kind": "projected"
    },
    "formula": {
@@ -1467,11 +1475,11 @@
    "display": {
     "en": {
      "threshold": "1.25×",
-     "value": "4.45×"
+     "value": "4.78×"
     },
     "ro": {
      "threshold": "1,25×",
-     "value": "4,45×"
+     "value": "4,78×"
     }
    },
    "formula": {
@@ -1480,60 +1488,60 @@
    },
    "kind": "projected",
    "numerator": {
-    "amount_minor": 1103603543,
+    "amount_minor": 1184771414,
     "kind": "projected"
    },
    "period": "FY2026",
    "status": "above",
    "threshold": "1.25",
    "threshold_band": "healthy",
-   "value_micros": 4454123
+   "value_micros": 4781714
   },
   "ebitda_final_year": {
    "display": {
     "en": {
-     "amount": "RON 12.1M",
-     "margin": "9.7%",
+     "amount": "RON 16.8M",
+     "margin": "11.9%",
      "margin_year0": "9.7%"
     },
     "ro": {
-     "amount": "12,1 mil. lei",
-     "margin": "9,7%",
+     "amount": "16,8 mil. lei",
+     "margin": "11,9%",
      "margin_year0": "9,7%"
     }
    },
    "figure": {
-    "amount_minor": 1214122175,
+    "amount_minor": 1684484630,
     "kind": "projected"
    },
-   "margin_change_ppm": -409,
-   "margin_ppm": 96852,
+   "margin_change_ppm": 21860,
+   "margin_ppm": 119121,
    "margin_year0_ppm": 97261,
    "period": "FY2030"
   }
  },
  "period_id": "c-cur",
  "pins": {
-  "body_hash": "sha256:c4ddfc7e68f681cc55d9cf651db7957ceaa66cd65cc34f13e530e40f354446a3",
+  "body_hash": "sha256:a719f54d4a8f1819df83fc2ce119938fa94ffbe86e4bf7246f1338de6d19d359",
   "cockpit_pack": "sha256:765c368b007887f2a2cdc68aad23fea27df4b630a9c1c13b66bd91a6c86fd617",
   "engine_version": "0.1.0",
   "macro_pack": "sha256:786eec084a31392dca0f4be9c16faff90fcf6532c94bc8ed5823d5a05ff548b3",
   "pack_id": "forecast-cockpit"
  },
  "sentence": {
-  "en": "In the base case, cash never goes below zero, with a low of RON 1.5M in January 2026; DSCR stays above the bank's threshold: 4.45× in 2026 against 1.25×; EBITDA reaches RON 12.1M in 2030, a margin of 9.7% against 9.7% today.",
+  "en": "In the base case, cash never goes below zero, with a low of RON 1.3M in January 2026; DSCR stays above the bank's threshold: 4.78× in 2026 against 1.25×; EBITDA reaches RON 16.8M in 2030, a margin of 11.9% against 9.7% today.",
   "facts": {
    "cash": {
-    "amount_minor": 148978821,
+    "amount_minor": 132858573,
     "kind": "projected"
    },
-   "dscr": 4454123,
+   "dscr": 4781714,
    "ebitda": {
-    "amount_minor": 1214122175,
+    "amount_minor": 1684484630,
     "kind": "projected"
    }
   },
-  "ro": "În scenariul de bază, numerarul nu scade sub zero, cu un minim de 1,5 mil. lei în ianuarie 2026; DSCR rămâne peste pragul băncii: 4,45× în 2026 față de 1,25×; EBITDA ajunge la 12,1 mil. lei în 2030, cu o marjă de 9,7% față de 9,7% azi.",
+  "ro": "În scenariul de bază, numerarul nu scade sub zero, cu un minim de 1,3 mil. lei în ianuarie 2026; DSCR rămâne peste pragul băncii: 4,78× în 2026 față de 1,25×; EBITDA ajunge la 16,8 mil. lei în 2030, cu o marjă de 11,9% față de 9,7% azi.",
   "template": [
    "frame",
    "no_funding",
@@ -1551,27 +1559,27 @@
     "line": "bs.cash",
     "values": [
      {
-      "amount_minor": 772123738,
+      "amount_minor": 807392979,
       "kind": "projected",
       "period": "FY2026"
      },
      {
-      "amount_minor": 1441723310,
+      "amount_minor": 1575828507,
       "kind": "projected",
       "period": "FY2027"
      },
      {
-      "amount_minor": 2129441495,
+      "amount_minor": 2431303874,
       "kind": "projected",
       "period": "FY2028"
      },
      {
-      "amount_minor": 2826592998,
+      "amount_minor": 3369642141,
       "kind": "projected",
       "period": "FY2029"
      },
      {
-      "amount_minor": 3542856258,
+      "amount_minor": 4406658309,
       "kind": "projected",
       "period": "FY2030"
      }
@@ -1590,27 +1598,27 @@
     "line": "bs.ar",
     "values": [
      {
-      "amount_minor": 872621972,
+      "amount_minor": 893905435,
       "kind": "projected",
       "period": "FY2026"
      },
      {
-      "amount_minor": 894437521,
+      "amount_minor": 938600706,
       "kind": "projected",
       "period": "FY2027"
      },
      {
-      "amount_minor": 914293545,
+      "amount_minor": 982838035,
       "kind": "projected",
       "period": "FY2028"
      },
      {
-      "amount_minor": 939718421,
+      "amount_minor": 1034807279,
       "kind": "projected",
       "period": "FY2029"
      },
      {
-      "amount_minor": 963211381,
+      "amount_minor": 1086547643,
       "kind": "projected",
       "period": "FY2030"
      }
@@ -1629,27 +1637,27 @@
     "line": "bs.inventory",
     "values": [
      {
-      "amount_minor": 915666567,
+      "amount_minor": 937999898,
       "kind": "projected",
       "period": "FY2026"
      },
      {
-      "amount_minor": 938558231,
+      "amount_minor": 984899893,
       "kind": "projected",
       "period": "FY2027"
      },
      {
-      "amount_minor": 959393711,
+      "amount_minor": 1031319355,
       "kind": "projected",
       "period": "FY2028"
      },
      {
-      "amount_minor": 986072742,
+      "amount_minor": 1085852132,
       "kind": "projected",
       "period": "FY2029"
      },
      {
-      "amount_minor": 1010724560,
+      "amount_minor": 1140144739,
       "kind": "projected",
       "period": "FY2030"
      }
@@ -1707,27 +1715,27 @@
     "line": "bs.ppe_net",
     "values": [
      {
-      "amount_minor": 1127267672,
+      "amount_minor": 1133859747,
       "kind": "projected",
       "period": "FY2026"
      },
      {
-      "amount_minor": 1153713545,
+      "amount_minor": 1173975296,
       "kind": "projected",
       "period": "FY2027"
      },
      {
-      "amount_minor": 1180461486,
+      "amount_minor": 1219463330,
       "kind": "projected",
       "period": "FY2028"
      },
      {
-      "amount_minor": 1209222376,
+      "amount_minor": 1271405574,
       "kind": "projected",
       "period": "FY2029"
      },
      {
-      "amount_minor": 1238891436,
+      "amount_minor": 1328220533,
       "kind": "projected",
       "period": "FY2030"
      }
@@ -1863,27 +1871,27 @@
     "line": "bs.ap",
     "values": [
      {
-      "amount_minor": 736603312,
+      "amount_minor": 754569246,
       "kind": "projected",
       "period": "FY2026"
      },
      {
-      "amount_minor": 755018394,
+      "amount_minor": 792297708,
       "kind": "projected",
       "period": "FY2027"
      },
      {
-      "amount_minor": 771779390,
+      "amount_minor": 829639609,
       "kind": "projected",
       "period": "FY2028"
      },
      {
-      "amount_minor": 793241201,
+      "amount_minor": 873508224,
       "kind": "projected",
       "period": "FY2029"
      },
      {
-      "amount_minor": 813072231,
+      "amount_minor": 917183635,
       "kind": "projected",
       "period": "FY2030"
      }
@@ -2175,27 +2183,27 @@
     "line": "bs.equity_retained",
     "values": [
      {
-      "amount_minor": 1434764739,
+      "amount_minor": 1502276915,
       "kind": "projected",
       "period": "FY2026"
      },
      {
-      "amount_minor": 2143954965,
+      "amount_minor": 2351547446,
       "kind": "projected",
       "period": "FY2027"
      },
      {
-      "amount_minor": 2872490161,
+      "amount_minor": 3295964299,
       "kind": "projected",
       "period": "FY2028"
      },
      {
-      "amount_minor": 3621695031,
+      "amount_minor": 4341528597,
       "kind": "projected",
       "period": "FY2029"
      },
      {
-      "amount_minor": 4390443430,
+      "amount_minor": 5492219615,
       "kind": "projected",
       "period": "FY2030"
      }
@@ -2253,27 +2261,27 @@
     "line": "bs_totals.assets",
     "values": [
      {
-      "amount_minor": 4637437321,
+      "amount_minor": 4722915431,
       "kind": "projected",
       "period": "FY2026"
      },
      {
-      "amount_minor": 5365042629,
+      "amount_minor": 5609914424,
       "kind": "projected",
       "period": "FY2027"
      },
      {
-      "amount_minor": 6110338821,
+      "amount_minor": 6591673178,
       "kind": "projected",
       "period": "FY2028"
      },
      {
-      "amount_minor": 6881005502,
+      "amount_minor": 7681106091,
       "kind": "projected",
       "period": "FY2029"
      },
      {
-      "amount_minor": 7669584931,
+      "amount_minor": 8875472520,
       "kind": "projected",
       "period": "FY2030"
      }
@@ -2292,27 +2300,27 @@
     "line": "bs_totals.equity",
     "values": [
      {
-      "amount_minor": 3079968349,
+      "amount_minor": 3147480525,
       "kind": "projected",
       "period": "FY2026"
      },
      {
-      "amount_minor": 3789158575,
+      "amount_minor": 3996751056,
       "kind": "projected",
       "period": "FY2027"
      },
      {
-      "amount_minor": 4517693771,
+      "amount_minor": 4941167909,
       "kind": "projected",
       "period": "FY2028"
      },
      {
-      "amount_minor": 5266898641,
+      "amount_minor": 5986732207,
       "kind": "projected",
       "period": "FY2029"
      },
      {
-      "amount_minor": 6035647040,
+      "amount_minor": 7137423225,
       "kind": "projected",
       "period": "FY2030"
      }
@@ -2331,27 +2339,27 @@
     "line": "bs_totals.equity_plus_liabilities",
     "values": [
      {
-      "amount_minor": 4637437321,
+      "amount_minor": 4722915431,
       "kind": "projected",
       "period": "FY2026"
      },
      {
-      "amount_minor": 5365042629,
+      "amount_minor": 5609914424,
       "kind": "projected",
       "period": "FY2027"
      },
      {
-      "amount_minor": 6110338821,
+      "amount_minor": 6591673178,
       "kind": "projected",
       "period": "FY2028"
      },
      {
-      "amount_minor": 6881005502,
+      "amount_minor": 7681106091,
       "kind": "projected",
       "period": "FY2029"
      },
      {
-      "amount_minor": 7669584931,
+      "amount_minor": 8875472520,
       "kind": "projected",
       "period": "FY2030"
      }
@@ -2372,27 +2380,27 @@
     "line": "cf.net_income",
     "values": [
      {
-      "amount_minor": 687559977,
+      "amount_minor": 755072153,
       "kind": "projected",
       "period": "FY2026"
      },
      {
-      "amount_minor": 709190226,
+      "amount_minor": 849270531,
       "kind": "projected",
       "period": "FY2027"
      },
      {
-      "amount_minor": 728535196,
+      "amount_minor": 944416853,
       "kind": "projected",
       "period": "FY2028"
      },
      {
-      "amount_minor": 749204870,
+      "amount_minor": 1045564298,
       "kind": "projected",
       "period": "FY2029"
      },
      {
-      "amount_minor": 768748399,
+      "amount_minor": 1150691018,
       "kind": "projected",
       "period": "FY2030"
      }
@@ -2406,27 +2414,27 @@
     "line": "cf.depreciation",
     "values": [
      {
-      "amount_minor": 281197920,
+      "amount_minor": 281994153,
       "kind": "projected",
       "period": "FY2026"
      },
      {
-      "amount_minor": 284047781,
+      "amount_minor": 285708845,
       "kind": "projected",
       "period": "FY2027"
      },
      {
-      "amount_minor": 291508055,
+      "amount_minor": 296627579,
       "kind": "projected",
       "period": "FY2028"
      },
      {
-      "amount_minor": 297451505,
+      "amount_minor": 307279150,
       "kind": "projected",
       "period": "FY2029"
      },
      {
-      "amount_minor": 304698645,
+      "amount_minor": 320367505,
       "kind": "projected",
       "period": "FY2030"
      }
@@ -2474,27 +2482,27 @@
     "line": "cf.change_in_receivables",
     "values": [
      {
-      "amount_minor": -21283476,
+      "amount_minor": -42566939,
       "kind": "projected",
       "period": "FY2026"
      },
      {
-      "amount_minor": -21815549,
+      "amount_minor": -44695271,
       "kind": "projected",
       "period": "FY2027"
      },
      {
-      "amount_minor": -19856024,
+      "amount_minor": -44237329,
       "kind": "projected",
       "period": "FY2028"
      },
      {
-      "amount_minor": -25424876,
+      "amount_minor": -51969244,
       "kind": "projected",
       "period": "FY2029"
      },
      {
-      "amount_minor": -23492960,
+      "amount_minor": -51740364,
       "kind": "projected",
       "period": "FY2030"
      }
@@ -2508,27 +2516,27 @@
     "line": "cf.change_in_inventory",
     "values": [
      {
-      "amount_minor": -22333325,
+      "amount_minor": -44666656,
       "kind": "projected",
       "period": "FY2026"
      },
      {
-      "amount_minor": -22891664,
+      "amount_minor": -46899995,
       "kind": "projected",
       "period": "FY2027"
      },
      {
-      "amount_minor": -20835480,
+      "amount_minor": -46419462,
       "kind": "projected",
       "period": "FY2028"
      },
      {
-      "amount_minor": -26679031,
+      "amount_minor": -54532777,
       "kind": "projected",
       "period": "FY2029"
      },
      {
-      "amount_minor": -24651818,
+      "amount_minor": -54292607,
       "kind": "projected",
       "period": "FY2030"
      }
@@ -2542,27 +2550,27 @@
     "line": "cf.change_in_payables",
     "values": [
      {
-      "amount_minor": 17965935,
+      "amount_minor": 35931869,
       "kind": "projected",
       "period": "FY2026"
      },
      {
-      "amount_minor": 18415082,
+      "amount_minor": 37728462,
       "kind": "projected",
       "period": "FY2027"
      },
      {
-      "amount_minor": 16760996,
+      "amount_minor": 37341901,
       "kind": "projected",
       "period": "FY2028"
      },
      {
-      "amount_minor": 21461811,
+      "amount_minor": 43868615,
       "kind": "projected",
       "period": "FY2029"
      },
      {
-      "amount_minor": 19831030,
+      "amount_minor": 43675411,
       "kind": "projected",
       "period": "FY2030"
      }
@@ -2576,27 +2584,27 @@
     "line": "cf.cash_from_operating",
     "values": [
      {
-      "amount_minor": 958239672,
+      "amount_minor": 1000897221,
       "kind": "projected",
       "period": "FY2026"
      },
      {
-      "amount_minor": 980093226,
+      "amount_minor": 1094259922,
       "kind": "projected",
       "period": "FY2027"
      },
      {
-      "amount_minor": 1005974181,
+      "amount_minor": 1197590980,
       "kind": "projected",
       "period": "FY2028"
      },
      {
-      "amount_minor": 1023363898,
+      "amount_minor": 1297559661,
       "kind": "projected",
       "period": "FY2029"
      },
      {
-      "amount_minor": 1050630965,
+      "amount_minor": 1414198632,
       "kind": "projected",
       "period": "FY2030"
      }
@@ -2610,27 +2618,27 @@
     "line": "cf.capital_expenditure",
     "values": [
      {
-      "amount_minor": -302920638,
+      "amount_minor": -310308946,
       "kind": "projected",
       "period": "FY2026"
      },
      {
-      "amount_minor": -310493654,
+      "amount_minor": -325824394,
       "kind": "projected",
       "period": "FY2027"
      },
      {
-      "amount_minor": -318255996,
+      "amount_minor": -342115613,
       "kind": "projected",
       "period": "FY2028"
      },
      {
-      "amount_minor": -326212395,
+      "amount_minor": -359221394,
       "kind": "projected",
       "period": "FY2029"
      },
      {
-      "amount_minor": -334367705,
+      "amount_minor": -377182464,
       "kind": "projected",
       "period": "FY2030"
      }
@@ -2678,27 +2686,27 @@
     "line": "cf.cash_from_investing",
     "values": [
      {
-      "amount_minor": -302920638,
+      "amount_minor": -310308946,
       "kind": "projected",
       "period": "FY2026"
      },
      {
-      "amount_minor": -310493654,
+      "amount_minor": -325824394,
       "kind": "projected",
       "period": "FY2027"
      },
      {
-      "amount_minor": -318255996,
+      "amount_minor": -342115613,
       "kind": "projected",
       "period": "FY2028"
      },
      {
-      "amount_minor": -326212395,
+      "amount_minor": -359221394,
       "kind": "projected",
       "period": "FY2029"
      },
      {
-      "amount_minor": -334367705,
+      "amount_minor": -377182464,
       "kind": "projected",
       "period": "FY2030"
      }
@@ -2882,27 +2890,27 @@
     "line": "cf.net_change_in_cash",
     "values": [
      {
-      "amount_minor": 655319034,
+      "amount_minor": 690588275,
       "kind": "projected",
       "period": "FY2026"
      },
      {
-      "amount_minor": 669599572,
+      "amount_minor": 768435528,
       "kind": "projected",
       "period": "FY2027"
      },
      {
-      "amount_minor": 687718185,
+      "amount_minor": 855475367,
       "kind": "projected",
       "period": "FY2028"
      },
      {
-      "amount_minor": 697151503,
+      "amount_minor": 938338267,
       "kind": "projected",
       "period": "FY2029"
      },
      {
-      "amount_minor": 716263260,
+      "amount_minor": 1037016168,
       "kind": "projected",
       "period": "FY2030"
      }
@@ -2921,22 +2929,22 @@
       "period": "FY2026"
      },
      {
-      "amount_minor": 772123738,
+      "amount_minor": 807392979,
       "kind": "projected",
       "period": "FY2027"
      },
      {
-      "amount_minor": 1441723310,
+      "amount_minor": 1575828507,
       "kind": "projected",
       "period": "FY2028"
      },
      {
-      "amount_minor": 2129441495,
+      "amount_minor": 2431303874,
       "kind": "projected",
       "period": "FY2029"
      },
      {
-      "amount_minor": 2826592998,
+      "amount_minor": 3369642141,
       "kind": "projected",
       "period": "FY2030"
      }
@@ -2950,27 +2958,27 @@
     "line": "cf.closing_cash",
     "values": [
      {
-      "amount_minor": 772123738,
+      "amount_minor": 807392979,
       "kind": "projected",
       "period": "FY2026"
      },
      {
-      "amount_minor": 1441723310,
+      "amount_minor": 1575828507,
       "kind": "projected",
       "period": "FY2027"
      },
      {
-      "amount_minor": 2129441495,
+      "amount_minor": 2431303874,
       "kind": "projected",
       "period": "FY2028"
      },
      {
-      "amount_minor": 2826592998,
+      "amount_minor": 3369642141,
       "kind": "projected",
       "period": "FY2029"
      },
      {
-      "amount_minor": 3542856258,
+      "amount_minor": 4406658309,
       "kind": "projected",
       "period": "FY2030"
      }
@@ -2986,27 +2994,27 @@
     "line": "pl.revenue",
     "values": [
      {
-      "amount_minor": 11356826687,
+      "amount_minor": 11633822460,
       "kind": "projected",
       "period": "FY2026"
      },
      {
-      "amount_minor": 11640747354,
+      "amount_minor": 12215513583,
       "kind": "projected",
       "period": "FY2027"
      },
      {
-      "amount_minor": 11931766038,
+      "amount_minor": 12826289262,
       "kind": "projected",
       "period": "FY2028"
      },
      {
-      "amount_minor": 12230060189,
+      "amount_minor": 13467603725,
       "kind": "projected",
       "period": "FY2029"
      },
      {
-      "amount_minor": 12535811694,
+      "amount_minor": 14140983911,
       "kind": "projected",
       "period": "FY2030"
      }
@@ -3025,27 +3033,27 @@
     "line": "pl.cost_of_sales",
     "values": [
      {
-      "amount_minor": -7232104255,
+      "amount_minor": -7408497041,
       "kind": "projected",
       "period": "FY2026"
      },
      {
-      "amount_minor": -7412906861,
+      "amount_minor": -7778921893,
       "kind": "projected",
       "period": "FY2027"
      },
      {
-      "amount_minor": -7598229533,
+      "amount_minor": -8167867988,
       "kind": "projected",
       "period": "FY2028"
      },
      {
-      "amount_minor": -7788185271,
+      "amount_minor": -8576261388,
       "kind": "projected",
       "period": "FY2029"
      },
      {
-      "amount_minor": -7982889903,
+      "amount_minor": -9005074457,
       "kind": "projected",
       "period": "FY2030"
      }
@@ -3064,27 +3072,27 @@
     "line": "pl.operating_costs",
     "values": [
      {
-      "amount_minor": -3060127944,
+      "amount_minor": -3079563060,
       "kind": "projected",
       "period": "FY2026"
      },
      {
-      "amount_minor": -3136631143,
+      "amount_minor": -3176959007,
       "kind": "projected",
       "period": "FY2027"
      },
      {
-      "amount_minor": -3215046921,
+      "amount_minor": -3277810194,
       "kind": "projected",
       "period": "FY2028"
      },
      {
-      "amount_minor": -3295423094,
+      "amount_minor": -3382254025,
       "kind": "projected",
       "period": "FY2029"
      },
      {
-      "amount_minor": -3377808671,
+      "amount_minor": -3490433879,
       "kind": "projected",
       "period": "FY2030"
      }
@@ -3142,27 +3150,27 @@
     "line": "pl.ebitda",
     "values": [
      {
-      "amount_minor": 1103603543,
+      "amount_minor": 1184771414,
       "kind": "projected",
       "period": "FY2026"
      },
      {
-      "amount_minor": 1130218405,
+      "amount_minor": 1298641738,
       "kind": "projected",
       "period": "FY2027"
      },
      {
-      "amount_minor": 1157498639,
+      "amount_minor": 1419620135,
       "kind": "projected",
       "period": "FY2028"
      },
      {
-      "amount_minor": 1185460879,
+      "amount_minor": 1548097367,
       "kind": "projected",
       "period": "FY2029"
      },
      {
-      "amount_minor": 1214122175,
+      "amount_minor": 1684484630,
       "kind": "projected",
       "period": "FY2030"
      }
@@ -3181,27 +3189,27 @@
     "line": "pl.depreciation",
     "values": [
      {
-      "amount_minor": -281197920,
+      "amount_minor": -281994153,
       "kind": "projected",
       "period": "FY2026"
      },
      {
-      "amount_minor": -284047781,
+      "amount_minor": -285708845,
       "kind": "projected",
       "period": "FY2027"
      },
      {
-      "amount_minor": -291508055,
+      "amount_minor": -296627579,
       "kind": "projected",
       "period": "FY2028"
      },
      {
-      "amount_minor": -297451505,
+      "amount_minor": -307279150,
       "kind": "projected",
       "period": "FY2029"
      },
      {
-      "amount_minor": -304698645,
+      "amount_minor": -320367505,
       "kind": "projected",
       "period": "FY2030"
      }
@@ -3271,27 +3279,27 @@
     "line": "pl.ebit",
     "values": [
      {
-      "amount_minor": 807272982,
+      "amount_minor": 887644620,
       "kind": "projected",
       "period": "FY2026"
      },
      {
-      "amount_minor": 833023274,
+      "amount_minor": 999785543,
       "kind": "projected",
       "period": "FY2027"
      },
      {
-      "amount_minor": 856129146,
+      "amount_minor": 1113131118,
       "kind": "projected",
       "period": "FY2028"
      },
      {
-      "amount_minor": 880659755,
+      "amount_minor": 1233468598,
       "kind": "projected",
       "period": "FY2029"
      },
      {
-      "amount_minor": 903925861,
+      "amount_minor": 1358619456,
       "kind": "projected",
       "period": "FY2030"
      }
@@ -3535,27 +3543,27 @@
     "line": "pl.pretax_result",
     "values": [
      {
-      "amount_minor": 818523782,
+      "amount_minor": 898895420,
       "kind": "projected",
       "period": "FY2026"
      },
      {
-      "amount_minor": 844274078,
+      "amount_minor": 1011036347,
       "kind": "projected",
       "period": "FY2027"
      },
      {
-      "amount_minor": 867303805,
+      "amount_minor": 1124305777,
       "kind": "projected",
       "period": "FY2028"
      },
      {
-      "amount_minor": 891910559,
+      "amount_minor": 1244719402,
       "kind": "projected",
       "period": "FY2029"
      },
      {
-      "amount_minor": 915176665,
+      "amount_minor": 1369870260,
       "kind": "projected",
       "period": "FY2030"
      }
@@ -3574,27 +3582,27 @@
     "line": "pl.income_tax",
     "values": [
      {
-      "amount_minor": -130963805,
+      "amount_minor": -143823267,
       "kind": "projected",
       "period": "FY2026"
      },
      {
-      "amount_minor": -135083852,
+      "amount_minor": -161765816,
       "kind": "projected",
       "period": "FY2027"
      },
      {
-      "amount_minor": -138768609,
+      "amount_minor": -179888924,
       "kind": "projected",
       "period": "FY2028"
      },
      {
-      "amount_minor": -142705689,
+      "amount_minor": -199155104,
       "kind": "projected",
       "period": "FY2029"
      },
      {
-      "amount_minor": -146428266,
+      "amount_minor": -219179242,
       "kind": "projected",
       "period": "FY2030"
      }
@@ -3613,27 +3621,27 @@
     "line": "pl.net_income",
     "values": [
      {
-      "amount_minor": 687559977,
+      "amount_minor": 755072153,
       "kind": "projected",
       "period": "FY2026"
      },
      {
-      "amount_minor": 709190226,
+      "amount_minor": 849270531,
       "kind": "projected",
       "period": "FY2027"
      },
      {
-      "amount_minor": 728535196,
+      "amount_minor": 944416853,
       "kind": "projected",
       "period": "FY2028"
      },
      {
-      "amount_minor": 749204870,
+      "amount_minor": 1045564298,
       "kind": "projected",
       "period": "FY2029"
      },
      {
-      "amount_minor": 768748399,
+      "amount_minor": 1150691018,
       "kind": "projected",
       "period": "FY2030"
      }

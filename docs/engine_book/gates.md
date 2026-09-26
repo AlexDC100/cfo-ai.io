@@ -9041,9 +9041,9 @@ books never provoke, or whether a sentence is a good explanation.
 
 | | |
 |---|---|
-| command | `npx vitest run --root . frontend/pages/cfo/__tests__/forecastCockpit.test.tsx frontend/pages/cfo/__tests__/forecastMagnitude.test.tsx frontend/components/forecast/cockpit/__tests__/cockpitNoMoneyMath.test.ts --reporter=verbose` |
-| canary | `LATEST RESPONSE WINS: an older answer arriving last never overwrites the newer one`, `gate F4: reset lands on the case answer EXACTLY, from the served bytes`, `saves the WHOLE lever set to the company on screen`, `no statement cell renders at a different magnitude from the bytes behind it`, `R5: the GATEWAY opens the opaque amount in exactly two places and divides once` |
-| work count | `Tests N passed`, floor **60** (measured 68) |
+| command | `npx vitest run --root . frontend/pages/cfo/__tests__/forecastCockpit.test.tsx frontend/pages/cfo/__tests__/forecastCockpitLeverScale.test.tsx frontend/pages/cfo/__tests__/forecastMagnitude.test.tsx frontend/components/forecast/cockpit/__tests__/cockpitNoMoneyMath.test.ts --reporter=verbose` |
+| canary | `LATEST RESPONSE WINS: an older answer arriving last never overwrites the newer one`, `gate F4: reset lands on the case answer EXACTLY, from the served bytes`, `GATE-WORK forecast-cockpit-lever-scale engines=`, `saves the WHOLE lever set to the company on screen`, `no statement cell renders at a different magnitude from the bytes behind it`, `R5: the GATEWAY opens the opaque amount in exactly two places and divides once` |
+| work count | `Tests N passed`, floor **60** (measured 75) |
 
 **SCOPE** — the Forecast COCKPIT (owner-approved spec 2026-09-21: four
 numbers, one chart, sliders; THE PAGE DOES NO MATH), rendered over a SYNTHETIC
@@ -9077,6 +9077,18 @@ double with the `set_org_pref` one-key merge, and a reportPdf double.
   door named in a painter, each door with exactly one user of each kind, the
   gateway opening the opaque amount in exactly two places and dividing once,
   and a roster that reds on an unscanned cockpit module.
+- **The lever-scale gate** (forecastCockpitLeverScale.test.tsx, 2026-09-26):
+  a slider's tick scale is the lever's FIXED, served `decimals` (engine gate
+  F10) and a position is the exact decimal the wire carries. Replayed over
+  the synthetic book with six-decimal served defaults, over the agras bytes
+  captured from the real route (`cockpit_agras_{growth,growth_inflation,dso,
+  dso_dio}.json` — a body the engine was never asked for has NO answer, so a
+  drifted decimal is a red), and opt-in over the owner's local captures
+  (`FORECAST_LOCAL_COCKPIT_FIXTURES`): growth +5 % then inflation 3 %, DSO 40
+  then DIO 50 — the input's min/max/step and decimals unchanged after each
+  answer, the value text the ENGINE's display, the second request carrying
+  the first lever's original decimal and answered 200, the saved case's
+  decimals the wire decimals inside the served range.
 
 **PLANT latest-wins-dropped** — `useCockpit.ts`: the `mine !== seq.current`
 guard removed. **PLANT debounce-removed** — the debounce timer set to 0.
@@ -9125,6 +9137,33 @@ CALLS only. R4 now reds on the door's NAME, and the plant was re-run red.
 
 **REVERT** — every file restored byte-exact (sha256 checked by
 scratchpad fcst_cockpit_plants/page_plants.py); `Tests 68 passed (68)`.
+
+**PLANT scale-derived-from-the-answer** (2026-09-26, the verifier's repro
+over the real engine, the defect as shipped at ba4a3b3f): `readLever` derives
+the tick scale from the decimals of min/max/step/VALUE and positions are
+held in ticks; the new gate was run against that code before the repair.
+```
+RED (the page before the repair)  Tests 6 failed | 1 passed (7)
+  × synthetic (six-decimal defaults) > growth +5 % then inflation 3 % …
+    - Expected  "revenue_growth": "0.05"
+    + Received  "revenue_growth": "0.00005"
+  × synthetic (six-decimal defaults) > DSO 40 days then DIO …
+    - Expected  "dso_days": "40"
+    + Received  "dso_days": "0.0004"
+  × agras (captured from the real route) > growth +5 % then inflation 3 % …
+    → revenue_growth: expected null to be '3'   (no served decimals on the input)
+  × agras (captured from the real route) > DSO 40 days then DIO …
+    - Expected  "dso_days": "40"
+    + Received  "dso_days": "0.0004"
+  × scandia_local (local capture, never committed) > … (both sequences, the same shape)
+```
+The engine's own half (F10, `decimals` served on every lever, the served
+range exact at it) was red first: `KeyError: 'decimals'` on all five books
+and on the widened-range case — see "forecast-cockpit".
+
+**REVERT** — the repair landed (lib/forecastCockpit.ts reads `decimals`,
+positions are wire decimals, ticks derive at render); `Tests 7 passed (7)`
+over the three engines, `GATE-WORK forecast-cockpit-lever-scale engines=3`.
 
 **After the repair it reds on:** a number on the cockpit that is not the
 engine's, or a projected one without ◇; a DSCR verdict the page decided; a
@@ -9310,6 +9349,24 @@ E   AssertionError: agras wages year 1: moved 190429224, its basis says 13417777
 **REVERT** — every file restored byte-exact; `36 passed`, `GATE-WORK
 forecast-cockpit units=12242`.
 
+**PLANT decimals-not-served** (2026-09-26, F10 — the engine as shipped at
+ba4a3b3f: no `decimals` on a lever, a widened range at the default's own
+precision, so the page had nothing fixed to read and derived the scale from
+each answer):
+```
+RED (F10 against the engine before the repair, -k f10)
+FAILED test_c_f10_every_lever_serves_its_fixed_decimal_scale_and_a_range_exact_at_it[agras]
+FAILED …[carniprod]  FAILED …[retail]  FAILED …[realestate]  FAILED …[scandia_local]
+FAILED test_c_f10_a_default_outside_the_packs_range_widens_it_to_a_bound_exact_at_the_decimals
+E   KeyError: 'decimals'
+6 failed, 45 deselected
+```
+**REVERT** — the repair landed (`range.decimals` per lever in the pack,
+validated against min/max/step; `effective_range` rounds a widened bound
+OUTWARD to it; `_lever_payload` serves it); `8 passed` (F10 ×6, F7, the
+committed fixtures regenerated from the route), and the four new agras
+fixtures (`growth`, `growth_inflation`, `dso`, `dso_dio`) pinned to the route.
+
 **After the repair it reds on:** year 0 drifting from the dashboard; a plan
 year of any case or slider extreme that does not balance or whose BS cash is
 not its CF closing cash, or cash below the floor; two identical requests (or
@@ -9319,7 +9376,9 @@ drive, or moving its lines by other than what its basis states; a projected
 figure with no value; a year with debt charged no interest, a drawn line
 charged none; a four-numbers figure that is not a reading of the statements;
 a saved case served across companies; a growth default that is not the book's
-history / the sector / the stamped anchor; negative cash, or a funding need
+history / the sector / the stamped anchor; a lever served without its fixed
+`decimals`, a range not exact at them, or a scale or range that differs
+between two answers; negative cash, or a funding need
 the numbers or the sentence do not name; a line on a book with no measured
 rate refused whole, or priced at the reference without saying so; a bridge that does not sum to the
 cash it explains; a route binding a body as a query, a refusal without its

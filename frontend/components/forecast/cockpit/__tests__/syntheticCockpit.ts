@@ -30,6 +30,11 @@ export interface SynthOptions {
   seed?: number;
   /** A case saved by the reader, by name ("saved:<id>" requests). */
   savedName?: string;
+  /** Served DEFAULTS that differ from the invented ones — a measured value
+   *  with more decimals than the lever's step (the engine serves a measured
+   *  growth with six decimals, a DSO with five), the class the lever-scale
+   *  gate holds. */
+  defaults?: Record<string, string>;
 }
 
 type Json = Record<string, unknown>;
@@ -73,6 +78,8 @@ interface LeverDef {
   unit: "pct" | "days";
   shape: "per_year" | "scalar";
   range: [string, string, string];
+  /** The lever's FIXED slider scale (packs/forecast/cockpit.yaml#levers[].range.decimals). */
+  decimals: number;
   value: string | null;
   label: [string, string];
   basis: [string, string];
@@ -81,35 +88,38 @@ interface LeverDef {
 }
 
 const LEVERS: LeverDef[] = [
-  { id: "revenue_growth", group: "primary", unit: "pct", shape: "per_year", range: ["-0.30", "0.30", "0.001"], value: "0.031",
+  { id: "revenue_growth", group: "primary", unit: "pct", shape: "per_year", range: ["-0.30", "0.30", "0.001"], decimals: 3, value: "0.031",
     label: ["Creștere venituri/an", "Revenue growth / year"],
     basis: ["istoric 3,1% (2024→2025, sintetic) · mediana sectorului 4,4% (sintetic)", "history 3.1% (2024→2025, synthetic) · sector median 4.4% (synthetic)"] },
-  { id: "inflation", group: "primary", unit: "pct", shape: "per_year", range: ["0", "0.15", "0.001"], value: "0.025",
+  { id: "inflation", group: "primary", unit: "pct", shape: "per_year", range: ["0", "0.15", "0.001"], decimals: 3, value: "0.025",
     label: ["Inflație/an", "Inflation / year"],
     basis: ["ancora BNR 2,5% (serie sintetică, confirmată 2026-09-08)", "BNR anchor 2.5% (synthetic series, confirmed 2026-09-08)"] },
-  { id: "raw_material_price", group: "primary", unit: "pct", shape: "scalar", range: ["-0.30", "0.50", "0.01"], value: "0",
+  { id: "raw_material_price", group: "primary", unit: "pct", shape: "scalar", range: ["-0.30", "0.50", "0.01"], decimals: 2, value: "0",
     label: ["Preț materie primă (față de 2025)", "Raw-material price (vs 2025)"],
     basis: ["materia primă e 40,0% din costul vânzărilor (601+602, sintetic)", "raw materials are 40.0% of cost of sales (601+602, synthetic)"] },
-  { id: "wage_growth", group: "primary", unit: "pct", shape: "per_year", range: ["0", "0.20", "0.001"], value: "0.025",
+  { id: "wage_growth", group: "primary", unit: "pct", shape: "per_year", range: ["0", "0.20", "0.001"], decimals: 3, value: "0.025",
     label: ["Creștere salarii/an (incl. salariul minim)", "Wage growth / year (incl. minimum wage)"],
     basis: ["urmează inflația până la setare (salariul minim, sintetic)", "follows inflation until set (minimum wage, synthetic)"] },
-  { id: "energy_price", group: "more", unit: "pct", shape: "scalar", range: ["-0.50", "1.00", "0.01"], value: "0",
+  { id: "energy_price", group: "more", unit: "pct", shape: "scalar", range: ["-0.50", "1.00", "0.01"], decimals: 2, value: "0",
     label: ["Preț energie (față de 2025)", "Energy price (vs 2025)"],
     basis: ["energia 605: 2,0 mil. lei în 2025 (sintetic)", "energy 605: RON 2.0M in 2025 (synthetic)"] },
-  { id: "eur_ron", group: "more", unit: "pct", shape: "scalar", range: ["-0.20", "0.30", "0.005"], value: null, measured: false,
+  { id: "eur_ron", group: "more", unit: "pct", shape: "scalar", range: ["-0.20", "0.30", "0.005"], decimals: 3, value: null, measured: false,
     label: ["Curs EUR/RON pe inputuri importate (față de 2025)", "EUR/RON on imported inputs (vs 2025)"],
     basis: ["balanța nu separă achizițiile pe monede: nu se poate măsura", "the trial balance does not split purchases by currency: not measurable"],
     inert: ["nu are efect până nu setezi ponderea inputurilor importate", "has no effect until you set the imported share"] },
-  { id: "imported_share", group: "more", unit: "pct", shape: "scalar", range: ["0", "1", "0.01"], value: "0",
+  { id: "imported_share", group: "more", unit: "pct", shape: "scalar", range: ["0", "1", "0.01"], decimals: 2, value: "0",
     label: ["Pondere inputuri importate în costul vânzărilor", "Imported share of cost of sales"],
     basis: ["declarat de tine; balanța nu o măsoară", "stated by you; the book does not measure it"] },
-  { id: "dso_days", group: "more", unit: "days", shape: "per_year", range: ["0", "365", "1"], value: "45",
+  { id: "dso_days", group: "more", unit: "days", shape: "per_year", range: ["0", "365", "1"], decimals: 0, value: "45",
     label: ["Zile încasare clienți (DSO)", "Days sales outstanding (DSO)"],
     basis: ["măsurat din balanță: 45,0 zile (sintetic)", "measured on the book: 45.0 days (synthetic)"] },
-  { id: "capex", group: "more", unit: "pct", shape: "per_year", range: ["0", "0.30", "0.001"], value: "0.03",
+  { id: "dio_days", group: "more", unit: "days", shape: "per_year", range: ["0", "365", "1"], decimals: 0, value: "52",
+    label: ["Zile stoc (DIO)", "Days inventory (DIO)"],
+    basis: ["măsurat din balanță: 52,0 zile (sintetic)", "measured on the book: 52.0 days (synthetic)"] },
+  { id: "capex", group: "more", unit: "pct", shape: "per_year", range: ["0", "0.30", "0.001"], decimals: 3, value: "0.03",
     label: ["Investiții (% din venituri)", "Capital expenditure (% of revenue)"],
     basis: ["media balanței (sintetic)", "the book's average (synthetic)"] },
-  { id: "interest_rate", group: "more", unit: "pct", shape: "per_year", range: ["0.01", "0.25", "0.0005"], value: "0.055",
+  { id: "interest_rate", group: "more", unit: "pct", shape: "per_year", range: ["0.01", "0.25", "0.0005"], decimals: 4, value: "0.055",
     label: ["Rata dobânzii", "Interest rate"],
     basis: ["dobânzi / datorii purtătoare de dobândă: 5,5% (sintetic)", "interest / interest-bearing debt: 5.5% (synthetic)"] },
 ];
@@ -198,7 +208,8 @@ export function syntheticCockpit(opts: SynthOptions = {}): Json {
 
   const levers = LEVERS.map((l) => {
     const caseValues = engineCase?.levers[l.id];
-    let value: string | string[] | null = l.value;
+    const served = opts.defaults?.[l.id] ?? l.value;
+    let value: string | string[] | null = served;
     let origin = "default";
     if (caseValues) {
       value = caseValues.length === 1 || new Set(caseValues).size === 1 ? caseValues[0] : caseValues;
@@ -213,9 +224,10 @@ export function syntheticCockpit(opts: SynthOptions = {}): Json {
     return {
       id: l.id, group: l.group, unit: l.unit, shape: l.shape,
       label: { ro: l.label[0], en: l.label[1] },
-      value, default: l.value, is_default: origin === "default", origin,
+      value, default: served, is_default: origin === "default", origin,
       display,
       range: { min: l.range[0], max: l.range[1], step: l.range[2] },
+      decimals: l.decimals,
       basis: { ro: l.basis[0], en: l.basis[1] },
       source: {}, measured: l.measured !== false, follows: l.id === "wage_growth" ? "inflation" : null,
       inert: l.inert ? { ro: l.inert[0], en: l.inert[1] } : null, locked: null,

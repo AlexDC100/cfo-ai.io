@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 from fractions import Fraction
@@ -101,7 +102,7 @@ def _frac(raw: Any, where: str) -> Fraction:
 
 
 class LeverSpec(object):
-    __slots__ = ("id", "group", "unit", "shape", "low", "high", "step", "kind",
+    __slots__ = ("id", "group", "unit", "shape", "low", "high", "step", "decimals", "kind",
                  "drivers", "compile", "label")
 
     def __init__(self, raw: Dict[str, Any], where: str) -> None:
@@ -123,6 +124,24 @@ class LeverSpec(object):
         self.step = _frac(rng.get("step"), where + ".range.step")
         if not self.low < self.high or self.step <= 0:
             raise PackError("%s#%s.range: min < max and a positive step" % (COCKPIT_FILE, where))
+        # THE LEVER'S FIXED SLIDER SCALE (range.decimals): the page holds a
+        # position as an exact decimal at 10^decimals ticks per unit and
+        # never derives the scale from an answer. The pack's own bounds and
+        # step must be exact at it, or a tick could be a value the engine
+        # refuses (F10).
+        decimals = rng.get("decimals")
+        if isinstance(decimals, bool) or not isinstance(decimals, int) or not 0 <= decimals <= 12:
+            raise PackError("%s#%s.range.decimals: an integer 0..12, the lever's fixed slider scale"
+                            % (COCKPIT_FILE, where))
+        self.decimals = decimals
+        unit = Fraction(1, 10 ** decimals)
+        for key, value in (("min", self.low), ("max", self.high), ("step", self.step)):
+            if (value / unit).denominator != 1:
+                raise PackError("%s#%s.range.%s: %s is not exact at %d decimals"
+                                % (COCKPIT_FILE, where, key, rng.get(key), decimals))
+        if self.step < unit:
+            raise PackError("%s#%s.range.step: below one tick at %d decimals"
+                            % (COCKPIT_FILE, where, decimals))
         comp = dict(raw.get("compiles_to") or {})
         self.kind = comp.get("kind")
         if self.kind not in _COMPILE_KINDS:
@@ -694,10 +713,19 @@ def _with_reference(request: PlanRequest, rate: Fraction, pack: CockpitPack) -> 
 def effective_range(spec: Any, default: Optional[Tuple[Fraction, ...]]) -> Tuple[Fraction, Fraction]:
     """The pack's range for a lever, widened to hold this book's own default:
     a measured value outside the pack's range (a book that grew 41% in a
-    year) is still what the slider shows and what the reader can send back."""
+    year) is still what the slider shows and what the reader can send back.
+    A widened bound is rounded OUTWARD to the lever's fixed decimals, so the
+    served range is exact at the slider's scale — every tick the slider can
+    stand on is accepted — and the default stays inside it; the pack's own
+    bounds are exact already and are never moved (F10)."""
     low, high = spec.low, spec.high
     for value in default or ():
         low, high = min(low, value), max(high, value)
+    unit = Fraction(1, 10 ** spec.decimals)
+    if low < spec.low:
+        low = math.floor(low / unit) * unit
+    if high > spec.high:
+        high = math.ceil(high / unit) * unit
     return low, high
 
 
@@ -1078,6 +1106,9 @@ def _lever_payload(spec: Any, d: LeverDefault, value: Optional[Tuple[Fraction, .
                     dict((l, unit_display(value[0], l)) for l in _LANGS)),
         "range": dict(zip(("min", "max"), (text(v) for v in effective_range(spec, d.values))),
                       step=text(spec.step)),
+        # the slider's FIXED scale (packs/forecast/cockpit.yaml#levers[].range
+        # .decimals): the page reads it, never the decimals of `value`
+        "decimals": spec.decimals,
         "basis": basis, "source": d.source, "measured": d.measured,
         "follows": d.follows if origin == "default" else None,
         "inert": inert, "locked": d.locked,

@@ -47,6 +47,10 @@ F9  the bridge from base (revenue -> EBITDA -> working capital -> capex ->
     interest and tax -> dividends -> debt -> cash) sums EXACTLY to the change
     in closing cash for every case, every probed lever set and every
     scenario template — Recession included, whose cash never goes negative.
+F10 every lever serves its FIXED decimal scale (`decimals`, the pack's), a
+    range exact at it, and the same scale and range in every answer — a
+    slider position can never be re-read at another scale (the verifier's
+    2026-09-26 repro: growth +5 % then inflation 3 % sent growth as '50').
 LATENCY: a slider move answers through the real route inside the pack's
     budget (packs/forecast/levers.yaml#latency.chart_inprocess_p50_ms) at p95.
 
@@ -927,6 +931,99 @@ def test_c_f9_a_bridge_that_does_not_close_is_never_served():
 
 # ── the routes ───────────────────────────────────────────────────────────
 
+# ── F10 ──────────────────────────────────────────────────────────────────
+
+def _scale_facts(body: Dict[str, Any]) -> Dict[str, Tuple[Any, ...]]:
+    """Per lever, the slider's FIXED scale as served: (decimals, min, max,
+    step). Identical in every answer, or the page cannot hold a position."""
+    return dict((l["id"], (l["decimals"], l["range"]["min"], l["range"]["max"], l["range"]["step"]))
+                for l in body["levers"])
+
+
+@pytest.mark.parametrize("name", BOOKS)
+def test_c_f10_every_lever_serves_its_fixed_decimal_scale_and_a_range_exact_at_it(name):
+    """A slider's tick scale is a FIXED property of the lever — the pack's
+    `range.decimals`, served on every lever of every answer — never derived
+    from the decimals of an answer's value. The verifier's repro of
+    2026-09-26: the page derived the scale from every ANSWER, so a lever
+    whose measured default carried six decimals (the measured growth, the
+    days levers) changed scale after one honest move, the stored position was
+    re-read at the new scale, and the next move of ANY other slider sent it
+    out of range (revenue_growth '50' -> 422 lever_out_of_range). Held here,
+    per book: `decimals` on every lever equals the pack's; min, max and step
+    are exact at that scale (every tick the slider can stand on can be sent
+    back); the value in force sits inside the range; the scale AND the range
+    of every lever are byte-identical across the base answer and the answers
+    to the verifier's two sequences (growth +5 % then inflation 3 %; DSO 40
+    then DIO 50), each of them a 200."""
+    from fractions import Fraction
+    pack = _pack()
+    sequences = (("growth", {"revenue_growth": "0.05"}),
+                 ("growth+inflation", {"revenue_growth": "0.05", "inflation": "0.03"}),
+                 ("dso", {"dso_days": "40"}),
+                 ("dso+dio", {"dso_days": "40", "dio_days": "50"}))
+    answers = []  # type: List[Tuple[str, Dict[str, Any]]]
+    with _World(name) as world:
+        base = world.ok()
+        for label, levers in sequences:
+            status, out = world.cockpit({"levers": levers})
+            if status != 200:
+                code = (out.get("detail") or {}).get("code")
+                assert status == 422 and code in REFUSED_BY_NAME, (name, label, status, out)
+                print("C-F10 %s %s refused by name: %s" % (name, label, code))
+                continue
+            answers.append((label, out))
+    facts = _scale_facts(base)
+    for lever in base["levers"]:
+        spec = pack.by_id[lever["id"]]
+        d = lever["decimals"]
+        assert isinstance(d, int) and not isinstance(d, bool) and d == spec.decimals >= 0, (
+            name, lever["id"], d)
+        unit = Fraction(1, 10 ** d)
+        rng = lever["range"]
+        for key in ("min", "max", "step"):
+            assert (Fraction(rng[key]) / unit).denominator == 1, (
+                "%s/%s: range.%s %s is not exact at %d decimals" % (name, lever["id"], key, rng[key], d))
+        assert Fraction(rng["step"]) >= unit, (name, lever["id"], rng)
+        values = lever["value"] if isinstance(lever["value"], list) else [lever["value"]]
+        for v in values:
+            if v is not None:
+                assert Fraction(rng["min"]) <= Fraction(v) <= Fraction(rng["max"]), (
+                    name, lever["id"], v, rng)
+    for label, body in answers:
+        assert _scale_facts(body) == facts, (name, label)
+    by_label = dict(answers)
+    if "growth+inflation" in by_label:
+        assert _lever(by_label["growth+inflation"], "revenue_growth")["value"] == "0.05"
+        assert _lever(by_label["growth+inflation"], "inflation")["value"] == "0.03"
+    if "dso+dio" in by_label:
+        assert _lever(by_label["dso+dio"], "dso_days")["value"] == "40"
+        assert _lever(by_label["dso+dio"], "dio_days")["value"] == "50"
+    print("C-F10 %s: %d levers, scale held across %d moved answers" % (name, len(facts), len(answers)))
+    WORK["units"] += 4 * len(facts) + len(answers) * len(facts)
+
+
+def test_c_f10_a_default_outside_the_packs_range_widens_it_to_a_bound_exact_at_the_decimals():
+    """A measured default outside the pack's range (the book doubled in a
+    year) still widens the served range — to a bound rounded OUTWARD to the
+    lever's decimals, so the slider's last tick is sendable and the default
+    itself sits inside; the pack's own bounds are never widened by a hair."""
+    from fractions import Fraction
+    with _World("agras_doubled") as world:
+        body = world.ok()
+        growth = _lever(body, "revenue_growth")
+        d = growth["decimals"]
+        unit = Fraction(1, 10 ** d)
+        assert Fraction(growth["default"]) > Fraction(_pack().by_id["revenue_growth"].high)
+        assert Fraction(growth["range"]["max"]) >= Fraction(growth["default"])
+        assert (Fraction(growth["range"]["max"]) / unit).denominator == 1, growth["range"]
+        assert Fraction(growth["range"]["max"]) - Fraction(growth["default"]) < unit
+        top = world.ok({"levers": {"revenue_growth": growth["range"]["max"]}})
+        assert _lever(top, "revenue_growth")["value"] == growth["range"]["max"]
+        assert _lever(top, "revenue_growth")["range"] == growth["range"]
+    WORK["units"] += 6
+
+
 def test_c_routes_bind_bodies_refuse_by_name_and_serve_the_export():
     from engine.api import _forecast_routes as FR
     assert FR.CockpitRequestBody.__module__ == FR.__name__
@@ -1006,6 +1103,12 @@ FIXTURE_REQUESTS = (
     ("pesimist", "cockpit", {"case_id": "pesimist"}),
     ("funding", "cockpit", {"levers": {"dso_days": "300", "revenue_growth": "-0.25",
                                        "dividend_payout": "1"}}),
+    # the verifier's two slider sequences of 2026-09-26 (F10; the frontend's
+    # lever-scale gate replays them against these very bytes)
+    ("growth", "cockpit", {"levers": {"revenue_growth": "0.05"}}),
+    ("growth_inflation", "cockpit", {"levers": {"inflation": "0.03", "revenue_growth": "0.05"}}),
+    ("dso", "cockpit", {"levers": {"dso_days": "40"}}),
+    ("dso_dio", "cockpit", {"levers": {"dio_days": "50", "dso_days": "40"}}),
     ("export", "cockpit/export", {"case_id": "pesimist"}),
 )
 

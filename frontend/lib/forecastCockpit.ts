@@ -24,9 +24,17 @@
 //     <CockpitAmountView>, ◇ and all) or `cockpitPlot` (a chart coordinate);
 //   · keeps the ENGINE's own formatted text where it serves one (the four
 //     numbers and the sentence arrive formatted, per language);
-//   · converts a lever's served decimal strings to integer slider TICKS and
-//     back, with integer string arithmetic (`exactDecimal`, `ticksOf`) — never
-//     a float on the wire.
+//   · holds a slider POSITION as the exact decimal the wire carries and
+//     derives integer TICKS for the thumb at render, at the lever's FIXED
+//     scale — the pack's `decimals`, served on every lever (engine gate F10),
+//     never derived from an answer. Integer string arithmetic (`exactDecimal`,
+//     `ticksOf`, `leverTicks`): never a float on the wire. The 2026-09-26
+//     verifier repro: a scale derived from each ANSWER's value flipped after
+//     one honest move (a six-decimal growth default → "0.05": ±300000/1000
+//     became ±300/1), the stored ticks were re-read at the new scale, and
+//     the next move of any other slider sent revenue_growth "50" → 422; DSO
+//     40 read "4.000.000 zile". A position that is a decimal cannot be
+//     re-read.
 // It formats nothing (no Intl, no toFixed): painting is the components' job
 // (components/forecast/cockpit/format.ts), exactly as forecastFacts.ts leaves
 // it to <ProjectedAmount>.
@@ -136,14 +144,24 @@ export interface CockpitLever {
   readonly unit: LeverUnit;
   readonly shape: "per_year" | "scalar";
   readonly label: Bilingual;
-  /** Slider ticks per unit of the lever's served decimals (10^decimals). */
+  /** The lever's FIXED decimal scale — the pack's `decimals`, served on
+   *  every lever of every answer (engine gate F10). Read from the payload,
+   *  never derived from a value's decimals: the same lever has the same
+   *  scale in every answer of a session. */
+  readonly decimals: number;
+  /** Slider ticks per unit: 10^decimals. */
   readonly scale: number;
+  /** The served range in TICKS at `scale` (min, max and step are exact at
+   *  the lever's decimals: every tick is a value the engine accepts back). */
   readonly min: number;
   readonly max: number;
   readonly step: number;
-  /** The value in force for plan year one, in ticks; null when the book
-   *  cannot measure the lever and nothing set it. */
-  readonly value: number | null;
+  /** The value in force for plan year one — the exact decimal the engine
+   *  serves (the wire form; a position is the same kind of string, and it
+   *  may carry more decimals than the step: a measured growth of six
+   *  decimals on a 0.001 slider); null when
+   *  the book cannot measure the lever and nothing set it. */
+  readonly value: string | null;
   /** The value in force differs by plan year (a dated path, e.g. the BNR's
    *  projected inflation). */
   readonly path: boolean;
@@ -326,8 +344,9 @@ function amountOf(raw: unknown, period: string, fallbackKind: "projected" | "act
   return { kind, period, minor: minor as unknown as CockpitMinor, refusal: null };
 }
 
-/** A decimal string's count of fraction digits ("0.0005" → 4). */
-function decimals(d: string): number {
+/** A decimal string's count of fraction digits ("0.0005" → 4); -1 when it
+ *  is not a decimal at all. Never a lever's scale: that is served. */
+function fractionDigits(d: string): number {
   const m = /^-?\d+(?:\.(\d+))?$/.exec(d);
   return m ? (m[1] ?? "").length : -1;
 }
@@ -340,18 +359,25 @@ function readLever(raw: unknown): CockpitLever {
   need(id.length > 0, "a lever carries no id");
   const unit = str(r.unit) as LeverUnit;
   need(unit === "pct" || unit === "days", `lever ${id} has unit ${JSON.stringify(r.unit)}`);
+  // THE SCALE IS SERVED, and it is the same in every answer: the pack's
+  // `decimals` on the lever. Never the decimals of min/max/step/value — a
+  // scale derived from an answer changes with the answer (the 2026-09-26
+  // repro), and a position held in ticks is then re-read at another scale.
+  const decimals = int(r.decimals);
+  need(decimals !== null && decimals >= 0 && decimals <= 12, `lever ${id} states no decimal scale`);
+  const scale = Number(`1${"0".repeat(decimals)}`);
   const range = rec(r.range) ?? {};
   const served = [str(range.min), str(range.max), str(range.step)];
-  const values = Array.isArray(r.value) ? r.value.map(str) : r.value === null || r.value === undefined ? [] : [str(r.value)];
-  const places = Math.max(...[...served, ...values].map(decimals));
-  need(served.every((d) => decimals(d) >= 0), `lever ${id} states no decimal range`);
-  need(values.every((d) => decimals(d) >= 0), `lever ${id} has a value that is not a decimal`);
-  const scale = Number(`1${"0".repeat(Math.max(0, places))}`);
   const min = ticksOf(served[0], scale);
   const max = ticksOf(served[1], scale);
   const step = ticksOf(served[2], scale);
-  need(min !== null && max !== null && step !== null && step > 0 && min <= max, `lever ${id} has no usable range`);
-  const first = values.length > 0 ? ticksOf(values[0], scale) : null;
+  need(
+    min !== null && max !== null && step !== null && step > 0 && min <= max,
+    `lever ${id} has no range exact at ${decimals} decimals (${served.join(" / ")})`,
+  );
+  const values = Array.isArray(r.value) ? r.value.map(str) : r.value === null || r.value === undefined ? [] : [str(r.value)];
+  need(values.every((d) => fractionDigits(d) >= 0), `lever ${id} has a value that is not a decimal`);
+  const first = values.length > 0 ? values[0] : null;
   const origin = str(r.origin);
   const lockedRaw = r.locked;
   const locked =
@@ -364,6 +390,7 @@ function readLever(raw: unknown): CockpitLever {
     unit,
     shape: r.shape === "scalar" ? "scalar" : "per_year",
     label: bilingual(r.label) ?? { ro: id, en: id },
+    decimals,
     scale,
     min: min as number,
     max: max as number,
@@ -593,8 +620,11 @@ export function readCockpit(payload: unknown): CockpitView | null {
 
 // ── the request ──────────────────────────────────────────────────────────
 
-/** Slider positions the reader moved: lever id → ticks at the lever's scale. */
-export type LeverPositions = Readonly<Record<string, number>>;
+/** Slider positions the reader moved: lever id → the exact decimal the wire
+ *  carries (`leverDecimal`, at the lever's fixed scale). A position is never
+ *  a tick count: ticks are derived at render (`leverTicks`) from a scale that
+ *  is served, so no answer can re-interpret a position. */
+export type LeverPositions = Readonly<Record<string, string>>;
 
 export interface CockpitRequest {
   /** An engine case id, or "saved:<id>". */
@@ -602,19 +632,15 @@ export interface CockpitRequest {
   readonly levers: LeverPositions;
 }
 
-/** The wire body of one cockpit request. Keys sorted, values exact decimals
- *  at each lever's served scale — the same request is always the same bytes,
- *  and the same bytes are the same projection (gate F3). */
-export function cockpitRequestBody(
-  request: CockpitRequest,
-  scaleOf: (id: string) => number | null,
-): { case_id: string; levers: Record<string, string> } {
+/** The wire body of one cockpit request. Keys sorted, values the exact
+ *  decimals the positions already are — the same request is always the same
+ *  bytes, and the same bytes are the same projection (gate F3). */
+export function cockpitRequestBody(request: CockpitRequest): { case_id: string; levers: Record<string, string> } {
   const levers: Record<string, string> = {};
   for (const id of Object.keys(request.levers).sort()) {
-    const scale = scaleOf(id);
-    const ticks = request.levers[id];
-    if (scale === null || !Number.isInteger(ticks)) continue;
-    levers[id] = exactDecimal(ticks, scale);
+    const decimal = request.levers[id];
+    if (fractionDigits(decimal) < 0) continue; // not a decimal: never sent
+    levers[id] = decimal;
   }
   return { case_id: request.caseId, levers };
 }
@@ -625,18 +651,46 @@ export function cockpitRequestKey(request: CockpitRequest): string {
   return JSON.stringify([request.caseId, keys.map((k) => [k, request.levers[k]])]);
 }
 
-/** A slider moved to `ticks`. Back on the value the case holds, the lever is
- *  DROPPED rather than sent, so the request is exactly the case — which is
- *  what makes "reset" land on the case byte for byte (gate F4). */
+/** A slider moved to `decimal` (the wire form, from `leverDecimal`). Reset
+ *  (`null`) DROPS the lever rather than sending the case's value, so the
+ *  request is exactly the case — which is what makes "reset" land on the
+ *  case byte for byte (gate F4). */
 export function withLever(
   positions: LeverPositions,
   lever: Pick<CockpitLever, "id">,
-  ticks: number | null,
+  decimal: string | null,
 ): LeverPositions {
-  const next: Record<string, number> = { ...positions };
-  if (ticks === null) delete next[lever.id];
-  else next[lever.id] = ticks;
+  const next: Record<string, string> = { ...positions };
+  if (decimal === null) delete next[lever.id];
+  else next[lever.id] = decimal;
   return next;
+}
+
+/** A slider position (ticks at the lever's fixed scale) as the exact decimal
+ *  the wire carries — THE ONE WAY a position is made. */
+export function leverDecimal(lever: Pick<CockpitLever, "scale">, ticks: number): string {
+  return exactDecimal(ticks, lever.scale);
+}
+
+/** A decimal as TICKS at the lever's fixed scale, for the thumb: exact when
+ *  the decimal is representable there (a reader's own position always is);
+ *  otherwise the NEAREST tick (half up, away from zero) — the served value in
+ *  force may be finer than the step (a six-decimal measured growth on a
+ *  0.001 slider)
+ *  and a thumb can only stand on a tick. Clamped to the lever's range. Only
+ *  the thumb reads this: a request never carries the rounding, because a
+ *  position IS the exact decimal and an unmoved lever is not sent at all.
+ *  String arithmetic, never a float. */
+export function leverTicks(lever: Pick<CockpitLever, "scale" | "min" | "max">, decimal: string): number | null {
+  const m = /^(-?)(\d+)(?:\.(\d+))?$/.exec(decimal.trim());
+  if (!m) return null;
+  const digits = String(lever.scale).length - 1;
+  const frac = (m[3] ?? "").padEnd(digits, "0");
+  let whole = Number(`${m[2]}${frac.slice(0, digits)}`);
+  if (frac.length > digits && frac[digits] >= "5") whole += 1;
+  if (!Number.isSafeInteger(whole)) return null;
+  const signed = m[1] === "-" ? -whole : whole;
+  return Math.min(lever.max, Math.max(lever.min, signed));
 }
 
 /** An exact decimal as ticks at `scale` (a power of ten), or null when it is

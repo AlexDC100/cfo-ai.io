@@ -101,18 +101,12 @@ function parse(
   }
 }
 
-export function useCockpit(
-  periodId: string,
-  request: CockpitRequest,
-  /** The served scale of each lever, from the last answer: the request
-   *  carries a lever as an exact decimal at its own scale. */
-  scaleOf: (key: string) => number | null,
-): CockpitState {
+export function useCockpit(periodId: string, request: CockpitRequest): CockpitState {
   const key = useMemo(() => cockpitRequestKey(request), [request]);
+  // A position is already the exact decimal the wire carries (LeverPositions):
+  // nothing here reads a scale, so no answer can re-interpret a request.
   const requestRef = useRef(request);
   requestRef.current = request;
-  const scaleRef = useRef(scaleOf);
-  scaleRef.current = scaleOf;
 
   const cache = useRef(new Map<string, CockpitAnswer>());
   const seq = useRef(0);
@@ -166,7 +160,7 @@ export function useCockpit(
     const controller = new AbortController();
     inflight.current = controller;
     setInFlightKey(sentKey);
-    const body = cockpitRequestBody(requestRef.current, (k) => scaleRef.current(k));
+    const body = cockpitRequestBody(requestRef.current);
     const started = performance.now();
     cfoApi
       .forecastCockpit(periodId, body, controller.signal)

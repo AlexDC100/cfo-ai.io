@@ -724,18 +724,23 @@ def _engine_gates() -> List[Gate]:
         # projected figure), debounce + latest-response-wins, reset -> the
         # case's bytes (F4), saved cases per company (F6), present mode,
         # the bank export from the engine's export data, no 100× (FC1/FC2),
-        # and the no-math source scan (R1-R6). Measured 68 tests, floor 60.
-        # Plant log: gates.md "forecast-cockpit-page".
+        # and the no-math source scan (R1-R6), plus the lever-scale gate
+        # (2026-09-26: a slider's scale is the lever's served `decimals`, a
+        # position the wire decimal — replayed over the synthetic book and
+        # the agras bytes captured from the real route). Measured 75 tests,
+        # floor 60. Plant log: gates.md "forecast-cockpit-page".
         Gate("forecast-cockpit-page",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/pages/cfo/__tests__/forecastCockpit.test.tsx",
+              "frontend/pages/cfo/__tests__/forecastCockpitLeverScale.test.tsx",
               "frontend/pages/cfo/__tests__/forecastMagnitude.test.tsx",
               "frontend/components/forecast/cockpit/__tests__/cockpitNoMoneyMath.test.ts",
               "--reporter=verbose"],
              work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=60,
-             units="cockpit page tests (engine-served figures, latest-wins, F4, F6, no 100x, no-math scan)",
+             units="cockpit page tests (engine-served figures, latest-wins, F4, F6, no 100x, no-math scan, lever scale)",
              canaries=("LATEST RESPONSE WINS: an older answer arriving last never overwrites the newer one",
                        "gate F4: reset lands on the case answer EXACTLY, from the served bytes",
+                       "GATE-WORK forecast-cockpit-lever-scale engines=",
                        "saves the WHOLE lever set to the company on screen",
                        "no statement cell renders at a different magnitude from the bytes behind it",
                        "R5: the GATEWAY opens the opaque amount in exactly two places and divides once")),
@@ -773,6 +778,7 @@ def _engine_gates() -> List[Gate]:
              # corpus book (14442 units on the four books).
              canaries=("SCOPE forecast-cockpit (forecast-scenarios-live)",
                        "C-F1 books: agras, carniprod, retail, realestate",
+                       "C-F10 agras: 13 levers, scale held across 4 moved answers",
                        "C-ONE-ENGINE agras: 550 figures agree between the cockpit and the scenario route")),
         # RATIOS: the engine as the one authority for ratio values, bands,
         # deltas, band movements and credit composites (critic

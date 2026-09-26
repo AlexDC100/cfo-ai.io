@@ -65,16 +65,16 @@ export function monthLabel(period: string, locale: string): string {
   return new Intl.DateTimeFormat(locale, { month: "long", year: "numeric", timeZone: "UTC" }).format(date);
 }
 
-/** A slider's own position (ticks at the lever's served scale) in the lever's
- *  unit, while the reader drags it — the ENGINE's display replaces it once it
- *  answers. A lever value, never money: "5.2%" / "45 days". */
+/** A slider's own position (the exact decimal the wire carries) in the
+ *  lever's unit, while the reader drags it — the ENGINE's display replaces it
+ *  once it answers. A lever value, never money: "5.2%" / "45 days". */
 export function leverText(
-  lever: { readonly unit: "pct" | "days"; readonly scale: number },
-  ticks: number,
+  lever: { readonly unit: "pct" | "days" },
+  decimal: string,
   locale: string,
   daysWord: string,
 ): string {
-  const unitValue = ticks / lever.scale;
+  const unitValue = Number(decimal);
   if (lever.unit === "days") {
     return `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(unitValue)} ${daysWord}`;
   }

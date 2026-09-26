@@ -39,7 +39,7 @@
 // in one sentence and offers the user's companies. It carries no upload
 // control: the company page owns uploads.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FileDown, Presentation } from "lucide-react";
 
@@ -75,7 +75,6 @@ import {
   type SavedForecastCase,
 } from "@/lib/forecastCases";
 import { buildBankExportHtml } from "@/lib/forecastBankExport";
-import { exactDecimal } from "@/lib/forecastFacts";
 import { requestReportPdf, saveReportPdf } from "@/lib/reportPdf";
 
 export default function Forecast() {
@@ -127,21 +126,14 @@ function ForecastCockpit({
   const projectedLabel = t("forecast.projected", "projected");
 
   const [active, setActive] = useState<ActiveCase>({ kind: "engine", id: BASE_CASE_ID });
+  // A moved slider is held as the exact decimal the wire carries (never a
+  // tick count): no answer can re-interpret it, and the request needs no
+  // scale (the 2026-09-26 repro: a scale re-derived per answer sent
+  // revenue_growth "50" after an honest +5 %).
   const [request, setRequest] = useState<CockpitRequest>({ caseId: BASE_CASE_ID, levers: {} });
-  // The served scale of every lever, read off the last answer in the same
-  // render (no effect lag): the request carries a moved slider as an exact
-  // decimal at its own scale.
-  const scalesRef = useRef<ReadonlyMap<string, number>>(new Map());
-  const scaleOf = useCallback((id: string) => scalesRef.current.get(id) ?? null, []);
-  const state = useCockpit(period.id as string, request, scaleOf);
+  const state = useCockpit(period.id as string, request);
   const answer = state.shown;
   const cockpit = answer?.cockpit ?? null;
-  const scales = useMemo(() => {
-    const next = new Map(scalesRef.current);
-    for (const l of cockpit?.levers ?? []) next.set(l.id, l.scale);
-    return next;
-  }, [cockpit]);
-  scalesRef.current = scales;
 
   // ── saved cases (gate F6): this company's, and only this company's ──
   const [saved, setSaved] = useState<readonly SavedForecastCase[]>([]);
@@ -173,8 +165,8 @@ function ForecastCockpit({
     setActive({ kind: "saved", id: c.id });
     setRequest({ caseId: `${SAVED_CASE_PREFIX}${c.id}`, levers: {} });
   };
-  const onMove = (lever: CockpitLever, ticks: number) => {
-    setRequest((r) => ({ ...r, levers: withLever(r.levers, lever, ticks) }));
+  const onMove = (lever: CockpitLever, decimal: string) => {
+    setRequest((r) => ({ ...r, levers: withLever(r.levers, lever, decimal) }));
   };
   const onReset = (lever: CockpitLever) => {
     setRequest((r) => ({ ...r, levers: withLever(r.levers, lever, null) }));
@@ -197,10 +189,8 @@ function ForecastCockpit({
         const own = saved.find((s) => s.id === active.id);
         for (const [id, values] of Object.entries(own?.levers ?? {})) set[id] = values;
       }
-      for (const [id, ticks] of Object.entries(request.levers)) {
-        const scale = scales.get(id);
-        if (scale) set[id] = exactDecimal(ticks, scale);
-      }
+      // a moved slider is stored as the wire decimal it already is
+      for (const [id, decimal] of Object.entries(request.levers)) set[id] = decimal;
       const list = await saveForecastCase(orgId, {
         name,
         caseId: active.kind === "engine" ? active.id : (saved.find((s) => s.id === active.id)?.caseId ?? ""),

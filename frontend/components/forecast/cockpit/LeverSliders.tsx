@@ -10,17 +10,20 @@
 // that cannot move on this book is disabled with the engine's reason; a lever
 // whose move reaches nothing yet says why — never a silent default.
 //
-// A slider position is an integer count of TICKS at the lever's served
-// decimal scale. While the reader drags, the value beside the slider is their
-// position; once the engine answers it is the ENGINE's own display of the
-// value in force. Moving a slider asks the engine (debounced, useCockpit);
-// this component computes no figure.
+// A slider position is the exact DECIMAL the wire carries, made from the
+// thumb's integer ticks at the lever's FIXED scale (`decimals`, served by the
+// engine — never derived from an answer: the 2026-09-26 repro re-read a
+// stored tick count at a scale that changed with the answer). The thumb's
+// ticks are derived at render from that decimal. While the reader drags, the
+// value beside the slider is their position; once the engine answers it is
+// the ENGINE's own display of the value in force. Moving a slider asks the
+// engine (debounced, useCockpit); this component computes no figure.
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { RotateCcw } from "lucide-react";
 
-import { pick, type CockpitLever, type LeverPositions } from "@/lib/forecastCockpit";
+import { leverDecimal, leverTicks, pick, type CockpitLever, type LeverPositions } from "@/lib/forecastCockpit";
 import { leverText } from "./format";
 
 function Slider({
@@ -33,11 +36,11 @@ function Slider({
   refused,
 }: {
   lever: CockpitLever;
-  /** The reader's own position, when they moved this lever. */
-  position: number | undefined;
+  /** The reader's own position (an exact decimal), when they moved this lever. */
+  position: string | undefined;
   locale: string;
   lang: string;
-  onMove: (lever: CockpitLever, ticks: number) => void;
+  onMove: (lever: CockpitLever, decimal: string) => void;
   onReset: (lever: CockpitLever) => void;
   refused: boolean;
 }) {
@@ -45,15 +48,18 @@ function Slider({
   const days = t("forecast.cockpit.levers.days", "days");
   const id = `cockpit-lever-${lever.id}`;
   const label = pick(lever.label, lang);
-  // Where the thumb sits: the reader's move, else the value in force, else
-  // (a lever with no value on this book) the nearest in-range tick to no move.
-  const resting = lever.value ?? (lever.min <= 0 && lever.max >= 0 ? 0 : lever.min);
-  const ticks = position ?? resting;
+  // Where the thumb sits, in ticks at the lever's FIXED scale: the reader's
+  // move, else the value in force (its nearest tick when the served decimal
+  // is finer than the step), else (a lever with no value on this book) the
+  // nearest in-range tick to no move.
+  const resting = lever.min <= 0 && lever.max >= 0 ? 0 : lever.min;
+  const held = position ?? lever.value;
+  const ticks = held === null ? resting : (leverTicks(lever, held) ?? resting);
   const pending = position !== undefined && position !== lever.value;
   const moved = position !== undefined || lever.origin === "user";
   const served = pick(lever.display, lang);
   const shown = pending
-    ? leverText(lever, ticks, locale, days)
+    ? leverText(lever, position as string, locale, days)
     : served || t("forecast.cockpit.levers.notMeasured", "not measured");
   const disabled = lever.locked !== null;
   const basis = pick(lever.basis, lang);
@@ -108,6 +114,7 @@ function Slider({
         id={`${id}-input`}
         data-testid={`${id}-input`}
         type="range"
+        data-decimals={lever.decimals}
         min={lever.min}
         max={lever.max}
         step={lever.step}
@@ -116,7 +123,8 @@ function Slider({
         aria-valuetext={shown}
         onChange={(e) => {
           const next = Number.parseInt(e.target.value, 10);
-          if (Number.isInteger(next)) onMove(lever, next);
+          // the position leaves here as the wire decimal, once, at the fixed scale
+          if (Number.isInteger(next)) onMove(lever, leverDecimal(lever, next));
         }}
         className="cockpit-range mt-2 w-full accent-[hsl(var(--brand))] disabled:opacity-40"
       />
@@ -157,7 +165,7 @@ export function LeverSliders({
   positions: LeverPositions;
   locale: string;
   lang: string;
-  onMove: (lever: CockpitLever, ticks: number) => void;
+  onMove: (lever: CockpitLever, decimal: string) => void;
   onReset: (lever: CockpitLever) => void;
   onResetAll: () => void;
   refusedId: string | null;

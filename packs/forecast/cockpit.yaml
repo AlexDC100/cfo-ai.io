@@ -33,26 +33,36 @@ horizon:
 # cockpit; more sits behind "Mai multe". compiles_to says which engine
 # drivers the lever moves and how; `drivers` is the list the F4 gate checks
 # every moved line against.
+#
+# range.decimals is the lever's FIXED slider scale — the page holds a slider
+# position as an exact decimal at 10^decimals ticks per unit and never
+# derives the scale from an answer. min, max and step must be exact at it
+# (the engine refuses the pack otherwise), and a served range widened to
+# hold a book's own default is rounded OUTWARD to it, so every tick the
+# slider can stand on is a value the engine accepts back. The verifier's
+# 2026-09-26 repro: a scale re-derived from each answer's value flipped
+# after one honest move on a lever whose measured default carried six
+# decimals, and the next move of any other slider sent it out of range.
 levers:
   - id: revenue_growth
     group: primary
     unit: pct
     shape: per_year
-    range: {min: "-0.30", max: "0.30", step: "0.001"}
+    range: {min: "-0.30", max: "0.30", step: "0.001", decimals: 3}
     compiles_to: {kind: override, drivers: [revenue_growth]}
     label: {ro: "Creștere venituri/an", en: "Revenue growth / year"}
   - id: inflation
     group: primary
     unit: pct
     shape: per_year
-    range: {min: "0", max: "0.15", step: "0.001"}
+    range: {min: "0", max: "0.15", step: "0.001", decimals: 3}
     compiles_to: {kind: override, drivers: [inflation]}
     label: {ro: "Inflație/an", en: "Inflation / year"}
   - id: raw_material_price
     group: primary
     unit: pct
     shape: scalar
-    range: {min: "-0.30", max: "0.50", step: "0.01"}
+    range: {min: "-0.30", max: "0.50", step: "0.01", decimals: 2}
     # The move is applied to the raw-material SHARE of cost of sales, measured
     # from the book's own cost-of-sales rows (the methodology's raw materials:
     # 601 + 602); the rest of cost of sales (merchandise, 607) keeps its price.
@@ -65,7 +75,7 @@ levers:
     shape: per_year
     # The ceiling keeps five compounded years inside the pool level's own
     # bound (packs/forecast/levers.yaml#registry."pool_level.*").
-    range: {min: "0", max: "0.20", step: "0.001"}
+    range: {min: "0", max: "0.20", step: "0.001", decimals: 3}
     # Default: personnel cost follows inflation (the engine's convention for a
     # fixed cost). A value moves the personnel pool's level by the ratio of
     # (1 + wage growth) to (1 + inflation) each year, so the pool grows at the
@@ -77,7 +87,7 @@ levers:
     group: more
     unit: pct
     shape: scalar
-    range: {min: "-0.50", max: "1.00", step: "0.01"}
+    range: {min: "-0.50", max: "1.00", step: "0.01", decimals: 2}
     compiles_to: {kind: pool_level, drivers: [pool_level.energy_utilities],
                   pool: energy_utilities}
     label: {ro: "Preț energie (față de {year0})", en: "Energy price (vs {year0})"}
@@ -85,7 +95,7 @@ levers:
     group: more
     unit: pct
     shape: scalar
-    range: {min: "-0.20", max: "0.30", step: "0.005"}
+    range: {min: "-0.20", max: "0.30", step: "0.005", decimals: 3}
     # A move of the EUR/RON rate reaches only the imported share of cost of
     # sales the reader states (imported_share): a trial balance does not split
     # purchases by currency.
@@ -96,35 +106,35 @@ levers:
     group: more
     unit: pct
     shape: scalar
-    range: {min: "0", max: "1", step: "0.01"}
+    range: {min: "0", max: "1", step: "0.01", decimals: 2}
     compiles_to: {kind: parameter_of, lever: eur_ron, drivers: [input_price_index]}
     label: {ro: "Pondere inputuri importate în costul vânzărilor", en: "Imported share of cost of sales"}
   - id: dso_days
     group: more
     unit: days
     shape: per_year
-    range: {min: "0", max: "365", step: "1"}
+    range: {min: "0", max: "365", step: "1", decimals: 0}
     compiles_to: {kind: override, drivers: [dso_days]}
     label: {ro: "Zile încasare clienți (DSO)", en: "Days sales outstanding (DSO)"}
   - id: dio_days
     group: more
     unit: days
     shape: per_year
-    range: {min: "0", max: "365", step: "1"}
+    range: {min: "0", max: "365", step: "1", decimals: 0}
     compiles_to: {kind: override, drivers: [dio_cogs_days]}
     label: {ro: "Zile stoc (DIO)", en: "Days inventory (DIO)"}
   - id: dpo_days
     group: more
     unit: days
     shape: per_year
-    range: {min: "0", max: "365", step: "1"}
+    range: {min: "0", max: "365", step: "1", decimals: 0}
     compiles_to: {kind: override, drivers: [dpo_cogs_days]}
     label: {ro: "Zile plată furnizori (DPO)", en: "Days payables outstanding (DPO)"}
   - id: capex
     group: more
     unit: pct
     shape: per_year
-    range: {min: "0", max: "0.30", step: "0.001"}
+    range: {min: "0", max: "0.30", step: "0.001", decimals: 3}
     compiles_to: {kind: override, drivers: [capex_pct_of_revenue]}
     label: {ro: "Investiții (% din venituri)", en: "Capital expenditure (% of revenue)"}
   - id: interest_rate
@@ -133,14 +143,14 @@ levers:
     shape: per_year
     # The floor is above nil: interest is never zero while the company
     # carries debt (gate F5).
-    range: {min: "0.01", max: "0.25", step: "0.0005"}
+    range: {min: "0.01", max: "0.25", step: "0.0005", decimals: 4}
     compiles_to: {kind: override, drivers: [interest_rate_debt, revolver_rate]}
     label: {ro: "Rata dobânzii", en: "Interest rate"}
   - id: dividend_payout
     group: more
     unit: pct
     shape: per_year
-    range: {min: "0", max: "1", step: "0.05"}
+    range: {min: "0", max: "1", step: "0.05", decimals: 2}
     compiles_to: {kind: override, drivers: [dividend_payout_pct]}
     label: {ro: "Dividende (% din profitul net)", en: "Dividends (% of net profit)"}
 
