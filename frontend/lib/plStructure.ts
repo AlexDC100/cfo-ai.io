@@ -86,6 +86,16 @@ export interface PLStatement {
   cipUnderDevelopment?: number;
   /** Period month name for the footnote ("December", etc.). */
   periodMonth?: string;
+  /** Revenue by three-digit account family ("701", "706", …), read off
+   *  the period's OWN revenue-bucket leaves — the same reading as the
+   *  aggregates row's chip (`revenueFamiliesChip`). The footnote's
+   *  rental-dominance test reads the 706 family here. It used to look for
+   *  a line whose `accountCode` was exactly "706": on a sub-account ledger
+   *  (7061, 7062, …) that found nothing, and on the aggregates path it
+   *  found the row's chip — a label — so a chip reading "706" made every
+   *  such book a landlord and a chip listing five families made none.
+   *  Absent when no leaves were available to read. */
+  revenueFamilyAmounts?: Record<string, number>;
 }
 
 // ───────────────────────────────────────────────────────────────────────

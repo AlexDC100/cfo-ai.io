@@ -296,8 +296,14 @@ export function statementsForExportOf(
   }
   return {
     ...statements,
+    // The file behind each column, as the served document names it
+    // (`sourceDocumentLine`): the report's and the workbook's column
+    // headers carry it as their title, exactly as the dashboard's compare
+    // headers do. Null, never invented, when the engine served none.
+    sourceDocument: sourceDocumentLine(doc.current) ?? statements.sourceDocument ?? null,
     prior: {
       periodLabel: doc.prior.label,
+      sourceDocument: sourceDocumentLine(doc.prior) ?? null,
       balanceSheet: ps.balanceSheet,
       incomeStatement: ps.incomeStatement,
       // The served prior P&L rides along so the workbook's "account 121,

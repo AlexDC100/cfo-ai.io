@@ -233,6 +233,13 @@ export interface SupplementaryData {
 
 export interface PriorPeriod {
   periodLabel: string;
+  /** The served source-document filename behind the prior period's
+   *  figures (`comparatives.sourceDocumentLine(doc.prior)`), set by
+   *  `statementsForExportOf`. The report's and the workbook's prior
+   *  column headers carry it as their title — the file a reader can
+   *  check the column against. Null/absent when the engine served none
+   *  or the prior was built from bare statements. */
+  sourceDocument?: string | null;
   balanceSheet: BalanceSheet;
   incomeStatement: IncomeStatement;
   /** The prior period's SERVED `assembled_pl`, verbatim — present when the
@@ -649,6 +656,12 @@ export interface Statements {
    */
   reportedTotals?: Partial<Record<ReportedTotalKey, number>>;
 
+  /** The served source-document filename behind THIS period's figures
+   *  (`period.source_document.filename` on the served body, carried on
+   *  the comparatives document's `current` block). The report's and the
+   *  workbook's current-period column headers carry it as their title.
+   *  Absent when no served document named one. */
+  sourceDocument?: string | null;
   /** Optional prior-period statements for trend lines. */
   prior?: PriorPeriod;
   /** The served comparatives document for this period and its prior
@@ -4371,7 +4384,9 @@ export function renderReportHtml(
         const cls = got.figureCells[i] ? "num" : isReason ? "nocmp" : "word";
         const extra = isReason ? " data-nocmp-reason" : "";
         const tone = got.tones[i] === null ? "" : ` data-tone="${escapeHtml(got.tones[i] as string)}"`;
-        return `<tr><th scope="row">${escapeHtml(ratioCmpHeadings[i])}</th><td class="${cls}" data-cell="${RATIO_CMP_CELL_IDS[i]}"${extra}${tone}>${escapeHtml(cell)}</td></tr>`;
+        return `<tr><th scope="row"${sourceTitleAttr(
+          i === 0 ? s.sourceDocument : i === 1 ? s.prior?.sourceDocument : null,
+        )}>${escapeHtml(ratioCmpHeadings[i])}</th><td class="${cls}" data-cell="${RATIO_CMP_CELL_IDS[i]}"${extra}${tone}>${escapeHtml(cell)}</td></tr>`;
       })
       .join("");
     return `<table class="fin ratio-cmp"${got.attrs}><tbody>${body}</tbody></table>`;
@@ -4422,7 +4437,12 @@ export function renderReportHtml(
     const rows = ratioCmp.rows.filter((row) => groups.includes(row.group) && !carded.has(row.key));
     if (rows.length === 0) return "";
     const head = ratioCmpHeadings
-      .map((h, i) => `<th class="${i < 3 ? "num" : ""}">${escapeHtml(h)}</th>`)
+      .map(
+        (h, i) =>
+          `<th class="${i < 3 ? "num" : ""}"${sourceTitleAttr(
+            i === 0 ? s.sourceDocument : i === 1 ? s.prior?.sourceDocument : null,
+          )}>${escapeHtml(h)}</th>`,
+      )
       .join("");
     const body = rows
       .map((row) => {
@@ -4736,8 +4756,21 @@ export function renderReportHtml(
    *  which is a claim about a period nobody supplied. */
   const comparativesBlock = (): string => {
     const c: Comparatives = summary.comparatives;
+    // EACH COLUMN HEADER NAMES THE FILE BEHIND IT (`title`), as the
+    // dashboard's compare headers do: a period is a slot and the file in
+    // it can change, so the reader gets the fact to check the column
+    // against. The comparison heading carries the prior's file when the
+    // comparison IS the prior period (an annual book's "last year" is
+    // that same period); a further-back period's file is not known here.
     const headings = c.available
-      ? c.periods.map((p) => `<th class="num">${escapeHtml(p.heading)}</th>`).join("")
+      ? c.periods
+          .map(
+            (p) =>
+              `<th class="num"${sourceTitleAttr(
+                p.kind === "prior_period" || p.sameAsPriorPeriod ? s.prior?.sourceDocument : null,
+              )}>${escapeHtml(p.heading)}</th>`,
+          )
+          .join("")
       : `<th class="num">Change</th>`;
     // THE REASON TRAVELS WITH THE CELL. "no prior period" in a column
     // headed "Change" is already better than a dash, but a reader
@@ -4815,7 +4848,7 @@ export function renderReportHtml(
     <h3>Headline figures</h3>
     ${note}
     <table class="fin comparatives">
-      <thead><tr><th>Figure</th><th class="num">${escapeHtml(s.periodLabel)}</th>${headings}</tr></thead>
+      <thead><tr><th>Figure</th><th class="num"${sourceTitleAttr(s.sourceDocument)}>${escapeHtml(s.periodLabel)}</th>${headings}</tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
   };
@@ -5190,7 +5223,7 @@ export function renderReportHtml(
       const statusNote = `<div class="${p.band === "material_imbalance" ? "risk" : "commentary"}"><strong>${escapeHtml(p.exportHeadline)}</strong>${p.exportDetail ? ` ${escapeHtml(p.exportDetail)}` : ""}${diagnosisSuffix}</div>`;
       return `
       <table class="fin">
-        <thead><tr><th>Balance Sheet</th><th class="num">${escapeHtml(s.periodLabel)}</th></tr></thead>
+        <thead><tr><th>Balance Sheet</th><th class="num"${sourceTitleAttr(s.sourceDocument)}>${escapeHtml(s.periodLabel)}</th></tr></thead>
         <tbody>
           ${sideRows("assets")}
           <tr class="total"><td>Total Assets</td><td class="num">${money(sf.totalAssets(), s.currency)}</td></tr>
@@ -5205,7 +5238,7 @@ export function renderReportHtml(
     const bs = s.balanceSheet;
     return `
       <table class="fin">
-        <thead><tr><th>Balance Sheet</th><th class="num">${escapeHtml(s.periodLabel)}</th></tr></thead>
+        <thead><tr><th>Balance Sheet</th><th class="num"${sourceTitleAttr(s.sourceDocument)}>${escapeHtml(s.periodLabel)}</th></tr></thead>
         <tbody>
           <tr class="subtotal"><td>Current Assets</td><td class="num">${money(sf.currentAssets(), s.currency)}</td></tr>
           <tr class="indent"><td>Cash & equivalents</td><td class="num">${money(bs.cash, s.currency)}</td></tr>
@@ -5248,7 +5281,7 @@ export function renderReportHtml(
     // (which include 722) so the headline ties to account 121.
     return `
       <table class="fin">
-        <thead><tr><th>Profit & Loss</th><th class="num">${escapeHtml(s.periodLabel)}</th></tr></thead>
+        <thead><tr><th>Profit & Loss</th><th class="num"${sourceTitleAttr(s.sourceDocument)}>${escapeHtml(s.periodLabel)}</th></tr></thead>
         <tbody>
           <tr><td>Revenue</td><td class="num">${money(is.revenue, s.currency)}</td></tr>
           <tr class="indent"><td>Cost of goods sold</td><td class="num">(${money(is.costOfGoodsSold, s.currency)})</td></tr>
@@ -5610,6 +5643,15 @@ export function renderReportHtml(
 }
 
 // ─── Local helpers ──────────────────────────────────────────────────────────
+
+/** A `title` naming the file behind a column — the served source
+ *  document's filename — or nothing when the export was built without
+ *  one. The same line the dashboard's compare headers carry
+ *  (`comparatives.sourceDocumentLine`). */
+function sourceTitleAttr(file: string | null | undefined): string {
+  const name = typeof file === "string" ? file.trim() : "";
+  return name ? ` title="${escapeHtml(name)}"` : "";
+}
 
 function escapeHtml(s: string): string {
   return s

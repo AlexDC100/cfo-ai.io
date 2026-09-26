@@ -299,7 +299,9 @@ export function buildExcelWorkbook(
       : []),
     plRow(NET_INCOME_LABEL, statutoryNetIncome(s, t), priorStatutoryNetIncome(s, priorT)),
   ];
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(plRows), "P&L");
+  const plSheet = XLSX.utils.aoa_to_sheet(plRows);
+  noteSourceFiles(plSheet, s.sourceDocument, s.prior?.sourceDocument);
+  XLSX.utils.book_append_sheet(wb, plSheet, "P&L");
 
   // ─ Balance sheet ─────────────────────────────────────────────────────────
   // canonical_bs v2 path — the sheet serializes the engine's rows, section
@@ -344,7 +346,11 @@ export function buildExcelWorkbook(
       // imbalanced statement exports with the engine's diagnosis attached.
       for (const d of cbs.diagnosis ?? []) canonRows.push([d.code, d.detail]);
     }
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(canonRows), "Balance Sheet");
+    const bsSheet = XLSX.utils.aoa_to_sheet(canonRows);
+    // Three columns and no comparison column (comparativesDegradeHonestly):
+    // the current period's file, on its own header cell only.
+    noteSourceFiles(bsSheet, s.sourceDocument, null);
+    XLSX.utils.book_append_sheet(wb, bsSheet, "Balance Sheet");
   } else {
     const bs = s.balanceSheet;
     const bsP = s.prior?.balanceSheet;
@@ -377,7 +383,9 @@ export function buildExcelWorkbook(
       plRow("Total equity", sf.totalEquity(), priorT?.totalEquity),
       plRow("Total liabilities + equity", sf.equityPlusLiabilities(), priorT?.totalLiabilitiesAndEquity),
     ];
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(bsRows), "Balance Sheet");
+    const bsSheet = XLSX.utils.aoa_to_sheet(bsRows);
+    noteSourceFiles(bsSheet, s.sourceDocument, s.prior?.sourceDocument);
+    XLSX.utils.book_append_sheet(wb, bsSheet, "Balance Sheet");
   }
 
   // ─ Ratios ────────────────────────────────────────────────────────────────
@@ -877,6 +885,26 @@ function priorStatutoryNetIncome(
 /** What every sheet calls the filed figure, so no sheet can call it
  *  something else. The document's own row label, word for word. */
 const NET_INCOME_LABEL = "Net income (account 121, as filed)";
+
+/** THE HEADER CELLS NAME THE FILE BEHIND EACH COLUMN, as a cell note —
+ *  the workbook's `title`, the same line the dashboard's compare headers
+ *  and the report's column headers carry (`comparatives.sourceDocumentLine`).
+ *  B1 is the current period's column, C1 the prior's; a sheet built
+ *  without a served filename gets no note, never an invented one. */
+function noteSourceFiles(
+  ws: XLSX.WorkSheet,
+  current: string | null | undefined,
+  prior: string | null | undefined,
+): void {
+  const note = (addr: string, file: string | null | undefined): void => {
+    const cell = ws[addr] as XLSX.CellObject | undefined;
+    const name = typeof file === "string" ? file.trim() : "";
+    if (!cell || !name) return;
+    cell.c = [{ a: "CFO AI", t: `Source file: ${name}` }];
+  };
+  note("B1", current);
+  note("C1", prior);
+}
 
 function plRow(
   label: string,
