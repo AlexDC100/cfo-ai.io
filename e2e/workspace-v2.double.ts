@@ -52,6 +52,24 @@ export const FEATURES = fixture("features_status.json");
 export const AGRAS = fixture("agras_fy2025.json");
 export const SCANDIA = fixture("scandia_fy2025.json");
 
+/** "Ce contează acum" and the sector document for each captured period,
+ *  as the ENGINE composed them over these same two bodies
+ *  (frontend/lib/__tests__/fixtures/attention/capture_attention.py; held to
+ *  a fresh composition by tests/engine/test_cmdbar_fixtures.py). Keyed by
+ *  period id. The double invents neither. */
+const ATTENTION_FIX = resolve(HERE, "../frontend/lib/__tests__/fixtures/attention");
+function attentionFixture(name: string): Json {
+  return JSON.parse(readFileSync(resolve(ATTENTION_FIX, name), "utf-8"));
+}
+export const ATTENTION: Record<string, Json> = {
+  [SCANDIA.period.period.id]: attentionFixture("scandia.attention.json"),
+  [AGRAS.period.period.id]: attentionFixture("agras.attention.json"),
+};
+export const SECTOR_BENCHMARK: Record<string, Json> = {
+  [SCANDIA.period.period.id]: attentionFixture("scandia.sector.json"),
+  [AGRAS.period.period.id]: attentionFixture("agras.sector.json"),
+};
+
 /** The anonymized real Agras FY2025 balance (corpus/saga_10_col_agras). */
 export function agrasBalanceBytes(): Buffer {
   return readFileSync(resolve(HERE, "../corpus/saga_10_col_agras/input.xlsx"));
@@ -425,6 +443,24 @@ export class WorkspaceDouble {
       }
       this.unhandled.push(`ENGINE ${method} ${p} (a same-company pair the double holds no capture for)`);
       return route.fulfill({ status: 404, json: { detail: "not in the double" } });
+    }
+    // The command bar's two documents. Same wall as comparatives: the
+    // period must be one the X-Org-Id company holds (the engine loads it
+    // org-filtered and answers 404 otherwise).
+    const bar = /^\/api\/period\/([^/?]+)\/(attention|sector-benchmark)$/.exec(p);
+    if (bar) {
+      const org = req.headers()["x-org-id"] ?? null;
+      const held = new Set((this.periods[org ?? ""] ?? []).map((f) => f.period.period.id as string));
+      if (bar[2] === "attention" && !held.has(bar[1])) {
+        return route.fulfill({
+          status: 404,
+          json: { detail: { code: "period_not_in_workspace", message: `period '${bar[1]}' is not in this workspace` } },
+        });
+      }
+      const doc = (bar[2] === "attention" ? ATTENTION : SECTOR_BENCHMARK)[bar[1]];
+      return doc
+        ? route.fulfill({ status: 200, json: doc })
+        : route.fulfill({ status: 404, json: { detail: "Period not found" } });
     }
     const period = /^\/api\/period\/([^/?]+)$/.exec(p);
     if (period) {
