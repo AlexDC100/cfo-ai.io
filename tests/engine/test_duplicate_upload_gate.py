@@ -151,7 +151,7 @@ def _counted(world, doc_id, *, user=OWNER, extra=False, month="2026-09",
     """The plan COUNTED this document — the quota ledger's row, as the
     settlement writes it and as the migration backfills it for every
     document analysed before the ledger existed. Since the ledger decides
-    before the status (P1 METERING BYPASS, 2026-09-26) an `analyzed` row
+    before the status (P-1 METERING BYPASS, 2026-09-26) an `analyzed` row
     alone models a status the browser could have written; a counted book is
     modelled by this record."""
     world["db"].rows("document_quota_ledger").append({
@@ -1320,7 +1320,7 @@ def test_the_fake_database_takes_the_real_clients_signature(method):
         [(p.name, p.kind) for p in fake.parameters.values()], (method, real, fake)
 
 
-# ── A RESTORED DUPLICATE IS A PLAIN COPY AGAIN (P2-C, 2026-09-26) ─────────
+# ── A RESTORED DUPLICATE IS A PLAIN COPY AGAIN (P-2C, 2026-09-26) ─────────
 #
 # `archive_as_duplicate` leaves the copy `deleted_at` + status='analyzed' (a
 # terminal state for a tab watching it) + the `duplicate_of:` marker. POST

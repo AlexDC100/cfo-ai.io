@@ -215,7 +215,7 @@ def test_an_unreadable_ledger_meters_by_status_and_never_raises(world, monkeypat
     assert meter.snapshot()["uploads"] == 1
 
 
-# ── THE LEDGER BEFORE THE STATUS (P1 METERING BYPASS, 2026-09-26) ─────────
+# ── THE LEDGER BEFORE THE STATUS (P-1 METERING BYPASS, 2026-09-26) ─────────
 #
 # `_needs_metering` used to short-circuit on `documents.status == 'analyzed'`
 # BEFORE consulting the ledger. Every column of `documents` is

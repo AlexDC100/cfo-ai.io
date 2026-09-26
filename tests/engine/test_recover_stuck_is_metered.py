@@ -70,7 +70,7 @@ def harness(monkeypatch):
 def _stamps(harness):
     """The writes to the DOCUMENT row other than the entry's own claim / its
     release. The quota ledger's own record (a different table — its guard
-    PATCH, P2-B) has its own gates (test_quota_restart_gates.py)."""
+    PATCH, P-2B) has its own gates (test_quota_restart_gates.py)."""
     return [u for u in harness["updates"] if u[0] == "documents" and set(u[1]) != {"pipeline_started_at"}]
 
 

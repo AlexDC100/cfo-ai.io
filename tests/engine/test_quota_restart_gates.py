@@ -574,7 +574,7 @@ def test_the_restore_reports_a_settling_reservation_and_leaves_it_alone(world, r
     assert usage["uploads"] == 1 and usage["uploads_reserved"] == 0
 
 
-# ── ONE CONFIRMATION, ONE RESERVATION — across a restart (P2-B, 2026-09-26) ──
+# ── ONE CONFIRMATION, ONE RESERVATION — across a restart (P-2B, 2026-09-26) ──
 #
 # The confirmed extra's GRANT lived in memory; its RESERVATION lives in the
 # ledger row. A confirm re-posted after a restart (the retry of a lost
