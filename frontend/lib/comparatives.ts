@@ -38,10 +38,12 @@
 //    "turned negative" / "from zero" / … beside the Δ amount — never a
 //    percent and never a multiplier (defect 0.4).
 
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import type { PeriodLineItem } from "@/lib/activePeriod";
-import type { OrgPeriod } from "@/lib/orgPeriods";
+import { authOrgHeaders } from "@/lib/apiHeaders";
+import { useCompanyPeriods, type CompanyPeriods, type OrgPeriod } from "@/lib/orgPeriods";
 import { ROUNDED_MONEY_ZERO_FLOOR, type ChangeKind } from "@/lib/changeKind";
 import { servedPlAmount } from "@/lib/plStructure";
 import type {
@@ -54,7 +56,6 @@ import type { RatioComparisonV1 } from "@/lib/ratioTable";
 // runtime imports this module (servedFacts ⇄ financialReport is the one
 // pre-existing, call-time-only cycle, and this edge does not join it).
 import { factsFrom } from "@/lib/servedFacts";
-import { currentOrgId, getSupabase } from "@/lib/supabase";
 
 // ── Engine document (mirrors src/engine/api/_comparatives.py) ─────────
 
@@ -229,24 +230,24 @@ export interface ComparativesResponse {
 
 export type ComparativesFetch =
   | { kind: "ok"; data: ComparativesResponse }
+  /** `message` is the engine's diagnostic line — it can carry a raw period
+   *  id and is never printed: every surface prints the sentence for `code`
+   *  (lib/comparisonRefusal.ts). */
   | { kind: "refused"; code: string; message: string }
   | { kind: "error"; status: number };
 
 const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
 
-export async function fetchComparatives(periodId: string, priorId: string): Promise<ComparativesFetch> {
-  const supabase = getSupabase();
-  if (!supabase) return { kind: "error", status: 0 };
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
-  if (!token) return { kind: "error", status: 401 };
-  // The route resolves the caller's ACTIVE workspace from this header and
-  // requires both periods to live in it. Without the header the engine
-  // falls back to the oldest membership — wrong for anyone with two
-  // workspaces — so it is always sent.
-  const orgId = await currentOrgId();
-  const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-  if (orgId) headers["X-Org-Id"] = orgId;
+/**
+ * The engine's comparison of two periods of ONE company. `orgId` is that
+ * company, sent as X-Org-Id: the route requires both periods to live in it
+ * (and validates the caller's membership). It used to be the active workspace
+ * read at request time — which, mid-switch, is the NEXT company.
+ */
+export async function fetchComparatives(periodId: string, priorId: string, orgId: string): Promise<ComparativesFetch> {
+  const headers = await authOrgHeaders();
+  if (!headers) return { kind: "error", status: 401 };
+  headers["X-Org-Id"] = orgId;
   const url = `${API_URL}/api/period/${encodeURIComponent(periodId)}/comparatives?prior=${encodeURIComponent(priorId)}`;
   try {
     const res = await fetch(url, { headers });
@@ -263,16 +264,94 @@ export async function fetchComparatives(periodId: string, priorId: string): Prom
   }
 }
 
-export const comparativesQueryKey = (periodId: string, priorId: string) =>
-  ["comparatives", periodId, priorId] as const;
+/** The company is in the key: one company's comparison is never served
+ *  from another company's cache entry. */
+export const comparativesQueryKey = (orgId: string, periodId: string, priorId: string) =>
+  ["comparatives", orgId, periodId, priorId] as const;
 
-export function useComparatives(periodId: string | null, priorId: string | null) {
+/** The comparison of `periodId` with `priorId`, both of company `orgId` —
+ *  requested only when all three are known and the two periods differ. */
+export function useComparatives(periodId: string | null, priorId: string | null, orgId: string | null) {
   return useQuery({
-    queryKey: comparativesQueryKey(periodId ?? "", priorId ?? ""),
-    queryFn: () => fetchComparatives(periodId!, priorId!),
-    enabled: !!periodId && !!priorId && periodId !== priorId,
+    queryKey: comparativesQueryKey(orgId ?? "", periodId ?? "", priorId ?? ""),
+    queryFn: () => fetchComparatives(periodId!, priorId!, orgId!),
+    enabled: !!orgId && !!periodId && !!priorId && periodId !== priorId,
     staleTime: 5 * 60_000,
   });
+}
+
+// ── Which prior: ONLY one of the current company's own periods ────────
+
+/** What the page compares the period on screen with, and among what. */
+export interface ComparisonChoice {
+  /** The company both periods belong to; null while that is not known —
+   *  and then nothing is requested. */
+  companyId: string | null;
+  /** That company's analysed periods, newest first (the picker's list). */
+  periods: OrgPeriod[];
+  /** What AUTO resolves to right now. */
+  autoPick: OrgPeriod | null;
+  /** The prior to request, or null: none, comparisons off, or not yet known. */
+  priorId: string | null;
+}
+
+export interface ComparisonChoiceInput {
+  /** The period on screen, and its end date. */
+  currentId: string | null;
+  currentEnd: string | null;
+  /** The company the period on screen belongs to (the served payload's
+   *  `organization.id`). */
+  currentOrgId: string | null;
+  /** The company open now. */
+  activeOrgId: string | null;
+  /** The reader's stored choice for the company open now: a period id, null
+   *  (AUTO) or "none" (comparisons off). */
+  stored: string | null | "none";
+}
+
+/**
+ * THE RULE (2026-09-26, the live walkthrough: EEI's Overview printed "No
+ * comparison: period '<uuid>' is not in this workspace" — a period of
+ * Scandia's, carried over from the dashboard opened before). The prior is
+ * chosen ONLY among the periods of the company the period on screen belongs
+ * to:
+ *   · the company is known, and is the company open now — otherwise no
+ *     comparison is requested at all (a switch is still settling);
+ *   · the candidate list is THAT company's (`company.orgId` must name it);
+ *   · a stored choice that is not one of them is ignored silently, and AUTO
+ *     applies — the previous fiscal year-end of the same company;
+ *   · a company with one period has no prior: no request, no error.
+ * Pure: `company` is what `useCompanyPeriods(companyId)` answered.
+ */
+export function comparisonChoiceOf(
+  input: ComparisonChoiceInput,
+  company: CompanyPeriods | null | undefined,
+): ComparisonChoice {
+  const companyId =
+    input.currentOrgId && input.currentOrgId === input.activeOrgId ? input.currentOrgId : null;
+  const none: ComparisonChoice = { companyId, periods: [], autoPick: null, priorId: null };
+  if (!companyId || !company || company.orgId !== companyId) return none;
+  const periods = company.periods;
+  const autoPick = pickDefaultPrior(periods, input.currentId, input.currentEnd);
+  if (!input.currentId || input.stored === "none") return { companyId, periods, autoPick, priorId: null };
+  const stored =
+    typeof input.stored === "string" && input.stored !== input.currentId
+      ? periods.find((p) => p.period_id === input.stored) ?? null
+      : null;
+  return { companyId, periods, autoPick, priorId: (stored ?? autoPick)?.period_id ?? null };
+}
+
+/** `comparisonChoiceOf` over the current company's own period list (keyed
+ *  by that company). */
+export function useComparisonChoice(input: ComparisonChoiceInput): ComparisonChoice {
+  const companyId =
+    input.currentOrgId && input.currentOrgId === input.activeOrgId ? input.currentOrgId : null;
+  const { data } = useCompanyPeriods(companyId);
+  const { currentId, currentEnd, currentOrgId, activeOrgId, stored } = input;
+  return useMemo(
+    () => comparisonChoiceOf({ currentId, currentEnd, currentOrgId, activeOrgId, stored }, data ?? null),
+    [currentId, currentEnd, currentOrgId, activeOrgId, stored, data],
+  );
 }
 
 // ── What the exports receive ─────────────────────────────────────────

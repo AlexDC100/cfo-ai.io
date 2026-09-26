@@ -604,7 +604,9 @@
       "loading": "Comparăm perioadele…",
       "priorAbsentBs": "{{label}} nu are o linie corespunzătoare",
       "refusedSame": "O perioadă nu poate fi comparată cu ea însăși.",
-      "refusedNotInWorkspace": "Perioada de comparație nu este în acest spațiu de lucru."
+      "refusedNotInWorkspace": "Perioada de comparație aparține altei companii.",
+      "refusedNotServable": "Perioada de comparație nu are cifre analizate de comparat.",
+      "refusedGeneric": "Aceste două perioade nu pot fi comparate."
     },
     "ratioCmp": {
       "unit": {

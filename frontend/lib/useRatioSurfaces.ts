@@ -57,8 +57,9 @@ export interface RatioSurfaceInputs {
 export interface RatioSurfaces {
   /** The served comparatives document, or null. */
   cmpDoc: ComparativesResponse | null;
-  /** The engine's refusal of the comparison, or null. */
-  cmpRefused: { code: string; message: string } | null;
+  /** The engine's refusal of the comparison — its CODE only (the sentence
+   *  is the code's, lib/comparisonRefusal.ts), or null. */
+  cmpRefused: { code: string } | null;
   /** The view every RatioCompareCtx provider on the page is handed. */
   ratioCompareView: RatioCompareView | null;
   /** What the Export tab hands the report and the workbook. */
@@ -76,7 +77,9 @@ function withSector(s: StatementsForExport | null, sector: unknown): StatementsF
 export function ratioSurfacesOf(input: RatioSurfaceInputs): RatioSurfaces {
   const data = input.comparatives.data;
   const cmpDoc = data?.kind === "ok" ? data.data : null;
-  const cmpRefused = data?.kind === "refused" ? { code: data.code, message: data.message } : null;
+  // The engine's message is its diagnostic line and can carry a raw period
+  // id: it goes no further than this line. Only the code travels on.
+  const cmpRefused = data?.kind === "refused" ? { code: data.code } : null;
   const requested = input.priorId !== null && input.periodId !== null && input.priorId !== input.periodId;
   const failure =
     !requested
@@ -91,7 +94,7 @@ export function ratioSurfacesOf(input: RatioSurfaceInputs): RatioSurfaces {
   // and the workbook print it in every prior-dependent cell (never "no
   // prior period was supplied" while the tab states the refusal).
   const comparisonOutcome: ExportComparisonState | null = cmpRefused
-    ? { kind: "refused", code: cmpRefused.code, message: cmpRefused.message }
+    ? { kind: "refused", code: cmpRefused.code }
     : failure
       ? { kind: "failed", status: failure.status }
       : requested && data === undefined
@@ -100,7 +103,7 @@ export function ratioSurfacesOf(input: RatioSurfaceInputs): RatioSurfaces {
   const ratioCompareView = buildRatioCompareView({
     periodTable: readRatioTable(input.assembledMetrics),
     comparativesDoc: cmpDoc,
-    refusal: cmpRefused ? { message: cmpRefused.message } : null,
+    refusal: cmpRefused ? { code: cmpRefused.code } : null,
     requested,
     failure,
     currentLabel: input.currentLabel,

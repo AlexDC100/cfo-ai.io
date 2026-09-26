@@ -141,6 +141,11 @@ export class WorkspaceDouble {
   readonly commits: Json[] = [];
   readonly identifies: Json[] = [];
   readonly unhandled: string[] = [];
+  /** Every request the browser made to either doubled host, in order —
+   *  `org` is its X-Org-Id. The G6 company-switch gate reads it. */
+  readonly requests: { host: string; method: string; path: string; search: string; org: string | null }[] = [];
+  /** Every comparatives request: the company asked (X-Org-Id), the period, the prior. */
+  readonly comparisons: { org: string | null; period: string; prior: string | null }[] = [];
   holdAt: string | undefined;
 
   constructor(readonly opts: DoubleOptions) {
@@ -219,6 +224,13 @@ export class WorkspaceDouble {
   private async handle(route: Route): Promise<void> {
     const req = route.request();
     const url = new URL(req.url());
+    this.requests.push({
+      host: url.hostname,
+      method: req.method(),
+      path: url.pathname,
+      search: url.search,
+      org: req.headers()["x-org-id"] ?? null,
+    });
     try {
       if (url.hostname === ENGINE_HOST) return await this.engine(route, req, url);
       if (url.pathname.startsWith("/auth/v1/")) return await this.auth(route, req, url);
@@ -377,6 +389,27 @@ export class WorkspaceDouble {
     if (years) {
       const list = (this.periods[years[1]] ?? []).map((f) => f.years[0]);
       return route.fulfill({ status: 200, json: list });
+    }
+    const comparison = /^\/api\/period\/([^/?]+)\/comparatives$/.exec(p);
+    if (comparison) {
+      // THE ENGINE'S WALL, not an engine figure: the route loads both
+      // periods with the X-Org-Id company IN THE FILTER
+      // (_comparatives.load_period_in_org) and refuses a period that
+      // company does not hold, in these words. The double holds no pair of
+      // one company's periods, so no comparison document is ever answered.
+      const org = req.headers()["x-org-id"] ?? null;
+      const prior = url.searchParams.get("prior");
+      this.comparisons.push({ org, period: comparison[1], prior });
+      const held = new Set((this.periods[org ?? ""] ?? []).map((f) => f.period.period.id as string));
+      const missing = !held.has(comparison[1]) ? comparison[1] : !held.has(prior ?? "") ? prior : null;
+      if (missing !== null) {
+        return route.fulfill({
+          status: 404,
+          json: { detail: { code: "period_not_in_workspace", message: `period '${missing}' is not in this workspace` } },
+        });
+      }
+      this.unhandled.push(`ENGINE ${method} ${p} (a same-company pair the double holds no capture for)`);
+      return route.fulfill({ status: 404, json: { detail: "not in the double" } });
     }
     const period = /^\/api\/period\/([^/?]+)$/.exec(p);
     if (period) {

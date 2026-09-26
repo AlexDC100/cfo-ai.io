@@ -108,8 +108,10 @@ export type RatioPriorState =
   /** A prior was requested and the request failed (`status` 0: no HTTP
    *  response at all). Not a refusal: the engine said nothing. */
   | { kind: "failed"; status: number }
-  /** The engine refused the comparison; `message` is its words. */
-  | { kind: "refused"; message: string }
+  /** The engine refused the comparison; `code` is its refusal code, printed
+   *  as that code's sentence (lib/comparisonRefusal.ts) — never the engine's
+   *  message, which can carry a raw period id. */
+  | { kind: "refused"; code: string }
   /** A comparatives document arrived without `ratios`. */
   | { kind: "without_ratios"; priorLabel: string };
 
@@ -125,8 +127,8 @@ export function buildRatioCompareView(input: {
   periodTable: RatioTableV1 | null;
   /** The whole served comparatives document (or null). */
   comparativesDoc: unknown;
-  /** The engine's refusal of the comparison, when it refused. */
-  refusal?: { message: string } | null;
+  /** The engine's refusal of the comparison (its code), when it refused. */
+  refusal?: { code: string } | null;
   /** Whether a prior period was requested at all. A view without a
    *  document, refusal or failure is `loading` when one was requested and
    *  `no_comparison` only when none was. Omitted: not requested. */
@@ -148,7 +150,7 @@ export function buildRatioCompareView(input: {
     priorLabel = isObj(p) && typeof p.label === "string" ? p.label : null;
     prior = { kind: "without_ratios", priorLabel: priorLabel ?? "" };
   } else if (input.refusal) {
-    prior = { kind: "refused", message: input.refusal.message };
+    prior = { kind: "refused", code: input.refusal.code };
   } else if (input.failure) {
     prior = { kind: "failed", status: input.failure.status };
   } else if (input.requested === true) {

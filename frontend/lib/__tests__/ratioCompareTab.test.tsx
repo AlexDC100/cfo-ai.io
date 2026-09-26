@@ -185,7 +185,9 @@ function viewOf(p: Pair, opts: { withComparison?: boolean; refusal?: string } = 
   const v = buildRatioCompareView({
     periodTable: readRatioTable(p.current_body.assembled_metrics),
     comparativesDoc: opts.withComparison === false ? null : p.comparatives,
-    refusal: opts.refusal ? { message: opts.refusal } : null,
+    // `refusal` is the engine's refusal CODE — the only part of a refusal
+    // that reaches a view (lib/comparisonRefusal.ts).
+    refusal: opts.refusal ? { code: opts.refusal } : null,
     currentLabel: p.current_body.statements.periodLabel,
   });
   if (!v) throw new Error("fixture served no ratio table");
@@ -491,11 +493,23 @@ describe("G2 every census row, composite and sub-score has all six cells", () =>
     expect(tile("current_ratio").getAttribute("data-source")).toBe("served");
   });
 
-  it("an engine refusal of the comparison is printed in its words", () => {
+  // 2026-09-26: this case used to read "printed in its words" and pinned the
+  // engine's MESSAGE on screen — the very line that printed another
+  // company's raw period id on EEI's Overview ("No comparison: period
+  // '<uuid>' is not in this workspace"). A refusal is printed as the
+  // sentence for its CODE; the engine's message never reaches a view.
+  it("an engine refusal of the comparison is printed as the sentence for its code", () => {
     const p = fresh();
-    renderTab(p, viewOf(p, { withComparison: false, refusal: "period not in workspace" }));
+    renderTab(p, viewOf(p, { withComparison: false, refusal: "period_not_in_workspace" }));
     const note = within(screen.getByTestId("band-movements")).getByTestId("ratio-prior-state");
-    expect(note.textContent).toBe("No comparison: period not in workspace");
+    expect(note.textContent).toBe("No comparison: The comparison period belongs to another company.");
+  });
+
+  it("a refusal code without a sentence of its own reads the general one — never an engine line", () => {
+    const p = fresh();
+    renderTab(p, viewOf(p, { withComparison: false, refusal: "some_new_code" }));
+    const note = within(screen.getByTestId("band-movements")).getByTestId("ratio-prior-state");
+    expect(note.textContent).toBe("No comparison: These two periods can't be compared.");
   });
 });
 
@@ -794,9 +808,11 @@ describe("G9 the page feeds every ratio surface the served documents", () => {
     const p = fresh();
     const kind = (over: Partial<Parameters<typeof ratioSurfacesOf>[0]>) =>
       ratioSurfacesOf({ ...base(p), comparatives: {}, ...over }).ratioCompareView?.prior;
-    expect(kind({ comparatives: { data: { kind: "refused", code: "x", message: "period not in workspace" } } })).toEqual({
+    // The code travels; the engine's message (which can carry a raw period
+    // id) stops at the fetch.
+    expect(kind({ comparatives: { data: { kind: "refused", code: "x", message: "period '5ea50000-0000-4000-8000-0000000051f4' is not in this workspace" } } })).toEqual({
       kind: "refused",
-      message: "period not in workspace",
+      code: "x",
     });
     expect(kind({ comparatives: { data: { kind: "error", status: 502 } } })).toEqual({ kind: "failed", status: 502 });
     expect(kind({ comparatives: { isError: true } })).toEqual({ kind: "failed", status: 0 });
@@ -846,7 +862,7 @@ describe("G9 the page feeds every ratio surface the served documents", () => {
     };
 
     it("one useRatioSurfaces call over the served table and the comparatives query", () => {
-      expect(page).toMatch(/const cmpQuery = useComparatives\(remotePeriod\.id, cmpPriorId\);/);
+      expect(page).toMatch(/const cmpQuery = useComparatives\(remotePeriod\.id, cmpPriorId, cmpCompanyId\);/);
       const calls = [...page.matchAll(/const \{([^}]*)\} = useRatioSurfaces\(\{([\s\S]*?)\}\);/g)];
       expect(calls.length).toBe(1);
       const names = calls[0][1].split(",").map((x) => x.trim());
