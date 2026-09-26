@@ -558,6 +558,39 @@ def test_a_copy_the_snapshot_recorded_that_is_gone_at_copy_time_stops_the_run(en
     assert not [w for w in env["fake"].writes if w[0] == "patch" and w[1] == "documents"]
 
 
+def test_the_recount_checks_a_re_dated_periods_records_not_only_the_plans_columns(env, monkeypatch):
+    """PLANT: a plan that re-dates the row but forgot the §7 detection
+    envelope (its op stripped of the column, set and expect alike). The
+    plan is internally consistent, so it runs; the recount must read the
+    period's stored records against its row and fail naming the envelope
+    — never "production equals the plan" over a period whose envelope
+    still says another date."""
+    snap = _snapshot(env)
+    real_build = migration_cli.build_plan
+
+    def forgetting_the_envelope(*a, **kw):
+        built = real_build(*a, **kw)
+        for op in built.ops:
+            if op.get("table") == "financial_periods" and op.get("key") == {"id": "per-carnex"} \
+                    and "period_end" in op["set"]:
+                op["set"].pop("detection_envelope", None)
+                op["expect"].pop("detection_envelope", None)
+        return built
+
+    monkeypatch.setattr(migration_cli, "build_plan", forgetting_the_envelope)
+    assert _migrate(env, snap=snap) == 0
+    assert _plan(env)["blocking"] == []
+    assert _migrate(env, "--execute", "--expect-plan-sha", _plan_sha(env), snap=snap) == 1
+    row = next(p for p in env["fake"].tables["financial_periods"] if p["id"] == "per-carnex")
+    assert row["period_end"] == "2025-12-31" and row["detection_envelope"]["period_end"] == "2026-09-20"
+    assert any(l.startswith("RECOUNT: FAILED") for l in env["lines"])
+    assert any("MISMATCH: RE-DATED period per-carnex: detection_envelope.period_end says 2026-09-20, the row "
+               "2025-12-31" in l for l in env["lines"]), "\n".join(env["lines"][-12:])
+    # the real plan carries the envelope: the run ends with every record agreeing
+    monkeypatch.setattr(migration_cli, "build_plan", real_build)
+    env["lines"].clear()
+
+
 def test_the_recount_checks_every_moved_documents_object_not_only_the_planned_copies(env, monkeypatch):
     """PLANT the p6 shape at the recount: a plan that LOST a copy (its copy
     op stripped) but still moves the row. 8ff706e3's recount verified the

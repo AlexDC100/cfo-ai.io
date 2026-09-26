@@ -242,11 +242,26 @@ def build_world() -> Tuple[Dict[str, List[Dict[str, Any]]], Dict[str, bytes], Li
     # team workspace
     doc("t-src", "org-team", "balanta team 2025.xlsx", "TEAM", period="per-team", created="2026-08-02")
 
-    def period(pid, org, end, source, *, start=None, created="2026-09-10", canonical=None):
+    def period(pid, org, end, source, *, start=None, created="2026-09-10", canonical=None, envelope=None):
         return {"id": pid, "org_id": org, "period_start": start or end, "period_end": end,
                 "source_document_id": source, "currency": "RON", "assembled_canonical_v1": canonical,
-                "detection_envelope": None, "extraction_confidence": None, "methodology_version": None,
+                "detection_envelope": envelope, "extraction_confidence": None,
+                "methodology_version": envelope.get("methodology_version") if envelope else None,
                 "created_at": _ts(created), "updated_at": _ts(created)}
+
+    # The §7 detection envelope stage_persist wrote for the 2017-filed
+    # period (production's shape, 2026-09-21: its dates are the day of the
+    # last re-analysis, not the row's — inconsistent before any migration)
+    carnex_envelope = {
+        "detection_envelope_version": "1.0.0",
+        "country": {"iso2": "", "confidence": 0.0, "evidence": []},
+        "standard": {"code": "", "confidence": 0.0, "evidence": []},
+        "doc_type": {"code": "", "confidence": 0.0, "evidence": []},
+        "industry": {"key": "fmcg", "caen_code": None, "confidence": 1.0, "evidence": ["operator_assigned"]},
+        "currency": "RON", "fiscal_year_end": "2026-09-20", "period_start": "2026-09-20",
+        "period_end": "2026-09-20", "methodology_version": "ro_ras_2025_v1", "routing_decision": None,
+        "source_data_quality": {"raw_imbalance_pct": 0.0, "raw_imbalance_abs": 0.0, "warn": False},
+    }
 
     periods = [
         period("per-sf24", "org-sf", "2024-12-31", "d-sf24-src", canonical={"v": 1}),
@@ -255,7 +270,7 @@ def build_world() -> Tuple[Dict[str, List[Dict[str, Any]]], Dict[str, bytes], Li
         period("per-sf-empty", "org-sf", "2026-09-30", None, created="2026-09-21"),
         # filed under 2017 by a user-confirmed hint; the engine's own
         # detection record says so (stage_persist's shape, verbatim keys)
-        period("per-carnex", "org-qa", "2017-12-31", "q-carnex-src", canonical={
+        period("per-carnex", "org-qa", "2017-12-31", "q-carnex-src", envelope=carnex_envelope, canonical={
             "canonical_bs": {"v": 1},
             "period_detection": {
                 "hint": "2017-12-31", "mismatch": True, "confidence": 1.0,

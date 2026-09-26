@@ -59,7 +59,17 @@ data would change what the other members see).
    own period line; on a closing-balance date only when a second signal
    agrees (the filename, or the user-confirmed hint — a print date beside
    the title is not a period); on a filename-only signal only when the YEAR
-   differs (the "2025 book filed under 2017" shape).
+   differs (the "2025 book filed under 2017" shape). A re-date rewrites
+   the row AND both stored records that describe its date, so none keeps
+   saying the old one: ``assembled_canonical_v1.period_detection``
+   (``resolved_period_end``, the hint, ``mismatch`` by the engine's own
+   rule — read verbatim by the Docs panel's mismatch chip and the firm
+   attention layer) and the §7 ``detection_envelope`` column
+   (``period_end`` / ``fiscal_year_end`` / ``period_start`` — persisted by
+   stage_persist, copied verbatim by the 3b5 backfill snapshot).
+   ``period_record_disagreements`` is the gate: a re-dated period whose
+   records still disagree with its row makes the plan blocking, and the
+   recount checks the same after the run.
 5. Per company per month exactly one live document: the surviving period's
    source. Copies (same content hash), other files for the same company and
    month, superseded failed uploads and non-financial documents are
@@ -447,6 +457,8 @@ class _Planner:
                 self.plan.blocking.append("the post-state points into another workspace (rule 8): %s" % line)
         for line in hidden_conversations(self.t, after):
             self.plan.blocking.append("a conversation would end up in an archived workspace (rule 7): %s" % line)
+        for line in period_record_disagreements(after, period_ids=redated_period_ids(self.plan.ops)):
+            self.plan.blocking.append("a re-dated period's stored record still says another date (rule 4): %s" % line)
         # What the plan KEEPS must end where somebody can see it.
         archived_after = {str(o["id"]) for o in after.get("organizations") or [] if o.get("archived_at")}
         for kind, rows in (("period", self.plan.periods), ("document", self.plan.documents)):
@@ -1363,10 +1375,12 @@ class _Planner:
         # chat_messages is never written: messages follow by thread_id.
         ops.extend(self.chat_ops)
 
-        # 6. re-date — the row AND the engine's period-detection record, which
-        # the Docs panel's mismatch chip and the firm attention layer read
-        # verbatim (a re-dated row under a record still saying "2017-12-31,
-        # mismatch" would be reported as mis-filed forever).
+        # 6. re-date — the row AND both stored records of its date: the
+        # engine's period-detection record, which the Docs panel's mismatch
+        # chip and the firm attention layer read verbatim (a re-dated row
+        # under a record still saying "2017-12-31, mismatch" would be
+        # reported as mis-filed forever), and the §7 detection envelope
+        # column (period_end / fiscal_year_end / period_start).
         for pid in sorted(self.redates):
             p = self.periods[pid]
             new_end = self.redates[pid]
@@ -1377,6 +1391,9 @@ class _Planner:
             if isinstance(env, dict) and isinstance(env.get("period_detection"), dict):
                 patch["assembled_canonical_v1"] = dict(env, period_detection=self._redated_detection(
                     pid, env["period_detection"], str(p.get("period_end")), new_end))
+            envelope = p.get("detection_envelope")
+            if isinstance(envelope, dict):
+                patch["detection_envelope"] = redated_envelope(envelope, new_end)
             ops.append({"op": "update", "table": "financial_periods", "key": {"id": pid},
                         "set": patch, "expect": {c: p.get(c) for c in patch}})
 
@@ -1398,6 +1415,73 @@ class _Planner:
             if item["user_id"] == user and item.get("company_name") is None:
                 item["company_name"] = self._company_name(item["company"])
                 item["org_id"] = self.company_ws.get(item["company"])
+
+
+def redated_envelope(envelope: Mapping[str, Any], new_end: str) -> Dict[str, Any]:
+    """The §7 detection envelope (``financial_periods.detection_envelope``,
+    ``engine.detection.build_detection_envelope``) as ``stage_persist``
+    would have written it for a period filed under ``new_end``:
+    ``period_end`` and ``fiscal_year_end`` say the new date; so does
+    ``period_start`` when the envelope carried one date for both (the
+    pipeline passes the parsed period end as both) or none. Every other
+    field is untouched — the envelope's shape is a contract."""
+    out = dict(envelope)
+    start, end = envelope.get("period_start"), envelope.get("period_end")
+    out["period_end"] = new_end
+    out["fiscal_year_end"] = new_end
+    if not start or start == end:
+        out["period_start"] = new_end
+    return out
+
+
+def redated_period_ids(ops: Sequence[Mapping[str, Any]]) -> List[str]:
+    """The periods a plan re-dates: its ``financial_periods`` updates that
+    set ``period_end``."""
+    return sorted({str(op["key"]["id"]) for op in ops
+                   if op.get("op") == "update" and op.get("table") == "financial_periods"
+                   and "period_end" in (op.get("set") or {})})
+
+
+def period_record_disagreements(tables: Mapping[str, List[Mapping[str, Any]]], *,
+                                period_ids: Optional[Iterable[str]] = None) -> List[str]:
+    """Periods whose stored records of their date disagree with the row:
+    ``assembled_canonical_v1.period_detection`` — ``resolved_period_end``
+    must be the row's ``period_end``, and ``mismatch`` must be what the
+    engine's own rule gives (``pipeline.resolve_period_end_for_persist``:
+    a detection proposing ANOTHER date than the row's) — and the §7
+    ``detection_envelope`` column (``period_end`` / ``fiscal_year_end``).
+    Both are read verbatim (the Docs panel's mismatch chip, the firm
+    attention layer; the 3b5 backfill snapshot copies the envelope), so a
+    re-dated row under records still saying the old date is reported as
+    mis-filed forever. ``period_ids`` narrows the check to the periods a
+    plan re-dated (the rest is not this migration's to judge)."""
+    wanted = {str(p) for p in period_ids} if period_ids is not None else None
+    out: List[str] = []
+    for p in tables.get("financial_periods") or []:
+        pid = str(p["id"])
+        if wanted is not None and pid not in wanted:
+            continue
+        end = str(p.get("period_end") or "")
+        env = p.get("assembled_canonical_v1")
+        rec = env.get("period_detection") if isinstance(env, dict) else None
+        if isinstance(rec, dict):
+            resolved = rec.get("resolved_period_end")
+            if resolved and str(resolved) != end:
+                out.append("period %s: period_detection.resolved_period_end says %s, the row %s"
+                           % (pid, resolved, end))
+            detected = rec.get("detected") if isinstance(rec.get("detected"), dict) else {}
+            proposed = detected.get("proposed_period_end")
+            should = bool(proposed) and str(proposed) != end
+            if bool(rec.get("mismatch")) != should:
+                out.append("period %s: period_detection.mismatch is %s, but the detection proposes %s and the "
+                           "row is %s" % (pid, rec.get("mismatch"), proposed or "nothing", end))
+        envelope = p.get("detection_envelope")
+        if isinstance(envelope, dict):
+            for col in ("period_end", "fiscal_year_end"):
+                val = envelope.get(col)
+                if val and str(val) != end:
+                    out.append("period %s: detection_envelope.%s says %s, the row %s" % (pid, col, val, end))
+    return sorted(out)
 
 
 def build_plan(tables: Mapping[str, List[Mapping[str, Any]]], facts: Mapping[str, Any], *,

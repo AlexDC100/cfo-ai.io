@@ -37,9 +37,10 @@ writing it (an op already in effect is skipped, so a re-run is a no-op; a
 row in neither the planned-from nor the planned-to state stops the run). Finally it RE-READS production and compares every
 row the plan touched, and every touched table's row count, with the plan's
 expected post-state, and checks that every copied object holds the bytes
-the plan read and that EVERY moved document's storage_path resolves: exit
-1 with the diff otherwise. Rows the plan did not touch that changed
-meanwhile are reported as drift.
+the plan read, that EVERY moved document's storage_path resolves, and
+that every re-dated period's stored records (period_detection, the
+detection envelope) say the row's date: exit 1 with the diff otherwise.
+Rows the plan did not touch that changed meanwhile are reported as drift.
 
 Never: a DELETE of a row or a storage object, a write to subscriptions /
 user_usage / billing_events / auth, a Stripe or Anthropic call.
@@ -73,6 +74,8 @@ from engine.workspaces.migration_plan import (  # noqa: E402
     empty_live_periods,
     facts_from_documents,
     new_cascade_hazards,
+    period_record_disagreements,
+    redated_period_ids,
     render_report,
 )
 from engine.workspaces.rowstore import (  # noqa: E402
@@ -473,6 +476,12 @@ def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=p
         # leave one the snapshot did not already have.
         for pid, why in new_cascade_hazards(tables, current):
             check["problems"].append("CASCADE HAZARD period %s: %s" % (pid, why))
+        # A re-dated period's stored records (period_detection, the §7
+        # detection envelope) must say the row's date — whatever the plan
+        # carried, this is the fact the mismatch chip and the attention
+        # layer read after the run.
+        for line in period_record_disagreements(current, period_ids=redated_period_ids(plan.ops)):
+            check["problems"].append("RE-DATED %s" % line)
         run_log = {"run_at": run_ts, "plan_sha256": plan.ops_sha256(), "done": done,
                    "problems": check["problems"], "drift": check["drift"],
                    "g4_empty_live_periods": g4, "cross_workspace_links": links}

@@ -32,7 +32,9 @@ from engine.workspaces.migration_plan import (
     render_report,
     holding_org_id,
     new_org_id,
+    period_record_disagreements,
     period_source_hazards,
+    redated_envelope,
 )
 from engine.workspaces.rowstore import (
     apply_ops,
@@ -236,6 +238,71 @@ def test_the_re_date_rewrites_the_engines_period_detection_record(world):
         {k: v for k, v in pre.items() if k != "period_detection"}
     # what the attention layer reads: no mismatch item any more
     assert not (isinstance(rec, dict) and rec.get("mismatch") is True)
+
+
+def test_the_re_date_makes_the_detection_envelope_say_the_new_date(world):
+    """P2 (2026-09-26): the re-dated Carniprod row's §7 detection_envelope
+    (a second stored record of the period's date, persisted by
+    stage_persist and copied verbatim by the 3b5 backfill snapshot) kept
+    its old dates — in production not even the row's 2017-12-31 but the
+    day of the last re-analysis. After the re-date every stored record
+    says what the row says; the rest of the envelope is untouched."""
+    pre = _row(world["tables"], "financial_periods", id="per-carnex")
+    post = _row(world["post"], "financial_periods", id="per-carnex")
+    assert pre["detection_envelope"]["period_end"] == "2026-09-20" != pre["period_end"]     # inconsistent before
+    env = post["detection_envelope"]
+    assert (env["period_end"], env["period_start"], env["fiscal_year_end"]) == ("2025-12-31",) * 3
+    assert {k: v for k, v in env.items() if k not in ("period_end", "period_start", "fiscal_year_end")} == \
+        {k: v for k, v in pre["detection_envelope"].items() if k not in ("period_end", "period_start", "fiscal_year_end")}
+    assert period_record_disagreements(world["post"], period_ids=["per-carnex"]) == []
+    # the op carries the envelope, guarded by its pre-image
+    op = next(op for op in world["plan"].ops if op.get("table") == "financial_periods"
+              and op.get("key") == {"id": "per-carnex"} and "period_end" in op["set"])
+    assert op["set"]["detection_envelope"] == env and op["expect"]["detection_envelope"] == pre["detection_envelope"]
+    # non-vacuity: the gate names every record that disagrees with the row
+    assert period_record_disagreements(world["tables"], period_ids=["per-carnex"]) == [
+        "period per-carnex: detection_envelope.fiscal_year_end says 2026-09-20, the row 2017-12-31",
+        "period per-carnex: detection_envelope.period_end says 2026-09-20, the row 2017-12-31"]
+    half = copy.deepcopy(world["tables"])
+    _row(half, "financial_periods", id="per-carnex")["period_end"] = "2025-12-31"   # the row alone re-dated
+    assert period_record_disagreements(half, period_ids=["per-carnex"]) == [
+        "period per-carnex: detection_envelope.fiscal_year_end says 2026-09-20, the row 2025-12-31",
+        "period per-carnex: detection_envelope.period_end says 2026-09-20, the row 2025-12-31",
+        "period per-carnex: period_detection.mismatch is True, but the detection proposes 2025-12-31 and the "
+        "row is 2025-12-31",
+        "period per-carnex: period_detection.resolved_period_end says 2017-12-31, the row 2025-12-31"]
+    assert period_record_disagreements(half, period_ids=[]) == []                     # scoped to the re-dated
+
+
+def test_redated_envelope_moves_only_the_dates():
+    one_day = {"detection_envelope_version": "1.0.0", "period_start": "2026-09-20", "period_end": "2026-09-20",
+               "fiscal_year_end": "2026-09-20", "currency": "RON"}
+    assert redated_envelope(one_day, "2025-12-31") == dict(one_day, period_start="2025-12-31", period_end="2025-12-31",
+                                                           fiscal_year_end="2025-12-31")
+    span = dict(one_day, period_start="2017-01-01", period_end="2017-12-31", fiscal_year_end="2017-12-31")
+    assert redated_envelope(span, "2025-12-31") == dict(span, period_end="2025-12-31", fiscal_year_end="2025-12-31")
+    empty = dict(one_day, period_start="", period_end="", fiscal_year_end="")
+    assert redated_envelope(empty, "2025-12-31") == dict(empty, period_start="2025-12-31", period_end="2025-12-31",
+                                                         fiscal_year_end="2025-12-31")
+    assert one_day["period_end"] == "2026-09-20"                                     # the input is untouched
+
+
+def test_a_plan_that_leaves_a_re_dated_periods_record_behind_is_blocking(monkeypatch):
+    """The planner checks its own post-state: a re-date whose stored
+    records still say another date (PLANT: the envelope rewrite and the
+    period_detection rewrite made no-ops) is refused, never executed."""
+    import engine.workspaces.migration_plan as mp
+    tables, storage, rules = build_world()
+    facts = facts_for(tables, storage, rules)
+    assert build_plan(tables, facts, migration_date=DATE).blocking == []
+    monkeypatch.setattr(mp, "redated_envelope", lambda envelope, new_end: dict(envelope))
+    plan = build_plan(tables, facts, migration_date=DATE)
+    assert [b for b in plan.blocking if "re-dated period" in b and "detection_envelope.period_end says 2026-09-20, "
+            "the row 2025-12-31" in b], plan.blocking
+    monkeypatch.setattr(mp._Planner, "_redated_detection", lambda self, pid, record, old, new: dict(record))
+    plan = build_plan(tables, facts, migration_date=DATE)
+    assert [b for b in plan.blocking if "period_detection.resolved_period_end says 2017-12-31, the row 2025-12-31" in b]
+    assert [b for b in plan.blocking if "period_detection.mismatch is True" in b]
 
 
 def test_duplicates_failed_copies_and_non_balances_are_archived_with_reasons(world):
