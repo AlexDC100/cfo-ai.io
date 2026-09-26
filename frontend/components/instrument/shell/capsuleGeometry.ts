@@ -114,17 +114,25 @@
 //
 // It is no longer a HEIGHT — nothing is ever sized to it. It is the
 // distance from the anchor to the constant bottom edge, i.e. how tall a
-// resting card WOULD be if the workspace had everything to say:
+// resting card WOULD be if the workspace had everything to say.
 //
-//     thread padding  14 + 12
-//     context strip   28
-//     chips block     10 + 3×34 + 2×8 + 10 + 28 + 4   = 176
+// RE-MEASURED 2026-09-27 for the command bar's "Ce contează acum" (the
+// rest state is now the engine's three items, the panel's one caveat and
+// up to three actions — cmdbar/CmdbarList.tsx), on the hermetic captures
+// at 1440 (e2e/design/cmdbar.spec.ts):
+//
+//     thread padding  12 + 12
+//     header line     24
+//     items           26 + 3×36 + 1×8 (a basis line) = 142
+//     caveat          24
+//     actions         26 + 3×36                      = 134
 //     composer block  68
-//                                                     ≈ 298
+//                                                     ≈ 440
 //
-// Three chips is `MAX_SUGGESTIONS`, so this is the tallest the resting
-// state can honestly be, and pinning the bottom edge to it is what keeps
-// the FULL resting card anchored under the pill.
+// At 298 (the old three-chip budget) the second and third action scrolled
+// out of a resting card that had them to say, which the live capture
+// showed. Three items and three actions are the attention document's
+// maxima, so this is the tallest the resting state can honestly be.
 
 /** Below this the card is full-bleed and the pill it would anchor to is
  *  not what the reader is looking at. Mirrors `MORPH_MIN_VIEWPORT`. */
@@ -157,7 +165,7 @@ export const CAPSULE_BORDER = 2;
 /** The distance from `CAPSULE_ANCHOR_TOP` to the constant bottom edge —
  *  the height of a resting card that has everything to say. NOT a floor:
  *  no card is ever padded up to it. See the header for the arithmetic. */
-export const CAPSULE_REST_BUDGET = 298;
+export const CAPSULE_REST_BUDGET = 440;
 
 /** The ceiling the brief sets, as a fraction of the viewport. The owner's
  *  words: "mobile is where a 75vh overlay feels like a takeover." */

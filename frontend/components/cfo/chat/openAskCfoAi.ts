@@ -18,12 +18,17 @@ export interface OpenAskCfoAiDetail {
    *  The chat shell focuses the composer and places the caret at the
    *  end so the user can edit or hit Enter to send. */
   prompt?: string;
+  /** SEND the prompt instead of pre-filling it: the command bar's
+   *  "Întreabă CFO AI" row (design C2 — "Enter sends the query to the
+   *  grounded chat"). The chat surface spends, through its own send
+   *  pipeline and chat-llm's reservation; the bar never calls a model. */
+  send?: boolean;
 }
 
 /** Fire-and-forget. Returns false in non-browser contexts. */
-export function openAskCfoAi(prompt?: string): boolean {
+export function openAskCfoAi(prompt?: string, opts?: { send?: boolean }): boolean {
   if (typeof window === "undefined") return false;
-  const detail: OpenAskCfoAiDetail = prompt ? { prompt } : {};
+  const detail: OpenAskCfoAiDetail = prompt ? { prompt, ...(opts?.send ? { send: true } : {}) } : {};
   try {
     window.dispatchEvent(new CustomEvent<OpenAskCfoAiDetail>(EVENT_NAME, { detail }));
     return true;

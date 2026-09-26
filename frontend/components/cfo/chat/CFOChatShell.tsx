@@ -28,6 +28,9 @@ import { useActiveOrg } from "@/lib/org";
 import { CFOHistorySidebar } from "./CFOHistorySidebar";
 import { PageHeader } from "@/components/cfo/ui/PageHeader";
 import { useChatStore } from "./useChatStore";
+import { useQuery } from "@tanstack/react-query";
+import { fetchPeriodFromApi, periodQueryKey } from "@/lib/activePeriod";
+import { isRentalCompany } from "@/lib/companyFit";
 import { startChatTurn, stopChatTurn, useChatCapBlocked } from "./chatTurns";
 import { useAiDegraded } from "@/lib/aiDegraded";
 import { Chip } from "@/components/instrument/Panel";
@@ -51,6 +54,11 @@ export interface CFOChatShellHandle {
   setComposer: (prompt: string) => void;
   /** Start a fresh conversation. */
   newChat: () => void;
+  /** Start a fresh conversation and SEND `prompt` in it, grounded in the
+   *  period on screen (the command bar's "Întreabă CFO AI"). Waits for the
+   *  grounding when a period is expected; while the chat is capped or
+   *  degraded it pre-fills instead of sending. */
+  ask: (prompt: string) => void;
 }
 
 interface Props {
@@ -203,6 +211,11 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
   const degraded = useAiDegraded();
   const degradedTooltip = degraded ? t("chatDegraded.disabledTooltip") : null;
 
+  // The command bar's hand-off: a question to SEND once this shell is
+  // grounded (see `ask` on the handle, and the effect after `send`).
+  const pendingAskRef = useRef<string | null>(null);
+  const [askTick, setAskTick] = useState(0);
+
   useImperativeHandle(ref, () => ({
     focusComposer: () => composerRef.current?.focus(),
     setComposer: (prompt: string) => composerRef.current?.setText(prompt),
@@ -211,6 +224,11 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
       periodId,
       periodLabel,
     }),
+    ask: (prompt: string) => {
+      store.createNew({ organizationId: null, periodId, periodLabel });
+      pendingAskRef.current = prompt;
+      setAskTick((n) => n + 1);
+    },
   }));
 
   const hasPeriod = Boolean(periodId && workspaceSnapshot);
@@ -257,7 +275,20 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
       try { localStorage.setItem(wsPresentKey, present ? "1" : "0"); } catch { /* ignore */ }
     }
   }, [org, orgLoading, wsPresentKey]);
-  const workspacePrompts = useWorkspacePrompts();
+  // COMPANY FIT (design C3): a rental-only question is offered only to a
+  // property company — the workspace's industry key, or the served
+  // period's structural signal (read from the cached period body; this
+  // subscribes to the cache and never fetches).
+  const periodBody = useQuery({
+    queryKey: periodId ? periodQueryKey(periodId) : ["period", "__noop__"],
+    queryFn: () => fetchPeriodFromApi(periodId as string),
+    enabled: false,
+  }).data;
+  const rental = isRentalCompany({
+    industryKey: org?.industry_key ?? null,
+    industrySignal: periodBody?.kind === "ok" ? periodBody.data.industry_signal ?? null : null,
+  });
+  const workspacePrompts = useWorkspacePrompts({ rental });
   const generalPrompts = useGeneralPrompts();
   const industryPrompts = useIndustryPrompts(org?.industry_key);
   const promptPills = expectGrounded
@@ -304,6 +335,21 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
     currencyRates,
     publicCompanyContext,
   ]);
+
+  // Deliver a handed-off question: once, when the shell is grounded (or
+  // is known not to expect a period). A capped or degraded chat never
+  // auto-sends — the question lands in the composer for the reader.
+  useEffect(() => {
+    const prompt = pendingAskRef.current;
+    if (!prompt) return;
+    if (expectGrounded && !hasPeriod) return;
+    pendingAskRef.current = null;
+    if (capBlocked || degraded) {
+      setTimeout(() => composerRef.current?.setText(prompt), 0);
+      return;
+    }
+    send(prompt, []);
+  }, [askTick, expectGrounded, hasPeriod, capBlocked, degraded, send]);
 
   // Stop button — interrupts the open conversation's generating reply.
   // chatTurns stamps the muted "Interrupted" marker into the thread.
@@ -364,7 +410,7 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
         <div className="flex-1 min-h-0 flex flex-col">
           {!store.current || store.current.messages.length === 0 ? (
             <div className="flex-1 overflow-y-auto px-4 py-2">
-              <CFOEmptyState hasPeriod={expectGrounded} companyName={companyName} onPick={pickPrompt} />
+              <CFOEmptyState hasPeriod={expectGrounded} rental={rental} companyName={companyName} onPick={pickPrompt} />
             </div>
           ) : (
             <CFOMessageList
@@ -507,7 +553,7 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
               subtitle={t("chatX.pageSubtitle")}
               testid="chat-empty-header"
             />
-            <CFOEmptyState hasPeriod={expectGrounded} companyName={companyName} onPick={pickPrompt} hideHeader />
+            <CFOEmptyState hasPeriod={expectGrounded} rental={rental} companyName={companyName} onPick={pickPrompt} hideHeader />
           </motion.div>
         ) : (
           <div key="chat-live-content" className="flex-1 -mt-3 sm:-mt-7 lg:-mt-9">

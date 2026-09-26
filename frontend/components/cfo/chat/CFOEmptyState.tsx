@@ -25,6 +25,9 @@ import { useSimpleWorkspacePrompts } from "./roleChips";
 
 interface Props {
   hasPeriod: boolean;
+  /** The company is a property / rental business (lib/companyFit): only
+   *  then is the rent-only DSCR prompt offered. */
+  rental?: boolean;
   companyName?: string | null;
   onPick: (prompt: string) => void;
   /** When true, skip the built-in centered serif headline + subtitle and
@@ -71,18 +74,24 @@ const GENERAL_PROMPT_DEFS: Array<{ icon: LucideIcon; key: string }> = [
  *  branches on the mode. The role read is stable per render: role is set
  *  once at onboarding, and a role change that flips the effective mode
  *  re-renders via useViewMode's store subscription. */
-export function useWorkspacePrompts(): SuggestedPrompt[] {
+/** Prompts that fit ONLY a property / rental company (design C3): the
+ *  rent-only DSCR question is never offered to a manufacturer, a trader
+ *  or a services firm — see lib/companyFit.ts for how "rental" is read. */
+const RENTAL_ONLY_PROMPT_KEYS: ReadonlySet<string> = new Set(["dscr"]);
+
+export function useWorkspacePrompts(opts: { rental?: boolean } = {}): SuggestedPrompt[] {
   const { t } = useTranslation();
   const mode = useViewMode();
   const simplePrompts = useSimpleWorkspacePrompts(getRole());
+  const rental = opts.rental === true;
   const proPrompts = useMemo(
     () =>
-      WORKSPACE_PROMPT_DEFS.map((d) => ({
+      WORKSPACE_PROMPT_DEFS.filter((d) => rental || !RENTAL_ONLY_PROMPT_KEYS.has(d.key)).map((d) => ({
         icon: d.icon,
         title: t(`chatX.prompts.ws.${d.key}.title`),
         prompt: t(`chatX.prompts.ws.${d.key}.prompt`),
       })),
-    [t],
+    [t, rental],
   );
   return mode === "simple" ? simplePrompts : proPrompts;
 }
@@ -101,7 +110,7 @@ export function useGeneralPrompts(): SuggestedPrompt[] {
   );
 }
 
-export function CFOEmptyState({ hasPeriod, companyName, onPick, hideHeader = false }: Props) {
+export function CFOEmptyState({ hasPeriod, rental = false, companyName, onPick, hideHeader = false }: Props) {
   // Industry-tailored suggestions (2026-07-25) — when the workspace has
   // an org-profile industry (picked at onboarding), the general starter
   // set is swapped for prompts in that field's language: cap rates for
@@ -109,7 +118,7 @@ export function CFOEmptyState({ hasPeriod, companyName, onPick, hideHeader = fal
   // prompts (period loaded) stay data-driven and generic.
   const { t } = useTranslation();
   const { org } = useActiveOrg();
-  const workspacePrompts = useWorkspacePrompts();
+  const workspacePrompts = useWorkspacePrompts({ rental });
   const generalPrompts = useGeneralPrompts();
   const industryPrompts = useIndustryPrompts(org?.industry_key);
   const prompts = hasPeriod ? workspacePrompts : (industryPrompts ?? generalPrompts);

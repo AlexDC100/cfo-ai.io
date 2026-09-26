@@ -66,6 +66,7 @@ import { useWorkspaceV2State } from "@/lib/previewFeatures";
 import { useActiveOrg } from "@/lib/org";
 import { useDashboardCompanyHold } from "@/lib/companyOnScreen";
 import { MonthSwitchOverlay } from "./MonthSwitchOverlay";
+import { CommandBarPrefetch } from "@/components/instrument/shell/cmdbar/useCmdbarData";
 
 interface Props {
   children: ReactNode;
@@ -156,7 +157,7 @@ export function AppShell({ children }: Props) {
   // 2026-07-24), preserving ?period= and delivering the prompt into the
   // composer once the chat shell has mounted and published its ref.
   const goToChat = useCallback(
-    (prompt: string | null, opts?: { newChat?: boolean; focus?: boolean }) => {
+    (prompt: string | null, opts?: { newChat?: boolean; focus?: boolean; send?: boolean }) => {
       const period = params.get("period");
       navigate(period ? `/chat?period=${encodeURIComponent(period)}` : "/chat");
       if (!prompt && !opts?.newChat && !opts?.focus) return;
@@ -164,6 +165,12 @@ export function AppShell({ children }: Props) {
       const deliver = () => {
         const handle = getChatShellRef();
         if (handle) {
+          if (prompt && opts?.send) {
+            // The command bar's "Întreabă CFO AI": the chat starts its own
+            // conversation and sends once grounded.
+            handle.ask(prompt);
+            return;
+          }
           if (opts?.newChat) handle.newChat();
           if (prompt) {
             // newChat() changes the active conversation, which REMOUNTS the
@@ -194,8 +201,13 @@ export function AppShell({ children }: Props) {
     function onEvt(e: Event) {
       const ce = e as CustomEvent<OpenAskCfoAiDetail>;
       const prompt = ce.detail?.prompt ?? null;
+      const sendIt = Boolean(ce.detail?.send && prompt);
       if (location.pathname.startsWith("/chat")) {
         const handle = getChatShellRef();
+        if (handle && sendIt && prompt) {
+          handle.ask(prompt);
+          return;
+        }
         if (handle) {
           handle.newChat();
           // Defer the text so it lands on the composer freshly remounted by
@@ -205,7 +217,7 @@ export function AppShell({ children }: Props) {
           return;
         }
       }
-      goToChat(prompt, { newChat: true });
+      goToChat(prompt, { newChat: true, send: sendIt });
     }
     window.addEventListener(OPEN_ASK_CFO_AI_EVENT, onEvt as EventListener);
     return () => window.removeEventListener(OPEN_ASK_CFO_AI_EVENT, onEvt as EventListener);
@@ -519,6 +531,11 @@ export function AppShell({ children }: Props) {
           announcements, plus drag-and-drop on every page. */}
       {workspaceV2 && <UploadFlowHost />}
       {workspaceV2 && <UploadDropOverlay onScreenOrgId={activeOrg?.id ?? null} />}
+      {/* The command bar's documents (period, comparatives with the
+          same-length prior, sector benchmark, "Ce contează acum", company
+          years), kept warm on every (company, period) change so ⌘K paints
+          from cache and a keystroke never fetches (design C2). */}
+      <CommandBarPrefetch />
       <CommandPalette
         open={searchOpen}
         onOpenChange={setSearchOpen}
