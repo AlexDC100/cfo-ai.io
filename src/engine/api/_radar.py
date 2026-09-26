@@ -133,6 +133,11 @@ ORG_COLUMNS = "id,caen_code"
 LIGHT_PERIOD_COLUMNS = (
     "id,org_id,period_start,period_end,currency,source_document_id,updated_at,"
     "p121:assembled_canonical_v1->canonical_bs->invariants->p121_cross_check->>p121,"
+    # The net 711 / net 72x evidence (owner ruling 2026-09-26): the rebuild
+    # decides the ONE EBITDA from it (`pipeline._stock_variation_evidence_
+    # for` accepts this flat alias). Without it every manufacturer's EBITDA
+    # refuses on Radar with `stock_variation_evidence_not_read`.
+    "stock_variation:assembled_canonical_v1->stock_variation,"
     "snapshot_hash:assembled_canonical_v1->provenance->>content_hash,"
     "has_envelope:assembled_canonical_v1->>schema_version"
 )
