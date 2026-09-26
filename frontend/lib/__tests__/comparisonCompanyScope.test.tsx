@@ -194,6 +194,12 @@ describe("the 'compare with' choice is stored per company", () => {
       "cfo:comparatives-view:v1",
       JSON.stringify({ priorPeriodId: S24, columns: { prior: true, delta: true, deltaPct: true, share: true } }),
     );
+    // Nor a choice stored for this company before v2 (written by that same
+    // browser-wide store): e.g. a "No comparison" made on another company.
+    window.localStorage.setItem(
+      "cfo:comparatives-view:v1:" + EEI,
+      JSON.stringify({ priorPeriodId: "none", columns: { prior: true, delta: true, deltaPct: true, share: true } }),
+    );
     render(
       <ComparativesViewProvider orgId={EEI}>
         <ViewProbe />

@@ -87,6 +87,12 @@ export function KeyMetricsRow({ items, currency }: { items: KeyMetricItem[]; cur
     items.map((it) => (it.trend ? it.trend.current - it.trend.base : null)),
     currency,
   );
+  // The prior figure itself, printed under the tile (owner, 2026-09-26: the
+  // Overview shows the year it compares with, not only the move).
+  const { converted: convertedBases } = useConvertedAmounts(
+    items.map((it) => (it.trend ? it.trend.base : null)),
+    currency,
+  );
   return (
     <AmountGroup values={converted}>
       <div
@@ -102,6 +108,7 @@ export function KeyMetricsRow({ items, currency }: { items: KeyMetricItem[]; cur
             displayCurrency={displaySymbol}
             trend={it.trend}
             convertedDelta={convertedDeltas[i] ?? null}
+            convertedBase={convertedBases[i] ?? null}
             testid={it.testid}
             provenance={it.provenance ?? null}
           />
@@ -121,6 +128,7 @@ function KeyMetricCard({
   displayCurrency,
   trend,
   convertedDelta,
+  convertedBase,
   testid,
   provenance,
 }: {
@@ -130,6 +138,8 @@ function KeyMetricCard({
   displayCurrency: string;
   trend: MetricTrend | null;
   convertedDelta: number | null;
+  /** The prior figure, in the display currency. */
+  convertedBase: number | null;
   testid?: string;
   provenance: AmountProvenance | null;
 }) {
@@ -162,8 +172,13 @@ function KeyMetricCard({
       </div>
       <p className="mt-1.5 text-[11.5px] text-ink-soft leading-snug">{desc}</p>
       {trend && (
-        <p className="mt-1 text-[10.5px] text-ink-soft">
-          {t("dashV2.vsLastPeriod", { period: trend.prevLabel })}
+        <p
+          className="mt-1 text-[10.5px] text-ink-soft"
+          data-testid={testid ? `${testid}-prior` : undefined}
+          title={t("dashV2.vsLastPeriod", { period: trend.prevLabel })}
+        >
+          {trend.prevLabel}:{" "}
+          <Amount value={convertedBase} currency={displayCurrency} />
         </p>
       )}
     </div>

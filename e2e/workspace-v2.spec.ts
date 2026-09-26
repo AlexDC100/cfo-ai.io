@@ -235,6 +235,8 @@ for (const lang of ["ro", "en"] as const) {
       // chosen a comparison, synced to Scandia's company preferences.
       double.periods[ORG_AGRAS].push(AGRAS);
       double.orgPrefs[ORG_SCANDIA].comparatives_view = { priorPeriodId: SCANDIA_PERIOD, columns: COLUMNS };
+      // …and under the per-company key every choice is stored under now.
+      double.orgPrefs[ORG_SCANDIA].comparatives_view_v2 = { priorPeriodId: SCANDIA_PERIOD, columns: COLUMNS };
       await double.install(page);
       // What every browser that used the dashboard before this fix holds:
       // ONE "compare with" choice, under a key naming no company.

@@ -23,9 +23,19 @@
 // periods before it is used (`lib/comparatives.ts`, `comparisonChoiceOf`):
 // a stored id that is not one of them is ignored silently.
 //
-// `priorPeriodId: null` means AUTO — the previous fiscal year-end, picked
-// by `pickDefaultPrior`. `priorPeriodId: "none"` means the reader turned
+// `priorPeriodId: null` means AUTO — the same company's previous period of
+// the same length, picked by `pickDefaultPrior`: the DEFAULT, on every
+// dashboard view (owner, 2026-09-26: "it should pick it up automatically and
+// the user can deselect it"). `priorPeriodId: "none"` means the reader turned
 // comparatives off for this company.
+//
+// v2 KEYS (2026-09-26). Every choice stored before the per-company store was
+// written by the browser-wide one — it may name another company's period,
+// or a "No comparison" chosen on another company and synced into this one's
+// preferences. None of it says which company it was chosen for, so none of
+// it is read: `cfo:comparatives-view:v2:<orgId>` and the `comparatives_view_v2`
+// company preference start every company at AUTO, and what the reader picks
+// from then on is remembered for that company.
 import {
   createContext,
   useCallback,
@@ -52,9 +62,10 @@ export interface ComparativesView {
 }
 
 /** One key per company: `${KEY_PREFIX}${orgId}`. */
-export const COMPARATIVES_VIEW_KEY_PREFIX = "cfo:comparatives-view:v1:";
+export const COMPARATIVES_VIEW_KEY_PREFIX = "cfo:comparatives-view:v2:";
 /** Key inside `org_prefs.prefs` — see supabase/schema_phase_prefs.sql. */
-const PREF_KEY = "comparatives_view";
+export const COMPARATIVES_VIEW_PREF_KEY = "comparatives_view_v2";
+const PREF_KEY = COMPARATIVES_VIEW_PREF_KEY;
 
 export const DEFAULT_VIEW: ComparativesView = {
   priorPeriodId: null,

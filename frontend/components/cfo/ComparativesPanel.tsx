@@ -48,6 +48,7 @@ export function ComparativesControls({
   currentId,
   autoPick,
   currency: _currency,
+  columns = true,
 }: {
   /** Every analysed period of the company on screen, newest first. */
   periods: readonly OrgPeriod[];
@@ -55,6 +56,9 @@ export function ComparativesControls({
   /** What AUTO resolves to right now, for the option label. */
   autoPick: OrgPeriod | null;
   currency: string;
+  /** The column toggles (Prior, Δ, Δ %, share) — statement tables only; the
+   *  Overview has no columns to toggle. */
+  columns?: boolean;
 }) {
   const { t } = useTranslation();
   const { view, setPriorPeriodId, setColumn } = useComparativesView();
@@ -104,7 +108,7 @@ export function ComparativesControls({
           ))}
         </select>
       </label>
-      {view.priorPeriodId !== "none" && (
+      {columns && view.priorPeriodId !== "none" && (
         <div className="inline-flex items-center gap-3" data-testid="comparatives-columns">
           <span className="font-mono uppercase tracking-[0.08em] text-[10.5px] text-ink-mute">
             {t("statements.cmp.columns")}

@@ -101,9 +101,9 @@
     },
     "frontend/components/cfo/KeyMetricsRow.tsx": {
       "bucket": "HAS_SHOWS",
-      "sites": 3,
+      "sites": 4,
       "affordances": 1,
-      "why": "KeyMetricItem now carries `provenance`, built ONCE by the page (lib/headlineProvenance) beside the figure and shared with Simple's twins. The headline Amount wears it; the YoY chip (a delta over a series) never does. plan/2 B1 (2026-09-15): the YoY chip is TrendChange — a percent for a same-sign move, else the money change plus the one classifier's words — so it paints two Amounts, both plain (a delta over a series)."
+      "why": "KeyMetricItem now carries `provenance`, built ONCE by the page (lib/headlineProvenance) beside the figure and shared with Simple's twins. The headline Amount wears it; the YoY chip (a delta over a series) never does. plan/2 B1 (2026-09-15): the YoY chip is TrendChange — a percent for a same-sign move, else the money change plus the one classifier's words — so it paints two Amounts, both plain (a delta over a series). 2026-09-26 (the dashboard compares with last year by default): the fourth site is the PRIOR period's figure printed under the tile ('Dec 2024: …'), built by lib/overviewComparison from the comparatives document's prior block — plain, the same law as the comparatives' prior cells (ComparativeCells, LACKS_SILENT): no source cell behind it on this screen."
     },
     "frontend/components/cfo/ComparativeCells.tsx": {
       "bucket": "LACKS_SILENT",
