@@ -22,7 +22,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Settings2 } from "lucide-react";
+import { ArrowLeft, Loader2, Settings2 } from "lucide-react";
 
 import { Money } from "@/components/ui/Money";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -37,6 +37,7 @@ import { useCompanyOnScreen } from "@/lib/companyOnScreen";
 import { activeLocale } from "@/lib/locale";
 import { useFeatureStatus } from "@/lib/features";
 import { useActiveOrg } from "@/lib/org";
+import { isJobDone, useAnalysisJobs } from "@/lib/uploadFlow";
 import { fetchCompanyDirectory, fetchCompanyYears, type CompanyYear } from "@/lib/uploadsApi";
 import type { Currency } from "@/lib/rates";
 import { cn } from "@/lib/utils";
@@ -124,6 +125,10 @@ function CompanyReady({
   });
   const cui = dirQ.data?.[orgId]?.cui ?? null;
   const industryLabel = useIndustryLabel(industryKey, industryName);
+  // An analysis of THIS company running in the background ("Keep working"
+  // on the card) leaves a visible trace here, beside the years.
+  const jobs = useAnalysisJobs();
+  const analysing = jobs.some((j) => j.orgId === orgId && !isJobDone(j));
 
   const years = yearsQ.data ?? [];
   // On a narrow screen the one-line row overflows: open it at its END, where
@@ -171,8 +176,9 @@ function CompanyReady({
       </header>
 
       <div>
-        <h2 className="mb-2 font-mono text-[11px] uppercase tracking-[0.14em] text-ink-mute">
+        <h2 className="mb-2 flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.14em] text-ink-mute">
           {t("wsV2.company.years")}
+          {analysing && <AnalysingChip testId="company-analysing" />}
         </h2>
         {/* ONE line at every width: tiles never wrap; a phone scrolls them
             sideways. The dashed tile always closes the row. */}
@@ -221,6 +227,20 @@ function CompanyReady({
         industryName={industryName}
       />
     </section>
+  );
+}
+
+/** "analysing…" — a small chip for an analysis of this company still running. */
+export function AnalysingChip({ testId }: { testId: string }) {
+  const { t } = useTranslation();
+  return (
+    <span
+      data-testid={testId}
+      className="inline-flex items-center gap-1 rounded-full border border-brand/40 bg-brand-tint px-2 py-px font-sans text-[10.5px] normal-case tracking-normal text-brand-dark dark:text-brand-light"
+    >
+      <Loader2 size={10} className="animate-spin" aria-hidden />
+      {t("wsV2.company.analysing")}
+    </span>
   );
 }
 

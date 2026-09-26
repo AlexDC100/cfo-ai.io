@@ -3498,7 +3498,8 @@
       "back": "Toate companiile",
       "opening": "Deschid {{company}}…",
       "yearsError": "N-am putut încărca anii.",
-      "retry": "Încearcă din nou"
+      "retry": "Încearcă din nou",
+      "analysing": "se analizează…"
     },
     "dashboard": {
       "emptyTitle": "Nimic analizat aici încă",

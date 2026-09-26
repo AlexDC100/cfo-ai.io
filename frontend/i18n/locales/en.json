@@ -3472,7 +3472,8 @@
       "back": "All companies",
       "opening": "Opening {{company}}…",
       "yearsError": "We couldn't load the years.",
-      "retry": "Try again"
+      "retry": "Try again",
+      "analysing": "analysing…"
     },
     "dashboard": {
       "emptyTitle": "Nothing analysed here yet",

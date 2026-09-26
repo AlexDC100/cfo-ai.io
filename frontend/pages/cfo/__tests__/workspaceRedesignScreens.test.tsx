@@ -19,7 +19,7 @@ import i18n from "@/i18n";
 import { TestProviders } from "@/test/renderWithProviders";
 import { __setFeaturesForTest } from "@/lib/features";
 import { writeWorkspaceName } from "@/lib/workspaceName";
-import { __resetUploadFlowForTest, readUploadFlow } from "@/lib/uploadFlow";
+import { __resetUploadFlowForTest, addJob, patchJob, readUploadFlow } from "@/lib/uploadFlow";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 (window as any).ResizeObserver ??= class {
@@ -314,6 +314,31 @@ describe("Company page — /workspace/<orgId>", () => {
     expect(inputs.length).toBe(1);
     expect(inputs[0]!.getAttribute("data-upload-component")).toBe("tile");
   });
+
+  // A backgrounded analysis ("Keep working") leaves a visible trace where
+  // the company is: a small chip on the company page and on its home card.
+  for (const lang of ["en", "ro"] as const) {
+    it(`${lang}: an analysis running in the background shows as a chip on the company page and the home card`, async () => {
+      await i18n.changeLanguage(lang);
+      const label = lang === "ro" ? "se analizează…" : "analysing…";
+      addJob({ docId: "doc-bg", orgId: "agras", companyName: "Agras SA", filename: "balanta.xlsx", status: "computing" });
+      orgApi.activeId = "agras";
+      writeWorkspaceName("Agras SA");
+      const { unmount } = renderAt("/workspace/agras");
+      await screen.findByTestId("company-title");
+      expect(await screen.findByTestId("company-analysing")).toHaveTextContent(label);
+      unmount();
+
+      renderAt("/workspace");
+      const agras = await screen.findByTestId("company-card-agras");
+      expect(within(agras).getByTestId("company-card-analysing")).toHaveTextContent(label);
+      expect(within(await screen.findByTestId("company-card-scandia")).queryByTestId("company-card-analysing")).toBeNull();
+
+      // Finished: the trace goes.
+      patchJob("doc-bg", { status: "analyzed", periodId: "p-agras-2025" });
+      await waitFor(() => expect(within(agras).queryByTestId("company-card-analysing")).toBeNull());
+    });
+  }
 
   it("Romanian", async () => {
     await i18n.changeLanguage("ro");

@@ -24,7 +24,9 @@ import { ChevronRight, RotateCcw } from "lucide-react";
 import { Money } from "@/components/ui/Money";
 import { toast } from "@/components/ui/sonner";
 import { UploadDrop } from "@/components/cfo/upload/UploadDrop";
+import { AnalysingChip } from "@/pages/cfo/CompanyPage";
 import { daysUntilPurge, useActiveOrg, type Organization } from "@/lib/org";
+import { isJobDone, useAnalysisJobs } from "@/lib/uploadFlow";
 import { fetchCompanyDirectory, fetchCompanyYears } from "@/lib/uploadsApi";
 import type { Currency } from "@/lib/rates";
 
@@ -125,6 +127,9 @@ function CompanyCard({ org, cui }: { org: Organization; cui: string | null }) {
     staleTime: 30_000,
   });
   const latest = yearsQ.data && yearsQ.data.length > 0 ? yearsQ.data[yearsQ.data.length - 1]! : null;
+  // An analysis of this company running in the background shows on its card.
+  const jobs = useAnalysisJobs();
+  const analysing = jobs.some((j) => j.orgId === org.id && !isJobDone(j));
 
   return (
     <button
@@ -141,6 +146,11 @@ function CompanyCard({ org, cui }: { org: Organization; cui: string | null }) {
           <p className="mt-0.5 font-mono text-[11.5px] tabular-nums text-ink-mute" data-testid="company-card-cui">
             {cui ? t("wsV2.home.cui", { cui }) : t("wsV2.home.noCui")}
           </p>
+          {analysing && (
+            <p className="mt-1.5">
+              <AnalysingChip testId="company-card-analysing" />
+            </p>
+          )}
         </div>
         <ChevronRight size={16} className="mt-0.5 shrink-0 text-ink-mute transition-colors group-hover:text-ink" aria-hidden />
       </div>
