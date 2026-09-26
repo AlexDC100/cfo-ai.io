@@ -678,7 +678,10 @@
         "debtServiceLease": "dobânzile plus datoriile pe termen scurt plus chiria",
         "debtServiceLtPrincipal": "dobânzile plus aproximarea ratelor pe termen lung",
         "totalOperatingExpense": "totalul cheltuielilor de exploatare",
-        "capitalizedOwnWork": "producția imobilizată"
+        "capitalizedOwnWork": "producția imobilizată",
+        "operatingResult": "rezultatul din exploatare",
+        "grossProfit": "profitul brut",
+        "inventoryVariation": "variația stocurilor de produse"
       },
       "reason": {
         "operand_absent": "Neraportat: această raportare nu conține {{inputs}}.",
@@ -711,7 +714,8 @@
         "unstated": "Nicio valoare și niciun motiv servit pentru lipsa ei.",
         "unlisted": "Nicio valoare: codul de motiv {{code}} nu are încă o propoziție.",
         "malformed_value": "Neafișat: valoarea servită nu poate fi citită pentru unitatea ei.",
-        "unrecognised": "Neafișat: câmpul servit {{field}} are valoarea {{value}}, pe care acest cititor nu o recunoaște."
+        "unrecognised": "Neafișat: câmpul servit {{field}} are valoarea {{value}}, pe care acest cititor nu o recunoaște.",
+        "ebitda_refused": "Necalculat: EBITDA și rezultatul din exploatare sunt refuzate pentru această perioadă, deoarece variația stocurilor de produse nu a putut fi măsurată."
       },
       "label": {
         "current_ratio": "Lichiditate curentă",

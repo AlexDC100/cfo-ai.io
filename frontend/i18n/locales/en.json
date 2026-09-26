@@ -678,7 +678,10 @@
         "debtServiceLease": "interest plus short-term debt plus lease",
         "debtServiceLtPrincipal": "interest plus the long-term principal proxy",
         "totalOperatingExpense": "total operating expense",
-        "capitalizedOwnWork": "capitalised own work"
+        "capitalizedOwnWork": "capitalised own work",
+        "operatingResult": "operating result",
+        "grossProfit": "gross profit",
+        "inventoryVariation": "the stock variation (Variația stocurilor de produse)"
       },
       "reason": {
         "operand_absent": "Not reported: this filing does not carry {{inputs}}.",
@@ -711,7 +714,8 @@
         "unstated": "No figure, and no reason was served for its absence.",
         "unlisted": "No figure: reason code {{code}} has no sentence yet.",
         "malformed_value": "Not printed: the served figure is not a readable value for its unit.",
-        "unrecognised": "Not printed: the served {{field}} is {{value}}, a value this reader does not recognise."
+        "unrecognised": "Not printed: the served {{field}} is {{value}}, a value this reader does not recognise.",
+        "ebitda_refused": "Not computed: EBITDA and the operating result are refused for this period, because the stock variation (Variația stocurilor de produse) could not be measured."
       },
       "label": {
         "current_ratio": "Current ratio",

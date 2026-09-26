@@ -50,8 +50,8 @@
         "absence": null
       },
       "gross_margin": {
-        "value": 39.23,
-        "printed": "39.2",
+        "value": 39.43,
+        "printed": "39.4",
         "unit": "%",
         "verdict": "healthy",
         "higher_is_better": true,
@@ -63,8 +63,8 @@
         "absence": null
       },
       "ebitda_margin": {
-        "value": 5.28,
-        "printed": "5.3",
+        "value": 5.48,
+        "printed": "5.5",
         "unit": "%",
         "verdict": "critical",
         "higher_is_better": true,
@@ -115,8 +115,8 @@
         "absence": null
       },
       "roic": {
-        "value": 1.02,
-        "printed": "1.0",
+        "value": 1.17,
+        "printed": "1.2",
         "unit": "%",
         "verdict": "critical",
         "higher_is_better": true,
@@ -335,8 +335,8 @@
         "absence": null
       },
       "gross_margin": {
-        "value": 39.23,
-        "printed": "39.2",
+        "value": 39.43,
+        "printed": "39.4",
         "unit": "%",
         "verdict": "ungraded",
         "higher_is_better": null,
@@ -344,8 +344,8 @@
         "absence": null
       },
       "ebitda_margin": {
-        "value": 5.28,
-        "printed": "5.3",
+        "value": 5.48,
+        "printed": "5.5",
         "unit": "%",
         "verdict": "ungraded",
         "higher_is_better": null,
@@ -388,8 +388,8 @@
         "absence": null
       },
       "roic": {
-        "value": 1.02,
-        "printed": "1.0",
+        "value": 1.17,
+        "printed": "1.2",
         "unit": "%",
         "verdict": "critical",
         "higher_is_better": true,
@@ -596,8 +596,8 @@
         "absence": null
       },
       "gross_margin": {
-        "value": 53.7451,
-        "printed": "53.7",
+        "value": 54.019099999999995,
+        "printed": "54.0",
         "unit": "%",
         "verdict": "strong",
         "higher_is_better": true,
@@ -609,8 +609,8 @@
         "absence": null
       },
       "ebitda_margin": {
-        "value": 7.233600000000001,
-        "printed": "7.2",
+        "value": 7.5076,
+        "printed": "7.5",
         "unit": "%",
         "verdict": "critical",
         "higher_is_better": true,
@@ -661,8 +661,8 @@
         "absence": null
       },
       "roic": {
-        "value": 1.3974000000000002,
-        "printed": "1.4",
+        "value": 1.6029000000000002,
+        "printed": "1.6",
         "unit": "%",
         "verdict": "critical",
         "higher_is_better": true,

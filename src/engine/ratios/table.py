@@ -49,10 +49,19 @@ reads, and each is gated on its own:
     metric is statutory EBITDA. The engine's fallback is the metric's own
     definition (``pipeline.stage_compute``): ``net_margin`` =
     anchored net income ÷ revenue; ``interest_coverage`` = EBIT ÷
-    interest; the two DSCRs = ``assembled_pl.ebitda_statutory`` (else the
-    metric, else cash EBITDA + ``incomeStatement.capitalizedOwnWork``) ÷
-    their debt service. ``test_ratio_table.py`` holds the no-metric route
-    body to the metric-present value on every ``mOr`` key.
+    interest; the two DSCRs = EBITDA ÷ their debt service.
+    ``test_ratio_table.py`` holds the no-metric route body to the
+    metric-present value on every ``mOr`` key.
+  · THE ONE EBITDA (owner ruling 2026-09-26). EBITDA, EBIT and gross
+    profit are READ from the assembled P&L's one definition
+    (``credit_model.operating_figures``: net 711 "Variația stocurilor de
+    produse" and net 72x inside, 767 financial) — never rebuilt here
+    from the ``incomeStatement`` mirror, which carries no net 711. A
+    refused one-EBITDA refuses every row that divides it
+    (``ebitda_refused``, the stock-variation cause and its sentence
+    beside the code) — never a fallback to the definition without 711.
+    Every margin divides TURNOVER (``incomeStatement.revenue`` = class 70
+    − 709), never total operating revenue.
   · SECTOR WITHHOLDING reaches the three metric-only keys whose FE
     sibling is sector-calibrated (``SECTOR_SIBLING_OF``): a margin over
     revenue is withheld with ``ebitda_margin``, inventory turnover with
@@ -180,6 +189,9 @@ REASON_CODES: Tuple[str, ...] = (
     "engine_metric_absent",
     "user_input_absent",
     "source_declares_absence",
+    # the one EBITDA / operating result is refused on this period (the
+    # stock variation, account 711, could not be measured)
+    "ebitda_refused",
     # a margin over a turnover negligible against operating activity
     # (engine.ratios.margin_meaning, packs/ratios/margin_meaning.yaml)
     "margin_not_meaningful",
@@ -600,7 +612,55 @@ def _reason_of(absence: Tuple[Any, ...]) -> Dict[str, Any]:
         return {"code": "nonpositive_denominator", "inputs": [absence[1]]}
     if kind == "metric":
         return {"code": "engine_metric_absent", "inputs": [absence[1]]}
+    if kind == "ebitda_refused":
+        refusal = dict(absence[1] or {})
+        return {"code": "ebitda_refused", "inputs": list(refusal.get("inputs") or []),
+                "cause": refusal.get("cause"), "text_ro": refusal.get("text_ro"),
+                "text_en": refusal.get("text_en")}
     return {"code": "non_finite", "inputs": [str(absence[1])]}
+
+
+#: The core P&L leaves a legacy statements block builds the one EBITDA from.
+_LEGACY_EBITDA_LEAVES = ("revenue", "costOfGoodsSold", "operatingExpenses", "otherIncome",
+                         "depreciationAmortization")
+
+
+def _one_ebitda_figs(statements: Mapping[str, Any]) -> Tuple[_Fig, _Fig, _Fig]:
+    """(gross profit, EBITDA, EBIT) — THE one definition, as
+    ``credit_model.operating_figures`` reads it (the assembled P&L; on a
+    legacy block the same definition from the incomeStatement leaves, and
+    refused where the book posts to 711). A refusal is an absence of kind
+    ``ebitda_refused`` carrying the typed reason; the row that divides it
+    serves that reason, never a figure from another definition."""
+    from engine.ratios.credit_model import operating_figures
+
+    try:
+        f = operating_figures(statements)
+    except (KeyError, TypeError, ValueError):
+        inc = _dict(statements.get("incomeStatement"))
+        missing = tuple("incomeStatement." + k for k in _LEGACY_EBITDA_LEAVES if not _is_num(inc.get(k)))
+        absence = ("missing", missing or ("incomeStatement",))
+        return (_Fig(None, absence), _Fig(None, absence), _Fig(None, absence))
+    if f["source"] == "assembled_pl":
+        where = {"gross_profit": "assembled_pl.gross_profit", "ebitda": "assembled_pl.ebitda",
+                 "ebit": "assembled_pl.operating_result"}
+    else:
+        # A block assembled before the ruling: the same definition built
+        # from the incomeStatement leaves (credit_model.operating_figures).
+        where = {"gross_profit": "incomeStatement.gross_profit", "ebitda": "incomeStatement.ebitda",
+                 "ebit": "incomeStatement.ebit"}
+    if f["refusal"] is not None:
+        absence = ("ebitda_refused", f["refusal"])
+        return tuple(_Fig(None, absence, ((k, None, where[k]),))  # type: ignore[return-value]
+                     for k in ("gross_profit", "ebitda", "ebit"))
+
+    def fig(key: str) -> _Fig:
+        value = f[key]
+        if value is None:
+            return _Fig(None, ("missing", (where[key],)), ((key, None, where[key]),))
+        return _Fig(float(value), None, ((key, float(value), where[key]),))
+
+    return fig("gross_profit"), fig("ebitda"), fig("ebit")
 
 
 def _compute_figs(payload: Mapping[str, Any], statements: Mapping[str, Any]
@@ -658,9 +718,9 @@ def _compute_figs(payload: Mapping[str, Any], statements: Mapping[str, Any]
     total_debt = _add(B("shortTermDebt"), B("longTermDebt"))
 
     revenue = I("revenue")
-    gross_profit = _sub(revenue, I("costOfGoodsSold"))
-    ebitda = _add(gross_profit, _mul(I("operatingExpenses"), _known(-1.0)), I("otherIncome"))
-    ebit = _sub(ebitda, I("depreciationAmortization"))
+    # THE ONE EBITDA, EBIT and gross profit — read, never rebuilt from the
+    # incomeStatement mirror (which carries no net 711).
+    gross_profit, ebitda, ebit = _one_ebitda_figs(statements)
 
     def optional_line(k: str, default_source: str) -> _Fig:
         """The FE's ``?? 0`` for an optional P&L line — the value mirrors
@@ -683,15 +743,12 @@ def _compute_figs(payload: Mapping[str, Any], statements: Mapping[str, Any]
     else:
         anchored_net_income = mOr("net_income_statutory", net_income)
 
-    # The statutory EBITDA the served DSCR metrics divide
-    # (`stage_compute`: cash EBITDA + account 722): the assembled figure,
-    # then the served metric, then the metric's own arithmetic.
-    apl_ebitda = apl.get("ebitda_statutory")
-    if _is_num(apl_ebitda):
-        ebitda_statutory = _Fig(float(apl_ebitda), None, (("ebitda_statutory", float(apl_ebitda),
-                                                         "assembled_pl.ebitda_statutory"),))
-    else:
-        ebitda_statutory = mOr("ebitda_statutory", _add(ebitda, I("capitalizedOwnWork")))
+    # The DSCRs and net debt / EBITDA divide THE one EBITDA too. Until the
+    # ruling this was a second, "statutory" EBITDA (the cash view + 722)
+    # read through a fallback chain — assembled figure, then the served
+    # metric, then its own arithmetic — so a refused EBITDA fell through
+    # to a different definition under the same row.
+    ebitda_statutory = ebitda
 
     cost_of_sales = I("costOfGoodsSold")
     has_cost_base = cost_of_sales.value is not None and cost_of_sales.value != 0

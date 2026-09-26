@@ -135,6 +135,27 @@ MEASURED_VERDICT_DIFFERENCES: Dict[Tuple[str, str, str], Tuple[str, str]] = {
     ("retail", "disputed", "debt_to_assets"): ("healthy", "strong"),
 }
 
+#: THE ONE EBITDA, PENDING ON THE FRONTEND (owner ruling 2026-09-26, design
+#: A7). The engine's EBITDA is the assembled one — net 711 ("Variația
+#: stocurilor de produse") and net 72x inside (`credit_model.
+#: operating_figures`). `computeRatios` still rebuilds EBITDA in the browser
+#: from the incomeStatement mirror WITHOUT them and lets its own division win
+#: for debt_to_ebitda (`bsOr`), so on the two committed books that post to
+#: 711 with debt it prints the pre-ruling figure. MEASURED (book, variant,
+#: key) -> (engine printed, FE printed). The FE stage deletes the browser
+#: EBITDA arithmetic; every entry then reds here as "declared but gone" and
+#: is removed. Any OTHER value difference is still a red.
+ONE_EBITDA_FE_PENDING: Dict[Tuple[str, str, str], Tuple[str, str]] = dict(
+    [((("agras", v, "debt_to_ebitda")), ("0.31", "0.34")) for v in VARIANTS]
+    + [((("realestate", v, "debt_to_ebitda")), ("33.67", "-0.64")) for v in VARIANTS])
+
+#: ...and the verdict that difference moves: the FE withholds the sign of
+#: the developer's pre-ruling negative EBITDA; the engine grades 33.67x.
+ONE_EBITDA_FE_PENDING_VERDICTS: Dict[Tuple[str, str, str], Tuple[str, str]] = {
+    ("realestate", "served", "debt_to_ebitda"): ("critical", "ungraded"),
+    ("realestate", "disputed", "debt_to_ebitda"): ("critical", "ungraded"),
+}
+
 
 # ── the served payload, composed exactly as exportBooks.ts composes it ──────
 
@@ -201,12 +222,36 @@ def services_shaped_payload() -> Dict[str, Any]:
     return payload
 
 
+def negative_equity_payload() -> Dict[str, Any]:
+    """TC-3 COVERAGE FOR ``withheld_sign`` / ``negative_denominator``.
+    SYNTHETIC, labelled: ``synthetic_negative_equity`` — a declared synthetic
+    trial balance (equity at -20% of capital) run through the REAL engine by
+    ``fixtures/firm/capture.py``, served with its own ``stage_compute`` rows.
+    Until the 711 ruling (2026-09-26) the developer's negative EBITDA was the
+    committed witness for a negative denominator; its one EBITDA is positive
+    since, so the battery needs a book whose denominators really are
+    negative (equity and EBITDA both)."""
+    from engine.ratios.credit_model import compute_period_metrics
+
+    fixture = _json(FIRM / "synthetic_negative_equity.json")
+    statements = dict(fixture["statements"])
+    statements["canonical_bs"] = fixture["envelope"]["canonical_bs"]
+    statements["assembled_canonical_v1"] = fixture["envelope"]
+    rows = compute_period_metrics(copy.deepcopy(fixture["statements"]))
+    return {"statements": statements,
+            "metrics": [{"name": r["name"], "value": r["value"]} for r in rows],
+            "period": {"id": "gate-negative-equity", "period_end": fixture.get("period_end"),
+                       "currency": "RON"}}
+
+
 @pytest.fixture(scope="module")
 def coverage_tables(tables) -> Dict[Tuple[str, str], Dict[str, Any]]:
     """The battery the coverage checks walk: every committed table, plus the
-    services-shaped retail table (see ``services_shaped_payload``)."""
+    services-shaped retail table (see ``services_shaped_payload``) and the
+    synthetic negative-equity book (see ``negative_equity_payload``)."""
     out = dict(tables)
     out[("retail", "services_shaped")] = T.build_ratio_table(services_shaped_payload())
+    out[("negative_equity", "synthetic")] = T.build_ratio_table(negative_equity_payload())
     return out
 
 
@@ -286,12 +331,16 @@ def test_engine_value_is_the_printed_fe_value_on_every_shared_key(tables, captur
     compared = 0
     bit_equal = 0
     failures: List[str] = []
+    pending_seen: Dict[Tuple[str, str, str], Tuple[Any, Any]] = {}
     for (book, variant), table in sorted(tables.items()):
         rows = _rows(table)
         fe_rows = captures[book]["variants"][variant]
         for key, fe_key in sorted(T.FE_KEY_OF.items()):
             row, fe = rows[key], fe_rows[fe_key]
             compared += 1
+            if (book, variant, key) in ONE_EBITDA_FE_PENDING:
+                pending_seen[(book, variant, key)] = (row["value_q"], fe["printed"])
+                continue
             if fe["printed"] != row["value_q"]:
                 failures.append("%s/%s %s: engine %r, FE printed %r (engine value %r from %s)" % (
                     book, variant, key, row["value_q"], fe["printed"], row["value"],
@@ -312,8 +361,14 @@ def test_engine_value_is_the_printed_fe_value_on_every_shared_key(tables, captur
                 bit_equal += 1
     assert compared == len(BOOKS) * len(VARIANTS) * 22
     assert not failures, "ENGINE ≠ PRINTED FE VALUE:\n  " + "\n  ".join(failures)
+    assert pending_seen == ONE_EBITDA_FE_PENDING, (
+        "the declared one-EBITDA FE divergence changed (the FE caught up, or moved):\n  measured %s\n"
+        "  declared %s" % (sorted(pending_seen.items()), sorted(ONE_EBITDA_FE_PENDING.items())))
     # TC-3 — the comparison must have met valued rows, not only refusals.
-    assert bit_equal >= 230, "only %d of %d comparisons carried a value" % (bit_equal, compared)
+    # 225 since the one-EBITDA ruling: the six declared FE-pending rows are
+    # not compared, and retail's debt_to_ebitda prints the same digits but
+    # divides the served (cent-rounded) EBITDA, not the browser's float.
+    assert bit_equal >= 225, "only %d of %d comparisons carried a value" % (bit_equal, compared)
 
 
 def test_verdicts_match_except_the_declared_ladder_divergence(tables, captures):
@@ -326,10 +381,13 @@ def test_verdicts_match_except_the_declared_ladder_divergence(tables, captures):
             ev, fv = _fe_verdict(rows[key]), captures[book]["variants"][variant][fe_key]["verdict"]
             if ev != fv:
                 measured[(book, variant, key)] = (ev, fv)
-    assert measured == MEASURED_VERDICT_DIFFERENCES, (
+    declared = dict(MEASURED_VERDICT_DIFFERENCES, **{})
+    declared.update(ONE_EBITDA_FE_PENDING_VERDICTS)
+    assert measured == declared, (
         "verdict differences changed.\n  undeclared: %s\n  declared but gone: %s" % (
-            sorted(set(measured.items()) - set(MEASURED_VERDICT_DIFFERENCES.items())),
-            sorted(set(MEASURED_VERDICT_DIFFERENCES.items()) - set(measured.items()))))
+            sorted(set(measured.items()) - set(declared.items())),
+            sorted(set(declared.items()) - set(measured.items()))))
+    measured = dict((k, v) for k, v in measured.items() if k not in ONE_EBITDA_FE_PENDING_VERDICTS)
     assert {k for (_, _, k) in measured} <= DIVERGENT_LADDER_KEYS
 
     # The declared set is exactly the keys whose FE ladder differs from the
@@ -685,22 +743,27 @@ def test_a_period_with_no_metric_rows_serves_the_metrics_own_formula(route_bodie
                 or "incomeStatement.taxExpense" in sources("net_margin"):
             failures.append("%s net_margin numerator is not the anchor: %s" % (book, sources("net_margin")))
         # Interest coverage is EBIT ÷ interest (the methodology, CLAUDE.md
-        # Appendix A section 5): EBIT = EBITDA − D&A, so the operands name
-        # depreciation. EBITDA ÷ interest is the separate ebitda_to_interest
-        # row, whose operands must NOT name depreciation.
+        # Appendix A section 5), and EBIT is THE one operating result the
+        # assembled P&L serves (711 and 72x inside) — never an EBIT rebuilt
+        # here from the incomeStatement mirror. EBITDA ÷ interest is the
+        # separate ebitda_to_interest row (metric-only), which must not read
+        # the operating result.
         if rows["interest_coverage"]["value"] is not None and (
-                "incomeStatement.depreciationAmortization" not in sources("interest_coverage")
+                "assembled_pl.operating_result" not in sources("interest_coverage")
                 or "incomeStatement.interestExpense" not in sources("interest_coverage")):
-            failures.append("%s interest_coverage is not EBIT ÷ interest: %s" % (
+            failures.append("%s interest_coverage is not the one EBIT ÷ interest: %s" % (
                 book, sources("interest_coverage")))
         if rows["ebitda_to_interest"]["value"] is not None and (
-                "incomeStatement.depreciationAmortization" in sources("ebitda_to_interest")
-                or "incomeStatement.interestExpense" not in sources("ebitda_to_interest")):
-            failures.append("%s ebitda_to_interest is not EBITDA ÷ interest: %s" % (
+                "assembled_pl.operating_result" in sources("ebitda_to_interest")):
+            failures.append("%s ebitda_to_interest reads the operating result: %s" % (
                 book, sources("ebitda_to_interest")))
+        # The DSCRs divide THE one EBITDA — until the ruling a second,
+        # "statutory" EBITDA read through a fallback chain.
         for key in ("dscr", "dscr_with_lt_principal"):
-            if "assembled_pl.ebitda_statutory" not in sources(key):
-                failures.append("%s %s does not divide statutory EBITDA: %s" % (book, key, sources(key)))
+            if "assembled_pl.ebitda" not in sources(key) or any(
+                    s.startswith("incomeStatement.") and s != "incomeStatement.interestExpense"
+                    for s in sources(key)):
+                failures.append("%s %s does not divide the one EBITDA: %s" % (book, key, sources(key)))
     assert not failures, "ONE KEY, TWO FORMULAS:\n  " + "\n  ".join(failures)
     assert compared >= 35, compared
 
@@ -748,9 +811,12 @@ def test_metric_only_rows_are_the_served_metric_graded_on_the_pack(tables):
                     book, key, metric, row["band"])
                 graded += 1
     assert graded >= 18, graded
+    # The developer's net debt / EBITDA divides THE one EBITDA (the ruling
+    # turned it from -29.0M to +0.55M): graded on it, no longer withheld
+    # on the sign of the EBITDA without 711. The sign guard itself is held
+    # on a planted negative EBITDA (SIGN_CASES "net_debt_to_ebitda").
     re = _rows(tables[("realestate", "served")])["net_debt_to_ebitda"]
-    assert re["band_status"] == "withheld_sign" and re["band"] is None and re["ladder"] is None, re
-    assert re["reason"] == {"code": "negative_denominator", "inputs": ["assembled_pl.ebitda_statutory"]}
+    assert re["band_status"] == "graded" and re["value"] == _metric("realestate", "net_debt_to_ebitda"), re
 
 
 # ── sign withholding, key by key ────────────────────────────────────────────
@@ -795,10 +861,15 @@ SIGN_CASES = (
     ("equity", "agras", None, "equity",
      {"roe": "canonical_bs.equity", "debt_to_equity": "canonical_bs.equity",
       "lt_debt_to_equity": "canonical_bs.equity", "roic": None}),
-    ("ebitda", "realestate", None, None, {"debt_to_ebitda": None}),
+    # THE ONE EBITDA (2026-09-26): a negative served EBITDA, planted on the
+    # assembled P&L the table reads (the developer's was the committed
+    # negative until the ruling turned it positive).
+    ("ebitda", "agras", _set(("assembled_pl", "ebitda"), -1.0e12), None,
+     {"debt_to_ebitda": "assembled_pl.ebitda"}),
     ("operating_expense", "agras", _set(("incomeStatement", "operatingExpenses"), -1.0e12), None,
      {"dio": None, "dpo": None}),
-    ("ebitda_statutory", "realestate", None, None, {"net_debt_to_ebitda": "assembled_pl.ebitda_statutory"}),
+    ("net_debt_to_ebitda", "agras", _set(("assembled_pl", "ebitda"), -1.0e12), None,
+     {"net_debt_to_ebitda": "assembled_pl.ebitda"}),
     ("apl_revenue", "agras", _set(("assembled_pl", "revenue"), -1.0e12), None,
      {"operating_margin": "assembled_pl.revenue", "core_ebitda_margin": "assembled_pl.revenue"}),
     ("inventory", "agras", _set(("balanceSheet", "inventory"), -1.0e12), None,
