@@ -315,7 +315,23 @@ def balanta_refusal_message(layout: Optional[str], reason: str) -> str:
     )
 
 
-class UploadedFileTypeMismatchError(Exception):
+class UserFacingUploadError(Exception):
+    """Base for failures whose message is WRITTEN FOR THE UPLOADER.
+
+    The failure handler of `_run_pipeline_stages` stores
+    `f"{type(exc).__name__}: {exc}"` in `documents.error`, and
+    `FailedUploadBanner` renders that string verbatim — so a message
+    composed for a non-technical reader arrived with a Python class name in
+    front of it: "UploadedFileTypeMismatchError: This file ... is named .pdf
+    but its contents are a Word document". The prefix is right for an
+    unexpected exception, where the class IS the diagnosis; it is wrong for
+    a sentence deliberately written in plain language. Subclasses are stored
+    as `str(exc)` alone — the same treatment the handler gives a
+    `PlainRefusal` (defined further down, with the same-month takeover).
+    """
+
+
+class UploadedFileTypeMismatchError(UserFacingUploadError):
     """Raised when a stored upload's BYTES contradict its filename — a
     Word document named .pdf, a zip, a text file.
 
@@ -327,10 +343,20 @@ class UploadedFileTypeMismatchError(Exception):
     had never been a PDF, and with an empty Anthropic balance every such
     upload spends a request to learn what a four-byte header already says.
 
-    Surfacing as an exception lets `_run_pipeline_sync`'s handler mark the
-    document `status='failed'` with `error` set to the message, which the
+    Surfacing as an exception lets the failure handler of
+    `_run_pipeline_stages` mark the document `status='failed'` with `error`
+    set to the message (and `_run_pipeline_sync` then RELEASES the run's
+    quota reservation — nothing counted, nothing billed), which the
     upload panel renders verbatim — so the reason names the real file type
-    and the action that fixes it. See `_upload_type`.
+    and the action that fixes it. Verbatim is only true because this
+    inherits `UserFacingUploadError`; without it the handler would prefix
+    the class name onto the sentence. See `_upload_type`.
+
+    Refuses only what reaches NO reader (`_upload_type.REACHES_NO_READER`,
+    plus a PDF on the branches whose readers cannot take one). It must
+    never refuse a container a reader downstream would have parsed:
+    `parse_trial_balance` dispatches on magic bytes, so an Excel balance
+    named .pdf and a balance PDF named .xls are both read today.
     """
 
 
@@ -1262,17 +1288,50 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
         # come back as "Claude extraction failed: your credit balance is
         # too low" — our billing blamed for the user's extension.
         #
-        # Reads the bytes already downloaded above; when that download
-        # failed there is nothing to sniff and every branch below runs
-        # exactly as before. A real PDF costs one substring search.
+        # REFUSES ONLY WHAT NO READER ON THIS BRANCH CAN OPEN, which is a
+        # narrower set than "not a PDF". `pack.parse_trial_balance` (the
+        # next reader, ~40 lines below) dispatches on BYTES, not on the
+        # extension: `%PDF` goes to the PyMuPDF ingester and everything
+        # else to `parse_trial_balance_file`, whose first act is
+        # `detect_excel_format` ("Filename extensions lie; the first 8
+        # bytes don't"). So an .xlsx or legacy .xls balance stored under a
+        # .pdf name is read deterministically today, anchored and free —
+        # measured: corpus/saga_10_col_carniprod as `balanta.pdf` yields
+        # 367 accounts, account-121 anchor 1,435,533.59. Refusing those
+        # would delete a working upload and say "no reader can open it"
+        # while the branch's own reader does. The Office formats below
+        # genuinely reach no reader, and are the incident.
+        #
+        # The bytes are normally the ones downloaded above. When THAT
+        # download failed the guard used to be skipped — while the Claude
+        # lane further down fetches its own copy and pays, so one flaky
+        # storage read reproduced the whole incident. Fetch once here
+        # rather than let that happen.
         try:
             _pdf_bytes_for_sniff: Optional[bytes] = _pdf_bytes
         except NameError:
             _pdf_bytes_for_sniff = None
-        if _pdf_bytes_for_sniff:
+        if _pdf_bytes_for_sniff is None:
+            try:
+                with _supabase.admin() as _sniff_admin:
+                    _sniff_url = _sniff_admin.signed_url(
+                        "documents", storage_path,
+                        org_id=doc.get("org_id"), expires_in=300)
+                with httpx.Client(timeout=30.0) as _sniff_http:
+                    _sniff_resp = _sniff_http.get(_sniff_url)
+                    _sniff_resp.raise_for_status()
+                    _pdf_bytes_for_sniff = _sniff_resp.content
+            except Exception:  # noqa: BLE001 — cannot sniff, log and go on
+                logger.info(
+                    "[stage_extract] could not fetch %r for the type check "
+                    "— the branches below run unguarded, as before",
+                    doc.get("original_filename") or "(no filename)",
+                )
+                _pdf_bytes_for_sniff = None
+        if _pdf_bytes_for_sniff is not None:
             from . import _upload_type as _ut
             _real = _ut.sniff_container(_pdf_bytes_for_sniff)
-            if _real != _ut.PDF:
+            if _real in _ut.REACHES_NO_READER:
                 logger.info(
                     "[stage_extract] %r is named .pdf but its bytes are %s "
                     "— refusing before any reader or model call",
@@ -1280,7 +1339,8 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
                 )
                 raise UploadedFileTypeMismatchError(
                     _ut.mismatch_message(
-                        ".pdf", _real,
+                        _ut.claimed_extension(doc.get("original_filename"), "pdf"),
+                        _real,
                         filename=doc.get("original_filename") or None,
                     )
                 )
@@ -1517,37 +1577,49 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
     if len(file_bytes) > 25 * 1024 * 1024:
         raise RuntimeError(f"File too large ({len(file_bytes)/1_000_000:.1f} MB) — 25 MB ceiling.")
 
-    # ── A spreadsheet upload that is not a spreadsheet ──────────────
-    # The same fault as the .pdf branch above, on the busiest path:
+    # ── An upload that no reader on its path can open ───────────────
+    # The same fault as the .pdf branch above, for every other kind:
     # `_detect_spreadsheet_format` calls EVERY `PK\x03\x04` file "xlsx",
     # so a Word document named .xlsx goes to openpyxl, raises, and lands
     # in the Claude fallback — which on an empty Anthropic balance tells
     # the user their credit is too low about a file no reader could open.
     #
-    # DELIBERATELY NARROW. Only containers that definitively cannot be a
-    # spreadsheet are refused: a PDF, a Word or PowerPoint document, an
-    # OpenDocument file. Everything else — text mistaken for a workbook,
-    # an unrecognised zip, bytes we cannot name — keeps today's behaviour
-    # exactly, because those can still succeed downstream and a refusal
-    # here would take away an upload that works. This path carries every
+    # COVERS EVERY KIND, not just spreadsheets, because a .docx uploaded
+    # under its OWN name is classified `unknown` and reaches the same
+    # paid call — that is the 2026-09-23 incident file in its natural
+    # form, and guarding only the renamed case would have left it.
+    #
+    # THE REFUSAL SET IS PER-BRANCH, and derived from what that branch's
+    # readers actually accept rather than from the extension:
+    #   · Office documents (Word / PowerPoint / OpenDocument) reach no
+    #     reader anywhere — always refused.
+    #   · A PDF is refused everywhere EXCEPT the xlsx branch, whose
+    #     `pack.parse_trial_balance` routes `%PDF` bytes to the PyMuPDF
+    #     ingester: a RAS balance PDF stored as .xls is read there today
+    #     (measured: corpus/pdf_positional as `balanta.xls` → 249 rows).
+    # Everything else — text mistaken for a workbook, an unrecognised
+    # zip, bytes we cannot name — keeps today's behaviour exactly,
+    # because those can still succeed downstream and a refusal here
+    # would take away an upload that works. This path carries every
     # trial balance in production; it is not the place to guess.
-    if kind in ("xlsx", "csv"):
-        from . import _upload_type as _ut
-        _real_sheet = _ut.sniff_container(file_bytes)
-        if _real_sheet in (_ut.PDF, _ut.DOCX, _ut.PPTX, _ut.ODF):
-            _claimed = ".csv" if kind == "csv" else ".xlsx/.xls"
-            logger.info(
-                "[stage_extract] %r is named %s but its bytes are %s "
-                "— refusing before any reader or model call",
-                doc.get("original_filename") or "(no filename)",
-                _claimed, _real_sheet,
+    from . import _upload_type as _ut
+    _real_kind = _ut.sniff_container(file_bytes)
+    _refused_here = set(_ut.REACHES_NO_READER)
+    if kind != "xlsx":
+        _refused_here.add(_ut.PDF)
+    if _real_kind in _refused_here:
+        logger.info(
+            "[stage_extract] %r classified as %s but its bytes are %s "
+            "— refusing before any reader or model call",
+            doc.get("original_filename") or "(no filename)", kind, _real_kind,
+        )
+        raise UploadedFileTypeMismatchError(
+            _ut.mismatch_message(
+                _ut.claimed_extension(doc.get("original_filename"), kind),
+                _real_kind,
+                filename=doc.get("original_filename") or None,
             )
-            raise UploadedFileTypeMismatchError(
-                _ut.mismatch_message(
-                    _claimed, _real_sheet,
-                    filename=doc.get("original_filename") or None,
-                )
-            )
+        )
 
     # ── AI-lane jurisdiction gate (xlsx/csv/text/image) ──────────────
     # Resolver BEFORE lane selection: HU/OTHER documents route to the
@@ -5994,9 +6066,13 @@ def _run_pipeline_stages(document_id: str) -> str:
         logger.exception("[pipeline] %s failed", document_id)
         # RUN JOURNAL — RUN_FAILED + dead-letter entry (no-op when off).
         _journal_hooks.on_run_failed(document_id, exc)
-        # A plain refusal is read by the user as written; anything else
-        # carries its type so the log line and the card agree.
-        msg = str(exc) if isinstance(exc, PlainRefusal) else f"{type(exc).__name__}: {exc}"
+        # A message written FOR the reader is stored as itself — a plain
+        # refusal (`PlainRefusal`) or a sentence written for the uploader
+        # (`UserFacingUploadError`: the upload-type guard); anything else
+        # carries its type, where the class IS the diagnosis, so the log
+        # line and the card agree.
+        msg = (str(exc) if isinstance(exc, (PlainRefusal, UserFacingUploadError))
+               else f"{type(exc).__name__}: {exc}")
         try:
             _admin_set_status(document_id, "failed", error=msg, duration_ms=int((time.time() - t0) * 1000))
         except Exception:

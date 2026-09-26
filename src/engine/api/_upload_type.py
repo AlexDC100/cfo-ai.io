@@ -38,6 +38,10 @@ PDF_MAGIC_WINDOW = 1024
 _ZIP_MAGIC = (b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08")
 _OLE2_MAGIC = b"\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1"
 
+#: An ODF `mimetype` entry is a single media-type string. Anything larger
+#: is not one, and must not be inflated to find out.
+_MIMETYPE_MAX_BYTES = 256
+
 #: Labels this returns. `zip_unknown` and `unknown` are deliberately
 #: distinct: the first says "a zip we do not recognise", the second
 #: "we cannot name this at all", and the messages differ.
@@ -69,26 +73,29 @@ def _zip_flavour(file_bytes: bytes) -> str:
     try:
         with zipfile.ZipFile(io.BytesIO(file_bytes)) as zf:
             names = zf.namelist()
+            joined = "\n".join(names)
+            # `[Content_Types].xml` is present in all OOXML; the payload
+            # folder is what distinguishes them.
+            if "xl/" in joined:
+                return XLSX
+            if "word/" in joined:
+                return DOCX
+            if "ppt/" in joined:
+                return PPTX
+            if "mimetype" in names:
+                # ONE open (this one), and never inflate an entry just
+                # because it is named `mimetype`: a real ODF declaration
+                # is well under 100 bytes, and a crafted 200 MB entry
+                # under that name drove 419 MB of allocation here — a
+                # 200 KB upload able to thrash the pipeline worker. The
+                # declared size is checked before anything is read.
+                info = zf.getinfo("mimetype")
+                if info.file_size <= _MIMETYPE_MAX_BYTES:
+                    mt = zf.read("mimetype").decode("ascii", "replace")
+                    if "opendocument" in mt:
+                        return ODF
     except Exception:  # noqa: BLE001 — an unreadable zip is still a zip
         return ZIP_UNKNOWN
-    joined = "\n".join(names)
-    # `[Content_Types].xml` is present in all OOXML; the payload folder is
-    # what distinguishes them.
-    if "xl/" in joined:
-        return XLSX
-    if "word/" in joined:
-        return DOCX
-    if "ppt/" in joined:
-        return PPTX
-    for n in names:
-        if n == "mimetype":
-            try:
-                with zipfile.ZipFile(io.BytesIO(file_bytes)) as zf:
-                    mt = zf.read("mimetype").decode("ascii", "replace")
-            except Exception:  # noqa: BLE001
-                return ZIP_UNKNOWN
-            if "opendocument" in mt:
-                return ODF
     return ZIP_UNKNOWN
 
 
@@ -135,6 +142,35 @@ def sniff_container(file_bytes: bytes) -> str:
     return TEXT
 
 
+#: The containers that reach NO reader in this engine, on any path: an
+#: Office document is neither a balance PDF nor a workbook, so every
+#: branch refuses these and only these unconditionally. Everything else
+#: is decided per-branch by the caller, from what that branch's readers
+#: actually accept — `parse_trial_balance` dispatches on magic bytes, so
+#: an .xlsx under a .pdf name, or a balance PDF under a .xls name, is
+#: read today and must keep being read. Kept HERE, beside the labels, so
+#: the two call sites cannot drift apart.
+REACHES_NO_READER = frozenset({DOCX, PPTX, ODF})
+
+
+def claimed_extension(filename: Optional[str], kind: str) -> str:
+    """The extension to quote back at the person — theirs, not ours.
+
+    `_classify_file` maps any `application/pdf` MIME to kind 'pdf' and any
+    'spreadsheet' MIME to 'xlsx' BEFORE it looks at the name, so a message
+    built from `kind` could quote the file's own name and then deny it:
+    a LibreOffice `balanta.ods` was being told it "is named .xlsx/.xls".
+    The real suffix is what the person typed and what they can change.
+    """
+    if filename and "." in filename.rsplit("/", 1)[-1]:
+        suffix = filename.rsplit(".", 1)[-1].strip().lower()
+        if suffix and len(suffix) <= 12 and suffix.isalnum():
+            return "." + suffix
+    return {"xlsx": ".xlsx/.xls", "csv": ".csv", "pdf": ".pdf",
+            "image_jpeg": ".jpg", "image_png": ".png",
+            "text": ".txt"}.get(kind, "that type")
+
+
 #: What to tell a person whose .pdf is not a PDF. Each line names the
 #: real type and the action that fixes it — never our own billing, which
 #: is what the old message did.
@@ -155,6 +191,9 @@ _ADVICE = {
            "export it as PDF or .xlsx and upload that"),
     XLS_OLE2: ("a legacy Microsoft Office file (.xls or .doc)",
                "rename an Excel balance to .xls, or save a Word file as PDF"),
+    DOC_OLE2: ("a legacy Word document (.doc)",
+               "open it and use File → Save as → PDF, or upload the balance "
+               "as .xlsx or .csv"),
     ZIP_UNKNOWN: ("a ZIP archive, not a document",
                   "upload the balance file itself, not an archive of it"),
     TEXT: ("a text file",
@@ -164,13 +203,43 @@ _ADVICE = {
 }
 
 
+#: The extensions each label legitimately wears. Used only to tell a
+#: MISMATCH ("named .pdf, actually Word") from an UNSUPPORTED FORMAT
+#: ("a Word document, named .docx"). Without the distinction, a person
+#: who uploads an honestly-named balanta.docx is told their file "is
+#: named .docx but its contents are a Word document (.docx)" — a sentence
+#: that contradicts itself and blames them for a naming error they did
+#: not make.
+_NATURAL_EXTENSIONS = {
+    PDF: {".pdf"},
+    XLSX: {".xlsx", ".xlsm", ".xlsb"},
+    DOCX: {".docx", ".docm"},
+    PPTX: {".pptx", ".ppt"},
+    ODF: {".ods", ".odt", ".odp"},
+    XLS_OLE2: {".xls", ".doc"},
+    DOC_OLE2: {".doc"},
+    TEXT: {".txt", ".csv", ".tsv"},
+}
+
+
 def mismatch_message(claimed_extension: str, real_kind: str,
                      filename: Optional[str] = None) -> str:
-    """One sentence of fact and one of instruction, for a file whose
-    bytes contradict its name. Kept here beside the labels so a new
-    label cannot be added without an answer for the person reading it."""
+    """One sentence of fact and one of instruction, for a file this engine
+    will not read. Kept here beside the labels so a new label cannot be
+    added without an answer for the person reading it.
+
+    Two shapes, because two different things go wrong: a file whose bytes
+    contradict its name, and a file that is exactly what it says it is and
+    still unreadable here.
+    """
     described, action = _ADVICE.get(real_kind, _ADVICE[UNKNOWN])
     shown = f" {filename!r}" if filename else ""
+    claimed = (claimed_extension or "").lower()
+    if claimed in _NATURAL_EXTENSIONS.get(real_kind, frozenset()):
+        return (
+            f"This file{shown} is {described}, which this app cannot read. "
+            f"To fix it: {action}."
+        )
     return (
         f"This file{shown} is named {claimed_extension} but its contents are "
         f"{described}, so no reader can open it as {claimed_extension}. "
