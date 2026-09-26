@@ -227,6 +227,10 @@ test.describe("G5 at runtime — the home screen", () => {
     await double.install(page);
     await page.goto("/workspace", { waitUntil: "domcontentloaded" });
     await expect(page.getByTestId("workspace-home")).toBeVisible({ timeout: 20_000 });
+    // The header describes the screen: Home is "Companiile tale", not the
+    // company last opened (the double boots with Scandia active).
+    await expect(page.getByTestId("header-command-bar")).toContainText("Companiile tale");
+    await expect(page.getByTestId("header-command-bar")).not.toContainText("Scandia");
     await expect(page.getByTestId(`company-card-${ORG_SCANDIA}`)).toContainText("16070576");
     await expect(page.getByTestId(`company-card-${ORG_AGRAS}`)).toContainText("46355095");
     await expect(page.getByTestId("upload-drop-zone")).toHaveCount(1);

@@ -10,7 +10,7 @@
 // behave exactly as they do for every other period switch in the app.
 
 import { useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Check, ChevronDown, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -25,16 +25,24 @@ import { useWorkspaces } from "@/lib/workspaces";
 import { usePeriodStepper } from "@/lib/usePeriodStepper";
 import { useActiveLocale } from "@/lib/locale";
 import { formatPeriodMonth } from "@/lib/orgPeriods";
-import { useUploadRoute } from "@/lib/previewFeatures";
+import { useUploadRoute, useWorkspaceV2 } from "@/lib/previewFeatures";
 
 /** "Workspace · Dec 2025" as a plain string — the Capsule renders the
  *  identity inline instead of mounting the whole popover component.
  *  Same sources, same formatting, same D11 rule: formatted labels only,
  *  never the ?period UUID. */
 export function useCapsuleLabel(): string {
+  const { t } = useTranslation();
   const locale = useActiveLocale();
   const workspaceName = useWorkspaceName();
   const { selectedEnd } = usePeriodStepper();
+  const { pathname } = useLocation();
+  const workspaceV2 = useWorkspaceV2();
+  // The header describes the SCREEN (2026-09-26). Home (/workspace, the
+  // redesign) is about all the companies, not the one last opened: the
+  // capsule names the screen, never a company over a screen that is not
+  // that company's.
+  if (workspaceV2 && pathname === "/workspace") return t("wsV2.home.title");
   // A month the header cannot resolve — the period list still loading, or a
   // company with no analysed year — is LEFT OUT, never replaced by today's
   // month. That fallback dates from the permanent empty current-month period
