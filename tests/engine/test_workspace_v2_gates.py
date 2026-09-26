@@ -737,8 +737,10 @@ def test_g4_a_run_that_fails_after_persist_leaves_no_period(app, gw, monkeypatch
 # Reds on: a failed re-upload changing the month's source document, its
 # envelope, any derivative row, the year tile or the served dashboard; a file
 # whose CUI is another company's replacing the month (or failing with a
-# stack-trace message); a successful re-upload leaving a second period, a
-# derivative row under the staged id, or the first file live and unarchived.
+# stack-trace message) — the company's CUI on file, or for a company without
+# one the CUI the month's own file states; a successful re-upload leaving a
+# second period, a derivative row under the staged id, or the first file live
+# and unarchived.
 
 #: The rows a run persists under a period id. Named here, not read from the
 #: engine, so a RED run fails on the defect and never on a missing name.
@@ -835,6 +837,66 @@ def test_g4_a_same_month_file_of_another_company_never_replaces_the_month(app, g
     assert refused["period_id"] is None
     from engine.workspaces.migration_plan import empty_live_periods
     assert empty_live_periods(gw.db.tables) == []
+
+
+def test_g4_a_same_month_file_of_another_company_never_replaces_the_month_of_a_company_without_a_cui(app, gw):
+    """A company created before companies were keyed by CUI has none on
+    file (`org_prefs.prefs.cui` absent). The month's own file is then the
+    evidence of whose month it is: Scandia's book never replaces the
+    December that Agras's book is serving, CUI on file or not."""
+    first = _analysed_month(app, gw, agras_workbook())
+    org_id = first["doc"]["org_id"]
+    # The company's CUI is not on file — a workspace from before the CUI key.
+    (bag,) = [r["prefs"] for r in gw.db.rows("org_prefs") if r["org_id"] == org_id]
+    gw.db.update("org_prefs", {"prefs": dict((k, v) for k, v in bag.items() if k != "cui")},
+                 filters={"org_id": "eq.%s" % org_id})
+    scandia = book_workbook(SCANDIA_BOOK, name="SCANDIA FOOD SRL", cui=CUI_SCANDIA)
+    c = commit(app, scandia, "balanta.xlsx", target_org_id=org_id, period_end="2025-12-31", output_language="ro")
+    assert c.status_code == 200 and c.json()["status"] == "queued" and c.json()["org_id"] == org_id, c.text[:300]
+    (bag,) = [r["prefs"] for r in gw.db.rows("org_prefs") if r["org_id"] == org_id]
+    assert "cui" not in bag, "the commit adopted another company's CUI: %r" % bag
+    refused = run_analysis(gw, c.json()["document_id"])
+    assert refused["status"] == "failed", \
+        "G4: another company's file replaced the month of a company without a CUI on file: %r" % (
+            (refused["status"], refused.get("error")),)
+    message = str(refused.get("error") or "")
+    assert CUI_SCANDIA in message and CUI_AGRAS in message, message
+    assert not re.match(r"^\w*(Error|Exception|Refused)\w*:", message), \
+        "a refusal is a plain sentence, not an exception's repr: %r" % message
+
+    (period,) = gw.db.rows("financial_periods")
+    assert period["id"] == first["period"]["id"] and period["source_document_id"] == first["doc"]["id"], \
+        "G4: another company's file replaced the month"
+    assert period["assembled_canonical_v1"] == first["period"]["assembled_canonical_v1"]
+    assert _rows_under(gw, period["id"]) == first["rows"]
+    assert _served(app, org_id, period["id"]) == first["served"]
+    (kept,) = gw.docs(id=first["doc"]["id"])
+    assert kept["deleted_at"] is None and kept["status"] == "analyzed", kept
+    assert refused["period_id"] is None
+    from engine.workspaces.migration_plan import empty_live_periods
+    assert empty_live_periods(gw.db.tables) == []
+
+
+def test_g4_a_same_month_file_of_the_same_company_replaces_the_month_of_a_company_without_a_cui(app, gw):
+    """The other half of the same rule: without a CUI on file, the corrected
+    export of the SAME company (its own CUI, as the month's file states it)
+    still replaces the month — the fallback refuses only a provable other
+    company."""
+    first = _analysed_month(app, gw, agras_workbook())
+    org_id = first["doc"]["org_id"]
+    (bag,) = [r["prefs"] for r in gw.db.rows("org_prefs") if r["org_id"] == org_id]
+    gw.db.update("org_prefs", {"prefs": dict((k, v) for k, v in bag.items() if k != "cui")},
+                 filters={"org_id": "eq.%s" % org_id})
+    corrected = book_workbook(SCANDIA_BOOK, name="AGRAS SRL", cui=CUI_AGRAS)
+    c = commit(app, corrected, "balanta_corectata.xlsx", target_org_id=org_id, period_end="2025-12-31",
+               output_language="ro")
+    assert c.status_code == 200 and c.json()["status"] == "queued" and c.json()["org_id"] == org_id, c.text[:300]
+    replaced = run_analysis(gw, c.json()["document_id"])
+    assert replaced["status"] == "analyzed", (replaced["status"], replaced.get("error"))
+    (period,) = gw.db.rows("financial_periods")
+    assert period["id"] == first["period"]["id"] and period["source_document_id"] == replaced["id"]
+    (superseded,) = gw.docs(id=first["doc"]["id"])
+    assert superseded["deleted_at"] is not None and replaced["id"] in str(superseded.get("error") or "")
 
 
 def test_g4_a_same_month_reupload_that_succeeds_replaces_the_month_and_archives_the_first_file(app, gw):

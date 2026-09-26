@@ -1950,8 +1950,10 @@ def _rollback_period_of_failed_run(document_id: str, org_id: Optional[str]) -> O
 # THE OTHER COMPANY. The upload routes by CUI now (G1), and the card lets a
 # member file anything into a company of theirs. The persist layer is the
 # belt and braces: a file whose own header names a CUI other than the
-# company's never replaces that company's month — the run fails with a
-# plain sentence, and nothing of the month changes.
+# company's — its CUI on file, or for a company created before CUIs were
+# recorded, the CUI the month's own file states — never replaces that
+# company's month: the run fails with a plain sentence, and nothing of the
+# month changes.
 
 #: The rows a run persists under a period id, in the order they are moved.
 #: Explicit, like `_period_move._DERIVED_TABLES`: a table missing here
@@ -2034,15 +2036,45 @@ def _document_company_cui(doc: Dict[str, Any]) -> Optional[str]:
         return None
 
 
-def _refuse_cross_company_takeover(admin_client: Any, doc: Dict[str, Any], period_end: str) -> None:
+def _served_document_cui(admin_client: Any, served_row: Dict[str, Any], org_id: Any) -> Optional[str]:
+    """The CUI the month's OWN file states — the document the served row
+    names — or None when the row names none, the document is gone, or its
+    bytes state no CUI. Read only for a company without a CUI on file."""
+    source_id = (served_row or {}).get("source_document_id")
+    if not source_id or not org_id:
+        return None
+    try:
+        rows = admin_client.select(
+            "documents",
+            filters={"id": f"eq.{source_id}", "org_id": f"eq.{org_id}"},
+            columns="id,org_id,storage_path,original_filename",
+            limit=1,
+        ) or []
+    except Exception:  # noqa: BLE001 — unreadable is "cannot prove", not a failure
+        logger.exception("[stage_persist] could not read the month's own document %s", source_id)
+        return None
+    if not rows or not rows[0].get("storage_path"):
+        return None
+    return _document_company_cui(rows[0])
+
+
+def _refuse_cross_company_takeover(admin_client: Any, doc: Dict[str, Any], period_end: str,
+                                   served_row: Optional[Dict[str, Any]] = None) -> None:
     """Raise `SameMonthTakeoverRefused` when the file's own CUI provably
-    differs from the company whose month it would replace. Refuses only
-    what it can prove: a company or a file without a CUI on record passes."""
-    company_cui = _company_cui_of_org(admin_client, doc.get("org_id"))
-    if not company_cui:
-        return
+    differs from the company whose month it would replace.
+
+    The month's company is the company's CUI on file (`org_prefs`); a
+    company created before companies were keyed by CUI has none, and then
+    the CUI the month's OWN file states is the evidence of whose month it
+    is (G4, 2026-09-26: without it, another company's book silently
+    replaced such a company's month). Refuses only what it can prove: a
+    file without a CUI, or a month with no CUI on either record, passes."""
     document_cui = _document_company_cui(doc)
-    if not document_cui or document_cui == company_cui:
+    if not document_cui:
+        return
+    company_cui = (_company_cui_of_org(admin_client, doc.get("org_id"))
+                   or _served_document_cui(admin_client, served_row or {}, doc.get("org_id")))
+    if not company_cui or document_cui == company_cui:
         return
     month = str(period_end)[:7]
     raise SameMonthTakeoverRefused(
@@ -2215,8 +2247,8 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
                 #      `_finalize_same_month_takeover` makes it the month
                 #      once the run is terminal. First the belt and braces:
                 #      another company's file never replaces this month.
-                _refuse_cross_company_takeover(admin_client, doc, period_end)
                 served_row = month_periods[0]
+                _refuse_cross_company_takeover(admin_client, doc, period_end, served_row)
                 prior_period_row = served_row
                 try:
                     staged = admin_client.insert(
