@@ -60,10 +60,10 @@ vi.mock("@/lib/org", async () => {
 });
 
 // The period on screen — what /api/period answered for `?period=`.
-const periodState = vi.hoisted(() => ({ organizationId: null as string | null, periodEnd: null as string | null }));
+const periodState = vi.hoisted(() => ({ organizationId: null as string | null, periodEnd: null as string | null, isLoading: false }));
 vi.mock("@/lib/activePeriod", () => ({
   usePrefetchPeriod: () => () => {},
-  useActivePeriod: () => ({ id: "p-x", isLoading: false, isLoaded: true, organizationId: periodState.organizationId, periodEnd: periodState.periodEnd }),
+  useActivePeriod: () => ({ id: "p-x", isLoading: periodState.isLoading, isLoaded: !periodState.isLoading, organizationId: periodState.organizationId, periodEnd: periodState.periodEnd }),
 }));
 vi.mock("@/lib/usePeriodStepper", () => ({
   usePeriodStepper: () => ({ periods: [], selectedEnd: periodState.periodEnd, selectedMonth: null, selectedYear: null, prevTarget: null, nextTarget: null, showStepper: false, goToPeriod: () => {} }),
@@ -77,8 +77,8 @@ function HeaderProbe() {
 }
 
 /** AppShell's composition: the hold, and the page (naming the active company) only when released. */
-function Probe({ enabled }: { enabled: boolean }) {
-  const holding = useDashboardCompanyHold(enabled);
+function Probe({ enabled, settling = false }: { enabled: boolean; settling?: boolean }) {
+  const holding = useDashboardCompanyHold(enabled, settling);
   const name = useWorkspaceName();
   return (
     <>
@@ -112,6 +112,7 @@ beforeEach(() => {
   switchOrg.mockClear();
   periodState.organizationId = null;
   periodState.periodEnd = null;
+  periodState.isLoading = false;
 });
 afterEach(() => writeWorkspaceName(""));
 
@@ -131,6 +132,30 @@ describe("G6 — a dashboard opened on another company's period switches the com
     expect(screen.getByTestId("header-capsule-label").textContent).toMatch(/^Agras/);
     watch.stop();
     expect(watch.violations).toEqual([]);
+  });
+
+  it("?period= alone while its payload is still out: held, nothing switched yet, nothing of any company painted", () => {
+    periodState.isLoading = true;
+    const { container } = render(
+      <TestProviders route="/dashboard?period=p-x">
+        <Probe enabled />
+      </TestProviders>,
+    );
+    const watch = watchForDesync(container);
+    expect(screen.getByTestId("hold")).toHaveAttribute("data-holding", "true");
+    expect(switchOrg).not.toHaveBeenCalled();
+    watch.stop();
+    expect(watch.violations).toEqual([]);
+  });
+
+  it("a full page load, the redesign flag still settling: a bare period link is held, nothing switched under an unknown flag", () => {
+    render(
+      <TestProviders route="/dashboard?period=p-x">
+        <Probe enabled={false} settling />
+      </TestProviders>,
+    );
+    expect(screen.getByTestId("hold")).toHaveAttribute("data-holding", "true");
+    expect(switchOrg).not.toHaveBeenCalled();
   });
 
   it("the period is the active company's own: nothing held, nothing switched", () => {

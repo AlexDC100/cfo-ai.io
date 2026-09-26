@@ -62,7 +62,7 @@ import { ContentLoader } from "./AppLoader";
 import { UsageWarningBanner } from "./UsageWarningBanner";
 import { UploadFlowHost } from "./upload/UploadFlowHost";
 import { UploadDropOverlay } from "./upload/UploadDrop";
-import { useWorkspaceV2 } from "@/lib/previewFeatures";
+import { useWorkspaceV2State } from "@/lib/previewFeatures";
 import { useActiveOrg } from "@/lib/org";
 import { useDashboardCompanyHold } from "@/lib/companyOnScreen";
 import { MonthSwitchOverlay } from "./MonthSwitchOverlay";
@@ -85,13 +85,14 @@ export function AppShell({ children }: Props) {
   const [params] = useSearchParams();
   // Workspace redesign (`workspace_v2`, preview-gated): one upload component,
   // drag-and-drop anywhere, the header bound to the company on screen.
-  const workspaceV2 = useWorkspaceV2();
+  const { enabled: workspaceV2, loading: workspaceV2Settling } = useWorkspaceV2State();
   const { org: activeOrg } = useActiveOrg();
   // The company the page is ABOUT — the period's own company once its
   // payload lands (a stale link, Back, a remembered period), else `?org=`
   // on a redesign link: switch to it and hold the page until the header
-  // names it (lib/companyOnScreen, G6).
-  const holdForOrg = useDashboardCompanyHold(workspaceV2);
+  // names it (lib/companyOnScreen, G6). While the flag itself is still
+  // settling on a full page load, a bare period link is held too.
+  const holdForOrg = useDashboardCompanyHold(workspaceV2, workspaceV2Settling);
   // Content-region loader (2026-07-26 per operator). Pages render straight
   // from the period payload, which is EMPTY while its fetch is in flight — so
   // a tab painted its no-data layout for a frame and then swapped in the real

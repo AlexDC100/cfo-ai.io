@@ -143,8 +143,17 @@ export function useOrgParamHold(enabled: boolean, wanted: string | null): boolea
  * it (`useOrgParamHold`). Rule (G6): navigating to a period of another
  * company switches the active company first.
  */
-export function useDashboardCompanyHold(enabled: boolean): boolean {
+export function useDashboardCompanyHold(enabled: boolean, settling = false): boolean {
   const [params] = useSearchParams();
   const period = useActivePeriod();
-  return useOrgParamHold(enabled, period.organizationId ?? params.get("org"));
+  const holding = useOrgParamHold(enabled, period.organizationId ?? params.get("org"));
+  // `?period=` alone: hold while its company is not known yet (the payload
+  // is out), and — on a full page load — while it is not yet known whether
+  // the redesign is on at all (`settling`: the registry still answering).
+  // The header names the company that was active; the page shows nothing
+  // of another one meanwhile. Once settled with the redesign off, the old
+  // dashboard renders as before; nothing is switched under an unknown flag.
+  const barePeriod = !!params.get("period") && !params.get("org");
+  const pending = barePeriod && (settling || (enabled && !period.organizationId && period.isLoading));
+  return holding || pending;
 }
