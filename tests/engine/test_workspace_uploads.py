@@ -359,12 +359,16 @@ def test_workspace_v2_is_served_as_preview_and_env_promotes_it_per_request(app, 
 
 
 def test_env_promotion_never_demotes_and_leaves_other_rows_alone(monkeypatch):
-    env = {"CFO_FEATURES_ACTIVE": "forecast"}
+    # The switch is exercised on a row the product still sells as coming
+    # soon (Forecast itself went active for everyone on 2026-09-26).
+    key = "erp_connector"
+    assert _features.FEATURES[key]["status"] == "coming_soon"
+    env = {"CFO_FEATURES_ACTIVE": key}
     feats = _features.effective_features(env)
-    assert feats["forecast"]["status"] == "active"
+    assert feats[key]["status"] == "active"
     assert feats["dashboard"]["status"] == "active"
     assert feats["workspace_v2"]["status"] == "preview"
-    assert _features.FEATURES["forecast"]["status"] == "coming_soon"
+    assert _features.FEATURES[key]["status"] == "coming_soon"   # never mutated
     assert _features.promoted_keys({}) == frozenset()
 
 
