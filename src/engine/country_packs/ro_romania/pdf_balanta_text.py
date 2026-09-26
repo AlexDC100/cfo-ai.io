@@ -778,6 +778,14 @@ def _printed_period(title_block: List[str]) -> Optional[Dict[str, Any]]:
     return {"text": text, "year": year, "month": month, "end": "%04d-%02d-%02d" % (year, month, last)}
 
 
+def printed_period(title_block: List[str]) -> Optional[Dict[str, Any]]:
+    """The period `title_block` prints, by this reader's own rule
+    (`_printed_period`) — for a caller that holds a document's title lines
+    and wants to know, without the full verified read, whether there is a
+    printed period for that read to confirm."""
+    return _printed_period([str(line) for line in title_block])
+
+
 class _Geometry(NamedTuple):
     """The two columns the five-pair layout fixes, read from the words'
     x-positions: `code_x`, where every account line's code starts, and

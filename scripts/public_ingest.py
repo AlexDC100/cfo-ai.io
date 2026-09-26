@@ -129,8 +129,18 @@ def cmd_ingest(args: argparse.Namespace) -> int:
         except SpecResolutionError as exc:
             _notice("ingest REFUSED (spec): %s" % exc)
             return 0
+        _warm_name_index(store)
     print(json.dumps(summary, sort_keys=True, ensure_ascii=False, indent=2))
     return 0
+
+
+def _warm_name_index(store: PublicRoStore) -> None:
+    """The registry changed: rebuild its persisted name index now, so the
+    first upload that looks a company name up does not pay for it
+    (engine.workspaces.registry_names)."""
+    from engine.workspaces.company_identity import warm_name_index
+
+    _notice(warm_name_index(store))
 
 
 def cmd_ident(args: argparse.Namespace) -> int:
@@ -144,6 +154,7 @@ def cmd_ident(args: argparse.Namespace) -> int:
         except identification.IdentificationFormatError as exc:
             _notice("ident REFUSED (format): %s" % exc)
             return 0
+        _warm_name_index(store)
     print(json.dumps(counts, sort_keys=True, indent=2))
     _notice(
         "ident: %d PF rows counted and DISCARDED (never stored — PS7)"

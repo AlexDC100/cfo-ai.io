@@ -72,7 +72,7 @@ graph LR
     pkg_security["security (2 modules)"]
     pkg_serving["serving (8 modules)"]
     pkg_storage["storage (3 modules)"]
-    pkg_workspaces["workspaces (5 modules)"]
+    pkg_workspaces["workspaces (6 modules)"]
     pkg__root_ -->|1| pkg_api
     pkg__root_ -->|1| pkg_briefing
     pkg__root_ -->|1| pkg_ratios

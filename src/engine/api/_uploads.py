@@ -267,6 +267,35 @@ def _open_registry() -> Any:
         return None
 
 
+def start_name_index_warmup() -> Optional[threading.Thread]:
+    """Make the registry's persisted name index current in a background
+    thread (the server's start), so the first upload after a deploy never
+    builds it in its own request (`engine.workspaces.registry_names`). None
+    when there is no registry file — which is never created here."""
+    try:
+        from engine.public_ro.store import default_db_path
+        if not default_db_path().is_file():
+            return None
+    except Exception:  # noqa: BLE001
+        return None
+
+    def _warm() -> None:
+        registry = _open_registry()
+        if registry is None:
+            return
+        try:
+            from engine.workspaces.company_identity import warm_name_index
+            logger.info("[uploads] %s", warm_name_index(registry))
+        except Exception:  # noqa: BLE001 — a warm-up is never worth a crash
+            logger.exception("[uploads] name index warm-up failed")
+        finally:
+            registry.close()
+
+    thread = threading.Thread(target=_warm, name="registry-name-index-warmup", daemon=True)
+    thread.start()
+    return thread
+
+
 def _identify_document(content: bytes, filename: str, registry: Any) -> Any:
     """The seam to `engine.workspaces.company_identity.identify_document`."""
     from engine.workspaces.company_identity import identify_document
@@ -290,9 +319,16 @@ def printed_period_of_pdf(content: bytes) -> Optional[Tuple[str, str]]:
     if not content or content[:4] != b"%PDF":
         return None
     try:
-        from engine.country_packs.ro_romania.pdf_balanta_text import read_balanta_text_verdict
+        from engine.country_packs.ro_romania.pdf_balanta_text import printed_period, read_balanta_text_verdict
+        from engine.workspaces.company_identity import extract_document_text
         from ._period_detect import detect_period
     except ImportError:
+        return None
+    # The reader's own rule over the document's title lines first — one text
+    # pass over two pages. The full verified read (every page, word
+    # positions: 1-3 s) runs only for a document that prints a period there.
+    head = extract_document_text(content, "document.pdf")
+    if printed_period(list(head.header_lines)) is None:
         return None
     meta = read_balanta_text_verdict(content).meta or {}   # never raises
     end, text = meta.get("period_end"), meta.get("period_text")

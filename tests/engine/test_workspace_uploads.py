@@ -1056,6 +1056,24 @@ def test_a_five_pair_pdf_that_prints_no_period_offers_none_never_the_file_names(
     assert ident["sources"]["period_end"]["signal"] == "none", ident["sources"]
 
 
+def test_the_full_verified_read_runs_only_for_a_pdf_whose_title_prints_a_period(app, world, monkeypatch):
+    """Latency (live walkthrough, 2026-09-26): the verified read parses every
+    page with word positions — 1-3 s on a real book — so identify asks for it
+    only when the document's title lines print a period by the reader's own
+    rule; a PDF that prints none is answered from the one text pass."""
+    from engine.country_packs.ro_romania import pdf_balanta_text
+
+    calls = []  # type: List[int]
+    real = pdf_balanta_text.read_balanta_text_verdict
+    monkeypatch.setattr(pdf_balanta_text, "read_balanta_text_verdict", lambda b: calls.append(1) or real(b))
+    monkeypatch.setattr(_uploads, "_identify_document", _REAL_IDENTIFY)
+    monkeypatch.setattr(_uploads, "_open_registry", lambda: None)
+    ident = identify(app, org=ORG_SCANDIA, name="balanta.pdf", body=_five_pair_pdf(printed_period=False)).json()
+    assert ident["identity"]["period_end"] is None and calls == [], (ident["identity"], calls)
+    ident = identify(app, org=ORG_SCANDIA, name="balanta.pdf", body=_five_pair_pdf()).json()
+    assert ident["identity"]["period_end"] == "2025-12-31" and calls == [1], (ident["identity"], calls)
+
+
 def test_the_registry_is_opened_only_where_it_already_exists(tmp_path, monkeypatch):
     """Tolerate its absence — and never CREATE an empty registry by
     opening one (the store's constructor would)."""

@@ -296,6 +296,20 @@ class PublicRoStore:
         for row in cur:
             yield int(row[0]), str(row[1])
 
+    def names_fingerprint(self) -> str:
+        """A cheap fingerprint of what ``iter_company_names`` yields — the
+        row count, the latest write (every writer of ``companies`` stamps
+        ``updated_at``) and position-weighted checksums of the names' lengths,
+        first characters and CUIs. One aggregate scan (~0.1 s over a million
+        rows). A derived index of the names records it to know it is current
+        (``engine.workspaces.registry_names``)."""
+        row = self._conn.execute(
+            "SELECT COUNT(*), MAX(updated_at), TOTAL(LENGTH(name) * (cui % 9973)), "
+            "TOTAL(unicode(name) * (cui % 9967)), TOTAL(unicode(substr(name, -1)) * (cui % 9949)), "
+            "TOTAL(cui) FROM companies WHERE name IS NOT NULL AND name <> ''"
+        ).fetchone()
+        return "|".join("" if v is None else str(v) for v in row)
+
     def search_companies(self, q: str, limit: int = 20) -> List[Dict[str, Any]]:
         """Name-prefix + exact-CUI search over companies that are publishable
         RIGHT NOW.

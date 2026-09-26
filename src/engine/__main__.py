@@ -217,6 +217,11 @@ def _cmd_serve(args: argparse.Namespace) -> int:
         canonical_excel=args.canonical_excel,
         cors_origins=cors_origins,
     )
+    # The company registry's persisted name index, made current in the
+    # background (a no-op when it already is, or when there is no registry):
+    # the first upload after a deploy never builds it in its own request.
+    from .api._uploads import start_name_index_warmup
+    start_name_index_warmup()
     uvicorn.run(app, host=args.host, port=args.port)
     return 0
 
