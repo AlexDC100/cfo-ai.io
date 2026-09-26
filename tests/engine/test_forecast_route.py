@@ -24,7 +24,9 @@ WHAT THIS REDS ON (TC-11)
   · the response carrying a figure without the `projected` marker;
   · any projected figure carrying actual provenance (a snapshot id, a
     line id, a source cell) — the central invariant of the feature;
-  · the payload failing to read back through its own contract.
+  · the payload failing to read back through its own contract;
+  · scripts/measure_plan_blast_radius.py serving one book the route's
+    cached rows of another (it files every book under one period id).
 
 WHAT IT CANNOT SEE
   · what the page paints. `frontend/pages/cfo/Forecast.tsx` is a
@@ -417,6 +419,90 @@ def test_get_equals_post_with_the_default_body(name, horizon):
     assert status == 200, str(posted)[:300]
     assert got["body_hash"] == posted["body_hash"], (name, horizon)
     assert got["lever_set_hash"] == posted["lever_set_hash"]
+
+
+# ── the blast-radius script through the loaded-rows cache (plan/2 B6) ────
+#
+# B6 put a loaded-rows cache in front of the route
+# (``engine.api._forecast_history``, keyed on org id, period id and
+# updated_at). scripts/measure_plan_blast_radius.py files every book under
+# the SAME three, so from B6 every book after the first in one process was
+# served the first book's rows: its table printed agras's plan for carniprod,
+# realestate and retail. ``_call`` above clears the cache itself, so no gate
+# saw it. These two go through the script's own ``default_get``.
+
+
+def _script_revenue(M, name):
+    """Revenue per plan year of the default GET, read by the script's own
+    reader — exactly what its table prints for the book."""
+    book = M._corpus_book(name)
+    status, body = M.default_get(book)
+    assert status == 200, (name, status, str(body)[:300])
+    labels, lines = M._lines_from_served(body)
+    years = M._metrics_from_lines(labels, lines, book["period_end"])
+    assert years, "%s: no plan year served (TC-3)" % name
+    return dict((n, row["revenue"]) for n, row in years.items())
+
+
+def test_the_blast_radius_script_serves_each_book_its_own_rows():
+    """RED ON, AFTER THE REPAIR (TC-11): the script's ``_patched`` not
+    clearing the route's loaded-rows cache — the second book measured in a
+    process is served the first one's revenue, or the last book's rows are
+    left warm for the next caller in the process."""
+    from engine.api import _forecast_history
+    M = _measure()
+    first, second = "agras", "carniprod"
+    alone = {}
+    for name in (first, second):
+        _forecast_history.clear_cache()
+        alone[name] = _script_revenue(M, name)
+    # TC-3: the two books serve different revenue, so "each book its own"
+    # below cannot pass by the two plans happening to be equal
+    assert alone[first] != alone[second], (first, second)
+    _forecast_history.clear_cache()
+    in_turn = [(name, _script_revenue(M, name)) for name in (first, second)]
+    for name, got in in_turn:
+        assert got == alone[name], (
+            "%s measured in one process after %s was served %s, not its own %s"
+            % (name, first, got, alone[name]))
+    assert in_turn[0][1] != in_turn[1][1], "two books served one plan"
+    with _forecast_history._CACHE_LOCK:
+        left = list(_forecast_history._CACHE)
+    assert not left, "the script left %d warm key(s) for the next caller" % len(left)
+
+
+def test_the_blast_radius_script_is_not_served_a_key_another_caller_left_warm():
+    """RED ON, AFTER THE REPAIR (TC-11): ``_patched`` not clearing on ENTRY.
+    A caller that replaced the seams itself and did not clear on the way out
+    leaves the script's key warm with another book's rows."""
+    from engine.api import _forecast_history, _org, _supabase
+    M = _measure()
+    _forecast_history.clear_cache()
+    own = _script_revenue(M, "carniprod")
+    # cleared here as well, so the key below is warmed with agras's rows and
+    # not answered from carniprod's own (were the exit clear also missing)
+    _forecast_history.clear_cache()
+    other = M._corpus_book("agras")
+    saved = (_org.resolve_org, _supabase.per_user)
+    _org.resolve_org = lambda jwt, requested: ("warm-user", M.ORG_ID)
+    _supabase.per_user = lambda jwt: M._RowServer(other, M.PERIOD_ID, M.ORG_ID)
+    try:
+        res = TestClient(M._app(), raise_server_exceptions=False).get(
+            "/api/forecast/%s?horizon=%d" % (M.PERIOD_ID, M.HORIZON_YEARS),
+            headers={"Authorization": "Bearer warm", "X-Org-Id": M.ORG_ID},
+            follow_redirects=False)
+    finally:
+        _org.resolve_org, _supabase.per_user = saved
+    assert res.status_code == 200, (res.status_code, res.text[:300])
+    with _forecast_history._CACHE_LOCK:
+        warm = len(_forecast_history._CACHE)
+    assert warm, "the other caller left nothing warm; this case is vacuous (TC-3)"
+    try:
+        got = _script_revenue(M, "carniprod")
+    finally:
+        _forecast_history.clear_cache()
+    assert got == own, (
+        "carniprod was served the warm agras rows: %s, not its own %s" % (got, own))
 
 
 def test_the_post_body_binds_at_module_scope(app):
