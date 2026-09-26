@@ -252,6 +252,24 @@ describe("Company page — /workspace/<orgId>", () => {
     expect(await screen.findByTestId("company-industry")).toHaveTextContent("Food manufacturing");
   });
 
+  it("the gear names the SAME industry as the header — a catalog key is words in both, never 'No industry set'", async () => {
+    // Owner-reported: a company whose industry is a catalog key (what the
+    // commit route assigns, e.g. food_manufacturing) read "Food
+    // manufacturing" in the header while the gear said "No industry set".
+    orgApi.extra = [
+      { id: "carni", name: "Carniprod SRL", industry_key: "food_manufacturing", industry_display_name: "Food manufacturing", default_currency: null, role: "owner", archived_at: null, purge_after: null, created_at: "2025-03-01" },
+    ];
+    orgApi.activeId = "carni";
+    writeWorkspaceName("Carniprod SRL");
+    renderAt("/workspace/carni");
+    expect(await screen.findByTestId("company-industry")).toHaveTextContent("Food manufacturing");
+    fireEvent.click(await screen.findByTestId("company-gear"));
+    const sheet = await screen.findByTestId("company-settings");
+    const current = within(sheet).getByTestId("wsset-industry-current");
+    expect(current).toHaveTextContent("Food manufacturing");
+    expect(current.textContent).not.toMatch(/No industry set|food_manufacturing/);
+  });
+
   it("a company with no year yet says where the first file goes", async () => {
     orgApi.activeId = "agras";
     writeWorkspaceName("Agras SA");

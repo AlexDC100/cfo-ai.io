@@ -18,7 +18,8 @@
         "noneFound": "No industry matches your search.",
         "industryNote": "Changing the industry updates the sector benchmarks and the decision-rule presets this workspace is graded with.",
         "industryChanged": "Industry updated.",
-        "noIndustry": "No industry set yet — pick one so benchmarks match this company."
+        "noIndustry": "No industry set yet — pick one so benchmarks match this company.",
+        "catalogIndustry": "Set when the first file was analysed. Change it below if it's wrong."
       },
       "industries": {
         "real_estate": {
@@ -183,7 +184,8 @@
         "noneFound": "Nicio industrie nu se potrivește căutării.",
         "industryNote": "Schimbarea industriei actualizează benchmark-urile sectoriale și preseturile regulilor de decizie cu care este evaluat acest workspace.",
         "industryChanged": "Industria a fost actualizată.",
-        "noIndustry": "Nicio industrie setată încă — alege una ca benchmark-urile să se potrivească firmei."
+        "noIndustry": "Nicio industrie setată încă — alege una ca benchmark-urile să se potrivească firmei.",
+        "catalogIndustry": "Setată la analiza primului fișier. Schimb-o mai jos dacă nu e corectă."
       },
       "industries": {
         "real_estate": {

@@ -53,6 +53,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { toast } from "@/components/ui/sonner";
 import { DecisionRulesPanel } from "@/components/cfo/command/DecisionRulesModal";
 import { ORG_INDUSTRIES } from "@/components/cfo/OrgIndustryPills";
+import { useIndustryLabel } from "@/components/cfo/upload/industryLabel";
 import { DEFAULT_FINANCING } from "@/lib/decisionRules";
 import {
   resetDecisionRulesToDefaults,
@@ -315,6 +316,12 @@ export function GeneralSection({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [query, setQuery] = useState("");
   const current = ORG_INDUSTRIES.find((i) => i.key === workspace.industryKey) ?? null;
+  // ONE industry reader with the company page's header (2026-09-26): a key
+  // from the industry catalog (what the commit route assigns —
+  // "food_manufacturing") is not a workspace-settings industry, and this
+  // card read "No industry set" under a header saying "Food manufacturing".
+  // The catalog names it here exactly as it does there.
+  const catalogLabel = useIndustryLabel(workspace.industryKey, workspace.industryDisplayName ?? null);
   const CurrentIcon = current ? INDUSTRY_ICONS[current.key] ?? Boxes : Boxes;
   const indName = (key: string) => t(`wsSet.industries.${key}.name`);
   const indDesc = (key: string) => t(`wsSet.industries.${key}.desc`);
@@ -411,10 +418,14 @@ export function GeneralSection({
             </span>
             <div className="min-w-0">
               <div className="text-[13px] font-medium text-ink truncate">
-                {current ? indName(current.key) : t("ws.noIndustrySet")}
+                {current ? indName(current.key) : catalogLabel ?? t("ws.noIndustrySet")}
               </div>
               <div className="text-[11.5px] text-ink-soft truncate">
-                {current ? indDesc(current.key) : t("wsSet.general.noIndustry")}
+                {current
+                  ? indDesc(current.key)
+                  : catalogLabel
+                    ? t("wsSet.general.catalogIndustry")
+                    : t("wsSet.general.noIndustry")}
               </div>
             </div>
           </div>

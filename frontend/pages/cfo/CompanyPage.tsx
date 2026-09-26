@@ -218,6 +218,7 @@ function CompanyReady({
         orgId={orgId}
         name={name}
         industryKey={industryKey}
+        industryName={industryName}
       />
     </section>
   );
@@ -269,12 +270,14 @@ function CompanySettingsSheet({
   orgId,
   name,
   industryKey,
+  industryName,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   orgId: string;
   name: string;
   industryKey: string | null;
+  industryName: string | null;
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -288,6 +291,9 @@ function CompanySettingsSheet({
     name,
     createdAt: "",
     industryKey,
+    // The gear reads the industry through the same reader as the header
+    // above it (industryLabel): a catalog key is words in both.
+    industryDisplayName: industryName,
   };
   // Same rule as the old settings (lib/workspaces canDelete): any live company
   // can be deleted — it is a 30-day soft delete, restorable from Home.
