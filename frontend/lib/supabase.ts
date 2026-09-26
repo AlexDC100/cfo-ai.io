@@ -628,6 +628,34 @@ export async function recoverStuckPipelines(): Promise<
   }
 }
 
+/** Minimum spacing of the on-mount watchdog (see recoverStuckOnMount). */
+export const RECOVER_ON_MOUNT_MIN_INTERVAL_MS = 60_000;
+let recoverOnMountInflight: ReturnType<typeof recoverStuckPipelines> | null = null;
+let recoverOnMountLastAt = 0;
+
+/**
+ * The watchdog as a PAGE MOUNT calls it: at most once a minute, one request
+ * in flight shared by every caller. The dashboard and Products call it on
+ * mount; a page that remounted in a loop (the 2026-09-26 auth-lock flood)
+ * posted it every 0.7 s, and each call took supabase-js's auth Web Lock
+ * first. A mount inside the interval answers null (nothing recovered here —
+ * the previous call already asked). A user's explicit Retry calls
+ * `recoverStuckPipelines` directly and is never throttled.
+ */
+export function recoverStuckOnMount(): ReturnType<typeof recoverStuckPipelines> {
+  if (recoverOnMountInflight) return recoverOnMountInflight;
+  const now = Date.now();
+  if (recoverOnMountLastAt && now - recoverOnMountLastAt < RECOVER_ON_MOUNT_MIN_INTERVAL_MS) {
+    return Promise.resolve(null);
+  }
+  recoverOnMountLastAt = now;
+  const shared = recoverStuckPipelines().finally(() => {
+    if (recoverOnMountInflight === shared) recoverOnMountInflight = null;
+  });
+  recoverOnMountInflight = shared;
+  return shared;
+}
+
 /**
  * Subscribe to status changes for a single document via Postgres Changes.
  * Returns the unsubscribe function. Pass null `documentId` to subscribe to

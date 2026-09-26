@@ -156,35 +156,60 @@ function warn(op: string, message: string): void {
 }
 
 // ── Hydration ──────────────────────────────────────────────────────────
+//
+// ONE READ IN FLIGHT PER BAG (2026-09-26, defence in depth for the auth-lock
+// flood). Every mounted `useActiveOrg()` — a dozen on a company page — calls
+// both hydrations on each load, and each read takes supabase-js's auth Web
+// Lock, which every tab of the origin shares. A page remounting in a loop
+// turned that into 24 lock requests per remount. Concurrent callers now share
+// the read already on its way; a call made after it settles reads afresh, so
+// "hydrate again" still means what it meant.
 
-export async function hydrateUserPrefs(): Promise<void> {
-  const client = getSupabase();
-  if (!client) return;
-  const { data: session } = await client.auth.getSession();
-  const userId = session.session?.user?.id;
-  if (!userId) {
-    userBag = null;
-    return;
-  }
-  const { data, error } = await client
-    .from("user_prefs")
-    .select("prefs")
-    .eq("user_id", userId)
-    .maybeSingle();
-  if (error) {
-    warn("hydrateUserPrefs", error.message);
-    return;
-  }
-  userBag = applyPendingWrites("user", (data?.prefs as Bag | null) ?? {});
-  emit("user");
+// Bumped by resetPrefs(): a read that started before a sign-out must not
+// land its answer in the next session's bag.
+let generation = 0;
+let userInflight: Promise<void> | null = null;
+const orgInflight = new Map<string, Promise<void>>();
+
+export function hydrateUserPrefs(): Promise<void> {
+  if (userInflight) return userInflight;
+  const started = generation;
+  const read = (async () => {
+    const client = getSupabase();
+    if (!client) return;
+    const { data: session } = await client.auth.getSession();
+    const userId = session.session?.user?.id;
+    if (started !== generation) return;
+    if (!userId) {
+      userBag = null;
+      return;
+    }
+    const { data, error } = await client
+      .from("user_prefs")
+      .select("prefs")
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (error) {
+      warn("hydrateUserPrefs", error.message);
+      return;
+    }
+    if (started !== generation) return;
+    userBag = applyPendingWrites("user", (data?.prefs as Bag | null) ?? {});
+    emit("user");
+  })();
+  const shared = read.finally(() => {
+    if (userInflight === shared) userInflight = null;
+  });
+  userInflight = shared;
+  return shared;
 }
 
-export async function hydrateOrgPrefs(orgId: string | null): Promise<void> {
+export function hydrateOrgPrefs(orgId: string | null): Promise<void> {
   const client = getSupabase();
   if (!client || !orgId) {
     orgBag = null;
     orgBagFor = null;
-    return;
+    return Promise.resolve();
   }
   // Switching workspace must not leave the previous company's settings
   // readable for even one render.
@@ -193,22 +218,36 @@ export async function hydrateOrgPrefs(orgId: string | null): Promise<void> {
     orgBagFor = orgId;
     emit("org");
   }
-  const { data, error } = await client
-    .from("org_prefs")
-    .select("prefs")
-    .eq("org_id", orgId)
-    .maybeSingle();
-  if (error) {
-    warn("hydrateOrgPrefs", error.message);
-    return;
-  }
-  if (orgBagFor !== orgId) return; // switched again mid-flight
-  orgBag = applyPendingWrites("org", (data?.prefs as Bag | null) ?? {}, orgId);
-  emit("org");
+  const inflight = orgInflight.get(orgId);
+  if (inflight) return inflight;
+  const started = generation;
+  const read = (async () => {
+    const { data, error } = await client
+      .from("org_prefs")
+      .select("prefs")
+      .eq("org_id", orgId)
+      .maybeSingle();
+    if (error) {
+      warn("hydrateOrgPrefs", error.message);
+      return;
+    }
+    if (started !== generation) return;
+    if (orgBagFor !== orgId) return; // switched again mid-flight
+    orgBag = applyPendingWrites("org", (data?.prefs as Bag | null) ?? {}, orgId);
+    emit("org");
+  })();
+  const shared = read.finally(() => {
+    if (orgInflight.get(orgId) === shared) orgInflight.delete(orgId);
+  });
+  orgInflight.set(orgId, shared);
+  return shared;
 }
 
 /** Drop everything — sign-out / user switch. */
 export function resetPrefs(): void {
+  generation++;
+  userInflight = null;
+  orgInflight.clear();
   userBag = null;
   orgBag = null;
   orgBagFor = null;

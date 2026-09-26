@@ -35,7 +35,7 @@ import type { Statements } from "@/lib/financialReport";
 const period = (id: string, end: string | null): OrgPeriod =>
   ({ period_id: id, period_label: end ?? id, period_start: null, period_end: end, documents: [] }) as unknown as OrgPeriod;
 
-describe("pickDefaultPrior — the previous fiscal year-end", () => {
+describe("pickDefaultPrior — the previous period of the same length", () => {
   const periods = [
     period("p-2026-03", "2026-03-31"),
     period("p-2025-12", "2025-12-31"),
@@ -51,8 +51,39 @@ describe("pickDefaultPrior — the previous fiscal year-end", () => {
     expect(pick?.period_id).toBe("p-2023-12");
     expect(pickDefaultPrior(periods, "p-2023-12", "2023-12-31")).toBeNull();
   });
-  it("falls back to the nearest earlier period when no same-cut one exists", () => {
-    expect(pickDefaultPrior(periods, "p-2026-03", "2026-03-31")?.period_id).toBe("p-2025-12");
+  // Owner rule (2026-09-26): the default is a period of the SAME LENGTH. A
+  // Romanian balance is cumulative — Q1 2026 against the whole of 2025 is
+  // not a comparison — so with no same-cut period there is no default (the
+  // reader can still pick any period in "Compare with").
+  it("with no earlier period of the same length, there is no default", () => {
+    expect(pickDefaultPrior(periods, "p-2026-03", "2026-03-31")).toBeNull();
+    expect(pickDefaultPrior(periods, "p-2025-06", "2025-06-30")).toBeNull();
+  });
+  it("a December close compares with the previous December, not the month before it", () => {
+    const monthly = [
+      period("p-2025-12", "2025-12-31"),
+      period("p-2025-11", "2025-11-30"),
+      period("p-2024-12", "2024-12-31"),
+    ];
+    expect(pickDefaultPrior(monthly, "p-2025-12", "2025-12-31")?.period_id).toBe("p-2024-12");
+  });
+  it("a year-to-date month compares with the same month of the previous year", () => {
+    const monthly = [
+      period("p-2025-08", "2025-08-31"),
+      period("p-2025-07", "2025-07-31"),
+      period("p-2024-12", "2024-12-31"),
+      period("p-2024-08", "2024-08-31"),
+    ];
+    expect(pickDefaultPrior(monthly, "p-2025-08", "2025-08-31")?.period_id).toBe("p-2024-08");
+  });
+  it("month ends match across leap years; a different start is a different length", () => {
+    const feb = [period("p-2025-02", "2025-02-28"), period("p-2024-02", "2024-02-29")];
+    expect(pickDefaultPrior(feb, "p-2025-02", "2025-02-28")?.period_id).toBe("p-2024-02");
+    const withStarts = [
+      { ...period("p-2025-12", "2025-12-31"), period_start: "2025-01-01" },
+      { ...period("p-2024-12q", "2024-12-31"), period_start: "2024-10-01" },
+    ] as OrgPeriod[];
+    expect(pickDefaultPrior(withStarts, "p-2025-12", "2025-12-31")).toBeNull();
   });
   it("returns null without a current period", () => {
     expect(pickDefaultPrior(periods, null, null)).toBeNull();

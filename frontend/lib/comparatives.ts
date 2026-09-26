@@ -444,13 +444,30 @@ export function priorServedFiguresOf(ps: Statements): PriorServedFigures {
   };
 }
 
-// ── Default prior: the previous fiscal year-end ──────────────────────
+// ── Default prior: the same company's previous period of the same length ─
+
+/** "MM-DD" of an ISO date, with every month's last day read as "MM-end" —
+ *  28 February 2025 and 29 February 2024 close the same month. */
+function cutOf(iso: string | null | undefined): string | null {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}/.test(iso)) return null;
+  const y = Number(iso.slice(0, 4));
+  const m = Number(iso.slice(5, 7));
+  const d = Number(iso.slice(8, 10));
+  const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return `${iso.slice(5, 7)}-${d === last ? "end" : iso.slice(8, 10)}`;
+}
 
 /**
- * The period a reader means by "last year": the nearest EARLIER period
- * that closes on the same month/day (a Dec-2024 close for a Dec-2025
- * close). Failing that, the nearest earlier period of any kind. Never the
- * current period, never a later one. Deterministic over the list order.
+ * The period a reader means by "last year" (owner rule, 2026-09-26: the
+ * dashboard compares every period BY DEFAULT with the same company's
+ * immediately preceding period of the SAME LENGTH, when one exists): the
+ * nearest EARLIER period that closes on the same month/day — a Dec-2024 close
+ * for a Dec-2025 close, an Aug-2024 year-to-date for an Aug-2025 one — and,
+ * when both starts are known, opens on the same month/day too. A Romanian
+ * balance is cumulative, so a Nov-2025 close is eleven months, not the year
+ * before a December: a period of another length is never the default (it is
+ * still one pick away in "Compare with"). Never the current period, never a
+ * later one; null when no such period exists. Deterministic over the list.
  */
 export function pickDefaultPrior(
   periods: readonly OrgPeriod[],
@@ -458,12 +475,18 @@ export function pickDefaultPrior(
   currentEnd: string | null,
 ): OrgPeriod | null {
   if (!currentId || !currentEnd) return null;
+  const endCut = cutOf(currentEnd);
+  if (!endCut) return null;
+  const startCut = cutOf(periods.find((p) => p.period_id === currentId)?.period_start ?? null);
+  const sameLength = (p: OrgPeriod) => {
+    if (cutOf(p.period_end) !== endCut) return false;
+    const start = cutOf(p.period_start ?? null);
+    return !startCut || !start || start === startCut;
+  };
   const earlier = periods
-    .filter((p) => p.period_id !== currentId && !!p.period_end && p.period_end < currentEnd)
+    .filter((p) => p.period_id !== currentId && !!p.period_end && p.period_end < currentEnd && sameLength(p))
     .sort((a, b) => (b.period_end ?? "").localeCompare(a.period_end ?? ""));
-  if (earlier.length === 0) return null;
-  const cut = currentEnd.slice(5); // "MM-DD"
-  return earlier.find((p) => (p.period_end ?? "").slice(5) === cut) ?? earlier[0];
+  return earlier[0] ?? null;
 }
 
 // ── Cells the views may paint ────────────────────────────────────────

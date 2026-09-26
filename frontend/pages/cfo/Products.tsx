@@ -68,6 +68,7 @@ import { computeRatios } from "@/lib/financialReport";
 import { useUploadEnqueue } from "@/hooks/useUploadEnqueue";
 import {
   getSupabase,
+  recoverStuckOnMount,
   recoverStuckPipelines,
   subscribeToDocumentStatus,
   uploadDocument,
@@ -538,10 +539,11 @@ export default function Products() {
   // Idempotent on the server — calling it when nothing is stuck is a no-op.
   // Without this, a user who uploads while the backend is briefly unhealthy
   // is silently stranded at "Step 0 of 6 · Queued for analysis…" forever.
+  // At most once a minute however often the page mounts (recoverStuckOnMount).
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const result = await recoverStuckPipelines();
+      const result = await recoverStuckOnMount();
       if (cancelled || !result || result.recovered_count === 0) return;
       // Re-poll inflight so the card updates from queued→extracting.
       void qc.invalidateQueries({ queryKey: ["sku-analysis", "inflight"] });

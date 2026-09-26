@@ -15,7 +15,7 @@
 import { ReactNode, useCallback, useEffect, useState } from "react";
 import { LegalFooter } from "@/components/cfo/LegalFooter";
 import { useTranslation } from "react-i18next";
-import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useMatch, useNavigate, useSearchParams } from "react-router-dom";
 import {
   Sheet,
   SheetContent,
@@ -92,7 +92,19 @@ export function AppShell({ children }: Props) {
   // on a redesign link: switch to it and hold the page until the header
   // names it (lib/companyOnScreen, G6). While the flag itself is still
   // settling on a full page load, a bare period link is held too.
-  const holdForOrg = useDashboardCompanyHold(workspaceV2, workspaceV2Settling);
+  //
+  // NOT on a company page. /workspace/<orgId> names its company in the PATH
+  // and holds for it itself (useCompanyOnScreen). With this hold on there
+  // too, /workspace/<A>?period=<one of company B's> (or `?org=<B>`) had two
+  // authorities switching the active company in turn, forever — each
+  // switch a page remount and a round of Supabase reads, 7,000+ calls in
+  // seconds (P0, 2026-09-26; gate: components/cfo/__tests__/
+  // authLockFlood.test.tsx). One screen, one authority.
+  const onCompanyPage = useMatch("/workspace/:orgId") !== null;
+  const holdForOrg = useDashboardCompanyHold(
+    workspaceV2 && !onCompanyPage,
+    workspaceV2Settling && !onCompanyPage,
+  );
   // Content-region loader (2026-07-26 per operator). Pages render straight
   // from the period payload, which is EMPTY while its fetch is in flight — so
   // a tab painted its no-data layout for a frame and then swapped in the real

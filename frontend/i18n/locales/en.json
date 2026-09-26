@@ -188,7 +188,10 @@
     "full_name": "Full name",
     "company": "Company name",
     "back_to_home": "Back to home",
-    "welcome": "Welcome to CFO AI"
+    "welcome": "Welcome to CFO AI",
+    "signing_in": "Signing you in…",
+    "still_signing_in": "Still signing you in — close other CFO AI tabs or reload.",
+    "reload": "Reload"
   },
   "settings": {
     "language": "Language",

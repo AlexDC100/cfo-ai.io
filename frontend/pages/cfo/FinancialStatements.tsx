@@ -136,6 +136,7 @@ import {
 import { detectPeriodEndFromFilename, detectPeriodEndFromFile, formatDetectedMonth } from "@/lib/detectPeriodEnd";
 import { fetchWorkspacePeriodsDirect, formatPeriodMonth, formatPeriodMonthLoose, useOrgPeriods } from "@/lib/orgPeriods";
 import { useActiveOrg } from "@/lib/org";
+import { overviewPriorOf, trendAgainstPrior } from "@/lib/overviewComparison";
 import { cfoApi } from "@/lib/cfoApi";
 import {
   DropdownMenu,
@@ -486,11 +487,12 @@ function FinancialStatementsInner() {
   // upload moment). Idempotent. Without this, a user landing on Financial
   // Statements after a backend hiccup sees their inflight doc spinning
   // forever at "Step 0 of 6 · Queued for analysis…".
+  // At most once a minute however often the page mounts (recoverStuckOnMount).
   useEffect(() => {
     void (async () => {
       try {
-        const { recoverStuckPipelines } = await import("@/lib/supabase");
-        await recoverStuckPipelines();
+        const { recoverStuckOnMount } = await import("@/lib/supabase");
+        await recoverStuckOnMount();
       } catch {
         /* non-fatal — page still renders */
       }
@@ -761,6 +763,15 @@ function FinancialStatementsInner() {
     comparatives: cmpQuery,
     sector: sectorQuery.data ?? null,
   });
+
+  // The Overview's four key figures for the prior period — the same
+  // builders as the tiles', over the prior's own served block (lib/
+  // overviewComparison). Null without a comparison: the tiles then fall back
+  // to the book's own history, as before.
+  const overviewPrior = useMemo(
+    () => overviewPriorOf(cmpDoc, t("dash.entity"), (s) => deriveTotals(s).netDebt),
+    [cmpDoc, t],
+  );
 
   // ── COMPARATIVES — the prior period's derived views, LIKE FOR LIKE ──
   // Cash flow is FE-derived from a period's served statements; the prior
@@ -2041,16 +2052,18 @@ function FinancialStatementsInner() {
             <div aria-hidden className="sm:hidden pointer-events-none absolute inset-y-1 left-0 w-6 bg-gradient-to-r from-bg to-transparent" />
             <div aria-hidden className="sm:hidden pointer-events-none absolute inset-y-1 right-0 w-6 bg-gradient-to-l from-bg to-transparent" />
             </div>
-            {/* COMPARATIVES — which prior, which columns. Only on the
-                statement tabs; the picker lists every other period of
-                this workspace and AUTO names the year it resolves to. */}
-            {(activeTab === "pl" || activeTab === "balance_sheet" || activeTab === "cash_flow" || activeTab === "ratios")
+            {/* COMPARATIVES — which prior, which columns. On the Overview
+                and the statement tabs (every view that compares); the
+                picker lists every other period of THIS company and AUTO
+                names the period it resolves to — the default. */}
+            {(activeTab === "overview" || activeTab === "pl" || activeTab === "balance_sheet" || activeTab === "cash_flow" || activeTab === "ratios")
               && cmpPeriods.length > 1 && statements && (
               <ComparativesControls
                 periods={cmpPeriods}
                 currentId={remotePeriod.id}
                 autoPick={cmpAutoPick}
                 currency={statements.currency}
+                columns={activeTab !== "overview"}
               />
             )}
           </div>
@@ -2141,7 +2154,10 @@ function FinancialStatementsInner() {
                 totalDebt={totals.totalDebt}
                 ebitda={headline.tileEbitdaRon}
                 annualOperatingCosts={headline.totalOperatingExpenses}
-                revenueTrend={trendFor("operating_revenue")}
+                revenueTrend={
+                  trendAgainstPrior(overviewPrior, "revenue", headline.totalOperatingRevenue)
+                  ?? trendFor("operating_revenue")
+                }
                 recommendations={recommendations}
                 onJumpToTab={onTabChange}
                 provenance={headlineProvenance}
@@ -2189,7 +2205,9 @@ function FinancialStatementsInner() {
                     label: t("dashV2.metricRevenue"),
                     desc: t("dashV2.metricRevenueDesc"),
                     value: headline.totalOperatingRevenue,
-                    trend: trendFor("operating_revenue"),
+                    trend:
+                      trendAgainstPrior(overviewPrior, "revenue", headline.totalOperatingRevenue)
+                      ?? trendFor("operating_revenue"),
                     testid: "key-metric-revenue",
                     provenance: headlineProvenance.revenue,
                   },
@@ -2197,7 +2215,7 @@ function FinancialStatementsInner() {
                     label: t("dashV2.metricEbitda"),
                     desc: t("dashV2.metricEbitdaDesc"),
                     value: headline.tileEbitdaRon,
-                    trend: trendFor("ebitda"),
+                    trend: trendAgainstPrior(overviewPrior, "ebitda", headline.tileEbitdaRon) ?? trendFor("ebitda"),
                     testid: "key-metric-ebitda",
                     provenance: headlineProvenance.ebitda,
                   },
@@ -2205,7 +2223,7 @@ function FinancialStatementsInner() {
                     label: t("dashV2.metricCash"),
                     desc: t("dashV2.metricCashDesc"),
                     value: statements.balanceSheet.cash,
-                    trend: trendFor("cash"),
+                    trend: trendAgainstPrior(overviewPrior, "cash", statements.balanceSheet.cash) ?? trendFor("cash"),
                     testid: "key-metric-cash",
                     provenance: headlineProvenance.cash,
                   },
@@ -2213,7 +2231,7 @@ function FinancialStatementsInner() {
                     label: t("dashV2.metricNetDebt"),
                     desc: t("dashV2.metricNetDebtDesc"),
                     value: totals.netDebt,
-                    trend: null,
+                    trend: trendAgainstPrior(overviewPrior, "netDebt", totals.netDebt),
                     testid: "key-metric-net-debt",
                     provenance: headlineProvenance.netDebt,
                   },

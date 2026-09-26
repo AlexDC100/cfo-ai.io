@@ -40,6 +40,7 @@ import {
   ORG_AGRAS,
   ORG_SCANDIA,
   SCANDIA,
+  USER_ID,
   WorkspaceDouble,
   agrasBalanceBytes,
   dropFile,
@@ -234,6 +235,8 @@ for (const lang of ["ro", "en"] as const) {
       // chosen a comparison, synced to Scandia's company preferences.
       double.periods[ORG_AGRAS].push(AGRAS);
       double.orgPrefs[ORG_SCANDIA].comparatives_view = { priorPeriodId: SCANDIA_PERIOD, columns: COLUMNS };
+      // …and under the per-company key every choice is stored under now.
+      double.orgPrefs[ORG_SCANDIA].comparatives_view_v2 = { priorPeriodId: SCANDIA_PERIOD, columns: COLUMNS };
       await double.install(page);
       // What every browser that used the dashboard before this fix holds:
       // ONE "compare with" choice, under a key naming no company.
@@ -323,6 +326,115 @@ test.describe("G5 at runtime — the home screen", () => {
     await expectOneUploadComponent(page, 1);
     await expectPlainLanguage(page);
   });
+});
+
+// ── THE AUTH-LOCK FLOOD (P0, measured on production 2026-09-26) ────────
+//
+// A company page queued supabase-js auth-lock requests without end (1,080
+// pending `lock:sb-<ref>-auth-token` after 8 s, 35,066 a few minutes later);
+// that Web Lock is shared by every tab of the origin, so every other tab hung
+// on "Signing you in…". Two authorities over "the company on screen" fought
+// forever — two TABS through the one browser-wide header name, or, in one
+// tab, the company page and the shell's dashboard hold over a foreign
+// `?period=` / `?org=` — and every flip remounted a page that re-read the
+// session and the preferences. The real bundle's supabase-js takes the real
+// Web Lock here, so the lock queue is measured, not modelled.
+//
+// Fails on: more than 20 requests to the double in 10 s once the page has
+// settled, or a queue of auth-lock requests, on Agras's page — its only
+// document a FAILED upload, as production's is — alone, beside a second tab
+// on Scandia, and under a foreign `?period=` / `?org=`.
+
+/** Agras's only document: the failed upload the migration moved into it. */
+function withFailedAgrasUpload(double: WorkspaceDouble): void {
+  double.keptDocuments.push({
+    id: "c1368347-0000-4000-8000-000000000001", org_id: ORG_AGRAS, uploaded_by: USER_ID, status: "failed",
+    original_filename: "balanta.pdf", display_name: "balanta.pdf", storage_path: `${ORG_AGRAS}/uploads/balanta.pdf`,
+    period_id: null, error: "The document could not be read.", scope: "financial", detected_type: null,
+    detected_language: null, is_active: true, size_bytes: 1, created_at: "2026-09-20T10:00:00Z", deleted_at: null,
+  });
+}
+
+/** supabase-js auth-lock requests waiting on `page`'s origin. */
+async function pendingAuthLocks(page: Page): Promise<number> {
+  return page.evaluate(async () => {
+    const q = await navigator.locks.query();
+    return (q.pending ?? []).filter((l) => (l.name ?? "").startsWith("lock:sb-")).length;
+  });
+}
+
+/** Requests to the double during `ms` of quiet on an already-settled screen. */
+async function quietWindow(double: WorkspaceDouble, page: Page, ms = 10_000) {
+  const mark = double.requests.length;
+  await page.waitForTimeout(ms);
+  const after = double.requests.slice(mark);
+  const byPath: Record<string, number> = {};
+  for (const r of after) byPath[`${r.method} ${r.path}`] = (byPath[`${r.method} ${r.path}`] ?? 0) + 1;
+  return { count: after.length, byPath: JSON.stringify(byPath) };
+}
+
+test.describe("the auth-lock flood — a company page settles", () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+  test.setTimeout(90_000);
+
+  test("Agras's page (its only document failed) settles: bounded requests, no auth-lock queue", async ({ page }) => {
+    const double = new WorkspaceDouble({ theme: "light", language: "en" });
+    withFailedAgrasUpload(double);
+    await double.install(page);
+    await page.goto(`/workspace/${ORG_AGRAS}`, { waitUntil: "domcontentloaded" });
+    await expect(page.getByTestId("company-title")).toHaveText("Agras SRL", { timeout: 20_000 });
+    await expect(page.getByTestId("company-no-years")).toBeVisible();
+    await page.waitForTimeout(3_000);
+    const w = await quietWindow(double, page);
+    expect(w.count, `requests in 10 s: ${w.byPath}`).toBeLessThanOrEqual(20);
+    expect(await pendingAuthLocks(page)).toBeLessThanOrEqual(3);
+    console.log(`[workspace-v2] flood — Agras alone: ${w.count} requests in 10 s ${w.byPath}`);
+  });
+
+  test("two tabs on two companies do not fight over the header", async ({ context }) => {
+    const double = new WorkspaceDouble({ theme: "light", language: "en" });
+    withFailedAgrasUpload(double);
+    const agras = await context.newPage();
+    const scandia = await context.newPage();
+    await double.install(agras);
+    await double.install(scandia);
+    await agras.goto(`/workspace/${ORG_AGRAS}`, { waitUntil: "domcontentloaded" });
+    await expect(agras.getByTestId("company-title")).toHaveText("Agras SRL", { timeout: 20_000 });
+    await scandia.goto(`/dashboard?period=${SCANDIA_PERIOD}&org=${ORG_SCANDIA}`, { waitUntil: "domcontentloaded" });
+    await expect(scandia.getByTestId("header-command-bar")).toContainText("Scandia Food SRL", { timeout: 20_000 });
+    await scandia.waitForTimeout(3_000);
+    const w = await quietWindow(double, scandia);
+    expect(w.count, `requests in 10 s, both tabs: ${w.byPath}`).toBeLessThanOrEqual(20);
+    expect(await pendingAuthLocks(scandia)).toBeLessThanOrEqual(3);
+    // Each tab still names its own company.
+    await expect(agras.getByTestId("header-command-bar")).toContainText("Agras SRL");
+    await expect(agras.getByTestId("company-title")).toHaveText("Agras SRL");
+    await expect(scandia.getByTestId("header-command-bar")).toContainText("Scandia Food SRL");
+    console.log(`[workspace-v2] flood — two tabs: ${w.count} requests in 10 s ${w.byPath}`);
+  });
+
+  for (const [what, search] of [
+    ["?period= of Scandia's", `?period=${SCANDIA_PERIOD}`],
+    ["?org= of Scandia", `?org=${ORG_SCANDIA}`],
+  ] as const) {
+    test(`a ${what} on Agras's page: the page's company wins, once`, async ({ page }) => {
+      const double = new WorkspaceDouble({ theme: "light", language: "en" });
+      withFailedAgrasUpload(double);
+      await double.install(page);
+      await page.goto(`/workspace/${ORG_AGRAS}${search}`, { waitUntil: "domcontentloaded" });
+      await expect(page.getByTestId("company-title")).toHaveText("Agras SRL", { timeout: 20_000 });
+      await expect(page.getByTestId("header-command-bar")).toContainText("Agras SRL");
+      await page.waitForTimeout(3_000);
+      const w = await quietWindow(double, page);
+      expect(w.count, `requests in 10 s: ${w.byPath}`).toBeLessThanOrEqual(20);
+      expect(await pendingAuthLocks(page)).toBeLessThanOrEqual(3);
+      await expect(page.getByTestId("company-title")).toHaveText("Agras SRL");
+      // The foreign parameter is dropped: the page is about its path's company.
+      expect(page.url()).not.toContain(SCANDIA_PERIOD);
+      expect(page.url()).not.toContain(`org=${ORG_SCANDIA}`);
+      console.log(`[workspace-v2] flood — ${what}: ${w.count} requests in 10 s ${w.byPath}`);
+    });
+  }
 });
 
 // ── The screenshot loop ─────────────────────────────────────────────────

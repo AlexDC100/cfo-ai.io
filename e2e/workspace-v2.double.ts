@@ -138,6 +138,10 @@ export class WorkspaceDouble {
   };
   /** The documents the commit created: id → row. */
   readonly documents = new Map<string, Json>();
+  /** Documents a company already holds (not created by a commit) — e.g. the
+   *  failed upload the workspace migration moved into Agras. Served to the
+   *  app's own `documents` reads, filtered as PostgREST would. */
+  readonly keptDocuments: Json[] = [];
   readonly commits: Json[] = [];
   readonly identifies: Json[] = [];
   readonly unhandled: string[] = [];
@@ -311,7 +315,18 @@ export class WorkspaceDouble {
     if (table === "documents" && req.method() === "GET") {
       const id = eq("id");
       if (id && this.documents.has(id)) return one(this.advance(id));
-      return wantsObject ? one(null) : route.fulfill({ status: 200, json: [] });
+      const org = eq("org_id");
+      const periodId = eq("period_id");
+      const needsLanguage = url.searchParams.get("detected_language") === "not.is.null";
+      const kept = this.keptDocuments.filter(
+        (d) =>
+          (!id || d.id === id) &&
+          (!org || d.org_id === org) &&
+          (!periodId || d.period_id === periodId) &&
+          (!needsLanguage || d.detected_language != null),
+      );
+      if (wantsObject) return one(kept[0] ?? null);
+      return route.fulfill({ status: 200, json: kept });
     }
     if (table === "profiles" && req.method() === "GET") {
       return one({ id: USER_ID, language: this.opts.language, full_name: "Owner", email: USER.email });
