@@ -76,6 +76,7 @@ __all__ = [
     "pl_bridge",
     "bs_bridge",
     "movers",
+    "line_verdict",
 ]
 
 #: The line each statement's shares are taken against.
@@ -567,6 +568,16 @@ def _verdict(favorable: Optional[str], delta: Optional[float]) -> Optional[str]:
     if favorable == "up":
         return "improved" if up else "deteriorated"
     return "deteriorated" if up else "improved"
+
+
+def line_verdict(key, delta):
+    # type: (str, Optional[float]) -> Optional[str]
+    """The verdict this module gives one comparatives line's movement:
+    "improved" | "deteriorated" | None (no declared direction, or no move).
+    The same rule `movers` applies, exposed so a composer that ranks a
+    DERIVED line (EBITDA, net income, total debt — lines `movers` leaves
+    out so no move is counted twice) never restates the direction table."""
+    return _verdict(FAVORABLE_DIRECTION.get(key), delta)
 
 
 def movers(table, top_n=TOP_MOVERS_DEFAULT, floor=MATERIALITY_FLOOR):

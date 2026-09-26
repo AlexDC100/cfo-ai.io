@@ -1,0 +1,236 @@
+# packs/serving/attention.yaml — "Ce contează acum" (attention/1), as DATA.
+#
+# Read by src/engine/attention/pack.py; composed by src/engine/attention/now.py
+# and served by GET /api/period/{period_id}/attention. Design C1
+# (specs 2026-09-26): the command bar's empty state is the three most material
+# items for THIS company and period, each one line with its served number and
+# the receiver that opens its evidence, then two or three actions chosen by
+# the company's state. Never generic, never filler, never a model sentence.
+#
+# TC-10: every rule the composer applies is written here and served back on
+# the document (`rules`), so the order a reader sees can be explained from the
+# same table that produced it. Every piece of copy the block serves is here in
+# Romanian and English; `tests/engine/test_attention_rules.py` holds the sector
+# and ratio labels equal to the frontend's own strings for the same metric
+# (one metric, one name) and reds on a string that is missing a language.
+schema: attention/1
+
+max_items: 3
+
+# The slot plan, per mode. `with_prior`: a comparison with the same company's
+# previous period of the same length is served. `single_period`: there is none
+# (or it cannot be compared) — the movement and improvement slots cannot exist,
+# so the period's own ranked findings (statements.insights) take their place.
+slots:
+  with_prior: [movement, worst_vs_sector, improvement]
+  single_period: [finding, worst_vs_sector, finding]
+
+# ── The statutory results — the ONLY lines the movement and improvement slots
+# read from the comparatives columns. A verdict-less reclassification (Other
+# equity, other current assets) is not a result and never fills a slot.
+# `requires_anchor`: the line names account 121, so it is eligible only when
+# BOTH periods' net result is the account-121 figure.
+statement_lines:
+  - key: pl.revenue
+    identity: turnover
+    tab: pl
+    subject: {ro: "Cifra de afaceri netă", en: "Net turnover"}
+  - key: pl.ebitda
+    identity: ebitda
+    tab: pl
+    subject: {ro: "EBITDA", en: "EBITDA"}
+  - key: pl.ebit
+    identity: operating_result
+    tab: pl
+    subject: {ro: "Rezultatul din exploatare", en: "Operating result"}
+  - key: pl.net_income
+    identity: net_result
+    tab: pl
+    requires_anchor: true
+    subject: {ro: "Rezultatul net (contul 121)", en: "Net result (account 121)"}
+  - key: bs.cash
+    identity: cash
+    tab: balance_sheet
+    subject: {ro: "Numerar și echivalente", en: "Cash & equivalents"}
+  - key: bs.total_debt
+    identity: financial_debt
+    tab: balance_sheet
+    subject: {ro: "Datorie totală", en: "Total debt"}
+
+# Net result statuses that mean "this IS account 121".
+anchor_statuses: [anchored, within_tolerance]
+
+# ── Materiality, per family. The statement-line floor is the comparatives'
+# own MATERIALITY_FLOOR (engine.comparatives.analysis), served on the document
+# from there — never restated here.
+materiality:
+  statement_line:
+    PL: {basis: pl.revenue, measure: share_of_net_turnover}
+    BS: {basis: bs.total_assets, measure: share_of_total_assets}
+  sector_row: {measure: interquartile_ranges_past_the_worse_quartile}
+  ratio_band: {measure: served_band_movement_rank}
+  insight: {measure: served_insight_rank}
+
+# The improvement slot reads the families in this order; within a family the
+# family's own materiality decides. [DEFAULT, coordinator 2026-09-26: a
+# statutory result improving is the owner's example; a band crossing follows.]
+improvement_family_order: [statement_line, ratio_band]
+
+# ── Sector (GET /api/period/{id}/sector-benchmark rows). Only a SOURCED row
+# whose served `vs_sector` is `worse` is eligible. Rows sharing an identity
+# are one claim: the one furthest past its quartile stays (equity ratio and
+# total liabilities / total assets are complements of one capital structure).
+sector:
+  eligible_vs_sector: worse
+  identities:
+    net_margin: net_margin
+    roe: return_on_equity
+    roa: return_on_assets
+    equity_ratio: capital_structure
+    liabilities_to_assets: capital_structure
+    receivables_days: receivables_days
+    inventory_days_on_turnover: inventory_days
+    current_asset_share: current_asset_share
+    revenue_growth: turnover
+  # Printed as a POSITION against the sector, never with a verdict word, and
+  # never as a slow-stock claim: the filed basis divides stock by turnover.
+  position_only: [inventory_days_on_turnover]
+  basis_labels:
+    inventory_days_on_turnover:
+      ro: "bază depusă (stoc ÷ cifra de afaceri) — nu aceeași cu zilele de stoc din analiză"
+      en: "filed basis (stock ÷ net turnover) — not the same as the inventory days in the analysis"
+  # frontend/i18n/locales/*.json benchmarkPage.sector.ratio.<key> — held equal.
+  subjects:
+    net_margin: {ro: "Marja netă", en: "Net margin"}
+    roe: {ro: "Rentabilitatea capitalurilor (capitaluri la sfârșit de an)", en: "Return on equity (year-end equity)"}
+    roa: {ro: "Rentabilitatea activelor", en: "Return on assets"}
+    equity_ratio: {ro: "Rata capitalurilor proprii", en: "Equity ratio"}
+    liabilities_to_assets: {ro: "Datorii totale / active totale", en: "Total liabilities / total assets"}
+    receivables_days: {ro: "Zile creanțe (toate creanțele)", en: "Receivables days (all receivables)"}
+    inventory_days_on_turnover: {ro: "Zile stocuri raportate la cifra de afaceri", en: "Inventory days on turnover"}
+    current_asset_share: {ro: "Active circulante / active totale", en: "Current assets / total assets"}
+    revenue_growth: {ro: "Creșterea veniturilor", en: "Revenue growth"}
+
+# ── Ratio band crossings (comparatives `ratios.band_movements.improved`, in
+# the served rank order). Inventory-days rows make a speed claim, so they are
+# eligible only when the served inventory-days claim policy allows one (the
+# ratio table's single-basis year-end snapshot does not). The composite letter
+# is eligible only as a band move carrying its reason (the rung the composite
+# score crossed and the finding that states it).
+ratio_band:
+  inventory_days_keys: [dio, inventory_turnover, ccc]
+  composite_letter: letter_grade
+  composite_score: credit_composite
+  identities:
+    net_margin: net_margin
+    roe: return_on_equity
+    roa: return_on_assets
+    equity_ratio: capital_structure
+    debt_to_assets: capital_structure
+    dso: receivables_days
+    dio: inventory_days
+    inventory_turnover: inventory_days
+    current_ratio: current_ratio
+  # frontend/i18n/locales/*.json statements.ratioCmp.label.<key> — held equal.
+  subjects:
+    current_ratio: {ro: "Lichiditate curentă", en: "Current ratio"}
+    quick_ratio: {ro: "Lichiditate rapidă", en: "Quick ratio"}
+    cash_ratio: {ro: "Lichiditate imediată", en: "Cash ratio"}
+    gross_margin: {ro: "Marja brută", en: "Gross margin"}
+    ebitda_margin: {ro: "Marja EBITDA", en: "EBITDA margin"}
+    net_margin: {ro: "Marja netă", en: "Net margin"}
+    roa: {ro: "Rentabilitatea activelor", en: "Return on assets"}
+    roe: {ro: "Rentabilitatea capitalurilor proprii", en: "Return on equity"}
+    roic: {ro: "Rentabilitatea capitalului investit", en: "Return on invested capital"}
+    debt_to_ebitda: {ro: "Datorii / EBITDA", en: "Debt to EBITDA"}
+    debt_to_equity: {ro: "Datorii / capitaluri proprii", en: "Debt to equity"}
+    equity_ratio: {ro: "Rata capitalurilor proprii", en: "Equity ratio"}
+    debt_to_assets: {ro: "Datorii / active", en: "Debt to assets"}
+    interest_coverage: {ro: "Gradul de acoperire a dobânzilor (EBIT / dobânzi)", en: "Interest coverage (EBIT / interest)"}
+    dscr: {ro: "Gradul de acoperire a serviciului datoriei", en: "Debt service coverage"}
+    adjusted_dscr: {ro: "Acoperirea serviciului datoriei, ajustată cu leasingul", en: "Debt service coverage, lease-adjusted"}
+    dscr_with_lt_principal: {ro: "Acoperirea serviciului datoriei cu principalul pe termen lung", en: "Debt service coverage with long-term principal"}
+    dso: {ro: "Durata de încasare a creanțelor", en: "Days sales outstanding"}
+    dio: {ro: "Durata de rotație a stocurilor", en: "Days inventory outstanding"}
+    dpo: {ro: "Durata de plată a furnizorilor (pe costul operațional total)", en: "Days payables outstanding (on total operating cost)"}
+    ccc: {ro: "Ciclul de conversie a numerarului", en: "Cash conversion cycle"}
+    asset_turnover: {ro: "Rotația activelor", en: "Asset turnover"}
+    net_debt_to_ebitda: {ro: "Datorii nete / EBITDA", en: "Net debt to EBITDA"}
+    lt_debt_to_equity: {ro: "Datorii pe termen lung / capitaluri proprii", en: "Long-term debt to equity"}
+    ebitda_to_interest: {ro: "EBITDA raportat la dobânzi (EBITDA / dobânzi)", en: "EBITDA to interest (EBITDA / interest)"}
+    operating_margin: {ro: "Marja operațională", en: "Operating margin"}
+    core_ebitda_margin: {ro: "Marja EBITDA de bază", en: "Core EBITDA margin"}
+    inventory_turnover: {ro: "Rotația stocurilor", en: "Inventory turnover"}
+    altman_z: {ro: "Altman Z″", en: "Altman Z″"}
+    letter_grade: {ro: "Rating de credit (literă)", en: "Credit letter grade"}
+
+# ── The period's own findings (statements.insights), the single-period
+# source. Only a finding graded at one of `material_levels` is an item; the
+# served rank decides the order. Data-quality findings describe how the book
+# was read, not the business, and are not "what matters now" [DEFAULT,
+# coordinator 2026-09-26]. `headline` names the served measure the line
+# prints; `evidence` is where the item opens.
+insights:
+  material_levels: [critical, high, medium]
+  excluded:
+    reconstruction_gap: data_quality
+    unclassified_balances: data_quality
+  detectors:
+    asset_age:
+      identity: asset_age
+      headline: depreciated_share
+      evidence: {kind: statement, tab: balance_sheet, line: bs.ppe_net}
+      subject: {ro: "Activele fixe sunt spre finalul duratei de amortizare", en: "Asset base is late in its depreciation life"}
+    liquidity_quality:
+      identity: current_ratio
+      headline: current_ratio_trade_only
+      evidence: {kind: ratio, tab: ratios, ratio: current_ratio}
+      subject: {ro: "Lichiditatea se sprijină pe creanțe care nu sunt comerciale", en: "Headline liquidity leans on receivables that are not trade"}
+    related_party_exposure:
+      identity: related_party
+      headline: share_of_equity
+      evidence: {kind: account}
+      subject: {ro: "Creanțe de la părți afiliate și debitori diverși în active", en: "Related-party and other-debtor balances sit inside the assets"}
+    trade_float:
+      identity: receivables_days
+      headline: float
+      evidence: {kind: ratio, tab: ratios, ratio: dso}
+      subject: {ro: "Clienții și furnizorii mișcă ciclul de numerar", en: "Suppliers and customers move the cash cycle"}
+    financial_position:
+      identity: financial_result
+      headline: net_financial
+      evidence: {kind: statement, tab: pl, line: pl.net_financial_result}
+      subject: {ro: "Rezultatul financiar nu este incidental", en: "The financial line is not incidental to the result"}
+    earnings_quality:
+      identity: earnings_quality
+      headline: non_trading
+      evidence: {kind: statement, tab: pl, line: pl.other_operating_income}
+      subject: {ro: "O parte din EBITDA nu vine din activitatea comercială", en: "Part of EBITDA is not trading income"}
+
+# ── Actions (two or three), chosen by state, in this order.
+actions:
+  compare_prior:
+    label: {ro: "Compară cu anul trecut", en: "Compare with last year"}
+  compare_previous_period:
+    label: {ro: "Compară cu perioada anterioară", en: "Compare with the previous period"}
+  add_prior_year:
+    label: {ro: "Adaugă anul anterior", en: "Add the previous year"}
+  bank_export:
+    label: {ro: "Exportă raportul pentru bancă", en: "Export the bank report"}
+    feature: forecast
+  cfo_report_pdf:
+    label: {ro: "Exportă raportul CFO (PDF)", en: "Export the CFO report (PDF)"}
+  set_industry:
+    label: {ro: "Alege codul CAEN al firmei", en: "Choose the company's CAEN code"}
+
+# ── Caveats: printed ONCE per panel, never per item.
+caveats:
+  restated_comparatives:
+    ro: "Ambii ani sunt evaluați pe pragurile de azi (comparative retratate)."
+    en: "Both years are graded on today's bands (restated comparatives)."
+  single_period:
+    ro: "Firma nu are o perioadă anterioară comparabilă: elementele vin din constatările acestei perioade."
+    en: "There is no comparable earlier period for this company: the items come from this period's findings."
+  comparison_off:
+    ro: "Comparația cu perioada anterioară este oprită pentru această firmă: elementele vin din constatările acestei perioade."
+    en: "The comparison with the previous period is switched off for this company: the items come from this period's findings."
