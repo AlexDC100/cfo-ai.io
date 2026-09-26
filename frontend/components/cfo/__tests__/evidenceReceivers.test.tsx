@@ -6,9 +6,10 @@
 // WHAT IT REDS ON, AFTER THE REPAIR (TC-11): a `?ratio=` the tab ignores (the
 // bar's Răspuns would land on a tab with nothing opened), a closed drawer that
 // leaves the parameter behind (Back would reopen it), a `?row=` the benchmark
-// section ignores. WHAT IT CANNOT SEE: the account view (`?account=`), which
-// is not built yet — the bar's Cont rows land on the statement tab with the
-// account's bucket highlighted.
+// section ignores. WHAT IT CANNOT SEE: the account view (`?account=` /
+// `?line=`) and whether EVERY link the bar builds lands — both are
+// frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx
+// (gate cmdbar-evidence).
 
 import { describe, expect, it } from "vitest";
 import { act, screen } from "@testing-library/react";
