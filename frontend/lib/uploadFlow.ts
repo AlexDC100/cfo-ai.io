@@ -301,7 +301,15 @@ export function showJobInFlow(docId: string): void {
 }
 
 export type AnalyseOutcome =
-  | { kind: "queued"; docId: string; orgId: string; companyName: string; created: boolean }
+  | {
+      kind: "queued";
+      docId: string;
+      orgId: string;
+      companyName: string;
+      created: boolean;
+      /** The user's empty workspace became the company (renamed). */
+      adopted: boolean;
+    }
   /** The plan asks first (402); nothing was stored. Confirm, then Analyse again. */
   | { kind: "needs_confirmation"; confirmation: ExtraDocConfirmation }
   /** A new company would pass the plan's company cap (402); nothing was
@@ -393,8 +401,10 @@ export async function analyseUpload(opts: { confirmExtra?: boolean } = {}): Prom
     orgId: res.org_id,
     companyName: res.company_name || choiceCompanyName(choice),
     // The engine says whether it made a company (a "new" CUI it already
-    // holds is reused, not duplicated); the choice is the fallback.
-    created: res.created_company ?? created,
+    // holds is reused, not duplicated; an empty workspace is adopted, not
+    // duplicated); the choice is the fallback.
+    created: res.adopted_company ? false : res.created_company ?? created,
+    adopted: res.adopted_company === true,
   };
 }
 

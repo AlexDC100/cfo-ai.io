@@ -3868,6 +3868,7 @@
       "periodValue": "încheiată la {{date}}",
       "newCompany": "Companie nouă",
       "newCompanyNote": "Niciuna dintre companiile tale nu are CUI-ul ăsta. Analizează creează compania.",
+      "adoptNote": "Folosim spațiul tău gol pentru această companie.",
       "noCuiNote": "N-am găsit CUI-ul în document, așa că îl punem la {{company}}. Schimbă dacă nu e bine.",
       "otherCompanyNote": "Documentul ăsta e al companiei {{company}}, nu al celei deschise acum.",
       "pickPeriod": "Documentul nu spune ce perioadă acoperă. Alege-o la Modifică.",

@@ -190,7 +190,9 @@ export function UploadFlowHost() {
     try {
       const outcome = await analyseUpload(opts);
       if (outcome.kind === "queued") {
-        await startJob(outcome.docId, outcome.orgId, outcome.companyName, outcome.created);
+        // A created company is a new row in the list; an adopted workspace
+        // is renamed — either way the list is re-read.
+        await startJob(outcome.docId, outcome.orgId, outcome.companyName, outcome.created || outcome.adopted);
         return;
       }
       if (outcome.kind === "needs_confirmation") {
@@ -483,7 +485,9 @@ function ConfirmView({
       <CardHeader title={t("wsV2.card.title")} fileName={flow.file?.name} />
       <div className="max-h-[min(70vh,640px)] overflow-y-auto px-5 py-3 chat-scroll">
         {/* One note at most — the most important thing to read first. */}
-        {choice.mode === "new" ? (
+        {choice.mode === "new" && target.reason === "adopt_empty_workspace" ? (
+          <Note tone="accent" testid="upload-card-adopt-note">{t("wsV2.card.adoptNote")}</Note>
+        ) : choice.mode === "new" ? (
           <Note tone="accent" testid="upload-card-new-note">{t("wsV2.card.newCompanyNote")}</Note>
         ) : target.reason === "on_screen_company" && !choice.edited.company ? (
           <Note tone="neutral" testid="upload-card-nocui-note">

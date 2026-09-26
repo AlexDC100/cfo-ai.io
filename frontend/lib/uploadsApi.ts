@@ -56,7 +56,10 @@ export type IdentityField =
   | "industry_key"
   | "industry_label";
 
-export type TargetReason = "cui_match" | "on_screen_company" | "new_cui";
+/** Why the file lands where it does. `adopt_empty_workspace`: the company is
+ *  new, and the user's empty, CUI-less workspace becomes it (a new account's
+ *  first balance) — no second workspace is created. */
+export type TargetReason = "cui_match" | "on_screen_company" | "new_cui" | "adopt_empty_workspace";
 
 export interface IdentifyTarget {
   org_id: string | null;
@@ -125,6 +128,8 @@ export type CommitResult =
       company_name: string;
       /** True when this commit created the company (a new CUI). */
       created_company?: boolean;
+      /** True when the user's empty workspace became the company. */
+      adopted_company?: boolean;
     }
   | {
       status: "duplicate";
@@ -268,7 +273,7 @@ export function normalizeIdentify(body: unknown): IdentifyResult {
       name: str(target.name),
       is_new: target.is_new === true,
       reason:
-        reason === "cui_match" || reason === "on_screen_company" || reason === "new_cui"
+        reason === "cui_match" || reason === "on_screen_company" || reason === "new_cui" || reason === "adopt_empty_workspace"
           ? reason
           : target.is_new === true
             ? "new_cui"
@@ -334,6 +339,7 @@ export async function commitUpload(input: CommitInput): Promise<CommitResult> {
         org_id: rec.org_id,
         company_name: typeof rec.company_name === "string" ? rec.company_name : "",
         ...(typeof rec.created_company === "boolean" ? { created_company: rec.created_company } : {}),
+        ...(typeof rec.adopted_company === "boolean" ? { adopted_company: rec.adopted_company } : {}),
       };
     }
     throw new UploadApiError("malformed_commit", 502);

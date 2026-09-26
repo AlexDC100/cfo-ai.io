@@ -3842,6 +3842,7 @@
       "periodValue": "ending {{date}}",
       "newCompany": "New company",
       "newCompanyNote": "None of your companies has this CUI. Analyse creates the company.",
+      "adoptNote": "Your empty workspace becomes this company.",
       "noCuiNote": "We couldn't read a CUI in the document, so it goes to {{company}}. Change it if that's wrong.",
       "otherCompanyNote": "This document belongs to {{company}}, not to the company open now.",
       "pickPeriod": "The document doesn't say which period it covers. Choose it under Change.",

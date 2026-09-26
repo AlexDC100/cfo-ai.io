@@ -443,6 +443,55 @@ describe("confirmation card", () => {
     expect(await screen.findByText("Analysing Carniprod SRL")).toBeInTheDocument();
   });
 
+  // Live walkthrough, 2026-09-26 (P0 for launch): a new account has ONE
+  // empty workspace and a plan for one company; its first balance prints a
+  // CUI. The engine reports that the empty workspace becomes the company, and
+  // the card says so — the commit is the ordinary new-company commit, which
+  // the engine turns into the adoption.
+  it("a new account's first balance: 'Your empty workspace becomes this company', and the screen follows", async () => {
+    api.identifyUpload.mockResolvedValue(
+      identity(
+        { target: { org_id: "scandia", name: "Carniprod SRL", is_new: true, reason: "adopt_empty_workspace" } },
+        { cui: "RO999999", company_name: "Carniprod SRL", caen_code: "1011", industry_key: "manufacturing", industry_label: "Manufacturing" },
+      ),
+    );
+    api.commitUpload.mockResolvedValue({
+      status: "queued", document_id: "doc-adopt", org_id: "scandia", company_name: "Carniprod SRL",
+      created_company: false, adopted_company: true,
+    });
+    renderHome();
+    const file = await dropOnHome("carniprod.pdf");
+    await screen.findByText("Check before we analyse");
+    expect(within(card()).getByTestId("upload-card-adopt-note")).toHaveTextContent("Your empty workspace becomes this company.");
+    expect(within(card()).queryByTestId("upload-card-new-note")).toBeNull();
+    expect(row("upload-card-company-value")).toHaveTextContent("Carniprod SRL");
+    fireEvent.click(within(card()).getByTestId("upload-card-analyse"));
+    await waitFor(() =>
+      expect(api.commitUpload).toHaveBeenCalledWith({
+        file,
+        onScreenOrgId: "scandia",
+        periodEnd: "2025-12-31",
+        industryKey: "manufacturing",
+        targetOrgId: null,
+        createCompany: { name: "Carniprod SRL", cui: "RO999999", caen_code: "1011", industry_key: "manufacturing" },
+      }),
+    );
+    // Renamed: the company list is re-read, and the screen follows the company.
+    await waitFor(() => expect(activateWorkspace).toHaveBeenCalledWith("scandia", { name: "Carniprod SRL", listChanged: true }));
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/workspace/scandia"));
+  });
+
+  it("Romanian: 'Folosim spațiul tău gol pentru această companie'", async () => {
+    await i18n.changeLanguage("ro");
+    api.identifyUpload.mockResolvedValue(
+      identity({ target: { org_id: "scandia", name: "Carniprod SRL", is_new: true, reason: "adopt_empty_workspace" } }, { cui: "RO999999", company_name: "Carniprod SRL" }),
+    );
+    renderHome();
+    await dropOnHome();
+    await screen.findByText("Verifică înainte să analizăm");
+    expect(within(card()).getByTestId("upload-card-adopt-note")).toHaveTextContent("Folosim spațiul tău gol pentru această companie.");
+  });
+
   it("Change — another of my companies, another period, another industry; each then reads 'chosen by you'", async () => {
     api.identifyUpload.mockResolvedValue(identity());
     api.commitUpload.mockResolvedValue({ status: "queued", document_id: "doc-4", org_id: "scandia", company_name: "Scandia Food SRL" });
