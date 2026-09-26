@@ -1926,9 +1926,11 @@ test.describe(`G4 @${vp.label} — navigation rows carry no category column`, ()
         // Every row, however it was stamped — plus the legacy selectors,
         // so a row that FORGOT to stamp is still examined and still
         // reported as unstamped rather than quietly skipped.
+        // `capsule-ask-fallback` was replaced (2026-09-27) by the command
+        // bar's "Întreabă CFO AI" row, `cmdbar-row-ask` (also an option).
         const ROWS =
           '[data-row-source], [data-testid="capsule-jump-row"], ' +
-          '[role="option"], [data-testid="capsule-ask-fallback"]';
+          '[role="option"], [data-testid="cmdbar-row-ask"]';
         const rows = [...root.querySelectorAll(ROWS)].filter(painted);
 
         const bySource: Record<string, number> = {};

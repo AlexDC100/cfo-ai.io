@@ -1028,6 +1028,45 @@ def _engine_gates() -> List[Gate]:
                        "test_the_route_composes_exactly_what_the_same_app_serves",
                        "test_an_explicit_prior_is_read_inside_the_workspace_only",
                        "test_a_current_period_from_another_workspace_is_not_found")),
+        # THE COMMAND BAR (⌘K), frontend stage CB-F1 (design C2/C3/C5):
+        #   cmdbar-fixtures  the empty-state fixtures the frontend gates render
+        #                    ARE the engine's composition, byte for byte; the
+        #                    bar's statement names are the attention pack's
+        #                    (one metric, one name); every synonym joins a
+        #                    served line / ratio / sector row.
+        #   cmdbar-surface   the REAL CommandPalette over served documents:
+        #                    the swap test, every Răspuns/Cont figure equal to
+        #                    the served figure (ratio_table, never metrics[]),
+        #                    no model call and no model text, < 100 ms and
+        #                    ZERO fetches per keystroke, "loading" never blank
+        #                    or 0 when cold, the digit rule, synonyms, typos,
+        #                    the caveat once, the rent-only DSCR only for a
+        #                    rental company. Live half (hermetic bundle, not in
+        #                    the battery): e2e/design/cmdbar.spec.ts.
+        #                    Plant log: docs/engine_book/gates.md.
+        Gate("cmdbar-fixtures",
+             [PY, "-m", "pytest", "tests/engine/test_cmdbar_fixtures.py", "-q", "-s"],
+             work_rx=r"GATE-WORK cmdbar-fixtures documents=(\d+)", floor=6,
+             units="engine-composed documents re-composed and compared",
+             canaries=("GATE-WORK cmdbar-fixtures documents=",)),
+        Gate("cmdbar-surface",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/components/instrument/shell/__tests__/commandBar.test.tsx",
+              "frontend/components/instrument/shell/cmdbar/__tests__/cmdbarSearch.test.ts",
+              "frontend/components/instrument/shell/__tests__/capsuleCraft.test.tsx",
+              "frontend/components/cfo/chat/__tests__/roleChips.test.tsx",
+              "frontend/lib/__tests__/companyFit.test.ts",
+              "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=85,
+             units="command-bar tests",
+             canaries=("the rows ARE the served items, in the served rank, each with its figure",
+                       "two companies, one fixture shape: different figures (S1) and different words (S2)",
+                       "every ratio answer is its ratio_table row, never metrics[]",
+                       "warm: every keystroke renders under 100 ms and fetches NOTHING",
+                       "planted model text in every field the bar must not read never reaches it",
+                       "a code one digit off never silently picks another account",
+                       "one caveat node, referenced by the listbox, never repeated on an item",
+                       "any other company (or an unknown one) is never offered the rent-only DSCR")),
         # FLOOR SUBSTITUTES, batch C3 (owner rulings R-D5 / R-D6 / R-OTHER,
         # 2026-09-15): the valuation DCF, the AI briefing's citable
         # ratios, the RO pack's ROA check and the served period day count.

@@ -383,8 +383,17 @@ const FLOOR_SITES = 598;
 // purpose: sites move up and down with ordinary refactors, and those
 // floors exist to catch a walk that stopped walking, not a deletion.
 /** Affordance-bearing sites, EXACT high-water. Measured 76 on 2026-09-04.
- *  MAY ONLY BE RAISED. Lowering it retires an affordance: say which. */
-const RATCHET_AFFORDANCES = 76;
+ *  MAY ONLY BE RAISED. Lowering it retires an affordance: say which.
+ *
+ *  76 → 74 (2026-09-27, the ⌘K rebuild): the two provenance dots of
+ *  capsuleAnswer/CapsuleTier0Preview.tsx — the Tier-0 answer card that
+ *  previewed a fact while the reader typed. The command bar no longer
+ *  previews an answer card: each Răspuns / Cont figure is a ROW that opens
+ *  its evidence (the statement row, the ratio, the benchmark row, the
+ *  account), and the bar's figures carry their served source path
+ *  (CommandPalette.tsx, registered HAS_MISSING — the hover dot on those
+ *  rows is the named remaining work). */
+const RATCHET_AFFORDANCES = 74;
 /** .ts files that BUILD figure strings — they cannot wear the affordance
  *  and are not registered, but a collapse here is a walk that broke.
  *  Measured 23 (was 28). The DEFINITION changed, not the tree: R6 stopped
@@ -489,11 +498,14 @@ const SURFACES = {
     ],
   },
   capsule: {
-    ratchet: 7, // MEASURED, exact — no headroom (see RATCHET above)
+    // 7 → 5 (2026-09-27): CapsuleTier0Preview (2 bearing sites) was deleted
+    // with the ⌘K rebuild — the command bar no longer previews a Tier-0
+    // answer; its figures are rows that open their evidence
+    // (CommandPalette.tsx is registered HAS_MISSING).
+    ratchet: 5, // MEASURED, exact — no headroom (see RATCHET above)
     witness: "live: P2/P5[capsule] + P4[capsule]",
     files: [
       "frontend/components/instrument/shell/capsuleAnswer/CapsuleFigures.tsx",
-      "frontend/components/instrument/shell/capsuleAnswer/CapsuleTier0Preview.tsx",
       "frontend/components/instrument/shell/capsuleAnswer/CapsuleFactCard.tsx",
       "frontend/components/instrument/shell/capsuleAnswer/CapsuleAnswerPanel.tsx",
       "frontend/components/instrument/shell/capsuleEmpty/CapsuleFactTiles.tsx",
@@ -567,6 +579,17 @@ const SURFACES = {
     files: [
       "frontend/pages/cfo/MultiYearHistory.tsx",
       "frontend/components/cfo/PublicRecordsQuickCard.tsx",
+    ],
+  },
+  // 2026-09-27 — the command bar (⌘K). HAS_MISSING: its figures carry
+  // their served source and open their evidence, and wear no hover dot
+  // yet. Zero is the measured state, not a law — raise it when the dots
+  // land.
+  cmdbar: {
+    ratchet: 0, // MEASURED, exact — no headroom (see RATCHET above)
+    witness: "live (hermetic): e2e/design/cmdbar.spec.ts; jsdom: frontend/components/instrument/shell/__tests__/commandBar.test.tsx (cmdbar-figures)",
+    files: [
+      "frontend/components/instrument/shell/CommandPalette.tsx",
     ],
   },
   variance: {

@@ -63,6 +63,12 @@
       "affordances": 0,
       "why": "OPENED 2026-09-04. Indirect-method lines carry `accounts` (working-capital rows, capex items, 1621 for bank loans) and assembled_cf says whether it is approximated — an origin the reader could follow. EVERY amount renders inside <LearnableNumber> (a button), so wearing the affordance today nests one interactive element in another. Remaining work, named: lift the amount out of the button (the MetricCard stretched-sibling pattern) and wear {source: <filename> · assembled_cf.<field>, accounts, method: indirect method · approximated?}. Rendered plain until then."
     },
+    "frontend/components/cfo/ComparativeCells.tsx": {
+      "bucket": "LACKS_SILENT",
+      "sites": 10,
+      "affordances": 0,
+      "why": "OPENED 2026-09-15 (plan/2 B1; unregistered since before B0, plan_as_built B0-12). The prior, delta, delta-percent and share cells of the engine's comparatives document: derivations over two periods keyed by line and period label, with no source cell behind a delta or a share. A change across zero renders the one classifier's words. Same law as DeltaBadge: a delta over two figures never wears the affordance."
+    },
     "frontend/components/cfo/CreditScoreCard.tsx": {
       "bucket": "HAS_MISSING",
       "sites": 8,
@@ -104,12 +110,6 @@
       "sites": 4,
       "affordances": 1,
       "why": "KeyMetricItem now carries `provenance`, built ONCE by the page (lib/headlineProvenance) beside the figure and shared with Simple's twins. The headline Amount wears it; the YoY chip (a delta over a series) never does. plan/2 B1 (2026-09-15): the YoY chip is TrendChange — a percent for a same-sign move, else the money change plus the one classifier's words — so it paints two Amounts, both plain (a delta over a series). 2026-09-26 (the dashboard compares with last year by default): the fourth site is the PRIOR period's figure printed under the tile ('Dec 2024: …'), built by lib/overviewComparison from the comparatives document's prior block — plain, the same law as the comparatives' prior cells (ComparativeCells, LACKS_SILENT): no source cell behind it on this screen."
-    },
-    "frontend/components/cfo/ComparativeCells.tsx": {
-      "bucket": "LACKS_SILENT",
-      "sites": 10,
-      "affordances": 0,
-      "why": "OPENED 2026-09-15 (plan/2 B1; unregistered since before B0, plan_as_built B0-12). The prior, delta, delta-percent and share cells of the engine's comparatives document: derivations over two periods keyed by line and period label, with no source cell behind a delta or a share. A change across zero renders the one classifier's words. Same law as DeltaBadge: a delta over two figures never wears the affordance."
     },
     "frontend/components/cfo/Level1BenchmarkView.tsx": {
       "bucket": "HAS_MISSING",
@@ -333,11 +333,35 @@
       "affordances": 4,
       "why": "Reads provenance by concept from FigureProvenanceProvider (lib/figureProvenanceContext) and attaches it ONLY when the resolved value equals the value the page vouched for, to the cent. Headline money/days/count/score values wear it; derived ratios (resolver arithmetic), PercentLevel/CappedMultiple (no provenance prop) and every trend badge (a delta over a series) render plain. The value block lifts above the stretched learn-trigger only when it has something to say."
     },
+    "frontend/components/forecast/YearZeroStrip.tsx": {
+      "bucket": "LACKS_SILENT",
+      "sites": 1,
+      "affordances": 0,
+      "why": "OPENED 2026-09-21 (forecast-scenarios-live, owner gate F1). The Forecast page's YEAR 0: the dashboard's own four headline ACTUALS (operating revenue, EBITDA, net profit, cash), computed by the one function the dashboard computes them with (lib/dashboardHeadline.ts) over the same served period payload. The one site is the Intl.NumberFormat that prints them in the book's own currency beside the projection. Silent on purpose: the dashboard's cards carry these figures' provenance, and a source-cell affordance here would sit among projected figures that must never offer one (Forecast.tsx)."
+    },
+    "frontend/components/forecast/cockpit/LeverSliders.tsx": {
+      "bucket": "LACKS_SILENT",
+      "sites": 1,
+      "affordances": 0,
+      "why": "OPENED 2026-09-21 (Forecast cockpit). The sliders: leverText() prints the reader's own slider POSITION in the lever's unit while they drag it (the engine's own display replaces it once it answers). A lever position is an assumption the reader sets, not a figure read from a book; the basis the engine served is printed beneath it."
+    },
+    "frontend/components/forecast/cockpit/PresentMode.tsx": {
+      "bucket": "LACKS_SILENT",
+      "sites": 1,
+      "affordances": 0,
+      "why": "OPENED 2026-09-21 (Forecast cockpit, present mode). The same served view as the cockpit, full screen; the one site is leverText() on a lever position in the assumptions list (see LeverSliders.tsx). Every figure on the Forecast cockpit is a PROJECTION: it resolves to the assumptions the engine served, never to a cell in an uploaded book, and the fp1 contract enforces that structurally (assert_no_actual_provenance refuses a projected figure carrying a snapshot_id, line_id or source_cell; ProjectedMinor makes the value unreachable except through projectedDisplay inside <ProjectedAmount>, which paints the ◇ mark in the same expression). A dotted underline promising a jump to the source cell of 2030 EBITDA would be an affordance over nothing — the LACKS_SHOWS bucket this census exists to keep empty. "
+    },
     "frontend/components/instrument/Amount.tsx": {
       "bucket": "HAS_SHOWS",
       "sites": 5,
       "affordances": 1,
       "why": "THE INSTRUMENT. Delegates to ProvenanceAffordance when the payload has substance; falls back to a plain rounding tooltip (no data-provenance, no dotted rule) when it does not. plan/2 B1 (2026-09-15): +formatChangePercent — kind=\"percent\" with a `change` renders the classifier's delta_pct, or the change-kind words; no provenance is claimed for either."
+    },
+    "frontend/components/instrument/shell/CommandPalette.tsx": {
+      "bucket": "HAS_MISSING",
+      "sites": 1,
+      "affordances": 0,
+      "why": "OPENED 2026-09-27 with the command bar rebuild. One formatter site: the money printer (useAmountFormatter, compact) the bar's figures go through; the rows themselves are painted by cmdbar/CmdbarList.tsx from view strings. Every figure carries its served source path (cmdbarViews `served.source`: assembled_pl.* / assembled_bs.* / ratio_table.* / the comparatives column / the sector row) and every row OPENS its evidence (the statement tab, the ratio, the benchmark row, the account) — but no hover affordance is worn on the bar yet. Remaining work, named: wear {source: <period label> · <served path>, accounts} on Răspuns and Cont figures."
     },
     "frontend/components/instrument/shell/TrustChip.tsx": {
       "bucket": "HAS_SHOWS",
@@ -363,12 +387,6 @@
       "sites": 9,
       "affordances": 2,
       "why": "Money and dimensionless both wear it now. CapsuleFactMeta has no sheet or account, so it names period + tool (method) + snapshot and claims NO source — the mislabel that put periodLabel under Source is fixed."
-    },
-    "frontend/components/instrument/shell/capsuleAnswer/CapsuleTier0Preview.tsx": {
-      "bucket": "HAS_SHOWS",
-      "sites": 4,
-      "affordances": 2,
-      "why": "WAS the LACKS_SHOWS case: `{ source: fact.periodLabel }` on every fact. Now amountProvenanceFor(fact) for both branches, so the sheet and account codes it always had are what the reader sees."
     },
     "frontend/components/instrument/shell/capsuleEmpty/CapsuleAccountCard.tsx": {
       "bucket": "HAS_SHOWS",
@@ -562,18 +580,6 @@
       "affordances": 1,
       "why": "Builds HeadlineProvenance once (verified to the cent inside lib/headlineProvenance) and hands the SAME object to KeyMetricsRow, StoryOverview, FirstUploadJourney and, by context, the configurable tiles. Its own figure — the hero score — names assembled_metrics.credit.composite_score when the score IS that field, else the client derivation."
     },
-    "frontend/components/forecast/cockpit/LeverSliders.tsx": {
-      "bucket": "LACKS_SILENT",
-      "sites": 1,
-      "affordances": 0,
-      "why": "OPENED 2026-09-21 (Forecast cockpit). The sliders: leverText() prints the reader's own slider POSITION in the lever's unit while they drag it (the engine's own display replaces it once it answers). A lever position is an assumption the reader sets, not a figure read from a book; the basis the engine served is printed beneath it."
-    },
-    "frontend/components/forecast/cockpit/PresentMode.tsx": {
-      "bucket": "LACKS_SILENT",
-      "sites": 1,
-      "affordances": 0,
-      "why": "OPENED 2026-09-21 (Forecast cockpit, present mode). The same served view as the cockpit, full screen; the one site is leverText() on a lever position in the assumptions list (see LeverSliders.tsx). Every figure on the Forecast cockpit is a PROJECTION: it resolves to the assumptions the engine served, never to a cell in an uploaded book, and the fp1 contract enforces that structurally (assert_no_actual_provenance refuses a projected figure carrying a snapshot_id, line_id or source_cell; ProjectedMinor makes the value unreachable except through projectedDisplay inside <ProjectedAmount>, which paints the ◇ mark in the same expression). A dotted underline promising a jump to the source cell of 2030 EBITDA would be an affordance over nothing — the LACKS_SHOWS bucket this census exists to keep empty. "
-    },
     "frontend/pages/cfo/Landing.tsx": {
       "bucket": "LACKS_SILENT",
       "sites": 6,
@@ -627,12 +633,6 @@
       "sites": 1,
       "affordances": 0,
       "why": "OPENED 2026-09-04. THE CURRENCY STORE. One formatAmountFrom() inside the useAmountFormatter binding every other surface calls — it converts and spells whatever it is handed and holds no payload, exactly as ui/Money.tsx does. Callers that have an origin wrap the result."
-    },
-    "frontend/components/forecast/YearZeroStrip.tsx": {
-      "bucket": "LACKS_SILENT",
-      "sites": 1,
-      "affordances": 0,
-      "why": "OPENED 2026-09-21 (forecast-scenarios-live, owner gate F1). The Forecast page's YEAR 0: the dashboard's own four headline ACTUALS (operating revenue, EBITDA, net profit, cash), computed by the one function the dashboard computes them with (lib/dashboardHeadline.ts) over the same served period payload. The one site is the Intl.NumberFormat that prints them in the book's own currency beside the projection. Silent on purpose: the dashboard's cards carry these figures' provenance, and a source-cell affordance here would sit among projected figures that must never offer one (Forecast.tsx)."
     }
   },
   "absent_leaf": {

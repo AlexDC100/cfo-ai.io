@@ -158,7 +158,10 @@ function gateAskFirstCopy() {
         if (/\.aria$/i.test(dotted)) continue;
         // Only the COMMAND SURFACE placeholder is under this law. A
         // period filter or a search-a-list field is honestly a search.
-        if (!/palette|capsule|command|ask/i.test(dotted)) continue;
+        // `cmdbar` joined the family 2026-09-27: the rebuilt command bar's
+        // placeholder is `cmdbar.placeholder`, and a K1 that no longer found
+        // it went red on "no subject" — correctly.
+        if (!/palette|capsule|command|cmdbar|ask/i.test(dotted)) continue;
         // A STRING NOBODY RENDERS IS NOT A PLACEHOLDER, IT IS LITTER.
         //
         // The live gate proved this distinction: the surface now reads
@@ -225,7 +228,16 @@ function* flatten(obj, prefix = "") {
   }
 }
 
-/** K1c — "Ask" must not be a LIST ROW.
+/** K1c — "Ask" must not be a LIST ROW — of the ROUTER's ask keys.
+ *
+ *  SUPERSEDED FOR THE COMMAND BAR by the owner's spec of 2026-09-26: in the
+ *  rebuilt bar "Întreabă CFO AI" IS a row, always the LAST one, reached with
+ *  Tab, and it hands the question to the chat instead of answering in
+ *  place. That law (last, Tab, no model call from the bar) is held on the
+ *  real surface by frontend/components/instrument/shell/__tests__/
+ *  commandBar.test.tsx and live by e2e/design/cmdbar.spec.ts (G2). What
+ *  stays here is narrower and still true: the router's own ask-row keys
+ *  are rendered by no component.
  *
  *  Enforced through DEAD KEYS: the row's own i18n keys must have no
  *  reference left in component source. When Ask is promoted out of the

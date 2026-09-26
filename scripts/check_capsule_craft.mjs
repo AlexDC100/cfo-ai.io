@@ -83,7 +83,12 @@ const SHELL_DIR = "frontend/components/instrument/shell";
 let ROOTS = PROBE_VACUITY
   ? []
   : [SHELL_DIR, "frontend/lib/capsuleSuggestions.ts"];
-let SPEC_FILES = PROBE_VACUITY ? [] : ["e2e/design/capsule-craft.spec.ts"];
+// THE LIVE HALF MOVED WITH THE SURFACE (2026-09-27). The ⌘K rebuild
+// replaced the Capsule's answer canvas with the command bar; its live half
+// is the hermetic spec below. `capsule-craft.spec.ts` drove the retired
+// surface (Tier-0 answer mode, one flat 8-row list) and is not this gate's
+// subject any more (docs/engine_book/gates.md, "cmdbar-*").
+let SPEC_FILES = PROBE_VACUITY ? [] : ["e2e/design/cmdbar.spec.ts"];
 
 // ── file walking ──────────────────────────────────────────────────────
 
@@ -387,9 +392,12 @@ function checkNoCategoryColumn(files) {
 
 /** Row-painting components that are one family each and therefore name
  *  their family with `data-row-source` instead of `data-row-family`. */
-const NON_PALETTE_FAMILIES = ["suggestion", "ask", "jump-row"];
+const NON_PALETTE_FAMILIES = [];
 
-const FAMILY_DECL_FILE = `${SHELL_DIR}/CapsulePaletteRow.tsx`;
+/** The command bar declares every row kind it can paint in ONE list
+ *  (cmdbar/cmdbarRows.ts); the live spec's FAMILY_EXPECT covers each. */
+const FAMILY_DECL_FILE = `${SHELL_DIR}/cmdbar/cmdbarRows.ts`;
+const FAMILY_DECL_NAME = "CMDBAR_ROW_KINDS";
 
 /** The body of `const <NAME> … = [ … ];` or `const <NAME> … = { … };`.
  *  Anchored on `const` so the same identifier mentioned in prose above
@@ -429,11 +437,11 @@ function checkFamilyCoverage(specFiles) {
         `unpoliced, not that they are fine.`);
     return 0;
   }
-  const famBody = declBody(codeOnly(read(declAbs)), "CAPSULE_ROW_FAMILIES", "[", "]");
+  const famBody = declBody(codeOnly(read(declAbs)), FAMILY_DECL_NAME, "[", "]");
   const families = famBody ? arrayEntries(famBody) : null;
   if (!families || families.length === 0) {
     fail("F2b family-coverage",
-      `${FAMILY_DECL_FILE} declares no \`CAPSULE_ROW_FAMILIES\`. Either it was ` +
+      `${FAMILY_DECL_FILE} declares no \`${FAMILY_DECL_NAME}\`. Either it was ` +
         `renamed — in which case this check is now reading nothing and passing ` +
         `— or the row stopped declaring its family, which is how a census ` +
         `learns to lie.`);
@@ -449,7 +457,10 @@ function checkFamilyCoverage(specFiles) {
     const pinnedBody = declBody(spec, "FAMILY_UNVERIFIED", "{", "}");
     const expect = expectBody ? objectKeys(expectBody) : null;
     const pinned = pinnedBody ? objectKeys(pinnedBody) : null;
-    if (!expect || !pinned || expect.length === 0 || pinned.length === 0) {
+    // FAMILY_UNVERIFIED must be DECLARED (a table naming why a family is
+    // not measured live); it may hold one entry — the command bar pins
+    // `recent`, painted only after a pick on the device.
+    if (!expect || !pinned || expect.length === 0) {
       fail("F2b family-coverage",
         `${relSpec} declares no FAMILY_EXPECT / FAMILY_UNVERIFIED table. G4's ` +
           `sweep is then floored on states rather than on families, which is ` +

@@ -10548,3 +10548,183 @@ failed); the `deleted_at=is.null` filter removed — `assert
 'p-a-dec2024-nodoc' == 'p-pri-dec2024'` (3 failed).
 
 **REVERT** — `PASS attention-route (9.8s, 8 tests)`. Verdict: proven RED.
+
+## cmdbar-fixtures
+
+The command bar's frontend gates render "Ce contează acum" from documents
+under `frontend/lib/__tests__/fixtures/attention/`. If those documents were
+edited by hand, the bar would be tested against an authority that does not
+exist. They are composed by the ENGINE (`capture_attention.py`:
+`engine.attention.compose_attention` over the committed comparatives pair, the
+pair with the composite letter as the improvement, and the two period bodies
+the hermetic e2e double serves — corpus books only, no client book), and this
+gate re-composes them.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_cmdbar_fixtures.py -q -s` |
+| work count | `GATE-WORK cmdbar-fixtures documents=(\d+)`, floor **6** (measured 6) |
+| canary | `GATE-WORK cmdbar-fixtures documents=` |
+
+**Reds on, after the repair (TC-11):** a committed `*.attention.json` /
+`*.sector.json` that is not a fresh composition (a composer change without the
+capture re-run, or a hand edit); a statement name in `cmdbarStrings.json`
+(`cmdbar.answer.*`) that differs from the attention pack's subject for the same
+identity, or the filed-basis inventory label differing from the pack's
+`basis_labels` (one metric, one name, RO and EN); a synonym-table answer
+joined to a comparatives line whose served path is not the one the bar reads,
+or to a ratio / sector row the engine does not serve. **Cannot see:** how the
+browser prints the documents (cmdbar-surface).
+
+**GREEN** — `PASS cmdbar-fixtures (1.3s, 6 engine-composed documents
+re-composed and compared)` (through `run_battery.main`, gate list narrowed).
+
+**PLANT** — `agras.attention.json`: the first item's `"rank": 1` edited to 3.
+**RED** — `FAIL cmdbar-fixtures (exit 1, 1.4s)`,
+`FAILED tests/engine/test_cmdbar_fixtures.py::test_every_fixture_is_a_fresh_engine_composition`.
+Also observed RED (direct pytest, reverted): an item figure edited
+(`measure.value = -1`) — `AssertionError: scandia.attention.json is not the
+engine's composition — re-run capture_attention.py`; `cmdbar.answer.cash` (ro)
+renamed "Numerar" — `AssertionError: ('cash', 'ro') / assert 'Numerar' ==
+'Numerar și echivalente'`.
+
+**REVERT** — `PASS cmdbar-fixtures (1.3s, 6 …)`. Verdict: proven RED.
+
+## cmdbar-surface
+
+The rebuilt ⌘K (owner spec 2026-09-26, design C2/C3): header line "Caut în
+{company} · {period}"; at rest the engine's "Ce contează acum" items, each one
+line with its served figure that opens its evidence, the engine's actions, the
+panel's caveat ONCE; typing, the groups Răspuns · Cont · Pagină · Acțiune ·
+Întreabă CFO AI (always last; Tab jumps to it; Enter SENDS the query to the
+grounded chat). The bar spends zero model tokens and fetches nothing per
+keystroke. The gate drives the REAL `CommandPalette` over served documents
+(the e2e period bodies, the comparatives pair capture, the sector documents,
+the engine-composed attention documents) with `fetch` trapped, plus the pure
+search, the craft G4 on the renderer the palette uses, and company fit.
+
+| | |
+|---|---|
+| command | `npx vitest run --root . <commandBar.test.tsx> <cmdbarSearch.test.ts> <capsuleCraft.test.tsx> <roleChips.test.tsx> <companyFit.test.ts> --reporter=verbose` |
+| work count | `Tests … (\d+) passed`, floor **85** (measured 88) |
+| canary | the eight test titles named in `scripts/run_battery.py` (swap, served items, ratio_table-not-metrics, warm zero-fetch, planted model text, digit rule, caveat once, rent-only DSCR) |
+
+**Reds on, after the repair (TC-11):** a resting list that is not the served
+items in the served rank, or two companies whose empty states read the same
+with numerals masked (S2); a Răspuns / Cont figure that is not the served value
+through the shared printer — a ratio from `metrics[]` instead of
+`assembled_metrics.ratio_table`, inventory days off the one adapter or without
+its basis, an account amount that is not the leaf's; recommendations /
+briefing / alert / insight-narrative text reaching the bar, or any request to
+chat-llm or the capsule tools from the bar; a keystroke that fetches, or a
+keystroke over 100 ms; a cold Δ / vs-sector that is blank or 0 instead of
+"loading"; a code one digit off matching another account; a synonym or a
+one-edit typo that no longer finds its figure; the caveat printed more than
+once or not referenced by the listbox; the account-121 tag on an unanchored
+net result; a percentage across zero or a sign; "Calculate DSCR (rent only …)"
+offered to a company that is not rental. **Cannot see:** pixels and the real
+bundle (the live half, below); whether the engine ranked the right items
+(attention-rules).
+
+**GREEN** — `PASS cmdbar-surface (4.2s, 88 command-bar tests)`.
+
+**PLANT (through the battery)** — `CommandPalette.tsx`, the rest rows: a
+company-agnostic list (the old `restingFacts` order — turnover, EBITDA, cash
+as the three items). **RED** — `FAIL cmdbar-surface (exit 1, 4.1s)`.
+**REVERT** — `PASS cmdbar-surface (4.1s, 88 command-bar tests)`.
+
+Each rule's own plant (direct vitest, each reverted, each GREEN again after):
+```
+### PLANT cmdbar-swap — CommandPalette.tsx rest rows = [turnover, ebitda, cash]
+    × the rows ARE the served items, in the served rank, each with its figure
+    × two companies, one fixture shape: different figures (S1) and different words (S2)
+    AssertionError: expected [ 'now:turnover', 'now:ebitda', …(1) ] to deeply equal [ 'now:financial_position', …(2) ]
+    AssertionError: expected '#Net turnover#mil. | #EBITDA#mil. | #…' not to be '#Net turnover#mil. | #EBITDA#mil. | #…'
+### PLANT cmdbar-figures — cmdbarSources.ratioTableRows takes each value from metrics[]
+    × scandia — every ratio answer is its ratio_table row, never metrics[]
+    × agras — every ratio answer is its ratio_table row, never metrics[]
+    × inventory days come through the ONE adapter, with their basis, never called slow
+    × Cont: a leaf account prints its served amount, its key metric, and opens the account
+    AssertionError: gross_margin: expected '0.57%' to be '56.6%'
+    AssertionError: current_ratio: expected '2.11×' to be '2.10×'
+### PLANT cmdbar-no-model (a) — the first recommendation's title as a resting item
+    × planted model text in every field the bar must not read never reaches it
+    AssertionError: expected 'Searching Scandia Food SRL · Dec 2025…' not to contain 'MODEL-SENTINEL'
+### PLANT cmdbar-no-model (b) — askChat POSTs to functions/v1/chat-llm itself
+    × Tab jumps to 'Ask CFO AI'; Enter SENDS it to the chat, and the bar itself calls no model
+    AssertionError: expected [ Array(1) ] to deeply equal []
+### PLANT cmdbar-latency — every keystroke re-fetches /attention
+    × warm: every keystroke renders under 100 ms and fetches NOTHING
+    AssertionError: expected 196 to be +0
+### PLANT cmdbar-digits — the digit rule removed from tokenMatch
+    × a code one digit off never silently picks another account
+    AssertionError: "101202" (one digit off 101201): expected [ '101201', '401202' ] to deeply equal []
+### PLANT cmdbar-caveat-once — the restated-comparatives caveat on every item
+    × one caveat node, referenced by the listbox, never repeated on an item
+    AssertionError: expected 3 to be 1
+### PLANT cmdbar-anchor — "absent" added to ANCHOR_STATUSES
+    × a net result not anchored to account 121 prints the reason, not a figure
+### PLANT cmdbar-change-kind — printColumnChange ignores the served word and divides
+    × a move across zero is a WORD, never a percentage
+    AssertionError: expected 'Total debt3,6 mil.no base vs Dec 2024…' to contain 'from zero'
+### PLANT company-fit — useWorkspacePrompts: rental = true for everyone
+    × any other company (or an unknown one) is never offered the rent-only DSCR
+    AssertionError: expected [ 'Biggest financial risk', …(7) ] to deeply equal [ 'Biggest financial risk', …(6) ]
+```
+The digit plant is the reason the probe uses REAL six-digit leaves: an earlier
+draft probed four-digit codes, which the word rule (5+ letters) never fuzzes —
+it stayed GREEN with the digit rule removed, and was rewritten before landing.
+Verdict: proven RED.
+
+### cmdbar — the live half (hermetic bundle; not in the battery)
+
+`e2e/design/cmdbar.spec.ts` against the REAL production bundle built for
+`harness.invalid` / `engine.invalid`, answered by `e2e/workspace-v2.double.ts`
+(which now serves `/attention` and `/sector-benchmark` from the same
+engine-composed fixtures, with the org wall on `/attention`): G0 anchors (closed,
+open, typed), G1 header + the rows ARE the served items + swap (masked text),
+G2 every row family by its query (FAMILY_EXPECT, held by check_capsule_craft
+F2b to `CMDBAR_ROW_KINDS`), groups in order and Tab → "Întreabă CFO AI", G3
+ZERO requests to either doubled host while typing twelve queries (after the
+page behind the bar settles), G4 no horizontal overflow and the panel inside
+the viewport at 1440 and 390, Terminal and Paper, RO and EN. Run recipe in the
+spec's header (`E2E_HERMETIC=1`; skipped otherwise, because a dev server built
+from `.env` would intercept nothing).
+
+**GREEN** — `10 passed (28.5s)`; 32 screenshots (Scandia and Agras × empty and
+"profit" × 1440/390 × Terminal/Paper × RO/EN).
+**PLANT** — the keystroke fetch above, built into the bundle. **RED**:
+```
+  ✘  1 [chromium] › e2e/design/cmdbar.spec.ts › G1/G2/G3 — the bar on each company › header, swap test, groups, families, zero fetch per keystroke
+    Error: scandia: requests while typing
+    +   "GET /api/period/5ea50000-0000-4000-8000-0000000051f5/attention",
+```
+**REVERT** (rebuilt) — `10 passed (27.4s)`. Verdict: proven RED.
+
+### What moved in the neighbouring gates, and why
+
+* `capsule-craft` — its live half is now `cmdbar.spec.ts` (was
+  `capsule-craft.spec.ts`, which drives the retired Tier-0 answer surface);
+  F2b reads `CMDBAR_ROW_KINDS` from `cmdbar/cmdbarRows.ts` and accepts a
+  declared FAMILY_UNVERIFIED with one entry (`recent`: painted only after a
+  pick; held in jsdom). Row and heading test ids are written literally
+  (`ROW_TESTID`, `HEADING_TESTID`) so F5 can find their producer.
+  `capsuleCraft.test.tsx` G4 now asserts on `CmdbarList` — the renderer the
+  palette uses — and G7 left with the answer mode (its law is cmdbar-no-model).
+* `capsule-ask` — K1's placeholder family gained `cmdbar` (it had gone red on
+  "no subject", correctly). K1c's "Ask is not a row" is superseded for the bar
+  by the owner's 2026-09-26 spec; what remains is narrower (the router's own
+  ask keys render nowhere).
+* `stale-gates` — `capsule-ask-fallback` in `capsule-craft.spec.ts` retargeted
+  at its replacement, `cmdbar-row-ask`.
+* `provenance-census` — `RATCHET_AFFORDANCES` 76 → 74 and the `capsule`
+  roster 7 → 5: `CapsuleTier0Preview.tsx` (2 bearing sites) is deleted — the
+  bar previews no answer card; its figures are rows that open their evidence.
+  `CommandPalette.tsx` is registered HAS_MISSING in a new `cmdbar` roster
+  (ratchet 0): the hover dot on those rows is named remaining work.
+* NOT done here, because it needs the live stack (dev server + engine in test
+  mode, which this lane may not run): the four `e2e/design/capsule*.spec.ts`
+  files and `provenance.spec.ts` P2/P4[capsule] still drive the retired
+  Capsule surface and will fail live; `run_playwright_gate.mjs` still names
+  `capsule.spec.ts::ANCHORS` in MUST_PASS and floors the three capsule specs.
+  They must be retired together, with the playwright baseline re-recorded.
