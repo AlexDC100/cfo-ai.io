@@ -673,6 +673,11 @@ def run_deterministic(
                 period_id = _pipeline.stage_persist(
                     doc, copy.deepcopy(parsed), assembled
                 )
+                # The orchestrator's terminal step (G4, 2026-09-26): a run
+                # staged beside an existing month becomes the month only
+                # once every stage has succeeded — which, for this runner,
+                # is here. A first delivery of a month returns its own id.
+                period_id = _pipeline._finalize_same_month_takeover(doc, period_id)
                 result.period_id = period_id
                 _b("persist_done")
                 envelope = admin.envelope()
@@ -742,6 +747,8 @@ def run_hu_lane(
                 _hooks.on_pass_done(doc, assembled)
                 _b("pass_done")
                 period_id = _pipeline.stage_persist(doc, parsed, assembled)
+                # The orchestrator's terminal step (see run_fixture).
+                period_id = _pipeline._finalize_same_month_takeover(doc, period_id)
                 result.period_id = period_id
                 _b("persist_done")
                 envelope = admin.envelope()

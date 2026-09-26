@@ -47,6 +47,7 @@ describe("ExtraDocConfirmDialog", () => {
       <MemoryRouter>
         <ExtraDocConfirmDialog
           open
+          documentId="doc-402"
           onClose={() => {}}
           onConfirmed={() => {}}
           planKey="starter"
@@ -88,6 +89,7 @@ describe("ExtraDocConfirmDialog", () => {
       <MemoryRouter>
         <ExtraDocConfirmDialog
           open
+          documentId="doc-402"
           onClose={onClose}
           onConfirmed={onConfirmed}
           planKey="starter"
@@ -102,6 +104,9 @@ describe("ExtraDocConfirmDialog", () => {
       expect(planState.confirmExtraDoc).toHaveBeenCalledTimes(1);
       expect(onConfirmed).toHaveBeenCalledTimes(1);
     });
+    // The confirmation is a grant for THIS document (2026-09-21): the
+    // server spends it on no other upload.
+    expect(planState.confirmExtraDoc).toHaveBeenCalledWith("doc-402");
     // This assertion used to be `onClose toHaveBeenCalledTimes(1)` — a gate
     // that pinned the defect. onClose means "dismissed WITHOUT confirming";
     // firing it after onConfirmed let the owner resolve a confirmed upload
@@ -120,6 +125,7 @@ describe("ExtraDocConfirmDialog", () => {
       <MemoryRouter>
         <ExtraDocConfirmDialog
           open
+          documentId="doc-402"
           onClose={onClose}
           onConfirmed={onConfirmed}
           planKey="starter"

@@ -82,7 +82,10 @@
       "fallbackNote": "Your own .xlsx files still work — the template is the recommended path because it removes ambiguity.",
       "insideExamples": "Inside the example files",
       "fallbackNoteDashboard": "Your accounting system's own export works too, as long as it follows one of these column structures."
-    }
+    },
+    "alreadyUploaded": "Already uploaded — open it",
+    "alreadyUploadedBody": "This exact file is already in this company for this period, so nothing was uploaded again and nothing was counted.",
+    "openExisting": "Open"
   },
   "dashboard": {
     "label_eyebrow": "Get started",
@@ -1563,20 +1566,20 @@
     "statutoryLi4": "Inventory variation memo (account 711) split-out",
     "statutoryDeeper": "For deeper analysis, upload your raw trial balance from your accounting software.",
     "alreadyCleanTitle": "Already clean",
-    "alreadyCleanBody": "This workspace has no periods.",
+    "alreadyCleanBody": "This company has no periods.",
     "periodsDeleteFailed_one": "{{count}} period could not be deleted",
     "periodsDeleteFailed_other": "{{count}} periods could not be deleted",
     "deletedPeriods_one": "Deleted {{count}} period",
     "deletedPeriods_other": "Deleted {{count}} periods",
     "filesMovedRecentlyDeleted": "Files moved to Recently deleted — restorable for 30 days.",
-    "wipeFailedTitle": "Couldn't wipe this workspace",
+    "wipeFailedTitle": "Couldn't wipe this company",
     "dangerZone": "Danger zone",
-    "dangerZoneBody": "Deleting this workspace's months is permanent and cannot be undone. Statements, ratios, valuation, risk scores and recommendations are erased for every month. The source files stay in Recently deleted for 30 days and are then removed for good.",
-    "wipeButtonTitle": "Permanently delete every month in this workspace",
+    "dangerZoneBody": "Deleting this company's months is permanent and cannot be undone. Statements, ratios, valuation, risk scores and recommendations are erased for every month. The uploaded files stay in Recently deleted for 30 days and are then removed for good.",
+    "wipeButtonTitle": "Permanently delete every month in this company",
     "wipeData": "Wipe data",
-    "wipeDialogTitle": "Permanently delete every month in this workspace?",
+    "wipeDialogTitle": "Permanently delete every month in this company?",
     "wipeDialogBody1": "This cannot be undone. Every month goes, along with everything derived from it — statements, ratios, valuation, risk scores and recommendations.",
-    "wipeDialogBody2": "The uploaded files move to Recently deleted, where they can be restored for 30 days — after that they are gone for good. Other workspaces, your Products datasets and your chats are not touched.",
+    "wipeDialogBody2": "The uploaded files move to Recently deleted, where they can be restored for 30 days — after that they are gone for good. Your other companies, your Products datasets and your chats are not touched.",
     "deleting": "Deleting…",
     "deleteAllPeriods": "Delete all periods",
     "jumpToNotes": "Jump to Notes & recommendations",
@@ -1886,7 +1889,7 @@
     "createWorkspace": "Create workspace",
     "selectWorkspaceAria": "Select {{name}}",
     "activeWorkspace": "Active workspace",
-    "untitledWorkspace": "Untitled workspace",
+    "untitledWorkspace": "Untitled company",
     "noIndustrySet": "No industry set",
     "deletesInDays_one": "Deletes in {{count}} day",
     "deletesInDays_other": "Deletes in {{count}} days",
@@ -2858,16 +2861,17 @@
       "danger": "Danger zone"
     },
     "general": {
-      "editName": "Edit workspace name",
+      "editName": "Edit company name",
       "saveName": "Save name",
       "cancelEdit": "Cancel editing",
-      "nameSaved": "Workspace renamed.",
+      "nameSaved": "Company renamed.",
       "changeIndustry": "Change industry",
       "searchIndustry": "Search industries…",
       "noneFound": "No industry matches your search.",
-      "industryNote": "Changing the industry updates the sector benchmarks and the decision-rule presets this workspace is graded with.",
+      "industryNote": "Changing the industry updates the sector benchmarks and the decision-rule presets this company is graded with.",
       "industryChanged": "Industry updated.",
-      "noIndustry": "No industry set yet — pick one so benchmarks match this company."
+      "noIndustry": "No industry set yet — pick one so benchmarks match this company.",
+      "catalogIndustry": "Set when the first file was analysed. Change it below if it's wrong."
     },
     "industries": {
       "real_estate": {
@@ -3009,7 +3013,7 @@
       "resetBody": "Puts thresholds, combination logic and financing assumptions back to the catalog defaults.",
       "deleteTitle": "Delete this workspace",
       "deleteNote": "Restorable from “Recently deleted” for 30 days.",
-      "cannotDelete": "This is your only workspace — it can't be deleted."
+      "cannotDelete": "This is your only company — it can't be deleted."
     }
   },
   "pci": {
@@ -3796,5 +3800,182 @@
     "pick": "Pick the company {{page}} works on:",
     "onScreen": "On screen",
     "open": "Open"
+  },
+  "wsV2": {
+    "home": {
+      "title": "Your companies",
+      "subtitle": "Drop a trial balance or a set of financial statements. We read the company, the period and the industry from the document itself.",
+      "empty": "No companies yet. Drop your first document above.",
+      "cui": "CUI {{cui}}",
+      "noCui": "No CUI yet",
+      "latestRevenue": "Revenue {{year}}",
+      "noYears": "No year analysed yet",
+      "loadError": "We couldn't load your companies.",
+      "retry": "Try again",
+      "recentlyDeleted": "Recently deleted",
+      "restore": "Restore",
+      "cantRestore": "We couldn't restore the company.",
+      "purgeIn_one": "Deleted for good in {{count}} day",
+      "purgeIn_other": "Deleted for good in {{count}} days"
+    },
+    "drop": {
+      "zoneTitle": "Drop a file here",
+      "zoneHint": "or choose one from your computer · PDF, Excel, CSV or a photo",
+      "choose": "Choose a file",
+      "overlayTitle": "Let go to analyse it",
+      "overlayHint": "We check which company it belongs to before anything is saved.",
+      "nextYear": "Add {{year}}",
+      "nextYearHint": "Drop the {{year}} file here",
+      "busy": "Reading the document…"
+    },
+    "card": {
+      "readingTitle": "Reading the document…",
+      "readingHint": "Looking for the company, the CUI and the period.",
+      "title": "Check before we analyse",
+      "company": "Company",
+      "cui": "CUI",
+      "period": "Period",
+      "industry": "Industry",
+      "notFound": "Not in the document",
+      "periodValue": "ending {{date}}",
+      "newCompany": "New company",
+      "newCompanyNote": "None of your companies has this CUI. Analyse creates the company.",
+      "noCuiNote": "We couldn't read a CUI in the document, so it goes to {{company}}. Change it if that's wrong.",
+      "otherCompanyNote": "This document belongs to {{company}}, not to the company open now.",
+      "pickPeriod": "The document doesn't say which period it covers. Choose it under Change.",
+      "pickCompany": "Choose which company this file belongs to under Change.",
+      "extraFiles_one": "You dropped {{count}} files; we took the first one.",
+      "extraFiles_other": "You dropped {{count}} files; we took the first one.",
+      "analyse": "Analyse",
+      "change": "Change",
+      "done": "Done",
+      "close": "Close",
+      "tryAgain": "Try again",
+      "saving": "Saving…"
+    },
+    "from": {
+      "document_header": "from the document header",
+      "period_line": "from the document's period line",
+      "closing_balance": "from the closing-balance date in the document",
+      "registry": "from the ONRC/MF registry",
+      "caen": "from the CAEN code",
+      "sheet": "from the spreadsheet's sheet name",
+      "filename": "from the file name",
+      "verified": "verified by our team",
+      "on_screen_company": "the company open now",
+      "company_settings": "from your company's settings",
+      "user": "chosen by you",
+      "document": "from the document"
+    },
+    "change": {
+      "company": "Which company",
+      "newCompany": "New company",
+      "newName": "Company name",
+      "newCui": "CUI",
+      "period": "Period",
+      "month": "Month",
+      "year": "Year",
+      "industry": "Industry",
+      "industryNone": "Not set"
+    },
+    "duplicate": {
+      "title": "Already uploaded",
+      "body": "This exact file is already analysed for {{company}}. It wasn't saved again and it doesn't count.",
+      "open": "Already uploaded — open it"
+    },
+    "errors": {
+      "unsupported": "We can't read this kind of file. Use PDF, Excel (.xlsx, .xls), CSV or a photo.",
+      "identify": "We couldn't read the file.",
+      "commit": "We couldn't save the file. Nothing was analysed.",
+      "cancelled": "The analysis didn't start.",
+      "offline": "The analysis service isn't answering. Try again in a minute.",
+      "wrongKindHint": "The file's name says one thing and its contents another. Export the trial balance again from your accounting software, or pick the original file.",
+      "kind": {
+        "docx_not_pdf": "This is a Word document, not a PDF",
+        "xlsx_not_pdf": "This is an Excel workbook, not a PDF",
+        "pptx_not_pdf": "This is a PowerPoint presentation, not a PDF",
+        "pdf_not_xlsx": "This is a PDF, not an Excel workbook",
+        "pdf_not_xls": "This is a PDF, not an Excel workbook",
+        "docx_not_xlsx": "This is a Word document, not an Excel workbook",
+        "docx_not_xls": "This is a Word document, not an Excel workbook",
+        "generic": "This is {{actual}}, not {{declared}}"
+      },
+      "kindNames": {
+        "pdf": "a PDF",
+        "docx": "a Word document",
+        "xlsx": "an Excel workbook",
+        "xls": "an Excel workbook",
+        "pptx": "a PowerPoint presentation",
+        "ppt": "a PowerPoint presentation",
+        "zip": "a ZIP archive",
+        "ole": "an older Office document",
+        "image": "an image",
+        "csv": "a CSV file"
+      }
+    },
+    "progress": {
+      "title": "Analysing {{company}}",
+      "step": "Step {{n}} of {{total}}",
+      "steps": {
+        "0": "Recognising the document",
+        "1": "Reading the account balances",
+        "2": "Rebuilding the financial statements",
+        "3": "Calculating the ratios",
+        "4": "Writing the conclusions"
+      },
+      "background": "Keep working",
+      "doneTitle": "{{company}} is ready",
+      "failedTitle": "The analysis of {{company}} failed",
+      "open": "Open",
+      "chip": "{{company}} · step {{n}} of {{total}}",
+      "chipDone": "{{company}} · ready",
+      "chipFailed": "{{company}} · failed"
+    },
+    "toast": {
+      "done": "{{company}} is analysed",
+      "doneBody": "{{file}} is ready.",
+      "failed": "The analysis of {{company}} failed",
+      "open": "Open"
+    },
+    "bell": {
+      "heading": "Analyses",
+      "done": "{{company}} is analysed",
+      "failed": "The analysis of {{company}} failed"
+    },
+    "company": {
+      "years": "Years",
+      "noYears": "No analysis yet. Drop the first file on the dashed tile.",
+      "firstYear": "first year",
+      "vsPrior": "vs {{year}}",
+      "revenue": "Revenue",
+      "settings": "Company settings",
+      "notFound": "This company isn't in your list.",
+      "back": "All companies",
+      "opening": "Opening {{company}}…",
+      "yearsError": "We couldn't load the years.",
+      "retry": "Try again",
+      "analysing": "analysing…"
+    },
+    "dashboard": {
+      "emptyTitle": "Nothing analysed here yet",
+      "emptyBody": "Drop the document anywhere on the screen. We read it and show you where it goes before anything is saved.",
+      "openCompany": "Open {{company}}",
+      "openCompanies": "Open your companies"
+    },
+    "settings": {
+      "title": "Settings · {{company}}",
+      "general": "General",
+      "rules": "Decision rules",
+      "financing": "Financing",
+      "danger": "Danger zone",
+      "deleted": "{{company}} is deleted. You can restore it for 30 days.",
+      "cantDelete": "We couldn't delete the company.",
+      "companyName": "Company name",
+      "deleteTitle": "Delete this company",
+      "deleteNote": "It disappears from your companies now; you can restore it for 30 days.",
+      "deleteButton": "Delete company",
+      "deleteDialogTitle": "Delete {{company}}?",
+      "deleteDialogBody": "It disappears from your companies now and is deleted for good after 30 days. Until then you can restore it from Your companies."
+    }
   }
 }

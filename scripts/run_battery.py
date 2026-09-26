@@ -300,6 +300,30 @@ def _engine_gates() -> List[Gate]:
              canaries=("test_no_mutating_route_demands_its_body_as_a_query_param",
                        "test_no_request_model_is_nested_inside_a_function_under_future_annotations",
                        "test_the_full_openapi_schema_generates")),
+        # WORKSPACE-V2 — the redesign's engine gates (one company per
+        # workspace, keyed by CUI) on the REAL create_app() and the REAL
+        # identifier: G1 a file lands in the company its header names, G2 the
+        # period is the document's, G3 the same file twice is stored,
+        # analysed and counted once, G4 no period without an analysed file
+        # (plus the creator census) and a same-month re-upload replacing the
+        # month only once its run succeeds, G7 identify -> commit -> the five
+        # stages -> the served dashboard, G8 archive-never-delete and the
+        # plan-scoped rollback. The browser half (G1 G2 G3 G5 G6 G8) rides
+        # `vitest`; the e2e half needs a hermetic build (gates.md). Floor 29
+        # = the measured 24 + 5, exact (2026-09-26: + the same-month takeover
+        # gates, the no-CUI refusal, the dead-letter replay, the card's
+        # confirmed extra). Plant log: docs/engine_book/gates.md.
+        Gate("workspace-v2",
+             [PY, "-m", "pytest", "tests/engine/test_workspace_v2_gates.py",
+              "tests/engine/test_no_empty_period_creators.py", "-q"],
+             work_junit=True, floor=29, units="tests",
+             canaries=("test_g1_an_agras_file_dropped_on_a_scandia_page_lands_in_agras",
+                       "test_g2_a_2017_file_name_whose_period_line_says_2025_is_2025",
+                       "test_g3_the_same_file_twice_is_stored_analysed_and_counted_once",
+                       "test_g4_the_production_check_finds_the_empty_periods_of_a_snapshot",
+                       "test_g4_a_same_month_reupload_whose_run_fails_leaves_the_month_serving_the_first_analysis",
+                       "test_g7_drop_one_tap_five_stages_then_the_served_dashboard",
+                       "test_g8_the_migration_archives_and_db_restore_reverts_it_exactly")),
         # RADAR: the cross-period spine, the twelve detectors, and the six
         # defects an adversarial read found in them. Named separately from
         # `pytest` because every one of those six shipped GREEN — each

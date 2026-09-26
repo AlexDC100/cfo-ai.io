@@ -150,16 +150,26 @@ def register_routes(router: Any, *, require_jwt: Any) -> None:
         #    avoid an import cycle (pipeline mounts this module).
         triggered = False
         if document_id:
+            from engine.api import _doc_dedupe
+            # One run per document: a run already in flight keeps the
+            # document (the persisted flag re-extracts on the next scan);
+            # a second daemon thread on the same row is never started.
+            claimed = _doc_dedupe.try_mark_in_flight(str(document_id))
             try:
-                from engine.api import pipeline as _pipeline
-                _pipeline._enqueue(str(document_id))
-                triggered = True
+                if claimed:
+                    from engine.api import pipeline as _pipeline
+                    _doc_dedupe.mark_running(str(document_id))
+                    _pipeline._enqueue(str(document_id))
+                    triggered = True
             except Exception:  # noqa: BLE001
                 logger.exception(
                     "[ai_lane] reextract enqueue failed for document %s "
                     "(flag persisted — next scan re-extracts)",
                     document_id,
                 )
+            finally:
+                if claimed and not triggered:
+                    _doc_dedupe.clear_in_flight(str(document_id))
 
         logger.info(
             "[ai_lane] force_reextract flagged on period %s "

@@ -82,7 +82,10 @@
       "fallbackNote": "Fișierele .xlsx proprii funcționează în continuare — șablonul este calea recomandată pentru că elimină ambiguitatea.",
       "insideExamples": "În fișierele exemplu",
       "fallbackNoteDashboard": "Exportul propriului tău program de contabilitate funcționează la fel, atâta timp cât respectă una dintre aceste structuri de coloane."
-    }
+    },
+    "alreadyUploaded": "Deja încărcat — deschide",
+    "alreadyUploadedBody": "Fișierul ăsta e deja în compania ta pentru perioada asta, așa că nu l-am încărcat din nou și nu ți-am consumat nimic din cotă.",
+    "openExisting": "Deschide"
   },
   "dashboard": {
     "label_eyebrow": "Începe aici",
@@ -1568,7 +1571,7 @@
     "statutoryLi4": "Detalierea variației stocurilor (contul 711)",
     "statutoryDeeper": "Pentru o analiză mai detaliată, încărcați balanța de verificare brută din programul de contabilitate.",
     "alreadyCleanTitle": "Deja curat",
-    "alreadyCleanBody": "Acest spațiu de lucru nu are perioade.",
+    "alreadyCleanBody": "Această companie nu are perioade.",
     "periodsDeleteFailed_one": "{{count}} perioadă nu a putut fi ștearsă",
     "periodsDeleteFailed_few": "{{count}} perioade nu au putut fi șterse",
     "periodsDeleteFailed_other": "{{count}} de perioade nu au putut fi șterse",
@@ -1576,14 +1579,14 @@
     "deletedPeriods_few": "S-au șters {{count}} perioade",
     "deletedPeriods_other": "S-au șters {{count}} de perioade",
     "filesMovedRecentlyDeleted": "Fișierele au fost mutate în Șterse recent — restaurabile timp de 30 de zile.",
-    "wipeFailedTitle": "Spațiul de lucru nu a putut fi golit",
+    "wipeFailedTitle": "Compania nu a putut fi golită",
     "dangerZone": "Zonă periculoasă",
-    "dangerZoneBody": "Ștergerea lunilor acestui spațiu de lucru este permanentă și nu poate fi anulată. Situațiile, indicatorii, evaluarea, scorurile de risc și recomandările sunt șterse pentru fiecare lună. Fișierele sursă rămân în Șterse recent timp de 30 de zile, apoi sunt eliminate definitiv.",
-    "wipeButtonTitle": "Șterge definitiv fiecare lună din acest spațiu de lucru",
+    "dangerZoneBody": "Ștergerea lunilor acestei companii este permanentă și nu poate fi anulată. Situațiile, indicatorii, evaluarea, scorurile de risc și recomandările sunt șterse pentru fiecare lună. Fișierele încărcate rămân în Șterse recent timp de 30 de zile, apoi sunt eliminate definitiv.",
+    "wipeButtonTitle": "Șterge definitiv fiecare lună din această companie",
     "wipeData": "Șterge datele",
-    "wipeDialogTitle": "Ștergeți definitiv fiecare lună din acest spațiu de lucru?",
+    "wipeDialogTitle": "Ștergeți definitiv fiecare lună din această companie?",
     "wipeDialogBody1": "Nu se poate anula. Fiecare lună dispare, împreună cu tot ce derivă din ea — situații, indicatori, evaluare, scoruri de risc și recomandări.",
-    "wipeDialogBody2": "Fișierele încărcate se mută în Șterse recent, de unde pot fi restaurate timp de 30 de zile — după aceea dispar definitiv. Celelalte spații de lucru, seturile de date din Produse și conversațiile dvs. nu sunt afectate.",
+    "wipeDialogBody2": "Fișierele încărcate se mută în Șterse recent, de unde pot fi restaurate timp de 30 de zile — după aceea dispar definitiv. Celelalte companii ale tale, seturile de date din Produse și conversațiile tale nu sunt afectate.",
     "deleting": "Se șterge…",
     "deleteAllPeriods": "Șterge toate perioadele",
     "jumpToNotes": "Salt la Note și recomandări",
@@ -1896,7 +1899,7 @@
     "createWorkspace": "Creează workspace",
     "selectWorkspaceAria": "Selectează {{name}}",
     "activeWorkspace": "Workspace activ",
-    "untitledWorkspace": "Workspace fără nume",
+    "untitledWorkspace": "Companie fără nume",
     "noIndustrySet": "Industrie nesetată",
     "deletesInDays_one": "Se șterge într-o zi",
     "deletesInDays_few": "Se șterge în {{count}} zile",
@@ -2882,16 +2885,17 @@
       "danger": "Zonă periculoasă"
     },
     "general": {
-      "editName": "Editează numele workspace-ului",
+      "editName": "Editează numele companiei",
       "saveName": "Salvează numele",
       "cancelEdit": "Renunță la editare",
-      "nameSaved": "Workspace-ul a fost redenumit.",
+      "nameSaved": "Compania a fost redenumită.",
       "changeIndustry": "Schimbă industria",
       "searchIndustry": "Caută industrii…",
       "noneFound": "Nicio industrie nu se potrivește căutării.",
-      "industryNote": "Schimbarea industriei actualizează benchmark-urile sectoriale și preseturile regulilor de decizie cu care este evaluat acest workspace.",
+      "industryNote": "Schimbarea industriei actualizează benchmark-urile sectoriale și preseturile regulilor de decizie cu care este evaluată această companie.",
       "industryChanged": "Industria a fost actualizată.",
-      "noIndustry": "Nicio industrie setată încă — alege una ca benchmark-urile să se potrivească firmei."
+      "noIndustry": "Nicio industrie setată încă — alege una ca benchmark-urile să se potrivească firmei.",
+      "catalogIndustry": "Setată la analiza primului fișier. Schimb-o mai jos dacă nu e corectă."
     },
     "industries": {
       "real_estate": {
@@ -3033,7 +3037,7 @@
       "resetBody": "Readuce pragurile, logica de combinare și ipotezele de finanțare la valorile implicite.",
       "deleteTitle": "Șterge acest workspace",
       "deleteNote": "Recuperabil din „Șterse recent” timp de 30 de zile.",
-      "cannotDelete": "Acesta este singurul tău workspace — nu poate fi șters."
+      "cannotDelete": "Aceasta este singura ta companie — nu poate fi ștearsă."
     }
   },
   "pci": {
@@ -3821,5 +3825,184 @@
     "pick": "Alege compania pe care lucrează {{page}}:",
     "onScreen": "Pe ecran",
     "open": "Deschide"
+  },
+  "wsV2": {
+    "home": {
+      "title": "Companiile tale",
+      "subtitle": "Trage aici o balanță de verificare sau situațiile financiare. Citim din document compania, perioada și industria.",
+      "empty": "Încă nu ai nicio companie. Trage primul document mai sus.",
+      "cui": "CUI {{cui}}",
+      "noCui": "Fără CUI încă",
+      "latestRevenue": "Cifra de afaceri {{year}}",
+      "noYears": "Niciun an analizat încă",
+      "loadError": "N-am putut încărca companiile tale.",
+      "retry": "Încearcă din nou",
+      "recentlyDeleted": "Șterse recent",
+      "restore": "Restaurează",
+      "cantRestore": "N-am putut restaura compania.",
+      "purgeIn_one": "Se șterge definitiv peste {{count}} zi",
+      "purgeIn_few": "Se șterge definitiv peste {{count}} zile",
+      "purgeIn_other": "Se șterge definitiv peste {{count}} de zile"
+    },
+    "drop": {
+      "zoneTitle": "Trage un fișier aici",
+      "zoneHint": "sau alege unul din calculator · PDF, Excel, CSV sau o poză",
+      "choose": "Alege un fișier",
+      "overlayTitle": "Lasă-l aici ca să-l analizăm",
+      "overlayHint": "Verificăm cărei companii îi aparține înainte să salvăm ceva.",
+      "nextYear": "Adaugă {{year}}",
+      "nextYearHint": "Trage aici fișierul pentru {{year}}",
+      "busy": "Citesc documentul…"
+    },
+    "card": {
+      "readingTitle": "Citesc documentul…",
+      "readingHint": "Caut compania, CUI-ul și perioada.",
+      "title": "Verifică înainte să analizăm",
+      "company": "Companie",
+      "cui": "CUI",
+      "period": "Perioadă",
+      "industry": "Industrie",
+      "notFound": "Nu apare în document",
+      "periodValue": "încheiată la {{date}}",
+      "newCompany": "Companie nouă",
+      "newCompanyNote": "Niciuna dintre companiile tale nu are CUI-ul ăsta. Analizează creează compania.",
+      "noCuiNote": "N-am găsit CUI-ul în document, așa că îl punem la {{company}}. Schimbă dacă nu e bine.",
+      "otherCompanyNote": "Documentul ăsta e al companiei {{company}}, nu al celei deschise acum.",
+      "pickPeriod": "Documentul nu spune ce perioadă acoperă. Alege-o la Modifică.",
+      "pickCompany": "Alege la Modifică cărei companii îi aparține fișierul.",
+      "extraFiles_one": "Ai tras {{count}} fișiere; l-am luat pe primul.",
+      "extraFiles_few": "Ai tras {{count}} fișiere; l-am luat pe primul.",
+      "extraFiles_other": "Ai tras {{count}} de fișiere; l-am luat pe primul.",
+      "analyse": "Analizează",
+      "change": "Modifică",
+      "done": "Gata",
+      "close": "Închide",
+      "tryAgain": "Încearcă din nou",
+      "saving": "Salvez…"
+    },
+    "from": {
+      "document_header": "din antetul documentului",
+      "period_line": "din rândul cu perioada din document",
+      "closing_balance": "din data soldurilor finale din document",
+      "registry": "din registrul ONRC/MF",
+      "caen": "din codul CAEN",
+      "sheet": "din numele foii de calcul",
+      "filename": "din numele fișierului",
+      "verified": "verificat de echipa noastră",
+      "on_screen_company": "compania deschisă acum",
+      "company_settings": "din setările companiei tale",
+      "user": "ales de tine",
+      "document": "din document"
+    },
+    "change": {
+      "company": "Care companie",
+      "newCompany": "Companie nouă",
+      "newName": "Numele companiei",
+      "newCui": "CUI",
+      "period": "Perioadă",
+      "month": "Luna",
+      "year": "Anul",
+      "industry": "Industrie",
+      "industryNone": "Nesetată"
+    },
+    "duplicate": {
+      "title": "Deja încărcat",
+      "body": "Exact fișierul ăsta e deja analizat pentru {{company}}. Nu l-am salvat din nou și nu se numără.",
+      "open": "Deja încărcat — deschide"
+    },
+    "errors": {
+      "unsupported": "Nu putem citi tipul ăsta de fișier. Folosește PDF, Excel (.xlsx, .xls), CSV sau o poză.",
+      "identify": "N-am putut citi fișierul.",
+      "commit": "N-am putut salva fișierul. Nu s-a analizat nimic.",
+      "cancelled": "Analiza n-a pornit.",
+      "offline": "Serviciul de analiză nu răspunde. Încearcă din nou peste un minut.",
+      "wrongKindHint": "Numele fișierului spune una și conținutul alta. Exportă balanța din nou din programul de contabilitate sau alege fișierul original.",
+      "kind": {
+        "docx_not_pdf": "Acesta este un document Word, nu un PDF",
+        "xlsx_not_pdf": "Acesta este un registru Excel, nu un PDF",
+        "pptx_not_pdf": "Aceasta este o prezentare PowerPoint, nu un PDF",
+        "pdf_not_xlsx": "Acesta este un PDF, nu un registru Excel",
+        "pdf_not_xls": "Acesta este un PDF, nu un registru Excel",
+        "docx_not_xlsx": "Acesta este un document Word, nu un registru Excel",
+        "docx_not_xls": "Acesta este un document Word, nu un registru Excel",
+        "generic": "Acesta este {{actual}}, nu {{declared}}"
+      },
+      "kindNames": {
+        "pdf": "un PDF",
+        "docx": "un document Word",
+        "xlsx": "un registru Excel",
+        "xls": "un registru Excel",
+        "pptx": "o prezentare PowerPoint",
+        "ppt": "o prezentare PowerPoint",
+        "zip": "o arhivă ZIP",
+        "ole": "un document Office mai vechi",
+        "image": "o imagine",
+        "csv": "un fișier CSV"
+      }
+    },
+    "progress": {
+      "title": "Analizez {{company}}",
+      "step": "Pasul {{n}} din {{total}}",
+      "steps": {
+        "0": "Recunosc documentul",
+        "1": "Citesc soldurile conturilor",
+        "2": "Refac situațiile financiare",
+        "3": "Calculez indicatorii",
+        "4": "Scriu concluziile"
+      },
+      "background": "Lucrează mai departe",
+      "doneTitle": "{{company}} e gata",
+      "failedTitle": "Analiza pentru {{company}} a eșuat",
+      "open": "Deschide",
+      "chip": "{{company}} · pasul {{n}} din {{total}}",
+      "chipDone": "{{company}} · gata",
+      "chipFailed": "{{company}} · a eșuat"
+    },
+    "toast": {
+      "done": "{{company}} e analizată",
+      "doneBody": "{{file}} e gata.",
+      "failed": "Analiza pentru {{company}} a eșuat",
+      "open": "Deschide"
+    },
+    "bell": {
+      "heading": "Analize",
+      "done": "{{company}} e analizată",
+      "failed": "Analiza pentru {{company}} a eșuat"
+    },
+    "company": {
+      "years": "Ani",
+      "noYears": "Nicio analiză încă. Trage primul fișier pe cardul punctat.",
+      "firstYear": "primul an",
+      "vsPrior": "față de {{year}}",
+      "revenue": "Cifra de afaceri",
+      "settings": "Setările companiei",
+      "notFound": "Compania asta nu e în lista ta.",
+      "back": "Toate companiile",
+      "opening": "Deschid {{company}}…",
+      "yearsError": "N-am putut încărca anii.",
+      "retry": "Încearcă din nou",
+      "analysing": "se analizează…"
+    },
+    "dashboard": {
+      "emptyTitle": "Nimic analizat aici încă",
+      "emptyBody": "Trage documentul oriunde pe ecran. Îl citim și îți arătăm unde îl punem înainte să salvăm ceva.",
+      "openCompany": "Deschide {{company}}",
+      "openCompanies": "Deschide companiile tale"
+    },
+    "settings": {
+      "title": "Setări · {{company}}",
+      "general": "General",
+      "rules": "Reguli de decizie",
+      "financing": "Finanțare",
+      "danger": "Zonă periculoasă",
+      "deleted": "{{company}} e ștearsă. O poți restaura timp de 30 de zile.",
+      "cantDelete": "N-am putut șterge compania.",
+      "companyName": "Numele companiei",
+      "deleteTitle": "Șterge compania",
+      "deleteNote": "Dispare acum din companiile tale; o poți restaura timp de 30 de zile.",
+      "deleteButton": "Șterge compania",
+      "deleteDialogTitle": "Ștergi {{company}}?",
+      "deleteDialogBody": "Dispare acum din companiile tale și se șterge definitiv după 30 de zile. Până atunci o poți restaura din Companiile tale."
+    }
   }
 }

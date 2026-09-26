@@ -21,6 +21,13 @@
 // user id) makes the cache self-correcting across users: a different user reads
 // their OWN key, misses, and resolves once via the network — never inheriting
 // the previous user's verdict even before the auth sign-out handler clears it.
+//
+// The PERIOD verdict is scoped by WORKSPACE too (2026-09-26, G6). It used to
+// carry the user id alone, so a period remembered on Scandia's dashboard was
+// handed to a bare /dashboard opened with Agras active — the page showed
+// Scandia's month under a header naming Agras. A verdict is "this user has
+// this period IN THIS COMPANY"; a read for another company misses and
+// resolves for that company.
 
 // In-memory caches (per uid) — the fast path; localStorage is the durable path.
 const periodMem = new Map<string, string | null>();
@@ -28,41 +35,45 @@ const skuMem = new Map<string, boolean>();
 
 const PERIOD_PREFIX = "cfoai:v1:period-verdict:";
 const SKU_PREFIX = "cfoai:v1:sku-verdict:";
-const periodKey = (uid: string) => `${PERIOD_PREFIX}${uid}`;
+const periodKey = (uid: string, orgId?: string | null) =>
+  `${PERIOD_PREFIX}${uid}${orgId ? `:${orgId}` : ""}`;
 const skuKey = (uid: string) => `${SKU_PREFIX}${uid}`;
 
 // ── period (trial-balance) verdict ─────────────────────────────────────────
 // undefined = unknown (must resolve); null = no periods; string = active id.
 
-export function readPeriodVerdict(uid: string): string | null | undefined {
-  if (periodMem.has(uid)) return periodMem.get(uid);
+export function readPeriodVerdict(uid: string, orgId?: string | null): string | null | undefined {
+  const key = periodKey(uid, orgId);
+  if (periodMem.has(key)) return periodMem.get(key);
   try {
-    const raw = localStorage.getItem(periodKey(uid));
+    const raw = localStorage.getItem(key);
     if (raw === null) return undefined;
     const v = raw === "__none__" ? null : raw;
-    periodMem.set(uid, v);
+    periodMem.set(key, v);
     return v;
   } catch {
     return undefined;
   }
 }
 
-export function writePeriodVerdict(uid: string, verdict: string | null): void {
-  periodMem.set(uid, verdict);
+export function writePeriodVerdict(uid: string, verdict: string | null, orgId?: string | null): void {
+  const key = periodKey(uid, orgId);
+  periodMem.set(key, verdict);
   try {
-    localStorage.setItem(periodKey(uid), verdict === null ? "__none__" : verdict);
+    localStorage.setItem(key, verdict === null ? "__none__" : verdict);
   } catch {
     /* private mode / quota — in-memory value still applies for this session */
   }
 }
 
-/** Forget the period verdict for this user, forcing a fresh resolve next time.
- *  Used on explicit workspace reset (?empty=1) since the remembered period may
- *  have just been deleted. */
-export function forgetPeriodVerdict(uid: string): void {
-  periodMem.delete(uid);
+/** Forget the period verdict for this user (in this workspace), forcing a
+ *  fresh resolve next time. Used on explicit workspace reset (?empty=1) since
+ *  the remembered period may have just been deleted. */
+export function forgetPeriodVerdict(uid: string, orgId?: string | null): void {
+  const key = periodKey(uid, orgId);
+  periodMem.delete(key);
   try {
-    localStorage.removeItem(periodKey(uid));
+    localStorage.removeItem(key);
   } catch {
     /* ignore */
   }
@@ -74,8 +85,8 @@ export function forgetPeriodVerdict(uid: string): void {
  *  exists. Sweeps every uid because the caller (the Workspace tab) doesn't
  *  carry one, and a verdict naming a deleted period is wrong for any user. */
 export function forgetPeriodVerdictFor(periodId: string): void {
-  for (const [uid, v] of periodMem) {
-    if (v === periodId) periodMem.delete(uid);
+  for (const [key, v] of periodMem) {
+    if (v === periodId) periodMem.delete(key);
   }
   try {
     for (let i = localStorage.length - 1; i >= 0; i--) {

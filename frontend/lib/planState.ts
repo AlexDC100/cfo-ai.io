@@ -8,7 +8,7 @@
 // HTTP MAP
 //   GET  /api/plan/state              → usePlanState() hook
 //   GET  /api/plan/check-doc          → checkDocQuota() one-shot
-//   POST /api/plan/confirm-extra-doc  → confirmExtraDoc()
+//   POST /api/plan/confirm-extra-doc  → confirmExtraDoc(documentId)
 //
 // All routes require the Supabase JWT; the helpers below attach it
 // automatically (same pattern as `industryApi.ts`).
@@ -92,15 +92,18 @@ export class PlanApiError extends Error {
 // fetch helper (same shape as industryApi)
 // ─────────────────────────────────────────────────────────────────────
 
-async function authedFetch<T>(method: "GET" | "POST", path: string): Promise<T> {
+async function authedFetch<T>(method: "GET" | "POST", path: string, body?: unknown): Promise<T> {
   const sb = getSupabase();
   if (!sb) throw new PlanApiError("Supabase not configured", 401, null);
   const { data } = await sb.auth.getSession();
   const token = data.session?.access_token;
   if (!token) throw new PlanApiError("Not signed in", 401, null);
+  const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+  if (body !== undefined) headers["Content-Type"] = "application/json";
   const r = await fetch(`${API_URL}${path}`, {
     method,
-    headers: { Authorization: `Bearer ${token}` },
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   if (!r.ok) {
     let detail: unknown = null;
@@ -225,12 +228,17 @@ export async function checkDocQuota(): Promise<DocQuotaCheck> {
   return authedFetch<DocQuotaCheck>("GET", "/api/plan/check-doc");
 }
 
-export async function confirmExtraDoc(): Promise<{
+/** Confirm the €-dialog FOR ONE DOCUMENT (2026-09-21). The server grants
+ *  the paid extra to `documentId` only — that document's own
+ *  `/api/pipeline/run` takes it, and no other upload, recover-stuck or
+ *  watchdog run can spend it. */
+export async function confirmExtraDoc(documentId: string): Promise<{
   ok: boolean;
+  document_id?: string;
   extra_doc_eur_marked: number | null;
   plan_key: string;
 }> {
-  return authedFetch("POST", "/api/plan/confirm-extra-doc");
+  return authedFetch("POST", "/api/plan/confirm-extra-doc", { document_id: documentId });
 }
 
 // ─────────────────────────────────────────────────────────────────────

@@ -36,7 +36,13 @@ const API_URL =
 // Types
 // ──────────────────────────────────────────────────────────────────────
 
-export type FeatureStatus = "active" | "coming_soon" | "hidden";
+// `preview` (2026-09-21): shipped for the signed-in users who opted in
+// (`user_prefs.prefs.preview_features` names the key) and OFF for everyone
+// else. ONE mechanism resolves it — `applyPreview` below, the same one that
+// opens a `coming_soon` surface early: for an account whose list names the
+// key the row is served `active` + `beta`; for everyone else it stays
+// `preview`, which every helper treats as off (the current UI, unchanged).
+export type FeatureStatus = "active" | "coming_soon" | "hidden" | "preview";
 
 /** Stable string keys — mirror `FEATURES` in `_features.py`. Adding a
  *  feature here without adding it backend (or vice versa) is a build-time
@@ -93,7 +99,9 @@ export type FeatureKey =
   | "chat_page"
   | "roadmap"
   | "firm_cockpit"
-  | "anomaly_radar";
+  | "anomaly_radar"
+  // ── WORKSPACE REDESIGN (2026-09-21) — `preview` server-side.
+  | "workspace_v2";
 
 export interface FeatureDefinition {
   status: FeatureStatus;
@@ -152,11 +160,14 @@ async function loadOnce(force = false): Promise<FeatureRegistry> {
 // ──────────────────────────────────────────────────────────────────────
 //
 // A key listed in the signed-in user's `user_prefs.prefs.preview_features`
-// that the registry reports `coming_soon` is served to THAT user as
-// `active` + `beta`. Everyone else keeps the registry's answer: the
-// registry stays the one authority for the product as sold, and a preview
-// only ever opens a surface for the accounts named in their own prefs.
-// `hidden` is never promoted — hiding is a deliberate menu decision.
+// that the registry reports `coming_soon` OR `preview` is served to THAT
+// user as `active` + `beta` (the nav row and the page carry a "Beta"
+// label). Everyone else keeps the registry's answer: the registry stays the
+// one authority for the product as sold, and a preview only ever opens a
+// surface for the accounts named in their own prefs. `hidden` is never
+// promoted — hiding is a deliberate menu decision. `CFO_FEATURES_ACTIVE`
+// on the engine promotes a key to `active` for everyone before it reaches
+// here, so this is the ONLY place the browser decides a preview.
 //
 // The list lives in the user's own prefs bag (hydrated by lib/prefs on
 // sign-in and on workspace switch), so it needs no backend change and
@@ -170,7 +181,7 @@ export function applyPreview(reg: FeatureRegistry, preview: unknown): FeatureReg
   for (const k of preview) {
     if (typeof k !== "string") continue;
     const row = reg[k as FeatureKey];
-    if (!row || row.status !== "coming_soon") continue;
+    if (!row || (row.status !== "coming_soon" && row.status !== "preview")) continue;
     out = out ?? { ...reg };
     out[k as FeatureKey] = { ...row, status: "active", beta: true };
   }

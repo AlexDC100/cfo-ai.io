@@ -23,6 +23,10 @@ export interface Workspace {
   id: string;
   name: string;
   createdAt: string;
+  /** organizations.industry_display_name — the stored words for a catalog
+   *  industry key (set by the commit route); read through the SAME reader
+   *  the company page's header uses (components/cfo/upload/industryLabel). */
+  industryDisplayName?: string | null;
   /** Last period (analysis) this workspace was viewing, if any. */
   periodId?: string | null;
   /** Set when soft-deleted; the workspace is in its recovery window. */

@@ -25,8 +25,18 @@
 //
 // The hook is idempotent — once a `?period=` exists in the URL it does
 // nothing on subsequent renders.
+//
+// FOR THE ACTIVE COMPANY (2026-09-26, G6). The lookup used to send the bearer
+// alone, so the engine answered for the caller's OLDEST membership, and the
+// verdict was remembered per user: with Agras open (a company with no
+// analysed year) the sidebar's Dashboard landed on /dashboard?period=<one of
+// Scandia's> under a header reading "Agras SRL · dec. 2025". Now the request
+// names the active company (X-Org-Id — a selector the engine validates,
+// never a grant), the verdict is remembered per (user, company), and a
+// company with nothing analysed resolves to "none" — never to another
+// company's month.
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 import { getSupabase } from "@/lib/supabase";
@@ -39,8 +49,23 @@ import {
   writePeriodVerdict,
   forgetPeriodVerdict,
 } from "@/lib/dataPresence";
-import { getActiveOrgId } from "@/lib/activeOrg";
+import { getActiveOrgId, subscribeActiveOrg } from "@/lib/activeOrg";
 import { fetchWorkspacePeriodsDirect, isCurrentMonthPeriod } from "@/lib/orgPeriods";
+
+/** The active company's id for `uid`, live (it changes on a workspace
+ *  switch). Dependency-free: lib/activeOrg is the floor under lib/org. */
+function useActiveOrgIdFor(uid: string | null): string | null {
+  return useSyncExternalStore(
+    subscribeActiveOrg,
+    () => getActiveOrgId(uid),
+    () => null,
+  );
+}
+
+/** How long a bare URL waits for the active company to resolve on a cold
+ *  start (no cached workspace) before asking without one — the engine then
+ *  answers for the oldest membership, as it always did on a cold start. */
+const ORG_RESOLVE_GRACE_MS = 4000;
 
 /** The workspace's permanent current-month period, when it exists.
  *
@@ -50,14 +75,13 @@ import { fetchWorkspacePeriodsDirect, isCurrentMonthPeriod } from "@/lib/orgPeri
  *  perfectly good month was sitting there to upload into (2026-07-26 per
  *  operator: "select this non-deletable period if no period is available").
  *  Read straight from Supabase so this also works with the engine stopped. */
-async function currentMonthPeriodId(uid: string | null): Promise<string | null> {
-  const orgId = getActiveOrgId(uid);
+async function currentMonthPeriodId(orgId: string | null): Promise<string | null> {
   if (!orgId) return null;
   const payload = await fetchWorkspacePeriodsDirect(orgId);
   if (!payload) return null;
   const current = payload.periods.find((p) => isCurrentMonthPeriod(p.period_end));
-  // Fall back to the newest period when the current month somehow isn't there
-  // yet (useEnsureCurrentPeriod may still be creating it) — any real month
+  // Fall back to the newest period when there is no current-month row (empty
+  // current-month containers are no longer created — G4) — any real month
   // beats an empty state.
   return current?.period_id ?? payload.periods[0]?.period_id ?? null;
 }
@@ -93,6 +117,7 @@ export function useActivePeriodFallback(
   const navigate = useNavigate();
   const { user } = useAuth();
   const uid = user?.id ?? null;
+  const orgId = useActiveOrgIdFor(uid);
   const periodId = params.get("period");
   // After resetWorkspace() deletes the current period, FinancialStatements
   // appends `?empty=1` to the URL so the user lands on the empty state
@@ -113,10 +138,18 @@ export function useActivePeriodFallback(
         // Persisted verdict already says this user has no periods → skip the
         // spinner entirely and paint the empty state on the very first render,
         // with no network call (even on a hard refresh / deep link).
-        : uid && readPeriodVerdict(uid) === null
+        : uid && readPeriodVerdict(uid, orgId) === null
           ? "none"
           : "resolving",
   );
+  // A signed-in user whose active company is not known yet (cold start):
+  // wait for it briefly rather than resolve for the wrong company.
+  const [orgGraceOver, setOrgGraceOver] = useState(false);
+  useEffect(() => {
+    if (!uid || orgId) return undefined;
+    const timer = setTimeout(() => setOrgGraceOver(true), ORG_RESOLVE_GRACE_MS);
+    return () => clearTimeout(timer);
+  }, [uid, orgId]);
 
   useEffect(() => {
     // Already have a period from the URL? Mark ready and exit.
@@ -126,7 +159,7 @@ export function useActivePeriodFallback(
       // has at least this period, so a later bare-URL visit can skip the lookup
       // and canonicalize straight to it. Covers the just-uploaded case, where
       // the app navigates to ?period=<new uuid> directly.
-      if (uid && isUuid(periodId)) writePeriodVerdict(uid, periodId);
+      if (uid && isUuid(periodId) && orgId) writePeriodVerdict(uid, periodId, orgId);
       return;
     }
     // User just deleted/reset a period — show empty state, don't auto-resolve.
@@ -134,7 +167,7 @@ export function useActivePeriodFallback(
     // trusting a now-stale id (the period it points at may have just been
     // deleted).
     if (emptyFlag) {
-      if (uid) forgetPeriodVerdict(uid);
+      if (uid) forgetPeriodVerdict(uid, orgId);
       setStatus("none");
       return;
     }
@@ -153,10 +186,16 @@ export function useActivePeriodFallback(
       );
       return;
     }
+    // The active company is not known yet: wait for it (a moment) before
+    // resolving — a period is a company's, and the lookup names the company.
+    if (uid && !orgId && !orgGraceOver) {
+      setStatus("resolving");
+      return;
+    }
     // Persisted verdict hit — no network needed.
     //   · null   → user has no periods: paint the empty state immediately.
     //   · string → known active period: canonicalize the URL without a fetch.
-    const verdict = uid ? readPeriodVerdict(uid) : undefined;
+    const verdict = uid ? readPeriodVerdict(uid, orgId) : undefined;
     if (verdict === null) {
       // "No analyzed period" is no longer the same as "nowhere to go": the
       // workspace always keeps a current-month container. Look for it before
@@ -164,7 +203,7 @@ export function useActivePeriodFallback(
       let cancelledVerdict = false;
       setStatus("resolving");
       void (async () => {
-        const fallbackId = await currentMonthPeriodId(uid);
+        const fallbackId = await currentMonthPeriodId(orgId);
         if (cancelledVerdict) return;
         if (fallbackId) {
           const target = opts.basePath ?? window.location.pathname;
@@ -203,9 +242,11 @@ export function useActivePeriodFallback(
           if (!cancelled) setStatus("none");
           return;
         }
-        const resp = await fetch(`${SITE.apiUrl}/api/org/periods-with-documents`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        // The ACTIVE company, named on the request: without the header the
+        // engine answers for the caller's oldest membership.
+        const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+        if (orgId) headers["X-Org-Id"] = orgId;
+        const resp = await fetch(`${SITE.apiUrl}/api/org/periods-with-documents`, { headers });
         if (!resp.ok) {
           if (!cancelled) setStatus("none");
           return;
@@ -213,8 +254,9 @@ export function useActivePeriodFallback(
         const body = (await resp.json()) as { active_period_id?: string | null };
         if (cancelled) return;
         if (body.active_period_id) {
-          // Remember the id so a later bare-URL visit skips the round-trip.
-          if (uid) writePeriodVerdict(uid, body.active_period_id);
+          // Remember the id so a later bare-URL visit skips the round-trip —
+          // for THIS company only.
+          if (uid && orgId) writePeriodVerdict(uid, body.active_period_id, orgId);
           // Canonicalize URL so deep links + browser back/forward stay
           // consistent. Use `replace` so back-button doesn't bounce
           // between the bare and canonical URLs.
@@ -229,7 +271,7 @@ export function useActivePeriodFallback(
         } else {
           // No ANALYZED period — but the workspace still keeps a current-month
           // container to land on (see currentMonthPeriodId above).
-          const fallbackId = await currentMonthPeriodId(uid);
+          const fallbackId = await currentMonthPeriodId(orgId);
           if (cancelled) return;
           if (fallbackId) {
             const target = opts.basePath ?? window.location.pathname;
@@ -241,7 +283,7 @@ export function useActivePeriodFallback(
           }
           // Remember "no periods" so this + sibling pages render the empty
           // state instantly (and callless) instead of re-running this lookup.
-          if (uid) writePeriodVerdict(uid, null);
+          if (uid && orgId) writePeriodVerdict(uid, null, orgId);
           setStatus("none");
         }
       } catch {
@@ -254,7 +296,7 @@ export function useActivePeriodFallback(
     // Intentionally exclude opts.basePath from deps — it's read once on
     // resolution; changing it during a session shouldn't re-trigger.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [periodId, emptyFlag, navigate, uid]);
+  }, [periodId, emptyFlag, navigate, uid, orgId, orgGraceOver]);
 
   return { periodId, status };
 }

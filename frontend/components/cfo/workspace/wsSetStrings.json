@@ -9,16 +9,17 @@
         "danger": "Danger zone"
       },
       "general": {
-        "editName": "Edit workspace name",
+        "editName": "Edit company name",
         "saveName": "Save name",
         "cancelEdit": "Cancel editing",
-        "nameSaved": "Workspace renamed.",
+        "nameSaved": "Company renamed.",
         "changeIndustry": "Change industry",
         "searchIndustry": "Search industries…",
         "noneFound": "No industry matches your search.",
-        "industryNote": "Changing the industry updates the sector benchmarks and the decision-rule presets this workspace is graded with.",
+        "industryNote": "Changing the industry updates the sector benchmarks and the decision-rule presets this company is graded with.",
         "industryChanged": "Industry updated.",
-        "noIndustry": "No industry set yet — pick one so benchmarks match this company."
+        "noIndustry": "No industry set yet — pick one so benchmarks match this company.",
+        "catalogIndustry": "Set when the first file was analysed. Change it below if it's wrong."
       },
       "industries": {
         "real_estate": {
@@ -160,7 +161,7 @@
         "resetBody": "Puts thresholds, combination logic and financing assumptions back to the catalog defaults.",
         "deleteTitle": "Delete this workspace",
         "deleteNote": "Restorable from “Recently deleted” for 30 days.",
-        "cannotDelete": "This is your only workspace — it can't be deleted."
+        "cannotDelete": "This is your only company — it can't be deleted."
       }
     }
   },
@@ -174,16 +175,17 @@
         "danger": "Zonă periculoasă"
       },
       "general": {
-        "editName": "Editează numele workspace-ului",
+        "editName": "Editează numele companiei",
         "saveName": "Salvează numele",
         "cancelEdit": "Renunță la editare",
-        "nameSaved": "Workspace-ul a fost redenumit.",
+        "nameSaved": "Compania a fost redenumită.",
         "changeIndustry": "Schimbă industria",
         "searchIndustry": "Caută industrii…",
         "noneFound": "Nicio industrie nu se potrivește căutării.",
-        "industryNote": "Schimbarea industriei actualizează benchmark-urile sectoriale și preseturile regulilor de decizie cu care este evaluat acest workspace.",
+        "industryNote": "Schimbarea industriei actualizează benchmark-urile sectoriale și preseturile regulilor de decizie cu care este evaluată această companie.",
         "industryChanged": "Industria a fost actualizată.",
-        "noIndustry": "Nicio industrie setată încă — alege una ca benchmark-urile să se potrivească firmei."
+        "noIndustry": "Nicio industrie setată încă — alege una ca benchmark-urile să se potrivească firmei.",
+        "catalogIndustry": "Setată la analiza primului fișier. Schimb-o mai jos dacă nu e corectă."
       },
       "industries": {
         "real_estate": {
@@ -325,7 +327,7 @@
         "resetBody": "Readuce pragurile, logica de combinare și ipotezele de finanțare la valorile implicite.",
         "deleteTitle": "Șterge acest workspace",
         "deleteNote": "Recuperabil din „Șterse recent” timp de 30 de zile.",
-        "cannotDelete": "Acesta este singurul tău workspace — nu poate fi șters."
+        "cannotDelete": "Aceasta este singura ta companie — nu poate fi ștearsă."
       }
     }
   }

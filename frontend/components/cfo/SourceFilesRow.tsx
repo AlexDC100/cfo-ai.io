@@ -26,6 +26,8 @@ import { useRef, useState, type ReactNode } from "react";
 import { ArrowUp, Cloud, FileSpreadsheet, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { FilePickerInput, fileDropProps } from "@/components/cfo/upload/UploadDrop";
+
 export interface SourceFileItem {
   /** Stable key. */
   id: string;
@@ -160,30 +162,18 @@ export function AddFileTile({
   const [drag, setDrag] = useState(false);
   return (
     <>
-      <input
+      {/* The file input and drag handlers come from the one upload
+          component's primitives (components/cfo/upload/UploadDrop). */}
+      <FilePickerInput
         ref={inputRef}
-        type="file"
         accept={accept}
-        className="hidden"
         data-testid={`${testid}-input`}
-        onChange={(e) => {
-          const f = e.target.files?.[0];
-          if (f) onFile(f);
-          // Reset so re-picking the same file fires onChange again.
-          e.target.value = "";
-        }}
+        onFiles={(files) => onFile(files[0]!)}
       />
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
-        onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
-        onDragLeave={() => setDrag(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDrag(false);
-          const f = e.dataTransfer.files?.[0];
-          if (f) onFile(f);
-        }}
+        {...fileDropProps({ onFiles: (files) => onFile(files[0]!), onActiveChange: setDrag })}
         data-testid={testid}
         title={resolvedTitle}
         className={

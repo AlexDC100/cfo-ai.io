@@ -10,7 +10,7 @@
 // existing path:
 //   · rename            → onRename → useWorkspaces().rename (org RPC)
 //   · industry          → onChangeIndustry → useWorkspaces().setIndustry
-//   · period add/delete → PeriodsSection (createEmptyPeriod / deletePeriod)
+//   · period add/delete → PeriodsSection (deletePeriod; a period is created only by analysing its file)
 //   · rules apply/reset → decisionRulesStore (writeDecisionRules / reset)
 //   · financing         → decisionRulesStore.setFinancing
 //   · delete workspace  → onDelete → useWorkspaces().remove (soft, 30 days)
@@ -53,6 +53,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { toast } from "@/components/ui/sonner";
 import { DecisionRulesPanel } from "@/components/cfo/command/DecisionRulesModal";
 import { ORG_INDUSTRIES } from "@/components/cfo/OrgIndustryPills";
+import { useIndustryLabel } from "@/components/cfo/upload/industryLabel";
 import { DEFAULT_FINANCING } from "@/lib/decisionRules";
 import {
   resetDecisionRulesToDefaults,
@@ -269,14 +270,19 @@ export function WorkspaceSettingsV2({
 
 // ─── General ─────────────────────────────────────────────────────────────────
 
-function GeneralSection({
+// Exported for the workspace redesign's company settings (the gear on the
+// company page) — same controls, same mutation paths, no left sub-nav.
+export function GeneralSection({
   workspace,
   onRename,
   onChangeIndustry,
+  nameLabel,
 }: {
   workspace: Workspace;
   onRename: (name: string) => void;
   onChangeIndustry: (key: string) => void;
+  /** The name field's label — "Company name" in the workspace redesign. */
+  nameLabel?: string;
 }) {
   const { t } = useTranslation();
 
@@ -310,6 +316,12 @@ function GeneralSection({
   const [pickerOpen, setPickerOpen] = useState(false);
   const [query, setQuery] = useState("");
   const current = ORG_INDUSTRIES.find((i) => i.key === workspace.industryKey) ?? null;
+  // ONE industry reader with the company page's header (2026-09-26): a key
+  // from the industry catalog (what the commit route assigns —
+  // "food_manufacturing") is not a workspace-settings industry, and this
+  // card read "No industry set" under a header saying "Food manufacturing".
+  // The catalog names it here exactly as it does there.
+  const catalogLabel = useIndustryLabel(workspace.industryKey, workspace.industryDisplayName ?? null);
   const CurrentIcon = current ? INDUSTRY_ICONS[current.key] ?? Boxes : Boxes;
   const indName = (key: string) => t(`wsSet.industries.${key}.name`);
   const indDesc = (key: string) => t(`wsSet.industries.${key}.desc`);
@@ -335,7 +347,7 @@ function GeneralSection({
       {/* Name */}
       <div>
         <span className="block text-[11px] uppercase tracking-[0.12em] text-ink-mute font-semibold mb-1.5">
-          {t("settings.workspace_name")}
+          {nameLabel ?? t("settings.workspace_name")}
         </span>
         {editing ? (
           <div className="flex items-center gap-2">
@@ -406,10 +418,14 @@ function GeneralSection({
             </span>
             <div className="min-w-0">
               <div className="text-[13px] font-medium text-ink truncate">
-                {current ? indName(current.key) : t("ws.noIndustrySet")}
+                {current ? indName(current.key) : catalogLabel ?? t("ws.noIndustrySet")}
               </div>
               <div className="text-[11.5px] text-ink-soft truncate">
-                {current ? indDesc(current.key) : t("wsSet.general.noIndustry")}
+                {current
+                  ? indDesc(current.key)
+                  : catalogLabel
+                    ? t("wsSet.general.catalogIndustry")
+                    : t("wsSet.general.noIndustry")}
               </div>
             </div>
           </div>
@@ -499,7 +515,9 @@ function GeneralSection({
 // Same store the decision rules read (setFinancing) — the panel's own
 // financing block is hidden on this surface so the assumptions live here once.
 
-function FinancingSection() {
+// Exported for the workspace redesign's company settings (the gear on the
+// company page) — same controls, same mutation paths, no left sub-nav.
+export function FinancingSection() {
   const { t } = useTranslation();
   const state = useDecisionRules();
   const financing = state.financing ?? DEFAULT_FINANCING;
@@ -616,14 +634,27 @@ function FinancingSection() {
 
 // ─── Danger zone ─────────────────────────────────────────────────────────────
 
-function DangerZone({
+// Exported for the workspace redesign's company settings (the gear on the
+// company page) — same controls, same mutation paths, no left sub-nav.
+/** Copy overrides for the delete row — the workspace redesign says "company". */
+export interface DangerZoneCopy {
+  title: string;
+  note: string;
+  button: string;
+  dialogTitle: string;
+  dialogBody: string;
+}
+
+export function DangerZone({
   workspace,
   canDelete,
   onDelete,
+  copy,
 }: {
   workspace: Workspace;
   canDelete: boolean;
   onDelete: () => void;
+  copy?: DangerZoneCopy;
 }) {
   const { t } = useTranslation();
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -665,9 +696,9 @@ function DangerZone({
       {/* Delete workspace */}
       <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between">
         <div className="min-w-0">
-          <p className="text-[13px] font-medium text-ink">{t("wsSet.danger.deleteTitle")}</p>
+          <p className="text-[13px] font-medium text-ink">{copy?.title ?? t("wsSet.danger.deleteTitle")}</p>
           <p className="text-[11.5px] text-ink-soft leading-snug mt-0.5">
-            {canDelete ? t("wsSet.danger.deleteNote") : t("wsSet.danger.cannotDelete")}
+            {canDelete ? copy?.note ?? t("wsSet.danger.deleteNote") : t("wsSet.danger.cannotDelete")}
           </p>
         </div>
         <button
@@ -678,7 +709,7 @@ function DangerZone({
           className="shrink-0 inline-flex items-center gap-1.5 h-8 px-3 rounded-sm border border-alert/30 bg-alert-tint text-[12.5px] font-medium text-alert hover:border-alert/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-micro"
         >
           <Trash2 size={14} strokeWidth={1.75} />
-          {t("ws.deleteWorkspace")}
+          {copy?.button ?? t("ws.deleteWorkspace")}
         </button>
       </div>
 
@@ -689,10 +720,10 @@ function DangerZone({
         <DialogContent className="sm:max-w-[440px]" data-testid="workspace-settings-delete-dialog">
           <DialogHeader>
             <DialogTitle>
-              {t("ws.deleteWorkspaceTitle", { name: workspace.name || t("ws.thisWorkspace") })}
+              {copy?.dialogTitle ?? t("ws.deleteWorkspaceTitle", { name: workspace.name || t("ws.thisWorkspace") })}
             </DialogTitle>
             <DialogDescription>
-              {t("ws.deleteWorkspaceBody")}
+              {copy?.dialogBody ?? t("ws.deleteWorkspaceBody")}
             </DialogDescription>
           </DialogHeader>
 
@@ -739,7 +770,7 @@ function DangerZone({
               className="inline-flex items-center gap-1.5 h-8 px-3.5 rounded-sm border border-alert/30 bg-alert-tint text-[12.5px] font-medium text-alert hover:border-alert/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-micro"
             >
               <Trash2 size={14} strokeWidth={1.75} />
-              {t("ws.deleteWorkspace")}
+              {copy?.button ?? t("ws.deleteWorkspace")}
             </button>
           </DialogFooter>
         </DialogContent>

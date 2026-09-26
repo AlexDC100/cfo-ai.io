@@ -136,6 +136,9 @@ SWEEP = [
     ("POST", "/api/documents/{DOC_A1}/move-period", {"period_end": "2025-12-31"}, "403"),
     ("POST", "/api/documents/{DOC_A1}/make-active", None, "403"),
     ("POST", "/api/pipeline/run", {"document_id": DOC_A1}, "403"),
+    # Read-only, but it answers about a company's files: resolve_org refuses
+    # a workspace the caller holds no membership in (the viewer names ORG_A1).
+    ("POST", "/api/documents/duplicate-check", {"content_hash": "a" * 64}, "403"),
     ("POST", "/api/pipeline/retry", {"document_id": DOC_A1}, "403"),
     ("POST", "/api/documents/clear-mine", None, "403"),
     ("DELETE", "/api/documents/clear-deleted", None, "200-empty"),
@@ -148,6 +151,13 @@ SWEEP = [
      {"selected_industry_key": "manufacturing_generic"}, "403"),
     ("POST", "/api/industry/assignment/{PERIOD_A1}/lock", {"locked": True}, "403"),
     ("POST", "/api/industry/assignment/{PERIOD_A1}/recalc", None, "403"),
+    # The company-workspace upload (2026-09-21) — MULTIPART, so the body is
+    # a `__multipart__` spec (see `_send`). The viewer SEES ORG_A1's books and
+    # names it as the target: refused by `require_org_member`, nothing stored.
+    ("POST", "/api/uploads/commit",
+     {"__multipart__": {"files": {"file": ("a1-2025.xlsx", b"PK\x03\x04 viewer upload",
+                                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")},
+                        "data": {"target_org_id": T.ORG_A1, "period_end": "2025-12-31"}}}, "403"),
 ]
 
 _IDS = {"PERIOD_A1": T.PERIOD_A1, "DOC_A1": DOC_A1, "DOC_A1_GONE": DOC_A1_GONE,
@@ -198,7 +208,8 @@ DECLARED = {
     ("POST", "/api/checkout/start"): "self-scoped: Stripe session for the verified user",
     ("PUT", "/api/dashboard/config"): "self-scoped: dashboard_configs keyed on the verified user_id",
     ("POST", "/api/plan/commit-document-usage"): "self-scoped: usage counters per verified user_id",
-    ("POST", "/api/plan/confirm-extra-doc"): "self-scoped: usage counters per verified user_id",
+    ("POST", "/api/plan/confirm-extra-doc"): "self-scoped: usage counters per verified user_id; the document "
+                                              "it grants the extra to is walled by _verify_user_may_write_document",
     ("POST", "/api/plan/release-document-reservation"): "self-scoped: usage counters per verified user_id",
     ("POST", "/api/newsletter/subscribe-me"): "self-scoped: the verified identity's own e-mail",
     ("POST", "/api/newsletter/unsubscribe-me"): "self-scoped: the verified identity's own e-mail",
@@ -206,6 +217,11 @@ DECLARED = {
     ("POST", "/api/newsletter/debug-send-all"): "self-scoped: mails only the verified identity's own e-mail",
     # read-only compute behind a POST body: no table is written
     ("POST", "/api/period/detect"): "read-only compute: period detection on the request body (JWT required)",
+    # Identifies the uploaded file (company, CUI, period, industry) and the
+    # company it would land in. Stores nothing, reserves nothing, writes no
+    # table: the COMMIT is the write, and it is member-walled in SWEEP. The
+    # X-Org-Id it reads is membership-checked (`_org.resolve_org`, 403).
+    ("POST", "/api/uploads/identify"): "read-only compute: identifies the uploaded file, writes nothing (JWT verified, X-Org-Id membership-checked)",
     ("POST", "/api/period/{period_id}/valuation/recompute"): "read-only compute: stateless DCF, does not persist",
     ("POST", "/api/financial-statements/parse"): "read-only compute: stateless parse of the request body",
     # The PDF renderer takes the HTML the CALLER already holds and hands it
@@ -760,13 +776,23 @@ def test_every_mutating_route_of_the_real_app_is_classified(app):
     print("[write-wall] %d mutating routes: %s" % (len(routes), counts))
 
 
+def _send(client: TestClient, method: str, path: str, headers: Dict[str, str], body: Any) -> Any:
+    """A SWEEP request: JSON, or multipart when the body is a
+    ``{"__multipart__": {"files": …, "data": …}}`` spec."""
+    if isinstance(body, dict) and "__multipart__" in body:
+        spec = body["__multipart__"]
+        return client.request(method, path, headers=headers, files=spec.get("files"),
+                              data=spec.get("data"))
+    return client.request(method, path, headers=headers, json=body)
+
+
 def _drive_sweep(client: TestClient, world: Any, actor: str, label: str) -> None:
     before = snapshot(world)
     violations = []
     transcript = []
     for method, template, body, expect in SWEEP:
         path = _fill(template)
-        r = client.request(method, path, headers=hdr(actor, T.ORG_A1), json=body)
+        r = _send(client, method, path, hdr(actor, T.ORG_A1), body)
         moved = diff(before, snapshot(world))
         if expect == "403":
             ok = r.status_code == 403 and not moved
@@ -832,6 +858,41 @@ def test_the_owner_still_writes_through_every_wall_it_holds_a_membership_for(app
         "the owner's DELETE /api/period/{id} did not remove the period"
     assert any(p["id"] == T.PERIOD_A2 for p in world.rows("financial_periods")), "a sibling period was touched"
     print("[write-wall] owner: PATCH 200, DELETE doc 200, restore 200, DELETE period 200 (row gone)")
+
+
+def test_clear_all_empties_one_live_workspaces_trash_and_never_an_archived_one(app, world):
+    """DELETE /api/documents/clear-deleted hard-deletes, and a period's
+    source document is ON DELETE CASCADE for the period (schema.sql:571).
+    It empties the trash of ONE workspace — the X-Org-Id one — and never an
+    ARCHIVED workspace's (whose trash no screen shows). Until 2026-09-21 it
+    emptied every trash the caller could see: one "Clear all" in A1 erased
+    A2's trashed source and, through the cascade, A2's period.
+
+    Reds on: a clear in A1 touching A2's trash; a clear aimed at an archived
+    workspace deleting anything; the owner's own A1 trash NOT emptied."""
+    client = TestClient(app)
+    a2_src = T.U(404)
+    world.add("documents", {"id": a2_src, "org_id": T.ORG_A2, "original_filename": "a2-src.xlsx",
+                            "status": "analyzed", "deleted_at": "2026-09-02T00:00:00+00:00"})
+    for col in world.columns["documents"]:
+        next(d for d in world.rows("documents") if d["id"] == a2_src).setdefault(col, None)
+    period_a2 = next(p for p in world.rows("financial_periods") if p["id"] == T.PERIOD_A2)
+    period_a2["source_document_id"] = a2_src
+
+    r = client.delete("/api/documents/clear-deleted", headers=hdr(T.A_OWNER, T.ORG_A1))
+    assert r.status_code == 200, (r.status_code, r.text[:200])
+    assert r.json()["deleted_ids"] == [DOC_A1_GONE], r.json()
+    assert not any(d["id"] == DOC_A1_GONE for d in world.rows("documents")), "A1's own trash was not emptied"
+    assert any(d["id"] == a2_src for d in world.rows("documents")), \
+        "CLEAR-ALL CROSSED WORKSPACES — a clear in A1 hard-deleted A2's trashed period source"
+
+    org_a2 = next(o for o in world.rows("organizations") if o["id"] == T.ORG_A2)
+    org_a2["archived_at"] = "2026-09-21T00:00:00+00:00"
+    r = client.delete("/api/documents/clear-deleted", headers=hdr(T.A_OWNER, T.ORG_A2))
+    assert r.status_code == 200 and r.json()["deleted_count"] == 0, (r.status_code, r.text[:200])
+    assert any(d["id"] == a2_src for d in world.rows("documents")), \
+        "CLEAR-ALL EMPTIED AN ARCHIVED WORKSPACE'S TRASH"
+    assert period_a2 in world.rows("financial_periods")
 
 
 def test_require_org_member_never_falls_back_to_another_org_the_caller_belongs_to(world):

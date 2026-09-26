@@ -79,6 +79,10 @@ import LegalPage from "./pages/cfo/LegalPage";
 // inside FinancialStatements.tsx's Overview tab.
 const Dashboard = lazy(() => import("./pages/cfo/FinancialStatements"));
 const Workspace = lazy(() => import("./pages/cfo/Workspace"));
+// Workspace redesign (2026-09-21) — behind the `workspace_v2` feature
+// (`preview`: on only for users who opted in; see lib/previewFeatures.ts).
+const WorkspaceHomeV2 = lazy(() => import("./pages/cfo/WorkspaceHomeV2"));
+const CompanyPage = lazy(() => import("./pages/cfo/CompanyPage"));
 const Decisions = lazy(() => import("./pages/cfo/Decisions"));
 const Products = lazy(() => import("./pages/cfo/Products"));
 // F6.0.5 — Scenario planning / what-if (/dashboard/scenarios).
@@ -131,6 +135,7 @@ import { RouteFallback } from "@/components/cfo/RouteFallback";
 // Every route outside the eight launch surfaces is wrapped below and
 // renders <PendingState> until its registry row flips to `active`.
 import { FeatureRoute } from "@/components/cfo/FeatureRoute";
+import { useWorkspaceV2State } from "@/lib/previewFeatures";
 
 // The QueryClient lives in src/lib/queryClient.ts so non-component modules
 // (auth context, navigation helpers) can call `.clear()` directly without
@@ -439,7 +444,8 @@ function AppRoutes() {
               navigation is instant and shell state (sidebar collapse, open
               chat panel, etc.) is preserved. */}
           <Route element={<AppLayout />}>
-            <Route path="/workspace" element={<Workspace />} />
+            <Route path="/workspace" element={<WorkspaceEntry />} />
+            <Route path="/workspace/:orgId" element={<CompanyEntry />} />
             <Route path="/dashboard" element={<Dashboard />} />
             {/* ── LAUNCH CUT — outside the eight launch surfaces. Each is
                 a built page whose screen has NOT been walked end-to-end,
@@ -598,6 +604,25 @@ function AppLayout() {
       </AppShell>
     </AuthGuard>
   );
+}
+
+/**
+ * /workspace — the redesigned home (company cards + the one drop zone) when
+ * `workspace_v2` is on for this viewer, the current page otherwise. Holds a
+ * still frame while the registry / opt-in resolve, so an opted-in owner never
+ * sees the old screen flash first.
+ */
+function WorkspaceEntry() {
+  const { enabled, loading } = useWorkspaceV2State();
+  if (loading) return <ContentFallback />;
+  return enabled ? <WorkspaceHomeV2 /> : <Workspace />;
+}
+
+/** /workspace/:orgId — the company page exists only in the redesign. */
+function CompanyEntry() {
+  const { enabled, loading } = useWorkspaceV2State();
+  if (loading) return <ContentFallback />;
+  return enabled ? <CompanyPage /> : <Navigate to="/workspace" replace />;
 }
 
 /**

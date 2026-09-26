@@ -227,8 +227,12 @@ def test_fc7_request_link_lands_through_the_normal_pipeline(example_8col, landin
     result = FR.land_file(_request(), example_8col, "balanta_verificare_12_2025.xlsx",
                           "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                           deps, document_id="doc-fc7")
-    # 1. the ORDER the browser path takes: blob, row, queued, enqueue, counter
-    assert [c[0] for c in calls] == ["upload", "insert", "status", "enqueue", "usage"]
+    # 1. the ORDER the browser path takes: blob, row, queued, enqueue — and
+    #    NO enqueue-time counter bump (2026-09-21): that soft counter moved
+    #    `user_usage.uploads` before the analysis, for failures too, on top
+    #    of the terminal commit's own bump. The pipeline's terminal is the
+    #    one counter now; a "usage" call here is the double count back.
+    assert [c[0] for c in calls] == ["upload", "insert", "status", "enqueue"]
     assert calls[0][1:3] == (FR.DOC_BUCKET, "org-exemplu/uploads/doc-fc7.xlsx")
     assert calls[2][1:] == ("doc-fc7", "queued")
     assert calls[3][1] == "doc-fc7"
@@ -348,7 +352,7 @@ def test_fc7_unknown_identity_is_recorded_not_refused(corpus_carniprod, landing_
                           document_id="doc-unknown")
     assert result.inspection.entity.verdict == FR.VERDICT_UNKNOWN
     assert result.inspection.identity.name is None and result.inspection.identity.cui is None
-    assert [c[0] for c in calls] == ["upload", "insert", "status", "enqueue", "usage"]
+    assert [c[0] for c in calls] == ["upload", "insert", "status", "enqueue"]
     assert result.inspection.preamble.parse_ok is True
 
 
@@ -388,7 +392,7 @@ def test_fc7_http_seam_resolve_upload_and_single_use(monkeypatch, example_8col, 
     payload = landed.json()
     assert payload["status"] == "queued" and payload["period_end"] == "2025-12-31"
     assert payload["period_end_hint"] == "2025-12-31"
-    assert [c[0] for c in calls] == ["upload", "insert", "status", "enqueue", "usage"]
+    assert [c[0] for c in calls] == ["upload", "insert", "status", "enqueue"]
     row = fake.tables["firm_file_requests"][0]
     assert row["status"] == FR.STATUS_RECEIVED and row["consumed_at"]
     assert row["document_id"] == payload["document_id"]
@@ -726,3 +730,54 @@ def test_cadence_and_digest_read_no_clock():
         assert "date.today()" not in source, path.name
         assert "datetime.now(" not in source, path.name
         assert "datetime.utcnow(" not in source, path.name
+
+
+# ── Duplicate uploads through a request link (2026-09-21) ────────────────
+
+
+def test_fc7_a_file_the_account_already_holds_is_not_stored_or_reserved(example_8col, landing_recorder):
+    """Same bytes, same account (the accountant the request is charged to),
+    same company, same period: the landing answers 409 `already_uploaded`
+    before the reservation and the blob write — nothing stored, nothing
+    counted (`_doc_dedupe` holds the definition)."""
+    import dataclasses
+    import hashlib as _hashlib
+    deps, calls = landing_recorder
+    seen: List[Any] = []
+    reserved: List[str] = []
+
+    def find_duplicate(org_id, user_id, content_hash, period_end):
+        seen.append((org_id, user_id, content_hash, period_end))
+        return {"existing_document_id": "doc-orig", "period_id": "period-orig"}
+
+    deps = dataclasses.replace(deps, find_duplicate=find_duplicate,
+                               reserve=lambda uid: reserved.append(uid))
+    with pytest.raises(FR.LandingRefused) as exc:
+        FR.land_file(_request(), example_8col, "balanta_verificare_12_2025.xlsx",
+                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", deps,
+                     document_id="doc-dup")
+    assert exc.value.status == 409 and exc.value.detail["code"] == "already_uploaded"
+    assert exc.value.detail["existing_document_id"] == "doc-orig"
+    assert calls == [] and reserved == []
+    assert seen == [("org-exemplu", "user-acct", _hashlib.sha256(example_8col).hexdigest(), "2025-12-31")]
+
+
+def test_fc7_a_landing_tells_the_pipeline_which_run_holds_the_reservation(example_8col, landing_recorder):
+    """The terminal settles only what its run reserved: an ALLOWED
+    reservation made by the landing is registered for the new document."""
+    import dataclasses
+
+    class _Allowed(object):
+        kind = "allowed"
+        was_extra = True
+
+    deps, calls = landing_recorder
+    registered: List[Any] = []
+    deps = dataclasses.replace(deps, reserve=lambda uid: _Allowed(),
+                               find_duplicate=lambda *a: None,
+                               register_reservation=lambda d, u, x: registered.append((d, u, x)))
+    FR.land_file(_request(), example_8col, "balanta_verificare_12_2025.xlsx",
+                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", deps,
+                 document_id="doc-new")
+    assert registered == [("doc-new", "user-acct", True)]
+    assert [c[0] for c in calls] == ["upload", "insert", "status", "enqueue"]

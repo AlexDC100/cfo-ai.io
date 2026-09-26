@@ -95,9 +95,25 @@ def test_forecast_and_scenarios_are_active_in_the_source_with_their_endpoints():
         assert "beta" not in row, "%s carries a beta mark in the source" % key
     import typing
     statuses = set(typing.get_args(_features.FeatureStatus))
-    assert statuses == {"active", "coming_soon", "hidden"}, (
-        "FeatureStatus is %r: a fourth status is a second early-access mechanism "
-        "competing with applyPreview" % sorted(statuses))
+    # `preview` (the workspace redesign's status, 2026-09-21) is NOT a second
+    # early-access mechanism: it is a status the ONE mechanism resolves —
+    # frontend/lib/features.ts applyPreview promotes `coming_soon` OR
+    # `preview` rows named in the user's own preview_features, and nothing
+    # else in the browser reads that list (asserted below).
+    assert statuses == {"active", "coming_soon", "hidden", "preview"}, (
+        "FeatureStatus is %r: a status beyond active/coming_soon/hidden/preview "
+        "is a second early-access mechanism competing with applyPreview"
+        % sorted(statuses))
+    frontend = REPO / "frontend"
+    readers = sorted(
+        str(p.relative_to(REPO)) for p in frontend.rglob("*.ts*")
+        if "__tests__" not in p.parts and "node_modules" not in p.parts
+        and ("preview_features" in p.read_text(encoding="utf-8", errors="ignore")
+             or "PREVIEW_PREF_KEY" in p.read_text(encoding="utf-8", errors="ignore")))
+    assert readers == ["frontend/lib/features.ts", "frontend/lib/previewFeatures.ts"], (
+        "the per-account preview list is read outside the one mechanism: %r" % readers)
+    pf = (frontend / "lib" / "previewFeatures.ts").read_text(encoding="utf-8")
+    assert "applyPreview(" in pf, "previewFeatures.ts decides a preview without applyPreview"
     assert _features.FEATURES[STILL_COMING_SOON]["status"] == "coming_soon", (
         "%s is no longer coming_soon; pick another key for the switch test"
         % STILL_COMING_SOON)

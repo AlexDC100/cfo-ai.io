@@ -284,6 +284,18 @@ class PublicRoStore:
         }
         return out
 
+    def iter_company_names(self) -> Iterable[Tuple[int, str]]:
+        """Every registered company's ``(cui, name)`` — publishable or not.
+
+        For callers that need an EXACT answer about a name (the workspace
+        migration's "is exactly ONE registered company called this?"),
+        which a capped, prefix-matched ``search_companies`` page cannot
+        give. Internal identity only: nothing read here is ever served."""
+        cur = self._conn.execute(
+            "SELECT cui, name FROM companies WHERE name IS NOT NULL AND name <> ''")
+        for row in cur:
+            yield int(row[0]), str(row[1])
+
     def search_companies(self, q: str, limit: int = 20) -> List[Dict[str, Any]]:
         """Name-prefix + exact-CUI search over companies that are publishable
         RIGHT NOW.

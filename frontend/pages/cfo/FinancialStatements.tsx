@@ -256,6 +256,9 @@ import {
 // The archived bottom-tab implementations were removed in the 2026-07
 // dead-code cleanup (recoverable from git history: frontend/_removed/tabs/).
 import { useToast } from "@/hooks/use-toast";
+import { FilePickerInput, fileDropProps } from "@/components/cfo/upload/UploadDrop";
+import { useWorkspaceV2 } from "@/lib/previewFeatures";
+import { NoAnalysisYet } from "@/components/cfo/NoAnalysisYet";
 
 // Consolidated tab guides (2026-07-25) — the per-tab "Guide me" buttons were
 // removed; a single button in the tab bar opens the guide for the ACTIVE tab.
@@ -523,6 +526,9 @@ function FinancialStatementsInner() {
   // the exact same memos (headline / totals / recommendations / trendFor)
   // as the Pro branch; nothing about a VALUE may depend on this flag.
   const isSimple = useIsSimple();
+  // Workspace redesign (preview-gated): no upload control on this page — the
+  // app-wide drop and the company page's next-year tile are the way in.
+  const workspaceV2 = useWorkspaceV2();
 
   const onTabChange = useCallback((next: string) => {
     setSearchParams((prev) => {
@@ -1415,7 +1421,15 @@ function FinancialStatementsInner() {
         setUploadName(file.name);
         startUpload({ docId: "", filename: file.name, status: "queued" });
         const { uploadDocument } = await import("@/lib/supabase");
-        const { row, error } = await uploadDocument(file, { scope: "financial", periodEndHint, jurisdictionHint });
+        const { row, error, duplicate } = await uploadDocument(file, { scope: "financial", periodEndHint, jurisdictionHint });
+        if (duplicate) {
+          // Same file, same company, same period: nothing was stored. Not a
+          // failure — "Already uploaded — open it" links to the analysis.
+          clearUpload();
+          uploadEnqueue.notifyAlreadyUploaded(duplicate);
+          resolve();
+          return;
+        }
         if (!row) {
           clearUpload();
           toast({ title: t("dash.uploadFailedTitle"), description: error ?? t("dash.unknownError"), variant: "destructive" });
@@ -1424,9 +1438,11 @@ function FinancialStatementsInner() {
         }
         startUpload({ docId: row.id, filename: file.name, status: "queued" });
         const enq = await uploadEnqueue.enqueue(row.id);
-        if (enq.kind === "extra_doc_cancelled") {
-          // The user closed the extra-document dialog. Nothing ran and
-          // nothing failed — clear the card; "Analysis failed" is a lie here.
+        if (enq.kind === "extra_doc_cancelled" || enq.kind === "duplicate") {
+          // The user closed the extra-document dialog, or the server found
+          // the file already analysed here (the hook showed "Already
+          // uploaded — open it"). Nothing ran and nothing failed — clear the
+          // card; "Analysis failed" is a lie here.
           clearUpload();
           resolve();
           return;
@@ -1462,6 +1478,11 @@ function FinancialStatementsInner() {
     try {
       startUpload({ docId: failed.docId, filename: failed.filename, status: "queued" });
       const enq = await uploadEnqueue.enqueue(failed.docId);
+      if (enq.kind === "duplicate") {
+        // The failed copy duplicates a live analysis: archived, not re-run.
+        clearUpload();
+        return;
+      }
       if (enq.kind === "extra_doc_cancelled") {
         // Dialog dismissed — nothing ran. Put the failed banner back so the
         // user keeps every action; clearing here would lose the document.
@@ -1519,11 +1540,10 @@ function FinancialStatementsInner() {
     setScanning(false);
   }
 
-  function onDrop(e: React.DragEvent<HTMLDivElement>) {
-    e.preventDefault();
+  function onDropFiles(files: File[]) {
     // First file only — a drop can carry several regardless of the input's
     // `multiple` attribute, which governs the picker dialog and nothing else.
-    const file = e.dataTransfer.files?.[0];
+    const file = files[0];
     if (file) void onFileChosen(file);
   }
 
@@ -1631,9 +1651,11 @@ function FinancialStatementsInner() {
       {/* Single-file only (2026-07-26 per operator) — no `multiple`, and the
           handler takes just the first entry so a multi-file drag can't slip
           past the picker's own restriction. */}
-      <input
+      {/* Not mounted in the workspace redesign — nothing on this page picks
+          a file there (the app-wide drop and the company page do). */}
+      {!workspaceV2 && (
+      <FilePickerInput
         ref={fileRef}
-        type="file"
         accept={DASHBOARD_UPLOAD_ACCEPT}
         className="hidden"
         onChange={(e) => {
@@ -1642,6 +1664,7 @@ function FinancialStatementsInner() {
           e.target.value = "";  // allow re-picking the same file later
         }}
       />
+      )}
 
       {/* Period-end confirmation — auto-detects each staged file's closing
           month from its filename and lets the user confirm or edit before
@@ -1684,7 +1707,7 @@ function FinancialStatementsInner() {
             hideHeader
             stagedFiles={stagedFiles}
             scanning={scanning}
-            onDrop={onDrop}
+            onDropFiles={onDropFiles}
             onTriggerFile={() => fileRef.current?.click()}
             onViewStaged={(f) => void openStagedFile(f)}
             onDiscardStaged={discardStagedFile}
@@ -1747,7 +1770,7 @@ function FinancialStatementsInner() {
             upload={failedUpload}
             periodId={remotePeriod.id ?? searchParams.get("period")}
             onRetry={() => void retryFailedUpload()}
-            onReplace={replaceFailedUpload}
+            onReplace={workspaceV2 ? () => navigate("/workspace") : replaceFailedUpload}
             onDismiss={clearUpload}
             retrying={retryingFailed}
           />
@@ -1783,6 +1806,9 @@ function FinancialStatementsInner() {
             {/* Source files — the upload behind THIS month's numbers, as a
                 quiet mono meta line under the header (file · uploaded ·
                 Replace · Manage files). */}
+            {/* Hidden in the redesign: its Replace is an upload control, and
+                its eyebrow names the file as a "source". */}
+            {!workspaceV2 && (
             <DashboardSourceFiles
               periodId={remotePeriod.id ?? searchParams.get("period")}
               onAddFile={(f) => {
@@ -1797,6 +1823,7 @@ function FinancialStatementsInner() {
                 })();
               }}
             />
+            )}
             {/* Accuracy — trust chip + tap-open receipt, directly under the
                 source line. */}
             <AccuracyBanner
@@ -1808,7 +1835,9 @@ function FinancialStatementsInner() {
                 the "Add month" pill (see the Dialog near the period-confirm
                 dialog above) — no longer inline here. */}
           </>
-        ) : uploadInFlight ? null : (
+        ) : uploadInFlight ? null : workspaceV2 ? (
+          <NoAnalysisYet />
+        ) : (
           <section className="mb-10 transition-opacity duration-200 relative">
             {/* Hidden entirely while a scan is in flight (2026-07-24) — the
                 scanning view is just the pipeline steps + the council
@@ -1895,7 +1924,7 @@ function FinancialStatementsInner() {
             its value overrides are hoisted into the `headline` memo above so
             the numbers stay byte-identical. */}
         {hasPeriodLoaded && statements && isDemoPeriod && (
-          <DemoDataLine onUpload={() => fileRef.current?.click()} />
+          <DemoDataLine onUpload={() => (workspaceV2 ? navigate("/workspace") : fileRef.current?.click())} />
         )}
 
         {/* Budget vs Actual dashboard entry point removed 2026-07-25 — it's now
@@ -2047,7 +2076,7 @@ function FinancialStatementsInner() {
             telemetryAvailable
           />
 
-          {!hasPeriodLoaded ? (
+          {!hasPeriodLoaded && workspaceV2 ? null : !hasPeriodLoaded ? (
             // STATE A — entry surface. The drop zone stays mounted during a
             // scan and renders the progress in-place (steps animate to the
             // top); there is no separate progress modal/card.
@@ -2064,7 +2093,7 @@ function FinancialStatementsInner() {
                 onPickSample={pickSample}
                 onReset={undefined}
                 onTriggerFile={() => fileRef.current?.click()}
-                onDrop={onDrop}
+                onDropFiles={onDropFiles}
                 fileRef={fileRef}
                 onFileChosen={onFileChosen}
                 onSimulate={simulateFileProcess}
@@ -3918,9 +3947,9 @@ async function previewExampleInNewTab(file: string): Promise<void> {
 // an irreversible bulk action behind a confirm dialog; if it ever needs
 // restricting, gate it on workspace role rather than build mode.
 //
-// The workspace is left with no periods, so `useEnsureCurrentPeriod` creates
-// a fresh container for the current month on the next render — the user lands
-// on the dropzone rather than a broken empty screen.
+// The workspace is left with no periods; the dashboard's no-data state (the
+// dropzone) is what the user lands on. No empty container is re-created
+// (G4, 2026-09-21: no period without an analysed file).
 function DashboardDevTools() {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -4169,9 +4198,8 @@ function DashboardSourceFiles({
           {trailing}
         </div>
       )}
-      <input
+      <FilePickerInput
         ref={fileInputRef}
-        type="file"
         accept={DASHBOARD_UPLOAD_ACCEPT}
         className="hidden"
         data-testid="source-files-add-input"
@@ -4306,7 +4334,7 @@ function DashboardTemplateCard() {
 function DashboardAddMonthZone({
   stagedFiles,
   scanning,
-  onDrop,
+  onDropFiles,
   onTriggerFile,
   onViewStaged,
   onDiscardStaged,
@@ -4317,7 +4345,7 @@ function DashboardAddMonthZone({
 }: {
   stagedFiles: File[];
   scanning: boolean;
-  onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
+  onDropFiles: (files: File[]) => void;
   onTriggerFile: () => void;
   onViewStaged: (file: File) => void;
   onDiscardStaged: (index: number) => void;
@@ -4347,10 +4375,7 @@ function DashboardAddMonthZone({
       <div>
         <div
           data-testid="dashboard-add-month-dropzone"
-          onDragEnter={(e) => { e.preventDefault(); setDragActive(true); }}
-          onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
-          onDragLeave={(e) => { e.preventDefault(); setDragActive(false); }}
-          onDrop={(e) => { setDragActive(false); onDrop(e); }}
+          {...fileDropProps({ onFiles: onDropFiles, onActiveChange: setDragActive })}
           data-drag-active={dragActive ? "true" : "false"}
           className={`
             relative overflow-hidden rounded-2xl border-2 border-dashed
@@ -4469,7 +4494,7 @@ function UploadAndSamplePanel({
   onPickSample,
   onReset,
   onTriggerFile,
-  onDrop,
+  onDropFiles,
   fileRef,
   onFileChosen,
   onSimulate,
@@ -4487,7 +4512,7 @@ function UploadAndSamplePanel({
   onPickSample: (id: string) => void;
   onReset?: () => void;
   onTriggerFile: () => void;
-  onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
+  onDropFiles: (files: File[]) => void;
   fileRef: React.RefObject<HTMLInputElement>;
   onFileChosen: (file: File) => void;
   /** Localhost-only: simulate a scan without a real file/backend. Renders a
@@ -4638,10 +4663,7 @@ function UploadAndSamplePanel({
        *  ring-glow on drag-over, refined chip styling. */}
       <div
         data-testid="upload-dropzone"
-        onDragEnter={(e) => { e.preventDefault(); setDragActive(true); }}
-        onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
-        onDragLeave={(e) => { e.preventDefault(); setDragActive(false); }}
-        onDrop={(e) => { setDragActive(false); onDrop(e); }}
+        {...fileDropProps({ onFiles: onDropFiles, onActiveChange: setDragActive })}
         data-drag-active={dragActive ? "true" : "false"}
         className={`
           relative overflow-hidden

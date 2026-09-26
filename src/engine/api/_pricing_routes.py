@@ -40,9 +40,24 @@ import logging
 import os
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, Header, HTTPException
+from fastapi import APIRouter, Body, Header, HTTPException
+from pydantic import BaseModel
 
 from . import _pricing_config, _plan_state, _supabase
+
+
+class ConfirmExtraDocRequest(BaseModel):
+    """POST body for `/api/plan/confirm-extra-doc` (2026-09-21): the
+    document the €-dialog was shown for. The confirmed extra is GRANTED to
+    that one document — only its own /api/pipeline/run can take it.
+
+    Module scope on purpose: a model nested in `build_router` degrades to a
+    query parameter under `from __future__ import annotations` (CLAUDE.md
+    §22). `document_id` is optional only for a browser bundle older than
+    this contract: the route then takes the document of the caller's last
+    402, and refuses when there is none."""
+
+    document_id: Optional[str] = None
 
 
 logger = logging.getLogger(__name__)
@@ -104,7 +119,18 @@ def build_router() -> APIRouter:
         jwt = _require_jwt(authorization)
         uid = _user_id_from_jwt(jwt)
         state = _plan_state.get_plan_state(uid)
-        return _plan_state.state_to_public_dict(state)
+        out = _plan_state.state_to_public_dict(state)
+        # "Documents used" = UNIQUE SUCCESSFUL documents this month
+        # (2026-09-21): analysed, not an archived duplicate, one per
+        # (company, content, period). Read from the documents themselves so
+        # the banner can never again show 51 for a handful of books; the
+        # counter the meter reserves against stays alongside for support.
+        from . import _doc_dedupe
+        unique = _doc_dedupe.unique_successful_docs_in_month(uid, state.period_month_bucket)
+        out["docs_used_counter"] = out.get("docs_used")
+        if unique is not None:
+            out["docs_used"] = unique
+        return out
 
     # ─── Doc-quota dry-run preview (used by the FE before upload) ──
     @router.get("/api/plan/check-doc")
@@ -127,10 +153,11 @@ def build_router() -> APIRouter:
     # ─── Caller confirms a chargeable extra-doc upload ─────────────
     @router.post("/api/plan/confirm-extra-doc")
     def plan_confirm_extra_doc(
+        req: Optional[ConfirmExtraDocRequest] = Body(None),
         authorization: Optional[str] = Header(None),
     ) -> Dict[str, Any]:
-        """User has seen the "this will be a €X.XX extra" dialog and
-        clicked Confirm.
+        """User has seen the "this will be a €X.XX extra" dialog FOR ONE
+        DOCUMENT and clicked Confirm.
 
         Pricing V3 (refined-spec gap C + D): this reserves an extra
         slot ATOMICALLY via `_usage_gate.confirm_extra_document` and
@@ -142,48 +169,96 @@ def build_router() -> APIRouter:
         fails, the release path zeros the pending tally and DOES NOT
         bill.
 
-        TODO: Stripe usage-record integration. The current charge
-        motion fires on `commit_user_upload(was_extra=True)` —
-        wire it into _billing.py when the Stripe price_id for
-        metered extras is published.
+        ONE CONFIRMATION, ONE DOCUMENT (2026-09-21, verifier P-B). The
+        reservation is GRANTED to `document_id` — walled like every write
+        to a document (membership of its org) — and only that document's
+        /api/pipeline/run takes it. It used to be a pending counter any
+        over-cap run could spend: one confirmation paid for every run
+        until it committed, including a document whose dialog the user
+        dismissed and recover-stuck then ran.
         """
-        from . import _usage_gate as _ug
+        from . import _org, _usage_gate as _ug
 
         jwt = _require_jwt(authorization)
-        uid = _user_id_from_jwt(jwt)
+        uid = _org.verified_user_id(jwt)
+        document_id = (req.document_id if req is not None else None) or _ug.last_extra_required(uid)
+        if not document_id:
+            raise HTTPException(409, {
+                "code": "no_document_to_confirm",
+                "message": ("There is no document waiting for this confirmation. "
+                            "Reload the page and start the analysis again."),
+            })
+        from . import pipeline as _pipeline
+        doc = _pipeline._verify_user_may_write_document(jwt, str(document_id))
+        if doc.get("deleted_at"):
+            raise HTTPException(409, {
+                "code": "document_not_waiting",
+                "message": "This document is not waiting for an extra analysis.",
+            })
+        # THE LEDGER BEFORE THE STATUS — the same order as the entry that
+        # answered the 402 (`pipeline._needs_metering`, P1 METERING BYPASS,
+        # 2026-09-26). A document that reads `analyzed` but whose book the
+        # ledger never counted IS waiting for its (first) metered analysis;
+        # refusing it here as "not waiting" would strand the run the meter
+        # just charged for. Only an unreadable ledger lets the status decide.
+        counted = _pipeline._book_already_counted(doc)
+        if counted:
+            # The plan already COUNTED this book (the quota ledger): a free
+            # correction re-run of it failed, and a stale €-dialog must not
+            # reserve — or bill — it a second time (verifier lens S). Its
+            # re-run is unmetered; nothing is waiting for an extra.
+            raise HTTPException(409, {
+                "code": "document_already_counted",
+                "message": ("This document was already counted in your plan. Re-run it — "
+                            "no extra analysis is needed."),
+            })
+        if counted is None and str(doc.get("status") or "").lower() == "analyzed":
+            raise HTTPException(409, {
+                "code": "document_not_waiting",
+                "message": "This document is not waiting for an extra analysis.",
+            })
 
-        # Pre-flight: the user must actually be over base quota; we
-        # don't want to bill someone for nothing. `reserve_document`
-        # is a read of the gated decision — non-mutating because we
-        # don't store the reservation when the decision is
-        # `extra_required`.
-        decision = _ug.reserve_document(uid)
-        if decision.kind != "extra_required":
-            raise HTTPException(
-                409,
-                {
-                    "code": "no_extra_needed",
-                    "decision_kind": decision.kind,
-                    "message": (
-                        "You're not currently over quota — no extra charge "
-                        "needed for the next document."
-                    ),
-                },
-            )
+        if not _ug.has_extra_grant(str(document_id)):
+            # Pre-flight: the user must actually be over base quota; we
+            # don't want to bill someone for nothing.
+            decision = _ug.reserve_document(uid)
+            if decision.kind == "allowed" and not decision.was_extra:
+                # The pre-flight is NOT a pure read: under the cap the RPC
+                # reserved a slot. Give it back before refusing — otherwise
+                # every stray confirm leaked one reservation into
+                # `uploads_reserved`, which the meter counts against the plan.
+                _ug.release_document(uid, was_extra=False)
+            if decision.kind != "extra_required":
+                raise HTTPException(
+                    409,
+                    {
+                        "code": "no_extra_needed",
+                        "decision_kind": decision.kind,
+                        "message": (
+                            "You're not currently over quota — no extra charge "
+                            "needed for the next document."
+                        ),
+                    },
+                )
 
-        # Reserve a billable extra slot atomically. The flag travels
-        # to the orchestrator via documents.metered_extra and is honoured
-        # by `_commit_pipeline_quota` at the success/failure terminal.
-        extra = _ug.confirm_extra_document(uid)
+        # Reserve a billable extra slot atomically and grant it to this
+        # document (idempotent: a second confirm reserves nothing more).
+        extra = _ug.confirm_extra_document(uid, document_id=str(document_id))
+        if extra.kind == "blocked":
+            # `reservation_outstanding` (P2-B): the document's slot is already
+            # reserved — by this user's own run (its re-run adopts it) or by
+            # another member's; nothing was reserved or granted.
+            raise HTTPException(409, {"code": extra.code or "extra_not_granted", "message": extra.message})
         logger.info(
-            "[pricing] user=%s confirmed extra-doc charge €%.2f — "
-            "reservation made; will commit on analysis success",
-            uid, decision.extra_doc_eur or 0.0,
+            "[pricing] user=%s confirmed extra-doc charge €%.2f for document %s — "
+            "reservation granted; will commit on analysis success",
+            uid, extra.extra_doc_eur or 0.0, document_id,
         )
         return {
             "ok": True,
-            "extra_doc_eur_marked": decision.extra_doc_eur,
-            "plan_key": decision.plan_key,
+            "document_id": str(document_id),
+            "extra_doc_eur_marked": extra.extra_doc_eur,
+            "plan_key": extra.plan_key,
             "reservation": {
                 "used": extra.used,
                 "reserved": extra.reserved,

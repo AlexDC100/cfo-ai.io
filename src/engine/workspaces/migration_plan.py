@@ -1,0 +1,1854 @@
+"""The one-company-per-workspace migration, as a PURE plan.
+
+INPUT
+  * ``tables`` — a snapshot of the production tables (``scripts/db_snapshot.py``
+    format: ``{table: [row, ...]}``);
+  * ``facts`` — per document id, what its stored bytes say
+    (``DocFacts``: the ``CompanyIdentity`` from ``identify_document``, the
+    bytes' sha256, whether the storage object exists);
+  * ``migration_date`` — names the holding workspace.
+
+OUTPUT
+  a ``Plan``: the decisions (per workspace, period and document, each with
+  its reason) and the ORDERED row operations (``rowstore`` vocabulary) that
+  carry them out. No clock, no network, no randomness: new workspace ids are
+  ``uuid5`` of (user, company), so a re-run creates nothing twice, and the
+  plan of the post-state is EMPTY (tested).
+
+THE RULES (the owner's, 2026-09-21)
+-----------------------------------
+Scope: every user, every NON-archived workspace the user owns alone (a
+workspace with several members is reported and left untouched — moving its
+data would change what the other members see).
+
+1. A workspace's own company: ``org_prefs.prefs.cui`` if set; else the
+   company of a STRICT majority of its live analysed period-source
+   documents (of those whose company is known); else, if it has no such
+   sources, a strict majority of its live analysed documents; else none.
+   Two workspaces of one user claiming one company: prefs first, then the
+   larger share, then more documents, then the older workspace; the loser
+   has no company of its own.
+2. A period belongs to the company of its source document (an unidentified
+   source inherits the workspace's company). It is EMPTY — and archived —
+   when it has no source document, the source is missing / deleted / not
+   analysed, or nothing was persisted for it (no calculated_metrics, no
+   statement_line_items, no canonical envelope). EXCEPT the workspace's
+   CURRENT-MONTH placeholder (no source, dated in the migration's month)
+   WHEN the run is told to keep it (``keep_current_month_placeholder``):
+   "every workspace always has a period for the current month and it can't
+   be deleted" (operator, 2026-07-26 — frontend/lib/orgPeriods.ts
+   useEnsureCurrentPeriod re-creates it on the next visit). One per
+   workspace stays where it is; extra copies are archived. Archiving it
+   made every re-run archive the re-created one, and a rollback leave two.
+   The workspace redesign (G4, 2026-09-21) deleted that re-creator — "no
+   period without an analysed file" — so by default the placeholder is an
+   empty period like any other and is archived.
+3. Per company per month exactly one period survives. One already in the
+   company's own workspace always wins (a currently served period is never
+   replaced); otherwise the one with the latest source document. The
+   others are archived.
+4. A surviving period moves to its company's workspace (an existing one of
+   the SAME user, else a new one named from the registry / document, with
+   ``org_prefs.prefs = {cui, company_name, identity_sources}``). A new
+   workspace's id is ``uuid5(user, company)``: after a rollback
+   (``db_restore`` archives the workspaces a run created, held) the next
+   run derives the same id, so that archived workspace is BROUGHT BACK
+   (un-archived) rather than "created" by an insert that is a no-op on the
+   archived row — which moved every surviving period into a workspace
+   nobody can see. One its owner deleted (``purge_after`` set) is never
+   resurrected: the plan is blocking. A period
+   ALREADY in its company's own workspace is served: it is never re-dated
+   (a disagreement is a warning for an operator). A period that moves is
+   re-dated when its document disagrees with its date: on the document's
+   own period line; on a closing-balance date only when a second signal
+   agrees (the filename, or the user-confirmed hint — a print date beside
+   the title is not a period); on a filename-only signal only when the YEAR
+   differs (the "2025 book filed under 2017" shape). A re-date rewrites
+   the row AND both stored records that describe its date, so none keeps
+   saying the old one: ``assembled_canonical_v1.period_detection``
+   (``resolved_period_end``, the hint, ``mismatch`` by the engine's own
+   rule — read verbatim by the Docs panel's mismatch chip and the firm
+   attention layer) and the §7 ``detection_envelope`` column
+   (``period_end`` / ``fiscal_year_end`` / ``period_start`` — persisted by
+   stage_persist, copied verbatim by the 3b5 backfill snapshot).
+   ``period_record_disagreements`` is the gate: a re-dated period whose
+   records still disagree with its row makes the plan blocking, and the
+   recount checks the same after the run.
+5. Per company per month exactly one live ANALYSED document: the surviving
+   period's source. Copies (same content hash), other analysed files for
+   the same company and month and non-financial documents are archived
+   (``deleted_at`` + ``error = "archived: <reason> (<id>)"``). A
+   company+month with analysed documents but no period keeps ONE live
+   document (the latest analysed) and is listed in ``needs_reanalysis``.
+   A FAILED upload is archived only when its bytes are a copy of a live
+   document (a period's source, a kept book — nothing is lost); otherwise
+   it is left UNTOUCHED in its workspace, whatever happens to the
+   workspace, so its owner can retry it once the reader that refused it
+   ships (2026-09-26: the failure was the reader's — a balanță the
+   deterministic readers could not parse and the Claude fallback had no
+   credit for). It is never a keeper and never moved; a company-less
+   workspace holding one stays live, like one holding an unidentified
+   book (rule 7). Among failed uploads of the same bytes one stays and
+   the rest are archived as its copies, in place. ``not_a_balance`` is
+   asserted by the identifier only when the bytes were parsed and are
+   demonstrably not a trial balance (``company_identity.balance_signals``).
+6. ARCHIVING A PERIOD: ``financial_periods`` has no archive column, so the
+   period, every row scoped to it, and its source document move into the
+   user's holding workspace "Arhivă (migrare <date>)" (``archived_at`` set,
+   ``purge_after`` NULL — a HELD archive: ``purge_expired_workspaces`` only
+   purges ``purge_after < now()``, NULL never compares, and
+   ``purge_workspace`` refuses it once schema_phase_workspace_purge_now_
+   hold.sql is applied, which --execute requires). The source travels
+   with its period WHATEVER its state (analysed, failed, trashed, any
+   scope) because ``financial_periods.source_document_id`` is
+   ``ON DELETE CASCADE``: a source left in another workspace — or left in
+   ANY trash — is one hard delete ("Clear all", a purge, a sweep) away from
+   erasing the archived period and everything scoped to it. So a period's
+   source is NEVER trashed by this migration, and a source that was already
+   in the trash comes out of it as it moves (the holding workspace is
+   archived: nothing in it is shown). ``period_source_hazards`` is the
+   gate: the plan is refused (``blocking``) if its post-state has a period
+   whose source is trashed or in another workspace that the pre-state did
+   not have.
+7. A workspace with no company of its own is archived once split (the
+   same held archive as the holding workspace — restorable by the scoped
+   rollback), unless something live is still in it that could not be
+   placed (then it stays, reported) or it would leave the user with no
+   live workspace. The owner's CHAT HISTORY follows its company (owner's
+   ruling, 2026-09-21: "a conversation follows its company"): a
+   conversation moves (``chat_threads.org_id``; its ``chat_messages``
+   follow by ``thread_id`` and are never written) to the company workspace
+   its grounded period (``active_period_id``) lands in — or, when that
+   period is archived, to its company's workspace. A conversation that
+   names no company stays where it is; when that workspace is archived it
+   goes to the owner's main company workspace (the one holding the most
+   analysed periods), and the owner's ``user_prefs.active_org_id`` lands
+   there too. Only an owner with no company workspace at all keeps such a
+   workspace live for a conversation. chat_threads lists only the active
+   workspace's threads (frontend chatRemote.ts) and the hub hides a held
+   archive, so the plan is refused if any conversation would end where its
+   user cannot open it (``hidden_conversations``). Every conversation is
+   listed in the plan (``chats``) with where it goes and why.
+8. Every document's ``period_id`` ends up NULL or pointing at a period in
+   the SAME workspace (a re-analysis must never write into another
+   tenant's period). So does every conversation's ``active_period_id`` (a
+   text reference): a thread whose grounded period ends in another
+   workspace keeps its ``active_period_label`` and has
+   ``active_period_id`` cleared — the next message grounds it again.
+
+9. A document that changes workspace takes its storage object with it:
+   a ``copy_object`` carrying the sha256 the facts pass read, so the copy
+   step stops before any row moves if the object is gone or different by
+   then. A document whose bytes the facts pass could NOT read — a 404, a
+   storage error — while the snapshot's object inventory (``db_snapshot``
+   ``objects``, or, without one, a ``size_bytes`` above zero) says it had
+   an object, makes the plan BLOCKING: a transient storage error once
+   dropped a copy from the plan and the row moved to a path with nothing
+   under it (verifier p6, 2026-09-26). Only a document the inventory ALSO
+   recorded as missing moves without a file (its copy is opportunistic:
+   ``must_exist`` false). EVERY copy — of every user — comes before the
+   first row operation of the plan (``_copies_first``): the executor
+   applies the plan in order and stops at a copy whose source is gone or
+   different, so emitted per user a copy conflict in the second user's
+   block landed after the first user's rows had already moved (a
+   half-applied run). Copies are idempotent (an object already at its new
+   path is skipped) and touch no row, so nothing depends on their place.
+
+Nothing is ever hard-deleted; Stripe, auth and billing tables are never
+touched; ``chat_messages`` is never written, and a ``chat_threads`` row
+only ever has its ``org_id`` (rule 7) and ``active_period_id`` (rule 8)
+changed.
+"""
+from __future__ import annotations
+
+import hashlib
+import uuid
+from collections import Counter, defaultdict
+from dataclasses import dataclass, field
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
+
+from engine.workspaces.company_identity import (
+    CompanyIdentity,
+    filename_period_end,
+    industry_display_name,
+    industry_key_for_caen,
+    normalize_company_name,
+    normalize_cui,
+)
+from engine.workspaces.rowstore import NOW, apply_ops, canonical_json, pk_for
+
+#: Fixed namespace: new workspace ids are uuid5(NS, "<user>|<company key>").
+MIGRATION_NAMESPACE = uuid.UUID("5e0c7f3a-2b9d-4f61-8a4e-7d1c3b2a9f06")
+
+HOLDING_NAME = "Arhivă (migrare {date})"
+
+ANALYZED = "analyzed"
+FAILED = "failed"
+IN_FLIGHT = frozenset({"queued", "extracting", "mapping", "computing", "narrating",
+                       "uploaded", "mapped"})
+
+#: Tables whose rows are period-scoped but live in another column's org.
+ORG_COLUMNS = ("org_id", "organization_id")
+#: Never moved by the period/document sweeps (handled explicitly or never).
+NOT_SWEPT = frozenset({
+    "financial_periods", "documents", "organizations", "memberships", "org_prefs",
+    "user_prefs", "subscriptions", "user_usage", "billing_events", "chat_threads",
+    "chat_messages",
+})
+
+
+@dataclass(frozen=True)
+class DocFacts:
+    """What a stored document's bytes say."""
+
+    identity: Optional[CompanyIdentity] = None
+    sha256: Optional[str] = None
+    #: True / False when the storage object was (not) found, None unknown.
+    object_exists: Optional[bool] = None
+    read_error: Optional[str] = None
+    #: What the SNAPSHOT's object inventory said (``db_snapshot`` objects):
+    #: True / False, None when there was no inventory or it could not ask.
+    recorded_exists: Optional[bool] = None
+
+    @classmethod
+    def coerce(cls, value: Any) -> "DocFacts":
+        if isinstance(value, DocFacts):
+            return value
+        if isinstance(value, CompanyIdentity):
+            return cls(identity=value)
+        if isinstance(value, Mapping):
+            ident = value.get("identity")
+            if isinstance(ident, Mapping):
+                ident = CompanyIdentity.from_dict(ident)
+            return cls(identity=ident, sha256=value.get("sha256"),
+                       object_exists=value.get("object_exists"),
+                       read_error=value.get("read_error"),
+                       recorded_exists=value.get("recorded_exists"))
+        return cls()
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"identity": self.identity.to_dict() if self.identity else None,
+                "sha256": self.sha256, "object_exists": self.object_exists,
+                "read_error": self.read_error, "recorded_exists": self.recorded_exists}
+
+
+@dataclass
+class Plan:
+    migration_date: str
+    ops: List[Dict[str, Any]] = field(default_factory=list)
+    users: List[Dict[str, Any]] = field(default_factory=list)
+    workspaces: List[Dict[str, Any]] = field(default_factory=list)
+    periods: List[Dict[str, Any]] = field(default_factory=list)
+    documents: List[Dict[str, Any]] = field(default_factory=list)
+    needs_reanalysis: List[Dict[str, Any]] = field(default_factory=list)
+    #: Every conversation in a migrated workspace and what happens to it.
+    chats: List[Dict[str, Any]] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
+    #: Reasons --execute must refuse (in-flight uploads, inconsistent rows).
+    blocking: List[str] = field(default_factory=list)
+
+    @property
+    def is_empty(self) -> bool:
+        return not self.ops
+
+    def ops_sha256(self) -> str:
+        return hashlib.sha256(canonical_json(self.ops).encode("utf-8")).hexdigest()
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "migration_date": self.migration_date,
+            "ops_sha256": self.ops_sha256(),
+            "op_count": len(self.ops),
+            "users": self.users,
+            "workspaces": self.workspaces,
+            "periods": self.periods,
+            "documents": self.documents,
+            "needs_reanalysis": self.needs_reanalysis,
+            "chats": self.chats,
+            "warnings": self.warnings,
+            "blocking": self.blocking,
+            "ops": self.ops,
+        }
+
+
+# ── helpers ────────────────────────────────────────────────────────────
+
+def _month(iso: Optional[str]) -> Optional[str]:
+    return str(iso)[:7] if iso else None
+
+
+def _is_live_org(org: Optional[Mapping[str, Any]]) -> bool:
+    return bool(org) and not org.get("archived_at")
+
+
+def _financial(doc: Mapping[str, Any]) -> bool:
+    return (doc.get("scope") or "financial") == "financial"
+
+
+def new_org_id(user_id: str, company_key: str) -> str:
+    return str(uuid.uuid5(MIGRATION_NAMESPACE, "%s|%s" % (user_id, company_key)))
+
+
+def holding_org_id(user_id: str) -> str:
+    return str(uuid.uuid5(MIGRATION_NAMESPACE, "%s|holding" % user_id))
+
+
+def _prefs_company_key(prefs: Mapping[str, Any]) -> Optional[str]:
+    cui = normalize_cui(prefs.get("cui")) if prefs.get("cui") else None
+    if cui:
+        return "cui:" + cui
+    name = normalize_company_name(prefs.get("company_name")) if prefs.get("company_name") else ""
+    return ("name:" + name) if name else None
+
+
+_NAME_SIGNAL_RANK = {"registry": 0, "operator_verified": 1, "document_header_label": 2,
+                     "document_header_title": 3, "sheet_name": 4, "filename": 9}
+_CUI_SIGNAL_RANK = {"document_header_cui": 0, "operator_verified": 1,
+                    "registry_name_match": 2, "filename_registry_match": 3}
+
+
+class _Planner:
+    def __init__(self, tables: Mapping[str, List[Mapping[str, Any]]],
+                 facts: Mapping[str, Any], *, migration_date: str,
+                 pks: Optional[Mapping[str, Sequence[str]]] = None,
+                 stale_before: Optional[str] = None,
+                 keep_current_month_placeholder: bool = False,
+                 objects: Optional[Mapping[str, Mapping[str, Any]]] = None) -> None:
+        self.t = tables
+        self.pks = pks
+        self.date = migration_date
+        self.stale_before = stale_before
+        self.keep_placeholder = bool(keep_current_month_placeholder)
+        #: The snapshot's storage object inventory (``db_snapshot`` objects).
+        self.objects = objects
+        self.plan = Plan(migration_date=migration_date)
+        self.facts: Dict[str, DocFacts] = {str(k): DocFacts.coerce(v) for k, v in (facts or {}).items()}
+
+        self.orgs = {str(o["id"]): dict(o) for o in tables.get("organizations") or []}
+        self.members: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+        for m in tables.get("memberships") or []:
+            self.members[str(m["org_id"])].append(dict(m))
+        self.prefs = {str(p["org_id"]): dict(p.get("prefs") or {}) for p in tables.get("org_prefs") or []}
+        self.periods = {str(p["id"]): dict(p) for p in tables.get("financial_periods") or []}
+        self.docs = {str(d["id"]): dict(d) for d in tables.get("documents") or []}
+        self.metric_periods: Set[str] = set()
+        for t in ("calculated_metrics", "statement_line_items"):
+            for r in tables.get(t) or []:
+                if r.get("period_id"):
+                    self.metric_periods.add(str(r["period_id"]))
+        for p in self.periods.values():
+            if p.get("assembled_canonical_v1"):
+                self.metric_periods.add(str(p["id"]))
+        self.periods_by_org: Dict[str, List[str]] = defaultdict(list)
+        for pid, p in sorted(self.periods.items()):
+            self.periods_by_org[str(p["org_id"])].append(pid)
+        self.docs_by_org: Dict[str, List[str]] = defaultdict(list)
+        for did, d in sorted(self.docs.items()):
+            self.docs_by_org[str(d["org_id"])].append(did)
+        self.threads_by_org: Dict[str, List[Dict[str, Any]]] = defaultdict(list)
+        for th in sorted(tables.get("chat_threads") or [], key=lambda r: str(r.get("id"))):
+            self.threads_by_org[str(th.get("org_id"))].append(dict(th))
+
+        # A document whose bytes could not be read (object missing, image
+        # PDF) but whose content hash equals an identified document's is
+        # that document: same bytes, same company, same period — WITHIN ONE
+        # USER. The map is keyed by (user, sha256): an identity can carry an
+        # operator rule scoped to its user (``match_known_identity``), and
+        # across users it handed another tenant that rule's company and
+        # wrote the owner's operator evidence into that tenant's org_prefs.
+        by_sha: Dict[Tuple[str, str], List[str]] = defaultdict(list)
+        for did in sorted(self.docs):
+            f = self.facts.get(did)
+            if f and f.identity and f.identity.company_key and self.sha(did):
+                by_sha[(self.doc_user(did), str(self.sha(did)))].append(did)
+        self.sibling: Dict[Tuple[str, str], CompanyIdentity] = {}
+        for user_sha, dids in by_sha.items():
+            idents = [self.facts[d].identity for d in dids]
+            if len({i.company_key for i in idents}) == 1:
+                self.sibling[user_sha] = idents[0]
+
+        # final placement, filled by the passes
+        self.period_final_org: Dict[str, str] = {}
+        self.doc_final_org: Dict[str, str] = {}
+        self.redates: Dict[str, str] = {}
+
+    # ── facts ──────────────────────────────────────────────────────────
+
+    def doc_user(self, doc_id: str) -> str:
+        """The user a document belongs to: its workspace's sole member,
+        else whoever uploaded it."""
+        d = self.docs.get(doc_id) or {}
+        ms = self.members.get(str(d.get("org_id"))) or []
+        if len(ms) == 1:
+            return str(ms[0]["user_id"])
+        return str(d.get("uploaded_by") or "")
+
+    def ident(self, doc_id: Optional[str]) -> Optional[CompanyIdentity]:
+        f = self.facts.get(str(doc_id)) if doc_id else None
+        own = f.identity if f else None
+        if own is not None and own.company_key:
+            return own
+        digest = self.sha(str(doc_id)) if doc_id and str(doc_id) in self.docs else None
+        if not digest:
+            return own
+        return self.sibling.get((self.doc_user(str(doc_id)), str(digest))) or own
+
+    def sha(self, doc_id: str) -> Optional[str]:
+        d = self.docs.get(doc_id) or {}
+        f = self.facts.get(doc_id)
+        return d.get("content_hash") or (f.sha256 if f else None)
+
+    def recorded_exists(self, doc_id: str) -> Optional[bool]:
+        """Whether the document's storage object existed when the SNAPSHOT
+        was taken: the facts' record, else the inventory handed to the
+        planner, else — no inventory at all — the row's own ``size_bytes``
+        (a document sized above zero had an object). None: unknown."""
+        f = self.facts.get(doc_id)
+        if f is not None and f.recorded_exists is not None:
+            return f.recorded_exists
+        if self.objects is not None:
+            inv = self.objects.get(doc_id)
+            if inv is not None and inv.get("exists") is not None:
+                return bool(inv["exists"])
+            return None
+        d = self.docs.get(doc_id) or {}
+        return (d.get("size_bytes") or 0) > 0
+
+    def status(self, doc_id: str) -> str:
+        d = self.docs[doc_id]
+        s = str(d.get("status") or "")
+        if s in IN_FLIGHT and self.stale_before and str(d.get("created_at") or "") < self.stale_before:
+            return FAILED  # stuck for longer than the cut-off: it is not coming back
+        return s
+
+    # ── identity of companies ─────────────────────────────────────────
+
+    def sole_owner(self, org_id: str) -> Optional[str]:
+        ms = self.members.get(org_id) or []
+        if len(ms) == 1 and ms[0].get("role") == "owner":
+            return str(ms[0]["user_id"])
+        return None
+
+    def raw_key(self, doc_id: Optional[str]) -> Optional[str]:
+        ident = self.ident(doc_id)
+        return ident.company_key if ident else None
+
+    # ── the plan ──────────────────────────────────────────────────────
+
+    def build(self) -> Plan:
+        users = sorted({str(m["user_id"]) for ms in self.members.values() for m in ms})
+        for org_id, org in sorted(self.orgs.items()):
+            n = len(self.members.get(org_id) or [])
+            if _is_live_org(org) and n > 1:
+                self.plan.warnings.append(
+                    "workspace %s (%r) has %d members — not migrated" % (org_id, org.get("name"), n))
+        for user in users:
+            self.build_user(user)
+        self._copies_first()
+        self._refuse_new_cascade_hazards()
+        return self.plan
+
+    def _copies_first(self) -> None:
+        """Every ``copy_object`` — of EVERY user — ahead of the first row
+        operation, the users' row operations in their emitted order after
+        them (rule 9). The executor stops at the first copy whose source is
+        gone or different; with the copies inside each user's block, that
+        stop came after the earlier users' rows had moved."""
+        ops = self.plan.ops
+        self.plan.ops = ([op for op in ops if op["op"] == "copy_object"]
+                         + [op for op in ops if op["op"] != "copy_object"])
+
+    def _refuse_new_cascade_hazards(self) -> None:
+        """The plan's own post-state may not hold a period that is one hard
+        delete away from ``ON DELETE CASCADE`` (its source trashed, or in
+        another workspace) unless the pre-state already held it. Any such
+        period makes the plan ``blocking`` — --execute refuses it."""
+        after = apply_ops(self.t, self.plan.ops, now="1970-01-01T00:00:00+00:00", pks=self.pks, strict=False)
+        for pid, why in new_cascade_hazards(self.t, after):
+            self.plan.blocking.append("period %s would be one hard delete from erasure: %s" % (pid, why))
+        for line in new_unique_violations(self.t, after):
+            self.plan.blocking.append("the post-state breaks a unique key production enforces: %s" % line)
+        had = set(cross_workspace_links(self.t))
+        for line in cross_workspace_links(after):
+            if line not in had:
+                self.plan.blocking.append("the post-state points into another workspace (rule 8): %s" % line)
+        for line in hidden_conversations(self.t, after):
+            self.plan.blocking.append("a conversation would end up in an archived workspace (rule 7): %s" % line)
+        for line in period_record_disagreements(after, period_ids=redated_period_ids(self.plan.ops)):
+            self.plan.blocking.append("a re-dated period's stored record still says another date (rule 4): %s" % line)
+        # What the plan KEEPS must end where somebody can see it.
+        archived_after = {str(o["id"]) for o in after.get("organizations") or [] if o.get("archived_at")}
+        for kind, rows in (("period", self.plan.periods), ("document", self.plan.documents)):
+            for row in rows:
+                if row.get("action") == "keep" and str(row.get("to_org")) in archived_after:
+                    self.plan.blocking.append("%s %s is kept but would end in archived workspace %s"
+                                              % (kind, row["id"], row.get("to_org")))
+
+    def build_user(self, user: str) -> None:
+        orgs = [o for o in sorted(self.orgs) if self.sole_owner(o) == user]
+        live = [o for o in orgs if _is_live_org(self.orgs[o])]
+        if not live:
+            return
+        self.user = user
+        self.live = live
+        self.in_scope_docs = {d for o in live for d in self.docs_by_org.get(o, [])}
+        self.name_to_cui = self._name_links(live)
+        self.period_final_org = {}
+        self.doc_final_org = {}
+        self.redates = {}
+
+        claims = {o: self._own_company(o) for o in live}
+        own = self._resolve_claims(claims)
+        self.own = {o: own[o][0] for o in live}
+        company_ws: Dict[str, str] = {k: o for o, k in sorted(self.own.items()) if k}
+
+        # 1. periods: empty ones are archived, one survivor per company+month
+        decisions: Dict[str, Dict[str, Any]] = {}
+        by_group: Dict[Tuple[str, str], List[str]] = defaultdict(list)
+        for o in live:
+            placeholders: List[str] = []
+            for pid in self.periods_by_org.get(o, []):
+                pr = self._period_row(pid, o)
+                decisions[pid] = pr
+                if pr["action"] == "candidate":
+                    by_group[(pr["company"], pr["month"])].append(pid)
+                elif pr["action"] == "placeholder":
+                    placeholders.append(pid)
+            placeholders.sort(key=lambda p: (str(self.periods[p].get("created_at") or ""), p))
+            for i, pid in enumerate(placeholders):
+                if i == 0:
+                    decisions[pid].update(action="untouched",
+                                          reason="current-month placeholder (kept: the current month is permanent)")
+                else:
+                    decisions[pid].update(action="archive",
+                                          reason="empty: extra current-month placeholder (%s kept)" % placeholders[0])
+        survivors: Dict[Tuple[str, str], str] = {}
+        for group, pids in sorted(by_group.items()):
+            ordered = sorted(pids)
+            ordered.sort(key=lambda p: str((self.docs.get(str(self.periods[p].get("source_document_id")))
+                                            or {}).get("created_at") or ""), reverse=True)
+            ordered.sort(key=lambda p: 0 if company_ws.get(group[0]) == str(self.periods[p]["org_id"]) else 1)
+            survivors[group] = ordered[0]
+            decisions[ordered[0]]["action"] = "keep"
+            for loser in ordered[1:]:
+                decisions[loser]["action"] = "archive"
+                decisions[loser]["reason"] = "month_already_served (%s)" % ordered[0]
+
+        # 2. documents: one live document per company+month
+        doc_dec = self._document_decisions(survivors, decisions)
+
+        # 3. a workspace for every company that keeps something live
+        needed = sorted({c for (c, _m) in survivors} |
+                        {dd["company"] for dd in doc_dec.values() if dd["action"] == "keep" and dd.get("company")})
+        created: List[str] = []
+        reused: List[str] = []
+        for company in needed:
+            if company not in company_ws:
+                oid = new_org_id(user, company)
+                company_ws[company] = oid
+                prior = self.orgs.get(oid)
+                if prior is None:
+                    created.append(company)
+                elif prior.get("archived_at") and prior.get("purge_after") is None \
+                        and self.sole_owner(oid) == user:
+                    # archived (held) by a rollback of an earlier run
+                    reused.append(company)
+                else:
+                    created.append(company)
+                    self.plan.blocking.append(
+                        "workspace %s for %s already exists and is not one this run may bring back (%s) — "
+                        "an operator decides" % (oid, company, (
+                            "deleted by its owner, purge_after %s" % prior.get("purge_after"))
+                            if prior.get("archived_at") else "live, but its company is not %s" % company))
+        self.company_ws = company_ws
+        holding = holding_org_id(user)
+        used_holding = [False]
+
+        def _place(target: Optional[str]) -> str:
+            if target is None or target == holding:
+                used_holding[0] = True
+                return holding
+            return target
+
+        for pid, pr in sorted(decisions.items()):
+            cur = str(self.periods[pid]["org_id"])
+            if pr["action"] == "keep":
+                final = company_ws[pr["company"]]
+                if pr.get("redate_to"):
+                    self.redates[pid] = pr["redate_to"]
+            elif pr["action"] == "archive":
+                final = _place(holding)
+            else:
+                final = cur
+            pr["to_org"] = final
+            self.period_final_org[pid] = final
+
+        for did, dd in sorted(doc_dec.items()):
+            cur = str(self.docs[did]["org_id"])
+            where = dd.pop("_place")
+            period = dd.pop("_period", None)
+            if where == "company":
+                final = _place(company_ws.get(dd.get("company") or ""))
+            elif where == "with_period":
+                final = self.period_final_org.get(period, cur)
+                if final == holding:
+                    used_holding[0] = True
+            else:
+                final = cur
+            dd["to_org"] = final
+            self.doc_final_org[did] = final
+
+        # 3b. where each of the owner's conversations goes (rule 7): with its
+        # company. Decided before the archive step, because a conversation
+        # that has nowhere to go keeps its workspace live.
+        company_orgs = set(company_ws.values())
+        self.home = self._home_workspace(company_ws, decisions)
+        self.thread_target: Dict[str, Tuple[Optional[str], str]] = {}
+        for o in live:
+            for th in self.threads_by_org.get(o, []):
+                if str(th.get("user_id")) == user:
+                    self.thread_target[str(th["id"])] = self._thread_target(th, decisions, company_ws,
+                                                                            company_orgs)
+
+        # 4. workspaces with no company of their own: archived once empty
+        live_after = set(company_orgs)
+        pending: List[str] = []
+        for o in live:
+            if self.own.get(o):
+                continue
+            left = [p for p in self.periods_by_org.get(o, []) if self.period_final_org.get(p, o) == o
+                    and not str(decisions[p].get("reason") or "").startswith("current-month placeholder")]
+            for d in self.docs_by_org.get(o, []):
+                if self.docs[d].get("deleted_at") is not None:
+                    continue
+                dd = doc_dec.get(d)
+                if dd is None or (dd["action"] != "archive" and self.doc_final_org.get(d) == o):
+                    left.append(d)
+            # The owner's conversations follow their company (rule 7); one
+            # with no company of its own goes to the owner's main company
+            # workspace. Only when the owner HAS no company workspace does a
+            # conversation keep this workspace live.
+            chats = [th for th in self.threads_by_org.get(o, []) if str(th.get("user_id")) == user]
+            stuck = [th for th in chats if self.thread_target[str(th["id"])][0] is None and self.home is None]
+            if stuck:
+                left.extend("chat_thread:%s" % th["id"] for th in stuck)
+                self.plan.warnings.append(
+                    "workspace %s (%r) holds %d conversation(s) of its owner (%s) and the owner has no company "
+                    "workspace to move them to — the workspace stays live" % (
+                        o, self.orgs[o].get("name"), len(stuck),
+                        "; ".join("%s %r" % (th["id"], th.get("title")) for th in stuck)))
+            split = any(decisions[p]["action"] in ("keep", "archive") and self.period_final_org.get(p) != o
+                        and not str(decisions[p].get("reason") or "").startswith("empty")
+                        for p in self.periods_by_org.get(o, []))
+            split = split or any(d in doc_dec and self.docs[d].get("deleted_at") is None
+                                 and self.doc_final_org.get(d) != o for d in self.docs_by_org.get(o, []))
+            if left:
+                self.plan.warnings.append(
+                    "workspace %s (%r) has no company of its own but still holds %d live item(s) "
+                    "that could not be placed — left live" % (o, self.orgs[o].get("name"), len(left)))
+                live_after.add(o)
+            elif not split:
+                # Nothing of a company was in it (an empty workspace, or one
+                # holding only empty placeholder months): not a split, so
+                # not archived.
+                self.plan.warnings.append(
+                    "workspace %s (%r) has no company of its own and nothing to split — left live"
+                    % (o, self.orgs[o].get("name")))
+                live_after.add(o)
+            else:
+                pending.append(o)
+        archive_orgs: List[str] = []
+        for o in pending:
+            if live_after - {o}:
+                archive_orgs.append(o)
+            else:
+                live_after.add(o)
+                self.plan.warnings.append(
+                    "workspace %s (%r) has no company of its own but is the user's only workspace — left live"
+                    % (o, self.orgs[o].get("name")))
+
+        # 5. reports
+        for o in live:
+            self.plan.workspaces.append({
+                "user_id": user, "org_id": o, "name": self.orgs[o].get("name"),
+                "company": self.own.get(o), "company_source": own[o][1],
+                "action": "archive" if o in archive_orgs else "keep"})
+        for company in created:
+            self.plan.workspaces.append({
+                "user_id": user, "org_id": company_ws[company], "name": self._company_name(company),
+                "company": company, "company_source": "created", "action": "create"})
+        for company in reused:
+            self.plan.workspaces.append({
+                "user_id": user, "org_id": company_ws[company], "name": self.orgs[company_ws[company]].get("name"),
+                "company": company, "company_source": "an earlier run's workspace, archived by a rollback",
+                "action": "unarchive"})
+        if used_holding[0]:
+            self.plan.workspaces.append({
+                "user_id": user, "org_id": holding, "name": HOLDING_NAME.format(date=self.date),
+                "company": None, "company_source": "holding",
+                "action": "reuse_archived" if holding in self.orgs else "create_archived"})
+        for pid, pr in sorted(decisions.items()):
+            self.plan.periods.append(pr)
+        for did, dd in sorted(doc_dec.items()):
+            self.plan.documents.append(dd)
+
+        self._plan_chats(user, live_after, archive_orgs)
+        self._emit_ops(user, created, holding, used_holding[0], archive_orgs, doc_dec, reused)
+        self.plan.users.append({
+            "user_id": user, "workspaces_in_scope": len(live),
+            "companies": {c: company_ws[c] for c in sorted(company_ws)},
+            "created": [company_ws[c] for c in created], "archived": archive_orgs,
+            "unarchived": [company_ws[c] for c in reused],
+            "holding": holding if used_holding[0] else None})
+
+    # ── pieces ────────────────────────────────────────────────────────
+
+    def _home_workspace(self, company_ws: Mapping[str, str],
+                        decisions: Mapping[str, Mapping[str, Any]]) -> Optional[str]:
+        """The owner's main company workspace: the live company workspace
+        holding the most analysed periods after the plan (then one that
+        already exists, then the older, then the id). Where a conversation
+        with no company of its own goes when its workspace is archived."""
+        counts: Counter = Counter()
+        for pid, pr in decisions.items():
+            if pr.get("action") == "keep":
+                counts[self.period_final_org.get(pid)] += 1
+        best: Optional[Tuple[int, int, str, str]] = None
+        for oid in sorted(set(company_ws.values())):
+            org = self.orgs.get(oid)
+            existing = org is not None and not org.get("archived_at")
+            cand = (-counts.get(oid, 0), 0 if existing else 1, str((org or {}).get("created_at") or "~"), oid)
+            if best is None or cand < best:
+                best = cand
+        return best[3] if best else None
+
+    def _thread_target(self, th: Mapping[str, Any], decisions: Mapping[str, Mapping[str, Any]],
+                       company_ws: Mapping[str, str], company_orgs: Set[str]) -> Tuple[Optional[str], str]:
+        """(the company workspace a conversation follows, why) — or (None,
+        why) when it names no company: no grounding, a grounding outside
+        this user's plan, or a period of no known company."""
+        pid = str(th.get("active_period_id") or "")
+        if not pid:
+            return None, "not grounded in a period"
+        if pid not in decisions:
+            return None, ("its period %s is not in this user's workspaces" % pid if pid in self.periods
+                          else "its period %s no longer exists" % pid)
+        final = self.period_final_org.get(pid)
+        if final in company_orgs:
+            return final, "follows its period %s" % pid
+        company = decisions[pid].get("company")
+        if company and company in company_ws:
+            return company_ws[company], "follows its company %s (its period %s is archived)" % (company, pid)
+        return None, "its period %s names no company with a workspace" % pid
+
+    def _plan_chats(self, user: str, live_after: Set[str], archive_orgs: Sequence[str]) -> None:
+        """Every conversation in this user's migrated workspaces, and where
+        it ends (rule 7): the owner's conversation follows its company — to
+        the workspace its grounded period lands in, or, when that period is
+        archived, to its company's workspace. One that names no company
+        stays where it is, unless its workspace is archived: then it goes to
+        the owner's main company workspace (``_home_workspace``).
+        ``chat_messages`` follow by ``thread_id`` and are never written.
+
+        A conversation whose grounding would point into another workspace
+        afterwards has ``active_period_id`` cleared (rule 8) — the reply is
+        grounded by the page it is continued from, and
+        ``active_period_label`` keeps what it referred to. A cross-workspace
+        grounding the pre-state already had is left as is when neither the
+        conversation nor its period moves."""
+        self.chat_ops: List[Dict[str, Any]] = []
+        archived = set(archive_orgs)
+        for o in self.live:
+            for th in self.threads_by_org.get(o, []):
+                tid = str(th["id"])
+                own = str(th.get("user_id")) == user
+                target, why = self.thread_target.get(tid, (None, "not the workspace owner's conversation"))
+                if not own:
+                    final, why = o, "not the workspace owner's conversation"
+                elif target is not None:
+                    final = target
+                elif o in archived and self.home is not None:
+                    final, why = self.home, "%s; its workspace is archived — to the owner's main company " \
+                                            "workspace" % why
+                else:
+                    final = o
+                pid = str(th.get("active_period_id") or "")
+                period = self.periods.get(pid) if pid else None
+                period_after = (self.period_final_org.get(pid, str(period.get("org_id"))) if period else None)
+                clear = False
+                if period is None:
+                    grounding = "none" if not pid else "period no longer exists (left as is)"
+                elif period_after == final:
+                    grounding = "unchanged"
+                elif final == o and str(period.get("org_id")) != o and period_after == str(period.get("org_id")):
+                    grounding = "period in another workspace before the migration (left as is)"
+                else:
+                    clear = True
+                    grounding = "cleared: period %s ends in %s" % (pid, period_after)
+                row = {"id": th["id"], "org_id": o, "to_org": final, "user_id": th.get("user_id"),
+                       "title": th.get("title"), "updated_at": th.get("updated_at"),
+                       "active_period_id": th.get("active_period_id"),
+                       "active_period_label": th.get("active_period_label"),
+                       "action": "move" if final != o else "stay", "why": why,
+                       "workspace_after": "live" if final in live_after and final not in archived else "archived",
+                       "grounding": grounding}
+                self.plan.chats.append(row)
+                patch: Dict[str, Any] = {}
+                if final != o:
+                    patch["org_id"] = final
+                    self.plan.warnings.append(
+                        "conversation %s (%r) moves from %s to %s — %s" % (th["id"], th.get("title"), o, final, why))
+                if clear:
+                    patch["active_period_id"] = None
+                    self.plan.warnings.append(
+                        "conversation %s (%r) was grounded in period %s, which ends in %s — its "
+                        "active_period_id is cleared" % (th["id"], th.get("title"), pid, period_after))
+                if patch:
+                    self.chat_ops.append({"op": "update", "table": "chat_threads", "key": {"id": th["id"]},
+                                          "set": patch, "expect": {c: th.get(c) for c in patch}})
+
+    def _name_links(self, live: Sequence[str]) -> Dict[str, str]:
+        """normalized company name -> cui key, for this user's documents and
+        prefs: a book that prints only "ALFA FOOD S.R.L" is the same
+        company as one that prints CUI 12345674 when the registered name of
+        that CUI normalizes to the same words — and only then."""
+        links: Dict[str, Set[str]] = defaultdict(set)
+        for o in live:
+            prefs = self.prefs.get(o) or {}
+            key = _prefs_company_key(prefs)
+            if key and key.startswith("cui:") and prefs.get("company_name"):
+                links[normalize_company_name(prefs["company_name"])].add(key)
+            for did in self.docs_by_org.get(o, []):
+                ident = self.ident(did)
+                if ident and ident.cui and ident.company_name:
+                    links[normalize_company_name(ident.company_name)].add("cui:" + ident.cui)
+        return {n: next(iter(ks)) for n, ks in links.items() if n and len(ks) == 1}
+
+    def key(self, doc_id: Optional[str]) -> Optional[str]:
+        k = self.raw_key(doc_id)
+        if k and k.startswith("name:"):
+            return self.name_to_cui.get(k[5:], k)
+        return k
+
+    def _own_company(self, org: str) -> Tuple[Optional[str], str, float, int, str]:
+        """(company key or None, how it was decided, share, count, created_at)."""
+        prefs = self.prefs.get(org) or {}
+        key = _prefs_company_key(prefs)
+        created = str(self.orgs[org].get("created_at") or "")
+        if key:
+            if key.startswith("name:"):
+                key = self.name_to_cui.get(key[5:], key)
+            return (key, "org_prefs", 1.0, 1 << 30, created)
+
+        def _majority(doc_ids: Iterable[str], label: str) -> Optional[Tuple[Optional[str], str, float, int, str]]:
+            keys = [k for k in (self.key(d) for d in doc_ids) if k]
+            if not keys:
+                return None
+            counts = Counter(keys)
+            top, n = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[0]
+            share = n / float(len(keys))
+            if share > 0.5:
+                return (top, "%s %d/%d" % (label, n, len(keys)), share, n, created)
+            return (None, "%s: no majority (%s)" % (label, ", ".join(
+                "%s=%d" % kv for kv in sorted(counts.items()))), share, n, created)
+
+        sources = []
+        for pid in self.periods_by_org.get(org, []):
+            sid = str(self.periods[pid].get("source_document_id") or "")
+            d = self.docs.get(sid)
+            if d and d.get("deleted_at") is None and self.status(sid) == ANALYZED and _financial(d):
+                sources.append(sid)
+        got = _majority(sources, "period sources")
+        if got is None:
+            analysed = [d for d in self.docs_by_org.get(org, [])
+                        if self.docs[d].get("deleted_at") is None and self.status(d) == ANALYZED
+                        and _financial(self.docs[d])]
+            got = _majority(analysed, "analysed documents")
+        return got or (None, "no identified documents", 0.0, 0, created)
+
+    def _resolve_claims(self, own: Mapping[str, Tuple[Optional[str], str, float, int, str]]
+                        ) -> Dict[str, Tuple[Optional[str], str]]:
+        """One workspace per company per user: ``{org: (key or None, why)}``."""
+        out = {o: (v[0], v[1]) for o, v in own.items()}
+        claims: Dict[str, List[str]] = defaultdict(list)
+        for o, v in sorted(own.items()):
+            if v[0]:
+                claims[v[0]].append(o)
+        for company, orgs in sorted(claims.items()):
+            if len(orgs) < 2:
+                continue
+            ranked = sorted(orgs)
+            ranked.sort(key=lambda o: own[o][4])                 # older first
+            ranked.sort(key=lambda o: -own[o][3])                # more documents
+            ranked.sort(key=lambda o: -own[o][2])                # larger share
+            ranked.sort(key=lambda o: 0 if own[o][1] == "org_prefs" else 1)
+            for loser in ranked[1:]:
+                out[loser] = (None, "%s also claimed by %s (%s)" % (company, ranked[0], own[loser][1]))
+                self.plan.warnings.append(
+                    "workspaces %s and %s both resolve to %s — %s keeps it"
+                    % (ranked[0], loser, company, ranked[0]))
+        return out
+
+    def _period_row(self, pid: str, org: str) -> Dict[str, Any]:
+        p = self.periods[pid]
+        sid = str(p.get("source_document_id") or "")
+        src = self.docs.get(sid) if sid else None
+        row: Dict[str, Any] = {"id": pid, "from_org": org, "period_end": p.get("period_end"),
+                               "source_document_id": sid or None}
+        company = self.key(sid) if src else None
+        if company is None:
+            company = self.own.get(org)
+        reason = None
+        if self.keep_placeholder and not sid and _month(p.get("period_end")) == _month(self.date):
+            row.update(action="placeholder", reason="", company=company, month=_month(p.get("period_end")))
+            return row
+        if not sid:
+            reason = "empty: no source document"
+        elif src is None:
+            reason = "empty: source document missing"
+        elif src.get("deleted_at") is not None:
+            reason = "empty: source document deleted"
+        elif self.status(sid) != ANALYZED:
+            reason = "empty: source document %s" % (self.status(sid) or "unknown")
+        elif pid not in self.metric_periods:
+            reason = "empty: nothing persisted"
+        elif sid not in self.in_scope_docs:
+            reason = None
+            row.update(action="unplaced", reason="source document outside the user's own workspaces",
+                       company=company, month=_month(p.get("period_end")))
+            self.plan.warnings.append("period %s: %s" % (pid, row["reason"]))
+            return row
+        if reason:
+            row.update(action="archive", reason=reason, company=company, month=_month(p.get("period_end")))
+            return row
+        if company is None:
+            row.update(action="unplaced", reason="company unknown", company=None,
+                       month=_month(p.get("period_end")))
+            self.plan.warnings.append("period %s in %s: company unknown — left in place" % (pid, org))
+            return row
+        end = str(p.get("period_end"))
+        redate = None
+        ident = self.ident(sid)
+        if ident and ident.period_end and ident.period_end != end:
+            signal = (ident.sources.get("period_end") or {}).get("signal")
+            new = ident.period_end
+            if self.own.get(org) is not None and self.own.get(org) == company:
+                # Served: in its company's own workspace. The migration
+                # never moves a served month (rule 3) — nor re-dates it.
+                self.plan.warnings.append(
+                    "period %s is served in its company's workspace dated %s; its document's %s signal "
+                    "says %s — not re-dated (an operator decides)" % (pid, end, signal, new))
+            elif signal == "in_document" or (signal == "filename" and new[:4] != end[:4]):
+                redate = new
+            elif signal == "closing_balance" and self._corroborated(sid, new):
+                redate = new
+            else:
+                why = ("same year" if signal == "filename" else
+                       "no second signal agrees" if signal == "closing_balance" else "signal not trusted")
+                self.plan.warnings.append(
+                    "period %s dated %s, its document's %s signal says %s — not re-dated (%s)"
+                    % (pid, end, signal, new, why))
+        row.update(action="candidate", reason="", company=company,
+                   month=_month(redate or end), redate_to=redate,
+                   redate_signal=(ident.sources.get("period_end") or {}) if redate and ident else None)
+        return row
+
+    def _corroborated(self, doc_id: str, new_end: str) -> bool:
+        """A second, independent signal names the same month as the
+        document's closing-balance date: the filename, or the period end a
+        user confirmed for the document."""
+        d = self.docs.get(doc_id) or {}
+        month = _month(new_end)
+        if d.get("period_end_hint") and _month(str(d["period_end_hint"])) == month:
+            return True
+        return _month(filename_period_end(d.get("original_filename"))) == month
+
+    def _document_decisions(self, survivors: Mapping[Tuple[str, str], str],
+                            periods: Mapping[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+        dec: Dict[str, Dict[str, Any]] = {}
+        kept_source = {periods[pid]["source_document_id"]: pid for pid in survivors.values()}
+        # EVERY archived period's source, whatever the archive reason: the
+        # source travels with its period (rule 6), never into a trash.
+        archived_source = {pr["source_document_id"]: pid for pid, pr in sorted(periods.items())
+                           if pr["action"] == "archive" and pr.get("source_document_id")}
+
+        groups: Dict[Tuple[str, Optional[str]], List[str]] = defaultdict(list)
+        failed: List[str] = []
+        for did in sorted(self.in_scope_docs):
+            d = self.docs[did]
+            org = str(d["org_id"])
+            ident = self.ident(did)
+            # A document's company is what ITS bytes (or an operator) say —
+            # never the workspace it sits in. Inheriting the workspace's
+            # company filed another company's book as a duplicate of this
+            # one and archived it ("other_file_same_period"): the Frozen
+            # book in a Carniprod workspace. Unknown -> left in place.
+            company = self.key(did)
+            base = {"id": did, "from_org": org, "filename": d.get("original_filename"),
+                    "status": d.get("status"), "company": company,
+                    "live": d.get("deleted_at") is None}
+            if did in archived_source:
+                pid = archived_source[did]
+                status = self.status(did)
+                if d.get("deleted_at") is None and status in IN_FLIGHT:
+                    dec[did] = dict(base, action="untouched", reason="in flight (%s)" % status, _place="stay")
+                    self.plan.blocking.append("document %s is being analysed (%s)" % (did, status))
+                    continue
+                # Any scope, any state: it follows its period into the
+                # holding workspace, and comes out of the trash if it was
+                # in one (``_emit_ops``) — never trashed by the migration.
+                dec[did] = dict(base, action="follow_period", reason="source of archived period %s" % pid,
+                                _place="with_period", _period=pid)
+                continue
+            if did in kept_source:
+                # live and analysed by construction (``_period_row``); any
+                # scope — it goes where its period goes.
+                pid = kept_source[did]
+                dec[did] = dict(base, action="keep", reason="source of period %s" % pid,
+                                _place="with_period", _period=pid, period=pid)
+                continue
+            if not _financial(d):
+                continue
+            if d.get("deleted_at") is not None:
+                # pre-existing trash
+                if company and self.own.get(org) and company != self.own.get(org):
+                    # Another company's file in THIS company's trash: it would
+                    # be restorable here. It goes to its own company's
+                    # workspace (or the holding one). Trash inside a workspace
+                    # being split stays where it is — it is archived with it.
+                    dec[did] = dict(base, action="move_trash", reason="trashed document of %s" % company,
+                                    _place="company")
+                else:
+                    dec[did] = dict(base, action="untouched", reason="trash", _place="stay")
+                continue
+            status = self.status(did)
+            if status in IN_FLIGHT:
+                dec[did] = dict(base, action="untouched", reason="in flight (%s)" % status, _place="stay")
+                self.plan.blocking.append("document %s is being analysed (%s)" % (did, status))
+                continue
+            if company is None:
+                dec[did] = dict(base, action="untouched", reason="company unknown", _place="stay")
+                hint = (ident.sources.get("cui_hint") or {}) if ident else {}
+                self.plan.warnings.append("document %s (%r): company unknown — left in place%s"
+                                          % (did, d.get("original_filename"),
+                                             " (its filename matches registry CUI %s, which the document "
+                                             "does not print — an operator rule can confirm it)"
+                                             % hint["cui"] if hint.get("cui") else ""))
+                continue
+            if ident is not None and ident.document_kind == "not_a_balance":
+                if status == ANALYZED:
+                    # Analysed into something that is not a balance (a
+                    # public-records extract lives in sku_analyses): a
+                    # feature reads it. Never archived by this migration.
+                    dec[did] = dict(base, action="untouched", reason="analysed non-balance document",
+                                    _place="stay")
+                    self.plan.warnings.append("document %s (%r): analysed but not a balance — left in place"
+                                              % (did, d.get("original_filename")))
+                    continue
+                dec[did] = dict(base, action="archive", reason="archived: not_a_balance (%s)" % did,
+                                _place="company")
+                continue
+            if status == FAILED:
+                # decided after the groups: a copy of a live document, or
+                # left in place for a retry (rule 5)
+                failed.append(did)
+                continue
+            month = None
+            if ident and ident.period_end:
+                month = _month(ident.period_end)
+            groups[(company, month)].append(did)
+
+        for (company, month), dids in sorted(groups.items(), key=lambda kv: (kv[0][0], kv[0][1] or "")):
+            if month is None:
+                self._no_month_group(company, dids, dec, kept_source)
+                continue
+            pid = survivors.get((company, month))
+            if pid:
+                keeper = periods[pid]["source_document_id"]
+            else:
+                keeper = self._choose(dids)
+                self.plan.needs_reanalysis.append({
+                    "user_id": self.user, "company": company, "company_name": None, "month": month,
+                    "document_id": keeper, "filename": self.docs[keeper].get("original_filename"),
+                    "status": self.docs[keeper].get("status")})
+                d = self.docs[keeper]
+                dec[keeper] = {"id": keeper, "from_org": str(d["org_id"]),
+                               "filename": d.get("original_filename"), "status": d.get("status"),
+                               "company": company, "live": True, "action": "keep",
+                               "reason": "chosen for re-analysis (%s %s, no period)" % (company, month),
+                               "_place": "company"}
+            keep_sha = self.sha(keeper)
+            for did in dids:
+                if did == keeper:
+                    continue
+                d = self.docs[did]
+                if keep_sha and self.sha(did) == keep_sha:
+                    why = "duplicate_of_source" if pid else "duplicate"
+                else:
+                    why = "other_file_same_period"
+                dec[did] = {"id": did, "from_org": str(d["org_id"]), "filename": d.get("original_filename"),
+                            "status": d.get("status"), "company": company, "live": True,
+                            "action": "archive", "reason": "archived: %s (%s)" % (why, keeper),
+                            "_place": "company"}
+        self._failed_decisions(failed, dec, kept_source)
+        return dec
+
+    def _failed_decisions(self, failed: Sequence[str], dec: Dict[str, Dict[str, Any]],
+                          kept_source: Mapping[str, str]) -> None:
+        """A FAILED upload (rule 5, 2026-09-26): archived only when its bytes
+        are a copy of a live document that stays (a period's source, a kept
+        book) — nothing is lost, the same bytes remain analysable — and then
+        it travels with its company like any archived copy. Otherwise it is
+        left UNTOUCHED in its workspace, whatever happens to the workspace:
+        its owner retries it once the reader that refused it ships. Never a
+        keeper, never moved. Among failed uploads of the same bytes the
+        latest stays and the others are archived as its copies, in place."""
+        live_by_sha: Dict[str, str] = {}
+        for did, dd in sorted(dec.items()):
+            if dd["action"] == "keep" and self.sha(did):
+                live_by_sha.setdefault(str(self.sha(did)), did)
+        kept: Dict[str, str] = {}
+        for did in sorted(failed, key=lambda x: (str(self.docs[x].get("created_at") or ""), x), reverse=True):
+            d = self.docs[did]
+            sha = self.sha(did)
+            base = {"id": did, "from_org": str(d["org_id"]), "filename": d.get("original_filename"),
+                    "status": d.get("status"), "company": self.key(did), "live": True}
+            if sha and sha in live_by_sha:
+                ref = live_by_sha[sha]
+                why = "duplicate_of_source" if ref in kept_source else "duplicate"
+                dec[did] = dict(base, action="archive", reason="archived: %s (%s)" % (why, ref), _place="company")
+                continue
+            if sha and sha in kept:
+                dec[did] = dict(base, action="archive", reason="archived: duplicate (%s)" % kept[sha],
+                                _place="stay")
+                continue
+            if sha:
+                kept[sha] = did
+            dec[did] = dict(base, action="untouched",
+                            reason="failed upload left for a retry (not a copy of a live document)",
+                            _place="stay")
+            self.plan.warnings.append(
+                "document %s (%r): failed upload, not a copy of any live document — left in its workspace for "
+                "a retry (the reader refused it, the document is not condemned)" % (did, d.get("original_filename")))
+
+    def _choose(self, dids: Sequence[str]) -> str:
+        analysed = [d for d in dids if self.status(d) == ANALYZED]
+        pool = analysed or list(dids)
+        ordered = sorted(pool)
+        ordered.sort(key=lambda d: str(self.docs[d].get("created_at") or ""), reverse=True)
+        return ordered[0]
+
+    def _no_month_group(self, company: str, dids: Sequence[str], dec: Dict[str, Dict[str, Any]],
+                        kept_source: Mapping[str, str]) -> None:
+        kept_shas = {self.sha(k) for k in kept_source if self.key(k) == company}
+        seen: Dict[str, str] = {}
+        for did in sorted(dids, key=lambda x: (str(self.docs[x].get("created_at") or ""), x)):
+            d = self.docs[did]
+            sha = self.sha(did)
+            base = {"id": did, "from_org": str(d["org_id"]), "filename": d.get("original_filename"),
+                    "status": d.get("status"), "company": company, "live": True}
+            if sha and (sha in kept_shas or sha in seen):
+                ref = seen.get(sha) or next(k for k in kept_source if self.sha(k) == sha)
+                dec[did] = dict(base, action="archive", reason="archived: duplicate (%s)" % ref,
+                                _place="company")
+                continue
+            if sha:
+                seen[sha] = did
+            dec[did] = dict(base, action="keep", reason="no period detected in the document",
+                            _place="company")
+            self.plan.warnings.append("document %s (%r): no period detected — kept live"
+                                      % (did, d.get("original_filename")))
+
+    def _company_name(self, company: str) -> str:
+        best: Optional[Tuple[int, str, str]] = None
+        for did in sorted(self.in_scope_docs):
+            if self.key(did) != company:
+                continue
+            ident = self.ident(did)
+            if not ident or not ident.company_name:
+                continue
+            signal = (ident.sources.get("company_name") or {}).get("signal") or "filename"
+            cand = (_NAME_SIGNAL_RANK.get(signal, 8), ident.company_name, did)
+            if best is None or cand < best:
+                best = cand
+        if best:
+            return best[1]
+        return company.split(":", 1)[1]
+
+    def _company_caen(self, company: str) -> Optional[str]:
+        for did in sorted(self.in_scope_docs):
+            ident = self.ident(did)
+            if ident and self.key(did) == company and ident.caen_code:
+                return ident.caen_code
+        return None
+
+    def _identity_sources(self, company: str, org: str, own_source: Optional[str]) -> Dict[str, Any]:
+        best: Optional[Tuple[int, str, Dict[str, Any]]] = None
+        for did in sorted(self.in_scope_docs):
+            ident = self.ident(did)
+            if not ident or self.key(did) != company:
+                continue
+            src = ident.sources.get("cui") or ident.sources.get("company_name") or {}
+            rank = _CUI_SIGNAL_RANK.get(src.get("signal"), 5)
+            cand = (rank, did, {"signal": src.get("signal"), "evidence": src.get("evidence"),
+                                "document_id": did})
+            if best is None or cand[:2] < best[:2]:
+                best = cand
+        out: Dict[str, Any] = {"workspace": {"signal": "ws_migration", "evidence": own_source or "created"}}
+        if best:
+            out["identity"] = best[2]
+        return out
+
+    def _redated_detection(self, pid: str, record: Mapping[str, Any], old_end: str,
+                           new_end: str) -> Dict[str, Any]:
+        """``stage_persist``'s period-detection record, as the engine would
+        have written it had the period been filed under ``new_end``: the
+        resolved date, the signal that decided it (one the engine itself
+        emits, so every reader knows it), the hint the migration corrects
+        alongside, and ``mismatch`` recomputed with the engine's own rule
+        (``pipeline.resolve_period_end_for_persist``: a real detection that
+        points elsewhere). ``migration`` records what changed and why."""
+        src = self.periods[pid].get("source_document_id")
+        ident = self.ident(str(src)) if src else None
+        why = dict((ident.sources.get("period_end") or {}) if ident else {})
+        detected = record.get("detected") if isinstance(record.get("detected"), dict) else {}
+        proposed = detected.get("proposed_period_end")
+        signal = why.get("signal") or "filename"
+        out = dict(record)
+        out.update({
+            "resolved_period_end": new_end,
+            "signal_used": signal,
+            "confidence": detected.get("confidence") if proposed == new_end else record.get("confidence"),
+            "evidence_snippet": "re-dated by the workspace migration (%s): the document's %s says %s (%s)"
+                                % (self.date, signal, new_end, why.get("evidence") or ""),
+            "hint": new_end if str(record.get("hint") or "") == old_end else record.get("hint"),
+            "mismatch": bool(proposed) and proposed != new_end,
+            "migration": {"signal": "ws_migration", "date": self.date, "from": old_end, "to": new_end,
+                          "document_signal": signal, "evidence": why.get("evidence"),
+                          "previous": {k: record.get(k) for k in
+                                       ("resolved_period_end", "signal_used", "hint", "mismatch")}},
+        })
+        return out
+
+    # ── operations ────────────────────────────────────────────────────
+
+    def _emit_ops(self, user: str, created: Sequence[str], holding: str, uses_holding: bool,
+                  archive_orgs: Sequence[str], doc_dec: Mapping[str, Dict[str, Any]],
+                  reused: Sequence[str] = ()) -> None:
+        ops = self.plan.ops
+        currency = "RON"
+        for o in self.live:
+            if self.orgs[o].get("default_currency"):
+                currency = self.orgs[o]["default_currency"]
+                break
+
+        # 1. organizations + memberships + org_prefs
+        for company in created:
+            oid = self.company_ws[company]
+            caen = self._company_caen(company)
+            # The industry the repo's own catalogue maps the CAEN to — the
+            # pair create_workspace() stores; both or neither.
+            industry = industry_key_for_caen(caen) if caen else None
+            label = industry_display_name(industry) if industry else None
+            if not label:
+                industry = None
+            ops.append({"op": "insert", "table": "organizations", "row": {
+                "id": oid, "name": self._company_name(company), "industry_key": industry,
+                "industry_display_name": label, "default_currency": currency,
+                "caen_code": caen, "caen_code_source": "auto_suggested" if caen else None,
+                "archived_at": None, "purge_after": None}})
+        if uses_holding and holding not in self.orgs:
+            ops.append({"op": "insert", "table": "organizations", "row": {
+                "id": holding, "name": HOLDING_NAME.format(date=self.date), "industry_key": None,
+                "industry_display_name": None, "default_currency": currency, "caen_code": None,
+                "caen_code_source": None, "archived_at": NOW, "purge_after": None}})
+        for company in reused:
+            oid = self.company_ws[company]
+            ops.append({"op": "update", "table": "organizations", "key": {"id": oid},
+                        "set": {"archived_at": None, "purge_after": None},
+                        "expect": {"archived_at": self.orgs[oid].get("archived_at"), "purge_after": None}})
+        new_orgs = [self.company_ws[c] for c in list(created) + list(reused)] + ([holding] if uses_holding else [])
+        have = {(str(m["org_id"]), str(m["user_id"])) for ms in self.members.values() for m in ms}
+        for oid in new_orgs:
+            if (oid, user) not in have:
+                ops.append({"op": "insert", "table": "memberships",
+                            "row": {"org_id": oid, "user_id": user, "role": "owner"}})
+        for company, oid in sorted(self.company_ws.items(), key=lambda kv: kv[1]):
+            cui = company[4:] if company.startswith("cui:") else None
+            name = self._company_name(company)
+            prefs = self.prefs.get(oid) or {}
+            # Already stamped (by an operator or an earlier run): never
+            # re-written, so a later run that happens to read a different
+            # spelling of the name does not churn the prefs.
+            if prefs.get("cui") == cui and prefs.get("company_name") and "identity_sources" in prefs:
+                continue
+            own_src = None
+            for w in self.plan.workspaces:
+                if w["org_id"] == oid:
+                    own_src = w.get("company_source")
+            ops.append({"op": "merge_prefs", "table": "org_prefs", "key": {"org_id": oid}, "merge": {
+                "cui": cui, "company_name": name,
+                "identity_sources": self._identity_sources(company, oid, own_src)}})
+
+        # 2. storage copies for every document changing workspace
+        doc_moves: Dict[str, Dict[str, Any]] = {}
+        for did, dd in sorted(doc_dec.items()):
+            d = self.docs[did]
+            cur = str(d["org_id"])
+            final = self.doc_final_org.get(did, cur)
+            patch: Dict[str, Any] = {}
+            if final != cur:
+                patch["org_id"] = final
+                path = d.get("storage_path")
+                if path:
+                    first, _, rest = str(path).partition("/")
+                    if first != cur or not rest:
+                        self.plan.blocking.append(
+                            "document %s: storage_path %r is not under its own workspace %s"
+                            % (did, path, cur))
+                        continue
+                    new_path = "%s/%s" % (final, rest)
+                    patch["storage_path"] = new_path
+                    f = self.facts.get(did)
+                    recorded = self.recorded_exists(did)
+                    read = bool(f and f.object_exists is True and f.sha256)
+                    if not read and recorded is not False and f is not None:
+                        # Asked for and not read (a 404, a storage error)
+                        # while nothing recorded the object missing (rule 9):
+                        # never "row still moves" — an operator decides.
+                        if recorded is True:
+                            basis = ("the snapshot's object inventory recorded it"
+                                     if self.objects is not None or f.recorded_exists is not None
+                                     else "the row is sized %s bytes" % d.get("size_bytes"))
+                        else:
+                            basis = "nothing recorded it missing"
+                        self.plan.blocking.append(
+                            "document %s (%r): its storage object %r could not be read when planning (%s), "
+                            "yet %s — a transient storage error or an object deleted since; the row does "
+                            "not move without its file. Re-run the dry-run, or check the object." % (
+                                did, d.get("original_filename"), path,
+                                f.read_error or ("not found" if f.object_exists is False else "unknown"), basis))
+                        continue
+                    if not read and recorded is False:
+                        self.plan.warnings.append(
+                            "document %s (%r): its storage object %r was missing when the snapshot was taken "
+                            "and when planning — the row moves; the copy is attempted, not required"
+                            % (did, d.get("original_filename"), path))
+                    # expect_sha256: the facts pass READ this object; the
+                    # copy must find exactly these bytes (None: unknown).
+                    # must_exist: the copy step stops the run if the object
+                    # is gone — unless the inventory recorded it missing.
+                    ops.append({"op": "copy_object", "bucket": "documents", "document_id": did,
+                                "from_path": path, "from_org": cur, "to_path": new_path,
+                                "to_org": final, "content_type": d.get("mime_type"),
+                                "expect_sha256": f.sha256 if read else None,
+                                "must_exist": recorded is not False})
+            if dd["action"] == "archive" and d.get("deleted_at") is None:
+                patch["deleted_at"] = NOW
+                patch["error"] = dd["reason"]
+            elif dd["action"] == "follow_period" and d.get("deleted_at") is not None:
+                # A period's source never stays in a trash: emptying it
+                # would cascade the period away (rule 6).
+                patch["deleted_at"] = None
+            doc_moves[did] = patch
+
+        # 3. period-scoped rows follow their period, document-scoped rows their document
+        moved_periods = {pid: f for pid, f in self.period_final_org.items()
+                         if f != str(self.periods[pid]["org_id"])}
+        moved_docs = {did: f for did, f in self.doc_final_org.items()
+                      if f != str(self.docs[did]["org_id"])}
+        moved_alerts: Dict[str, str] = {}
+        moved_datasets: Dict[str, str] = {}
+        for table in sorted(self.t):
+            if table in NOT_SWEPT:
+                continue
+            rows = self.t.get(table) or []
+            if not rows:
+                continue
+            cols = set().union(*(r.keys() for r in rows))
+            org_col = next((c for c in ORG_COLUMNS if c in cols), None)
+            if org_col is None:
+                continue
+            pk = pk_for(table, self.pks)
+            for r in sorted(rows, key=lambda r: canonical_json([r.get(c) for c in pk])):
+                target = None
+                pid = str(r.get("period_id") or "")
+                if pid and pid in moved_periods:
+                    target = moved_periods[pid]
+                elif not pid and r.get("document_id") and str(r["document_id"]) in moved_docs:
+                    target = moved_docs[str(r["document_id"])]
+                if target and str(r.get(org_col)) != target:
+                    ops.append({"op": "update", "table": table, "key": {c: r.get(c) for c in pk},
+                                "set": {org_col: target}, "expect": {org_col: r.get(org_col)}})
+                    if table == "alerts":
+                        moved_alerts[str(r["id"])] = target
+                    if table == "sales_datasets":
+                        moved_datasets[str(r["id"])] = target
+        for table, ref, moved in (("alert_states", "alert_id", moved_alerts),
+                                  ("sku_lines", "dataset_id", moved_datasets),
+                                  ("sku_aggregates", "dataset_id", moved_datasets)):
+            pk = pk_for(table, self.pks)
+            for r in self.t.get(table) or []:
+                target = moved.get(str(r.get(ref)))
+                if target and str(r.get("org_id")) != target:
+                    ops.append({"op": "update", "table": table, "key": {c: r.get(c) for c in pk},
+                                "set": {"org_id": target}, "expect": {"org_id": r.get("org_id")}})
+
+        # 4. periods change workspace
+        for pid in sorted(moved_periods):
+            ops.append({"op": "update", "table": "financial_periods", "key": {"id": pid},
+                        "set": {"org_id": moved_periods[pid]},
+                        "expect": {"org_id": self.periods[pid]["org_id"]}})
+
+        # 5. documents: workspace, storage path, period link, archive stamp
+        for did, dd in sorted(doc_dec.items()):
+            if did not in doc_moves:
+                continue
+            d = self.docs[did]
+            patch = doc_moves[did]
+            final = self.doc_final_org.get(did, str(d["org_id"]))
+            pid = str(d.get("period_id") or "")
+            if pid and self.period_final_org.get(pid, str((self.periods.get(pid) or {}).get("org_id") or "")) != final:
+                patch["period_id"] = None
+            kept_pid = dd.get("period")
+            if kept_pid and pid != kept_pid:
+                patch["period_id"] = kept_pid
+            if kept_pid and kept_pid in self.redates:
+                old_end = str(self.periods[kept_pid].get("period_end"))
+                if d.get("period_end_hint") and str(d.get("period_end_hint")) == old_end:
+                    patch["period_end_hint"] = self.redates[kept_pid]
+            if patch:
+                ops.append({"op": "update", "table": "documents", "key": {"id": did},
+                            "set": patch, "expect": {c: d.get(c) for c in patch}})
+        # documents outside the decisions whose period left their workspace
+        for did in sorted(self.in_scope_docs):
+            if did in doc_dec:
+                continue
+            d = self.docs[did]
+            pid = str(d.get("period_id") or "")
+            if pid and pid in self.period_final_org and self.period_final_org[pid] != str(d["org_id"]):
+                ops.append({"op": "update", "table": "documents", "key": {"id": did},
+                            "set": {"period_id": None}, "expect": {"period_id": d.get("period_id")}})
+
+        # 5b. conversations follow their company (rule 7); a grounding that
+        # would point into another workspace is cleared (rule 8).
+        # chat_messages is never written: messages follow by thread_id.
+        ops.extend(self.chat_ops)
+
+        # 6. re-date — the row AND both stored records of its date: the
+        # engine's period-detection record, which the Docs panel's mismatch
+        # chip and the firm attention layer read verbatim (a re-dated row
+        # under a record still saying "2017-12-31, mismatch" would be
+        # reported as mis-filed forever), and the §7 detection envelope
+        # column (period_end / fiscal_year_end / period_start).
+        for pid in sorted(self.redates):
+            p = self.periods[pid]
+            new_end = self.redates[pid]
+            patch: Dict[str, Any] = {"period_end": new_end}
+            if str(p.get("period_start")) == str(p.get("period_end")):
+                patch["period_start"] = new_end
+            env = p.get("assembled_canonical_v1")
+            if isinstance(env, dict) and isinstance(env.get("period_detection"), dict):
+                patch["assembled_canonical_v1"] = dict(env, period_detection=self._redated_detection(
+                    pid, env["period_detection"], str(p.get("period_end")), new_end))
+            envelope = p.get("detection_envelope")
+            if isinstance(envelope, dict):
+                patch["detection_envelope"] = redated_envelope(envelope, new_end)
+            ops.append({"op": "update", "table": "financial_periods", "key": {"id": pid},
+                        "set": patch, "expect": {c: p.get(c) for c in patch}})
+
+        # 7. archive the split workspaces; nobody is left sitting in one — the
+        # owner who had one open lands in the main company workspace, where
+        # the conversations without a company of their own went.
+        for o in archive_orgs:
+            ops.append({"op": "update", "table": "organizations", "key": {"id": o},
+                        "set": {"archived_at": NOW, "purge_after": None},
+                        "expect": {"archived_at": None, "purge_after": self.orgs[o].get("purge_after")}})
+        for up in self.t.get("user_prefs") or []:
+            if str(up.get("user_id")) == user and up.get("active_org_id") in archive_orgs:
+                ops.append({"op": "update", "table": "user_prefs", "key": {"user_id": user},
+                            "set": {"active_org_id": self.home},
+                            "expect": {"active_org_id": up.get("active_org_id")}})
+
+        # fill names into the reanalysis list
+        for item in self.plan.needs_reanalysis:
+            if item["user_id"] == user and item.get("company_name") is None:
+                item["company_name"] = self._company_name(item["company"])
+                item["org_id"] = self.company_ws.get(item["company"])
+
+
+def redated_envelope(envelope: Mapping[str, Any], new_end: str) -> Dict[str, Any]:
+    """The §7 detection envelope (``financial_periods.detection_envelope``,
+    ``engine.detection.build_detection_envelope``) as ``stage_persist``
+    would have written it for a period filed under ``new_end``:
+    ``period_end`` and ``fiscal_year_end`` say the new date; so does
+    ``period_start`` when the envelope carried one date for both (the
+    pipeline passes the parsed period end as both) or none. Every other
+    field is untouched — the envelope's shape is a contract."""
+    out = dict(envelope)
+    start, end = envelope.get("period_start"), envelope.get("period_end")
+    out["period_end"] = new_end
+    out["fiscal_year_end"] = new_end
+    if not start or start == end:
+        out["period_start"] = new_end
+    return out
+
+
+def redated_period_ids(ops: Sequence[Mapping[str, Any]]) -> List[str]:
+    """The periods a plan re-dates: its ``financial_periods`` updates that
+    set ``period_end``."""
+    return sorted({str(op["key"]["id"]) for op in ops
+                   if op.get("op") == "update" and op.get("table") == "financial_periods"
+                   and "period_end" in (op.get("set") or {})})
+
+
+def period_record_disagreements(tables: Mapping[str, List[Mapping[str, Any]]], *,
+                                period_ids: Optional[Iterable[str]] = None) -> List[str]:
+    """Periods whose stored records of their date disagree with the row:
+    ``assembled_canonical_v1.period_detection`` — ``resolved_period_end``
+    must be the row's ``period_end``, and ``mismatch`` must be what the
+    engine's own rule gives (``pipeline.resolve_period_end_for_persist``:
+    a detection proposing ANOTHER date than the row's) — and the §7
+    ``detection_envelope`` column (``period_end`` / ``fiscal_year_end``).
+    Both are read verbatim (the Docs panel's mismatch chip, the firm
+    attention layer; the 3b5 backfill snapshot copies the envelope), so a
+    re-dated row under records still saying the old date is reported as
+    mis-filed forever. ``period_ids`` narrows the check to the periods a
+    plan re-dated (the rest is not this migration's to judge)."""
+    wanted = {str(p) for p in period_ids} if period_ids is not None else None
+    out: List[str] = []
+    for p in tables.get("financial_periods") or []:
+        pid = str(p["id"])
+        if wanted is not None and pid not in wanted:
+            continue
+        end = str(p.get("period_end") or "")
+        env = p.get("assembled_canonical_v1")
+        rec = env.get("period_detection") if isinstance(env, dict) else None
+        if isinstance(rec, dict):
+            resolved = rec.get("resolved_period_end")
+            if resolved and str(resolved) != end:
+                out.append("period %s: period_detection.resolved_period_end says %s, the row %s"
+                           % (pid, resolved, end))
+            detected = rec.get("detected") if isinstance(rec.get("detected"), dict) else {}
+            proposed = detected.get("proposed_period_end")
+            should = bool(proposed) and str(proposed) != end
+            if bool(rec.get("mismatch")) != should:
+                out.append("period %s: period_detection.mismatch is %s, but the detection proposes %s and the "
+                           "row is %s" % (pid, rec.get("mismatch"), proposed or "nothing", end))
+        envelope = p.get("detection_envelope")
+        if isinstance(envelope, dict):
+            for col in ("period_end", "fiscal_year_end"):
+                val = envelope.get(col)
+                if val and str(val) != end:
+                    out.append("period %s: detection_envelope.%s says %s, the row %s" % (pid, col, val, end))
+    return sorted(out)
+
+
+def build_plan(tables: Mapping[str, List[Mapping[str, Any]]], facts: Mapping[str, Any], *,
+               migration_date: str, pks: Optional[Mapping[str, Sequence[str]]] = None,
+               stale_before: Optional[str] = None,
+               keep_current_month_placeholder: bool = False,
+               objects: Optional[Mapping[str, Mapping[str, Any]]] = None) -> Plan:
+    """The migration plan for ``tables``. See the module docstring.
+
+    ``keep_current_month_placeholder``: rule 2's exemption. OFF by default
+    since the workspace redesign (G4, 2026-09-21): nothing re-creates the
+    placeholder any more (useEnsureCurrentPeriod is deleted —
+    tests/engine/test_no_empty_period_creators.py), so it is an empty period
+    like any other and is archived. ON only for a run against a production
+    whose frontend still re-creates it (the rollback and re-run hazards
+    rule 2 describes).
+
+    ``objects`` is the snapshot's storage object inventory (``db_snapshot``
+    ``objects``: ``{document id: {"path", "org_id", "exists"}}``) — what
+    decides whether a document whose bytes could not be read may move
+    without a file (rule 9)."""
+    return _Planner(tables, facts, migration_date=migration_date, pks=pks,
+                    stale_before=stale_before,
+                    keep_current_month_placeholder=keep_current_month_placeholder,
+                    objects=objects).build()
+
+
+# ── facts from stored bytes ────────────────────────────────────────────
+
+def facts_from_documents(tables: Mapping[str, List[Mapping[str, Any]]],
+                         fetch: Callable[[Mapping[str, Any]], Tuple[Optional[bytes], Optional[bool], Optional[str]]],
+                         *, registry: Any = None, rules: Sequence[Mapping[str, Any]] = (),
+                         log: Callable[[str], None] = lambda _m: None,
+                         objects: Optional[Mapping[str, Mapping[str, Any]]] = None) -> Dict[str, DocFacts]:
+    """Identify every financial document from its bytes.
+
+    ``fetch(document_row) -> (content or None, object_exists, read_error)``
+    is the only I/O, injected (the migration script downloads through the
+    tenant-asserting storage client; tests pass bytes). Operator-verified
+    identities (``rules``) are layered on with ``apply_known_identity``: a
+    CUI the document prints always wins over a rule. ``objects`` — the
+    snapshot's object inventory — is recorded on each fact
+    (``recorded_exists``) so the planner can tell a transient read failure
+    from an object that was already missing."""
+    from engine.workspaces.company_identity import (
+        apply_known_identity,
+        identify_document,
+        match_known_identity,
+    )
+
+    members: Dict[str, List[Mapping[str, Any]]] = defaultdict(list)
+    for m in tables.get("memberships") or []:
+        members[str(m["org_id"])].append(m)
+    owner = {org: str(ms[0]["user_id"]) for org, ms in members.items() if len(ms) == 1}
+    facts: Dict[str, DocFacts] = {}
+    for d in sorted(tables.get("documents") or [], key=lambda r: str(r["id"])):
+        if not _financial(d):
+            continue
+        did, org = str(d["id"]), str(d["org_id"])
+        content, exists, err = fetch(d)
+        sha = hashlib.sha256(content).hexdigest() if content else None
+        ident = identify_document(content or b"", d.get("original_filename") or "", registry=registry)
+        rule = match_known_identity(rules, user_id=owner.get(org) or d.get("uploaded_by"),
+                                    content_sha256=sha or d.get("content_hash"),
+                                    filename=d.get("original_filename"))
+        if rule:
+            ident, conflict = apply_known_identity(ident, rule, registry=registry)
+            if conflict:
+                log("identity conflict on %s (%r): %s" % (did, d.get("original_filename"), conflict))
+        recorded = (objects.get(did) or {}).get("exists") if objects is not None else None
+        facts[did] = DocFacts(identity=ident, sha256=sha, object_exists=exists, read_error=err,
+                              recorded_exists=None if recorded is None else bool(recorded))
+    return facts
+
+
+# ── gates ──────────────────────────────────────────────────────────────
+
+def empty_live_periods(tables: Mapping[str, List[Mapping[str, Any]]], *,
+                       orgs: Optional[Iterable[str]] = None,
+                       current_month: Optional[str] = None) -> List[Tuple[str, str]]:
+    """G4 — every period in a live workspace has a live, analysed source
+    document IN THE SAME workspace and something persisted. Returns the
+    offenders as (period id, why). ``current_month`` (YYYY-MM): ONE
+    source-less period of that month per workspace is its permanent
+    current-month placeholder, not an offender (rule 2)."""
+    org_rows = {str(o["id"]): o for o in tables.get("organizations") or []}
+    scope = set(orgs) if orgs is not None else None
+    docs = {str(d["id"]): d for d in tables.get("documents") or []}
+    metric = {str(r["period_id"]) for t in ("calculated_metrics", "statement_line_items")
+              for r in tables.get(t) or [] if r.get("period_id")}
+    exempt: Dict[str, str] = {}
+    if current_month:
+        for p in sorted(tables.get("financial_periods") or [],
+                        key=lambda r: (str(r.get("created_at") or ""), str(r["id"]))):
+            if not p.get("source_document_id") and _month(p.get("period_end")) == current_month:
+                exempt.setdefault(str(p["org_id"]), str(p["id"]))
+    out = []
+    for p in tables.get("financial_periods") or []:
+        oid = str(p["org_id"])
+        if not _is_live_org(org_rows.get(oid)) or (scope is not None and oid not in scope):
+            continue
+        pid = str(p["id"])
+        if exempt.get(oid) == pid:
+            continue
+        src = docs.get(str(p.get("source_document_id") or ""))
+        if src is None:
+            out.append((pid, "no source document"))
+        elif src.get("deleted_at") is not None:
+            out.append((pid, "source deleted"))
+        elif src.get("status") != ANALYZED:
+            out.append((pid, "source %s" % src.get("status")))
+        elif str(src.get("org_id")) != oid:
+            out.append((pid, "source in another workspace"))
+        elif pid not in metric and not p.get("assembled_canonical_v1"):
+            out.append((pid, "nothing persisted"))
+    return sorted(out)
+
+
+#: Columns that name a period by id. ``active_period_id`` is TEXT on
+#: chat_threads (no foreign key — schema_phase_chat.sql), so nothing but
+#: this check keeps it in its workspace.
+PERIOD_REF_COLUMNS = ("period_id", "active_period_id")
+
+
+def cross_workspace_links(tables: Mapping[str, List[Mapping[str, Any]]]) -> List[str]:
+    """Rule 8 — documents whose period_id points into another workspace,
+    and rows (period-scoped rows, conversations' ``active_period_id``)
+    filed under a workspace their period is not in."""
+    periods = {str(p["id"]): str(p["org_id"]) for p in tables.get("financial_periods") or []}
+    out = []
+    for d in tables.get("documents") or []:
+        pid = str(d.get("period_id") or "")
+        if pid and pid in periods and periods[pid] != str(d["org_id"]):
+            out.append("document %s -> period %s" % (d["id"], pid))
+    for table, rows in sorted(tables.items()):
+        # Its own list, NOT the planner's NOT_SWEPT: a table the planner
+        # forgot to sweep must still be caught here.
+        if table in ("financial_periods", "documents"):
+            continue
+        for r in rows or []:
+            col = next((c for c in ORG_COLUMNS if c in r), None)
+            if not col:
+                continue
+            for ref in PERIOD_REF_COLUMNS:
+                pid = str(r.get(ref) or "")
+                if pid and pid in periods and str(r.get(col)) != periods[pid]:
+                    out.append("%s %s -> period %s" % (table, r.get("id"), pid) if ref == "period_id" else
+                               "%s %s.%s -> period %s" % (table, r.get("id"), ref, pid))
+    return out
+
+
+def _reachable_threads(tables: Mapping[str, List[Mapping[str, Any]]]) -> Set[str]:
+    """Ids of the conversations their user can open: the thread's workspace
+    is live and the user is a member of it — the RLS of
+    schema_phase_chat.sql (``user_id = auth.uid() and is_member_of(org_id)``)
+    plus the frontend's listing (chatRemote.ts: the ACTIVE workspace's
+    threads; an archived workspace is never the active one)."""
+    live = {str(o["id"]) for o in tables.get("organizations") or [] if not o.get("archived_at")}
+    members = {(str(m.get("org_id")), str(m.get("user_id"))) for m in tables.get("memberships") or []}
+    return {str(th.get("id")) for th in tables.get("chat_threads") or []
+            if str(th.get("org_id")) in live and (str(th.get("org_id")), str(th.get("user_id"))) in members}
+
+
+def hidden_conversations(before: Mapping[str, List[Mapping[str, Any]]],
+                         after: Mapping[str, List[Mapping[str, Any]]]) -> List[str]:
+    """Conversations their user could open in ``before`` and cannot in
+    ``after`` (rule 7): left in a workspace that is archived, or moved into
+    an archived workspace or one the user is not a member of. The chat list
+    shows only the active workspace's threads, and a held archive is shown
+    nowhere."""
+    was = _reachable_threads(before)
+    now = _reachable_threads(after)
+    return ["chat_threads %s (%r) in %s" % (th.get("id"), th.get("title"), th.get("org_id"))
+            for th in sorted(after.get("chat_threads") or [], key=lambda r: str(r.get("id")))
+            if str(th.get("id")) in was and str(th.get("id")) not in now]
+
+
+def period_source_hazards(tables: Mapping[str, List[Mapping[str, Any]]]) -> List[Tuple[str, str]]:
+    """Periods one hard delete away from erasure. ``financial_periods.
+    source_document_id`` is ``ON DELETE CASCADE`` (schema.sql:571): when the
+    source document row goes, the period and every row scoped to it go with
+    it. A source in the TRASH goes with any "Clear all" / purge of that
+    trash; a source in ANOTHER workspace goes when that workspace's trash is
+    emptied or the workspace is purged. Returns (period id, why)."""
+    docs = {str(d["id"]): d for d in tables.get("documents") or []}
+    out: List[Tuple[str, str]] = []
+    for p in tables.get("financial_periods") or []:
+        sid = str(p.get("source_document_id") or "")
+        d = docs.get(sid) if sid else None
+        if d is None:
+            continue
+        if d.get("deleted_at") is not None:
+            out.append((str(p["id"]), "source document %s is in the trash" % sid))
+        elif str(d.get("org_id")) != str(p.get("org_id")):
+            out.append((str(p["id"]), "source document %s is in workspace %s, the period in %s"
+                        % (sid, d.get("org_id"), p.get("org_id"))))
+    return sorted(out)
+
+
+#: Unique constraints production enforces that include the workspace
+#: column — the only ones moving rows between workspaces can break
+#: (schema.sql: alerts :412, invoices :502, financial_periods :579,
+#: coa_mappings :629). Keys over period_id / document_id alone do not
+#: change when a row changes workspace.
+UNIQUE_KEYS: Dict[str, Tuple[Tuple[str, ...], ...]] = {
+    "alerts": (("org_id", "alert_key"),),
+    "invoices": (("org_id", "invoice_no", "direction", "invoice_date"),),
+    "financial_periods": (("org_id", "period_end", "source_document_id"),),
+    "coa_mappings": (("org_id", "ro_account_prefix"),),
+}
+
+
+def new_unique_violations(before: Mapping[str, List[Mapping[str, Any]]],
+                          after: Mapping[str, List[Mapping[str, Any]]]) -> List[str]:
+    """Duplicate values of a ``UNIQUE_KEYS`` key in ``after`` that ``before``
+    did not have: the PATCH that makes one would fail in production with
+    23505 halfway through the run. (NULL never collides, as in Postgres.)"""
+    def dups(tables: Mapping[str, List[Mapping[str, Any]]]) -> Set[Tuple[str, Tuple[str, ...], str]]:
+        out = set()
+        for table, keysets in UNIQUE_KEYS.items():
+            for cols in keysets:
+                seen = Counter(canonical_json([r.get(c) for c in cols]) for r in tables.get(table) or []
+                               if all(r.get(c) is not None for c in cols))
+                out |= {(table, cols, k) for k, n in seen.items() if n > 1}
+        return out
+    return ["%s (%s) = %s" % (t, ", ".join(cols), k) for t, cols, k in sorted(dups(after) - dups(before))]
+
+
+def new_cascade_hazards(before: Mapping[str, List[Mapping[str, Any]]],
+                        after: Mapping[str, List[Mapping[str, Any]]]) -> List[Tuple[str, str]]:
+    """The ``period_source_hazards`` of ``after`` that a migration from
+    ``before`` answers for: every one ``before`` did not have, and every one
+    of a period whose workspace CHANGED (a period the migration moved must
+    arrive whole — its source with it, out of any trash)."""
+    had = set(period_source_hazards(before))
+    org_before = {str(p["id"]): str(p.get("org_id")) for p in before.get("financial_periods") or []}
+    org_after = {str(p["id"]): str(p.get("org_id")) for p in after.get("financial_periods") or []}
+    return [(pid, why) for pid, why in period_source_hazards(after)
+            if (pid, why) not in had or org_before.get(pid) != org_after.get(pid)]
+
+
+# ── human report ───────────────────────────────────────────────────────
+
+def render_report(plan: Plan) -> str:
+    """The dry-run's human table. Every decision with its reason."""
+    lines: List[str] = []
+    w = lines.append
+    w("WORKSPACE MIGRATION PLAN — %s — %d operations — ops sha256 %s"
+      % (plan.migration_date, len(plan.ops), plan.ops_sha256()))
+    for u in plan.users:
+        uid = u["user_id"]
+        w("")
+        w("USER %s" % uid)
+        w("  workspaces")
+        for ws in plan.workspaces:
+            if ws["user_id"] != uid:
+                continue
+            w("    %-16s %-36s %-34s company=%s  (%s)" % (
+                ws["action"], ws["org_id"], repr(ws["name"])[:34], ws["company"], ws["company_source"]))
+        w("  periods")
+        for p in plan.periods:
+            if not any(ws["org_id"] == p["from_org"] and ws["user_id"] == uid for ws in plan.workspaces):
+                continue
+            redate = (" re-date %s -> %s (%s)" % (p["period_end"], p["redate_to"],
+                                                  (p.get("redate_signal") or {}).get("signal"))
+                      if p.get("redate_to") else "")
+            w("    %-9s %s %s  %s -> %s  company=%s  %s%s" % (
+                p["action"], p["id"], p["period_end"], p["from_org"][:8], p.get("to_org", "")[:8],
+                p.get("company"), p.get("reason") or "", redate))
+        w("  documents")
+        for d in plan.documents:
+            if not any(ws["org_id"] == d["from_org"] and ws["user_id"] == uid for ws in plan.workspaces):
+                continue
+            if d["action"] == "untouched" and d.get("reason") == "trash":
+                continue
+            moved = "" if d.get("to_org") == d["from_org"] else "  %s -> %s" % (d["from_org"][:8], d["to_org"][:8])
+            w("    %-13s %s %-9s %-44s company=%s  %s%s" % (
+                d["action"], d["id"], d.get("status"), repr(d.get("filename"))[:44], d.get("company"),
+                d.get("reason") or "", moved))
+        chats = [c for c in plan.chats
+                 if any(ws["org_id"] == c["org_id"] and ws["user_id"] == uid for ws in plan.workspaces)]
+        if chats:
+            w("  conversations (each follows its company; messages follow their conversation)")
+            for c in chats:
+                w("    %-5s %s %s -> %s %-44s workspace %s  grounding: %s  (%s)" % (
+                    c["action"], c["id"], c["org_id"][:8], str(c.get("to_org") or "")[:8],
+                    repr(c.get("title"))[:44], c["workspace_after"], c["grounding"], c.get("why")))
+        items = [n for n in plan.needs_reanalysis if n["user_id"] == uid]
+        if items:
+            w("  needs_reanalysis")
+            for n in items:
+                w("    %s %s %r -> workspace %s  document %s (%s, %s)" % (
+                    n["company"], n["month"], n.get("company_name"), n.get("org_id"),
+                    n["document_id"], n.get("filename"), n.get("status")))
+    if plan.warnings:
+        w("")
+        w("WARNINGS")
+        for x in plan.warnings:
+            w("  - %s" % x)
+    if plan.blocking:
+        w("")
+        w("BLOCKING (--execute refuses)")
+        for x in plan.blocking:
+            w("  ! %s" % x)
+    counts = Counter("%s %s" % (op["op"], op.get("table", op.get("bucket", ""))) for op in plan.ops)
+    w("")
+    w("OPERATIONS")
+    for k in sorted(counts):
+        w("  %5d  %s" % (counts[k], k))
+    return "\n".join(lines)

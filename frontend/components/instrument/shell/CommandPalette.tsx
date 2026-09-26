@@ -174,6 +174,7 @@ import { capsuleFrame, CAPSULE_BORDER } from "./capsuleGeometry";
 import "./capsuleCraftI18n";
 import { handOffThreadToChat } from "./capsuleAnswer/capsuleChatHandoff";
 import type { RetrievalContext } from "./capsuleAnswer/capsuleRetrieval";
+import { useUploadRoute } from "@/lib/previewFeatures";
 
 interface Props {
   open: boolean;
@@ -594,6 +595,8 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     navigate(withPeriod(to));
     close();
   };
+  // Workspace redesign: "Upload" leads to the one upload component (home).
+  const uploadTo = useUploadRoute("/dashboard");
 
   /**
    * THE HANDOFF — and why it is not a second chat.
@@ -745,7 +748,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
         qualifier: t("shell.palette.uploadHint"),
         icon: Upload,
         destination: true,
-        run: () => go("/dashboard"),
+        run: () => go(uploadTo),
       },
       {
         id: "act-export",
@@ -806,7 +809,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     // `go`/`close`/`setTheme`/`onOpenAi` are render-local closures,
     // behaviorally constant — the same exemption `items` below carries.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [t, mod, resolvedTheme],
+    [t, mod, resolvedTheme, uploadTo],
   );
 
   const items: PaletteItem[] = useMemo(() => {
@@ -1854,7 +1857,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
                       close();
                       goToPeriod(periodId);
                     }}
-                    onUpload={() => go("/dashboard")}
+                    onUpload={() => go(uploadTo)}
                     pulseKey={pulseKey}
                     indexOffset={0}
                     activeIndex={-1}

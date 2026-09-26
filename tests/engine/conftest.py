@@ -60,6 +60,31 @@ def _bearers_verify_against_the_test_jwks(monkeypatch):
     _jwt.reset_cache()
 
 
+@pytest.fixture(autouse=True)
+def _one_run_per_document_registries_are_per_test(monkeypatch):
+    """The in-flight registry (`_doc_dedupe._IN_FLIGHT`) and the confirmed
+    extra-document grants (`_usage_gate._EXTRA_GRANTS`) — and the quota
+    ledger's retried settlement writes (`_quota_ledger._PENDING`) — are
+    process-wide by design — the engine is one process. A test whose `_enqueue` is a
+    recorder never runs the daemon thread that clears its claim, so each
+    test starts with both empty and leaves nothing behind for the next."""
+    from engine.api import _doc_dedupe, _quota_ledger, _usage_gate
+
+    monkeypatch.setattr(_doc_dedupe, "_IN_FLIGHT", {})
+    for name, empty in (("_EXTRA_GRANTS", dict), ("_LAST_EXTRA_REQUIRED", dict)):
+        if hasattr(_usage_gate, name):
+            monkeypatch.setattr(_usage_gate, name, empty())
+    # The quota ledger's failed settlement writes, kept for retry — and the
+    # settling rows it has already reported (once per process, at ERROR).
+    monkeypatch.setattr(_quota_ledger, "_PENDING", {})
+    monkeypatch.setattr(_quota_ledger, "_SETTLING_REPORTED", set())
+    # The ABSENT window a PGRST205 opens (P2-A): a test that models the
+    # table missing must not silence the ledger for the tests after it.
+    if hasattr(_quota_ledger, "_ABSENT"):
+        monkeypatch.setattr(_quota_ledger, "_ABSENT", {"until": 0.0, "windows": 0})
+    yield
+
+
 @pytest.fixture(scope="session")
 def repo_root() -> Path:
     return REPO

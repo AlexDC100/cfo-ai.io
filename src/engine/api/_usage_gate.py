@@ -31,12 +31,17 @@ DOCUMENTS:
         EXTRA_REQUIRED   → over base cap; caller must surface confirm
                            dialog. NO reservation made. After user
                            confirms, caller re-invokes via
-                           `confirm_extra_document(user_id)`.
+                           `confirm_extra_document(user_id, document_id)`.
         BLOCKED          → no extras allowed (trial/intro). NO reservation.
 
-    confirm_extra_document(user_id) -> ReserveDecision
-        Caller has shown the confirm dialog and got explicit consent.
-        Reserves above the base cap + marks the reservation as billable.
+    confirm_extra_document(user_id, document_id) -> ReserveDecision
+        Caller has shown the confirm dialog FOR `document_id` and got
+        explicit consent. Reserves above the base cap, marks the
+        reservation as billable and GRANTS it to that document.
+
+    claim_extra_grant(user_id, document_id) -> ReserveDecision | None
+        That document's own /api/pipeline/run takes its grant, once.
+        `reserve_document` never spends a confirmed extra.
 
     commit_document(user_id, was_extra) -> None
         Pipeline reported analysis success. Reservation → consumed.
@@ -58,11 +63,14 @@ code does not block any existing user; flip the env to enforce.
 from __future__ import annotations
 
 import logging
+import threading
+import time
+import dataclasses
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from typing import Any, Dict, Literal, Optional
 
-from . import _plan_state, _pricing_config, _supabase, _unmetered
+from . import _plan_state, _pricing_config, _quota_ledger, _supabase, _unmetered
 
 
 logger = logging.getLogger(__name__)
@@ -109,6 +117,19 @@ class DocReserveDecision:
     # remember this so the eventual commit/release call passes the same
     # flag (which controls subscriptions.extra_docs_billed_period).
     was_extra: bool = False
+    # The user_usage month bucket the reservation was made in — where its
+    # commit / release must land (a run reserved on 30 Sep and settled on
+    # 1 Oct releases September's reservation). "" = the current month.
+    month: str = ""
+    # A typed reason for a `blocked` decision the route answers by code
+    # (`reservation_outstanding`); "" = the route's default code.
+    code: str = ""
+    # The quota-ledger `reservation_id` this decision ALREADY holds — a
+    # confirmed extra's (recorded by the confirm), or an adopted orphan's.
+    # The run that takes it registers that row as its own instead of
+    # recording a second reservation, which the ledger now refuses
+    # (`_quota_ledger.record_reservation` → `Outstanding`, P2-B).
+    reservation_id: str = ""
 
 
 NonRoReserveKind = Literal["allowed", "refused", "blocked", "disabled"]
@@ -230,38 +251,17 @@ def reserve_document(user_id: str) -> DocReserveDecision:
     allow_extra = plan.extra_doc_eur is not None
     month = _month_bucket()
 
-    # 2026-05-26 — gap-D follow-up. When the user already saw the
-    # extra-doc confirm dialog and clicked Confirm, the upstream call to
-    # `confirm_extra_document` ran `reserve_user_upload_extra`, which
-    # incremented BOTH `user_usage.uploads_reserved` AND
-    # `subscriptions.extra_docs_pending`. The FE then retries
-    # `POST /api/pipeline/run`, landing here a second time. If we just
-    # re-call `reserve_user_upload`, the SQL guard
-    # `(uploads + uploads_reserved) < base_cap` is still false (the
-    # confirmed extra pushed us further over cap) — it returns
-    # `extra_required` AGAIN and the FE shows the confirm dialog a
-    # second time, OR worse, the user gets billed twice for one upload.
-    #
-    # Short-circuit: if there's a pending pre-confirmed extra slot
-    # waiting for an upload to claim it, treat THIS upload as the
-    # claimant. Return `allowed` directly with `was_extra=True` so the
-    # orchestrator's terminal callback runs
-    # `commit_user_upload(was_extra=True)` and the pending → billed
-    # transition happens cleanly. No new reservation increment is
-    # needed because `reserve_user_upload_extra` already took one.
-    if allow_extra and state.extra_docs_pending_this_period > 0:
-        return DocReserveDecision(
-            kind="allowed",
-            plan_key=plan.key,
-            used=state.docs_used_this_period,
-            # Reflect the existing reservation count for the response
-            # envelope; the caller doesn't act on this directly.
-            reserved=state.extra_docs_pending_this_period,
-            cap=plan.included_docs,
-            extra_doc_eur=plan.extra_doc_eur,
-            message="",
-            was_extra=True,
-        )
+    # NO "pending extra" shortcut (removed 2026-09-21, verifier P-B). This
+    # used to answer `allowed, was_extra=True` to ANY caller while
+    # `extra_docs_pending > 0`, decrementing nothing — pending only fell at
+    # the terminal — so ONE confirmed extra paid for every over-cap run
+    # until it committed: a second over-cap upload ran with no dialog, and
+    # recover-stuck ran (and billed) a document whose €-dialog the user had
+    # DISMISSED. A confirmed extra is now a GRANT for the one document it
+    # was confirmed for (`confirm_extra_document(user, document_id=…)`),
+    # handed out only by `claim_extra_grant(user, that document)` — which
+    # only /api/pipeline/run calls. Everything else asks the meter below.
+    _expire_extra_grants()
 
     body = _rpc("reserve_user_upload", {
         "p_user_id":     user_id,
@@ -282,6 +282,7 @@ def reserve_document(user_id: str) -> DocReserveDecision:
             extra_doc_eur=plan.extra_doc_eur,
             message="",
             was_extra=False,
+            month=month,
         )
 
     if kind == "extra_required":
@@ -317,75 +318,306 @@ def reserve_document(user_id: str) -> DocReserveDecision:
     )
 
 
-def confirm_extra_document(user_id: str) -> DocReserveDecision:
-    """User has seen the extra-doc confirm dialog and clicked Confirm.
-    Reserve a slot above the base cap and mark it billable.
+# ──────────────────────────────────────────────────────────────────────
+# Confirmed extras — one GRANT per document (2026-09-21, verifier P-B)
+# ──────────────────────────────────────────────────────────────────────
+#
+# The €-dialog is a consent for ONE document. `confirm_extra_document`
+# reserves the billable slot (`reserve_user_upload_extra`, which also bumps
+# `extra_docs_pending`) AND records a grant keyed by that document id; the
+# document's own /api/pipeline/run takes it (`claim_extra_grant`) and runs
+# as the paid extra. Nothing else can: recover-stuck, the SKU watchdog and
+# the firm landing call `reserve_document`, which no longer reads
+# `extra_docs_pending` at all, so a dismissed dialog stays dismissed.
+#
+# In-process, like the reservation ledger (pipeline._QUOTA_RUNS) and the
+# in-flight registry (_doc_dedupe): the engine is one process and the grant
+# lives seconds (the browser posts /run right after the confirm). A grant
+# nobody claims within EXTRA_GRANT_TTL_S — the tab closed, the upload turned
+# out to be a duplicate — gives its reservation back (`release_user_upload`,
+# was_extra) instead of lingering. The grant's reservation is ALSO written
+# to the document's row of the quota ledger (verifier lens S, 2026-09-21):
+# a restart used to lose it with reserved+1 and extra_docs_pending+1 left
+# behind. Now the document's own /run adopts it after a restart
+# (`pipeline._meter_first_analysis`), and a grant nobody adopts is released
+# by the ledger's sweep once its owner stops heartbeating.
+
+EXTRA_GRANT_TTL_S = 30 * 60
+
+
+@dataclass
+class _ExtraGrant:
+    user_id: str
+    granted_at: float
+    decision: "DocReserveDecision"
+
+
+_EXTRA_GRANTS: Dict[str, _ExtraGrant] = {}
+#: user id → (document id, when) of the last 402 /run answered — the
+#: document a confirm from an older browser bundle (no document_id) is for.
+_LAST_EXTRA_REQUIRED: Dict[str, "tuple[str, float]"] = {}
+_GRANTS_LOCK = threading.Lock()
+_CONFIRM_LOCK = threading.Lock()
+
+
+def _now_mono() -> float:
+    return time.monotonic()
+
+
+def _expire_extra_grants() -> None:
+    """Release the reservation of every grant nobody claimed in time."""
+    cutoff = _now_mono() - EXTRA_GRANT_TTL_S
+    with _GRANTS_LOCK:
+        stale = [(doc, g) for doc, g in _EXTRA_GRANTS.items() if g.granted_at < cutoff]
+        for doc, _g in stale:
+            _EXTRA_GRANTS.pop(doc, None)
+        for user, (doc, at) in list(_LAST_EXTRA_REQUIRED.items()):
+            if at < cutoff:
+                _LAST_EXTRA_REQUIRED.pop(user, None)
+    for doc, g in stale:
+        logger.info("[usage-gate] extra-document grant for %s expired unclaimed — "
+                    "reservation released, nothing billed", doc)
+        _quota_ledger.mark_settling(doc, reservation_id=g.decision.reservation_id or None)  # the mark before the move
+        release_document(g.user_id, was_extra=True, month=g.decision.month or None)
+        _quota_ledger.record_release(doc)
+
+
+def note_extra_required(user_id: str, document_id: str) -> None:
+    """/api/pipeline/run answered 402 for `document_id`: the dialog the user
+    now sees is about THIS document."""
+    with _GRANTS_LOCK:
+        _LAST_EXTRA_REQUIRED[str(user_id)] = (str(document_id), _now_mono())
+
+
+def last_extra_required(user_id: str) -> Optional[str]:
+    """The document of the user's last 402, while it is recent."""
+    with _GRANTS_LOCK:
+        got = _LAST_EXTRA_REQUIRED.get(str(user_id))
+    if not got or got[1] < _now_mono() - EXTRA_GRANT_TTL_S:
+        return None
+    return got[0]
+
+
+def has_extra_grant(document_id: str) -> bool:
+    with _GRANTS_LOCK:
+        return str(document_id) in _EXTRA_GRANTS
+
+
+def granted_document_ids() -> "list[str]":
+    """The documents holding a grant in THIS process (their reservations
+    heartbeat with the process — `_quota_ledger.heartbeat`)."""
+    with _GRANTS_LOCK:
+        return list(_EXTRA_GRANTS.keys())
+
+
+def claim_extra_grant(user_id: str, document_id: str) -> Optional[DocReserveDecision]:
+    """The confirmed extra for `document_id`, taken exactly once, by the
+    user who confirmed it — an `allowed, was_extra=True` decision whose
+    reservation `confirm_extra_document` already made. None when there is
+    none (the caller then asks the meter as usual)."""
+    if not enforced_for(user_id):
+        return None
+    _expire_extra_grants()
+    with _GRANTS_LOCK:
+        grant = _EXTRA_GRANTS.get(str(document_id))
+        if grant is None or grant.user_id != str(user_id):
+            return None
+        _EXTRA_GRANTS.pop(str(document_id), None)
+        _LAST_EXTRA_REQUIRED.pop(str(user_id), None)
+    return grant.decision
+
+
+def cancel_extra_grant(document_id: str) -> None:
+    """The document will not run as a first analysis (a duplicate, already
+    analysed, deleted): give its confirmed slot back now, unbilled."""
+    with _GRANTS_LOCK:
+        grant = _EXTRA_GRANTS.pop(str(document_id), None)
+    if grant is not None:
+        _quota_ledger.mark_settling(str(document_id),
+                                    reservation_id=grant.decision.reservation_id or None)  # the mark before the move
+        release_document(grant.user_id, was_extra=True, month=grant.decision.month or None)
+        _quota_ledger.record_release(str(document_id))
+
+
+def confirm_extra_document(user_id: str, document_id: Optional[str] = None) -> DocReserveDecision:
+    """User has seen the extra-doc confirm dialog FOR `document_id` and
+    clicked Confirm. Reserve a slot above the base cap, mark it billable,
+    and grant it to that one document.
 
     This is a SEPARATE RPC (`reserve_user_upload_extra`) — not a flag
     on `reserve_user_upload` — because the original reserve call
     returned `extra_required` deliberately WITHOUT reserving. The
     explicit two-step keeps the "user confirmed" intent visible in
     server logs.
+
+    Idempotent per document: a second confirm for a document that already
+    holds a grant (a double click) reserves nothing more. A confirm that
+    names no document reserves nothing — a slot claimable by no run would
+    only leak — and an unreachable meter refuses rather than granting a
+    slot it never reserved.
+
+    ACROSS A RESTART (P2-B, 2026-09-26). The grant lived only in memory; a
+    confirm re-posted after a restart (the retry of a lost response, a
+    second click after the deploy) found none and reserved AGAIN —
+    `reserve_user_upload_extra` twice for one confirmation, and the ledger
+    record overwrote the outstanding row so the first slot leaked for the
+    month. Now an outstanding `was_extra` reservation of the same user is
+    ADOPTED (`_quota_ledger.adopt`) and re-granted; any other outstanding
+    reservation of the document (the user's own plain run a restart
+    orphaned — its re-run adopts it, no extra needed — or another member's)
+    refuses `blocked` / `reservation_outstanding` without touching the
+    meter; and a record refused as `Outstanding` after the RPC gives the
+    slot just reserved straight back.
     """
     if not enforced_for(user_id):
         return DocReserveDecision(
             kind="disabled", plan_key="trial", used=0, reserved=0, cap=0,
             extra_doc_eur=None, message="", was_extra=True,
         )
-
-    state = _plan_state.get_plan_state(user_id)
-    plan = state.plan
-    if plan.extra_doc_eur is None:
-        # Defence in depth — caller should never hit this path on
-        # trial/intro, but if they do, refuse.
+    doc = str(document_id or "").strip()
+    if not doc:
         return DocReserveDecision(
-            kind="blocked", plan_key=plan.key, used=0, reserved=0,
-            cap=plan.included_docs, extra_doc_eur=None,
-            message="This plan doesn't allow extra documents.",
+            kind="blocked", plan_key="", used=0, reserved=0, cap=0,
+            extra_doc_eur=None,
+            message="An extra document must be confirmed for the document it is for.",
         )
 
-    body = _rpc("reserve_user_upload_extra", {
-        "p_user_id": user_id,
-        "p_month":   _month_bucket(),
-    }) or {}
+    _expire_extra_grants()
+    with _CONFIRM_LOCK:
+        with _GRANTS_LOCK:
+            existing = _EXTRA_GRANTS.get(doc)
+        if existing is not None:
+            if existing.user_id == str(user_id):
+                return existing.decision
+            return DocReserveDecision(
+                kind="blocked", plan_key=existing.decision.plan_key, used=0, reserved=0,
+                cap=existing.decision.cap, extra_doc_eur=None,
+                message="Another member already confirmed this document's extra analysis.",
+            )
 
-    return DocReserveDecision(
-        kind="allowed",
-        plan_key=plan.key,
-        used=int(body.get("used") or 0),
-        reserved=int(body.get("reserved") or 0),
-        cap=plan.included_docs,
-        extra_doc_eur=plan.extra_doc_eur,
-        message="",
-        was_extra=True,
-    )
+        state = _plan_state.get_plan_state(user_id)
+        plan = state.plan
+        if plan.extra_doc_eur is None:
+            # Defence in depth — caller should never hit this path on
+            # trial/intro, but if they do, refuse.
+            return DocReserveDecision(
+                kind="blocked", plan_key=plan.key, used=0, reserved=0,
+                cap=plan.included_docs, extra_doc_eur=None,
+                message="This plan doesn't allow extra documents.",
+            )
+
+        month = _month_bucket()
+        held = _quota_ledger.outstanding(doc)
+        if held is not None:
+            mine = str(held.get("user_id") or "") == str(user_id)
+            if mine and held.get("was_extra") and not _quota_ledger.is_settling(held):
+                adopted = _quota_ledger.adopt(doc, user_id=str(user_id), take_extra=True)
+                if adopted is not None:
+                    decision = DocReserveDecision(
+                        kind="allowed", plan_key=plan.key, used=state.docs_used_this_period,
+                        reserved=0, cap=plan.included_docs, extra_doc_eur=plan.extra_doc_eur,
+                        message="", was_extra=True, month=str(adopted.get("month") or month),
+                        reservation_id=str(adopted.get("reservation_id") or ""),
+                    )
+                    with _GRANTS_LOCK:
+                        _EXTRA_GRANTS[doc] = _ExtraGrant(user_id=str(user_id), granted_at=_now_mono(),
+                                                         decision=decision)
+                    logger.info(
+                        "[usage-gate] user=%s re-confirmed document %s: adopted the extra reservation "
+                        "a restart orphaned — nothing reserved a second time", user_id, doc)
+                    return decision
+                held = _quota_ledger.outstanding(doc)  # the sweep gave it back first: reserve as usual
+            if held is not None:
+                return DocReserveDecision(
+                    kind="blocked", plan_key=plan.key, used=state.docs_used_this_period, reserved=0,
+                    cap=plan.included_docs, extra_doc_eur=None, code="reservation_outstanding",
+                    message=("An analysis of this document is already reserved — start it again; "
+                             "no extra analysis is needed." if mine else
+                             "Another member's analysis of this document is still reserved. "
+                             "Try again in a few minutes."),
+                )
+
+        body = _rpc("reserve_user_upload_extra", {
+            "p_user_id": user_id,
+            "p_month":   month,
+        })
+        if body is None:
+            logger.error(
+                "[usage-gate][billing] reserve_user_upload_extra UNAVAILABLE — the "
+                "extra document is refused rather than granted without a "
+                "reservation. user=%s document=%s", user_id, doc,
+            )
+            return DocReserveDecision(
+                kind="blocked", plan_key=plan.key, used=0, reserved=0,
+                cap=plan.included_docs, extra_doc_eur=None,
+                message=("We could not record this extra document, so it was not "
+                         "started. Nothing has been charged."),
+            )
+
+        decision = DocReserveDecision(
+            kind="allowed",
+            plan_key=plan.key,
+            used=int(body.get("used") or 0),
+            reserved=int(body.get("reserved") or 0),
+            cap=plan.included_docs,
+            extra_doc_eur=plan.extra_doc_eur,
+            message="",
+            was_extra=True,
+            month=month,
+        )
+        # Durable too: a restart must neither lose the user's confirmation
+        # nor leave its reservation (and extra_docs_pending) behind. The
+        # record comes BEFORE the grant: a row another reservation took
+        # between the look above and this write (a colleague's run in
+        # another container) is never overwritten — the slot reserved a
+        # moment ago goes straight back, and no grant is left behind.
+        rid = _quota_ledger.record_reservation(doc, user_id=str(user_id), was_extra=True, month=month)
+        if isinstance(rid, _quota_ledger.Outstanding):
+            release_document(user_id, was_extra=True, month=month)
+            logger.warning(
+                "[usage-gate] user=%s confirmed document %s while its row holds an outstanding "
+                "reservation of user %s — the extra slot just reserved was released, nothing granted",
+                user_id, doc, rid.user_id)
+            return DocReserveDecision(
+                kind="blocked", plan_key=plan.key, used=int(body.get("used") or 0), reserved=0,
+                cap=plan.included_docs, extra_doc_eur=None, code="reservation_outstanding",
+                message=("An analysis of this document is already reserved. Reload the page and "
+                         "start it again."),
+            )
+        if isinstance(rid, str) and rid:
+            decision = dataclasses.replace(decision, reservation_id=rid)
+        with _GRANTS_LOCK:
+            _EXTRA_GRANTS[doc] = _ExtraGrant(user_id=str(user_id), granted_at=_now_mono(),
+                                             decision=decision)
+        return decision
 
 
-def commit_document(user_id: str, *, was_extra: bool) -> None:
+def commit_document(user_id: str, *, was_extra: bool, month: Optional[str] = None) -> None:
     """Pipeline reported analysis SUCCESS. Convert reservation →
     consumed (and, if `was_extra`, bump the billed-extras tally so the
     next renewal invoice sees this charge — gap D: bill only on success).
     Idempotency: floors prevent underflow; calling twice is a no-op
-    after the first call.
-    """
+    after the first call. `month` = the month the reservation was made in
+    (default: now)."""
     if not enforced_for(user_id):
         return
     _rpc("commit_user_upload", {
         "p_user_id":   user_id,
-        "p_month":     _month_bucket(),
+        "p_month":     month or _month_bucket(),
         "p_was_extra": was_extra,
     })
 
 
-def release_document(user_id: str, *, was_extra: bool) -> None:
+def release_document(user_id: str, *, was_extra: bool, month: Optional[str] = None) -> None:
     """Pipeline reported analysis FAILURE. Drop the reservation; no
-    quota consumed, no charge (gap D).
+    quota consumed, no charge (gap D). `month` = the month the reservation
+    was made in (default: now).
     """
     if not enforced_for(user_id):
         return
     _rpc("release_user_upload", {
         "p_user_id":   user_id,
-        "p_month":     _month_bucket(),
+        "p_month":     month or _month_bucket(),
         "p_was_extra": was_extra,
     })
 
@@ -393,6 +625,39 @@ def release_document(user_id: str, *, was_extra: bool) -> None:
 # ──────────────────────────────────────────────────────────────────────
 # Non-RO documents — reserve / commit / release (2026-08 tiers)
 # ──────────────────────────────────────────────────────────────────────
+
+def _nonro_not_included(state: Any) -> NonRoReserveDecision:
+    plan = state.plan
+    return NonRoReserveDecision(
+        kind="refused",
+        plan_key=plan.key,
+        used=state.nonro_used_this_period,
+        cap=0,
+        extra_nonro_doc_eur=None,
+        was_extra=False,
+        refusal=dict(NON_RO_REFUSAL),
+        message=(
+            "Non-Romanian documents aren't included in the "
+            f"{plan.display_name} plan. Upgrade to Multi-Country to "
+            "analyze documents from other jurisdictions."
+        ),
+    )
+
+
+def nonro_entitlement_refusal(user_id: str) -> Optional[NonRoReserveDecision]:
+    """The non-RO ENTITLEMENT alone — no RPC, no reservation, no count: the
+    typed refusal when the plan does not include non-Romanian documents,
+    else None. For a run that holds no document slot (a retry, the
+    ai-lane force-reextract, a period-move re-run): the plan still gates
+    it, but it re-analyses a document already counted, so it reserves and
+    counts nothing (verifier P-E, 2026-09-21)."""
+    if not enforced_for(user_id):
+        return None
+    state = _plan_state.get_plan_state(user_id)
+    if state.plan.allows_non_ro:
+        return None
+    return _nonro_not_included(state)
+
 
 def reserve_nonro_document(user_id: str) -> NonRoReserveDecision:
     """Gate + atomic reserve for ONE non-Romanian document.
@@ -424,20 +689,7 @@ def reserve_nonro_document(user_id: str) -> NonRoReserveDecision:
     plan = state.plan
 
     if not plan.allows_non_ro:
-        return NonRoReserveDecision(
-            kind="refused",
-            plan_key=plan.key,
-            used=state.nonro_used_this_period,
-            cap=0,
-            extra_nonro_doc_eur=None,
-            was_extra=False,
-            refusal=dict(NON_RO_REFUSAL),
-            message=(
-                "Non-Romanian documents aren't included in the "
-                f"{plan.display_name} plan. Upgrade to Multi-Country to "
-                "analyze documents from other jurisdictions."
-            ),
-        )
+        return _nonro_not_included(state)
 
     body = _rpc("reserve_user_nonro_upload", {
         "p_user_id":     user_id,
@@ -524,7 +776,7 @@ def reserve_nonro_document(user_id: str) -> NonRoReserveDecision:
     )
 
 
-def commit_nonro_document(user_id: str, *, was_extra: bool) -> None:
+def commit_nonro_document(user_id: str, *, was_extra: bool, month: Optional[str] = None) -> None:
     """Analysis of a non-RO doc SUCCEEDED — reservation → consumed; when
     `was_extra`, the billed-extras tally bumps too (the Stripe metered
     usage record is the caller's job, mirroring commit_document)."""
@@ -532,18 +784,18 @@ def commit_nonro_document(user_id: str, *, was_extra: bool) -> None:
         return
     _rpc("commit_user_nonro_upload", {
         "p_user_id":   user_id,
-        "p_month":     _month_bucket(),
+        "p_month":     month or _month_bucket(),
         "p_was_extra": was_extra,
     })
 
 
-def release_nonro_document(user_id: str, *, was_extra: bool) -> None:
+def release_nonro_document(user_id: str, *, was_extra: bool, month: Optional[str] = None) -> None:
     """Analysis of a non-RO doc FAILED — drop the reservation, no bill."""
     if not enforced_for(user_id):
         return
     _rpc("release_user_nonro_upload", {
         "p_user_id":   user_id,
-        "p_month":     _month_bucket(),
+        "p_month":     month or _month_bucket(),
         "p_was_extra": was_extra,
     })
 

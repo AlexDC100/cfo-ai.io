@@ -1949,6 +1949,16 @@ CLIENT_DATA_TABLES = ("organizations", "financial_periods", "documents", "statem
 DECLARED_CLIENT_DATA_READERS = (
     "engine.actions", "engine.ai.numerals", "engine.ai_lane", "engine.ai_lane.routes",
     "engine.api._benchmarks", "engine.api._billing", "engine.api._capsule_tools",
+    # PRODUCT helper, under the membership gates of its callers (2026-09-21):
+    # the duplicate-upload check reads `documents` / `financial_periods` for
+    # an org the caller was already walled into — `POST /api/documents/
+    # duplicate-check` via `_org.resolve_org` (403 on a non-member org),
+    # /run and /retry via `_verify_user_may_write_document`, recover-stuck
+    # via `_only_member_orgs` — and every select names that org_id. The
+    # banner count names the caller's own `member_org_ids`. No route of its
+    # own, never under a firm prefix. Pinned by
+    # tests/engine/test_duplicate_upload_gate.py.
+    "engine.api._doc_dedupe",
     "engine.api._features", "engine.api._firm", "engine.api._firm_attention",
     # ── plan/2 B5 (plan_contract_v2 1.4, 9.2) ──────────────────────────
     # `engine.api._forecast_routes` LEFT this tuple: its `_load_period`
@@ -1961,6 +1971,15 @@ DECLARED_CLIENT_DATA_READERS = (
     # tests/engine/test_forecast_route.py
     # (test_the_period_read_filters_on_the_resolved_workspace).
     # ── end plan/2 B5 ──────────────────────────────────────────────────
+    # PRODUCT routes, under their own membership gate (2026-09-21): the
+    # company-workspace upload flow. `POST /api/uploads/commit` and `GET
+    # /api/companies/{org_id}/years` take the org through
+    # `_org.require_org_member` (403, never firm visibility), identify
+    # through `_org.resolve_org`; every read goes through the CALLER's own
+    # RLS-scoped client and names the org. Not a firm module and not under
+    # a swept prefix. Pinned by tests/engine/test_workspace_uploads.py and
+    # the member-walled SWEEP in test_identity_wall.py.
+    "engine.api._uploads",
     "engine.api._firm_import", "engine.api._firm_requests", "engine.api._industry_detection",
     "engine.api._industry_intelligence", "engine.api._journal_routes", "engine.api._ops_routes",
     "engine.api._org", "engine.api._period_move", "engine.api._reconcile", "engine.api.cfo_ai",

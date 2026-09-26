@@ -213,3 +213,35 @@ def test_registry_keys_mirror_the_frontend_union():
         "keys in the frontend FeatureKey union but NOT in _features.py "
         f"(they resolve to undefined, i.e. permanently hidden): {missing_in_py}"
     )
+
+
+# ──────────────────────────────────────────────────────────────────────
+# `preview` + CFO_FEATURES_ACTIVE (2026-09-21)
+# ──────────────────────────────────────────────────────────────────────
+
+def test_workspace_v2_ships_as_preview_with_its_endpoint(monkeypatch):
+    """The redesigned workspace is on only for opted-in users: the registry
+    serves `preview` (the frontend resolves it per user from
+    `user_prefs.prefs.preview_features`). Reds on the row being promoted or
+    hidden in source, or losing the route it is gated on."""
+    monkeypatch.delenv("CFO_FEATURES_ACTIVE", raising=False)
+    row = _client().get("/api/features/status").json()["features"]["workspace_v2"]
+    assert row["status"] == "preview", row
+    assert row["endpoint"] == "/api/uploads/identify", row
+
+
+def test_cfo_features_active_promotes_per_request_without_mutating_the_registry(monkeypatch):
+    """One env line opens a preview (or any row) to everyone on the NEXT
+    request of the SAME app; removing it closes it again. Unknown keys are
+    ignored, the module registry is never mutated."""
+    _ensure_env_stubs()
+    from engine.api._features import FEATURES  # noqa: WPS433
+
+    client = _client()
+    monkeypatch.setenv("CFO_FEATURES_ACTIVE", "workspace_v2, typo_feature")
+    feats = client.get("/api/features/status").json()["features"]
+    assert feats["workspace_v2"]["status"] == "active"
+    assert "typo_feature" not in feats
+    assert FEATURES["workspace_v2"]["status"] == "preview"
+    monkeypatch.delenv("CFO_FEATURES_ACTIVE")
+    assert client.get("/api/features/status").json()["features"]["workspace_v2"]["status"] == "preview"

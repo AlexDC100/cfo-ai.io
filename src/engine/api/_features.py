@@ -18,6 +18,20 @@ exactly one row here with a status. The frontend reads the registry via
                     onClick. The user knows it's on the roadmap.
   · `hidden`      — registry entry exists for backend introspection but
                     the row never renders.
+  · `preview`     — shipped, but only for the signed-in users who opted
+                    in: the frontend treats the row as `active` for a user
+                    whose `user_prefs.prefs.preview_features` array names
+                    the key, and as off (the current UI, unchanged) for
+                    everyone else. The registry itself stays public and
+                    carries no per-user state.
+
+PROMOTION WITHOUT A REBUILD — `CFO_FEATURES_ACTIVE`. A comma-separated list
+of keys in the environment, read on EVERY request (never cached at import),
+promotes each named key to `active` for everyone. It exists so a preview
+can be opened to all users by editing one env line and restarting nothing
+but the process — and closed again the same way. It only ever promotes: an
+unknown key is ignored, and it can never demote an `active` row. `FEATURES`
+itself is never mutated; `effective_features()` returns a copy.
 
 EARLY ACCESS (per account) is not a status here. A `coming_soon` key listed
 in the signed-in user's own `user_prefs.prefs.preview_features` is served to
@@ -45,8 +59,10 @@ contract; the build flags are the lockout.
 
 from __future__ import annotations
 
+import copy
 import logging
-from typing import Any, Dict, Literal
+import os
+from typing import Any, Dict, FrozenSet, Literal
 
 from fastapi import APIRouter
 
@@ -58,7 +74,14 @@ logger = logging.getLogger(__name__)
 # Types — kept inline so this file is grep-able as a single contract
 # ──────────────────────────────────────────────────────────────────────
 
-FeatureStatus = Literal["active", "coming_soon", "hidden"]
+FeatureStatus = Literal["active", "coming_soon", "hidden", "preview"]
+
+#: Every status a row may carry. `preview` is served as-is; the frontend
+#: resolves it per signed-in user (see the module docstring).
+STATUSES = ("active", "coming_soon", "hidden", "preview")
+
+#: The env var that promotes keys to `active` for everyone, per request.
+ACTIVE_OVERRIDE_ENV = "CFO_FEATURES_ACTIVE"
 
 #: The environment variable that promotes registry keys to `active` for
 #: everyone, read per request so the owner flips a feature without a rebuild.
@@ -461,7 +484,55 @@ FEATURES: Dict[str, Dict[str, Any]] = {
         label="Anomaly Radar",
         description="Cross-period anomaly detection over the ledger. Backend is mounted ONLY when ANOMALY_RADAR_ENABLED is truthy (unset in production, where every /api/radar path is a 404 by construction); the pack-declared detector families carry a SECOND flag, RADAR_DETECTORS_ENABLED, so the surface can be enabled without them. This row is the frontend mirror of the first flag.",
     ),
+
+    # ── WORKSPACE REDESIGN (2026-09-21) — one company per workspace ──
+    # PREVIEW, not active: the redesigned /workspace (drop zone + company
+    # cards, the confirmation card after a drop, the company page with its
+    # years on one line) is on only for a signed-in user whose
+    # `user_prefs.prefs.preview_features` names this key. Everyone else keeps
+    # the current UI, unchanged. `CFO_FEATURES_ACTIVE=workspace_v2` opens it
+    # to everyone without a rebuild. The endpoint is the flow's first call:
+    # identify the dropped file (company, CUI, period, industry, each with
+    # the evidence it was read from) before anything is stored.
+    "workspace_v2": _feature(
+        "preview",
+        label="Company workspaces",
+        description="One company per workspace, keyed by CUI: drop a file anywhere, confirm the company, period and industry it was read as, and it lands in that company.",
+        endpoint="/api/uploads/identify",
+    ),
 }
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Per-request promotion (CFO_FEATURES_ACTIVE)
+# ──────────────────────────────────────────────────────────────────────
+
+def promoted_keys(env: Any = None) -> FrozenSet[str]:
+    """The registry keys `CFO_FEATURES_ACTIVE` promotes, read NOW.
+
+    Comma-separated, whitespace and empty items ignored, keys the registry
+    does not know dropped (a typo must not invent a feature). Read from the
+    environment on every call so a change reaches the next request without
+    a rebuild."""
+    source = os.environ if env is None else env
+    raw = str(source.get(ACTIVE_OVERRIDE_ENV) or "")
+    keys = set()
+    for item in raw.split(","):
+        key = item.strip()
+        if key and key in FEATURES:
+            keys.add(key)
+    return frozenset(keys)
+
+
+def effective_features(env: Any = None) -> Dict[str, Dict[str, Any]]:
+    """The registry as served: `FEATURES`, with every key named in
+    `CFO_FEATURES_ACTIVE` promoted to `active`. A deep copy — the module
+    registry is never mutated, so the promotion cannot outlive the env
+    line that asked for it."""
+    out = copy.deepcopy(FEATURES)
+    for key in promoted_keys(env):
+        out[key]["status"] = "active"
+    return out
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -491,25 +562,13 @@ def build_router() -> APIRouter:
         app boot is cheaper than the per-row queries the alternative
         designs would imply.
         """
-        return {"features": served_registry()}
+        return {"features": effective_features()}
 
     return router
 
 
-def promoted_keys() -> frozenset:
-    """The keys CFO_FEATURES_ACTIVE promotes, read NOW (per request): a comma
-    list, whitespace ignored, unknown keys ignored."""
-    import os
-    raw = os.environ.get(ACTIVE_ENV) or ""
-    return frozenset(k.strip() for k in raw.split(",") if k.strip() in FEATURES)
-
-
 def served_registry() -> Dict[str, Dict[str, Any]]:
-    """The registry as served: FEATURES with every key CFO_FEATURES_ACTIVE
-    names promoted to `active`. A copy — the module registry is never
-    mutated, so unsetting the variable demotes the key on the next request."""
-    promoted = promoted_keys()
-    out = {}  # type: Dict[str, Dict[str, Any]]
-    for key, row in FEATURES.items():
-        out[key] = dict(row, status="active") if key in promoted else dict(row)
-    return out
+    """The registry as served — ONE implementation (both lineages built a
+    CFO_FEATURES_ACTIVE promotion; they are merged here): `effective_features`
+    over the process environment."""
+    return effective_features()

@@ -7,7 +7,7 @@
 // 2. If the backend returns HTTP 402 with code `extra_doc_confirmation_required`,
 //    the caller renders THIS dialog with the price + current usage.
 // 3. User clicks "Confirm and analyse" → FE calls
-//    `POST /api/plan/confirm-extra-doc` → on 200, FE retries
+//    `POST /api/plan/confirm-extra-doc {document_id}` → on 200, FE retries
 //    `enqueuePipeline(docId)` → should now return `kind: "queued"`.
 // 4. Pipeline runs. If it SUCCEEDS, the orchestrator's
 //    `commit_user_upload(was_extra=True)` charges the extra and
@@ -44,7 +44,18 @@ import {
 import { confirmExtraDoc, PlanApiError } from "@/lib/planState";
 import { useToast } from "@/hooks/use-toast";
 
-interface Props {
+/** WHAT is being confirmed — exactly one of the two:
+ *  · `documentId` — a stored document: the dialog posts
+ *    /api/plan/confirm-extra-doc {document_id}; the confirmation is a grant
+ *    for THIS document only (the server refuses to spend it on any other);
+ *  · `confirmWith` — an upload not stored yet (the workspace card's commit
+ *    meters before it stores anything): the caller's own step, which sends
+ *    the confirmation with the upload itself. */
+type ConfirmTarget =
+  | { documentId: string; confirmWith?: never }
+  | { documentId?: never; confirmWith: () => Promise<void> };
+
+type Props = ConfirmTarget & {
   open: boolean;
   onClose: () => void;
   /** Called after a successful confirm + reservation. Caller must then
@@ -60,10 +71,12 @@ interface Props {
   serverMessage?: string;
   /** Optional ISO date for "resets on" copy. Not required. */
   resetDateIso?: string;
-}
+};
 
 export function ExtraDocConfirmDialog({
   open,
+  documentId,
+  confirmWith,
   onClose,
   onConfirmed,
   planKey,
@@ -86,7 +99,8 @@ export function ExtraDocConfirmDialog({
     setBusy(true);
     setError(null);
     try {
-      await confirmExtraDoc();
+      if (confirmWith) await confirmWith();
+      else await confirmExtraDoc(documentId as string);
       toast({
         title: "Extra document confirmed",
         description: `${eurLabel} will be charged only after the analysis completes successfully.`,

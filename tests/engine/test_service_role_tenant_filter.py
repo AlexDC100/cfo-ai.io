@@ -106,6 +106,14 @@ DECLARED_UNFILTERED = {
     ("pipeline.py", "sales_datasets", "select"): "document-keyed; authorized upstream.",
     ("pipeline.py", "sales_datasets", "update"): "document-keyed; authorized upstream.",
     ("pipeline.py", "sales_datasets", "insert"): "server-built rows.",
+    ("pipeline.py", "organizations", "select"):
+        "`_workspace_is_archived` (feat/ws-migration 8a25bd6e): keyed by the "
+        "tenant's OWN id — `organizations.id` is the tenant key, the table has "
+        "no org_id column — taken from the org_id of the document or period "
+        "the caller's wall already authorized. It reads `archived_at` only to "
+        "REFUSE a hard delete in an archived workspace; an unreadable org is "
+        "treated as archived (fail closed), so no value of it can grant a "
+        "write.",
 
     # ── _reconcile.py — VERIFIED 2026-09-09 ──────────────────────────
     # `_resolve` (_reconcile.py:1480) is a real wall on the PERIOD itself:

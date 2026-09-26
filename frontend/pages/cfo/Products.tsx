@@ -69,7 +69,6 @@ import { useUploadEnqueue } from "@/hooks/useUploadEnqueue";
 import {
   getSupabase,
   recoverStuckPipelines,
-  retryPipeline,
   subscribeToDocumentStatus,
   uploadDocument,
   type DocumentStatus,
@@ -112,6 +111,7 @@ import { PRODUCTS_GUIDE } from "@/components/learning/pageGuides";
 // the concept that explains its decision-rule logic. The SKU count
 // stays a raw label since it doesn't need explanation.
 import { usePopoverStack } from "@/components/learning/PopoverStackProvider";
+import { FilePickerInput, fileDropProps } from "@/components/cfo/upload/UploadDrop";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -403,14 +403,19 @@ export default function Products() {
     startUpload({ docId: "", filename: file.name, status: "queued", surface: "products" });
     // Pin the file to the month that's active right now, so it nests under
     // that month in "Source files" (see uploadDocument's `periodId`).
-    const { row, error } = await uploadDocument(file, { scope: "sku", periodId: uploadPeriodId });
+    const { row, error, duplicate } = await uploadDocument(file, { scope: "sku", periodId: uploadPeriodId });
+    if (duplicate) {
+      clearUpload();
+      uploadEnqueue.notifyAlreadyUploaded(duplicate, "sku");
+      return;
+    }
     if (!row) {
       clearUpload();
       toast({ title: t("productsX.toast.uploadFailed"), description: error ?? t("productsX.toast.unknownError"), variant: "destructive" });
       return;
     }
     startUpload({ docId: row.id, filename: file.name, status: "queued", surface: "products" });
-    const enq = await uploadEnqueue.enqueue(row.id);
+    const enq = await uploadEnqueue.enqueue(row.id, { surface: "sku" });
     if (enq.kind !== "queued") {
       // Modal/toast already surfaced by the hook.
       clearUpload();
@@ -905,9 +910,8 @@ export default function Products() {
           button dispatches `cfo:request-sku-upload`; the useEffect above
           forwards to this hidden input's .click() → native OS file picker.
           Lives at the page root so it survives every render branch below. */}
-      <input
+      <FilePickerInput
         ref={pageUploadRef}
-        type="file"
         accept={PRODUCTS_UPLOAD_ACCEPT}
         className="hidden"
         data-testid="products-page-upload-input"
@@ -2726,6 +2730,10 @@ function InflightCard({
   const [retrying, setRetrying] = useState(false);
   const { toast } = useToast();
   const qc = useQueryClient();
+  // A stuck or failed upload was never analysed: its re-run is its first
+  // analysis, metered like an upload (2026-09-21). Through the upload hook
+  // an over-cap book meets the €-dialog, not "retry failed".
+  const retryEnqueue = useUploadEnqueue();
   useEffect(() => {
     setHangSuspected(false);
     if (inflight.status !== "queued") return;
@@ -2740,7 +2748,17 @@ function InflightCard({
     // resets the doc and re-enqueues fresh.
     const recovered = await recoverStuckPipelines();
     let ok = (recovered?.recovered_count ?? 0) > 0;
-    if (!ok) ok = await retryPipeline(inflight.id);
+    if (!ok) {
+      const outcome = await retryEnqueue.enqueue(inflight.id, { surface: "sku" });
+      if (outcome.kind !== "queued") {
+        // The hook has already said why (the €-dialog was dismissed, the
+        // quota prompt, "Already uploaded", or its own transport toast).
+        setRetrying(false);
+        void qc.invalidateQueries({ queryKey: ["sku-analysis", "inflight"] });
+        return;
+      }
+      ok = true;
+    }
     setRetrying(false);
     if (ok) {
       toast({ title: t("productsX.toast.retrying"), description: inflight.filename });
@@ -2918,6 +2936,7 @@ function InflightCard({
           </div>
         )}
       </div>
+      {retryEnqueue.dialog}
     </section>
   );
 }
@@ -3004,7 +3023,13 @@ function EmptyState({
         // Flip into the scan view immediately (docId lands after upload).
         startUpload({ docId: "", filename: file.name, status: "queued", surface: "products" });
         // Pin to the active month so the file nests under it in "Source files".
-        const { row, error } = await uploadDocument(file, { scope: "sku", periodId: uploadPeriodId });
+        const { row, error, duplicate } = await uploadDocument(file, { scope: "sku", periodId: uploadPeriodId });
+        if (duplicate) {
+          clearUpload();
+          uploadEnqueue.notifyAlreadyUploaded(duplicate, "sku");
+          resolve();
+          return;
+        }
         if (!row) {
           clearUpload();
           toast({ title: t("productsX.toast.uploadFailed"), description: error ?? t("productsX.toast.unknownError"), variant: "destructive" });
@@ -3015,7 +3040,7 @@ function EmptyState({
         // Products rail spinner (not the Dashboard's) + the shared council
         // sphere render this scan's progress.
         startUpload({ docId: row.id, filename: file.name, status: "queued", surface: "products" });
-        const enq = await uploadEnqueue.enqueue(row.id);
+        const enq = await uploadEnqueue.enqueue(row.id, { surface: "sku" });
         if (enq.kind !== "queued") {
           // Modal/toast already surfaced by the hook; nothing to do here.
           clearUpload();
@@ -3214,17 +3239,12 @@ function EmptyState({
         <div className="mt-6 relative">
           <div
             data-testid="products-upload-dropzone"
-            onDragEnter={(e) => { e.preventDefault(); setDrag(true); }}
-            onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
-            onDragLeave={(e) => { e.preventDefault(); setDrag(false); }}
             // First file only — a drop can carry several regardless of the
             // input's `multiple` attribute, which only governs the picker.
-            onDrop={(e) => {
-              e.preventDefault();
-              setDrag(false);
-              const f = e.dataTransfer.files?.[0];
-              if (f) stageFile(f);
-            }}
+            // Handlers from the one upload component's primitives; this zone
+            // takes SALES files, so it claims its own drops (the app-wide
+            // overlay stands down over it).
+            {...fileDropProps({ onFiles: (files) => stageFile(files[0]!), onActiveChange: setDrag })}
             data-drag-active={drag ? "true" : "false"}
             className={`
               relative overflow-hidden
@@ -3289,9 +3309,8 @@ function EmptyState({
                 {t("files.import")}
               </button>
               {/* Single-file only (2026-07-26 per operator). */}
-              <input
+              <FilePickerInput
                 ref={fileRef}
-                type="file"
                 accept={PRODUCTS_UPLOAD_ACCEPT}
                 className="hidden"
                 onChange={(e) => {

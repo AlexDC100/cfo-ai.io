@@ -48,6 +48,13 @@ describe("workspace partition helpers", () => {
   it("archivedWorkspaces excludes live", () => {
     expect(archivedWorkspaces(mixed).map((o) => o.id)).toEqual(["b"]);
   });
+  it("a HELD archive (archived, no purge date) is not on the recently-deleted shelf", () => {
+    // The workspace migration's holding archive: archived_at set, purge_after
+    // NULL. Listed, it read "Deleting soon" next to "Delete forever".
+    const held = { ...org("h", true), purge_after: null };
+    expect(archivedWorkspaces([...mixed, held]).map((o) => o.id)).toEqual(["b"]);
+    expect(activeWorkspaces([...mixed, held]).map((o) => o.id)).toEqual(["a", "c"]);
+  });
   it("archived-only lists partition to zero live (the /workspace-redirect state)", () => {
     const archivedOnly = [org("x", true)];
     expect(activeWorkspaces(archivedOnly)).toHaveLength(0);

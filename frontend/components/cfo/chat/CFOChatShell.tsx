@@ -223,7 +223,8 @@ export const CFOChatShell = forwardRef<CFOChatShellHandle, Props>(function CFOCh
   // user has a period — use it to pick the FINAL prompt set on frame one.
   const { user } = useAuth();
   const expectGrounded =
-    hasPeriod || Boolean(user?.id && typeof readPeriodVerdict(user.id) === "string");
+    hasPeriod ||
+    Boolean(user?.id && typeof readPeriodVerdict(user.id, getActiveOrgId(user.id)) === "string");
   const groundedLabel = periodLabel ?? null;
   // Quick-prompt pills shown above the composer during an active conversation
   // (the empty state already shows the full prompt cards). Same set the empty

@@ -1,0 +1,259 @@
+{
+ "features": {
+  "accounting_connector": {
+   "description": "SAGA, ContabilTM, Xero, QuickBooks. Periodic sync.",
+   "label": "Accounting connector",
+   "status": "coming_soon"
+  },
+  "alerts": {
+   "description": "Active alerts feed. Hidden behind DECISIONS_ALERTS_ENABLED.",
+   "label": "Alerts",
+   "status": "hidden"
+  },
+  "annual_billing": {
+   "description": "Yearly billing cycle at a discount. The /pricing toggle's Annual segment is disabled and labelled from THIS row \u2014 LR3 asserts the copy against this status, so promoting it here without wiring the cycle reds the gate.",
+   "label": "Annual billing",
+   "status": "coming_soon"
+  },
+  "anomaly_radar": {
+   "description": "Cross-period anomaly detection over the ledger. Backend is mounted ONLY when ANOMALY_RADAR_ENABLED is truthy (unset in production, where every /api/radar path is a 404 by construction); the pack-declared detector families carry a SECOND flag, RADAR_DETECTORS_ENABLED, so the surface can be enabled without them. This row is the frontend mirror of the first flag.",
+   "label": "Anomaly Radar",
+   "status": "hidden"
+  },
+  "ask_about_current_company": {
+   "description": "Opens the AI panel pre-loaded with the active period's context.",
+   "endpoint": "/api/ask",
+   "label": "Ask about current company",
+   "status": "active"
+  },
+  "ask_cfo_ai": {
+   "description": "Universal Q&A grounded in the active period's statements + metrics.",
+   "endpoint": "/api/ask",
+   "label": "Ask CFO AI",
+   "status": "active"
+  },
+  "benchmarks": {
+   "description": "Industry percentile comparison + peer panel.",
+   "endpoint": "/api/benchmarks/report/{period_id}",
+   "label": "Benchmarks",
+   "status": "active"
+  },
+  "change_password": {
+   "description": "Standard Supabase reset-password flow.",
+   "label": "Change password",
+   "status": "active"
+  },
+  "chat_page": {
+   "description": "The standalone /chat conversation surface. Distinct from `ask_cfo_ai`, which gates the in-context Capsule ask.",
+   "label": "Ask CFO AI (full chat page)",
+   "status": "active"
+  },
+  "comprehensive_report": {
+   "description": "The full eight-section written analysis of a period as one document.",
+   "label": "Comprehensive report",
+   "status": "active"
+  },
+  "dashboard": {
+   "description": "Headline KPIs + statement tabs.",
+   "endpoint": "/api/period/{period_id}",
+   "label": "Dashboard",
+   "status": "active"
+  },
+  "data_quality": {
+   "description": "Reconciliation gaps, missing accounts, classification warnings.",
+   "label": "Data quality checks",
+   "status": "coming_soon"
+  },
+  "decisions": {
+   "description": "Decision queue. Hidden behind DECISIONS_ALERTS_ENABLED.",
+   "label": "Decisions",
+   "status": "hidden"
+  },
+  "erp_connector": {
+   "description": "SAP, Microsoft Dynamics, NetSuite, Odoo. Connector framework.",
+   "label": "ERP connector",
+   "status": "coming_soon"
+  },
+  "firm_cockpit": {
+   "description": "Multi-client accounting-firm surface. Backend is mounted ONLY when FIRM_COCKPIT_ENABLED is truthy (unset in production), so every /api/firm route is a 404 there by construction; this row is the frontend mirror.",
+   "label": "Firm Cockpit",
+   "status": "hidden"
+  },
+  "forecast": {
+   "description": "The five-year plan as an interactive cockpit: the four numbers a bank asks for, one chart, sliders with their measured basis, three sourced cases and the reader's own; the full projected statements are its appendix. Every figure is PROJECTED and carries that marker in the payload.",
+   "endpoint": "/api/forecast/{period_id}/cockpit",
+   "label": "Forecast",
+   "status": "active"
+  },
+  "generate_90_day_plan": {
+   "description": "Sequenced action plan with owners and impact estimates.",
+   "label": "Generate 90-day plan",
+   "status": "coming_soon"
+  },
+  "generate_action_list": {
+   "description": "Exports the prioritized decision queue to CSV.",
+   "endpoint": "/api/cfo/exports/action-list",
+   "label": "Generate action list (CSV)",
+   "status": "active"
+  },
+  "generate_bank_memo": {
+   "description": "Lender-style credit memo with covenants, leverage, DSCR.",
+   "label": "Generate bank memo",
+   "status": "coming_soon"
+  },
+  "generate_board_summary": {
+   "description": "One-page executive memo synthesised from current statements.",
+   "endpoint": "/api/cfo/exports/board-summary",
+   "label": "Generate board summary",
+   "status": "active"
+  },
+  "generate_public_report": {
+   "description": "Sanitised, sharable report safe for external distribution.",
+   "label": "Generate public report",
+   "status": "coming_soon"
+  },
+  "import_history": {
+   "description": "Run log of every upload + reprocess event.",
+   "label": "Import history",
+   "status": "coming_soon"
+  },
+  "industry_classification": {
+   "description": "Per-period industry assignment + audit trail.",
+   "endpoint": "/api/industry/profiles",
+   "label": "Industry classification",
+   "status": "active"
+  },
+  "inventory": {
+   "description": "Superseded by Products (SKU-level stock detail) and the trial balance's own class-3 accounts. Anything unique folds into Products post-launch.",
+   "label": "Inventory",
+   "status": "hidden"
+  },
+  "invoices": {
+   "description": "Ageing buckets, counterparty concentration and overdue detail from the analytic 4111/401 accounts \u2014 what a trial balance total cannot give. e-Factura via ANAF SPV fills it automatically.",
+   "label": "Receivables & Payables",
+   "status": "hidden"
+  },
+  "manage_billing": {
+   "description": "Stripe-backed subscription, invoices, payment method.",
+   "endpoint": "/api/billing/portal",
+   "label": "Manage billing",
+   "status": "active"
+  },
+  "manage_profile": {
+   "description": "Profile name, display name, language preference.",
+   "label": "Manage profile",
+   "status": "active"
+  },
+  "peer_report": {
+   "description": "P&L side by side with a named peer and the sector median.",
+   "label": "Peer comparison report",
+   "status": "active"
+  },
+  "products_legacy": {
+   "description": "Existing SKU page \u2014 reachable via /products redirect, folded under Inventory in nav.",
+   "endpoint": "/api/cfo/products",
+   "label": "Products (legacy)",
+   "status": "active"
+  },
+  "public_companies": {
+   "description": "Listed-company filings, ratios and peer comparison. The in-app surface; the server-rendered /companii storefront serves independently of this flag.",
+   "endpoint": "/api/public/markets",
+   "label": "Public companies",
+   "status": "active"
+  },
+  "public_records": {
+   "description": "Multi-year-history from listafirme.ro. Hidden behind PUBLIC_RECORDS_ENABLED.",
+   "label": "Public records",
+   "status": "hidden"
+  },
+  "public_registry_connector": {
+   "description": "ANAF / listafirme.ro / EU registries for peer financials.",
+   "label": "Public registry connector",
+   "status": "coming_soon"
+  },
+  "reports": {
+   "description": "Comprehensive analysis report (8 sections + industry tab).",
+   "label": "Reports",
+   "status": "active"
+  },
+  "reprocess_latest": {
+   "description": "Re-runs the pipeline on the most recent document without re-uploading.",
+   "label": "Reprocess latest upload",
+   "status": "coming_soon"
+  },
+  "roadmap": {
+   "description": "Public release roadmap at /roadmap.",
+   "label": "Roadmap page",
+   "status": "active"
+  },
+  "scenarios": {
+   "description": "Price / volume / cost levers with profit, cash and covenant headroom.",
+   "endpoint": "/api/forecast/{period_id}/scenario",
+   "label": "Scenario planning",
+   "status": "active"
+  },
+  "simulate_cost_of_capital": {
+   "description": "WACC sensitivity scenarios applied to valuation + ROIC.",
+   "label": "Simulate cost of capital",
+   "status": "coming_soon"
+  },
+  "simulate_debt_reduction": {
+   "description": "Pay-down schedule scenarios with interest-coverage trajectory.",
+   "label": "Simulate debt reduction",
+   "status": "coming_soon"
+  },
+  "simulate_margin_improvement": {
+   "description": "Cost-structure improvement scenarios with EBITDA waterfall.",
+   "label": "Simulate margin improvement",
+   "status": "coming_soon"
+  },
+  "two_factor_auth": {
+   "description": "TOTP / SMS second factor for sign-in.",
+   "label": "Two-factor authentication",
+   "status": "coming_soon"
+  },
+  "upload_financial_statement": {
+   "description": "Drop a PDF/Excel financial statement; extracted statements feed the dashboard.",
+   "endpoint": "/api/financial-statements/parse",
+   "label": "Upload financial statement",
+   "status": "active"
+  },
+  "upload_inventory": {
+   "description": "SKU + stock-level import for inventory analytics.",
+   "label": "Upload inventory file",
+   "status": "coming_soon"
+  },
+  "upload_invoice": {
+   "description": "Bulk invoice ingest for AR/AP analytics.",
+   "label": "Upload invoice file",
+   "status": "coming_soon"
+  },
+  "upload_trial_balance": {
+   "description": "Drop a balan\u021b\u0103 de verificare; the pipeline parses it and produces P&L + BS + ratios.",
+   "endpoint": "/api/pipeline/run",
+   "label": "Upload trial balance",
+   "status": "active"
+  },
+  "user_invites": {
+   "description": "Org-scoped invites + role-based permissions.",
+   "label": "Invite teammates",
+   "status": "coming_soon"
+  },
+  "variance": {
+   "description": "Period against prior period and last year, line by line. A budget column unlocks on upload.",
+   "label": "Comparison",
+   "status": "hidden"
+  },
+  "workspace_switcher": {
+   "description": "Multi-tenant org switching.",
+   "label": "Switch workspace",
+   "status": "coming_soon"
+  },
+  "workspace_v2": {
+   "description": "One company per workspace, keyed by CUI: drop a file anywhere, confirm the company, period and industry it was read as, and it lands in that company.",
+   "endpoint": "/api/uploads/identify",
+   "label": "Company workspaces",
+   "status": "preview"
+  }
+ }
+}

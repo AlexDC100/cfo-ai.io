@@ -431,7 +431,31 @@ export type EnqueuePipelineResult =
   // the Multi-Country entitlement. Typed refusal, not an error: the FE
   // renders it as an upgrade prompt (NonRoUpgradeDialog).
   | { kind: "non_ro_blocked"; upgradeTo: string; message: string }
+  // 2026-09-21 — the document duplicates a live one of this account, company
+  // and period. The server archived it; nothing was analysed or counted. The
+  // FE shows "Already uploaded — open it" — never a failure, never the
+  // extra-document dialog.
+  | { kind: "duplicate"; existingDocumentId: string; periodId: string | null }
   | { kind: "transport_failed"; message: string };
+
+/** The live copy a new upload duplicates (owner spec 2026-09-21: same file
+ *  bytes, same account, same company, same period). */
+export interface AlreadyUploaded {
+  existingDocumentId: string;
+  periodId: string | null;
+  originalFilename?: string | null;
+}
+
+/** A 2xx body from /api/pipeline/run or /retry that says "duplicate". */
+export function parseDuplicateRunBody(body: unknown): AlreadyUploaded | null {
+  if (!body || typeof body !== "object") return null;
+  const b = body as { status?: unknown; existing_document_id?: unknown; period_id?: unknown };
+  if (b.status !== "duplicate" || typeof b.existing_document_id !== "string") return null;
+  return {
+    existingDocumentId: b.existing_document_id,
+    periodId: typeof b.period_id === "string" ? b.period_id : null,
+  };
+}
 
 export async function enqueuePipeline(documentId: string): Promise<EnqueuePipelineResult> {
   if (!client) return { kind: "transport_failed", message: "Supabase not configured." };
@@ -459,7 +483,12 @@ export async function enqueuePipeline(documentId: string): Promise<EnqueuePipeli
       },
       body: JSON.stringify({ document_id: documentId, output_language: outputLanguage }),
     });
-    if (res.ok) return { kind: "queued" };
+    if (res.ok) {
+      const okBody = await res.json().catch(() => null);
+      const dup = parseDuplicateRunBody(okBody);
+      if (dup) return { kind: "duplicate", existingDocumentId: dup.existingDocumentId, periodId: dup.periodId };
+      return { kind: "queued" };
+    }
 
     // The body can only be consumed once — read it as text, then parse.
     const txt = await res.text().catch(() => "");
@@ -531,10 +560,18 @@ export async function enqueuePipeline(documentId: string): Promise<EnqueuePipeli
  * server resets the status to 'queued' and wipes prior derivatives.
  */
 export async function retryPipeline(documentId: string): Promise<boolean> {
-  if (!client) return false;
+  return (await retryPipelineDetailed(documentId)).ok;
+}
+
+/** `retryPipeline` that also says when the server archived the document as a
+ *  duplicate of a live copy instead of re-running it. */
+export async function retryPipelineDetailed(
+  documentId: string,
+): Promise<{ ok: boolean; duplicate: AlreadyUploaded | null }> {
+  if (!client) return { ok: false, duplicate: null };
   const { data } = await client.auth.getSession();
   const token = data.session?.access_token;
-  if (!token) return false;
+  if (!token) return { ok: false, duplicate: null };
   const apiUrl = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
   try {
     const res = await fetch(`${apiUrl}/api/pipeline/retry`, {
@@ -545,9 +582,11 @@ export async function retryPipeline(documentId: string): Promise<boolean> {
       },
       body: JSON.stringify({ document_id: documentId }),
     });
-    return res.ok;
+    if (!res.ok) return { ok: false, duplicate: null };
+    const body = await res.json().catch(() => null);
+    return { ok: true, duplicate: parseDuplicateRunBody(body) };
   } catch {
-    return false;
+    return { ok: false, duplicate: null };
   }
 }
 
@@ -701,6 +740,74 @@ export interface UploadResult {
   row: DocumentRow | null;
   /** Specific failure reason, surfaced to the user. */
   error: string | null;
+  /** Set when the file is ALREADY in this company for this period under this
+   *  account: nothing was uploaded, no row was written. Not an error — the
+   *  caller shows "Already uploaded — open it". */
+  duplicate?: AlreadyUploaded | null;
+}
+
+/**
+ * Ask the engine whether this account already holds a live copy of these
+ * bytes in the active company for this period — BEFORE a byte is stored.
+ * `null` when the answer is "no" OR the check could not be made (offline,
+ * an older engine): the server repeats the check at /api/pipeline/run, so a
+ * missed pre-check costs a round trip, never a duplicate analysis.
+ */
+export async function checkDuplicateUpload(
+  contentHash: string,
+  periodEndHint: string | null,
+  orgId: string,
+  scope: "financial" | "sku" = "financial",
+): Promise<AlreadyUploaded | null> {
+  if (!client) return null;
+  const { data } = await client.auth.getSession();
+  const token = data.session?.access_token;
+  if (!token) return null;
+  const apiUrl = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
+  try {
+    const res = await fetch(`${apiUrl}/api/documents/duplicate-check`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        "X-Org-Id": orgId,
+      },
+      // scope: a dashboard analysis and a Products analysis of the same
+      // workbook are different analyses (the server's SCOPE clause).
+      body: JSON.stringify({ content_hash: contentHash, period_end_hint: periodEndHint, scope }),
+    });
+    if (!res.ok) return null;
+    const body = (await res.json().catch(() => null)) as {
+      duplicate?: boolean; existing_document_id?: string; period_id?: string | null; original_filename?: string | null;
+    } | null;
+    if (!body?.duplicate || typeof body.existing_document_id !== "string") return null;
+    return {
+      existingDocumentId: body.existing_document_id,
+      periodId: typeof body.period_id === "string" ? body.period_id : null,
+      originalFilename: body.original_filename ?? null,
+    };
+  } catch (e) {
+    console.warn("[supabase] duplicate pre-check skipped:", e);
+    return null;
+  }
+}
+
+/** SHA-256 of the file bytes, lowercase hex — the same digest the engine
+ *  compares (`_doc_dedupe.sha256_hex`) and stores in documents.content_hash. */
+export async function sha256HexOfFile(file: Blob): Promise<string> {
+  const buf = typeof file.arrayBuffer === "function"
+    ? await file.arrayBuffer()
+    // Older WebViews (and jsdom) lack Blob.arrayBuffer — FileReader reads the same bytes.
+    : await new Promise<ArrayBuffer>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as ArrayBuffer);
+        reader.onerror = () => reject(reader.error);
+        reader.readAsArrayBuffer(file);
+      });
+  const digest = await crypto.subtle.digest("SHA-256", new Uint8Array(buf));
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 /**
@@ -791,52 +898,22 @@ export async function uploadDocument(
   const documentId = crypto.randomUUID();
   const storagePath = `${orgId}/uploads/${documentId}.${ext}`;
 
-  // Content-hash dedupe — compute SHA-256 of the file bytes BEFORE uploading
-  // and check if the same content already exists in this org's documents.
-  // Gracefully degrades to "no dedupe" when the `content_hash` column
-  // hasn't been migrated yet (schema_phase6_dedupe.sql).
+  // DUPLICATE CHECK BEFORE STORAGE (owner spec 2026-09-21). The same bytes,
+  // uploaded by this account into this company for the same period, are not
+  // stored, not analysed and not counted: the user gets "Already uploaded —
+  // open it". This replaced a window.confirm whose OK button uploaded the
+  // copy anyway (the EEI balance went in 13 times). A hash we cannot compute
+  // only skips the pre-check — /api/pipeline/run repeats it server-side.
   let contentHash: string | null = null;
-  let contentHashSupported = true;
   try {
-    const buf = await file.arrayBuffer();
-    const digest = await crypto.subtle.digest("SHA-256", buf);
-    contentHash = Array.from(new Uint8Array(digest))
-      .map((b) => b.toString(16).padStart(2, "0"))
-      .join("");
-    const dupResp = await client
-      .from("documents")
-      .select("id,original_filename,period_id,created_at")
-      .eq("org_id", orgId)
-      .eq("content_hash", contentHash)
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-      .limit(1);
-    if (dupResp.error) {
-      const msg = (dupResp.error.message || "").toLowerCase();
-      if (msg.includes("content_hash") && (msg.includes("schema cache") || msg.includes("does not exist") || msg.includes("column"))) {
-        // Migration not applied — silently skip dedupe and don't include
-        // the column on insert below.
-        contentHashSupported = false;
-        contentHash = null;
-        console.info("[supabase] content_hash column missing — dedupe disabled until schema_phase6_dedupe.sql is applied");
-      }
-    } else if (dupResp.data && dupResp.data.length > 0) {
-      const existing = dupResp.data[0] as { id: string; original_filename: string; period_id: string | null; created_at: string };
-      const ok = window.confirm(
-        `Looks like you already uploaded this exact file ("${existing.original_filename}") on ${new Date(existing.created_at).toLocaleString()}.\n\n` +
-          `Upload again anyway?\n\n` +
-          `OK = create a new analysis (will overwrite the existing period at the same date)\n` +
-          `Cancel = keep the existing one`,
-      );
-      if (!ok) {
-        return {
-          row: null,
-          error: "Duplicate upload canceled — the existing copy is unchanged.",
-        };
-      }
-    }
+    contentHash = await sha256HexOfFile(file);
   } catch (e) {
-    console.warn("[supabase] content-hash dedupe skipped:", e);
+    console.warn("[supabase] content hash unavailable — the server will hash the stored bytes:", e);
+  }
+  if (contentHash) {
+    const dup = await checkDuplicateUpload(contentHash, options.periodEndHint ?? null, orgId,
+      options.scope ?? "financial");
+    if (dup) return { row: null, error: null, duplicate: dup };
   }
 
   const { error: upErr } = await client.storage
@@ -866,11 +943,9 @@ export async function uploadDocument(
     detected_type: detected,
     status: "queued" as DocumentStatus,
     scope: options.scope ?? "financial",
-    // content_hash is added by schema_phase6_dedupe.sql. When the migration
-    // hasn't run yet, the dedupe SELECT above sets contentHashSupported=false
-    // and we skip the column here so the insert doesn't error with
-    // "Could not find the 'content_hash' column of 'documents'".
-    ...(contentHash && contentHashSupported ? { content_hash: contentHash } : {}),
+    // content_hash (schema_phase6_dedupe.sql) — the key every duplicate
+    // check compares. Degrades below if the column is not migrated.
+    ...(contentHash ? { content_hash: contentHash } : {}),
     // period_end_hint (schema_phase_period_end_hint.sql): the user-confirmed
     // closing date. The engine's stage_persist prefers it over its own
     // filename/content detection. Included only when the caller supplied one;
@@ -887,6 +962,11 @@ export async function uploadDocument(
   };
 
   let ins = await client.from("documents").insert(baseRow).select().single();
+  if (ins.error && contentHash && /content_hash/i.test(ins.error.message)) {
+    console.info("[supabase] content_hash column missing — retrying without it (apply schema_phase6_dedupe.sql)");
+    delete baseRow.content_hash;
+    ins = await client.from("documents").insert(baseRow).select().single();
+  }
   // Graceful degrade: if the period_end_hint column isn't migrated yet, retry
   // without it rather than failing the whole upload.
   if (ins.error && options.periodEndHint && /period_end_hint/i.test(ins.error.message)) {

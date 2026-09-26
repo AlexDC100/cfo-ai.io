@@ -28,12 +28,15 @@
 // resolved any modal. So callers always see a final outcome.
 
 import { useCallback, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import { ExtraDocConfirmDialog } from "@/components/cfo/pricing/ExtraDocConfirmDialog";
 import { NonRoUpgradeDialog } from "@/components/cfo/pricing/NonRoUpgradeDialog";
+import { ToastAction } from "@/components/ui/toast";
 import { useToast } from "@/hooks/use-toast";
-import { enqueuePipeline, type EnqueuePipelineResult } from "@/lib/supabase";
+import { alreadyUploadedHref } from "@/lib/alreadyUploaded";
+import { enqueuePipeline, type AlreadyUploaded, type EnqueuePipelineResult } from "@/lib/supabase";
 
 /** What the caller actually sees after `await upload.enqueue(docId)`. */
 export type UploadOutcome =
@@ -44,10 +47,22 @@ export type UploadOutcome =
   // entitlement. The hook shows NonRoUpgradeDialog itself; this outcome
   // just tells the caller the upload did not queue.
   | { kind: "non_ro_blocked"; message: string }
+  // 2026-09-21 — the server archived the document as a duplicate of a live
+  // copy (same file, account, company, period). The hook has already shown
+  // "Already uploaded — open it"; the caller clears its card — this is not
+  // a failure and nothing was counted.
+  | { kind: "duplicate"; existingDocumentId: string; periodId: string | null }
   | { kind: "transport_failed"; message: string };
+
+/** Where an upload was made from — decides where "open it" leads. */
+export type UploadSurface = "financial" | "sku";
 
 interface PendingExtra {
   documentId: string;
+  /** Where the upload was made from — the retry after Confirm answers a
+   *  duplicate with the SAME "open it" destination as the first call
+   *  (P2-C, 2026-09-26: a Products upload's retry linked to the dashboard). */
+  surface: UploadSurface;
   planKey: string;
   docsUsed: number;
   docsIncluded: number;
@@ -65,6 +80,7 @@ interface PendingNonRo {
 
 export function useUploadEnqueue() {
   const { toast } = useToast();
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [pending, setPending] = useState<PendingExtra | null>(null);
   const [pendingNonRo, setPendingNonRo] = useState<PendingNonRo | null>(null);
@@ -81,14 +97,46 @@ export function useUploadEnqueue() {
   // it and the other is a no-op.
   const pendingRef = useRef<PendingExtra | null>(null);
 
+  /** "Already uploaded — open it" (RO "Deja încărcat — deschide"), with
+   *  the action that opens the existing analysis. Shown for a
+   *  pre-storage duplicate (uploadDocument's `duplicate`) and for one the
+   *  server caught at /api/pipeline/run — never as an error. */
+  const notifyAlreadyUploaded = useCallback(
+    (dup: AlreadyUploaded, surface: UploadSurface = "financial") => {
+      const href = alreadyUploadedHref(dup, surface);
+      toast({
+        title: t("upload.alreadyUploaded"),
+        description: t("upload.alreadyUploadedBody"),
+        action: (
+          <ToastAction
+            altText={t("upload.alreadyUploaded")}
+            data-testid="already-uploaded-link"
+            onClick={() => navigate(href)}
+          >
+            {t("upload.openExisting")}
+          </ToastAction>
+        ),
+      });
+    },
+    [navigate, t, toast],
+  );
+
   /** Enqueue a pipeline run for `documentId`. Returns once the flow
    *  has reached a terminal state (queued, cancelled, blocked, failed). */
   const enqueue = useCallback(
-    async (documentId: string): Promise<UploadOutcome> => {
+    async (documentId: string, opts: { surface?: UploadSurface } = {}): Promise<UploadOutcome> => {
+      const surface = opts.surface ?? "financial";
       const first = await enqueuePipeline(documentId);
-      return _resolveEnqueueOutcome(first, documentId);
+      if (first.kind === "duplicate") {
+        notifyAlreadyUploaded(
+          { existingDocumentId: first.existingDocumentId, periodId: first.periodId },
+          surface,
+        );
+        return { kind: "duplicate", existingDocumentId: first.existingDocumentId, periodId: first.periodId };
+      }
+      return _resolveEnqueueOutcome(first, documentId, surface);
     },
-    [],
+    [notifyAlreadyUploaded],
   );
 
   /** Internal: turn an EnqueuePipelineResult into a UploadOutcome,
@@ -98,8 +146,19 @@ export function useUploadEnqueue() {
     async (
       result: EnqueuePipelineResult,
       documentId: string,
+      surface: UploadSurface,
     ): Promise<UploadOutcome> => {
       if (result.kind === "queued") return { kind: "queued" };
+      if (result.kind === "duplicate") {
+        // The server caught it (the browser's pre-check was skipped, or the
+        // original landed meanwhile): the same message as the first call,
+        // leading where THIS upload's surface leads — never a failure.
+        notifyAlreadyUploaded(
+          { existingDocumentId: result.existingDocumentId, periodId: result.periodId },
+          surface,
+        );
+        return { kind: "duplicate", existingDocumentId: result.existingDocumentId, periodId: result.periodId };
+      }
       if (result.kind === "transport_failed") {
         toast({
           title: "Couldn't start analysis",
@@ -131,6 +190,7 @@ export function useUploadEnqueue() {
       return new Promise<UploadOutcome>((resolve) => {
         const next: PendingExtra = {
           documentId,
+          surface,
           planKey: result.planKey,
           docsUsed: result.docsUsed,
           docsIncluded: result.docsIncluded,
@@ -142,7 +202,7 @@ export function useUploadEnqueue() {
         setPending(next);
       });
     },
-    [toast],
+    [toast, notifyAlreadyUploaded],
   );
 
   // ── Dialog handlers ─────────────────────────────────────────
@@ -167,7 +227,7 @@ export function useUploadEnqueue() {
     // After confirm, retry the enqueue. The server now sees the
     // reserved extra slot and should return 202.
     const retry = await enqueuePipeline(owned.documentId);
-    owned.resolve(await _resolveEnqueueOutcome(retry, owned.documentId));
+    owned.resolve(await _resolveEnqueueOutcome(retry, owned.documentId, owned.surface));
   }, [_resolveEnqueueOutcome]);
 
   const handleNonRoClose = useCallback(() => {
@@ -183,6 +243,7 @@ export function useUploadEnqueue() {
   const dialog = pending ? (
     <ExtraDocConfirmDialog
       open
+      documentId={pending.documentId}
       onClose={handleClose}
       onConfirmed={handleConfirmed}
       planKey={pending.planKey}
@@ -202,6 +263,7 @@ export function useUploadEnqueue() {
   return {
     enqueue,
     dialog,
+    notifyAlreadyUploaded,
     /** Pretty-named convenience for callers that prefer to navigate
      *  to /pricing themselves on quota-blocked. */
     goToPricing: () => navigate("/pricing"),
