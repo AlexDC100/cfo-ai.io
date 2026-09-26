@@ -114,6 +114,7 @@ import {
   jurisdictionHintFromSelection,
 } from "@/components/cfo/JurisdictionSelect";
 import { CashFlowStatementView } from "@/components/cfo/CashFlowStatementView";
+import { EvidenceDrawer } from "@/components/cfo/evidence/EvidenceDrawer";
 import { NavValuationView } from "@/components/cfo/NavValuationView";
 import {
   EbitdaMultiplePrimaryCard,
@@ -2912,6 +2913,20 @@ function FinancialStatementsInner() {
           )}
         </TabsContent>
       </Tabs>
+        {/* THE ACCOUNT VIEW (design C4) — the receiver for `?account=` and
+            `?line=`: the command bar's Cont rows and statement answers, the
+            "Ce contează acum" items that name a line or cite accounts. Reads
+            the served period body the tabs render, nothing else. */}
+        <EvidenceDrawer
+          body={remotePeriod.isLoaded ? {
+            statements: remotePeriod.statements,
+            assembled_metrics: remotePeriod.assembled_metrics,
+            line_items: remotePeriod.lineItems,
+          } : null}
+          periodLabel={statements?.periodLabel ?? null}
+          documentName={remotePeriod.sourceDocumentFilename}
+          currency={statements?.currency ?? "RON"}
+        />
         {/* Dev tools — bottom of the page, below every tab's content. Ships
             in production per the operator (2026-07-26); see DashboardDevTools. */}
         <DashboardDevTools />

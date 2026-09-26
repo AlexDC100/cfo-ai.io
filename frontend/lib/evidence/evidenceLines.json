@@ -1,0 +1,71 @@
+{
+  "_doc": [
+    "The statement lines an 'open its evidence' link can name (the attention pack's statement lines, the findings' evidence lines, the command bar's statement answers), keyed by the comparatives line key.",
+    "statement/field: the SERVED path the figure is read from (assembled_<statement>.<field>) — equal to src/engine/comparatives/lines.py, held by tests/engine/test_evidence_lines.py.",
+    "reader: which ONE reader prints it — 'line' (servedLine), 'ebitda' (servedEbitda, the 711/722 lane's one door), 'net_result' (servedNetResult: account 121 only when anchored).",
+    "buckets: the classification buckets whose leaves FEED the line — the registry's own source_buckets (its coverage mechanism). A derived line has none; 'from_lines' names the lines it is the sum of in the engine (bs.total_debt = short-term + long-term debt, chart_of_accounts.py), and its buckets are theirs.",
+    "accounts: a line that IS an account (the net result is account 121 — the pack's requires_anchor).",
+    "highlight: the statement row (data-traceable-target) that renders a derived line, for the 'see it in the statement' link.",
+    "name: the line's name — the attention pack's subject where the pack names it, else the command bar's answer name, else the registry label (EN). One metric, one name."
+  ],
+  "lines": {
+    "pl.revenue": {
+      "statement": "pl", "reader": "line", "field": "revenue", "buckets": ["revenue"],
+      "name": {"ro": "Cifra de afaceri netă", "en": "Net turnover"}
+    },
+    "pl.ebitda": {
+      "statement": "pl", "reader": "ebitda", "field": "ebitda", "buckets": [], "highlight": "ebitda",
+      "name": {"ro": "EBITDA", "en": "EBITDA"}
+    },
+    "pl.ebit": {
+      "statement": "pl", "reader": "line", "field": "ebit", "buckets": [], "highlight": "ebit",
+      "name": {"ro": "Rezultatul din exploatare", "en": "Operating result"}
+    },
+    "pl.net_income": {
+      "statement": "pl", "reader": "net_result", "field": "net_income_statutory", "buckets": [], "accounts": ["121"],
+      "name": {"ro": "Rezultatul net (contul 121)", "en": "Net result (account 121)"}
+    },
+    "pl.net_financial_result": {
+      "statement": "pl", "reader": "line", "field": "net_financial_result", "buckets": [], "highlight": "netFinancialResult",
+      "name": {"ro": "Rezultatul financiar net", "en": "Net financial result"}
+    },
+    "pl.other_operating_income": {
+      "statement": "pl", "reader": "line", "field": "other_income_758", "buckets": ["otherIncome"],
+      "name": {"ro": "Alte venituri din exploatare", "en": "Other operating income"}
+    },
+    "bs.cash": {
+      "statement": "bs", "reader": "line", "field": "cash", "buckets": ["cash", "cash_fx"],
+      "name": {"ro": "Numerar și echivalente", "en": "Cash & equivalents"}
+    },
+    "bs.total_debt": {
+      "statement": "bs", "reader": "line", "field": "total_debt", "buckets": ["stDebt", "ltDebt"],
+      "from_lines": ["bs.short_term_debt", "bs.long_term_debt"],
+      "name": {"ro": "Datorie totală", "en": "Total debt"}
+    },
+    "bs.ppe_net": {
+      "statement": "bs", "reader": "line", "field": "ppe_net",
+      "buckets": ["ppe", "ppe_investment", "ppe_under_construction", "ppe_advances"],
+      "name": {"ro": "Imobilizări corporale nete", "en": "Property, plant & equipment, net"}
+    },
+    "bs.inventory": {
+      "statement": "bs", "reader": "line", "field": "inventory", "buckets": ["inventory"],
+      "name": {"ro": "Stocuri", "en": "Inventory"}
+    },
+    "bs.trade_receivables_net": {
+      "statement": "bs", "reader": "line", "field": "ar_net", "buckets": ["ar", "ar_doubtful", "ar_provisions"],
+      "name": {"ro": "Creanțe comerciale nete", "en": "Trade receivables, net"}
+    },
+    "bs.trade_payables": {
+      "statement": "bs", "reader": "line", "field": "ap", "buckets": ["ap"],
+      "name": {"ro": "Datorii către furnizori", "en": "Trade payables"}
+    },
+    "bs.total_equity": {
+      "statement": "bs", "reader": "line", "field": "total_equity", "buckets": [],
+      "name": {"ro": "Capitaluri proprii", "en": "Total equity"}
+    },
+    "bs.total_assets": {
+      "statement": "bs", "reader": "line", "field": "total_assets", "buckets": [], "highlight": "totalAssets",
+      "name": {"ro": "Total active", "en": "Total assets"}
+    }
+  }
+}
