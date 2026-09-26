@@ -6,8 +6,13 @@
 //     fiscal cut when a same-cut earlier period exists
 //   · the parity guard letting a prior render beside a row whose amount
 //     is not the engine's current figure for that line
+//   · the definition guard letting "Total operating revenue" carry the
+//     net-turnover cells while either period carries 722 (the current's
+//     as stated, the prior's as served), or reading a refused memo as zero
 //   · PL_ROW_TO_KEY naming a row that does NOT equal the engine line on
 //     the real book (the aggregates builder and assembled_pl drifting apart)
+//     — beyond the composed rows and the two 758 rows, whose measured
+//     difference (the 781 reversals the row's bucket holds) must refuse
 //   · a row the engine reports absent being painted with a number
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
@@ -93,6 +98,66 @@ describe("cellForRow — the parity guard", () => {
   });
 });
 
+// ── The definition guard: a total that folds 722 in ───────────────────
+//
+// "Total operating revenue" is net turnover PLUS capitalized own work (722).
+// Its figure can equal the engine's net turnover to the cent in the current
+// period while the PRIOR period's total held 722 — and then the prior cell
+// would print net turnover under a total that includes 722. The row may
+// carry the engine's net-turnover cells only while every component it folds
+// in is zero in BOTH periods: the current's as the builder states it, the
+// prior's as the served document carries it.
+describe("cellForRow — the definition guard", () => {
+  const cells = new Map<string, ComparativeCell>([["pl.revenue", cell({})]]);
+  const ZERO = { capitalized_own_work_memo: 0 };
+  const prior = (memo: unknown) => ({ assembled_pl: { capitalized_own_work_memo: memo } });
+
+  it("carries the cells while neither period carries 722", () => {
+    expect(cellForRow(cells, "revenue", 100, { folds: ZERO, priorStatements: prior(0) }).kind).toBe("cell");
+    // Below half a cent is a zero, as everywhere in this module.
+    expect(cellForRow(cells, "revenue", 100, { folds: { capitalized_own_work_memo: 0.004 }, priorStatements: prior(-0.004) }).kind).toBe("cell");
+  });
+  it("refuses when the CURRENT period carries 722, even with the row equal to net turnover", () => {
+    const out = cellForRow(cells, "revenue", 100, { folds: { capitalized_own_work_memo: 5 }, priorStatements: prior(0) });
+    expect(out.kind).toBe("definition_differs");
+    if (out.kind === "definition_differs") {
+      expect(out.key).toBe("pl.revenue");
+      expect(out.engineCurrent).toBe(100);
+    }
+  });
+  it("refuses when only the PRIOR period carries 722", () => {
+    expect(cellForRow(cells, "revenue", 100, { folds: ZERO, priorStatements: prior(7.5) }).kind).toBe("definition_differs");
+  });
+  it("reads a prior memo the document does not serve as zero — the served contract", () => {
+    expect(cellForRow(cells, "revenue", 100, { folds: ZERO, priorStatements: { assembled_pl: {} } }).kind).toBe("cell");
+    expect(cellForRow(cells, "revenue", 100, { folds: ZERO, priorStatements: {} }).kind).toBe("cell");
+    expect(cellForRow(cells, "revenue", 100, { folds: ZERO, priorStatements: undefined }).kind).toBe("cell");
+  });
+  it("never reads a refused or unreadable amount as zero", () => {
+    for (const bad of [null, Number.NaN, Number.POSITIVE_INFINITY, "0", {}]) {
+      expect(cellForRow(cells, "revenue", 100, { folds: ZERO, priorStatements: prior(bad) }).kind).toBe("definition_differs");
+    }
+    expect(cellForRow(cells, "revenue", 100, { folds: { capitalized_own_work_memo: null }, priorStatements: prior(0) }).kind).toBe("definition_differs");
+  });
+  it("a total that does not state its 722 is refused — the component is required, not optional", () => {
+    expect(cellForRow(cells, "revenue", 100).kind).toBe("definition_differs");
+    expect(cellForRow(cells, "revenue", 100, { folds: {}, priorStatements: prior(0) }).kind).toBe("definition_differs");
+  });
+  it("every component a row declares is held to both periods (the line-item total folds 767 in too)", () => {
+    const folds = { capitalized_own_work_memo: 0, discounts_received: 0 };
+    const both = (d: unknown) => ({ assembled_pl: { capitalized_own_work_memo: 0, discounts_received: d } });
+    expect(cellForRow(cells, "revenue", 100, { folds, priorStatements: both(0) }).kind).toBe("cell");
+    expect(cellForRow(cells, "revenue", 100, { folds, priorStatements: both(3) }).kind).toBe("definition_differs");
+    expect(cellForRow(cells, "revenue", 100, { folds: { ...folds, discounts_received: 3 }, priorStatements: both(0) }).kind).toBe("definition_differs");
+  });
+  it("the net-turnover LINE folds nothing in: the prior's 722 does not touch it", () => {
+    expect(cellForRow(cells, "revenueTurnover", 100, { priorStatements: prior(7.5) }).kind).toBe("cell");
+  });
+  it("the parity guard still runs after the definition guard", () => {
+    expect(cellForRow(cells, "revenue", 100.01, { folds: ZERO, priorStatements: prior(0) }).kind).toBe("definition_differs");
+  });
+});
+
 // ── PL_ROW_TO_KEY parity, measured on the real analytic book ─────────
 //
 // The dashboard's aggregates builder reads `statements.incomeStatement`
@@ -144,28 +209,43 @@ describe("PL_ROW_TO_KEY — every mapped row equals the engine line on the real 
   const { env, statements } = loadBaseline();
   const apl = env.statements.assembled_pl;
   const stmt = buildPLStatementFromAggregates(statements);
-  // Engine keys → assembled_pl fields.
+  // Engine keys → assembled_pl fields (src/engine/comparatives/lines.py).
   const FIELD: Record<string, string> = {
     "pl.revenue": "revenue", "pl.cogs": "cogs", "pl.opex_total": "opex_total",
+    "pl.other_operating_income": "other_income_758",
     "pl.depreciation": "depreciation", "pl.ebitda": "ebitda", "pl.ebit": "ebit",
+    "pl.financial_income": "financial_income", "pl.interest_income": "interest_income",
+    "pl.interest_expense": "interest_expense", "pl.opex_third_party": "opex_third_party",
     "pl.net_financial_result": "net_financial_result", "pl.pretax": "pretax", "pl.tax": "tax",
     "pl.net_income_operational": "net_income_operational", "pl.net_income": "net_income_statutory",
   };
+  /** Keys only the LINE-ITEM builder stamps (its exact-code rows for 766
+   *  and 628); plCompareSubtotals.test.tsx holds that builder to them. */
+  const LINE_ITEM_ONLY = new Set(["interestIncome", "opexThirdParty"]);
   const rows = new Map<string, number>();
+  const folds = new Map<string, Readonly<Record<string, number | null>>>();
   for (const s of stmt.sections) {
     for (const l of s.lines) if (l.bucket && typeof l.amount === "number") rows.set(l.bucket, l.amount);
     if (s.subtotalBucket && typeof s.subtotalAmount === "number") rows.set(s.subtotalBucket, s.subtotalAmount);
+    if (s.subtotalBucket && s.subtotalFolds) folds.set(s.subtotalBucket, s.subtotalFolds);
   }
   rows.set("ebitda", stmt.ebitda);
   if (typeof stmt.netProfitStatutory === "number") rows.set("netIncomeStatutory", stmt.netProfitStatutory);
+  const aggregateKeys = Object.entries(PL_ROW_TO_KEY).filter(([k]) => !LINE_ITEM_ONLY.has(k));
 
   it("the builder stamps every key the map names (no silent unmapped rows)", () => {
-    const missing = Object.keys(PL_ROW_TO_KEY).filter((k) => !rows.has(k));
-    // financial rows are deliberately unmapped; these two subtotals must be present.
+    const missing = aggregateKeys.map(([k]) => k).filter((k) => !rows.has(k));
     expect(missing).toEqual([]);
   });
 
-  it.each(Object.entries(PL_ROW_TO_KEY))("%s → %s agrees to the cent", (rowKey, engineKey) => {
+  it("every engine key the map names is a line the engine serves", () => {
+    for (const engineKey of Object.values(PL_ROW_TO_KEY)) {
+      expect(FIELD[engineKey], engineKey).toBeDefined();
+      expect(typeof apl[FIELD[engineKey]], engineKey).toBe("number");
+    }
+  });
+
+  it.each(aggregateKeys)("%s → %s agrees to the cent", (rowKey, engineKey) => {
     const engine = apl[FIELD[engineKey]];
     const row = rows.get(rowKey);
     expect(typeof engine).toBe("number");
@@ -174,9 +254,13 @@ describe("PL_ROW_TO_KEY — every mapped row equals the engine line on the real 
     // number on the analytic book — or the parity guard would blank them.
     // netFinancialResult / pretax / netIncome* are FE-composed from the
     // persisted financial buckets and are allowed to differ; the guard
-    // handles them at render time. Everything else must agree.
+    // handles them at render time. The two 758 rows show the persisted
+    // other-operating-income BUCKET, which on this book also holds
+    // provision reversals (781) the engine's 758 line excludes: they are
+    // refused, asserted below. Everything else must agree.
     const composed = new Set(["netFinancialResult", "pretax", "netIncomeOperational", "netIncomeStatutory"]);
-    if (composed.has(rowKey)) {
+    const bucketWider = new Set(["otherOperatingIncome", "otherOperatingIncomeTotal"]);
+    if (composed.has(rowKey) || bucketWider.has(rowKey)) {
       return;
     }
     expect(Math.abs((row as number) - (engine as number))).toBeLessThan(PARITY_FLOOR);
@@ -190,15 +274,28 @@ describe("PL_ROW_TO_KEY — every mapped row equals the engine line on the real 
         current_disclosure: "reported", prior_disclosure: "reported", status: "compared", note: "",
       })),
       common_size: [],
+      prior_statements: { assembled_pl: apl },
     } as unknown as ComparativesResponse;
     const cells = indexCells(doc);
-    for (const [rowKey] of Object.entries(PL_ROW_TO_KEY)) {
-      const out = cellForRow(cells, rowKey, rows.get(rowKey));
+    for (const [rowKey] of aggregateKeys) {
+      const out = cellForRow(cells, rowKey, rows.get(rowKey), {
+        folds: folds.get(rowKey),
+        priorStatements: doc.prior_statements,
+      });
       expect(["cell", "definition_differs"]).toContain(out.kind);
       if (out.kind === "cell") {
         expect(Math.abs((rows.get(rowKey) as number) - (out.cell.current as number))).toBeLessThan(PARITY_FLOOR);
       }
     }
+    // The measured refusals: the 758 rows carry the 781 reversals.
+    for (const rowKey of ["otherOperatingIncome", "otherOperatingIncomeTotal"]) {
+      expect(Math.abs((rows.get(rowKey) as number) - (apl.other_income_758 as number))).toBeGreaterThanOrEqual(PARITY_FLOOR);
+      expect(cellForRow(cells, rowKey, rows.get(rowKey)).kind).toBe("definition_differs");
+    }
+    // And the total: no 722 in either year of this book, so it carries.
+    expect(cellForRow(cells, "revenue", rows.get("revenue"), {
+      folds: folds.get("revenue"), priorStatements: doc.prior_statements,
+    }).kind).toBe("cell");
   });
 });
 

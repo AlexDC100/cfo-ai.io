@@ -106,15 +106,20 @@ function signClass(v: number | null): string {
 /**
  * The cells for one row. `rowKey` is the row's `bucket` / `subtotalBucket`
  * (or a full engine key like "pl.ebitda"); `amount` is what the row shows,
- * which the parity guard compares against the engine's current figure.
+ * which the parity guard compares against the engine's current figure;
+ * `folds` is what the row folds in beyond its engine line
+ * (`PLSection.subtotalFolds`), which the definition guard holds to zero in
+ * both periods — the prior's read off the served document.
  */
 export function CmpCells({
   rowKey,
   amount,
+  folds,
   bs,
 }: {
   rowKey: string | undefined;
   amount: number | null | undefined;
+  folds?: Readonly<Record<string, number | null>> | null;
   /** Balance-sheet rows already carry opening/closing/Δ; they only get
    *  the Δ % and share cells here. */
   bs?: boolean;
@@ -123,7 +128,10 @@ export function CmpCells({
   const { t } = useTranslation();
   const fmt = useAmountFormatter(ctx?.currency ?? "RON");
   if (!ctx) return null;
-  const outcome = cellForRow(ctx.cells, rowKey, amount);
+  const outcome = cellForRow(ctx.cells, rowKey, amount, {
+    folds,
+    priorStatements: ctx.doc.prior_statements,
+  });
   const cols = ctx.columns;
 
   const gap = (title?: string) => (

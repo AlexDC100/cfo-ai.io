@@ -32,7 +32,25 @@ export interface PLLine {
   bucket?: string;
 }
 
+/** The part a section plays in the reference layout. PLStatementView places
+ *  each section BY ITS ROLE — the EBITDA box after the operating expenses,
+ *  the profit-before-tax-to-net-profit block last — never by its index:
+ *  the optional OTHER OPERATING INCOME section (account 758) shifts every
+ *  index after it. */
+export type PLSectionRole =
+  | "operatingRevenue"
+  | "otherOperatingIncome"
+  | "operatingExpenses"
+  | "depreciation"
+  | "financialItems"
+  | "closing";
+
 export interface PLSection {
+  /** The section's place in the reference layout. Both RO builders set it
+   *  on every section; a statement that sets none (the public-company
+   *  adapter) is read positionally, as before — see PLStatementView's
+   *  `plLayout`. */
+  role?: PLSectionRole;
   /** Section header, e.g. "OPERATING REVENUE". Empty string = no header. */
   header: string;
   /** Line items in display order. */
@@ -45,6 +63,16 @@ export interface PLSection {
    *  "revenue" (= Total operating revenue), "ebit", "pretax", "netIncome".
    *  PLStatementView emits this on the subtotal row. */
   subtotalBucket?: string;
+  /** WHAT THIS SUBTOTAL FOLDS IN BEYOND THE ENGINE LINE ITS KEY MAPS TO,
+   *  for the comparatives guard (lib/comparatives.ts `cellForRow`). Keyed
+   *  by the served `assembled_pl` field that states each component; the
+   *  value is the CURRENT period's amount (null: unreadable). "Total
+   *  operating revenue" is net turnover PLUS capitalized own work (722) —
+   *  and, on the line-item path, discounts received (767) — so it may
+   *  carry the engine's net-turnover cells only while every component here
+   *  is zero in BOTH periods (the prior's is read off the served
+   *  comparatives document). Absent: the subtotal folds nothing in. */
+  subtotalFolds?: Readonly<Record<string, number | null>>;
 }
 
 export interface PLKeyMargin {
@@ -137,4 +165,29 @@ export function sumByPrefix(items: ApiLineItem[], ...prefixes: string[]): number
 /** Sum lines for an exact account code. */
 export function sumByExact(items: ApiLineItem[], code: string): number {
   return sumByCode(items, (c) => c === code);
+}
+
+/**
+ * One amount of a SERVED `assembled_pl` block, read under the served
+ * contract — the one reading the P&L builders and the comparatives guard
+ * share for the components a total folds in (`PLSection.subtotalFolds`).
+ *
+ * The engine serves the block densely: every field on every assembled P&L,
+ * 0.00 for a book that holds none of it (`capitalized_own_work_memo` is
+ * `round(pl.get("capitalizedOwnWork", 0.0), 2)`). So a field the block
+ * does not carry, or a block that was not served at all, reads as ZERO —
+ * that is what the contract says the absence means. (Where the whole block
+ * is missing, the engine's comparative lines read absent from it too, so
+ * no prior figure stands beside that zero.)
+ *
+ * A value that IS served but is not a finite number — null, NaN, a string
+ * — is not an absence the contract produces. It is a refusal or a defect,
+ * and it reads as `null`: never as a zero.
+ */
+export function servedPlAmount(block: unknown, field: string): number | null {
+  if (block === undefined || block === null) return 0;
+  if (typeof block !== "object" || Array.isArray(block)) return null;
+  const value = (block as Record<string, unknown>)[field];
+  if (value === undefined) return 0;
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
