@@ -24,7 +24,7 @@
     },
     "src/engine/country_packs/ro_romania/chart_of_accounts.py": {
       "CLAMP": 7,
-      "OR_ZERO": 8,
+      "OR_ZERO": 7,
       "S7": 1
     },
     "src/engine/public/intelligence/risk_scoring_engine.py": {
