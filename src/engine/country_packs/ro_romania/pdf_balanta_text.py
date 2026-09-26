@@ -164,6 +164,83 @@ RL = Rulaj curent, RC = Total rulaj (cumulated turnover WITHOUT the opening
 balance — exactly how the same ERP's Excel export fills "Rulaj cumulat",
 which the Excel path already reads), SF = Sold final. "Rulaj anterior" is
 not carried: it is Total rulaj minus Rulaj curent, checked above.
+
+THIRD LAYOUT — FOUR PAIRS, EACH FIGURE PLACED BY ITS COLUMN (2026-09-26)
+-----------------------------------------------------------------------
+A SAGA-style balanta prints four column pairs under the headings "Sold
+initial" / "Rulaje" / "Total" / "Solduri finale", sub-headed "1 Ianuarie"
+/ "luna curenta" / "sume cumulate", over a line of four "Debit Credit"
+pairs (LAYOUT_FOUR_PAIR_COLUMNS, named by that header in the first 40
+lines, `_four_pair_named`). It prints a zero as a BLANK cell, so an
+account line carries anywhere from none to eight figures and the
+eight-figure reader's "eight numbers per line" never holds: which figure
+is which can only be read from where it is printed. Each account prints
+its code in three parts — account, analytic, level: "4518. 2. 0" — then
+its name, its figures, and the three parts again right of the figures.
+Lines marked "*" are totals: an account's over its analytics, and a
+three-digit group's ("TOTAL 451.0.0") over its four-digit accounts;
+"Total clasa N" and "TOTAL GENERAL" close each class and the book.
+
+The columns are READ, never assumed (`_four_columns`). The headings are
+printed centred over their pairs, so a heading's centre is the edge
+between its Debit and Credit columns and the midpoint between two
+headings the edge between two pairs; the order of the pairs is the
+order the headings are printed in. Every word right of the names is
+placed in the column its centre falls in. The words are split at a
+visible gap wider than 1 pt (`_FOUR_X_TOLERANCE`) — the words and the
+text lines they must rebuild alike: pdfplumber's default split glues a
+code part to the name printed a space's width after it, and the last
+figure of a line to a label printed just right of its column.
+
+It refuses unless ALL of these hold:
+
+  * the header names this layout and no other; each heading and sub-
+    heading is printed once, over its own pair, in the order Sold initial
+    / Rulaje / Total / Solduri finale, with "Cont" and "Denumire" left of
+    the figure columns and "Cont" again right of them; every page's
+    header puts the columns where the first page's does;
+  * every line carries word positions (a page whose words do not rebuild
+    its text lines is refused), and no word of an account or total line
+    is printed across a column edge — a figure between two columns;
+  * every figure of a column ends at one x (within 1 pt: the columns are
+    right-aligned) and within 3 pt of the edge the header puts it at —
+    a figure printed out of its column refuses the book; a blank cell is
+    0.00, and only number words are printed in a figure column;
+  * every figure is printed in ONE of the number shapes the five-pair
+    reader accepts (`_FORMATS_5PAIR`), the same one throughout;
+  * the code repeated right of the figures reads as the code printed left
+    of them, with 0 as its third part, and a total's label is repeated
+    the same way;
+  * no line carrying a figure is anything but an account, a total or the
+    grand total, and no account or total follows the grand total;
+  * per account: Sold final debit - credit == Total debit - credit (the
+    Total pair carries the opening balance, like "sume totale") — a
+    figure read on the wrong side of a pair breaks it;
+  * every account with analytics has its "*" total, and it equals its
+    analytics netted: an account has ONE balance, so their opening and
+    closing balances are netted onto one side while their turnover is
+    summed per side, and Total = the netted opening + the turnover;
+  * every group with four-digit accounts has its "TOTAL" line, equal to
+    the sum of those accounts' lines; every class with accounts has its
+    "Total clasa N", equal to the sum of its three-digit lines (a class
+    total with no accounts must be zero); the "TOTAL GENERAL", when
+    printed, equals the sum of every class;
+  * no account appears twice, and none beside a line of its own: a three-
+    digit account printed beside its four-digit accounts, or an account
+    printed on its own line (analytic 0) beside its analytics — whether
+    that line is the account's own postings or its total cannot be read
+    from the layout — nor any row that is a subtotal of others
+    (`_subtotal_refusal`);
+  * debit == credit on all four pairs; at least MIN_ACCOUNTS accounts.
+
+The workbook carries the accounts printed without analytics and the
+analytics — never a "*" line — as SI = Sold initial, RL = Rulaje (luna
+curenta), RC = Total (sume cumulate: the opening balance plus the
+cumulated turnover, the eight-figure layout's "sume totale"), SF =
+Solduri finale, every figure verbatim; the code is "4518" for analytic
+0, else "4518.2". The PERIOD is the one "<date> - <date>" range printed
+in the title block, its end date the period end (`_printed_date_range`);
+otherwise there is none, and the caller keeps the filename's.
 """
 from __future__ import annotations
 
@@ -349,7 +426,8 @@ def _as_line(raw: Any) -> Line:
 
 
 def _extract_lines(pdf_bytes: bytes) -> Optional[List[Line]]:
-    """The PDF's text lines, each with its words' x-positions.
+    """The PDF's text lines, each with its words' x-positions
+    (`_extract_lines_at` with pdfplumber's default word split).
 
     Built the way `page.extract_text()` builds its lines — the same words
     (`extract_words`, default tolerances) clustered on `doctop` with the
@@ -361,21 +439,30 @@ def _extract_lines(pdf_bytes: bytes) -> Optional[List[Line]]:
     refuses anything on it that needs the columns rather than read a
     layout it cannot place.
     """
+    return _extract_lines_at(pdf_bytes, None)
+
+
+def _extract_lines_at(pdf_bytes: bytes, x_tolerance: Optional[float]) -> Optional[List[Line]]:
+    """`_extract_lines` with pdfplumber's word split at `x_tolerance` —
+    the default (3 pt) when None — on BOTH sides of the per-page check:
+    the words are split, and `extract_text()` builds the lines they must
+    rebuild, with the same tolerance."""
     try:
         import pdfplumber  # type: ignore
         from pdfplumber.utils import cluster_objects  # type: ignore
     except ImportError:
         return None
+    split: Dict[str, Any] = {} if x_tolerance is None else {"x_tolerance": x_tolerance}
     try:
         from operator import itemgetter
 
         lines: List[Line] = []
         with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
             for page in pdf.pages:
-                text_lines = (page.extract_text() or "").splitlines()
+                text_lines = (page.extract_text(**split) or "").splitlines()
                 built: List[Line] = []
                 try:
-                    words = page.extract_words()
+                    words = page.extract_words(**split)
                     for cluster in cluster_objects(words, itemgetter("doctop"), 3):
                         built.append(Line(" ".join(w["text"] for w in cluster),
                                           tuple(Word(w["text"], float(w["x0"]), float(w["x1"]))
@@ -402,6 +489,9 @@ LAYOUT_BOTH = "both"
 # docstring): named so the pipeline leaves it to that ingester, never
 # claimed by this reader, never a refusal.
 LAYOUT_FIVE_PAIR_POSITIONAL = "five_pair_positional"
+# The four-pair layout whose zeros print as blank cells, each figure read
+# from the column it is printed in (module docstring, "THIRD LAYOUT").
+LAYOUT_FOUR_PAIR_COLUMNS = "four_pair_columns"
 
 # THE PARSER THIS LAYOUT NEEDS. The five-pair books this reader was built
 # for print their 709 commercial reductions as mirrored entry magnitudes.
@@ -425,13 +515,14 @@ class TextRead(NamedTuple):
     """What the header names, and what came of reading it.
 
     `layout` is the layout the document's header names (LAYOUT_FIVE_PAIR,
-    LAYOUT_EIGHT_FIGURE, LAYOUT_BOTH, LAYOUT_FIVE_PAIR_POSITIONAL — the
-    positional ingester's own dialect, read by nothing here) or None when
-    it names neither; `parsed` the verified read, or None; `refusal` why
-    a five-pair (or both-layouts) document was refused. A caller that
-    recognises the five-pair layout must treat a refusal as final: the
-    positional fast-path reads only undotted codes and would serve a
-    partial balance on the account-121 anchor alone.
+    LAYOUT_EIGHT_FIGURE, LAYOUT_BOTH, LAYOUT_FOUR_PAIR_COLUMNS,
+    LAYOUT_FIVE_PAIR_POSITIONAL — the positional ingester's own dialect,
+    read by nothing here) or None when it names neither; `parsed` the
+    verified read, or None; `refusal` why a document of a strictly read
+    layout (`names_strict_layout`) was refused. A caller that recognises
+    such a layout must treat a refusal as final: the positional fast-path
+    reads only undotted codes and would serve a partial balance on the
+    account-121 anchor alone.
     """
 
     layout: Optional[str]
@@ -451,6 +542,15 @@ def names_five_pair(layout: Optional[str]) -> bool:
     not this reader's: False, and the pipeline keeps its positional
     path."""
     return layout in (LAYOUT_FIVE_PAIR, LAYOUT_BOTH)
+
+
+def names_strict_layout(layout: Optional[str]) -> bool:
+    """True for every layout this module reads STRICTLY — the five-pair
+    layout (alone or with the eight-figure one) and the four-pair column
+    layout. Such a document is read by its strict reader or refused, never
+    handed to another reader: the positional fast-path would serve a
+    partial read of it on the account-121 anchor alone."""
+    return names_five_pair(layout) or layout == LAYOUT_FOUR_PAIR_COLUMNS
 
 
 def _positional_dialect(normalized_lines: List[str]) -> bool:
@@ -556,7 +656,7 @@ def _number_format(lines: List[Line]) -> _Format:
 
 
 def _layout_of(folded: str, structural_five: bool = False,
-               positional_dialect: bool = False) -> Optional[str]:
+               positional_dialect: bool = False, four_pair: bool = False) -> Optional[str]:
     """The layout named by header tokens in `folded`, or — when the header
     names only the eight-figure layout, or neither — by the five-pair
     STRUCTURE the caller found (`structural_five`). A header naming both
@@ -565,7 +665,12 @@ def _layout_of(folded: str, structural_five: bool = False,
     reader then refuses. The positional ingester's own dialect
     (`positional_dialect`, the caller found its signature) is
     LAYOUT_FIVE_PAIR_POSITIONAL unless the header also names a layout of
-    this reader's — then the header decides, as for any other book."""
+    this reader's — then the header decides, as for any other book. The
+    four-pair column header (`four_pair`, the caller found it) names
+    LAYOUT_FOUR_PAIR_COLUMNS before anything else: that reader refuses a
+    book whose header names another layout too."""
+    if four_pair:
+        return LAYOUT_FOUR_PAIR_COLUMNS
     eight = all(tok in folded for tok in _HEADER_TOKENS)
     five = all(tok in folded for tok in _HEADER_TOKENS_5PAIR)
     if eight and five:
@@ -579,20 +684,21 @@ def _layout_of(folded: str, structural_five: bool = False,
 
 def detect_layout(lines: List[Any]) -> Optional[str]:
     """The layout a document names (LAYOUT_FIVE_PAIR, LAYOUT_EIGHT_FIGURE,
-    LAYOUT_BOTH), or None: by its header, from the first 40 text lines,
-    and by its STRUCTURE — `_STRUCTURAL_MIN_ROWS` lines anywhere in the
-    document led by an account code and ending in ten figures of any one
-    accepted shape name the five-pair layout however the column header
-    is worded, spaced, abbreviated or wrapped, and whatever shape the
-    figures are printed in — except the positional ingester's own
-    dialect (its signature in the first 40 lines: LAYOUT_FIVE_PAIR_
-    POSITIONAL). Pure and total: it cannot raise, so the layout is known
-    before any reading can go wrong."""
+    LAYOUT_BOTH, LAYOUT_FOUR_PAIR_COLUMNS), or None: by its header, from
+    the first 40 text lines (the four-pair column header first,
+    `_four_pair_named`), and by its STRUCTURE — `_STRUCTURAL_MIN_ROWS`
+    lines anywhere in the document led by an account code and ending in
+    ten figures of any one accepted shape name the five-pair layout
+    however the column header is worded, spaced, abbreviated or wrapped,
+    and whatever shape the figures are printed in — except the positional
+    ingester's own dialect (its signature in the first 40 lines:
+    LAYOUT_FIVE_PAIR_POSITIONAL). Pure and total: it cannot raise, so the
+    layout is known before any reading can go wrong."""
     texts = [_as_line(x).text for x in lines]
     structural = sum(1 for t in texts if _ten_figure_row(t)) >= _STRUCTURAL_MIN_ROWS
     head = texts[:40]
     dialect = _positional_dialect([" ".join(_fold(t).split()) for t in head])
-    return _layout_of(_fold("\n".join(head)), structural, dialect)
+    return _layout_of(_fold("\n".join(head)), structural, dialect, _four_pair_named(head))
 
 
 def _first_page_texts(pdf_bytes: bytes) -> List[str]:
@@ -623,10 +729,12 @@ def _first_page_texts(pdf_bytes: bytes) -> List[str]:
 def parse_lines_verdict(lines: List[str]) -> TextRead:
     """`parse_lines`, with the recognised layout and the refusal reason.
 
-    Never raises for a document whose header names the five-pair layout:
-    anything the reader throws is a refusal (the caller must not fall
-    through to a reader that approximates). An eight-figure read that
-    throws is None, and keeps its fall-back.
+    Never raises for a document whose header names the five-pair layout
+    or the four-pair column one: anything the reader throws is a refusal
+    (the caller must not fall through to a reader that approximates). An
+    eight-figure read that throws is None, and keeps its fall-back. The
+    four-pair reader needs lines split at `_FOUR_X_TOLERANCE`
+    (`read_balanta_text_verdict` extracts them so).
 
     `lines` are `Line`s (text with word x-positions, as `_extract_lines`
     builds them) or plain strings; plain strings carry no positions, so
@@ -640,6 +748,8 @@ def parse_lines_verdict(lines: List[str]) -> TextRead:
     if layout == LAYOUT_BOTH:
         logger.info("[pdf_balanta_text] refused: header matches both layouts")
         return TextRead(LAYOUT_BOTH, None, "the header matches both balanta layouts")
+    if layout == LAYOUT_FOUR_PAIR_COLUMNS:
+        return _four_pair_verdict(lines)
     if layout == LAYOUT_FIVE_PAIR:
         try:
             return TextRead(LAYOUT_FIVE_PAIR, _parse_five_pair(lines), None)
@@ -848,7 +958,9 @@ def _zone(ln: Line, geo: Optional[_Geometry]) -> Optional[str]:
 
 
 def _vsum(group: List[Dict[str, Any]]) -> List[Decimal]:
-    return [sum((k["figures"][i] for k in group), Decimal(0)) for i in range(10)]
+    """The column sums of a non-empty group of rows (ten figures a five-pair
+    row, eight a four-pair one)."""
+    return [sum((k["figures"][i] for k in group), Decimal(0)) for i in range(len(group[0]["figures"]))]
 
 
 def _codes(group: List[Dict[str, Any]], limit: int = 8) -> str:
@@ -858,9 +970,9 @@ def _codes(group: List[Dict[str, Any]], limit: int = 8) -> str:
 
 def _run_summing_to(seq: List[Dict[str, Any]], v: List[Decimal]) -> Optional[List[Dict[str, Any]]]:
     """A contiguous run of `seq` (in document order, one row or more) whose
-    ten figures sum to `v`, or None — found from running totals in one pass:
+    figures sum to `v`, or None — found from running totals in one pass:
     a run [i, j) sums to v exactly when running[j] - v == running[i]."""
-    running = [Decimal(0)] * 10
+    running = [Decimal(0)] * len(v)
     starts: Dict[Tuple[Decimal, ...], int] = {tuple(running): 0}
     for j, row in enumerate(seq, start=1):
         running = [a + b for a, b in zip(running, row["figures"])]
@@ -907,8 +1019,10 @@ def _subtotal_refusal(rows: List[Dict[str, Any]]) -> Optional[str]:
 
     An all-zero row is exempt: listed twice or not, it adds nothing to any
     figure. Sums over a whole root are taken from running totals, so a
-    root with hundreds of analytics costs no more than a small one.
+    root with hundreds of analytics costs no more than a small one. The
+    same rule reads a four-pair row's eight figures (`_parse_four_pair`).
     """
+    width = len(rows[0]["figures"]) if rows else 10  # ten figures a five-pair row, eight a four-pair one
     families: Dict[str, List[Dict[str, Any]]] = {}
     sums: Dict[Tuple[Any, ...], List[Decimal]] = {}
     members: Dict[Tuple[Any, ...], List[Dict[str, Any]]] = {}
@@ -920,8 +1034,8 @@ def _subtotal_refusal(rows: List[Dict[str, Any]]) -> Optional[str]:
         for scope, name in (("root", root), ("base", base)):
             lengths.setdefault((scope, name), set()).add(len(code))
             for key in ((scope, name), (scope, name, len(code))):
-                total = sums.setdefault(key, [Decimal(0)] * 10)
-                for i in range(10):
+                total = sums.setdefault(key, [Decimal(0)] * width)
+                for i in range(width):
                     total[i] += r["figures"][i]
                 members.setdefault(key, []).append(r)
     for r in rows:
@@ -946,7 +1060,7 @@ def _subtotal_refusal(rows: List[Dict[str, Any]]) -> Optional[str]:
                 if len(members[key]) - inside < 2:
                     continue
                 total = sums[key]
-                if [total[i] - (v[i] if inside else 0) for i in range(10)] == v:
+                if [total[i] - (v[i] if inside else 0) for i in range(width)] == v:
                     group = [k for k in members[key] if k is not r]
                     return ("account %s equals the sum of %s — a subtotal listed beside the "
                             "accounts it sums" % (code, _codes(group)))
@@ -1182,11 +1296,527 @@ def _parse_five_pair(lines: List[Line]) -> Optional[Dict[str, Any]]:
             "layout": "five_pair", "period": _printed_period(title_block)}
 
 
+# ── THIRD LAYOUT: four pairs, each figure placed by its column ──────────
+#
+# See "THIRD LAYOUT" in the module docstring. The layout's column header,
+# folded: a line of exactly four "Debit Credit" pairs (the side labels)
+# under the headings "Sold initial" / "Rulaje" / "Total" / "Solduri
+# finale" and their sub-headings "1 Ianuarie" / "luna curenta" / "sume
+# cumulate".
+_FOUR_SIDE_LINE = " ".join(["debit credit"] * 4)
+_FOUR_HEADER_TOKENS = ("sold initial", "rulaje", "total", "solduri finale", "ianuarie",
+                       "luna curenta", "sume cumulate")
+_FOUR_HEADER_WORDS = frozenset(("sold initial rulaje total solduri finale ianuarie luna curenta "
+                                "sume cumulate cont denumire").split())
+_FOUR_DAY = re.compile(r"^\d{1,2}$")
+# The headings over the pairs, in document order — the order is READ from
+# where they are printed (`_four_columns`), never assumed — and the sub-
+# headings printed over the first three pairs.
+_FOUR_HEADINGS = (("sold", "initial"), ("rulaje",), ("total",), ("solduri", "finale"))
+_FOUR_HEADING_NAMES = ("Sold initial", "Rulaje", "Total", "Solduri finale")
+_FOUR_SUBS = (("ianuarie",), ("luna", "curenta"), ("sume", "cumulate"))
+_FOUR_SUB_NAMES = ("Ianuarie", "luna curenta", "sume cumulate")
+_FOUR_COLUMN_NAMES = tuple("%s %s" % (h, s) for h in _FOUR_HEADING_NAMES for s in ("Debit", "Credit"))
+# The word split the columns are read with: a visible gap wider than 1 pt
+# ends a word. pdfplumber's default split (3 pt) glues a code part to the
+# name printed a space's width after it, and the last figure of a line to
+# a label printed just right of its column — one "word" across two columns.
+_FOUR_X_TOLERANCE = 1.0
+_FOUR_OVERHANG = 2.0   # a word may overhang its column's edge by this much, no more
+_FOUR_ALIGN = 1.0      # every figure of a column ends within this of every other ...
+_FOUR_ANCHOR = 3.0     # ... and within this of the edge the column header puts it at
+_FOUR_BASE = re.compile(r"^\d{3,4}\.$")          # the account:   "4518."
+_FOUR_ANALYTIC = re.compile(r"^\d{1,5}\.$")      # its analytic:  "2."  ("0." — none)
+_FOUR_LEVEL = re.compile(r"^\d{1,3}$")           # the third code part, "0"
+_FOUR_NUMBER_WORD = re.compile(r"^-?[\d.,]*\d[\d.,]*$")
+_FOUR_CLASS_DIGIT = re.compile(r"^\d$")
+_FOUR_DATE = re.compile(r"^(\d{1,2})([./])(\d{1,2})\2(\d{4})$")
+_FOUR_ACROSS = "%r is printed across the edge of the %s column (line %r)"
+
+
+class _FourPairRefusal(Exception):
+    """Raised by `_refuse4`; carries the logged reason."""
+
+
+def _refuse4(reason: str, *args: Any) -> NoReturn:
+    message = reason % args if args else reason
+    logger.info("[pdf_balanta_text] four-pair refused: %s", message)
+    raise _FourPairRefusal(message)
+
+
+def _four_pair_named(head: List[str]) -> bool:
+    """This layout's column header in text lines: every heading and sub-
+    heading (`_FOUR_HEADER_TOKENS`). The side labels do not name it — a
+    book whose pairs read "Credit Debit" is this layout's, and its reader
+    refuses it rather than let it fall through to one that approximates."""
+    return all(tok in "\n".join(" ".join(_fold(t).split()) for t in head) for tok in _FOUR_HEADER_TOKENS)
+
+
+def _flattened_names_four_pair(flattened: str) -> bool:
+    """The same header in a whitespace-flattened page text (the second
+    opinions)."""
+    return all(tok in flattened for tok in _FOUR_HEADER_TOKENS)
+
+
+def _four_header_line(ln: Line) -> bool:
+    """A line of the column header above the side labels: only header words
+    (a day number only right before "Ianuarie")."""
+    words = _fold(ln.text).split()
+    return bool(words) and all(
+        w in _FOUR_HEADER_WORDS
+        or (_FOUR_DAY.match(w) is not None and i + 1 < len(words) and words[i + 1] == "ianuarie")
+        for i, w in enumerate(words))
+
+
+def _positioned(ln: Line) -> bool:
+    return bool(ln.words) and len(ln.words) == len(ln.text.split())
+
+
+class _FourColumns(NamedTuple):
+    """The columns of one printed column header: `edges[0]` is the right
+    edge of the name column, `edges[k]` the right edge of figure column k
+    (1..8, `_FOUR_COLUMN_NAMES`)."""
+
+    edges: Tuple[float, ...]
+
+
+def _four_columns(block: List[Line]) -> _FourColumns:
+    """The columns of one printed column header (`block`: its lines, the
+    side-label line last), or a refusal.
+
+    Every heading and sub-heading is printed once; each heading over its
+    own Debit/Credit pair, in the order Sold initial / Rulaje / Total /
+    Solduri finale; each sub-heading over the first three pairs in turn;
+    "Cont" and "Denumire" left of the figure columns and "Cont" again right
+    of them; and no other word. The headings are centred over their pairs,
+    so a heading's centre is the edge between its Debit and Credit columns
+    and the midpoint between two headings the edge between two pairs; each
+    Debit/Credit label must then sit inside its own column.
+    """
+    if not all(_positioned(ln) for ln in block):
+        _refuse4("its column header carries no word positions, so its columns cannot be read")
+    rows = [[(_fold(w.text), w) for w in ln.words] for ln in block[:-1]]
+    taken = set()
+
+    def spans(seq: Tuple[str, ...], day: bool = False) -> List[Tuple[float, float]]:
+        out = []
+        for li, row in enumerate(rows):
+            for s in range(len(row) - len(seq) + 1):
+                if tuple(t for t, _ in row[s:s + len(seq)]) != seq:
+                    continue
+                a = s - 1 if day and s > 0 and _FOUR_DAY.match(row[s - 1][0]) else s
+                taken.update((li, k) for k in range(a, s + len(seq)))
+                out.append((row[a][1].x0, row[s + len(seq) - 1][1].x1))
+        return out
+
+    def once(seq: Tuple[str, ...], name: str, day: bool = False) -> Tuple[float, float, float]:
+        found = spans(seq, day)
+        if len(found) != 1:
+            _refuse4("its column header prints %r %d times, not once", name, len(found))
+        x0, x1 = found[0]
+        return (x0 + x1) / 2, x0, x1
+
+    headings = [once(seq, name) for seq, name in zip(_FOUR_HEADINGS, _FOUR_HEADING_NAMES)]
+    subs = [once(seq, name, day=(j == 0)) for j, (seq, name) in enumerate(zip(_FOUR_SUBS, _FOUR_SUB_NAMES))]
+    denumire = once(("denumire",), "Denumire")
+    conts = sorted(spans(("cont",)))
+    stray = [w.text for li, row in enumerate(rows) for k, (_, w) in enumerate(row) if (li, k) not in taken]
+    if stray:
+        _refuse4("its column header prints words this layout does not: %s", " ".join(stray[:6]))
+    if len(conts) != 2:
+        _refuse4("its column header prints 'Cont' %d times, not twice (left of the names and right "
+                 "of the figures)", len(conts))
+    c = [(w.x0 + w.x1) / 2 for w in block[-1].words]
+    for j, (centre, _, _) in enumerate(headings):
+        if not c[2 * j] < centre < c[2 * j + 1]:
+            _refuse4("its column header does not print %r over its own Debit/Credit pair",
+                     _FOUR_HEADING_NAMES[j])
+    for j, (centre, _, _) in enumerate(subs):
+        if not c[2 * j] < centre < c[2 * j + 1]:
+            _refuse4("its column header does not print %r over the %r pair",
+                     _FOUR_SUB_NAMES[j], _FOUR_HEADING_NAMES[j])
+    e1, e3, e5, e7 = (h[0] for h in headings)
+    e2, e4, e6 = (e1 + e3) / 2, (e3 + e5) / 2, (e5 + e7) / 2
+    edges = (2 * e1 - e2, e1, e2, e3, e4, e5, e6, e7, 2 * e7 - e6)
+    for k in range(8):
+        if not edges[k] < c[k] < edges[k + 1]:
+            _refuse4("its column header prints the %s label outside the column its heading spans",
+                     _FOUR_COLUMN_NAMES[k])
+    (left_x0, left_x1), (right_x0, _) = conts
+    if not ((left_x0 + left_x1) / 2 < denumire[0] and denumire[2] <= edges[0] + _FOUR_OVERHANG
+            and right_x0 >= edges[8] - _FOUR_OVERHANG):
+        _refuse4("its column header does not print 'Cont' and 'Denumire' left of the figure "
+                 "columns and 'Cont' again right of them")
+    return _FourColumns(edges)
+
+
+def _four_date(token: str) -> Any:
+    import datetime
+
+    m = _FOUR_DATE.match(token)
+    if not m:
+        return None
+    try:
+        return datetime.date(int(m.group(4)), int(m.group(3)), int(m.group(1)))
+    except ValueError:
+        return None
+
+
+def _printed_date_range(title_block: List[str]) -> Optional[Dict[str, Any]]:
+    """The period a four-pair book prints in its title block — one "<date>
+    - <date>" range ("01/12/2025 - 31/12/2025"; dates day first, "/" or "."
+    between their parts), whose end date is the period end — or None when
+    it prints none, or more than one (ambiguous: read as none)."""
+    found: Dict[Tuple[Any, Any], str] = {}
+    for raw in title_block:
+        tokens = raw.split()
+        for i in range(len(tokens) - 2):
+            start, end = _four_date(tokens[i]), _four_date(tokens[i + 2])
+            if tokens[i + 1] == "-" and start is not None and end is not None and start <= end:
+                found.setdefault((start, end), "%s - %s" % (tokens[i], tokens[i + 2]))
+    if len(found) != 1:
+        return None
+    (_, end), text = next(iter(found.items()))
+    return {"text": text, "end": end.isoformat()}
+
+
+def _plain4(group: List[List[Decimal]]) -> List[Decimal]:
+    return [sum((v[i] for v in group), Decimal(0)) for i in range(8)]
+
+
+def _netted4(group: List[List[Decimal]]) -> List[Decimal]:
+    """An account's line from its analytics' lines: ONE opening and ONE
+    closing balance, each netted onto its side; the turnover summed per
+    side; Total = the netted opening + the cumulated turnover (each
+    analytic's Total less its opening)."""
+    z = Decimal(0)
+    si = sum((v[0] - v[1] for v in group), z)
+    sf = sum((v[6] - v[7] for v in group), z)
+    cum_d = sum((v[4] - v[0] for v in group), z)
+    cum_c = sum((v[5] - v[1] for v in group), z)
+    si_d, si_c = (si, z) if si > 0 else (z, -si)
+    sf_d, sf_c = (sf, z) if sf > 0 else (z, -sf)
+    return [si_d, si_c, sum((v[2] for v in group), z), sum((v[3] for v in group), z),
+            si_d + cum_d, si_c + cum_c, sf_d, sf_c]
+
+
+def _four_cells(bands: List[List[Word]], line: str) -> Dict[int, Tuple[str, float]]:
+    """A line's figure cells: column -> (the figure as printed, its right
+    edge). Only number words may be printed in a figure column; the words
+    of one column are one figure (a space-thousands figure prints its
+    groups as words) — two figures in one column fail its number shape."""
+    cells: Dict[int, Tuple[str, float]] = {}
+    for k, words in enumerate(bands):
+        if not words:
+            continue
+        for w in words:
+            if not _FOUR_NUMBER_WORD.match(w.text):
+                _refuse4("%r is printed in the %s column (line %r)", w.text, _FOUR_COLUMN_NAMES[k], line[:60])
+        cells[k] = (" ".join(w.text for w in words), words[-1].x1)
+    return cells
+
+
+def _four_zones(ln: Line, cols: _FourColumns) -> Tuple[List[Word], List[List[Word]], List[Word]]:
+    """A line's words by the column their centre falls in: the code and
+    name (left of the figure columns), each figure column, the code
+    repeated right of them."""
+    e = cols.edges
+    left: List[Word] = []
+    bands: List[List[Word]] = [[] for _ in range(8)]
+    right: List[Word] = []
+    for w in ln.words or ():
+        mid = (w.x0 + w.x1) / 2
+        if mid <= e[0]:
+            left.append(w)
+        elif mid > e[8]:
+            right.append(w)
+        else:
+            bands[next(k for k in range(8) if mid <= e[k + 1])].append(w)
+    return left, bands, right
+
+
+def _four_across(ln: Line, cols: _FourColumns, left: List[Word], bands: List[List[Word]],
+                 right: List[Word]) -> None:
+    """Refuses a word of an account or total line printed across a column
+    edge: a figure between two columns is in neither."""
+    e = cols.edges
+    for w in left:
+        if w.x1 > e[0] + _FOUR_OVERHANG:
+            _refuse4(_FOUR_ACROSS, w.text, "first figure", ln.text[:60])
+    for k, words in enumerate(bands):
+        for w in words:
+            if w.x0 < e[k] - _FOUR_OVERHANG or w.x1 > e[k + 1] + _FOUR_OVERHANG:
+                _refuse4(_FOUR_ACROSS, w.text, _FOUR_COLUMN_NAMES[k], ln.text[:60])
+    for w in right:
+        if w.x0 < e[8] - _FOUR_OVERHANG:
+            _refuse4(_FOUR_ACROSS, w.text, "last figure", ln.text[:60])
+
+
+def _parse_four_pair(lines: List[Any]) -> Dict[str, Any]:
+    """The four-pair column layout: every check in the module docstring
+    ("THIRD LAYOUT"), or a refusal (`_FourPairRefusal`). `lines` must be
+    split at `_FOUR_X_TOLERANCE` (`_read_verdict` extracts them so)."""
+    lines = [_as_line(x) for x in lines]
+    head = _fold("\n".join(ln.text for ln in lines[:40]))
+    if all(tok in head for tok in _HEADER_TOKENS) or all(tok in head for tok in _HEADER_TOKENS_5PAIR):
+        _refuse4("its header also names another balanta layout, so which printed column holds "
+                 "which figure cannot be read from it")
+
+    # The printed column headers, each ending with its side-label line.
+    headers: Dict[int, int] = {}
+    for j, ln in enumerate(lines):
+        if " ".join(_fold(ln.text).split()) == _FOUR_SIDE_LINE:
+            s = j
+            while s > 0 and _four_header_line(lines[s - 1]):
+                s -= 1
+            headers[s] = j
+    for ln in lines:
+        words = _fold(ln.text).split()
+        if (len(words) >= 2 and all(w in _SIDE_WORDS_5PAIR for w in words)
+                and " ".join(words) != _FOUR_SIDE_LINE):
+            _refuse4("its column header's side labels read %r, not four Debit/Credit pairs", ln.text[:80])
+    if not headers:
+        _refuse4("no column header ends with the four Debit/Credit pairs")
+    first = min(headers)
+    cols = _four_columns(lines[first:headers[first] + 1])
+    for s, j in headers.items():
+        other = _four_columns(lines[s:j + 1])
+        if any(abs(a - b) > _FOUR_ALIGN for a, b in zip(other.edges, cols.edges)):
+            _refuse4("a page prints its column header elsewhere than the first page does")
+    title_block = [ln.text for ln in lines[:first]]
+    for text in title_block:
+        tokens = [t for t in text.split() if t != "*"]
+        if len(tokens) >= 2 and _FOUR_BASE.match(tokens[0]) and _FOUR_ANALYTIC.match(tokens[1]):
+            _refuse4("account %s%s is printed before the column header", tokens[0], tokens[1])
+
+    leaves: List[Dict[str, Any]] = []
+    stars: Dict[Tuple[str, str], Dict[str, Any]] = {}
+    classes: Dict[str, Dict[str, Any]] = {}
+    grand: Optional[Dict[str, Any]] = None
+    placed: List[Tuple[int, float, str]] = []   # (column, right edge, figure) of every cell, in order
+    last: Optional[Dict[str, Any]] = None       # the row a continuation line may extend
+    j = first
+    while j < len(lines):
+        if j in headers:
+            j, last = headers[j] + 1, None
+            continue
+        ln = lines[j]
+        j += 1
+        if not ln.text.strip():
+            continue
+        if not _positioned(ln):
+            _refuse4("the line %r carries no word positions (its page's words do not rebuild its "
+                     "text lines)", ln.text[:60])
+        left, bands, right = _four_zones(ln, cols)
+        lf = [_fold(w.text) for w in left]
+        is_class = len(lf) == 3 and lf[:2] == ["total", "clasa"] and bool(_FOUR_CLASS_DIGIT.match(lf[2]))
+        is_grand = lf == ["total", "general"]
+        is_row = bool(left) and (lf[0] == "*" or bool(_FOUR_BASE.match(left[0].text)))
+        if not (is_class or is_grand or is_row):
+            if (not any(bands) and not right and last is not None and left
+                    and last["name_x"] is not None and abs(left[0].x0 - last["name_x"]) <= _FOUR_ALIGN):
+                # the rest of a name wrapped under it, in the name column
+                last["name"] = (last["name"] + " " + " ".join(w.text for w in left)).strip()
+                continue
+            if any(f.figure.match(w.text) for f in _FORMATS_5PAIR for words in bands for w in words):
+                _refuse4("the line %r carries figures but is neither an account nor a total", ln.text[:60])
+            last = None  # a title, a page footer, a signature line: no figure, no account
+            continue
+        if grand is not None:
+            _refuse4("the line %r follows the grand total", ln.text[:60])
+        _four_across(ln, cols, left, bands, right)
+        cells = _four_cells(bands, ln.text)
+        placed.extend((k, x1, text) for k, (text, x1) in sorted(cells.items()))
+        last = None
+        if is_class or is_grand:
+            label = [w.text for w in left]
+            if [w.text for w in right] != label:
+                _refuse4("the label repeated right of the figures of %r reads %r", " ".join(label),
+                         " ".join(w.text for w in right))
+            if is_grand:
+                grand = {"cells": cells}
+            elif lf[2] in classes:
+                _refuse4("class %s total printed twice", lf[2])
+            else:
+                classes[lf[2]] = {"cells": cells}
+            continue
+        star = lf[0] == "*"
+        parts = left[1:4] if star else left[:3]
+        if not (len(parts) == 3 and _FOUR_BASE.match(parts[0].text) and _FOUR_ANALYTIC.match(parts[1].text)
+                and _FOUR_LEVEL.match(parts[2].text)):
+            _refuse4("the line %r is led by an account code, but not by this layout's three code "
+                     "parts (account, analytic, level)", ln.text[:60])
+        base, analytic, level = parts[0].text[:-1], parts[1].text[:-1], parts[2].text
+        if [w.text for w in right] != [p.text for p in parts]:
+            _refuse4("account %s.%s: the code repeated right of its figures reads %r", base, analytic,
+                     " ".join(w.text for w in right))
+        if level != "0":
+            _refuse4("account %s.%s is printed with the third code part %s; this reader reads only "
+                     "accounts whose third code part is 0", base, analytic, level)
+        name_words = left[4:] if star else left[3:]
+        rec = {"base": base, "analytic": analytic, "name": " ".join(w.text for w in name_words),
+               "name_x": name_words[0].x0 if name_words else None, "cells": cells}
+        last = rec
+        if not star:
+            leaves.append(rec)
+            continue
+        if analytic != "0":
+            _refuse4("the total line %r carries the analytic %s", ln.text[:60], analytic)
+        kind = "group" if [_fold(w.text) for w in name_words] == ["total", "%s.0.0" % base] else "account"
+        if kind == "account" and name_words and _fold(name_words[0].text) == "total":
+            _refuse4("the total line %r is not labelled 'TOTAL %s.0.0'", ln.text[:60], base)
+        if kind == "group" and len(base) != 3:
+            _refuse4("the group total %r is not a three-digit group's", ln.text[:60])
+        if (kind, base) in stars:
+            _refuse4("the %s total of %s is printed twice", kind, base)
+        stars[(kind, base)] = rec
+
+    # Every figure of a column ends at one x, where the header puts the column.
+    for k in range(8):
+        ends = [(x1, text) for col, x1, text in placed if col == k]
+        if not ends:
+            continue
+        lo, hi = min(ends), max(ends)
+        if hi[0] - lo[0] > _FOUR_ALIGN:
+            _refuse4("the figures of the %s column do not end at one x (%r and %r are %.1f pt apart), "
+                     "so a figure is printed out of its column", _FOUR_COLUMN_NAMES[k], lo[1], hi[1],
+                     hi[0] - lo[0])
+        for x1, text in (lo, hi):
+            if abs(x1 - cols.edges[k + 1]) > _FOUR_ANCHOR:
+                _refuse4("the %s column's figures end %.1f pt from where its column header puts it",
+                         _FOUR_COLUMN_NAMES[k], x1 - cols.edges[k + 1])
+    # One number shape, the document's: the first that fits every figure.
+    fitting = list(_FORMATS_5PAIR)
+    for _, _, text in placed:
+        kept = [f for f in fitting if f.figure.match(text)]
+        if not kept:
+            fits = [f.label for f in _FORMATS_5PAIR if f.figure.match(text)]
+            _refuse4("the figure %r is printed in %s, not in the number format of the figures before it "
+                     "(%s)", text, " / ".join(fits) or "no number format this reader reads",
+                     " / ".join(f.label for f in fitting))
+        fitting = kept
+    fmt = fitting[0]
+
+    def values(rec: Dict[str, Any]) -> List[Decimal]:
+        return [_decimal5(rec["cells"][k][0], fmt) if k in rec["cells"] else Decimal(0) for k in range(8)]
+
+    for rec in leaves + list(stars.values()) + list(classes.values()) + ([grand] if grand else []):
+        rec["v"] = values(rec)
+    # Each account's closing balance is its Total pair's net (the Total
+    # carries the opening balance): a figure read on the wrong side of a
+    # pair — the one thing a blank cell could hide — breaks it.
+    for rec in leaves:
+        v = rec["v"]
+        if v[6] - v[7] != v[4] - v[5]:
+            _refuse4("account %s.%s: sold final %s/%s != total (sume cumulate) debit - credit %s - %s",
+                     rec["base"], rec["analytic"], v[6], v[7], v[4], v[5])
+
+    # The accounts: one line each, never beside a line of its own.
+    by_base: Dict[str, List[Dict[str, Any]]] = {}
+    for rec in leaves:
+        by_base.setdefault(rec["base"], []).append(rec)
+    account_line: Dict[str, List[Decimal]] = {}
+    for base, recs in by_base.items():
+        analytics = [r["analytic"] for r in recs]
+        if len(set(analytics)) != len(analytics):
+            _refuse4("account %s.%s appears twice", base,
+                     next(a for a in analytics if analytics.count(a) > 1))
+        total = stars.get(("account", base))
+        if "0" in analytics:
+            if len(analytics) > 1:
+                _refuse4("account %s is printed both on its own line (analytic 0) and with the analytics "
+                         "%s, and whether that line is the account's own postings or its total cannot "
+                         "be read from the layout", base, ", ".join(a for a in analytics if a != "0"))
+            if total is not None:
+                _refuse4("a total is printed for account %s, which has no analytics", base)
+            account_line[base] = recs[0]["v"]
+            continue
+        if total is None:
+            _refuse4("the analytics of account %s carry no printed total for the account", base)
+        if total["v"] != _netted4([r["v"] for r in recs]):
+            _refuse4("account %s's printed total %s != its analytics %s netted to %s", base,
+                     [str(x) for x in total["v"]], ", ".join(r["analytic"] for r in recs),
+                     [str(x) for x in _netted4([r["v"] for r in recs])])
+        account_line[base] = total["v"]
+    for kind, base in stars:
+        if kind == "account" and base not in by_base:
+            _refuse4("a total is printed for account %s, which has no analytics printed", base)
+    # The three-digit lines: a group's printed total over its four-digit
+    # accounts, or the three-digit account's own line.
+    groups: Dict[str, List[Decimal]] = {}
+    roots = sorted({b[:3] for b in by_base})
+    for root in roots:
+        fours = sorted(b for b in by_base if len(b) == 4 and b.startswith(root))
+        printed = stars.get(("group", root))
+        if not fours:
+            if printed is not None:
+                _refuse4("a group total is printed for %s, which has no four-digit accounts", root)
+            groups[root] = account_line[root]
+            continue
+        if root in by_base:
+            _refuse4("account %s is listed beside its accounts %s", root, ", ".join(fours))
+        if printed is None:
+            _refuse4("the four-digit accounts of group %s carry no printed group total (TOTAL %s.0.0)",
+                     root, root)
+        summed = _plain4([account_line[b] for b in fours])
+        if printed["v"] != summed:
+            _refuse4("group %s's printed total %s != its accounts' sum %s", root,
+                     [str(x) for x in printed["v"]], [str(x) for x in summed])
+        groups[root] = printed["v"]
+    for kind, base in stars:
+        if kind == "group" and base not in groups:
+            _refuse4("a group total is printed for %s, which has no accounts printed", base)
+    for cls in sorted({r[0] for r in roots} | set(classes)):
+        printed = classes.get(cls)
+        if printed is None:
+            _refuse4("no printed total for class %s", cls)
+        summed = _plain4([groups[r] for r in roots if r[0] == cls])
+        if printed["v"] != summed:
+            _refuse4("class %s sums %s != printed %s", cls, [str(x) for x in summed],
+                     [str(x) for x in printed["v"]])
+    if grand is not None:
+        summed = _plain4(list(groups.values()))
+        if grand["v"] != summed:
+            _refuse4("the rows sum %s != printed grand total %s", [str(x) for x in summed],
+                     [str(x) for x in grand["v"]])
+
+    rows = [{"cont": r["base"] if r["analytic"] == "0" else "%s.%s" % (r["base"], r["analytic"]),
+             "name": r["name"], "figures": r["v"], "v": r["v"]} for r in leaves]
+    if len(rows) < MIN_ACCOUNTS:
+        _refuse4("%d account lines (< %d)", len(rows), MIN_ACCOUNTS)
+    subtotal = _subtotal_refusal(rows)
+    if subtotal is not None:
+        _refuse4("%s", subtotal)
+    leaf_grand = _plain4([r["v"] for r in rows])
+    for i in range(0, 8, 2):
+        if leaf_grand[i] != leaf_grand[i + 1]:
+            _refuse4("pair %d debit %s != credit %s", i // 2, leaf_grand[i], leaf_grand[i + 1])
+    return {"rows": rows, "grand": leaf_grand, "number_format": fmt.name,
+            "classes": sorted({r["cont"][0] for r in rows}), "layout": LAYOUT_FOUR_PAIR_COLUMNS,
+            "period": _printed_date_range(title_block)}
+
+
+def _four_pair_verdict(lines: Optional[List[Line]]) -> "TextRead":
+    """The four-pair reader's verdict — NEVER RAISES: a refusal, or
+    anything the reader throws, is a refusal (the layout is known)."""
+    if not lines:
+        return TextRead(LAYOUT_FOUR_PAIR_COLUMNS, None,
+                        "its words could not be read with the column-level word split")
+    try:
+        return TextRead(LAYOUT_FOUR_PAIR_COLUMNS, _parse_four_pair(lines), None)
+    except _FourPairRefusal as refusal:
+        return TextRead(LAYOUT_FOUR_PAIR_COLUMNS, None, str(refusal))
+    except Exception as crash:  # noqa: BLE001 — a crash is a refusal, never a fall-through
+        logger.info("[pdf_balanta_text] four-pair reader failed", exc_info=True)
+        return TextRead(LAYOUT_FOUR_PAIR_COLUMNS, None, "the reader failed on it (%s)" % type(crash).__name__)
+
+
 def to_saga_xlsx(rows: List[Dict[str, Any]]) -> bytes:
     """SAGA 10-column workbook, figures verbatim.
 
     RC is the document's own cumulative pair: "sume totale" for the
-    eight-figure layout, "Total rulaj" for the five-pair layout.
+    eight-figure layout, "Total rulaj" for the five-pair layout, "Total"
+    (sume cumulate) for the four-pair column layout.
     """
     import openpyxl  # type: ignore
 
@@ -1226,12 +1856,13 @@ def read_balanta_text_verdict(pdf_bytes: bytes) -> TextReadResult:
     was refused (see `TextRead`).
 
     NEVER RAISES, and the layout is decided before anything can fail: a
-    caller that sees `names_five_pair(layout)` must treat a missing
+    caller that sees `names_strict_layout(layout)` must treat a missing
     workbook as a final refusal. When the text lines name no layout —
     pdfplumber missing or failing on the file, or a header outside the
     first 40 lines — the first page as PyMuPDF and pypdf read it is a
-    second opinion: if either names the five-pair layout, the document is
-    refused as one (its columns cannot be read line by line), instead of
+    second opinion: if either names the five-pair layout (or the four-pair
+    column one), the document is refused as one (its columns cannot be
+    read line by line), instead of
     falling to the positional ingester, which keeps only undotted codes
     and accepts on the account-121 anchor alone. The one exception is the
     positional ingester's own five-pair dialect (see the module
@@ -1245,7 +1876,8 @@ def read_balanta_text_verdict(pdf_bytes: bytes) -> TextReadResult:
     except Exception as crash:  # noqa: BLE001 — a crash is a refusal for a five-pair document
         logger.info("[pdf_balanta_text] text-line read failed", exc_info=True)
         layout = seen["layout"]
-        refusal = ("the reader failed on it (%s)" % type(crash).__name__) if names_five_pair(layout) else None
+        refusal = (("the reader failed on it (%s)" % type(crash).__name__) if names_strict_layout(layout)
+                   else None)
         return TextReadResult(layout, None, None, refusal)
 
 
@@ -1254,22 +1886,29 @@ def _read_verdict(pdf_bytes: bytes, seen: Dict[str, Optional[str]]) -> TextReadR
     seen["layout"] = detect_layout(lines)  # known before anything below can fail
     if seen["layout"] is None:
         for text in _first_page_texts(pdf_bytes):
-            other = _layout_of(text, _flattened_names_five_pair(text), _flattened_positional_dialect(text))
+            other = _layout_of(text, _flattened_names_five_pair(text), _flattened_positional_dialect(text),
+                               _flattened_names_four_pair(text))
             if other == LAYOUT_FIVE_PAIR_POSITIONAL:
                 logger.info("[pdf_balanta_text] another text extraction of the first page prints the "
                             "positional ingester's five-pair dialect — left to that ingester")
                 return TextReadResult(LAYOUT_FIVE_PAIR_POSITIONAL, None, None, None)
-            if names_five_pair(other):
-                reason = ("another text extraction of its first page names the five-pair layout, "
-                          "but its text lines do not, so its columns cannot be read line by line")
-                logger.info("[pdf_balanta_text] five-pair refused: %s", reason)
+            if names_strict_layout(other):
+                named = "four-pair column" if other == LAYOUT_FOUR_PAIR_COLUMNS else "five-pair"
+                reason = ("another text extraction of its first page names the %s layout, "
+                          "but its text lines do not, so its columns cannot be read line by line" % named)
+                logger.info("[pdf_balanta_text] %s refused: %s", named, reason)
                 return TextReadResult(other, None, None, reason)
         return TextReadResult(None, None, None, None)
     if seen["layout"] == LAYOUT_FIVE_PAIR_POSITIONAL:
         logger.info("[pdf_balanta_text] the document prints the positional ingester's five-pair "
                     "dialect — left to that ingester, not read here")
         return TextReadResult(LAYOUT_FIVE_PAIR_POSITIONAL, None, None, None)
-    verdict = parse_lines_verdict(lines)
+    if seen["layout"] == LAYOUT_FOUR_PAIR_COLUMNS:
+        # read again with the word split its columns need: pdfplumber's
+        # default glues words printed on both sides of a column edge
+        verdict = _four_pair_verdict(_extract_lines_at(pdf_bytes, _FOUR_X_TOLERANCE))
+    else:
+        verdict = parse_lines_verdict(lines)
     parsed = verdict.parsed
     if parsed is None:
         return TextReadResult(verdict.layout, None, None, verdict.refusal)
