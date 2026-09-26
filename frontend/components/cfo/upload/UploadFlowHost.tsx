@@ -307,7 +307,14 @@ interface IndustryOption {
  * profiles), in the reader's language. When the catalog cannot be read the
  * workspace industries stand in, so Change never offers an empty list.
  */
-function useIndustryOptions(docKey: string | null, docLabel: string | null): IndustryOption[] {
+function useIndustryOptions(
+  docKey: string | null,
+  docLabel: string | null,
+  /** The target company's own industry, when the card shows it: it must be
+   *  one of the options, or the form could not show what the card says. */
+  companyKey: string | null = null,
+  companyLabel: string | null = null,
+): IndustryOption[] {
   const { i18n } = useTranslation();
   const ro = (i18n.language ?? "").startsWith("ro");
   const catalog = useIndustryCatalog();
@@ -320,8 +327,11 @@ function useIndustryOptions(docKey: string | null, docLabel: string | null): Ind
             .sort((a, b) => a.label.localeCompare(b.label))
         : ORG_INDUSTRIES.map((i) => ({ key: i.key, label: orgIndustryDisplayLabel(i.key) }));
     if (docKey && !list.some((i) => i.key === docKey)) list.unshift({ key: docKey, label: docLabel ?? docKey });
+    if (companyKey && companyLabel && !list.some((i) => i.key === companyKey)) {
+      list.unshift({ key: companyKey, label: companyLabel });
+    }
     return list;
-  }, [catalog, ro, docKey, docLabel]);
+  }, [catalog, ro, docKey, docLabel, companyKey, companyLabel]);
 }
 
 // ── Views ──────────────────────────────────────────────────────────────
@@ -461,7 +471,12 @@ function ConfirmView({
       })
     : null;
   void locale; // re-render on language change (formatDateOnly reads the active locale)
-  const industries = useIndustryOptions(identity.industry_key, identity.industry_label);
+  const industries = useIndustryOptions(
+    identity.industry_key,
+    identity.industry_label,
+    keepsCompanyIndustry ? targetOrg?.industry_key ?? null : null,
+    keepsCompanyIndustry ? companyIndustry : null,
+  );
   const industryValue = choice.industryKey
     ? industries.find((i) => i.key === choice.industryKey)?.label ?? choice.industryLabel ?? null
     : keepsCompanyIndustry
@@ -531,6 +546,7 @@ function ConfirmView({
             result={result}
             choice={choice}
             industries={industries}
+            shownIndustryKey={keepsCompanyIndustry ? targetOrg?.industry_key ?? null : null}
           />
         )}
 
@@ -635,10 +651,14 @@ function ChangePanel({
   result,
   choice,
   industries,
+  shownIndustryKey,
 }: {
   result: IdentifyResult;
   choice: FlowChoice;
   industries: IndustryOption[];
+  /** The company's own industry the card shows ("from your company's
+   *  settings") while the user has chosen none: the form starts from it. */
+  shownIndustryKey: string | null;
 }) {
   const { t } = useTranslation();
   const locale = useActiveLocale();
@@ -805,7 +825,11 @@ function ChangePanel({
       <label className="block">
         <span className={label}>{t("wsV2.change.industry")}</span>
         <select
-          value={choice.industryKey ?? ""}
+          // The value the card shows: the choice, else the company's own
+          // industry (live walkthrough, 2026-09-26: the form read "Not set"
+          // under a summary naming the company's industry). Showing it sends
+          // nothing — only a change the user makes is a choice.
+          value={choice.industryKey ?? shownIndustryKey ?? ""}
           onChange={(e) => {
             const key = e.currentTarget.value || null;
             const hit = industries.find((i) => i.key === key);
@@ -818,7 +842,11 @@ function ChangePanel({
           data-testid="upload-change-industry"
           className={field}
         >
-          <option value="">{t("wsV2.change.industryNone")}</option>
+          {/* An upload cannot clear a company's industry, so "Not set" is not
+              offered over one — it would read as a choice that does nothing. */}
+          {!(choice.mode === "existing" && shownIndustryKey) && (
+            <option value="">{t("wsV2.change.industryNone")}</option>
+          )}
           {industries.map((i) => (
             <option key={i.key} value={i.key}>
               {i.label}

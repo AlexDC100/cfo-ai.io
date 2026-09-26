@@ -606,6 +606,57 @@ describe("confirmation card", () => {
     expect(api.commitUpload.mock.calls[0][0].industryKey).toBeNull();
   });
 
+  // Live walkthrough, 2026-09-26: the summary named the company's industry
+  // ("from your company's settings") while Change's INDUSTRY select read
+  // "Not set". The form starts from the value the card shows, and leaving it
+  // untouched sends nothing — the company keeps its industry.
+  it("Change starts from the industry the card shows — the company's own — and an untouched select sends none", async () => {
+    api.identifyUpload.mockResolvedValue(
+      identity({}, {
+        industry_key: null,
+        industry_label: null,
+        caen_code: null,
+        sources: {
+          cui: { signal: "document_header_cui", evidence: "C.U.I. 7654321" },
+          period_end: { signal: "closing_balance", evidence: "la data de 31.12.2025" },
+        },
+      }),
+    );
+    api.commitUpload.mockResolvedValue({ status: "queued", document_id: "doc-10", org_id: "agras", company_name: "Agras SA" });
+    renderHome();
+    await dropOnHome();
+    await screen.findByText("Check before we analyse");
+    await waitFor(() => expect(row("upload-card-industry-value")).toHaveTextContent("Agriculture"));
+    fireEvent.click(within(card()).getByTestId("upload-card-change"));
+    const panel = await screen.findByTestId("upload-card-change-panel");
+    const select = within(panel).getByTestId("upload-change-industry") as HTMLSelectElement;
+    expect(select.value, "the form read another value than the card").toBe("agriculture");
+    expect(select.selectedOptions[0]?.textContent).toBe("Agriculture");
+    // An upload cannot clear the company's industry: "Not set" is not offered over it.
+    expect([...select.options].map((o) => o.value)).not.toContain("");
+    // Another field changed, the industry left as shown: the commit sends no industry.
+    fireEvent.change(within(panel).getByTestId("upload-change-month"), { target: { value: "6" } });
+    expect(row("upload-card-industry-value")).toHaveTextContent("Agriculture");
+    expect(row("upload-card-industry-from")).toHaveTextContent("from your company's settings");
+    fireEvent.click(within(card()).getByTestId("upload-card-analyse"));
+    await waitFor(() => expect(api.commitUpload).toHaveBeenCalledTimes(1));
+    expect(api.commitUpload.mock.calls[0][0].industryKey).toBeNull();
+    expect(api.commitUpload.mock.calls[0][0].periodEnd).toBe("2025-06-30");
+  });
+
+  it("a new company's form still offers 'Not set' and starts from the document's industry", async () => {
+    api.identifyUpload.mockResolvedValue(
+      identity({ target: { org_id: null, name: "Carniprod SRL", is_new: true, reason: "new_cui" } }, { cui: "RO999999", company_name: "Carniprod SRL" }),
+    );
+    renderHome();
+    await dropOnHome();
+    await screen.findByText("Check before we analyse");
+    fireEvent.click(within(card()).getByTestId("upload-card-change"));
+    const select = within(await screen.findByTestId("upload-card-change-panel")).getByTestId("upload-change-industry") as HTMLSelectElement;
+    expect(select.value).toBe("agriculture");
+    expect([...select.options].map((o) => o.value)).toContain("");
+  });
+
   it("a value the engine gave no origin for shows none — the card never guesses one", async () => {
     api.identifyUpload.mockResolvedValue(identity({}, { sources: {} }));
     renderHome();

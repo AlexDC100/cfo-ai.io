@@ -796,6 +796,17 @@ def test_the_industry_chosen_on_the_card_is_the_companys(app, world):
     assert org["industry_key"] == "retail_generic" and org["industry_display_name"] == "Retail", org
 
 
+def test_a_commit_that_chooses_no_industry_never_clears_the_companys(app, world):
+    """The card's industry select left untouched sends no industry (and an
+    empty choice is no choice): the company keeps the one it has."""
+    world.identities["balanta.xlsx"] = _identity(cui=CUI_AGRAS)
+    assert commit(app, target_org_id=ORG_AGRAS, period_end="2025-12-31").status_code == 200
+    assert commit(app, body=b"PK\x03\x04 another year", target_org_id=ORG_AGRAS, period_end="2024-12-31",
+                  industry_key="").status_code == 200
+    (org,) = [o for o in world.db.rows("organizations") if o["id"] == ORG_AGRAS]
+    assert org["industry_key"] == "food_manufacturing", org
+
+
 def test_a_file_over_25_mb_is_refused_and_nothing_is_stored(app, world):
     world.identities["big.xlsx"] = _identity(cui=CUI_SCANDIA)
     before = world.db.snapshot()
