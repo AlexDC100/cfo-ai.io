@@ -1,0 +1,2010 @@
+{
+ "actions": [
+  {
+   "key": "compare_prior",
+   "label": {
+    "en": "Compare with last year",
+    "ro": "Compară cu anul trecut"
+   },
+   "target": {
+    "kind": "compare",
+    "period_id": "period-agras-fy2025",
+    "prior_period_id": "period-prior"
+   }
+  },
+  {
+   "key": "bank_export",
+   "label": {
+    "en": "Export the bank report",
+    "ro": "Exportă raportul pentru bancă"
+   },
+   "requires_feature": "forecast",
+   "target": {
+    "kind": "forecast_bank_export",
+    "period_id": "period-agras-fy2025",
+    "route": "/dashboard/forecast"
+   }
+  }
+ ],
+ "caveats": [],
+ "considered": {
+  "insights": [],
+  "ratio_bands": [
+   {
+    "eligible": true,
+    "family": "ratio_band",
+    "identity": "return_on_assets",
+    "key": "roa",
+    "materiality": {
+     "measure": "served_band_movement_rank",
+     "rank_basis": {
+      "bases": {
+       "asset_turnover": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "cash_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "ccc": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "core_ebitda_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "current_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_assets": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_ebitda": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_equity": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dpo": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dscr": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "dscr_with_lt_principal": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "dso": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "ebitda_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "ebitda_to_interest": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "equity_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "gross_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "interest_coverage": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "inventory_turnover": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "lt_debt_to_equity": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "net_debt_to_ebitda": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "net_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "operating_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "quick_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "roa": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "roe": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "roic": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       }
+      },
+      "materiality_floor": null,
+      "order": [
+       "abs(rungs_crossed) desc",
+       "distance_fraction desc nulls last",
+       "materiality.share desc nulls last",
+       "key asc"
+      ],
+      "sentence_key": "statements.ratioCmp.rankBasis"
+     },
+     "served_rank": 1
+    },
+    "reason": null
+   },
+   {
+    "eligible": true,
+    "family": "ratio_band",
+    "identity": "ratio:roic",
+    "key": "roic",
+    "materiality": {
+     "measure": "served_band_movement_rank",
+     "rank_basis": {
+      "bases": {
+       "asset_turnover": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "cash_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "ccc": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "core_ebitda_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "current_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_assets": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_ebitda": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_equity": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dpo": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dscr": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "dscr_with_lt_principal": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "dso": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "ebitda_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "ebitda_to_interest": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "equity_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "gross_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "interest_coverage": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "inventory_turnover": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "lt_debt_to_equity": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "net_debt_to_ebitda": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "net_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "operating_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "quick_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "roa": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "roe": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "roic": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       }
+      },
+      "materiality_floor": null,
+      "order": [
+       "abs(rungs_crossed) desc",
+       "distance_fraction desc nulls last",
+       "materiality.share desc nulls last",
+       "key asc"
+      ],
+      "sentence_key": "statements.ratioCmp.rankBasis"
+     },
+     "served_rank": 2
+    },
+    "reason": null
+   },
+   {
+    "eligible": true,
+    "family": "ratio_band",
+    "identity": "return_on_equity",
+    "key": "roe",
+    "materiality": {
+     "measure": "served_band_movement_rank",
+     "rank_basis": {
+      "bases": {
+       "asset_turnover": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "cash_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "ccc": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "core_ebitda_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "current_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_assets": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_ebitda": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_equity": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dpo": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dscr": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "dscr_with_lt_principal": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "dso": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "ebitda_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "ebitda_to_interest": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "equity_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "gross_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "interest_coverage": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "inventory_turnover": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "lt_debt_to_equity": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "net_debt_to_ebitda": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "net_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "operating_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "quick_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "roa": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "roe": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "roic": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       }
+      },
+      "materiality_floor": null,
+      "order": [
+       "abs(rungs_crossed) desc",
+       "distance_fraction desc nulls last",
+       "materiality.share desc nulls last",
+       "key asc"
+      ],
+      "sentence_key": "statements.ratioCmp.rankBasis"
+     },
+     "served_rank": 3
+    },
+    "reason": null
+   },
+   {
+    "eligible": true,
+    "family": "ratio_band",
+    "identity": "ratio:asset_turnover",
+    "key": "asset_turnover",
+    "materiality": {
+     "measure": "served_band_movement_rank",
+     "rank_basis": {
+      "bases": {
+       "asset_turnover": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "cash_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "ccc": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "core_ebitda_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "current_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_assets": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_ebitda": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_equity": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dpo": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dscr": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "dscr_with_lt_principal": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "dso": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "ebitda_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "ebitda_to_interest": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "equity_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "gross_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "interest_coverage": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "inventory_turnover": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "lt_debt_to_equity": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "net_debt_to_ebitda": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "net_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "operating_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "quick_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "roa": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "roe": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "roic": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       }
+      },
+      "materiality_floor": null,
+      "order": [
+       "abs(rungs_crossed) desc",
+       "distance_fraction desc nulls last",
+       "materiality.share desc nulls last",
+       "key asc"
+      ],
+      "sentence_key": "statements.ratioCmp.rankBasis"
+     },
+     "served_rank": 4
+    },
+    "reason": null
+   },
+   {
+    "eligible": true,
+    "family": "ratio_band",
+    "identity": "net_margin",
+    "key": "net_margin",
+    "materiality": {
+     "measure": "served_band_movement_rank",
+     "rank_basis": {
+      "bases": {
+       "asset_turnover": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "cash_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "ccc": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "core_ebitda_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "current_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_assets": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_ebitda": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_equity": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dpo": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dscr": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "dscr_with_lt_principal": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "dso": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "ebitda_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "ebitda_to_interest": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "equity_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "gross_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "interest_coverage": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "inventory_turnover": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "lt_debt_to_equity": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "net_debt_to_ebitda": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "net_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "operating_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "quick_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "roa": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "roe": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "roic": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       }
+      },
+      "materiality_floor": null,
+      "order": [
+       "abs(rungs_crossed) desc",
+       "distance_fraction desc nulls last",
+       "materiality.share desc nulls last",
+       "key asc"
+      ],
+      "sentence_key": "statements.ratioCmp.rankBasis"
+     },
+     "served_rank": 5
+    },
+    "reason": null
+   },
+   {
+    "eligible": true,
+    "family": "ratio_band",
+    "identity": "ratio:operating_margin",
+    "key": "operating_margin",
+    "materiality": {
+     "measure": "served_band_movement_rank",
+     "rank_basis": {
+      "bases": {
+       "asset_turnover": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "cash_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "ccc": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "core_ebitda_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "current_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_assets": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_ebitda": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_equity": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dpo": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dscr": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "dscr_with_lt_principal": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "dso": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "ebitda_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "ebitda_to_interest": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "equity_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "gross_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "interest_coverage": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "inventory_turnover": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "lt_debt_to_equity": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "net_debt_to_ebitda": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "net_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "operating_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "quick_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "roa": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "roe": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "roic": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       }
+      },
+      "materiality_floor": null,
+      "order": [
+       "abs(rungs_crossed) desc",
+       "distance_fraction desc nulls last",
+       "materiality.share desc nulls last",
+       "key asc"
+      ],
+      "sentence_key": "statements.ratioCmp.rankBasis"
+     },
+     "served_rank": 6
+    },
+    "reason": null
+   },
+   {
+    "eligible": true,
+    "family": "ratio_band",
+    "identity": "ratio:ebitda_margin",
+    "key": "ebitda_margin",
+    "materiality": {
+     "measure": "served_band_movement_rank",
+     "rank_basis": {
+      "bases": {
+       "asset_turnover": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "cash_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "ccc": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "core_ebitda_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "current_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_assets": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_ebitda": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_equity": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dpo": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dscr": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "dscr_with_lt_principal": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "dso": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "ebitda_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "ebitda_to_interest": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "equity_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "gross_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "interest_coverage": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "inventory_turnover": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "lt_debt_to_equity": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "net_debt_to_ebitda": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "net_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "operating_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "quick_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "roa": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "roe": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "roic": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       }
+      },
+      "materiality_floor": null,
+      "order": [
+       "abs(rungs_crossed) desc",
+       "distance_fraction desc nulls last",
+       "materiality.share desc nulls last",
+       "key asc"
+      ],
+      "sentence_key": "statements.ratioCmp.rankBasis"
+     },
+     "served_rank": 7
+    },
+    "reason": null
+   },
+   {
+    "eligible": true,
+    "family": "ratio_band",
+    "identity": "current_ratio",
+    "key": "current_ratio",
+    "materiality": {
+     "measure": "served_band_movement_rank",
+     "rank_basis": {
+      "bases": {
+       "asset_turnover": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "cash_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "ccc": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "core_ebitda_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "current_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_assets": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_ebitda": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_equity": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dpo": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dscr": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "dscr_with_lt_principal": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "dso": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "ebitda_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "ebitda_to_interest": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "equity_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "gross_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "interest_coverage": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "inventory_turnover": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "lt_debt_to_equity": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "net_debt_to_ebitda": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "net_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "operating_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "quick_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "roa": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "roe": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "roic": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       }
+      },
+      "materiality_floor": null,
+      "order": [
+       "abs(rungs_crossed) desc",
+       "distance_fraction desc nulls last",
+       "materiality.share desc nulls last",
+       "key asc"
+      ],
+      "sentence_key": "statements.ratioCmp.rankBasis"
+     },
+     "served_rank": 8
+    },
+    "reason": null
+   },
+   {
+    "eligible": true,
+    "family": "ratio_band",
+    "identity": "ratio:core_ebitda_margin",
+    "key": "core_ebitda_margin",
+    "materiality": {
+     "measure": "served_band_movement_rank",
+     "rank_basis": {
+      "bases": {
+       "asset_turnover": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "cash_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "ccc": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "core_ebitda_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "current_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_assets": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_ebitda": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_equity": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dpo": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dscr": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "dscr_with_lt_principal": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "dso": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "ebitda_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "ebitda_to_interest": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "equity_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "gross_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "interest_coverage": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "inventory_turnover": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "lt_debt_to_equity": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "net_debt_to_ebitda": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "net_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "operating_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "quick_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "roa": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "roe": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "roic": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       }
+      },
+      "materiality_floor": null,
+      "order": [
+       "abs(rungs_crossed) desc",
+       "distance_fraction desc nulls last",
+       "materiality.share desc nulls last",
+       "key asc"
+      ],
+      "sentence_key": "statements.ratioCmp.rankBasis"
+     },
+     "served_rank": 9
+    },
+    "reason": null
+   },
+   {
+    "eligible": true,
+    "family": "ratio_band",
+    "identity": "receivables_days",
+    "key": "dso",
+    "materiality": {
+     "measure": "served_band_movement_rank",
+     "rank_basis": {
+      "bases": {
+       "asset_turnover": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "cash_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "ccc": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "core_ebitda_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "current_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_assets": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_ebitda": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_equity": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dpo": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dscr": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "dscr_with_lt_principal": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "dso": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "ebitda_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "ebitda_to_interest": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "equity_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "gross_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "interest_coverage": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "inventory_turnover": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "lt_debt_to_equity": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "net_debt_to_ebitda": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "net_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "operating_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "quick_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "roa": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "roe": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "roic": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       }
+      },
+      "materiality_floor": null,
+      "order": [
+       "abs(rungs_crossed) desc",
+       "distance_fraction desc nulls last",
+       "materiality.share desc nulls last",
+       "key asc"
+      ],
+      "sentence_key": "statements.ratioCmp.rankBasis"
+     },
+     "served_rank": 10
+    },
+    "reason": null
+   },
+   {
+    "eligible": true,
+    "family": "ratio_band",
+    "identity": "ratio:letter_grade",
+    "key": "letter_grade",
+    "materiality": {
+     "measure": "served_band_movement_rank",
+     "rank_basis": {
+      "bases": {
+       "asset_turnover": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "cash_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "ccc": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "core_ebitda_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "current_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_assets": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_ebitda": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_equity": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dpo": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dscr": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "dscr_with_lt_principal": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "dso": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "ebitda_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "ebitda_to_interest": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "equity_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "gross_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "interest_coverage": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "inventory_turnover": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "lt_debt_to_equity": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "net_debt_to_ebitda": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "net_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "operating_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "quick_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "roa": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "roe": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "roic": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       }
+      },
+      "materiality_floor": null,
+      "order": [
+       "abs(rungs_crossed) desc",
+       "distance_fraction desc nulls last",
+       "materiality.share desc nulls last",
+       "key asc"
+      ],
+      "sentence_key": "statements.ratioCmp.rankBasis"
+     },
+     "served_rank": 11
+    },
+    "reason": null
+   }
+  ],
+  "sector_rows": [
+   {
+    "eligible": false,
+    "family": "sector_row",
+    "identity": "net_margin",
+    "key": "net_margin",
+    "materiality": null,
+    "reason": {
+     "code": "not_worse_than_sector",
+     "inputs": [
+      "better"
+     ]
+    }
+   },
+   {
+    "eligible": false,
+    "family": "sector_row",
+    "identity": "return_on_equity",
+    "key": "roe",
+    "materiality": null,
+    "reason": {
+     "code": "not_worse_than_sector",
+     "inputs": [
+      "inside"
+     ]
+    }
+   },
+   {
+    "eligible": false,
+    "family": "sector_row",
+    "identity": "return_on_assets",
+    "key": "roa",
+    "materiality": null,
+    "reason": {
+     "code": "not_worse_than_sector",
+     "inputs": [
+      "better"
+     ]
+    }
+   },
+   {
+    "eligible": false,
+    "family": "sector_row",
+    "identity": "capital_structure",
+    "key": "equity_ratio",
+    "materiality": null,
+    "reason": {
+     "code": "not_worse_than_sector",
+     "inputs": [
+      "better"
+     ]
+    }
+   },
+   {
+    "eligible": false,
+    "family": "sector_row",
+    "identity": "capital_structure",
+    "key": "liabilities_to_assets",
+    "materiality": null,
+    "reason": {
+     "code": "not_worse_than_sector",
+     "inputs": [
+      "better"
+     ]
+    }
+   },
+   {
+    "eligible": true,
+    "family": "sector_row",
+    "identity": "receivables_days",
+    "key": "receivables_days",
+    "materiality": {
+     "distance": 0.091489,
+     "measure": "interquartile_ranges_past_the_worse_quartile"
+    },
+    "reason": null
+   },
+   {
+    "eligible": false,
+    "family": "sector_row",
+    "identity": "inventory_days",
+    "key": "inventory_days_on_turnover",
+    "materiality": null,
+    "reason": {
+     "code": "not_worse_than_sector",
+     "inputs": [
+      "inside"
+     ]
+    }
+   },
+   {
+    "eligible": false,
+    "family": "sector_row",
+    "identity": "current_asset_share",
+    "key": "current_asset_share",
+    "materiality": null,
+    "reason": {
+     "code": "not_worse_than_sector",
+     "inputs": []
+    }
+   },
+   {
+    "eligible": false,
+    "family": "sector_row",
+    "identity": "turnover",
+    "key": "revenue_growth",
+    "materiality": null,
+    "reason": {
+     "code": "not_worse_than_sector",
+     "inputs": [
+      "better"
+     ]
+    }
+   }
+  ],
+  "statement_lines": [
+   {
+    "eligible": true,
+    "family": "statement_line",
+    "identity": "turnover",
+    "key": "pl.revenue",
+    "materiality": {
+     "basis": "pl.revenue",
+     "basis_value": 110798309.14,
+     "floor": 0.005,
+     "measure": "share_of_net_turnover",
+     "share": 0.147009
+    },
+    "reason": null
+   },
+   {
+    "eligible": true,
+    "family": "statement_line",
+    "identity": "ebitda",
+    "key": "pl.ebitda",
+    "materiality": {
+     "basis": "pl.revenue",
+     "basis_value": 110798309.14,
+     "floor": 0.005,
+     "measure": "share_of_net_turnover",
+     "share": 0.052189
+    },
+    "reason": null
+   },
+   {
+    "eligible": true,
+    "family": "statement_line",
+    "identity": "operating_result",
+    "key": "pl.ebit",
+    "materiality": {
+     "basis": "pl.revenue",
+     "basis_value": 110798309.14,
+     "floor": 0.005,
+     "measure": "share_of_net_turnover",
+     "share": 0.058869
+    },
+    "reason": null
+   },
+   {
+    "eligible": true,
+    "family": "statement_line",
+    "identity": "net_result",
+    "key": "pl.net_income",
+    "materiality": {
+     "basis": "pl.revenue",
+     "basis_value": 110798309.14,
+     "floor": 0.005,
+     "measure": "share_of_net_turnover",
+     "share": 0.055038
+    },
+    "reason": null
+   },
+   {
+    "eligible": true,
+    "family": "statement_line",
+    "identity": "cash",
+    "key": "bs.cash",
+    "materiality": {
+     "basis": "bs.total_assets",
+     "basis_value": 39319114.09,
+     "floor": 0.005,
+     "measure": "share_of_total_assets",
+     "share": 0.227798
+    },
+    "reason": null
+   },
+   {
+    "eligible": true,
+    "family": "statement_line",
+    "identity": "financial_debt",
+    "key": "bs.total_debt",
+    "materiality": {
+     "basis": "bs.total_assets",
+     "basis_value": 39319114.09,
+     "floor": 0.005,
+     "measure": "share_of_total_assets",
+     "share": 0.092581
+    },
+    "reason": null
+   }
+  ]
+ },
+ "deduped": [],
+ "items": [
+  {
+   "basis_label": null,
+   "evidence": {
+    "kind": "statement",
+    "line": "bs.cash",
+    "prior_period_id": "period-prior",
+    "tab": "balance_sheet"
+   },
+   "family": "statement_line",
+   "figure": {
+    "column": {
+     "change_kind": "compared",
+     "current": 1168047.04,
+     "current_disclosure": "reported",
+     "delta": -8956822.0,
+     "delta_pct": -0.884636,
+     "key": "bs.cash",
+     "label": "Cash & equivalents",
+     "note": "both periods reported Cash & equivalents",
+     "prior": 10124869.04,
+     "prior_disclosure": "reported",
+     "requires": "synthetic",
+     "statement": "BS",
+     "status": "compared",
+     "unit": "money"
+    },
+    "current_label": "Dec 2025",
+    "kind": "comparatives_column",
+    "prior_label": "Dec 2024"
+   },
+   "identity": "cash",
+   "key": "bs.cash",
+   "materiality": {
+    "basis": "bs.total_assets",
+    "basis_value": 39319114.09,
+    "floor": 0.005,
+    "measure": "share_of_total_assets",
+    "share": 0.227798
+   },
+   "rank": 1,
+   "slot": "movement",
+   "source": {
+    "document": "comparatives",
+    "path": "columns[key=bs.cash]"
+   },
+   "subject": {
+    "en": "Cash & equivalents",
+    "ro": "Numerar și echivalente"
+   },
+   "verdict": "deteriorated"
+  },
+  {
+   "basis_label": null,
+   "evidence": {
+    "kind": "benchmark_row",
+    "route": "/benchmark",
+    "row": "receivables_days"
+   },
+   "family": "sector_row",
+   "figure": {
+    "kind": "sector_row",
+    "min_peers": 5,
+    "row": {
+     "company": {
+      "basis": "restated_on_filed_basis",
+      "card_agrees": null,
+      "card_value": null,
+      "operands": [
+       {
+        "name": "receivables_all",
+        "source": "canonical_bs.rows[ar_trade_gross, ar_provisions, ar_intercompany, ar_tax_recoverable, ar_supplier_advances, ar_other]",
+        "value": 16316818.530000001
+       },
+       {
+        "name": "net_turnover",
+        "source": "assembled_pl.revenue",
+        "value": 110798309.14
+       }
+      ],
+      "value": 53.75207265956297
+     },
+     "definition": {
+      "card_key": "dso",
+      "company_basis": "ALL receivables (creante) / net turnover x 365, not trade receivables only",
+      "differs_from_card": true,
+      "formula": "I4 / I13 x 365"
+     },
+     "direction": "lower",
+     "key": "receivables_days",
+     "percentile": null,
+     "percentile_reason": {
+      "code": "quartiles_only",
+      "inputs": [
+       "dataset.quartiles"
+      ]
+     },
+     "position": "above_p75",
+     "reason": null,
+     "sector": {
+      "dropped": {
+       "absent_operand": 0,
+       "nonpositive_denominator": 0
+      },
+      "filed_lines": [
+       "Creante (I4)",
+       "Cifra de afaceri neta (I13)"
+      ],
+      "level": "caen4",
+      "median": 32.33,
+      "n": 35,
+      "p25": 17.34,
+      "p75": 50.7,
+      "sector_caen": "1011",
+      "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+      "unit": "days",
+      "year": 2024
+     },
+     "status": "sourced",
+     "unit": "days",
+     "vs_sector": "worse"
+    }
+   },
+   "identity": "receivables_days",
+   "key": "receivables_days",
+   "materiality": {
+    "distance": 0.091489,
+    "measure": "interquartile_ranges_past_the_worse_quartile"
+   },
+   "rank": 2,
+   "slot": "worst_vs_sector",
+   "source": {
+    "document": "sector_benchmark",
+    "path": "rows[key=receivables_days]"
+   },
+   "subject": {
+    "en": "Receivables days (all receivables)",
+    "ro": "Zile creanțe (toate creanțele)"
+   },
+   "verdict": "worse"
+  },
+  {
+   "basis_label": null,
+   "evidence": {
+    "kind": "statement",
+    "line": "pl.revenue",
+    "prior_period_id": "period-prior",
+    "tab": "pl"
+   },
+   "family": "statement_line",
+   "figure": {
+    "column": {
+     "change_kind": "compared",
+     "current": 110798309.14,
+     "current_disclosure": "reported",
+     "delta": 16288369.18,
+     "delta_pct": 0.172346,
+     "key": "pl.revenue",
+     "label": "Net turnover",
+     "note": "both periods reported Net turnover",
+     "prior": 94509939.96,
+     "prior_disclosure": "reported",
+     "requires": "synthetic",
+     "statement": "PL",
+     "status": "compared",
+     "unit": "money"
+    },
+    "current_label": "Dec 2025",
+    "kind": "comparatives_column",
+    "prior_label": "Dec 2024"
+   },
+   "identity": "turnover",
+   "key": "pl.revenue",
+   "materiality": {
+    "basis": "pl.revenue",
+    "basis_value": 110798309.14,
+    "floor": 0.005,
+    "measure": "share_of_net_turnover",
+    "share": 0.147009
+   },
+   "rank": 3,
+   "slot": "improvement",
+   "source": {
+    "document": "comparatives",
+    "path": "columns[key=pl.revenue]"
+   },
+   "subject": {
+    "en": "Net turnover",
+    "ro": "Cifra de afaceri netă"
+   },
+   "verdict": "improved"
+  }
+ ],
+ "mode": "with_prior",
+ "period": {
+  "company_name": "Corpus Entity",
+  "currency": "RON",
+  "id": "period-agras-fy2025",
+  "label": "Dec 2025",
+  "org_id": "org-corpus",
+  "period_end": "2025-12-31",
+  "period_start": null
+ },
+ "prior": {
+  "available_period_end": null,
+  "available_period_id": null,
+  "period_end": "2024-12-31",
+  "period_id": "period-prior",
+  "period_start": "2024-01-01",
+  "reason": null,
+  "requested": "auto",
+  "rule": "same_company_previous_period_same_length",
+  "status": "found"
+ },
+ "rules": {
+  "anchor_statuses": [
+   "anchored",
+   "within_tolerance"
+  ],
+  "improvement_family_order": [
+   "statement_line",
+   "ratio_band"
+  ],
+  "insight_material_levels": [
+   "critical",
+   "high",
+   "medium"
+  ],
+  "insights_excluded": {
+   "reconstruction_gap": "data_quality",
+   "unclassified_balances": "data_quality"
+  },
+  "inventory_days_claim_policy": {
+   "may_call_slow": false,
+   "reason": "single_basis_year_end_snapshot",
+   "requires": [
+    "split_by_stock_type",
+    "average_balance"
+   ]
+  },
+  "materiality": {
+   "insight": {
+    "measure": "served_insight_rank"
+   },
+   "ratio_band": {
+    "measure": "served_band_movement_rank"
+   },
+   "sector_row": {
+    "measure": "interquartile_ranges_past_the_worse_quartile"
+   },
+   "statement_line": {
+    "BS": {
+     "basis": "bs.total_assets",
+     "measure": "share_of_total_assets"
+    },
+    "PL": {
+     "basis": "pl.revenue",
+     "measure": "share_of_net_turnover"
+    }
+   }
+  },
+  "max_items": 3,
+  "ratio_inventory_days_keys": [
+   "dio",
+   "inventory_turnover",
+   "ccc"
+  ],
+  "sector_identities": {
+   "current_asset_share": "current_asset_share",
+   "equity_ratio": "capital_structure",
+   "inventory_days_on_turnover": "inventory_days",
+   "liabilities_to_assets": "capital_structure",
+   "net_margin": "net_margin",
+   "receivables_days": "receivables_days",
+   "revenue_growth": "turnover",
+   "roa": "return_on_assets",
+   "roe": "return_on_equity"
+  },
+  "sector_position_only": [
+   "inventory_days_on_turnover"
+  ],
+  "slots": {
+   "single_period": [
+    "finding",
+    "worst_vs_sector",
+    "finding"
+   ],
+   "with_prior": [
+    "movement",
+    "worst_vs_sector",
+    "improvement"
+   ]
+  },
+  "statement_line_floor": 0.005,
+  "statement_lines": [
+   "pl.revenue",
+   "pl.ebitda",
+   "pl.ebit",
+   "pl.net_income",
+   "bs.cash",
+   "bs.total_debt"
+  ]
+ },
+ "schema": "attention/1",
+ "sources": {
+  "comparatives": {
+   "prior_period_id": "period-prior",
+   "reason": null,
+   "status": "served"
+  },
+  "excluded": [
+   "recommendations",
+   "briefing",
+   "alerts",
+   "statements.insights[].narrative",
+   "statements.insights[].claim"
+  ],
+  "insights": {
+   "read": false,
+   "schema_version": "insights/1",
+   "status": "served"
+  },
+  "sector_benchmark": {
+   "caen": "1011",
+   "caen_source": "workspace",
+   "reason": null,
+   "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+   "status": "ok",
+   "year": 2024
+  }
+ },
+ "unfilled": []
+}

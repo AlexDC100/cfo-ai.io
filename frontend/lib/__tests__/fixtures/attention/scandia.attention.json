@@ -1,0 +1,655 @@
+{
+ "actions": [
+  {
+   "key": "add_prior_year",
+   "label": {
+    "en": "Add the previous year",
+    "ro": "Adaugă anul anterior"
+   },
+   "target": {
+    "kind": "upload",
+    "org_id": "0a9a0000-0000-4000-8000-000000000051",
+    "period_end": "2024-12-31"
+   }
+  },
+  {
+   "key": "bank_export",
+   "label": {
+    "en": "Export the bank report",
+    "ro": "Exportă raportul pentru bancă"
+   },
+   "requires_feature": "forecast",
+   "target": {
+    "kind": "forecast_bank_export",
+    "period_id": "5ea50000-0000-4000-8000-0000000051f5",
+    "route": "/dashboard/forecast"
+   }
+  }
+ ],
+ "caveats": [
+  {
+   "key": "single_period",
+   "text": {
+    "en": "There is no comparable earlier period for this company: the items come from this period's findings.",
+    "ro": "Firma nu are o perioadă anterioară comparabilă: elementele vin din constatările acestei perioade."
+   }
+  }
+ ],
+ "considered": {
+  "insights": [
+   {
+    "eligible": false,
+    "family": "insight",
+    "identity": "insight:reconstruction_gap",
+    "key": "reconstruction_gap",
+    "materiality": null,
+    "reason": {
+     "code": "excluded_data_quality",
+     "inputs": [
+      "reconstruction_gap"
+     ]
+    }
+   },
+   {
+    "eligible": true,
+    "family": "insight",
+    "identity": "financial_result",
+    "key": "financial_position",
+    "materiality": {
+     "basis": "ebitda_positive",
+     "level": "high",
+     "measure": "served_insight_rank",
+     "served_rank": 2,
+     "share": 0.490391
+    },
+    "reason": null
+   },
+   {
+    "eligible": true,
+    "family": "insight",
+    "identity": "earnings_quality",
+    "key": "earnings_quality",
+    "materiality": {
+     "basis": "ebitda_positive",
+     "level": "medium",
+     "measure": "served_insight_rank",
+     "served_rank": 3,
+     "share": 0.14327
+    },
+    "reason": null
+   },
+   {
+    "eligible": true,
+    "family": "insight",
+    "identity": "receivables_days",
+    "key": "trade_float",
+    "materiality": {
+     "basis": "revenue",
+     "level": "medium",
+     "measure": "served_insight_rank",
+     "served_rank": 4,
+     "share": 0.066982
+    },
+    "reason": null
+   },
+   {
+    "eligible": false,
+    "family": "insight",
+    "identity": "related_party",
+    "key": "related_party_exposure",
+    "materiality": null,
+    "reason": {
+     "code": "below_material_level",
+     "inputs": [
+      "low"
+     ]
+    }
+   },
+   {
+    "eligible": false,
+    "family": "insight",
+    "identity": "asset_age",
+    "key": "asset_age",
+    "materiality": null,
+    "reason": {
+     "code": "below_material_level",
+     "inputs": [
+      "info"
+     ]
+    }
+   },
+   {
+    "eligible": false,
+    "family": "insight",
+    "identity": "current_ratio",
+    "key": "liquidity_quality",
+    "materiality": null,
+    "reason": {
+     "code": "below_material_level",
+     "inputs": [
+      "info"
+     ]
+    }
+   }
+  ],
+  "ratio_bands": [],
+  "sector_rows": [
+   {
+    "eligible": true,
+    "family": "sector_row",
+    "identity": "net_margin",
+    "key": "net_margin",
+    "materiality": {
+     "distance": 0.134178,
+     "measure": "interquartile_ranges_past_the_worse_quartile"
+    },
+    "reason": null
+   },
+   {
+    "eligible": true,
+    "family": "sector_row",
+    "identity": "return_on_equity",
+    "key": "roe",
+    "materiality": {
+     "distance": 0.20499,
+     "measure": "interquartile_ranges_past_the_worse_quartile"
+    },
+    "reason": null
+   },
+   {
+    "eligible": true,
+    "family": "sector_row",
+    "identity": "return_on_assets",
+    "key": "roa",
+    "materiality": {
+     "distance": 0.170512,
+     "measure": "interquartile_ranges_past_the_worse_quartile"
+    },
+    "reason": null
+   },
+   {
+    "eligible": true,
+    "family": "sector_row",
+    "identity": "capital_structure",
+    "key": "equity_ratio",
+    "materiality": {
+     "distance": 0.108269,
+     "measure": "interquartile_ranges_past_the_worse_quartile"
+    },
+    "reason": null
+   },
+   {
+    "eligible": true,
+    "family": "sector_row",
+    "identity": "capital_structure",
+    "key": "liabilities_to_assets",
+    "materiality": {
+     "distance": 0.13266,
+     "measure": "interquartile_ranges_past_the_worse_quartile"
+    },
+    "reason": null
+   },
+   {
+    "eligible": true,
+    "family": "sector_row",
+    "identity": "receivables_days",
+    "key": "receivables_days",
+    "materiality": {
+     "distance": 1.447877,
+     "measure": "interquartile_ranges_past_the_worse_quartile"
+    },
+    "reason": null
+   },
+   {
+    "eligible": true,
+    "family": "sector_row",
+    "identity": "inventory_days",
+    "key": "inventory_days_on_turnover",
+    "materiality": {
+     "distance": 1.689142,
+     "measure": "interquartile_ranges_past_the_worse_quartile"
+    },
+    "reason": null
+   },
+   {
+    "eligible": false,
+    "family": "sector_row",
+    "identity": "current_asset_share",
+    "key": "current_asset_share",
+    "materiality": null,
+    "reason": {
+     "code": "not_worse_than_sector",
+     "inputs": [
+      "inside"
+     ]
+    }
+   },
+   {
+    "eligible": false,
+    "family": "sector_row",
+    "identity": "turnover",
+    "key": "revenue_growth",
+    "materiality": null,
+    "reason": {
+     "code": "row_not_sourced",
+     "inputs": [
+      "company_absent"
+     ]
+    }
+   }
+  ],
+  "statement_lines": []
+ },
+ "deduped": [],
+ "items": [
+  {
+   "basis_label": null,
+   "evidence": {
+    "accounts": [
+     "666121",
+     "666122",
+     "665104",
+     "668001",
+     "765103",
+     "765102",
+     "665103",
+     "666170",
+     "666161",
+     "665102",
+     "666181",
+     "666120",
+     "765104",
+     "768001",
+     "666201",
+     "666301",
+     "766901",
+     "666901",
+     "665201",
+     "765201",
+     "766102",
+     "766104"
+    ],
+    "kind": "statement",
+    "line": "pl.net_financial_result",
+    "tab": "pl"
+   },
+   "family": "insight",
+   "figure": {
+    "currency": "RON",
+    "kind": "insight_measure",
+    "measure": {
+     "key": "net_financial",
+     "label": "Net financial result",
+     "unit": "money",
+     "value": -2577640.82
+    }
+   },
+   "identity": "financial_result",
+   "key": "financial_position",
+   "materiality": {
+    "basis": "ebitda_positive",
+    "level": "high",
+    "measure": "served_insight_rank",
+    "served_rank": 2,
+    "share": 0.490391
+   },
+   "rank": 1,
+   "severity": {
+    "bands": [
+     {
+      "at_least": 0.5,
+      "level": "critical"
+     },
+     {
+      "at_least": 0.2,
+      "level": "high"
+     },
+     {
+      "at_least": 0.08,
+      "level": "medium"
+     },
+     {
+      "at_least": 0.02,
+      "level": "low"
+     },
+     {
+      "at_least": null,
+      "level": "info"
+     }
+    ],
+    "basis": "ebitda_positive",
+    "basis_label": "EBITDA",
+    "level": "high",
+    "materiality": 0.490391
+   },
+   "slot": "finding",
+   "source": {
+    "document": "period",
+    "path": "statements.insights.insights[id=financial_position].measures[key=net_financial]"
+   },
+   "subject": {
+    "en": "The financial line is not incidental to the result",
+    "ro": "Rezultatul financiar nu este incidental"
+   },
+   "verdict": null
+  },
+  {
+   "basis_label": {
+    "en": "filed basis (stock ÷ net turnover) — not the same as the inventory days in the analysis",
+    "ro": "bază depusă (stoc ÷ cifra de afaceri) — nu aceeași cu zilele de stoc din analiză"
+   },
+   "claim_policy": {
+    "may_call_slow": false,
+    "reason": "filed_basis_position_only",
+    "verdict_word": false
+   },
+   "evidence": {
+    "kind": "benchmark_row",
+    "route": "/benchmark",
+    "row": "inventory_days_on_turnover"
+   },
+   "family": "sector_row",
+   "figure": {
+    "kind": "sector_row",
+    "min_peers": 5,
+    "row": {
+     "company": {
+      "basis": "restated_on_filed_basis",
+      "card_agrees": null,
+      "card_value": null,
+      "operands": [
+       {
+        "name": "inventory",
+        "source": "canonical_bs.rows[inventory_raw_materials, inventory_consumables, inventory_wip, inventory_finished_goods, inventory_packaging, inventory_at_third_parties, inventory_provisions]",
+        "value": 12315518.61
+       },
+       {
+        "name": "net_turnover",
+        "source": "assembled_pl.revenue",
+        "value": 48349081.59
+       }
+      ],
+      "value": 92.97310610300674
+     },
+     "definition": {
+      "card_key": "dio",
+      "company_basis": "inventory / NET TURNOVER x 365. The ratio card's DIO divides by operating cost; the two are not comparable. Restate the company figure on turnover or refuse the comparison",
+      "differs_from_card": true,
+      "formula": "I3 / I13 x 365"
+     },
+     "direction": "lower",
+     "key": "inventory_days_on_turnover",
+     "percentile": null,
+     "percentile_reason": {
+      "code": "quartiles_only",
+      "inputs": [
+       "dataset.quartiles"
+      ]
+     },
+     "position": "above_p75",
+     "reason": null,
+     "sector": {
+      "dropped": {
+       "absent_operand": 1,
+       "nonpositive_denominator": 0
+      },
+      "filed_lines": [
+       "Stocuri (I3)",
+       "Cifra de afaceri neta (I13)"
+      ],
+      "level": "caen4",
+      "median": 17.11,
+      "n": 64,
+      "p25": 8.05,
+      "p75": 39.63,
+      "sector_caen": "1011",
+      "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+      "unit": "days",
+      "year": 2024
+     },
+     "status": "sourced",
+     "unit": "days",
+     "vs_sector": "worse"
+    }
+   },
+   "identity": "inventory_days",
+   "key": "inventory_days_on_turnover",
+   "materiality": {
+    "distance": 1.689142,
+    "measure": "interquartile_ranges_past_the_worse_quartile"
+   },
+   "rank": 2,
+   "slot": "worst_vs_sector",
+   "source": {
+    "document": "sector_benchmark",
+    "path": "rows[key=inventory_days_on_turnover]"
+   },
+   "subject": {
+    "en": "Inventory days on turnover",
+    "ro": "Zile stocuri raportate la cifra de afaceri"
+   },
+   "verdict": null
+  },
+  {
+   "basis_label": null,
+   "evidence": {
+    "accounts": [
+     "781501",
+     "758805",
+     "758807",
+     "758804",
+     "781401",
+     "758891",
+     "758301",
+     "758802",
+     "758101",
+     "758803"
+    ],
+    "kind": "statement",
+    "line": "pl.other_operating_income",
+    "tab": "pl"
+   },
+   "family": "insight",
+   "figure": {
+    "currency": "RON",
+    "kind": "insight_measure",
+    "measure": {
+     "key": "non_trading",
+     "label": "Other operating income and provision reversals",
+     "unit": "money",
+     "value": 753070.01
+    }
+   },
+   "identity": "earnings_quality",
+   "key": "earnings_quality",
+   "materiality": {
+    "basis": "ebitda_positive",
+    "level": "medium",
+    "measure": "served_insight_rank",
+    "served_rank": 3,
+    "share": 0.14327
+   },
+   "rank": 3,
+   "severity": {
+    "bands": [
+     {
+      "at_least": 0.3,
+      "level": "critical"
+     },
+     {
+      "at_least": 0.15,
+      "level": "high"
+     },
+     {
+      "at_least": 0.07,
+      "level": "medium"
+     },
+     {
+      "at_least": 0.02,
+      "level": "low"
+     },
+     {
+      "at_least": null,
+      "level": "info"
+     }
+    ],
+    "basis": "ebitda_positive",
+    "basis_label": "EBITDA",
+    "level": "medium",
+    "materiality": 0.14327
+   },
+   "slot": "finding",
+   "source": {
+    "document": "period",
+    "path": "statements.insights.insights[id=earnings_quality].measures[key=non_trading]"
+   },
+   "subject": {
+    "en": "Part of EBITDA is not trading income",
+    "ro": "O parte din EBITDA nu vine din activitatea comercială"
+   },
+   "verdict": null
+  }
+ ],
+ "mode": "single_period",
+ "period": {
+  "company_name": "Scandia Food SRL",
+  "currency": "RON",
+  "id": "5ea50000-0000-4000-8000-0000000051f5",
+  "label": "2025-12-31",
+  "org_id": "0a9a0000-0000-4000-8000-000000000051",
+  "period_end": "2025-12-31",
+  "period_start": null
+ },
+ "prior": {
+  "available_period_end": null,
+  "available_period_id": null,
+  "period_end": null,
+  "period_id": null,
+  "period_start": null,
+  "reason": {
+   "code": "no_same_length_prior",
+   "inputs": []
+  },
+  "requested": "auto",
+  "rule": "same_company_previous_period_same_length",
+  "status": "absent"
+ },
+ "rules": {
+  "anchor_statuses": [
+   "anchored",
+   "within_tolerance"
+  ],
+  "improvement_family_order": [
+   "statement_line",
+   "ratio_band"
+  ],
+  "insight_material_levels": [
+   "critical",
+   "high",
+   "medium"
+  ],
+  "insights_excluded": {
+   "reconstruction_gap": "data_quality",
+   "unclassified_balances": "data_quality"
+  },
+  "inventory_days_claim_policy": {
+   "may_call_slow": false,
+   "reason": "single_basis_year_end_snapshot",
+   "requires": [
+    "split_by_stock_type",
+    "average_balance"
+   ]
+  },
+  "materiality": {
+   "insight": {
+    "measure": "served_insight_rank"
+   },
+   "ratio_band": {
+    "measure": "served_band_movement_rank"
+   },
+   "sector_row": {
+    "measure": "interquartile_ranges_past_the_worse_quartile"
+   },
+   "statement_line": {
+    "BS": {
+     "basis": "bs.total_assets",
+     "measure": "share_of_total_assets"
+    },
+    "PL": {
+     "basis": "pl.revenue",
+     "measure": "share_of_net_turnover"
+    }
+   }
+  },
+  "max_items": 3,
+  "ratio_inventory_days_keys": [
+   "dio",
+   "inventory_turnover",
+   "ccc"
+  ],
+  "sector_identities": {
+   "current_asset_share": "current_asset_share",
+   "equity_ratio": "capital_structure",
+   "inventory_days_on_turnover": "inventory_days",
+   "liabilities_to_assets": "capital_structure",
+   "net_margin": "net_margin",
+   "receivables_days": "receivables_days",
+   "revenue_growth": "turnover",
+   "roa": "return_on_assets",
+   "roe": "return_on_equity"
+  },
+  "sector_position_only": [
+   "inventory_days_on_turnover"
+  ],
+  "slots": {
+   "single_period": [
+    "finding",
+    "worst_vs_sector",
+    "finding"
+   ],
+   "with_prior": [
+    "movement",
+    "worst_vs_sector",
+    "improvement"
+   ]
+  },
+  "statement_line_floor": 0.005,
+  "statement_lines": [
+   "pl.revenue",
+   "pl.ebitda",
+   "pl.ebit",
+   "pl.net_income",
+   "bs.cash",
+   "bs.total_debt"
+  ]
+ },
+ "schema": "attention/1",
+ "sources": {
+  "comparatives": {
+   "prior_period_id": null,
+   "reason": null,
+   "status": "absent"
+  },
+  "excluded": [
+   "recommendations",
+   "briefing",
+   "alerts",
+   "statements.insights[].narrative",
+   "statements.insights[].claim"
+  ],
+  "insights": {
+   "read": true,
+   "schema_version": "insights/1",
+   "status": "served"
+  },
+  "sector_benchmark": {
+   "caen": "1011",
+   "caen_source": null,
+   "reason": null,
+   "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+   "status": "ok",
+   "year": 2024
+  }
+ },
+ "unfilled": []
+}

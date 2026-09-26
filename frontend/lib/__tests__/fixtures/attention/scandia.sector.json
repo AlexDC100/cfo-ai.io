@@ -1,0 +1,1083 @@
+{
+ "caen": "1011",
+ "card_agreement_tolerance": 5e-05,
+ "company_turnover": 48349081.59,
+ "coverage": {
+  "cards": 28,
+  "cards_general": 24,
+  "cards_sector": 4,
+  "rows": 9,
+  "rows_refused": 1,
+  "rows_sourced": 8
+ },
+ "min_peers": 5,
+ "movements": {
+  "compared": 0,
+  "deteriorated": [],
+  "improved": [],
+  "of": 9,
+  "reason": {
+   "code": "prior_period_absent",
+   "inputs": [
+    "prior period"
+   ]
+  },
+  "status": "refused"
+ },
+ "peer_set": "every filer in families UU and BL with a positive filed net turnover (I13) in the sector for the year; the subject company, if it filed there, is included",
+ "percentile_min_n": 20,
+ "period": {
+  "id": "5ea50000-0000-4000-8000-0000000051f5",
+  "period_end": "2025-12-31",
+  "period_start": null
+ },
+ "prior_period": null,
+ "prior_year": 2023,
+ "ratio_cards": {
+  "adjusted_dscr": {
+   "band_source": "general",
+   "reason": {
+    "code": "no_filed_counterpart",
+    "inputs": [
+     "adjusted_dscr"
+    ],
+    "text": "the filed summary has no line for this ratio"
+   }
+  },
+  "asset_turnover": {
+   "band_source": "general",
+   "reason": {
+    "code": "no_filed_counterpart",
+    "inputs": [
+     "asset_turnover"
+    ],
+    "text": "the filed summary has no line for this ratio"
+   }
+  },
+  "cash_ratio": {
+   "band_source": "general",
+   "reason": {
+    "code": "not_in_filed_summary",
+    "inputs": [
+     "cash_ratio"
+    ],
+    "text": "the summary-level filing does not publish current liabilities"
+   }
+  },
+  "ccc": {
+   "band_source": "general",
+   "reason": {
+    "code": "not_in_filed_summary",
+    "inputs": [
+     "ccc"
+    ],
+    "text": "the summary-level filing does not publish trade payables or cost of goods sold"
+   }
+  },
+  "core_ebitda_margin": {
+   "band_source": "general",
+   "reason": {
+    "code": "no_filed_counterpart",
+    "inputs": [
+     "core_ebitda_margin"
+    ],
+    "text": "the filed summary has no line for this ratio"
+   }
+  },
+  "current_ratio": {
+   "band_source": "general",
+   "reason": {
+    "code": "not_in_filed_summary",
+    "inputs": [
+     "current_ratio"
+    ],
+    "text": "the summary-level filing does not publish current liabilities (I7 is total liabilities)"
+   }
+  },
+  "debt_to_assets": {
+   "band_source": "general",
+   "reason": {
+    "code": "definition_differs",
+    "inputs": [
+     "liabilities_to_assets"
+    ],
+    "text": "the filing publishes TOTAL liabilities (datorii), the card divides financial debt"
+   }
+  },
+  "debt_to_ebitda": {
+   "band_source": "general",
+   "reason": {
+    "code": "no_filed_counterpart",
+    "inputs": [
+     "debt_to_ebitda"
+    ],
+    "text": "the filed summary has no line for this ratio"
+   }
+  },
+  "debt_to_equity": {
+   "band_source": "general",
+   "reason": {
+    "code": "not_in_filed_summary",
+    "inputs": [
+     "debt_to_equity"
+    ],
+    "text": "the summary-level filing does not publish financial debt (I7 is total liabilities)"
+   }
+  },
+  "dio": {
+   "band_source": "general",
+   "reason": {
+    "code": "definition_differs",
+    "inputs": [
+     "inventory_days_on_turnover"
+    ],
+    "text": "the filing supports inventory days on net turnover, the card divides by operating cost"
+   }
+  },
+  "dpo": {
+   "band_source": "general",
+   "reason": {
+    "code": "not_in_filed_summary",
+    "inputs": [
+     "dpo"
+    ],
+    "text": "the summary-level filing does not publish trade payables or cost of goods sold"
+   }
+  },
+  "dscr": {
+   "band_source": "general",
+   "reason": {
+    "code": "not_in_filed_summary",
+    "inputs": [
+     "dscr"
+    ],
+    "text": "the summary-level filing does not publish interest expense or debt service"
+   }
+  },
+  "dscr_with_lt_principal": {
+   "band_source": "general",
+   "reason": {
+    "code": "no_filed_counterpart",
+    "inputs": [
+     "dscr_with_lt_principal"
+    ],
+    "text": "the filed summary has no line for this ratio"
+   }
+  },
+  "dso": {
+   "band_source": "general",
+   "reason": {
+    "code": "definition_differs",
+    "inputs": [
+     "receivables_days"
+    ],
+    "text": "the filing publishes ALL receivables (creante), the card divides trade receivables"
+   }
+  },
+  "ebitda_margin": {
+   "band_source": "general",
+   "reason": {
+    "code": "not_in_filed_summary",
+    "inputs": [
+     "ebitda_margin"
+    ],
+    "text": "the summary-level filing does not publish operating result or depreciation"
+   }
+  },
+  "ebitda_to_interest": {
+   "band_source": "general",
+   "reason": {
+    "code": "no_filed_counterpart",
+    "inputs": [
+     "ebitda_to_interest"
+    ],
+    "text": "the filed summary has no line for this ratio"
+   }
+  },
+  "equity_ratio": {
+   "band_source": "sector",
+   "level": "caen4",
+   "median": 0.439666,
+   "n": 42,
+   "p25": 0.18668,
+   "p75": 0.553144,
+   "position": "below_p25",
+   "sector_caen": "1011",
+   "sector_key": "equity_ratio",
+   "size_band": {
+    "key": "10m_50m",
+    "max_ron": 50000000,
+    "min_ron": 10000000
+   },
+   "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+   "unit": "fraction",
+   "vs_sector": "worse",
+   "year": 2024
+  },
+  "gross_margin": {
+   "band_source": "general",
+   "reason": {
+    "code": "not_in_filed_summary",
+    "inputs": [
+     "gross_margin"
+    ],
+    "text": "the summary-level filing does not publish cost of goods sold"
+   }
+  },
+  "interest_coverage": {
+   "band_source": "general",
+   "reason": {
+    "code": "not_in_filed_summary",
+    "inputs": [
+     "interest_coverage"
+    ],
+    "text": "the summary-level filing does not publish interest expense"
+   }
+  },
+  "inventory_turnover": {
+   "band_source": "general",
+   "reason": {
+    "code": "no_filed_counterpart",
+    "inputs": [
+     "inventory_turnover"
+    ],
+    "text": "the filed summary has no line for this ratio"
+   }
+  },
+  "lt_debt_to_equity": {
+   "band_source": "general",
+   "reason": {
+    "code": "no_filed_counterpart",
+    "inputs": [
+     "lt_debt_to_equity"
+    ],
+    "text": "the filed summary has no line for this ratio"
+   }
+  },
+  "net_debt_to_ebitda": {
+   "band_source": "general",
+   "reason": {
+    "code": "no_filed_counterpart",
+    "inputs": [
+     "net_debt_to_ebitda"
+    ],
+    "text": "the filed summary has no line for this ratio"
+   }
+  },
+  "net_margin": {
+   "band_source": "sector",
+   "level": "caen4",
+   "median": 0.031193,
+   "n": 65,
+   "p25": 0.015143,
+   "p75": 0.0659,
+   "position": "below_p25",
+   "sector_caen": "1011",
+   "sector_key": "net_margin",
+   "size_band": {
+    "key": "10m_50m",
+    "max_ron": 50000000,
+    "min_ron": 10000000
+   },
+   "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+   "unit": "fraction",
+   "vs_sector": "worse",
+   "year": 2024
+  },
+  "operating_margin": {
+   "band_source": "general",
+   "reason": {
+    "code": "no_filed_counterpart",
+    "inputs": [
+     "operating_margin"
+    ],
+    "text": "the filed summary has no line for this ratio"
+   }
+  },
+  "quick_ratio": {
+   "band_source": "general",
+   "reason": {
+    "code": "not_in_filed_summary",
+    "inputs": [
+     "quick_ratio"
+    ],
+    "text": "the summary-level filing does not publish current liabilities"
+   }
+  },
+  "roa": {
+   "band_source": "sector",
+   "level": "caen4",
+   "median": 0.096004,
+   "n": 42,
+   "p25": 0.041367,
+   "p75": 0.239194,
+   "position": "below_p25",
+   "sector_caen": "1011",
+   "sector_key": "roa",
+   "size_band": {
+    "key": "10m_50m",
+    "max_ron": 50000000,
+    "min_ron": 10000000
+   },
+   "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+   "unit": "fraction",
+   "vs_sector": "worse",
+   "year": 2024
+  },
+  "roe": {
+   "band_source": "sector",
+   "level": "caen4",
+   "median": 0.29193,
+   "n": 63,
+   "p25": 0.123876,
+   "p75": 0.474805,
+   "position": "below_p25",
+   "sector_caen": "1011",
+   "sector_key": "roe",
+   "size_band": {
+    "key": "10m_50m",
+    "max_ron": 50000000,
+    "min_ron": 10000000
+   },
+   "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+   "unit": "fraction",
+   "vs_sector": "worse",
+   "year": 2024
+  },
+  "roic": {
+   "band_source": "general",
+   "reason": {
+    "code": "no_filed_counterpart",
+    "inputs": [
+     "roic"
+    ],
+    "text": "the filed summary has no line for this ratio"
+   }
+  }
+ },
+ "reason": null,
+ "refused": [
+  {
+   "key": "cash_ratio",
+   "reason": {
+    "code": "not_in_filed_summary",
+    "inputs": [
+     "cash_ratio"
+    ],
+    "text": "the summary-level filing does not publish current liabilities"
+   }
+  },
+  {
+   "key": "ccc",
+   "reason": {
+    "code": "not_in_filed_summary",
+    "inputs": [
+     "ccc"
+    ],
+    "text": "the summary-level filing does not publish trade payables or cost of goods sold"
+   }
+  },
+  {
+   "key": "current_ratio",
+   "reason": {
+    "code": "not_in_filed_summary",
+    "inputs": [
+     "current_ratio"
+    ],
+    "text": "the summary-level filing does not publish current liabilities (I7 is total liabilities)"
+   }
+  },
+  {
+   "key": "debt_to_assets",
+   "reason": {
+    "code": "not_in_filed_summary",
+    "inputs": [
+     "debt_to_assets"
+    ],
+    "text": "the summary-level filing does not publish financial debt; see liabilities_to_assets"
+   }
+  },
+  {
+   "key": "debt_to_equity",
+   "reason": {
+    "code": "not_in_filed_summary",
+    "inputs": [
+     "debt_to_equity"
+    ],
+    "text": "the summary-level filing does not publish financial debt (I7 is total liabilities)"
+   }
+  },
+  {
+   "key": "dio",
+   "reason": {
+    "code": "not_in_filed_summary",
+    "inputs": [
+     "dio"
+    ],
+    "text": "the summary-level filing does not publish operating cost; see inventory_days_on_turnover"
+   }
+  },
+  {
+   "key": "dpo",
+   "reason": {
+    "code": "not_in_filed_summary",
+    "inputs": [
+     "dpo"
+    ],
+    "text": "the summary-level filing does not publish trade payables or cost of goods sold"
+   }
+  },
+  {
+   "key": "dscr",
+   "reason": {
+    "code": "not_in_filed_summary",
+    "inputs": [
+     "dscr"
+    ],
+    "text": "the summary-level filing does not publish interest expense or debt service"
+   }
+  },
+  {
+   "key": "ebit_margin",
+   "reason": {
+    "code": "not_in_filed_summary",
+    "inputs": [
+     "ebit_margin"
+    ],
+    "text": "the summary-level filing does not publish operating result"
+   }
+  },
+  {
+   "key": "ebitda_margin",
+   "reason": {
+    "code": "not_in_filed_summary",
+    "inputs": [
+     "ebitda_margin"
+    ],
+    "text": "the summary-level filing does not publish operating result or depreciation"
+   }
+  },
+  {
+   "key": "gross_margin",
+   "reason": {
+    "code": "not_in_filed_summary",
+    "inputs": [
+     "gross_margin"
+    ],
+    "text": "the summary-level filing does not publish cost of goods sold"
+   }
+  },
+  {
+   "key": "interest_coverage",
+   "reason": {
+    "code": "not_in_filed_summary",
+    "inputs": [
+     "interest_coverage"
+    ],
+    "text": "the summary-level filing does not publish interest expense"
+   }
+  },
+  {
+   "key": "net_debt_ebitda",
+   "reason": {
+    "code": "not_in_filed_summary",
+    "inputs": [
+     "net_debt_ebitda"
+    ],
+    "text": "the summary-level filing does not publish financial debt or EBITDA"
+   }
+  },
+  {
+   "key": "quick_ratio",
+   "reason": {
+    "code": "not_in_filed_summary",
+    "inputs": [
+     "quick_ratio"
+    ],
+    "text": "the summary-level filing does not publish current liabilities"
+   }
+  }
+ ],
+ "rows": [
+  {
+   "company": {
+    "basis": "restated_on_filed_basis",
+    "card_agrees": true,
+    "card_value": 0.0083,
+    "operands": [
+     {
+      "name": "net_result",
+      "source": "assembled_pl.net_income_statutory",
+      "value": 402869.16
+     },
+     {
+      "name": "net_turnover",
+      "source": "assembled_pl.revenue",
+      "value": 48349081.59
+     }
+    ],
+    "value": 0.008332509051905653
+   },
+   "definition": {
+    "card_key": "net_margin",
+    "company_basis": "net result / net turnover; same definition as the ratio card",
+    "differs_from_card": false,
+    "formula": "(I18 - I19) / I13"
+   },
+   "direction": "higher",
+   "key": "net_margin",
+   "percentile": null,
+   "percentile_reason": {
+    "code": "quartiles_only",
+    "inputs": [
+     "dataset.quartiles"
+    ]
+   },
+   "position": "below_p25",
+   "reason": null,
+   "sector": {
+    "dropped": {
+     "absent_operand": 0,
+     "nonpositive_denominator": 0
+    },
+    "filed_lines": [
+     "Profit net (I18)",
+     "Pierdere neta (I19)",
+     "Cifra de afaceri neta (I13)"
+    ],
+    "level": "caen4",
+    "median": 0.031193,
+    "n": 65,
+    "p25": 0.015143,
+    "p75": 0.0659,
+    "sector_caen": "1011",
+    "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+    "unit": "fraction",
+    "year": 2024
+   },
+   "status": "sourced",
+   "unit": "fraction",
+   "vs_sector": "worse"
+  },
+  {
+   "company": {
+    "basis": "ratio_table.roe",
+    "card_agrees": null,
+    "card_value": null,
+    "operands": [
+     {
+      "name": "net_income_statutory",
+      "source": "assembled_pl.net_income_statutory",
+      "value": 402869.16
+     },
+     {
+      "name": "equity",
+      "source": "canonical_bs.equity",
+      "value": 7756589.15
+     }
+    ],
+    "value": 0.051938958246873244
+   },
+   "definition": {
+    "card_key": "roe",
+    "company_basis": "net result / YEAR-END equity. The ratio card uses average equity when a prior period exists; the company figure must be restated on year-end equity before it is set beside this band",
+    "differs_from_card": false,
+    "formula": "(I18 - I19) / I10, year-end equity, I10 > 0"
+   },
+   "direction": "higher",
+   "key": "roe",
+   "percentile": null,
+   "percentile_reason": {
+    "code": "quartiles_only",
+    "inputs": [
+     "dataset.quartiles"
+    ]
+   },
+   "position": "below_p25",
+   "reason": null,
+   "sector": {
+    "dropped": {
+     "absent_operand": 0,
+     "nonpositive_denominator": 2
+    },
+    "filed_lines": [
+     "Profit net (I18)",
+     "Pierdere neta (I19)",
+     "CAPITALURI - TOTAL (I10)"
+    ],
+    "level": "caen4",
+    "median": 0.29193,
+    "n": 63,
+    "p25": 0.123876,
+    "p75": 0.474805,
+    "sector_caen": "1011",
+    "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+    "unit": "fraction",
+    "year": 2024
+   },
+   "status": "sourced",
+   "unit": "fraction",
+   "vs_sector": "worse"
+  },
+  {
+   "company": {
+    "basis": "ratio_table.roa",
+    "card_agrees": null,
+    "card_value": null,
+    "operands": [
+     {
+      "name": "net_income_statutory",
+      "source": "assembled_pl.net_income_statutory",
+      "value": 402869.16
+     },
+     {
+      "name": "total_assets",
+      "source": "canonical_bs.total_assets",
+      "value": 52764717.79
+     }
+    ],
+    "value": 0.007635199748502246
+   },
+   "definition": {
+    "card_key": "roa",
+    "company_basis": "net result / year-end total assets",
+    "differs_from_card": false,
+    "formula": "(I18 - I19) / (I1 + I2 + I6)"
+   },
+   "direction": "higher",
+   "key": "roa",
+   "percentile": null,
+   "percentile_reason": {
+    "code": "quartiles_only",
+    "inputs": [
+     "dataset.quartiles"
+    ]
+   },
+   "position": "below_p25",
+   "reason": null,
+   "sector": {
+    "dropped": {
+     "absent_operand": 23,
+     "nonpositive_denominator": 0
+    },
+    "filed_lines": [
+     "Profit net (I18)",
+     "Pierdere neta (I19)",
+     "ACTIVE IMOBILIZATE - TOTAL (I1)",
+     "ACTIVE CIRCULANTE - TOTAL (I2)",
+     "CHELTUIELI IN AVANS (I6)"
+    ],
+    "level": "caen4",
+    "median": 0.096004,
+    "n": 42,
+    "p25": 0.041367,
+    "p75": 0.239194,
+    "sector_caen": "1011",
+    "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+    "unit": "fraction",
+    "year": 2024
+   },
+   "status": "sourced",
+   "unit": "fraction",
+   "vs_sector": "worse"
+  },
+  {
+   "company": {
+    "basis": "ratio_table.equity_ratio",
+    "card_agrees": null,
+    "card_value": null,
+    "operands": [
+     {
+      "name": "equity",
+      "source": "canonical_bs.equity",
+      "value": 7756589.15
+     },
+     {
+      "name": "total_assets",
+      "source": "canonical_bs.total_assets",
+      "value": 52764717.79
+     }
+    ],
+    "value": 0.14700332864227
+   },
+   "definition": {
+    "card_key": "equity_ratio",
+    "company_basis": "total equity / total assets; same definition as the ratio card",
+    "differs_from_card": false,
+    "formula": "I10 / (I1 + I2 + I6)"
+   },
+   "direction": "higher",
+   "key": "equity_ratio",
+   "percentile": null,
+   "percentile_reason": {
+    "code": "quartiles_only",
+    "inputs": [
+     "dataset.quartiles"
+    ]
+   },
+   "position": "below_p25",
+   "reason": null,
+   "sector": {
+    "dropped": {
+     "absent_operand": 23,
+     "nonpositive_denominator": 0
+    },
+    "filed_lines": [
+     "CAPITALURI - TOTAL (I10)",
+     "ACTIVE IMOBILIZATE - TOTAL (I1)",
+     "ACTIVE CIRCULANTE - TOTAL (I2)",
+     "CHELTUIELI IN AVANS (I6)"
+    ],
+    "level": "caen4",
+    "median": 0.439666,
+    "n": 42,
+    "p25": 0.18668,
+    "p75": 0.553144,
+    "sector_caen": "1011",
+    "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+    "unit": "fraction",
+    "year": 2024
+   },
+   "status": "sourced",
+   "unit": "fraction",
+   "vs_sector": "worse"
+  },
+  {
+   "company": {
+    "basis": "restated_on_filed_basis",
+    "card_agrees": null,
+    "card_value": null,
+    "operands": [
+     {
+      "name": "liabilities_filed",
+      "source": "canonical_bs.sections[non_current_liabilities + current_liabilities]",
+      "value": 45007900.8
+     },
+     {
+      "name": "total_assets",
+      "source": "canonical_bs.total_assets",
+      "value": 52764717.79
+     }
+    ],
+    "value": 0.8529923533208003
+   },
+   "definition": {
+    "card_key": "debt_to_assets",
+    "company_basis": "TOTAL liabilities (datorii) / total assets. Deferred income (I8) and provisions (I9) sit outside I7. This is NOT the ratio card's debt / assets, which reads financial debt only",
+    "differs_from_card": true,
+    "formula": "I7 / (I1 + I2 + I6)"
+   },
+   "direction": "lower",
+   "key": "liabilities_to_assets",
+   "percentile": null,
+   "percentile_reason": {
+    "code": "quartiles_only",
+    "inputs": [
+     "dataset.quartiles"
+    ]
+   },
+   "position": "above_p75",
+   "reason": null,
+   "sector": {
+    "dropped": {
+     "absent_operand": 23,
+     "nonpositive_denominator": 0
+    },
+    "filed_lines": [
+     "DATORII (I7)",
+     "ACTIVE IMOBILIZATE - TOTAL (I1)",
+     "ACTIVE CIRCULANTE - TOTAL (I2)",
+     "CHELTUIELI IN AVANS (I6)"
+    ],
+    "level": "caen4",
+    "median": 0.556109,
+    "n": 42,
+    "p25": 0.411282,
+    "p75": 0.801258,
+    "sector_caen": "1011",
+    "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+    "unit": "fraction",
+    "year": 2024
+   },
+   "status": "sourced",
+   "unit": "fraction",
+   "vs_sector": "worse"
+  },
+  {
+   "company": {
+    "basis": "restated_on_filed_basis",
+    "card_agrees": null,
+    "card_value": null,
+    "operands": [
+     {
+      "name": "receivables_all",
+      "source": "canonical_bs.rows[ar_trade_gross, ar_provisions, ar_intercompany, ar_tax_recoverable, ar_personnel, ar_supplier_advances]",
+      "value": 13159250.71
+     },
+     {
+      "name": "net_turnover",
+      "source": "assembled_pl.revenue",
+      "value": 48349081.59
+     }
+    ],
+    "value": 99.3426628013432
+   },
+   "definition": {
+    "card_key": "dso",
+    "company_basis": "ALL receivables (creante) / net turnover x 365, not trade receivables only",
+    "differs_from_card": true,
+    "formula": "I4 / I13 x 365"
+   },
+   "direction": "lower",
+   "key": "receivables_days",
+   "percentile": null,
+   "percentile_reason": {
+    "code": "quartiles_only",
+    "inputs": [
+     "dataset.quartiles"
+    ]
+   },
+   "position": "above_p75",
+   "reason": null,
+   "sector": {
+    "dropped": {
+     "absent_operand": 0,
+     "nonpositive_denominator": 0
+    },
+    "filed_lines": [
+     "Creante (I4)",
+     "Cifra de afaceri neta (I13)"
+    ],
+    "level": "caen4",
+    "median": 29.92,
+    "n": 65,
+    "p25": 11.88,
+    "p75": 47.61,
+    "sector_caen": "1011",
+    "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+    "unit": "days",
+    "year": 2024
+   },
+   "status": "sourced",
+   "unit": "days",
+   "vs_sector": "worse"
+  },
+  {
+   "company": {
+    "basis": "restated_on_filed_basis",
+    "card_agrees": null,
+    "card_value": null,
+    "operands": [
+     {
+      "name": "inventory",
+      "source": "canonical_bs.rows[inventory_raw_materials, inventory_consumables, inventory_wip, inventory_finished_goods, inventory_packaging, inventory_at_third_parties, inventory_provisions]",
+      "value": 12315518.61
+     },
+     {
+      "name": "net_turnover",
+      "source": "assembled_pl.revenue",
+      "value": 48349081.59
+     }
+    ],
+    "value": 92.97310610300674
+   },
+   "definition": {
+    "card_key": "dio",
+    "company_basis": "inventory / NET TURNOVER x 365. The ratio card's DIO divides by operating cost; the two are not comparable. Restate the company figure on turnover or refuse the comparison",
+    "differs_from_card": true,
+    "formula": "I3 / I13 x 365"
+   },
+   "direction": "lower",
+   "key": "inventory_days_on_turnover",
+   "percentile": null,
+   "percentile_reason": {
+    "code": "quartiles_only",
+    "inputs": [
+     "dataset.quartiles"
+    ]
+   },
+   "position": "above_p75",
+   "reason": null,
+   "sector": {
+    "dropped": {
+     "absent_operand": 1,
+     "nonpositive_denominator": 0
+    },
+    "filed_lines": [
+     "Stocuri (I3)",
+     "Cifra de afaceri neta (I13)"
+    ],
+    "level": "caen4",
+    "median": 17.11,
+    "n": 64,
+    "p25": 8.05,
+    "p75": 39.63,
+    "sector_caen": "1011",
+    "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+    "unit": "days",
+    "year": 2024
+   },
+   "status": "sourced",
+   "unit": "days",
+   "vs_sector": "worse"
+  },
+  {
+   "company": {
+    "basis": "restated_on_filed_basis",
+    "card_agrees": null,
+    "card_value": null,
+    "operands": [
+     {
+      "name": "current_assets",
+      "source": "canonical_bs.current_assets",
+      "value": 26882763.49
+     },
+     {
+      "name": "total_assets",
+      "source": "canonical_bs.total_assets",
+      "value": 52764717.79
+     }
+    ],
+    "value": 0.5094836969846324
+   },
+   "definition": {
+    "card_key": null,
+    "company_basis": "current assets / total assets",
+    "differs_from_card": false,
+    "formula": "I2 / (I1 + I2 + I6)"
+   },
+   "direction": null,
+   "key": "current_asset_share",
+   "percentile": null,
+   "percentile_reason": {
+    "code": "quartiles_only",
+    "inputs": [
+     "dataset.quartiles"
+    ]
+   },
+   "position": "p25_to_median",
+   "reason": null,
+   "sector": {
+    "dropped": {
+     "absent_operand": 23,
+     "nonpositive_denominator": 0
+    },
+    "filed_lines": [
+     "ACTIVE CIRCULANTE - TOTAL (I2)",
+     "ACTIVE IMOBILIZATE - TOTAL (I1)",
+     "ACTIVE CIRCULANTE - TOTAL (I2)",
+     "CHELTUIELI IN AVANS (I6)"
+    ],
+    "level": "caen4",
+    "median": 0.613909,
+    "n": 42,
+    "p25": 0.347241,
+    "p75": 0.763373,
+    "sector_caen": "1011",
+    "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+    "unit": "fraction",
+    "year": 2024
+   },
+   "status": "sourced",
+   "unit": "fraction",
+   "vs_sector": "inside"
+  },
+  {
+   "company": {
+    "basis": "restated_on_filed_basis",
+    "card_agrees": null,
+    "card_value": null,
+    "operands": [
+     {
+      "name": "net_turnover",
+      "source": "assembled_pl.revenue",
+      "value": 48349081.59
+     }
+    ],
+    "value": null
+   },
+   "definition": {
+    "card_key": null,
+    "company_basis": "net turnover growth year on year",
+    "differs_from_card": false,
+    "formula": "I13 (year) / I13 (prior year) - 1, joined by CUI, prior I13 > 0"
+   },
+   "direction": "higher",
+   "key": "revenue_growth",
+   "percentile": null,
+   "percentile_reason": {
+    "code": "quartiles_only",
+    "inputs": [
+     "dataset.quartiles"
+    ]
+   },
+   "position": null,
+   "reason": {
+    "code": "prior_period_absent",
+    "inputs": [
+     "prior period"
+    ]
+   },
+   "sector": {
+    "dropped": {
+     "absent_operand": 0,
+     "nonpositive_denominator": 0
+    },
+    "filed_lines": [
+     "Cifra de afaceri neta (I13)"
+    ],
+    "level": "caen4",
+    "median": 0.087344,
+    "n": 65,
+    "p25": 0.006037,
+    "p75": 0.166967,
+    "prior_year": 2023,
+    "sector_caen": "1011",
+    "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2023 and FY2024, CC-BY-4.0",
+    "unit": "fraction",
+    "year": 2024
+   },
+   "status": "company_absent",
+   "unit": "fraction",
+   "vs_sector": null
+  }
+ ],
+ "schema": "sector_benchmark/1",
+ "sector_disputed": false,
+ "sector_label": "Prelucrarea si conservarea carnii",
+ "size_band": {
+  "key": "10m_50m",
+  "max_ron": 50000000,
+  "min_ron": 10000000
+ },
+ "size_bands": [
+  {
+   "key": "lt_1m",
+   "max_ron": 1000000,
+   "min_ron": 1
+  },
+  {
+   "key": "1m_10m",
+   "max_ron": 10000000,
+   "min_ron": 1000000
+  },
+  {
+   "key": "10m_50m",
+   "max_ron": 50000000,
+   "min_ron": 10000000
+  },
+  {
+   "key": "50m_250m",
+   "max_ron": 250000000,
+   "min_ron": 50000000
+  },
+  {
+   "key": "gte_250m",
+   "max_ron": null,
+   "min_ron": 250000000
+  }
+ ],
+ "source": "Ministerul Finantelor - situatii financiare anuale, published on data.gov.ro, FY2024, CC-BY-4.0",
+ "status": "ok",
+ "year": 2024
+}

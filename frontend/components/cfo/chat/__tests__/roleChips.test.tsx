@@ -110,31 +110,46 @@ describe("role ordering — membership never changes, only order", () => {
   });
 });
 
-describe("Pro mode — the existing DSCR/leverage/covenant set, unchanged", () => {
-  it("returns the legacy chatX.prompts.ws list in its original order", () => {
+describe("Pro mode — the existing set, with the rent-only DSCR only where it fits", () => {
+  const LEGACY_KEYS = [
+    "risk",
+    "cashFlow",
+    "pnl",
+    "workingCapital",
+    "dscr",
+    "yoy",
+    "leverage",
+    "liquidity",
+  ];
+
+  it("a property / rental company gets the legacy chatX.prompts.ws list, in its original order", () => {
     seed("pro", "owner");
-    const { result } = renderHook(() => useWorkspacePrompts());
-    const legacyKeys = [
-      "risk",
-      "cashFlow",
-      "pnl",
-      "workingCapital",
-      "dscr",
-      "yoy",
-      "leverage",
-      "liquidity",
-    ];
+    const { result } = renderHook(() => useWorkspacePrompts({ rental: true }));
     expect(result.current.map((p) => p.title)).toEqual(
-      legacyKeys.map((k) => i18n.t(`chatX.prompts.ws.${k}.title`)),
+      LEGACY_KEYS.map((k) => i18n.t(`chatX.prompts.ws.${k}.title`)),
     );
     expect(result.current.map((p) => p.prompt)).toEqual(
-      legacyKeys.map((k) => i18n.t(`chatX.prompts.ws.${k}.prompt`)),
+      LEGACY_KEYS.map((k) => i18n.t(`chatX.prompts.ws.${k}.prompt`)),
     );
   });
 
-  it("accountant with no explicit mode defaults to Pro and gets the legacy set", () => {
+  // Owner ruling 2026-09-26 (design C3): "never a question that doesn't fit
+  // the company — no 'rent-only DSCR' on a manufacturer". Unknown is not
+  // rental, so the default drops it; every other prompt keeps its order.
+  it("any other company (or an unknown one) is never offered the rent-only DSCR", () => {
+    seed("pro", "owner");
+    for (const opts of [undefined, { rental: false }]) {
+      const { result } = renderHook(() => useWorkspacePrompts(opts));
+      expect(result.current.map((p) => p.title)).toEqual(
+        LEGACY_KEYS.filter((k) => k !== "dscr").map((k) => i18n.t(`chatX.prompts.ws.${k}.title`)),
+      );
+      expect(result.current.some((p) => /rent only/i.test(p.prompt))).toBe(false);
+    }
+  });
+
+  it("accountant with no explicit mode defaults to Pro (the rental set for a rental company)", () => {
     seed(null, "accountant");
-    const { result } = renderHook(() => useWorkspacePrompts());
+    const { result } = renderHook(() => useWorkspacePrompts({ rental: true }));
     expect(result.current[4].title).toBe(i18n.t("chatX.prompts.ws.dscr.title"));
   });
 });
