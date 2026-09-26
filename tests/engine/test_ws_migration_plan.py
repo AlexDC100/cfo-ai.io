@@ -241,7 +241,7 @@ def test_the_re_date_rewrites_the_engines_period_detection_record(world):
 
 
 def test_the_re_date_makes_the_detection_envelope_say_the_new_date(world):
-    """P2 (2026-09-26): the re-dated Carniprod row's §7 detection_envelope
+    """The envelope item (2026-09-26): the re-dated Carniprod row's §7 detection_envelope
     (a second stored record of the period's date, persisted by
     stage_persist and copied verbatim by the 3b5 backfill snapshot) kept
     its old dates — in production not even the row's 2017-12-31 but the
@@ -1145,7 +1145,7 @@ def _functions_in(path):
 
 
 def test_a_held_archive_is_never_archived_again_nor_restored_by_its_owner():
-    """P2 (2), 2026-09-26 — supabase/schema_phase_archive_hold_guard.sql
+    """The archive-guard item (2026-09-26) — supabase/schema_phase_archive_hold_guard.sql
     (the owner applies it; --execute requires its marker). A held archive
     (archived_at set, purge_after NULL) reached two more RPCs:
     archive_workspace gave it a deletion date (the cron purge then erased

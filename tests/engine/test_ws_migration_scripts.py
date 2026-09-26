@@ -260,7 +260,7 @@ def test_execute_refuses_while_the_purge_hold_guard_is_missing(env):
 
 
 def test_execute_refuses_while_the_archive_hold_guard_is_missing(env):
-    """P2 (2), 2026-09-26: the plan's held archives are safe from "Delete
+    """The archive-guard item (2026-09-26): the plan's held archives are safe from "Delete
     forever" only. Without supabase/schema_phase_archive_hold_guard.sql,
     archive_workspace() gives a held archive a deletion date (the cron
     purge erases it a month later) and restore_workspace() lets its owner
@@ -917,7 +917,7 @@ def test_the_whole_table_restore_is_explicit_and_refuses_users_rows_created_sinc
 
 
 def test_the_whole_table_restore_refuses_a_row_a_user_changed_since_the_snapshot(env):
-    """P1-A (2026-09-26): --whole-tables refused only rows CREATED since
+    """The rollback item, its last net (2026-09-26): --whole-tables refused only rows CREATED since
     the snapshot. A user's edit of a row the snapshot has (a renamed
     workspace, a restored document, a changed preference) is not a
     creation, so --apply went ahead and silently reverted it. Now ANY row

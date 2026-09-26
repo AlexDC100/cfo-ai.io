@@ -1,4 +1,4 @@
-"""NO HARD DELETE IN AN ARCHIVED WORKSPACE (P2, 2026-09-26).
+"""NO HARD DELETE IN AN ARCHIVED WORKSPACE (2026-09-26).
 
 An archived workspace — in its 30-day recovery window, or HELD by the
 one-company-per-workspace migration (``archived_at`` set, ``purge_after``
