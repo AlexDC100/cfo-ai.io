@@ -1116,10 +1116,13 @@ def test_g8_the_migration_archives_and_db_restore_reverts_it_exactly(tmp_path):
     """The operator path end to end, over the paging PostgREST + Storage
     double that REFUSES every DELETE (ws_migration_fixture.FakeSupabase):
     db_snapshot -> workspace_migration --execute (the reviewed plan) ->
-    db_restore --apply --tables migration. The plan holds no delete; what
-    it removes from view it archives (deleted_at / archived_at); after the
-    restore every row of the pre-state is back, byte for byte, and every
-    row the migration created is archived, never deleted."""
+    db_restore --plan PLAN.json --apply, the rollback (feat/ws-migration
+    f6f9c7b5: it undoes exactly the plan's own operations; the table-wide
+    restore is an operator tool behind --whole-tables). The plan holds no
+    delete; what it removes from view it archives (deleted_at /
+    archived_at); after the rollback every row of the pre-state is back,
+    byte for byte, and every workspace the migration created is archived,
+    held, never deleted."""
     from ws_migration_fixture import FakeSupabase, build_world
     from engine.workspaces import pgrest_io
     from engine.workspaces.rowstore import pk_for, row_key, rows_equal
@@ -1156,7 +1159,8 @@ def test_g8_the_migration_archives_and_db_restore_reverts_it_exactly(tmp_path):
         have = set(row_key(r, pk) for r in fake.tables[table])
         assert all(row_key(r, pk) in have for r in rows), "G8: a %s row vanished" % table
 
-    assert restore_cli.main([snap, "--apply", "--tables", "migration"], client_factory=fake.client,
+    plan_path = str(tmp_path / "out" / "plan_2026-09-21.json")
+    assert restore_cli.main([snap, "--plan", plan_path, "--apply"], client_factory=fake.client,
                             out=lines.append, now="2026-09-22T00:00:00+00:00") == 0, "\n".join(lines[-20:])
     assert fake.deletes == [], "G8: the restore deleted"
     pks = pgrest_io.snapshot_pks(pgrest_io.load_snapshot(snap))
