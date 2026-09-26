@@ -509,6 +509,25 @@ def _engine_gates() -> List[Gate]:
                        "convention per document",
                        "mirrored contra rows checked")),
         # ── end plan/2 B4a ───────────────────────────────────────────────
+        # ── owner ruling 2026-09-26: net-711-rule ────────────────────────
+        # Net 711 ("Variația stocurilor de produse") is MEASURED off the
+        # trial balance (stock_variation.measure/decide), never the gross
+        # memo (Σ sume totale C — the production stocked on a closed book),
+        # never a 0.00 standing in for an absent account-121 anchor. Nine
+        # constructed books (OPEN, CLOSED-no-activity, CLOSED-bridge, MIXED,
+        # unanchored, G4, G5, G6, bridge+722) through the offline
+        # composition; four through the real write path, GET /api/period
+        # and the briefing rebuild; a legacy envelope refuses; four in-file
+        # plants. Measured 108 units. Plant log: gates.md "net-711-rule".
+        Gate("net-711-rule",
+             [PY, "-m", "pytest", "tests/engine/test_net_711_rule.py", "-q", "-s"],
+             work_rx=r"GATE-WORK net-711-rule units=(\d+)", floor=90,
+             units="constructed books judged, served seams compared, refusals and plants",
+             canaries=("SCOPE net-711-rule (stock_variation.measure/decide, owner ruling 2026-09-26)",
+                       "NET711-BOOKS: bridge_with_722, closed_bridge, closed_no_activity, g4_unread, "
+                       "g5_residual, g6_uncleared, mixed, open, unanchored",
+                       "NET711-PLANTS: serve-the-gross-memo, absent-anchor-to-zero, drop-guard-g6, "
+                       "rebuild-forgets-the-evidence")),
         # ── plan/2 B4b (plan_contract_v2 5.6 / 28.3 B4): forecast-pools ──
         # The cost pools of section 5 on the four books, no shocks: pools
         # plus unallocated equal the assembled operating cost to the cent;

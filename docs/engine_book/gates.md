@@ -10356,3 +10356,85 @@ PLANT books-served-without-the-verdict (lib/__tests__/exportBooks.ts: the develo
 **REVERT** — the clean tree: `Tests 18 passed (18)`.
 
 CANNOT SEE: the verdict itself (the engine gate decides it), pixels.
+
+## net-711-rule
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_net_711_rule.py -q -s` |
+| canary | `SCOPE net-711-rule (stock_variation.measure/decide, owner ruling 2026-09-26)`, `NET711-BOOKS: bridge_with_722, closed_bridge, …`, `NET711-PLANTS: serve-the-gross-memo, absent-anchor-to-zero, drop-guard-g6, rebuild-forgets-the-evidence` |
+| work count | `GATE-WORK net-711-rule units=(\d+)`, floor **90** (measured 108) |
+
+**SCOPE** — the incident (specs-durable/ebitda711/measure.md, refereed against
+the Ministry of Finance filings): the engine served `inventory_variation_memo`
+= Σ sume totale C of account 711 and a view `ebitda_statutory_with_711` built on
+it. On a CLOSED trial balance (every class-6/7 leaf closed into 121 — all ten
+real books measured) that is the GROSS production stocked, not the variation:
+630,091,698.19 on Scandia Food FY2025 against a filed variation of about 1.08M,
+EBITDA margins of 98.9 %–191.0 % on every closed manufacturer. The direct net
+Σ(credit − debit) is 0.00 on every closed book. The owner's ruling puts 711 and
+72x inside EBITDA and the operating result, so the variation has to be
+MEASURED: `stock_variation.measure(tb_rows)` takes the evidence off the parsed
+leaves at persist time (book state, 711/72x turnovers, account 121's opening and
+its clearing, unread class-6/7 activity) and `stock_variation.decide` applies
+the rule — OPEN: the movement; no 711 activity: exactly 0.00 with any 121
+remainder left visible; CLOSED: the account-121 bridge under guards G2–G6;
+otherwise a typed refusal, which refuses EBITDA / EBIT / gross profit / PBT with
+the same reason. An absent anchor is a refusal, never 0.00. The gate holds the
+rule on nine CONSTRUCTED books (no client data): OPEN, CLOSED-no-activity (a
+constructed 2,000.00 misread stays on `net_income_unexplained_vs_121`),
+CLOSED-bridge (net 711 50,000 from a gross 300,000; EBITDA 250,000, not
+500,000; the reconciliation chain closes to 121 and says it does by
+construction), MIXED (a monthly exporter with December not closed — only 121's
+closing entries tell it from an open book), unanchored (G2), an unread class-7
+leaf (G4), a remainder larger than 711's turnover (G5), an uncleared prior-year
+result in 121 (G6), and the bridge with 72x. Four books go through the REAL
+write path (`_deterministic_tb_parsed` measures, `stage_map` decides,
+`stage_persist` stores the block on the envelope) and back through
+`GET /api/period` and `_rebuild_assembled_for_briefing`; an envelope written
+before the measurement refuses with `period_predates_stock_variation_measurement`.
+Checked beside the rule: the retired gross-memo fields are not served, the legacy
+EBITDA names equal the one EBITDA, EBITDA = before + 711 + 72x, EBIT = EBITDA −
+D&A, 767 sits in the financial result, an OPEN book's 72x is its net.
+
+Measured beside it (not committed — client books, read in place): on the eight
+local real books the served net 711 equals measure.md T7 to the cent (Agras
+1,071,687.03 · Carniprod 186,849.53 · SRD 29,589,814.24 · frozen 231,203.19 ·
+Scandia Food FY2025 519,389.11 · FY2024 2,832,404.19 · retail 0.00
+no_711_activity · EEI 722 2,164,079.83).
+
+In-file plants (the checkers must fail on each; NET711-PLANTS): serve the gross
+memo on the bridge book; an absent anchor turned into 0.00; guard G6 dropped; a
+rebuild seam that stops threading the persisted evidence. Source-edit plants,
+each applied alone to `src/engine/country_packs/ro_romania/stock_variation.py`
+on a clean tree and reverted with `git checkout --`:
+
+**PLANT serve-the-gross-memo** — the bridge branch
+`_serve(float(residual), PROV_BRIDGE)` → `_serve(_f(a711.get("credit_turnover")), PROV_BRIDGE)`.
+```
+RED — 6 failed, 17 passed
+FAILED test_the_rule_on_each_constructed_book[bridge_with_722]
+FAILED test_the_rule_on_each_constructed_book[closed_bridge]
+FAILED test_the_gross_memo_is_never_the_variation_on_a_closed_book
+FAILED test_the_evidence_is_persisted_and_every_served_seam_reads_it[closed_bridge]
+FAILED test_the_evidence_is_persisted_and_every_served_seam_reads_it[bridge_with_722]
+E   AssertionError: closed_bridge: net 711 300000.0, expected 50000.0
+E     closed_bridge: ebitda 500000.0, expected 250000.0
+E   assert not [..., 'closed_bridge: the chain does not close to account 121 (not explained -250000.0)']
+```
+**PLANT absent-anchor-to-zero** — G2 `_refuse(REASON_UNANCHORED)` → `_serve(0.0, PROV_BRIDGE)`.
+```
+RED — 4 failed, 19 passed
+FAILED test_the_rule_on_each_constructed_book[unanchored]
+FAILED test_an_absent_anchor_is_a_refusal_never_zero
+FAILED test_the_evidence_is_persisted_and_every_served_seam_reads_it[unanchored]
+E   AssertionError: unanchored: 711 served 0.0 where the rule refuses (account_121_anchor_absent)
+E     unanchored: ebitda served 200000.0 while 711 is refused
+```
+**REVERT** — `git checkout -- src/engine/country_packs/ro_romania/stock_variation.py`:
+`23 passed`.
+
+CANNOT SEE: consumers of the one EBITDA outside `assemble_statements` (credit
+model, ratio table, benchmark, forecast, FE) — the `one-ebitda`,
+`turnover-denominator` and `refusal-carries` gates (stage E2/E3) own those; the
+FILED 711 (the Ministry referee is a measurement, not a gate).
