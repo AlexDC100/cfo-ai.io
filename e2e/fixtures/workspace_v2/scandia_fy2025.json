@@ -20,7 +20,7 @@
     "org_id": "0a9a0000-0000-4000-8000-0000000000a9"
    }
   ],
-  "content_hash": "8a967f4a46fac1cfbdbdb668ca3e770a7e1bfe6e5a4379680757baf00f553d66",
+  "content_hash": "edad43005661fcb2f6805afd8d402bbb8f0b40b9545fb6caac85fc819485a5c2",
   "duplicate": null,
   "identity": {
    "caen_code": null,
@@ -5650,7 +5650,7 @@
       "header_row_index": 4,
       "method": "deterministic",
       "number_locale": "anglo",
-      "parser_version": "tb_parser_v5",
+      "parser_version": "tb_parser_v6",
       "sheet": "Document_CH14",
       "source_format": "saga_10_col"
      },
@@ -7515,7 +7515,7 @@
      "header_row_index": 4,
      "method": "deterministic",
      "number_locale": "anglo",
-     "parser_version": "tb_parser_v5",
+     "parser_version": "tb_parser_v6",
      "sheet": "Document_CH14",
      "source_format": "saga_10_col"
     },

@@ -350,9 +350,18 @@ def test_retrying_the_first_of_two_legacy_analysed_copies_keeps_it(world):
 
 
 def test_g3_recover_stuck_archives_a_duplicate_instead_of_enqueuing_it(world):
+    # The copy sits INSIDE recover-stuck's window (older than its 5 s
+    # upload→enqueue race, younger than its 24 h zombie cap): a stuck row of
+    # any age past the cap is marked failed, never re-enqueued, so a fixed
+    # calendar date here read as a zombie once the day moved on
+    # (2026-09-26: `duplicates_count` 0, the row `stale_failed`). Relative
+    # ages keep the gate on what it holds — a stuck COPY is archived as the
+    # duplicate it is, not run again.
+    from datetime import datetime, timedelta, timezone
+    ago = lambda **kw: (datetime.now(timezone.utc) - timedelta(**kw)).isoformat()  # noqa: E731
     world["db"].rows("documents").extend([
-        _doc("orig", status="analyzed", period_id=PERIOD, created="2026-09-20T12:00:12+00:00"),
-        _doc("stuck-copy", created="2026-09-21T07:00:00+00:00"),
+        _doc("orig", status="analyzed", period_id=PERIOD, created=ago(days=1, hours=1)),
+        _doc("stuck-copy", created=ago(hours=2)),
     ])
     body = world["post"]("/api/pipeline/recover-stuck", None).json()
     assert body["recovered_count"] == 0 and body["duplicates_count"] == 1
