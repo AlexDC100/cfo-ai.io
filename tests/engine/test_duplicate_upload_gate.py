@@ -344,9 +344,14 @@ def test_retrying_the_first_of_two_legacy_analysed_copies_keeps_it(world):
 
 
 def test_g3_recover_stuck_archives_a_duplicate_instead_of_enqueuing_it(world):
+    """The stuck copy is created a minute ago, RELATIVE to the clock: the
+    route marks any queued row older than 24h `failed` BEFORE the duplicate
+    look runs, so a fixed date turned this gate red by the calendar
+    (2026-09-22T07:00Z) while the property still held. It reds on
+    recover-stuck enqueuing (or metering) a fresh stuck duplicate."""
     world["db"].rows("documents").extend([
         _doc("orig", status="analyzed", period_id=PERIOD, created="2026-09-20T12:00:12+00:00"),
-        _doc("stuck-copy", created="2026-09-21T07:00:00+00:00"),
+        _doc("stuck-copy", created=_ago(60)),
     ])
     body = world["post"]("/api/pipeline/recover-stuck", None).json()
     assert body["recovered_count"] == 0 and body["duplicates_count"] == 1

@@ -58,6 +58,10 @@ def _later(minutes: float) -> datetime:
     return datetime.now(timezone.utc) + timedelta(minutes=minutes)
 
 
+def _ago(seconds: float) -> str:
+    return (datetime.now(timezone.utc) - timedelta(seconds=seconds)).isoformat()
+
+
 def _ledger(world, doc_id):
     return next((r for r in world["db"].rows(_quota_ledger.TABLE) if r["document_id"] == doc_id), None)
 
@@ -281,12 +285,16 @@ def test_recover_stuck_never_spends_a_lost_confirmed_extra(world):
     restart lost the in-memory grant."""
     meter = world["meter"]
     meter.uploads = 15
-    world["db"].rows("documents").append(_doc("over", h=EEI, created="2026-09-21T10:00:00+00:00"))
+    # A minute old, RELATIVE to the clock: a fixed date crossed the route's
+    # 24h zombie cutoff and the row was marked `failed` before the grant
+    # rule was ever consulted — the gate stayed green for the wrong reason.
+    world["db"].rows("documents").append(_doc("over", h=EEI, created=_ago(60)))
     world["post"]("/api/pipeline/run", {"document_id": "over"})
     _confirm(world, "over")
     _restart()
     body = world["post"]("/api/pipeline/recover-stuck", None).json()
-    assert body["recovered"] == [] and world["enqueued"] == []
+    assert body["stale_failed"] == [], ("the age rule, not the grant rule, kept it out", body)
+    assert body["recovered"] == [] and body["needs_confirmation"] == [] and world["enqueued"] == []
     assert meter.snapshot()["pending"] == 1 and meter.reserved == 1
 
 
