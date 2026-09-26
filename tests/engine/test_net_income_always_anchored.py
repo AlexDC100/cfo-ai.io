@@ -109,7 +109,19 @@ def test_served_net_income_equals_account_121_on_every_book_that_files_one(name,
 def test_the_unexplained_field_reports_the_real_gap(name, inp):
     """It must mean what it says: the part of the step from the
     reconstruction to the filed figure that nothing on the statement
-    names. Reporting 0.00 while the two differ is the inversion."""
+    names. Reporting 0.00 while the two differ is the inversion.
+
+    REWRITTEN 2026-09-26 (owner ruling, the ONE EBITDA). The nameable
+    components are now net 72x AND a SERVED net 711 ("Variația stocurilor
+    de produse"). On a closed manufacturer the 711 value is the account-121
+    bridge — this very remainder, taken under guards G2-G6 — so there the
+    remainder is 0.00 by construction and this law alone cannot see a
+    misread. It keeps its teeth through the witnesses below: a book with
+    NO 711 activity never folds its remainder (the constructed 2% gap, and
+    `test_a_misread_on_a_book_without_711_stays_visible`), and a remainder
+    larger than 711's turnover refuses the fold and stays visible
+    (`test_a_remainder_larger_than_711s_turnover_is_never_folded`).
+    """
     try:
         tb, _shaped, assembled = _assembled(inp)
     except Exception as e:
@@ -118,18 +130,75 @@ def test_the_unexplained_field_reports_the_real_gap(name, inp):
         pytest.skip(f"{name}: no account 121 to bridge to")
     pl = assembled["statements"]["assembled_pl"]
     recon = pl["net_income_statutory"] - pl["net_income_operational"]
-    named = pl.get("capitalized_own_work_memo") or 0.0
+    inv = pl["inventory_variation"]
+    named_72x = pl["capitalized_own_work"]["value"]
+    named_711 = inv["value"] if inv["value"] is not None else 0.0
+    named = named_72x + named_711
     unexplained = pl["net_income_unexplained_vs_121"]
     assert unexplained == pytest.approx(recon - named, abs=0.02), (
         f"{name}: unexplained reads {unexplained:,.2f} but the step from the "
         f"reconstruction to the filed figure is {recon:,.2f}, of which "
-        f"{named:,.2f} is named (722 capitalized own work)"
+        f"{named:,.2f} is named (72x {named_72x:,.2f}, 711 {named_711:,.2f} "
+        f"— {inv['provenance'] or 'refused'})"
     )
     if abs(recon - named) > 0.02:
         assert unexplained != 0.0, (
             f"{name}: {recon - named:,.2f} RON is unattributed and the field "
             f"named for it reports zero"
         )
+    if inv["provenance"] == "no_711_activity":
+        # Nothing is folded on a book that does not post to 711: the
+        # whole remainder after 72x stays on its own line.
+        assert unexplained == pytest.approx(recon - named_72x, abs=0.02), (
+            f"{name}: a book with no 711 activity folded {recon - named_72x - unexplained:,.2f} "
+            f"of its remainder into the stock variation"
+        )
+
+
+def _gap_book(extra):
+    """Revenue 1,000,000, expenses 900,000 → the build-up reconstructs to
+    100,000, while account 121 closes at 102,000 (CONSTRUCTED)."""
+    from engine.country_packs.ro_romania import stock_variation as sv
+
+    rows = [
+        {"cont": "701", "st_d": 1_000_000.0, "st_c": 1_000_000.0},
+        {"cont": "601", "st_d": 900_000.0, "st_c": 900_000.0},
+        {"cont": "5121", "sf_d": 102_000.0},
+        {"cont": "121", "st_d": 900_000.0, "st_c": 1_002_000.0, "sf_c": 102_000.0},
+    ] + list(extra)
+    accounts = _shaped([("701", "Venituri", 1_000_000.0),
+                        ("601", "Cheltuieli", 900_000.0),
+                        ("5121", "Banca", 102_000.0)]
+                       + [(r["cont"], "x", max(r.get("st_c", 0.0), r.get("st_d", 0.0)))
+                          for r in extra])
+    ev = sv.measure(rows)
+    st = coa.assemble_statements(accounts, account_121_anchor_override=102_000.0,
+                                 stock_variation_evidence=ev)
+    return st["statements"]["assembled_pl"]
+
+
+def test_a_misread_on_a_book_without_711_stays_visible():
+    """CONSTRUCTED witness (design A8): a misread worth 2,000.00 on a book
+    that does not post to 711. The fold must never absorb it."""
+    pl = _gap_book([])
+    assert pl["inventory_variation"]["provenance"] == "no_711_activity"
+    assert pl["inventory_variation"]["value"] == 0.0
+    assert pl["net_income_unexplained_vs_121"] == pytest.approx(2_000.0, abs=0.005), (
+        "a 2,000.00 misread on a book with no 711 was folded away — the "
+        "remainder must stay on its own line"
+    )
+
+
+def test_a_remainder_larger_than_711s_turnover_is_never_folded():
+    """CONSTRUCTED witness (G5): 711 turned over 500.00 in the year, yet the
+    remainder is 2,000.00 — it cannot be the stock variation. 711 refuses,
+    EBITDA refuses with it, and the 2,000.00 stays visible."""
+    pl = _gap_book([{"cont": "711", "st_d": 500.0, "st_c": 500.0}])
+    inv = pl["inventory_variation"]
+    assert inv["value"] is None
+    assert inv["refusal"]["code"] == "residual_exceeds_711_activity"
+    assert pl["ebitda"] is None and pl["ebitda_refusal"]["code"] == inv["refusal"]["code"]
+    assert pl["net_income_unexplained_vs_121"] == pytest.approx(2_000.0, abs=0.005)
 
 
 # ── the sub-threshold case no corpus book covers ────────────────────
