@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { bsDelta } from "@/lib/bsStructure";
 import { BsCmpCells, cmpColumnTemplate, useComparativeContext } from "./ComparativeCells";
+import { sourceDocumentLine } from "@/lib/comparatives";
 
 /** COMPARATIVES — the two periods' total assets, the base every share
  *  cell is struck against. Threaded as a prop through BSSectionView →
@@ -174,12 +175,22 @@ export function BSStatementView({ statement, hideGuide = false, periodId }: Prop
           rather than reading a labelled column of dashes as zeroes. */}
       <div className="bs-col-header">
         <span />
-        <span data-testid="bs-comparative-header">
+        {/* Under a comparative the opening column is the prior period's
+            served sheet and the closing column this period's; each header
+            carries the served source-document filename as its title, so a
+            reader can see WHICH FILE a column holds (the same line the P&L
+            grid's header carries — `sourceDocumentLine`). */}
+        <span
+          data-testid="bs-comparative-header"
+          title={cmp ? sourceDocumentLine(cmp.doc.prior) : undefined}
+        >
           {statement.comparativeDate ?? (
             <span className="text-ink-mute">{t("statements.bs.noComparative")}</span>
           )}
         </span>
-        <span>{statement.asOf}</span>
+        <span data-testid="bs-current-header" title={cmp ? sourceDocumentLine(cmp.doc.current) : undefined}>
+          {statement.asOf}
+        </span>
         <span>Δ</span>
         {cmpOn && (
           <span className="cmp-cells">

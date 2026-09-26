@@ -37,6 +37,8 @@ from pathlib import Path
 import pytest
 
 from engine.api import _comparatives as C
+from engine.comparatives import LINE_SPECS, coverage_from_envelope, spec_for
+from engine.comparatives.lines import ZERO_FLOOR
 
 from _comparatives_fixtures import pick_pair, served_payload
 
@@ -136,6 +138,96 @@ def test_the_core_is_json_ready_and_its_bridges_close():
     assert out["coverage_source"] == {"current": "line_items", "prior": "line_items"}
     assert out["prior_statements"] is pri["statements"] or out["prior_statements"] == pri["statements"]
     assert len(out["prior_line_items"]) == len(SYNTHETIC["lineItems"])
+
+
+# ── the served shape: fine buckets resolved from the account code ──────
+#
+# `GET /api/period` serves each line item with the persisted `bucket`
+# only — the legacy name `stage_persist` writes; the assembler's
+# `canonical_bucket` is stripped at the insert. Coverage matched on those
+# names never meets a fine bucket, so on the real client pair (2026-09-26)
+# nine bucket-backed lines read "neither period reported" beside non-zero
+# served fields. The route core resolves the canonical name onto each
+# served item through the pack's rule for its account code.
+
+NINE = ("pl.interest_income", "pl.opex_third_party", "bs.ar_doubtful_gross",
+        "bs.ar_provisions", "bs.ar_intercompany", "bs.cash_fx_component",
+        "bs.ppe_under_construction", "bs.ppe_advances", "bs.ap_dividends")
+
+
+def _li(bucket, code, **extra):
+    item = {"statement": "BS", "bucket": bucket, "ro_account_code": code,
+            "ro_account_name": "", "amount": 1.0, "is_derived": False}
+    item.update(extra)
+    return item
+
+
+def test_served_line_items_are_read_through_the_packs_rule_for_their_code():
+    """Each served item comes back carrying the canonical bucket the
+    assembler wrote before persistence folded it: the nine families by
+    code; a side-flipped row keeps the persisted name (the flip target IS
+    its bucket — 5121 in credit is short-term debt, not FX cash); a row
+    without a code keeps what it stored; an explicit `canonical_bucket`
+    is never second-guessed; and the payload's own items are untouched
+    (they are served back as `prior_line_items`)."""
+    items = [
+        _li("financialIncome", "7661"),        # interest income
+        _li("otherCurrentAssets", "4511"),     # related-party receivable
+        _li("cash", "5124"),                   # FX cash
+        _li("ppe", "231"),                     # under construction
+        _li("ppe", "4093"),                    # fixed-asset advances
+        _li("otherCurrentLiab", "457"),        # dividends payable
+        _li("ar", "4118"),                     # doubtful receivables
+        _li("operatingExpenses", "628"),       # third-party services
+        _li("stDebt", "5121"),                 # wrong-side flip, persisted
+        _li("otherIncome", ""),                # no code: keeps its bucket
+        _li("cash", "5124", canonical_bucket="explicit"),
+    ]
+    payload = {"statements": {"assembled_pl": {}, "assembled_bs": {}},
+               "line_items": items}
+    env = C.envelope_from_payload(payload)
+    assert [li.get("canonical_bucket") for li in env["lineItems"]] == [
+        "interest_income", "ar_intercompany", "cash_fx", "ppe_under_construction",
+        "ppe_advances", "ap_dividends", "ar_doubtful", "opex_third_party",
+        "stDebt", "otherIncome", "explicit",
+    ]
+    assert all("canonical_bucket" not in li for li in items[:-1]), "payload mutated"
+    for li, src in zip(env["lineItems"], items):
+        assert li["bucket"] == src["bucket"], "the persisted name is kept beside it"
+    cov = coverage_from_envelope(env)
+    for key in NINE:
+        if key == "bs.ar_provisions":
+            continue  # the RO pack emits 491x as contra `ar`; never fed by design
+        assert any(b in cov for b in spec_for(key).source_buckets), key
+
+
+def test_the_nine_sub_aggregate_lines_are_covered_on_the_served_shape():
+    """On the real analytic book, served-shaped (legacy `bucket` only):
+    every one of the nine lines whose served field is above the floor is
+    `reported` on that side, and no note says "neither period reported"
+    beside a served figure. Non-vacuity: the book carries at least five
+    of the nine above the floor (measured 2026-09-26: seven)."""
+    cur = _payload(ANALYTIC, "p-cur", "2025-12-31")
+    pri = _payload(SYNTHETIC, "p-pri", "2024-12-31")
+    assert all("canonical_bucket" not in li for li in cur["line_items"]), "not the served shape"
+    out = C.compare_payloads(cur, pri, current_row=_row("p-cur", "2025-12-31"),
+                             prior_row=_row("p-pri", "2024-12-31"))
+    cols = dict((c["key"], c) for c in out["columns"])
+    held = 0
+    for key in NINE:
+        spec = spec_for(key)
+        node = cur["statements"]
+        for part in spec.path:
+            node = node[part]
+        col = cols[key]
+        if abs(float(node)) >= ZERO_FLOOR:
+            held += 1
+            assert col["current_disclosure"] == "reported", (key, col)
+            assert col["current"] == round(float(node), 2), (key, col)
+            assert "neither period reported" not in col["note"], (key, col)
+        else:
+            assert col["current"] is None and col["current_disclosure"] == "absent", (key, col)
+    assert held >= 5, "the analytic book holds only %d of the nine above the floor" % held
 
 
 def test_the_document_is_deterministic():

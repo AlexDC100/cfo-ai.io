@@ -63,6 +63,15 @@ export interface DetailLevelDto {
   signals: Record<string, unknown>;
 }
 
+/** The document a period's figures were read from — served beside the
+ *  period so a compare column can be traced to the file it compares
+ *  against. `null` on an engine that predates the field. */
+export interface ComparativeSourceDocumentDto {
+  id: string | null;
+  filename: string | null;
+  detected_type: string | null;
+}
+
 export interface ComparativePeriodDto {
   period_id: string;
   period_end: string | null;
@@ -71,6 +80,25 @@ export interface ComparativePeriodDto {
   label: string;
   company_name: string | null;
   detail_level: DetailLevelDto;
+  source_document?: ComparativeSourceDocumentDto | null;
+}
+
+/**
+ * The one line that names WHICH BOOK a compare column holds: the source
+ * document's filename, or nothing. Shown as the column header's title.
+ *
+ * Why it exists: a period is a slot in a workspace, and the file in that
+ * slot can change — `stage_persist`'s same-month replace re-points a
+ * month at whatever was uploaded for it last. When it does, the compare
+ * column faithfully prints the new file's figures under the old month
+ * label, and nothing on screen said which file that was (2026-09-23:
+ * another company's balanță served as "Dec 2025" beside this company's
+ * Dec 2024). The filename is not an identity check — that is the
+ * workspace lane's — but it is the fact a reader can verify.
+ */
+export function sourceDocumentLine(period: ComparativePeriodDto | null | undefined): string | undefined {
+  const name = period?.source_document?.filename;
+  return typeof name === "string" && name.trim() ? name.trim() : undefined;
 }
 
 export type ComparativeStatus =
@@ -277,8 +305,14 @@ export function statementsForExportOf(
   }
   return {
     ...statements,
+    // The file behind each column, as the served document names it
+    // (`sourceDocumentLine`): the report's and the workbook's column
+    // headers carry it as their title, exactly as the dashboard's compare
+    // headers do. Null, never invented, when the engine served none.
+    sourceDocument: sourceDocumentLine(doc.current) ?? statements.sourceDocument ?? null,
     prior: {
       periodLabel: doc.prior.label,
+      sourceDocument: sourceDocumentLine(doc.prior) ?? null,
       balanceSheet: ps.balanceSheet,
       incomeStatement: ps.incomeStatement,
       // The served prior P&L rides along so the workbook's "account 121,
@@ -401,7 +435,7 @@ export function indexCells(doc: ComparativesResponse): Map<string, ComparativeCe
  * `subtotalBucket` (subtotals). The aggregates builder stamps these.
  */
 export const PL_ROW_TO_KEY: Readonly<Record<string, string>> = {
-  revenue706: "pl.revenue",
+  revenueTurnover: "pl.revenue",
   cogs: "pl.cogs",
   opexTotal: "pl.opex_total",
   depreciationAmortization: "pl.depreciation",

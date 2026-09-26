@@ -31,6 +31,7 @@ import {
   cmpColumnTemplate,
   useComparativeContext,
 } from "./ComparativeCells";
+import { sourceDocumentLine } from "@/lib/comparatives";
 import { LearnableNumber } from "@/components/learning/LearnableNumber";
 import { bucketToConcept } from "@/lib/learning/bucketToConcept";
 import { GuideMeButton } from "@/components/learning/GuideMeButton";
@@ -102,6 +103,8 @@ export function PLStatementView({ statement, showFootnote = true, hideGuide = fa
         <CmpColumnHeader
           currentLabel={cmp.doc.current.label}
           priorLabel={cmp.doc.prior.label}
+          currentTitle={sourceDocumentLine(cmp.doc.current)}
+          priorTitle={sourceDocumentLine(cmp.doc.prior)}
           shareLabel={t("statements.cmp.colShare")}
           columns={cmp.columns}
         />
@@ -401,8 +404,20 @@ function PLFootnote({ statement }: { statement: PLStatement }) {
   // rental income (706 + 767) genuinely dominates the ex-own-work revenue.
   const revenueTotal = statement.sections[0]?.subtotalAmount ?? 0;
   const revenueExOwnWork = revenueTotal - ownWork;
+  // THE 706 FAMILY IS READ OFF THE BOOK'S OWN REVENUE FAMILIES
+  // (`revenueFamilyAmounts`: the leaves, "7061" and "706.01" folded into
+  // "706"), never off a line whose `accountCode` happens to equal "706".
+  // On the aggregates path that code is the row's CHIP — a label listing
+  // the families the book holds — so `=== "706"` read a landlord's chip
+  // as its rent and a goods seller's "701/704/706/707/709" as none; on a
+  // sub-account ledger it matched nothing at all. The line lookup stays
+  // only for a statement built without leaves to read.
+  const families = statement.revenueFamilyAmounts;
+  const rental706 = families
+    ? (families["706"] ?? 0)
+    : (statement.sections[0]?.lines.find((l) => l.accountCode === "706")?.amount ?? 0);
   const rentalOnly =
-    (statement.sections[0]?.lines.find((l) => l.accountCode === "706")?.amount ?? 0) +
+    rental706 +
     (statement.sections[0]?.lines.find((l) => l.accountCode === "767")?.amount ?? 0);
   const rentalDominated =
     revenueExOwnWork > 0 && rentalOnly / revenueExOwnWork >= 0.6;

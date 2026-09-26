@@ -275,6 +275,31 @@ def test_read_value_returns_none_not_zero_for_an_uncovered_line():
     assert LN.read_value({"statements": {"assembled_pl": {"ebitda": 0.0}}}, derived, None) == 0.0
 
 
+def test_read_value_never_calls_a_non_zero_served_figure_absent():
+    """COVERAGE DECIDES ZEROS, AND ONLY ZEROS. An assembled field is a sum
+    over the leaves the book holds, so a value above the floor is proof a
+    leaf fed the line; a coverage set without the bucket is an incomplete
+    vocabulary, not evidence of absence. The measured case (2026-09-26):
+    line items served by `GET /api/period` carry the PERSISTENCE names
+    (`ar_intercompany` persists as `otherCurrentAssets`), and matched on
+    those, nine fine-bucket lines read "neither period reported" beside
+    non-zero served fields on a real client pair. The first version of
+    `read_value` ran the coverage check before reading the field."""
+    spec = LN.spec_for("bs.ar_intercompany")
+    held = {"statements": {"assembled_bs": {"ar_intercompany": 1234567.89}}}
+    assert LN.read_value(held, spec, frozenset(["otherCurrentAssets"])) == 1234567.89
+    assert LN.read_value(held, spec, frozenset()) == 1234567.89
+    assert LN.read_value(held, spec, None) == 1234567.89
+    # The zero stays coverage-decided: fed is a disclosed 0.00, unfed is absent.
+    zero = {"statements": {"assembled_bs": {"ar_intercompany": 0.0}}}
+    assert LN.read_value(zero, spec, frozenset(["otherCurrentAssets"])) is None
+    assert LN.read_value(zero, spec, frozenset(["ar_intercompany"])) == 0.0
+    assert LN.read_value(zero, spec, None) is None
+    # Sub-floor is a zero, not a balance.
+    tiny = {"statements": {"assembled_bs": {"ar_intercompany": LN.ZERO_FLOOR / 2.0}}}
+    assert LN.read_value(tiny, spec, frozenset(["otherCurrentAssets"])) is None
+
+
 @pytest.mark.parametrize("bad", [None, float("nan"), float("inf"), "12", True, {}])
 def test_read_value_refuses_a_non_number(bad):
     spec = LN.spec_for("pl.revenue")

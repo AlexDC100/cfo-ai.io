@@ -15,6 +15,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Cloud, ArrowUp } from "lucide-react";
 import type { CashFlowStatement } from "@/lib/cfStructure";
+import { sourceDocumentLine } from "@/lib/comparatives";
 import { useAmountFormatter, useDisplayCurrency } from "@/stores/currency";
 // THE DIAL — Simple mode opens the CF totals-first: adjustment / working-
 // capital / investing / financing detail rows hide behind "Show all lines";
@@ -102,6 +103,8 @@ export function CashFlowStatementView({ statement, hideGuide = false, prior = nu
             cf
             currentLabel={cmp!.doc.current.label}
             priorLabel={cmp!.doc.prior.label}
+            currentTitle={sourceDocumentLine(cmp!.doc.current)}
+            priorTitle={sourceDocumentLine(cmp!.doc.prior)}
             shareLabel=""
             columns={cmp!.columns}
           />

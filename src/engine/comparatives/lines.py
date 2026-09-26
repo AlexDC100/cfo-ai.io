@@ -252,6 +252,14 @@ def coverage_from_envelope(
     `lineItems`. None means COVERAGE IS UNKNOWN and the caller must fall
     back to "a number is present"; an empty set would mean the book fed
     nothing, and reading one as the other would mark every line absent.
+
+    Reads `canonical_bucket` first, the persisted `bucket` second. The
+    served shape (`GET /api/period`) carries only the persisted name —
+    a legacy alias that folds every fine bucket into its parent — so a
+    caller feeding served items must resolve the canonical name onto
+    them first (`engine.api._comparatives.envelope_from_payload` does,
+    through the pack's rule for the account code); this jurisdiction-
+    blind reader does not know which chart wrote the alias.
     """
     env = unwrap_envelope(envelope)
     items = env.get("lineItems")
@@ -279,6 +287,21 @@ def read_value(
     None, or when it is not a finite real number. A line that IS in the
     book and IS zero returns 0.0, and the two are different answers.
 
+    COVERAGE DECIDES ZEROS, AND ONLY ZEROS. An assembled field is a sum
+    over the leaves the book holds; a value above the zero floor is
+    therefore proof that a leaf fed the line, whatever the coverage set
+    says. Coverage is a reading of the SAME leaves, so when it disagrees
+    with a non-zero field the coverage vocabulary is incomplete — the
+    measured case (2026-09-26): line items served by `GET /api/period`
+    carry the persistence names, and matched on those, nine fine-bucket
+    lines read "neither period reported" beside non-zero served fields.
+    The served figure is the fact; a non-zero value is returned. The
+    first version of this function ran the coverage check BEFORE reading
+    the field, and so refused a balance the book plainly held.
+
+    A bucket-backed ZERO is the case coverage exists for: with a fed
+    bucket it is a disclosed 0.00; with none it is ABSENT.
+
     COVERAGE UNKNOWN (no `lineItems` on the envelope) is not coverage
     assumed. A dense envelope holds 0.0 for every bucket-backed line the
     book never fed, and without coverage a 0.0 that was disclosed cannot
@@ -286,15 +309,11 @@ def read_value(
     line, a zero under unknown coverage reads ABSENT. This is the only
     reading that never fabricates a balance: the cost is that a genuinely
     disclosed zero on an envelope with no line items is withheld, and the
-    caller can see why in `ComparativeTable.*_coverage_source`. The first
-    version of this function returned 0.0 here, "falling back to a number
-    is present" — which is the absent-read-as-zero defect this module
-    exists to refuse, wearing a label.
+    caller can see why in `ComparativeTable.*_coverage_source`. An earlier
+    version returned 0.0 here, "falling back to a number is present" —
+    which is the absent-read-as-zero defect this module exists to refuse,
+    wearing a label.
     """
-    if spec.source_buckets and coverage is not None:
-        if not any(b in coverage for b in spec.source_buckets):
-            return None
-
     node: Any = unwrap_envelope(envelope).get("statements")
     for part in spec.path:
         if not isinstance(node, Mapping) or part not in node:
@@ -306,6 +325,11 @@ def read_value(
     value = float(node)
     if value != value or value in (float("inf"), float("-inf")):
         return None
-    if spec.source_buckets and coverage is None and abs(value) < ZERO_FLOOR:
+    if not spec.source_buckets or abs(value) >= ZERO_FLOOR:
+        return value
+    # A bucket-backed zero: disclosed, or the absence of a balance?
+    if coverage is None:
+        return None
+    if not any(b in coverage for b in spec.source_buckets):
         return None
     return value
