@@ -46,23 +46,38 @@ five column pairs under the header
 
     Cont Denumire Sold initial Rulaj anterior Rulaj curent Total rulaj Sold final
 
-with comma-thousands, dot-decimal figures ("1,234,567.89", "-250.00"),
+with the figures in ONE of the number shapes this reader accepts
+(`_FORMATS_5PAIR`): comma-thousands, dot-decimals ("1,234,567.89",
+"-250.00" — the layout's native print), unseparated ("1234567.89"), the
+Romanian locale ("1.234.567,89") or space-thousands ("1 234 567.89",
+whose figures the text extraction splits into words — `_cells` reads them
+back as one figure each);
 dotted analytic codes ("1015.03", "167.305"), the code repeated inside or
 after the name ("121 121 Profit sau pierdere", a continuation line holding
 only the code), "Clasa N" section headings and "Total clasa N:" totals.
 
 The layout is chosen by header tokens AND by structure: a document whose
 rows carry ten figure columns (`_STRUCTURAL_MIN_ROWS` lines led by an
-account code and ending in ten comma-thousands figures) is a five-pair
-book whatever its column header says — a wording variant (an
+account code and ending in ten figures of any one accepted shape) is a
+five-pair book whatever its column header says — a wording variant (an
 abbreviation, a header wrapped over two lines) must not let a five-pair
-book escape this reader to one that approximates. A document whose header
-names both layouts, or neither and has no such rows, is refused. Once the
-five-pair layout is named, by either signal, the book is read strictly or
-refused: a header this reader cannot read as the five-pair column order is
-a refusal, not a fall-through. The five-pair reader is stricter than the
-eight-figure one because the document states two identities per row that
-can be checked to the cent — and it refuses unless ALL of these hold:
+book escape this reader to one that approximates, and neither must the
+shape its figures are printed in (a Romanian-locale or an unseparated
+print is as much a five-pair book as the native one). A document whose
+header names both layouts, or neither and has no such rows, is refused.
+Once the five-pair layout is named, by either signal, the book is read
+strictly or refused: a header this reader cannot read as the five-pair
+column order is a refusal, not a fall-through. The five-pair reader is
+stricter than the eight-figure one because the document states two
+identities per row that can be checked to the cent — and it refuses
+unless ALL of these hold:
+
+  * the document prints EVERY figure in one shape (`_number_format`: the
+    first accepted shape that fits every line ending in ten figures —
+    account rows, printed totals, a wrapped row's figure line); a line
+    whose figures fit another shape than the lines before it refuses
+    the book, and a figure of one shape is never a figure in another
+    ("1234.00" in a comma-thousands book is not a figure at all);
 
   * the column order is READ, never assumed: every line naming a column
     (not led by an account code) is exactly "Cont Denumire Sold initial
@@ -151,8 +166,42 @@ _TOTAL_CLASS = re.compile(r"^total\s+sume\s+clasa\s+(\d)\b", re.I)
 # ── five-pair layout (WinMentor / SceptrumERP "Balanta analitica") ──────
 _HEADER_TOKENS_5PAIR = ("balanta", "sold initial", "rulaj anterior", "rulaj curent",
                         "total rulaj", "sold final")
-_FIG_5PAIR = re.compile(r"^-?\d{1,3}(?:,\d{3})*\.\d{2}$")      # 1,234,567.89
 _CODE_5PAIR = re.compile(r"^\d{3,6}(?:\.\d{1,3})?$")             # 121, 1015.03, 167.305
+
+
+class _Format(NamedTuple):
+    """One number shape a five-pair book may print its figures in. A
+    document prints every figure in exactly one (`_number_format`)."""
+
+    name: str
+    label: str
+    figure: Any      # compiled and anchored: one cell of a line is one figure
+    source: str      # the same shape, unanchored (the flattened second opinion)
+    grouped: bool    # thousands groups separated by spaces: one figure spans several words
+
+
+def _format(name: str, label: str, source: str, grouped: bool = False) -> _Format:
+    return _Format(name, label, re.compile("^%s$" % source), source, grouped)
+
+
+# The shapes this reader accepts — in the order that names a book whose
+# every figure fits more than one (a book of figures below a thousand fits
+# the first, second and fourth alike, and reads the same in each): the
+# layout's native print first.
+_FORMATS_5PAIR: Tuple[_Format, ...] = (
+    _format("comma", "comma-thousands", r"-?\d{1,3}(?:,\d{3})*\.\d{2}"),               # 1,234,567.89
+    _format("unseparated", "unseparated", r"-?\d+\.\d{2}"),                              # 1234567.89
+    _format("euro", "dot-thousands, comma-decimals", r"-?\d{1,3}(?:\.\d{3})*,\d{2}"),  # 1.234.567,89
+    _format("space", "space-thousands", r"-?\d{1,3}(?: \d{3})*\.\d{2}", grouped=True),  # 1 234 567.89
+)
+_FORMAT_COMMA = _FORMATS_5PAIR[0]
+_FIG_5PAIR = _FORMAT_COMMA.figure   # the native shape's figure, one whole token
+# The words of one space-thousands figure: a lead group of one to three
+# digits, any number of three-digit groups, and the last group with the
+# decimals — "1", "234", "567.89".
+_GROUP_LEAD = re.compile(r"^-?\d{1,3}$")
+_GROUP_MID = re.compile(r"^\d{3}$")
+_GROUP_LAST = re.compile(r"^\d{3}\.\d{2}$")
 _TOTAL_CLASS_5PAIR = re.compile(r"^total\s+clasa\s+(\d)\s*:\s*(.*)$")
 _TOTAL_GENERAL_5PAIR = re.compile(r"^total\s+general\s*:\s*(.*)$")
 _CLASS_HEADING_5PAIR = re.compile(r"^clasa\s+(\d)$")
@@ -227,8 +276,9 @@ _CODE_COLUMN_REFUSAL = ("the line %r is printed in the code column but is not an
 # the real layout's spread is 0.1 pt and the columns are 65 pt apart.
 _COLUMN_TOLERANCE = 2.0
 # A book whose rows carry ten figure columns is a five-pair book whatever
-# its header says (round-4 critic, second defect): this many lines led by an account code
-# and ending in ten comma-thousands figures name the layout structurally.
+# its header says (round-4 critic, second defect): this many lines led by
+# an account code and ending in ten figures of any one accepted shape
+# name the layout structurally.
 _STRUCTURAL_MIN_ROWS = 3
 # Document column order, five (debit, credit) pairs.
 _SI_D, _SI_C, _RA_D, _RA_C, _RL_D, _RL_C, _TR_D, _TR_C, _SF_D, _SF_C = range(10)
@@ -364,27 +414,94 @@ def names_five_pair(layout: Optional[str]) -> bool:
     return layout in (LAYOUT_FIVE_PAIR, LAYOUT_BOTH)
 
 
-# Ten consecutive comma-thousands figures in a whitespace-flattened text —
-# the five-pair layout's rows as PyMuPDF / pypdf flatten a page (each
-# figure column's cells run together, so a page yields many such runs).
-_TEN_FIGURE_RUN = re.compile(r"(?:(?<!\S)-?\d{1,3}(?:,\d{3})*\.\d{2}(?!\S)\s+){9}"
-                             r"-?\d{1,3}(?:,\d{3})*\.\d{2}(?!\S)")
+# Ten consecutive figures of one accepted shape in a whitespace-flattened
+# text — the five-pair layout's rows as PyMuPDF / pypdf flatten a page
+# (row by row, one run per row; or each figure column's cells run
+# together, and a page yields many such runs).
+_TEN_FIGURE_RUN = re.compile("|".join(
+    r"(?:(?:(?<!\S)%s(?!\S)\s+){9}%s(?!\S))" % (f.source, f.source) for f in _FORMATS_5PAIR))
 
 
-def _ten_figure_row(text: str) -> bool:
-    """A line led by an account code and ending in ten comma-thousands
-    figures — one row of the five-pair layout, whatever the header says."""
+def _cells(tokens: List[str], fmt: _Format) -> List[str]:
+    """A line's cells in the shape `fmt`: its whitespace tokens — except
+    that in a grouped shape the words of one figure ("1", "234",
+    "567.89") are one cell. Read left to right: a lead group followed by
+    three-digit groups and a last group with the decimals is one figure;
+    so a name that ends in a one-to-three-digit number right before a
+    three-digit figure ("CONT 12" then "234.00") reads as the figure
+    12 234.00 — and the row's identities then refuse the book, which is
+    what the words can honestly say."""
+    if not fmt.grouped:
+        return tokens
+    out: List[str] = []
+    i = 0
+    while i < len(tokens):
+        j = i + 1
+        if _GROUP_LEAD.match(tokens[i]):
+            while j < len(tokens) and _GROUP_MID.match(tokens[j]):
+                j += 1
+            if j < len(tokens) and _GROUP_LAST.match(tokens[j]):
+                out.append(" ".join(tokens[i:j + 1]))
+                i = j + 1
+                continue
+        out.append(tokens[i])
+        i += 1
+    return out
+
+
+def _decimal5(cell: str, fmt: _Format) -> Decimal:
+    if fmt.name == "euro":
+        return Decimal(cell.replace(".", "").replace(",", "."))
+    return Decimal(cell.replace(",", "").replace(" ", ""))
+
+
+def _ends_in_ten_figures(cells: List[str], fmt: _Format) -> bool:
+    return len(cells) >= 10 and all(fmt.figure.match(t) for t in cells[-10:])
+
+
+def _ten_figure_row(text: str, fmt: Optional[_Format] = None) -> bool:
+    """A line led by an account code and ending in ten figures of the
+    shape `fmt` — of any one accepted shape when None — one row of the
+    five-pair layout, whatever the header says."""
     tokens = text.split()
-    return (len(tokens) >= 11 and bool(_CODE_5PAIR.match(tokens[0]))
-            and all(_FIG_5PAIR.match(t) for t in tokens[-10:]))
+    for f in ((fmt,) if fmt is not None else _FORMATS_5PAIR):
+        cells = _cells(tokens, f)
+        if len(cells) >= 11 and _CODE_5PAIR.match(cells[0]) and _ends_in_ten_figures(cells, f):
+            return True
+    return False
 
 
 def _flattened_names_five_pair(flattened: str) -> bool:
     """The five-pair STRUCTURE in a whitespace-flattened page text (the
-    second opinions): `_STRUCTURAL_MIN_ROWS` runs of ten comma-thousands
-    figures. An eight-figure page flattens to no such run — its figures
-    are space- or dot-thousands, and a run breaks at every account code."""
+    second opinions): `_STRUCTURAL_MIN_ROWS` runs of ten figures, each run
+    in one accepted shape. An eight-figure page flattens to no such run —
+    its rows carry eight figures, and a run breaks at every account
+    code."""
     return len(_TEN_FIGURE_RUN.findall(flattened)) >= _STRUCTURAL_MIN_ROWS
+
+
+def _number_format(lines: List[Line]) -> _Format:
+    """The one shape the document prints its figures in: the first of
+    `_FORMATS_5PAIR` that fits every line ending in ten figures — an
+    account row, a printed total, a wrapped row's figure line. A line
+    whose figures fit a shape the lines before it do not is a refusal (a
+    document prints one shape; a figure of one shape is not a figure in
+    another). A document with no such line — a header-named book too
+    short to read — keeps the layout's native shape, and is refused
+    further on for what it lacks."""
+    fitting = list(_FORMATS_5PAIR)
+    for ln in lines:
+        tokens = ln.text.split()
+        fits = [f for f in _FORMATS_5PAIR if _ends_in_ten_figures(_cells(tokens, f), f)]
+        if not fits:
+            continue
+        kept = [f for f in fitting if f.name in {g.name for g in fits}]
+        if not kept:
+            _refuse5("the line %r prints its figures in another number format (%s) than the "
+                     "lines before it (%s)", ln.text.strip()[:60],
+                     " / ".join(f.label for f in fits), " / ".join(f.label for f in fitting))
+        fitting = kept
+    return fitting[0]
 
 
 def _layout_of(folded: str, structural_five: bool = False) -> Optional[str]:
@@ -407,10 +524,11 @@ def detect_layout(lines: List[Any]) -> Optional[str]:
     """The layout a document names (LAYOUT_FIVE_PAIR, LAYOUT_EIGHT_FIGURE,
     LAYOUT_BOTH), or None: by its header, from the first 40 text lines,
     and by its STRUCTURE — `_STRUCTURAL_MIN_ROWS` lines anywhere in the
-    document led by an account code and ending in ten comma-thousands
-    figures name the five-pair layout however the column header is
-    worded, spaced, abbreviated or wrapped. Pure and total: it cannot
-    raise, so the layout is known before any reading can go wrong."""
+    document led by an account code and ending in ten figures of any one
+    accepted shape name the five-pair layout however the column header
+    is worded, spaced, abbreviated or wrapped, and whatever shape the
+    figures are printed in. Pure and total: it cannot raise, so the
+    layout is known before any reading can go wrong."""
     texts = [_as_line(x).text for x in lines]
     structural = sum(1 for t in texts if _ten_figure_row(t)) >= _STRUCTURAL_MIN_ROWS
     return _layout_of(_fold("\n".join(texts[:40])), structural)
@@ -550,22 +668,18 @@ def _parse_eight_figure(lines: List[str]) -> Optional[Dict[str, Any]]:
     return {"rows": rows, "grand": grand, "number_format": "euro" if euro else "space", "classes": classes}
 
 
-def _fig5(token: str) -> Decimal:
-    return Decimal(token.replace(",", ""))
-
-
 def _refuse5(reason: str, *args: Any) -> NoReturn:
     message = reason % args if args else reason
     logger.info("[pdf_balanta_text] five-pair refused: %s", message)
     raise _FivePairRefusal(message)
 
 
-def _five_figures(body: str) -> Optional[List[Decimal]]:
-    """A printed total's body: exactly ten figures and nothing else."""
-    tokens = body.split()
-    if len(tokens) != 10 or not all(_FIG_5PAIR.match(t) for t in tokens):
+def _five_figures(body: str, fmt: _Format) -> Optional[List[Decimal]]:
+    """A printed total's body: exactly ten figures of `fmt` and nothing else."""
+    cells = _cells(body.split(), fmt)
+    if len(cells) != 10 or not all(fmt.figure.match(t) for t in cells):
         return None
-    return [_fig5(t) for t in tokens]
+    return [_decimal5(t, fmt) for t in cells]
 
 
 _MONTHS_RO = ("ianuarie", "februarie", "martie", "aprilie", "mai", "iunie", "iulie", "august",
@@ -610,27 +724,29 @@ class _Geometry(NamedTuple):
     name_x: Optional[float]
 
 
-def _geometry(lines: List[Line]) -> Optional[_Geometry]:
+def _geometry(lines: List[Line], fmt: _Format) -> Optional[_Geometry]:
     """The layout's columns, or None when no line carries positions.
 
     `code_x` is the leftmost first word among the lines led by a code and
-    ending in ten figures (an account line printed with its figures on a
-    name-column line, a wrapped row, sits to the right and never pulls the
-    column left); `name_x` the leftmost first name word of the lines whose
-    lead is in that column — None when no account line prints a name.
-    Refuses when the two columns cannot be told apart.
+    ending in ten figures of the document's shape `fmt` (an account line
+    printed with its figures on a name-column line, a wrapped row, sits
+    to the right and never pulls the column left); `name_x` the leftmost
+    first name word of the lines whose lead is in that column — None when
+    no account line prints a name. Refuses when the two columns cannot be
+    told apart.
     """
     leads: List[Tuple[Tuple[Word, ...], int]] = []
     for ln in lines:
         if not ln.words:
             continue
         tokens = ln.text.split()
-        if len(tokens) != len(ln.words) or not _ten_figure_row(ln.text):
+        if len(tokens) != len(ln.words) or not _ten_figure_row(ln.text, fmt):
             continue
+        cells = _cells(tokens, fmt)  # cells[0] is the code, one word: words[1] leads cells[1]
         run = 0
-        while run < len(tokens) - 1 and _FIG_5PAIR.match(tokens[-1 - run]):
+        while run < len(cells) - 1 and fmt.figure.match(cells[-1 - run]):
             run += 1
-        leads.append((ln.words, len(tokens) - run))  # the name is words[1:first figure]
+        leads.append((ln.words, len(cells) - run))  # the name is cells[1:first figure]
     if not leads:
         return None  # no account line to read the columns from: read as plain text
     code_x = min(words[0].x0 for words, _ in leads)
@@ -779,12 +895,15 @@ def _parse_five_pair(lines: List[Line]) -> Optional[Dict[str, Any]]:
     # x-positions (None when the lines carry none), and the one row that
     # may be HELD — a code-column line printed without its ten figures,
     # waiting for them on a name-column line. Nothing else may follow it.
-    geo = _geometry(lines)
+    # The one shape the document prints its figures in — read first, so
+    # that "a figure" means the same thing on every line below.
+    fmt = _number_format(lines)
+    geo = _geometry(lines, fmt)
     held: Optional[Dict[str, Any]] = None
 
     def account_row(code: str, lead: List[str], rest: List[str], run: int) -> Dict[str, Any]:
-        """A row from its code, the words printed before this line (a held
-        first line), and this line's words after the code, whose last
+        """A row from its code, the cells printed before this line (a held
+        first line), and this line's cells after the code, whose last
         `run` are figure-shaped (ten, or more when the layout prints a
         figure-shaped code right before them)."""
         extra = rest[len(rest) - run:len(rest) - 10]
@@ -797,17 +916,17 @@ def _parse_five_pair(lines: List[Line]) -> Optional[Dict[str, Any]]:
         # too. Two rows on one text line put the first row's ten figures
         # (and the second row's code) into the name, and the first code
         # would take the second row's figures.
-        in_name = sum(1 for x in name if _FIG_5PAIR.match(x))
+        in_name = sum(1 for x in name if fmt.figure.match(x))
         if in_name >= 2:
             _refuse5("account %s: its name carries %d figure-shaped tokens "
                      "(two rows on one line?)", code, in_name)
-        if any(_CODE_5PAIR.match(a) and _FIG_5PAIR.match(b) for a, b in zip(name, name[1:])):
+        if any(_CODE_5PAIR.match(a) and fmt.figure.match(b) for a, b in zip(name, name[1:])):
             _refuse5("account %s: its name holds a code followed by a figure "
                      "(two rows on one line?)", code)
         return {
             "cont": code,
             "name": " ".join(name).rstrip(" -"),
-            "figures": [_fig5(x) for x in rest[len(rest) - 10:]],
+            "figures": [_decimal5(x, fmt) for x in rest[len(rest) - 10:]],
         }
 
     for raw in lines:
@@ -816,7 +935,7 @@ def _parse_five_pair(lines: List[Line]) -> Optional[Dict[str, Any]]:
         if not line:
             continue
         f = _fold(line)
-        tokens = line.split()
+        tokens = _cells(line.split(), fmt)
         norm = " ".join(f.split())
 
         if not column_headers:
@@ -851,7 +970,7 @@ def _parse_five_pair(lines: List[Line]) -> Optional[Dict[str, Any]]:
 
         t = _TOTAL_CLASS_5PAIR.match(f)
         if t:
-            figures = _five_figures(t.group(2))
+            figures = _five_figures(t.group(2), fmt)
             if figures is None:
                 return _refuse5("class %s total does not carry exactly ten figures", t.group(1))
             if t.group(1) in class_totals:
@@ -861,7 +980,7 @@ def _parse_five_pair(lines: List[Line]) -> Optional[Dict[str, Any]]:
             continue
         g = _TOTAL_GENERAL_5PAIR.match(f)
         if g:
-            figures = _five_figures(g.group(1))
+            figures = _five_figures(g.group(1), fmt)
             if figures is None or grand_printed is not None:
                 return _refuse5("grand total is not one line of exactly ten figures")
             grand_printed = figures
@@ -871,7 +990,7 @@ def _parse_five_pair(lines: List[Line]) -> Optional[Dict[str, Any]]:
             last = None
             continue
         if f.startswith(_SKIP_PREFIXES_5PAIR) or "utilizator:" in f:
-            if sum(1 for x in tokens if _FIG_5PAIR.match(x)) >= 2:
+            if sum(1 for x in tokens if fmt.figure.match(x)) >= 2:
                 return _refuse5("a page header/footer line carries figures: %r", line[:60])
             if held is not None:
                 return _refuse5(_HELD_UNRESOLVED_REFUSAL, held["x"], "a page header or footer")
@@ -880,7 +999,7 @@ def _parse_five_pair(lines: List[Line]) -> Optional[Dict[str, Any]]:
         lead_is_code = bool(_CODE_5PAIR.match(tokens[0]))
         body = tokens[1:] if lead_is_code else tokens
         run = 0
-        while run < len(body) and _FIG_5PAIR.match(body[-1 - run]):
+        while run < len(body) and fmt.figure.match(body[-1 - run]):
             run += 1
         # The column the line's first word is printed in decides what the
         # line is (`_WRAP_RULE`) — once the column header has been read;
@@ -932,7 +1051,7 @@ def _parse_five_pair(lines: List[Line]) -> Optional[Dict[str, Any]]:
         # A continuation line: the rest of the previous account's name.
         own = last["cont"] if last is not None else None
         kept = [x for x in tokens if x != own]
-        if sum(1 for x in kept if _FIG_5PAIR.match(x)) >= 2:
+        if sum(1 for x in kept if fmt.figure.match(x)) >= 2:
             return _refuse5("a line with figures is neither an account nor a total: %r", line[:60])
         if last is not None and kept:
             last["name"] = (last["name"] + " " + " ".join(kept)).strip().rstrip(" -")
@@ -988,7 +1107,7 @@ def _parse_five_pair(lines: List[Line]) -> Optional[Dict[str, Any]]:
     for r in rows:
         v = r["figures"]
         r["v"] = [v[_SI_D], v[_SI_C], v[_RL_D], v[_RL_C], v[_TR_D], v[_TR_C], v[_SF_D], v[_SF_C]]
-    return {"rows": rows, "grand": grand, "number_format": "comma", "classes": classes,
+    return {"rows": rows, "grand": grand, "number_format": fmt.name, "classes": classes,
             "layout": "five_pair", "period": _printed_period(title_block)}
 
 

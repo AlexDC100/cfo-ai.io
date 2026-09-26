@@ -5,6 +5,10 @@ The WinMentor / SceptrumERP "Balanta analitica" prints five (debit, credit)
 pairs: Sold initial / Rulaj anterior / Rulaj curent / Total rulaj / Sold
 final, comma-thousands figures, dotted analytic codes, the code repeated
 inside or after the name, "Clasa N" headings and "Total clasa N:" totals.
+A book prints its figures in ONE number shape: comma-thousands (the
+layout's native print), unseparated, the Romanian locale (dot-thousands,
+comma-decimals) or space-thousands — `NUMBER_FORMATS`; every book here can
+be rendered in each.
 
 Synthetic book only (invented company, invented figures). Each refusal test
 tampers ONE thing and recomputes every printed total from the tampered rows,
@@ -42,8 +46,23 @@ FOOTER = [
 ]
 
 
-def fmt(v: Decimal) -> str:
-    return f"{v:,.2f}"
+NUMBER_FORMATS = ("comma", "unseparated", "euro", "space")
+
+
+def fmt(v: Decimal, number_format: str = "comma") -> str:
+    """`v` in one of the number shapes a five-pair book may print:
+    "1,234,567.89" (comma), "1234567.89" (unseparated), "1.234.567,89"
+    (euro — the Romanian locale) or "1 234 567.89" (space)."""
+    s = f"{v:,.2f}"
+    if number_format == "comma":
+        return s
+    if number_format == "unseparated":
+        return s.replace(",", "")
+    if number_format == "euro":
+        return s.replace(",", "\0").replace(".", ",").replace("\0", ".")
+    if number_format == "space":
+        return s.replace(",", " ")
+    raise ValueError(number_format)
 
 
 class Row:
@@ -60,8 +79,8 @@ class Row:
             sf = (net, Z) if net >= 0 else (Z, -net)
         self.v: List[Decimal] = [*si, *ra, *rl, *tr, *sf]
 
-    def line(self) -> str:
-        return f"{self.cont} {self.text} " + " ".join(fmt(x) for x in self.v)
+    def line(self, number_format: str = "comma") -> str:
+        return f"{self.cont} {self.text} " + " ".join(fmt(x, number_format) for x in self.v)
 
 
 def rows(n: int = 12) -> List[Row]:
@@ -91,24 +110,25 @@ def rows(n: int = 12) -> List[Row]:
 
 
 def _layout(rs: List[Row], *, grand: bool = True,
-            page_break_after: Optional[str] = None) -> List[Tuple[str, str]]:
+            page_break_after: Optional[str] = None,
+            number_format: str = "comma") -> List[Tuple[str, str]]:
     """(column, text) per line: every line starts in the code column except
     a name's continuation lines, which the layout prints in the name
-    column."""
+    column. Every figure — rows and totals — in `number_format`."""
     out = [("code", l) for l in HEADER]
     for cls in sorted({r.cont[0] for r in rs}):
         out.append(("code", f"Clasa {cls}"))
         mine = [r for r in rs if r.cont[0] == cls]
         for r in mine:
-            out.append(("code", r.line()))
+            out.append(("code", r.line(number_format)))
             if r.cont == page_break_after:
                 out.extend(("code", l) for l in FOOTER + HEADER[4:])
             out.extend(("name", c) for c in r.cont_lines)
         tot = [sum((r.v[i] for r in mine), Z) for i in range(10)]
-        out.append(("code", f"Total clasa {cls}: " + " ".join(fmt(x) for x in tot)))
+        out.append(("code", f"Total clasa {cls}: " + " ".join(fmt(x, number_format) for x in tot)))
     if grand:
         tot = [sum((r.v[i] for r in rs), Z) for i in range(10)]
-        out.append(("code", "Total general: " + " ".join(fmt(x) for x in tot)))
+        out.append(("code", "Total general: " + " ".join(fmt(x, number_format) for x in tot)))
     return out + [("code", l) for l in FOOTER]
 
 
@@ -1071,10 +1091,10 @@ def test_the_layout_is_named_by_the_header_or_by_the_rows_ten_figure_columns():
 # or refused with the plain refusal.
 
 
-def _with_column_header(*header: str) -> List[str]:
+def _with_column_header(*header: str, number_format: str = "comma") -> List[str]:
     """The book with its column header replaced by `header` — and, when
     there is none, without the Debit/Credit sub-header either."""
-    lines = book()
+    lines = render(rows(), number_format=number_format)
     i = lines.index(HEADER[4])
     return lines[:i] + list(header) + lines[i + (1 if header else 2):]
 
@@ -1137,3 +1157,144 @@ def test_an_eight_figure_book_keeps_its_own_reader():
     lines.append("Total sume clasa 5 12 066.00 0.00 0.00 0.00 12 066.00 0.00 12 066.00 0.00")
     got = P.parse_lines(lines)
     assert got is not None and "layout" not in got and len(got["rows"]) == 24
+
+
+# ── every number shape the reader accepts names the layout, and is read ──
+#
+# Before the repair the structural naming above — the rows' ten figure
+# columns — knew comma-thousands figures only, in the lines and in the
+# flattened first page alike. A five-pair book printed in the Romanian
+# locale ("1.234.567,89"), unseparated ("1234567.89") or with space
+# thousands ("1 234 567.89") under a header variant named no layout and
+# escaped to the positional fast-path — served as a partial balance on
+# the account-121 anchor alone. Now a row of ten figures in ANY one of the
+# shapes the reader accepts names the layout; the document prints every
+# figure in exactly one shape (`_number_format`), read strictly or
+# refused — never a fall-through.
+
+
+@pytest.mark.parametrize("number_format", ["unseparated", "euro", "space"])
+def test_a_book_in_another_number_shape_reads_the_same_rows(number_format):
+    comma, other = P.parse_lines(book()), P.parse_lines(render(rows(), number_format=number_format))
+    assert other is not None and other["number_format"] == number_format
+    assert [(r["cont"], r["name"], r["figures"]) for r in other["rows"]] == \
+        [(r["cont"], r["name"], r["figures"]) for r in comma["rows"]]
+    assert other["grand"] == comma["grand"] and other["period"] == comma["period"]
+    assert by_cont(other, "1000.01")["figures"][3] == Decimal(1_234_567)  # the thousands read whole
+    assert by_cont(other, "5103.01")["figures"][4] == Decimal(-250)       # the storno, on its own side
+
+
+@pytest.mark.parametrize("number_format", NUMBER_FORMATS)
+def test_the_rows_name_the_layout_in_every_number_shape(number_format):
+    lines = [l for l in render(rows(), number_format=number_format) if not l.startswith("Cont Denumire")]
+    assert P.detect_layout(lines) == P.LAYOUT_FIVE_PAIR
+
+
+@pytest.mark.parametrize("number_format", NUMBER_FORMATS)
+@pytest.mark.parametrize("header, why", [
+    ("Cont Denumire Sold init. Rulaj ant. Rulaj crt. Total rulaj Sold final", "column header reads"),
+    ("Cont Denumire Sold initial Rulaj anterior Rulaj curent Total rulaj Sold final Obs.", "column header reads"),
+    ("Cont Denumire Sold initial Rulaj anterior\nRulaj curent Total rulaj Sold final", "column header reads"),
+    ("", "account 1000.01 is printed before the column header"),
+], ids=["abbreviated", "extra-column", "wrapped-over-two-lines", "absent"])
+def test_a_header_variant_never_lets_a_book_escape_in_any_number_shape(caplog, number_format, header, why):
+    lines = (_with_column_header(*header.split("\n"), number_format=number_format) if header
+             else _with_column_header(number_format=number_format))
+    assert P.detect_layout(lines) == P.LAYOUT_FIVE_PAIR
+    verdict = P.parse_lines_verdict(lines)
+    assert verdict.layout == P.LAYOUT_FIVE_PAIR and verdict.parsed is None
+    assert why in (verdict.refusal or ""), verdict.refusal
+
+
+@pytest.mark.parametrize("number_format", NUMBER_FORMATS)
+def test_a_flattened_first_page_names_the_layout_in_every_number_shape(number_format):
+    # the second opinion on a page whose text lines name no layout: runs
+    # of ten figures, in any one shape
+    lines = [l for l in render(rows(), number_format=number_format) if not l.startswith("Cont Denumire")]
+    assert P._flattened_names_five_pair(" ".join(P._fold(" ".join(lines)).split()))
+
+
+@pytest.mark.parametrize("euro", [False, True], ids=["space-thousands", "romanian-locale"])
+def test_a_flattened_eight_figure_page_does_not_name_the_five_pair_layout(euro):
+    # rows of eight figures never run to ten: the eight-figure book keeps
+    # its own reader whatever shape its figures take
+    def num(v: int) -> str:
+        s = f"{v:,}.00"
+        return s.replace(",", "X").replace(".", ",").replace("X", ".") if euro else s.replace(",", " ")
+    lines = [f"10{i:02d} CAPITAL {i} {num(0)} {num(1000 + i)} {num(0)} {num(0)} {num(0)} {num(1000 + i)} "
+             f"{num(0)} {num(1000 + i)}" for i in range(12)]
+    lines += [f"51{i:02d} BANCA {i} {num(1000 + i)} {num(0)} {num(0)} {num(0)} {num(1000 + i)} {num(0)} "
+              f"{num(1000 + i)} {num(0)}" for i in range(12)]
+    assert not P._flattened_names_five_pair(" ".join(P._fold(" ".join(lines)).split()))
+
+
+def test_a_book_mixing_two_number_shapes_refuses(caplog):
+    # one row reprinted in the Romanian locale inside a comma-thousands
+    # book: every figure is a figure in its own shape, every identity and
+    # total still ties — the second shape alone refuses it
+    rs = rows()
+    lines = render(rs)
+    i = next(k for k, l in enumerate(lines) if l.startswith("1007.01 "))
+    lines[i] = next(r for r in rs if r.cont == "1007.01").line("euro")
+    assert refused(caplog, lines, "prints its figures in another number format (dot-thousands, comma-decimals) "
+                                  "than the lines before it (comma-thousands)")
+
+
+def test_a_book_of_figures_below_a_thousand_is_read_in_the_native_shape():
+    # every figure fits comma-thousands, unseparated and space-thousands
+    # alike (and reads the same in each): the layout's native shape names it
+    rs = [Row(f"10{i:02d}.01", f"CAPITAL {i}", si=(Z, Decimal(100 + i)), rl=(Z, Decimal("0.50")))
+          for i in range(12)]
+    rs += [Row(f"51{i:02d}.01", f"CONT BANCAR {i}", si=(Decimal(100 + i), Z), rl=(Decimal("0.50"), Z))
+           for i in range(12)]
+    got = P.parse_lines(render(rs))
+    assert got is not None and got["number_format"] == "comma"
+    assert by_cont(got, "1000.01")["figures"][9] == Decimal("100.50")
+
+
+def _space_book_with_a_name_ending_in_a_number(number_format: str) -> List[str]:
+    rs = rows()
+    rs.append(Row("5199.02", "CONT 12", si=(Decimal("234.00"), Z)))
+    rs.append(Row("1099.02", "CAPITAL X", si=(Z, Decimal("234.00"))))
+    return render(rs, number_format=number_format)
+
+
+def test_a_name_ending_in_a_number_before_a_three_digit_figure_refuses_in_the_space_shape(caplog):
+    # "CONT 12 234.00 ...": with space thousands the "12" is the figure's
+    # thousands group as far as the words can tell, so the row's sold
+    # initial reads 12 234.00 and its identities fail — a refusal, never a
+    # served misread
+    assert refused(caplog, _space_book_with_a_name_ending_in_a_number("space"),
+                   "account 5199.02: sold final != sold initial + total rulaj")
+
+
+def test_the_same_name_is_read_in_the_comma_shape():  # the control
+    got = P.parse_lines(_space_book_with_a_name_ending_in_a_number("comma"))
+    assert got is not None and by_cont(got, "5199.02")["name"] == "CONT 12"
+    assert by_cont(got, "5199.02")["figures"][0] == Decimal("234.00")
+
+
+@pytest.mark.parametrize("number_format", NUMBER_FORMATS)
+def test_the_positioned_book_is_read_like_the_plain_one_in_every_number_shape(number_format):
+    plain = P.parse_lines(render(rows(), number_format=number_format))
+    placed = P.parse_lines(render_positioned(rows(), number_format=number_format))
+    assert placed is not None
+    assert [(r["cont"], r["name"], r["v"]) for r in placed["rows"]] == \
+        [(r["cont"], r["name"], r["v"]) for r in plain["rows"]]
+
+
+@pytest.mark.parametrize("number_format", NUMBER_FORMATS)
+def test_a_wrapped_row_is_read_by_its_columns_in_every_number_shape(number_format):
+    pairs = _layout(_client_rows("Client 404 Media SRL 404"), number_format=number_format)
+    got = P.parse_lines(_wrap_placed(pairs, "4111.05", "4111.05 Client 4011.09", NAME_X))
+    assert got is not None
+    assert by_cont(got, "4111.05")["figures"][8] == Decimal("7500.00")
+    assert not any(r["cont"] == "404" for r in got["rows"])
+
+
+def test_a_single_unseparated_figure_in_a_comma_book_is_still_not_a_figure(caplog):
+    # the boundary of `_number_format`: a row that ends in ten figures in
+    # no single shape names none, so the book's shape stays comma-thousands
+    # and the row is refused for its figure count, as before
+    lines = _replace_line("1007.01 ", lambda l: l.replace("1,234,574.00", "1234574.00", 1))
+    assert refused(caplog, lines, "account 1007.01 carries 6 figures, not 10")

@@ -116,14 +116,29 @@ def balanta_pdf(monkeypatch):
     return _arm(monkeypatch, _pdf_bytes(_synthetic_balanta_lines()))
 
 
-def _fmt5(v: Decimal) -> str:
-    return f"{v:,.2f}"
+NUMBER_FORMATS = ("comma", "unseparated", "euro", "space")
 
 
-def _synthetic_five_pair_lines(n: int = 12):
+def _fmt5(v: Decimal, number_format: str = "comma") -> str:
+    """`v` in one of the number shapes a five-pair book may print:
+    "1,234,567.89" (comma, the layout's native print), "1234567.89"
+    (unseparated), "1.234.567,89" (euro — the Romanian locale) or
+    "1 234 567.89" (space)."""
+    s = f"{v:,.2f}"
+    if number_format == "unseparated":
+        return s.replace(",", "")
+    if number_format == "euro":
+        return s.replace(",", "\0").replace(".", ",").replace("\0", ".")
+    if number_format == "space":
+        return s.replace(",", " ")
+    return s
+
+
+def _synthetic_five_pair_lines(n: int = 12, number_format: str = "comma"):
     """Five (debit, credit) pairs per account: Sold initial, Rulaj anterior,
     Rulaj curent, Total rulaj (= anterior + curent), Sold final (= initial +
-    Total rulaj). Invented company, invented figures."""
+    Total rulaj). Invented company, invented figures, every figure printed
+    in `number_format`."""
     z = Decimal(0)
     lines = [
         "Balanta analitica",
@@ -153,11 +168,11 @@ def _synthetic_five_pair_lines(n: int = 12):
     for cls, rows in (("1", c1), ("5", c5)):
         lines.append(f"Clasa {cls}")
         for cont, name, v in rows:
-            lines.append(f"{cont} {name} " + " ".join(_fmt5(x) for x in v))
+            lines.append(f"{cont} {name} " + " ".join(_fmt5(x, number_format) for x in v))
         tot = [sum((r[2][i] for r in rows), z) for i in range(10)]
         grand = [g + t for g, t in zip(grand, tot)]
-        lines.append(f"Total clasa {cls}: " + " ".join(_fmt5(x) for x in tot))
-    lines.append("Total general: " + " ".join(_fmt5(x) for x in grand))
+        lines.append(f"Total clasa {cls}: " + " ".join(_fmt5(x, number_format) for x in tot))
+    lines.append("Total general: " + " ".join(_fmt5(x, number_format) for x in grand))
     lines.append("Data si ora tiparirii: 02/01/2026 10:00 1 / 1")
     return lines
 
@@ -518,19 +533,29 @@ def test_a_printed_period_outside_the_sane_range_is_ignored(five_pair_pdf, monke
 
 
 def _with_header(lines, *header: str):
+    """The book with its column header replaced by `header` — and, when
+    there is none, without the Debit/Credit sub-header either."""
     i = next(k for k, l in enumerate(lines) if l.startswith("Cont Denumire"))
-    return lines[:i] + list(header) + lines[i + 1:]
+    return lines[:i] + list(header) + lines[i + (1 if header else 2):]
 
 
-@pytest.mark.parametrize("header, why", [
+HEADER_VARIANTS = [
     (("Cont Denumire Sold init. Rulaj ant. Rulaj crt. Total rulaj Sold final",), "column header reads"),
     (("Cont Denumire Sold initial Rulaj anterior", "Rulaj curent Total rulaj Sold final"), "column header reads"),
-], ids=["abbreviated", "wrapped-over-two-lines"])
-def test_a_five_pair_pdf_with_a_header_variant_is_refused_never_served(monkeypatch, header, why):
+    ((), "is printed before the column header"),
+]
+HEADER_VARIANT_IDS = ["abbreviated", "wrapped-over-two-lines", "absent"]
+
+
+@pytest.mark.parametrize("number_format", NUMBER_FORMATS)
+@pytest.mark.parametrize("header, why", HEADER_VARIANTS, ids=HEADER_VARIANT_IDS)
+def test_a_five_pair_pdf_with_a_header_variant_is_refused_never_served(monkeypatch, number_format, header, why):
+    # every number shape the reader accepts: the rows' ten figure columns
+    # name the layout in the PDF's text lines, whatever the header says
     from engine.country_packs.ro_romania import pdf_balanta_text
 
     _on_parser(monkeypatch, "tb_parser_v6")
-    content = _pdf_bytes(_with_header(_synthetic_five_pair_lines(), *header))
+    content = _pdf_bytes(_with_header(_synthetic_five_pair_lines(number_format=number_format), *header))
     verdict = pdf_balanta_text.read_balanta_text_verdict(content)
     assert verdict.layout == pdf_balanta_text.LAYOUT_FIVE_PAIR and verdict.workbook is None
     _arm(monkeypatch, content)
@@ -636,3 +661,54 @@ def test_the_same_wrapped_row_as_plain_text_lines_is_refused(monkeypatch):
     with pytest.raises(pipeline.BalantaPdfRefusedError) as refused:
         pipeline.stage_extract(_doc())
     assert "4111.05" in str(refused.value) and "Nothing was estimated" in str(refused.value)
+
+
+# ── every number shape the reader accepts, at the PDF level ─────────────
+#
+# Before the repair the structural naming knew comma-thousands figures
+# only: a five-pair PDF printed in the Romanian locale ("1.234.567,89"),
+# unseparated ("1234567.89") or with space thousands ("1 234 567.89")
+# under a header variant named no layout — in its text lines and in the
+# flattened first page alike — and left the reader block for the
+# positional fast-path. Now each shape names the layout, a book in any one
+# shape under the canonical header is read on the Excel path, and under a
+# header variant it is refused, never served.
+
+
+@pytest.mark.parametrize("number_format", ["unseparated", "euro", "space"])
+def test_a_five_pair_pdf_in_another_number_shape_is_read_on_the_excel_path_without_claude(monkeypatch, number_format):
+    from engine.country_packs.ro_romania import pdf_balanta_text
+
+    _on_parser(monkeypatch, "tb_parser_v6")
+    content = _arm(monkeypatch, _pdf_bytes(_synthetic_five_pair_lines(number_format=number_format)))
+    conv = pdf_balanta_text.read_balanta_text_pdf(content)
+    assert conv is not None and conv[1]["number_format"] == number_format, "the reader refused the synthetic book"
+    parsed = pipeline.stage_extract(_doc())
+    ext = parsed.get("extraction") or {}
+    assert ext.get("source_format") == "saga_10_col" and ext.get("method") == "deterministic", ext
+    assert Decimal(str(parsed["statutory_net_profit_anchor"])).quantize(Decimal("0.01")) == Decimal("12345.67")
+    assert str(parsed.get("period_end")) == "2025-12-31"
+    codes = {a["code"]: a for a in parsed["accounts"]}
+    assert Decimal(str(codes["5311.07"]["amount"])).quantize(Decimal("0.01")) == Decimal("12345.67")
+
+
+@pytest.mark.parametrize("number_format", NUMBER_FORMATS)
+def test_a_five_pair_pdf_with_unreadable_text_lines_and_a_header_variant_is_refused_in_any_number_shape(
+        monkeypatch, number_format):
+    # the second opinion: the text lines unavailable, the header abbreviated
+    # — the flattened first page's runs of ten figures name the layout
+    from engine.country_packs.ro_romania import pdf_balanta_text
+
+    _on_parser(monkeypatch, "tb_parser_v6")
+    content = _pdf_bytes(_with_header(_synthetic_five_pair_lines(number_format=number_format),
+                                      "Cont Denumire Sold init. Rulaj ant. Rulaj crt. Total rulaj Sold final"))
+    monkeypatch.setattr(pdf_balanta_text, "_extract_lines", lambda _b: None)
+    verdict = pdf_balanta_text.read_balanta_text_verdict(content)
+    assert verdict.layout == pdf_balanta_text.LAYOUT_FIVE_PAIR and verdict.workbook is None
+    assert "another text extraction of its first page names the five-pair layout" in verdict.refusal
+    _arm(monkeypatch, content)
+    trace = _trace_fall_back(monkeypatch)
+    with pytest.raises(pipeline.BalantaPdfRefusedError) as refused:
+        pipeline.stage_extract(_doc())
+    assert "Nothing was estimated" in str(refused.value)
+    assert trace["positional"] == [] and trace["claude"] == []  # never left the reader block
