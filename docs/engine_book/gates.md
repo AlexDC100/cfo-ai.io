@@ -10363,7 +10363,7 @@ CANNOT SEE: the verdict itself (the engine gate decides it), pixels.
 |---|---|
 | command | `python -m pytest tests/engine/test_net_711_rule.py -q -s` |
 | canary | `SCOPE net-711-rule (stock_variation.measure/decide, owner ruling 2026-09-26)`, `NET711-BOOKS: bridge_with_722, closed_bridge, …`, `NET711-PLANTS: serve-the-gross-memo, absent-anchor-to-zero, drop-guard-g6, rebuild-forgets-the-evidence` |
-| work count | `GATE-WORK net-711-rule units=(\d+)`, floor **90** (measured 108) |
+| work count | `GATE-WORK net-711-rule units=(\d+)`, floor **90** (measured 123) |
 
 **SCOPE** — the incident (specs-durable/ebitda711/measure.md, refereed against
 the Ministry of Finance filings): the engine served `inventory_variation_memo`
@@ -10381,14 +10381,17 @@ the rule — OPEN: the movement; no 711 activity: exactly 0.00 with any 121
 remainder left visible; CLOSED: the account-121 bridge under guards G2–G6;
 otherwise a typed refusal, which refuses EBITDA / EBIT / gross profit / PBT with
 the same reason. An absent anchor is a refusal, never 0.00. The gate holds the
-rule on nine CONSTRUCTED books (no client data): OPEN, CLOSED-no-activity (a
+rule on eleven CONSTRUCTED books (no client data): OPEN, CLOSED-no-activity (a
 constructed 2,000.00 misread stays on `net_income_unexplained_vs_121`),
 CLOSED-bridge (net 711 50,000 from a gross 300,000; EBITDA 250,000, not
 500,000; the reconciliation chain closes to 121 and says it does by
 construction), MIXED (a monthly exporter with December not closed — only 121's
 closing entries tell it from an open book), unanchored (G2), an unread class-7
-leaf (G4), a remainder larger than 711's turnover (G5), an uncleared prior-year
-result in 121 (G6), and the bridge with 72x. Four books go through the REAL
+leaf (G4), a synthetic total row printed beside its analytics and so read twice
+by the assembler (G4), a DISTINCT account whose code merely prefixes another
+(read, not skipped — `6028` beside `6028.9`), a remainder larger than 711's
+turnover (G5), an uncleared prior-year result in 121 (G6), and the bridge with
+72x; and the evidence block is a function of the book, not of its row order. Four books go through the REAL
 write path (`_deterministic_tb_parsed` measures, `stage_map` decides,
 `stage_persist` stores the block on the envelope) and back through
 `GET /api/period` and `_rebuild_assembled_for_briefing`; an envelope written
@@ -10433,6 +10436,18 @@ E     unanchored: ebitda served 200000.0 while 711 is refused
 ```
 **REVERT** — `git checkout -- src/engine/country_packs/ro_romania/stock_variation.py`:
 `23 passed`.
+
+**What building it found (2026-09-26/27).** The first cut of `measure` read
+the leaf rule literally and took the first 129/117 row whose movement matched
+the opening. The full suite caught both: `test_metamorphic` M6 (row
+permutation moved the persisted envelope on agras — the clearing account the
+block named depended on print order), and `test_comparatives_depth_parity` on
+carniprod's own 4-digit re-aggregation (EBITDA refused under G6: the condensed
+book prints `6028` beside an unmerged odd code, the leaf rule skipped `6028`,
+the assembler reads it, and the 121 ledger no longer matched). Fixed at the
+source — rows read in code order; a prefix row is skipped only when it IS the
+sum of its leaves, and such a total row on class 6/7 refuses under G4 because
+the assembler reads it too — and both cases are now constructed books here.
 
 CANNOT SEE: consumers of the one EBITDA outside `assemble_statements` (credit
 model, ratio table, benchmark, forecast, FE) — the `one-ebitda`,

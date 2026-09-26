@@ -26,6 +26,9 @@ WHAT THIS GATE HOLDS, on CONSTRUCTED synthetic books (no client data):
   MIXED                refused book_state_mixed
   unanchored (G2)      refused account_121_anchor_absent — NEVER 0.00
   G4 unread leaf       refused unread_pl_activity
+  G4 total row read    refused pl_total_row_read_as_account (a total row
+                       printed beside its analytics is read twice); a
+                       DISTINCT prefix-coded account is read, not skipped
   G5 residual > 711    refused residual_exceeds_711_activity
   G6 uncleared 121     refused account_121_opening_not_cleared
 
@@ -183,6 +186,32 @@ def book_g4_unread() -> List[Dict[str, Any]]:
         _bs(175_000.0)
 
 
+def book_g4_double_read() -> List[Dict[str, Any]]:
+    """A synthetic total row 601 printed beside its analytics 601.1 / 601.2
+    (its figures are their sum): the assembler reads all three, so the
+    build-up the bridge is measured against counts 600,000 twice (G4)."""
+    rows = [r for r in _closed_pl() if r["cont"] != "601"]
+    rows += [
+        _row("601", "Cheltuieli cu materiile prime (total)", st_d=600_000.0, st_c=600_000.0),
+        _row("601.1", "Materii prime A", st_d=400_000.0, st_c=400_000.0),
+        _row("601.2", "Materii prime B", st_d=200_000.0, st_c=200_000.0),
+    ]
+    return rows + _bs(170_000.0)
+
+
+def book_distinct_prefix_account() -> List[Dict[str, Any]]:
+    """A condensed book prints 6028 beside an unmerged 6028.9 — two
+    DISTINCT accounts (the prefix row is not their sum). Both are read,
+    exactly as the assembler reads them, and the bridge holds."""
+    rows = [r for r in _closed_pl() if r["cont"] != "601"]
+    rows += [
+        _row("601", "Cheltuieli cu materiile prime", st_d=500_000.0, st_c=500_000.0),
+        _row("6028", "Alte materiale consumabile", st_d=70_000.0, st_c=70_000.0),
+        _row("6028.9", "Alte materiale consumabile (analitic)", st_d=30_000.0, st_c=30_000.0),
+    ]
+    return rows + _bs(170_000.0)
+
+
 def book_g5_residual() -> List[Dict[str, Any]]:
     """711 turned over 30,000 each side, yet 121 exceeds the other lines by
     50,000 — larger than 711's own turnover, so it cannot be its net."""
@@ -209,6 +238,8 @@ BOOKS = {
     "mixed": book_mixed,
     "unanchored": book_unanchored,
     "g4_unread": book_g4_unread,
+    "g4_double_read": book_g4_double_read,
+    "distinct_prefix_account": book_distinct_prefix_account,
     "g5_residual": book_g5_residual,
     "g6_uncleared": book_g6_uncleared,
     "bridge_with_722": book_bridge_with_722,
@@ -223,6 +254,8 @@ EXPECTED = {
     "mixed":              (None,     "book_state_mixed",               None,      None,      0.0),
     "unanchored":         (None,     "account_121_anchor_absent",      None,      None,      0.0),
     "g4_unread":          (None,     "unread_pl_activity",             None,      None,      0.0),
+    "g4_double_read":     (None,     "pl_total_row_read_as_account",   None,      None,      0.0),
+    "distinct_prefix_account": (50_000.0, "account_121_bridge",        250_000.0, 450_000.0, 0.0),
     "g5_residual":        (None,     "residual_exceeds_711_activity",  None,      None,      0.0),
     "g6_uncleared":       (None,     "account_121_opening_not_cleared", None,     None,      0.0),
     "bridge_with_722":    (50_000.0, "account_121_bridge",             290_000.0, 450_000.0, 40_000.0),
@@ -231,6 +264,7 @@ EXPECTED = {
 BOOK_STATE = {
     "open": sv.OPEN, "closed_no_activity": sv.CLOSED, "closed_bridge": sv.CLOSED,
     "mixed": sv.MIXED, "unanchored": sv.CLOSED, "g4_unread": sv.CLOSED,
+    "g4_double_read": sv.CLOSED, "distinct_prefix_account": sv.CLOSED,
     "g5_residual": sv.CLOSED, "g6_uncleared": sv.CLOSED, "bridge_with_722": sv.CLOSED,
 }
 
@@ -343,6 +377,20 @@ def test_the_rule_on_each_constructed_book(name):
     assert not problems, "\n".join(problems)
     WORK["books"].append(name)
     WORK["units"] += 1 + len(EXPECTED[name])
+
+
+def test_the_evidence_is_a_function_of_the_book_not_of_its_row_order():
+    """Row permutation is a metamorphic invariant of the whole envelope:
+    the evidence block (which clearing account it names, which codes it
+    lists) must not depend on the order the exporter printed rows in."""
+    rows = book_g6_uncleared() + [_row("7311", "x", st_d=1.0, st_c=1.0)]
+    base = sv.measure(rows)
+    assert sv.measure(list(reversed(rows))) == base
+    assert sv.measure(rows[3:] + rows[:3]) == base
+    bridge = book_closed_bridge() + [_row("1172", "Rezultat reportat 2", st_c=80_000.0,
+                                          si_c=0.0, sf_c=80_000.0)]
+    assert sv.measure(bridge) == sv.measure(list(reversed(bridge)))
+    WORK["units"] += 3
 
 
 def test_the_gross_memo_is_never_the_variation_on_a_closed_book():

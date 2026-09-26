@@ -136,6 +136,7 @@ REASON_MIXED = "book_state_mixed"
 REASON_MOVEMENTS_ABSENT = "pl_movements_absent"
 REASON_UNANCHORED = "account_121_anchor_absent"
 REASON_UNREAD = "unread_pl_activity"
+REASON_DOUBLE_READ = "pl_total_row_read_as_account"
 REASON_RESIDUAL = "residual_exceeds_711_activity"
 REASON_OPENING = "account_121_opening_not_cleared"
 
@@ -180,6 +181,12 @@ _REFUSAL_TEXT = {
         "variație a stocurilor",
         "revenue or expense accounts with turnover were not read, and their amount would print as "
         "stock variation",
+    ),
+    REASON_DOUBLE_READ: (
+        "balanța conține rânduri de total pentru conturi de venituri sau cheltuieli, citite și ca "
+        "conturi, deci diferența față de contul 121 nu este variația stocurilor",
+        "the trial balance carries total rows for revenue or expense accounts that are also read "
+        "as accounts, so the difference to account 121 is not the stock variation",
     ),
     REASON_RESIDUAL: (
         "diferența față de contul 121 depășește rulajul contului 711, deci nu poate fi variația "
@@ -240,22 +247,72 @@ def leaf_flags(codes: List[str]) -> List[bool]:
     a plain-prefix rule dropped retail's ``635.10`` from its own sums.
     """
     clean = [c.replace("'", "").strip() for c in codes]
-    flags: List[bool] = []
-    for c in clean:
-        parent = False
-        if c:
-            for o in clean:
-                if o == c or not o.startswith(c):
-                    continue
-                if "." in c:
-                    if o[len(c)] == ".":
-                        parent = True
-                        break
-                else:
-                    parent = True
-                    break
-        flags.append(not parent)
+    n = len(clean)
+    flags = [True] * n
+    # In code order every code a row prefixes follows it directly, so the
+    # scan per row stops at the first code it does not prefix.
+    order = sorted(range(n), key=lambda i: clean[i])
+    for pos, i in enumerate(order):
+        c = clean[i]
+        if not c:
+            continue
+        k = pos + 1
+        while k < n:
+            o = clean[order[k]]
+            if not o.startswith(c):
+                break
+            if o != c and ("." not in c or o[len(c)] == "."):
+                flags[i] = False
+                break
+            k += 1
     return flags
+
+
+_FIGURES = ("si_d", "si_c", "st_d", "st_c", "sf_d", "sf_c")
+
+
+def _descendants(codes: List[str], i: int, flags: List[bool]) -> List[int]:
+    """Indexes of the LEAF rows the row at ``i`` is a parent of (the
+    ``leaf_flags`` parent rule)."""
+    c = codes[i].replace("'", "").strip()
+    out = []
+    for j, o in enumerate(codes):
+        o = o.replace("'", "").strip()
+        if j == i or not flags[j] or o == c or not o.startswith(c):
+            continue
+        if "." in c and o[len(c)] != ".":
+            continue
+        out.append(j)
+    return out
+
+
+def row_reading(rows: List[Mapping[str, Any]]) -> List[str]:
+    """How each row is read: ``leaf``, ``aggregate`` or ``distinct``.
+
+    The measurement reads LEAVES (``leaf_flags``). A row the leaf rule
+    calls a parent is only an AGGREGATE — a total line of its own
+    analytics — when its six figure columns equal the sum of its leaf
+    descendants to the cent; then its figures are already in the leaves
+    and it is skipped. Otherwise it is a DISTINCT account whose code
+    merely prefixes another (a condensed book prints ``6028`` beside an
+    unmerged ``6028.x``), and it is read like a leaf — exactly as the
+    assembler reads it (the parser keeps every row). Measured on the ten
+    real books: no row is anything but a leaf; the distinction exists so
+    the evidence and the assembly never read two different sets of rows.
+    """
+    codes = [str(r.get("cont") or "").strip() for r in rows]
+    flags = leaf_flags(codes)
+    out: List[str] = []
+    for i, (r, leaf) in enumerate(zip(rows, flags)):
+        if leaf:
+            out.append("leaf")
+            continue
+        kids = _descendants(codes, i, flags)
+        same = bool(kids) and all(
+            abs(_f(r.get(f)) - sum(_f(rows[j].get(f)) for j in kids)) < EPS * 2
+            for f in _FIGURES)
+        out.append("aggregate" if same else "distinct")
+    return out
 
 
 def _pl_bucket_reader():
@@ -286,13 +343,22 @@ def _empty_turnover() -> Dict[str, float]:
 def measure(tb_rows: Iterable[Mapping[str, Any]]) -> Dict[str, Any]:
     """The evidence block, from the parsed 10-column rows. PURE.
 
-    Reads only the leaves (``leaf_flags``). Every number is rounded to the
+    Reads the leaves and the distinct accounts (``row_reading``); an
+    aggregate row's figures are already in its leaves. The rows are read
+    in CODE order, so the block is a function of the book, not of the
+    order its exporter printed it in (row permutation is a metamorphic
+    invariant of the whole envelope). Every number is rounded to the
     cent; counts are exact; offending-code lists are capped at 20.
     """
     bucket_for, pl_buckets = _pl_bucket_reader()
-    rows = [r for r in tb_rows if isinstance(r, Mapping)]
+    rows = sorted(
+        (r for r in tb_rows if isinstance(r, Mapping)),
+        key=lambda r: (str(r.get("cont") or "").strip(),)
+        + tuple(_f(r.get(f)) for f in _FIGURES),
+    )
     codes = [str(r.get("cont") or "").strip() for r in rows]
-    flags = leaf_flags(codes)
+    reading = row_reading(rows)
+    flags = [kind != "aggregate" for kind in reading]
 
     has_cumulative = any(_f(r.get("st_d")) != 0 or _f(r.get("st_c")) != 0 for r in rows)
 
@@ -306,6 +372,8 @@ def measure(tb_rows: Iterable[Mapping[str, Any]]) -> Dict[str, Any]:
     mixed_count = 0
     unread: List[Dict[str, Any]] = []
     unread_count = 0
+    aggregate_pl: List[str] = []
+    aggregate_pl_count = 0
     cr = 0.0   # Σ st_c, credit-natured leaves excl. 711 (T5)
     dr = 0.0   # Σ st_d, debit-natured leaves (T5)
     r121 = {"si_d": 0.0, "si_c": 0.0, "st_d": 0.0, "st_c": 0.0, "sf_d": 0.0, "sf_c": 0.0}
@@ -313,10 +381,19 @@ def measure(tb_rows: Iterable[Mapping[str, Any]]) -> Dict[str, Any]:
     clearing_leaves: List[Dict[str, Any]] = []
 
     for r, code, leaf in zip(rows, codes, flags):
-        if not code or not leaf:
+        if not code:
             continue
         n = _norm(code)
         if not n:
+            continue
+        if not leaf:
+            # An aggregate class-6/7 row the assembler ALSO reads (the
+            # parser keeps every row): its amount is counted twice in the
+            # build-up the bridge is measured against (guard G4).
+            if n[0] in "67" and any(abs(_f(r.get(f))) >= EPS for f in ("st_d", "st_c", "sf_d", "sf_c")):
+                aggregate_pl_count += 1
+                if len(aggregate_pl) < _LIST_CAP:
+                    aggregate_pl.append(code)
             continue
         si_d, si_c = _f(r.get("si_d")), _f(r.get("si_c"))
         st_d, st_c = _f(r.get("st_d")), _f(r.get("st_c"))
@@ -340,7 +417,7 @@ def measure(tb_rows: Iterable[Mapping[str, Any]]) -> Dict[str, Any]:
         # its closing column (the parser reads it there too).
         mv_d, mv_c = (st_d, st_c) if has_cumulative else (sf_d, sf_c)
         active = any(abs(x) >= EPS for x in (st_d, st_c, sf_d, sf_c))
-        group = _group_of(n, bucket_for)
+        group = _group_of(code, bucket_for)
         if group is not None:
             listed[group] = True
             t = turnovers[group]
@@ -364,7 +441,7 @@ def measure(tb_rows: Iterable[Mapping[str, Any]]) -> Dict[str, Any]:
         # G4 — the leaf must be READ into a P&L bucket by the pack's rules
         # (the deterministic parser drops a code with no rule into
         # `unmapped`; the assembler skips a bucket that is not a P&L line).
-        rule = bucket_for(n)
+        rule = bucket_for(code)  # the code exactly as the parser hands it
         reason = None
         if rule is None:
             reason = "no_rule"
@@ -459,6 +536,8 @@ def measure(tb_rows: Iterable[Mapping[str, Any]]) -> Dict[str, Any]:
         "a72x": _t("72x"),
         "unread_pl_count": unread_count,
         "unread_pl": unread,
+        "aggregate_pl_count": aggregate_pl_count,
+        "aggregate_pl": aggregate_pl,
         "account_121": {
             "listed": listed_121,
             "opening": _r2(opening),
@@ -683,6 +762,7 @@ def decide(
         block["activity"] = _r2(activity)
         block["stock_production_credit_turnover"] = _r2(_f(a711.get("credit_turnover")))
         unread_n = int(evidence.get("unread_pl_count") or 0)
+        double_n = int(evidence.get("aggregate_pl_count") or 0)
         acc121 = evidence.get("account_121") or {}
         opening = _f(acc121.get("opening"))
         cleared = evidence.get("opening_cleared_by")
@@ -708,6 +788,7 @@ def decide(
             "G2_anchored": bool(anchor_applied),
             "G3_activity": _r2(activity),
             "G4_unread_pl": unread_n,
+            "G4_double_read_pl": double_n,
             "G5_residual": residual,
             "G5_within_activity": (None if residual is None
                                    else abs(residual) <= activity + EPS),
@@ -735,6 +816,8 @@ def decide(
             _refuse(REASON_UNANCHORED)
         elif unread_n:
             _refuse(REASON_UNREAD)
+        elif double_n:
+            _refuse(REASON_DOUBLE_READ)
         elif not guards["G5_within_activity"]:
             _refuse(REASON_RESIDUAL)
         elif cleared_kind is None:
