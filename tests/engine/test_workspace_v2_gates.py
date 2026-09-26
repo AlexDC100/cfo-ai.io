@@ -723,6 +723,161 @@ def test_g4_a_run_that_fails_after_persist_leaves_no_period(app, gw, monkeypatch
     assert gw.meter.committed == [] and gw.meter.released == [(USER, False)], "a failure is never counted"
 
 
+# ── G4 — a same-month re-upload never empties the month ────────────────
+#
+# The production defect (2026-09, the owner's December 2025): a second file
+# for a month that already had an analysed one made `stage_persist` re-point
+# the month's period at the NEW document and wipe the first document's line
+# items and envelope BEFORE the new run had succeeded. An ordinary failure
+# then left a period whose only source had failed — the company page listed
+# no year at all. The takeover is now transactional by order: the new run
+# persists under its own staged row, and only its terminal success replaces
+# the month; a cross-company file never replaces anything.
+#
+# Reds on: a failed re-upload changing the month's source document, its
+# envelope, any derivative row, the year tile or the served dashboard; a file
+# whose CUI is another company's replacing the month (or failing with a
+# stack-trace message); a successful re-upload leaving a second period, a
+# derivative row under the staged id, or the first file live and unarchived.
+
+#: The rows a run persists under a period id. Named here, not read from the
+#: engine, so a RED run fails on the defect and never on a missing name.
+_PERIOD_ROWS = ("statement_line_items", "calculated_metrics", "alerts",
+                "recommendations", "briefings", "valuations")
+
+
+def _rows_under(gw: GateWorld, period_id: str) -> Dict[str, List[str]]:
+    return dict((t, sorted(json.dumps(r, sort_keys=True, default=str)
+                           for r in gw.db.rows(t) if str(r.get("period_id")) == str(period_id)))
+                for t in _PERIOD_ROWS)
+
+
+def _served(app, org_id: str, period_id: str) -> Dict[str, Any]:
+    """The year tile and the dashboard body — what the user sees of a month."""
+    years = _http(app).get("/api/companies/%s/years" % org_id, headers=_headers(USER))
+    assert years.status_code == 200, years.text[:300]
+    dash = _http(app).get("/api/period/%s" % period_id, headers=_headers(USER, org_id))
+    assert dash.status_code == 200, dash.text[:400]
+    body = dash.json()
+    return {"tiles": years.json(),
+            "source_document": body["period"]["source_document"]["id"],
+            "revenue": body["statements"]["incomeStatement"]["revenue"],
+            "line_items": len(body["line_items"]), "metrics": len(body["metrics"])}
+
+
+def _analysed_month(app, gw: GateWorld, content: bytes, filename: str = "balanta.xlsx") -> Dict[str, Any]:
+    out = one_tap(app, content, filename)
+    doc = run_analysis(gw, out["commit"]["document_id"])
+    assert doc["status"] == "analyzed", (doc["status"], doc.get("error"))
+    (period,) = gw.db.rows("financial_periods")
+    assert period["source_document_id"] == doc["id"]
+    return {"doc": doc, "period": copy.deepcopy(period),
+            "rows": _rows_under(gw, period["id"]), "served": _served(app, doc["org_id"], period["id"])}
+
+
+def test_g4_a_same_month_reupload_whose_run_fails_leaves_the_month_serving_the_first_analysis(app, gw, monkeypatch):
+    first = _analysed_month(app, gw, agras_workbook())
+    org_id = first["doc"]["org_id"]
+    # The same company's December again — a corrected export: same CUI, same
+    # month, different bytes (not a duplicate), a run that fails at compute.
+    second = one_tap(app, agras_workbook(name="AGRAS S.R.L."), "balanta_corectata.xlsx")
+    assert second["commit"]["org_id"] == org_id and second["commit"]["status"] == "queued", second["commit"]
+
+    def _boom(*a: Any, **kw: Any) -> Any:
+        raise RuntimeError("compute failed")
+
+    monkeypatch.setattr(pipeline, "stage_compute", _boom)
+    failed = run_analysis(gw, second["commit"]["document_id"])
+    assert failed["status"] == "failed", failed["status"]
+
+    periods = gw.db.rows("financial_periods")
+    assert [p["id"] for p in periods] == [first["period"]["id"]], \
+        "G4: the failed re-upload left a period of its own: %r" % periods
+    (period,) = periods
+    assert period["source_document_id"] == first["doc"]["id"], \
+        "G4: the failed re-upload took the month over — its period now names the failed document"
+    assert period["assembled_canonical_v1"] == first["period"]["assembled_canonical_v1"], \
+        "G4: the failed re-upload overwrote the month's envelope"
+    assert _rows_under(gw, period["id"]) == first["rows"], "G4: the failed re-upload changed the month's rows"
+    assert _served(app, org_id, period["id"]) == first["served"], "G4: the month serves something else after the failure"
+    (kept,) = gw.docs(id=first["doc"]["id"])
+    assert kept["status"] == "analyzed" and kept["deleted_at"] is None and kept["period_id"] == period["id"], kept
+    assert failed["period_id"] is None, "a failed document is never pinned to the month it did not replace"
+    from engine.workspaces.migration_plan import empty_live_periods
+    assert empty_live_periods(gw.db.tables) == [], "G4: the failure left an empty period"
+    assert gw.meter.committed == [(USER, False)] and gw.meter.released == [(USER, False)], \
+        "the first run counted, the failed one released"
+
+
+def test_g4_a_same_month_file_of_another_company_never_replaces_the_month(app, gw):
+    first = _analysed_month(app, gw, agras_workbook())
+    org_id = first["doc"]["org_id"]
+    # Scandia's book, committed into Agras by an explicit choice on the card
+    # (the route lets a member file anything into their own company). The
+    # persist layer is the belt and braces: December belongs to CUI 46355095.
+    scandia = book_workbook(SCANDIA_BOOK, name="SCANDIA FOOD SRL", cui=CUI_SCANDIA)
+    c = commit(app, scandia, "balanta.xlsx", target_org_id=org_id, period_end="2025-12-31", output_language="ro")
+    assert c.status_code == 200 and c.json()["status"] == "queued" and c.json()["org_id"] == org_id, c.text[:300]
+    refused = run_analysis(gw, c.json()["document_id"])
+    assert refused["status"] == "failed", (refused["status"], refused.get("error"))
+    message = str(refused.get("error") or "")
+    assert CUI_SCANDIA in message and CUI_AGRAS in message, message
+    assert not re.match(r"^\w*(Error|Exception|Refused)\w*:", message), \
+        "a refusal is a plain sentence, not an exception's repr: %r" % message
+    assert "source" not in message.lower(), message
+
+    (period,) = gw.db.rows("financial_periods")
+    assert period["id"] == first["period"]["id"] and period["source_document_id"] == first["doc"]["id"], \
+        "G4: another company's file replaced the month"
+    assert period["assembled_canonical_v1"] == first["period"]["assembled_canonical_v1"]
+    assert _rows_under(gw, period["id"]) == first["rows"]
+    assert _served(app, org_id, period["id"]) == first["served"]
+    assert refused["period_id"] is None
+    from engine.workspaces.migration_plan import empty_live_periods
+    assert empty_live_periods(gw.db.tables) == []
+
+
+def test_g4_a_same_month_reupload_that_succeeds_replaces_the_month_and_archives_the_first_file(app, gw):
+    first = _analysed_month(app, gw, agras_workbook())
+    org_id = first["doc"]["org_id"]
+    # The corrected December: Agras's header over different figures (the
+    # other corpus book), so the replacement is visible in every number.
+    corrected = book_workbook(SCANDIA_BOOK, name="AGRAS SRL", cui=CUI_AGRAS)
+    second = one_tap(app, corrected, "balanta_corectata.xlsx")
+    assert second["commit"]["org_id"] == org_id and second["commit"]["status"] == "queued", second["commit"]
+    replaced = run_analysis(gw, second["commit"]["document_id"])
+    assert replaced["status"] == "analyzed", (replaced["status"], replaced.get("error"))
+
+    periods = gw.db.rows("financial_periods")
+    assert [p["id"] for p in periods] == [first["period"]["id"]], \
+        "G4: the successful re-upload left a second period for the month: %r" % [p["id"] for p in periods]
+    (period,) = periods
+    assert period["source_document_id"] == replaced["id"], "the month is the corrected document's now"
+    assert period["assembled_canonical_v1"]["provenance"]["source_document_id"] == replaced["id"]
+    assert replaced["period_id"] == period["id"]
+    rows = _rows_under(gw, period["id"])
+    assert rows["statement_line_items"] and rows["statement_line_items"] != first["rows"]["statement_line_items"]
+    assert rows["calculated_metrics"] and rows["calculated_metrics"] != first["rows"]["calculated_metrics"]
+    served = _served(app, org_id, period["id"])
+    assert served["source_document"] == replaced["id"] and served["revenue"] != first["served"]["revenue"], served
+    assert served["tiles"] == [dict(first["served"]["tiles"][0], revenue=served["revenue"])], served["tiles"]
+    assert served["revenue"] == _served_revenue(period["assembled_canonical_v1"])
+    # Nothing of the run is left under a staged id: every row named a period
+    # that exists.
+    live = set(str(p["id"]) for p in periods)
+    strays = dict((t, [r for r in gw.db.rows(t) if str(r.get("period_id")) not in live]) for t in _PERIOD_ROWS)
+    assert all(not v for v in strays.values()), "rows left under a period that no longer exists: %r" % strays
+    # The superseded file is ARCHIVED (restorable for 30 days), never deleted,
+    # and named as superseded by the corrected one.
+    (superseded,) = gw.docs(id=first["doc"]["id"])
+    assert superseded["deleted_at"] is not None, "the superseded file is still live beside its replacement"
+    assert superseded["status"] == "analyzed" and replaced["id"] in str(superseded.get("error") or ""), superseded
+    assert "documents/" + superseded["storage_path"] in gw.db.storage, "the superseded file's bytes must stay"
+    from engine.workspaces.migration_plan import empty_live_periods
+    assert empty_live_periods(gw.db.tables) == []
+    assert gw.meter.committed == [(USER, False), (USER, False)] and gw.meter.released == []
+
+
 def _load_script(name: str) -> Any:
     spec = importlib.util.spec_from_file_location(name, REPO / "scripts" / ("%s.py" % name))
     mod = importlib.util.module_from_spec(spec)

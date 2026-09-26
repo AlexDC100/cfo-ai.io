@@ -1927,6 +1927,197 @@ def _rollback_period_of_failed_run(document_id: str, org_id: Optional[str]) -> O
         return None
 
 
+# ── G4: a same-month re-upload replaces the month only once its run succeeds ──
+#
+# THE DEFECT THIS ENDS (production, 2026-09, the owner's December 2025): a
+# second file for a month that already had an analysed one made
+# `stage_persist` re-point the month's period at the NEW document and wipe
+# the first document's line items and envelope BEFORE the new run had
+# succeeded. An ordinary failure two stages later left a period whose only
+# source had failed — the year vanished from the company page, and the
+# figures that had been served a minute earlier were gone.
+#
+# THE ORDER NOW. The new run persists everything under a period row of its
+# OWN (the staged row: the same tuple the unique constraint keys, so it is
+# the run's row and nobody else's), and the served row is not touched.
+# Only the run's terminal success replaces the month: the run's rows move
+# onto the served row, the served row takes the new envelope and names the
+# new document, the staged row goes, and the superseded document is
+# archived (restorable, never deleted). A run that fails takes its staged
+# row with it (`_rollback_period_of_failed_run` — it was minted by the
+# run) and the month keeps serving exactly what it served before.
+#
+# THE OTHER COMPANY. The upload routes by CUI now (G1), and the card lets a
+# member file anything into a company of theirs. The persist layer is the
+# belt and braces: a file whose own header names a CUI other than the
+# company's never replaces that company's month — the run fails with a
+# plain sentence, and nothing of the month changes.
+
+#: The rows a run persists under a period id, in the order they are moved.
+#: Explicit, like `_period_move._DERIVED_TABLES`: a table missing here
+#: would leave the run's rows under the staged row, and the gate's
+#: "nothing left under a period that no longer exists" check reds on it.
+TAKEOVER_TABLES = ("statement_line_items", "calculated_metrics", "alerts",
+                   "recommendations", "briefings", "valuations")
+
+#: The columns that ARE the served row's identity — never copied over it.
+_PERIOD_IDENTITY_COLUMNS = frozenset({"id", "org_id", "period_start", "period_end",
+                                      "created_at", "source_document_id"})
+
+#: The `documents.error` marker on a document another one replaced for
+#: its month (the `duplicate_of:` shape; the row stays `analyzed`, archived).
+SUPERSEDED_MARKER_PREFIX = "superseded_by:"
+
+_TAKEOVERS_BY_RUN: Dict[str, Dict[str, Any]] = {}
+_TAKEOVERS_LOCK = threading.Lock()
+
+
+class PlainRefusal(RuntimeError):
+    """A run refused for a reason the user reads as a sentence: the
+    document's `error` carries the message itself, never the exception's
+    name in front of it."""
+
+
+class SameMonthTakeoverRefused(PlainRefusal):
+    """The file's own CUI is not the company's — its month is not replaced."""
+
+
+def superseded_marker(replacing_document_id: str) -> str:
+    return "%s%s" % (SUPERSEDED_MARKER_PREFIX, replacing_document_id)
+
+
+def _record_takeover(document_id: Any, *, staged: str, served: str,
+                     superseded_document: Optional[str]) -> None:
+    with _TAKEOVERS_LOCK:
+        _TAKEOVERS_BY_RUN[str(document_id)] = {"staged": str(staged), "served": str(served),
+                                               "superseded_document": superseded_document}
+
+
+def _pop_takeover(document_id: Any) -> Optional[Dict[str, Any]]:
+    with _TAKEOVERS_LOCK:
+        return _TAKEOVERS_BY_RUN.pop(str(document_id or ""), None)
+
+
+def _company_cui_of_org(admin_client: Any, org_id: Any) -> Optional[str]:
+    """The company's CUI (`org_prefs.prefs.cui` — production has no
+    `organizations.cui`), digits only; None when the company has none."""
+    try:
+        rows = admin_client.select("org_prefs", filters={"org_id": f"eq.{org_id}"},
+                                   columns="org_id,prefs", limit=1) or []
+    except Exception:  # noqa: BLE001 — no CUI on file is "cannot prove", not a failure
+        logger.exception("[stage_persist] could not read the company's CUI for %s", org_id)
+        return None
+    prefs = (rows[0].get("prefs") if rows else None) or {}
+    raw = prefs.get("cui") if isinstance(prefs, dict) else None
+    digits = "".join(ch for ch in str(raw or "") if ch.isdigit())
+    return digits or None
+
+
+def _document_company_cui(doc: Dict[str, Any]) -> Optional[str]:
+    """The CUI the document's OWN header states (`company_identity`, no
+    registry), or None when it states none or its bytes cannot be read.
+    Absent evidence never refuses anything."""
+    try:
+        with _supabase.admin() as admin_client:
+            signed = admin_client.signed_url("documents", doc["storage_path"],
+                                             org_id=doc.get("org_id"), expires_in=300)
+        with httpx.Client(timeout=30.0) as http:
+            r = http.get(signed)
+            r.raise_for_status()
+            content = r.content
+        from engine.workspaces.company_identity import identify_document
+        identity = identify_document(content, str(doc.get("original_filename") or ""), registry=None)
+        digits = "".join(ch for ch in str(identity.cui or "") if ch.isdigit())
+        return digits or None
+    except Exception:  # noqa: BLE001
+        logger.exception("[stage_persist] could not read the document's own CUI for %s", doc.get("id"))
+        return None
+
+
+def _refuse_cross_company_takeover(admin_client: Any, doc: Dict[str, Any], period_end: str) -> None:
+    """Raise `SameMonthTakeoverRefused` when the file's own CUI provably
+    differs from the company whose month it would replace. Refuses only
+    what it can prove: a company or a file without a CUI on record passes."""
+    company_cui = _company_cui_of_org(admin_client, doc.get("org_id"))
+    if not company_cui:
+        return
+    document_cui = _document_company_cui(doc)
+    if not document_cui or document_cui == company_cui:
+        return
+    month = str(period_end)[:7]
+    raise SameMonthTakeoverRefused(
+        "This file belongs to CUI %s, but %s of this company belongs to CUI %s. "
+        "The month was not replaced — the analysis already there is unchanged. "
+        "Upload the file to its own company." % (document_cui, month, company_cui)
+    )
+
+
+def _finalize_same_month_takeover(doc: Dict[str, Any], period_id: str) -> str:
+    """The run has SUCCEEDED: if it was staged beside an existing month,
+    make it that month. Returns the period id the document is pinned to —
+    the served row after a takeover, `period_id` itself otherwise.
+
+    Order, so that a crash between two steps leaves a state a reader can
+    tell apart (the provenance stamp names the document an envelope was
+    built from) and never an empty month:
+      1. the run's rows move from the staged row onto the served row;
+      2. the served row takes the staged row's columns (envelope, currency,
+         confidence, detection) — its identity columns untouched;
+      3. the staged row gives up the (org, month, document) tuple, the
+         served row takes it, the staged row goes;
+      4. the document is pinned to the served row; the superseded document
+         is archived with a marker naming its replacement — bytes and row
+         kept, restorable."""
+    record = _pop_takeover(doc.get("id"))
+    if not record or record.get("staged") != str(period_id):
+        return period_id
+    staged, served = record["staged"], record["served"]
+    org_id = doc.get("org_id")
+    superseded = record.get("superseded_document")
+    with _supabase.admin() as admin_client:
+        served_rows = admin_client.select(
+            "financial_periods",
+            filters={"id": f"eq.{served}", "org_id": f"eq.{org_id}"},
+            columns="id,source_document_id", limit=1,
+        ) or []
+        if not served_rows:
+            # The month's row went away during the run (a delete, a move):
+            # the staged row is simply the month's row now.
+            logger.info("[stage_persist] %s: the month's period %s is gone — the staged row %s stands",
+                        doc.get("id"), served, staged)
+            return period_id
+        # 1. the run's rows
+        for table in TAKEOVER_TABLES:
+            admin_client.delete(table, filters={"period_id": f"eq.{served}"})
+            admin_client.update(table, {"period_id": served}, filters={"period_id": f"eq.{staged}"})
+        # 2. the row's own columns
+        staged_rows = admin_client.select("financial_periods", filters={"id": f"eq.{staged}"}, limit=1) or []
+        patch = dict((k, v) for k, v in (staged_rows[0] if staged_rows else {}).items()
+                     if k not in _PERIOD_IDENTITY_COLUMNS)
+        patch["updated_at"] = _now_iso()
+        if patch:
+            admin_client.update("financial_periods", patch, filters={"id": f"eq.{served}"})
+        # 3. the tuple, then the staged row
+        admin_client.update("financial_periods", {"source_document_id": None}, filters={"id": f"eq.{staged}"})
+        admin_client.update("financial_periods", {"source_document_id": doc.get("id")},
+                            filters={"id": f"eq.{served}"})
+        admin_client.delete("financial_periods", filters={"id": f"eq.{staged}", "org_id": f"eq.{org_id}"})
+        # 4. the documents
+        admin_client.update("documents", {"period_id": served},
+                            filters={"id": f"eq.{doc.get('id')}", "org_id": f"eq.{org_id}"})
+        if superseded and str(superseded) != str(doc.get("id")):
+            admin_client.update(
+                "documents",
+                {"deleted_at": _now_iso(), "error": superseded_marker(str(doc.get("id")))},
+                filters={"id": f"eq.{superseded}", "org_id": f"eq.{org_id}", "deleted_at": "is.null"},
+            )
+    # The staged row no longer exists: nothing of this run is left to roll back.
+    _pop_period_minted(doc.get("id"))
+    logger.info("[stage_persist] %s replaced the month's period %s (staged %s; superseded document %s)",
+                doc.get("id"), served, staged, superseded)
+    return served
+
+
 def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[str, Any]) -> str:
     """Lookup-or-create the financial_period for this document's
     (org, period_end, source_document_id) tuple, then refresh its
@@ -1994,16 +2185,20 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
             #     for this MONTH from a DIFFERENT document. Under the current
             #     one-company-per-workspace model, a same-month upload is the
             #     same company's same month, so it must REPLACE that month's
-            #     period rather than create a second period for the same month
-            #     ("don't allow duplicate months in a workspace"). We re-point
-            #     the existing period at the replacing document and let step 4
-            #     below wipe + re-insert its line items — newest upload wins.
+            #     period rather than leave a second period for the same month
+            #     ("don't allow duplicate months in a workspace") — but only
+            #     ONCE ITS RUN HAS SUCCEEDED (G4, 2026-09-26): the run below
+            #     persists under a staged row and `_finalize_same_month_
+            #     takeover` swaps it in at the terminal; a failure leaves the
+            #     month serving what it served. Re-pointing the row here, as
+            #     this branch used to, emptied the owner's December when the
+            #     replacing run failed.
             #
-            #     NB: this deliberately relaxes the Bug-A separation (which
-            #     kept different documents on the same date in separate
-            #     periods to stop a *different company's* file from wiping the
-            #     first). That protection is unnecessary inside a single-company
-            #     workspace; org isolation still keeps other workspaces safe.
+            #     NB: the Bug-A separation (different documents on the same
+            #     date in separate periods, so a *different company's* file
+            #     never wipes the first) is kept in its own form: a file whose
+            #     own CUI is another company's is refused before anything is
+            #     staged (`_refuse_cross_company_takeover`).
             month_periods = admin_client.select(
                 "financial_periods",
                 filters={
@@ -2013,18 +2208,47 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
                 order="updated_at.desc",  # newest first if legacy duplicates exist
             )
             if month_periods:
-                period_id = month_periods[0]["id"]
-                prior_period_row = month_periods[0]
-                admin_client.update(
-                    "financial_periods",
-                    {
-                        "source_document_id": doc["id"],  # take over the month
-                        "currency": parsed.get("currency") or month_periods[0].get("currency") or "RON",
-                        "extraction_confidence": parsed.get("confidence", 0.5),
-                        "updated_at": _now_iso(),
-                    },
-                    filters={"id": f"eq.{period_id}"},
-                )
+                # 2a'. NOT YET. The served row keeps serving until this run
+                #      has succeeded (G4 — see the takeover notes above the
+                #      helpers). The run persists under a STAGED row of its
+                #      own, minted by this run (rolled back with a failure);
+                #      `_finalize_same_month_takeover` makes it the month
+                #      once the run is terminal. First the belt and braces:
+                #      another company's file never replaces this month.
+                _refuse_cross_company_takeover(admin_client, doc, period_end)
+                served_row = month_periods[0]
+                prior_period_row = served_row
+                try:
+                    staged = admin_client.insert(
+                        "financial_periods",
+                        {
+                            "org_id": doc["org_id"],
+                            "source_document_id": doc["id"],
+                            "period_start": period_start,
+                            "period_end": period_end,
+                            "currency": parsed.get("currency") or served_row.get("currency") or "RON",
+                            "extraction_confidence": parsed.get("confidence", 0.5),
+                        },
+                        returning=True,
+                    )
+                    period_id = staged[0]["id"]
+                    _record_period_minted(doc.get("id"), period_id)
+                except Exception:
+                    # This document's own tuple already exists (a twin run of
+                    # the same document): it is this run's row.
+                    own = admin_client.select(
+                        "financial_periods",
+                        filters={
+                            "org_id": f"eq.{doc['org_id']}",
+                            "period_end": f"eq.{period_end}",
+                            "source_document_id": f"eq.{doc['id']}",
+                        },
+                    )
+                    if not own:
+                        raise
+                    period_id = own[0]["id"]
+                _record_takeover(doc.get("id"), staged=period_id, served=served_row["id"],
+                                 superseded_document=served_row.get("source_document_id"))
             else:
                 # 2b. Genuinely new month — insert a fresh period row. If a
                 #     concurrent upload races to insert the same tuple, the
@@ -4677,6 +4901,8 @@ def _run_pipeline_stages(document_id: str) -> str:
             # RUN JOURNAL — PASS_DONE (ai-lane assembled envelope).
             _journal_hooks.on_pass_done(doc, assembled)
             period_id = stage_persist(doc, parsed, assembled)
+            # G4 — a same-month re-upload becomes the month only now.
+            period_id = _finalize_same_month_takeover(doc, period_id)
             _admin_set_status(
                 document_id, "analyzed",
                 duration_ms=int((time.time() - t0) * 1000),
@@ -5006,6 +5232,9 @@ def _run_pipeline_stages(document_id: str) -> str:
                     filters={"id": f"eq.{period_id}"},
                 )
 
+        # G4 — every stage has succeeded: a same-month re-upload becomes
+        # the month only now (the served row was untouched until here).
+        period_id = _finalize_same_month_takeover(doc, period_id)
         _admin_set_status(
             document_id,
             "analyzed",
@@ -5023,13 +5252,18 @@ def _run_pipeline_stages(document_id: str) -> str:
         logger.exception("[pipeline] %s failed", document_id)
         # RUN JOURNAL — RUN_FAILED + dead-letter entry (no-op when off).
         _journal_hooks.on_run_failed(document_id, exc)
-        msg = f"{type(exc).__name__}: {exc}"
+        # A plain refusal is read by the user as written; anything else
+        # carries its type so the log line and the card agree.
+        msg = str(exc) if isinstance(exc, PlainRefusal) else f"{type(exc).__name__}: {exc}"
         try:
             _admin_set_status(document_id, "failed", error=msg, duration_ms=int((time.time() - t0) * 1000))
         except Exception:
             logger.exception("[pipeline] also failed to mark failed")
         # G4 — a period exists only once an analysed source document backs
-        # it. The period this run inserted (if any) goes with the failure.
+        # it. The period this run inserted (if any) goes with the failure;
+        # a staged same-month row is exactly such a period, and the month
+        # it was staged beside is left serving what it served.
+        _pop_takeover(document_id)
         _rollback_period_of_failed_run(
             document_id, doc.get("org_id") if isinstance(doc, dict) else None)
         # Pricing V3 (gap D) — analysis FAILED. `_run_pipeline_sync`
