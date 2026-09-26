@@ -485,9 +485,10 @@ def compose_attention(current_payload: Mapping[str, Any], *,
                       pack: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
     """The attention/1 document.
 
-    `prior` is the route's answer to "which period is the comparison":
-    {rule, requested, status (found | absent | off | refused), period_id,
-    period_start, period_end, label, reason}. `comparatives` is the served
+    `prior` is the route's answer to "which period is the comparison"
+    (`engine.api._attention.resolve_prior`): {rule, requested, status
+    (found | absent | off), period_id, period_start, period_end, reason,
+    available_period_id, available_period_end}. `comparatives` is the served
     comparatives document for that pair (None when there is no pair or it
     was refused, with `comparatives_reason`). `sector` is the served
     sector-benchmark document. `features` maps feature keys to their served
