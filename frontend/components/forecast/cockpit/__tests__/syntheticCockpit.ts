@@ -23,6 +23,10 @@ export interface SynthOptions {
   caseId?: string;
   /** The plan needs a funding line (the pesimist double). */
   funding?: boolean;
+  /** When the line first draws: in a month of plan year one (the default,
+   *  "2026-10") or only in a later year the engine projects annually
+   *  ("FY2027") — known to the year, never to a month. */
+  fundingFirst?: "monthly" | "annual";
   dscrBelow?: boolean;
   dscrNotApplicable?: boolean;
   /** Levers the request moved: id → exact decimal. */
@@ -138,6 +142,7 @@ export function syntheticCockpit(opts: SynthOptions = {}): Json {
   const engineCase = CASES.find((c) => c.id === caseId);
   const seed = opts.seed ?? 0;
   const funding = opts.funding ?? false;
+  const annualFirst = funding && opts.fundingFirst === "annual";
   const shift = seed * 100_000;
   const moved = opts.levers ?? {};
 
@@ -150,7 +155,7 @@ export function syntheticCockpit(opts: SynthOptions = {}): Json {
     { period: SYNTH_BASE, kind: "actual", granularity: "annual", cash_minor: 300_000_000, funding_line_minor: 0, cash_before_funding_minor: 300_000_000, gap: false },
   ];
   MONTHS.forEach((m, k) => {
-    const draw = funding && k >= 9;
+    const draw = funding && !annualFirst && k >= 9;
     const cash = draw ? 0 : 320_000_000 + k * 5_000_000 + shift;
     chartCash.push({
       period: `2026-${m}`, kind: "projected", granularity: "monthly", cash_minor: cash,
@@ -251,13 +256,16 @@ export function syntheticCockpit(opts: SynthOptions = {}): Json {
 
   const ebitdaFinal = ebitdaYear(4);
   const fcf = 4_500_000_000 + shift;
+  const firstWhen = annualFirst ? { ro: "2027", en: "2027" } : (month("2026-10") as { ro: string; en: string });
   const cash = funding
     ? {
-        kind: "funding_need", figure: fig(1_800_000_000), first_period: "2026-10", first_granularity: "monthly", peak_period: "2026-10",
+        kind: "funding_need", figure: fig(1_800_000_000),
+        first_period: annualFirst ? "FY2027" : "2026-10", first_granularity: annualFirst ? "annual" : "monthly",
+        peak_period: annualFirst ? "FY2030" : "2026-10",
         funding_interest: fig(12_345_600),
         display: {
-          ro: { amount: (money(1_800_000_000) as { ro: string }).ro, when: (month("2026-10") as { ro: string }).ro, interest: (money(12_345_600) as { ro: string }).ro },
-          en: { amount: (money(1_800_000_000) as { en: string }).en, when: (month("2026-10") as { en: string }).en, interest: (money(12_345_600) as { en: string }).en },
+          ro: { amount: (money(1_800_000_000) as { ro: string }).ro, when: firstWhen.ro, interest: (money(12_345_600) as { ro: string }).ro },
+          en: { amount: (money(1_800_000_000) as { en: string }).en, when: firstWhen.en, interest: (money(12_345_600) as { en: string }).en },
         },
       }
     : {
@@ -273,10 +281,14 @@ export function syntheticCockpit(opts: SynthOptions = {}): Json {
   const inSentence = saved ? `„${opts.savedName}”` : caseId === "pesimist" ? "pesimist" : caseId === "optimist" ? "optimist" : "de bază";
   const inSentenceEn = saved ? `“${opts.savedName}”` : caseId === "pesimist" ? "pessimist" : caseId === "optimist" ? "optimist" : "base";
   const cashRo = funding
-    ? `ai nevoie de o linie de credit de până la 18,0 mil. lei începând din octombrie 2026`
+    ? annualFirst
+      ? `ai nevoie de o linie de credit de până la 18,0 mil. lei în cursul anului 2027`
+      : `ai nevoie de o linie de credit de până la 18,0 mil. lei începând din octombrie 2026`
     : `numerarul nu scade sub zero, cu un minim de ${(money(310_000_000 + shift) as { ro: string }).ro} în martie 2026`;
   const cashEn = funding
-    ? `you need a credit line of up to RON 18.0M starting in October 2026`
+    ? annualFirst
+      ? `you need a credit line of up to RON 18.0M during 2027`
+      : `you need a credit line of up to RON 18.0M starting in October 2026`
     : `cash never goes below zero, with a low of ${(money(310_000_000 + shift) as { en: string }).en} in March 2026`;
   const dscrRo = opts.dscrBelow ? "DSCR scade sub pragul băncii: 0,98× în 2026 față de 1,25×" : "DSCR rămâne peste pragul băncii: 2,10× în 2026 față de 1,25×";
   const dscrEn = opts.dscrBelow ? "DSCR falls below the bank's threshold: 0.98× in 2026 against 1.25×" : "DSCR stays above the bank's threshold: 2.10× in 2026 against 1.25×";

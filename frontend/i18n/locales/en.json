@@ -3586,6 +3586,7 @@
         "dscrThreshold": "of {{threshold}}",
         "ebitda": "EBITDA {{year}}",
         "fcf": "Free cash flow {{from}}–{{to}}",
+        "fundingDuring": "during {{year}}",
         "fundingFrom": "from {{month}}",
         "fundingInterest": "interest",
         "fundingNeed": "Funding need",

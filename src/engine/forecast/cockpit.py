@@ -1463,7 +1463,11 @@ def _sentence(pack: CockpitPack, case_id: str, saved: Optional[Tuple[str, Any]],
         else:
             case = pack.case_by_id[case_id].in_sentence[lang]
         if cash["kind"] == "funding_need":
-            cash_text = pack.sentence["funding"][lang].format(
+            # a first draw the plan knows only to the year (after the monthly
+            # months) is said as the year, never as if it were a month
+            funding_key = ("funding_annual" if cash.get("first_granularity") == "annual"
+                           else "funding")
+            cash_text = pack.sentence[funding_key][lang].format(
                 amount=cash["display"][lang]["amount"], when=cash["display"][lang]["when"])
         else:
             cash_text = pack.sentence["no_funding"][lang].format(
@@ -1486,7 +1490,9 @@ def _sentence(pack: CockpitPack, case_id: str, saved: Optional[Tuple[str, Any]],
                 amount=ebitda["display"][lang]["amount"], year=_year_of(final_label))
         out[lang] = pack.sentence["frame"][lang].format(case=case, cash=cash_text,
                                                         dscr=dscr_text, ebitda=ebitda_text)
-    out["template"] = ["frame", "funding" if cash["kind"] == "funding_need" else "no_funding",
+    out["template"] = ["frame",
+                       ("funding_annual" if cash.get("first_granularity") == "annual" else "funding")
+                       if cash["kind"] == "funding_need" else "no_funding",
                        {"above": "dscr_above", "below": "dscr_below"}.get(dscr["status"], "dscr_none"),
                        "ebitda" if with_margin else "ebitda_no_revenue"]
     out["facts"] = {"cash": cash["figure"], "dscr": dscr.get("value_micros"),

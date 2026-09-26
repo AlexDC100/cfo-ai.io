@@ -195,6 +195,10 @@ export type CashNumber =
       readonly when: Bilingual;
       readonly interest: Bilingual;
       readonly firstPeriod: string;
+      /** How finely the ENGINE knows the first draw: "monthly" (a month of
+       *  plan year one) or "annual" (a later year — the plan is monthly only
+       *  in year one, so the draw is known to the year, never to a month). */
+      readonly firstGranularity: string;
     };
 
 export type DscrNumber =
@@ -496,6 +500,7 @@ export function readCockpit(payload: unknown): CockpitView | null {
           when: lang2(cashRaw.display, "when") ?? EMPTY,
           interest: lang2(cashRaw.display, "interest") ?? EMPTY,
           firstPeriod: str(cashRaw.first_period),
+          firstGranularity: str(cashRaw.first_granularity),
         }
       : {
           kind: "min_cash",

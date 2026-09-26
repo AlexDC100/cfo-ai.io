@@ -1533,8 +1533,8 @@
  },
  "period_id": "c-cur",
  "pins": {
-  "body_hash": "sha256:2628b9d8d4fa0c40907a2850a9be35a6459d86c314a64ae29645b691711cb79a",
-  "cockpit_pack": "sha256:765c368b007887f2a2cdc68aad23fea27df4b630a9c1c13b66bd91a6c86fd617",
+  "body_hash": "sha256:e2507051e9cbd9b1cbbd0b2d19fcf1ed5f1d93a565c205f29270ea9ca941d11e",
+  "cockpit_pack": "sha256:7f129063257aca575e19ce4fba4e04555f08dcc40e860b4a4f1d4bb123596b58",
   "engine_version": "0.1.0",
   "macro_pack": "sha256:786eec084a31392dca0f4be9c16faff90fcf6532c94bc8ed5823d5a05ff548b3",
   "pack_id": "forecast-cockpit"

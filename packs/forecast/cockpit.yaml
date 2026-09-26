@@ -379,6 +379,12 @@ sentence:
   funding:
     ro: "ai nevoie de o linie de credit de până la {amount} începând din {when}"
     en: "you need a credit line of up to {amount} starting in {when}"
+  # The plan is monthly only in plan year one (horizon.monthly_months); a
+  # line first drawn in a later year is known to the YEAR, and the sentence
+  # says so — never "starting in 2028", which reads as a month's precision.
+  funding_annual:
+    ro: "ai nevoie de o linie de credit de până la {amount} în cursul anului {when}"
+    en: "you need a credit line of up to {amount} during {when}"
   no_funding:
     ro: "numerarul nu scade sub zero, cu un minim de {amount} în {when}"
     en: "cash never goes below zero, with a low of {amount} in {when}"

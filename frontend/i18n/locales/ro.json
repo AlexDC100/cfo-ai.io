@@ -3610,6 +3610,7 @@
         "dscrThreshold": "de {{threshold}}",
         "ebitda": "EBITDA {{year}}",
         "fcf": "Flux de numerar liber {{from}}–{{to}}",
+        "fundingDuring": "în cursul anului {{year}}",
         "fundingFrom": "din {{month}}",
         "fundingInterest": "dobândă",
         "fundingNeed": "Necesar de finanțare",

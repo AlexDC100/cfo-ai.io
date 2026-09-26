@@ -9165,6 +9165,21 @@ and on the widened-range case — see "forecast-cockpit".
 positions are wire decimals, ticks derive at render); `Tests 7 passed (7)`
 over the three engines, `GATE-WORK forecast-cockpit-lever-scale engines=3`.
 
+**PLANT funding-year-said-as-a-month** (2026-09-26 — the page as shipped at
+807f483d: the funding card and the bank export print "from {when}" whatever
+the served `first_granularity`, so a first draw the engine knows only to the
+year read "from 2027" / "din 2027"):
+```
+RED (the page before the repair, -t "dated to its YEAR")
+  × the four numbers a bank asks for > a line first drawn after plan year one is dated to its YEAR — 'during 2027', never 'from 2027' (EN and RO, card, sentence and export)
+  → expected 'from 2027' to be 'during 2027' // Object.is equality
+Tests 1 failed | 23 skipped (24)
+```
+**REVERT** — the repair landed (`firstGranularity` read by the gateway; the
+card and the export say "during {year}" / "în cursul anului {year}" for an
+annual first draw, the month otherwise); `Tests 74 passed (74)` over the
+cockpit page, lever-scale and component suites.
+
 **After the repair it reds on:** a number on the cockpit that is not the
 engine's, or a projected one without ◇; a DSCR verdict the page decided; a
 second request for a position whose answer is cached, a request before the
@@ -9366,6 +9381,21 @@ validated against min/max/step; `effective_range` rounds a widened bound
 OUTWARD to it; `_lever_payload` serves it); `8 passed` (F10 ×6, F7, the
 committed fixtures regenerated from the route), and the four new agras
 fixtures (`growth`, `growth_inflation`, `dso`, `dso_dio`) pinned to the route.
+
+**PLANT funding-year-said-as-a-month** (2026-09-26, F8 — the engine as
+shipped at 807f483d: one `funding` sentence for every first draw, so a line
+first drawn after the monthly months read "începând din 2027" / "starting in
+2027", a month's precision the plan does not have):
+```
+RED (against the engine before the repair, -k dated_to_its_year)
+E   AssertionError: În scenariul de bază, ai nevoie de o linie de credit de până la 44,8 mil. lei începând din 2027; …
+E   assert 'în cursul anului 2027' in 'În scenariul de bază, ai nevoie de o linie de credit … începând din 2027; …'
+1 failed, 45 deselected
+```
+**REVERT** — the repair landed (`sentence.funding_annual` in the pack,
+chosen by `first_granularity`; the horizon untouched); `6 passed` (the new
+case on carniprod capex 15 % → FY2027 in RO and EN, the month-one case on
+agras keeping its month, F8 ×4).
 
 **After the repair it reds on:** year 0 drifting from the dashboard; a plan
 year of any case or slider extreme that does not balance or whose BS cash is

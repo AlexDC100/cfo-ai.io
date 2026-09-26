@@ -840,6 +840,40 @@ def test_c_f8_a_book_that_cannot_price_a_line_draws_it_at_the_stated_reference()
     WORK["units"] += 8
 
 
+def test_c_f8_a_line_first_drawn_after_plan_year_one_is_dated_to_its_year_never_a_month():
+    """The engine projects monthly only in plan year one
+    (packs/forecast/cockpit.yaml#horizon.monthly_months 12); a credit line
+    first drawn in a later year is known to the YEAR. The card and the
+    sentence say so — "în cursul anului 2027" / "during 2027" — never
+    "începând din 2027" / "starting in 2027", which reads as a month's
+    precision the plan does not have. carniprod with capex at 15 % of revenue
+    draws first in FY2027 (plan year two); agras with capex at 20 % draws in
+    the first month, and keeps the month. The horizon is not changed."""
+    with _World("carniprod") as world:
+        year_two = world.ok({"levers": {"capex": "0.15"}})
+    with _World("agras") as world:
+        month_one = world.ok({"levers": {"capex": "0.2"}})
+    cash = year_two["numbers"]["cash"]
+    assert cash["kind"] == "funding_need", cash
+    assert cash["first_granularity"] == "annual" and cash["first_period"] == "FY2027", cash
+    assert cash["display"]["ro"]["when"] == "2027" and cash["display"]["en"]["when"] == "2027"
+    ro, en = year_two["sentence"]["ro"], year_two["sentence"]["en"]
+    assert "în cursul anului 2027" in ro, ro
+    assert "during 2027" in en, en
+    assert "începând din 2027" not in ro and "starting in 2027" not in en, (ro, en)
+    assert "funding_annual" in year_two["sentence"]["template"], year_two["sentence"]["template"]
+    cash = month_one["numbers"]["cash"]
+    assert cash["kind"] == "funding_need" and cash["first_granularity"] == "monthly", cash
+    assert cash["first_period"] == "2026-01"
+    ro, en = month_one["sentence"]["ro"], month_one["sentence"]["en"]
+    assert "începând din ianuarie 2026" in ro, ro
+    assert "starting in January 2026" in en, en
+    assert "funding" in month_one["sentence"]["template"]
+    assert year_two["horizon"] == {"total_years": 5, "monthly_months": 12,
+                                   "years": ["FY2026", "FY2027", "FY2028", "FY2029", "FY2030"]}
+    WORK["units"] += 10
+
+
 # ── F9 ───────────────────────────────────────────────────────────────────
 
 def _f9(label: str, bridge: Dict[str, Any]) -> None:

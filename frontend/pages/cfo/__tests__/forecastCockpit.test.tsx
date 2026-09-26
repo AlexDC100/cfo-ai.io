@@ -262,6 +262,51 @@ describe("the four numbers a bank asks for", () => {
     }
     expect(screen.queryByTestId("cockpit-chart-gap-2026-09")).toBeNull();
   });
+
+  it("a line first drawn after plan year one is dated to its YEAR — 'during 2027', never 'from 2027' (EN and RO, card, sentence and export)", async () => {
+    // the engine projects monthly only in plan year one; a later first draw
+    // is known to the year, and the card must not read as a month
+    const annual = (body: Body) => answerFor(body, { fundingFirst: "annual" });
+    cockpitCall.mockImplementation(async (_id: string, body: Body) => annual(body));
+    exportCall.mockImplementation(async (_id: string, body: Body) => syntheticExport(annual(body)));
+    pdf.request.mockResolvedValue({ blob: new Blob(["%PDF"]), filename: "x.pdf", pages: 4 });
+    const en = wrap();
+    await screen.findByTestId("cockpit-numbers");
+    fireEvent.click(screen.getByTestId("cockpit-case-pesimist"));
+    await screen.findByTestId("cockpit-funding-need");
+    const when = screen.getByTestId("cockpit-funding-month");
+    expect(when.textContent).toBe("during 2027");
+    expect(when.getAttribute("data-granularity")).toBe("annual");
+    expect(screen.getByTestId("cockpit-sentence").textContent).toContain("during 2027");
+    expect(screen.getByTestId("cockpit-sentence").textContent).not.toContain("starting in 2027");
+    // the chart shades the year, no month of year one
+    expect(screen.queryByTestId("cockpit-chart-gap-2026-10")).toBeNull();
+    expect(screen.getByTestId("cockpit-chart-gap-FY2027")).toBeTruthy();
+    // the bank export says the same
+    fireEvent.click(screen.getByTestId("cockpit-export"));
+    await waitFor(() => expect(pdf.request).toHaveBeenCalledTimes(1));
+    const [html] = pdf.request.mock.calls[0] as [string];
+    expect(html).toContain("during 2027");
+    expect(html).not.toContain("from 2027");
+    en.unmount();
+    await i18n.changeLanguage("ro");
+    wrap();
+    await screen.findByTestId("cockpit-numbers");
+    fireEvent.click(screen.getByTestId("cockpit-case-pesimist"));
+    await screen.findByTestId("cockpit-funding-need");
+    expect(screen.getByTestId("cockpit-funding-month").textContent).toBe("în cursul anului 2027");
+    expect(screen.getByTestId("cockpit-sentence").textContent).toContain("în cursul anului 2027");
+    expect(screen.getByTestId("cockpit-sentence").textContent).not.toContain("începând din 2027");
+    // a first draw in a MONTH of year one keeps the month (the default double)
+    cockpitCall.mockImplementation(async (_id: string, body: Body) => answerFor(body));
+    cleanup();
+    wrap();
+    await screen.findByTestId("cockpit-numbers");
+    fireEvent.click(screen.getByTestId("cockpit-case-pesimist"));
+    await screen.findByTestId("cockpit-funding-need");
+    expect(screen.getByTestId("cockpit-funding-month").getAttribute("data-granularity")).toBe("monthly");
+    expect(screen.getByTestId("cockpit-funding-month").textContent).toBe("din octombrie 2026");
+  });
 });
 
 describe("the chart", () => {

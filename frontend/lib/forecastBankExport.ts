@@ -195,7 +195,11 @@ export function buildBankExportHtml(input: BankExportInput): string {
       ? kpi(
           t("forecast.cockpit.numbers.fundingNeed", "Funding need"),
           pick(n.cash.amount, lang),
-          `${esc(t("forecast.cockpit.numbers.fundingFrom", "from {{month}}", { month: pick(n.cash.when, lang) }))} · ${esc(t("forecast.cockpit.numbers.fundingInterest", "interest"))} <span class="num" data-projected="true">${esc(pick(n.cash.interest, lang))}${MARK}</span>`,
+          `${esc(
+            n.cash.firstGranularity === "annual"
+              ? t("forecast.cockpit.numbers.fundingDuring", "during {{year}}", { year: pick(n.cash.when, lang) })
+              : t("forecast.cockpit.numbers.fundingFrom", "from {{month}}", { month: pick(n.cash.when, lang) }),
+          )} · ${esc(t("forecast.cockpit.numbers.fundingInterest", "interest"))} <span class="num" data-projected="true">${esc(pick(n.cash.interest, lang))}${MARK}</span>`,
           "warn",
         )
       : kpi(

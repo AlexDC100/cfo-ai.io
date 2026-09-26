@@ -5,8 +5,10 @@
 //   1. EBITDA in the final plan year, with its margin against today's;
 //   2. cumulative free cash flow over the plan;
 //   3. the lowest cash — or, when the plan needs money it does not have,
-//      "Necesar de finanțare X" with the month the line first draws and the
-//      interest it costs;
+//      "Necesar de finanțare X" with WHEN the line first draws — the month
+//      in plan year one, the YEAR after it (the engine projects monthly only
+//      in year one, so "din 2028" would claim a precision the plan does not
+//      have: it reads "în cursul anului 2028") — and the interest it costs;
 //   4. DSCR in plan year one against the bank's threshold, coloured by the
 //      ENGINE's verdict (`status`; the page never compares the two numbers).
 //
@@ -130,8 +132,10 @@ export function HeadlineNumbers({
           label={t("forecast.cockpit.numbers.fundingNeed", "Funding need")}
           sub={
             <span>
-              <span data-testid="cockpit-funding-month">
-                {t("forecast.cockpit.numbers.fundingFrom", "from {{month}}", { month: pick(cash.when, lang) })}
+              <span data-testid="cockpit-funding-month" data-granularity={cash.firstGranularity}>
+                {cash.firstGranularity === "annual"
+                  ? t("forecast.cockpit.numbers.fundingDuring", "during {{year}}", { year: pick(cash.when, lang) })
+                  : t("forecast.cockpit.numbers.fundingFrom", "from {{month}}", { month: pick(cash.when, lang) })}
               </span>
               {" · "}
               <span data-testid="cockpit-funding-interest">
