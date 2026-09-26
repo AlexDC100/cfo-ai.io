@@ -349,7 +349,8 @@ def _as_line(raw: Any) -> Line:
 
 
 def _extract_lines(pdf_bytes: bytes) -> Optional[List[Line]]:
-    """The PDF's text lines, each with its words' x-positions.
+    """The PDF's text lines, each with its words' x-positions
+    (`_extract_lines_at` with pdfplumber's default word split).
 
     Built the way `page.extract_text()` builds its lines — the same words
     (`extract_words`, default tolerances) clustered on `doctop` with the
@@ -361,21 +362,30 @@ def _extract_lines(pdf_bytes: bytes) -> Optional[List[Line]]:
     refuses anything on it that needs the columns rather than read a
     layout it cannot place.
     """
+    return _extract_lines_at(pdf_bytes, None)
+
+
+def _extract_lines_at(pdf_bytes: bytes, x_tolerance: Optional[float]) -> Optional[List[Line]]:
+    """`_extract_lines` with pdfplumber's word split at `x_tolerance` —
+    the default (3 pt) when None — on BOTH sides of the per-page check:
+    the words are split, and `extract_text()` builds the lines they must
+    rebuild, with the same tolerance."""
     try:
         import pdfplumber  # type: ignore
         from pdfplumber.utils import cluster_objects  # type: ignore
     except ImportError:
         return None
+    split: Dict[str, Any] = {} if x_tolerance is None else {"x_tolerance": x_tolerance}
     try:
         from operator import itemgetter
 
         lines: List[Line] = []
         with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
             for page in pdf.pages:
-                text_lines = (page.extract_text() or "").splitlines()
+                text_lines = (page.extract_text(**split) or "").splitlines()
                 built: List[Line] = []
                 try:
-                    words = page.extract_words()
+                    words = page.extract_words(**split)
                     for cluster in cluster_objects(words, itemgetter("doctop"), 3):
                         built.append(Line(" ".join(w["text"] for w in cluster),
                                           tuple(Word(w["text"], float(w["x0"]), float(w["x1"]))
@@ -840,7 +850,9 @@ def _zone(ln: Line, geo: Optional[_Geometry]) -> Optional[str]:
 
 
 def _vsum(group: List[Dict[str, Any]]) -> List[Decimal]:
-    return [sum((k["figures"][i] for k in group), Decimal(0)) for i in range(10)]
+    """The column sums of a non-empty group of rows, as many as a row
+    carries figures."""
+    return [sum((k["figures"][i] for k in group), Decimal(0)) for i in range(len(group[0]["figures"]))]
 
 
 def _codes(group: List[Dict[str, Any]], limit: int = 8) -> str:
@@ -850,9 +862,9 @@ def _codes(group: List[Dict[str, Any]], limit: int = 8) -> str:
 
 def _run_summing_to(seq: List[Dict[str, Any]], v: List[Decimal]) -> Optional[List[Dict[str, Any]]]:
     """A contiguous run of `seq` (in document order, one row or more) whose
-    ten figures sum to `v`, or None — found from running totals in one pass:
+    figures sum to `v`, or None — found from running totals in one pass:
     a run [i, j) sums to v exactly when running[j] - v == running[i]."""
-    running = [Decimal(0)] * 10
+    running = [Decimal(0)] * len(v)
     starts: Dict[Tuple[Decimal, ...], int] = {tuple(running): 0}
     for j, row in enumerate(seq, start=1):
         running = [a + b for a, b in zip(running, row["figures"])]
@@ -899,8 +911,10 @@ def _subtotal_refusal(rows: List[Dict[str, Any]]) -> Optional[str]:
 
     An all-zero row is exempt: listed twice or not, it adds nothing to any
     figure. Sums over a whole root are taken from running totals, so a
-    root with hundreds of analytics costs no more than a small one.
+    root with hundreds of analytics costs no more than a small one. A row
+    carries its own figure count (ten on a five-pair row).
     """
+    width = len(rows[0]["figures"]) if rows else 10
     families: Dict[str, List[Dict[str, Any]]] = {}
     sums: Dict[Tuple[Any, ...], List[Decimal]] = {}
     members: Dict[Tuple[Any, ...], List[Dict[str, Any]]] = {}
@@ -912,8 +926,8 @@ def _subtotal_refusal(rows: List[Dict[str, Any]]) -> Optional[str]:
         for scope, name in (("root", root), ("base", base)):
             lengths.setdefault((scope, name), set()).add(len(code))
             for key in ((scope, name), (scope, name, len(code))):
-                total = sums.setdefault(key, [Decimal(0)] * 10)
-                for i in range(10):
+                total = sums.setdefault(key, [Decimal(0)] * width)
+                for i in range(width):
                     total[i] += r["figures"][i]
                 members.setdefault(key, []).append(r)
     for r in rows:
@@ -938,7 +952,7 @@ def _subtotal_refusal(rows: List[Dict[str, Any]]) -> Optional[str]:
                 if len(members[key]) - inside < 2:
                     continue
                 total = sums[key]
-                if [total[i] - (v[i] if inside else 0) for i in range(10)] == v:
+                if [total[i] - (v[i] if inside else 0) for i in range(width)] == v:
                     group = [k for k in members[key] if k is not r]
                     return ("account %s equals the sum of %s — a subtotal listed beside the "
                             "accounts it sums" % (code, _codes(group)))
