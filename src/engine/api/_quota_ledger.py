@@ -105,8 +105,9 @@ import socket
 import threading
 import time
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Dict, Iterable, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Optional, Set, Tuple, Union
 
 from . import _supabase
 
@@ -417,30 +418,72 @@ def record_commit(document_id: str, *, user_id: str, was_extra: bool, month: str
         PENDING_MAX_AGE_S // 3600)
 
 
+@dataclass(frozen=True)
+class Outstanding:
+    """`record_reservation` found the document's row already carrying an
+    OUTSTANDING reservation — another run's, or another member's — and left
+    it untouched. The caller gives back the slot it just reserved."""
+    row: Dict[str, Any]
+
+    @property
+    def user_id(self) -> str:
+        return str(self.row.get("user_id") or "")
+
+
 def record_reservation(document_id: str, *, user_id: str, was_extra: bool,
-                       month: str) -> Optional[str]:
+                       month: str) -> Union[str, Outstanding, None]:
     """THIS process holds a reservation of `document_id`'s slot (a run's,
     or a confirmed extra granted to it). Returns the `reservation_id`
-    written — the settlement's compare-and-set key (`mark_settling`) — or
-    None when the write failed."""
+    written — the settlement's compare-and-set key (`mark_settling`) — an
+    `Outstanding` when the row already holds a reservation, or None when
+    the write failed (or the ledger is absent).
+
+    NEVER OVERWRITES AN OUTSTANDING RESERVATION (P2-B, 2026-09-26). This was
+    an upsert on `document_id`: a confirm re-posted after a restart, or a
+    run of a document whose colleague's run a restart orphaned, wrote a new
+    `reservation_id` over the outstanding one — the earlier slot stayed in
+    the meter with no record left to be adopted or swept. Now the row is
+    PATCHed only while `reserved_at` is null (a settled row) and read back;
+    a document without a row gets one; a row that holds a reservation is
+    answered as `Outstanding` for the caller to release its own slot."""
     now = _now_iso()
     rid = uuid.uuid4().hex
+    doc = str(document_id)
     if absent():
         return None
+    fields = {
+        "user_id": str(user_id), "month": str(month), "was_extra": bool(was_extra),
+        "reservation_id": rid, "reserved_at": now, "owner": PROCESS_ID, "heartbeat_at": now,
+        "release_token": None, "settling_at": None, "updated_at": now,
+    }
     try:
         with _supabase.admin() as ac:
-            ac.upsert(TABLE, {
-                "document_id": str(document_id), "user_id": str(user_id), "month": str(month),
-                "was_extra": bool(was_extra), "reservation_id": rid,
-                "reserved_at": now, "owner": PROCESS_ID, "heartbeat_at": now,
-                "release_token": None, "settling_at": None, "updated_at": now,
-            }, on_conflict="document_id")
+            for _attempt in (1, 2):
+                ac.update(TABLE, fields, filters={"document_id": f"eq.{doc}", "reserved_at": "is.null"})
+                back = (rows_for([doc]) or {}).get(doc)
+                if back is None:
+                    # No row yet — insert one. A conflict (a row that appeared
+                    # meanwhile) is read back below.
+                    try:
+                        ac.insert(TABLE, {"document_id": doc, **fields}, returning=False)
+                        return rid
+                    except Exception as e:  # noqa: BLE001
+                        if _absent_error(e):
+                            raise
+                        back = (rows_for([doc]) or {}).get(doc)
+                        if back is None:
+                            raise
+                if str(back.get("reservation_id") or "") == rid:
+                    return rid
+                if back.get("reserved_at"):
+                    return Outstanding(dict(back))
+                # settled between the PATCH and the read-back: once more
+            return None
     except Exception as e:  # noqa: BLE001 — the in-process ledger still settles it
-        _failed("upsert", e,
+        _failed("update", e,
                 "[quota-ledger] could not record the reservation of document %s (user=%s) — a "
                 "restart before it settles would leave it outstanding", document_id, user_id)
         return None
-    return rid
 
 
 def record_nonro_reservation(document_id: str, *, user_id: str, was_extra: bool, month: str) -> None:
@@ -547,8 +590,10 @@ def adopt(document_id: str, *, user_id: str, take_extra: bool) -> Optional[Dict[
     Compare-and-set against the sweep: the row is taken by swapping its
     `reservation_id` while it still carries the one read, and the swap is
     read back — a sweeper that read the row before the adoption then
-    matches nothing and releases nothing. Returns the row adopted, else
-    None (the caller reserves as usual)."""
+    matches nothing and releases nothing. Returns the row AS ADOPTED — its
+    new `reservation_id`, which the caller's run now holds and which its
+    settlement compares-and-sets against — else None (the caller reserves
+    as usual)."""
     row = outstanding(document_id)
     if row is None or str(row.get("user_id") or "") != str(user_id):
         return None
@@ -580,7 +625,7 @@ def adopt(document_id: str, *, user_id: str, take_extra: bool) -> Optional[Dict[
     logger.warning("[quota-ledger] document %s: adopted the reservation a restart orphaned "
                    "(user=%s month=%s extra=%s)", document_id, user_id, row.get("month"),
                    bool(row.get("was_extra")))
-    return row
+    return dict(back)
 
 
 def heartbeat(document_ids: Iterable[Any]) -> None:

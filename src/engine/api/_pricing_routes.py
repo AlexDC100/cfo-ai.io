@@ -245,7 +245,10 @@ def build_router() -> APIRouter:
         # document (idempotent: a second confirm reserves nothing more).
         extra = _ug.confirm_extra_document(uid, document_id=str(document_id))
         if extra.kind == "blocked":
-            raise HTTPException(409, {"code": "extra_not_granted", "message": extra.message})
+            # `reservation_outstanding` (P2-B): the document's slot is already
+            # reserved — by this user's own run (its re-run adopts it) or by
+            # another member's; nothing was reserved or granted.
+            raise HTTPException(409, {"code": extra.code or "extra_not_granted", "message": extra.message})
         logger.info(
             "[pricing] user=%s confirmed extra-doc charge €%.2f for document %s — "
             "reservation granted; will commit on analysis success",

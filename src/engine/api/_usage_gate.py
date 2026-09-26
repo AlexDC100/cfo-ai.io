@@ -65,6 +65,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
+import dataclasses
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from typing import Any, Dict, Literal, Optional
@@ -120,6 +121,15 @@ class DocReserveDecision:
     # commit / release must land (a run reserved on 30 Sep and settled on
     # 1 Oct releases September's reservation). "" = the current month.
     month: str = ""
+    # A typed reason for a `blocked` decision the route answers by code
+    # (`reservation_outstanding`); "" = the route's default code.
+    code: str = ""
+    # The quota-ledger `reservation_id` this decision ALREADY holds — a
+    # confirmed extra's (recorded by the confirm), or an adopted orphan's.
+    # The run that takes it registers that row as its own instead of
+    # recording a second reservation, which the ledger now refuses
+    # (`_quota_ledger.record_reservation` → `Outstanding`, P2-B).
+    reservation_id: str = ""
 
 
 NonRoReserveKind = Literal["allowed", "refused", "blocked", "disabled"]
@@ -367,7 +377,7 @@ def _expire_extra_grants() -> None:
     for doc, g in stale:
         logger.info("[usage-gate] extra-document grant for %s expired unclaimed — "
                     "reservation released, nothing billed", doc)
-        _quota_ledger.mark_settling(doc, reservation_id=None)  # the mark before the move
+        _quota_ledger.mark_settling(doc, reservation_id=g.decision.reservation_id or None)  # the mark before the move
         release_document(g.user_id, was_extra=True, month=g.decision.month or None)
         _quota_ledger.record_release(doc)
 
@@ -423,7 +433,8 @@ def cancel_extra_grant(document_id: str) -> None:
     with _GRANTS_LOCK:
         grant = _EXTRA_GRANTS.pop(str(document_id), None)
     if grant is not None:
-        _quota_ledger.mark_settling(str(document_id), reservation_id=None)  # the mark before the move
+        _quota_ledger.mark_settling(str(document_id),
+                                    reservation_id=grant.decision.reservation_id or None)  # the mark before the move
         release_document(grant.user_id, was_extra=True, month=grant.decision.month or None)
         _quota_ledger.record_release(str(document_id))
 
@@ -444,6 +455,19 @@ def confirm_extra_document(user_id: str, document_id: Optional[str] = None) -> D
     names no document reserves nothing — a slot claimable by no run would
     only leak — and an unreachable meter refuses rather than granting a
     slot it never reserved.
+
+    ACROSS A RESTART (P2-B, 2026-09-26). The grant lived only in memory; a
+    confirm re-posted after a restart (the retry of a lost response, a
+    second click after the deploy) found none and reserved AGAIN —
+    `reserve_user_upload_extra` twice for one confirmation, and the ledger
+    record overwrote the outstanding row so the first slot leaked for the
+    month. Now an outstanding `was_extra` reservation of the same user is
+    ADOPTED (`_quota_ledger.adopt`) and re-granted; any other outstanding
+    reservation of the document (the user's own plain run a restart
+    orphaned — its re-run adopts it, no extra needed — or another member's)
+    refuses `blocked` / `reservation_outstanding` without touching the
+    meter; and a record refused as `Outstanding` after the RPC gives the
+    slot just reserved straight back.
     """
     if not enforced_for(user_id):
         return DocReserveDecision(
@@ -483,6 +507,36 @@ def confirm_extra_document(user_id: str, document_id: Optional[str] = None) -> D
             )
 
         month = _month_bucket()
+        held = _quota_ledger.outstanding(doc)
+        if held is not None:
+            mine = str(held.get("user_id") or "") == str(user_id)
+            if mine and held.get("was_extra") and not _quota_ledger.is_settling(held):
+                adopted = _quota_ledger.adopt(doc, user_id=str(user_id), take_extra=True)
+                if adopted is not None:
+                    decision = DocReserveDecision(
+                        kind="allowed", plan_key=plan.key, used=state.docs_used_this_period,
+                        reserved=0, cap=plan.included_docs, extra_doc_eur=plan.extra_doc_eur,
+                        message="", was_extra=True, month=str(adopted.get("month") or month),
+                        reservation_id=str(adopted.get("reservation_id") or ""),
+                    )
+                    with _GRANTS_LOCK:
+                        _EXTRA_GRANTS[doc] = _ExtraGrant(user_id=str(user_id), granted_at=_now_mono(),
+                                                         decision=decision)
+                    logger.info(
+                        "[usage-gate] user=%s re-confirmed document %s: adopted the extra reservation "
+                        "a restart orphaned — nothing reserved a second time", user_id, doc)
+                    return decision
+                held = _quota_ledger.outstanding(doc)  # the sweep gave it back first: reserve as usual
+            if held is not None:
+                return DocReserveDecision(
+                    kind="blocked", plan_key=plan.key, used=state.docs_used_this_period, reserved=0,
+                    cap=plan.included_docs, extra_doc_eur=None, code="reservation_outstanding",
+                    message=("An analysis of this document is already reserved — start it again; "
+                             "no extra analysis is needed." if mine else
+                             "Another member's analysis of this document is still reserved. "
+                             "Try again in a few minutes."),
+                )
+
         body = _rpc("reserve_user_upload_extra", {
             "p_user_id": user_id,
             "p_month":   month,
@@ -511,12 +565,30 @@ def confirm_extra_document(user_id: str, document_id: Optional[str] = None) -> D
             was_extra=True,
             month=month,
         )
+        # Durable too: a restart must neither lose the user's confirmation
+        # nor leave its reservation (and extra_docs_pending) behind. The
+        # record comes BEFORE the grant: a row another reservation took
+        # between the look above and this write (a colleague's run in
+        # another container) is never overwritten — the slot reserved a
+        # moment ago goes straight back, and no grant is left behind.
+        rid = _quota_ledger.record_reservation(doc, user_id=str(user_id), was_extra=True, month=month)
+        if isinstance(rid, _quota_ledger.Outstanding):
+            release_document(user_id, was_extra=True, month=month)
+            logger.warning(
+                "[usage-gate] user=%s confirmed document %s while its row holds an outstanding "
+                "reservation of user %s — the extra slot just reserved was released, nothing granted",
+                user_id, doc, rid.user_id)
+            return DocReserveDecision(
+                kind="blocked", plan_key=plan.key, used=int(body.get("used") or 0), reserved=0,
+                cap=plan.included_docs, extra_doc_eur=None, code="reservation_outstanding",
+                message=("An analysis of this document is already reserved. Reload the page and "
+                         "start it again."),
+            )
+        if isinstance(rid, str) and rid:
+            decision = dataclasses.replace(decision, reservation_id=rid)
         with _GRANTS_LOCK:
             _EXTRA_GRANTS[doc] = _ExtraGrant(user_id=str(user_id), granted_at=_now_mono(),
                                              decision=decision)
-        # Durable too: a restart must neither lose the user's confirmation
-        # nor leave its reservation (and extra_docs_pending) behind.
-        _quota_ledger.record_reservation(doc, user_id=str(user_id), was_extra=True, month=month)
         return decision
 
 

@@ -57,7 +57,7 @@ import pytest
 from engine.api import _doc_dedupe, _quota_ledger, _usage_gate, pipeline
 
 from test_duplicate_upload_gate import (  # noqa: F401 — the fixture
-    EEI, OWNER, _confirm, _doc, _row, world,
+    EEI, OTHER_USER, OWNER, _confirm, _doc, _row, world,
 )
 
 
@@ -572,3 +572,145 @@ def test_the_restore_reports_a_settling_reservation_and_leaves_it_alone(world, r
     assert _ledger(world, "book") == before, "the restore touched a settling row"
     assert meter.snapshot() == {"uploads": 1, "reserved": 0, "extra_billed": 0, "pending": 0}
     assert usage["uploads"] == 1 and usage["uploads_reserved"] == 0
+
+
+# ── ONE CONFIRMATION, ONE RESERVATION — across a restart (P2-B, 2026-09-26) ──
+#
+# The confirmed extra's GRANT lived in memory; its RESERVATION lives in the
+# ledger row. A confirm re-posted after a restart (the retry of a lost
+# response, a second click after the deploy) found no grant and reserved
+# AGAIN — `reserve_user_upload_extra` twice for one confirmation, reserved
+# + 2, extra_docs_pending + 2 — and `record_reservation`'s upsert OVERWROTE
+# the outstanding row, so the first slot had no record left to be swept or
+# adopted: leaked for the rest of the month. The same upsert let a run
+# overwrite a colleague's outstanding reservation of the same document.
+#
+# THE FIX: the confirm ADOPTS an outstanding `was_extra` reservation of the
+# same user instead of reserving again; `record_reservation` PATCHes only
+# while `reserved_at` is null and answers `Outstanding` otherwise — the
+# caller gives back the slot it just reserved and refuses 409
+# `reservation_outstanding`; nothing ever overwrites a reservation.
+#
+# WHAT THESE RED ON, with the defect repaired (TC-11):
+#   * a second `reserve_user_upload_extra` for one confirmation, or a
+#     confirmed extra billed twice after a restart;
+#   * an outstanding reservation's row overwritten by any record;
+#   * a run or a confirm against another member's outstanding reservation
+#     starting, or leaving its own slot in the meter.
+
+
+def _theirs(world, doc_id, *, user=OTHER_USER, extra=False, ago=30):
+    """Another member's outstanding reservation of `doc_id` (a run a restart
+    orphaned, or one in flight in another container)."""
+    row = {"document_id": doc_id, "user_id": user, "month": "2026-09", "was_extra": extra,
+           "reservation_id": "their-rid", "reserved_at": _ago(ago), "heartbeat_at": _ago(ago),
+           "owner": "other-host:1:abcd", "committed_at": None, "released_at": None,
+           "settling_at": None, "release_token": None}
+    world["db"].rows(_quota_ledger.TABLE).append(dict(row))
+    return row
+
+
+def test_p2b_a_confirm_after_a_restart_adopts_the_lost_grant_instead_of_reserving_again(world):
+    meter = world["meter"]
+    meter.uploads = 15
+    world["db"].rows("documents").append(_doc("over", h=EEI))
+    assert world["post"]("/api/pipeline/run", {"document_id": "over"}).status_code == 402
+    assert _confirm(world, "over").status_code == 200
+    assert meter.snapshot() == {"uploads": 15, "reserved": 1, "extra_billed": 0, "pending": 1}
+    rid = _ledger(world, "over")["reservation_id"]
+    _restart()
+    # the browser re-posts the confirmation it already made
+    r = _confirm(world, "over")
+    assert r.status_code == 200, r.text
+    assert meter.calls.count("reserve_user_upload_extra") == 1, ("one confirmation reserved twice", meter.calls)
+    assert meter.snapshot() == {"uploads": 15, "reserved": 1, "extra_billed": 0, "pending": 1}, meter.calls
+    row = _ledger(world, "over")
+    assert row["reserved_at"] and row["was_extra"] and row["reservation_id"] != rid \
+        and row["owner"] == _quota_ledger.PROCESS_ID, row
+    assert world["post"]("/api/pipeline/run", {"document_id": "over"}).json()["status"] == "queued"
+    world["finish"]("over", "analyzed")
+    assert meter.snapshot() == {"uploads": 16, "reserved": 0, "extra_billed": 1, "pending": 0}
+    assert [b["reservation_id"] for b in world["billed"]] == ["over"]
+
+
+def test_p2b_record_reservation_never_overwrites_an_outstanding_reservation(world):
+    _theirs(world, "doc")
+    got = _quota_ledger.record_reservation("doc", user_id=OWNER, was_extra=True, month="2026-09")
+    assert isinstance(got, _quota_ledger.Outstanding) and got.user_id == OTHER_USER, got
+    row = _ledger(world, "doc")
+    assert (row["reservation_id"], row["user_id"], row["owner"]) == ("their-rid", OTHER_USER, "other-host:1:abcd"), row
+    # a settled row is recorded over: its reservation is gone
+    world["db"].update(_quota_ledger.TABLE, {"reserved_at": None, "released_at": _ago(1), "owner": None},
+                       filters={"document_id": "eq.doc"})
+    rid = _quota_ledger.record_reservation("doc", user_id=OWNER, was_extra=True, month="2026-09")
+    assert isinstance(rid, str) and (_ledger(world, "doc")["reservation_id"], _ledger(world, "doc")["user_id"]) == (rid, OWNER)
+    # and a document with no row at all gets one
+    rid2 = _quota_ledger.record_reservation("new", user_id=OWNER, was_extra=False, month="2026-09")
+    assert isinstance(rid2, str) and _ledger(world, "new")["reservation_id"] == rid2
+
+
+def test_p2b_a_confirm_against_another_members_reservation_gives_its_slot_back_and_answers_409(world, monkeypatch):
+    """The colleague's row lands between the confirm's look and its record
+    (a race with a run in another container): the slot the confirm reserved
+    is released, the colleague's row is untouched, no grant, 409."""
+    meter = world["meter"]
+    meter.uploads = 15
+    world["db"].rows("documents").append(_doc("shared", h=EEI))
+    assert world["post"]("/api/pipeline/run", {"document_id": "shared"}).status_code == 402
+    real_rpc = meter.rpc
+
+    def racing(name, payload):
+        out = real_rpc(name, payload)
+        if name == "reserve_user_upload_extra":
+            _theirs(world, "shared", ago=1)
+        return out
+
+    monkeypatch.setattr(_usage_gate, "_rpc", racing)
+    r = _confirm(world, "shared")
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "reservation_outstanding", r.text
+    assert meter.calls[-2:] == ["reserve_user_upload_extra", "release_user_upload"], meter.calls
+    assert meter.snapshot() == {"uploads": 15, "reserved": 0, "extra_billed": 0, "pending": 0}
+    row = _ledger(world, "shared")
+    assert (row["reservation_id"], row["user_id"]) == ("their-rid", OTHER_USER), row
+    assert not _usage_gate.has_extra_grant("shared")
+
+
+def test_p2b_a_confirm_while_the_documents_own_run_holds_its_slot_reserves_nothing(world):
+    """The user's /run reserved a plain slot and a restart orphaned it; the
+    re-run adopts it with no dialog. A stale tab's confirm reserves nothing:
+    409, and the reservation stays for the re-run."""
+    meter = world["meter"]
+    meter.uploads = 14
+    world["db"].rows("documents").append(_doc("book", h=EEI))
+    assert world["post"]("/api/pipeline/run", {"document_id": "book"}).json()["status"] == "queued"
+    _restart()
+    rid = _ledger(world, "book")["reservation_id"]
+    r = _confirm(world, "book")
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "reservation_outstanding", r.text
+    assert "reserve_user_upload_extra" not in meter.calls and meter.snapshot()["pending"] == 0, meter.calls
+    assert _ledger(world, "book")["reservation_id"] == rid
+    assert world["post"]("/api/pipeline/retry", {"document_id": "book"}).json()["status"] == "queued"
+    world["finish"]("book", "analyzed")
+    assert meter.snapshot() == {"uploads": 15, "reserved": 0, "extra_billed": 0, "pending": 0}, meter.calls
+
+
+def test_p2b_a_run_against_another_members_outstanding_reservation_is_refused_and_leaks_nothing(world):
+    """A colleague's run of the document died in a restart; its reservation
+    is theirs until the sweep frees it. The caller's run must not overwrite
+    it (their slot would leak for the month) nor adopt it (they would be
+    charged for the caller's run)."""
+    meter = world["meter"]
+    world["db"].rows("documents").append(_doc("shared", h=EEI, user=OTHER_USER, status="extracting",
+                                              started=_ago(120)))
+    _theirs(world, "shared", ago=120)
+    r = world["post"]("/api/pipeline/run", {"document_id": "shared"})
+    assert r.status_code == 409 and r.json()["detail"]["code"] == "reservation_outstanding", r.text
+    assert meter.calls == ["reserve_user_upload", "release_user_upload"], meter.calls
+    assert meter.snapshot() == {"uploads": 0, "reserved": 0, "extra_billed": 0, "pending": 0}
+    row = _ledger(world, "shared")
+    assert (row["reservation_id"], row["user_id"]) == ("their-rid", OTHER_USER) and row["reserved_at"], row
+    assert pipeline._QUOTA_RUNS == {} and _doc_dedupe.in_flight("shared") is None and world["enqueued"] == []
+    # once the sweep gave the colleague's slot back, the run goes through
+    released = _quota_ledger.sweep_stale(is_live=pipeline._reservation_is_live, now=_later(11))
+    assert [x["document_id"] for x in released] == ["shared"]
+    assert world["post"]("/api/pipeline/run", {"document_id": "shared"}).json()["status"] == "queued"

@@ -3851,11 +3851,26 @@ _QUOTA_RUNS_LOCK = threading.Lock()
 
 
 def _register_quota_run(document_id: str, *, user_id: str, was_extra: bool,
-                        month: Optional[str] = None) -> None:
+                        month: Optional[str] = None,
+                        reservation_id: Optional[str] = None) -> bool:
     """Record that THIS run of `document_id` holds a document-slot
     reservation made under the verified `user_id` in `month` (default: now)
     — in process, for the run's own terminal, and in the quota ledger, for
-    a restart."""
+    a restart.
+
+    Returns False — holding NOTHING: the slot just reserved is given back to
+    the meter and the in-process entry dropped — when the document's ledger
+    row already carries an OUTSTANDING reservation (P2-B, 2026-09-26): a
+    colleague's run of this document that a restart orphaned, or one in
+    flight in another container. The record used to overwrite that row,
+    and the colleague's slot leaked for the month; adopting it instead
+    would charge the colleague for this caller's run. The caller refuses
+    the run (409 `reservation_outstanding`); the sweep frees the orphan.
+
+    `reservation_id`: the ledger reservation this run ALREADY holds — a
+    confirmed extra's (recorded by the confirm) or an adopted orphan's
+    (`_quota_ledger.adopt`): registered as the run's own, never recorded a
+    second time."""
     from . import _usage_gate as _ug
     month = month or _ug._month_bucket()
     with _QUOTA_RUNS_LOCK:
@@ -3864,12 +3879,28 @@ def _register_quota_run(document_id: str, *, user_id: str, was_extra: bool,
         run.was_extra = bool(was_extra)
         run.doc_reserved = True
         run.month = month
+    if reservation_id:
+        with _QUOTA_RUNS_LOCK:
+            run = _QUOTA_RUNS.get(str(document_id))
+            if run is not None:
+                run.reservation_id = str(reservation_id)
+        return True
     rid = _quota_ledger.record_reservation(str(document_id), user_id=str(user_id),
                                            was_extra=bool(was_extra), month=month)
+    if isinstance(rid, _quota_ledger.Outstanding):
+        with _QUOTA_RUNS_LOCK:
+            _QUOTA_RUNS.pop(str(document_id), None)
+        _ug.release_document(str(user_id), was_extra=bool(was_extra), month=month)
+        logger.warning(
+            "[pipeline][quota] document %s: its ledger row holds an outstanding reservation of user "
+            "%s (%s) — this run's slot was given back, the run is not started",
+            document_id, rid.user_id, rid.row.get("reservation_id"))
+        return False
     with _QUOTA_RUNS_LOCK:
         run = _QUOTA_RUNS.get(str(document_id))
         if run is not None:
             run.reservation_id = rid
+    return True
 
 
 def _register_nonro_reservation(document_id: str, *, user_id: str, was_extra: bool) -> None:
@@ -4223,8 +4254,14 @@ def _meter_first_analysis(document_id: str, user_id: str) -> Any:
                 or _adopt_reservation(document_id, user_id, take_extra=True)
                 or _ug.reserve_document(user_id))
     if decision.kind == "allowed":
-        _register_quota_run(document_id, user_id=user_id, was_extra=bool(decision.was_extra),
-                            month=decision.month or None)
+        if not _register_quota_run(document_id, user_id=user_id, was_extra=bool(decision.was_extra),
+                                   month=decision.month or None,
+                                   reservation_id=decision.reservation_id or None):
+            raise HTTPException(409, {
+                "code": "reservation_outstanding",
+                "message": ("This document's analysis is still reserved by the member who started "
+                            "it. Try again in a few minutes."),
+            })
     if decision.kind == "blocked":
         raise HTTPException(
             status_code=429,
@@ -4278,7 +4315,8 @@ def _adopt_reservation(document_id: str, user_id: str, *, take_extra: bool) -> A
         return None
     return _ug.DocReserveDecision(
         kind="allowed", plan_key="", used=0, reserved=0, cap=0, extra_doc_eur=None,
-        message="", was_extra=bool(row.get("was_extra")), month=str(row.get("month") or ""))
+        message="", was_extra=bool(row.get("was_extra")), month=str(row.get("month") or ""),
+        reservation_id=str(row.get("reservation_id") or ""))
 
 
 def _release_unstarted(entry: "_doc_dedupe.Entry", document_id: str) -> None:
@@ -4534,8 +4572,12 @@ def _recover_one(row: Dict[str, Any], caller_id: str) -> Tuple[str, Dict[str, An
             logger.exception("[pipeline] recovery: meter unreachable for doc %s", doc_id)
             return "needs_confirmation", {"reason": "metering_unavailable"}
         if decision.kind == "allowed":
-            _register_quota_run(doc_id, user_id=caller_id, was_extra=bool(decision.was_extra),
-                                month=decision.month or None)
+            if not _register_quota_run(doc_id, user_id=caller_id, was_extra=bool(decision.was_extra),
+                                       month=decision.month or None,
+                                       reservation_id=decision.reservation_id or None):
+                # Another member's reservation of it is outstanding: left for
+                # the sweep; the next mount recovers it.
+                return "skipped", {}
         if decision.kind not in ("allowed", "disabled"):
             logger.info("[pipeline] recovery: doc %s not re-enqueued — meter says %s",
                         doc_id, decision.kind)
