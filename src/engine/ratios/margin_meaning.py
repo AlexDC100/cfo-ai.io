@@ -39,12 +39,17 @@ means the rule cannot judge, and nothing changes either.
 
 THE ONE NOTE
 ============
-Where the rule refuses a property developer's margins, the headline EBITDA
-also leaves out what the book capitalised into stock through 711. The pack's
-``note`` names the case (margin refused, account mix read as real estate by
-``engine.industry``, a positive 711 production variation) and the served
-figure that puts it back (``assembled_pl.ebitda_statutory_with_711``). The
-note carries no arithmetic of its own: the figure is read, never computed.
+Where the rule refuses a property developer's margins, the reader still needs
+to know what the headline EBITDA is made of: since the owner's ruling of
+2026-09-26 EBITDA INCLUDES the stock variation (account 711, "Variația
+stocurilor de produse") — for a developer, the construction cost capitalised
+into stock. The pack's ``note`` names the case (margin refused, account mix
+read as real estate by ``engine.industry``, a positive net 711) and the served
+figure it quotes (``assembled_pl.inventory_variation.value``, the MEASURED net
+711 — never the gross credit turnover). The note carries no arithmetic of its
+own: the figure is read, never computed. (Before the ruling the note said the
+opposite — that EBITDA left 711 out — and quoted
+``ebitda_statutory_with_711``, a figure built on the gross turnover.)
 
 Pure: no I/O beyond the one pack read, no clock. Exact arithmetic
 (``fractions.Fraction``) on every comparison; a float is read bit for bit.
@@ -108,6 +113,10 @@ NOT_APPLICABLE = "not_applicable"
 
 #: The only activity basis this revision reads.
 ACTIVITY_BASES = ("total_operating_expense",)
+
+#: The one figure the note quotes: the MEASURED net 711 the one EBITDA
+#: includes (never the gross 711 credit turnover).
+NOTE_FIGURE = "assembled_pl.inventory_variation.value"
 
 _LANGS = ("ro", "en")
 _MINUS = "−"
@@ -200,16 +209,16 @@ class MarginMeaningPack(object):
             raise MarginMeaningPackError("%s#note: a mapping is required" % PACK_FILE)
         requires = note.get("requires")
         if requires != {"margin": NOT_MEANINGFUL, "industry_family": "real_estate",
-                        "inventory_variation_memo": "positive"}:
+                        "inventory_variation": "positive"}:
             # The requirements are read as data by `note_block`; a pack that
             # states others would be a rule this revision does not evaluate.
             raise MarginMeaningPackError(
                 "%s#note.requires: this revision evaluates exactly margin: not_meaningful, "
-                "industry_family: real_estate, inventory_variation_memo: positive; got %r"
+                "industry_family: real_estate, inventory_variation: positive; got %r"
                 % (PACK_FILE, requires))
-        if note.get("figure") != "assembled_pl.ebitda_statutory_with_711":
-            raise MarginMeaningPackError("%s#note.figure: assembled_pl.ebitda_statutory_with_711 "
-                                         "is the one figure this revision reads" % PACK_FILE)
+        if note.get("figure") != NOTE_FIGURE:
+            raise MarginMeaningPackError("%s#note.figure: %s is the one figure this revision reads"
+                                         % (PACK_FILE, NOTE_FIGURE))
         text = _two(note, "note")
         for lang in _LANGS:
             if "{amount}" not in text[lang] or "{when}" not in text[lang]:
@@ -501,35 +510,35 @@ def period_verdict(statements: Mapping[str, Any]) -> Tuple[Verdict, Tuple[str, .
     return judge(turnover, activity), inputs
 
 
-def note_block(verdict: Verdict, *, industry_family: Optional[str], inventory_variation_memo: Any,
-               ebitda_with_711: Any, unit_of: Any = None, year: Optional[str] = None,
+def note_block(verdict: Verdict, *, industry_family: Optional[str], inventory_variation: Any,
+               unit_of: Any = None, year: Optional[str] = None,
                money: Optional[Callable[[Any, str, Optional[str]], Optional[str]]] = None
                ) -> Optional[Dict[str, Any]]:
     """The one note, when every requirement of ``note.requires`` holds;
-    None otherwise. ``ebitda_with_711`` is READ from the served
-    ``assembled_pl.ebitda_statutory_with_711`` (in currency units); the note
-    computes nothing. ``unit_of`` is the EBITDA printed above the note: the
-    amount prints in its unit (millions when it is a million or more), so
-    "−29,0 mil. lei" and "0,6 mil. lei" read side by side. ``year`` names the
+    None otherwise. ``inventory_variation`` is READ from the served
+    ``assembled_pl.inventory_variation.value`` — the measured net 711 the one
+    EBITDA includes (in currency units; None when it was refused, and then
+    there is no note); the note computes nothing. ``unit_of`` is the EBITDA
+    printed above the note: the amount prints in its unit (millions when it
+    is a million or more), so the two read side by side. ``year`` names the
     year the figure belongs to where the page shows another year's EBITDA
     above it (the cockpit's final plan year)."""
     pack = margin_meaning_pack()
-    memo = _exact(inventory_variation_memo)
-    figure = _exact(ebitda_with_711)
+    figure = _exact(inventory_variation)
     if not (verdict.refused and industry_family == "real_estate"
-            and memo is not None and memo > 0 and figure is not None):
+            and figure is not None and figure > 0):
         return None
     render = money or fmt_money
     unit = money_unit(unit_of) if _exact(unit_of) is not None else None
     display = {}
     for lang in _LANGS:
         when = pack.note["when"][lang].format(year=year) if year else ""
-        display[lang] = pack.note["text"][lang].format(amount=render(ebitda_with_711, lang, unit),
+        display[lang] = pack.note["text"][lang].format(amount=render(inventory_variation, lang, unit),
                                                         when=when)
     return {
         "id": pack.note["id"],
         # The served figure, verbatim: the note reads it and computes nothing.
-        "figure": {"source": pack.note["figure"], "value": ebitda_with_711, "year": year},
+        "figure": {"source": pack.note["figure"], "value": inventory_variation, "year": year},
         "requires": dict(pack.note["requires"]),
         "display": display,
         "source": PACK_FILE,
@@ -546,10 +555,10 @@ def period_block(statements: Mapping[str, Any], industry_signal: Any = None) -> 
     apl = _dict(_dict(statements).get("assembled_pl"))
     signal = _dict(industry_signal)
     family = signal.get("family") if signal.get("verdict") == "decided" else None
-    # The EBITDA the dashboard prints above the note is the served
-    # statutory EBITDA (`assembled_pl.ebitda_statutory`, the headline tile).
+    # The EBITDA the dashboard prints above the note is the ONE served
+    # EBITDA (`assembled_pl.ebitda`, the headline tile); the note quotes the
+    # net 711 inside it.
     block["note"] = note_block(verdict, industry_family=family,
-                               inventory_variation_memo=apl.get("inventory_variation_memo"),
-                               ebitda_with_711=apl.get("ebitda_statutory_with_711"),
-                               unit_of=apl.get("ebitda_statutory"))
+                               inventory_variation=_dict(apl.get("inventory_variation")).get("value"),
+                               unit_of=apl.get("ebitda"))
     return block

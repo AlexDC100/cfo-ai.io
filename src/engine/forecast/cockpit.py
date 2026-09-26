@@ -1273,16 +1273,17 @@ def build_cockpit(anchor_payload: Dict[str, Any], prior_periods: Sequence[Dict[s
             verdict, (_PROJECTED_TURNOVER, _PROJECTED_ACTIVITY), currency)
         ebitda_block["margin_year0_meaning"] = margin_meaning.served_block(verdict0, inputs0, currency)
     # The one note the rule's pack names for this case (a property developer:
-    # the headline EBITDA leaves out what the book capitalised into stock
-    # through 711). The figure is READ from the served
-    # assembled_pl.ebitda_statutory_with_711 of the actual year; the note
-    # names that year, because the EBITDA above it is the final plan year's.
+    # EBITDA includes the construction cost capitalised into stock through
+    # 711, "Variația stocurilor de produse"). The figure is READ from the
+    # served assembled_pl.inventory_variation.value (the measured net 711) of
+    # the actual year; the note names that year, because the EBITDA above it
+    # is the final plan year's.
     apl0 = statements0.get("assembled_pl") if isinstance(statements0.get("assembled_pl"), dict) else {}
+    inv0 = apl0.get("inventory_variation") if isinstance(apl0.get("inventory_variation"), dict) else {}
     note = margin_meaning.note_block(
         verdict0,
         industry_family=_industry_family(anchor_payload) if verdict0.refused else None,
-        inventory_variation_memo=apl0.get("inventory_variation_memo"),
-        ebitda_with_711=apl0.get("ebitda_statutory_with_711"),
+        inventory_variation=inv0.get("value"),
         unit_of=Fraction(final["pl.ebitda"], 100), year=year0)
     if note is not None:
         ebitda_block["note"] = note

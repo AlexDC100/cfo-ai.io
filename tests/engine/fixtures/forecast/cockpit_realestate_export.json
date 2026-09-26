@@ -584,7 +584,7 @@
      "kind": "actual"
     },
     "ebitda": {
-     "amount_minor": -2903883812,
+     "amount_minor": 55097612,
      "kind": "actual"
     },
     "ebitda_margin_ppm": null,
@@ -1105,7 +1105,7 @@
    ],
    "ebitda": [
     {
-     "amount_minor": -2903883812,
+     "amount_minor": 55097612,
      "kind": "actual",
      "period": "FY2025"
     },
@@ -2096,7 +2096,7 @@
       "margin_refused": "margin not meaningful: turnover is 0.5% of activity",
       "margin_year0": null,
       "margin_year0_refused": "margin not meaningful: turnover is 0.6% of activity",
-      "note": "For a property developer, construction costs are capitalised into inventory (account 711): the EBITDA above does not include them. EBITDA including 711: RON 0.6M in 2025."
+      "note": "For a property developer, construction costs capitalised into inventory run through account 711 (Variația stocurilor de produse): the EBITDA above includes them — RON 29.6M in 2025."
      },
      "ro": {
       "amount": "−34,6 mil. lei",
@@ -2104,7 +2104,7 @@
       "margin_refused": "marjă nesemnificativă: cifra de afaceri este 0,5% din activitate",
       "margin_year0": null,
       "margin_year0_refused": "marjă nesemnificativă: cifra de afaceri este 0,6% din activitate",
-      "note": "Pentru un dezvoltator imobiliar, costurile de construcție sunt capitalizate în stocuri (contul 711): EBITDA de mai sus nu le include. EBITDA inclusiv 711: 0,6 mil. lei în 2025."
+      "note": "Pentru un dezvoltator imobiliar, costurile de construcție capitalizate în stocuri trec prin contul 711 (Variația stocurilor de produse): EBITDA de mai sus le include — 29,6 mil. lei în 2025."
      }
     },
     "figure": {
@@ -2180,18 +2180,18 @@
     "margin_year0_ppm": null,
     "note": {
      "display": {
-      "en": "For a property developer, construction costs are capitalised into inventory (account 711): the EBITDA above does not include them. EBITDA including 711: RON 0.6M in 2025.",
-      "ro": "Pentru un dezvoltator imobiliar, costurile de construcție sunt capitalizate în stocuri (contul 711): EBITDA de mai sus nu le include. EBITDA inclusiv 711: 0,6 mil. lei în 2025."
+      "en": "For a property developer, construction costs capitalised into inventory run through account 711 (Variația stocurilor de produse): the EBITDA above includes them — RON 29.6M in 2025.",
+      "ro": "Pentru un dezvoltator imobiliar, costurile de construcție capitalizate în stocuri trec prin contul 711 (Variația stocurilor de produse): EBITDA de mai sus le include — 29,6 mil. lei în 2025."
      },
      "figure": {
-      "source": "assembled_pl.ebitda_statutory_with_711",
-      "value": 550976.12,
+      "source": "assembled_pl.inventory_variation.value",
+      "value": 29589814.24,
       "year": "2025"
      },
      "id": "capitalized_construction_711",
      "requires": {
       "industry_family": "real_estate",
-      "inventory_variation_memo": "positive",
+      "inventory_variation": "positive",
       "margin": "not_meaningful"
      },
      "source": "packs/ratios/margin_meaning.yaml"
@@ -2201,11 +2201,11 @@
   },
   "period_id": "c-cur",
   "pins": {
-   "body_hash": "sha256:4df45ac77f64ef1151d402bba7caf0eabd808146b6a485a4ff0daed8b94a4ddd",
+   "body_hash": "sha256:a168eee97be2ce9ca1978d001feb7b823fdfdf61a8fe10097359cc3e5a1844ba",
    "cockpit_pack": "sha256:80afa3ff2921cb9c6fa060ac1a4dbf9fd8af95979ee86e291c83127fcb2e6435",
    "engine_version": "0.1.0",
    "macro_pack": "sha256:786eec084a31392dca0f4be9c16faff90fcf6532c94bc8ed5823d5a05ff548b3",
-   "margin_pack": "sha256:78236be708ab1584075f779c79ab331d0f67a5f2f6e928af1a2d828798d71354",
+   "margin_pack": "sha256:39f88c776cc74fc155591ec8f59259542461572c0042734dbc840ca066139a3f",
    "pack_id": "forecast-cockpit"
   },
   "sentence": {
@@ -3856,7 +3856,7 @@
       }
      ],
      "year0": {
-      "amount_minor": -2903883812,
+      "amount_minor": 55097612,
       "kind": "actual",
       "period": "FY2025"
      }
@@ -4249,7 +4249,7 @@
       }
      ],
      "year0": {
-      "amount_minor": -3039141838,
+      "amount_minor": -80160414,
       "kind": "actual",
       "period": "FY2025"
      }
@@ -4351,7 +4351,7 @@
      "kind": "actual"
     },
     "ebitda": {
-     "amount_minor": -2903883812,
+     "amount_minor": 55097612,
      "kind": "actual"
     },
     "ebitda_margin_ppm": null,
@@ -4400,11 +4400,11 @@
   "kind": "bank_forecast",
   "period_id": "c-cur",
   "pins": {
-   "body_hash": "sha256:4df45ac77f64ef1151d402bba7caf0eabd808146b6a485a4ff0daed8b94a4ddd",
+   "body_hash": "sha256:a168eee97be2ce9ca1978d001feb7b823fdfdf61a8fe10097359cc3e5a1844ba",
    "cockpit_pack": "sha256:80afa3ff2921cb9c6fa060ac1a4dbf9fd8af95979ee86e291c83127fcb2e6435",
    "engine_version": "0.1.0",
    "macro_pack": "sha256:786eec084a31392dca0f4be9c16faff90fcf6532c94bc8ed5823d5a05ff548b3",
-   "margin_pack": "sha256:78236be708ab1584075f779c79ab331d0f67a5f2f6e928af1a2d828798d71354",
+   "margin_pack": "sha256:39f88c776cc74fc155591ec8f59259542461572c0042734dbc840ca066139a3f",
    "pack_id": "forecast-cockpit"
   },
   "projected_note": {

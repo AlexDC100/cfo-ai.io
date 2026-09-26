@@ -39,7 +39,12 @@ WHAT THIS REDS ON, AFTER THE REPAIR (TC-11):
     differ and the verdict is served;
   · THE DEVELOPER SHOWS THE REFUSAL EVERYWHERE — the served verdict, all
     five ratio rows (value and printed value null, code, share, threshold,
-    the RO and EN text), the one note with "0,6 mil. lei" / "RON 0.6M";
+    the RO and EN text), the one note — which since the 711 ruling
+    (2026-09-26) says EBITDA INCLUDES the stock variation and quotes the
+    measured net 711, "29.589,8 mii lei" / "RON 29,589.8k" in the unit of
+    the EBITDA above it (551,0 mii lei), read off
+    ``assembled_pl.inventory_variation.value`` — never the retired
+    ``ebitda_statutory_with_711``, never a note saying EBITDA excludes 711;
     the cockpit's final-year and today's margins null with their reason,
     the sentence with no margin clause and no percent, base_period's margin
     null, the note naming its year, the bank export carrying all of it;
@@ -92,13 +97,28 @@ DEVELOPER_REFUSAL = {
     "ro": "marjă nesemnificativă: cifra de afaceri este 0,6% din activitate",
     "en": "margin not meaningful: turnover is 0.6% of activity",
 }
+#: The note (owner ruling 2026-09-26: EBITDA INCLUDES the stock variation).
+#: The amount is the developer's measured net 711 (the account-121 bridge,
+#: 29,589,814.24 — measure.md T7), printed in the unit of the served EBITDA
+#: above it (550,976.12 → thousands). Before the ruling this note said the
+#: EBITDA above did NOT include 711 and quoted a second EBITDA.
 DEVELOPER_NOTE = {
-    "ro": ("Pentru un dezvoltator imobiliar, costurile de construcție sunt capitalizate în "
-           "stocuri (contul 711): EBITDA de mai sus nu le include. EBITDA inclusiv 711: "
-           "0,6 mil. lei."),
-    "en": ("For a property developer, construction costs are capitalised into inventory "
-           "(account 711): the EBITDA above does not include them. EBITDA including 711: "
-           "RON 0.6M."),
+    "ro": ("Pentru un dezvoltator imobiliar, costurile de construcție capitalizate în stocuri "
+           "trec prin contul 711 (Variația stocurilor de produse): EBITDA de mai sus le include — "
+           "29.589,8 mii lei."),
+    "en": ("For a property developer, construction costs capitalised into inventory run through "
+           "account 711 (Variația stocurilor de produse): the EBITDA above includes them — "
+           "RON 29,589.8k."),
+}
+#: The same note under the cockpit's final plan year, whose EBITDA is in
+#: millions: the amount prints in millions and names the actual year.
+DEVELOPER_COCKPIT_NOTE = {
+    "ro": ("Pentru un dezvoltator imobiliar, costurile de construcție capitalizate în stocuri "
+           "trec prin contul 711 (Variația stocurilor de produse): EBITDA de mai sus le include — "
+           "29,6 mil. lei în 2025."),
+    "en": ("For a property developer, construction costs capitalised into inventory run through "
+           "account 711 (Variația stocurilor de produse): the EBITDA above includes them — "
+           "RON 29.6M in 2025."),
 }
 
 #: turnover / total operating expense, MEASURED on every corpus book that
@@ -301,10 +321,19 @@ def developer_failures(body: Dict[str, Any]) -> List[str]:
     note = verdict.get("note") or {}
     if note.get("display") != DEVELOPER_NOTE:
         failures.append("the developer's note reads %r" % note.get("display"))
-    if (note.get("figure") or {}).get("source") != "assembled_pl.ebitda_statutory_with_711" or \
-            (note.get("figure") or {}).get("value") != \
-            ((body.get("statements") or {}).get("assembled_pl") or {}).get("ebitda_statutory_with_711"):
-        failures.append("the note's figure is not the served ebitda_statutory_with_711: %r" % note.get("figure"))
+    apl = (body.get("statements") or {}).get("assembled_pl") or {}
+    served_711 = (apl.get("inventory_variation") or {}).get("value")
+    if (note.get("figure") or {}).get("source") != "assembled_pl.inventory_variation.value" or \
+            (note.get("figure") or {}).get("value") != served_711 or served_711 is None:
+        failures.append("the note's figure is not the served net 711 (%r): %r" % (served_711, note.get("figure")))
+    # The retired figures stay retired: no served field quotes the gross 711.
+    for retired in ("ebitda_statutory_with_711", "inventory_variation_memo"):
+        if retired in apl:
+            failures.append("the developer's assembled_pl still serves the retired %s" % retired)
+    # The note sits under the ONE EBITDA, which includes the variation.
+    for lang, text in (note.get("display") or {}).items():
+        if "does not include" in text or "nu le include" in text:
+            failures.append("the %s note says EBITDA excludes 711: %r" % (lang, text))
     rows = _rows(body)
     for key in MARGIN_KEYS:
         row = rows.get(key) or {}
@@ -353,7 +382,7 @@ def cockpit_failures(active: Dict[str, Dict[str, Any]], neutral: Dict[str, Dict[
                     d.get("margin_year0_refused") != DEVELOPER_REFUSAL[lang]:
                 failures.append("cockpit developer %s refusals read %r / %r" % (
                     lang, d.get("margin_refused"), d.get("margin_year0_refused")))
-            expected_note = DEVELOPER_NOTE[lang][:-1] + (" în 2025." if lang == "ro" else " in 2025.")
+            expected_note = DEVELOPER_COCKPIT_NOTE[lang]
             if d.get("note") != expected_note:
                 failures.append("cockpit developer %s note reads %r" % (lang, d.get("note")))
             sentence = active[book]["sentence"][lang]
@@ -418,19 +447,21 @@ def test_the_note_is_the_packs_one_case_only():
     the account mix read as real estate, a positive 711. The corpus refuses
     one book, so each requirement is proven here on the verdict itself."""
     refused = MM.judge(162365.46, 29280043.3)
-    served = dict(industry_family="real_estate", inventory_variation_memo=29589814.24,
-                  ebitda_with_711=550976.12, unit_of=-29038838.12)
+    served = dict(industry_family="real_estate", inventory_variation=29589814.24,
+                  unit_of=550976.12)
     assert MM.note_block(refused, **served)["display"] == DEVELOPER_NOTE
+    assert MM.note_block(refused, **served)["figure"] == {
+        "source": "assembled_pl.inventory_variation.value", "value": 29589814.24, "year": None}
     for family in ("manufacturing", "trade", "services", None):
         assert MM.note_block(refused, **dict(served, industry_family=family)) is None, family
-    for memo in (0, -1.0, None):
-        assert MM.note_block(refused, **dict(served, inventory_variation_memo=memo)) is None, memo
-    assert MM.note_block(refused, **dict(served, ebitda_with_711=None)) is None
+    # a zero, negative or REFUSED (None) net 711 serves no note
+    for net_711 in (0, -1.0, None):
+        assert MM.note_block(refused, **dict(served, inventory_variation=net_711)) is None, net_711
     assert MM.note_block(MM.judge(110798309.14, 103367367.84), **served) is None
     # the amount prints in the unit of the EBITDA above it
-    assert MM.note_block(refused, **dict(served, unit_of=400000))["display"]["ro"].endswith(
-        "EBITDA inclusiv 711: 551,0 mii lei.")
-    WORK["units"] += 10
+    assert MM.note_block(refused, **dict(served, unit_of=4000000))["display"]["ro"].endswith(
+        "EBITDA de mai sus le include — 29,6 mil. lei.")
+    WORK["units"] += 11
 
 
 def test_a_share_is_never_printed_as_zero():
@@ -682,7 +713,8 @@ def test_the_bank_export_carries_the_refusal_and_the_note():
     e = doc["cockpit"]["numbers"]["ebitda_final_year"]
     assert e["display"]["ro"]["margin_refused"] == DEVELOPER_REFUSAL["ro"]
     assert e["display"]["en"]["margin_year0_refused"] == DEVELOPER_REFUSAL["en"]
-    assert e["display"]["ro"]["note"].endswith("EBITDA inclusiv 711: 0,6 mil. lei în 2025.")
+    assert e["display"]["ro"]["note"] == DEVELOPER_COCKPIT_NOTE["ro"]
+    assert e["display"]["en"]["note"] == DEVELOPER_COCKPIT_NOTE["en"]
     for lang in ("ro", "en"):
         assert not _PERCENT.search(doc["document"]["sentence"][lang]), doc["document"]["sentence"][lang]
     WORK["units"] += 5
