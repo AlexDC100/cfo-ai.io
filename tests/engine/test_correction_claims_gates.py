@@ -36,7 +36,7 @@ from __future__ import annotations
 from engine.api import _doc_dedupe, pipeline
 
 from test_duplicate_upload_gate import (  # noqa: F401 — the fixture
-    EEI, OWNER, PERIOD, SCANDIA, _doc, _row, world,
+    EEI, OWNER, PERIOD, SCANDIA, _counted, _doc, _row, world,
 )
 
 
@@ -115,6 +115,7 @@ def test_the_same_bytes_uploaded_during_a_correction_are_its_duplicate(world):
     db = world["db"]
     db.rows("documents").append(_doc("book", status="analyzed", period_id=PERIOD,
                                      created="2026-09-20T10:00:00+00:00"))
+    _counted(world, "book")
     pipeline._correction_rerun("jwt:%s" % OWNER, "book", "2026-09-21T10:00:00+00:00")
     assert world["enqueued"] == ["book"] and _doc_dedupe.in_flight("book") == _doc_dedupe.RUNNING
     pre = world["post"]("/api/documents/duplicate-check", {"content_hash": SCANDIA},

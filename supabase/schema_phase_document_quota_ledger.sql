@@ -49,6 +49,20 @@
 --   have been counted (the meter counted analysed documents; a re-run of an
 --   analysed document was already a free correction).
 --
+-- THE LEDGER BEFORE THE STATUS (P1 METERING BYPASS, 2026-09-26)
+--   The engine asks THIS TABLE first and `documents.status` only when the
+--   table cannot be read: a document whose book is counted here re-runs
+--   free whatever its status says; a document that reads `analyzed` but
+--   holds NO count here is metered like an upload on its next re-run —
+--   reserved, committed and, at the cap, billed. Two consequences:
+--     * a status the browser wrote (every column of `documents` is
+--       browser-writable) no longer skips the meter;
+--     * a document analysed while USAGE_LIMITS_ENABLED was OFF — its
+--       settlement recorded a release here, never a count — meters ONCE on
+--       its next re-run, after which it is counted like any other book.
+--   Only when this table is absent (the migration not yet applied) or
+--   unreadable does the status rule decide: analysed → free, else metered.
+--
 -- ACCESS MODEL
 --   Service role only. RLS is enabled with no policies and every privilege
 --   is revoked from anon / authenticated: the browser can neither read nor

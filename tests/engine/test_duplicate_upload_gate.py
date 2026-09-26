@@ -146,6 +146,21 @@ def _row(world, doc_id):
     return next(d for d in world["db"].rows("documents") if d["id"] == doc_id)
 
 
+def _counted(world, doc_id, *, user=OWNER, extra=False, month="2026-09",
+             at="2026-09-20T10:00:00+00:00"):
+    """The plan COUNTED this document — the quota ledger's row, as the
+    settlement writes it and as the migration backfills it for every
+    document analysed before the ledger existed. Since the ledger decides
+    before the status (P1 METERING BYPASS, 2026-09-26) an `analyzed` row
+    alone models a status the browser could have written; a counted book is
+    modelled by this record."""
+    world["db"].rows("document_quota_ledger").append({
+        "document_id": doc_id, "user_id": user, "month": month, "was_extra": bool(extra),
+        "committed_at": at, "reserved_at": None, "released_at": None, "reservation_id": None,
+        "settling_at": None, "updated_at": at,
+    })
+
+
 def _confirm(world, doc_id=None, user=OWNER):
     """The €-dialog's Confirm, through the REAL route: POST
     /api/plan/confirm-extra-doc naming the document it was shown for."""
@@ -658,6 +673,7 @@ def multi_nonro(world, monkeypatch):
 def test_a_retry_of_a_counted_non_ro_document_settles_nothing(world, multi_nonro):
     world["db"].rows("documents").append(_doc("hu-book", h=EEI, status="analyzed", period_id=PERIOD,
                                               started="2026-09-21T10:00:00+00:00"))
+    _counted(world, "hu-book")
     assert world["post"]("/api/pipeline/retry", {"document_id": "hu-book"}).json()["status"] == "queued"
     pipeline._run_pipeline_sync("hu-book")
     assert multi_nonro["calls"] == [], multi_nonro["calls"]
@@ -996,6 +1012,7 @@ def test_a_success_counts_exactly_once_and_a_re_run_never_again(world):
 def test_a_re_run_of_a_once_paid_extra_is_not_billed_again(world):
     meter = world["meter"]
     world["db"].rows("documents").append(_doc("paid", status="analyzed", period_id=PERIOD, metered_extra=True))
+    _counted(world, "paid", extra=True)
     assert world["post"]("/api/pipeline/retry", {"document_id": "paid"}).json()["status"] == "queued"
     world["finish"]("paid", "analyzed")
     assert meter.snapshot()["extra_billed"] == 0 and world["billed"] == [] and meter.calls == []
@@ -1282,6 +1299,7 @@ def test_a_move_of_an_analysed_book_is_a_free_correction(world):
     meter = world["meter"]
     world["db"].rows("documents").append(_doc("book", status="analyzed", period_id=PERIOD,
                                               started="2026-09-20T10:00:00+00:00", metered_extra=True))
+    _counted(world, "book", extra=True)
     r = world["post"]("/api/documents/book/move-period", {"period_end": "2024-12-31"})
     assert r.status_code == 200, r.text
     assert world["enqueued"] == ["book"]

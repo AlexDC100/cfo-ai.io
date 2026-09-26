@@ -190,12 +190,19 @@ def build_router() -> APIRouter:
             })
         from . import pipeline as _pipeline
         doc = _pipeline._verify_user_may_write_document(jwt, str(document_id))
-        if doc.get("deleted_at") or str(doc.get("status") or "").lower() == "analyzed":
+        if doc.get("deleted_at"):
             raise HTTPException(409, {
                 "code": "document_not_waiting",
                 "message": "This document is not waiting for an extra analysis.",
             })
-        if _pipeline._book_already_counted(doc):
+        # THE LEDGER BEFORE THE STATUS — the same order as the entry that
+        # answered the 402 (`pipeline._needs_metering`, P1 METERING BYPASS,
+        # 2026-09-26). A document that reads `analyzed` but whose book the
+        # ledger never counted IS waiting for its (first) metered analysis;
+        # refusing it here as "not waiting" would strand the run the meter
+        # just charged for. Only an unreadable ledger lets the status decide.
+        counted = _pipeline._book_already_counted(doc)
+        if counted:
             # The plan already COUNTED this book (the quota ledger): a free
             # correction re-run of it failed, and a stale €-dialog must not
             # reserve — or bill — it a second time (verifier lens S). Its
@@ -204,6 +211,11 @@ def build_router() -> APIRouter:
                 "code": "document_already_counted",
                 "message": ("This document was already counted in your plan. Re-run it — "
                             "no extra analysis is needed."),
+            })
+        if counted is None and str(doc.get("status") or "").lower() == "analyzed":
+            raise HTTPException(409, {
+                "code": "document_not_waiting",
+                "message": "This document is not waiting for an extra analysis.",
             })
 
         if not _ug.has_extra_grant(str(document_id)):

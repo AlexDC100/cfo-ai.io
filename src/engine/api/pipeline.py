@@ -4328,21 +4328,46 @@ def _needs_metering(entry: "_doc_dedupe.Entry") -> bool:
     period; a PDF on an empty Anthropic balance, §24), and the next /retry,
     the failed banner's /run or a re-upload of the same bytes then counted
     it a second time — at the cap as a PAID EXTRA. What the plan counted is
-    now read from the quota ledger the settlement writes. When the ledger
-    cannot be read the status rule decides, logged."""
-    if str(entry.status or "").strip().lower() == "analyzed":
-        return False
+    now read from the quota ledger the settlement writes.
+
+    THE LEDGER BEFORE THE STATUS (P1 METERING BYPASS, 2026-09-26). The
+    `analyzed` short-circuit used to come FIRST — before the ledger was
+    consulted. Every column of `documents` is browser-writable, so a member
+    who PATCHed status='analyzed' onto a fresh upload and POSTed /retry got
+    an analysis that was never reserved, committed or billed. The order is
+    now: the ledger decides whenever it can be read — counted → unmetered;
+    readable and NOT counted → metered like /run whatever the status says
+    (a status the browser wrote, or a document analysed with enforcement
+    OFF, whose settlement recorded a release and never a count: it meters
+    ONCE on its next re-run — stated in the migration header). ONLY an
+    unreadable or absent ledger falls back to the status rule, logged."""
+    status = str(entry.status or "").strip().lower()
     counted = _book_already_counted(entry.row)
-    if counted is None:
-        logger.error(
-            "[pipeline][quota] the quota ledger could not be read for document %s — metering "
-            "by its status (%s); supabase/schema_phase_document_quota_ledger.sql applied?",
-            entry.row.get("id"), entry.status)
+    if counted is not None:
+        if counted:
+            logger.info("[pipeline][quota] document %s: its book was already counted — re-run "
+                        "unmetered", entry.row.get("id"))
+            return False
+        if status == "analyzed":
+            logger.warning(
+                "[pipeline][quota] document %s reads `analyzed` but the quota ledger holds no "
+                "count for its book — metered like /run (analysed with enforcement off, or a "
+                "status the browser wrote)", entry.row.get("id"))
         return True
-    if counted:
-        logger.info("[pipeline][quota] document %s: its book was already counted — re-run "
-                    "unmetered", entry.row.get("id"))
-    return not counted
+    # The ledger cannot be read (absent, or a transient failure): the status
+    # rule is the fallback — an analysed document re-runs free (metering it
+    # by guess would count a book twice), anything else is metered.
+    if status == "analyzed":
+        logger.error(
+            "[pipeline][quota] the quota ledger could not be read for document %s — an "
+            "analysed document re-runs unmetered by its status; "
+            "supabase/schema_phase_document_quota_ledger.sql applied?", entry.row.get("id"))
+        return False
+    logger.error(
+        "[pipeline][quota] the quota ledger could not be read for document %s — metering "
+        "by its status (%s); supabase/schema_phase_document_quota_ledger.sql applied?",
+        entry.row.get("id"), entry.status)
+    return True
 
 
 def _start_rerun(doc: Dict[str, Any], caller_id: str, start: Any) -> "_doc_dedupe.Entry":
