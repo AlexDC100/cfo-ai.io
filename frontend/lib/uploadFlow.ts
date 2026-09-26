@@ -25,6 +25,7 @@
 import { useSyncExternalStore } from "react";
 
 import type { DocumentStatus } from "@/lib/supabase";
+import { sniffFileMismatch, type KindMismatch } from "@/lib/fileKind";
 import { isAcceptedFinancialUpload } from "@/lib/uploadAccept";
 import {
   commitUpload,
@@ -62,7 +63,7 @@ export interface FlowChoice {
   edited: { company: boolean; period: boolean; industry: boolean };
 }
 
-export type FlowErrorCode = "unsupported" | "identify" | "commit" | "refused" | "cancelled";
+export type FlowErrorCode = "unsupported" | "wrong_kind" | "identify" | "commit" | "refused" | "cancelled";
 
 export interface FlowState {
   phase: FlowPhase;
@@ -73,7 +74,7 @@ export interface FlowState {
   choice: FlowChoice | null;
   /** Set for phase "duplicate": the analysed period this file already backs. */
   duplicate: { documentId: string; periodId: string | null; orgId: string; companyName: string } | null;
-  error: { code: FlowErrorCode; message: string | null } | null;
+  error: { code: FlowErrorCode; message: string | null; kind?: KindMismatch } | null;
   /** Phase "progress": the job this card is following. */
   jobDocId: string | null;
   /** More than one file was dropped; the card took the first. */
@@ -227,6 +228,14 @@ export async function startUploadFlow(
     return;
   }
   setFlow({ ...base, phase: "identifying" });
+  // The real type, from the bytes: a Word document renamed .pdf is told so
+  // here and never leaves the browser (lib/fileKind).
+  const mismatch = await sniffFileMismatch(file);
+  if (my !== token) return;
+  if (mismatch) {
+    setFlow({ ...base, phase: "error", error: { code: "wrong_kind", message: null, kind: mismatch } });
+    return;
+  }
   try {
     const result = await identifyUpload(file, onScreenOrgId);
     if (my !== token) return;

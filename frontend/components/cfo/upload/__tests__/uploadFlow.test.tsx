@@ -207,7 +207,8 @@ describe("confirmation card", () => {
     renderHome();
     const file = await dropOnHome();
 
-    expect(api.identifyUpload).toHaveBeenCalledWith(file, "scandia");
+    // The flow reads the file's bytes (lib/fileKind) before it asks the engine.
+    await waitFor(() => expect(api.identifyUpload).toHaveBeenCalledWith(file, "scandia"));
     await screen.findByText("Check before we analyse");
     expect(row("upload-card-company-value")).toHaveTextContent("Agras SA");
     expect(row("upload-card-company-from")).toHaveTextContent("from the ONRC/MF registry");
@@ -348,6 +349,39 @@ describe("confirmation card", () => {
     for (const later of [1, 2, 3, 4]) {
       expect(screen.getByTestId(`upload-progress-step-${later}`)).toHaveAttribute("data-state", "waiting");
     }
+  });
+
+  // The real file type comes from the bytes, never from the name. A Word
+  // document renamed .pdf (a PK container with word/document.xml inside) is
+  // told so on the card, and never leaves the browser.
+  const docxRenamedPdf = () => {
+    const head = new TextEncoder().encode("PK\u0003\u0004");
+    const entry = new TextEncoder().encode("\u0000".repeat(26) + "word/document.xml<w:document/>");
+    const bytes = new Uint8Array(head.length + entry.length);
+    bytes.set(head, 0);
+    bytes.set(entry, head.length);
+    return new File([bytes], "raport.pdf", { type: "application/pdf" });
+  };
+
+  it("a Word document renamed .pdf is told so on the card, and identify is never called", async () => {
+    api.identifyUpload.mockResolvedValue(identity());
+    renderHome();
+    const zone = await screen.findByTestId("upload-drop-zone");
+    fireEvent.drop(zone, { dataTransfer: { files: [docxRenamedPdf()], types: ["Files"] } });
+    expect(await screen.findByText("This is a Word document, not a PDF")).toBeInTheDocument();
+    expect(card()).toHaveAttribute("data-phase", "error");
+    expect(api.identifyUpload).not.toHaveBeenCalled();
+    expect(within(card()).queryByTestId("upload-card-analyse")).toBeNull();
+  });
+
+  it("Romanian: 'Acesta este un document Word, nu un PDF'", async () => {
+    await i18n.changeLanguage("ro");
+    api.identifyUpload.mockResolvedValue(identity());
+    renderHome();
+    const zone = await screen.findByTestId("upload-drop-zone");
+    fireEvent.drop(zone, { dataTransfer: { files: [docxRenamedPdf()], types: ["Files"] } });
+    expect(await screen.findByText("Acesta este un document Word, nu un PDF")).toBeInTheDocument();
+    expect(api.identifyUpload).not.toHaveBeenCalled();
   });
 
   it("a duplicate is refused: nothing stored, 'Already uploaded — open it' opens that period", async () => {

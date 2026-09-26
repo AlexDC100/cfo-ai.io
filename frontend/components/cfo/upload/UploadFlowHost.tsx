@@ -834,19 +834,38 @@ function DuplicateView({
 function ErrorView({ flow }: { flow: FlowState }) {
   const { t } = useTranslation();
   const code = flow.error?.code;
+  const kind = flow.error?.kind;
+  // The plain sentence for a file that is not what its name says — "This is
+  // a Word document, not a PDF" — read from the bytes (lib/fileKind).
+  const wrongKind = code === "wrong_kind" && kind
+    ? t(`wsV2.errors.kind.${kind.code}`, {
+        defaultValue: t("wsV2.errors.kind.generic", {
+          actual: t(`wsV2.errors.kindNames.${kind.actual}`),
+          declared: t(`wsV2.errors.kindNames.${kind.declared}`),
+        }),
+      })
+    : null;
   const message =
-    code === "unsupported"
+    wrongKind ??
+    (code === "unsupported"
       ? t("wsV2.errors.unsupported")
       : flow.error?.message && /failed to fetch|networkerror|load failed/i.test(flow.error.message)
         ? t("wsV2.errors.offline")
-        : t("wsV2.errors.identify");
+        : t("wsV2.errors.identify"));
+  const final = code === "unsupported" || code === "wrong_kind";
   return (
     <>
       <CardHeader title={message} fileName={flow.file?.name} />
-      <div className="px-5 py-5" data-testid="upload-card-error-view">
+      <div className="px-5 py-5" data-testid="upload-card-error-view" data-error-code={code}>
         <p className="flex items-start gap-2 text-[13px] text-ink-soft">
           <AlertCircle size={15} className="mt-px shrink-0 text-alert" aria-hidden />
-          <span>{code === "unsupported" ? t("wsV2.errors.unsupported") : flow.error?.message ?? message}</span>
+          <span>
+            {code === "unsupported"
+              ? t("wsV2.errors.unsupported")
+              : code === "wrong_kind"
+                ? t("wsV2.errors.wrongKindHint")
+                : flow.error?.message ?? message}
+          </span>
         </p>
       </div>
       <div className="flex flex-col-reverse gap-2 border-t border-rule-soft px-5 py-3 sm:flex-row sm:justify-end">
@@ -855,12 +874,12 @@ function ErrorView({ flow }: { flow: FlowState }) {
           onClick={closeUploadFlow}
           className={cn(
             "inline-flex h-9 items-center justify-center rounded-sm px-4 text-[13px] font-medium",
-            code === "unsupported" ? "bg-brand text-paper hover:bg-brand-dark" : "border border-rule text-ink hover:bg-bg-2",
+            final ? "bg-brand text-paper hover:bg-brand-dark" : "border border-rule text-ink hover:bg-bg-2",
           )}
         >
           {t("wsV2.card.close")}
         </button>
-        {code !== "unsupported" && (
+        {!final && (
           <button
             type="button"
             onClick={retryIdentify}

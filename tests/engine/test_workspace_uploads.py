@@ -53,6 +53,7 @@ import copy
 import glob
 import hashlib
 import json
+import re
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
@@ -958,3 +959,84 @@ def test_an_analysis_that_gets_past_persist_keeps_its_period(run_world, monkeypa
     (period,) = w.db.rows("financial_periods")
     assert doc["period_id"] == period["id"] and period["source_document_id"] == doc["id"]
     assert pipeline._pop_period_minted(doc["id"]) is None
+
+
+# ══════════════════════════════════════════════════════════════════════
+# The real file type, from the bytes — never from the name
+# ══════════════════════════════════════════════════════════════════════
+#
+# A Word document renamed .pdf (a PK container holding word/document.xml)
+# used to reach the PDF path — pdfplumber failed, the card read "not in the
+# document" everywhere, and Analyse handed it to Claude. The routes now read
+# the real type from the magic bytes and refuse the mismatch with a plain
+# sentence, before the identifier, the meter or storage.
+
+
+def _docx_bytes() -> bytes:
+    import io
+    import zipfile
+
+    bio = io.BytesIO()
+    with zipfile.ZipFile(bio, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("[Content_Types].xml", "<Types/>")
+        z.writestr("_rels/.rels", "<Relationships/>")
+        z.writestr("word/document.xml", "<w:document/>")
+    return bio.getvalue()
+
+
+def _xlsx_bytes() -> bytes:
+    import io
+    import zipfile
+
+    bio = io.BytesIO()
+    with zipfile.ZipFile(bio, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("[Content_Types].xml", "<Types/>")
+        z.writestr("xl/workbook.xml", "<workbook/>")
+    return bio.getvalue()
+
+
+def test_identify_refuses_a_word_document_renamed_pdf_before_anything_reads_it(app, world):
+    r = identify(app, name="raport.pdf", body=_docx_bytes())
+    assert r.status_code == 422, r.text[:300]
+    detail = r.json()["detail"]
+    assert detail["code"] == "format_mismatch", detail
+    assert detail["message"] == "This is a Word document, not a PDF.", detail
+    assert world.identify_calls == [], "the identifier ran on a file the routes should have refused"
+
+
+def test_commit_refuses_a_word_document_renamed_pdf_and_stores_nothing(app, world):
+    world.identities["raport.pdf"] = _identity(cui=CUI_SCANDIA, name="Scandia Food SRL")
+    c = commit(app, name="raport.pdf", body=_docx_bytes(), target_org_id=ORG_SCANDIA, period_end="2025-12-31")
+    assert c.status_code == 422, c.text[:300]
+    assert c.json()["detail"]["code"] == "format_mismatch", c.json()
+    assert world.docs() == [] and world.enqueued == [] and world.reserved_for == [], \
+        "a refused file was stored, queued or metered"
+    assert [k for k in world.db.storage if k.startswith("documents/")] == []
+
+
+@pytest.mark.parametrize("name,body,message", [
+    ("balanta.pdf", _xlsx_bytes(), "This is an Excel workbook, not a PDF."),
+    ("balanta.xlsx", b"%PDF-1.7 a balance", "This is a PDF, not an Excel workbook."),
+    ("balanta.xls", _docx_bytes(), "This is a Word document, not an Excel workbook."),
+    ("balanta.csv", _docx_bytes(), "This is a Word document, not a CSV file."),
+])
+def test_every_mismatch_between_the_name_and_the_bytes_is_refused_plainly(app, world, name, body, message):
+    r = identify(app, name=name, body=body)
+    assert r.status_code == 422, r.text[:300]
+    detail = r.json()["detail"]
+    assert (detail["code"], detail["message"]) == ("format_mismatch", message), detail
+    assert re.match(r"^[a-z]+_not_[a-z]+$", str(detail.get("kind") or "")), detail
+    assert "source" not in message.lower()
+
+
+def test_bytes_that_agree_with_the_name_or_say_nothing_are_never_refused(app, world):
+    world.identities["balanta.xlsx"] = _identity(cui=CUI_SCANDIA, name="Scandia Food SRL")
+    world.identities["balanta.pdf"] = _identity(cui=CUI_SCANDIA, name="Scandia Food SRL")
+    world.identities["balanta.csv"] = _identity(cui=CUI_SCANDIA, name="Scandia Food SRL")
+    assert identify(app, name="balanta.xlsx", body=_xlsx_bytes()).status_code == 200
+    assert identify(app, name="balanta.pdf", body=b"%PDF-1.4 a scanned balance").status_code == 200
+    assert identify(app, name="balanta.csv", body=b"cont;denumire;sold\n101;Capital;1000\n").status_code == 200
+    # A PK container that names no Office part is not provably anything
+    # else: a workbook exported by a tool that lays its zip out differently
+    # is still a workbook.
+    assert identify(app, name="balanta.xlsx", body=b"PK\x03\x04 a trial balance").status_code == 200

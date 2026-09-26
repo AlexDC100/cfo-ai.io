@@ -444,6 +444,114 @@ def _read_upload(file: UploadFile) -> Tuple[bytes, str, str]:
     return content, filename, (file.content_type or "application/octet-stream")
 
 
+# ── The real file type, from the bytes ─────────────────────────────────
+#
+# A Word document renamed .pdf — a PK (zip) container holding
+# word/document.xml — used to reach the PDF path: the identifier's PDF
+# reader failed, the card read "not in the document" everywhere, and
+# Analyse handed the file to Claude. The name says what the user believes;
+# the magic bytes say what the file IS. A provable mismatch is refused with
+# a plain sentence before the identifier, the meter or storage; bytes that
+# prove nothing (a CSV, an unknown header, a PK container that names no
+# Office part) are never refused.
+
+#: What the extension declares.
+_DECLARED_BY_EXT = {
+    "pdf": "pdf", "xlsx": "xlsx", "xlsm": "xlsx", "xls": "xls", "csv": "csv",
+    "jpg": "image", "jpeg": "image", "png": "image", "heic": "image", "heif": "image",
+    "pptx": "pptx", "ppt": "ppt",
+}
+
+#: The words for a kind the bytes prove, in the sentence "This is X, not Y."
+_KIND_WORDS = {
+    "pdf": "a PDF", "docx": "a Word document", "xlsx": "an Excel workbook",
+    "pptx": "a PowerPoint presentation", "zip": "a ZIP archive",
+    "ole": "an older Office document", "image": "an image",
+}
+
+#: What each declared kind is called in "…, not Y."
+_DECLARED_WORDS = {
+    "pdf": "a PDF", "xlsx": "an Excel workbook", "xls": "an Excel workbook",
+    "csv": "a CSV file", "image": "an image", "pptx": "a PowerPoint presentation",
+    "ppt": "a PowerPoint presentation",
+}
+
+#: The kinds each declared kind may actually be (everything else the bytes
+#: PROVE is a mismatch; "unknown" and "text" never refuse).
+_COMPATIBLE = {
+    "pdf": {"pdf"},
+    "xlsx": {"xlsx", "zip"},
+    "xls": {"ole", "xlsx", "zip"},      # .xls exports are often xlsx or HTML inside
+    "csv": {"text"},
+    "image": {"image"},
+    "pptx": {"pptx", "zip"},
+    "ppt": {"ole", "pptx", "zip"},
+}
+
+
+def declared_file_kind(filename: str) -> Optional[str]:
+    return _DECLARED_BY_EXT.get(_ext_of(filename or ""))
+
+
+def actual_file_kind(content: bytes) -> str:
+    """The kind the magic bytes prove: pdf / docx / xlsx / pptx / zip / ole /
+    image / text / unknown. Never raises."""
+    head = bytes(content[:16] or b"")
+    if head.startswith(b"%PDF"):
+        return "pdf"
+    if head.startswith(b"PK"):
+        names = []  # type: List[str]
+        try:
+            import io
+            import zipfile
+            with zipfile.ZipFile(io.BytesIO(content)) as z:
+                names = z.namelist()
+        except Exception:  # noqa: BLE001 — a truncated container: read the names off the bytes
+            for marker in (b"word/", b"xl/", b"ppt/"):
+                if marker in content[:262144] or marker in content[-262144:]:
+                    names.append(marker.decode("ascii"))
+        if any(n.startswith("word/") for n in names):
+            return "docx"
+        if any(n.startswith("xl/") for n in names):
+            return "xlsx"
+        if any(n.startswith("ppt/") for n in names):
+            return "pptx"
+        return "zip"
+    if head.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"):
+        return "ole"
+    if head.startswith(b"\x89PNG\r\n\x1a\n") or head.startswith(b"\xff\xd8\xff") or head.startswith(b"GIF8"):
+        return "image"
+    if len(head) >= 12 and head[4:8] == b"ftyp":
+        return "image"  # HEIC / HEIF (and any ISO media file a phone exports)
+    try:
+        content[:4096].decode("utf-8")
+        return "text"
+    except Exception:  # noqa: BLE001
+        return "unknown"
+
+
+def format_mismatch(filename: str, content: bytes) -> Optional[Tuple[str, str]]:
+    """(code, plain sentence) when the bytes PROVE the file is not what its
+    name says — "This is a Word document, not a PDF." — else None."""
+    declared = declared_file_kind(filename)
+    if not declared:
+        return None
+    actual = actual_file_kind(content)
+    if actual in ("unknown", "text") or actual in _COMPATIBLE.get(declared, set()):
+        return None
+    if actual not in _KIND_WORDS:
+        return None
+    code = "%s_not_%s" % (actual, declared)
+    return code, "This is %s, not %s." % (_KIND_WORDS[actual], _DECLARED_WORDS[declared])
+
+
+def _refuse_format_mismatch(filename: str, content: bytes) -> None:
+    hit = format_mismatch(filename, content)
+    if hit is not None:
+        code, message = hit
+        raise HTTPException(422, {"code": "format_mismatch", "kind": code, "message": message})
+
+
 def _ext_of(filename: str) -> str:
     if "." in filename:
         ext = filename.rsplit(".", 1)[1].lower()
@@ -645,6 +753,8 @@ def build_router() -> APIRouter:
             if exc.status_code != 404:  # 403: X-Org-Id names a company not theirs
                 raise
         content, filename, _mime = _read_upload(file)
+        # The bytes, before anything reads them as what the name claims.
+        _refuse_format_mismatch(filename, content)
         content_hash = hashlib.sha256(content).hexdigest()
         identity = identify(content, filename)
         with _supabase.per_user(jwt) as client:
@@ -696,6 +806,9 @@ def build_router() -> APIRouter:
                                       "message": "Choose a company, or create a new one."})
         confirmed_end = _confirmed_period_end(period_end)
         content, filename, mime = _read_upload(file)
+        # Belt and braces with identify: a mismatch never reaches storage,
+        # the meter or the pipeline (and so never Claude).
+        _refuse_format_mismatch(filename, content)
         content_hash = hashlib.sha256(content).hexdigest()
         chosen_industry = (str(industry_key).strip() or None) if industry_key else None
 

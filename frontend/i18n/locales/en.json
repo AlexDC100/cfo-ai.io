@@ -3430,7 +3430,30 @@
       "identify": "We couldn't read the file.",
       "commit": "We couldn't save the file. Nothing was analysed.",
       "cancelled": "The analysis didn't start.",
-      "offline": "The analysis service isn't answering. Try again in a minute."
+      "offline": "The analysis service isn't answering. Try again in a minute.",
+      "wrongKindHint": "The file's name says one thing and its contents another. Export the trial balance again from your accounting software, or pick the original file.",
+      "kind": {
+        "docx_not_pdf": "This is a Word document, not a PDF",
+        "xlsx_not_pdf": "This is an Excel workbook, not a PDF",
+        "pptx_not_pdf": "This is a PowerPoint presentation, not a PDF",
+        "pdf_not_xlsx": "This is a PDF, not an Excel workbook",
+        "pdf_not_xls": "This is a PDF, not an Excel workbook",
+        "docx_not_xlsx": "This is a Word document, not an Excel workbook",
+        "docx_not_xls": "This is a Word document, not an Excel workbook",
+        "generic": "This is {{actual}}, not {{declared}}"
+      },
+      "kindNames": {
+        "pdf": "a PDF",
+        "docx": "a Word document",
+        "xlsx": "an Excel workbook",
+        "xls": "an Excel workbook",
+        "pptx": "a PowerPoint presentation",
+        "ppt": "a PowerPoint presentation",
+        "zip": "a ZIP archive",
+        "ole": "an older Office document",
+        "image": "an image",
+        "csv": "a CSV file"
+      }
     },
     "progress": {
       "title": "Analysing {{company}}",
