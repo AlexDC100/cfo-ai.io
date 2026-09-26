@@ -19,11 +19,13 @@ THE RULES THIS MODULE HOLDS
       companies is routed to THAT company, whichever company is on screen.
       A CUI none of them holds is a new company. No readable CUI → the
       company on screen, stated on the card so the user can change it.
-  G2  The period is read off the DOCUMENT's own period line. A period the
-      identifier could only have taken from the file NAME is dropped
-      (ABSENT, the card asks), never offered; commit refuses a missing or
-      implausible period instead of inventing one, and files the document
-      with that confirmed period as its `period_end_hint`.
+  G2  The period is read off the DOCUMENT's own period line — the header
+      detector's, else (a PDF) the one the verified balanta reader reads off
+      the title block (`printed_period_of_pdf`). A period the identifier
+      could only have taken from the file NAME is dropped (ABSENT, the card
+      asks), never offered; commit refuses a missing or implausible period
+      instead of inventing one, and files the document with that confirmed
+      period as its `period_end_hint`.
   G4  Nothing here creates a `financial_periods` row. The only writer is
       the pipeline's `stage_persist`, after extraction, and a run that then
       fails removes the row it inserted (pipeline
@@ -271,9 +273,64 @@ def _identify_document(content: bytes, filename: str, registry: Any) -> Any:
     return identify_document(content, filename, registry=registry)
 
 
-def identify(content: bytes, filename: str) -> Dict[str, Any]:
+#: The period signals that mean "the header detector found none in the
+#: document": nothing at all, or only the file NAME (G2 drops that one).
+_NO_DOCUMENT_PERIOD = frozenset({"", "none"}) | FILENAME_SIGNALS
+
+
+def printed_period_of_pdf(content: bytes) -> Optional[Tuple[str, str]]:
+    """(period_end, the literal the document prints) — the period the
+    verified text-line balanta reader reads off a PDF's title block
+    (`pdf_balanta_text.read_balanta_text_verdict`: a Romanian month name and
+    a year closing a title line, "Decembrie 2025", exactly one of them,
+    never after a day number), checked by the engine's own period reader
+    (`_period_detect`: sanity bounds, today is never evidence). None for
+    anything else: not a PDF, a layout the reader does not verify, no
+    printed period. Document text only — never the file name."""
+    if not content or content[:4] != b"%PDF":
+        return None
+    try:
+        from engine.country_packs.ro_romania.pdf_balanta_text import read_balanta_text_verdict
+        from ._period_detect import detect_period
+    except ImportError:
+        return None
+    meta = read_balanta_text_verdict(content).meta or {}   # never raises
+    end, text = meta.get("period_end"), meta.get("period_text")
+    if not end or not text:
+        return None
+    checked = detect_period(extracted={"period_end": str(end)}, filename=None)
+    iso = checked.get("proposed_period_end")
+    return (str(iso), str(text).strip()[:160]) if iso else None
+
+
+def _with_printed_period(raw: Any, content: bytes) -> Any:
+    """`raw` (the identifier's answer), its period taken from the balanta
+    reader when the header detector found none in the document — the
+    WinMentor five-pair print closes its title block with "Decembrie 2025"
+    on the address line, where no closing-balance vocabulary sits, so the
+    card read "Not in the document" for a period the document prints (live
+    walkthrough, 2026-09-26). A period the header detector read stays."""
+    sources = _field(raw, "sources") or {}
+    signal = str(((sources.get("period_end") if isinstance(sources, dict) else None) or {}).get("signal") or "")
+    if signal.lower() not in _NO_DOCUMENT_PERIOD:
+        return raw
+    printed = printed_period_of_pdf(content)
+    if printed is None:
+        return raw
+    shaped = dict((name, _field(raw, name)) for name in (
+        "cui", "company_name", "caen_code", "industry_key", "industry_label", "document_kind"))
+    shaped["sources"] = dict(sources if isinstance(sources, dict) else {},
+                             period_end={"signal": "in_document", "evidence": printed[1]})
+    shaped["period_end"] = printed[0]
+    return shaped
+
+
+def identify(content: bytes, filename: str, *, printed_period: bool = True) -> Dict[str, Any]:
     """Run the identifier over the file with the registry open, and shape
-    its answer. Raises 503 when the identifier itself is not installed."""
+    its answer. Raises 503 when the identifier itself is not installed.
+    `printed_period`: read the balanta reader's printed period when the
+    header detector found none (the commit, which takes its period from
+    the card, skips it)."""
     registry = _open_registry()
     try:
         try:
@@ -289,6 +346,8 @@ def identify(content: bytes, filename: str) -> Dict[str, Any]:
                 close()
             except Exception:  # noqa: BLE001
                 pass
+    if printed_period:
+        raw = _with_printed_period(raw, content)
     return identity_payload(raw)
 
 
@@ -990,8 +1049,9 @@ def build_router() -> APIRouter:
 
         # The identity again, best-effort: the new company's evidence, and
         # the CUI a pre-CUI workspace can adopt. Never a reason to refuse.
+        # The period is the card's (`period_end`), so the reader is not asked.
         try:
-            identity = identify(content, filename)
+            identity = identify(content, filename, printed_period=False)
         except Exception:  # noqa: BLE001
             logger.exception("[uploads] identification during commit failed (non-fatal)")
             identity = {"cui": None, "company_name": None, "sources": {}}

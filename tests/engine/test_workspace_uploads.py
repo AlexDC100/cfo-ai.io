@@ -994,6 +994,57 @@ def test_the_real_identifier_routes_by_the_documents_cui_and_reads_its_period(ap
     assert ident["period_end"] is None and ident["cui"] == agras_cui, ident
 
 
+def _five_pair_pdf(*, printed_period: bool = True) -> bytes:
+    """A synthetic WinMentor five-pair balanta PDF (PyMuPDF; invented
+    company, invented figures) — the layout that prints its period as
+    "Decembrie 2025" closing the address line of its title block."""
+    fitz = pytest.importorskip("fitz")
+    from test_pdf_balanta_stage_extract import _synthetic_five_pair_lines
+
+    lines = _synthetic_five_pair_lines()
+    if not printed_period:
+        lines = [ln.replace(" Decembrie 2025", "") for ln in lines]
+    doc = fitz.open()
+    page = doc.new_page(width=1400, height=1000)
+    y = 30
+    for line in lines:
+        page.insert_text((20, y), line, fontsize=8)
+        y += 14
+    return doc.tobytes()
+
+
+@pytest.mark.parametrize("filename", ["balanta.pdf", "balanta_2019_12.pdf"])
+def test_the_period_a_five_pair_pdf_prints_is_the_period_identify_offers(app, world, monkeypatch, filename):
+    """Live walkthrough, 2026-09-26: the filed WinMentor five-pair PDF
+    prints "Decembrie 2025", and the card read PERIOD "Not in the document"
+    — the header detector reads a date only beside closing-balance
+    vocabulary, and the five-pair print closes its title block with the
+    month on the ADDRESS line. The verified balanta reader already reads it
+    there; identify now offers it when the header detector finds none —
+    document text only: a file NAMED for 2019 is still the document's 2025."""
+    from engine.country_packs.ro_romania import pdf_balanta_text
+
+    monkeypatch.setattr(_uploads, "_identify_document", _REAL_IDENTIFY)
+    monkeypatch.setattr(_uploads, "_open_registry", lambda: None)
+    content = _five_pair_pdf()
+    got = pdf_balanta_text.read_balanta_text_verdict(content)
+    assert got.meta and got.meta.get("period_text") == "Decembrie 2025", "the reader refused the synthetic book"
+    r = identify(app, org=ORG_SCANDIA, name=filename, body=content)
+    assert r.status_code == 200, r.text[:400]
+    ident = r.json()["identity"]
+    assert ident["period_end"] == "2025-12-31", ident
+    assert ident["sources"]["period_end"] == {"signal": "in_document", "evidence": "Decembrie 2025"}, ident["sources"]
+
+
+def test_a_five_pair_pdf_that_prints_no_period_offers_none_never_the_file_names(app, world, monkeypatch):
+    monkeypatch.setattr(_uploads, "_identify_document", _REAL_IDENTIFY)
+    monkeypatch.setattr(_uploads, "_open_registry", lambda: None)
+    content = _five_pair_pdf(printed_period=False)
+    ident = identify(app, org=ORG_SCANDIA, name="balanta_2019_12.pdf", body=content).json()["identity"]
+    assert ident["period_end"] is None, ident
+    assert ident["sources"]["period_end"]["signal"] == "none", ident["sources"]
+
+
 def test_the_registry_is_opened_only_where_it_already_exists(tmp_path, monkeypatch):
     """Tolerate its absence — and never CREATE an empty registry by
     opening one (the store's constructor would)."""

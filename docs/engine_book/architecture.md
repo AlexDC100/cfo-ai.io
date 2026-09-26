@@ -92,7 +92,7 @@ graph LR
     pkg_api -->|1| pkg_comparatives
     pkg_api -->|1| pkg_consensus
     pkg_api -->|4| pkg_core
-    pkg_api -->|5| pkg_country_packs
+    pkg_api -->|6| pkg_country_packs
     pkg_api -->|1| pkg_detection
     pkg_api -->|3| pkg_firm
     pkg_api -->|2| pkg_forecast
