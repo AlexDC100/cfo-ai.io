@@ -422,6 +422,16 @@ function ForecastCockpit({
             className={`space-y-4 transition-opacity duration-overlay ${state.recomputing ? "opacity-80" : "opacity-100"}`}
           >
             <HeadlineNumbers cockpit={cockpit} lang={lang} projectedLabel={projectedLabel} answerKey={answer.key} />
+            {cockpit.numbers.ebitda.note ? (
+              // The engine's one note for its one case (a developer's
+              // capitalised 711): served text, printed as served.
+              <p
+                data-testid="cockpit-margin-note"
+                className="rounded-lg border border-rule bg-bg-2/50 px-4 py-2 text-[12.5px] leading-snug text-ink-soft"
+              >
+                {pick(cockpit.numbers.ebitda.note, lang)}
+              </p>
+            ) : null}
             <p
               key={answer.key}
               data-testid="cockpit-sentence"

@@ -81,6 +81,9 @@ export function HeadlineNumbers({
   const ebitda = n.ebitda;
   const cash = n.cash;
   const dscr = n.dscr;
+  // The engine's refusal of the margin (turnover negligible against
+  // operating activity): the final plan year's, else today's.
+  const refusedMargin = ebitda.marginRefused ?? ebitda.marginYear0Refused;
 
   return (
     <section
@@ -102,6 +105,23 @@ export function HeadlineNumbers({
                 className="font-medium text-ink"
               />
               {ebitda.marginYear0 ? (
+                <span data-testid="cockpit-ebitda-margin-today" data-actual="true">
+                  {" · "}
+                  {t("forecast.cockpit.numbers.today", "today")} {pick(ebitda.marginYear0, lang)}
+                </span>
+              ) : ebitda.marginYear0Refused ? (
+                <span data-testid="cockpit-ebitda-margin-today-refused" data-actual="true">
+                  {" · "}
+                  {t("forecast.cockpit.numbers.today", "today")}: {pick(ebitda.marginYear0Refused, lang)}
+                </span>
+              ) : null}
+            </span>
+          ) : refusedMargin ? (
+            // The ENGINE refused the margin (turnover negligible against
+            // operating activity): its sentence, never a percent.
+            <span data-testid="cockpit-ebitda-margin-refused">
+              {pick(refusedMargin, lang)}
+              {ebitda.marginRefused && !ebitda.marginYear0Refused && ebitda.marginYear0 ? (
                 <span data-testid="cockpit-ebitda-margin-today" data-actual="true">
                   {" · "}
                   {t("forecast.cockpit.numbers.today", "today")} {pick(ebitda.marginYear0, lang)}

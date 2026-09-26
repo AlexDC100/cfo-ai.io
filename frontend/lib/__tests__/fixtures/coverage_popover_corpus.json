@@ -12386,14 +12386,18 @@
       "coverage": {
        "band_withheld": {
         "debt_to_ebitda": "negative_denominator",
-        "gross_margin": "no_cost_of_sales",
         "net_debt_to_ebitda": "negative_denominator"
        },
        "census_count": 28,
        "refused": {
-        "adjusted_dscr": "user_input_absent"
+        "adjusted_dscr": "user_input_absent",
+        "core_ebitda_margin": "margin_not_meaningful",
+        "ebitda_margin": "margin_not_meaningful",
+        "gross_margin": "margin_not_meaningful",
+        "net_margin": "margin_not_meaningful",
+        "operating_margin": "margin_not_meaningful"
        },
-       "served": 27
+       "served": 22
       },
       "credit": {
        "altman": {
@@ -12612,7 +12616,7 @@
        },
        {
         "band": null,
-        "band_status": "withheld_basis",
+        "band_status": "refused",
         "display_unit": "pct",
         "formula_key": "ratioTable.gross_margin.formula",
         "group": "profitability",
@@ -12629,29 +12633,36 @@
          }
         ],
         "reason": {
-         "code": "no_cost_of_sales",
+         "activity_basis": "total_operating_expense",
+         "cause": "turnover_share_below_threshold",
+         "code": "margin_not_meaningful",
+         "display": {
+          "en": "margin not meaningful: turnover is 0.6% of activity",
+          "ro": "marjă nesemnificativă: cifra de afaceri este 0,6% din activitate"
+         },
+         "floor": "1",
          "inputs": [
-          "incomeStatement.costOfGoodsSold"
-         ]
+          "assembled_pl.revenue",
+          "assembled_pl.total_operating_expense"
+         ],
+         "share": "0.005545",
+         "source": "packs/ratios/margin_meaning.yaml",
+         "threshold": "0.10"
         },
-        "value": 100.0,
-        "value_q": "100.0"
+        "value": null,
+        "value_q": null
        },
        {
-        "band": "critical",
-        "band_status": "graded",
+        "band": null,
+        "band_status": "refused",
         "display_unit": "pct",
         "formula_key": "ratioTable.ebitda_margin.formula",
         "group": "profitability",
         "higher_is_better": true,
         "key": "ebitda_margin",
         "label_key": "ratioTable.ebitda_margin.label",
-        "ladder": {
-         "healthy": "15",
-         "strong": "25",
-         "watch": "8"
-        },
-        "ladder_floor": "critical",
+        "ladder": null,
+        "ladder_floor": null,
         "operands": [
          {
           "name": "ebitda_margin",
@@ -12659,25 +12670,37 @@
           "value": -178.8486
          }
         ],
-        "reason": null,
-        "value": -17884.86,
-        "value_q": "-17884.9"
+        "reason": {
+         "activity_basis": "total_operating_expense",
+         "cause": "turnover_share_below_threshold",
+         "code": "margin_not_meaningful",
+         "display": {
+          "en": "margin not meaningful: turnover is 0.6% of activity",
+          "ro": "marjă nesemnificativă: cifra de afaceri este 0,6% din activitate"
+         },
+         "floor": "1",
+         "inputs": [
+          "assembled_pl.revenue",
+          "assembled_pl.total_operating_expense"
+         ],
+         "share": "0.005545",
+         "source": "packs/ratios/margin_meaning.yaml",
+         "threshold": "0.10"
+        },
+        "value": null,
+        "value_q": null
        },
        {
-        "band": "critical",
-        "band_status": "graded",
+        "band": null,
+        "band_status": "refused",
         "display_unit": "pct",
         "formula_key": "ratioTable.net_margin.formula",
         "group": "profitability",
         "higher_is_better": true,
         "key": "net_margin",
         "label_key": "ratioTable.net_margin.label",
-        "ladder": {
-         "healthy": "8",
-         "strong": "15",
-         "watch": "3"
-        },
-        "ladder_floor": "critical",
+        "ladder": null,
+        "ladder_floor": null,
         "operands": [
          {
           "name": "net_margin",
@@ -12685,9 +12708,25 @@
           "value": -4.937
          }
         ],
-        "reason": null,
-        "value": -493.70000000000005,
-        "value_q": "-493.7"
+        "reason": {
+         "activity_basis": "total_operating_expense",
+         "cause": "turnover_share_below_threshold",
+         "code": "margin_not_meaningful",
+         "display": {
+          "en": "margin not meaningful: turnover is 0.6% of activity",
+          "ro": "marjă nesemnificativă: cifra de afaceri este 0,6% din activitate"
+         },
+         "floor": "1",
+         "inputs": [
+          "assembled_pl.revenue",
+          "assembled_pl.total_operating_expense"
+         ],
+         "share": "0.005545",
+         "source": "packs/ratios/margin_meaning.yaml",
+         "threshold": "0.10"
+        },
+        "value": null,
+        "value_q": null
        },
        {
         "band": "critical",
@@ -13262,20 +13301,16 @@
         "value_q": "-25.08"
        },
        {
-        "band": "critical",
-        "band_status": "graded",
+        "band": null,
+        "band_status": "refused",
         "display_unit": "pct",
         "formula_key": "ratioTable.operating_margin.formula",
         "group": "profitability",
         "higher_is_better": true,
         "key": "operating_margin",
         "label_key": "ratioTable.operating_margin.label",
-        "ladder": {
-         "healthy": "10",
-         "strong": "20",
-         "watch": "4"
-        },
-        "ladder_floor": "critical",
+        "ladder": null,
+        "ladder_floor": null,
         "operands": [
          {
           "name": "operating_margin",
@@ -13283,25 +13318,37 @@
           "value": -179.2318
          }
         ],
-        "reason": null,
-        "value": -17923.18,
-        "value_q": "-17923.2"
+        "reason": {
+         "activity_basis": "total_operating_expense",
+         "cause": "turnover_share_below_threshold",
+         "code": "margin_not_meaningful",
+         "display": {
+          "en": "margin not meaningful: turnover is 0.6% of activity",
+          "ro": "marjă nesemnificativă: cifra de afaceri este 0,6% din activitate"
+         },
+         "floor": "1",
+         "inputs": [
+          "assembled_pl.revenue",
+          "assembled_pl.total_operating_expense"
+         ],
+         "share": "0.005545",
+         "source": "packs/ratios/margin_meaning.yaml",
+         "threshold": "0.10"
+        },
+        "value": null,
+        "value_q": null
        },
        {
-        "band": "critical",
-        "band_status": "graded",
+        "band": null,
+        "band_status": "refused",
         "display_unit": "pct",
         "formula_key": "ratioTable.core_ebitda_margin.formula",
         "group": "profitability",
         "higher_is_better": true,
         "key": "core_ebitda_margin",
         "label_key": "ratioTable.core_ebitda_margin.label",
-        "ladder": {
-         "healthy": "15",
-         "strong": "25",
-         "watch": "8"
-        },
-        "ladder_floor": "critical",
+        "ladder": null,
+        "ladder_floor": null,
         "operands": [
          {
           "name": "core_ebitda_margin",
@@ -13309,9 +13356,25 @@
           "value": -178.951
          }
         ],
-        "reason": null,
-        "value": -17895.1,
-        "value_q": "-17895.1"
+        "reason": {
+         "activity_basis": "total_operating_expense",
+         "cause": "turnover_share_below_threshold",
+         "code": "margin_not_meaningful",
+         "display": {
+          "en": "margin not meaningful: turnover is 0.6% of activity",
+          "ro": "marjă nesemnificativă: cifra de afaceri este 0,6% din activitate"
+         },
+         "floor": "1",
+         "inputs": [
+          "assembled_pl.revenue",
+          "assembled_pl.total_operating_expense"
+         ],
+         "share": "0.005545",
+         "source": "packs/ratios/margin_meaning.yaml",
+         "threshold": "0.10"
+        },
+        "value": null,
+        "value_q": null
        },
        {
         "band": "critical",
@@ -17842,6 +17905,56 @@
        "earnings_quality",
        "asset_age"
       ]
+     },
+     "margin_meaning": {
+      "activity": "29280043.300000",
+      "activity_basis": "total_operating_expense",
+      "basis": {
+       "en": "activity = operating expenses (cost of sales, the other operating expenses and depreciation); a margin is computed only when turnover is at least 10% of activity",
+       "ro": "activitatea = cheltuielile de exploatare (costul vânzărilor, celelalte cheltuieli de exploatare și amortizarea); o marjă se calculează numai când cifra de afaceri este cel puțin 10% din activitate"
+      },
+      "code": "margin_not_meaningful",
+      "display": {
+       "en": "margin not meaningful: turnover is 0.6% of activity",
+       "ro": "marjă nesemnificativă: cifra de afaceri este 0,6% din activitate"
+      },
+      "floor": "1",
+      "inputs": [
+       "assembled_pl.revenue",
+       "assembled_pl.total_operating_expense"
+      ],
+      "margins": [
+       "gross_margin",
+       "operating_margin",
+       "ebitda_margin",
+       "core_ebitda_margin",
+       "net_margin"
+      ],
+      "note": {
+       "display": {
+        "en": "For a property developer, construction costs are capitalised into inventory (account 711): the EBITDA above does not include them. EBITDA including 711: RON 0.6M.",
+        "ro": "Pentru un dezvoltator imobiliar, costurile de construcție sunt capitalizate în stocuri (contul 711): EBITDA de mai sus nu le include. EBITDA inclusiv 711: 0,6 mil. lei."
+       },
+       "figure": {
+        "source": "assembled_pl.ebitda_statutory_with_711",
+        "value": 550976.12,
+        "year": null
+       },
+       "id": "capitalized_construction_711",
+       "requires": {
+        "industry_family": "real_estate",
+        "inventory_variation_memo": "positive",
+        "margin": "not_meaningful"
+       },
+       "source": "packs/ratios/margin_meaning.yaml"
+      },
+      "reason": "turnover_share_below_threshold",
+      "share": "0.005545",
+      "source": "packs/ratios/margin_meaning.yaml",
+      "status": "not_meaningful",
+      "threshold": "0.10",
+      "turnover": "162365.460000",
+      "version": "margin_meaning/1"
      },
      "periodLabel": "2025-12-31",
      "subAggregates": {

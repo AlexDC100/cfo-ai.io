@@ -91,7 +91,7 @@ interface Props {
 
 export function PLStatementView({ statement, showFootnote = true, hideGuide = false }: Props) {
   useHighlightFromUrl();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const fmt = useAmountFormatter(statement.currency);
   const display = useDisplayCurrency();
   // COMPARATIVES — present only when the dashboard wrapped this view in a
@@ -227,7 +227,16 @@ export function PLStatementView({ statement, showFootnote = true, hideGuide = fa
           {statement.keyMargins.map((m, i) => (
             <li key={i}>
               <span>{m.label}:</span>
-              <span className="pl-margin-value">{formatPercent(m.value)}</span>
+              {m.refusal ? (
+                // The engine's refusal (engine.ratios.margin_meaning), in the
+                // reader's language: a margin over a negligible turnover is
+                // stated as not meaningful, never printed as a percent.
+                <span className="pl-margin-value" data-testid="pl-margin-refused">
+                  {i18n.language?.startsWith("ro") ? m.refusal.ro : m.refusal.en}
+                </span>
+              ) : (
+                <span className="pl-margin-value">{formatPercent(m.value)}</span>
+              )}
             </li>
           ))}
         </ul>

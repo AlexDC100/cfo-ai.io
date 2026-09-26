@@ -63,10 +63,29 @@ def verify_credit_pack() -> None:
     logger.warning("[boot_verify] credit pack OK: %s", credit_pack_path())
 
 
+def verify_margin_meaning_pack() -> None:
+    """The margin rule's pack (packs/ratios/margin_meaning.yaml) must load at
+    boot, for the same reason as the credit pack: every served period and
+    every forecast cockpit asks it before printing a margin, so a container
+    that cannot read it should not come up and refuse them one by one."""
+    from engine.ratios.margin_meaning import (MarginMeaningPackError, margin_meaning_pack,
+                                              pack_path)
+
+    try:
+        margin_meaning_pack()
+    except MarginMeaningPackError as exc:
+        raise RuntimeError(
+            "[boot_verify] the margin-meaning pack at %s is unusable — fix the file and restart: %s"
+            % (pack_path(), exc)
+        ) from exc
+    logger.warning("[boot_verify] margin-meaning pack OK: %s", pack_path())
+
+
 def verify_config() -> None:
     """Run on app boot. Raises RuntimeError on missing critical env or an
-    unusable credit pack."""
+    unusable credit or margin-meaning pack."""
     verify_credit_pack()
+    verify_margin_meaning_pack()
     missing_critical: List[str] = [k for k in _CRITICAL if not os.environ.get(k)]
     if missing_critical:
         raise RuntimeError(

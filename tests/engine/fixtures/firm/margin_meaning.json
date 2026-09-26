@@ -1,0 +1,55 @@
+{
+ "agras": null,
+ "carniprod": null,
+ "realestate": {
+  "activity": "29280043.300000",
+  "activity_basis": "total_operating_expense",
+  "basis": {
+   "en": "activity = operating expenses (cost of sales, the other operating expenses and depreciation); a margin is computed only when turnover is at least 10% of activity",
+   "ro": "activitatea = cheltuielile de exploatare (costul vânzărilor, celelalte cheltuieli de exploatare și amortizarea); o marjă se calculează numai când cifra de afaceri este cel puțin 10% din activitate"
+  },
+  "code": "margin_not_meaningful",
+  "display": {
+   "en": "margin not meaningful: turnover is 0.6% of activity",
+   "ro": "marjă nesemnificativă: cifra de afaceri este 0,6% din activitate"
+  },
+  "floor": "1",
+  "inputs": [
+   "assembled_pl.revenue",
+   "assembled_pl.total_operating_expense"
+  ],
+  "margins": [
+   "gross_margin",
+   "operating_margin",
+   "ebitda_margin",
+   "core_ebitda_margin",
+   "net_margin"
+  ],
+  "note": {
+   "display": {
+    "en": "For a property developer, construction costs are capitalised into inventory (account 711): the EBITDA above does not include them. EBITDA including 711: RON 0.6M.",
+    "ro": "Pentru un dezvoltator imobiliar, costurile de construcție sunt capitalizate în stocuri (contul 711): EBITDA de mai sus nu le include. EBITDA inclusiv 711: 0,6 mil. lei."
+   },
+   "figure": {
+    "source": "assembled_pl.ebitda_statutory_with_711",
+    "value": 550976.12,
+    "year": null
+   },
+   "id": "capitalized_construction_711",
+   "requires": {
+    "industry_family": "real_estate",
+    "inventory_variation_memo": "positive",
+    "margin": "not_meaningful"
+   },
+   "source": "packs/ratios/margin_meaning.yaml"
+  },
+  "reason": "turnover_share_below_threshold",
+  "share": "0.005545",
+  "source": "packs/ratios/margin_meaning.yaml",
+  "status": "not_meaningful",
+  "threshold": "0.10",
+  "turnover": "162365.460000",
+  "version": "margin_meaning/1"
+ },
+ "retail": null
+}

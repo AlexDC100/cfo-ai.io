@@ -804,6 +804,40 @@ def _engine_gates() -> List[Gate]:
                        "C-F1 books: agras, carniprod, retail, realestate",
                        "C-F10 agras: 13 levers, scale held across 4 moved answers",
                        "C-ONE-ENGINE agras: 550 figures agree between the cockpit and the scenario route")),
+        # MARGIN-MEANING (2026-09-26): ONE rule for when a margin over turnover
+        # is not meaningful — turnover negligible against operating activity
+        # (packs/ratios/margin_meaning.yaml, engine.ratios.margin_meaning) —
+        # asked by the ratio table, GET /api/period and the forecast cockpit.
+        # Held over every corpus book the real write path and the real route
+        # serve (17): each served body with the rule IS the body with the rule
+        # neutralised, except the developer, where exactly the five margin rows
+        # move; the developer shows the refusal and the one note everywhere
+        # (period, ratio rows, cockpit numbers, sentence, bank export), RO and
+        # EN; four in-file plants red the same checkers. Measured 187 units.
+        # Plant log: gates.md "margin-meaning".
+        Gate("margin-meaning",
+             [PY, "-m", "pytest", "tests/engine/test_margin_meaning.py", "-q", "-s"],
+             work_rx=r"GATE-WORK margin-meaning units=(\d+)", floor=150,
+             units="rule boundaries, pack refusals, served books compared, developer surfaces and plants",
+             canaries=("SCOPE margin-meaning (packs/ratios/margin_meaning.yaml)",
+                       "MM-DEVELOPER saga_10_col_realestate refused on 5 ratio rows",
+                       "MM-PLANTS: threshold-reaches-a-normal-book, threshold-under-the-developer, "
+                       "table-ignores-the-verdict, cockpit-ignores-the-verdict")),
+        # The pages' half: every surface that prints a margin — the P&L key
+        # margins, the KPI card, the ratio bundle behind the Ratios tab, the
+        # drawer, the printed report and the workbook, the EBITDA
+        # reconciliation, the served ratio rows, the cockpit's four numbers and
+        # the bank export — prints the ENGINE's refusal (RO and EN) on the
+        # developer, the note only there, the same bytes on every other book,
+        # and no percent of a thousand or more in the developer's documents.
+        # Measured 18 tests. Plant log: gates.md "margin-meaning-page".
+        Gate("margin-meaning-page",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/marginMeaning.test.tsx", "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=15,
+             units="page tests (every surface that prints a margin, RO and EN, the note, the acceptance rule)",
+             canaries=("THE ACCEPTANCE RULE: no percent of a thousand or more anywhere in the developer's document",
+                       "the bank export prints the refusal and the note, and no percent of a thousand or more")),
         # RATIOS: the engine as the one authority for ratio values, bands,
         # deltas, band movements and credit composites (critic
         # authority_decision). Four gates, one per batch, named separately

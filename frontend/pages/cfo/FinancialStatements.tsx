@@ -83,6 +83,8 @@ import {
   markJourneySeen,
 } from "@/components/cfo/simple/FirstUploadJourney";
 import { KeyMetricsRow, type MetricTrend } from "@/components/cfo/KeyMetricsRow";
+import { MarginMeaningNote } from "@/components/cfo/MarginMeaningNote";
+import { marginRefusalOf } from "@/lib/marginMeaning";
 import { provenanceOf, type AmountProvenance } from "@/components/instrument/Provenance";
 import {
   NO_HEADLINE_PROVENANCE,
@@ -2144,6 +2146,9 @@ function FinancialStatementsInner() {
                 onJumpToTab={onTabChange}
                 provenance={headlineProvenance}
               />
+              {/* The engine's note for its one case (a developer's capitalised
+                  711), under the EBITDA it speaks of. Renders nothing elsewhere. */}
+              <MarginMeaningNote statements={statements} className="mt-3" />
             </>
           ) : (
             <>
@@ -2215,6 +2220,10 @@ function FinancialStatementsInner() {
                 ]}
               />
             )}
+            {/* The engine's note for its one case (a developer's capitalised
+                711), directly under the EBITDA card it speaks of. Renders
+                nothing on every other book. */}
+            <MarginMeaningNote statements={statements} className="mt-3" />
 
             {statements && recommendations.length > 0 && (
               <RecommendationsSection
@@ -2254,6 +2263,7 @@ function FinancialStatementsInner() {
                     <DashboardViewProvider>
                      <FigureProvenanceProvider value={figureProvenanceMap}>
                       <ConfigurableDashboard
+                        marginRefusal={marginRefusalOf(statements)}
                         overrides={{
                           operating_revenue: headline.totalOperatingRevenue,
                           ebitda: headline.tileEbitdaRon,
@@ -2610,7 +2620,7 @@ function FinancialStatementsInner() {
                       {/* Itemized 758 → 781 → Core bridge anchor — the
                        *  provenance line in the primary card jumps here. */}
                       <div id="ebitda-bridge">
-                        <EbitdaReconciliationPanel metrics={canonical} currency={statements.currency} />
+                        <EbitdaReconciliationPanel metrics={canonical} currency={statements.currency} marginRefusal={marginRefusalOf(statements)} />
                       </div>
                     </>
                   )}

@@ -50,7 +50,19 @@ export type FigureAbsence =
   | { kind: "missing"; inputs: readonly string[] }
   /** Every input was present, but the ratio is undefined — the
    *  denominator is zero. `denominator` names which one. */
-  | { kind: "undefined_ratio"; denominator: string };
+  | { kind: "undefined_ratio"; denominator: string }
+  /** Every input was present and the division has a value, but the ENGINE
+   *  ruled the margin NOT MEANINGFUL: turnover is negligible against the
+   *  company's operating activity (packs/ratios/margin_meaning.yaml, served
+   *  on `statements.margin_meaning`). `display` is the engine's own
+   *  refusal, rendered per language with the share it read — never a
+   *  percent this reader computed. */
+  | {
+      kind: "not_meaningful";
+      display: { readonly ro: string; readonly en: string };
+      /** The engine's own account of "activity" and the threshold. */
+      basis: { readonly ro: string; readonly en: string } | null;
+    };
 
 /** A number, or an absence that knows why. */
 export interface Fig {

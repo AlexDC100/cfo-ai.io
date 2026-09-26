@@ -44,6 +44,7 @@ import {
 import { pickMagnitude } from "@/lib/amountFormat";
 import { useDashboard } from "@/stores/dashboard";
 import { resolveConceptValue } from "@/lib/dashboard/resolveConceptValue";
+import { MARGIN_CONCEPT_KEYS } from "@/lib/marginMeaning";
 import { useFigureProvenance } from "@/lib/figureProvenanceContext";
 import {
   DropdownMenu,
@@ -72,6 +73,10 @@ interface Props {
   /** Canonical value overrides keyed by conceptKey — the page passes
    *  engine-routed numbers for legacy tiles so they stay byte-identical. */
   overrides?: Record<string, number | null | undefined>;
+  /** The ENGINE's refusal of every margin over turnover for this period
+   *  (engine.ratios.margin_meaning via `statements.margin_meaning`). A margin
+   *  card prints it in place of the percent the resolver would divide. */
+  marginRefusal?: { readonly ro: string; readonly en: string } | null;
   /** F6.1 — multi-year series for the active period (built once at the page
    *  from statements.historicalPeriods). Drives the Trend-view sparkline. */
   series?: MultiYearSeries;
@@ -122,6 +127,7 @@ export function MetricCard({
   card,
   editMode,
   overrides,
+  marginRefusal = null,
   series,
   view = "snapshot",
   onRearrange,
@@ -164,6 +170,11 @@ export function MetricCard({
   });
 
   const resolved = resolveConceptValue(card.conceptKey, metrics, overrides);
+  // A MARGIN THE ENGINE REFUSED (turnover negligible against operating
+  // activity): the card states the refusal, never the resolver's division —
+  // on the corpus developer that division printed −17,884.9%.
+  const refusal =
+    marginRefusal && MARGIN_CONCEPT_KEYS.has(card.conceptKey) ? marginRefusal : null;
 
   // PROVENANCE — by concept, from the page, verified to the cent. The
   // resolver's output carries none; the page that routed the headline
@@ -185,10 +196,10 @@ export function MetricCard({
   // F6.1 — Trend view: the multi-year series for THIS concept (oldest →
   // newest). Only when the user toggled Trend AND the period has ≥2 years.
   const trendSeries = useMemo(() => {
-    if (view !== "trend" || !series || series.available < 2) return null;
+    if (refusal || view !== "trend" || !series || series.available < 2) return null;
     const s = seriesForConcept(series, card.conceptKey);
     return s.length >= 2 ? s : null;
-  }, [view, series, card.conceptKey]);
+  }, [refusal, view, series, card.conceptKey]);
 
   // The little badge under the sparkline: CAGR for currency levels,
   // percentage-point delta for margins/ratios stored as decimals, absolute
@@ -273,7 +284,7 @@ export function MetricCard({
   // wrapper is now a PLAIN div; the accessible learn trigger is a stretched
   // sibling <button> (absolute inset-0) rendered below the corner controls,
   // so keyboard/AT reach one real button and nothing interactive is nested.
-  const canExplain = !editMode && resolved.value !== null && resolved.format !== "count";
+  const canExplain = !editMode && !refusal && resolved.value !== null && resolved.format !== "count";
   const openConcept = (e: React.MouseEvent<HTMLElement>) => {
     if (!canExplain) return;
     push({
@@ -449,7 +460,14 @@ export function MetricCard({
           valueLift,
         )}
       >
-        {resolved.value === null ? (
+        {refusal ? (
+          <span
+            data-testid={`metric-card-refused-${card.conceptKey}`}
+            className="block text-[12.5px] font-normal leading-snug tracking-normal text-ink-soft"
+          >
+            {locale === "ro" ? refusal.ro : refusal.en}
+          </span>
+        ) : resolved.value === null ? (
           <span className="font-mono tabular-nums text-ink-soft">—</span>
         ) : resolved.format === "currency" ? (
           <MoneyAmount

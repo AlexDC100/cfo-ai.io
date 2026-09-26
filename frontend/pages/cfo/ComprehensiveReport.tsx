@@ -106,6 +106,7 @@ import { IndustryConfirmBanner } from "@/components/cfo/IndustryConfirmBanner";
 import { blocksSectorContent, readIndustrySignal } from "@/lib/industrySignal";
 import { RiskInventory, type RiskInventoryItem } from "@/components/cfo/RiskInventory";
 import { EbitdaReconciliationPanel } from "@/components/cfo/EbitdaReconciliationPanel";
+import { marginRefusalOf, type MarginBilingual } from "@/lib/marginMeaning";
 import { LearnableNumber } from "@/components/learning/LearnableNumber";
 import { GuideMeButton } from "@/components/learning/GuideMeButton";
 import { COMPREHENSIVE_GUIDE } from "@/components/learning/pageGuides";
@@ -174,6 +175,9 @@ interface PeriodResponse {
   statements: {
     companyName?: string;
     industry?: string;
+    /** The engine's verdict on whether a margin over turnover is meaningful
+     *  (engine.ratios.margin_meaning), read through lib/marginMeaning. */
+    margin_meaning?: unknown;
     assembled_pl?: Record<string, number>;
     assembled_bs?: Record<string, number>;
     assembled_cf?: Record<string, number | boolean | string[] | undefined>;
@@ -463,12 +467,17 @@ export default function ComprehensiveReport() {
                   credit={credit}
                   netMarginCanonical={metricsByName["net_margin"]}
                   currency={currency}
+                  marginRefusal={marginRefusalOf(report.statements)}
                 />
                 {/* Itemized Reported → Core EBITDA bridge — the spec's
                  *  non-negotiable: each adjustment (758, 781) shown
                  *  with account / label / amount, arithmetic exact. */}
                 <div className="mt-5">
-                  <EbitdaReconciliationPanel metrics={canonical} currency={currency} />
+                  <EbitdaReconciliationPanel
+                    metrics={canonical}
+                    currency={currency}
+                    marginRefusal={marginRefusalOf(report.statements)}
+                  />
                 </div>
               </>
             ) : (
@@ -517,7 +526,7 @@ export default function ComprehensiveReport() {
           {/* ── 5. RATIOS ───────────────────────────────────────────── */}
           <section id="ratios" data-testid="report-section-5-ratios">
             <SectionHeader number={5} title="Financial Ratios" />
-            <RatiosTables metrics={metricsByName} />
+            <RatiosTables metrics={metricsByName} marginRefusal={marginRefusalOf(report.statements)} />
           </section>
 
           {/* ── 6. VALUATION ────────────────────────────────────────── */}
@@ -606,8 +615,11 @@ function relabelOperationalInBriefing(summary: string): string {
 }
 
 function KpiGrid({
-  canonical, credit, netMarginCanonical, currency,
+  canonical, credit, netMarginCanonical, currency, marginRefusal = null,
 }: {
+  /** The ENGINE's refusal of every margin over turnover (engine.ratios.
+   *  margin_meaning): each tile's margin line states it instead of a percent. */
+  marginRefusal?: MarginBilingual | null;
   /** Canonical metric object — the single source of truth for
    *  EBITDA + net profit across every surface. See
    *  `src/lib/canonicalMetrics.ts`. */
@@ -656,7 +668,9 @@ function KpiGrid({
   // screen: agras' net margin printed 6.3% here and 6.4% there off one
   // identical ratio, and realestate printed "-493.7%" against "−493.7%".
   const marginSub = (ratio: number | null | undefined, tail: string, absent: string) =>
-    ratio == null || !Number.isFinite(ratio) ? (
+    marginRefusal ? (
+      <span data-testid="report-kpi-margin-refused">{marginRefusal.en}</span>
+    ) : ratio == null || !Number.isFinite(ratio) ? (
       absent
     ) : (
       <>
@@ -1182,12 +1196,26 @@ function CashFlowTable({ cf, currency, origin }: { cf: Record<string, number | b
   );
 }
 
-function RatiosTables({ metrics }: { metrics: Record<string, number | null> }) {
+function RatiosTables({
+  metrics,
+  marginRefusal = null,
+}: {
+  metrics: Record<string, number | null>;
+  /** The ENGINE's refusal of every margin over turnover (engine.ratios.
+   *  margin_meaning): the three margin rows state it instead of a percent. */
+  marginRefusal?: MarginBilingual | null;
+}) {
   const m = (k: string) => metrics[k];
   // Every ratio figure flows through the instrument, by unit.
   const pct = (v: number | null | undefined) => (
     <PercentLevel value={v != null ? v * 100 : null} />
   );
+  const margin = (k: string) =>
+    marginRefusal ? (
+      <span data-testid="report-ratio-margin-refused" className="text-ink-soft">{marginRefusal.en}</span>
+    ) : (
+      pct(m(k))
+    );
   const mult = (v: number | null | undefined) => <CappedMultiple value={v} />;
   const days = (v: number | null | undefined) =>
     v == null ? (
@@ -1200,9 +1228,9 @@ function RatiosTables({ metrics }: { metrics: Record<string, number | null> }) {
     {
       title: "Profitability",
       rows: [
-        ["Gross margin",   pct(m("gross_margin"))],
-        ["EBITDA margin",  pct(m("ebitda_margin"))],
-        ["Net margin",     pct(m("net_margin"))],
+        ["Gross margin",   margin("gross_margin")],
+        ["EBITDA margin",  margin("ebitda_margin")],
+        ["Net margin",     margin("net_margin")],
         ["ROE",            pct(m("roe"))],
         ["ROA",            pct(m("roa"))],
         ["ROIC",           pct(m("roic"))],

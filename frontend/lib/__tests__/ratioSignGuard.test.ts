@@ -243,8 +243,27 @@ describe("D3 — the printed export, on the book that was wrong", () => {
     expect(graded!.querySelector("svg.chart")).not.toBeNull();
   });
 
-  it("realestate: Gross Margin states 100.0% and says why it is not a grade", () => {
+  it("realestate: Gross Margin states the engine's refusal and grades nothing", () => {
+    // Since the margin rule (engine.ratios.margin_meaning) the developer's
+    // turnover — 0.6% of its operating activity — is no base for ANY
+    // margin: the card states the engine's refusal, never a percent.
     const card = cardNamed(exportDoc("realestate"), "Gross margin");
+    expect(card.value).toBe("margin not meaningful: turnover is 0.6% of activity");
+    expect(card.meta).not.toMatch(GRADE_WORDS);
+    expect(card.meta).toContain("Not meaningful");
+    // TC-10: the threshold under it is the served one, not prose.
+    expect(card.meta).toContain("at least 10% of activity");
+  });
+
+  it("a book with no cost of sales and no margin verdict: Gross Margin states 100.0% and says why it is not a grade", () => {
+    // The no-cost-of-sales branch the card above used to reach. It is still
+    // served to a period whose margins stand — and to a payload that carries
+    // no margin verdict at all (the route serves none when the rule could
+    // not run), which is what this is: the developer's own statements with
+    // the verdict removed.
+    const s = { ...statementsFor("realestate") } as ReturnType<typeof statementsFor>;
+    delete (s as { margin_meaning?: unknown }).margin_meaning;
+    const card = cardNamed(exportDoc("realestate", s), "Gross margin");
     expect(card.value).toBe("100.0%");
     expect(card.meta).not.toMatch(GRADE_WORDS);
     expect(card.meta).toMatch(/cost of sales of RON 0/);
@@ -266,10 +285,14 @@ describe("D3 — the printed export, on the book that was wrong", () => {
     for (const label of [
       "Interest coverage (EBIT / interest)",
       "Debt service coverage",
-      "Net margin",
     ]) {
       expect(cardNamed(doc, label).meta, label).toContain("Critical");
     }
+    // Net margin is no longer a percent at all on this book (the margin
+    // rule): it states WHY, which is not quiet either.
+    const net = cardNamed(doc, "Net margin");
+    expect(net.value).toBe("margin not meaningful: turnover is 0.6% of activity");
+    expect(net.meta).not.toMatch(GRADE_WORDS);
   });
 });
 

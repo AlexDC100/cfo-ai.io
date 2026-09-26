@@ -54,12 +54,16 @@ interface Props {
   /** Canonical value overrides keyed by conceptKey — engine-routed
    *  numbers for the legacy tiles so they stay byte-identical. */
   overrides?: Record<string, number | null | undefined>;
+  /** The ENGINE's refusal of every margin over turnover for this period
+   *  (`statements.margin_meaning`, read through lib/marginMeaning), or null.
+   *  A margin card then prints the refusal instead of a percent. */
+  marginRefusal?: { readonly ro: string; readonly en: string } | null;
   /** F6.1 — multi-year series for the active period; drives the Trend view.
    *  When it carries <2 years the Snapshot/Trend toggle is disabled. */
   series?: MultiYearSeries;
 }
 
-export function ConfigurableDashboard({ overrides, series }: Props) {
+export function ConfigurableDashboard({ overrides, series, marginRefusal = null }: Props) {
   const { t } = useTranslation();
   const {
     cards,
@@ -223,6 +227,7 @@ export function ConfigurableDashboard({ overrides, series }: Props) {
                     card={card}
                     editMode={editMode}
                     overrides={overrides}
+                    marginRefusal={marginRefusal}
                     series={series}
                     view={effectiveView}
                     onRearrange={() => setEditMode(true)}

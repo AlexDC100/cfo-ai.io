@@ -50,39 +50,61 @@
         "absence": null
       },
       "gross_margin": {
-        "value": 100,
-        "printed": "100.0",
+        "value": null,
+        "printed": null,
         "unit": "%",
-        "verdict": "ungraded",
+        "verdict": "unknown",
         "higher_is_better": null,
         "ladder": null,
-        "absence": null
+        "absence": {
+          "kind": "not_meaningful",
+          "display": {
+            "ro": "marjă nesemnificativă: cifra de afaceri este 0,6% din activitate",
+            "en": "margin not meaningful: turnover is 0.6% of activity"
+          },
+          "basis": {
+            "ro": "activitatea = cheltuielile de exploatare (costul vânzărilor, celelalte cheltuieli de exploatare și amortizarea); o marjă se calculează numai când cifra de afaceri este cel puțin 10% din activitate",
+            "en": "activity = operating expenses (cost of sales, the other operating expenses and depreciation); a margin is computed only when turnover is at least 10% of activity"
+          }
+        }
       },
       "ebitda_margin": {
-        "value": -17884.86,
-        "printed": "-17884.9",
+        "value": null,
+        "printed": null,
         "unit": "%",
-        "verdict": "critical",
-        "higher_is_better": true,
-        "ladder": {
-          "strong": 25,
-          "healthy": 15,
-          "watch": 8
-        },
-        "absence": null
+        "verdict": "unknown",
+        "higher_is_better": null,
+        "ladder": null,
+        "absence": {
+          "kind": "not_meaningful",
+          "display": {
+            "ro": "marjă nesemnificativă: cifra de afaceri este 0,6% din activitate",
+            "en": "margin not meaningful: turnover is 0.6% of activity"
+          },
+          "basis": {
+            "ro": "activitatea = cheltuielile de exploatare (costul vânzărilor, celelalte cheltuieli de exploatare și amortizarea); o marjă se calculează numai când cifra de afaceri este cel puțin 10% din activitate",
+            "en": "activity = operating expenses (cost of sales, the other operating expenses and depreciation); a margin is computed only when turnover is at least 10% of activity"
+          }
+        }
       },
       "net_margin": {
-        "value": -493.70000000000005,
-        "printed": "-493.7",
+        "value": null,
+        "printed": null,
         "unit": "%",
-        "verdict": "critical",
-        "higher_is_better": true,
-        "ladder": {
-          "strong": 15,
-          "healthy": 8,
-          "watch": 3
-        },
-        "absence": null
+        "verdict": "unknown",
+        "higher_is_better": null,
+        "ladder": null,
+        "absence": {
+          "kind": "not_meaningful",
+          "display": {
+            "ro": "marjă nesemnificativă: cifra de afaceri este 0,6% din activitate",
+            "en": "margin not meaningful: turnover is 0.6% of activity"
+          },
+          "basis": {
+            "ro": "activitatea = cheltuielile de exploatare (costul vânzărilor, celelalte cheltuieli de exploatare și amortizarea); o marjă se calculează numai când cifra de afaceri este cel puțin 10% din activitate",
+            "en": "activity = operating expenses (cost of sales, the other operating expenses and depreciation); a margin is computed only when turnover is at least 10% of activity"
+          }
+        }
       },
       "roa": {
         "value": -0.9609526313856096,
@@ -330,31 +352,61 @@
         "absence": null
       },
       "gross_margin": {
-        "value": 100,
-        "printed": "100.0",
+        "value": null,
+        "printed": null,
         "unit": "%",
-        "verdict": "ungraded",
+        "verdict": "unknown",
         "higher_is_better": null,
         "ladder": null,
-        "absence": null
+        "absence": {
+          "kind": "not_meaningful",
+          "display": {
+            "ro": "marjă nesemnificativă: cifra de afaceri este 0,6% din activitate",
+            "en": "margin not meaningful: turnover is 0.6% of activity"
+          },
+          "basis": {
+            "ro": "activitatea = cheltuielile de exploatare (costul vânzărilor, celelalte cheltuieli de exploatare și amortizarea); o marjă se calculează numai când cifra de afaceri este cel puțin 10% din activitate",
+            "en": "activity = operating expenses (cost of sales, the other operating expenses and depreciation); a margin is computed only when turnover is at least 10% of activity"
+          }
+        }
       },
       "ebitda_margin": {
-        "value": -17884.86,
-        "printed": "-17884.9",
+        "value": null,
+        "printed": null,
         "unit": "%",
-        "verdict": "ungraded",
+        "verdict": "unknown",
         "higher_is_better": null,
         "ladder": null,
-        "absence": null
+        "absence": {
+          "kind": "not_meaningful",
+          "display": {
+            "ro": "marjă nesemnificativă: cifra de afaceri este 0,6% din activitate",
+            "en": "margin not meaningful: turnover is 0.6% of activity"
+          },
+          "basis": {
+            "ro": "activitatea = cheltuielile de exploatare (costul vânzărilor, celelalte cheltuieli de exploatare și amortizarea); o marjă se calculează numai când cifra de afaceri este cel puțin 10% din activitate",
+            "en": "activity = operating expenses (cost of sales, the other operating expenses and depreciation); a margin is computed only when turnover is at least 10% of activity"
+          }
+        }
       },
       "net_margin": {
-        "value": -493.70000000000005,
-        "printed": "-493.7",
+        "value": null,
+        "printed": null,
         "unit": "%",
-        "verdict": "ungraded",
+        "verdict": "unknown",
         "higher_is_better": null,
         "ladder": null,
-        "absence": null
+        "absence": {
+          "kind": "not_meaningful",
+          "display": {
+            "ro": "marjă nesemnificativă: cifra de afaceri este 0,6% din activitate",
+            "en": "margin not meaningful: turnover is 0.6% of activity"
+          },
+          "basis": {
+            "ro": "activitatea = cheltuielile de exploatare (costul vânzărilor, celelalte cheltuieli de exploatare și amortizarea); o marjă se calculează numai când cifra de afaceri este cel puțin 10% din activitate",
+            "en": "activity = operating expenses (cost of sales, the other operating expenses and depreciation); a margin is computed only when turnover is at least 10% of activity"
+          }
+        }
       },
       "roa": {
         "value": -0.9609526313856096,
@@ -590,39 +642,61 @@
         "absence": null
       },
       "gross_margin": {
-        "value": 137,
-        "printed": "137.0",
+        "value": null,
+        "printed": null,
         "unit": "%",
-        "verdict": "ungraded",
+        "verdict": "unknown",
         "higher_is_better": null,
         "ladder": null,
-        "absence": null
+        "absence": {
+          "kind": "not_meaningful",
+          "display": {
+            "ro": "marjă nesemnificativă: cifra de afaceri este 0,6% din activitate",
+            "en": "margin not meaningful: turnover is 0.6% of activity"
+          },
+          "basis": {
+            "ro": "activitatea = cheltuielile de exploatare (costul vânzărilor, celelalte cheltuieli de exploatare și amortizarea); o marjă se calculează numai când cifra de afaceri este cel puțin 10% din activitate",
+            "en": "activity = operating expenses (cost of sales, the other operating expenses and depreciation); a margin is computed only when turnover is at least 10% of activity"
+          }
+        }
       },
       "ebitda_margin": {
-        "value": -24502.258200000004,
-        "printed": "-24502.3",
+        "value": null,
+        "printed": null,
         "unit": "%",
-        "verdict": "critical",
-        "higher_is_better": true,
-        "ladder": {
-          "strong": 25,
-          "healthy": 15,
-          "watch": 8
-        },
-        "absence": null
+        "verdict": "unknown",
+        "higher_is_better": null,
+        "ladder": null,
+        "absence": {
+          "kind": "not_meaningful",
+          "display": {
+            "ro": "marjă nesemnificativă: cifra de afaceri este 0,6% din activitate",
+            "en": "margin not meaningful: turnover is 0.6% of activity"
+          },
+          "basis": {
+            "ro": "activitatea = cheltuielile de exploatare (costul vânzărilor, celelalte cheltuieli de exploatare și amortizarea); o marjă se calculează numai când cifra de afaceri este cel puțin 10% din activitate",
+            "en": "activity = operating expenses (cost of sales, the other operating expenses and depreciation); a margin is computed only when turnover is at least 10% of activity"
+          }
+        }
       },
       "net_margin": {
-        "value": -676.3690000000001,
-        "printed": "-676.4",
+        "value": null,
+        "printed": null,
         "unit": "%",
-        "verdict": "critical",
-        "higher_is_better": true,
-        "ladder": {
-          "strong": 15,
-          "healthy": 8,
-          "watch": 3
-        },
-        "absence": null
+        "verdict": "unknown",
+        "higher_is_better": null,
+        "ladder": null,
+        "absence": {
+          "kind": "not_meaningful",
+          "display": {
+            "ro": "marjă nesemnificativă: cifra de afaceri este 0,6% din activitate",
+            "en": "margin not meaningful: turnover is 0.6% of activity"
+          },
+          "basis": {
+            "ro": "activitatea = cheltuielile de exploatare (costul vânzărilor, celelalte cheltuieli de exploatare și amortizarea); o marjă se calculează numai când cifra de afaceri este cel puțin 10% din activitate",
+            "en": "activity = operating expenses (cost of sales, the other operating expenses and depreciation); a margin is computed only when turnover is at least 10% of activity"
+          }
+        }
       },
       "roa": {
         "value": -0.9609526313856096,

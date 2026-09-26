@@ -67,7 +67,7 @@ graph LR
     pkg_public_market["public_market (19 modules)"]
     pkg_public_ro["public_ro (24 modules)"]
     pkg_radar["radar (15 modules)"]
-    pkg_ratios["ratios (5 modules)"]
+    pkg_ratios["ratios (6 modules)"]
     pkg_routing["routing (2 modules)"]
     pkg_security["security (2 modules)"]
     pkg_serving["serving (8 modules)"]
@@ -141,7 +141,8 @@ graph LR
     pkg_forecast -->|1| pkg_benchmarks_ro
     pkg_forecast -->|1| pkg_canonical
     pkg_forecast -->|1| pkg_country_packs
-    pkg_forecast -->|1| pkg_ratios
+    pkg_forecast -->|1| pkg_industry
+    pkg_forecast -->|2| pkg_ratios
     pkg_forecast -->|1| pkg_serving
     pkg_forecast_drivers -->|2| pkg_forecast
     pkg_forecast_drivers -->|1| pkg_insights

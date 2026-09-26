@@ -50,6 +50,7 @@ from .money import MICRO, MICRO_DAY, cents_from
 from .opening import (ASSET_LINES, CURRENT_ASSET_LINES, CURRENT_LIABILITY_LINES,
                       EL_LINES, EQUITY_LINES)
 from .pools import COGS_BUCKET, LEVEL_PREFIX
+from engine.ratios import margin_meaning
 
 __all__ = ["COCKPIT_FILE", "BridgeError", "CockpitError", "CockpitPack", "build_cockpit",
            "cockpit_pack", "compile_levers", "bridge", "export_document",
@@ -1126,6 +1127,56 @@ def _exact_decimal(value: Fraction) -> str:
     return ("-" if value < 0 else "") + whole + ("." + frac if frac else "")
 
 
+#: Where the rule reads a projected plan year's two operands (the served
+#: statements' own line names).
+_PROJECTED_TURNOVER = "pl.revenue"
+_PROJECTED_ACTIVITY = "pl.cost_of_sales+pl.operating_costs+pl.depreciation+pl.amortisation"
+
+
+def _activity_minor(year: Mapping[str, int]) -> int:
+    """A projected plan year's operating activity in minor units: cost of
+    sales + operating costs + depreciation + amortisation — the projection's
+    spelling of the total operating expense the rule reads on the actual
+    year (engine.ratios.margin_meaning). The lines are served negative."""
+    return -sum(int(year.get(k) or 0) for k in
+                ("pl.cost_of_sales", "pl.operating_costs", "pl.depreciation", "pl.amortisation"))
+
+
+def _statements_of(payload: Mapping[str, Any]) -> Dict[str, Any]:
+    """The served statements of an anchor payload (the loaded period's
+    rebuilt statements), read the way ``pl_history_from_payload`` reads them."""
+    statements = payload.get("statements") if isinstance(payload, Mapping) else None
+    if not isinstance(statements, dict):
+        statements = dict(payload) if isinstance(payload, Mapping) else {}
+    return statements
+
+
+def _industry_family(payload: Mapping[str, Any]) -> Optional[str]:
+    """What the account mix says the company does — engine.industry over the
+    loaded line items, the computation GET /api/period serves as
+    ``industry_signal`` — when the reading is decided; None otherwise."""
+    from engine.industry import build_industry_signal
+    items = payload.get("line_items") if isinstance(payload, Mapping) else None
+    if not isinstance(items, list) or not items:
+        return None
+    signal = build_industry_signal(items)
+    return signal.get("family") if signal.get("verdict") == "decided" else None
+
+
+def _margin_display(base: Dict[str, Any], refused: Optional[str],
+                    refused0: Optional[str]) -> Dict[str, Any]:
+    """The EBITDA number's display for one language. A refused margin adds
+    its reason (``margin_refused`` for the final plan year,
+    ``margin_year0_refused`` for today) beside the null percent; a book
+    whose margins stand serves exactly the three keys it always served."""
+    out = dict(base)
+    if refused is not None:
+        out["margin_refused"] = refused
+    if refused0 is not None:
+        out["margin_year0_refused"] = refused0
+    return out
+
+
 def build_cockpit(anchor_payload: Dict[str, Any], prior_periods: Sequence[Dict[str, Any]],
                   context: Any = None, *, case_id: str = "base",
                   levers: Optional[Mapping[str, Any]] = None,
@@ -1185,22 +1236,58 @@ def build_cockpit(anchor_payload: Dict[str, Any], prior_periods: Sequence[Dict[s
     base_agg = [(n, label, _aggregate(items)) for n, label, items in base_years]
     final_n, final_label, final = agg[-1]
 
-    # 1. EBITDA in the final year, and its margin against today
+    # 1. EBITDA in the final year, and its margin against today. Each margin
+    #    is first put to ONE rule (engine.ratios.margin_meaning — the rule the
+    #    ratio table and the dashboard read): a margin over a turnover that is
+    #    negligible against operating activity is not meaningful, and is
+    #    served as its refusal, never as a percent. The corpus developer
+    #    printed −17,886.1% here, and −17,884.9% "today", before this.
+    statements0 = _statements_of(anchor_payload)
+    verdict0, inputs0 = margin_meaning.period_verdict(statements0)
+    verdict = margin_meaning.judge(Fraction(final["pl.revenue"], 100),
+                                   Fraction(_activity_minor(final), 100))
+    currency = statements0.get("currency") if isinstance(statements0.get("currency"), str) else None
     revenue0 = history.revenue
-    margin0 = (Fraction(history.ebitda, revenue0) if revenue0 and history.ebitda is not None
-               else None)
-    margin = Fraction(final["pl.ebitda"], final["pl.revenue"]) if final["pl.revenue"] else None
+    margin0 = (Fraction(history.ebitda, revenue0)
+               if revenue0 and history.ebitda is not None and not verdict0.refused else None)
+    margin = (Fraction(final["pl.ebitda"], final["pl.revenue"])
+              if final["pl.revenue"] and not verdict.refused else None)
+    refused = margin_meaning.refusal_display(verdict, currency) or {}
+    refused0 = margin_meaning.refusal_display(verdict0, currency) or {}
     ebitda_block = {
         "period": final_label, "figure": _fig(final["pl.ebitda"]),
         "margin_ppm": None if margin is None else _ppm(margin),
         "margin_year0_ppm": None if margin0 is None else _ppm(margin0),
         "margin_change_ppm": (None if margin is None or margin0 is None
                               else _ppm(margin) - _ppm(margin0)),
-        "display": dict((l, {"amount": fmt_money(final["pl.ebitda"], l, pack),
-                             "margin": None if margin is None else fmt_pct(margin, l),
-                             "margin_year0": None if margin0 is None else fmt_pct(margin0, l)})
-                        for l in _LANGS),
+        "display": dict((l, _margin_display({
+            "amount": fmt_money(final["pl.ebitda"], l, pack),
+            "margin": None if margin is None else fmt_pct(margin, l),
+            "margin_year0": None if margin0 is None else fmt_pct(margin0, l)},
+            refused.get(l), refused0.get(l))) for l in _LANGS),
     }
+    if verdict.refused or verdict0.refused:
+        # Only where a margin was refused: every other book serves the block
+        # it always served, byte for byte (tests/engine/test_margin_meaning.py).
+        ebitda_block["margin_meaning"] = margin_meaning.served_block(
+            verdict, (_PROJECTED_TURNOVER, _PROJECTED_ACTIVITY), currency)
+        ebitda_block["margin_year0_meaning"] = margin_meaning.served_block(verdict0, inputs0, currency)
+    # The one note the rule's pack names for this case (a property developer:
+    # the headline EBITDA leaves out what the book capitalised into stock
+    # through 711). The figure is READ from the served
+    # assembled_pl.ebitda_statutory_with_711 of the actual year; the note
+    # names that year, because the EBITDA above it is the final plan year's.
+    apl0 = statements0.get("assembled_pl") if isinstance(statements0.get("assembled_pl"), dict) else {}
+    note = margin_meaning.note_block(
+        verdict0,
+        industry_family=_industry_family(anchor_payload) if verdict0.refused else None,
+        inventory_variation_memo=apl0.get("inventory_variation_memo"),
+        ebitda_with_711=apl0.get("ebitda_statutory_with_711"),
+        unit_of=Fraction(final["pl.ebitda"], 100), year=year0)
+    if note is not None:
+        ebitda_block["note"] = note
+        for l in _LANGS:
+            ebitda_block["display"][l]["note"] = note["display"][l]
 
     # 2. cumulative free cash flow: operating + investing cash, every period
     fcf = sum(p.cf["cash_from_operating"] + p.cf["cash_from_investing"] for p in projection.periods)
@@ -1271,7 +1358,8 @@ def build_cockpit(anchor_payload: Dict[str, Any], prior_periods: Sequence[Dict[s
 
     # the sentence
     sentence = _sentence(pack, case_id, saved, cash_block, dscr_block, ebitda_block,
-                         final_label, margin is not None and margin0 is not None)
+                         final_label, margin is not None and margin0 is not None,
+                         verdict.refused or verdict0.refused)
 
     # the statements, per plan year, with year 0 where the book carries it
     statements = _statements(pack, agg, opening, history, year0)
@@ -1361,6 +1449,8 @@ def build_cockpit(anchor_payload: Dict[str, Any], prior_periods: Sequence[Dict[s
         "client": _client_block(),
         "pins": {"pack_id": pack.pack_id, "cockpit_pack": pack.digest,
                  "macro_pack": _file_digest(macro_pack().path),
+                 # the rule every margin above was put to
+                 "margin_pack": _file_digest(str(margin_meaning.pack_path())),
                  "engine_version": _engine_version()},
     }
     body["pins"]["body_hash"] = "sha256:" + hashlib.sha256(json.dumps(
@@ -1455,7 +1545,7 @@ def export_document(payload: Dict[str, Any], pack: Optional[CockpitPack] = None)
 
 def _sentence(pack: CockpitPack, case_id: str, saved: Optional[Tuple[str, Any]],
               cash: Mapping[str, Any], dscr: Mapping[str, Any], ebitda: Mapping[str, Any],
-              final_label: str, with_margin: bool) -> Dict[str, Any]:
+              final_label: str, with_margin: bool, margin_refused: bool = False) -> Dict[str, Any]:
     out = {"template": [], "facts": {}}  # type: Dict[str, Any]
     for lang in _LANGS:
         if saved is not None:
@@ -1486,7 +1576,10 @@ def _sentence(pack: CockpitPack, case_id: str, saved: Optional[Tuple[str, Any]],
                 margin=ebitda["display"][lang]["margin"],
                 margin0=ebitda["display"][lang]["margin_year0"])
         else:
-            ebitda_text = pack.sentence["ebitda_no_revenue"][lang].format(
+            # No margin clause: there is no turnover to divide, or a margin
+            # the rule (engine.ratios.margin_meaning) refused — never a
+            # percent over a negligible turnover.
+            ebitda_text = pack.sentence[_ebitda_sentence_key(with_margin, margin_refused)][lang].format(
                 amount=ebitda["display"][lang]["amount"], year=_year_of(final_label))
         out[lang] = pack.sentence["frame"][lang].format(case=case, cash=cash_text,
                                                         dscr=dscr_text, ebitda=ebitda_text)
@@ -1494,10 +1587,16 @@ def _sentence(pack: CockpitPack, case_id: str, saved: Optional[Tuple[str, Any]],
                        ("funding_annual" if cash.get("first_granularity") == "annual" else "funding")
                        if cash["kind"] == "funding_need" else "no_funding",
                        {"above": "dscr_above", "below": "dscr_below"}.get(dscr["status"], "dscr_none"),
-                       "ebitda" if with_margin else "ebitda_no_revenue"]
+                       _ebitda_sentence_key(with_margin, margin_refused)]
     out["facts"] = {"cash": cash["figure"], "dscr": dscr.get("value_micros"),
                     "ebitda": ebitda["figure"]}
     return out
+
+
+def _ebitda_sentence_key(with_margin: bool, margin_refused: bool) -> str:
+    if with_margin:
+        return "ebitda"
+    return "ebitda_margin_not_meaningful" if margin_refused else "ebitda_no_revenue"
 
 
 _YEAR0_PL = {

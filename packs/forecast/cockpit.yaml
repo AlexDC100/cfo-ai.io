@@ -403,6 +403,14 @@ sentence:
   ebitda_no_revenue:
     ro: "EBITDA ajunge la {amount} în {year}"
     en: "EBITDA reaches {amount} in {year}"
+  # The margin clause is dropped where the margin is not meaningful: turnover
+  # negligible against operating activity (packs/ratios/margin_meaning.yaml,
+  # the one rule the ratio table and the dashboard read too). The four
+  # numbers print the refusal with its reason; the sentence never repeats a
+  # percent over a negligible turnover.
+  ebitda_margin_not_meaningful:
+    ro: "EBITDA ajunge la {amount} în {year}"
+    en: "EBITDA reaches {amount} in {year}"
 
 # ── refusals of a cockpit request ───────────────────────────────────────
 refusals:

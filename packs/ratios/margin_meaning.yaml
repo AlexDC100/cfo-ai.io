@@ -1,0 +1,125 @@
+# WHEN A MARGIN IS NOT MEANINGFUL — one rule, pure data (TC-10).
+#
+# Read by src/engine/ratios/margin_meaning.py and by nothing else. Every
+# surface that prints a margin over turnover asks that module first: the
+# ratio table's margin rows (engine.ratios.table), the served period
+# (GET /api/period -> statements.margin_meaning, served where the rule
+# refuses and read by the dashboard),
+# and the forecast cockpit's four numbers, its sentence and the bank
+# export built from them (engine.forecast.cockpit). A threshold stated here
+# is rendered from here wherever it is printed; no surface writes it as prose.
+#
+# WHY
+# ---
+# A margin divides a result by turnover (cifra de afaceri, class 70). It
+# describes a company's sales only when turnover is a real part of what the
+# company does. A property developer in a building year books its
+# construction cost through class 6 and capitalises it into stock through
+# account 711; its turnover is a little rent. On the corpus developer
+# (saga_10_col_realestate) the served EBITDA margin was -17,884.9% and the
+# forecast printed -17,886.1% for its final plan year: arithmetic on an
+# incidental line, not a margin. Printed, it reads as a verdict on the
+# company. It is refused instead, with the reason.
+#
+# THE RULE
+# --------
+# A margin over turnover is NOT MEANINGFUL when turnover is non-zero and
+#
+#     |turnover| < max(floor, share_below x activity)
+#
+#   activity  = total operating expense: cost of sales + operating expenses
+#               + depreciation — assembled_pl.total_operating_expense on a
+#               served period (the same figure the ratio table divides DIO
+#               and DPO by), and cost of sales + operating costs +
+#               depreciation + amortisation on a projected plan year. It is
+#               measured identically on the actual year and on every
+#               projected year, which total_operating_revenue_statutory is
+#               not: the projection carries no 711, and on a closed SAGA
+#               book the served 711 memo is the gross production stocked
+#               (1.7x-1.9x turnover on the corpus manufacturers), not the
+#               net variation, so it would measure "activity" twice over.
+#   turnover  = assembled_pl.revenue (net turnover, 709 netted) on a served
+#               period; pl.revenue on a projected plan year.
+#   floor     = in the book's own currency units: a percentage over less
+#               than one unit of currency is not a margin.
+#
+# A turnover of exactly zero is outside the rule: every margin is already
+# undefined there (a zero denominator), and that refusal stands as it was.
+#
+# MEASURED (2026-09-26), turnover / total operating expense on every corpus
+# book that carries turnover, through the real write path and the real
+# GET /api/period:
+#
+#   saga_10_col_carniprod    0.9989   (the lowest normal book)
+#   saga_10_col_retail       1.0008
+#   saga_10_col              1.0478
+#   saga_10_col_agras        1.0719
+#   pdf_positional           1.0843
+#   saga_compact_6_col       2.6667   (synthetic)
+#   saga_10_col_realestate   0.0055   (the developer)
+#
+# Every other corpus book carries no turnover, so the rule does not apply to
+# it. share_below 0.10 sits almost ten times below the lowest normal book and
+# eighteen times above the developer; at the threshold an EBITDA margin is
+# about -900%, beyond which a percentage stops describing sales and starts
+# describing the cost base. tests/engine/test_margin_meaning.py holds every
+# corpus book to this table.
+schema_version: "margin_meaning/1"
+
+rule:
+  activity: total_operating_expense
+  share_below: "0.10"
+  floor: "1"
+  # The ratio-table keys that are a result divided by turnover. Every one of
+  # them refuses together: one rule, one verdict per period (or plan year).
+  applies_to: [gross_margin, operating_margin, ebitda_margin, core_ebitda_margin, net_margin]
+
+# What a refused margin prints, in place of a percent. {share} is
+# |turnover| / activity as a percent; {floor} is the floor in the book's
+# currency; {threshold} is share_below as a percent.
+display:
+  share:
+    ro: "marjă nesemnificativă: cifra de afaceri este {share} din activitate"
+    en: "margin not meaningful: turnover is {share} of activity"
+  floor:
+    ro: "marjă nesemnificativă: cifra de afaceri este sub {floor}"
+    en: "margin not meaningful: turnover is below {floor}"
+  basis:
+    ro: "activitatea = cheltuielile de exploatare (costul vânzărilor, celelalte cheltuieli de exploatare și amortizarea); o marjă se calculează numai când cifra de afaceri este cel puțin {threshold} din activitate"
+    en: "activity = operating expenses (cost of sales, the other operating expenses and depreciation); a margin is computed only when turnover is at least {threshold} of activity"
+
+# ── the one note, for one case ──────────────────────────────────────────
+# Served beside the EBITDA a property developer's margins were refused on:
+# the headline EBITDA leaves out the construction cost the book capitalised
+# into stock through 711, and the served assembled_pl.ebitda_statutory_with_711
+# is the figure that puts it back. Only when ALL of `requires` hold — the
+# margin refused by the rule above, the account mix read as real estate by
+# engine.industry (the family GET /api/period serves as industry_signal), and
+# a positive 711 production variation. On a manufacturer the served 711 memo
+# is the gross production stocked, so "EBITDA including 711" would not be a
+# figure to print: the family requirement keeps the note off every book it
+# would not be true of.
+note:
+  id: capitalized_construction_711
+  requires:
+    margin: not_meaningful
+    industry_family: real_estate
+    inventory_variation_memo: positive
+  figure: assembled_pl.ebitda_statutory_with_711
+  ro: "Pentru un dezvoltator imobiliar, costurile de construcție sunt capitalizate în stocuri (contul 711): EBITDA de mai sus nu le include. EBITDA inclusiv 711: {amount}{when}."
+  en: "For a property developer, construction costs are capitalised into inventory (account 711): the EBITDA above does not include them. EBITDA including 711: {amount}{when}."
+  # The year the 711-inclusive figure belongs to, where the page shows
+  # another year's EBITDA above it (the cockpit's final plan year).
+  when:
+    ro: " în {year}"
+    en: " in {year}"
+
+# How the note's amount prints: one decimal, in the unit of the EBITDA the
+# note stands under (millions when that EBITDA is a million or more, else
+# thousands), so the headline and the 711-inclusive figure read side by side
+# ("−29,0 mil. lei" above, "0,6 mil. lei" in the note). The strings are the
+# cockpit's own money display (packs/forecast/cockpit.yaml#money_display),
+# held equal by tests/engine/test_margin_meaning.py.
+money_display:
+  million: {ro: "{value} mil. lei", en: "RON {value}M"}
+  thousand: {ro: "{value} mii lei", en: "RON {value}k"}

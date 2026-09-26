@@ -80,6 +80,7 @@ import {
   computeRatios,
 } from "@/lib/financialReport";
 import { readIndustrySignal } from "@/lib/industrySignal";
+import { MARGIN_CONCEPT_KEYS, marginRefusalOf } from "@/lib/marginMeaning";
 
 /** Sector idioms that belong to exactly one sector. Kept in step with
  *  `noWrongSectorLanguage.test.ts` (G9), which polices the same words in
@@ -166,13 +167,28 @@ describe("0.1 — while the sector is disputed the printed export withholds sect
 
   it.each(BOOKS)("%s: no sector-calibrated band is printed, and none is graded", (book: Book) => {
     const cards = ratioCards(exportDoc(book, disputedBook(book)));
+    // A margin the ENGINE ruled not meaningful (engine.ratios.margin_meaning)
+    // has no value for a sector band to be withheld from: it states the
+    // engine's refusal instead — and, like every row below, no grade.
+    const refusal = marginRefusalOf(disputedBook(book));
+    const refusedLabels = new Set(
+      refusal
+        ? computeRatios(disputedBook(book), undefined, metricsFor(book))
+            .profitability.filter((x) => MARGIN_CONCEPT_KEYS.has(x.key))
+            .map((x) => x.label)
+        : [],
+    );
     for (const label of sectorCalibratedLabels(book)) {
       const card = cards.find((c) => c.label === label);
       expect(card, `${book}: the export prints no card "${label}"`).toBeDefined();
-      expect(
-        card!.meta,
-        `${book}: "${label}" still prints a sector band while the sector is disputed`,
-      ).toContain(SECTOR_BAND_WITHHELD);
+      if (refusedLabels.has(label)) {
+        expect(card!.value, `${book}: "${label}" prints a figure the engine refused`).toBe(refusal!.en);
+      } else {
+        expect(
+          card!.meta,
+          `${book}: "${label}" still prints a sector band while the sector is disputed`,
+        ).toContain(SECTOR_BAND_WITHHELD);
+      }
       for (const badge of ["Strong", "Healthy", "Watch", "Critical"]) {
         expect(
           card!.meta,
@@ -232,10 +248,22 @@ describe("0.1 — THE NEGATIVE: with the sector agreeing, all of it renders", ()
       // assertion above would gut the gate; with it, the sector block
       // still cannot hide behind a second kind of withholding, because
       // a sector withholding carries the sector sentence and reds.
+      //
+      // "Not meaningful" is the margin rule's word (engine.ratios.
+      // margin_meaning): the developer's margins are refused because its
+      // turnover is negligible against its operating activity. It is allowed
+      // ONLY where the served verdict refused the margins, so it cannot
+      // become a second place for a sector withholding to hide.
       expect(
-        /Strong|Healthy|Watch|Critical|Not reported|Not graded/.test(card!.meta),
+        /Strong|Healthy|Watch|Critical|Not reported|Not graded|Not meaningful/.test(card!.meta),
         `${book}: "${label}" carries no verdict on an agreeing book: ${JSON.stringify(card!.meta)}`,
       ).toBe(true);
+      if (/Not meaningful/.test(card!.meta)) {
+        expect(
+          marginRefusalOf(agreeingBook(book)),
+          `${book}: "${label}" says "Not meaningful" with no served margin refusal`,
+        ).not.toBeNull();
+      }
     }
   });
 
