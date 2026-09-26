@@ -14,6 +14,16 @@ The pair is chosen by MEASUREMENT, not by name: the first corpus book the
 pack classifies ANALYTIC and the first it classifies SYNTHETIC. If the
 corpus ever loses one kind, the gates that need the pair skip with the
 reason rather than pass over one book compared with itself.
+
+THE ENVELOPES ARE SERVED-SHAPED. The assembler emits `canonical_bucket`
+beside every line item; `pipeline.stage_persist` strips it (not a
+`statement_line_items` column) and `GET /api/period` serves the persisted
+legacy `bucket` alone. Every envelope built here drops the field exactly
+as the persist step does, so a gate over these envelopes reads what
+production reads. Measured 2026-09-26: with the assembler's field left on,
+the depth-parity gate stayed green (63 passed) while the real client pair
+served nine bucket-backed lines "neither period reported" — the gate's
+coverage was fed by a key production never carries.
 """
 from __future__ import annotations
 
@@ -23,6 +33,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+from engine.country_packs.ro_romania.chart_of_accounts import bucket_for
 from engine.country_packs.ro_romania.detail_level import (
     ANALYTIC,
     SYNTHETIC,
@@ -69,13 +80,30 @@ _REAGG_CACHE: Dict[str, Tuple[Dict[str, Any], int]] = {}
 _FIGURE_FIELDS = ("si_d", "si_c", "r_d", "r_c", "st_d", "st_c", "sf_d", "sf_c")
 
 
+#: What `pipeline.stage_persist` keeps of a line item — the
+#: `statement_line_items` columns. `canonical_bucket` is not among them.
+PERSISTED_LINE_ITEM_KEYS = frozenset({
+    "statement", "bucket", "ro_account_code", "ro_account_name",
+    "amount", "is_derived",
+})
+
+
+def served_line_item(item: Dict[str, Any]) -> Dict[str, Any]:
+    """One line item as `GET /api/period` serves it: the persisted columns
+    only. The assembler's `canonical_bucket` (and any other in-memory
+    field, e.g. `via_semantic_fallback`) is dropped here exactly as the
+    persist step drops it."""
+    return dict((k, v) for k, v in item.items() if k in PERSISTED_LINE_ITEM_KEYS)
+
+
 def _envelope_of(assembled: Dict[str, Any]) -> Dict[str, Any]:
     statements = dict(assembled["statements"])
     cv1 = assembled.get("assembled_canonical_v1") or {}
     statements["assembled_canonical_v1"] = cv1
     if isinstance(cv1, dict) and cv1.get("canonical_bs"):
         statements["canonical_bs"] = cv1["canonical_bs"]
-    return {"statements": statements, "lineItems": list(assembled["lineItems"])}
+    return {"statements": statements,
+            "lineItems": [served_line_item(li) for li in assembled["lineItems"]]}
 
 
 def envelope_for(case_id: str) -> Dict[str, Any]:
@@ -178,10 +206,17 @@ def condense(envelope: Dict[str, Any], revenue_factor: float = 0.97) -> Dict[str
     out = copy.deepcopy(envelope)
     for li in out["lineItems"]:
         code = str(li.get("ro_account_code") or "")
+        rule = bucket_for(code) if code else None
         if code.isdigit():
             li["ro_account_code"] = code[:SYNTHETIC_MAX_DIGITS]
-        if (li.get("canonical_bucket") or li.get("bucket")) == "ar_doubtful":
-            li["canonical_bucket"] = "ar"
+        # The condensed chart carries no "clienți incerți" row: the balance
+        # sits in 4111. The envelope is served-shaped (legacy `bucket`
+        # only), so the doubtful row is found by the pack's rule for its
+        # code — and its CODE is folded too, or the served-shape reader
+        # would derive `ar_doubtful` straight back from 4118.
+        if (li.get("canonical_bucket") or (rule.bucket if rule else li.get("bucket"))) == "ar_doubtful":
+            li.pop("canonical_bucket", None)
+            li["ro_account_code"] = "4111"
             li["bucket"] = "ar"
     out["statements"]["assembled_bs"]["ar_doubtful_gross"] = 0.0
     pl = out["statements"]["assembled_pl"]

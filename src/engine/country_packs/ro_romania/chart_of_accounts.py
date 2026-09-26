@@ -43,7 +43,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 from engine.packs import CompiledPack
 from engine.packs.runtime import active_pack
@@ -556,6 +556,61 @@ def _persistence_bucket(canonical: str) -> str:
     existing Supabase CHECK constraint accepts). Falls through unchanged
     for buckets that already match the legacy set."""
     return _CANONICAL_TO_LEGACY_BUCKET.get(canonical, canonical)
+
+
+def canonical_bucket_of_line_item(item: Mapping[str, Any]) -> Optional[str]:
+    """The classification bucket of ONE persisted or served line item, in the
+    pack's CANONICAL vocabulary — what the assembler emitted beside the row
+    as `canonical_bucket` before `pipeline.stage_persist` stripped it.
+
+    WHY THIS EXISTS. `statement_line_items.bucket` holds the LEGACY name
+    (`_persistence_bucket`: `interest_income` lands as `financialIncome`,
+    `ar_intercompany` as `otherCurrentAssets`, `cash_fx` as `cash`, …) and
+    `GET /api/period` serves that column verbatim, so a reader of served
+    line items that matches on bucket names never meets a fine bucket.
+    Measured on 2026-09-26: the comparatives coverage read
+    (`engine.comparatives.lines.coverage_from_envelope`) saw 24 legacy
+    names on both real client periods and marked nine bucket-backed lines
+    — interest income, third-party services, related-party receivables,
+    FX cash, assets under construction, fixed-asset advances, dividends
+    payable, doubtful receivables, receivable provisions — "neither period
+    reported" while each period's served field was non-zero; the top-
+    movers panel then ranked without a related-party movement that sat
+    above its own 0.5%-of-total-assets floor. The gate could not see it
+    because its fixtures came off the assembler, which does emit the
+    canonical name.
+
+    THE READING is the same one the pipeline's two reassembly loops make
+    (`_build_statements_for_period` and `GET /api/period`, "detect side-
+    flip / bucket_override"): the pack's rule for the account code is the
+    bucket, UNLESS the persisted name is neither that rule's bucket nor
+    its legacy alias — then the write path routed the row elsewhere (a
+    parser `bucket_override`, or the assembler's wrong-side flip: 5121 in
+    credit persisted as `stDebt`, 401 in debit as `otherCurrentAssets`)
+    and the persisted name IS the bucket. Every side-flip target in the
+    pack is a legacy name, so it round-trips unchanged. A code no rule
+    matches falls back to the name keywords exactly as the assembler does
+    (`bucket_for_name`); a row nothing matches keeps whatever it stored.
+    An explicit `canonical_bucket` on the item (the assembler's own, or
+    a future persisted column) always wins — this function never second-
+    guesses a name the assembler wrote.
+
+    Returns None only for a row that carries neither a resolvable code
+    nor a stored bucket.
+    """
+    explicit = item.get("canonical_bucket")
+    if explicit:
+        return str(explicit)
+    stored = str(item.get("bucket") or "").strip()
+    code = str(item.get("ro_account_code") or "").strip()
+    rule = bucket_for(code) if code else None
+    if rule is None:
+        rule = bucket_for_name(str(item.get("ro_account_name") or ""))
+    if rule is None:
+        return stored or None
+    if stored and stored != rule.bucket and stored != _persistence_bucket(rule.bucket):
+        return stored
+    return rule.bucket
 
 # Buckets that should be tracked as sub-aggregates (separately from their
 # top-level BS/PL line) so downstream stages can do industry classification,

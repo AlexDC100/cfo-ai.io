@@ -35,7 +35,10 @@ from engine.comparatives.analysis import bs_bridge, canonical_totals, common_siz
 from engine.country_packs.ro_romania.detail_level import classify_detail_level
 # The Piotroski checks are the pack's; the jurisdiction-blind composer takes
 # them as an argument rather than importing a pack.
-from engine.country_packs.ro_romania.chart_of_accounts import _piotroski_checks
+from engine.country_packs.ro_romania.chart_of_accounts import (
+    _piotroski_checks,
+    canonical_bucket_of_line_item,
+)
 from engine.comparatives.ratio_compare import compare_ratio_tables
 # The seven-element band-crossing findings, injected the same way.
 from engine.api.findings.c_bands import build_band_findings
@@ -79,13 +82,44 @@ def load_period_in_org(client: Any, period_id: str, *, org_id: str) -> Dict[str,
 
 def envelope_from_payload(payload: Mapping[str, Any]) -> Dict[str, Any]:
     """The shape `engine.comparatives` reads: `statements` plus the
-    served line items under `lineItems` (coverage is read off them)."""
+    served line items under `lineItems` (coverage is read off them).
+
+    THE SERVED SHAPE HIDES THE FINE BUCKETS. `GET /api/period` serves
+    each line item with the persisted `bucket` only — the legacy name
+    `stage_persist` was allowed to write (`interest_income` as
+    `financialIncome`, `ar_intercompany` as `otherCurrentAssets`, `cash_fx`
+    as `cash`, `ppe_under_construction` / `ppe_advances` as `ppe`,
+    `ap_dividends` as `otherCurrentLiab`, `ar_doubtful` as `ar`,
+    `opex_third_party` as `operatingExpenses`); the assembler's
+    `canonical_bucket` is stripped before the insert. Coverage matched on
+    those names never met a fine bucket, so on the real client pair nine
+    lines were served "neither period reported" beside non-zero served
+    fields and the movers ranked without a related-party movement above
+    their own floor (diagnosed 2026-09-26). Each served item is therefore re-read here
+    through the pack's own rule for its account code —
+    `canonical_bucket_of_line_item`, the reading the pipeline's reassembly
+    loops make — and carries the canonical name beside the persisted one.
+    Copies: the payload's own `line_items` (served back as
+    `prior_line_items`) are not touched. Every served period today is a
+    Romanian book, like the detail-level detector above; a second pack
+    exposes its own reader and this becomes a pack lookup.
+    """
     statements = payload.get("statements")
     if not isinstance(statements, Mapping):
         raise ComparativesRefused(
             "period_not_servable",
             "the period payload carries no statements block", status=409)
-    return {"statements": statements, "lineItems": list(payload.get("line_items") or [])}
+    items = []  # type: List[Dict[str, Any]]
+    for li in payload.get("line_items") or []:
+        if not isinstance(li, Mapping):
+            continue
+        item = dict(li)
+        if not item.get("canonical_bucket"):
+            bucket = canonical_bucket_of_line_item(item)
+            if bucket:
+                item["canonical_bucket"] = bucket
+        items.append(item)
+    return {"statements": statements, "lineItems": items}
 
 
 def detail_level_of(payload: Mapping[str, Any]):
