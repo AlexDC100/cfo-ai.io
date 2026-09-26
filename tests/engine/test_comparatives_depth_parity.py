@@ -871,7 +871,9 @@ def test_the_nine_sub_aggregate_lines_are_reported_through_the_real_route_wherev
     floor, to the cent, with no note saying "neither period reported"
     beside it. Non-vacuity: at least seven of the nine are held above the
     floor by some served period, and the reported sides number in the
-    hundreds (measured 2026-09-26: eight of nine — every one but
+    hundreds (measured 2026-09-26 through the app: seven of nine and 360
+    sides — every line but dividends payable, which no corpus book
+    carries above the floor though the real client pair does, and
     receivable provisions, which the RO pack emits as contra `ar` and
     never feeds). Before the repair every one read absent."""
     held = set()
@@ -948,8 +950,9 @@ def test_a_sub_aggregate_ranks_among_the_top_movers_through_the_real_route(serve
     """Census, so the ranking test cannot pass over documents in which the
     nine lines are never candidates: on the served pairs a sub-aggregate
     line ranks among the top movers on at least ten (measured 2026-09-26
-    offline: 15 of the 20 real pairs), and every sub-aggregate the
-    columns rank is in the served top."""
+    through the app: 15 of the 30 served pairs, all real-vs-real — a
+    book beside its own counterpart moves nothing), and every
+    sub-aggregate the columns rank is in the served top."""
     hits = []
     for (cur, pri), doc in served.docs.items():
         top = [m["key"] for m in doc["movers"]["top"]]

@@ -3104,14 +3104,17 @@ inserted rows, persisted columns only, legacy buckets only, at least one
 fine bucket hidden per period (non-vacuity of the shape); on every served
 pair every headline side is that period's served figure or a justified
 absence; the nine lines are `reported` to the cent wherever a period holds
-them (eight of nine held somewhere — all but receivable provisions, which
-the pack emits as contra `ar`; over a hundred reported sides); the served
+them (seven of nine held somewhere — all but dividends payable, which no
+corpus book carries above the floor though the real client pair does, and
+receivable provisions, which the pack emits as contra `ar`; 360 reported
+sides); the served
 document IS `compare_payloads` over the two bodies the same app served —
 columns, movers, bridges, common size, coverage, comparability and both
 period blocks byte for byte, so the offline half and the served half gate
 ONE document; each period block names the seeded file; the movers are the
 columns' own ranking and their figures the bodies'; a sub-aggregate ranks
-among the served movers on at least ten pairs; the self pairs move nothing
+among the served movers on 15 of the 30 served pairs (all real-vs-real; a
+book beside its own counterpart moves nothing); the self pairs move nothing
 on the P&L and close their bridges; and the offline envelope and the served
 body carry the same headline figures to the cent on every book and every
 condensed counterpart.
