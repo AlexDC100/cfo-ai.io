@@ -740,7 +740,8 @@ def test_g4_a_run_that_fails_after_persist_leaves_no_period(app, gw, monkeypatch
 # stack-trace message) — the company's CUI on file, or for a company without
 # one the CUI the month's own file states; a successful re-upload leaving a
 # second period, a derivative row under the staged id, or the first file live
-# and unarchived.
+# and unarchived; a dead-letter replay of a re-upload replacing the month or
+# leaving its staged row as a second period of the month.
 
 #: The rows a run persists under a period id. Named here, not read from the
 #: engine, so a RED run fails on the defect and never on a missing name.
@@ -939,6 +940,62 @@ def test_g4_a_same_month_reupload_that_succeeds_replaces_the_month_and_archives_
     assert empty_live_periods(gw.db.tables) == []
     assert gw.meter.committed == [(USER, False), (USER, False)] and gw.meter.released == []
 
+
+def test_g4_a_same_month_reupload_replayed_from_the_dead_letter_queue_never_replaces_the_month(
+        app, gw, monkeypatch, tmp_path):
+    """The journal's resume re-runs persist by hand and marks nothing
+    analyzed. A same-month re-upload replaces the month only when its run
+    succeeds end to end, so its replay from the dead-letter queue refuses
+    honestly (`cannot_resume`) — the month keeps serving the first analysis,
+    and no staged row is left beside it for a second period of the month."""
+    from engine.journal import ResumeRefused
+    from engine.journal import hooks as journal_hooks
+    from engine.journal.journal import Journal
+    from engine.journal.resume import replay_dlq
+
+    first = _analysed_month(app, gw, agras_workbook())
+    org_id = first["doc"]["org_id"]
+    root = tmp_path / "journal"
+    monkeypatch.setenv(journal_hooks.ENV_VAR, str(root))
+    journal_hooks.reset_cache()
+    try:
+        corrected = book_workbook(SCANDIA_BOOK, name="AGRAS SRL", cui=CUI_AGRAS)
+        second = one_tap(app, corrected, "balanta_corectata.xlsx")
+        assert second["commit"]["org_id"] == org_id, second["commit"]
+        real_persist = pipeline.stage_persist
+
+        def _outage(*a: Any, **kw: Any) -> Any:
+            raise RuntimeError("the database is unavailable")
+
+        monkeypatch.setattr(pipeline, "stage_persist", _outage)
+        failed = run_analysis(gw, second["commit"]["document_id"])
+        assert failed["status"] == "failed", failed["status"]
+        monkeypatch.setattr(pipeline, "stage_persist", real_persist)
+        (entry,) = Journal(root).dlq_entries()
+        with pytest.raises(ResumeRefused) as refused:
+            replay_dlq(Journal(root), entry["run_id"])
+        assert refused.value.reason == "cannot_resume", refused.value
+    finally:
+        journal_hooks.set_active_run(None)
+        journal_hooks.reset_cache()
+
+    periods = gw.db.rows("financial_periods")
+    assert [p["id"] for p in periods] == [first["period"]["id"]], \
+        "G4: the replayed re-upload left a second period for the month: %r" % [
+            (p["id"], p["source_document_id"]) for p in periods]
+    (period,) = periods
+    assert period["source_document_id"] == first["doc"]["id"], "G4: the replay took the month over"
+    assert period["assembled_canonical_v1"] == first["period"]["assembled_canonical_v1"]
+    assert _rows_under(gw, period["id"]) == first["rows"]
+    assert _served(app, org_id, period["id"]) == first["served"]
+    # (The staged row's own derivative rows go with it by the foreign keys'
+    # ON DELETE CASCADE, which this double does not model — the month's
+    # rows and the served body above are what the user sees.)
+    (kept,) = gw.docs(id=first["doc"]["id"])
+    assert kept["status"] == "analyzed" and kept["deleted_at"] is None, kept
+    assert pipeline._pop_takeover(failed["id"]) is None, "the staged takeover outlived the refusal"
+    from engine.workspaces.migration_plan import empty_live_periods
+    assert empty_live_periods(gw.db.tables) == []
 
 def _load_script(name: str) -> Any:
     spec = importlib.util.spec_from_file_location(name, REPO / "scripts" / ("%s.py" % name))

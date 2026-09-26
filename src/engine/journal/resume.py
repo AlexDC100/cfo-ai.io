@@ -218,9 +218,18 @@ def resume_run(
                 assembled = stage_map(doc, parsed, started_payload.get("industry"))
             hooks.on_pass_done(doc, assembled)
         period_id = stage_persist(doc, parsed, assembled)
+        # G4 (2026-09-26): a re-upload staged beside a month another
+        # document serves replaces that month only when its run succeeds
+        # END TO END — the orchestrator's terminal step, right before the
+        # document is marked analyzed. A resume re-runs persist and marks
+        # nothing analyzed, so finalizing here would make a failed document
+        # the month's only source (the empty-month defect). It refuses
+        # instead, taking the row it staged with it: the month is unchanged.
+        _refuse_takeover_resume(doc)
     except ResumeRefused:
         raise
     except Exception as exc:  # noqa: BLE001 — the stage itself failed; honest report
+        _abandon_takeover(doc)
         raise ResumeRefused(
             "stage_failed", "%s: %s" % (type(exc).__name__, exc)
         )
@@ -236,6 +245,31 @@ def resume_run(
         "period_id": period_id,
         "dlq_resolved": resolved,
     }
+
+
+def _abandon_takeover(doc: Dict[str, Any]) -> bool:
+    """Drop a same-month row this resume's persist staged (G4): the row
+    was minted by the resume, so it goes, and the month keeps serving what
+    it served — the orchestrator's failure path. True when one was staged.
+    A stage double injected without the pipeline never staged one."""
+    try:
+        from engine.api import pipeline as _pipeline
+    except Exception:  # noqa: BLE001
+        return False
+    if _pipeline._pop_takeover(doc.get("id")) is None:
+        return False
+    _pipeline._rollback_period_of_failed_run(str(doc.get("id")), doc.get("org_id"))
+    return True
+
+
+def _refuse_takeover_resume(doc: Dict[str, Any]) -> None:
+    if _abandon_takeover(doc):
+        raise ResumeRefused(
+            "cannot_resume",
+            "the run would replace a month another document serves, and a "
+            "month is replaced only by a run that succeeds end to end — the "
+            "month is unchanged; re-run the pipeline for the document instead",
+        )
 
 
 def replay_dlq(journal: Journal, run_id: str) -> Dict[str, Any]:
