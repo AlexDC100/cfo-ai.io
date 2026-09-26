@@ -50,7 +50,9 @@ own recomputation from `assembled_pl.ebit`) and
 `interestCoveragePopover.test.tsx` (the Ratios card's "How it's computed"
 popover: its printed EBIT and Interest tokens recompute the card's digits
 on the same five books, and an absent interest prints "not reported",
-never 0).
+never 0; and the operands as RENDERED — to the bani — divide, as printed,
+to the card's digits on every corpus book with interest, over the corpus
+fixture `test_coverage_popover_corpus_fixture.py` keeps fresh).
 
 WHAT IT REDS ON (TC-11): the engine row, the metric row or the table
 fallback dividing `operating_ebit` (or any EBIT whose recomputation does

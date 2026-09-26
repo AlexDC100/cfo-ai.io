@@ -914,15 +914,22 @@ def _engine_gates() -> List[Gate]:
         # printed digit, on the four corpus books and the Scandia
         # baseline through the real GET /api/period. The frontend halves
         # are vitest (interestCoverageBasis, exportRatioFormulas G4, and
-        # interestCoveragePopover — the Ratios card's learning popover).
+        # interestCoveragePopover — the Ratios card's learning popover,
+        # whose printed operands must divide, as printed, to the card on
+        # every corpus book with interest). The popover's corpus fixture is
+        # held fresh here (test_coverage_popover_corpus_fixture): the scope
+        # is discovered from corpus/, so a book added with interest reds
+        # until the fixture carries it.
         # Plant log: docs/engine_book/gates.md.
         Gate("interest-coverage-one-operand",
-             [PY, "-m", "pytest", "tests/engine/test_interest_coverage_one_operand.py", "-q"],
+             [PY, "-m", "pytest", "tests/engine/test_interest_coverage_one_operand.py",
+              "tests/engine/test_coverage_popover_corpus_fixture.py", "-q"],
              work_rx=r"GATE-WORK interest-coverage-one-operand units=(\d+)", floor=8,  # measured 9: 5 books + 4 with interest
              units="books served and coverages recomputed",
              canaries=("SCOPE interest-coverage-one-operand",
                        "books where operating_ebit would print a different coverage: 1",
-                       "retail             EBIT 786579.83")),
+                       "retail             EBIT 786579.83",
+                       "SCOPE coverage popover corpus fixture")),
         Gate("cron-auth",
              [PY, "-m", "pytest", "tests/engine/test_cron_auth.py", "-q"],
              work_junit=True, floor=8, units="tests",

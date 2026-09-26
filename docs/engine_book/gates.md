@@ -6653,7 +6653,7 @@ would print a different coverage.
 | | |
 |---|---|
 | work count | `GATE-WORK interest-coverage-one-operand units=(\d+)` (books served + coverages recomputed; measured 9), floor 8 |
-| canaries | `SCOPE interest-coverage-one-operand`, `books where operating_ebit would print a different coverage: 1`, `retail             EBIT 786579.83` |
+| canaries | `SCOPE interest-coverage-one-operand`, `books where operating_ebit would print a different coverage: 1`, `retail             EBIT 786579.83`, `SCOPE coverage popover corpus fixture` |
 
 **SCOPE** — printed: `SCOPE interest-coverage-one-operand: books 5
 (agras, carniprod, realestate, retail, scandia_baseline); interest
@@ -6747,6 +6747,85 @@ authority than the engine row's; an absent operand printed as a number.
 **It cannot see:** the engine row (the gate above); the export and the
 no-envelope model (the other two halves); carniprod's reported 0.00
 interest — its card is refused and no popover renders.
+
+### The popover half, round 2: the printed operands, divided as printed
+
+THE DEFECT (adversarial verifier, v6 landing on release/live). After the
+round-1 repair the popover's operands were the right figures, printed
+COMPACT by `formatValue` (`7.82M RON`, `278K RON`): divided as printed they
+did not reproduce the card on 8 of the 10 books with interest the verifier
+served (corpus: agras `7.82M ÷ 278K` = 28.13 under 28.14×; realestate
+`−29.10M ÷ 1.16M` = −25.09 under −25.13×; retail `787K ÷ 2.42M` = 0.33 under
+0.32×; saga_10_col happens to survive at 1.46). The round-1 check compared
+the unrounded token VALUES, so a render that rounds them was invisible to
+it.
+
+THE REPAIR. A formula token may declare itself `exact`
+(`FormulaToken.exact`, `_schema.ts`); `InteractiveFormula` then prints it
+with `formatValue(..., { exact: true })` — the served figure to the bani,
+thousands separators (`7,821,031.85 RON`). `coverageOperand` sets it on both
+interest-coverage operands. No other concept's print changes.
+
+WHAT IT CHECKS (`interestCoveragePopover.test.tsx`, "the popover's printed
+operands, divided as printed, reproduce the card"). On EVERY corpus book
+with interest — the scope is discovered, not listed:
+`frontend/lib/__tests__/fixtures/coverage_popover_corpus.json` carries every
+`corpus/` case through the production write path and the real
+`GET /api/period` (analysed body), written and held fresh by
+`tests/engine/test_coverage_popover_corpus_fixture.py` (in this gate's
+battery command) — and on the committed Scandia baseline read in place, in
+both languages: the RENDERED operand text is read back as a reader would;
+each must be a full-precision amount (`^−?d{1,3}(,ddd)*.dd RON$`) equal to
+the served `assembled_pl.ebit` / `interest_expense` to the cent; their exact
+quotient, rounded half-up to the card's printed decimals, must print the
+card's digits for every card path the page has (the served-table card in
+en and ro, the no-table card, and for the baseline the engine gate's served
+digits); the popover header prints the card's digits. TC-3: at least four
+corpus books measured, and at least three on which the compact print would
+have missed the card (measured 4: agras, realestate, retail, the baseline).
+
+**SCOPE** — printed: `SCOPE interest-coverage-one-operand (popover half,
+printed operands): corpus cases 18; books with a measured card 5
+(saga_10_col, saga_10_col_agras, saga_10_col_realestate, saga_10_col_retail,
+scandia_baseline); books where compact operands would not reproduce the
+card: 4`, then per book e.g. `saga_10_col_retail card 0.32× [served table
+(en)], 0,32× [served table (ro)], 0.32× [no served table]; popover "EBIT
+786,579.83 RON ÷ Interest 2,421,110.34 RON" = 0.32; compact would divide to
+0.33`; the 11 zero-interest cases print `card refused (zero_denominator); no
+popover renders`, the three model-lane cases `not served offline
+(ParseError)`. The engine side prints `SCOPE coverage popover corpus
+fixture: cases 18; served 15; interest measured on 4`.
+
+**PLANTS, each observed RED** (`scratchpad/landv6/plants_precision.py`, each
+applied by string replacement, the vitest file run, the file restored
+byte-exact, sha1 checked):
+
+| # | Plant | Result | Excerpt |
+|---|---|---|---|
+| C1 | `coverageOperand` drops `exact` (compact again) | `1 failed` | `saga_10_col_agras (en): an operand is not printed to the bani — "EBIT 7.82M RON ÷ Interest 278K RON" divides to 28.13, the card prints 28.14×` |
+| C2 | `InteractiveFormula` ignores `token.exact` | `1 failed` | the same line as C1 |
+| C3 | the exact print rounds to whole RON | `2 failed` | `saga_10_col_agras (en): an operand is not printed to the bani — "EBIT 7,821,032 RON ÷ Interest 277,930 RON" …` |
+| C4 | the exact print keeps one decimal | `2 failed` | `… "EBIT 7,821,031.8 RON ÷ Interest 277,930.4 RON" …` |
+| C5 | the exact print drops the thousands separators | `2 failed` | `… "EBIT 7821031.85 RON ÷ Interest 277930.35 RON" …` |
+| C6 | the EBIT operand from `operating_ebit` (right precision, wrong authority) | `2 failed` | `saga_10_col_agras (en): printed EBIT 7,822,955.63 RON is not the served EBIT 7821031.85` |
+| F1 | the committed fixture loses `saga_10_col` | engine `1 failed` (`coverage_popover_corpus.json drifted …`); vitest `1 failed` (`expected 3 to be greater than or equal to 4`) | |
+
+**REVERT** — every planted file restored from its byte copy (sha1 checked);
+the vitest file `5 passed`, the fixture test `2 passed`.
+
+**After the repair it reds on (TC-11):** a coverage operand printed compact,
+rounded, or without separators; a printed operand that is not the served
+figure to the cent; printed operands whose exact quotient does not print a
+card's digits; a popover header that does not print the card's digits; a
+stale corpus fixture, or a corpus whose books with interest stop being
+measured.
+**It cannot see:** books outside the corpus and the committed Scandia
+baseline (client books are never committed, ruling Q10); the drilled-down
+popovers each operand opens (their headers print compact, as every value
+popover's header does; nothing is divided there); other ratio popovers,
+whose fraction operands are still
+compact (`asset_turnover`, `inventory_turnover`, … in `analytics.ts`) and
+are not interest coverage — reported, not changed, here.
 
 (the two contra-sign checks red on the missing parser helpers). Per book
 on the parent: retail 2,043,254.64 BEYOND floor 0.01; agras -6,572,426.01

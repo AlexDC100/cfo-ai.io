@@ -507,7 +507,13 @@ const debt_to_assets: Concept = {
  *  carries prints as a tappable value token; a figure it does not carry
  *  prints "not reported" as plain text — never a value token reading 0,
  *  which would be a number nobody reported printed beneath a ratio that
- *  was not computed from it (the `Interest 0 RON` defect). */
+ *  was not computed from it (the `Interest 0 RON` defect).
+ *
+ *  A carried figure prints EXACT (to the bani, thousands separators),
+ *  never compact: the reader checks the card by dividing the two printed
+ *  operands, and compact ones divide to a different number on most books
+ *  with interest (agras `7.82M ÷ 278K` = 28.13 under a 28.14× card;
+ *  realestate `−29.10M ÷ 1.16M` = −25.09 under −25.13×). */
 function coverageOperand(
   value: number | undefined,
   conceptKey: string,
@@ -515,7 +521,7 @@ function coverageOperand(
   locale: "en" | "ro" | undefined,
 ): FormulaToken {
   if (typeof value === "number" && Number.isFinite(value)) {
-    return { type: "value", value, conceptKey, label, format: "currency" };
+    return { type: "value", value, conceptKey, label, format: "currency", exact: true };
   }
   return { type: "literal", text: `${label} ${locale === "ro" ? "neraportat" : "not reported"}` };
 }

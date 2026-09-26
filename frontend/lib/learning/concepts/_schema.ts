@@ -321,7 +321,22 @@ export interface FormulaSpec {
 export type ValueFormat = "currency" | "percentage" | "ratio" | "days" | "score" | "raw";
 
 export type FormulaToken =
-  | { type: "value"; value: number; conceptKey: string; label?: string; format?: ValueFormat }
+  | {
+      type: "value";
+      value: number;
+      conceptKey: string;
+      label?: string;
+      format?: ValueFormat;
+      /** Print the operand at the precision the division used: every digit,
+       *  to the bani, with thousands separators — never the compact
+       *  "3.08M RON". Set on the operands of a formula whose printed result
+       *  the reader checks by redoing the division beneath it. Compact
+       *  operands do not recompute the card: the realestate corpus book's
+       *  interest coverage printed `EBIT −29.10M ÷ Interest 1.16M`, which
+       *  divides to −25.09, beneath a card reading −25.13×. Currency only;
+       *  the other formats print their own fixed precision already. */
+      exact?: boolean;
+    }
   | { type: "operator"; op: "+" | "−" | "×" | "÷" | "=" }
   | { type: "literal"; text: string }
   | { type: "group_open" }
