@@ -18,10 +18,12 @@ import {
   PLSection,
   PLStatement,
   PLKeyMargin,
+  servedPlAmount,
   sumByExact,
   sumByPrefix,
 } from "./plStructure";
 import type { IncomeStatement, Statements } from "./financialReport";
+import { ROUNDED_MONEY_ZERO_FLOOR } from "./changeKind";
 
 
 /** Drop nulls from a sparse line list, WITHOUT losing PLLine's literal types.
@@ -66,6 +68,12 @@ interface BuildArgs {
   /** `assembled_pl.ebitda` — the engine's figure. See
    *  EBITDA_COMPOSITION_NOTE: one metric name, one formula, everywhere. */
   servedEbitda?: number | null;
+  /** The period's served `assembled_pl` block. Read ONLY for the
+   *  components "Total operating revenue" folds in beyond net turnover
+   *  (722, 767 — see `currentFoldAmount`), so the comparatives guard knows
+   *  a period carries them even where the leaves do not show them. It
+   *  changes no figure on the statement. */
+  servedPl?: unknown;
 }
 
 // Account-to-label table used to render the per-line labels next to the
@@ -260,6 +268,24 @@ export function revenueFamilyAmounts(
   return families;
 }
 
+/** THE CURRENT PERIOD'S AMOUNT OF A COMPONENT A TOTAL FOLDS IN beyond the
+ *  engine line its key maps to (`PLSection.subtotalFolds`): what the row
+ *  itself folds in — or, when it folds in none, what the period's served
+ *  P&L carries (`servedPlAmount`, the served contract).
+ *
+ *  Both, because a period can carry a component its row never saw. GET
+ *  /api/period serves no `incomeStatement.capitalizedOwnWork`, so the
+ *  aggregates total folds in zero 722 whatever the book holds; the
+ *  line-item total reads 767 by exact code and misses a 7671 sub-account
+ *  the engine reads. Either way the period's "Total operating revenue" is
+ *  not its net turnover, and the comparatives guard must hear so. A folded
+ *  amount that is not a finite number is unreadable: null. */
+function currentFoldAmount(folded: number, servedPl: unknown, field: string): number | null {
+  if (!Number.isFinite(folded)) return null;
+  if (Math.abs(folded) >= ROUNDED_MONEY_ZERO_FLOOR) return folded;
+  return servedPlAmount(servedPl, field);
+}
+
 function oneEbitda(
   served: number | null | undefined,
   totalOperatingRevenue: number,
@@ -302,19 +328,28 @@ export function buildPLStatement(args: BuildArgs): PLStatement {
     subtotalLabel: "Total operating revenue",
     subtotalAmount: totalOperatingRevenue,
     subtotalBucket: "revenue",
+    // Comparatives: this total is the engine's net turnover only while
+    // neither period carries 722 or 767 — the two components it folds in.
+    subtotalFolds: {
+      capitalized_own_work_memo: currentFoldAmount(revCapOwnWork, args.servedPl, "capitalized_own_work_memo"),
+      discounts_received: currentFoldAmount(revDiscounts, args.servedPl, "discounts_received"),
+    },
   };
 
   // ── OTHER OPERATING INCOME (758) ─────────────────────────────────────
   // Displayed separately for transparency; explicitly excluded from
   // EBITDA per the engine's canonical operating-revenue definition.
+  // Comparatives keys (lib/comparatives.ts PL_ROW_TO_KEY): the line and its
+  // subtotal are the engine's 758 line, `pl.other_operating_income`.
   const otherOperatingIncomeLines: PLLine[] = revOtherOperating !== 0
-    ? [{ accountCode: "758", label: labelFor("758"), amount: revOtherOperating, style: "item" }]
+    ? [{ accountCode: "758", label: labelFor("758"), amount: revOtherOperating, style: "item", bucket: "otherOperatingIncome" }]
     : [];
   const otherOperatingIncomeSection: PLSection = {
     header: "OTHER OPERATING INCOME",
     lines: otherOperatingIncomeLines,
     subtotalLabel: "Total other operating income (excluded from operating revenue / EBITDA above)",
     subtotalAmount: revOtherOperating,
+    subtotalBucket: "otherOperatingIncomeTotal",
   };
 
   // ── OPERATING EXPENSES (excl D&A, interest, FX, tax) ─────────────────
@@ -330,6 +365,8 @@ export function buildPLStatement(args: BuildArgs): PLStatement {
       label: labelFor(code),
       amount,
       style: "item" as const,
+      // Comparatives key: 628 is the engine's third-party-services line.
+      ...(code === "628" ? { bucket: "opexThirdParty" } : {}),
     }));
 
   const totalOpexCash = opexLines.reduce((s, l) => s + (l.amount ?? 0), 0);
@@ -367,21 +404,24 @@ export function buildPLStatement(args: BuildArgs): PLStatement {
   const fxLoss = sumByExact(items, "6651");
   const interestExpense = sumByExact(items, "666");
 
-  const finPos = (code: string, label: string, amt: number): PLLine | null =>
+  // `bucket` is the comparatives key (PL_ROW_TO_KEY) where the engine
+  // serves the same line: interest income (766) and expense (666). The
+  // dividend, FX-gain and FX-loss rows have no engine line of their own.
+  const finPos = (code: string, label: string, amt: number, bucket?: string): PLLine | null =>
     Math.abs(amt) > 0
-      ? { accountCode: code, label, amount: amt, style: "item", sign: "positive" }
+      ? { accountCode: code, label, amount: amt, style: "item", sign: "positive", ...(bucket ? { bucket } : {}) }
       : null;
-  const finNeg = (code: string, label: string, amt: number): PLLine | null =>
+  const finNeg = (code: string, label: string, amt: number, bucket?: string): PLLine | null =>
     Math.abs(amt) > 0
-      ? { accountCode: code, label, amount: amt, style: "item", sign: "negative" }
+      ? { accountCode: code, label, amount: amt, style: "item", sign: "negative", ...(bucket ? { bucket } : {}) }
       : null;
 
   const financialLines: PLLine[] = plLines([
     finPos("7611", labelFor("7611"), dividendIncome),
     finPos("7651", labelFor("7651"), fxGain),
-    finPos("766",  labelFor("766"),  interestIncome),
+    finPos("766",  labelFor("766"),  interestIncome, "interestIncome"),
     finNeg("6651", labelFor("6651"), fxLoss),
-    finNeg("666",  labelFor("666"),  interestExpense),
+    finNeg("666",  labelFor("666"),  interestExpense, "interestExpense"),
   ]);
 
   const netFinancialResult =
@@ -392,6 +432,7 @@ export function buildPLStatement(args: BuildArgs): PLStatement {
     lines: financialLines,
     subtotalLabel: "Net financial result",
     subtotalAmount: netFinancialResult,
+    subtotalBucket: "netFinancialResult",
   };
 
   // ── PBT → NET PROFIT ─────────────────────────────────────────────────
@@ -417,9 +458,9 @@ export function buildPLStatement(args: BuildArgs): PLStatement {
   const closingSection: PLSection = {
     header: "",
     lines: plLines([
-      { label: "Profit before tax", amount: profitBeforeTax, style: "subtotal" },
+      { label: "Profit before tax", amount: profitBeforeTax, style: "subtotal", bucket: "pretax" },
       tax > 0
-        ? { accountCode: "691", label: labelFor("691"), amount: tax, style: "item" }
+        ? { accountCode: "691", label: labelFor("691"), amount: tax, style: "item", bucket: "taxExpense" }
         : null,
     ]),
     // OPERATIONAL is the headline subtotal. The 722 bridge to statutory
@@ -602,6 +643,7 @@ export function pickPLBuilder(
     currency: args.currency ?? "RON",
     periodEnd: args.periodEnd,
     canonicalMargins: args.canonicalMargins,
+    servedPl: statements.assembled_pl,
   });
 }
 
@@ -683,6 +725,11 @@ export function buildPLStatementFromAggregates(
     subtotalLabel: "Total operating revenue",
     subtotalAmount: totalOperatingRevenue,
     subtotalBucket: "revenue",
+    // Comparatives: net turnover + 722 is the engine's net turnover only
+    // while neither period carries 722 (lib/comparatives.ts cellForRow).
+    subtotalFolds: {
+      capitalized_own_work_memo: currentFoldAmount(capOwnWork, statements.assembled_pl, "capitalized_own_work_memo"),
+    },
   };
 
   // ── OTHER OPERATING INCOME (758) ─────────────────────────────────────
@@ -692,6 +739,13 @@ export function buildPLStatementFromAggregates(
   // classification. Showing it on its own line, in its own footed
   // section, gives the board reader complete visibility WITHOUT the
   // misleading layout where 758 sat under a subtotal that excluded it.
+  //
+  // Comparatives keys (lib/comparatives.ts PL_ROW_TO_KEY): the line and its
+  // subtotal are keyed to the engine's 758 line, `pl.other_operating_income`.
+  // The figure here is the served other-operating-income BUCKET, which on
+  // a book with provision reversals (781) or 74x/75x/77x income is wider
+  // than 758 alone — the parity guard then refuses the cells, never paints
+  // the 758 prior beside the wider figure.
   const otherOperatingIncomeLines: PLLine[] = [];
   if (otherIncome !== 0) {
     otherOperatingIncomeLines.push({
@@ -699,6 +753,7 @@ export function buildPLStatementFromAggregates(
       label: "Other operating income (758)",
       amount: otherIncome,
       style: "item",
+      bucket: "otherOperatingIncome",
     });
   }
   const otherOperatingIncomeSection: PLSection = {
@@ -706,6 +761,7 @@ export function buildPLStatementFromAggregates(
     lines: otherOperatingIncomeLines,
     subtotalLabel: "Total other operating income (excluded from operating revenue / EBITDA above)",
     subtotalAmount: otherIncome,
+    subtotalBucket: "otherOperatingIncomeTotal",
   };
 
   // ── OPERATING EXPENSES ───────────────────────────────────────────────
@@ -757,6 +813,10 @@ export function buildPLStatementFromAggregates(
   const ebit = ebitda - dna;
 
   // ── FINANCIAL ITEMS ──────────────────────────────────────────────────
+  // Comparatives keys: financial income and interest expense are the
+  // engine's `pl.financial_income` / `pl.interest_expense` by definition
+  // (the same buckets). The third row is NOT keyed: the engine's
+  // `pl.financial_expense` includes interest, this row excludes it.
   const financialLines: PLLine[] = [];
   if (finIncome > 0) {
     financialLines.push({
@@ -765,6 +825,7 @@ export function buildPLStatementFromAggregates(
       amount: finIncome,
       style: "item",
       sign: "positive",
+      bucket: "financialIncomeTotal",
     });
   }
   if (interestExpense > 0) {
@@ -774,6 +835,7 @@ export function buildPLStatementFromAggregates(
       amount: interestExpense,
       style: "item",
       sign: "negative",
+      bucket: "interestExpense",
     });
   }
   if (finExpense > 0) {

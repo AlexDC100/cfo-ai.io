@@ -235,7 +235,7 @@ function PLSectionView({
             ) : (
               <span className="pl-amount">{fmt(section.subtotalAmount)}</span>
             )}
-            <CmpCells rowKey={section.subtotalBucket} amount={section.subtotalAmount} />
+            <CmpCells rowKey={section.subtotalBucket} amount={section.subtotalAmount} folds={section.subtotalFolds} />
           </div>
         </>
       )}
