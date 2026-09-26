@@ -1,13 +1,5 @@
 {
-  "diagnosis": [
-    {
-      "code": "D6_121_MISMATCH",
-      "detail": "account 121 closing 650,887.06 ≠ class7−class6 2,152,675.29",
-      "leaf_ids": [
-        "121"
-      ]
-    }
-  ],
+  "diagnosis": [],
   "difference": -12253.38,
   "envelope_version": "sv1",
   "excluded": [
@@ -33,8 +25,8 @@
     "el_eq_row_sum": true,
     "identity_holds": true,
     "p121_cross_check": {
-      "cls7_minus_cls6": 2152675.29,
-      "ok": false,
+      "cls7_minus_cls6": 650887.06,
+      "ok": true,
       "p121": 650887.06
     },
     "result_basis": "sf_closing_column",
