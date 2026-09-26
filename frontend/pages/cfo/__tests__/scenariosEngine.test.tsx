@@ -948,4 +948,27 @@ describe("no company open: one sentence and the company cards, never a blank pag
     expect(document.querySelectorAll('[data-primary-action="true"]')).toHaveLength(1);
     expect(document.querySelector('input[type="file"]')).toBeNull();
   });
+
+  it("the header's context row (company · description · the actuals chip) STACKS below `sm`: one block per item, a row from `sm` up", async () => {
+    // The walk of 2026-09-26 at 390 px: the three items shared one
+    // non-wrapping flex row and were squeezed into columns narrower than
+    // 200 px (the company name wrapped word by word). Each item is a full-
+    // width block on a phone; the walk asserts the pixels
+    // (specs-durable/cockpit_harness/shots.mjs, `scenarios` at 390).
+    renderPage();
+    await screen.findByTestId("scenarios-outcome-table");
+    const context = screen.getByTestId("scenarios-header-context");
+    const classes = context.className.split(/\s+/);
+    expect(classes).toEqual(expect.arrayContaining(["flex", "flex-col", "min-w-0", "sm:flex-row"]));
+    const company = screen.getByTestId("scenarios-company");
+    const description = screen.getByTestId("scenarios-context");
+    const chip = screen.getByTestId("scenarios-actuals-chip");
+    expect(company.parentElement).toBe(context);
+    expect(description.parentElement).toBe(context);
+    // the chip keeps its own width inside a block of its own, so the block —
+    // not the pill — is what stacks to the full width
+    expect(chip.parentElement?.parentElement).toBe(context);
+    expect(chip.parentElement?.tagName).toBe("DIV");
+    expect(Array.from(context.children)).toEqual([company, description, chip.parentElement]);
+  });
 });

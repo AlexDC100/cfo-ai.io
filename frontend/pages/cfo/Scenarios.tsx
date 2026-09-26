@@ -267,24 +267,34 @@ function ScenariosEngine({
         eyebrow={t("scenarios.eyebrow", "Analysis")}
         title={t("scenarios.title", "Scenario planning")}
         context={
-          <>
+          // Below `sm` the three items STACK, one full-width block each (the
+          // walk of 2026-09-26 at 390 px squeezed them into columns narrower
+          // than 200 px inside the header's non-wrapping row); from `sm` up
+          // they read as one row. The chip keeps its own width inside a
+          // block of its own.
+          <div
+            data-testid="scenarios-header-context"
+            className="flex min-w-0 flex-col items-stretch gap-1 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2"
+          >
             {companyName ? (
               <span data-testid="scenarios-company" className="font-medium text-ink">
                 {companyName}
               </span>
             ) : null}
-            <span>
+            <span data-testid="scenarios-context">
               {t(
                 "scenarios.context",
                 "What-if on the forecast of {{period}}. Every figure is computed by the forecast engine.",
                 { period: shownLabel },
               )}
             </span>
-            <Chip tone="neutral" className="whitespace-nowrap">
-              <Lock size={11} strokeWidth={2} aria-hidden />
-              {t("scenarios.actualsLocked", "Actuals never change")}
-            </Chip>
-          </>
+            <div>
+              <Chip tone="neutral" className="whitespace-nowrap" data-testid="scenarios-actuals-chip">
+                <Lock size={11} strokeWidth={2} aria-hidden />
+                {t("scenarios.actualsLocked", "Actuals never change")}
+              </Chip>
+            </div>
+          </div>
         }
       />
 

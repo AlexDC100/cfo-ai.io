@@ -8889,6 +8889,23 @@ GREEN — every entry already names the company on screen, so it moved nothing;
 it was replaced by a plant that really sends the write elsewhere rather than
 recorded as coverage.
 
+**PLANT header-row-squeezed** (2026-09-26 — the Scenarios page as shipped
+at b91c5df7: the header's context items (company · description · the
+actuals chip) shared one non-wrapping flex row, so at 390 px each was
+squeezed into a column narrower than 200 px):
+```
+RED (-t "STACKS below", the page before the repair)
+  × the header's context row (company · description · the actuals chip) STACKS below `sm`: one block per item, a row from `sm` up
+  → Unable to find an element by: [data-testid="scenarios-header-context"]
+Tests 1 failed | 34 skipped (35)
+```
+**REVERT** — the repair landed (`scenarios-header-context`: `flex-col
+items-stretch` below `sm`, `sm:flex-row sm:flex-wrap` above; the chip in a
+block of its own); `Tests 44 passed (44)` over the Scenarios suites. The
+pixels are held by the walk (specs-durable/cockpit_harness/shots.mjs,
+`scenarios` at 390: no direct child of the context narrower than 200 px).
+
+
 **After the repair it reds on:** a year-0 figure on the Forecast page that is
 not the dashboard function's, or not the served field the engine's anchor reads;
 the dashboard's headline no longer computed by that function; a non-zero served
