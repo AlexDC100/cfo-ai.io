@@ -108,9 +108,13 @@ for (const lang of ["en", "ro"] as const) {
       fireEvent.click(screen.getByTestId("company-gear"));
       const sheet = await screen.findByTestId("company-settings");
       await within(sheet).findByTestId("wsset-industry-current");
-      // Open the name editor too: its buttons carry their own labels.
+      // The sheet as opened (the pencil's own label included), THEN with the
+      // name editor open (its save / cancel labels) — the pencil leaves the
+      // DOM when the editor opens, so both states are read.
+      const asOpened = [...wordsOn(page), ...wordsOn(sheet)];
       fireEvent.click(within(sheet).getByTestId("workspace-settings-name-edit"));
-      const offenders = [...wordsOn(page), ...wordsOn(sheet)].filter((line) => NOT_A_COMPANY.test(line));
+      const editing = wordsOn(sheet);
+      const offenders = [...asOpened, ...editing].filter((line) => NOT_A_COMPANY.test(line));
       expect(offenders).toEqual([]);
     });
   });
