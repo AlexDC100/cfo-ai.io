@@ -131,6 +131,8 @@ from engine.comparatives import (
 )
 from engine.comparatives.analysis import TOP_MOVERS_DEFAULT, canonical_totals
 from engine.comparatives.lines import ZERO_FLOOR
+from engine.serving.change_kind import COMPARED as CHANGE_COMPARED
+from engine.serving.change_kind import classify as classify_change
 from engine.country_packs.ro_romania.chart_of_accounts import (
     _CANONICAL_TO_LEGACY_BUCKET,
     bucket_for,
@@ -323,7 +325,15 @@ def test_every_headline_column_is_each_periods_own_served_figure_on_every_real_p
             assert col["status"] == STATUS_COMPARED_NO_BASE and col["delta_pct"] is None, col
         else:
             assert col["status"] == STATUS_COMPARED, col
-            assert col["delta_pct"] == round((want_cur - want_pri) / abs(want_pri), 6), col
+            # THE ONE CLASSIFIER (plan_contract_v2 section 7) decides whether
+            # a percentage exists: across zero or across sign the change is
+            # stated in words beside the amount, never as a percentage.
+            kind = classify_change(want_pri, want_cur, PCT_BASE_FLOOR).kind
+            assert col.get("change_kind") == kind, (key, col)
+            if kind == CHANGE_COMPARED:
+                assert col["delta_pct"] == round((want_cur - want_pri) / abs(want_pri), 6), col
+            else:
+                assert col["delta_pct"] is None, (key, col)
         checked += 1
     assert checked == len(HEADLINES)
 
@@ -859,7 +869,15 @@ def test_every_headline_a_period_holds_is_its_served_figure_through_the_real_rou
             assert col["status"] == STATUS_COMPARED_NO_BASE and col["delta_pct"] is None, col
         else:
             assert col["status"] == STATUS_COMPARED, col
-            assert col["delta_pct"] == round((want_cur - want_pri) / abs(want_pri), 6), col
+            # THE ONE CLASSIFIER (plan_contract_v2 section 7) decides whether
+            # a percentage exists: across zero or across sign the change is
+            # stated in words beside the amount, never as a percentage.
+            kind = classify_change(want_pri, want_cur, PCT_BASE_FLOOR).kind
+            assert col.get("change_kind") == kind, (key, col)
+            if kind == CHANGE_COMPARED:
+                assert col["delta_pct"] == round((want_cur - want_pri) / abs(want_pri), 6), col
+            else:
+                assert col["delta_pct"] is None, (key, col)
         checked += 1
     assert checked == len(HEADLINES)
 
