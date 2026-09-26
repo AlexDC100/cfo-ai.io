@@ -25,11 +25,23 @@ OPERATIONS
     since the snapshot on an owner the snapshot had, its key and an empty
     bag (``EMPTY_BAGS``).
 ``{"op": "copy_object", "bucket": B, "from_path", "from_org", "to_path",
-  "to_org", "document_id", "content_type", "expect_sha256"}``
+  "to_org", "document_id", "content_type", "expect_sha256", "must_exist"}``
     copy a storage object to another org's prefix. No row effect; the old
     object is never deleted. ``expect_sha256`` (when the plan's facts pass
     read the object) is what the copy must find and write: a source that is
-    gone or different by then stops the run before any row moves.
+    gone or different by then stops the run before any row moves. So does a
+    source that is gone while ``must_exist`` is true (the snapshot's object
+    inventory recorded it): only a source the inventory ALSO recorded as
+    missing lets the row move without a file.
+
+UNDOING A PLAN — ``undo_ops`` (the rollback of ``scripts/db_restore.py``
+--plan): the inverse of exactly the operations above, in reverse order —
+an ``update`` puts its ``expect`` values back (guarded by the ``set`` it
+wrote), a ``merge_prefs`` takes its keys out of the bag (the pre-image of
+those keys comes from the snapshot), an inserted workspace is archived
+(held), an inserted membership is left (no archive column), a copy is
+left (never deleted). A row the plan did not name is never touched; a row
+the plan named that is gone is re-inserted from the snapshot.
 
 The value ``"$now"`` in an operation is replaced by the run's timestamp,
 so a plan is free of clocks and two plans of the same state compare equal.
@@ -387,3 +399,236 @@ def restore_ops(snapshot: Mapping[str, List[Mapping[str, Any]]],
             ops.append({"op": "update", "table": t, "key": dict(key), "set": dict(patch),
                         "expect": {c: row.get(c) for c in patch}})
     return ops, notes
+
+
+# ── undo of a plan ─────────────────────────────────────────────────────
+
+#: A table the plan inserts rows into, and how an inserted row is undone
+#: without a delete: ``organizations`` are archived (held: ``purge_after``
+#: NULL — a later run brings the same id back, rule 4). ``memberships``
+#: have no archive column: an inserted one stays (RESIDUE).
+UNDO_INSERTED = {
+    "organizations": ({"archived_at": NOW, "purge_after": None}, "archived_at"),
+}
+
+
+def at_planned_state(row: Mapping[str, Any], raw_set: Mapping[str, Any]) -> bool:
+    """``row`` holds what a plan ``update`` wrote: every column of ``set``
+    except the ``"$now"`` ones equal, and every ``"$now"`` column a
+    timestamp (whatever run wrote it)."""
+    for col, val in raw_set.items():
+        if val == NOW:
+            if row.get(col) is None:
+                return False
+        elif not same_value(row.get(col), val):
+            return False
+    return True
+
+
+def undo_ops(plan_ops: Sequence[Mapping[str, Any]],
+             current: Mapping[str, List[Mapping[str, Any]]],
+             snapshot: Mapping[str, List[Mapping[str, Any]]], *,
+             pks: Optional[Mapping[str, Sequence[str]]] = None) -> Dict[str, Any]:
+    """The operations that take ``current`` back to the state before
+    ``plan_ops`` ran — scoped to the rows the plan names, nothing else.
+
+    Returns ``{"ops", "undone", "skipped", "conflicts", "residue",
+    "reinserted", "touched"}``:
+
+    * ``ops`` — ``rowstore`` operations (``update`` / ``upsert``), the
+      plan's operations inverted in REVERSE order, each ``update`` guarded
+      by the exact values the row holds now (a writer that finds anything
+      else stops);
+    * ``undone`` — rows the plan named that already hold their pre-image
+      (an interrupted run never wrote them, or an earlier undo did);
+    * ``conflicts`` — rows the plan named that hold NEITHER what the plan
+      wrote NOR their pre-image: something changed them since the run.
+      No operation is produced for them — a user's change is never
+      overwritten by a rollback;
+    * ``residue`` — what an undo leaves behind, counted: storage copies
+      (never deleted), inserted rows with no archive column;
+    * ``reinserted`` — rows the plan named that are GONE (hard-deleted since
+      the run) and come back from the snapshot, the pre-image of exactly
+      those keys. ``documents`` and ``financial_periods`` point at each other
+      with immediate foreign keys: a document whose period is gone too is
+      re-inserted with ``period_id`` NULL and relinked after the periods;
+    * ``touched`` — ``{table: {key: pre-image columns}}`` of every row an
+      undo must leave at its pre-image (what the post-check compares).
+
+    Rows the plan does not name — a user's upload after the run, a
+    workspace they created, a preference another user changed, a message
+    — are not in any of these: the rollback of a migration is the undo of
+    the migration's own writes, never "production is the snapshot".
+    """
+    cur_idx: Dict[str, Dict[Tuple[str, ...], Dict[str, Any]]] = {}
+    snap_idx: Dict[str, Dict[Tuple[str, ...], Dict[str, Any]]] = {}
+
+    def _cur(table: str) -> Dict[Tuple[str, ...], Dict[str, Any]]:
+        if table not in cur_idx:
+            cur_idx[table] = index_rows(current.get(table) or [], pk_for(table, pks))
+        return cur_idx[table]
+
+    def _snap(table: str) -> Dict[Tuple[str, ...], Dict[str, Any]]:
+        if table not in snap_idx:
+            snap_idx[table] = index_rows(snapshot.get(table) or [], pk_for(table, pks))
+        return snap_idx[table]
+
+    out: Dict[str, Any] = {"ops": [], "undone": [], "skipped": [], "conflicts": [], "residue": {},
+                           "reinserted": [], "touched": {}}
+    residue: Dict[str, int] = {}
+
+    def _residue(label: str) -> None:
+        residue[label] = residue.get(label, 0) + 1
+
+    def _touch(table: str, key: Tuple[str, ...], cols: Mapping[str, Any]) -> None:
+        out["touched"].setdefault(table, {}).setdefault(key, {}).update(cols)
+
+    # Pass 1 — rows the plan named that are gone come back from the
+    # snapshot, ordered documents (period link cut when the period is gone
+    # too) -> periods -> the rest, then the links.
+    named: Dict[str, List[Tuple[str, ...]]] = {}
+    for raw in plan_ops:
+        if raw["op"] == "copy_object":
+            continue
+        t = raw["table"]
+        key = row_key(raw.get("row") or raw.get("key"), pk_for(t, pks))
+        if key not in named.setdefault(t, []):
+            named[t].append(key)
+    gone: List[Tuple[str, Tuple[str, ...]]] = []
+    for t, keys in named.items():
+        for key in keys:
+            if key not in _cur(t) and key in _snap(t):
+                gone.append((t, key))
+    gone_keys = set(gone)
+    period_pk = pk_for("financial_periods", pks)
+    periods_now = set(_cur("financial_periods"))     # a re-inserted period comes AFTER the documents
+    relink: List[Dict[str, Any]] = []
+    reinserts: List[Dict[str, Any]] = []
+    order = {t: i for i, t in enumerate(TABLE_ORDER)}
+    for t, key in sorted(gone, key=lambda tk: (order.get(tk[0], len(TABLE_ORDER)), tk[0], tk[1])):
+        row = dict(_snap(t)[key])
+        pk = pk_for(t, pks)
+        if t == "documents" and row.get("period_id") is not None \
+                and row_key({"id": row["period_id"]}, period_pk) not in periods_now:
+            relink.append({"op": "update", "table": t, "key": key_dict(row, pk),
+                           "set": {"period_id": row["period_id"]}, "expect": {"period_id": None}})
+            row["period_id"] = None
+        reinserts.append({"op": "upsert", "table": t, "row": row})
+        out["reinserted"].append((t, key_dict(row, pk)))
+        _touch(t, key, {c: v for c, v in _snap(t)[key].items() if c not in VOLATILE_COLUMNS})
+    out["ops"].extend(reinserts)
+    out["ops"].extend(relink)
+
+    # Pass 2 — the plan's operations, inverted, newest first.
+    for raw in reversed(list(plan_ops)):
+        kind = raw["op"]
+        if kind == "copy_object":
+            _residue("storage copies (never deleted)")
+            continue
+        t = raw["table"]
+        pk = pk_for(t, pks)
+        if kind == "insert":
+            key = row_key(raw["row"], pk)
+            cur = _cur(t).get(key)
+            rule = UNDO_INSERTED.get(t)
+            if cur is None:
+                out["undone"].append((t, key_dict(raw["row"], pk), "never created"))
+                continue
+            if rule is None:
+                _residue("%s rows the plan inserted (no archive column)" % t)
+                continue
+            patch, marker = rule
+            if cur.get(marker) is not None:
+                if t == "organizations" and cur.get("purge_after") is not None:
+                    out["skipped"].append((t, key_dict(raw["row"], pk),
+                                           "archived by its owner with a deletion date — left as the owner set it"))
+                else:
+                    out["undone"].append((t, key_dict(raw["row"], pk), "created by the plan: archived (held)"))
+                    _touch(t, key, {"purge_after": None})
+                continue
+            out["ops"].append({"op": "update", "table": t, "key": key_dict(raw["row"], pk),
+                               "set": dict(patch), "expect": {c: cur.get(c) for c in patch}})
+            _touch(t, key, {"purge_after": None})
+            continue
+        if kind == "merge_prefs":
+            key = row_key(raw["key"], pk)
+            if (t, key) in gone_keys:
+                continue
+            cur = _cur(t).get(key)
+            merged = dict(raw["merge"])
+            pre_bag = dict((_snap(t).get(key) or {}).get("prefs") or {})
+            pre = {k: pre_bag.get(k) for k in merged}
+            if cur is None:
+                out["undone"].append((t, key_dict(raw["key"], pk), "no row"))
+                _touch(t, key, {"prefs": pre})
+                continue
+            bag = dict(cur.get("prefs") or {})
+            if all(canonical_json(bag.get(k)) == canonical_json(v) for k, v in pre.items()):
+                out["undone"].append((t, key_dict(raw["key"], pk), "already at its pre-image"))
+                _touch(t, key, {"prefs": pre})
+                continue
+            if not all(k in bag and canonical_json(bag[k]) == canonical_json(v) for k, v in merged.items()):
+                out["conflicts"].append((t, key_dict(raw["key"], pk),
+                                         "prefs %s hold neither what the plan merged nor their pre-image"
+                                         % sorted(merged)))
+                continue
+            new_bag = {k: v for k, v in bag.items() if k not in merged}
+            for k, v in pre.items():
+                if k in pre_bag:
+                    new_bag[k] = v
+            out["ops"].append({"op": "update", "table": t, "key": dict(raw["key"]),
+                               "set": {"prefs": new_bag}, "expect": {"prefs": bag}})
+            _touch(t, key, {"prefs": pre})
+            if not new_bag and key not in _snap(t):
+                _residue("%s rows the plan created, now empty bags (an empty bag is no row)" % t)
+            continue
+        if kind == "update":
+            key = row_key(raw["key"], pk)
+            if (t, key) in gone_keys:
+                continue          # back from the snapshot: at its pre-image
+            cur = _cur(t).get(key)
+            if cur is None:
+                out["conflicts"].append((t, key_dict(raw["key"], pk), "gone, and not in the snapshot"))
+                continue
+            expect = dict(raw.get("expect") or {})
+            sset = dict(raw["set"])
+            if set(sset) - set(expect):
+                out["conflicts"].append((t, key_dict(raw["key"], pk), "the plan recorded no pre-image for %s"
+                                         % sorted(set(sset) - set(expect))))
+                continue
+            pre = {c: expect[c] for c in sset}
+            if not at_planned_state(cur, sset):
+                if values_match(cur, pre):
+                    out["undone"].append((t, key_dict(raw["key"], pk), "already at its pre-image"))
+                else:
+                    out["conflicts"].append((t, key_dict(raw["key"], pk),
+                                             "%s hold neither what the plan wrote nor the pre-image: now %s"
+                                             % (sorted(sset), canonical_json({c: cur.get(c) for c in sset})[:160])))
+                    continue
+                _touch(t, key, pre)
+                continue
+            out["ops"].append({"op": "update", "table": t, "key": dict(raw["key"]), "set": pre,
+                               "expect": {c: cur.get(c) for c in sset}})
+            _touch(t, key, pre)
+            continue
+        raise ValueError("a plan never carries op %r" % kind)
+    out["residue"] = residue
+    return out
+
+
+def undo_remaining(plan_ops: Sequence[Mapping[str, Any]],
+                   current: Mapping[str, List[Mapping[str, Any]]],
+                   snapshot: Mapping[str, List[Mapping[str, Any]]], *,
+                   pks: Optional[Mapping[str, Sequence[str]]] = None) -> List[str]:
+    """After an undo: every row the plan named that is NOT at its
+    pre-image, as text — empty when the rollback is exact."""
+    again = undo_ops(plan_ops, current, snapshot, pks=pks)
+    lines: List[str] = []
+    for op in again["ops"]:
+        key = op.get("key") or {c: op["row"].get(c) for c in pk_for(op["table"], pks)}
+        lines.append("%s %s: still %s" % (op["table"], canonical_json(key),
+                                          "gone" if op["op"] == "upsert" else
+                                          canonical_json(op.get("expect"))[:120]))
+    for t, key, why in again["conflicts"]:
+        lines.append("%s %s: %s" % (t, canonical_json(key), why))
+    return lines

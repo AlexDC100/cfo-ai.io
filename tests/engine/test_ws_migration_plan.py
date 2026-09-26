@@ -42,6 +42,7 @@ from engine.workspaces.rowstore import (
     row_key,
     rows_equal,
     stamped_bags,
+    undo_ops,
 )
 
 from ws_migration_fixture import (
@@ -449,7 +450,9 @@ def test_the_plan_of_the_post_state_is_empty(world):
     assert again.blocking == []
 
 
-def test_g8_restore_on_the_post_state_reproduces_the_pre_state(world):
+def test_g8_whole_table_restore_on_the_post_state_reproduces_the_pre_state(world):
+    """The table-wide restore (db_restore --whole-tables), an operator tool;
+    the rollback proper is the plan-scoped undo (test_ws_migration_rollback)."""
     pre, post = world["tables"], world["post"]
     ops, notes = restore_ops(pre, post)
     restored = apply_ops(post, ops, now="2026-09-22T00:00:00+00:00")
@@ -504,9 +507,11 @@ def test_a_rollback_leaves_no_identity_stamp_on_a_workspace_that_existed_before(
 
 
 def _rolled_back(world):
+    """The real rollback: the plan's own operations undone (db_restore --plan)."""
     pre, post = world["tables"], world["post"]
-    ops, _notes = restore_ops(pre, post)
-    return apply_ops(post, ops, now="2026-09-22T00:00:00+00:00")
+    undo = undo_ops(world["plan"].ops, post, pre)
+    assert undo["conflicts"] == []
+    return apply_ops(post, undo["ops"], now="2026-09-22T00:00:00+00:00")
 
 
 def test_a_run_after_a_rollback_brings_back_the_workspaces_the_first_run_created(world):
