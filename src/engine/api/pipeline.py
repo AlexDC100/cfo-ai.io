@@ -4357,16 +4357,20 @@ def _needs_metering(entry: "_doc_dedupe.Entry") -> bool:
     # The ledger cannot be read (absent, or a transient failure): the status
     # rule is the fallback — an analysed document re-runs free (metering it
     # by guess would count a book twice), anything else is metered.
+    # A ledger known to be ABSENT (the migration not applied — the window's
+    # one INFO line said so) is not an error per document: INFO. A read that
+    # failed for any other reason keeps its ERROR.
+    level = logging.INFO if _quota_ledger.absent() else logging.ERROR
     if status == "analyzed":
-        logger.error(
-            "[pipeline][quota] the quota ledger could not be read for document %s — an "
-            "analysed document re-runs unmetered by its status; "
-            "supabase/schema_phase_document_quota_ledger.sql applied?", entry.row.get("id"))
+        logger.log(level,
+                   "[pipeline][quota] the quota ledger could not be read for document %s — an "
+                   "analysed document re-runs unmetered by its status; "
+                   "supabase/schema_phase_document_quota_ledger.sql applied?", entry.row.get("id"))
         return False
-    logger.error(
-        "[pipeline][quota] the quota ledger could not be read for document %s — metering "
-        "by its status (%s); supabase/schema_phase_document_quota_ledger.sql applied?",
-        entry.row.get("id"), entry.status)
+    logger.log(level,
+               "[pipeline][quota] the quota ledger could not be read for document %s — metering "
+               "by its status (%s); supabase/schema_phase_document_quota_ledger.sql applied?",
+               entry.row.get("id"), entry.status)
     return True
 
 

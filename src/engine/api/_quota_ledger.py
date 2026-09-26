@@ -54,6 +54,23 @@ by the status rule it used before and logs it. Every write is best-effort
 and logged at ERROR — a settlement is never undone because its record could
 not be written.
 
+THE TABLE IS ABSENT (P2-A NO-TABLE AMPLIFICATION, 2026-09-26)
+=============================================================
+Production runs with USAGE_LIMITS_ENABLED=true and WITHOUT this table until
+the owner applies the migration: PostgREST answers 404 PGRST205 to every
+call. Before: every settlement parked its failed record in `_PENDING`
+forever and every 60 s maintenance tick re-issued one failing call per
+settled document (plus the heartbeat and the sweep), a traceback each; the
+tick's cost grew with every analysis. Now a PGRST205 / 404 opens an ABSENT
+WINDOW (`absent()`, ABSENT_REPROBE_S): one INFO line per window, every read
+answers None and every write is skipped without a call, the maintenance
+tick does nothing, and the next call after the window re-probes once. A
+parked write whose failure is a 404 is dropped — there is nowhere to write
+it; the migration's backfill records every analysed document. `_PENDING`
+itself is bounded (PENDING_MAX), retried with backoff (PENDING_BACKOFF_S)
+and dropped after PENDING_MAX_AGE_S — each drop one ERROR line, for
+scripts/recompute_document_quota.py.
+
 SETTLING (P1 RESTART, second shape, 2026-09-26)
 ===============================================
 A settlement is TWO writes: the meter RPC (`commit_user_upload` /
@@ -86,6 +103,7 @@ import logging
 import os
 import socket
 import threading
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, Iterable, List, Optional, Set, Tuple
@@ -109,9 +127,74 @@ STALE_AFTER_S = 600
 #: Ids per `in.(…)` filter — keeps every PostgREST URL well under its limit.
 _CHUNK = 100
 
+#: How long the ledger is taken as ABSENT after a PGRST205 / 404 before the
+#: next call re-probes it (one call, one INFO line per window).
+ABSENT_REPROBE_S = 600
+_ABSENT: Dict[str, Any] = {"until": 0.0, "windows": 0}
+_ABSENT_LOCK = threading.Lock()
+
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _now_mono() -> float:
+    return time.monotonic()
+
+
+def absent() -> bool:
+    """Is the ledger table known to be absent right now (inside the window a
+    PGRST205 / 404 opened)? Every read answers None and every write is
+    skipped — without a call — while it is."""
+    with _ABSENT_LOCK:
+        return _now_mono() < float(_ABSENT.get("until") or 0.0)
+
+
+def _absent_error(exc: BaseException) -> bool:
+    """A PostgREST "no such table": 404 (`raise_for_status` on a select /
+    update / upsert / delete carries the response), PGRST205 ("could not
+    find the table in the schema cache"), 42P01 (undefined_table), or the
+    `(HTTP 404)` an insert wraps into its RuntimeError."""
+    resp = getattr(exc, "response", None)
+    if getattr(resp, "status_code", None) == 404:
+        return True
+    text = ""
+    if resp is not None:
+        try:
+            text = str(getattr(resp, "text", "") or "")
+        except Exception:  # noqa: BLE001
+            text = ""
+    s = "%s %s" % (exc, text)
+    return "PGRST205" in s or "42P01" in s or "(HTTP 404)" in s
+
+
+def _note_absent(op: str, exc: BaseException) -> None:
+    """Open (or extend) the absent window. ONE INFO line per window — the
+    thread that opens it says so; every other caller inside it is silent."""
+    with _ABSENT_LOCK:
+        opened = _now_mono() >= float(_ABSENT.get("until") or 0.0)
+        _ABSENT["until"] = _now_mono() + ABSENT_REPROBE_S
+        if opened:
+            _ABSENT["windows"] = int(_ABSENT.get("windows") or 0) + 1
+    if opened:
+        resp = getattr(exc, "response", None)
+        code = getattr(resp, "status_code", None)
+        logger.info(
+            "[quota-ledger] %s cannot be reached (%s on %s): supabase/schema_phase_document_quota_ledger.sql "
+            "is not applied, or the PostgREST schema cache was not reloaded. Ledger reads, writes and the "
+            "maintenance tick are skipped for the next %d s; entries meter by status meanwhile and the "
+            "migration's backfill records what was analysed.",
+            TABLE, ("HTTP %s" % code) if code else type(exc).__name__, op, ABSENT_REPROBE_S)
+
+
+def _failed(op: str, exc: BaseException, msg: str, *args: Any) -> None:
+    """Inside an except block: an absent table opens the window (one INFO
+    line per window, no traceback); anything else is logged with its
+    traceback at ERROR."""
+    if _absent_error(exc):
+        _note_absent(op, exc)
+        return
+    logger.exception(msg, *args)
 
 
 def _chunks(ids: List[str]) -> Iterable[List[str]]:
@@ -125,6 +208,8 @@ def rows_for(document_ids: Iterable[Any]) -> Optional[Dict[str, Dict[str, Any]]]
     ids = sorted({str(i) for i in document_ids if i})
     if not ids:
         return {}
+    if absent():
+        return None
     out: Dict[str, Dict[str, Any]] = {}
     try:
         with _supabase.admin() as ac:
@@ -132,8 +217,8 @@ def rows_for(document_ids: Iterable[Any]) -> Optional[Dict[str, Dict[str, Any]]]
                 for r in ac.select(TABLE, filters={"document_id": "in.(%s)" % ",".join(chunk)}) or []:
                     if r.get("document_id"):
                         out[str(r["document_id"])] = dict(r)
-    except Exception:  # noqa: BLE001 — unknown proves nothing; the caller decides
-        logger.exception("[quota-ledger] could not read the ledger rows of %d document(s)", len(ids))
+    except Exception as e:  # noqa: BLE001 — unknown proves nothing; the caller decides
+        _failed("select", e, "[quota-ledger] could not read the ledger rows of %d document(s)", len(ids))
         return None
     return out
 
@@ -164,18 +249,22 @@ def counted_ids(document_ids: Iterable[Any], *,
 
 def committed_document_ids_for_user(user_id: str) -> Optional[Set[str]]:
     """Every document counted to `user_id`. None = unreadable."""
+    if absent():
+        return None
     try:
         with _supabase.admin() as ac:
             rows = ac.select(TABLE, filters={"user_id": f"eq.{user_id}", "committed_at": "not.is.null"},
                              columns="document_id") or []
-    except Exception:  # noqa: BLE001
-        logger.exception("[quota-ledger] could not read the counted documents of user %s", user_id)
+    except Exception as e:  # noqa: BLE001
+        _failed("select", e, "[quota-ledger] could not read the counted documents of user %s", user_id)
         return None
     return {str(r["document_id"]) for r in rows if r.get("document_id")}
 
 
 def all_committed_ids() -> Optional[Set[str]]:
     """Every counted document (the restore script). None = unreadable."""
+    if absent():
+        return None
     out: Set[str] = set()
     try:
         with _supabase.admin() as ac:
@@ -187,8 +276,8 @@ def all_committed_ids() -> Optional[Set[str]]:
                 if len(page) < 1000:
                     return out
                 offset += 1000
-    except Exception:  # noqa: BLE001
-        logger.exception("[quota-ledger] could not read the counted documents")
+    except Exception as e:  # noqa: BLE001
+        _failed("select", e, "[quota-ledger] could not read the counted documents")
         return None
 
 
@@ -202,8 +291,18 @@ _CLEARED = {"reserved_at": None, "nonro_reserved_at": None, "owner": None, "sett
 # finished analysis as another commit. So the process that settled keeps
 # the write, heartbeats the row (`pending_ids`, part of the live set) and
 # retries it every maintenance tick (`retry_pending`) until it lands.
+#
+# BOUNDED (P2-A). A write whose failure is a 404 (the table is absent) is
+# never parked — nowhere to write it. A transient failure is parked with
+# `parked_at`, `attempts` and `next_at`: the first retry is due at the next
+# tick, each failed retry backs off (PENDING_BACKOFF_S), and a record older
+# than PENDING_MAX_AGE_S — or the oldest, once PENDING_MAX are waiting — is
+# DROPPED with one ERROR line for scripts/recompute_document_quota.py.
 _PENDING: Dict[str, Dict[str, Any]] = {}
 _PENDING_LOCK = threading.Lock()
+PENDING_MAX = 500
+PENDING_MAX_AGE_S = 24 * 3600
+PENDING_BACKOFF_S = (0, 60, 120, 240, 480, 900)
 
 
 def pending_ids() -> List[str]:
@@ -216,27 +315,84 @@ def is_pending(document_id: str) -> bool:
         return str(document_id) in _PENDING
 
 
-def _write_settlement(document_id: str, write: Dict[str, Any]) -> bool:
+def _write_settlement(document_id: str, write: Dict[str, Any]) -> Optional[bool]:
+    """True: landed (and left the parking lot). False: failed transiently —
+    park it. None: the table is absent (a 404, or inside the window) — drop
+    it, there is nowhere to write it."""
+    if absent():
+        return None
     try:
         with _supabase.admin() as ac:
             if write["op"] == "commit":
                 ac.upsert(TABLE, write["row"], on_conflict="document_id")
             else:
                 ac.update(TABLE, write["patch"], filters={"document_id": f"eq.{document_id}"})
-    except Exception:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
+        if _absent_error(e):
+            _note_absent(write["op"], e)
+            return None
         return False
     with _PENDING_LOCK:
         _PENDING.pop(str(document_id), None)
     return True
 
 
-def retry_pending() -> None:
-    """Retry every settlement write that failed (a maintenance tick)."""
+def _park(document_id: str, write: Dict[str, Any]) -> None:
+    """Keep a transiently failed settlement write for retry — bounded."""
+    now = _now_mono()
+    dropped: List[str] = []
     with _PENDING_LOCK:
-        items = list(_PENDING.items())
+        _PENDING[str(document_id)] = {**write, "parked_at": now, "attempts": 1,
+                                      "next_at": now + PENDING_BACKOFF_S[0]}
+        while len(_PENDING) > PENDING_MAX:
+            oldest = min(_PENDING, key=lambda d: float(_PENDING[d].get("parked_at") or 0.0))
+            _PENDING.pop(oldest, None)
+            dropped.append(oldest)
+    for doc in dropped:
+        logger.error(
+            "[quota-ledger][billing] the parked settlement record of %s was DROPPED — %d records "
+            "are waiting to be written; scripts/recompute_document_quota.py reconciles it", doc, PENDING_MAX)
+
+
+def retry_pending() -> None:
+    """Retry every settlement write that failed (a maintenance tick): the
+    ones whose backoff elapsed; drop the ones past their max age (one ERROR
+    line each) and — the table absent — every one of them."""
+    if absent():
+        return
+    now = _now_mono()
+    with _PENDING_LOCK:
+        items = [(d, dict(w)) for d, w in _PENDING.items()]
     for doc, write in items:
-        if not _write_settlement(doc, write):
-            logger.error("[quota-ledger] the settlement record of %s still cannot be written", doc)
+        if now - float(write.get("parked_at") or now) > PENDING_MAX_AGE_S:
+            with _PENDING_LOCK:
+                _PENDING.pop(doc, None)
+            logger.error(
+                "[quota-ledger][billing] the settlement record of %s (%s) was DROPPED after %d attempt(s) "
+                "over %d h — never written; scripts/recompute_document_quota.py reconciles it",
+                doc, write.get("op"), int(write.get("attempts") or 0), PENDING_MAX_AGE_S // 3600)
+            continue
+        if float(write.get("next_at") or 0.0) > now:
+            continue
+        outcome = _write_settlement(doc, write)
+        if outcome is True:
+            continue
+        if outcome is None:
+            # The table is absent: nowhere to write it (the window's one INFO
+            # line said so). Dropped, never retried.
+            with _PENDING_LOCK:
+                _PENDING.pop(doc, None)
+            logger.debug("[quota-ledger] the parked %s record of %s was dropped: the ledger is absent",
+                         write.get("op"), doc)
+            continue
+        with _PENDING_LOCK:
+            cur = _PENDING.get(doc)
+            if cur is not None:
+                cur["attempts"] = int(cur.get("attempts") or 0) + 1
+                wait = PENDING_BACKOFF_S[min(int(cur["attempts"]) - 1, len(PENDING_BACKOFF_S) - 1)]
+                cur["next_at"] = now + wait
+        logger.error("[quota-ledger] the settlement record of %s still cannot be written (attempt %d; "
+                     "next in %d s)", doc, int((cur or {}).get("attempts") or 0), int(wait) if cur else 0)
 
 
 def record_commit(document_id: str, *, user_id: str, was_extra: bool, month: str) -> None:
@@ -247,12 +403,18 @@ def record_commit(document_id: str, *, user_id: str, was_extra: bool, month: str
         "document_id": str(document_id), "user_id": str(user_id), "month": str(month),
         "was_extra": bool(was_extra), "committed_at": now, "updated_at": now, **_CLEARED,
     }}
-    if not _write_settlement(document_id, write):
-        with _PENDING_LOCK:
-            _PENDING[str(document_id)] = write
-        logger.exception(
-            "[quota-ledger][billing] could not record the COMMIT of document %s (user=%s) — kept, "
-            "heartbeated and retried until it lands", document_id, user_id)
+    outcome = _write_settlement(document_id, write)
+    if outcome is True:
+        return
+    if outcome is None:
+        logger.debug("[quota-ledger] the COMMIT record of %s was not written: the ledger is absent "
+                     "(the migration's backfill records it)", document_id)
+        return
+    _park(document_id, write)
+    logger.error(
+        "[quota-ledger][billing] could not record the COMMIT of document %s (user=%s) — parked, "
+        "heartbeated and retried with backoff for up to %d h", document_id, user_id,
+        PENDING_MAX_AGE_S // 3600)
 
 
 def record_reservation(document_id: str, *, user_id: str, was_extra: bool,
@@ -263,6 +425,8 @@ def record_reservation(document_id: str, *, user_id: str, was_extra: bool,
     None when the write failed."""
     now = _now_iso()
     rid = uuid.uuid4().hex
+    if absent():
+        return None
     try:
         with _supabase.admin() as ac:
             ac.upsert(TABLE, {
@@ -271,10 +435,10 @@ def record_reservation(document_id: str, *, user_id: str, was_extra: bool,
                 "reserved_at": now, "owner": PROCESS_ID, "heartbeat_at": now,
                 "release_token": None, "settling_at": None, "updated_at": now,
             }, on_conflict="document_id")
-    except Exception:  # noqa: BLE001 — the in-process ledger still settles it
-        logger.exception(
-            "[quota-ledger] could not record the reservation of document %s (user=%s) — a "
-            "restart before it settles would leave it outstanding", document_id, user_id)
+    except Exception as e:  # noqa: BLE001 — the in-process ledger still settles it
+        _failed("upsert", e,
+                "[quota-ledger] could not record the reservation of document %s (user=%s) — a "
+                "restart before it settles would leave it outstanding", document_id, user_id)
         return None
     return rid
 
@@ -282,14 +446,16 @@ def record_reservation(document_id: str, *, user_id: str, was_extra: bool,
 def record_nonro_reservation(document_id: str, *, user_id: str, was_extra: bool, month: str) -> None:
     """The non-RO meter's reservation, alongside the document's slot."""
     now = _now_iso()
+    if absent():
+        return
     try:
         with _supabase.admin() as ac:
             ac.update(TABLE, {"nonro_user_id": str(user_id), "nonro_was_extra": bool(was_extra),
                               "nonro_month": str(month), "nonro_reserved_at": now,
                               "heartbeat_at": now, "updated_at": now},
                       filters={"document_id": f"eq.{document_id}"})
-    except Exception:  # noqa: BLE001
-        logger.exception("[quota-ledger] could not record the non-RO reservation of %s", document_id)
+    except Exception as e:  # noqa: BLE001
+        _failed("update", e, "[quota-ledger] could not record the non-RO reservation of %s", document_id)
 
 
 def record_release(document_id: str) -> None:
@@ -297,11 +463,16 @@ def record_release(document_id: str) -> None:
     expired or cancelled grant)."""
     now = _now_iso()
     write = {"op": "release", "patch": {**_CLEARED, "released_at": now, "updated_at": now}}
-    if not _write_settlement(document_id, write):
-        with _PENDING_LOCK:
-            _PENDING[str(document_id)] = write
-        logger.exception("[quota-ledger] could not record the release of %s — kept, heartbeated "
-                         "and retried until it lands", document_id)
+    outcome = _write_settlement(document_id, write)
+    if outcome is True:
+        return
+    if outcome is None:
+        logger.debug("[quota-ledger] the release record of %s was not written: the ledger is absent",
+                     document_id)
+        return
+    _park(document_id, write)
+    logger.error("[quota-ledger] could not record the release of %s — parked, heartbeated and "
+                 "retried with backoff for up to %d h", document_id, PENDING_MAX_AGE_S // 3600)
 
 
 def is_settling(row: Optional[Dict[str, Any]]) -> bool:
@@ -323,14 +494,16 @@ def mark_settling(document_id: str, *, reservation_id: Optional[str]) -> bool:
     filters = {"document_id": f"eq.{document_id}", "reserved_at": "not.is.null"}
     if reservation_id:
         filters["reservation_id"] = f"eq.{reservation_id}"
+    if absent():
+        return False
     try:
         with _supabase.admin() as ac:
             ac.update(TABLE, {"settling_at": now, "updated_at": now}, filters=filters)
-    except Exception:  # noqa: BLE001
-        logger.exception(
-            "[quota-ledger][billing] could not mark document %s's reservation as settling — the "
-            "meter moves without it; a restart before its record lands could settle it twice",
-            document_id)
+    except Exception as e:  # noqa: BLE001
+        _failed("update", e,
+                "[quota-ledger][billing] could not mark document %s's reservation as settling — the "
+                "meter moves without it; a restart before its record lands could settle it twice",
+                document_id)
         return False
     return True
 
@@ -399,8 +572,8 @@ def adopt(document_id: str, *, user_id: str, take_extra: bool) -> Optional[Dict[
                       filters={"document_id": f"eq.{document_id}", "reservation_id": f"eq.{old_rid}",
                                "reserved_at": "not.is.null", "settling_at": "is.null"})
         back = (rows_for([document_id]) or {}).get(str(document_id)) or {}
-    except Exception:  # noqa: BLE001 — not adopted; the caller reserves, the sweep frees the orphan
-        logger.exception("[quota-ledger] could not take over %s's reservation", document_id)
+    except Exception as e:  # noqa: BLE001 — not adopted; the caller reserves, the sweep frees the orphan
+        _failed("update", e, "[quota-ledger] could not take over %s's reservation", document_id)
         return None
     if back.get("reservation_id") != new_rid:
         return None  # a sweeper released it first
@@ -413,7 +586,7 @@ def adopt(document_id: str, *, user_id: str, take_extra: bool) -> Optional[Dict[
 def heartbeat(document_ids: Iterable[Any]) -> None:
     """Touch the heartbeat of the reservations this process holds."""
     ids = sorted({str(i) for i in document_ids if i})
-    if not ids:
+    if not ids or absent():
         return
     now = _now_iso()
     try:
@@ -422,8 +595,8 @@ def heartbeat(document_ids: Iterable[Any]) -> None:
                 ac.update(TABLE, {"heartbeat_at": now, "owner": PROCESS_ID},
                           filters={"document_id": "in.(%s)" % ",".join(chunk),
                                    "reserved_at": "not.is.null"})
-    except Exception:  # noqa: BLE001 — the next beat retries
-        logger.exception("[quota-ledger] heartbeat failed for %d reservation(s)", len(ids))
+    except Exception as e:  # noqa: BLE001 — the next beat retries
+        _failed("update", e, "[quota-ledger] heartbeat failed for %d reservation(s)", len(ids))
 
 
 def release_rpcs(row: Dict[str, Any]) -> None:
@@ -448,13 +621,15 @@ def stale_outstanding(*, now: Optional[datetime] = None,
     SETTLING ones included (the restore script reports them). None =
     unreadable."""
     cutoff = ((now or datetime.now(timezone.utc)) - timedelta(seconds=stale_after_s)).isoformat()
+    if absent():
+        return None
     try:
         with _supabase.admin() as ac:
             return list(ac.select(TABLE, filters={"reserved_at": "not.is.null",
                                                   "heartbeat_at": f"lt.{cutoff}"},
                                   order="heartbeat_at.asc", limit=500) or [])
-    except Exception:  # noqa: BLE001
-        logger.exception("[quota-ledger] could not list stale reservations")
+    except Exception as e:  # noqa: BLE001
+        _failed("select", e, "[quota-ledger] could not list stale reservations")
         return None
 
 
@@ -463,12 +638,14 @@ def live_outstanding(*, now: Optional[datetime] = None,
     """Outstanding reservations still heartbeating (a run or a grant some
     engine process holds). None = unreadable."""
     cutoff = ((now or datetime.now(timezone.utc)) - timedelta(seconds=stale_after_s)).isoformat()
+    if absent():
+        return None
     try:
         with _supabase.admin() as ac:
             return list(ac.select(TABLE, filters={"reserved_at": "not.is.null",
                                                   "heartbeat_at": f"gte.{cutoff}"}) or [])
-    except Exception:  # noqa: BLE001
-        logger.exception("[quota-ledger] could not list live reservations")
+    except Exception as e:  # noqa: BLE001
+        _failed("select", e, "[quota-ledger] could not list live reservations")
         return None
 
 
@@ -508,8 +685,8 @@ def sweep_stale(*, is_live: Callable[[str], bool],
                           filters={"document_id": f"eq.{doc}", "reservation_id": f"eq.{rid}",
                                    "reserved_at": "not.is.null", "settling_at": "is.null"})
             back = (rows_for([doc]) or {}).get(doc) or {}
-        except Exception:  # noqa: BLE001 — the next sweep retries
-            logger.exception("[quota-ledger] could not claim the stale reservation of %s", doc)
+        except Exception as e:  # noqa: BLE001 — the next sweep retries
+            _failed("update", e, "[quota-ledger] could not claim the stale reservation of %s", doc)
             continue
         if back.get("release_token") != token:
             continue  # another sweeper claimed it (or the run adopted it)
@@ -528,6 +705,21 @@ def sweep_stale(*, is_live: Callable[[str], bool],
 
 _MAINTENANCE: Dict[str, Any] = {"thread": None}
 _MAINTENANCE_LOCK = threading.Lock()
+
+
+def maintenance_tick(*, live_ids: Callable[[], Iterable[str]],
+                     is_live: Callable[[str], bool],
+                     settle: Callable[[Dict[str, Any]], None] = release_rpcs) -> bool:
+    """One tick of the maintenance daemon: retry the parked settlement
+    writes, heartbeat this process's reservations, sweep the orphaned ones.
+    False — nothing done, no call made — while the ledger is absent; the
+    first tick after the window re-probes once."""
+    if absent():
+        return False
+    retry_pending()
+    heartbeat(list(live_ids()) + pending_ids())
+    sweep_stale(is_live=lambda d: is_pending(d) or is_live(d), release=settle)
+    return True
 
 
 def start_maintenance(*, live_ids: Callable[[], Iterable[str]],
@@ -550,9 +742,7 @@ def start_maintenance(*, live_ids: Callable[[], Iterable[str]],
         def loop() -> None:
             while not stop.wait(HEARTBEAT_S):
                 try:
-                    retry_pending()
-                    heartbeat(list(live_ids()) + pending_ids())
-                    sweep_stale(is_live=lambda d: is_pending(d) or is_live(d), release=settle)
+                    maintenance_tick(live_ids=live_ids, is_live=is_live, settle=settle)
                 except Exception:  # noqa: BLE001 — never kill the daemon
                     logger.exception("[quota-ledger] maintenance tick failed")
 

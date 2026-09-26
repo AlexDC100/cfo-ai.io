@@ -78,6 +78,10 @@ def _one_run_per_document_registries_are_per_test(monkeypatch):
     # settling rows it has already reported (once per process, at ERROR).
     monkeypatch.setattr(_quota_ledger, "_PENDING", {})
     monkeypatch.setattr(_quota_ledger, "_SETTLING_REPORTED", set())
+    # The ABSENT window a PGRST205 opens (P2-A): a test that models the
+    # table missing must not silence the ledger for the tests after it.
+    if hasattr(_quota_ledger, "_ABSENT"):
+        monkeypatch.setattr(_quota_ledger, "_ABSENT", {"until": 0.0, "windows": 0})
     yield
 
 
