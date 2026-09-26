@@ -17,7 +17,7 @@
 // page while another workspace is active and reds if the page's title ever
 // shows under a header naming a different company.
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useMatch, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 
@@ -46,22 +46,86 @@ export function headerAgrees(
   return activeOrgId === org.id && headerName.trim() === org.name.trim();
 }
 
+// ── A hold asks, it does not insist ─────────────────────────────────────
+//
+// Defence in depth (2026-09-26, the auth-lock flood). A hold makes the screen
+// agree with its page — switching the active company, or re-writing the
+// header's name — whenever the two disagree, and every switch remounts
+// content and re-reads preferences through Supabase, whose auth Web Lock
+// every tab of the origin shares. Two authorities disagreeing (a company page
+// and the shell's dashboard hold; two tabs through a shared header name) did
+// that in turn, forever. Those causes are fixed at the source; this bounds
+// the NEXT one: within HOLD_ASK_WINDOW_MS a hold asks for the same company at
+// most HOLD_ASK_BUDGET times, and at most HOLD_ASK_TOTAL times for any
+// companies (a hold whose own wish flips — `?org=` against the period's
+// company — is bounded too), then waits the window out before it looks again
+// — never a storm.
+export const HOLD_ASK_BUDGET = 3;
+export const HOLD_ASK_TOTAL = 12;
+export const HOLD_ASK_WINDOW_MS = 10_000;
+
+function useHoldAsk(switchOrg: (orgId: string) => Promise<void>): {
+  /** Make the screen name `target`: switch to it, or — already active —
+   *  re-write the header's name. */
+  ask: (target: Pick<Organization, "id" | "name">, activeId: string | null) => void;
+  /** Bumped when a withheld ask may be retried — a dependency of the hold. */
+  retry: number;
+} {
+  /** When this hold asked, and for which company — the window's worth. */
+  const asked = useRef<Array<{ id: string; at: number }>>([]);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [retry, setRetry] = useState(0);
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
+  const ask = useCallback(
+    (target: Pick<Organization, "id" | "name">, activeId: string | null) => {
+      const now = Date.now();
+      const recent = asked.current.filter((a) => now - a.at < HOLD_ASK_WINDOW_MS);
+      asked.current = recent;
+      const forTarget = recent.filter((a) => a.id === target.id);
+      if (forTarget.length >= HOLD_ASK_BUDGET || recent.length >= HOLD_ASK_TOTAL) {
+        if (!timer.current) {
+          const oldest = (forTarget.length >= HOLD_ASK_BUDGET ? forTarget : recent)[0]!.at;
+          console.warn(
+            `[companyOnScreen] the screen keeps moving away from ${target.id}; ` +
+              `not asking again for ${Math.round(HOLD_ASK_WINDOW_MS / 1000)} s`,
+          );
+          timer.current = setTimeout(() => {
+            timer.current = null;
+            setRetry((n) => n + 1);
+          }, HOLD_ASK_WINDOW_MS - (now - oldest));
+        }
+        return;
+      }
+      recent.push({ id: target.id, at: now });
+      if (activeId !== target.id) void switchOrg(target.id);
+      else writeWorkspaceName(target.name);
+    },
+    [switchOrg],
+  );
+  return { ask, retry };
+}
+
 export function useCompanyOnScreen(orgId: string | null): CompanyOnScreen {
   const { org: active, orgs, loading, refresh, switchOrg } = useActiveOrg();
   const headerName = useWorkspaceName();
   const target = orgId ? orgs.find((o) => o.id === orgId) ?? null : null;
+  const { ask, retry } = useHoldAsk(switchOrg);
 
-  // Switch to the page's company. switchOrg writes the header name first.
+  // Switch to the page's company (switchOrg writes the header name first) —
+  // or, the same company with a stale name cache (renamed on another device,
+  // first paint from an old cache), re-write the name: the header must read
+  // the page's company.
   useEffect(() => {
     if (!target) return;
-    if (active?.id !== target.id) {
-      void switchOrg(target.id);
-    } else if (headerName.trim() !== target.name.trim()) {
-      // Same company, stale name cache (renamed on another device, first
-      // paint from an old cache): the header must read the page's company.
-      writeWorkspaceName(target.name);
+    if (active?.id !== target.id || headerName.trim() !== target.name.trim()) {
+      ask(target, active?.id ?? null);
     }
-  }, [target, active?.id, headerName, switchOrg]);
+  }, [target, active?.id, headerName, ask, retry]);
 
   // A company created a moment ago (the upload flow's "New company") can be
   // missing from a list loaded before it existed. Re-read the list ONCE per
@@ -122,12 +186,14 @@ export function useOrgParamHold(enabled: boolean, wanted: string | null): boolea
   const { org: active, orgs, loading, switchOrg } = useActiveOrg();
   const headerName = useWorkspaceName();
   const target = enabled && wanted ? orgs.find((o) => o.id === wanted) ?? null : null;
+  const { ask, retry } = useHoldAsk(switchOrg);
 
   useEffect(() => {
     if (!target) return;
-    if (active?.id !== target.id) void switchOrg(target.id);
-    else if (headerName.trim() !== target.name.trim()) writeWorkspaceName(target.name);
-  }, [target, active?.id, headerName, switchOrg]);
+    if (active?.id !== target.id || headerName.trim() !== target.name.trim()) {
+      ask(target, active?.id ?? null);
+    }
+  }, [target, active?.id, headerName, ask, retry]);
 
   if (!enabled || !wanted) return false;
   if (!target) return loading;

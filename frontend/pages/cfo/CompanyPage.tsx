@@ -20,7 +20,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Settings2 } from "lucide-react";
 
@@ -33,6 +33,7 @@ import { DangerZone, FinancingSection, GeneralSection } from "@/components/cfo/w
 import { UploadDrop } from "@/components/cfo/upload/UploadDrop";
 import { useIndustryLabel } from "@/components/cfo/upload/industryLabel";
 import { dashboardHref } from "@/components/cfo/upload/UploadFlowHost";
+import { useActivePeriod } from "@/lib/activePeriod";
 import { useCompanyOnScreen } from "@/lib/companyOnScreen";
 import { activeLocale } from "@/lib/locale";
 import { useFeatureStatus } from "@/lib/features";
@@ -46,6 +47,7 @@ export default function CompanyPage() {
   const { orgId = "" } = useParams<{ orgId: string }>();
   const { t } = useTranslation();
   const screen = useCompanyOnScreen(orgId || null);
+  useDropForeignCompanyParams(orgId);
 
   if (screen.status === "missing") {
     return (
@@ -80,6 +82,35 @@ export default function CompanyPage() {
       industryName={screen.org.industry_display_name ?? null}
     />
   );
+}
+
+/**
+ * The company page is ABOUT the company in its path. A `?org=` naming another
+ * company, or a `?period=` of another company (a link carried over from a
+ * dashboard, Back, a shared URL), means nothing here — and the header would
+ * print that other company's month beside this one's name. Drop them from
+ * the URL, once, as soon as they are known to be foreign. (Before 2026-09-26
+ * the shell's dashboard hold also acted on them here and switched the active
+ * company against this page, forever — see AppShell.)
+ */
+function useDropForeignCompanyParams(orgId: string) {
+  const [params, setParams] = useSearchParams();
+  const period = useActivePeriod();
+  const org = params.get("org");
+  const foreignOrg = !!org && org !== orgId;
+  const foreignPeriod = !!params.get("period") && !!period.organizationId && period.organizationId !== orgId;
+  useEffect(() => {
+    if (!orgId || (!foreignOrg && !foreignPeriod)) return;
+    setParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        if (foreignOrg) next.delete("org");
+        if (foreignPeriod) next.delete("period");
+        return next;
+      },
+      { replace: true },
+    );
+  }, [orgId, foreignOrg, foreignPeriod, setParams]);
 }
 
 function BackLink() {

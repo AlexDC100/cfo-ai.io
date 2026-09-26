@@ -484,11 +484,12 @@ function FinancialStatementsInner() {
   // upload moment). Idempotent. Without this, a user landing on Financial
   // Statements after a backend hiccup sees their inflight doc spinning
   // forever at "Step 0 of 6 · Queued for analysis…".
+  // At most once a minute however often the page mounts (recoverStuckOnMount).
   useEffect(() => {
     void (async () => {
       try {
-        const { recoverStuckPipelines } = await import("@/lib/supabase");
-        await recoverStuckPipelines();
+        const { recoverStuckOnMount } = await import("@/lib/supabase");
+        await recoverStuckOnMount();
       } catch {
         /* non-fatal — page still renders */
       }
