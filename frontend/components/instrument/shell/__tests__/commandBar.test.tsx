@@ -19,6 +19,10 @@
 //   cmdbar-figures     every Răspuns / Cont figure equals the served figure,
 //                      read INDEPENDENTLY from the served JSON and printed
 //                      by the shared printer; ratios from ratio_table only.
+//                      Exhaustive since stage CB-G: every Cont leaf of both
+//                      books (582) in RO and EN with its design key metric,
+//                      every Δ against its comparatives column, every
+//                      vs-sector against its sector row.
 //   cmdbar-no-model    the bar makes no model or capsule-tool request in any
 //                      interaction and renders no recommendations / briefing
 //                      / alert / narrative text.
@@ -26,8 +30,12 @@
 //                      "Întreabă" in < 100 ms with ZERO fetches; cold open:
 //                      the value first, Δ / vs-sector say "loading" — never
 //                      blank, never 0.
-//   + digits, synonyms, diacritics, the keyboard flow, the header line, the
-//     caveat printed once, the absent-figure reason, RO + EN.
+//   cmdbar-keyboard    ↑↓ walk every row the reader sees and stop at the
+//                      ends, the composer names the active row
+//                      (aria-activedescendant), Enter opens its evidence,
+//                      Tab / ⌘Enter hand the query to the chat, Esc closes.
+//   + digits, synonyms and diacritics (pure AND rendered), the header line,
+//     the caveat printed once, the absent-figure reason, RO + EN.
 //
 // WHAT IT CANNOT SEE: pixels (the screenshot harness), and whether the
 // engine ranked the right items (tests/engine/test_attention_rules.py).
@@ -41,8 +49,10 @@ import { resolve } from "node:path";
 
 import i18n from "@/i18n";
 import { formatAmountFrom } from "@/lib/money";
-import { formatRatioSide, type RatioTableRow } from "@/lib/ratioTable";
+import { formatRatioSide, localiseDecimal, ratioLabelForKey, type RatioTableRow } from "@/lib/ratioTable";
 import { formatDeltaPct } from "@/lib/comparatives";
+import { changeKindWordKey, isWordKind, type ChangeKind } from "@/lib/changeKind";
+import { lawfulFigure, sectorValueText } from "@/lib/sectorBenchmark";
 
 const REPO = resolve(__dirname, "../../../../..");
 const read = (p: string) => JSON.parse(readFileSync(resolve(REPO, p), "utf-8"));
@@ -389,24 +399,27 @@ describe("the groups, in order, answer first, Întreabă last", () => {
   });
 });
 
+/** Each statement answer's served figure, read INDEPENDENTLY of the bar's
+ *  own term table (cmdbarTerms.json): the path the engine serves it at. */
+function servedPath(body: Record<string, any>, answerId: string): number | null {
+  const pl = body.statements.assembled_pl;
+  const bs = body.statements.assembled_bs;
+  return ({
+    turnover: pl.revenue, ebitda: pl.ebitda, operating_result: pl.ebit, net_result: pl.net_income_statutory,
+    cash: bs.cash, debt: bs.total_debt, inventory: bs.inventory, receivables: bs.ar_net,
+    payables: bs.ap, equity: bs.total_equity, total_assets: bs.total_assets,
+  } as Record<string, number | null>)[answerId] ?? null;
+}
+
+/** One query per statement answer — Romanian words, diacritics left off. */
+const QUERIES: Record<string, string> = {
+  turnover: "cifra de afaceri", ebitda: "ebitda", operating_result: "rezultat din exploatare",
+  net_result: "profit net", cash: "numerar", debt: "datorie totala", inventory: "stocuri",
+  receivables: "creante", payables: "furnizori", equity: "capitaluri proprii", total_assets: "total active",
+};
+
 describe("cmdbar-figures — every figure is the served figure", () => {
   const cases: [string, World][] = [["scandia", scandiaWorld()], ["agras", agrasWorld()]];
-
-  function servedPath(body: Record<string, any>, answerId: string): number | null {
-    const pl = body.statements.assembled_pl;
-    const bs = body.statements.assembled_bs;
-    return ({
-      turnover: pl.revenue, ebitda: pl.ebitda, operating_result: pl.ebit, net_result: pl.net_income_statutory,
-      cash: bs.cash, debt: bs.total_debt, inventory: bs.inventory, receivables: bs.ar_net,
-      payables: bs.ap, equity: bs.total_equity, total_assets: bs.total_assets,
-    } as Record<string, number | null>)[answerId] ?? null;
-  }
-
-  const QUERIES: Record<string, string> = {
-    turnover: "cifra de afaceri", ebitda: "ebitda", operating_result: "rezultat din exploatare",
-    net_result: "profit net", cash: "numerar", debt: "datorie totala", inventory: "stocuri",
-    receivables: "creante", payables: "furnizori", equity: "capitaluri proprii", total_assets: "total active",
-  };
 
   it.each(cases)("%s — each statement answer prints the served value through the shared printer", (_n, w) => {
     mount(w);
@@ -609,5 +622,356 @@ describe("recent searches — picked rows, per company, on this device", () => {
     mount(w);
     expect(rowsOf("recent")).toHaveLength(0);
     expect(rowsOf("now").length).toBeGreaterThan(0);
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════
+// STAGE CB-G (design C5) — the laws above held EXHAUSTIVELY, in both
+// languages, and the ones held only in part until now: every Cont leaf of
+// both books, every Δ against its comparatives column, every vs-sector
+// position against its sector row, the cold open under 100 ms, synonyms and
+// diacritics on the RENDERED surface, and the whole keyboard flow. Each
+// rule has its own plant in docs/engine_book/gates.md ("cmdbar-surface",
+// stage CB-G).
+// ════════════════════════════════════════════════════════════════════════
+
+const LANGS = ["en", "ro"] as const;
+type Lang = (typeof LANGS)[number];
+
+async function useLang(lang: Lang) {
+  await act(async () => { await i18n.changeLanguage(lang); });
+}
+
+/** The ratio_table row the design names as an account's key metric
+ *  (C2: 411x → DSO, 401x → DPO, 3xx → inventory days, 512x / 531x → cash
+ *  ratio) — written here, NOT read from the bar's own table, so a bar that
+ *  attaches the wrong metric to a family reds. Other families are held to
+ *  their amount only. */
+function designKeyMetric(code: string): string | null {
+  if (code.startsWith("411")) return "dso";
+  if (code.startsWith("401")) return "dpo";
+  if (code.startsWith("3")) return "dio";
+  if (code.startsWith("512") || code.startsWith("531")) return "cash_ratio";
+  return null;
+}
+
+/** The comparatives line each statement answer is compared on — the
+ *  engine's line keys (src/engine/comparatives/lines.py). */
+const LINE_OF: Record<string, string> = {
+  turnover: "pl.revenue", ebitda: "pl.ebitda", operating_result: "pl.ebit", net_result: "pl.net_income",
+  cash: "bs.cash", debt: "bs.total_debt", inventory: "bs.inventory", receivables: "bs.trade_receivables_net",
+  payables: "bs.trade_payables", equity: "bs.total_equity", total_assets: "bs.total_assets",
+};
+
+/** The sector row the benchmark page compares each statement answer on. */
+const SECTOR_OF: Record<string, string> = {
+  turnover: "revenue_growth", net_result: "net_margin", inventory: "inventory_days_on_turnover",
+  receivables: "receivables_days", equity: "equity_ratio",
+};
+
+function answerRow(id: string): HTMLElement | undefined {
+  return rowsOf("answer").find((el) => el.getAttribute("data-row-id") === id);
+}
+
+function chipTexts(row: HTMLElement): { state: string; text: string }[] {
+  return Array.from(row.querySelectorAll("[data-chip-state]")).map((el) => ({
+    state: el.getAttribute("data-chip-state") ?? "",
+    text: el.textContent ?? "",
+  }));
+}
+
+describe("cmdbar-figures — EVERY Cont leaf of both books, in both languages", () => {
+  const books: [string, () => World][] = [["scandia", () => scandiaWorld()], ["agras", () => agrasWorld()]];
+  for (const [name, world] of books) {
+    for (const lang of LANGS) {
+      it(`${name} (${lang}): each leaf, found by its own code, prints its served amount and the design's key metric from ratio_table`, async () => {
+        await useLang(lang);
+        const w = world();
+        mount(w);
+        const table = new Map<string, RatioTableRow>(
+          (w.body.assembled_metrics.ratio_table.rows as RatioTableRow[]).map((r) => [r.key, r]));
+        const leaves = (w.body.line_items as { ro_account_code: string; bucket: string; amount: number; statement: string }[])
+          .filter((li) => typeof li.ro_account_code === "string" && li.statement !== "IGNORED");
+        let amounts = 0;
+        let metrics = 0;
+        let negatives = 0;
+        for (const li of leaves) {
+          type(li.ro_account_code);
+          const row = rowsOf("account").find(
+            (el) => el.getAttribute("data-row-id") === `account:${li.ro_account_code}:${li.bucket}`);
+          expect(row, `"${li.ro_account_code}" finds its own leaf`).toBeTruthy();
+          expect(row!.querySelector('[data-figure="account"]')?.textContent, li.ro_account_code).toBe(money(li.amount));
+          amounts++;
+          if (li.amount < 0) negatives++;
+          const key = designKeyMetric(li.ro_account_code);
+          if (key) {
+            const r = table.get(key)!;
+            expect(r, `${key} is served`).toBeTruthy();
+            expect(row!.textContent, `${li.ro_account_code} → ${key}`)
+              .toContain(`${ratioLabelForKey(key, lang)} ${formatRatioSide(r, r.display_unit, lang)}`);
+            metrics++;
+          }
+        }
+        console.log(`GATE-WORK cmdbar-cont-leaves ${name}/${lang} leaves=${amounts} key_metrics=${metrics}`);
+        expect(amounts, "VACUITY: every leaf of the book").toBe(leaves.length);
+        expect(amounts).toBeGreaterThanOrEqual(280);
+        expect(metrics, "VACUITY: key metrics checked").toBeGreaterThanOrEqual(10);
+        // POSITIVE CONTROL: the book holds contra accounts, so a printer that
+        // dropped the sign would print another figure for them.
+        expect(negatives).toBeGreaterThan(0);
+      });
+    }
+  }
+});
+
+describe("cmdbar-figures — every Răspuns in Romanian too", () => {
+  const books: [string, () => World][] = [["scandia", () => scandiaWorld()], ["agras", () => agrasWorld()]];
+  it.each(books)("%s (ro): statement answers print the served value; ratios their ratio_table row in Romanian", async (_n, world) => {
+    await useLang("ro");
+    const w = world();
+    mount(w);
+    for (const [id, q] of Object.entries(QUERIES)) {
+      type(q);
+      const row = answerRow(`answer:${id}`);
+      expect(row, `${id} answers "${q}"`).toBeTruthy();
+      expect(row!.querySelector('[data-figure="answer"]')?.textContent, id).toBe(money(servedPath(w.body, id) as number));
+    }
+    let ratios = 0;
+    for (const r of w.body.assembled_metrics.ratio_table.rows as RatioTableRow[]) {
+      if (r.key === "dio") continue;
+      type(r.key.replace(/_/g, " "));
+      const row = answerRow(`ratio:${r.key}`);
+      if (!row) continue;
+      const printed = row.querySelector('[data-figure="answer"]')?.textContent
+        ?? row.querySelector("[data-absent]")?.textContent;
+      expect(printed, r.key).toBe(formatRatioSide(r, r.display_unit, "ro"));
+      ratios++;
+    }
+    expect(ratios).toBeGreaterThanOrEqual(20);
+  });
+});
+
+describe("cmdbar-figures — every Δ IS its comparatives column, every vs-sector IS its sector row", () => {
+  for (const lang of LANGS) {
+    it(`pair (${lang}): each statement answer's Δ is the served column through the shared printers`, async () => {
+      await useLang(lang);
+      mount(pairWorld());
+      const tt = i18n.getFixedT(lang);
+      let words = 0;
+      let pcts = 0;
+      for (const [id, q] of Object.entries(QUERIES)) {
+        type(q);
+        const row = answerRow(`answer:${id}`);
+        expect(row, id).toBeTruthy();
+        const col = PAIR.comparatives.columns.find((c: { key: string }) => c.key === LINE_OF[id]);
+        expect(col, `${LINE_OF[id]} is served`).toBeTruthy();
+        const kind = col.change_kind as ChangeKind;
+        const change = isWordKind(kind)
+          ? tt(changeKindWordKey(kind))
+          : localiseDecimal(formatDeltaPct(col.delta_pct) as string, lang);
+        if (isWordKind(kind)) words++; else pcts++;
+        const first = chipTexts(row!)[0];
+        expect(first, `${id}: the Δ chip`).toEqual({
+          state: "ok",
+          text: tt("cmdbar.figure.vsPrior", { change, prior: PAIR.comparatives.prior.label }),
+        });
+      }
+      // Both printers exercised: a percentage AND a word (bs.total_debt
+      // moves from zero on this pair).
+      expect(pcts).toBeGreaterThanOrEqual(8);
+      expect(words).toBeGreaterThanOrEqual(1);
+    });
+
+    it(`scandia (${lang}): each vs-sector position is the served sector row — the filed-basis stock row a position only`, async () => {
+      await useLang(lang);
+      const w = scandiaWorld();
+      mount(w);
+      const tt = i18n.getFixedT(lang);
+      const doc = SECTOR.scandia;
+      let lawful = 0;
+      let refused = 0;
+      const check = (row: HTMLElement, key: string) => {
+        const sr = doc.rows.find((r: { key: string }) => r.key === key);
+        // "vs sector — …" / "față de sector — …": the chip the sector row prints.
+        const lead = tt("cmdbar.figure.sector", { what: "\u0000", position: "" }).split("\u0000")[0];
+        const sector = chipTexts(row).find((c) => c.text.startsWith(lead));
+        const ok = sr && sr.status === "sourced" && sr.position && lawfulFigure(sr.sector, doc.min_peers);
+        if (!ok) {
+          expect(sector, `${key}: a refused sector row prints no position`).toBeUndefined();
+          refused++;
+          return;
+        }
+        expect(sector, `${key}: printed`).toBeTruthy();
+        expect(sector!.text).toContain(sectorValueText(sr.company.value, sr.unit, lang));
+        expect(sector!.text).toContain(tt(`benchmarkPage.sector.position.${sr.position}`));
+        const verdict = sr.vs_sector && sr.vs_sector !== "inside" ? tt(`cmdbar.vsSector.${sr.vs_sector}`) : null;
+        if (key === "inventory_days_on_turnover") {
+          // The owner's rule: the filed basis, labelled, never a verdict.
+          expect(sector!.text).toContain(tt("cmdbar.sectorBasis.inventory_days_on_turnover"));
+          if (verdict) expect(sector!.text).not.toContain(verdict);
+        } else if (verdict) {
+          expect(sector!.text).toContain(verdict);
+        }
+        lawful++;
+      };
+      for (const [id, key] of Object.entries(SECTOR_OF)) {
+        type(QUERIES[id]);
+        check(answerRow(`answer:${id}`)!, key);
+      }
+      // Ratio answers meet their sector row through the row's card key.
+      for (const sr of doc.rows as { key: string; definition?: { card_key?: string | null } }[]) {
+        const card = sr.definition?.card_key;
+        if (!card || card === "dio" || card === "dso") continue; // shown once, on the statement answer
+        type(card.replace(/_/g, " "));
+        const row = answerRow(`ratio:${card}`);
+        expect(row, `ratio:${card}`).toBeTruthy();
+        check(row!, sr.key);
+      }
+      expect(lawful).toBeGreaterThanOrEqual(8);
+      expect(refused, "POSITIVE CONTROL: revenue growth has no company figure here").toBeGreaterThanOrEqual(1);
+    });
+  }
+});
+
+describe("cmdbar-latency — the cold open, timed", () => {
+  it("cold: every statement answer's VALUE renders under 100 ms from the period body; Δ and vs-sector say 'loading', never blank or 0", async () => {
+    hangFetch = true;
+    const w = pairWorld({ seed: "cold" });
+    mount(w);
+    const walls: number[] = [];
+    let pending = 0;
+    for (const [id, q] of Object.entries(QUERIES)) {
+      const t0 = performance.now();
+      type(q);
+      walls.push(performance.now() - t0);
+      const row = answerRow(`answer:${id}`);
+      expect(row, id).toBeTruthy();
+      expect(row!.querySelector('[data-figure="answer"]')?.textContent, id).toBe(money(servedPath(w.body, id) as number));
+      for (const c of chipTexts(row!)) {
+        expect(c.text.trim(), `${id}: no blank chip`).not.toBe("");
+        expect(c.text.trim(), `${id}: no 0 chip`).not.toMatch(/^[−-]?0([.,]0+)?\s*%?$/);
+        if (c.state === "pending") { expect(c.text).toBe("loading"); pending++; }
+      }
+    }
+    expect(Math.max(...walls)).toBeLessThan(100);
+    // The Δ is pending on every answer (the comparatives never land here).
+    expect(pending).toBeGreaterThanOrEqual(Object.keys(QUERIES).length);
+    expect(fetched.filter((u) => /\/attention|\/comparatives|\/sector-benchmark/.test(u)).length,
+      "cold: the bar's documents are asked for once, by the prefetch, not per keystroke").toBeLessThanOrEqual(3);
+  });
+});
+
+describe("cmdbar-search — synonyms and diacritics on the RENDERED bar, both languages", () => {
+  const SAME: [string, string[]][] = [
+    ["answer:receivables", ["clienti", "clienți", "creante", "creanțe", "CREANȚE"]],
+    ["answer:turnover", ["cifra de afaceri", "cifră de afaceri", "Cifră de Afaceri", "revenue", "turnover", "venituri"]],
+    ["answer:net_result", ["profit", "profitul net", "net income", "rezultat"]],
+    ["answer:inventory", ["stoc", "stocuri", "inventory"]],
+    ["answer:payables", ["furnizori", "suppliers"]],
+    ["answer:cash", ["numerar", "cash", "disponibilități", "disponibilitati"]],
+  ];
+  for (const lang of LANGS) {
+    it(`${lang}: every spelling of a subject — with or without diacritics, RO or EN — opens the same first answer`, async () => {
+      await useLang(lang);
+      mount(scandiaWorld());
+      let spellings = 0;
+      for (const [id, qs] of SAME) {
+        for (const q of qs) {
+          type(q);
+          expect(rowsOf("answer")[0]?.getAttribute("data-row-id"), `"${q}"`).toBe(id);
+          spellings++;
+        }
+      }
+      expect(spellings).toBeGreaterThanOrEqual(20);
+    });
+  }
+
+  it("with and without accents the WHOLE result list is the same, row for row", () => {
+    mount(scandiaWorld());
+    const ids = () => within(bar()).getAllByRole("option").map((el) => el.getAttribute("data-row-id"));
+    for (const [a, b] of [["creanțe", "creante"], ["cifră de afaceri", "cifra de afaceri"], ["disponibilități", "disponibilitati"], ["bilanț", "bilant"]]) {
+      type(a);
+      const withAccents = ids();
+      type(b);
+      expect(withAccents.length, `"${a}" finds something`).toBeGreaterThan(1);
+      expect(ids(), `"${a}" vs "${b}"`).toEqual(withAccents);
+    }
+  });
+
+  it("'raport' finds the report — a page or the PDF export, never nothing", () => {
+    mount(scandiaWorld());
+    type("raport");
+    const ids = [...rowsOf("page"), ...rowsOf("action")].map((el) => el.getAttribute("data-row-id"));
+    expect(ids.some((id) => id === "page:report" || id === "action:export-pdf")).toBe(true);
+  });
+});
+
+describe("cmdbar-keyboard — the whole flow from the keyboard", () => {
+  const opts = () => within(bar()).getAllByRole("option");
+  const selected = () => opts().findIndex((el) => el.getAttribute("aria-selected") === "true");
+
+  it("typing selects the answer; ↓ walks every row and stops on 'Ask CFO AI'; ↑ walks back and stops on the answer; the composer names the active row", () => {
+    mount(scandiaWorld());
+    type("clienti");
+    expect(selected()).toBe(0);
+    expect(opts()[0].getAttribute("data-row-kind")).toBe("answer");
+    expect(input().getAttribute("aria-activedescendant")).toBe(opts()[0].id);
+    const n = opts().length;
+    expect(n).toBeGreaterThanOrEqual(4);
+    const walked: string[] = [];
+    for (let i = 0; i < n + 2; i++) {
+      key("ArrowDown");
+      walked.push(opts()[selected()].getAttribute("data-row-kind") ?? "");
+    }
+    expect(selected()).toBe(n - 1);
+    expect(opts()[n - 1].getAttribute("data-row-kind")).toBe("ask");
+    expect(input().getAttribute("aria-activedescendant")).toBe(opts()[n - 1].id);
+    // Every family the reader sees was walked through, in order.
+    const order = ["answer", "account", "page", "action", "ask"];
+    expect([...new Set(walked)]).toEqual(order.filter((k) => walked.includes(k)));
+    expect(walked).toContain("account");
+    for (let i = 0; i < n + 2; i++) key("ArrowUp");
+    expect(selected()).toBe(0);
+  });
+
+  it("Enter on the answer opens its evidence (the account view for its line)", () => {
+    mount(scandiaWorld());
+    type("clienti");
+    key("Enter");
+    expect(screen.getByTestId("location").textContent).toMatch(/tab=balance_sheet.*line=bs\.trade_receivables_net/);
+  });
+
+  it("⌘Enter / Ctrl+Enter sends the query to the chat whatever row is selected; the bar calls no model", () => {
+    const seen: unknown[] = [];
+    const onAsk = (e: Event) => seen.push((e as CustomEvent).detail);
+    window.addEventListener(OPEN_ASK_CFO_AI_EVENT, onAsk);
+    try {
+      mount(scandiaWorld());
+      type("de ce au crescut creantele");
+      key("ArrowDown");
+      key("Enter", { metaKey: true });
+      expect(seen).toEqual([{ prompt: "de ce au crescut creantele", send: true }]);
+      cleanup();
+      mount(scandiaWorld());
+      type("marja neta");
+      key("Enter", { ctrlKey: true });
+      expect(seen[1]).toEqual({ prompt: "marja neta", send: true });
+      expect(spend()).toEqual([]);
+    } finally {
+      window.removeEventListener(OPEN_ASK_CFO_AI_EVENT, onAsk);
+    }
+  });
+
+  it("at rest nothing is selected; ↓ selects the first 'Ce contează acum' item and Enter opens its evidence", () => {
+    mount(scandiaWorld());
+    expect(selected()).toBe(-1);
+    expect(input().getAttribute("aria-activedescendant")).toBeNull();
+    key("ArrowDown");
+    expect(selected()).toBe(0);
+    expect(opts()[0].getAttribute("data-row-id")).toBe(`now:${ATT.scandia.items[0].key}`);
+    key("Enter");
+    const loc = screen.getByTestId("location").textContent ?? "";
+    expect(loc).not.toBe(`/dashboard?period=${scandiaWorld().periodId}`);
+    expect(loc).toContain(`period=${scandiaWorld().periodId}`);
   });
 });
