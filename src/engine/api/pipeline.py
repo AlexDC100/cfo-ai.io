@@ -315,6 +315,25 @@ def balanta_refusal_message(layout: Optional[str], reason: str) -> str:
     )
 
 
+class UploadedFileTypeMismatchError(Exception):
+    """Raised when a stored upload's BYTES contradict its filename — a
+    Word document named .pdf, a zip, a text file.
+
+    2026-09-23: a prospect's `balanta_de_verificare_07.2025.pdf` was a
+    .docx (PK header). Nothing in the PDF branch looked at the bytes, so
+    the positional ingester failed, the text-line reader failed, and the
+    document reached Claude — which answered "your credit balance is too
+    low". The user was told our billing was the problem when their file
+    had never been a PDF, and with an empty Anthropic balance every such
+    upload spends a request to learn what a four-byte header already says.
+
+    Surfacing as an exception lets `_run_pipeline_sync`'s handler mark the
+    document `status='failed'` with `error` set to the message, which the
+    upload panel renders verbatim — so the reason names the real file type
+    and the action that fixes it. See `_upload_type`.
+    """
+
+
 # ─── Helpers ────────────────────────────────────────────────────────────────
 
 
@@ -1235,6 +1254,37 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
                 f"years_found={_pr_unparseable['years_found']}]"
             )
 
+        # ── The bytes must actually BE a PDF ────────────────────────
+        # Placed before the AI lane, both deterministic readers and the
+        # Claude fall-through, because all four are incapable of reading a
+        # file that is not a PDF and only the last one COSTS anything to
+        # find out. A .docx renamed .pdf used to travel the whole path and
+        # come back as "Claude extraction failed: your credit balance is
+        # too low" — our billing blamed for the user's extension.
+        #
+        # Reads the bytes already downloaded above; when that download
+        # failed there is nothing to sniff and every branch below runs
+        # exactly as before. A real PDF costs one substring search.
+        try:
+            _pdf_bytes_for_sniff: Optional[bytes] = _pdf_bytes
+        except NameError:
+            _pdf_bytes_for_sniff = None
+        if _pdf_bytes_for_sniff:
+            from . import _upload_type as _ut
+            _real = _ut.sniff_container(_pdf_bytes_for_sniff)
+            if _real != _ut.PDF:
+                logger.info(
+                    "[stage_extract] %r is named .pdf but its bytes are %s "
+                    "— refusing before any reader or model call",
+                    doc.get("original_filename") or "(no filename)", _real,
+                )
+                raise UploadedFileTypeMismatchError(
+                    _ut.mismatch_message(
+                        ".pdf", _real,
+                        filename=doc.get("original_filename") or None,
+                    )
+                )
+
         # ── AI-lane jurisdiction gate (PDF) ─────────────────────────
         # Resolver BEFORE lane selection. Uses the bytes already
         # downloaded for public-records detection; when that download
@@ -1466,6 +1516,38 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
 
     if len(file_bytes) > 25 * 1024 * 1024:
         raise RuntimeError(f"File too large ({len(file_bytes)/1_000_000:.1f} MB) — 25 MB ceiling.")
+
+    # ── A spreadsheet upload that is not a spreadsheet ──────────────
+    # The same fault as the .pdf branch above, on the busiest path:
+    # `_detect_spreadsheet_format` calls EVERY `PK\x03\x04` file "xlsx",
+    # so a Word document named .xlsx goes to openpyxl, raises, and lands
+    # in the Claude fallback — which on an empty Anthropic balance tells
+    # the user their credit is too low about a file no reader could open.
+    #
+    # DELIBERATELY NARROW. Only containers that definitively cannot be a
+    # spreadsheet are refused: a PDF, a Word or PowerPoint document, an
+    # OpenDocument file. Everything else — text mistaken for a workbook,
+    # an unrecognised zip, bytes we cannot name — keeps today's behaviour
+    # exactly, because those can still succeed downstream and a refusal
+    # here would take away an upload that works. This path carries every
+    # trial balance in production; it is not the place to guess.
+    if kind in ("xlsx", "csv"):
+        from . import _upload_type as _ut
+        _real_sheet = _ut.sniff_container(file_bytes)
+        if _real_sheet in (_ut.PDF, _ut.DOCX, _ut.PPTX, _ut.ODF):
+            _claimed = ".csv" if kind == "csv" else ".xlsx/.xls"
+            logger.info(
+                "[stage_extract] %r is named %s but its bytes are %s "
+                "— refusing before any reader or model call",
+                doc.get("original_filename") or "(no filename)",
+                _claimed, _real_sheet,
+            )
+            raise UploadedFileTypeMismatchError(
+                _ut.mismatch_message(
+                    _claimed, _real_sheet,
+                    filename=doc.get("original_filename") or None,
+                )
+            )
 
     # ── AI-lane jurisdiction gate (xlsx/csv/text/image) ──────────────
     # Resolver BEFORE lane selection: HU/OTHER documents route to the
