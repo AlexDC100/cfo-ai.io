@@ -14,7 +14,13 @@ import type { PeriodLineItem } from "@/lib/activePeriod";
 import type { RatioCompareRow, RatioDisplayUnit, RatioSide, RatioTableRow } from "@/lib/ratioTable";
 import type { SectorBenchmarkDoc, SectorRow } from "@/lib/sectorBenchmark";
 import type { AttentionAction, AttentionDoc, AttentionItem } from "@/lib/attention";
-import { STATEMENT_TAB } from "@/lib/traceableSource";
+import {
+  accountEvidenceHref,
+  dashboardEvidenceHref,
+  lineEvidenceHref,
+  ratioEvidenceHref,
+  sectorRowEvidenceHref,
+} from "@/lib/evidence/evidenceLink";
 
 import {
   absentText,
@@ -97,19 +103,10 @@ function tt(ctx: ViewContext) {
   return i18n.getFixedT(ctx.printer.lang);
 }
 
-function dashHref(ctx: ViewContext, params: Record<string, string | null | undefined>): string {
-  const sp = new URLSearchParams();
-  if (ctx.periodId) sp.set("period", ctx.periodId);
-  if (ctx.orgId) sp.set("org", ctx.orgId);
-  for (const [k, v] of Object.entries(params)) if (v) sp.set(k, v);
-  return `/dashboard?${sp.toString()}`;
-}
-
-/** The URL an evidence receiver opens. Statement tabs through
- *  STATEMENT_TAB's own slugs (the provenance jump used to send "bs" and
- *  "cf", which the dashboard resolves to the P&L). */
-export function statementTab(statement: "pl" | "bs" | "cf" | string): string {
-  return (STATEMENT_TAB as Record<string, string>)[statement] ?? statement;
+/** The scope every evidence link is built in: the (company, period) the
+ *  bar's facts come from. */
+function scopeOf(ctx: ViewContext) {
+  return { periodId: ctx.periodId, orgId: ctx.orgId };
 }
 
 function ratioLine(ctx: ViewContext, row: RatioTableRow | null | undefined, key: string): string | null {
@@ -240,7 +237,9 @@ export function statementView(ctx: ViewContext, a: AnswerDef): FigureView {
     ratios: lines,
     sector: sector.chip,
     basis,
-    href: dashHref(ctx, { tab: a.tab }),
+    // The line's evidence: its served figure and the accounts that feed it
+    // (the account view, `?line=`), on the statement it belongs to.
+    href: lineEvidenceHref(scopeOf(ctx), a.line, a.tab),
     served: { value: fig.value, source: fig.source, ratioKeys, sectorKey: sector.key, columnKey: a.line },
   };
 }
@@ -285,7 +284,7 @@ export function ratioView(ctx: ViewContext, key: string): FigureView {
     ratios: [],
     sector: sector.chip,
     basis,
-    href: dashHref(ctx, { tab: "ratios", ratio: key }),
+    href: ratioEvidenceHref(scopeOf(ctx), key),
     served: { value: servedValue, source, ratioKeys: [key], sectorKey: sector.key, columnKey: null },
   };
 }
@@ -317,7 +316,6 @@ export function accountView(ctx: ViewContext, item: PeriodLineItem): AccountView
   } else if (metricKey) {
     keyMetric = ratioLine(ctx, ratioTableRows(ctx.body as never).get(metricKey), metricKey);
   }
-  const tab = item.statement === "PL" ? statementTab("pl") : statementTab("bs");
   return {
     id: `account:${item.ro_account_code}:${item.bucket}`,
     code: item.ro_account_code,
@@ -327,7 +325,9 @@ export function accountView(ctx: ViewContext, item: PeriodLineItem): AccountView
     absent: value === null ? absentText(ctx.printer, { code: "line_absent" }) : null,
     keyMetric,
     basis,
-    href: dashHref(ctx, { tab, highlight: item.bucket, account: item.ro_account_code }),
+    // The account view (`?account=`): the account's served leaves with
+    // period, document and provenance, the requested code highlighted.
+    href: accountEvidenceHref(scopeOf(ctx), [item.ro_account_code]),
     served: { amount: typeof item.amount === "number" ? item.amount : null, metricKey },
   };
 }
@@ -346,23 +346,34 @@ export interface NowItemView {
   href: string;
 }
 
-function evidenceHref(ctx: ViewContext, item: AttentionItem): string {
+function strings(v: unknown): string[] {
+  return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x.length > 0) : [];
+}
+
+/** The receiver an item's served `evidence` names (design C4):
+ *   statement      the account view for that line (`?line=`) — its served
+ *                  figure and the accounts that feed it, or, when the
+ *                  finding cited accounts, THOSE accounts (`&account=`);
+ *   ratio          the ratio's drawer / its ratio-table row (`?ratio=`);
+ *   benchmark_row  the sector row on /benchmark (`?row=`);
+ *   account        the account view for every account the item cites.
+ *  Exported for the landing gate (evidenceLanding.test.tsx). */
+export function evidenceHref(ctx: ViewContext, item: AttentionItem): string {
   const ev = item.evidence as Record<string, unknown>;
   switch (ev.kind) {
-    case "statement": return dashHref(ctx, { tab: statementTab(String(ev.tab ?? "pl")) });
-    case "ratio": return dashHref(ctx, { tab: "ratios", ratio: String(ev.ratio ?? "") });
-    case "benchmark_row": {
-      const sp = new URLSearchParams();
-      if (ctx.periodId) sp.set("period", ctx.periodId);
-      sp.set("row", String(ev.row ?? ""));
-      return `${String(ev.route ?? "/benchmark")}?${sp.toString()}`;
-    }
+    case "statement":
+      return lineEvidenceHref(scopeOf(ctx), String(ev.line ?? ""), String(ev.tab ?? ""), strings(ev.accounts));
+    case "ratio":
+      return ratioEvidenceHref(scopeOf(ctx), String(ev.ratio ?? ""));
+    case "benchmark_row":
+      return sectorRowEvidenceHref(scopeOf(ctx), String(ev.route ?? "/benchmark"), String(ev.row ?? ""));
     case "account": {
-      const code = typeof ev.account === "string" ? ev.account : null;
-      const tab = code && /^[67]/.test(code) ? "pl" : "balance_sheet";
-      return dashHref(ctx, { tab, account: code });
+      const cited = strings(ev.accounts);
+      const codes = cited.length > 0 ? cited : strings([ev.account]);
+      return accountEvidenceHref(scopeOf(ctx), codes);
     }
-    default: return dashHref(ctx, {});
+    default:
+      return dashboardEvidenceHref(scopeOf(ctx), {});
   }
 }
 

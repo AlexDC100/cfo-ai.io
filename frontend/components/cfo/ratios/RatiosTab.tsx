@@ -59,15 +59,34 @@ import { RATIO_DELTA_SECONDARY_CLOSE, RATIO_DELTA_SECONDARY_OPEN } from "@/lib/r
  *  that ratio's detail drawer — the command bar's Răspuns and "Ce contează
  *  acum" items open the row they were read from. Closing the drawer drops
  *  the parameter, so Back and a second open behave. Mounted only inside a
- *  router. */
-function RatioParam({ ratios, selected, onOpen }: {
+ *  router.
+ *
+ *  Not every served key has a tile: the ratio table serves rows the tiles
+ *  do not carry (net_debt_to_ebitda, debt_to_assets, operating_margin, …)
+ *  and the composites (credit_composite, letter_grade). Their evidence is
+ *  their row in the ratio table, which renders every served key: that row
+ *  is highlighted (`onWanted`) and scrolled into view, so no key lands on a
+ *  tab with nothing marked. */
+function RatioParam({ ratios, selected, onOpen, onWanted }: {
   ratios: Ratio[];
   selected: Ratio | null;
   onOpen: (r: Ratio) => void;
+  onWanted: (key: string | null) => void;
 }) {
   const [params, setParams] = useSearchParams();
   const wanted = params.get("ratio");
   const opened = useRef<string | null>(null);
+  const hasTile = !!wanted && ratios.some((r) => r.key === wanted);
+  useEffect(() => {
+    onWanted(wanted);
+    if (!wanted || hasTile) return;
+    const id = window.setTimeout(() => {
+      const el = document.querySelector<HTMLElement>(
+        `[data-testid="ratio-compare-row"][data-ratio-key="${CSS.escape(wanted)}"]`);
+      el?.scrollIntoView?.({ block: "center" });
+    }, 60);
+    return () => window.clearTimeout(id);
+  }, [wanted, hasTile, onWanted]);
   // Whether the drawer this receiver opened has actually been SEEN open —
   // the open is a state update, so in the commit that requests it
   // `selected` is still null, and reading that as "closed" would drop the
@@ -121,6 +140,7 @@ export function RatiosTabContent({
   const { t } = useTranslation();
   const view = useRatioCompareView();
   const [selected, setSelected] = useState<Ratio | null>(null);
+  const [evidenceKey, setEvidenceKey] = useState<string | null>(null);
   const inRouter = useInRouterContext();
   const allRatios = [
     ...ratios.liquidity, ...ratios.profitability, ...ratios.leverage,
@@ -128,7 +148,7 @@ export function RatiosTabContent({
   ];
   return (
     <>
-      {inRouter ? <RatioParam ratios={allRatios} selected={selected} onOpen={setSelected} /> : null}
+      {inRouter ? <RatioParam ratios={allRatios} selected={selected} onOpen={setSelected} onWanted={setEvidenceKey} /> : null}
       {view ? <BandMovementLists view={view} /> : null}
       <RatioGroupSection title={t("dash.ratioLiquidity")}            ratios={ratios.liquidity}     onPick={setSelected} />
       <div data-guide="ratios-profitability">
@@ -147,7 +167,7 @@ export function RatiosTabContent({
         <RatioGroupSection title={t("dash.ratioBankruptcy")}         ratios={altman ? [altman] : []} onPick={setSelected} />
       </div>
 
-      {view ? <RatioComparisonTable view={view} /> : null}
+      {view ? <RatioComparisonTable view={view} highlightKey={evidenceKey} /> : null}
 
       {/* Premium explainer drawer — 8 sections + related-ratio pivot.
        *  See `components/cfo/RatioDetailDrawer.tsx` and the knowledge map

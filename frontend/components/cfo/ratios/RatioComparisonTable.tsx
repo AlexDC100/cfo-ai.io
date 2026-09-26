@@ -80,13 +80,20 @@ export function PriorStateNote({ view }: { view: RatioCompareView }) {
   );
 }
 
-function Row({ row, compared, view }: { row: PrintedRatioRow; compared: boolean; view: RatioCompareView }) {
+function Row({ row, compared, view, highlighted = false }: {
+  row: PrintedRatioRow;
+  compared: boolean;
+  view: RatioCompareView;
+  /** The row an evidence link named (`?ratio=<key>`, RatiosTab). */
+  highlighted?: boolean;
+}) {
   const { i18n } = useTranslation();
   return (
     <tr
-      className="border-t border-rule-soft align-top"
+      className={`border-t border-rule-soft align-top${highlighted ? " bg-brand-tint/40 ring-1 ring-inset ring-brand/50" : ""}`}
       data-testid="ratio-compare-row"
       data-ratio-key={row.key}
+      data-highlighted={highlighted ? "true" : undefined}
       data-movement={row.movementStatus ?? "none"}
       data-ratio-cmp-json={ratioCmpHandleOf(view, row.key)}
       data-ratio-printed-json={serializePrintedRow(row)}
@@ -132,7 +139,11 @@ function Row({ row, compared, view }: { row: PrintedRatioRow; compared: boolean;
   );
 }
 
-export function RatioComparisonTable({ view }: { view: RatioCompareView }) {
+export function RatioComparisonTable({ view, highlightKey = null }: {
+  view: RatioCompareView;
+  /** The ratio key an evidence link named — its row is marked. */
+  highlightKey?: string | null;
+}) {
   const { t, i18n } = useTranslation();
   const loc = i18n.language;
   const compared = view.comparison !== null;
@@ -181,18 +192,18 @@ export function RatioComparisonTable({ view }: { view: RatioCompareView }) {
             </tr>
           </thead>
           <tbody>
-            {census.map((r) => <Row key={r.key} row={r} compared={compared} view={view} />)}
+            {census.map((r) => <Row key={r.key} row={r} compared={compared} view={view} highlighted={r.key === highlightKey} />)}
           </tbody>
           {composites.length > 0 ? (
             <tbody data-testid="ratio-compare-composites">
               <tr><th colSpan={cols} scope="colgroup" className="pt-3 pb-1 text-left text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium">{t("statements.ratioCmp.ui.compositesTitle")}</th></tr>
-              {composites.map((r) => <Row key={r.key} row={r} compared={compared} view={view} />)}
+              {composites.map((r) => <Row key={r.key} row={r} compared={compared} view={view} highlighted={r.key === highlightKey} />)}
             </tbody>
           ) : null}
           {subscores.length > 0 ? (
             <tbody data-testid="ratio-compare-subscores">
               <tr><th colSpan={cols} scope="colgroup" className="pt-3 pb-1 text-left text-[10.5px] uppercase tracking-[0.08em] text-ink-mute font-medium">{t("statements.ratioCmp.ui.subscoresTitle")}</th></tr>
-              {subscores.map((r) => <Row key={r.key} row={r} compared={compared} view={view} />)}
+              {subscores.map((r) => <Row key={r.key} row={r} compared={compared} view={view} highlighted={r.key === highlightKey} />)}
             </tbody>
           ) : null}
         </table>
