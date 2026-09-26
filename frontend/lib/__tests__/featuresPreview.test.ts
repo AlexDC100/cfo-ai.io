@@ -2,7 +2,11 @@
 /**
  * PER-ACCOUNT EARLY ACCESS, frontend half (forecast-scenarios-live, converged
  * on release/live d734beed; engine half:
- * tests/engine/test_scenarios_preview_acceptance.py, gate scenarios-preview).
+ * tests/engine/test_forecast_scenarios_active.py, gate
+ * forecast-scenarios-active). The registries below are SYNTHETIC: forecast
+ * and scenarios ship `active` for everyone since 2026-09-26, so the keys are
+ * only stand-ins for whatever the product still sells as coming soon; the
+ * mechanism under test is unchanged.
  *
  * ONE mechanism, the deployed one: the engine serves `coming_soon`, and
  * `applyPreview` in `lib/features.ts` opens it per signed-in user — `active`

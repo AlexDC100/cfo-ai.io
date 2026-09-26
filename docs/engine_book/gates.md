@@ -9327,3 +9327,58 @@ code; p95 slider latency over budget. **It cannot see** what the page paints
 (the frontend gates), network latency to Supabase in production, the owner's
 books unless FORECAST_LOCAL_SCANDIA is set, or whether a forecast is a GOOD
 one.
+
+## forecast-scenarios-active
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_forecast_scenarios_active.py -q` |
+| canary | `test_forecast_and_scenarios_are_active_in_the_source_with_their_endpoints`, `test_the_advertised_endpoints_are_routes_the_real_app_mounts`, `test_served_active_for_everyone_and_the_env_promotes_only_what_it_names` |
+| work count | junit tests, floor **6** (measured 6) |
+
+**REPLACES scenarios-preview** (both rows `coming_soon`, per-account Beta
+through `applyPreview`). The owner's rollout (spec 2026-09-21): "Forecast and
+Scenarios ship for EVERYONE (registry status active, NO Beta label) once F1
+and F2 pass". Measured 2026-09-26 through the real `create_app()` over the
+tenancy double, `tests/engine/test_forecast_cockpit.py` with
+`FORECAST_LOCAL_SCANDIA=<Scandia FY2025 .xls>,<Scandia FY2024 .xlsx>`: F1 on
+agras, carniprod, retail, realestate and the Scandia pair (year 0 = the
+served actuals to the cent — revenue, EBITDA, net income, cash, total
+assets, equity), F2 1,080 balance / cash-tie checks per book with no refusal,
+41 passed; latency p95 through the route 17.4 ms (agras) and 20.7 ms
+(Scandia) against the 1,500 ms budget. The per-company figures live in the
+owner's `specs-durable/forecast_cockpit_acceptance.md` (client data, never
+committed). `tests/engine/test_scenarios_off_path.py` — the tripwire whose
+docstring asked to be deleted by whoever could point at the acceptance run —
+was already gone (replaced by the preview gate); this gate holds it deleted.
+
+**SCOPE** — `src/engine/api/_features.py` (the `forecast` and `scenarios`
+rows), GET /api/features/status through the real app, the mounted route
+table of the real app, and the test tree.
+
+**PLANTS, each observed RED** (`scratchpad/fsa_plants/plants.py`, string
+replacement on `_features.py`, the gate run, the file restored byte-exact,
+sha1 `32a5d683…` before and after every plant):
+
+| # | Plant | Result | Excerpt |
+|---|---|---|---|
+| P1 | the forecast row back to `coming_soon` | `2 failed, 4 passed` | `forecast is 'coming_soon' in the source registry; it ships for everyone since the cockpit's F1 and F2 passed on the Scandia pair and agras (2026-09-26)` |
+| P2 | the scenarios row advertises no endpoint | `2 failed, 4 passed` | `scenarios advertises None, not the route the page reads (/api/forecast/{period_id}/scenario)` |
+| P3 | forecast advertises a route the app does not mount (`…/cockpit-v2`) | `2 failed, 4 passed` | `forecast advertises '/api/forecast/{period_id}/cockpit-v2', not the route the page reads (/api/forecast/{period_id}/cockpit)`; and `forecast advertises /api/forecast/{period_id}/cockpit-v2, which the real app does not mount` |
+| P4 | `served_registry()` writes the CFO_FEATURES_ACTIVE promotion INTO the module registry | `1 failed, 5 passed` | `AssertionError: the promotion stuck` |
+| P5 | a `beta` mark served on an active row | `1 failed, 5 passed` | `forecast served with a beta mark` |
+| P6 | `tests/engine/test_scenarios_off_path.py` reappears | `1 failed, 5 passed` | `…/test_scenarios_off_path.py is back: it pins the pre-acceptance state` |
+
+**REVERT** — `6 passed`.
+
+**After the repair it reds on (TC-11):** either row leaving `active` in the
+source; served with a `beta` mark; advertising no endpoint or one the real
+app does not mount with POST; a fourth (`preview`) status; CFO_FEATURES_ACTIVE
+not promoting a still-`coming_soon` key it names (erp_connector), promoting an
+unlisted one, or sticking after it is unset; the evidence (the production
+figures, the gate names, the acceptance's books, the acceptance file's name)
+leaving the source; the off-path tripwire or the preview gate returning.
+**It cannot see:** whether the cockpit's numbers are right (forecast-cockpit
+holds F1-F9), what the sidebar paints for an active row (vitest
+`featuresPreview.test.ts` holds `pending`/`beta` for a synthetic registry),
+the walk's screenshots.

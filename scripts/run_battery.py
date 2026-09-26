@@ -649,10 +649,10 @@ def _engine_gates() -> List[Gate]:
                        "refused by name: ")),
         # ── end plan/2 B13 ───────────────────────────────────────────────
         # ── forecast-scenarios-live: the owner's gates F1-F5 (engine half),
-        # the sector rung of revenue_growth, and the preview flag. F6 (and
+        # the sector rung of revenue_growth, and the registry flag. F6 (and
         # the page half of F1 / F5) is the forecast-f-page gate below. Plant
         # logs: gates.md "forecast-f-gates", "forecast-sector-rung",
-        # "scenarios-preview", "forecast-f-page".
+        # "forecast-scenarios-active", "forecast-f-page".
         Gate("forecast-f-gates",
              [PY, "-m", "pytest", "tests/engine/test_forecast_f_gates.py", "-q", "-s"],
              # measured on the four committed corpus books without the opt-in
@@ -667,11 +667,17 @@ def _engine_gates() -> List[Gate]:
              units="sector evidence fields, ladder steps and pins checked",
              canaries=("SCOPE forecast-sector-rung",
                        "sector rung: agras CAEN 1011")),
-        Gate("scenarios-preview",
-             [PY, "-m", "pytest", "tests/engine/test_scenarios_preview_acceptance.py", "-q"],
-             work_junit=True, floor=4, units="tests",
-             canaries=("test_forecast_and_scenarios_are_coming_soon_in_the_source",
-                       "test_the_active_env_promotes_exactly_the_listed_keys_per_request")),
+        # forecast-scenarios-live rollout (2026-09-26): both rows are `active`
+        # for everyone, each advertising the route its page reads, once the
+        # cockpit's F1 and F2 passed on the Scandia pair and agras. Replaces
+        # "scenarios-preview" (both rows coming_soon). Plant log: gates.md
+        # "forecast-scenarios-active".
+        Gate("forecast-scenarios-active",
+             [PY, "-m", "pytest", "tests/engine/test_forecast_scenarios_active.py", "-q"],
+             work_junit=True, floor=6, units="tests",
+             canaries=("test_forecast_and_scenarios_are_active_in_the_source_with_their_endpoints",
+                       "test_the_advertised_endpoints_are_routes_the_real_app_mounts",
+                       "test_served_active_for_everyone_and_the_env_promotes_only_what_it_names")),
         # The PAGE half of F1 / F5 / F6 and the preview opt-in: what the
         # Forecast and Scenarios pages paint and save, rendered over the real
         # served bytes (vitest). Named on its own, like ratio-byte-match,

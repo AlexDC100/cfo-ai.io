@@ -367,25 +367,32 @@ FEATURES: Dict[str, Dict[str, Any]] = {
     # THE ACCEPTANCE, AND WHERE IT IS HELD (forecast-scenarios-live): the page
     # computes nothing — every figure comes from POST
     # /api/forecast/{period_id}/scenario through engine.forecast.levers.
-    # project_levers, the same function the forecast GET runs. Cost of sales
-    # follows the book's measured fixed/variable split (packs/forecast/
-    # cost_behaviour.yaml), cash is never negative (the engine floors it and
-    # draws a priced funding line, its interest served as its own P&L line),
-    # no property copy (the page's strings are sector-neutral), and the
-    # templates are FMCG Romania pack data (packs/scenarios/templates.yaml).
-    # Gates: scenario-page-templates, scenario-one-engine, forecast-f1..f6,
-    # scenarios-closure (docs/engine_book/gates.md). tests/engine/
-    # test_scenarios_preview_acceptance.py replaces the off-path tripwire and
-    # reds if this row leaves `coming_soon` in this file: `active` for
-    # everyone is the owner's CFO_FEATURES_ACTIVE switch, never an edit here.
+    # project_levers, the same function the forecast GET and the cockpit run.
+    # Cost of sales follows the book's measured fixed/variable split
+    # (packs/forecast/cost_behaviour.yaml), cash is never negative (the engine
+    # floors it and draws a priced funding line, its interest served as its
+    # own P&L line), no property copy (the page's strings are sector-neutral),
+    # and the templates are FMCG Romania pack data (packs/scenarios/
+    # templates.yaml). Gates: scenario-page-templates, scenario-one-engine,
+    # forecast-f1..f6, scenarios-closure, forecast-cockpit (docs/engine_book/
+    # gates.md).
     #
-    # COMING SOON for the product as sold; open, labelled Beta, only for an
-    # account whose user_prefs.prefs.preview_features names it (the
-    # frontend's applyPreview — the deployed per-account early access).
+    # ACTIVE FOR EVERYONE (2026-09-26): the cockpit's gates F1 and F2 were
+    # measured green on the owner's two books before this row moved — the
+    # Scandia FY2025 + FY2024 pair (FORECAST_LOCAL_SCANDIA) and agras — the
+    # acceptance run is named in the commit that flipped it, and the numbers
+    # per company, case and year sit in the owner's specs-durable/
+    # forecast_cockpit_acceptance.md (never committed). tests/engine/
+    # test_forecast_scenarios_active.py holds this row `active` with its
+    # endpoint advertised; the deployed per-account preview (the frontend's
+    # applyPreview over user_prefs.prefs.preview_features, labelled Beta)
+    # stays the mechanism for the keys that are still `coming_soon`, and no
+    # longer touches this one.
     "scenarios": _feature(
-        "coming_soon",
+        "active",
         label="Scenario planning",
         description="Price / volume / cost levers with profit, cash and covenant headroom.",
+        endpoint="/api/forecast/{period_id}/scenario",
     ),
     # RENAMED 2026-09-08. It was "Budget vs actual vs last year", which named
     # the budget first and made the whole surface read as unavailable until
@@ -433,14 +440,21 @@ FEATURES: Dict[str, Dict[str, Any]] = {
         description="Multi-client accounting-firm surface. Backend is mounted ONLY when FIRM_COCKPIT_ENABLED is truthy (unset in production), so every /api/firm route is a 404 there by construction; this row is the frontend mirror.",
     ),
     "forecast": _feature(
-        # COMING SOON for the product as sold. The ROUTE stays mounted
-        # (`/api/forecast/*` answers 401, not 404) and the page opens,
-        # labelled Beta, for an account whose user_prefs.prefs.
-        # preview_features names "forecast" (the frontend's applyPreview), or
-        # for everyone once CFO_FEATURES_ACTIVE lists it.
-        "coming_soon",
+        # ACTIVE FOR EVERYONE (2026-09-26) — the Forecast page IS the cockpit
+        # (owner-approved spec 2026-09-21: four numbers, one chart, sliders;
+        # the statements are its collapsed appendix). Every figure it shows
+        # is POST /api/forecast/{period_id}/cockpit through engine.forecast.
+        # cockpit -> project_levers, the one engine the Scenarios page and the
+        # forecast GET also run. Flipped once gates F1 (year 0 = the served
+        # actuals to the cent) and F2 (every plan year balances, BS cash =
+        # CF cash, every case and every slider extreme) were measured green
+        # on the Scandia FY2025 + FY2024 pair and on agras; see the
+        # `scenarios` row above for where the acceptance is held. No Beta
+        # label: that is the per-account preview's, for `coming_soon` keys.
+        "active",
         label="Forecast",
-        description="Driver-based linked three-statement projection over the loaded period, 3 or 5 years. Every figure is PROJECTED and carries that marker in the payload; the assumption schedule states every driver, its value and the basis it was measured from.",
+        description="The five-year plan as an interactive cockpit: the four numbers a bank asks for, one chart, sliders with their measured basis, three sourced cases and the reader's own; the full projected statements are its appendix. Every figure is PROJECTED and carries that marker in the payload.",
+        endpoint="/api/forecast/{period_id}/cockpit",
     ),
     "anomaly_radar": _feature(
         "hidden",

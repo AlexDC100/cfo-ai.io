@@ -60,6 +60,10 @@ def test_active_features_present():
         "dashboard",
         "generate_action_list",
         "generate_board_summary",
+        # forecast-scenarios-live (2026-09-26): the cockpit and the
+        # engine-backed Scenarios page ship for everyone.
+        "forecast",
+        "scenarios",
     ):
         assert feats.get(k, {}).get("status") == "active", (
             f"expected '{k}' to be active, got {feats.get(k, {}).get('status')!r}"
@@ -134,7 +138,9 @@ def test_every_active_feature_advertises_endpoint_or_is_meta():
         # advertise and Ask CFO AI keeps working with the Python engine
         # stopped. An endpoint here would be a fiction.
         "chat_page",
-        "scenarios",
+        # `scenarios` LEFT this list on 2026-09-26: it ships for everyone
+        # and advertises POST /api/forecast/{period_id}/scenario, the route
+        # its page reads (forecast does the same with .../cockpit).
         "variance",
         "comprehensive_report",
         "peer_report",
