@@ -195,36 +195,51 @@ class AssembledBalanceSheetOptional(TypedDict, total=False):
 # ─────────────────────────────────────────────────────────────────────
 
 class AssembledIncomeStatement(TypedDict, total=True):
-    """Canonical P&L. The `*_operational` / `*_statutory` /
-    `*_operating_view` triple captures the three EBITDA bases the
-    F1.e/F1.m/F1.n series locked in; every pack must produce all three
-    even if they're identical for the country's GAAP (then they're
-    just the same number)."""
+    """Canonical P&L — ONE EBITDA (owner ruling 2026-09-26): net 711
+    ("Variația stocurilor de produse") and net 72x inside EBITDA and the
+    operating result, 767 financial, margins over turnover. The legacy
+    `*_operational` / `*_statutory` / `*_operating_view` / `operating_*`
+    names are ALIASES of that one figure (kept so older readers resolve);
+    no served field carries a second EBITDA except
+    `ebitda_before_stock_variation` (Optional block below).
+
+    REFUSABLE: when net 711 is refused on a book that posts to 711, the
+    EBITDA family, gross profit and PBT are None — never 0.00 — and
+    `ebitda_refusal` carries the typed reason (`_REFUSABLE_PL_CANON`)."""
     revenue: float
-    gross_profit: float
-    operating_ebitda: float          # operating-view (with 722 / capitalised own work)
-    operating_ebit: float
-    ebitda: float                    # cash-view (excludes non-cash 711/722)
-    ebit: float
-    ebitda_operational: float        # operational view (excludes 711, 722)
-    ebitda_statutory: float          # matches statutory net-income anchor
-    ebitda_operating_view: float
+    gross_profit: Optional[float]      # turnover − cost of sales + net 711
+    operating_ebitda: Optional[float]  # alias of `ebitda`
+    operating_ebit: Optional[float]    # alias of `ebit`
+    ebitda: Optional[float]            # THE one EBITDA (711 + 72x inside)
+    ebit: Optional[float]              # operating result = EBITDA − D&A
+    ebitda_operational: Optional[float]     # alias of `ebitda`
+    ebitda_statutory: Optional[float]       # alias of `ebitda`
+    ebitda_operating_view: Optional[float]  # alias of `ebitda`
     depreciation: float
     interest_expense: float
     interest_income: float
     financial_income: float
     financial_expense: float
     tax: float
-    pretax: float
-    net_income_operational: float
+    pretax: Optional[float]            # operating result + financial result
+    net_income_operational: float      # the build-up BEFORE 72x and 711
     net_income_statutory: float
-    total_operating_revenue: float
+    total_operating_revenue: float     # never a margin denominator
     total_operating_expense: float
-    capitalized_own_work_memo: float
-    inventory_variation_memo: float
+    capitalized_own_work_memo: float   # net 72x (= capitalized_own_work.value)
 
 
 class AssembledIncomeStatementOptional(TypedDict, total=False):
+    # ── The one definition's named parts (RO pack; owner ruling 2026-09-26) ──
+    turnover: float                          # cifra de afaceri netă (70x − 709)
+    operating_result: Optional[float]        # = ebit
+    ebitda_before_stock_variation: float     # EBITDA − net 711 − net 72x
+    pretax_before_stock_variation: float
+    ebitda_refusal: Optional[Dict[str, Any]]  # the typed reason, or None
+    ebitda_definition: str
+    inventory_variation: Dict[str, Any]      # stock_variation/1 served block
+    capitalized_own_work: Dict[str, Any]
+    ebitda_reconciliation: Dict[str, Any]    # the A5 chain to account 121
     cogs: float
     cost_of_goods_sold: float
     opex_total: float
@@ -232,19 +247,17 @@ class AssembledIncomeStatementOptional(TypedDict, total=False):
     opex_third_party: float
     income_tax: float
     discounts_received: float
-    ebitda_cash: float
-    ebitda_statutory_with_711: float
-    ebitda_adjusted: float
+    ebitda_cash: Optional[float]       # alias of `ebitda`
     fx_gain: float
     fx_loss: float
     financial_income_other: float
     other_income_758: float
     other_income_781_reversals: float
-    core_ebitda: float
+    core_ebitda: Optional[float]
+    adjusted_ebitda: Optional[float]
     net_financial_result: float
     financial_expense_total: float
     free_cash_flow_proxy: float
-    total_operating_revenue_statutory: float
     # The addend the assembly used to form EBITDA (758 + 781 reversals +
     # whatever else routed to other operating income) — emitted so a P&L
     # build-up can show the line it is actually adding.
@@ -404,6 +417,12 @@ _REQUIRED_BS_LEGACY = list(BalanceSheetLegacyView.__annotations__.keys())
 _REQUIRED_PL_LEGACY = list(IncomeStatementLegacyView.__annotations__.keys())
 _REQUIRED_BS_CANON = list(AssembledBalanceSheet.__annotations__.keys())
 _REQUIRED_PL_CANON = list(AssembledIncomeStatement.__annotations__.keys())
+#: Required P&L keys that are None — never 0.00 — when net 711 is refused
+#: on a book that posts to 711 (then `ebitda_refusal` must carry the code).
+_REFUSABLE_PL_CANON = frozenset({
+    "gross_profit", "operating_ebitda", "operating_ebit", "ebitda", "ebit",
+    "ebitda_operational", "ebitda_statutory", "ebitda_operating_view", "pretax",
+})
 _REQUIRED_CF_CANON = list(AssembledCashFlow.__annotations__.keys())
 _REQUIRED_STMT = [
     "companyName", "currency", "periodLabel",
@@ -542,7 +561,16 @@ def validate_canonical_envelope(envelope: Any) -> ValidationReport:
     # ── assembled_pl ───────────────────────────────────────
     a_pl = stmts["assembled_pl"]
     if _expect_keys(a_pl, _REQUIRED_PL_CANON, "envelope.statements.assembled_pl", errors):
+        refusal = a_pl.get("ebitda_refusal")
+        refused = isinstance(refusal, dict) and bool(refusal.get("code"))
         for k in _REQUIRED_PL_CANON:
+            if k in _REFUSABLE_PL_CANON and a_pl.get(k) is None:
+                if not refused:
+                    errors.append(
+                        "envelope.statements.assembled_pl.%s: None without an "
+                        "ebitda_refusal — a refused figure must carry its reason" % k
+                    )
+                continue
             _expect_numeric(a_pl, k, "envelope.statements.assembled_pl", errors)
 
     # ── assembled_cf ───────────────────────────────────────
