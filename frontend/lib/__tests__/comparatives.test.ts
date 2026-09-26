@@ -67,11 +67,11 @@ describe("cellForRow — the parity guard", () => {
     ["pl.cogs", cell({ key: "pl.cogs", current: null, prior: 40, status: "absent_current" })],
   ]);
   it("paints the cell when the row's amount IS the engine's current figure", () => {
-    const out = cellForRow(cells, "revenue706", 100);
+    const out = cellForRow(cells, "revenueTurnover", 100);
     expect(out.kind).toBe("cell");
   });
   it("refuses when the row's amount differs from the engine's line by a cent or more", () => {
-    const out = cellForRow(cells, "revenue706", 100.01); // one cent off
+    const out = cellForRow(cells, "revenueTurnover", 100.01); // one cent off
     expect(out.kind).toBe("definition_differs");
     if (out.kind === "definition_differs") {
       expect(out.engineCurrent).toBe(100);
@@ -84,7 +84,7 @@ describe("cellForRow — the parity guard", () => {
   it("is unmapped for a row with no engine line", () => {
     expect(cellForRow(cells, "otherIncome758", 5).kind).toBe("unmapped");
     expect(cellForRow(cells, undefined, 5).kind).toBe("unmapped");
-    expect(cellForRow(null, "revenue706", 5).kind).toBe("unmapped");
+    expect(cellForRow(null, "revenueTurnover", 5).kind).toBe("unmapped");
   });
   it("a row showing a number the engine reports ABSENT is refused, not painted", () => {
     expect(cellForRow(cells, "cogs", 40).kind).toBe("definition_differs");

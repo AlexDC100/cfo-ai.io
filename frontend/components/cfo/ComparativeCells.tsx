@@ -310,6 +310,8 @@ export function CmpColumnHeader({
   shareLabel,
   columns,
   cf,
+  currentTitle,
+  priorTitle,
 }: {
   currentLabel: string;
   priorLabel: string;
@@ -317,13 +319,18 @@ export function CmpColumnHeader({
   columns: ComparativeColumns;
   /** Cash flow: [current][prior][Δ] only. */
   cf?: boolean;
+  /** The source document behind each column (`sourceDocumentLine`), as
+   *  the header cell's title — the file a reader can verify a column
+   *  against. Undefined when the engine did not serve one. */
+  currentTitle?: string;
+  priorTitle?: string;
 }) {
   const { t } = useTranslation();
   return (
     <div className="cmp-col-header" data-testid="cmp-col-header">
       <span />
-      <span>{currentLabel}</span>
-      {columns.prior && <span>{priorLabel}</span>}
+      <span title={currentTitle} data-testid="cmp-col-current">{currentLabel}</span>
+      {columns.prior && <span title={priorTitle} data-testid="cmp-col-prior">{priorLabel}</span>}
       {columns.delta && <span>{t("statements.cmp.colDelta")}</span>}
       {!cf && columns.deltaPct && <span>{t("statements.cmp.colDeltaPct")}</span>}
       {!cf && columns.share && <span>{shareLabel}</span>}

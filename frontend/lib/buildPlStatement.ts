@@ -212,6 +212,33 @@ export function plUsesLineItems(
   return covered / assembledOpex >= OPEX_COVERAGE_FLOOR;
 }
 
+/** THE CODE CHIP OF THE AGGREGATES REVENUE ROW — read off the period's
+ *  OWN leaves, never a hard-coded subset.
+ *
+ *  The row used to be labelled "Operating revenue (706/704/707 combined)"
+ *  with account code "706" stamped on it, whatever the book held. On a
+ *  manufacturer whose turnover is 99% account 701 that label named three
+ *  families the row barely contained and left out the one it was made of;
+ *  the "706" chip also fed the footnote's rental-dominance test, which then
+ *  read every aggregates-path book as a landlord. The chip now lists the
+ *  three-digit families the revenue bucket actually holds in this period
+ *  ("701/704/706/707/709" on a goods seller, "706" on a landlord), and
+ *  "70x" — the bucket, not a guess at its members — when no line items
+ *  are available to read. Separators are stripped exactly as the engine's
+ *  detail-level detector strips them, so "701.01" and "701" are one
+ *  family. */
+export function revenueFamiliesChip(
+  items: readonly { statement?: string; bucket?: string; ro_account_code?: string | null }[] | undefined,
+): string {
+  const families = new Set<string>();
+  for (const li of items ?? []) {
+    if (li?.statement !== "PL" || li.bucket !== "revenue") continue;
+    const digits = String(li.ro_account_code ?? "").replace(/[\s.\-/_]/g, "");
+    if (/^\d{3,}$/.test(digits)) families.add(digits.slice(0, 3));
+  }
+  return families.size > 0 ? [...families].sort().join("/") : "70x";
+}
+
 function oneEbitda(
   served: number | null | undefined,
   totalOperatingRevenue: number,
@@ -541,7 +568,9 @@ export function pickPLBuilder(
   // table has no way to say "I did not recognise this account", so 67 of
   // them vanished without a word.
   if (!plUsesLineItems(items, statements)) {
-    return buildPLStatementFromAggregates(statements, args.canonicalMargins);
+    return buildPLStatementFromAggregates(statements, args.canonicalMargins, undefined, {
+      revenueChip: revenueFamiliesChip(items),
+    });
   }
   return buildPLStatement({
     lineItems: items,
@@ -559,6 +588,11 @@ export function buildPLStatementFromAggregates(
   // here so the aggregates-path caller can supply the same canonical pair.
   canonicalMargins?: { ebitdaMargin: number | null; netMargin: number | null },
   servedEbitda?: number | null,
+  opts: {
+    /** The account-family chip for the revenue row — see
+     *  `revenueFamiliesChip`. Defaults to "70x", the bucket itself. */
+    revenueChip?: string;
+  } = {},
 ): PLStatement {
   const is = statements.incomeStatement as IncomeStatementCanonical;
   const revenue = is.revenue;
@@ -594,13 +628,16 @@ export function buildPLStatementFromAggregates(
   const operatingRevenueLines: PLLine[] = [];
   if (revenue) {
     operatingRevenueLines.push({
-      accountCode: "706",
-      label: "Operating revenue (706/704/707 combined)",
+      // The chip names the families THIS book's revenue bucket holds (or
+      // the bucket, "70x") — never a subset written into the code. See
+      // `revenueFamiliesChip` for the label this replaced and why.
+      accountCode: opts.revenueChip ?? "70x",
+      label: "Operating revenue (net turnover)",
       amount: revenue,
       style: "item",
       // Comparatives key (lib/comparatives.ts PL_ROW_TO_KEY): this row IS
       // the engine's net turnover — measured equal to the cent.
-      bucket: "revenue706",
+      bucket: "revenueTurnover",
     });
   }
   if (capOwnWork > 0) {

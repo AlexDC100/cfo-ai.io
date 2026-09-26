@@ -31,6 +31,7 @@ import {
   cmpColumnTemplate,
   useComparativeContext,
 } from "./ComparativeCells";
+import { sourceDocumentLine } from "@/lib/comparatives";
 import { LearnableNumber } from "@/components/learning/LearnableNumber";
 import { bucketToConcept } from "@/lib/learning/bucketToConcept";
 import { GuideMeButton } from "@/components/learning/GuideMeButton";
@@ -102,6 +103,8 @@ export function PLStatementView({ statement, showFootnote = true, hideGuide = fa
         <CmpColumnHeader
           currentLabel={cmp.doc.current.label}
           priorLabel={cmp.doc.prior.label}
+          currentTitle={sourceDocumentLine(cmp.doc.current)}
+          priorTitle={sourceDocumentLine(cmp.doc.prior)}
           shareLabel={t("statements.cmp.colShare")}
           columns={cmp.columns}
         />
