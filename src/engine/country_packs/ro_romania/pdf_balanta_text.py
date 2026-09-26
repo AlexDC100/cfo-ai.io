@@ -227,7 +227,7 @@ _CODE_COLUMN_REFUSAL = ("the line %r is printed in the code column but is not an
 # the real layout's spread is 0.1 pt and the columns are 65 pt apart.
 _COLUMN_TOLERANCE = 2.0
 # A book whose rows carry ten figure columns is a five-pair book whatever
-# its header says (P1, round 4): this many lines led by an account code
+# its header says (round-4 critic, second defect): this many lines led by an account code
 # and ending in ten comma-thousands figures name the layout structurally.
 _STRUCTURAL_MIN_ROWS = 3
 # Document column order, five (debit, credit) pairs.

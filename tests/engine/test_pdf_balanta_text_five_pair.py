@@ -1059,7 +1059,7 @@ def test_the_layout_is_named_by_the_header_or_by_the_rows_ten_figure_columns():
     assert P.detect_layout([l for l in book() if not l.startswith("Cont Denumire")][:5]) is None
 
 
-# ── P1 (round 4): a five-pair book never escapes this reader on the wording
+# ── round-4 critic, second defect: a five-pair book never escapes this reader on the wording
 #    of its column header ──
 #
 # Before the repair the layout was named by header tokens alone: a header
