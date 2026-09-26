@@ -29,7 +29,8 @@
       "colCode": "Account",
       "colName": "Name",
       "colAmount": "Balance",
-      "close": "Close"
+      "close": "Close",
+      "balance": "Balance"
     }
   },
   "ro": {
@@ -62,7 +63,8 @@
       "colCode": "Cont",
       "colName": "Denumire",
       "colAmount": "Sold",
-      "close": "Închide"
+      "close": "Închide",
+      "balance": "Sold"
     }
   }
 }

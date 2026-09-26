@@ -175,9 +175,11 @@ export function EvidenceDrawer({ body, periodLabel, documentName, currency }: Ev
               <div className="text-[11.5px] text-ink-soft" data-testid="evidence-line-source">
                 {t("evidence.servedFrom", { source: line.figure.source })}
               </div>
-              {line.derived ? (
+              {line.derived || line.spec.highlight ? (
                 <div className="pt-1 space-y-1.5">
-                  <p className="text-[12px] text-ink-2" data-testid="evidence-derived">{t("evidence.derived")}</p>
+                  {line.derived && model.accounts.length === 0 ? (
+                    <p className="text-[12px] text-ink-2" data-testid="evidence-derived">{t("evidence.derived")}</p>
+                  ) : null}
                   {line.spec.highlight ? (
                     <button
                       type="button"
@@ -211,16 +213,17 @@ export function EvidenceDrawer({ body, periodLabel, documentName, currency }: Ev
               {line ? (
                 <h3 className="text-[10.5px] uppercase tracking-[0.12em] text-ink-soft font-semibold">{accountsHeading}</h3>
               ) : null}
-              {model.accounts.map((block) => (
+              {model.accounts.length === 1 ? (
                 <AccountBlockView
-                  key={block.code}
-                  block={block}
+                  block={model.accounts[0]}
                   fmt={fmt}
                   provenance={provenance}
                   t={t}
                   statementWord={statementWord}
                 />
-              ))}
+              ) : (
+                <AccountsTable blocks={model.accounts} fmt={fmt} provenance={provenance} t={t} />
+              )}
             </section>
           ) : null}
         </div>
@@ -325,11 +328,24 @@ function AccountBlockView({ block, fmt, provenance, t, statementWord }: {
         <p className="text-[11.5px] text-ink-soft" data-testid="evidence-no-total">{t("evidence.noTotal", { code: block.code })}</p>
       ) : null}
 
-      {block.leaves.length > 0 ? (
+      {block.leaves.length === 1 && block.leaves[0].exact ? (
+        <div
+          className="flex items-baseline justify-between gap-3"
+          data-testid="evidence-leaf"
+          data-evidence-target={`leaf:${block.leaves[0].code}`}
+          data-account-code={block.leaves[0].code}
+          data-highlighted="true"
+        >
+          <span className="text-[12px] text-ink">{t("evidence.balance")}</span>
+          <span className="font-mono tabular-nums text-[13px] text-ink" data-cell="amount">
+            <ProvenanceAffordance provenance={provenance(block.leaves[0].code)} value={block.leaves[0].amount}>
+              {fmt(block.leaves[0].amount)}
+            </ProvenanceAffordance>
+          </span>
+        </div>
+      ) : block.leaves.length > 0 ? (
         <>
-          {block.leaves.length > 1 ? (
-            <div className="text-[11px] text-ink-soft">{t("evidence.leafCount", { count: block.leaves.length })}</div>
-          ) : null}
+          <div className="text-[11px] text-ink-soft">{t("evidence.leafCount", { count: block.leaves.length })}</div>
           <LeafTable leaves={block.leaves} fmt={fmt} provenance={provenance} t={t} highlight />
         </>
       ) : null}
@@ -339,6 +355,101 @@ function AccountBlockView({ block, fmt, provenance, t, statementWord }: {
           <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-soft">{t("evidence.rollupHeading")}</div>
           <ul className="space-y-0.5">
             {block.rollups.map((r) => (
+              <li key={r.id} className="flex items-baseline justify-between gap-3 text-[12px]" data-testid="evidence-rollup" data-row-id={r.id}>
+                <span className="text-ink-2">{t("evidence.rollupRow", { label: r.label, codes: r.codes.join(", ") })}</span>
+                <span className="font-mono tabular-nums text-ink">
+                  <ProvenanceAffordance provenance={provenance(r.codes.join(", "))} value={r.amount}>
+                    {fmt(r.amount)}
+                  </ProvenanceAffordance>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/** Several accounts (a finding's citations, a concept's accounts): ONE
+ *  table, one group per requested code — its served leaves, the requested
+ *  leaf marked; an absent code says so in its own row; a served total for
+ *  exactly that code on its own row. The balance-sheet rows they roll into
+ *  are listed once, below. */
+function AccountsTable({ blocks, fmt, provenance, t }: {
+  blocks: EvidenceAccountBlock[];
+  fmt: Fmt;
+  provenance: (accounts: string) => AmountProvenance | null;
+  t: T;
+}) {
+  const rollups = new Map<string, EvidenceAccountBlock["rollups"][number]>();
+  for (const b of blocks) for (const r of b.rollups) if (!rollups.has(r.id)) rollups.set(r.id, r);
+  return (
+    <div className="space-y-3">
+      <table className="w-full text-[12.5px]">
+        <thead>
+          <tr className="text-[10.5px] uppercase tracking-[0.06em] text-ink-mute">
+            <th scope="col" className="py-1 pr-2 text-left font-medium">{t("evidence.colCode")}</th>
+            <th scope="col" className="py-1 px-2 text-left font-medium">{t("evidence.colName")}</th>
+            <th scope="col" className="py-1 pl-2 text-right font-medium">{t("evidence.colAmount")}</th>
+          </tr>
+        </thead>
+        {blocks.map((b) => (
+          <tbody
+            key={b.code}
+            // Every row of a requested group is what the link asked for: a
+            // faint tint on the group, a stronger one on a leaf that IS the
+            // code (no ring per row — a table of rings reads as noise).
+            className="border-t border-rule-soft [&>tr]:bg-brand-tint/20"
+            data-testid="evidence-account"
+            data-evidence-target={`account:${b.code}`}
+            data-account-code={b.code}
+            data-highlighted="true"
+            data-absent={b.absent ? "true" : undefined}
+          >
+            {b.absent ? (
+              <tr>
+                <td className="py-1 pr-2 font-mono tabular-nums text-ink">{b.code}</td>
+                <td colSpan={2} className="py-1 px-2 text-ink" data-testid="evidence-absent">{t("evidence.absent", { code: b.code })}</td>
+              </tr>
+            ) : null}
+            {b.total ? (
+              <tr data-testid="evidence-total">
+                <td className="py-1 pr-2 font-mono tabular-nums text-ink">{b.code}</td>
+                <td className="py-1 px-2 text-ink-2">{t("evidence.total", { code: b.code })} · {b.total.label}</td>
+                <td className="py-1 pl-2 text-right font-mono tabular-nums text-ink">
+                  <ProvenanceAffordance provenance={provenance(b.code)} value={b.total.amount}>
+                    {fmt(b.total.amount)}
+                  </ProvenanceAffordance>
+                </td>
+              </tr>
+            ) : null}
+            {b.leaves.map((l) => (
+              <tr
+                key={`${l.code}:${l.bucket}`}
+                className={l.exact ? "bg-brand-tint/40" : ""}
+                data-testid="evidence-leaf"
+                data-evidence-target={`leaf:${l.code}`}
+                data-account-code={l.code}
+                data-highlighted={l.exact ? "true" : undefined}
+              >
+                <td className="py-1 pr-2 font-mono tabular-nums text-ink">{l.code}</td>
+                <td className="py-1 px-2 text-ink-2">{l.name}</td>
+                <td className="py-1 pl-2 text-right font-mono tabular-nums text-ink" data-cell="amount">
+                  <ProvenanceAffordance provenance={provenance(l.code)} value={l.amount}>
+                    {fmt(l.amount)}
+                  </ProvenanceAffordance>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        ))}
+      </table>
+      {rollups.size > 0 ? (
+        <div className="space-y-1" data-testid="evidence-rollups">
+          <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-soft">{t("evidence.rollupHeading")}</div>
+          <ul className="space-y-0.5">
+            {[...rollups.values()].map((r) => (
               <li key={r.id} className="flex items-baseline justify-between gap-3 text-[12px]" data-testid="evidence-rollup" data-row-id={r.id}>
                 <span className="text-ink-2">{t("evidence.rollupRow", { label: r.label, codes: r.codes.join(", ") })}</span>
                 <span className="font-mono tabular-nums text-ink">
