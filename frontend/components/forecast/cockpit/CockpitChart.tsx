@@ -187,10 +187,14 @@ export function CockpitChart({
         ) : null}
       </svg>
 
-      {/* THE NUMBERS BEHIND THE PICTURE, painted from the served amounts. */}
+      {/* THE NUMBERS BEHIND THE PICTURE, painted from the served amounts:
+          one column per year from `sm` up; on a phone six columns cannot hold
+          a compact amount each, so the same served amounts read as rows
+          (year · EBITDA · cash) — the walk of 2026-09-26 at 390 px showed the
+          columns truncated to "RON 54…". */}
       <div
         key={answerKey}
-        className="cockpit-settle mt-2 grid gap-x-2 text-[11px] leading-tight tabular-nums"
+        className="cockpit-settle mt-2 hidden gap-x-2 text-[11px] leading-tight tabular-nums sm:grid"
         style={{ gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` }}
         data-testid="cockpit-chart-readouts"
       >
@@ -213,6 +217,39 @@ export function CockpitChart({
           );
         })}
       </div>
+      <table
+        key={`${answerKey}-narrow`}
+        className="cockpit-settle mt-2 w-full text-[11.5px] leading-tight tabular-nums sm:hidden"
+        data-testid="cockpit-chart-readouts-narrow"
+      >
+        <thead>
+          <tr className="font-mono text-[10px] uppercase tracking-wider text-ink-mute">
+            <th className="py-1 text-left font-normal">{t("forecast.cockpit.chart.year", "Year")}</th>
+            <th className="py-1 text-right font-normal">{t("forecast.cockpit.chart.ebitda", "EBITDA")}</th>
+            <th className="py-1 text-right font-normal">{t("forecast.cockpit.chart.cash", "Cash at year end")}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {bars.map((b) => {
+            const close = closeOf.get(b.period);
+            return (
+              <tr key={b.period} className="border-t border-rule-soft/60" data-period={b.period}>
+                <td className="py-1 font-mono text-[10.5px] text-ink-mute">{yearLabel(b.period)}</td>
+                <td className="py-1 text-right text-ink" data-series="ebitda">
+                  <CockpitAmountView amount={b.amount} format={format} projectedLabel={projectedLabel} lang={lang} />
+                </td>
+                <td className="py-1 text-right text-brand-d" data-series="cash">
+                  {close ? (
+                    <CockpitAmountView amount={close.cash} format={format} projectedLabel={projectedLabel} lang={lang} />
+                  ) : (
+                    <span data-projected="refused">—</span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </section>
   );
 }

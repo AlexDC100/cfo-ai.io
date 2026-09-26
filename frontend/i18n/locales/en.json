@@ -3544,6 +3544,7 @@
         "aria": "EBITDA and cash, five plan years",
         "cash": "Cash at year end",
         "ebitda": "EBITDA",
+        "year": "Year",
         "gap": "Below zero before the funding line"
       },
       "export": {
