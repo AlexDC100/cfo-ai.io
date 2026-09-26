@@ -192,6 +192,12 @@ export interface ActivePeriod {
    *  Drives the TopHeader's "[workspace] - [month]" readout and the
    *  Workspace tab's month switcher highlight. Null for samples. */
   periodEnd: string | null;
+  /** The company the period belongs to (`organization.id` on the payload).
+   *  A period of another company than the active one switches the active
+   *  company first (lib/companyOnScreen, G6) — a stale link or Back must
+   *  never paint one company's month under another's header. Null for
+   *  samples and until the payload lands. */
+  organizationId: string | null;
   /** Industry string from the period metadata (drives industry-aware briefing). */
   industry: string | null;
   /** Statements payload (BS + P&L) — null when this period has no financials. */
@@ -257,6 +263,7 @@ const EMPTY: ActivePeriod = {
   id: null,
   label: null,
   periodEnd: null,
+  organizationId: null,
   industry: null,
   statements: null,
   invoices: null,
@@ -444,6 +451,7 @@ export function useActivePeriod(): ActivePeriod {
           // surface renders its own upload state.
           label: payload.organization?.name ?? null,
           periodEnd: payload.period.period_end ?? null,
+          organizationId: payload.organization?.id ?? null,
           industry: payload.organization?.industry_display_name ?? null,
           availableTypes: [] as DocumentType[],
           isLoaded: false,
@@ -457,6 +465,7 @@ export function useActivePeriod(): ActivePeriod {
         id: payload.period.id,
         label: payload.statements.companyName ?? payload.organization?.name ?? null,
         periodEnd: payload.period.period_end ?? null,
+        organizationId: payload.organization?.id ?? null,
         industry: payload.organization?.industry_display_name ?? null,
         statements: payload.statements,
         invoices: null,
@@ -487,6 +496,7 @@ export function useActivePeriod(): ActivePeriod {
       id: sample.id,
       label: sample.statements?.companyName ?? sample.label,
       periodEnd: null,
+      organizationId: null,
       industry: sample.statements?.industry ?? null,
       statements: sample.statements ?? null,
       invoices: sample.invoicesGetter ? sample.invoicesGetter() : null,

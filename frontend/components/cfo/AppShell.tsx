@@ -64,7 +64,7 @@ import { UploadFlowHost } from "./upload/UploadFlowHost";
 import { UploadDropOverlay } from "./upload/UploadDrop";
 import { useWorkspaceV2 } from "@/lib/previewFeatures";
 import { useActiveOrg } from "@/lib/org";
-import { useOrgParamHold } from "@/lib/companyOnScreen";
+import { useDashboardCompanyHold } from "@/lib/companyOnScreen";
 import { MonthSwitchOverlay } from "./MonthSwitchOverlay";
 
 interface Props {
@@ -87,9 +87,11 @@ export function AppShell({ children }: Props) {
   // drag-and-drop anywhere, the header bound to the company on screen.
   const workspaceV2 = useWorkspaceV2();
   const { org: activeOrg } = useActiveOrg();
-  // `?org=` on a redesign link: switch to that company and hold the page
-  // until the header names it (lib/companyOnScreen).
-  const holdForOrg = useOrgParamHold(workspaceV2, params.get("org"));
+  // The company the page is ABOUT — the period's own company once its
+  // payload lands (a stale link, Back, a remembered period), else `?org=`
+  // on a redesign link: switch to it and hold the page until the header
+  // names it (lib/companyOnScreen, G6).
+  const holdForOrg = useDashboardCompanyHold(workspaceV2);
   // Content-region loader (2026-07-26 per operator). Pages render straight
   // from the period payload, which is EMPTY while its fetch is in flight — so
   // a tab painted its no-data layout for a frame and then swapped in the real

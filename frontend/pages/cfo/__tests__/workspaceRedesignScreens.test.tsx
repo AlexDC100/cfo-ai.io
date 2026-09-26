@@ -258,7 +258,7 @@ describe("Company page — /workspace/<orgId>", () => {
     renderAt("/workspace/agras");
     expect(await screen.findByTestId("company-title")).toHaveTextContent("Agras SA");
     expect(await screen.findByTestId("company-no-years")).toHaveTextContent(
-      "No year analysed yet. Drop the first file on the dashed tile.",
+      "No analysis yet. Drop the first file on the dashed tile.",
     );
     // With nothing on record the tile offers last year.
     expect(screen.getByTestId("upload-drop-tile")).toHaveTextContent(`Add ${new Date().getUTCFullYear() - 1}`);

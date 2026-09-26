@@ -55,16 +55,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { sourceKey } from "./identitySources";
 import { useIndustryCatalog, useIndustryLabel } from "./industryLabel";
+import { periodDashboardHref } from "@/lib/dashboardHref";
 
 // ── Navigation helpers ─────────────────────────────────────────────────
 
-/** Where an analysed (or already-uploaded) period opens. `org` rides along so
- *  a reload or a shared link re-selects the right company before painting. */
-export function dashboardHref(orgId: string, periodId: string | null): string {
-  return periodId
-    ? `/dashboard?period=${encodeURIComponent(periodId)}&org=${encodeURIComponent(orgId)}`
-    : `/workspace/${encodeURIComponent(orgId)}`;
-}
+/** Where an analysed (or already-uploaded) period opens — one authority,
+ *  shared with the sidebar's Dashboard row (lib/dashboardHref). */
+export const dashboardHref = periodDashboardHref;
 
 function useOpenCompanyPeriod() {
   const navigate = useNavigate();

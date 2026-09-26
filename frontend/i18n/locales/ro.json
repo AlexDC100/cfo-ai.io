@@ -3488,7 +3488,7 @@
     },
     "company": {
       "years": "Ani",
-      "noYears": "Niciun an analizat încă. Trage primul fișier pe cardul punctat.",
+      "noYears": "Nicio analiză încă. Trage primul fișier pe cardul punctat.",
       "firstYear": "primul an",
       "vsPrior": "față de {{year}}",
       "revenue": "Cifra de afaceri",

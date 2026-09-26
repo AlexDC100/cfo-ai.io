@@ -54,6 +54,11 @@ test.skip(
 const NAMES = { [ORG_SCANDIA]: "Scandia Food SRL", [ORG_AGRAS]: "Agras SRL" };
 const AGRAS_PERIOD = AGRAS.period.period.id as string;
 const AGRAS_REVENUE = AGRAS.years[0].revenue as number;
+const SCANDIA_PERIOD = SCANDIA.period.period.id as string;
+const SCANDIA_REVENUE = SCANDIA.years[0].revenue as number;
+/** Which company each analysed period belongs to — the G6 watch's authority
+ *  for a dashboard that carries `?period=` alone. */
+const OWNERS = { [SCANDIA_PERIOD]: ORG_SCANDIA, [AGRAS_PERIOD]: ORG_AGRAS };
 const FORBIDDEN_WORDS = /\b(source|attachment|sursă|sursa|atașament|atasament)\b/i;
 
 /** Every file input on the screen belongs to the one upload component. */
@@ -87,7 +92,7 @@ for (const lang of ["ro", "en"] as const) {
     test("an Agras file dropped on Scandia's page lands in Agras, one tap, five steps, the dashboard", async ({ page }) => {
       const double = new WorkspaceDouble({ theme: "light", language: lang });
       await double.install(page);
-      const watch = await installHeaderWatch(page, NAMES);
+      const watch = await installHeaderWatch(page, NAMES, OWNERS);
 
       // ── Scandia's company page ─────────────────────────────────────
       await page.goto(`/workspace/${ORG_SCANDIA}`, { waitUntil: "domcontentloaded" });
@@ -162,6 +167,55 @@ for (const lang of ["ro", "en"] as const) {
       console.log(`[workspace-v2] G6 header checks (${lang}): ${watch.checks}, violations: ${watch.violations.length}`);
       console.log(`[workspace-v2] unmodelled requests (${lang}):`, JSON.stringify([...new Set(double.unhandled)]));
     });
+
+    // G6, the redesign's own paths (2026-09-26). Owner-reported: with Agras
+    // open — its company page, no analysed year — the sidebar's Dashboard
+    // landed on /dashboard?period=<one of Scandia's> under a header reading
+    // "Agras SRL · dec. 2025". Rule: a dashboard link from a company page
+    // opens THAT company's latest analysed period, or, with none, the company
+    // page itself with its one-line state; a period of another company
+    // switches the active company first; the header describes the screen.
+    test("G6 — Dashboard from a company page is THAT company's, and a stale period link switches the company first", async ({ page }) => {
+      const double = new WorkspaceDouble({ theme: "light", language: lang });
+      await double.install(page);
+      const watch = await installHeaderWatch(page, NAMES, OWNERS);
+      const noAnalysis = lang === "ro" ? "Nicio analiză încă" : "No analysis yet";
+      const dashboardRow = page.locator('aside [data-testid="sidebar-dashboard"]').first();
+
+      // ── Agras: no analysed year. The row leads to the page's own state. ──
+      await page.goto(`/workspace/${ORG_AGRAS}`, { waitUntil: "domcontentloaded" });
+      await expect(page.getByTestId("company-title")).toHaveText("Agras SRL", { timeout: 20_000 });
+      await expect(page.getByTestId("company-no-years")).toContainText(noAnalysis);
+      await expect(dashboardRow).toHaveAttribute("href", `/workspace/${ORG_AGRAS}`);
+      await dashboardRow.click();
+      await page.waitForTimeout(1500);
+      await expect(page).toHaveURL(new RegExp(`/workspace/${ORG_AGRAS}$`));
+      expect(page.url()).not.toContain(SCANDIA_PERIOD);
+      await expect(page.getByTestId("company-no-years")).toContainText(noAnalysis);
+      await expect(page.getByTestId("header-command-bar")).toContainText("Agras SRL");
+
+      // ── Scandia: its latest analysed year, the company pinned. ──────
+      await page.goto(`/workspace/${ORG_SCANDIA}`, { waitUntil: "domcontentloaded" });
+      await expect(page.getByTestId("company-title")).toHaveText("Scandia Food SRL", { timeout: 20_000 });
+      await expect(dashboardRow).toHaveAttribute("href", `/dashboard?period=${SCANDIA_PERIOD}&org=${ORG_SCANDIA}`);
+      await dashboardRow.click();
+      await expect(page).toHaveURL(new RegExp(`/dashboard\\?period=${SCANDIA_PERIOD}&org=${ORG_SCANDIA}`));
+      await expect(page.getByTestId("header-command-bar")).toContainText("Scandia Food SRL", { timeout: 20_000 });
+      await expect(page.locator("body")).toContainText(millions(SCANDIA_REVENUE, lang), { timeout: 30_000 });
+
+      // ── A stale link: Scandia's period while Agras is active. ───────
+      await page.goto(`/workspace/${ORG_AGRAS}`, { waitUntil: "domcontentloaded" });
+      await expect(page.getByTestId("company-title")).toHaveText("Agras SRL", { timeout: 20_000 });
+      await expect(page.getByTestId("header-command-bar")).toContainText("Agras SRL");
+      await page.goto(`/dashboard?period=${SCANDIA_PERIOD}`, { waitUntil: "domcontentloaded" });
+      await expect(page.getByTestId("header-command-bar")).toContainText("Scandia Food SRL", { timeout: 20_000 });
+      await expect(page.locator("body")).toContainText(millions(SCANDIA_REVENUE, lang), { timeout: 30_000 });
+
+      expect(watch.violations).toEqual([]);
+      expect(watch.checks).toBeGreaterThanOrEqual(3);
+      expect(double.unhandled.filter((u) => u.startsWith("THREW"))).toEqual([]);
+      console.log(`[workspace-v2] G6 company-page→Dashboard checks (${lang}): ${watch.checks}, violations: ${watch.violations.length}`);
+    });
   });
 }
 
@@ -200,7 +254,7 @@ for (const [vp, viewport] of Object.entries(VIEWPORTS)) {
           const tag = `${vp}-${theme === "light" ? "paper" : "dark"}-${lang}`;
           const double = new WorkspaceDouble({ theme, language: lang, holdAt: "computing" });
           await double.install(page);
-          const watch = await installHeaderWatch(page, NAMES);
+          const watch = await installHeaderWatch(page, NAMES, OWNERS);
 
           await page.goto("/workspace", { waitUntil: "domcontentloaded" });
           await expect(page.getByTestId("workspace-home")).toBeVisible({ timeout: 20_000 });

@@ -25,6 +25,7 @@ import { NavLink, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { usePrefetchPeriod } from "@/lib/activePeriod";
 import { useChatReplyPending } from "@/lib/chatPendingStore";
+import { useCompanyPageDashboardHref } from "@/lib/companyOnScreen";
 import { isInFlight, useUploadStore } from "@/lib/uploadStore";
 import { DECISIONS_ALERTS_ENABLED } from "@/config/features";
 import {
@@ -238,6 +239,10 @@ export function Sidebar({
   // SidebarLink), so it needs the period param at this level too.
   const [navParams] = useSearchParams();
   const period = navParams.get("period");
+  // On a company page (redesign) the Dashboard row is THAT company's: its
+  // latest analysed year, or the page itself when it has none — never a
+  // period remembered from another company (G6, lib/companyOnScreen).
+  const companyDashboard = useCompanyPageDashboardHref();
   const upload = useUploadStore();
   const uploadActive = !!upload.current && isInFlight(upload.current.status);
   const dashboardUploadActive = uploadActive && upload.current?.surface !== "products";
@@ -348,6 +353,7 @@ export function Sidebar({
               <SidebarLink
                 key={to}
                 to={to}
+                href={to === "/dashboard" ? companyDashboard ?? undefined : undefined}
                 testId={testId}
                 onClick={onItemClick}
                 icon={Icon}
@@ -469,6 +475,7 @@ export function Sidebar({
 // re-attaches the current param.
 function SidebarLink({
   to,
+  href: hrefOverride,
   testId,
   onClick,
   icon: Icon,
@@ -482,6 +489,10 @@ function SidebarLink({
   beta = false,
 }: {
   to: string;
+  /** The row's destination when it is not `to` + the current `?period=`:
+   *  the Dashboard row on a company page (lib/companyOnScreen). A link
+   *  that leads elsewhere than `to` never shows the row as active. */
+  href?: string;
   testId: string;
   onClick?: () => void;
   icon: LucideIcon;
@@ -502,7 +513,8 @@ function SidebarLink({
 }) {
   const [params] = useSearchParams();
   const period = params.get("period");
-  const href = period ? `${to}?period=${encodeURIComponent(period)}` : to;
+  const href = hrefOverride ?? (period ? `${to}?period=${encodeURIComponent(period)}` : to);
+  const leadsElsewhere = !!hrefOverride && !hrefOverride.startsWith(to);
   const prefetchPeriod = usePrefetchPeriod();
   const onHover = period ? () => prefetchPeriod(period) : undefined;
 
@@ -548,15 +560,15 @@ function SidebarLink({
         // Active is the 2px accent rule on the LEFT edge + ink text — no
         // pill, no fill. Hover is a quiet fill.
         `group relative flex items-center min-h-[44px] sm:min-h-0 sm:h-9 gap-3 pl-6 pr-3 text-[13px] transition-colors duration-micro focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${
-          isActive
+          isActive && !leadsElsewhere
             ? "text-ink font-medium"
             : "text-ink-soft hover:text-ink hover:bg-bg-2 active:bg-bg-2/70"
         }`
       }
     >
-      {({ isActive }) => (
+      {({ isActive: routeActive }) => (
         <>
-          {isActive && (
+          {routeActive && !leadsElsewhere && (
             <span
               aria-hidden
               className="absolute inset-y-1 left-0 w-[2px] bg-brand"

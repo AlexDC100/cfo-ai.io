@@ -463,17 +463,23 @@ export interface HeaderWatch {
 
 /**
  * G6 in the browser: on EVERY DOM mutation, the header capsule must name the
- * company the page is about — the company page's title, or the `?org=`
- * company of a dashboard. Every check is reported to the test process
- * (`exposeFunction`), so nothing is lost when the page navigates.
+ * company the page is about — the company page's title, the `?org=` company
+ * of a dashboard, or (2026-09-26) the OWNER of the `?period=` a dashboard
+ * shows when no `?org=` pins one (a stale link, Back, a remembered period):
+ * `owners` maps a period id to its company. Every check is reported to the
+ * test process (`exposeFunction`), so nothing is lost when the page navigates.
  */
-export async function installHeaderWatch(page: Page, names: Record<string, string>): Promise<HeaderWatch> {
+export async function installHeaderWatch(
+  page: Page,
+  names: Record<string, string>,
+  owners: Record<string, string> = {},
+): Promise<HeaderWatch> {
   const watch: HeaderWatch = { checks: 0, violations: [] };
   await page.exposeFunction("__g6Record", (violation: string | null) => {
     watch.checks += 1;
     if (violation) watch.violations.push(violation);
   });
-  await page.addInitScript((names: Record<string, string>) => {
+  await page.addInitScript(({ names, owners }: { names: Record<string, string>; owners: Record<string, string> }) => {
     const w = window as any;
     let last = "";
     const check = () => {
@@ -482,10 +488,16 @@ export async function installHeaderWatch(page: Page, names: Record<string, strin
       let expected: string | null = null;
       const title = document.querySelector('[data-testid="company-title"]')?.textContent?.trim();
       if (title && location.pathname.startsWith("/workspace/")) expected = title;
-      const org = new URLSearchParams(location.search).get("org");
-      if (!expected && org && location.pathname.startsWith("/dashboard")
-        && !document.querySelector('[data-testid="org-param-hold"]')) {
+      const params = new URLSearchParams(location.search);
+      const org = params.get("org");
+      const held = !!document.querySelector('[data-testid="org-param-hold"]');
+      if (!expected && org && location.pathname.startsWith("/dashboard") && !held) {
         expected = names[org] ?? null;
+      }
+      // No `?org=`: the period's own company, once the page is released.
+      const period = params.get("period");
+      if (!expected && !org && period && owners[period] && location.pathname.startsWith("/dashboard") && !held) {
+        expected = names[owners[period]] ?? null;
       }
       if (!expected) return;
       // The capsule truncates at 24 characters; it must still START with
@@ -500,6 +512,6 @@ export async function installHeaderWatch(page: Page, names: Record<string, strin
       void w.__g6Record?.(violation);
     };
     new MutationObserver(check).observe(document, { subtree: true, childList: true, characterData: true });
-  }, names);
+  }, { names, owners });
   return watch;
 }

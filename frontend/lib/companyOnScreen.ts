@@ -18,9 +18,17 @@
 // shows under a header naming a different company.
 
 import { useEffect, useRef, useState } from "react";
+import { useMatch, useSearchParams } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 
+import { useActivePeriod } from "@/lib/activePeriod";
+import { companyDashboardHref } from "@/lib/dashboardHref";
 import { useActiveOrg, type Organization } from "@/lib/org";
+import { useWorkspaceV2 } from "@/lib/previewFeatures";
+import { fetchCompanyYears } from "@/lib/uploadsApi";
 import { useWorkspaceName, writeWorkspaceName } from "@/lib/workspaceName";
+
+export { companyDashboardHref, periodDashboardHref } from "@/lib/dashboardHref";
 
 export type CompanyOnScreen =
   | { status: "loading"; org: null }
@@ -81,12 +89,34 @@ export function useCompanyOnScreen(orgId: string | null): CompanyOnScreen {
 }
 
 /**
- * Dashboard links from the redesign carry `?org=<orgId>` (a year tile, the
+ * The sidebar's Dashboard row while a company page (/workspace/<orgId>) is on
+ * screen, under the redesign: that company's dashboard
+ * (`companyDashboardHref`, lib/dashboardHref). Null on every other screen,
+ * and with the redesign off — the row then keeps its `?period=`-preserving
+ * link. Shares the company page's own `["company-years", orgId]` read.
+ */
+export function useCompanyPageDashboardHref(): string | null {
+  const workspaceV2 = useWorkspaceV2();
+  const match = useMatch("/workspace/:orgId");
+  const orgId = workspaceV2 && match?.params.orgId ? match.params.orgId : null;
+  const yearsQ = useQuery({
+    queryKey: ["company-years", orgId],
+    queryFn: () => fetchCompanyYears(orgId as string),
+    enabled: !!orgId,
+    staleTime: 30_000,
+  });
+  if (!orgId) return null;
+  return companyDashboardHref(orgId, yearsQ.data ?? null);
+}
+
+/**
+ * The company a dashboard is ABOUT — the period's own company once its
+ * payload lands, else `?org=<orgId>` on a redesign link (a year tile, the
  * bell, a toast, "Already uploaded — open it"). When that company is not the
- * active one — a reload on another device, a shared link — the shell switches
- * to it and HOLDS the page until the header names it. Returns true while
- * holding. An `org` the user is not a member of is ignored (the page's own
- * fetch refuses it); no param, nothing to hold.
+ * active one — a stale link, Back, a reload on another device — the shell
+ * switches to it and HOLDS the page until the header names it. Returns true
+ * while holding. An `org` the user is not a member of is ignored (the page's
+ * own fetch refuses it); nothing wanted, nothing to hold.
  */
 export function useOrgParamHold(enabled: boolean, wanted: string | null): boolean {
   const { org: active, orgs, loading, switchOrg } = useActiveOrg();
@@ -102,4 +132,19 @@ export function useOrgParamHold(enabled: boolean, wanted: string | null): boolea
   if (!enabled || !wanted) return false;
   if (!target) return loading;
   return !headerAgrees(target, active?.id ?? null, headerName);
+}
+
+/**
+ * The shell's hold for the dashboard family: the company the current page
+ * is about is the PERIOD's own company once its payload lands (the engine
+ * says which company a period belongs to — a stale link, Back, or a period
+ * remembered from another company all carry `?period=` alone), else the
+ * `?org=` a redesign link pins. Switch to it and hold until the header names
+ * it (`useOrgParamHold`). Rule (G6): navigating to a period of another
+ * company switches the active company first.
+ */
+export function useDashboardCompanyHold(enabled: boolean): boolean {
+  const [params] = useSearchParams();
+  const period = useActivePeriod();
+  return useOrgParamHold(enabled, period.organizationId ?? params.get("org"));
 }

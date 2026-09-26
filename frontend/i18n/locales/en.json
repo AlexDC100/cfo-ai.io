@@ -3462,7 +3462,7 @@
     },
     "company": {
       "years": "Years",
-      "noYears": "No year analysed yet. Drop the first file on the dashed tile.",
+      "noYears": "No analysis yet. Drop the first file on the dashed tile.",
       "firstYear": "first year",
       "vsPrior": "vs {{year}}",
       "revenue": "Revenue",
