@@ -12,6 +12,12 @@ export interface FormatOptions {
   /** When true, never use compact (M / K) suffix — useful for popover
    *  headline values that should show full precision. */
   full?: boolean;
+  /** Currency only: print the value AS SERVED — thousands separators and
+   *  two decimals (bani), e.g. "2,421,110.34 RON". For a formula operand
+   *  the reader divides to check the printed result (FormulaToken.exact):
+   *  a compact or whole-RON operand is a rounded number, and dividing
+   *  rounded numbers does not reproduce the card beside them. */
+  exact?: boolean;
 }
 
 export function formatValue(
@@ -37,6 +43,14 @@ export function formatValue(
     case "currency":
     default: {
       const cur = opts.currency ?? "RON";
+      if (opts.exact) {
+        const digits = abs.toLocaleString("en-GB", {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        });
+        // A value that rounds to 0.00 carries no sign ("−0.00" is not a figure).
+        return `${digits === "0.00" ? "" : sign}${digits} ${cur}`;
+      }
       if (opts.full || abs < 1_000) {
         return `${sign}${abs.toLocaleString("en-GB", { maximumFractionDigits: 0 })} ${cur}`;
       }

@@ -108,6 +108,10 @@ def _load_period(jwt: str, org_id: str, period_id: str) -> Dict[str, Any]:
     return {
         "envelope": row.get("assembled_canonical_v1"),
         "statements": statements,
+        # The rows themselves, so the model can tell a nil profit-tax
+        # charge a class-69 row stands behind from an absent one (see
+        # engine.forecast.history.PlHistory.tax_charge_rows).
+        "line_items": line_items,
         "period_end": row.get("period_end"),
         "period_label": row.get("period_label"),
         "currency": row.get("currency") or "RON",

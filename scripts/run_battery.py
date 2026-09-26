@@ -519,6 +519,46 @@ def _engine_gates() -> List[Gate]:
                        "test_recompute_answers_400_on_an_out_of_domain_override",
                        "test_a_31_december_corpus_book_serves_exactly_the_bytes_it_served_before",
                        "test_stage_narrate_hands_the_model_refusals_not_fabricated_ratios")),
+        # ── parser v6 (owner ruling 2026-09-18, the 609/709 double count;
+        # ported from wave/forecast-v15's plan/2 B4a as its own deploy):
+        # statements-anchor-gap. On every corpus book, the Scandia
+        # regression baseline and any PLAN_LOCAL_XLSX book,
+        # |account 121 - reconstruction| is printed and must be within the
+        # floor rendered from packs/ro/statements_anchor.yaml#anchor_gap and
+        # the book (the cent tolerance plus the 711/712 turnover a mirrored
+        # exporter hides); every mirrored 609/709 row enters its bucket as
+        # the reduction it is under the convention its document decided.
+        # Plant log: docs/engine_book/gates.md.
+        Gate("statements-anchor-gap",
+             [PY, "-m", "pytest", "tests/engine/test_statements_anchor_gap.py", "-q"],
+             work_rx=r"GATE-WORK statements-anchor-gap units=(\d+)", floor=58,  # measured 63 on the port (v15: 61 without the local Scandia books)
+             units="books judged, contra rows checked and metamorphic comparisons",
+             canaries=("SCOPE statements-anchor-gap (plan/2 B4a, contract 5.1)",
+                       "floor from packs/ro/statements_anchor.yaml#anchor_gap",
+                       "convention per document",
+                       "mirrored contra rows checked")),
+        # The 0.32 / 0.3257 seam (owner, 2026-09-21): every printed
+        # interest coverage divides the EBIT the P&L prints
+        # (`assembled_pl.ebit`) and equals its own recomputation to the
+        # printed digit, on the four corpus books and the Scandia
+        # baseline through the real GET /api/period. The frontend halves
+        # are vitest (interestCoverageBasis, exportRatioFormulas G4, and
+        # interestCoveragePopover — the Ratios card's learning popover,
+        # whose printed operands must divide, as printed, to the card on
+        # every corpus book with interest). The popover's corpus fixture is
+        # held fresh here (test_coverage_popover_corpus_fixture): the scope
+        # is discovered from corpus/, so a book added with interest reds
+        # until the fixture carries it.
+        # Plant log: docs/engine_book/gates.md.
+        Gate("interest-coverage-one-operand",
+             [PY, "-m", "pytest", "tests/engine/test_interest_coverage_one_operand.py",
+              "tests/engine/test_coverage_popover_corpus_fixture.py", "-q"],
+             work_rx=r"GATE-WORK interest-coverage-one-operand units=(\d+)", floor=8,  # measured 9: 5 books + 4 with interest
+             units="books served and coverages recomputed",
+             canaries=("SCOPE interest-coverage-one-operand",
+                       "books where operating_ebit would print a different coverage: 1",
+                       "retail             EBIT 786579.83",
+                       "SCOPE coverage popover corpus fixture")),
         Gate("cron-auth",
              [PY, "-m", "pytest", "tests/engine/test_cron_auth.py", "-q"],
              work_junit=True, floor=8, units="tests",

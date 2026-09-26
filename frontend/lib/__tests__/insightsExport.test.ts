@@ -158,16 +158,19 @@ describe("G-R2 · every emitted insight is printed, none dropped", () => {
 
 // ── G-R3 — THE OWNER'S CASE ───────────────────────────────────────────
 
-describe("G-R3 · the five HIGH agras findings are in the printed bytes", () => {
+describe("G-R3 · the four HIGH agras findings are in the printed bytes", () => {
+  // plan/2 B4a: reconstruction_gap was the fifth HIGH finding while agras's
+  // mirrored 709 reductions entered revenue with the exporter's positive sign
+  // (a 46.6% step to account 121). Read as reductions the step is 16.6% and
+  // the finding grades medium; the four below stay high.
   const HIGH_ON_AGRAS = [
     "asset_age",
     "liquidity_quality",
-    "reconstruction_gap",
     "related_party_exposure",
     "unclassified_balances",
   ] as const;
 
-  it("the fixture still grades exactly these five high", () => {
+  it("the fixture still grades exactly these four high", () => {
     const high = insightsOf("agras")
       .filter((i) => i.severity.level === "high")
       .map((i) => i.id)
@@ -200,7 +203,15 @@ describe("G-R3 · the five HIGH agras findings are in the printed bytes", () => 
     const onPageOne = Array.from(
       doc.querySelectorAll("#sec-exec ul.summary-insights li[data-insight-id]"),
     ).map((li) => li.getAttribute("data-insight-id"));
-    expect(onPageOne).toEqual([...HIGH_ON_AGRAS]);
+    // Page one prints the block's own ranked summary (five ids); every
+    // HIGH finding must be among them. Before plan/2 B4a the two sets
+    // coincided (five high, five on page one); now the fifth summary slot
+    // carries the medium reconstruction_gap behind the four high.
+    const block = readInsights(withInsights("agras"))!;
+    expect(onPageOne).toEqual(block.summary_ids);
+    for (const id of HIGH_ON_AGRAS) {
+      expect(onPageOne, `${id} is high but not on page one`).toContain(id);
+    }
   });
 });
 

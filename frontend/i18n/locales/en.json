@@ -3224,7 +3224,8 @@
       "title": "Multi-year history",
       "description": "Filed accounts for prior years, pulled from the public registry.",
       "requirement": "A data provider"
-    }
+    },
+    "betaNote": "Early access — figures may still change."
   },
   "legalX": {
     "consent_pre": "By creating an account I accept the",

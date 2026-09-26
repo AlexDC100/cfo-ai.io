@@ -11,7 +11,12 @@
 // (Resolved 2026-09-19 the other way round from the label fix below: the
 // engine row itself moved to EBIT ÷ interest — the methodology's basis —
 // so the card now prints 55.64× under "Interest coverage (EBIT / interest)"
-// and the SPEC below recomputes it from operating EBIT.)
+// and the SPEC below recomputes it from EBIT. Since 2026-09-21 that EBIT
+// is `assembled_pl.ebit` — the line the P&L prints as EBIT, and the one
+// the engine's row divides — not `operating_ebit`, the operating view
+// with 722 + 767 folded in: on retail under tb_parser_v6 the two are
+// 1,923.78 apart and the recomputation printed 0.3257× beside a served
+// 0.32×. Under tb_parser_v6 agras reads 28.14×.)
 //
 // where 66.28× is EBITDA ÷ interest (18,420,491.28 / 277,930.35) and the
 // component's own basis, EBIT ÷ interest, is 55.64× (15,465,144.89 /
@@ -195,7 +200,9 @@ const SPECS: Spec[] = [
       "EBIT × (1 − 16% tax) ÷ (total debt + total equity) — NOPAT over invested capital. Net profit is NOT an input: this ratio does not move with the account-121 anchor and is not expected to.",
     unit: "%",
     recompute: (e) => {
-      const v = div(e.pl.operating_ebit * 0.84, e.bs.total_debt + e.bs.total_equity);
+      // `ebit`, the engine's own ROIC operand (credit_model.operating_profit)
+      // and the P&L's printed EBIT line — see interest_coverage below.
+      const v = div(e.pl.ebit * 0.84, e.bs.total_debt + e.bs.total_equity);
       return v === null ? null : v * 100;
     },
   },
@@ -242,7 +249,11 @@ const SPECS: Spec[] = [
     formula:
       "EBIT ÷ interest expense (the methodology's interest coverage; EBITDA ÷ interest is the separate 'EBITDA to interest' row)",
     unit: "x",
-    recompute: (e) => div(e.pl.operating_ebit, e.pl.interest_expense),
+    // `assembled_pl.ebit`: the EBIT the P&L prints (it foots to pretax with
+    // the net financial result) and the operand the engine's row divides
+    // (credit_model.operating_profit). NOT `operating_ebit` — the 0.32 /
+    // 0.3257 seam on retail, repaired 2026-09-21.
+    recompute: (e) => div(e.pl.ebit, e.pl.interest_expense),
   },
   {
     key: "dscr",
@@ -416,6 +427,10 @@ const formulaOf = (sp: Spec, e: Env): string =>
 const show = (n: number, unit: Spec["unit"]) =>
   unit === "%" ? `${n.toFixed(4)}%` : unit === "days" ? `${n.toFixed(4)} d` : `${n.toFixed(4)}×`;
 
+//: books that can tell the filed account-121 figure from the reconstruction
+//: (plan/2 B4a: filled per book, checked once across the scope, TC-3).
+const DISCRIMINATING = new Map<string, number>();
+
 describe("G4 — every rendered ratio equals its stated formula", () => {
   it("declares a formula for every ratio the printed document states", () => {
     // Not vacuous, and not silently outgrown: a ratio card added to the
@@ -523,6 +538,7 @@ describe("G4 — every rendered ratio equals its stated formula", () => {
       const doc = exportDoc(book as Book);
       const env = envOf(book as Book);
       const anchored: string[] = [];
+      const cannotTell: string[] = [];
       const failures: string[] = [];
       for (const sp of SPECS) {
         if (sp.onReconstruction === undefined) continue;
@@ -533,12 +549,19 @@ describe("G4 — every rendered ratio equals its stated formula", () => {
         if (rendered === null || onFiled === null || onRebuilt === null) continue;
         const tol = tolerance(sp.unit, onFiled);
         // Non-vacuity: the two bases must actually differ on this book, or
-        // "it is on the anchor" is a statement about nothing.
-        expect(
-          Math.abs(onFiled - onRebuilt),
-          `${book}: “${label}” — the filed and reconstructed bases are the same number ` +
-            `(${show(onFiled, sp.unit)}), so this book cannot tell them apart`,
-        ).toBeGreaterThan(tol * 4);
+        // "it is on the anchor" is a statement about nothing. A book whose
+        // reconstruction reaches account 121 (retail, since plan/2 B4a read
+        // its mirrored 609/709 rows as reductions) or comes within four
+        // tolerances of it (carniprod) cannot tell them apart and is
+        // recorded as unable to, by name; the scope-wide TC-3 check below
+        // requires at least one book that can.
+        if (Math.abs(onFiled - onRebuilt) <= tol * 4) {
+          cannotTell.push(
+            `${book}: “${label}” — filed ${show(onFiled, sp.unit)} and reconstructed ` +
+              `${show(onRebuilt, sp.unit)} agree within four tolerances`,
+          );
+          continue;
+        }
         anchored.push(label);
         if (Math.abs(rendered - onFiled) > tol) {
           failures.push(
@@ -550,10 +573,22 @@ describe("G4 — every rendered ratio equals its stated formula", () => {
           );
         }
       }
-      expect(anchored.length, `${book}: no net-income ratio was compared`).toBe(3);
+      expect(
+        anchored.length + cannotTell.length,
+        `${book}: not every net-income ratio was considered`,
+      ).toBe(3);
+      DISCRIMINATING.set(book, anchored.length);
       expect(failures, `${book}: a ratio is built on the reconstruction, not the anchor`).toEqual(
         [],
       );
     });
   }
+
+  it("at least one book tells the filed account-121 figure from the reconstruction (TC-3)", () => {
+    const counts = Array.from(DISCRIMINATING.entries()).map(([b, n]) => `${b}: ${n} of 3`);
+    expect(
+      Math.max(0, ...DISCRIMINATING.values()),
+      `no book discriminates the two bases — ${counts.join(", ")}`,
+    ).toBeGreaterThan(0);
+  });
 });

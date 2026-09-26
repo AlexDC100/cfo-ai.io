@@ -11,7 +11,7 @@
         "revenue": {
           "measurable": true,
           "source": "line items, class 70",
-          "value": 118576819.64
+          "value": 110798309.14
         },
         "tangible_fixed": {
           "measurable": true,
@@ -36,7 +36,7 @@
               "amount": 79311635.03,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 118576819.64,
+              "basis_amount": 110798309.14,
               "basis_source": "line items, class 70",
               "family": "manufacturing",
               "fired": true,
@@ -44,8 +44,8 @@
               "reads": [
                 "Sales of own production (701 finished, 702 semi-finished, 703 residues)"
               ],
-              "share": 0.668863,
-              "statement": "Sales of own production are 66.9% of revenue (79,311,635.03 of 118,576,819.64)",
+              "share": 0.71582,
+              "statement": "Sales of own production are 71.6% of revenue (79,311,635.03 of 110,798,309.14)",
               "test": "share >= 30.0%",
               "weight": 3.0
             },
@@ -90,7 +90,7 @@
               "amount": 45031585.84,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 118576819.64,
+              "basis_amount": 110798309.14,
               "basis_source": "line items, class 70",
               "family": "manufacturing",
               "fired": true,
@@ -98,8 +98,8 @@
               "reads": [
                 "Raw materials and consumables consumed (601, 602)"
               ],
-              "share": 0.379767,
-              "statement": "Raw materials and consumables consumed are 38.0% of revenue (45,031,585.84 of 118,576,819.64)",
+              "share": 0.406428,
+              "statement": "Raw materials and consumables consumed are 40.6% of revenue (45,031,585.84 of 110,798,309.14)",
               "test": "share >= 20.0%",
               "weight": 1.0
             },
@@ -158,7 +158,7 @@
               "amount": 35176699.41,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 118576819.64,
+              "basis_amount": 110798309.14,
               "basis_source": "line items, class 70",
               "family": "trade",
               "fired": false,
@@ -166,8 +166,8 @@
               "reads": [
                 "Sales of merchandise bought for resale (707)"
               ],
-              "share": 0.296657,
-              "statement": "Sales of merchandise bought for resale are 29.7% of revenue (35,176,699.41 of 118,576,819.64)",
+              "share": 0.317484,
+              "statement": "Sales of merchandise bought for resale are 31.7% of revenue (35,176,699.41 of 110,798,309.14)",
               "test": "share >= 60.0%",
               "weight": 3.0
             },
@@ -181,7 +181,7 @@
               "amount": 26488094.73,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 118576819.64,
+              "basis_amount": 110798309.14,
               "basis_source": "line items, class 70",
               "family": "trade",
               "fired": false,
@@ -189,8 +189,8 @@
               "reads": [
                 "Cost of merchandise sold (607)"
               ],
-              "share": 0.223383,
-              "statement": "Cost of merchandise sold is 22.3% of revenue (26,488,094.73 of 118,576,819.64)",
+              "share": 0.239066,
+              "statement": "Cost of merchandise sold is 23.9% of revenue (26,488,094.73 of 110,798,309.14)",
               "test": "share >= 55.0%",
               "weight": 3.0
             },
@@ -264,7 +264,7 @@
               "amount": 183977.61,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 118576819.64,
+              "basis_amount": 110798309.14,
               "basis_source": "line items, class 70",
               "family": "real_estate",
               "fired": false,
@@ -272,8 +272,8 @@
               "reads": [
                 "Rent and royalties (706)"
               ],
-              "share": 0.001552,
-              "statement": "Rent and royalties are 0.2% of revenue (183,977.61 of 118,576,819.64)",
+              "share": 0.00166,
+              "statement": "Rent and royalties are 0.2% of revenue (183,977.61 of 110,798,309.14)",
               "test": "share >= 50.0%",
               "weight": 3.0
             },
@@ -340,7 +340,7 @@
               "amount": 71519680.57,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 118576819.64,
+              "basis_amount": 110798309.14,
               "basis_source": "line items, class 70",
               "family": "real_estate",
               "fired": false,
@@ -349,8 +349,8 @@
                 "Raw materials and consumables consumed (601, 602)",
                 "Cost of merchandise sold (607)"
               ],
-              "share": 0.603151,
-              "statement": "Materials and merchandise cost is 60.3% of revenue (71,519,680.57 of 118,576,819.64)",
+              "share": 0.645494,
+              "statement": "Materials and merchandise cost is 64.5% of revenue (71,519,680.57 of 110,798,309.14)",
               "test": "share < 5.0%",
               "weight": 1.0
             }
@@ -374,7 +374,7 @@
               "amount": 15252.34,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 118576819.64,
+              "basis_amount": 110798309.14,
               "basis_source": "line items, class 70",
               "family": "services",
               "fired": false,
@@ -382,8 +382,8 @@
               "reads": [
                 "Services rendered and studies (704, 705)"
               ],
-              "share": 0.000129,
-              "statement": "Services rendered are 0.0% of revenue (15,252.34 of 118,576,819.64)",
+              "share": 0.000138,
+              "statement": "Services rendered are 0.0% of revenue (15,252.34 of 110,798,309.14)",
               "test": "share >= 50.0%",
               "weight": 3.0
             },
@@ -464,7 +464,7 @@
               "amount": 71519680.57,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 118576819.64,
+              "basis_amount": 110798309.14,
               "basis_source": "line items, class 70",
               "family": "services",
               "fired": false,
@@ -473,8 +473,8 @@
                 "Raw materials and consumables consumed (601, 602)",
                 "Cost of merchandise sold (607)"
               ],
-              "share": 0.603151,
-              "statement": "Materials and merchandise cost is 60.3% of revenue (71,519,680.57 of 118,576,819.64)",
+              "share": 0.645494,
+              "statement": "Materials and merchandise cost is 64.5% of revenue (71,519,680.57 of 110,798,309.14)",
               "test": "share < 10.0%",
               "weight": 1.0
             }
@@ -520,7 +520,7 @@
         "revenue": {
           "measurable": true,
           "source": "line items, class 70",
-          "value": 118576819.64
+          "value": 110798309.14
         },
         "tangible_fixed": {
           "measurable": true,
@@ -545,7 +545,7 @@
               "amount": 79311635.03,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 118576819.64,
+              "basis_amount": 110798309.14,
               "basis_source": "line items, class 70",
               "family": "manufacturing",
               "fired": true,
@@ -553,8 +553,8 @@
               "reads": [
                 "Sales of own production (701 finished, 702 semi-finished, 703 residues)"
               ],
-              "share": 0.668863,
-              "statement": "Sales of own production are 66.9% of revenue (79,311,635.03 of 118,576,819.64)",
+              "share": 0.71582,
+              "statement": "Sales of own production are 71.6% of revenue (79,311,635.03 of 110,798,309.14)",
               "test": "share >= 30.0%",
               "weight": 3.0
             },
@@ -599,7 +599,7 @@
               "amount": 45031585.84,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 118576819.64,
+              "basis_amount": 110798309.14,
               "basis_source": "line items, class 70",
               "family": "manufacturing",
               "fired": true,
@@ -607,8 +607,8 @@
               "reads": [
                 "Raw materials and consumables consumed (601, 602)"
               ],
-              "share": 0.379767,
-              "statement": "Raw materials and consumables consumed are 38.0% of revenue (45,031,585.84 of 118,576,819.64)",
+              "share": 0.406428,
+              "statement": "Raw materials and consumables consumed are 40.6% of revenue (45,031,585.84 of 110,798,309.14)",
               "test": "share >= 20.0%",
               "weight": 1.0
             },
@@ -667,7 +667,7 @@
               "amount": 35176699.41,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 118576819.64,
+              "basis_amount": 110798309.14,
               "basis_source": "line items, class 70",
               "family": "trade",
               "fired": false,
@@ -675,8 +675,8 @@
               "reads": [
                 "Sales of merchandise bought for resale (707)"
               ],
-              "share": 0.296657,
-              "statement": "Sales of merchandise bought for resale are 29.7% of revenue (35,176,699.41 of 118,576,819.64)",
+              "share": 0.317484,
+              "statement": "Sales of merchandise bought for resale are 31.7% of revenue (35,176,699.41 of 110,798,309.14)",
               "test": "share >= 60.0%",
               "weight": 3.0
             },
@@ -690,7 +690,7 @@
               "amount": 26488094.73,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 118576819.64,
+              "basis_amount": 110798309.14,
               "basis_source": "line items, class 70",
               "family": "trade",
               "fired": false,
@@ -698,8 +698,8 @@
               "reads": [
                 "Cost of merchandise sold (607)"
               ],
-              "share": 0.223383,
-              "statement": "Cost of merchandise sold is 22.3% of revenue (26,488,094.73 of 118,576,819.64)",
+              "share": 0.239066,
+              "statement": "Cost of merchandise sold is 23.9% of revenue (26,488,094.73 of 110,798,309.14)",
               "test": "share >= 55.0%",
               "weight": 3.0
             },
@@ -773,7 +773,7 @@
               "amount": 183977.61,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 118576819.64,
+              "basis_amount": 110798309.14,
               "basis_source": "line items, class 70",
               "family": "real_estate",
               "fired": false,
@@ -781,8 +781,8 @@
               "reads": [
                 "Rent and royalties (706)"
               ],
-              "share": 0.001552,
-              "statement": "Rent and royalties are 0.2% of revenue (183,977.61 of 118,576,819.64)",
+              "share": 0.00166,
+              "statement": "Rent and royalties are 0.2% of revenue (183,977.61 of 110,798,309.14)",
               "test": "share >= 50.0%",
               "weight": 3.0
             },
@@ -849,7 +849,7 @@
               "amount": 71519680.57,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 118576819.64,
+              "basis_amount": 110798309.14,
               "basis_source": "line items, class 70",
               "family": "real_estate",
               "fired": false,
@@ -858,8 +858,8 @@
                 "Raw materials and consumables consumed (601, 602)",
                 "Cost of merchandise sold (607)"
               ],
-              "share": 0.603151,
-              "statement": "Materials and merchandise cost is 60.3% of revenue (71,519,680.57 of 118,576,819.64)",
+              "share": 0.645494,
+              "statement": "Materials and merchandise cost is 64.5% of revenue (71,519,680.57 of 110,798,309.14)",
               "test": "share < 5.0%",
               "weight": 1.0
             }
@@ -883,7 +883,7 @@
               "amount": 15252.34,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 118576819.64,
+              "basis_amount": 110798309.14,
               "basis_source": "line items, class 70",
               "family": "services",
               "fired": false,
@@ -891,8 +891,8 @@
               "reads": [
                 "Services rendered and studies (704, 705)"
               ],
-              "share": 0.000129,
-              "statement": "Services rendered are 0.0% of revenue (15,252.34 of 118,576,819.64)",
+              "share": 0.000138,
+              "statement": "Services rendered are 0.0% of revenue (15,252.34 of 110,798,309.14)",
               "test": "share >= 50.0%",
               "weight": 3.0
             },
@@ -973,7 +973,7 @@
               "amount": 71519680.57,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 118576819.64,
+              "basis_amount": 110798309.14,
               "basis_source": "line items, class 70",
               "family": "services",
               "fired": false,
@@ -982,8 +982,8 @@
                 "Raw materials and consumables consumed (601, 602)",
                 "Cost of merchandise sold (607)"
               ],
-              "share": 0.603151,
-              "statement": "Materials and merchandise cost is 60.3% of revenue (71,519,680.57 of 118,576,819.64)",
+              "share": 0.645494,
+              "statement": "Materials and merchandise cost is 64.5% of revenue (71,519,680.57 of 110,798,309.14)",
               "test": "share < 10.0%",
               "weight": 1.0
             }
@@ -1031,7 +1031,7 @@
         "revenue": {
           "measurable": true,
           "source": "line items, class 70",
-          "value": 99424740.16
+          "value": 94509939.96
         },
         "tangible_fixed": {
           "measurable": true,
@@ -1060,7 +1060,7 @@
               "amount": 87980211.03,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 99424740.16,
+              "basis_amount": 94509939.96,
               "basis_source": "line items, class 70",
               "family": "manufacturing",
               "fired": true,
@@ -1068,8 +1068,8 @@
               "reads": [
                 "Sales of own production (701 finished, 702 semi-finished, 703 residues)"
               ],
-              "share": 0.884893,
-              "statement": "Sales of own production are 88.5% of revenue (87,980,211.03 of 99,424,740.16)",
+              "share": 0.93091,
+              "statement": "Sales of own production are 93.1% of revenue (87,980,211.03 of 94,509,939.96)",
               "test": "share >= 30.0%",
               "weight": 3.0
             },
@@ -1114,7 +1114,7 @@
               "amount": 51374467.2,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 99424740.16,
+              "basis_amount": 94509939.96,
               "basis_source": "line items, class 70",
               "family": "manufacturing",
               "fired": true,
@@ -1122,8 +1122,8 @@
               "reads": [
                 "Raw materials and consumables consumed (601, 602)"
               ],
-              "share": 0.516717,
-              "statement": "Raw materials and consumables consumed are 51.7% of revenue (51,374,467.20 of 99,424,740.16)",
+              "share": 0.543588,
+              "statement": "Raw materials and consumables consumed are 54.4% of revenue (51,374,467.20 of 94,509,939.96)",
               "test": "share >= 20.0%",
               "weight": 1.0
             },
@@ -1182,7 +1182,7 @@
               "amount": 48000.0,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 99424740.16,
+              "basis_amount": 94509939.96,
               "basis_source": "line items, class 70",
               "family": "real_estate",
               "fired": false,
@@ -1190,8 +1190,8 @@
               "reads": [
                 "Rent and royalties (706)"
               ],
-              "share": 0.000483,
-              "statement": "Rent and royalties are 0.0% of revenue (48,000.00 of 99,424,740.16)",
+              "share": 0.000508,
+              "statement": "Rent and royalties are 0.1% of revenue (48,000.00 of 94,509,939.96)",
               "test": "share >= 50.0%",
               "weight": 3.0
             },
@@ -1258,7 +1258,7 @@
               "amount": 57948721.14,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 99424740.16,
+              "basis_amount": 94509939.96,
               "basis_source": "line items, class 70",
               "family": "real_estate",
               "fired": false,
@@ -1267,8 +1267,8 @@
                 "Raw materials and consumables consumed (601, 602)",
                 "Cost of merchandise sold (607)"
               ],
-              "share": 0.58284,
-              "statement": "Materials and merchandise cost is 58.3% of revenue (57,948,721.14 of 99,424,740.16)",
+              "share": 0.613149,
+              "statement": "Materials and merchandise cost is 61.3% of revenue (57,948,721.14 of 94,509,939.96)",
               "test": "share < 5.0%",
               "weight": 1.0
             }
@@ -1292,7 +1292,7 @@
               "amount": 194490.98,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 99424740.16,
+              "basis_amount": 94509939.96,
               "basis_source": "line items, class 70",
               "family": "services",
               "fired": false,
@@ -1300,8 +1300,8 @@
               "reads": [
                 "Services rendered and studies (704, 705)"
               ],
-              "share": 0.001956,
-              "statement": "Services rendered are 0.2% of revenue (194,490.98 of 99,424,740.16)",
+              "share": 0.002058,
+              "statement": "Services rendered are 0.2% of revenue (194,490.98 of 94,509,939.96)",
               "test": "share >= 50.0%",
               "weight": 3.0
             },
@@ -1382,7 +1382,7 @@
               "amount": 57948721.14,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 99424740.16,
+              "basis_amount": 94509939.96,
               "basis_source": "line items, class 70",
               "family": "services",
               "fired": false,
@@ -1391,8 +1391,8 @@
                 "Raw materials and consumables consumed (601, 602)",
                 "Cost of merchandise sold (607)"
               ],
-              "share": 0.58284,
-              "statement": "Materials and merchandise cost is 58.3% of revenue (57,948,721.14 of 99,424,740.16)",
+              "share": 0.613149,
+              "statement": "Materials and merchandise cost is 61.3% of revenue (57,948,721.14 of 94,509,939.96)",
               "test": "share < 10.0%",
               "weight": 1.0
             }
@@ -1416,7 +1416,7 @@
               "amount": 8744638.05,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 99424740.16,
+              "basis_amount": 94509939.96,
               "basis_source": "line items, class 70",
               "family": "trade",
               "fired": false,
@@ -1424,8 +1424,8 @@
               "reads": [
                 "Sales of merchandise bought for resale (707)"
               ],
-              "share": 0.087952,
-              "statement": "Sales of merchandise bought for resale are 8.8% of revenue (8,744,638.05 of 99,424,740.16)",
+              "share": 0.092526,
+              "statement": "Sales of merchandise bought for resale are 9.3% of revenue (8,744,638.05 of 94,509,939.96)",
               "test": "share >= 60.0%",
               "weight": 3.0
             },
@@ -1439,7 +1439,7 @@
               "amount": 6574253.94,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 99424740.16,
+              "basis_amount": 94509939.96,
               "basis_source": "line items, class 70",
               "family": "trade",
               "fired": false,
@@ -1447,8 +1447,8 @@
               "reads": [
                 "Cost of merchandise sold (607)"
               ],
-              "share": 0.066123,
-              "statement": "Cost of merchandise sold is 6.6% of revenue (6,574,253.94 of 99,424,740.16)",
+              "share": 0.069562,
+              "statement": "Cost of merchandise sold is 7.0% of revenue (6,574,253.94 of 94,509,939.96)",
               "test": "share >= 55.0%",
               "weight": 3.0
             },
@@ -1544,7 +1544,7 @@
         "revenue": {
           "measurable": true,
           "source": "line items, class 70",
-          "value": 99424740.16
+          "value": 94509939.96
         },
         "tangible_fixed": {
           "measurable": true,
@@ -1573,7 +1573,7 @@
               "amount": 87980211.03,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 99424740.16,
+              "basis_amount": 94509939.96,
               "basis_source": "line items, class 70",
               "family": "manufacturing",
               "fired": true,
@@ -1581,8 +1581,8 @@
               "reads": [
                 "Sales of own production (701 finished, 702 semi-finished, 703 residues)"
               ],
-              "share": 0.884893,
-              "statement": "Sales of own production are 88.5% of revenue (87,980,211.03 of 99,424,740.16)",
+              "share": 0.93091,
+              "statement": "Sales of own production are 93.1% of revenue (87,980,211.03 of 94,509,939.96)",
               "test": "share >= 30.0%",
               "weight": 3.0
             },
@@ -1627,7 +1627,7 @@
               "amount": 51374467.2,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 99424740.16,
+              "basis_amount": 94509939.96,
               "basis_source": "line items, class 70",
               "family": "manufacturing",
               "fired": true,
@@ -1635,8 +1635,8 @@
               "reads": [
                 "Raw materials and consumables consumed (601, 602)"
               ],
-              "share": 0.516717,
-              "statement": "Raw materials and consumables consumed are 51.7% of revenue (51,374,467.20 of 99,424,740.16)",
+              "share": 0.543588,
+              "statement": "Raw materials and consumables consumed are 54.4% of revenue (51,374,467.20 of 94,509,939.96)",
               "test": "share >= 20.0%",
               "weight": 1.0
             },
@@ -1695,7 +1695,7 @@
               "amount": 48000.0,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 99424740.16,
+              "basis_amount": 94509939.96,
               "basis_source": "line items, class 70",
               "family": "real_estate",
               "fired": false,
@@ -1703,8 +1703,8 @@
               "reads": [
                 "Rent and royalties (706)"
               ],
-              "share": 0.000483,
-              "statement": "Rent and royalties are 0.0% of revenue (48,000.00 of 99,424,740.16)",
+              "share": 0.000508,
+              "statement": "Rent and royalties are 0.1% of revenue (48,000.00 of 94,509,939.96)",
               "test": "share >= 50.0%",
               "weight": 3.0
             },
@@ -1771,7 +1771,7 @@
               "amount": 57948721.14,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 99424740.16,
+              "basis_amount": 94509939.96,
               "basis_source": "line items, class 70",
               "family": "real_estate",
               "fired": false,
@@ -1780,8 +1780,8 @@
                 "Raw materials and consumables consumed (601, 602)",
                 "Cost of merchandise sold (607)"
               ],
-              "share": 0.58284,
-              "statement": "Materials and merchandise cost is 58.3% of revenue (57,948,721.14 of 99,424,740.16)",
+              "share": 0.613149,
+              "statement": "Materials and merchandise cost is 61.3% of revenue (57,948,721.14 of 94,509,939.96)",
               "test": "share < 5.0%",
               "weight": 1.0
             }
@@ -1805,7 +1805,7 @@
               "amount": 194490.98,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 99424740.16,
+              "basis_amount": 94509939.96,
               "basis_source": "line items, class 70",
               "family": "services",
               "fired": false,
@@ -1813,8 +1813,8 @@
               "reads": [
                 "Services rendered and studies (704, 705)"
               ],
-              "share": 0.001956,
-              "statement": "Services rendered are 0.2% of revenue (194,490.98 of 99,424,740.16)",
+              "share": 0.002058,
+              "statement": "Services rendered are 0.2% of revenue (194,490.98 of 94,509,939.96)",
               "test": "share >= 50.0%",
               "weight": 3.0
             },
@@ -1895,7 +1895,7 @@
               "amount": 57948721.14,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 99424740.16,
+              "basis_amount": 94509939.96,
               "basis_source": "line items, class 70",
               "family": "services",
               "fired": false,
@@ -1904,8 +1904,8 @@
                 "Raw materials and consumables consumed (601, 602)",
                 "Cost of merchandise sold (607)"
               ],
-              "share": 0.58284,
-              "statement": "Materials and merchandise cost is 58.3% of revenue (57,948,721.14 of 99,424,740.16)",
+              "share": 0.613149,
+              "statement": "Materials and merchandise cost is 61.3% of revenue (57,948,721.14 of 94,509,939.96)",
               "test": "share < 10.0%",
               "weight": 1.0
             }
@@ -1929,7 +1929,7 @@
               "amount": 8744638.05,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 99424740.16,
+              "basis_amount": 94509939.96,
               "basis_source": "line items, class 70",
               "family": "trade",
               "fired": false,
@@ -1937,8 +1937,8 @@
               "reads": [
                 "Sales of merchandise bought for resale (707)"
               ],
-              "share": 0.087952,
-              "statement": "Sales of merchandise bought for resale are 8.8% of revenue (8,744,638.05 of 99,424,740.16)",
+              "share": 0.092526,
+              "statement": "Sales of merchandise bought for resale are 9.3% of revenue (8,744,638.05 of 94,509,939.96)",
               "test": "share >= 60.0%",
               "weight": 3.0
             },
@@ -1952,7 +1952,7 @@
               "amount": 6574253.94,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 99424740.16,
+              "basis_amount": 94509939.96,
               "basis_source": "line items, class 70",
               "family": "trade",
               "fired": false,
@@ -1960,8 +1960,8 @@
               "reads": [
                 "Cost of merchandise sold (607)"
               ],
-              "share": 0.066123,
-              "statement": "Cost of merchandise sold is 6.6% of revenue (6,574,253.94 of 99,424,740.16)",
+              "share": 0.069562,
+              "statement": "Cost of merchandise sold is 7.0% of revenue (6,574,253.94 of 94,509,939.96)",
               "test": "share >= 55.0%",
               "weight": 3.0
             },
@@ -2865,7 +2865,7 @@
         "revenue": {
           "measurable": true,
           "source": "line items, class 70",
-          "value": 79510264.65
+          "value": 79018306.77
         },
         "tangible_fixed": {
           "measurable": true,
@@ -2890,7 +2890,7 @@
               "amount": 78330575.04,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 79510264.65,
+              "basis_amount": 79018306.77,
               "basis_source": "line items, class 70",
               "family": "trade",
               "fired": true,
@@ -2898,8 +2898,8 @@
               "reads": [
                 "Sales of merchandise bought for resale (707)"
               ],
-              "share": 0.985163,
-              "statement": "Sales of merchandise bought for resale are 98.5% of revenue (78,330,575.04 of 79,510,264.65)",
+              "share": 0.991297,
+              "statement": "Sales of merchandise bought for resale are 99.1% of revenue (78,330,575.04 of 79,018,306.77)",
               "test": "share >= 60.0%",
               "weight": 3.0
             },
@@ -2913,7 +2913,7 @@
               "amount": 63208118.74,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 79510264.65,
+              "basis_amount": 79018306.77,
               "basis_source": "line items, class 70",
               "family": "trade",
               "fired": true,
@@ -2921,8 +2921,8 @@
               "reads": [
                 "Cost of merchandise sold (607)"
               ],
-              "share": 0.794968,
-              "statement": "Cost of merchandise sold is 79.5% of revenue (63,208,118.74 of 79,510,264.65)",
+              "share": 0.799917,
+              "statement": "Cost of merchandise sold is 80.0% of revenue (63,208,118.74 of 79,018,306.77)",
               "test": "share >= 55.0%",
               "weight": 3.0
             },
@@ -2982,7 +2982,7 @@
               "amount": 0.0,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 79510264.65,
+              "basis_amount": 79018306.77,
               "basis_source": "line items, class 70",
               "family": "manufacturing",
               "fired": false,
@@ -2991,7 +2991,7 @@
                 "Sales of own production (701 finished, 702 semi-finished, 703 residues)"
               ],
               "share": 0.0,
-              "statement": "Sales of own production are 0.0% of revenue (0.00 of 79,510,264.65)",
+              "statement": "Sales of own production are 0.0% of revenue (0.00 of 79,018,306.77)",
               "test": "share >= 30.0%",
               "weight": 3.0
             },
@@ -3023,7 +3023,7 @@
               "amount": 177627.63,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 79510264.65,
+              "basis_amount": 79018306.77,
               "basis_source": "line items, class 70",
               "family": "manufacturing",
               "fired": false,
@@ -3031,8 +3031,8 @@
               "reads": [
                 "Raw materials and consumables consumed (601, 602)"
               ],
-              "share": 0.002234,
-              "statement": "Raw materials and consumables consumed are 0.2% of revenue (177,627.63 of 79,510,264.65)",
+              "share": 0.002248,
+              "statement": "Raw materials and consumables consumed are 0.2% of revenue (177,627.63 of 79,018,306.77)",
               "test": "share >= 20.0%",
               "weight": 1.0
             },
@@ -3087,7 +3087,7 @@
               "amount": 352714.12,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 79510264.65,
+              "basis_amount": 79018306.77,
               "basis_source": "line items, class 70",
               "family": "real_estate",
               "fired": false,
@@ -3095,8 +3095,8 @@
               "reads": [
                 "Rent and royalties (706)"
               ],
-              "share": 0.004436,
-              "statement": "Rent and royalties are 0.4% of revenue (352,714.12 of 79,510,264.65)",
+              "share": 0.004464,
+              "statement": "Rent and royalties are 0.4% of revenue (352,714.12 of 79,018,306.77)",
               "test": "share >= 50.0%",
               "weight": 3.0
             },
@@ -3159,7 +3159,7 @@
               "amount": 63385746.37,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 79510264.65,
+              "basis_amount": 79018306.77,
               "basis_source": "line items, class 70",
               "family": "real_estate",
               "fired": false,
@@ -3168,8 +3168,8 @@
                 "Raw materials and consumables consumed (601, 602)",
                 "Cost of merchandise sold (607)"
               ],
-              "share": 0.797202,
-              "statement": "Materials and merchandise cost is 79.7% of revenue (63,385,746.37 of 79,510,264.65)",
+              "share": 0.802165,
+              "statement": "Materials and merchandise cost is 80.2% of revenue (63,385,746.37 of 79,018,306.77)",
               "test": "share < 5.0%",
               "weight": 1.0
             }
@@ -3193,7 +3193,7 @@
               "amount": 535742.05,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 79510264.65,
+              "basis_amount": 79018306.77,
               "basis_source": "line items, class 70",
               "family": "services",
               "fired": false,
@@ -3201,8 +3201,8 @@
               "reads": [
                 "Services rendered and studies (704, 705)"
               ],
-              "share": 0.006738,
-              "statement": "Services rendered are 0.7% of revenue (535,742.05 of 79,510,264.65)",
+              "share": 0.00678,
+              "statement": "Services rendered are 0.7% of revenue (535,742.05 of 79,018,306.77)",
               "test": "share >= 50.0%",
               "weight": 3.0
             },
@@ -3267,7 +3267,7 @@
               "amount": 63385746.37,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 79510264.65,
+              "basis_amount": 79018306.77,
               "basis_source": "line items, class 70",
               "family": "services",
               "fired": false,
@@ -3276,8 +3276,8 @@
                 "Raw materials and consumables consumed (601, 602)",
                 "Cost of merchandise sold (607)"
               ],
-              "share": 0.797202,
-              "statement": "Materials and merchandise cost is 79.7% of revenue (63,385,746.37 of 79,510,264.65)",
+              "share": 0.802165,
+              "statement": "Materials and merchandise cost is 80.2% of revenue (63,385,746.37 of 79,018,306.77)",
               "test": "share < 10.0%",
               "weight": 1.0
             }
@@ -3323,7 +3323,7 @@
         "revenue": {
           "measurable": true,
           "source": "line items, class 70",
-          "value": 79510264.65
+          "value": 79018306.77
         },
         "tangible_fixed": {
           "measurable": true,
@@ -3348,7 +3348,7 @@
               "amount": 78330575.04,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 79510264.65,
+              "basis_amount": 79018306.77,
               "basis_source": "line items, class 70",
               "family": "trade",
               "fired": true,
@@ -3356,8 +3356,8 @@
               "reads": [
                 "Sales of merchandise bought for resale (707)"
               ],
-              "share": 0.985163,
-              "statement": "Sales of merchandise bought for resale are 98.5% of revenue (78,330,575.04 of 79,510,264.65)",
+              "share": 0.991297,
+              "statement": "Sales of merchandise bought for resale are 99.1% of revenue (78,330,575.04 of 79,018,306.77)",
               "test": "share >= 60.0%",
               "weight": 3.0
             },
@@ -3371,7 +3371,7 @@
               "amount": 63208118.74,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 79510264.65,
+              "basis_amount": 79018306.77,
               "basis_source": "line items, class 70",
               "family": "trade",
               "fired": true,
@@ -3379,8 +3379,8 @@
               "reads": [
                 "Cost of merchandise sold (607)"
               ],
-              "share": 0.794968,
-              "statement": "Cost of merchandise sold is 79.5% of revenue (63,208,118.74 of 79,510,264.65)",
+              "share": 0.799917,
+              "statement": "Cost of merchandise sold is 80.0% of revenue (63,208,118.74 of 79,018,306.77)",
               "test": "share >= 55.0%",
               "weight": 3.0
             },
@@ -3440,7 +3440,7 @@
               "amount": 0.0,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 79510264.65,
+              "basis_amount": 79018306.77,
               "basis_source": "line items, class 70",
               "family": "manufacturing",
               "fired": false,
@@ -3449,7 +3449,7 @@
                 "Sales of own production (701 finished, 702 semi-finished, 703 residues)"
               ],
               "share": 0.0,
-              "statement": "Sales of own production are 0.0% of revenue (0.00 of 79,510,264.65)",
+              "statement": "Sales of own production are 0.0% of revenue (0.00 of 79,018,306.77)",
               "test": "share >= 30.0%",
               "weight": 3.0
             },
@@ -3481,7 +3481,7 @@
               "amount": 177627.63,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 79510264.65,
+              "basis_amount": 79018306.77,
               "basis_source": "line items, class 70",
               "family": "manufacturing",
               "fired": false,
@@ -3489,8 +3489,8 @@
               "reads": [
                 "Raw materials and consumables consumed (601, 602)"
               ],
-              "share": 0.002234,
-              "statement": "Raw materials and consumables consumed are 0.2% of revenue (177,627.63 of 79,510,264.65)",
+              "share": 0.002248,
+              "statement": "Raw materials and consumables consumed are 0.2% of revenue (177,627.63 of 79,018,306.77)",
               "test": "share >= 20.0%",
               "weight": 1.0
             },
@@ -3545,7 +3545,7 @@
               "amount": 352714.12,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 79510264.65,
+              "basis_amount": 79018306.77,
               "basis_source": "line items, class 70",
               "family": "real_estate",
               "fired": false,
@@ -3553,8 +3553,8 @@
               "reads": [
                 "Rent and royalties (706)"
               ],
-              "share": 0.004436,
-              "statement": "Rent and royalties are 0.4% of revenue (352,714.12 of 79,510,264.65)",
+              "share": 0.004464,
+              "statement": "Rent and royalties are 0.4% of revenue (352,714.12 of 79,018,306.77)",
               "test": "share >= 50.0%",
               "weight": 3.0
             },
@@ -3617,7 +3617,7 @@
               "amount": 63385746.37,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 79510264.65,
+              "basis_amount": 79018306.77,
               "basis_source": "line items, class 70",
               "family": "real_estate",
               "fired": false,
@@ -3626,8 +3626,8 @@
                 "Raw materials and consumables consumed (601, 602)",
                 "Cost of merchandise sold (607)"
               ],
-              "share": 0.797202,
-              "statement": "Materials and merchandise cost is 79.7% of revenue (63,385,746.37 of 79,510,264.65)",
+              "share": 0.802165,
+              "statement": "Materials and merchandise cost is 80.2% of revenue (63,385,746.37 of 79,018,306.77)",
               "test": "share < 5.0%",
               "weight": 1.0
             }
@@ -3651,7 +3651,7 @@
               "amount": 535742.05,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 79510264.65,
+              "basis_amount": 79018306.77,
               "basis_source": "line items, class 70",
               "family": "services",
               "fired": false,
@@ -3659,8 +3659,8 @@
               "reads": [
                 "Services rendered and studies (704, 705)"
               ],
-              "share": 0.006738,
-              "statement": "Services rendered are 0.7% of revenue (535,742.05 of 79,510,264.65)",
+              "share": 0.00678,
+              "statement": "Services rendered are 0.7% of revenue (535,742.05 of 79,018,306.77)",
               "test": "share >= 50.0%",
               "weight": 3.0
             },
@@ -3725,7 +3725,7 @@
               "amount": 63385746.37,
               "available": true,
               "basis": "revenue",
-              "basis_amount": 79510264.65,
+              "basis_amount": 79018306.77,
               "basis_source": "line items, class 70",
               "family": "services",
               "fired": false,
@@ -3734,8 +3734,8 @@
                 "Raw materials and consumables consumed (601, 602)",
                 "Cost of merchandise sold (607)"
               ],
-              "share": 0.797202,
-              "statement": "Materials and merchandise cost is 79.7% of revenue (63,385,746.37 of 79,510,264.65)",
+              "share": 0.802165,
+              "statement": "Materials and merchandise cost is 80.2% of revenue (63,385,746.37 of 79,018,306.77)",
               "test": "share < 10.0%",
               "weight": 1.0
             }

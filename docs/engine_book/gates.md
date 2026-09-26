@@ -5385,6 +5385,347 @@ see: whether the medians are right (`test_benchmarks_ro.py`), the tenancy of
 the fetch (`test_sector_benchmark_route_real_app.py`), and the rendered pixel
 layout at phone width (`e2e/i18n-mobile-sweep.spec.ts` walks `/benchmark`).
 
+## statements-anchor-gap
+
+Parser v6 (owner ruling 2026-09-18: the 609/709 double count is a P0;
+2026-09-21: v6 is correct and ships as its own deploy). Ported from
+wave/forecast-v15's plan/2 B4a (ca2e40c, 4d97d9b, 6f2db0f, 22fb9db,
+641d519) onto the production tree without any forecast/plan code.
+`tests/engine/test_statements_anchor_gap.py`, registered in
+`scripts/run_battery.py` beside `cron-auth`.
+
+THE DEFECT. Saga exports that close class 6/7 into account 121 print each
+P&L row's cumulative value on both turnover sides ("mirrored"). For an
+account whose nature is contra to the bucket it lands in — 609 supplier
+discounts in operating expenses, 709 customer reductions in revenue — the
+exporters disagree on the sign: the frozen Scandia golden and both local
+Scandia years write the reductions NEGATIVE, the retail, agras and
+carniprod exports write them POSITIVE. `accounts_to_assemble_shape` took
+the printed sign as the entry's direction, so on the positive-writing books
+every supplier discount was ADDED to operating cost and every customer
+reduction ADDED to revenue: retail opex 16,640,349.00 for 14,105,136.48,
+revenue 79,510,264.65 for 79,018,306.77, and a reconstruction that missed
+account 121 by 2,043,254.64. The served-P&L guard `pl_sanity` (PL3) pinned
+the same reading as its law, so the correct statement would have been
+refused by the live pipeline.
+
+THE REPAIR. Each contra FAMILY (609 cost reductions, 709 revenue
+reductions) is decided once per document from that family's own mirrored
+rows (`trial_balance_parser.contra_reading`: the net is positive only when
+reductions print positive; a family with no mirrored row decides nothing
+and nothing flips; a document whose families disagree is served as
+`mixed`) — never a per-row guess. Under `entry_magnitude` a mirrored contra
+row enters its bucket negated; under `natural_signed` it enters as printed.
+The contra nature is the canonical schema's declared sign meaning of the
+leaf, never a hand-kept list. `pl_sanity.class_movement` reads the same
+row through the same `contra_reading`. `PARSER_VERSION` moves
+`tb_parser_v5` -> `tb_parser_v6`, so a re-parsed period is told from a
+stale one.
+
+WHAT THE GATE CHECKS. On every corpus book, the Scandia regression baseline
+(aggregates only) and any book in `PLAN_LOCAL_XLSX`,
+`|account 121 - reconstruction|` is printed and must be within a floor
+rendered from `packs/ro/statements_anchor.yaml#anchor_gap` and the book
+(TC-10): the cent tolerance plus the turnover of the book's 711/712 rows.
+On retail, which has no 711, the floor is one cent. Then: retail
+reproduces 121 to the cent; every mirrored contra row of every corpus xlsx
+enters as a reduction under its document's convention; the metamorphic
+pair (the same ledger rewritten into the other convention) is identical on
+revenue, cost of sales, operating cost and the reconstruction; 781 is
+never contra to its bucket; four test-built documents (609-only, 709-only,
+mixed, storno-heavy) each decide by their own family's net.
+
+| | |
+|---|---|
+| work count | `GATE-WORK statements-anchor-gap units=(\d+)` (books judged + mirrored contra rows checked + metamorphic comparisons + decision-rule documents; measured 63 on the port), floor 58 |
+| canaries | `SCOPE statements-anchor-gap (plan/2 B4a, contract 5.1)`, `floor from packs/ro/statements_anchor.yaml#anchor_gap`, `convention per document`, `mirrored contra rows checked` |
+
+**SCOPE** — printed: `SCOPE statements-anchor-gap (plan/2 B4a, contract
+5.1): books examined 14 (6 carry account 121), floor from
+packs/ro/statements_anchor.yaml#anchor_gap`, one line per book with gap,
+floor, hidden turnover and decided convention, then `convention per
+document: ... saga_10_col natural_signed (3 mirrored contra rows, net
+-226845.35); saga_10_col_agras entry_magnitude (4 ..., net 3956453.98);
+saga_10_col_carniprod entry_magnitude (7 ..., net 2617417.71);
+saga_10_col_realestate not_decided (0 ...); saga_10_col_retail
+entry_magnitude (7 ..., net 1513585.20)` and `mirrored contra rows checked
+21; metamorphic comparisons 16`.
+
+**GREEN** (port) — `9 passed`: retail 0.00 (floor 0.01), agras
+1,071,687.03 (192,091,846.34), carniprod 186,849.53 (88,453,995.51),
+realestate 29,589,814.24 (29,589,814.25), saga_10_col 231,203.19
+(82,948,008.60), regression baseline 519,389.11 (630,091,698.20).
+
+**RED (parent commit, the v5 parser)** — the gate file committed first,
+run on f7fec0f9's parser, `9 failed`:
+
+```
+E   AssertionError: corpus saga_10_col_retail: |121 - reconstruction| = 2043254.64 exceeds the floor 0.01: the reconstruction misses account 121 by more than the production-variation turnover of this book can hide, so a class-6/7 row entered a statement bucket with the wrong sign
+E   AssertionError: retail: the build-up reaches 1161957.98, account 121 filed 3205212.62
+```
+
+(the contra-sign and decision-rule checks red on the missing helpers).
+
+**PLANTS, observed on the port tree** (each applied by string replacement,
+the gate run, the file restored from its byte copy; sha1 checked before
+and after; `48 passed, 6 skipped` over this gate plus `test_pl_sanity.py`
+after the reverts):
+
+| # | Plant | Result | Excerpt |
+|---|---|---|---|
+| P1 | `ContraReading.reads_as_reduction` returns False (the exporter's sign taken as printed) | `6 failed, 3 passed` | `corpus saga_10_col_retail: \|121 - reconstruction\| = 2043254.64 exceeds the floor 0.01` |
+| P2 | `_pl_contra_to_bucket` returns `code.startswith(("609", "709", "781"))` (a hand-kept list) | `4 failed, 5 passed` | `assert not True` (781); `saga_10_col net_income_reconstructed: natural_signed 171665.97, the same ledger in the other exporter convention (entry_magnitude) -437661.51` |
+| P4 | a natural-signed document flipped too (`!= CONTRA_NOT_DECIDED`) | `2 failed, 7 passed` | `saga_10_col 709101: printed -202772.78 under natural_signed entered 202772.78, want -202772.78` |
+| P5 | `hidden_net_prefixes` deleted from the pack (TC-10 liveness) | `1 failed, 8 passed` | `KeyError: 'hidden_net_prefixes'` |
+| P6 | `pl_sanity.class_movement` reads the printed class-70 sum (gate `tests/engine/test_pl_sanity.py`) | `7 failed, 32 passed, 6 skipped` | `saga_10_col_agras would be refused: PL3_REVENUE_IS_NOT_THE_CLASS70_CREDIT — Served revenue 110,798,309.14 does not equal the trial balance's one-sided class-70 credit 118,576,819.64` |
+| R11 | the document net forced onto both families (`decided = None`) | `1 failed, 8 passed` | `SYNTHETIC mixed (709 natural-signed, 609 magnitudes): opex_excluding_cogs_and_da 16640349.00, the same ledger printed in one convention gives 14105136.48 (delta 2535212.52)` |
+
+**REVERT** — every plant restored from the byte copy taken before it
+(`scratchpad/v6_verify/plants.py`): sha1 trial_balance_parser.py
+516daac7df64e1481726b28d0ae8b89c80868e3c, pl_sanity.py
+d00db72b4aa0eb791e12ad267f3ee56168c09297, statements_anchor.yaml
+d1a6219a12d88ef45ef8cbb066096b756cb1d124 before every plant and after
+every revert; GREEN after: `48 passed, 6 skipped`.
+
+**After the repair it reds on (TC-11):** a class-6/7 row entering its
+bucket with the wrong sign on a book whose production-variation turnover
+cannot hide it; a mirrored contra row entering with the exporter's sign
+on an entry-magnitude document; a natural-signed document flipped; a
+contra account read from a hand-kept list; a family forced onto another
+family's decision; a floor written as a code literal; a scope with no
+document of either convention or no book carrying account 121 (TC-3).
+
+**It cannot see:** a wrong sign on a book whose 711 turnover is larger
+than the error (agras and carniprod: the residual beyond the production
+stock movement — 1,018,671.15 and 185,677.27 — is PRINTED, not judged);
+non-mirrored rows (the one-side SAGA path is covered by the corpus
+replay); the served statements of periods persisted before v6 (a stored
+period keeps its v5 line items until its document is re-parsed —
+`extraction.parser_version` tells them apart).
+
+## interest-coverage-one-operand
+
+The 0.32 / 0.3257 seam (owner, 2026-09-21: "confirm the served metric
+equals its own recomputation; fix the 0.32 vs 0.3257 seam").
+`tests/engine/test_interest_coverage_one_operand.py`, registered in
+`scripts/run_battery.py` beside `statements-anchor-gap`; the frontend
+halves are vitest (`interestCoverageBasis.test.ts`,
+`exportRatioFormulas.test.ts` G4, and `interestCoveragePopover.test.tsx`,
+the Ratios card's learning popover — see "The popover half" below).
+
+THE DEFECT. `assembled_pl` carries two EBITs: `ebit` (revenue − COGS −
+opex + other operating income − D&A) and `operating_ebit` (the operating
+view: `ebit` plus 722 capitalized own work and 767 discounts received).
+On the retail corpus book under tb_parser_v6 they are 1,923.78 apart
+(786,579.83 / 788,503.61, interest 2,421,110.34). The engine's
+`interest_coverage` row divided `ebit` (0.3249 → "0.32"); the frontend's
+no-envelope credit model (`financialValuation.ts computeCreditScore`,
+`c.ebitStatutory` = `operating_ebit`) and G4's recomputation divided
+`operating_ebit` (0.3257 → "0.33"). One book, three printed coverages,
+two numbers.
+
+THE DECISION. The engine is internally consistent — its row
+(`credit_model.operating_profit`), its coverage sub-score, its
+declared-rung predicate and the ratio table's own fallback (`table.ebit`)
+all divide `ebit`, and `ebit` is the EBIT the P&L PRINTS (the
+ComprehensiveReport and export "EBIT" rows read `assembled_pl.ebit`, and
+`ebit + net_financial_result` foots to `pretax`). So no engine number
+moves: the frontend moved to the engine's operand. The credit model now
+divides `ebitCoverage` (= `assembled_pl.ebit`, else the feed's reported
+EBIT, else `deriveTotals`' reconstruction — the engine table's own
+fallback arithmetic) for the coverage row and its debt-free declared
+rung; G4 recomputes coverage and ROIC from `e.pl.ebit`. Measured on the
+four firm books: only retail's no-envelope coverage VALUE moves
+(0.325679 → 0.324884, printed 0.33 → 0.32); its sub-score (15), the
+composite and the grade do not move on any book.
+
+WHAT THE GATE CHECKS. On the four corpus books and the Scandia baseline
+through the real GET /api/period (`_served_books`): `ebit` foots to
+`pretax` with the net financial result; the served row and the
+serve-time table print quantize(ebit / interest); the table's own
+fallback (a payload with no metric rows) prints the same digits from the
+operands it lists, and those operands build `ebit` to the cent; the
+metric row carries the quotient to 4 dp. TC-3: at least two books with
+positive interest and at least one (retail) on which `operating_ebit`
+would print a different coverage.
+
+| | |
+|---|---|
+| work count | `GATE-WORK interest-coverage-one-operand units=(\d+)` (books served + coverages recomputed; measured 9), floor 8 |
+| canaries | `SCOPE interest-coverage-one-operand`, `books where operating_ebit would print a different coverage: 1`, `retail             EBIT 786579.83`, `SCOPE coverage popover corpus fixture` |
+
+**SCOPE** — printed: `SCOPE interest-coverage-one-operand: books 5
+(agras, carniprod, realestate, retail, scandia_baseline); interest
+measured on 4; books where operating_ebit would print a different
+coverage: 1`, then per book `retail EBIT 786579.83 / interest 2421110.34
+= 0.32 printed; served 0.32; operating_ebit 788503.61 would print 0.33`
+(carniprod: interest 0.0, refused `zero_denominator`).
+
+**GREEN** — `1 passed`; agras 28.14, realestate −25.13, retail 0.32,
+Scandia baseline 13.27, each equal to its recomputation.
+
+**PLANTS, each observed RED** (`scratchpad/v6_verify/plants_seam.py`, each
+applied by string replacement, the gate run, the file restored byte-exact):
+
+| # | Plant | Result | Excerpt |
+|---|---|---|---|
+| E1 | the engine metric row divides `operating_ebit` (`credit_model.py`) | `1 failed` | `retail: served interest_coverage prints 0.33, EBIT / interest recomputes 0.32` |
+| E2 | the ratio table's fallback divides EBITDA (`table.py`) | `1 failed` | `agras: the table's own EBIT / interest prints 38.77, recomputes 28.14` |
+| F1 | the no-envelope credit model divides `c.ebitStatutory` again (`interestCoverageBasis.test.ts`) | `1 failed` | `expected '0.33' to be '0.32'` |
+| F2 | G4 recomputes from `operating_ebit` again (`exportRatioFormulas.test.ts`) | `1 failed` | `retail: a rendered ratio does not equal its stated formula` |
+
+**REVERT** — every planted file restored from its byte copy (sha1
+checked); the gate `1 passed`, `interestCoverageBasis` and
+`exportRatioFormulas` `26 passed` after.
+
+**After the repair it reds on (TC-11):** any served, serve-time or
+fallback interest coverage whose printed digits are not quantize(ebit /
+interest); a served `ebit` that stops footing to pretax; a scope with no
+book that tells the two operands apart; (vitest) the no-envelope model or
+G4 dividing any EBIT but `assembled_pl.ebit`.
+
+**It cannot see:** books with zero interest (carniprod is refused and
+printed as such); other ratios that read `operating_ebit` — the
+no-envelope Altman X3 and the Piotroski operating-margin check
+(`financialValuation.ts`, and the engine's own Piotroski check in
+`chart_of_accounts.py`) still read the operating view; those are not
+interest coverage and are reported, not changed, here.
+
+### The popover half (`frontend/lib/__tests__/interestCoveragePopover.test.tsx`)
+
+THE DEFECT (adversarial verifier, v6 port round 1; older than the port —
+both files unchanged since f7fec0f9). The Ratios tab wraps each measured
+interest-coverage card in `<LearnableNumber conceptKey="interest_coverage">`,
+whose "How it's computed" popover prints `EBIT <x> ÷ Interest <y>`.
+`buildReportingMetricsSnapshot` never set `interestExpense` (declared in
+`_schema.ts`), and the concept printed `m.interestExpense ?? 0`: every book
+with interest read `Interest 0 RON` beneath its served coverage (retail
+0.32×, agras 28.14×, realestate −25.13×, Scandia 13.27×). Neither the
+engine gate nor the other two vitest halves read this surface.
+
+THE REPAIR. The snapshot carries `interestExpense` from the authority the
+engine row divides — `assembled_pl.interest_expense`, else
+`incomeStatement.interestExpense` (the same `pick` `financialReport.ts`
+uses); a source that declares the line absent carries none. The concept's
+two operands are absent-aware (`coverageOperand`): a figure the snapshot
+lacks prints "Interest not reported" / "Interest neraportat" as text,
+never a value token reading 0. Nothing else reads the snapshot's
+`interestExpense` (the dashboard resolver, the variance lines and the
+scenario cascade do not), so no other figure moves.
+
+WHAT IT CHECKS. On the same five books (the firm books in their served
+shape with the served metric map, and the Scandia baseline): the card
+prints the served digits (literals re-read from the served GET); the
+popover's value tokens are EBIT and Interest, equal to `assembled_pl.ebit`
+and `assembled_pl.interest_expense` to the cent; token EBIT ÷ token
+Interest prints the card's digits; the rendered formula prints the
+interest figure and never `Interest 0 RON`. Controls: the snapshot without
+`interestExpense` renders "not reported" in both languages with no
+interest value token; a declared-absent source carries no figure.
+
+**SCOPE** — printed: `SCOPE interest-coverage-one-operand (popover half):
+books 5 (agras, carniprod, realestate, retail, scandia_baseline); popover
+operands recomputed on 4`, then per book e.g. `retail card 0.32×; popover
+EBIT 786579.83 ÷ Interest 2421110.34 = 0.32; rendered "EBIT787K
+RONInterest2.42M RON"` (carniprod: card refused, no popover renders).
+
+**PLANTS, each observed RED** (`scratchpad/v6_repair/plants_popover.py`,
+each file restored byte-exact, sha1 checked):
+
+| # | Plant | Result | Excerpt |
+|---|---|---|---|
+| L0 | both files as on f7fec0f9 (the pre-repair tree) | `3 failed` | `retail: the rendered popover reads "EBIT787K RONInterest0 RON"` |
+| L1 | the snapshot drops `interestExpense` | `3 failed` | `retail: the popover's value tokens are [{…"conceptKey":"ebit"…}]` |
+| L2 | the concept's `m.interestExpense ?? 0` restored | `1 failed` | `expected [ 'ebit', 'interest_expense' ] to deeply equal [ 'ebit' ]` |
+| L3 | interest read from `financial_expense_total` | `2 failed` | `retail: popover EBIT 786579.83 ÷ Interest 3092377.62 = 0.25, the card prints 0.32×` |
+| L4 | the EBIT token on `operating_ebit` | `1 failed` | `retail: popover EBIT 788503.61 ÷ Interest 2421110.34 = 0.33, the card prints 0.32×` |
+
+**After the repair it reds on (TC-11):** the snapshot dropping or zeroing
+interest; a `?? 0` operand; an EBIT or interest token read from another
+authority than the engine row's; an absent operand printed as a number.
+**It cannot see:** the engine row (the gate above); the export and the
+no-envelope model (the other two halves); carniprod's reported 0.00
+interest — its card is refused and no popover renders.
+
+### The popover half, round 2: the printed operands, divided as printed
+
+THE DEFECT (adversarial verifier, v6 landing on release/live). After the
+round-1 repair the popover's operands were the right figures, printed
+COMPACT by `formatValue` (`7.82M RON`, `278K RON`): divided as printed they
+did not reproduce the card on 8 of the 10 books with interest the verifier
+served (corpus: agras `7.82M ÷ 278K` = 28.13 under 28.14×; realestate
+`−29.10M ÷ 1.16M` = −25.09 under −25.13×; retail `787K ÷ 2.42M` = 0.33 under
+0.32×; saga_10_col happens to survive at 1.46). The round-1 check compared
+the unrounded token VALUES, so a render that rounds them was invisible to
+it.
+
+THE REPAIR. A formula token may declare itself `exact`
+(`FormulaToken.exact`, `_schema.ts`); `InteractiveFormula` then prints it
+with `formatValue(..., { exact: true })` — the served figure to the bani,
+thousands separators (`7,821,031.85 RON`). `coverageOperand` sets it on both
+interest-coverage operands. No other concept's print changes.
+
+WHAT IT CHECKS (`interestCoveragePopover.test.tsx`, "the popover's printed
+operands, divided as printed, reproduce the card"). On EVERY corpus book
+with interest — the scope is discovered, not listed:
+`frontend/lib/__tests__/fixtures/coverage_popover_corpus.json` carries every
+`corpus/` case through the production write path and the real
+`GET /api/period` (analysed body), written and held fresh by
+`tests/engine/test_coverage_popover_corpus_fixture.py` (in this gate's
+battery command) — and on the committed Scandia baseline read in place, in
+both languages: the RENDERED operand text is read back as a reader would;
+each must be a full-precision amount (`^−?d{1,3}(,ddd)*.dd RON$`) equal to
+the served `assembled_pl.ebit` / `interest_expense` to the cent; their exact
+quotient, rounded half-up to the card's printed decimals, must print the
+card's digits for every card path the page has (the served-table card in
+en and ro, the no-table card, and for the baseline the engine gate's served
+digits); the popover header prints the card's digits. TC-3: at least four
+corpus books measured, and at least three on which the compact print would
+have missed the card (measured 4: agras, realestate, retail, the baseline).
+
+**SCOPE** — printed: `SCOPE interest-coverage-one-operand (popover half,
+printed operands): corpus cases 18; books with a measured card 5
+(saga_10_col, saga_10_col_agras, saga_10_col_realestate, saga_10_col_retail,
+scandia_baseline); books where compact operands would not reproduce the
+card: 4`, then per book e.g. `saga_10_col_retail card 0.32× [served table
+(en)], 0,32× [served table (ro)], 0.32× [no served table]; popover "EBIT
+786,579.83 RON ÷ Interest 2,421,110.34 RON" = 0.32; compact would divide to
+0.33`; the 11 zero-interest cases print `card refused (zero_denominator); no
+popover renders`, the three model-lane cases `not served offline
+(ParseError)`. The engine side prints `SCOPE coverage popover corpus
+fixture: cases 18; served 15; interest measured on 4`.
+
+**PLANTS, each observed RED** (`scratchpad/landv6/plants_precision.py`, each
+applied by string replacement, the vitest file run, the file restored
+byte-exact, sha1 checked):
+
+| # | Plant | Result | Excerpt |
+|---|---|---|---|
+| C1 | `coverageOperand` drops `exact` (compact again) | `1 failed` | `saga_10_col_agras (en): an operand is not printed to the bani — "EBIT 7.82M RON ÷ Interest 278K RON" divides to 28.13, the card prints 28.14×` |
+| C2 | `InteractiveFormula` ignores `token.exact` | `1 failed` | the same line as C1 |
+| C3 | the exact print rounds to whole RON | `2 failed` | `saga_10_col_agras (en): an operand is not printed to the bani — "EBIT 7,821,032 RON ÷ Interest 277,930 RON" …` |
+| C4 | the exact print keeps one decimal | `2 failed` | `… "EBIT 7,821,031.8 RON ÷ Interest 277,930.4 RON" …` |
+| C5 | the exact print drops the thousands separators | `2 failed` | `… "EBIT 7821031.85 RON ÷ Interest 277930.35 RON" …` |
+| C6 | the EBIT operand from `operating_ebit` (right precision, wrong authority) | `2 failed` | `saga_10_col_agras (en): printed EBIT 7,822,955.63 RON is not the served EBIT 7821031.85` |
+| F1 | the committed fixture loses `saga_10_col` | engine `1 failed` (`coverage_popover_corpus.json drifted …`); vitest `1 failed` (`expected 3 to be greater than or equal to 4`) | |
+
+**REVERT** — every planted file restored from its byte copy (sha1 checked);
+the vitest file `5 passed`, the fixture test `2 passed`.
+
+**After the repair it reds on (TC-11):** a coverage operand printed compact,
+rounded, or without separators; a printed operand that is not the served
+figure to the cent; printed operands whose exact quotient does not print a
+card's digits; a popover header that does not print the card's digits; a
+stale corpus fixture, or a corpus whose books with interest stop being
+measured.
+**It cannot see:** books outside the corpus and the committed Scandia
+baseline (client books are never committed, ruling Q10); the drilled-down
+popovers each operand opens (their headers print compact, as every value
+popover's header does; nothing is divided there); other ratio popovers,
+whose fraction operands are still
+compact (`asset_turnover`, `inventory_turnover`, … in `analytics.ts`) and
+are not interest coverage — reported, not changed, here.
+
 ## workspace-v2
 
 **One company per workspace: G1–G8 (2026-09-21).**

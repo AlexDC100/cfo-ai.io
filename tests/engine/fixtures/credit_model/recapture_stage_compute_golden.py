@@ -12,7 +12,7 @@ when it lived in a scratchpad and the fixture had no committed writer.
 
   .venv/bin/python tests/engine/fixtures/credit_model/recapture_stage_compute_golden.py \\
       --expect-only interest_coverage            # dry run: prints what would move
-  ... --write --reason "2026-..-.. after <what moved and why>"
+  ... --write --reason "2026-..-.. after <what moved and why>" [--key NAME]
 """
 import json
 import sys
@@ -84,8 +84,21 @@ if "--write" in sys.argv:
     assert reason, "--write needs --reason (what moved and why)"
     meta = golden["_meta"]
     meta["recaptured"] = meta["recaptured"] + "; " + reason
-    meta.setdefault("rows_moved_on_recapture", []).append({"reason": reason, "moved": {
+    entry = {"reason": reason, "moved": {
         name: [{"name": m["name"], "before": m["before"], "after": m["after"]} for m in rows]
-        for name, rows in sorted(moved.items())}})
+        for name, rows in sorted(moved.items())}}
+    log = meta.setdefault("rows_moved_on_recapture", [])
+    if isinstance(log, list):
+        log.append(entry)
+    else:
+        # The first record predates this writer and is a dict keyed by
+        # case; later recaptures sit beside it under their own named key,
+        # as the 2026-09-19 interest-coverage recapture did.
+        key = _opt("--key")
+        assert key, ("--write needs --key NAME here: _meta.rows_moved_on_recapture "
+                     "is the legacy per-case dict, so this recapture is recorded "
+                     "as _meta.rows_moved_on_recapture_<NAME>")
+        assert "rows_moved_on_recapture_" + key not in meta, key
+        meta["rows_moved_on_recapture_" + key] = entry
     GOLDEN.write_text(dump(golden), "utf-8")
     print("written")

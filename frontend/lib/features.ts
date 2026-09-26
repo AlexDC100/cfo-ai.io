@@ -24,7 +24,8 @@
 //   render rows as `coming_soon` by default in that branch — never
 //   crash, never block the UI.
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { getRemotePref, subscribePrefs } from "@/lib/prefs";
 
 const API_URL =
   (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
@@ -105,6 +106,9 @@ export interface FeatureDefinition {
   endpoint?: string;
   required_plan?: string;
   required_data_depth?: string[];
+  /** Early access: the surface works but is still being finished. The nav
+   *  row and the page carry a "Beta" label. Set by `applyPreview` below. */
+  beta?: boolean;
 }
 
 export type FeatureRegistry = Partial<Record<FeatureKey, FeatureDefinition>>;
@@ -148,6 +152,44 @@ async function loadOnce(force = false): Promise<FeatureRegistry> {
 }
 
 // ──────────────────────────────────────────────────────────────────────
+// PREVIEW — per-account early access (2026-09-21, owner's instruction)
+// ──────────────────────────────────────────────────────────────────────
+//
+// A key listed in the signed-in user's `user_prefs.prefs.preview_features`
+// that the registry reports `coming_soon` is served to THAT user as
+// `active` + `beta`. Everyone else keeps the registry's answer: the
+// registry stays the one authority for the product as sold, and a preview
+// only ever opens a surface for the accounts named in their own prefs.
+// `hidden` is never promoted — hiding is a deliberate menu decision.
+//
+// The list lives in the user's own prefs bag (hydrated by lib/prefs on
+// sign-in and on workspace switch), so it needs no backend change and
+// follows the account across devices.
+
+export const PREVIEW_PREF_KEY = "preview_features";
+
+export function applyPreview(reg: FeatureRegistry, preview: unknown): FeatureRegistry {
+  if (!Array.isArray(preview) || preview.length === 0) return reg;
+  let out: FeatureRegistry | null = null;
+  for (const k of preview) {
+    if (typeof k !== "string") continue;
+    const row = reg[k as FeatureKey];
+    if (!row || row.status !== "coming_soon") continue;
+    out = out ?? { ...reg };
+    out[k as FeatureKey] = { ...row, status: "active", beta: true };
+  }
+  return out ?? reg;
+}
+
+function previewList(): unknown {
+  try {
+    return getRemotePref<unknown>("user", PREVIEW_PREF_KEY);
+  } catch {
+    return undefined;
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────
 // Public API
 // ──────────────────────────────────────────────────────────────────────
 
@@ -161,6 +203,12 @@ export function useFeatures(): {
 } {
   const [features, setFeatures] = useState<FeatureRegistry>(cache ?? {});
   const [loading, setLoading] = useState<boolean>(cache === null);
+  // Re-render when the user's prefs bag hydrates or changes, so a preview
+  // lands without a reload (and leaves on sign-out).
+  const [prefTick, setPrefTick] = useState(0);
+  useEffect(() => subscribePrefs((scope) => {
+    if (scope === "user") setPrefTick((n) => n + 1);
+  }), []);
 
   useEffect(() => {
     // `mounted` guard prevents post-unmount setState (vitest teardown
@@ -197,8 +245,14 @@ export function useFeatures(): {
     return () => window.removeEventListener("focus", onFocus);
   }, []);
 
+  const withPreview = useMemo(
+    () => applyPreview(features, previewList()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [features, prefTick],
+  );
+
   return {
-    features,
+    features: withPreview,
     loading,
     refresh: async () => { await loadOnce(true); },
   };
@@ -221,7 +275,7 @@ export function useFeature(key: FeatureKey): FeatureDefinition | undefined {
  *  (event handlers, route guards). Returns the last-loaded value or
  *  `undefined` if the cache is cold. */
 export function getFeatureStatus(key: FeatureKey): FeatureStatus | undefined {
-  return cache?.[key]?.status;
+  return cache ? applyPreview(cache, previewList())[key]?.status : undefined;
 }
 
 /** Convenience: "should this row render at all?" — `hidden` and any

@@ -35,7 +35,7 @@
      "cogs_merchandise",
      "discounts_received_supplier"
     ],
-    "net": 71586879.3
+    "net": 71452481.84
    },
    "contributed_capital": {
     "leaves": [
@@ -222,7 +222,7 @@
      "revenue_merchandise_resale",
      "revenue_commercial_reductions"
     ],
-    "net": 118576819.64
+    "net": 110798309.14
    },
    "tax_payables": {
     "leaves": [
@@ -269,7 +269,7 @@
     "header_row_index": 0,
     "method": "deterministic",
     "number_locale": "anglo",
-    "parser_version": "tb_parser_v5",
+    "parser_version": "tb_parser_v6",
     "sheet": "Anon_e29b305ae9",
     "source_format": "saga_10_col"
    },
@@ -278,7 +278,7 @@
     "el_eq_row_sum": true,
     "identity_holds": true,
     "p121_cross_check": {
-     "cls7_minus_cls6": 206197948.36,
+     "cls7_minus_cls6": 198553835.32,
      "ok": false,
      "p121": 7533676.02
     },
@@ -1294,7 +1294,7 @@
    "discounts_received_supplier": {
     "magnitude": 67198.73,
     "ras_line_items_count": 1,
-    "ras_line_items_sum_signed": 67198.73,
+    "ras_line_items_sum_signed": -67198.73,
     "sign_meaning": "expense_negative"
    },
    "energy_utilities": {
@@ -1546,7 +1546,7 @@
    "revenue_commercial_reductions": {
     "magnitude": 3889255.25,
     "ras_line_items_count": 3,
-    "ras_line_items_sum_signed": 3889255.25,
+    "ras_line_items_sum_signed": -3889255.25,
     "sign_meaning": "revenue_negative"
    },
    "revenue_merchandise_resale": {
@@ -1618,10 +1618,10 @@
   },
   "methodology": {
    "ebitda": {
-    "adjusted": 18030400.73,
-    "cash": 18420491.28,
-    "reported": 18420491.28,
-    "strict": 18030400.73
+    "adjusted": 10386287.69,
+    "cash": 10776378.24,
+    "reported": 10776378.24,
+    "strict": 10386287.69
    },
    "errors": [],
    "industry_key_applied": "default",
@@ -1644,21 +1644,21 @@
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 3.019335
+     "value": 2.821269
     },
     "capex_intensity": {
      "band": null,
      "direction": "neutral",
      "note": "Proxy: D&A as % revenue. Real capex requires period-over-period PPE delta + disposals (F4.3 cash flow refinement).",
      "unit": "ratio",
-     "value": 0.024957
+     "value": 0.026709
     },
     "cash_conversion_cycle": {
      "band": null,
      "direction": "lower_is_better",
      "note": "",
      "unit": "days",
-     "value": 35.112891
+     "value": 36.969396
     },
     "cash_ratio": {
      "band": [
@@ -1688,7 +1688,7 @@
      "direction": "lower_is_better",
      "note": "",
      "unit": "days",
-     "value": 45.548379
+     "value": 45.634053
     },
     "days_payable_outstanding": {
      "band": [
@@ -1698,7 +1698,7 @@
      "direction": "higher_is_better",
      "note": "",
      "unit": "days",
-     "value": 36.641162
+     "value": 36.710081
     },
     "days_sales_outstanding": {
      "band": [
@@ -1708,7 +1708,7 @@
      "direction": "lower_is_better",
      "note": "",
      "unit": "days",
-     "value": 26.205674
+     "value": 28.045424
     },
     "debt_to_assets": {
      "band": null,
@@ -1732,14 +1732,14 @@
      "direction": "higher_is_better",
      "note": "Rough DSCR; LT debt amortized over 8y assumption. Refine via per-period schedule when available.",
      "unit": "ratio",
-     "value": 35.158346
+     "value": 20.568378
     },
     "ebitda_margin_cash": {
      "band": null,
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 0.155346
+     "value": 0.097261
     },
     "ebitda_margin_reported": {
      "band": [
@@ -1749,7 +1749,7 @@
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 0.155346
+     "value": 0.097261
     },
     "ebitda_to_interest": {
      "band": [
@@ -1759,7 +1759,7 @@
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 53.567093
+     "value": 31.337886
     },
     "equity_ratio": {
      "band": [
@@ -1776,7 +1776,7 @@
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 0.396283
+     "value": 0.355112
     },
     "interest_coverage": {
      "band": [
@@ -1786,14 +1786,14 @@
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 44.961298
+     "value": 22.732091
     },
     "inventory_turnover": {
      "band": null,
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 8.013457
+     "value": 7.998413
     },
     "lt_debt_to_equity": {
      "band": null,
@@ -1810,7 +1810,7 @@
      "direction": "lower_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 0.084994
+     "value": 0.145283
     },
     "net_margin": {
      "band": [
@@ -1820,7 +1820,7 @@
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 0.118928
+     "value": 0.058286
     },
     "quick_ratio": {
      "band": [
@@ -1840,7 +1840,7 @@
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 0.359084
+     "value": 0.164441
     },
     "return_on_equity": {
      "band": [
@@ -1850,7 +1850,7 @@
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 0.589453
+     "value": 0.269937
     },
     "working_capital": {
      "band": null,
@@ -1864,10 +1864,10 @@
    "totals": {
     "current_assets": 27476056.94,
     "current_liabilities": 13012976.77,
-    "gross_profit": 46989940.34,
+    "gross_profit": 39345827.3,
     "net_debt": 1565628.87,
-    "operating_profit_reported": 15461156.19,
-    "revenue_net": 118576819.64,
+    "operating_profit_reported": 7817043.15,
+    "revenue_net": 110798309.14,
     "total_assets": 39272501.03,
     "total_debt": 3640202.33,
     "total_equity": 23924083.72,
@@ -3541,7 +3541,7 @@
    "statement": "PL"
   },
   {
-   "amount": 67198.73,
+   "amount": -67198.73,
    "bucket": "operatingExpenses",
    "canonical_bucket": "operatingExpenses",
    "is_derived": false,
@@ -4378,7 +4378,7 @@
    "statement": "PL"
   },
   {
-   "amount": 2087418.08,
+   "amount": -2087418.08,
    "bucket": "revenue",
    "canonical_bucket": "revenue",
    "is_derived": false,
@@ -4387,7 +4387,7 @@
    "statement": "PL"
   },
   {
-   "amount": 1797564.61,
+   "amount": -1797564.61,
    "bucket": "revenue",
    "canonical_bucket": "revenue",
    "is_derived": false,
@@ -4396,7 +4396,7 @@
    "statement": "PL"
   },
   {
-   "amount": 4272.56,
+   "amount": -4272.56,
    "bucket": "revenue",
    "canonical_bucket": "revenue",
    "is_derived": false,
@@ -4624,7 +4624,7 @@
     "fired": false,
     "limit": 4.0,
     "note": "gross leverage sits inside the comfort ceiling this profile is graded on",
-    "observed": 0.19761700568498627,
+    "observed": 0.33779459563587105,
     "parameter": "high",
     "profile_id": "inventory_operator",
     "rule_id": "leverage_debt_to_ebitda",
@@ -4635,7 +4635,7 @@
     "fired": false,
     "limit": 3.0,
     "note": "net leverage sits inside the comfort ceiling this profile is graded on",
-    "observed": 0.13420680547668867,
+    "observed": 0.2294050222572737,
     "parameter": "high",
     "profile_id": "inventory_operator",
     "rule_id": "leverage_net_debt_ebitda",
@@ -4657,7 +4657,7 @@
     "fired": false,
     "limit": 0.0,
     "note": "statutory EBITDA is positive, so an earnings multiple has a denominator",
-    "observed": 18420491.28,
+    "observed": 10776378.24,
     "parameter": "ebitda_max",
     "profile_id": "inventory_operator",
     "rule_id": "valuation_ebitda_non_positive",
@@ -4690,7 +4690,7 @@
     "fired": true,
     "limit": 0.35,
     "note": "",
-    "observed": 0.5950329490554045,
+    "observed": 0.6368067818692708,
     "parameter": "share_of_revenue_high",
     "profile_id": "inventory_operator",
     "rule_id": "input_cost_exposure",
@@ -4974,7 +4974,7 @@
   "period_label": "FY2025",
   "profile": {
    "composite_id": "inventory_operator/band_mid/fin_related_party_funded",
-   "fingerprint": "3a69c7c4e2928552",
+   "fingerprint": "6dc82e544864881b",
    "profile_id": "inventory_operator",
    "profile_label": "mid-size inventory-heavy operator"
   },
@@ -5207,7 +5207,7 @@
     "period_id": "p-saga_10_col_agras",
     "persistence": 1,
     "persistence_label": "first period this has fired",
-    "profile_fingerprint": "3a69c7c4e2928552",
+    "profile_fingerprint": "6dc82e544864881b",
     "profile_id": "inventory_operator",
     "rank": 1,
     "recommendation": true,
@@ -5451,7 +5451,7 @@
     "period_id": "p-saga_10_col_agras",
     "persistence": 1,
     "persistence_label": "first period this has fired",
-    "profile_fingerprint": "3a69c7c4e2928552",
+    "profile_fingerprint": "6dc82e544864881b",
     "profile_id": "inventory_operator",
     "rank": 2,
     "recommendation": true,
@@ -5472,8 +5472,8 @@
     "title_template": "Related-party receivable on 461 at 19.6% — above the 10.0% related-party share of total assets (elevated) for mid-size inventory-heavy operator"
    },
    {
-    "body": "601 (Cheltuieli cu materiile prime), 602 (Cheltuieli cu materialele consumabile), 607 (Cheltuieli privind mărfurile): turnover — RON 118,576,820; statutory EBITDA — RON 18,420,491; input cost as a share of turnover — 59.5%. Basis: input cost is measured against the company's own turnover for the same period, and the ceiling is the one this structural profile is graded on. Source: period p-saga_10_col_agras; snapshot doc-saga_10_col_agras; accounts 601, 602, 607; assembled_canonical_v1. Rule input_cost_exposure fires when input-cost share of revenue ceiling is above 35.0%; observed 59.5%. Impact: EBITDA margin, as reported versus with input cost at the ceiling this profile is graded on moves from 15.5% to 40.0% (+24.5%). Input cost is the largest single line a mid-size inventory-heavy operator carries, and it is repriced by suppliers faster than the company can reprice its own customers — the margin, not the volume, is what moves. Do this: 1) Negotiate index-linked price-review clauses into the largest supplier contracts — price-review clause covering the input lines behind 601 and 602, from the procurement lead (before the next annual price round). 2) Hedge the next two quarters of input volume — forward purchase cover schedule, by input line and delivery month, from the treasury team. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-    "body_template": "601 (Cheltuieli cu materiile prime), 602 (Cheltuieli cu materialele consumabile), 607 (Cheltuieli privind mărfurile): turnover — {{money:revenue}}; statutory EBITDA — {{money:ebitda_statutory}}; input cost as a share of turnover — 59.5%. Basis: input cost is measured against the company's own turnover for the same period, and the ceiling is the one this structural profile is graded on. Source: period p-saga_10_col_agras; snapshot doc-saga_10_col_agras; accounts 601, 602, 607; assembled_canonical_v1. Rule input_cost_exposure fires when input-cost share of revenue ceiling is above 35.0%; observed 59.5%. Impact: EBITDA margin, as reported versus with input cost at the ceiling this profile is graded on moves from 15.5% to 40.0% (+24.5%). Input cost is the largest single line a mid-size inventory-heavy operator carries, and it is repriced by suppliers faster than the company can reprice its own customers — the margin, not the volume, is what moves. Do this: 1) Negotiate index-linked price-review clauses into the largest supplier contracts — price-review clause covering the input lines behind 601 and 602, from the procurement lead (before the next annual price round). 2) Hedge the next two quarters of input volume — forward purchase cover schedule, by input line and delivery month, from the treasury team. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+    "body": "601 (Cheltuieli cu materiile prime), 602 (Cheltuieli cu materialele consumabile), 607 (Cheltuieli privind mărfurile): turnover — RON 110,798,309; statutory EBITDA — RON 10,776,378; input cost as a share of turnover — 63.7%. Basis: input cost is measured against the company's own turnover for the same period, and the ceiling is the one this structural profile is graded on. Source: period p-saga_10_col_agras; snapshot doc-saga_10_col_agras; accounts 601, 602, 607; assembled_canonical_v1. Rule input_cost_exposure fires when input-cost share of revenue ceiling is above 35.0%; observed 63.7%. Impact: EBITDA margin, as reported versus with input cost at the ceiling this profile is graded on moves from 9.7% to 38.4% (+28.7%). Input cost is the largest single line a mid-size inventory-heavy operator carries, and it is repriced by suppliers faster than the company can reprice its own customers — the margin, not the volume, is what moves. Do this: 1) Negotiate index-linked price-review clauses into the largest supplier contracts — price-review clause covering the input lines behind 601 and 602, from the procurement lead (before the next annual price round). 2) Hedge the next two quarters of input volume — forward purchase cover schedule, by input line and delivery month, from the treasury team. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+    "body_template": "601 (Cheltuieli cu materiile prime), 602 (Cheltuieli cu materialele consumabile), 607 (Cheltuieli privind mărfurile): turnover — {{money:revenue}}; statutory EBITDA — {{money:ebitda_statutory}}; input cost as a share of turnover — 63.7%. Basis: input cost is measured against the company's own turnover for the same period, and the ceiling is the one this structural profile is graded on. Source: period p-saga_10_col_agras; snapshot doc-saga_10_col_agras; accounts 601, 602, 607; assembled_canonical_v1. Rule input_cost_exposure fires when input-cost share of revenue ceiling is above 35.0%; observed 63.7%. Impact: EBITDA margin, as reported versus with input cost at the ceiling this profile is graded on moves from 9.7% to 38.4% (+28.7%). Input cost is the largest single line a mid-size inventory-heavy operator carries, and it is repriced by suppliers faster than the company can reprice its own customers — the margin, not the volume, is what moves. Do this: 1) Negotiate index-linked price-review clauses into the largest supplier contracts — price-review clause covering the input lines behind 601 and 602, from the procurement lead (before the next annual price round). 2) Hedge the next two quarters of input volume — forward purchase cover schedule, by input line and delivery month, from the treasury team. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
     "category": "margin",
     "contract_elements": {
      "action": {
@@ -5511,19 +5511,19 @@
         "fact": "revenue",
         "label": "turnover",
         "unit": "money",
-        "value": 118576819.64
+        "value": 110798309.14
        },
        {
         "fact": "ebitda_statutory",
         "label": "statutory EBITDA",
         "unit": "money",
-        "value": 18420491.28
+        "value": 10776378.24
        },
        {
         "fact": "input_cost_share",
         "label": "input cost as a share of turnover",
         "unit": "percent",
-        "value": 0.5950329490554045
+        "value": 0.6368067818692708
        }
       ],
       "provenance": {
@@ -5538,12 +5538,12 @@
       }
      },
      "impact": {
-      "adjusted": 0.4003794268570923,
+      "adjusted": 0.38406799752901,
       "adjusted_fact": null,
-      "baseline": 0.15534647780168784,
+      "baseline": 0.09726121565973926,
       "baseline_fact": null,
       "currency": null,
-      "delta": 0.2450329490554045,
+      "delta": 0.2868067818692707,
       "kind": "recomputed_ratio",
       "metric": "ebitda_margin_at_input_cost_ceiling",
       "metric_label": "EBITDA margin, as reported versus with input cost at the ceiling this profile is graded on",
@@ -5575,7 +5575,7 @@
      "threshold": {
       "comparator": ">",
       "limit": 0.35,
-      "observed": 0.5950329490554045,
+      "observed": 0.6368067818692708,
       "parameter": "share_of_revenue_high",
       "parameter_label": "input-cost share of revenue ceiling",
       "rule_id": "input_cost_exposure",
@@ -5622,10 +5622,10 @@
      "revenue": "money"
     },
     "facts_cited": {
-     "ebitda_statutory": 18420491.28,
+     "ebitda_statutory": 10776378.24,
      "input_cost_ceiling_share": 0.35,
-     "input_cost_share": 0.5950329490554045,
-     "revenue": 118576819.64
+     "input_cost_share": 0.6368067818692708,
+     "revenue": 110798309.14
     },
     "facts_provenance": {
      "cited": {
@@ -5633,13 +5633,13 @@
        "accessor": "FactsGateway.ebitda()",
        "line_id": null,
        "snapshot_id": "sha256-10b9c390378a05d332cf2e3b24323576f47ab333939f1c5836e41dbccaf4fa3d",
-       "value": 18420491.28
+       "value": 10776378.24
       },
       "revenue": {
        "accessor": "FactsGateway.revenue()",
        "line_id": null,
        "snapshot_id": "sha256-10b9c390378a05d332cf2e3b24323576f47ab333939f1c5836e41dbccaf4fa3d",
-       "value": 118576819.64
+       "value": 110798309.14
       }
      },
      "conflict_count": 0,
@@ -5659,14 +5659,14 @@
     "id": "p-saga_10_col_agras|input_cost_exposure|601+602+607",
     "lane": "single_period",
     "materiality": {
-     "amount": 18420491.28,
+     "amount": 10776378.24,
      "basis_id": "total_assets",
      "basis_label": "total assets",
      "basis_value": 39319114.09,
      "floor": 0.005,
-     "share": 0.46848693584082735,
+     "share": 0.27407479770101806,
      "source": "engine.api._finding_rank#DEFAULT_FLOORS",
-     "statement": "46.85% of total assets (floor 0.50%, material)",
+     "statement": "27.41% of total assets (floor 0.50%, material)",
      "tier": "material"
     },
     "materiality_amount_fact": "ebitda_statutory",
@@ -5677,7 +5677,7 @@
     "period_id": "p-saga_10_col_agras",
     "persistence": 1,
     "persistence_label": "first period this has fired",
-    "profile_fingerprint": "3a69c7c4e2928552",
+    "profile_fingerprint": "6dc82e544864881b",
     "profile_id": "inventory_operator",
     "rank": 3,
     "recommendation": true,
@@ -5694,12 +5694,12 @@
     "source": "radar",
     "source_currency": "RON",
     "surfaced": true,
-    "title": "Input cost on 601 / 602 / 607 against turnover at 59.5% — above the 35.0% input-cost share of revenue ceiling for mid-size inventory-heavy operator",
-    "title_template": "Input cost on 601 / 602 / 607 against turnover at 59.5% — above the 35.0% input-cost share of revenue ceiling for mid-size inventory-heavy operator"
+    "title": "Input cost on 601 / 602 / 607 against turnover at 63.7% — above the 35.0% input-cost share of revenue ceiling for mid-size inventory-heavy operator",
+    "title_template": "Input cost on 601 / 602 / 607 against turnover at 63.7% — above the 35.0% input-cost share of revenue ceiling for mid-size inventory-heavy operator"
    },
    {
-    "body": "5124 (Conturi la bănci în valută), 765 (Venituri din diferențe de curs valutar), 665 (Cheltuieli din diferențe de curs valutar): cash held in foreign currency on 5124 — RON 133,403; total cash and bank balances — RON 1,168,047; foreign-currency share of the cash balance — 11.4%. Basis: the foreign-currency component is measured against the company's own total cash for the same period. Source: period p-saga_10_col_agras; snapshot doc-saga_10_col_agras; accounts 5124, 765, 665; assembled_canonical_v1. Rule fx_exposure fires when FX share of cash ceiling is above 10.0%; observed 11.4%. Impact: Net margin, as reported versus excluding the recorded currency result moves from 6.4% to 6.3% (-0.1%). A mid-size inventory-heavy operator reporting in RON carries this position at the closing rate, so a move between the balance-sheet date and settlement lands in the financial result — the line the group treasury and the statutory auditor strips out of EBITDA but not out of the interest-cover test. Do this: 1) Match the foreign-currency cash against foreign-currency payables, currency by currency — net exposure schedule per currency at the balance-sheet date, from the treasury team. 2) Lock a forward contract over the uncovered net position — forward contract confirmation, with its maturity set against the settlement dates, from the relationship bank. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-    "body_template": "5124 (Conturi la bănci în valută), 765 (Venituri din diferențe de curs valutar), 665 (Cheltuieli din diferențe de curs valutar): cash held in foreign currency on 5124 — {{money:fx_cash}}; total cash and bank balances — {{money:total_cash}}; foreign-currency share of the cash balance — 11.4%. Basis: the foreign-currency component is measured against the company's own total cash for the same period. Source: period p-saga_10_col_agras; snapshot doc-saga_10_col_agras; accounts 5124, 765, 665; assembled_canonical_v1. Rule fx_exposure fires when FX share of cash ceiling is above 10.0%; observed 11.4%. Impact: Net margin, as reported versus excluding the recorded currency result moves from 6.4% to 6.3% (-0.1%). A mid-size inventory-heavy operator reporting in RON carries this position at the closing rate, so a move between the balance-sheet date and settlement lands in the financial result — the line the group treasury and the statutory auditor strips out of EBITDA but not out of the interest-cover test. Do this: 1) Match the foreign-currency cash against foreign-currency payables, currency by currency — net exposure schedule per currency at the balance-sheet date, from the treasury team. 2) Lock a forward contract over the uncovered net position — forward contract confirmation, with its maturity set against the settlement dates, from the relationship bank. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+    "body": "5124 (Conturi la bănci în valută), 765 (Venituri din diferențe de curs valutar), 665 (Cheltuieli din diferențe de curs valutar): cash held in foreign currency on 5124 — RON 133,403; total cash and bank balances — RON 1,168,047; foreign-currency share of the cash balance — 11.4%. Basis: the foreign-currency component is measured against the company's own total cash for the same period. Source: period p-saga_10_col_agras; snapshot doc-saga_10_col_agras; accounts 5124, 765, 665; assembled_canonical_v1. Rule fx_exposure fires when FX share of cash ceiling is above 10.0%; observed 11.4%. Impact: Net margin, as reported versus excluding the recorded currency result moves from 6.8% to 6.7% (-0.1%). A mid-size inventory-heavy operator reporting in RON carries this position at the closing rate, so a move between the balance-sheet date and settlement lands in the financial result — the line the group treasury and the statutory auditor strips out of EBITDA but not out of the interest-cover test. Do this: 1) Match the foreign-currency cash against foreign-currency payables, currency by currency — net exposure schedule per currency at the balance-sheet date, from the treasury team. 2) Lock a forward contract over the uncovered net position — forward contract confirmation, with its maturity set against the settlement dates, from the relationship bank. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+    "body_template": "5124 (Conturi la bănci în valută), 765 (Venituri din diferențe de curs valutar), 665 (Cheltuieli din diferențe de curs valutar): cash held in foreign currency on 5124 — {{money:fx_cash}}; total cash and bank balances — {{money:total_cash}}; foreign-currency share of the cash balance — 11.4%. Basis: the foreign-currency component is measured against the company's own total cash for the same period. Source: period p-saga_10_col_agras; snapshot doc-saga_10_col_agras; accounts 5124, 765, 665; assembled_canonical_v1. Rule fx_exposure fires when FX share of cash ceiling is above 10.0%; observed 11.4%. Impact: Net margin, as reported versus excluding the recorded currency result moves from 6.8% to 6.7% (-0.1%). A mid-size inventory-heavy operator reporting in RON carries this position at the closing rate, so a move between the balance-sheet date and settlement lands in the financial result — the line the group treasury and the statutory auditor strips out of EBITDA but not out of the interest-cover test. Do this: 1) Match the foreign-currency cash against foreign-currency payables, currency by currency — net exposure schedule per currency at the balance-sheet date, from the treasury team. 2) Lock a forward contract over the uncovered net position — forward contract confirmation, with its maturity set against the settlement dates, from the relationship bank. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
     "category": "liquidity",
     "contract_elements": {
      "action": {
@@ -5764,12 +5764,12 @@
       }
      },
      "impact": {
-      "adjusted": 0.06276624565067479,
+      "adjusted": 0.0671727018920101,
       "adjusted_fact": null,
-      "baseline": 0.06353413797799848,
+      "baseline": 0.0679945035125109,
       "baseline_fact": null,
       "currency": null,
-      "delta": -0.0007678923273236882,
+      "delta": -0.0008218016205008005,
       "kind": "recomputed_ratio",
       "metric": "net_margin_ex_currency_result",
       "metric_label": "Net margin, as reported versus excluding the recorded currency result",
@@ -5899,7 +5899,7 @@
     "period_id": "p-saga_10_col_agras",
     "persistence": 1,
     "persistence_label": "first period this has fired",
-    "profile_fingerprint": "3a69c7c4e2928552",
+    "profile_fingerprint": "6dc82e544864881b",
     "profile_id": "inventory_operator",
     "rank": 4,
     "recommendation": true,
@@ -6028,7 +6028,7 @@
     "fired": false,
     "limit": 4.0,
     "note": "gross leverage sits inside the comfort ceiling this profile is graded on",
-    "observed": 0.19761700568498627,
+    "observed": 0.33779459563587105,
     "parameter": "high",
     "profile_id": "inventory_operator",
     "rule_id": "leverage_debt_to_ebitda",
@@ -6039,7 +6039,7 @@
     "fired": false,
     "limit": 3.0,
     "note": "net leverage sits inside the comfort ceiling this profile is graded on",
-    "observed": 0.13420680547668867,
+    "observed": 0.2294050222572737,
     "parameter": "high",
     "profile_id": "inventory_operator",
     "rule_id": "leverage_net_debt_ebitda",
@@ -6061,7 +6061,7 @@
     "fired": false,
     "limit": 0.0,
     "note": "statutory EBITDA is positive, so an earnings multiple has a denominator",
-    "observed": 18420491.28,
+    "observed": 10776378.24,
     "parameter": "ebitda_max",
     "profile_id": "inventory_operator",
     "rule_id": "valuation_ebitda_non_positive",
@@ -6094,7 +6094,7 @@
     "fired": true,
     "limit": 0.35,
     "note": "",
-    "observed": 0.5950329490554045,
+    "observed": 0.6368067818692708,
     "parameter": "share_of_revenue_high",
     "profile_id": "inventory_operator",
     "rule_id": "input_cost_exposure",
@@ -6261,7 +6261,7 @@
     },
     "missing_elements": [],
     "narrative_source": "deterministic",
-    "profile_fingerprint": "3a69c7c4e2928552",
+    "profile_fingerprint": "6dc82e544864881b",
     "profile_id": "inventory_operator",
     "rule_key": "liquidity_cash_tight",
     "severity": "high",
@@ -6433,7 +6433,7 @@
     },
     "missing_elements": [],
     "narrative_source": "deterministic",
-    "profile_fingerprint": "3a69c7c4e2928552",
+    "profile_fingerprint": "6dc82e544864881b",
     "profile_id": "inventory_operator",
     "rule_key": "concentration_related_party",
     "severity": "medium",
@@ -6443,8 +6443,8 @@
     "title_template": "Related-party receivable on 461 at 19.6% — above the 10.0% related-party share of total assets (elevated) for mid-size inventory-heavy operator"
    },
    {
-    "body": "5124 (Conturi la bănci în valută), 765 (Venituri din diferențe de curs valutar), 665 (Cheltuieli din diferențe de curs valutar): cash held in foreign currency on 5124 — RON 133,403; total cash and bank balances — RON 1,168,047; foreign-currency share of the cash balance — 11.4%. Basis: the foreign-currency component is measured against the company's own total cash for the same period. Source: period p-saga_10_col_agras; snapshot doc-saga_10_col_agras; accounts 5124, 765, 665; assembled_canonical_v1. Rule fx_exposure fires when FX share of cash ceiling is above 10.0%; observed 11.4%. Impact: Net margin, as reported versus excluding the recorded currency result moves from 6.4% to 6.3% (-0.1%). A mid-size inventory-heavy operator reporting in RON carries this position at the closing rate, so a move between the balance-sheet date and settlement lands in the financial result — the line the group treasury and the statutory auditor strips out of EBITDA but not out of the interest-cover test. Do this: 1) Match the foreign-currency cash against foreign-currency payables, currency by currency — net exposure schedule per currency at the balance-sheet date, from the treasury team. 2) Lock a forward contract over the uncovered net position — forward contract confirmation, with its maturity set against the settlement dates, from the relationship bank. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-    "body_template": "5124 (Conturi la bănci în valută), 765 (Venituri din diferențe de curs valutar), 665 (Cheltuieli din diferențe de curs valutar): cash held in foreign currency on 5124 — {{money:fx_cash}}; total cash and bank balances — {{money:total_cash}}; foreign-currency share of the cash balance — 11.4%. Basis: the foreign-currency component is measured against the company's own total cash for the same period. Source: period p-saga_10_col_agras; snapshot doc-saga_10_col_agras; accounts 5124, 765, 665; assembled_canonical_v1. Rule fx_exposure fires when FX share of cash ceiling is above 10.0%; observed 11.4%. Impact: Net margin, as reported versus excluding the recorded currency result moves from 6.4% to 6.3% (-0.1%). A mid-size inventory-heavy operator reporting in RON carries this position at the closing rate, so a move between the balance-sheet date and settlement lands in the financial result — the line the group treasury and the statutory auditor strips out of EBITDA but not out of the interest-cover test. Do this: 1) Match the foreign-currency cash against foreign-currency payables, currency by currency — net exposure schedule per currency at the balance-sheet date, from the treasury team. 2) Lock a forward contract over the uncovered net position — forward contract confirmation, with its maturity set against the settlement dates, from the relationship bank. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+    "body": "5124 (Conturi la bănci în valută), 765 (Venituri din diferențe de curs valutar), 665 (Cheltuieli din diferențe de curs valutar): cash held in foreign currency on 5124 — RON 133,403; total cash and bank balances — RON 1,168,047; foreign-currency share of the cash balance — 11.4%. Basis: the foreign-currency component is measured against the company's own total cash for the same period. Source: period p-saga_10_col_agras; snapshot doc-saga_10_col_agras; accounts 5124, 765, 665; assembled_canonical_v1. Rule fx_exposure fires when FX share of cash ceiling is above 10.0%; observed 11.4%. Impact: Net margin, as reported versus excluding the recorded currency result moves from 6.8% to 6.7% (-0.1%). A mid-size inventory-heavy operator reporting in RON carries this position at the closing rate, so a move between the balance-sheet date and settlement lands in the financial result — the line the group treasury and the statutory auditor strips out of EBITDA but not out of the interest-cover test. Do this: 1) Match the foreign-currency cash against foreign-currency payables, currency by currency — net exposure schedule per currency at the balance-sheet date, from the treasury team. 2) Lock a forward contract over the uncovered net position — forward contract confirmation, with its maturity set against the settlement dates, from the relationship bank. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+    "body_template": "5124 (Conturi la bănci în valută), 765 (Venituri din diferențe de curs valutar), 665 (Cheltuieli din diferențe de curs valutar): cash held in foreign currency on 5124 — {{money:fx_cash}}; total cash and bank balances — {{money:total_cash}}; foreign-currency share of the cash balance — 11.4%. Basis: the foreign-currency component is measured against the company's own total cash for the same period. Source: period p-saga_10_col_agras; snapshot doc-saga_10_col_agras; accounts 5124, 765, 665; assembled_canonical_v1. Rule fx_exposure fires when FX share of cash ceiling is above 10.0%; observed 11.4%. Impact: Net margin, as reported versus excluding the recorded currency result moves from 6.8% to 6.7% (-0.1%). A mid-size inventory-heavy operator reporting in RON carries this position at the closing rate, so a move between the balance-sheet date and settlement lands in the financial result — the line the group treasury and the statutory auditor strips out of EBITDA but not out of the interest-cover test. Do this: 1) Match the foreign-currency cash against foreign-currency payables, currency by currency — net exposure schedule per currency at the balance-sheet date, from the treasury team. 2) Lock a forward contract over the uncovered net position — forward contract confirmation, with its maturity set against the settlement dates, from the relationship bank. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
     "category": "liquidity",
     "contract_elements": {
      "action": {
@@ -6509,12 +6509,12 @@
       }
      },
      "impact": {
-      "adjusted": 0.06276624565067479,
+      "adjusted": 0.0671727018920101,
       "adjusted_fact": null,
-      "baseline": 0.06353413797799848,
+      "baseline": 0.0679945035125109,
       "baseline_fact": null,
       "currency": null,
-      "delta": -0.0007678923273236882,
+      "delta": -0.0008218016205008005,
       "kind": "recomputed_ratio",
       "metric": "net_margin_ex_currency_result",
       "metric_label": "Net margin, as reported versus excluding the recorded currency result",
@@ -6590,7 +6590,7 @@
     },
     "missing_elements": [],
     "narrative_source": "deterministic",
-    "profile_fingerprint": "3a69c7c4e2928552",
+    "profile_fingerprint": "6dc82e544864881b",
     "profile_id": "inventory_operator",
     "rule_key": "fx_exposure",
     "severity": "medium",
@@ -6600,8 +6600,8 @@
     "title_template": "Foreign-currency cash on 5124 inside the cash balance at 11.4% — above the 10.0% FX share of cash ceiling for mid-size inventory-heavy operator"
    },
    {
-    "body": "601 (Cheltuieli cu materiile prime), 602 (Cheltuieli cu materialele consumabile), 607 (Cheltuieli privind mărfurile): turnover — RON 118,576,820; statutory EBITDA — RON 18,420,491; input cost as a share of turnover — 59.5%. Basis: input cost is measured against the company's own turnover for the same period, and the ceiling is the one this structural profile is graded on. Source: period p-saga_10_col_agras; snapshot doc-saga_10_col_agras; accounts 601, 602, 607; assembled_canonical_v1. Rule input_cost_exposure fires when input-cost share of revenue ceiling is above 35.0%; observed 59.5%. Impact: EBITDA margin, as reported versus with input cost at the ceiling this profile is graded on moves from 15.5% to 40.0% (+24.5%). Input cost is the largest single line a mid-size inventory-heavy operator carries, and it is repriced by suppliers faster than the company can reprice its own customers — the margin, not the volume, is what moves. Do this: 1) Negotiate index-linked price-review clauses into the largest supplier contracts — price-review clause covering the input lines behind 601 and 602, from the procurement lead (before the next annual price round). 2) Hedge the next two quarters of input volume — forward purchase cover schedule, by input line and delivery month, from the treasury team. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-    "body_template": "601 (Cheltuieli cu materiile prime), 602 (Cheltuieli cu materialele consumabile), 607 (Cheltuieli privind mărfurile): turnover — {{money:revenue}}; statutory EBITDA — {{money:ebitda_statutory}}; input cost as a share of turnover — 59.5%. Basis: input cost is measured against the company's own turnover for the same period, and the ceiling is the one this structural profile is graded on. Source: period p-saga_10_col_agras; snapshot doc-saga_10_col_agras; accounts 601, 602, 607; assembled_canonical_v1. Rule input_cost_exposure fires when input-cost share of revenue ceiling is above 35.0%; observed 59.5%. Impact: EBITDA margin, as reported versus with input cost at the ceiling this profile is graded on moves from 15.5% to 40.0% (+24.5%). Input cost is the largest single line a mid-size inventory-heavy operator carries, and it is repriced by suppliers faster than the company can reprice its own customers — the margin, not the volume, is what moves. Do this: 1) Negotiate index-linked price-review clauses into the largest supplier contracts — price-review clause covering the input lines behind 601 and 602, from the procurement lead (before the next annual price round). 2) Hedge the next two quarters of input volume — forward purchase cover schedule, by input line and delivery month, from the treasury team. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+    "body": "601 (Cheltuieli cu materiile prime), 602 (Cheltuieli cu materialele consumabile), 607 (Cheltuieli privind mărfurile): turnover — RON 110,798,309; statutory EBITDA — RON 10,776,378; input cost as a share of turnover — 63.7%. Basis: input cost is measured against the company's own turnover for the same period, and the ceiling is the one this structural profile is graded on. Source: period p-saga_10_col_agras; snapshot doc-saga_10_col_agras; accounts 601, 602, 607; assembled_canonical_v1. Rule input_cost_exposure fires when input-cost share of revenue ceiling is above 35.0%; observed 63.7%. Impact: EBITDA margin, as reported versus with input cost at the ceiling this profile is graded on moves from 9.7% to 38.4% (+28.7%). Input cost is the largest single line a mid-size inventory-heavy operator carries, and it is repriced by suppliers faster than the company can reprice its own customers — the margin, not the volume, is what moves. Do this: 1) Negotiate index-linked price-review clauses into the largest supplier contracts — price-review clause covering the input lines behind 601 and 602, from the procurement lead (before the next annual price round). 2) Hedge the next two quarters of input volume — forward purchase cover schedule, by input line and delivery month, from the treasury team. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+    "body_template": "601 (Cheltuieli cu materiile prime), 602 (Cheltuieli cu materialele consumabile), 607 (Cheltuieli privind mărfurile): turnover — {{money:revenue}}; statutory EBITDA — {{money:ebitda_statutory}}; input cost as a share of turnover — 63.7%. Basis: input cost is measured against the company's own turnover for the same period, and the ceiling is the one this structural profile is graded on. Source: period p-saga_10_col_agras; snapshot doc-saga_10_col_agras; accounts 601, 602, 607; assembled_canonical_v1. Rule input_cost_exposure fires when input-cost share of revenue ceiling is above 35.0%; observed 63.7%. Impact: EBITDA margin, as reported versus with input cost at the ceiling this profile is graded on moves from 9.7% to 38.4% (+28.7%). Input cost is the largest single line a mid-size inventory-heavy operator carries, and it is repriced by suppliers faster than the company can reprice its own customers — the margin, not the volume, is what moves. Do this: 1) Negotiate index-linked price-review clauses into the largest supplier contracts — price-review clause covering the input lines behind 601 and 602, from the procurement lead (before the next annual price round). 2) Hedge the next two quarters of input volume — forward purchase cover schedule, by input line and delivery month, from the treasury team. Confidence medium — Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
     "category": "margin",
     "contract_elements": {
      "action": {
@@ -6639,19 +6639,19 @@
         "fact": "revenue",
         "label": "turnover",
         "unit": "money",
-        "value": 118576819.64
+        "value": 110798309.14
        },
        {
         "fact": "ebitda_statutory",
         "label": "statutory EBITDA",
         "unit": "money",
-        "value": 18420491.28
+        "value": 10776378.24
        },
        {
         "fact": "input_cost_share",
         "label": "input cost as a share of turnover",
         "unit": "percent",
-        "value": 0.5950329490554045
+        "value": 0.6368067818692708
        }
       ],
       "provenance": {
@@ -6666,12 +6666,12 @@
       }
      },
      "impact": {
-      "adjusted": 0.4003794268570923,
+      "adjusted": 0.38406799752901,
       "adjusted_fact": null,
-      "baseline": 0.15534647780168784,
+      "baseline": 0.09726121565973926,
       "baseline_fact": null,
       "currency": null,
-      "delta": 0.2450329490554045,
+      "delta": 0.2868067818692707,
       "kind": "recomputed_ratio",
       "metric": "ebitda_margin_at_input_cost_ceiling",
       "metric_label": "EBITDA margin, as reported versus with input cost at the ceiling this profile is graded on",
@@ -6703,7 +6703,7 @@
      "threshold": {
       "comparator": ">",
       "limit": 0.35,
-      "observed": 0.5950329490554045,
+      "observed": 0.6368067818692708,
       "parameter": "share_of_revenue_high",
       "parameter_label": "input-cost share of revenue ceiling",
       "rule_id": "input_cost_exposure",
@@ -6742,21 +6742,21 @@
      "revenue": "money"
     },
     "facts_cited": {
-     "ebitda_statutory": 18420491.28,
+     "ebitda_statutory": 10776378.24,
      "input_cost_ceiling_share": 0.35,
-     "input_cost_share": 0.5950329490554045,
-     "revenue": 118576819.64
+     "input_cost_share": 0.6368067818692708,
+     "revenue": 110798309.14
     },
     "missing_elements": [],
     "narrative_source": "deterministic",
-    "profile_fingerprint": "3a69c7c4e2928552",
+    "profile_fingerprint": "6dc82e544864881b",
     "profile_id": "inventory_operator",
     "rule_key": "input_cost_exposure",
     "severity": "medium",
     "source_currency": "RON",
     "surfaced": true,
-    "title": "Input cost on 601 / 602 / 607 against turnover at 59.5% — above the 35.0% input-cost share of revenue ceiling for mid-size inventory-heavy operator",
-    "title_template": "Input cost on 601 / 602 / 607 against turnover at 59.5% — above the 35.0% input-cost share of revenue ceiling for mid-size inventory-heavy operator"
+    "title": "Input cost on 601 / 602 / 607 against turnover at 63.7% — above the 35.0% input-cost share of revenue ceiling for mid-size inventory-heavy operator",
+    "title_template": "Input cost on 601 / 602 / 607 against turnover at 63.7% — above the 35.0% input-cost share of revenue ceiling for mid-size inventory-heavy operator"
    }
   ],
   "profile_id": "inventory_operator",
@@ -7002,7 +7002,7 @@
       "cogs_merchandise",
       "discounts_received_supplier"
      ],
-     "net": 71586879.3
+     "net": 71452481.84
     },
     "contributed_capital": {
      "leaves": [
@@ -7189,7 +7189,7 @@
       "revenue_merchandise_resale",
       "revenue_commercial_reductions"
      ],
-     "net": 118576819.64
+     "net": 110798309.14
     },
     "tax_payables": {
      "leaves": [
@@ -7237,7 +7237,7 @@
      "header_row_index": 0,
      "method": "deterministic",
      "number_locale": "anglo",
-     "parser_version": "tb_parser_v5",
+     "parser_version": "tb_parser_v6",
      "sheet": "Anon_e29b305ae9",
      "source_format": "saga_10_col"
     },
@@ -7246,7 +7246,7 @@
      "el_eq_row_sum": true,
      "identity_holds": true,
      "p121_cross_check": {
-      "cls7_minus_cls6": 206197948.36,
+      "cls7_minus_cls6": 198553835.32,
       "ok": false,
       "p121": 7533676.02
      },
@@ -8271,7 +8271,7 @@
     "discounts_received_supplier": {
      "magnitude": 67198.73,
      "ras_line_items_count": 1,
-     "ras_line_items_sum_signed": 67198.73,
+     "ras_line_items_sum_signed": -67198.73,
      "sign_meaning": "expense_negative"
     },
     "energy_utilities": {
@@ -8523,7 +8523,7 @@
     "revenue_commercial_reductions": {
      "magnitude": 3889255.25,
      "ras_line_items_count": 3,
-     "ras_line_items_sum_signed": 3889255.25,
+     "ras_line_items_sum_signed": -3889255.25,
      "sign_meaning": "revenue_negative"
     },
     "revenue_merchandise_resale": {
@@ -8595,10 +8595,10 @@
    },
    "methodology": {
     "ebitda": {
-     "adjusted": 18030400.73,
-     "cash": 18420491.28,
-     "reported": 18420491.28,
-     "strict": 18030400.73
+     "adjusted": 10386287.69,
+     "cash": 10776378.24,
+     "reported": 10776378.24,
+     "strict": 10386287.69
     },
     "errors": [],
     "industry_key_applied": "default",
@@ -8621,21 +8621,21 @@
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 3.019335
+      "value": 2.821269
      },
      "capex_intensity": {
       "band": null,
       "direction": "neutral",
       "note": "Proxy: D&A as % revenue. Real capex requires period-over-period PPE delta + disposals (F4.3 cash flow refinement).",
       "unit": "ratio",
-      "value": 0.024957
+      "value": 0.026709
      },
      "cash_conversion_cycle": {
       "band": null,
       "direction": "lower_is_better",
       "note": "",
       "unit": "days",
-      "value": 35.112891
+      "value": 36.969396
      },
      "cash_ratio": {
       "band": [
@@ -8665,7 +8665,7 @@
       "direction": "lower_is_better",
       "note": "",
       "unit": "days",
-      "value": 45.548379
+      "value": 45.634053
      },
      "days_payable_outstanding": {
       "band": [
@@ -8675,7 +8675,7 @@
       "direction": "higher_is_better",
       "note": "",
       "unit": "days",
-      "value": 36.641162
+      "value": 36.710081
      },
      "days_sales_outstanding": {
       "band": [
@@ -8685,7 +8685,7 @@
       "direction": "lower_is_better",
       "note": "",
       "unit": "days",
-      "value": 26.205674
+      "value": 28.045424
      },
      "debt_to_assets": {
       "band": null,
@@ -8709,14 +8709,14 @@
       "direction": "higher_is_better",
       "note": "Rough DSCR; LT debt amortized over 8y assumption. Refine via per-period schedule when available.",
       "unit": "ratio",
-      "value": 35.158346
+      "value": 20.568378
      },
      "ebitda_margin_cash": {
       "band": null,
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 0.155346
+      "value": 0.097261
      },
      "ebitda_margin_reported": {
       "band": [
@@ -8726,7 +8726,7 @@
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 0.155346
+      "value": 0.097261
      },
      "ebitda_to_interest": {
       "band": [
@@ -8736,7 +8736,7 @@
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 53.567093
+      "value": 31.337886
      },
      "equity_ratio": {
       "band": [
@@ -8753,7 +8753,7 @@
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 0.396283
+      "value": 0.355112
      },
      "interest_coverage": {
       "band": [
@@ -8763,14 +8763,14 @@
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 44.961298
+      "value": 22.732091
      },
      "inventory_turnover": {
       "band": null,
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 8.013457
+      "value": 7.998413
      },
      "lt_debt_to_equity": {
       "band": null,
@@ -8787,7 +8787,7 @@
       "direction": "lower_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 0.084994
+      "value": 0.145283
      },
      "net_margin": {
       "band": [
@@ -8797,7 +8797,7 @@
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 0.118928
+      "value": 0.058286
      },
      "quick_ratio": {
       "band": [
@@ -8817,7 +8817,7 @@
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 0.359084
+      "value": 0.164441
      },
      "return_on_equity": {
       "band": [
@@ -8827,7 +8827,7 @@
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 0.589453
+      "value": 0.269937
      },
      "working_capital": {
       "band": null,
@@ -8841,10 +8841,10 @@
     "totals": {
      "current_assets": 27476056.94,
      "current_liabilities": 13012976.77,
-     "gross_profit": 46989940.34,
+     "gross_profit": 39345827.3,
      "net_debt": 1565628.87,
-     "operating_profit_reported": 15461156.19,
-     "revenue_net": 118576819.64,
+     "operating_profit_reported": 7817043.15,
+     "revenue_net": 110798309.14,
      "total_assets": 39272501.03,
      "total_debt": 3640202.33,
      "total_equity": 23924083.72,
@@ -8970,21 +8970,21 @@
    "score_max": 9
   },
   "assembled_pl": {
-   "adjusted_ebitda": 18030400.73,
+   "adjusted_ebitda": 10386287.69,
    "capitalized_own_work_memo": 0.0,
    "cogs": 70557114.68,
-   "core_ebitda": 18030400.73,
+   "core_ebitda": 10386287.69,
    "cost_of_goods_sold": 70557114.68,
    "depreciation": 2955346.39,
    "discounts_received": 0.0,
-   "ebit": 15465144.89,
-   "ebitda": 18420491.28,
-   "ebitda_adjusted": 18420491.28,
-   "ebitda_cash": 18420491.28,
-   "ebitda_operating_view": 18420491.28,
-   "ebitda_operational": 18420491.28,
-   "ebitda_statutory": 18420491.28,
-   "ebitda_statutory_with_711": 210512337.61,
+   "ebit": 7821031.85,
+   "ebitda": 10776378.24,
+   "ebitda_adjusted": 10776378.24,
+   "ebitda_cash": 10776378.24,
+   "ebitda_operating_view": 10776378.24,
+   "ebitda_operational": 10776378.24,
+   "ebitda_statutory": 10776378.24,
+   "ebitda_statutory_with_711": 202868224.57,
    "financial_expense": 65946.65,
    "financial_expense_total": 343877.0,
    "financial_income": 456384.14,
@@ -8992,7 +8992,7 @@
    "free_cash_flow_proxy": 10489022.41,
    "fx_gain": 157000.88,
    "fx_loss": 65946.65,
-   "gross_profit": 48019704.96,
+   "gross_profit": 40241194.46,
    "income_tax": 1471550.0,
    "interest_expense": 277930.35,
    "interest_income": 299383.26,
@@ -9000,27 +9000,27 @@
    "net_financial_result": 112507.14,
    "net_income_anchor_source": "envelope_p121_cross_check",
    "net_income_anchor_status": "anchored",
-   "net_income_operational": 14106102.03,
-   "net_income_reconciliation_to_121": -6572426.01,
-   "net_income_reconstructed": 14106102.03,
+   "net_income_operational": 6461988.99,
+   "net_income_reconciliation_to_121": 1071687.03,
+   "net_income_reconstructed": 6461988.99,
    "net_income_statutory": 7533676.02,
    "net_income_statutory_anchor": 7533676.02,
-   "net_income_unexplained_vs_121": -6572426.01,
-   "operating_ebit": 15465144.89,
-   "operating_ebitda": 18420491.28,
-   "opex_excluding_cogs_and_da": 29989304.23,
+   "net_income_unexplained_vs_121": 1071687.03,
+   "operating_ebit": 7821031.85,
+   "operating_ebitda": 10776378.24,
+   "opex_excluding_cogs_and_da": 29854906.77,
    "opex_third_party": 1313827.41,
-   "opex_total": 29989304.23,
+   "opex_total": 29854906.77,
    "other_income_758": 386101.85,
    "other_income_781_reversals": 3988.7,
    "other_op_income_lump": 386101.85,
    "other_operating_income": 390090.55,
-   "pretax": 15577652.03,
-   "revenue": 118576819.64,
+   "pretax": 7933538.99,
+   "revenue": 110798309.14,
    "tax": 1471550.0,
-   "total_operating_expense": 103501765.3,
-   "total_operating_revenue": 118576819.64,
-   "total_operating_revenue_statutory": 310668665.97
+   "total_operating_expense": 103367367.84,
+   "total_operating_revenue": 110798309.14,
+   "total_operating_revenue_statutory": 302890155.47
   },
   "balanceSheet": {
    "accountsPayable": 7554847.25,
@@ -9065,7 +9065,7 @@
     "header_row_index": 0,
     "method": "deterministic",
     "number_locale": "anglo",
-    "parser_version": "tb_parser_v5",
+    "parser_version": "tb_parser_v6",
     "sheet": "Anon_e29b305ae9",
     "source_format": "saga_10_col"
    },
@@ -9074,7 +9074,7 @@
     "el_eq_row_sum": true,
     "identity_holds": true,
     "p121_cross_check": {
-     "cls7_minus_cls6": 206197948.36,
+     "cls7_minus_cls6": 198553835.32,
      "ok": false,
      "p121": 7533676.02
     },
@@ -9991,9 +9991,9 @@
    "financialIncome": 456384.14,
    "interestExpense": 277930.35,
    "inventoryVariationMemo": 192091846.33,
-   "operatingExpenses": 29989304.23,
+   "operatingExpenses": 29854906.77,
    "otherIncome": 390090.55,
-   "revenue": 118576819.64,
+   "revenue": 110798309.14,
    "taxExpense": 1471550.0
   },
   "industry": null,
@@ -10439,119 +10439,6 @@
     {
      "accounts": [
       {
-       "amount": 7533676.02,
-       "code": "121",
-       "name": "Current year profit",
-       "role": "account_121"
-      }
-     ],
-     "claim": "Rebuilding the P&L from the movement columns reaches RON 14,106,102.03; statutory profit in account 121 is RON 7,533,676.02. The unexplained step of RON -6,572,426.01 is 46.6% of the RON 14,106,102.03 it is bridging.",
-     "claim_template": "Rebuilding the P&L from the movement columns reaches {money:reconstructed}; statutory profit in account 121 is {money:statutory}. The unexplained step of {money:step} is {measure:graded_share} of the {money:graded_base} it is bridging.",
-     "facts": [
-      {
-       "label": "Reconciliation to account 121",
-       "name": "assembled_pl.net_income_reconciliation_to_121",
-       "unit": "money",
-       "value": -6572426.01
-      },
-      {
-       "label": "Net income rebuilt from the movements",
-       "name": "assembled_pl.net_income_operational",
-       "unit": "money",
-       "value": 14106102.03
-      },
-      {
-       "label": "Net income in account 121",
-       "name": "assembled_pl.net_income_statutory",
-       "unit": "money",
-       "value": 7533676.02
-      },
-      {
-       "label": "Revenue",
-       "name": "assembled_pl.revenue",
-       "unit": "money",
-       "value": 118576819.64
-      }
-     ],
-     "formula": "|account-121 reconciliation step| ÷ |reconstructed net income|",
-     "id": "reconstruction_gap",
-     "in_summary": true,
-     "measures": [
-      {
-       "key": "step",
-       "label": "Reconciliation to account 121",
-       "unit": "money",
-       "value": -6572426.01
-      },
-      {
-       "key": "reconstructed",
-       "label": "Net income rebuilt from the movements",
-       "unit": "money",
-       "value": 14106102.03
-      },
-      {
-       "key": "statutory",
-       "label": "Net income in account 121",
-       "unit": "money",
-       "value": 7533676.02
-      },
-      {
-       "key": "graded_share",
-       "label": "Step as a share of reconstructed net income",
-       "unit": "ratio",
-       "value": 0.465927865545
-      },
-      {
-       "key": "graded_base",
-       "label": "Reconstructed net income",
-       "unit": "money",
-       "value": 14106102.03
-      }
-     ],
-     "narrative": {
-      "explanation": "Rebuilding the P&L from the movement columns reaches RON 14,106,102.03; statutory profit in account 121 is RON 7,533,676.02. The unexplained step of RON -6,572,426.01 is 46.6% of the RON 14,106,102.03 it is bridging. Graded high: the amount at stake is 46.6% of reconstructed net income, against the ladder printed beside this finding. The step is graded against the profit it is correcting. A bridge worth a tenth of the answer is a footnote; one worth half of it means the reconstruction is not the source of the printed profit.",
-      "reason": "the advisory lane was not invoked for this build",
-      "so_what": "Ask for the year-end journals behind the step to account 121 before relying on the reconstructed P&L for anything. A large bridge means the movement columns are not the source of the reported profit.",
-      "source": "deterministic"
-     },
-     "rank": 3,
-     "rank_basis": "Ranked by severity level, then by materiality descending; ties broken by detector id ascending. The top 5 carry into the executive summary.",
-     "severity": {
-      "bands": [
-       {
-        "at_least": 0.5,
-        "level": "critical"
-       },
-       {
-        "at_least": 0.2,
-        "level": "high"
-       },
-       {
-        "at_least": 0.05,
-        "level": "medium"
-       },
-       {
-        "at_least": 0.01,
-        "level": "low"
-       },
-       {
-        "at_least": null,
-        "level": "info"
-       }
-      ],
-      "basis": "reconstructed_net_income",
-      "basis_label": "Reconstructed net income",
-      "basis_value": 14106102.03,
-      "level": "high",
-      "magnitude": 6572426.01,
-      "materiality": 0.465928,
-      "why": "The step is graded against the profit it is correcting. A bridge worth a tenth of the answer is a footnote; one worth half of it means the reconstruction is not the source of the printed profit."
-     },
-     "title": "The P&L does not reach statutory profit on its own"
-    },
-    {
-     "accounts": [
-      {
        "amount": 7536754.9,
        "code": "4511.01",
        "name": "Ndqe te cnifmfy NLC 3299.59",
@@ -10660,7 +10547,7 @@
        "key": "net_debt_ebitda",
        "label": "Net debt ÷ EBITDA as reported",
        "unit": "multiple",
-       "value": 0.134206805477
+       "value": 0.229405022257
       }
      ],
      "narrative": {
@@ -10669,7 +10556,7 @@
       "so_what": "Ask for the intercompany ageing and the counterparty's own ability to settle. The haircut figures beside this finding are what the ratios become if the balance is not recoverable.",
       "source": "deterministic"
      },
-     "rank": 4,
+     "rank": 3,
      "rank_basis": "Ranked by severity level, then by materiality descending; ties broken by detector id ascending. The top 5 carry into the executive summary.",
      "severity": {
       "bands": [
@@ -10777,7 +10664,7 @@
       "so_what": "Get these accounts mapped before the next close. A balance carried under an Unclassified row is in the totals but in no statement line, so it is invisible to every ratio computed from those lines.",
       "source": "deterministic"
      },
-     "rank": 5,
+     "rank": 4,
      "rank_basis": "Ranked by severity level, then by materiality descending; ties broken by detector id ascending. The top 5 carry into the executive summary.",
      "severity": {
       "bands": [
@@ -10811,6 +10698,119 @@
       "why": "An unexplained balance is graded against the balance sheet it had to be forced into, because the question a reader asks is what share of the statement is not actually classified."
      },
      "title": "Balances no statement line explains"
+    },
+    {
+     "accounts": [
+      {
+       "amount": 7533676.02,
+       "code": "121",
+       "name": "Current year profit",
+       "role": "account_121"
+      }
+     ],
+     "claim": "Rebuilding the P&L from the movement columns reaches RON 6,461,988.99; statutory profit in account 121 is RON 7,533,676.02. The unexplained step of RON 1,071,687.03 is 16.6% of the RON 6,461,988.99 it is bridging.",
+     "claim_template": "Rebuilding the P&L from the movement columns reaches {money:reconstructed}; statutory profit in account 121 is {money:statutory}. The unexplained step of {money:step} is {measure:graded_share} of the {money:graded_base} it is bridging.",
+     "facts": [
+      {
+       "label": "Reconciliation to account 121",
+       "name": "assembled_pl.net_income_reconciliation_to_121",
+       "unit": "money",
+       "value": 1071687.03
+      },
+      {
+       "label": "Net income rebuilt from the movements",
+       "name": "assembled_pl.net_income_operational",
+       "unit": "money",
+       "value": 6461988.99
+      },
+      {
+       "label": "Net income in account 121",
+       "name": "assembled_pl.net_income_statutory",
+       "unit": "money",
+       "value": 7533676.02
+      },
+      {
+       "label": "Revenue",
+       "name": "assembled_pl.revenue",
+       "unit": "money",
+       "value": 110798309.14
+      }
+     ],
+     "formula": "|account-121 reconciliation step| ÷ |reconstructed net income|",
+     "id": "reconstruction_gap",
+     "in_summary": true,
+     "measures": [
+      {
+       "key": "step",
+       "label": "Reconciliation to account 121",
+       "unit": "money",
+       "value": 1071687.03
+      },
+      {
+       "key": "reconstructed",
+       "label": "Net income rebuilt from the movements",
+       "unit": "money",
+       "value": 6461988.99
+      },
+      {
+       "key": "statutory",
+       "label": "Net income in account 121",
+       "unit": "money",
+       "value": 7533676.02
+      },
+      {
+       "key": "graded_share",
+       "label": "Step as a share of reconstructed net income",
+       "unit": "ratio",
+       "value": 0.165844762605
+      },
+      {
+       "key": "graded_base",
+       "label": "Reconstructed net income",
+       "unit": "money",
+       "value": 6461988.99
+      }
+     ],
+     "narrative": {
+      "explanation": "Rebuilding the P&L from the movement columns reaches RON 6,461,988.99; statutory profit in account 121 is RON 7,533,676.02. The unexplained step of RON 1,071,687.03 is 16.6% of the RON 6,461,988.99 it is bridging. Graded medium: the amount at stake is 16.6% of reconstructed net income, against the ladder printed beside this finding. The step is graded against the profit it is correcting. A bridge worth a tenth of the answer is a footnote; one worth half of it means the reconstruction is not the source of the printed profit.",
+      "reason": "the advisory lane was not invoked for this build",
+      "so_what": "Ask for the year-end journals behind the step to account 121 before relying on the reconstructed P&L for anything. A large bridge means the movement columns are not the source of the reported profit.",
+      "source": "deterministic"
+     },
+     "rank": 5,
+     "rank_basis": "Ranked by severity level, then by materiality descending; ties broken by detector id ascending. The top 5 carry into the executive summary.",
+     "severity": {
+      "bands": [
+       {
+        "at_least": 0.5,
+        "level": "critical"
+       },
+       {
+        "at_least": 0.2,
+        "level": "high"
+       },
+       {
+        "at_least": 0.05,
+        "level": "medium"
+       },
+       {
+        "at_least": 0.01,
+        "level": "low"
+       },
+       {
+        "at_least": null,
+        "level": "info"
+       }
+      ],
+      "basis": "reconstructed_net_income",
+      "basis_label": "Reconstructed net income",
+      "basis_value": 6461988.99,
+      "level": "medium",
+      "magnitude": 1071687.03,
+      "materiality": 0.165845,
+      "why": "The step is graded against the profit it is correcting. A bridge worth a tenth of the answer is a footnote; one worth half of it means the reconstruction is not the source of the printed profit."
+     },
+     "title": "The P&L does not reach statutory profit on its own"
     },
     {
      "accounts": [
@@ -10863,14 +10863,14 @@
        "role": "otherIncome"
       }
      ],
-     "claim": "RON 390,090.55 of operating income is other operating income and provision reversals rather than trading margin — 2.1% of RON 18,420,491.28; the operating cash proxy is RON 10,489,022.41 against an EBITDA of RON 18,420,491.28, a conversion of 56.9%.",
+     "claim": "RON 390,090.55 of operating income is other operating income and provision reversals rather than trading margin — 3.6% of RON 10,776,378.24; the operating cash proxy is RON 10,489,022.41 against an EBITDA of RON 10,776,378.24, a conversion of 97.3%.",
      "claim_template": "{money:non_trading} of operating income is other operating income and provision reversals rather than trading margin — {measure:graded_share} of {money:graded_base}; the operating cash proxy is {money:cash_proxy} against an EBITDA of {money:ebitda}, a conversion of {measure:cash_conversion}.",
      "facts": [
       {
        "label": "EBITDA",
        "name": "assembled_pl.ebitda",
        "unit": "money",
-       "value": 18420491.28
+       "value": 10776378.24
       },
       {
        "label": "Other operating income",
@@ -10911,19 +10911,19 @@
        "key": "ebitda",
        "label": "EBITDA",
        "unit": "money",
-       "value": 18420491.28
+       "value": 10776378.24
       },
       {
        "key": "graded_share",
        "label": "Non-trading income as a share of ebitda",
        "unit": "ratio",
-       "value": 0.021176989477
+       "value": 0.036198669099
       },
       {
        "key": "graded_base",
        "label": "EBITDA",
        "unit": "money",
-       "value": 18420491.28
+       "value": 10776378.24
       },
       {
        "key": "provision_reversals",
@@ -10947,11 +10947,11 @@
        "key": "cash_conversion",
        "label": "Operating cash proxy ÷ EBITDA",
        "unit": "ratio",
-       "value": 0.569421425876
+       "value": 0.973334656264
       }
      ],
      "narrative": {
-      "explanation": "RON 390,090.55 of operating income is other operating income and provision reversals rather than trading margin — 2.1% of RON 18,420,491.28; the operating cash proxy is RON 10,489,022.41 against an EBITDA of RON 18,420,491.28, a conversion of 56.9%. Graded low: the amount at stake is 2.1% of ebitda, against the ladder printed beside this finding. Non-trading income is graded against the EBITDA it is inside, so the severity answers \"how much of this margin is not trading\" rather than \"is this a big number\".",
+      "explanation": "RON 390,090.55 of operating income is other operating income and provision reversals rather than trading margin — 3.6% of RON 10,776,378.24; the operating cash proxy is RON 10,489,022.41 against an EBITDA of RON 10,776,378.24, a conversion of 97.3%. Graded low: the amount at stake is 3.6% of ebitda, against the ladder printed beside this finding. Non-trading income is graded against the EBITDA it is inside, so the severity answers \"how much of this margin is not trading\" rather than \"is this a big number\".",
       "reason": "the advisory lane was not invoked for this build",
       "so_what": "Strip the non-trading income out before applying any multiple. Provision reversals and other operating income do not recur, and an EBITDA that leans on them overstates the run rate.",
       "source": "deterministic"
@@ -10983,10 +10983,10 @@
       ],
       "basis": "ebitda_positive",
       "basis_label": "EBITDA",
-      "basis_value": 18420491.28,
+      "basis_value": 10776378.24,
       "level": "low",
       "magnitude": 390090.55,
-      "materiality": 0.021177,
+      "materiality": 0.036199,
       "why": "Non-trading income is graded against the EBITDA it is inside, so the severity answers \"how much of this margin is not trading\" rather than \"is this a big number\"."
      },
      "title": "Part of EBITDA is not trading income"
@@ -11060,7 +11060,7 @@
        "role": "trade_payable"
       }
      ],
-     "claim": "The net trade float is RON 1,327,011.19: RON 8,513,384.96 owed by customers against RON 7,186,373.77 owed to suppliers — 26.2 days of sales outstanding against 37.2 days of payables, a gap of -11.0 days.",
+     "claim": "The net trade float is RON 1,327,011.19: RON 8,513,384.96 owed by customers against RON 7,186,373.77 owed to suppliers — 28.0 days of sales outstanding against 37.2 days of payables, a gap of -9.1 days.",
      "claim_template": "The net trade float is {money:float}: {money:trade_receivables} owed by customers against {money:trade_payables} owed to suppliers — {measure:dso} of sales outstanding against {measure:dpo} of payables, a gap of {measure:float_days}.",
      "facts": [
       {
@@ -11079,7 +11079,7 @@
        "label": "Revenue",
        "name": "assembled_pl.revenue",
        "unit": "money",
-       "value": 118576819.64
+       "value": 110798309.14
       },
       {
        "label": "Cost of goods sold",
@@ -11096,7 +11096,7 @@
        "key": "dso",
        "label": "Days sales outstanding",
        "unit": "days",
-       "value": 26.205674261074
+       "value": 28.045423567553
       },
       {
        "key": "dpo",
@@ -11108,7 +11108,7 @@
        "key": "float_days",
        "label": "Collection gap (DSO − DPO)",
        "unit": "days",
-       "value": -10.970256726839
+       "value": -9.130507420361
       },
       {
        "key": "float",
@@ -11136,7 +11136,7 @@
       }
      ],
      "narrative": {
-      "explanation": "The net trade float is RON 1,327,011.19: RON 8,513,384.96 owed by customers against RON 7,186,373.77 owed to suppliers — 26.2 days of sales outstanding against 37.2 days of payables, a gap of -11.0 days. Graded low: the amount at stake is 1.1% of revenue, against the ladder printed beside this finding. Trade float is a claim on a year of trading, so it is graded as a share of that year's revenue — the same base both day counts already annualise against.",
+      "explanation": "The net trade float is RON 1,327,011.19: RON 8,513,384.96 owed by customers against RON 7,186,373.77 owed to suppliers — 28.0 days of sales outstanding against 37.2 days of payables, a gap of -9.1 days. Graded low: the amount at stake is 1.2% of revenue, against the ladder printed beside this finding. Trade float is a claim on a year of trading, so it is graded as a share of that year's revenue — the same base both day counts already annualise against.",
       "reason": "the advisory lane was not invoked for this build",
       "so_what": "Compare the collection gap with the credit terms actually granted. Where suppliers fund the cycle, that funding is a payables line that can be withdrawn, not a permanent source.",
       "source": "deterministic"
@@ -11168,10 +11168,10 @@
       ],
       "basis": "revenue",
       "basis_label": "Revenue",
-      "basis_value": 118576819.64,
+      "basis_value": 110798309.14,
       "level": "low",
       "magnitude": 1327011.19,
-      "materiality": 0.011191,
+      "materiality": 0.011977,
       "why": "Trade float is a claim on a year of trading, so it is graded as a share of that year's revenue — the same base both day counts already annualise against."
      },
      "title": "Suppliers and customers move the cash cycle"
@@ -11209,7 +11209,7 @@
        "role": "financialIncome"
       }
      ],
-     "claim": "This book earns more on financial assets than it pays on debt: financial income of RON 456,384.14 against financial expense of RON 343,877.00 leaves a net gain of RON 112,507.14, 0.6% of RON 18,420,491.28.",
+     "claim": "This book earns more on financial assets than it pays on debt: financial income of RON 456,384.14 against financial expense of RON 343,877.00 leaves a net gain of RON 112,507.14, 1.0% of RON 10,776,378.24.",
      "claim_template": "This book earns more on financial assets than it pays on debt: financial income of {money:financial_income} against financial expense of {money:financial_expense} leaves a net gain of {money:net_financial}, {measure:graded_share} of {money:graded_base}.",
      "facts": [
       {
@@ -11246,7 +11246,7 @@
        "label": "EBITDA",
        "name": "assembled_pl.ebitda",
        "unit": "money",
-       "value": 18420491.28
+       "value": 10776378.24
       }
      ],
      "formula": "Financial income − financial expense, against operating EBITDA",
@@ -11275,13 +11275,13 @@
        "key": "graded_share",
        "label": "Net financial result as a share of ebitda",
        "unit": "ratio",
-       "value": 0.00610771658
+       "value": 0.010440162501
       },
       {
        "key": "graded_base",
        "label": "EBITDA",
        "unit": "money",
-       "value": 18420491.28
+       "value": 10776378.24
       },
       {
        "key": "interest_expense",
@@ -11299,11 +11299,11 @@
        "key": "ebitda",
        "label": "EBITDA",
        "unit": "money",
-       "value": 18420491.28
+       "value": 10776378.24
       }
      ],
      "narrative": {
-      "explanation": "This book earns more on financial assets than it pays on debt: financial income of RON 456,384.14 against financial expense of RON 343,877.00 leaves a net gain of RON 112,507.14, 0.6% of RON 18,420,491.28. Graded info: the amount at stake is 0.6% of ebitda, against the ladder printed beside this finding. The financial result is graded against the operating earnings it sits beside, because the question is how much of the bottom line the company earned by trading rather than by lending or borrowing.",
+      "explanation": "This book earns more on financial assets than it pays on debt: financial income of RON 456,384.14 against financial expense of RON 343,877.00 leaves a net gain of RON 112,507.14, 1.0% of RON 10,776,378.24. Graded info: the amount at stake is 1.0% of ebitda, against the ladder printed beside this finding. The financial result is graded against the operating earnings it sits beside, because the question is how much of the bottom line the company earned by trading rather than by lending or borrowing.",
       "reason": "the advisory lane was not invoked for this build",
       "so_what": "Separate the operating result from the financial one when judging the trading business. Financial income earned on assets or affiliates does not repeat because trading improved.",
       "source": "deterministic"
@@ -11335,10 +11335,10 @@
       ],
       "basis": "ebitda_positive",
       "basis_label": "EBITDA",
-      "basis_value": 18420491.28,
+      "basis_value": 10776378.24,
       "level": "info",
       "magnitude": 112507.14,
-      "materiality": 0.006108,
+      "materiality": 0.01044,
       "why": "The financial result is graded against the operating earnings it sits beside, because the question is how much of the bottom line the company earned by trading rather than by lending or borrowing."
      },
      "title": "The financial line is not incidental to the result"
@@ -11349,9 +11349,9 @@
    "summary_ids": [
     "asset_age",
     "liquidity_quality",
-    "reconstruction_gap",
     "related_party_exposure",
-    "unclassified_balances"
+    "unclassified_balances",
+    "reconstruction_gap"
    ]
   },
   "periodLabel": "2025-12-31",

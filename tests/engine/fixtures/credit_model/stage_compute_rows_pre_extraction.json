@@ -3,7 +3,7 @@
   "captured_at_commit": "cfd2117 (main), BEFORE the credit-model extraction",
   "captured_by": "originally pipeline.stage_compute with a recording admin double; re-captured from credit_model.compute_period_metrics on the same statements, revision row stripped",
   "note": "rows carry no credit_model_revision row because the golden predates the stamp; the test asserts the stamp by value. Every book with liabilities, revenue and interest is byte-identical to the revision-1 capture; the two synthetic books moved exactly where the rulings say (ROIC on non-positive invested capital refuses; equity rung 0; net-cash leverage 100; coverage/DSCR/profitability refuse on a loss-making, revenue-less, interest-free book)",
-  "recaptured": "2026-09-18 under CREDIT_MODEL_REVISION 2 (ratios wave 3: rulings R-D1, R-D2, R-D3, R-D4, R-RANGE, R-OTHER C1.9), in a named commit; 2026-09-19 after interest_coverage moved to EBIT / interest (the methodology, CLAUDE.md Appendix A section 5; the coverage sub-score already banded on EBIT), in a named commit",
+  "recaptured": "2026-09-18 under CREDIT_MODEL_REVISION 2 (ratios wave 3: rulings R-D1, R-D2, R-D3, R-D4, R-RANGE, R-OTHER C1.9), in a named commit; 2026-09-19 after interest_coverage moved to EBIT / interest (the methodology, CLAUDE.md Appendix A section 5; the coverage sub-score already banded on EBIT), in a named commit; 2026-09-21 parser v6 port (tb_parser_v5 -> tb_parser_v6, the 609/709 contra convention): only the three entry-magnitude books move (agras incl. its zero-balance-sheet variant, carniprod, retail), re-read from compute_period_metrics over the re-parsed cases",
   "rows_moved_on_recapture": {
    "saga_10_col_agras_zero_balance_sheet": [
     {
@@ -86,6 +86,639 @@
      "name": "interest_coverage"
     }
    ]
+  },
+  "rows_moved_on_recapture_2026_09_21_parser_v6": {
+   "moved": {
+    "saga_10_col_agras": [
+     {
+      "after": 110798309.14,
+      "before": 118576819.64,
+      "name": "revenue"
+     },
+     {
+      "after": 40241194.46,
+      "before": 48019704.96,
+      "name": "gross_profit"
+     },
+     {
+      "after": 10776378.24,
+      "before": 18420491.28,
+      "name": "ebitda"
+     },
+     {
+      "after": 10776378.24,
+      "before": 18420491.28,
+      "name": "ebitda_cash"
+     },
+     {
+      "after": 202868224.57,
+      "before": 210512337.61,
+      "name": "ebitda_statutory_with_711"
+     },
+     {
+      "after": 7821031.85,
+      "before": 15465144.89,
+      "name": "operating_profit"
+     },
+     {
+      "after": 6461988.99,
+      "before": 14106102.03,
+      "name": "net_income"
+     },
+     {
+      "after": 6461988.99,
+      "before": 14106102.03,
+      "name": "net_income_operational"
+     },
+     {
+      "after": 10776378.24,
+      "before": 18420491.28,
+      "name": "ebitda_statutory"
+     },
+     {
+      "after": 110798309.14,
+      "before": 118576819.64,
+      "name": "total_operating_revenue"
+     },
+     {
+      "after": 302890155.47,
+      "before": 310668665.97,
+      "name": "total_operating_revenue_statutory"
+     },
+     {
+      "after": 0.3632,
+      "before": 0.405,
+      "name": "gross_margin"
+     },
+     {
+      "after": 0.0973,
+      "before": 0.1553,
+      "name": "ebitda_margin"
+     },
+     {
+      "after": 0.068,
+      "before": 0.0635,
+      "name": "net_margin"
+     },
+     {
+      "after": 0.3378,
+      "before": 0.1976,
+      "name": "debt_to_ebitda"
+     },
+     {
+      "after": 28.1403,
+      "before": 55.644,
+      "name": "interest_coverage"
+     },
+     {
+      "after": 0.2383,
+      "before": 0.4713,
+      "name": "roic"
+     },
+     {
+      "after": 10386287.69,
+      "before": 18030400.73,
+      "name": "adjusted_ebitda"
+     },
+     {
+      "after": 0.2294,
+      "before": 0.1342,
+      "name": "net_debt_to_ebitda"
+     },
+     {
+      "after": 38.7737,
+      "before": 66.2774,
+      "name": "ebitda_to_interest"
+     },
+     {
+      "after": 4.3493,
+      "before": 7.4345,
+      "name": "dscr"
+     },
+     {
+      "after": 23.5301,
+      "before": 40.2209,
+      "name": "dscr_with_lt_principal"
+     },
+     {
+      "after": 2.8213,
+      "before": 3.0193,
+      "name": "asset_turnover"
+     },
+     {
+      "after": 28.0454,
+      "before": 26.2057,
+      "name": "dso"
+     },
+     {
+      "after": 31.5444,
+      "before": 31.5035,
+      "name": "dio"
+     },
+     {
+      "after": 26.6769,
+      "before": 26.6422,
+      "name": "dpo"
+     },
+     {
+      "after": 32.913,
+      "before": 31.0669,
+      "name": "ccc"
+     },
+     {
+      "after": 11.571,
+      "before": 11.586,
+      "name": "inventory_turnover"
+     },
+     {
+      "after": 0.0706,
+      "before": 0.1304,
+      "name": "operating_margin"
+     },
+     {
+      "after": 0.0937,
+      "before": 0.1521,
+      "name": "core_ebitda_margin"
+     },
+     {
+      "after": 10386287.69,
+      "before": 18030400.73,
+      "name": "core_ebitda"
+     },
+     {
+      "after": 6.01,
+      "before": 7.31,
+      "name": "altman_z_score"
+     },
+     {
+      "after": 0.1991,
+      "before": 0.3938,
+      "name": "altman_x3"
+     },
+     {
+      "after": 81.0,
+      "before": 80.7,
+      "name": "credit_composite"
+     },
+     {
+      "after": 33.2,
+      "before": 31.7,
+      "name": "credit_subscore_profitability"
+     }
+    ],
+    "saga_10_col_agras_zero_balance_sheet": [
+     {
+      "after": 110798309.14,
+      "before": 118576819.64,
+      "name": "revenue"
+     },
+     {
+      "after": 40241194.46,
+      "before": 48019704.96,
+      "name": "gross_profit"
+     },
+     {
+      "after": 10776378.24,
+      "before": 18420491.28,
+      "name": "ebitda"
+     },
+     {
+      "after": 10776378.24,
+      "before": 18420491.28,
+      "name": "ebitda_cash"
+     },
+     {
+      "after": 202868224.57,
+      "before": 210512337.61,
+      "name": "ebitda_statutory_with_711"
+     },
+     {
+      "after": 7821031.85,
+      "before": 15465144.89,
+      "name": "operating_profit"
+     },
+     {
+      "after": 6461988.99,
+      "before": 14106102.03,
+      "name": "net_income"
+     },
+     {
+      "after": 6461988.99,
+      "before": 14106102.03,
+      "name": "net_income_operational"
+     },
+     {
+      "after": 10776378.24,
+      "before": 18420491.28,
+      "name": "ebitda_statutory"
+     },
+     {
+      "after": 110798309.14,
+      "before": 118576819.64,
+      "name": "total_operating_revenue"
+     },
+     {
+      "after": 302890155.47,
+      "before": 310668665.97,
+      "name": "total_operating_revenue_statutory"
+     },
+     {
+      "after": 0.3632,
+      "before": 0.405,
+      "name": "gross_margin"
+     },
+     {
+      "after": 0.0973,
+      "before": 0.1553,
+      "name": "ebitda_margin"
+     },
+     {
+      "after": 0.068,
+      "before": 0.0635,
+      "name": "net_margin"
+     },
+     {
+      "after": 28.1403,
+      "before": 55.644,
+      "name": "interest_coverage"
+     },
+     {
+      "after": 10386287.69,
+      "before": 18030400.73,
+      "name": "adjusted_ebitda"
+     },
+     {
+      "after": 38.7737,
+      "before": 66.2774,
+      "name": "ebitda_to_interest"
+     },
+     {
+      "after": 38.7737,
+      "before": 66.2774,
+      "name": "dscr"
+     },
+     {
+      "after": 38.7737,
+      "before": 66.2774,
+      "name": "dscr_with_lt_principal"
+     },
+     {
+      "after": 0.0706,
+      "before": 0.1304,
+      "name": "operating_margin"
+     },
+     {
+      "after": 0.0937,
+      "before": 0.1521,
+      "name": "core_ebitda_margin"
+     },
+     {
+      "after": 10386287.69,
+      "before": 18030400.73,
+      "name": "core_ebitda"
+     }
+    ],
+    "saga_10_col_carniprod": [
+     {
+      "after": 94509939.96,
+      "before": 99424740.16,
+      "name": "revenue"
+     },
+     {
+      "after": 37080143.73,
+      "before": 41994943.93,
+      "name": "gross_profit"
+     },
+     {
+      "after": 4993979.59,
+      "before": 9588744.57,
+      "name": "ebitda"
+     },
+     {
+      "after": 4993979.59,
+      "before": 9588744.57,
+      "name": "ebitda_cash"
+     },
+     {
+      "after": 93447975.09,
+      "before": 98042740.07,
+      "name": "ebitda_statutory_with_711"
+     },
+     {
+      "after": 1298454.0,
+      "before": 5893218.98,
+      "name": "operating_profit"
+     },
+     {
+      "after": 1248684.06,
+      "before": 5843449.04,
+      "name": "net_income"
+     },
+     {
+      "after": 1248684.06,
+      "before": 5843449.04,
+      "name": "net_income_operational"
+     },
+     {
+      "after": 4993979.59,
+      "before": 9588744.57,
+      "name": "ebitda_statutory"
+     },
+     {
+      "after": 94509939.96,
+      "before": 99424740.16,
+      "name": "total_operating_revenue"
+     },
+     {
+      "after": 182963935.46,
+      "before": 187878735.66,
+      "name": "total_operating_revenue_statutory"
+     },
+     {
+      "after": 0.3923,
+      "before": 0.4224,
+      "name": "gross_margin"
+     },
+     {
+      "after": 0.0528,
+      "before": 0.0964,
+      "name": "ebitda_margin"
+     },
+     {
+      "after": 0.0152,
+      "before": 0.0144,
+      "name": "net_margin"
+     },
+     {
+      "after": 0.0102,
+      "before": 0.0463,
+      "name": "roic"
+     },
+     {
+      "after": 3587758.52,
+      "before": 8182523.5,
+      "name": "adjusted_ebitda"
+     },
+     {
+      "after": -2.0274,
+      "before": -1.0559,
+      "name": "net_debt_to_ebitda"
+     },
+     {
+      "after": 0.7508,
+      "before": 0.7898,
+      "name": "asset_turnover"
+     },
+     {
+      "after": 41.8247,
+      "before": 39.7572,
+      "name": "dso"
+     },
+     {
+      "after": 37.7894,
+      "before": 37.662,
+      "name": "dio"
+     },
+     {
+      "after": 51.6642,
+      "before": 51.4901,
+      "name": "dpo"
+     },
+     {
+      "after": 27.9499,
+      "before": 25.9292,
+      "name": "ccc"
+     },
+     {
+      "after": 9.6588,
+      "before": 9.6915,
+      "name": "inventory_turnover"
+     },
+     {
+      "after": 0.0137,
+      "before": 0.0593,
+      "name": "operating_margin"
+     },
+     {
+      "after": 0.038,
+      "before": 0.0823,
+      "name": "core_ebitda_margin"
+     },
+     {
+      "after": 3587758.52,
+      "before": 8182523.5,
+      "name": "core_ebitda"
+     },
+     {
+      "after": 6.38,
+      "before": 6.62,
+      "name": "altman_z_score"
+     },
+     {
+      "after": 0.0103,
+      "before": 0.0468,
+      "name": "altman_x3"
+     },
+     {
+      "after": 5.5,
+      "before": 5.3,
+      "name": "credit_subscore_profitability"
+     }
+    ],
+    "saga_10_col_retail": [
+     {
+      "after": 79018306.77,
+      "before": 79510264.65,
+      "name": "revenue"
+     },
+     {
+      "after": 15641685.32,
+      "before": 16133643.2,
+      "name": "gross_profit"
+     },
+     {
+      "after": 2263417.48,
+      "before": 220162.84,
+      "name": "ebitda"
+     },
+     {
+      "after": 2263417.48,
+      "before": 220162.84,
+      "name": "ebitda_cash"
+     },
+     {
+      "after": 2263417.48,
+      "before": 220162.84,
+      "name": "ebitda_statutory_with_711"
+     },
+     {
+      "after": 786579.83,
+      "before": -1256674.81,
+      "name": "operating_profit"
+     },
+     {
+      "after": 3205212.62,
+      "before": 1161957.98,
+      "name": "net_income"
+     },
+     {
+      "after": 3205212.62,
+      "before": 1161957.98,
+      "name": "net_income_operational"
+     },
+     {
+      "after": 2263417.48,
+      "before": 220162.84,
+      "name": "ebitda_statutory"
+     },
+     {
+      "after": 79020230.55,
+      "before": 79512188.43,
+      "name": "total_operating_revenue"
+     },
+     {
+      "after": 79020230.55,
+      "before": 79512188.43,
+      "name": "total_operating_revenue_statutory"
+     },
+     {
+      "after": 0.198,
+      "before": 0.2029,
+      "name": "gross_margin"
+     },
+     {
+      "after": 0.0286,
+      "before": 0.0028,
+      "name": "ebitda_margin"
+     },
+     {
+      "after": 0.0406,
+      "before": 0.0403,
+      "name": "net_margin"
+     },
+     {
+      "after": 12.3084,
+      "before": 126.5382,
+      "name": "debt_to_ebitda"
+     },
+     {
+      "after": 0.3249,
+      "before": -0.519,
+      "name": "interest_coverage"
+     },
+     {
+      "after": 0.0124,
+      "before": -0.0199,
+      "name": "roic"
+     },
+     {
+      "after": 1536548.84,
+      "before": -506705.8,
+      "name": "adjusted_ebitda"
+     },
+     {
+      "after": 11.8056,
+      "before": 121.3692,
+      "name": "net_debt_to_ebitda"
+     },
+     {
+      "after": 0.9349,
+      "before": 0.0909,
+      "name": "ebitda_to_interest"
+     },
+     {
+      "after": 0.9349,
+      "before": 0.0909,
+      "name": "dscr"
+     },
+     {
+      "after": 0.3834,
+      "before": 0.0373,
+      "name": "dscr_with_lt_principal"
+     },
+     {
+      "after": 1.1274,
+      "before": 1.1344,
+      "name": "asset_turnover"
+     },
+     {
+      "after": 1.1777,
+      "before": 1.1704,
+      "name": "dso"
+     },
+     {
+      "after": 31.412,
+      "before": 30.4348,
+      "name": "dio"
+     },
+     {
+      "after": 29.8399,
+      "before": 28.9116,
+      "name": "dpo"
+     },
+     {
+      "after": 2.7498,
+      "before": 2.6936,
+      "name": "ccc"
+     },
+     {
+      "after": 11.6198,
+      "before": 11.9928,
+      "name": "inventory_turnover"
+     },
+     {
+      "after": 0.01,
+      "before": -0.0158,
+      "name": "operating_margin"
+     },
+     {
+      "after": 0.0245,
+      "before": -0.0013,
+      "name": "core_ebitda_margin"
+     },
+     {
+      "after": 1939569.7,
+      "before": -103684.94,
+      "name": "core_ebitda"
+     },
+     {
+      "after": 0.79,
+      "before": 0.6,
+      "name": "altman_z_score"
+     },
+     {
+      "after": 0.0112,
+      "before": -0.0179,
+      "name": "altman_x3"
+     },
+     {
+      "after": 20.6,
+      "before": 15.8,
+      "name": "credit_composite"
+     },
+     {
+      "after": 28.6,
+      "before": 21.5,
+      "name": "credit_subscore_altman"
+     },
+     {
+      "after": 17.8,
+      "before": 17.7,
+      "name": "credit_subscore_profitability"
+     },
+     {
+      "after": 9.7,
+      "before": 0,
+      "name": "credit_subscore_coverage"
+     },
+     {
+      "after": 19.2,
+      "before": 1.9,
+      "name": "credit_subscore_dscr"
+     }
+    ]
+   },
+   "reason": "2026-09-21 parser v6 port (tb_parser_v5 -> tb_parser_v6, the 609/709 contra convention): only the three entry-magnitude books move (agras incl. its zero-balance-sheet variant, carniprod, retail), re-read from compute_period_metrics over the re-parsed cases"
   }
  },
  "cases": {
@@ -97,7 +730,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 118576819.64
+     "value": 110798309.14
     },
     {
      "direction": "higher",
@@ -105,7 +738,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 48019704.96
+     "value": 40241194.46
     },
     {
      "direction": "higher",
@@ -113,7 +746,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 18420491.28
+     "value": 10776378.24
     },
     {
      "direction": "higher",
@@ -121,7 +754,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 18420491.28
+     "value": 10776378.24
     },
     {
      "direction": "higher",
@@ -129,7 +762,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 210512337.61
+     "value": 202868224.57
     },
     {
      "direction": "neutral",
@@ -145,7 +778,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 15465144.89
+     "value": 7821031.85
     },
     {
      "direction": "higher",
@@ -153,7 +786,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 14106102.03
+     "value": 6461988.99
     },
     {
      "direction": "higher",
@@ -161,7 +794,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 14106102.03
+     "value": 6461988.99
     },
     {
      "direction": "higher",
@@ -177,7 +810,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 18420491.28
+     "value": 10776378.24
     },
     {
      "direction": "higher",
@@ -185,7 +818,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 118576819.64
+     "value": 110798309.14
     },
     {
      "direction": "higher",
@@ -193,7 +826,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 310668665.97
+     "value": 302890155.47
     },
     {
      "direction": "neutral",
@@ -209,7 +842,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.405
+     "value": 0.3632
     },
     {
      "direction": "higher",
@@ -217,7 +850,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.1553
+     "value": 0.0973
     },
     {
      "direction": "higher",
@@ -225,7 +858,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.0635
+     "value": 0.068
     },
     {
      "direction": "neutral",
@@ -273,7 +906,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.1976
+     "value": 0.3378
     },
     {
      "direction": "higher",
@@ -281,7 +914,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 55.644
+     "value": 28.1403
     },
     {
      "direction": "higher",
@@ -305,7 +938,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.4713
+     "value": 0.2383
     },
     {
      "direction": "higher",
@@ -329,7 +962,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 18030400.73
+     "value": 10386287.69
     },
     {
      "direction": "neutral",
@@ -417,7 +1050,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.1342
+     "value": 0.2294
     },
     {
      "direction": "higher",
@@ -449,7 +1082,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 66.2774
+     "value": 38.7737
     },
     {
      "direction": "higher",
@@ -457,7 +1090,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 7.4345
+     "value": 4.3493
     },
     {
      "direction": "higher",
@@ -465,7 +1098,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 40.2209
+     "value": 23.5301
     },
     {
      "direction": "higher",
@@ -473,7 +1106,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 3.0193
+     "value": 2.8213
     },
     {
      "direction": "lower",
@@ -481,7 +1114,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "days",
-     "value": 26.2057
+     "value": 28.0454
     },
     {
      "direction": "lower",
@@ -489,7 +1122,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "days",
-     "value": 31.5035
+     "value": 31.5444
     },
     {
      "direction": "higher",
@@ -497,7 +1130,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "days",
-     "value": 26.6422
+     "value": 26.6769
     },
     {
      "direction": "lower",
@@ -505,7 +1138,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "days",
-     "value": 31.0669
+     "value": 32.913
     },
     {
      "direction": "higher",
@@ -513,7 +1146,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 11.586
+     "value": 11.571
     },
     {
      "direction": "higher",
@@ -521,7 +1154,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.1304
+     "value": 0.0706
     },
     {
      "direction": "higher",
@@ -529,7 +1162,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.1521
+     "value": 0.0937
     },
     {
      "direction": "higher",
@@ -537,7 +1170,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 18030400.73
+     "value": 10386287.69
     },
     {
      "direction": "higher",
@@ -545,7 +1178,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 7.31
+     "value": 6.01
     },
     {
      "direction": "higher",
@@ -569,7 +1202,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.3938
+     "value": 0.1991
     },
     {
      "direction": "higher",
@@ -585,7 +1218,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "score",
-     "value": 80.7
+     "value": 81.0
     },
     {
      "direction": "higher",
@@ -601,7 +1234,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "score",
-     "value": 31.7
+     "value": 33.2
     },
     {
      "direction": "higher",
@@ -657,7 +1290,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 118576819.64
+     "value": 110798309.14
     },
     {
      "direction": "higher",
@@ -665,7 +1298,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 48019704.96
+     "value": 40241194.46
     },
     {
      "direction": "higher",
@@ -673,7 +1306,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 18420491.28
+     "value": 10776378.24
     },
     {
      "direction": "higher",
@@ -681,7 +1314,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 18420491.28
+     "value": 10776378.24
     },
     {
      "direction": "higher",
@@ -689,7 +1322,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 210512337.61
+     "value": 202868224.57
     },
     {
      "direction": "neutral",
@@ -705,7 +1338,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 15465144.89
+     "value": 7821031.85
     },
     {
      "direction": "higher",
@@ -713,7 +1346,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 14106102.03
+     "value": 6461988.99
     },
     {
      "direction": "higher",
@@ -721,7 +1354,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 14106102.03
+     "value": 6461988.99
     },
     {
      "direction": "higher",
@@ -737,7 +1370,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 18420491.28
+     "value": 10776378.24
     },
     {
      "direction": "higher",
@@ -745,7 +1378,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 118576819.64
+     "value": 110798309.14
     },
     {
      "direction": "higher",
@@ -753,7 +1386,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 310668665.97
+     "value": 302890155.47
     },
     {
      "direction": "neutral",
@@ -769,7 +1402,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.405
+     "value": 0.3632
     },
     {
      "direction": "higher",
@@ -777,7 +1410,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.1553
+     "value": 0.0973
     },
     {
      "direction": "higher",
@@ -785,7 +1418,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.0635
+     "value": 0.068
     },
     {
      "direction": "neutral",
@@ -841,7 +1474,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 55.644
+     "value": 28.1403
     },
     {
      "direction": "higher",
@@ -889,7 +1522,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 18030400.73
+     "value": 10386287.69
     },
     {
      "direction": "neutral",
@@ -1009,7 +1642,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 66.2774
+     "value": 38.7737
     },
     {
      "direction": "higher",
@@ -1017,7 +1650,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 66.2774
+     "value": 38.7737
     },
     {
      "direction": "higher",
@@ -1025,7 +1658,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 66.2774
+     "value": 38.7737
     },
     {
      "direction": "higher",
@@ -1081,7 +1714,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.1304
+     "value": 0.0706
     },
     {
      "direction": "higher",
@@ -1089,7 +1722,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.1521
+     "value": 0.0937
     },
     {
      "direction": "higher",
@@ -1097,7 +1730,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 18030400.73
+     "value": 10386287.69
     }
    ],
    "source": "tests/engine/fixtures/firm/saga_10_col_agras.json",
@@ -1112,7 +1745,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 99424740.16
+     "value": 94509939.96
     },
     {
      "direction": "higher",
@@ -1120,7 +1753,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 41994943.93
+     "value": 37080143.73
     },
     {
      "direction": "higher",
@@ -1128,7 +1761,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 9588744.57
+     "value": 4993979.59
     },
     {
      "direction": "higher",
@@ -1136,7 +1769,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 9588744.57
+     "value": 4993979.59
     },
     {
      "direction": "higher",
@@ -1144,7 +1777,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 98042740.07
+     "value": 93447975.09
     },
     {
      "direction": "neutral",
@@ -1160,7 +1793,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 5893218.98
+     "value": 1298454.0
     },
     {
      "direction": "higher",
@@ -1168,7 +1801,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 5843449.04
+     "value": 1248684.06
     },
     {
      "direction": "higher",
@@ -1176,7 +1809,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 5843449.04
+     "value": 1248684.06
     },
     {
      "direction": "higher",
@@ -1192,7 +1825,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 9588744.57
+     "value": 4993979.59
     },
     {
      "direction": "higher",
@@ -1200,7 +1833,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 99424740.16
+     "value": 94509939.96
     },
     {
      "direction": "higher",
@@ -1208,7 +1841,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 187878735.66
+     "value": 182963935.46
     },
     {
      "direction": "neutral",
@@ -1224,7 +1857,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.4224
+     "value": 0.3923
     },
     {
      "direction": "higher",
@@ -1232,7 +1865,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.0964
+     "value": 0.0528
     },
     {
      "direction": "higher",
@@ -1240,7 +1873,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.0144
+     "value": 0.0152
     },
     {
      "direction": "neutral",
@@ -1320,7 +1953,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.0463
+     "value": 0.0102
     },
     {
      "direction": "higher",
@@ -1344,7 +1977,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 8182523.5
+     "value": 3587758.52
     },
     {
      "direction": "neutral",
@@ -1432,7 +2065,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": -1.0559
+     "value": -2.0274
     },
     {
      "direction": "higher",
@@ -1488,7 +2121,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.7898
+     "value": 0.7508
     },
     {
      "direction": "lower",
@@ -1496,7 +2129,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "days",
-     "value": 39.7572
+     "value": 41.8247
     },
     {
      "direction": "lower",
@@ -1504,7 +2137,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "days",
-     "value": 37.662
+     "value": 37.7894
     },
     {
      "direction": "higher",
@@ -1512,7 +2145,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "days",
-     "value": 51.4901
+     "value": 51.6642
     },
     {
      "direction": "lower",
@@ -1520,7 +2153,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "days",
-     "value": 25.9292
+     "value": 27.9499
     },
     {
      "direction": "higher",
@@ -1528,7 +2161,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 9.6915
+     "value": 9.6588
     },
     {
      "direction": "higher",
@@ -1536,7 +2169,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.0593
+     "value": 0.0137
     },
     {
      "direction": "higher",
@@ -1544,7 +2177,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.0823
+     "value": 0.038
     },
     {
      "direction": "higher",
@@ -1552,7 +2185,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 8182523.5
+     "value": 3587758.52
     },
     {
      "direction": "higher",
@@ -1560,7 +2193,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 6.62
+     "value": 6.38
     },
     {
      "direction": "higher",
@@ -1584,7 +2217,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.0468
+     "value": 0.0103
     },
     {
      "direction": "higher",
@@ -1616,7 +2249,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "score",
-     "value": 5.3
+     "value": 5.5
     },
     {
      "direction": "higher",
@@ -2230,7 +2863,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 79510264.65
+     "value": 79018306.77
     },
     {
      "direction": "higher",
@@ -2238,7 +2871,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 16133643.2
+     "value": 15641685.32
     },
     {
      "direction": "higher",
@@ -2246,7 +2879,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 220162.84
+     "value": 2263417.48
     },
     {
      "direction": "higher",
@@ -2254,7 +2887,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 220162.84
+     "value": 2263417.48
     },
     {
      "direction": "higher",
@@ -2262,7 +2895,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 220162.84
+     "value": 2263417.48
     },
     {
      "direction": "neutral",
@@ -2278,7 +2911,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": -1256674.81
+     "value": 786579.83
     },
     {
      "direction": "higher",
@@ -2286,7 +2919,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 1161957.98
+     "value": 3205212.62
     },
     {
      "direction": "higher",
@@ -2294,7 +2927,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 1161957.98
+     "value": 3205212.62
     },
     {
      "direction": "higher",
@@ -2310,7 +2943,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 220162.84
+     "value": 2263417.48
     },
     {
      "direction": "higher",
@@ -2318,7 +2951,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 79512188.43
+     "value": 79020230.55
     },
     {
      "direction": "higher",
@@ -2326,7 +2959,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": 79512188.43
+     "value": 79020230.55
     },
     {
      "direction": "neutral",
@@ -2342,7 +2975,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.2029
+     "value": 0.198
     },
     {
      "direction": "higher",
@@ -2350,7 +2983,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.0028
+     "value": 0.0286
     },
     {
      "direction": "higher",
@@ -2358,7 +2991,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.0403
+     "value": 0.0406
     },
     {
      "direction": "neutral",
@@ -2406,7 +3039,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 126.5382
+     "value": 12.3084
     },
     {
      "direction": "higher",
@@ -2414,7 +3047,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": -0.519
+     "value": 0.3249
     },
     {
      "direction": "higher",
@@ -2438,7 +3071,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": -0.0199
+     "value": 0.0124
     },
     {
      "direction": "higher",
@@ -2462,7 +3095,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": -506705.8
+     "value": 1536548.84
     },
     {
      "direction": "neutral",
@@ -2550,7 +3183,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 121.3692
+     "value": 11.8056
     },
     {
      "direction": "higher",
@@ -2582,7 +3215,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.0909
+     "value": 0.9349
     },
     {
      "direction": "higher",
@@ -2590,7 +3223,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.0909
+     "value": 0.9349
     },
     {
      "direction": "higher",
@@ -2598,7 +3231,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.0373
+     "value": 0.3834
     },
     {
      "direction": "higher",
@@ -2606,7 +3239,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 1.1344
+     "value": 1.1274
     },
     {
      "direction": "lower",
@@ -2614,7 +3247,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "days",
-     "value": 1.1704
+     "value": 1.1777
     },
     {
      "direction": "lower",
@@ -2622,7 +3255,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "days",
-     "value": 30.4348
+     "value": 31.412
     },
     {
      "direction": "higher",
@@ -2630,7 +3263,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "days",
-     "value": 28.9116
+     "value": 29.8399
     },
     {
      "direction": "lower",
@@ -2638,7 +3271,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "days",
-     "value": 2.6936
+     "value": 2.7498
     },
     {
      "direction": "higher",
@@ -2646,7 +3279,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 11.9928
+     "value": 11.6198
     },
     {
      "direction": "higher",
@@ -2654,7 +3287,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": -0.0158
+     "value": 0.01
     },
     {
      "direction": "higher",
@@ -2662,7 +3295,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": -0.0013
+     "value": 0.0245
     },
     {
      "direction": "higher",
@@ -2670,7 +3303,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "RON",
-     "value": -103684.94
+     "value": 1939569.7
     },
     {
      "direction": "higher",
@@ -2678,7 +3311,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": 0.6
+     "value": 0.79
     },
     {
      "direction": "higher",
@@ -2702,7 +3335,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "ratio",
-     "value": -0.0179
+     "value": 0.0112
     },
     {
      "direction": "higher",
@@ -2718,7 +3351,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "score",
-     "value": 15.8
+     "value": 20.6
     },
     {
      "direction": "higher",
@@ -2726,7 +3359,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "score",
-     "value": 21.5
+     "value": 28.6
     },
     {
      "direction": "higher",
@@ -2734,7 +3367,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "score",
-     "value": 17.7
+     "value": 17.8
     },
     {
      "direction": "higher",
@@ -2750,7 +3383,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "score",
-     "value": 0
+     "value": 9.7
     },
     {
      "direction": "higher",
@@ -2758,7 +3391,7 @@
      "org_id": "org-gate",
      "period_id": "period-gate",
      "unit": "score",
-     "value": 1.9
+     "value": 19.2
     },
     {
      "direction": "higher",

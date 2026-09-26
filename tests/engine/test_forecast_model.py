@@ -434,11 +434,34 @@ def test_f6_every_committed_book_opens_on_a_sheet_that_closes(book):
         "%s opens out by %s" % (book, fmt(opening.total_assets_cents()
                                           - opening.total_el_cents())))
     pl = payload["statements"]["assembled_pl"]
+    # tb_parser_v6: retail now reproduces account 121 to the cent (its
+    # 609/709 double count is repaired), so on a tying book the anchored
+    # figure and the reconstruction coincide and this book says nothing
+    # about which one the sheet closes on; the three others still miss 121
+    # and carry the distinction. test_f6_scope_has_a_book_that_does_not_tie
+    # keeps the parametrization non-vacuous (TC-3). (As 120f67a.)
+    if cents_from(pl["net_income_operational"]) == cents_from(pl["net_income_statutory"]):
+        assert cents_from(pl["net_income_unexplained_vs_121"]) == 0, (
+            "%s: the two views agree but the book records an unexplained step" % book)
+        return
     assert cents_from(pl["net_income_operational"]) != cents_from(
         pl["net_income_statutory"]), (
         "%s: the reconstruction and the filed figure agree on this book, "
         "so it says nothing about which of the two the sheet closes on"
         % (book,))
+
+
+def test_f6_scope_has_a_book_that_does_not_tie():
+    """TC-3 for the test above: at least one committed book must miss its
+    filed figure, or 'the sheet closes on the anchored figure' is asserted
+    on nothing. Printed per book."""
+    differing = []
+    for book in BOOKS:
+        pl = load(book)["statements"]["assembled_pl"]
+        if cents_from(pl["net_income_operational"]) != cents_from(pl["net_income_statutory"]):
+            differing.append(book)
+    print("books whose reconstruction misses account 121: %s" % ", ".join(differing))
+    assert differing, "every committed book ties to 121; the f6 distinction is vacuous"
 
 
 def test_f6_plant_an_unbalanced_source_sheet_and_the_opening_refuses():
@@ -1169,17 +1192,28 @@ def test_a_tax_rate_is_derived_only_when_it_reproduces_the_filed_profit(name):
     else:
         assert driver.source == "engine_default"
         assert driver.exact == micros_from(0.16)
-        assert pretax <= 0 or gap != 0, (
+        # A tying book is still defaulted when its nil charge is ABSENT:
+        # no profit-tax row (class 69) stands behind the 0.00, or the
+        # payload carried no rows to show one (B4RV-3). The same rule
+        # forecast_drivers holds. Anything else defaulted on a tying book
+        # reds.
+        charge_absent = charged == 0 and not history.tax_charge_rows
+        assert pretax <= 0 or gap != 0 or charge_absent, (
             "%s: the rate was defaulted on a book that reproduces its own "
             "filed profit — nothing here justifies displacing a "
             "measurement" % (name,))
         assert not driver.derived_from, "nothing was measured, so nothing is cited"
 
 
-@pytest.mark.parametrize("name", ("agras", "carniprod", "retail"))
+@pytest.mark.parametrize("name", ("agras", "carniprod"))
 def test_the_demotion_states_the_gap_and_the_rate_it_displaces(name):
     """TC-10: both numbers in the sentence are rendered from the same
-    integers the decision used, never retyped."""
+    integers the decision used, never retyped.
+
+    RESTATED (tb_parser_v6): retail left this parametrization — it now
+    ties to account 121 (the 2,043,254.64 step was its 609/709 double
+    count), so there is no gap to state; its demotion is for the other
+    reason and is pinned by the test below."""
     history = pl_history_from_payload(load(name))
     driver = plan(name, horizon_years=1,
                   year_one_granularity="annual").assumptions["tax_rate"]
@@ -1190,14 +1224,42 @@ def test_the_demotion_states_the_gap_and_the_rate_it_displaces(name):
     assert ("%.4f%%" % (implied / 10_000.0)) in driver.basis
 
 
+def test_a_tying_book_with_no_profit_tax_row_is_defaulted_and_says_why():
+    """tb_parser_v6 made retail tie to account 121 with a 0.00 tax line and
+    no class-69 row. The 0.00 is an ABSENT charge, so the statutory rate
+    stands, and the sentence names the filed and pre-tax figures from the
+    same integers the decision used (TC-10). Reds if the absence is spent
+    as a measured 0% again — the plan would then be charged nothing in
+    every year (test_a_profitable_plan_is_actually_taxed, and
+    test_forecast_drivers hx3/hx4, red on the same defect)."""
+    payload = load("retail")
+    history = pl_history_from_payload(payload)
+    assert history.unexplained_vs_filed() == 0 and history.income_tax == 0
+    assert history.tax_charge_rows == 0
+    driver = plan("retail", horizon_years=1,
+                  year_one_granularity="annual").assumptions["tax_rate"]
+    assert driver.source == "engine_default"
+    assert driver.exact == micros_from(0.16)
+    assert "no profit-tax row" in driver.basis
+    assert fmt(history.filed_net_income_121) in driver.basis
+    assert fmt(history.pretax) in driver.basis
+
+
 @pytest.mark.parametrize("name", ("agras", "carniprod"))
-def test_the_unreconciled_rate_would_have_charged_strictly_less_tax(name):
+def test_the_unreconciled_rate_would_have_charged_a_different_tax(name):
     """The CONSEQUENCE, measured on the real book rather than argued.
 
     The rate the previous behaviour derived is supplied here as a caller
     override — the only way to spend it now — and the plan it produces is
-    charged less tax in every one of the five years. That direction is
-    why an unattributed figure may not wear the word `derived`.
+    charged a DIFFERENT tax over the five years, in the direction the
+    unattributed rate points: below the statutory rate it under-charges,
+    above it it over-charges. RESTATED (tb_parser_v6, as 120f67a): before
+    the 609/709 repair both books' pre-tax results were overstated, so the
+    implied rate sat below 16% and this test read "strictly less"; read
+    correctly the implied rates sit above 16% and the same unattributed
+    figure would over-charge. Either way it is not a measurement, which is
+    why it may not wear the word `derived`. The direction is printed from
+    the integers, never assumed.
     """
     history = pl_history_from_payload(load(name))
     implied = mul_div(history.income_tax, 1_000_000, history.pretax)
@@ -1207,13 +1269,27 @@ def test_the_unreconciled_rate_would_have_charged_strictly_less_tax(name):
     assert previous.assumptions["tax_rate"].source == "caller"
     charged_now = sum(-p.pl["income_tax"] for p in default.periods)
     charged_before = sum(-p.pl["income_tax"] for p in previous.periods)
-    assert charged_before < charged_now
+    print("%s: implied rate %.4f%% vs statutory 16.0000%%; charged %s (unattributed) vs %s (statutory)"
+          % (name, implied / 10_000.0, fmt(charged_before), fmt(charged_now)))
+    assert charged_before != charged_now
+    if implied < micros_from(0.16):
+        assert charged_before < charged_now
+    else:
+        assert charged_before > charged_now
     assert sum(p.pl["pretax_result"] for p in default.periods) > 0
 
 
 def test_a_nil_charge_on_a_book_that_reconciles_is_a_measured_zero():
-    """CONSTRUCTED, and labelled as such: no committed book reconciles to
-    account 121, so this is the only way to exercise the `derived` branch.
+    """CONSTRUCTED, and labelled as such: no committed book ties to account
+    121 with a profit-tax row closing at nil (retail ties since
+    tb_parser_v6, but files NO class-69 row — an absent charge, see
+    test_a_tying_book_with_no_profit_tax_row_is_defaulted_and_says_why),
+    so this is the only way to exercise the `derived` branch. The
+    construction therefore also files its nil charge: one profit-tax row
+    (class 69, `tax_charge_rows = 1`) closing at 0.00, which is what makes
+    the 0.00 a MEASUREMENT. The two controls below take that row away —
+    none filed, and no rows supplied at all (B4RV-3) — and the 0.00
+    becomes an absent charge the statutory rate stands in for.
 
     The history is the real retail book's, with the ONE field the rule
     turns on moved — net income set to what the reconstruction produces —
@@ -1244,12 +1320,54 @@ def test_a_nil_charge_on_a_book_that_reconciles_is_a_measured_zero():
     # A book that ties is one whose FILED balance equals its build-up.
     reconciling.filed_net_income_121 = real.pretax - real.income_tax
     assert reconciling.unexplained_vs_filed() == 0
+    # A profit-tax row that closes at 0.00 stands behind the charge.
+    reconciling.tax_charge_rows = 1
     driver = derive_assumptions(opening, reconciling)["tax_rate"]
     assert driver.source == "derived"
     assert driver.exact == 0
+    # CONTROLS, the same construction without that row. Each reds if the
+    # row count stops mattering, i.e. if an empty bucket's 0.00 is spent
+    # as a measured nil and a profitable plan is taxed at nothing.
+    for rows, says in ((0, "carries no profit-tax row"),
+                       (None, "statement rows were not supplied")):
+        reconciling.tax_charge_rows = rows
+        absent = derive_assumptions(opening, reconciling)["tax_rate"]
+        assert absent.source == "engine_default", (rows, absent.source)
+        assert absent.exact == micros_from(0.16), (rows, absent.exact)
+        assert says in absent.basis, (rows, absent.basis)
+        assert fmt(reconciling.pretax) in absent.basis
+        assert fmt(reconciling.net_income) in absent.basis
+        assert not absent.derived_from
+    reconciling.tax_charge_rows = 1
     assert "carry-forward" in driver.basis, (
         "a measured 0% rate must say that no loss carry-forward is "
         "modelled either way, or the reader cannot see what it costs")
+
+
+def test_the_history_counts_the_profit_tax_rows_the_statement_files():
+    """The input the absent-charge rule turns on, read off the committed
+    books' own line items rather than asserted: agras and carniprod file a
+    class-69 profit-tax row, retail and realestate file none. With the
+    rows taken out of the payload the count is None — nothing to count is
+    not zero rows — and the rule reads that as absent too (B4RV-3).
+    Printed per book."""
+    counts = {}
+    for name in BOOKS:
+        payload = load(name)
+        items = payload["line_items"]
+        expected = sum(1 for r in items if str(r.get("bucket") or "") == "taxExpense"
+                       or str(r.get("ro_account_code") or "").startswith("69"))
+        counts[name] = pl_history_from_payload(payload).tax_charge_rows
+        assert counts[name] == expected, (name, counts[name], expected)
+        bare = dict(payload)
+        bare.pop("line_items")
+        assert pl_history_from_payload(bare).tax_charge_rows is None, name
+    print("profit-tax rows filed: %s" % counts)
+    assert any(counts.values()) and not all(counts.values()), (
+        "the committed books must include both a book that files a "
+        "profit-tax row and one that files none, or this is vacuous", counts)
+    assert "tax_charge_rows" not in pl_history_from_payload(load("agras")).as_dict(), (
+        "a row count is not a money figure")
 
 
 def test_a_profitable_plan_is_actually_taxed():
