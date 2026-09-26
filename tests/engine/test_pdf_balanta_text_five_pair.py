@@ -1298,3 +1298,66 @@ def test_a_single_unseparated_figure_in_a_comma_book_is_still_not_a_figure(caplo
     # and the row is refused for its figure count, as before
     lines = _replace_line("1007.01 ", lambda l: l.replace("1,234,574.00", "1234574.00", 1))
     assert refused(caplog, lines, "account 1007.01 carries 6 figures, not 10")
+
+
+# ── the positional ingester's own five-pair dialect is left to it ───────
+#
+# The WinMENTOR ENTERPRISE "Balanta analitica" print — "Simbol Denumire
+# Sold initial Rulaj precedent Rulaj curent Total sume Sold final" over a
+# "Debitor Creditor" sub-header — is a five-pair book the POSITIONAL
+# ingester (PyMuPDF geometry) was built and validated on; the golden
+# corpus case `pdf_positional` is one. Its headings and totals are drawn
+# several times over themselves, so no text-line read could verify it.
+# Once the shapes above named the layout structurally, that dialect was
+# claimed here and refused for its header — and a book the platform has
+# always served was refused. It names its own layout now, read by nothing
+# here and left to its ingester; the same words over "Creditor Debitor",
+# or in another column order, are NOT that dialect and stay claimed.
+
+
+POSITIONAL_HEADER = "Simbol Denumire Sold initial Rulaj precedent Rulaj curent Total sume Sold final"
+POSITIONAL_SUB_HEADER = " ".join(["Debitor Creditor"] * 5)
+
+
+def _positional_dialect_book(sub_header: str = POSITIONAL_SUB_HEADER,
+                             header: str = POSITIONAL_HEADER) -> List[str]:
+    """rows() printed the way that exporter prints them: its header and
+    sub-header, the Romanian locale, undotted codes."""
+    rs = rows()
+    for r in rs:
+        r.cont = r.cont.replace(".", "")
+        r.text = r.text.replace(".", "")
+        r.cont_lines = tuple(c.replace(".", "") for c in r.cont_lines)
+    lines = render(rs, number_format="euro")
+    i = lines.index(HEADER[4])
+    return lines[:i] + [header, sub_header] + lines[i + 2:]
+
+
+def test_the_positional_ingesters_dialect_names_its_own_layout_and_is_not_claimed():
+    lines = _positional_dialect_book()
+    assert P.detect_layout(lines) == P.LAYOUT_FIVE_PAIR_POSITIONAL
+    assert not P.names_five_pair(P.LAYOUT_FIVE_PAIR_POSITIONAL)
+    verdict = P.parse_lines_verdict(lines)
+    assert verdict == (P.LAYOUT_FIVE_PAIR_POSITIONAL, None, None)  # neither read nor refused
+
+
+@pytest.mark.parametrize("sub_header, header", [
+    (" ".join(["Creditor Debitor"] * 5), POSITIONAL_HEADER),
+    (POSITIONAL_SUB_HEADER, "Simbol Denumire Sold initial Rulaj curent Rulaj precedent Total sume Sold final"),
+    ("", POSITIONAL_HEADER),
+], ids=["credit-first", "curent-before-precedent", "no-sub-header"])
+def test_the_dialects_words_in_another_side_or_column_order_are_claimed_and_refused(caplog, sub_header, header):
+    # the positional ingester assumes that dialect's column and side
+    # order; a print that states another must never reach it
+    lines = _positional_dialect_book(sub_header, header)
+    lines = [l for l in lines if l]
+    assert P.detect_layout(lines) == P.LAYOUT_FIVE_PAIR
+    assert refused(caplog, lines, "column header reads")
+
+
+def test_the_dialect_signature_must_be_in_the_title_block():
+    # the signature is read from the first 40 lines, like every header
+    lines = _positional_dialect_book()
+    i = lines.index(POSITIONAL_HEADER)
+    moved = lines[:i] + lines[i + 2:] + [POSITIONAL_HEADER, POSITIONAL_SUB_HEADER]
+    assert P.detect_layout(moved) == P.LAYOUT_FIVE_PAIR

@@ -67,10 +67,35 @@ print is as much a five-pair book as the native one). A document whose
 header names both layouts, or neither and has no such rows, is refused.
 Once the five-pair layout is named, by either signal, the book is read
 strictly or refused: a header this reader cannot read as the five-pair
-column order is a refusal, not a fall-through. The five-pair reader is
-stricter than the eight-figure one because the document states two
-identities per row that can be checked to the cent — and it refuses
-unless ALL of these hold:
+column order is a refusal, not a fall-through.
+
+ONE five-pair dialect is not this reader's: the WinMENTOR ENTERPRISE
+"Balanta analitica" print, whose column header reads "Simbol Denumire
+Sold initial Rulaj precedent Rulaj curent Total sume Sold final" over a
+"Debitor Creditor" sub-header (`_POSITIONAL_DIALECT_HEADER` /
+`_POSITIONAL_DIALECT_SUB_HEADER`). That exporter draws every "Clasa N"
+heading and "Total clasa N" line several times over itself, so its text
+lines carry no heading or total this reader could verify a class
+against. It is the layout the position-based ingester (`pdf_ingester`,
+F3.8) was built on, and the pipeline has always served it through that
+ingester — the golden corpus case `pdf_positional` is such a book. A
+document printing that header with that sub-header directly under it
+names LAYOUT_FIVE_PAIR_POSITIONAL: not this reader's, not a refusal —
+left to the positional path exactly as before this reader existed,
+whatever its rows' figures look like. That path serves under the
+positional lane's own policy (F3.8), which is not a verified read, and
+this reader does not make it one: it declines to claim a layout whose
+headings and totals it cannot verify, and leaves the book where the
+pipeline has always sent it. The signature is the exporter's column
+order AND side order: the same header over "Creditor Debitor", with
+"Rulaj curent" printed before "Rulaj precedent", or without its
+sub-header, is NOT that dialect — it is a five-pair book this reader
+claims structurally and refuses, never one the positional ingester
+reads with its sides or columns assumed.
+
+The five-pair reader is stricter than the eight-figure one because the
+document states two identities per row that can be checked to the
+cent — and it refuses unless ALL of these hold:
 
   * the document prints EVERY figure in one shape (`_number_format`: the
     first accepted shape that fits every line ending in ten figures —
@@ -229,6 +254,12 @@ _COLUMN_PHRASES_5PAIR = ("cont denumire", "sold initial", "rulaj anterior", "rul
 # as a loss and the bank as a negative asset.
 _SUB_HEADER_5PAIR = " ".join(["debit credit"] * 5)
 _SIDE_WORDS_5PAIR = frozenset({"debit", "credit"})
+# The WinMENTOR ENTERPRISE five-pair dialect — the positional ingester's
+# own layout (see the module docstring): this column header, directly
+# over this sub-header, folded and whitespace-normalised.
+_POSITIONAL_DIALECT_HEADER = ("simbol denumire sold initial rulaj precedent rulaj curent "
+                              "total sume sold final")
+_POSITIONAL_DIALECT_SUB_HEADER = " ".join(["debitor creditor"] * 5)
 # _WRAP_RULE — a wrapped row cannot hand its figures to another code. A
 # figure-less line led by a code-shaped token X that is not the current
 # account's code is either the current account's continuation (a name
@@ -367,6 +398,10 @@ def _extract_lines(pdf_bytes: bytes) -> Optional[List[Line]]:
 LAYOUT_FIVE_PAIR = "five_pair"
 LAYOUT_EIGHT_FIGURE = "eight_figure"
 LAYOUT_BOTH = "both"
+# The WinMENTOR five-pair dialect the positional ingester reads (module
+# docstring): named so the pipeline leaves it to that ingester, never
+# claimed by this reader, never a refusal.
+LAYOUT_FIVE_PAIR_POSITIONAL = "five_pair_positional"
 
 # THE PARSER THIS LAYOUT NEEDS. The five-pair books this reader was built
 # for print their 709 commercial reductions as mirrored entry magnitudes.
@@ -390,12 +425,13 @@ class TextRead(NamedTuple):
     """What the header names, and what came of reading it.
 
     `layout` is the layout the document's header names (LAYOUT_FIVE_PAIR,
-    LAYOUT_EIGHT_FIGURE, LAYOUT_BOTH) or None when it names neither;
-    `parsed` the verified read, or None; `refusal` why a five-pair (or
-    both-layouts) document was refused. A caller that recognises the
-    five-pair layout must treat a refusal as final: the positional
-    fast-path reads only undotted codes and would serve a partial balance
-    on the 121 anchor alone.
+    LAYOUT_EIGHT_FIGURE, LAYOUT_BOTH, LAYOUT_FIVE_PAIR_POSITIONAL — the
+    positional ingester's own dialect, read by nothing here) or None when
+    it names neither; `parsed` the verified read, or None; `refusal` why
+    a five-pair (or both-layouts) document was refused. A caller that
+    recognises the five-pair layout must treat a refusal as final: the
+    positional fast-path reads only undotted codes and would serve a
+    partial balance on the account-121 anchor alone.
     """
 
     layout: Optional[str]
@@ -410,8 +446,23 @@ class _FivePairRefusal(Exception):
 def names_five_pair(layout: Optional[str]) -> bool:
     """True when a document's header names the five-pair layout (alone or
     with the eight-figure one). Such a document is read by the strict
-    five-pair reader or refused — never handed to another reader."""
+    five-pair reader or refused — never handed to another reader. The
+    positional ingester's own dialect (LAYOUT_FIVE_PAIR_POSITIONAL) is
+    not this reader's: False, and the pipeline keeps its positional
+    path."""
     return layout in (LAYOUT_FIVE_PAIR, LAYOUT_BOTH)
+
+
+def _positional_dialect(normalized_lines: List[str]) -> bool:
+    """The WinMENTOR dialect's signature in folded, whitespace-normalised
+    text lines: its column header directly over its sub-header."""
+    return any(a == _POSITIONAL_DIALECT_HEADER and b == _POSITIONAL_DIALECT_SUB_HEADER
+               for a, b in zip(normalized_lines, normalized_lines[1:]))
+
+
+def _flattened_positional_dialect(flattened: str) -> bool:
+    """The same signature in a whitespace-flattened page text."""
+    return (_POSITIONAL_DIALECT_HEADER + " " + _POSITIONAL_DIALECT_SUB_HEADER) in flattened
 
 
 # Ten consecutive figures of one accepted shape in a whitespace-flattened
@@ -504,17 +555,23 @@ def _number_format(lines: List[Line]) -> _Format:
     return fitting[0]
 
 
-def _layout_of(folded: str, structural_five: bool = False) -> Optional[str]:
+def _layout_of(folded: str, structural_five: bool = False,
+               positional_dialect: bool = False) -> Optional[str]:
     """The layout named by header tokens in `folded`, or — when the header
     names only the eight-figure layout, or neither — by the five-pair
     STRUCTURE the caller found (`structural_five`). A header naming both
     layouts is LAYOUT_BOTH regardless; a header naming the eight-figure
     layout over rows of ten figures is a five-pair book whose header this
-    reader then refuses."""
+    reader then refuses. The positional ingester's own dialect
+    (`positional_dialect`, the caller found its signature) is
+    LAYOUT_FIVE_PAIR_POSITIONAL unless the header also names a layout of
+    this reader's — then the header decides, as for any other book."""
     eight = all(tok in folded for tok in _HEADER_TOKENS)
     five = all(tok in folded for tok in _HEADER_TOKENS_5PAIR)
     if eight and five:
         return LAYOUT_BOTH
+    if positional_dialect and not (eight or five):
+        return LAYOUT_FIVE_PAIR_POSITIONAL
     if five or structural_five:
         return LAYOUT_FIVE_PAIR
     return LAYOUT_EIGHT_FIGURE if eight else None
@@ -527,11 +584,15 @@ def detect_layout(lines: List[Any]) -> Optional[str]:
     document led by an account code and ending in ten figures of any one
     accepted shape name the five-pair layout however the column header
     is worded, spaced, abbreviated or wrapped, and whatever shape the
-    figures are printed in. Pure and total: it cannot raise, so the
-    layout is known before any reading can go wrong."""
+    figures are printed in — except the positional ingester's own
+    dialect (its signature in the first 40 lines: LAYOUT_FIVE_PAIR_
+    POSITIONAL). Pure and total: it cannot raise, so the layout is known
+    before any reading can go wrong."""
     texts = [_as_line(x).text for x in lines]
     structural = sum(1 for t in texts if _ten_figure_row(t)) >= _STRUCTURAL_MIN_ROWS
-    return _layout_of(_fold("\n".join(texts[:40])), structural)
+    head = texts[:40]
+    dialect = _positional_dialect([" ".join(_fold(t).split()) for t in head])
+    return _layout_of(_fold("\n".join(head)), structural, dialect)
 
 
 def _first_page_texts(pdf_bytes: bytes) -> List[str]:
@@ -574,6 +635,8 @@ def parse_lines_verdict(lines: List[str]) -> TextRead:
     """
     lines = [_as_line(x) for x in lines]
     layout = detect_layout(lines)
+    if layout == LAYOUT_FIVE_PAIR_POSITIONAL:
+        return TextRead(LAYOUT_FIVE_PAIR_POSITIONAL, None, None)
     if layout == LAYOUT_BOTH:
         logger.info("[pdf_balanta_text] refused: header matches both layouts")
         return TextRead(LAYOUT_BOTH, None, "the header matches both balanta layouts")
@@ -1162,7 +1225,11 @@ def read_balanta_text_verdict(pdf_bytes: bytes) -> TextReadResult:
     second opinion: if either names the five-pair layout, the document is
     refused as one (its columns cannot be read line by line), instead of
     falling to the positional ingester, which keeps only undotted codes
-    and accepts on the account-121 anchor alone.
+    and accepts on the account-121 anchor alone. The one exception is the
+    positional ingester's own five-pair dialect (see the module
+    docstring): printed in the text lines' title block or on the first
+    page as either extractor reads it, it is LAYOUT_FIVE_PAIR_POSITIONAL
+    — no workbook, no refusal — and the caller keeps its positional path.
     """
     seen: Dict[str, Optional[str]] = {"layout": None}
     try:
@@ -1179,13 +1246,21 @@ def _read_verdict(pdf_bytes: bytes, seen: Dict[str, Optional[str]]) -> TextReadR
     seen["layout"] = detect_layout(lines)  # known before anything below can fail
     if seen["layout"] is None:
         for text in _first_page_texts(pdf_bytes):
-            other = _layout_of(text, _flattened_names_five_pair(text))
+            other = _layout_of(text, _flattened_names_five_pair(text), _flattened_positional_dialect(text))
+            if other == LAYOUT_FIVE_PAIR_POSITIONAL:
+                logger.info("[pdf_balanta_text] another text extraction of the first page prints the "
+                            "positional ingester's five-pair dialect — left to that ingester")
+                return TextReadResult(LAYOUT_FIVE_PAIR_POSITIONAL, None, None, None)
             if names_five_pair(other):
                 reason = ("another text extraction of its first page names the five-pair layout, "
                           "but its text lines do not, so its columns cannot be read line by line")
                 logger.info("[pdf_balanta_text] five-pair refused: %s", reason)
                 return TextReadResult(other, None, None, reason)
         return TextReadResult(None, None, None, None)
+    if seen["layout"] == LAYOUT_FIVE_PAIR_POSITIONAL:
+        logger.info("[pdf_balanta_text] the document prints the positional ingester's five-pair "
+                    "dialect — left to that ingester, not read here")
+        return TextReadResult(LAYOUT_FIVE_PAIR_POSITIONAL, None, None, None)
     verdict = parse_lines_verdict(lines)
     parsed = verdict.parsed
     if parsed is None:

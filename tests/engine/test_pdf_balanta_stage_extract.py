@@ -712,3 +712,49 @@ def test_a_five_pair_pdf_with_unreadable_text_lines_and_a_header_variant_is_refu
         pipeline.stage_extract(_doc())
     assert "Nothing was estimated" in str(refused.value)
     assert trace["positional"] == [] and trace["claude"] == []  # never left the reader block
+
+
+# ── the positional ingester's own five-pair dialect keeps its path ──────
+#
+# The WinMENTOR ENTERPRISE print ("Simbol Denumire Sold initial Rulaj
+# precedent Rulaj curent Total sume Sold final" over "Debitor Creditor")
+# is the layout `pdf_ingester` was built and validated on — the golden
+# corpus case `pdf_positional` is one, and `test_offline_served_parity`
+# serves it through that ingester. With the number shapes above naming a
+# five-pair book by its rows alone, that dialect was claimed by the text-
+# line reader and refused for its header. It names its own layout now and
+# takes the positional path it always took; printed credit-first it is
+# claimed and refused, never served with its sides assumed.
+
+
+def _positional_dialect_lines(sub_header: str = " ".join(["Debitor Creditor"] * 5)):
+    lines = _synthetic_five_pair_lines(number_format="euro")
+    lines = [l.replace(".01 ", " ").replace(".07 ", " ").replace(".01", "").replace(".07", "")
+             if l[:1].isdigit() else l for l in lines]
+    return _with_header(lines, "Simbol Denumire Sold initial Rulaj precedent Rulaj curent Total sume Sold final",
+                        sub_header)
+
+
+def test_a_pdf_in_the_positional_ingesters_dialect_is_served_by_that_ingester(monkeypatch):
+    from engine.country_packs.ro_romania import pdf_balanta_text
+
+    _on_parser(monkeypatch, "tb_parser_v6")
+    content = _arm(monkeypatch, _pdf_bytes(_positional_dialect_lines()))
+    verdict = pdf_balanta_text.read_balanta_text_verdict(content)
+    assert verdict == (pdf_balanta_text.LAYOUT_FIVE_PAIR_POSITIONAL, None, None, None)
+    trace = _trace_fall_back(monkeypatch)
+    parsed = pipeline.stage_extract(_doc())
+    ext = parsed.get("extraction") or {}
+    assert ext.get("source_format") == "pdf_positional" and ext.get("method") == "deterministic", ext
+    assert Decimal(str(parsed["statutory_net_profit_anchor"])).quantize(Decimal("0.01")) == Decimal("12345.67")
+    assert [f for f, _ in trace["positional"]] == [_doc()["original_filename"]] and trace["claude"] == []
+
+
+def test_a_pdf_in_that_dialect_printed_credit_first_is_refused_never_served(monkeypatch):
+    _on_parser(monkeypatch, "tb_parser_v6")
+    _arm(monkeypatch, _pdf_bytes(_positional_dialect_lines(" ".join(["Creditor Debitor"] * 5))))
+    trace = _trace_fall_back(monkeypatch)
+    with pytest.raises(pipeline.BalantaPdfRefusedError) as refused:
+        pipeline.stage_extract(_doc())
+    assert "column header reads" in str(refused.value) and "Nothing was estimated" in str(refused.value)
+    assert trace["positional"] == [] and trace["claude"] == []
