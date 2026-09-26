@@ -992,6 +992,42 @@ def _engine_gates() -> List[Gate]:
                        "test_the_nine_sub_aggregate_lines_are_reported_through_the_real_route_wherever_a_period_holds_them",
                        "test_the_top_movers_are_the_served_columns_own_ranking_through_the_real_route",
                        "test_the_served_document_is_compare_payloads_over_the_two_bodies_the_same_app_served")),
+        # "CE CONTEAZĂ ACUM" (attention/1, design C1, 2026-09-26): the command
+        # bar's empty state, one engine authority. Three gates:
+        #   attention-rules        the declared rules on served documents —
+        #                          reds on Other equity or the composite
+        #                          letter as "the biggest movement", a band
+        #                          crossing ahead of a statutory result, a
+        #                          filler, a filed-basis stock row with a
+        #                          verdict word, a prior of another length.
+        #   attention-served-only  every item figure IS the served object at
+        #                          its declared path; model text planted in
+        #                          recommendations / briefing / alerts /
+        #                          insight narratives changes nothing.
+        #   attention-route        GET /attention un-intercepted on
+        #                          create_app(): the same-length prior, the
+        #                          wall, composition == the served documents,
+        #                          network off. Plant log: gates.md.
+        Gate("attention-rules",
+             [PY, "-m", "pytest", "tests/engine/test_attention_rules.py", "-q"],
+             work_junit=True, floor=24, units="tests",
+             canaries=("test_other_equity_is_never_the_biggest_movement_on_the_served_pair",
+                       "test_the_composite_letter_is_never_the_biggest_movement",
+                       "test_a_single_period_company_fills_the_slots_from_its_findings",
+                       "test_the_empty_state_differs_between_two_companies")),
+        Gate("attention-served-only",
+             [PY, "-m", "pytest", "tests/engine/test_attention_served_only.py", "-q", "-s"],
+             work_rx=r"GATE-WORK attention-served-only items=(\d+)", floor=15,
+             units="item figures traced to their served source",
+             canaries=("SCOPE attention-served-only sentinel worlds=",
+                       "GATE-WORK attention-served-only items=")),
+        Gate("attention-route",
+             [PY, "-m", "pytest", "tests/engine/test_attention_route_real_app.py", "-q"],
+             work_junit=True, floor=8, units="tests",
+             canaries=("test_the_route_serves_the_company_against_its_same_length_prior",
+                       "test_the_route_composes_exactly_what_the_same_app_serves",
+                       "test_an_explicit_prior_is_read_inside_the_workspace_only",
+                       "test_a_current_period_from_another_workspace_is_not_found")),
         # FLOOR SUBSTITUTES, batch C3 (owner rulings R-D5 / R-D6 / R-OTHER,
         # 2026-09-15): the valuation DCF, the AI briefing's citable
         # ratios, the RO pack's ROA check and the served period day count.

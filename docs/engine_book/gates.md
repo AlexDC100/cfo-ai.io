@@ -10356,3 +10356,195 @@ PLANT books-served-without-the-verdict (lib/__tests__/exportBooks.ts: the develo
 **REVERT** — the clean tree: `Tests 18 passed (18)`.
 
 CANNOT SEE: the verdict itself (the engine gate decides it), pixels.
+
+## attention-rules
+
+"Ce contează acum" — the command bar's empty state as one engine authority
+(attention/1, design C1, owner spec 2026-09-26: "the 3 most material items for
+THIS company and period ... biggest movement vs prior year, worst ratio vs
+sector, biggest improvement ... never generic"). The critic's probe of the real
+Scandia pair found the served movers ranking **Other equity** (a verdict-less
+reclassification) first and the band movements ranking the **composite
+letter** first: taking `[0]` of either on the client would have told the owner
+the wrong first thing. `engine.attention.compose_attention` reads only the
+pack's statutory results for the movement and improvement slots
+(packs/serving/attention.yaml — every rule is data, served back as `rules`).
+This gate holds those rules on SERVED documents: the committed comparatives
+and sector captures and the corpus bodies read back through the real router;
+the cases the corpus lacks are constructed from the served pair by changing
+only the fields each rule reads.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_attention_rules.py -q` |
+| work count | junit-xml, floor **24** tests (measured 26) |
+| canary | `test_other_equity_is_never_the_biggest_movement_on_the_served_pair`, `test_the_composite_letter_is_never_the_biggest_movement`, `test_a_single_period_company_fills_the_slots_from_its_findings`, `test_the_empty_state_differs_between_two_companies` |
+
+**Reds on, after the repair (TC-11):** Other equity (or any line outside the
+pack's statutory results) filling a slot; the composite letter as the biggest
+movement, or as an improvement without its rung and finding; a band crossing
+ranked ahead of a statutory result improving; "account 121" on a period whose
+net result is not anchored on both sides; a refused EBITDA (read only through
+`sources.served_ebitda`) ranked; an inventory-days crossing claimed on the
+ratio table's year-end snapshot (read only through `sources.inventory_days`),
+or the filed-basis stock row printed with a verdict word or without its "bază
+depusă" label; complementary sector rows (equity ratio / total liabilities to
+assets) or a sector row repeating the movement both shown; a filler, or an
+empty slot without its reason; a percentage across zero or a sign; an action
+that does not follow the company's state; a sector or ratio subject that is
+not the frontend's own name for the metric (RO and EN); the same-length prior
+rule choosing another length, a later period, or nondeterministically.
+**Cannot see:** the route (attention-route); the sentinel law
+(attention-served-only); the browser's printing.
+
+**GREEN** — `PASS attention-rules (3.9s, 26 tests)` (through
+`run_battery.main`, gate list narrowed to the three attention gates).
+
+**PLANT** — `src/engine/attention/now.py` `_statement_candidates`: rank EVERY
+comparatives line, not only the pack's statutory results (what taking the
+served movers list would do):
+```
+    declared = {l["key"] for l in pack["statement_lines"]}
+    for line in pack["statement_lines"] + [
+            {"key": c["key"], "identity": c["key"], "tab": "balance_sheet", "requires_anchor": False,
+             "subject": {"ro": c.get("label"), "en": c.get("label")}}
+            for c in comparatives.get("columns") or [] if c.get("key") not in declared]:
+```
+
+**RED** — `FAIL attention-rules (exit 1, 4.1s)`, record
+`{'state': 'FAIL', 'exit_code': 1, 'work_units': 26}`:
+```
+E   AssertionError: ['bs.other_equity', 'bs.retained_earnings']
+E   AssertionError: [('movement', 'statement_line', 'bs.other_equity'), ('worst_vs_sector', 'sector_row', 'receivables_days'), ('improvement', 'statement_line', 'bs.retained_earnings')]
+FAILED tests/engine/test_attention_rules.py::test_other_equity_is_never_the_biggest_movement_on_the_served_pair
+FAILED tests/engine/test_attention_rules.py::test_a_reclassification_alone_leaves_the_movement_slot_empty_never_filled
+FAILED tests/engine/test_attention_rules.py::test_the_composite_letter_is_never_the_biggest_movement
+... 9 failed, 17 passed in 3.14s
+```
+Also observed RED (direct pytest, reverted): the filed-basis inventory row
+given its `vs_sector` as a verdict (`"verdict": cand["row"].get("vs_sector")`)
+— `AssertionError: assert 'worse' is None`, 1 failed
+(`test_the_filed_basis_inventory_row_is_a_position_never_a_verdict`).
+
+**REVERT** — `PASS attention-rules (3.9s, 26 tests)`. Verdict: proven RED.
+
+## attention-served-only
+
+The owner's rule for the bar, "every number from the engine's served facts,
+never the model", and design C1's "`recommendations[]` and any narrate output
+are excluded", as a gate. Every attention item carries the served object it
+was read from (comparatives column, sector row, ratio compare row, insight
+measure) and names its path; model text is planted in every field the
+document must not read. Worlds: the committed comparatives pair (and the same
+pair with the composite letter as the improvement, so a ratio-band item with
+its reason is on the document), and all five corpus books read back through
+the real router, each with its sector document.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_attention_served_only.py -q -s` |
+| work count | `GATE-WORK attention-served-only items=N`, floor **15** item figures (measured 18) |
+| canary | `SCOPE attention-served-only sentinel worlds=`, `GATE-WORK attention-served-only items=` |
+
+**Reds on, after the repair (TC-11):** an item figure that is not
+byte-for-byte the served object at its declared path (subject floor: all four
+families must be seen); any byte of the sentinel planted in
+`recommendations[]`, `briefing`, `alerts[]`, `metrics[]`, the persisted credit
+rows, an insight's `narrative` / `claim` / `title`, the band findings' prose or
+the comparatives' prior metric rows reaching the document, or the document
+changing at all when only those fields change; an `engine.attention` import
+outside the allowlist (no model, narration, briefing, recommendation or API
+module); the route's composer call gaining an argument, or its code naming a
+recommendation / briefing / narration / chat / model source.
+**Cannot see:** the ranking (attention-rules); the wall (attention-route); the
+browser's printing (the frontend gates own "the bar renders no
+recommendations[] text").
+
+**GREEN** — `PASS attention-served-only (4.1s, 18 item figures traced to their
+served source)`.
+
+**PLANT** — `src/engine/attention/now.py` `_insight_item`: a model-text
+source — the insight's model-authored `narrative` as the English line:
+```
+        "subject": dict(desc["subject"], en=(ins.get("narrative") or {}).get("text") or desc["subject"]["en"]),
+```
+
+**RED** — `FAIL attention-served-only`, record
+`{'state': 'FAIL', 'exit_code': 1, 'work_units': 18}`:
+```
+E   AssertionError: agras
+E   assert 'MODEL-SENTINEL' not in '{"actions":...filled": []}'
+E     'MODEL-SENTINEL' is contained here:
+E       : {"en": "MODEL-SENTINEL 987654.32 zile lente", "ro": "Activele fixe sunt spre finalul duratei de amortizare"}, ...
+FAILED tests/engine/test_attention_served_only.py::test_no_model_field_reaches_the_document_or_changes_it
+========================= 1 failed, 3 passed in 3.26s ==========================
+```
+Also observed RED (direct pytest, reverted): a statement item printing a
+persisted metric row instead of its comparatives column (`current=` the
+`prior_metrics` net income) — `AssertionError: ('pair_served', 'bs.cash',
+{'document': 'comparatives', 'path': 'columns[key=bs.cash]'})`, `"current":
+1168047.04` served vs `1248684.06` printed.
+
+**REVERT** — `PASS attention-served-only (4.1s, 18 item figures traced to
+their served source)`. Verdict: proven RED.
+
+## attention-route
+
+`GET /api/period/{id}/attention` UN-INTERCEPTED. The command bar prefetches
+it on every (workspace, period) change and its hermetic harness will answer it
+from a file, so without this nothing on the request path is gated (CLAUDE.md
+22). `engine.api.create_app()` over `firm_postgrest_double` (projection-
+faithful, verifies ES256 bearers), corpus books carried through the production
+write seam as five periods of two workspaces: the current Dec 2025, its Dec
+2024 prior, an eleven-month Nov 2025, a same-length Dec 2024 whose only
+document is soft-deleted (its id sorts FIRST), and another workspace's Dec 2024
+(its id also sorts before the prior). Each wrong choice has a witness. The
+network is switched off at the transport and socket layer for the whole run.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_attention_route_real_app.py -q` |
+| work count | junit-xml, floor **8** tests (measured 8) |
+| canary | `test_the_route_serves_the_company_against_its_same_length_prior`, `test_the_route_composes_exactly_what_the_same_app_serves`, `test_an_explicit_prior_is_read_inside_the_workspace_only`, `test_a_current_period_from_another_workspace_is_not_found` |
+
+**Reds on, after the repair (TC-11):** the route unmounted, renamed or its
+query binding broken; the default comparison not the same company's previous
+period of the same length (an eleven-month period, a period with no live
+document, another workspace's period); a candidate read (periods by close
+date, documents by period) without the organization in its filter; the served
+document differing from `compose_attention` over the GET /api/period,
+/comparatives and /sector-benchmark documents the same app serves;
+`prior=none` not switching the comparison off or losing the way back; an
+explicit prior from another workspace served (not 404), the current period as
+its own prior (not 400); a forged bearer (not 401), a caller outside the
+workspace (not 403), a current period of another workspace (not 404); a
+single-period company served anything but its findings and sector position;
+any outbound network call during the request.
+**Cannot see:** the ranking (attention-rules), the sentinel law
+(attention-served-only), row-level security (the double does not model RLS —
+the org filter in every select is what is proven).
+
+**GREEN** — `PASS attention-route (9.8s, 8 tests)`.
+
+**PLANT** — `src/engine/api/_attention.py` `listable_periods`: the candidate
+period query without the organization (`filters={"period_end": "lt.%s" %
+end}`).
+
+**RED** — `FAIL attention-route (exit 1, 9.8s)`, record
+`{'state': 'FAIL', 'exit_code': 1, 'work_units': 8}`:
+```
+E   AssertionError: ('financial_periods', {'period_end': 'lt.2025-12-31'})
+FAILED tests/engine/test_attention_route_real_app.py::test_the_route_serves_the_company_against_its_same_length_prior
+========================= 1 failed, 7 passed in 8.75s ==========================
+```
+Only the filter census reds on this plant ALONE, and that is the honest
+reading: the documents query still carries the organization, so the foreign
+period is dropped there — a second wall. Also observed RED (direct pytest,
+each reverted): BOTH org filters removed — the foreign Dec 2024 is chosen and
+the route answers `(404, '{"detail":{"code":"period_not_in_workspace",...
+p-foreign-dec2024...')` (3 failed); the same-length test removed from
+`sources.same_length_prior` — `assert 'p-cur-nov2025' == 'p-pri-dec2024'` (3
+failed); the `deleted_at=is.null` filter removed — `assert
+'p-a-dec2024-nodoc' == 'p-pri-dec2024'` (3 failed).
+
+**REVERT** — `PASS attention-route (9.8s, 8 tests)`. Verdict: proven RED.

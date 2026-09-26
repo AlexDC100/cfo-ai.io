@@ -36,7 +36,8 @@ graph LR
     pkg__root_["(root) (16 modules)"]
     pkg_ai["ai (9 modules)"]
     pkg_ai_lane["ai_lane (9 modules)"]
-    pkg_api["api (111 modules)"]
+    pkg_api["api (112 modules)"]
+    pkg_attention["attention (4 modules)"]
     pkg_benchmarks_ro["benchmarks_ro (5 modules)"]
     pkg_briefing["briefing (3 modules)"]
     pkg_canonical["canonical (2 modules)"]
@@ -88,6 +89,7 @@ graph LR
     pkg_api -->|7| pkg__root_
     pkg_api -->|5| pkg_ai
     pkg_api -->|2| pkg_ai_lane
+    pkg_api -->|2| pkg_attention
     pkg_api -->|1| pkg_benchmarks_ro
     pkg_api -->|1| pkg_comparatives
     pkg_api -->|1| pkg_consensus
@@ -112,6 +114,7 @@ graph LR
     pkg_api -->|4| pkg_serving
     pkg_api -->|2| pkg_storage
     pkg_api -->|2| pkg_workspaces
+    pkg_attention -->|1| pkg_comparatives
     pkg_benchmarks_ro -->|1| pkg_public_ro
     pkg_benchmarks_ro -->|1| pkg_ratios
     pkg_benchmarks_ro -->|1| pkg_serving
@@ -371,6 +374,7 @@ declaration is the supply-chain lock's job to reject).
 | `ai` | yaml (pyyaml) |
 | `ai_lane` | anthropic (anthropic), fastapi (fastapi), openpyxl (openpyxl) |
 | `api` | anthropic (anthropic), fastapi (fastapi), httpx (httpx), openai (openai), openpyxl (openpyxl), pandas (pandas), pdfplumber (pdfplumber), pydantic (pydantic), sentry_sdk (sentry-sdk), sqlalchemy (sqlalchemy), stripe (stripe), xlrd (xlrd), yaml (pyyaml) |
+| `attention` | yaml (pyyaml) |
 | `briefing` | anthropic (anthropic) |
 | `country_packs` | fitz (pymupdf), openpyxl (openpyxl), pandas (pandas), pdfplumber (pdfplumber) |
 | `firm` | yaml (pyyaml) |
