@@ -20,7 +20,8 @@
 // serve, never 0 for an absent account.
 //
 // WHAT IT REDS ON, AFTER THE REPAIR (TC-11): a link to a slug the dashboard
-// does not have (bs / cf / pnl / p_and_l / statements); an item whose
+// does not have (bs / cf / pnl / p_and_l / statements) — built at runtime or
+// written in source; an item whose
 // evidence opens no receiver; a receiver that renders but marks nothing; a
 // Cont row that lands on its tab with its account nowhere; a synthetic code
 // printed with a total the engine did not serve; an absent account printed
@@ -57,6 +58,8 @@ import { altmanRatio, computeRatios, type Statements } from "@/lib/financialRepo
 import { computeCreditScore } from "@/lib/financialValuation";
 import { buildRatioCompareView, readRatioTable, servedCreditEnvelopes } from "@/lib/ratioCompareView";
 import { EVIDENCE_LINES } from "@/lib/evidence/evidenceLines";
+import { lineEvidenceHref, realStatementTab } from "@/lib/evidence/evidenceLink";
+import { STATEMENT_TAB } from "@/lib/traceableSource";
 import type { SectorBenchmarkDoc } from "@/lib/sectorBenchmark";
 import type { AttentionDoc } from "@/lib/attention";
 import type { PeriodLineItem } from "@/lib/activePeriod";
@@ -365,9 +368,12 @@ describe("cmdbar-evidence — the account rules", () => {
     expect(offByOne).toBeDefined();
     drawer(scandia, `/dashboard?tab=balance_sheet&account=${offByOne}`);
     const d = await screen.findByTestId("evidence-drawer");
-    expect(d.querySelector('[data-testid="evidence-absent"]')?.textContent).toContain(offByOne);
+    // Said in words — the sentence and nothing else, no figure at all.
+    expect(d.querySelector('[data-testid="evidence-absent"]')?.textContent)
+      .toBe(i18n.getFixedT("en")("evidence.absent", { code: offByOne }));
     expect(d.querySelectorAll('[data-testid="evidence-leaf"]').length).toBe(0);
-    expect(d.textContent).not.toMatch(/(^|\s)0([.,]00)?(\s|$)/);
+    expect(d.querySelector('[data-testid="evidence-total"]')).toBeNull();
+    expect(d.textContent).not.toContain(full(0));
   });
 
   it("every leaf amount wears its provenance (account, document, method, pack)", async () => {
@@ -416,6 +422,20 @@ describe("cmdbar-evidence — strings and slugs", () => {
     const keys = (o: Record<string, unknown>, p = ""): string[] =>
       Object.entries(o).flatMap(([k, v]) => (typeof v === "object" && v ? keys(v as Record<string, unknown>, `${p}${k}.`) : [`${p}${k}`]));
     expect(keys(strings.ro).sort()).toEqual(keys(strings.en).sort());
+  });
+
+  it("every statement spelling a producer has used opens a REAL tab", () => {
+    const spellings: [string, string][] = [
+      ["bs", "balance_sheet"], ["cf", "cash_flow"], ["pnl", "pl"], ["p_and_l", "pl"],
+      ["pl", "pl"], ["balance_sheet", "balance_sheet"], ["cash_flow", "cash_flow"],
+    ];
+    for (const [spelling, want] of spellings) {
+      expect(realStatementTab(spelling), spelling).toBe(want);
+      const href = lineEvidenceHref({ periodId: "p", orgId: "o" }, "bs.cash", spelling);
+      expect(new URL(href, "http://cfo.test").searchParams.get("tab"), spelling).toBe(want);
+    }
+    for (const v of Object.values(STATEMENT_TAB)) expect(REAL_TABS).toContain(v);
+    expect(realStatementTab("statements")).toBeNull();
   });
 
   it("no source file links a statement tab by a slug the dashboard does not have", () => {
