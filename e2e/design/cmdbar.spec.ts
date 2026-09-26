@@ -216,6 +216,52 @@ test.describe("G5 — an item opens its evidence", () => {
     await expect(page).toHaveURL(/tab=ratios.*ratio=current_ratio|ratio=current_ratio.*tab=ratios/);
     await expect(page.getByTestId("ratio-detail-drawer")).toBeVisible({ timeout: 20_000 });
   });
+
+  // The account view (design C4, stage CB-F2) — mounted by the REAL
+  // dashboard, not only in jsdom (evidenceLanding.test.tsx, cmdbar-evidence).
+  test("a Cont row opens the account view on that leaf, highlighted", async ({ page }) => {
+    const double = new WorkspaceDouble({ theme: "light", language: "en" });
+    await openDashboard(page, double, COMPANIES[0]);
+    await openBar(page);
+    await typeQuery(page, "411101");
+    const row = page.getByTestId("cmdbar-row-account").first();
+    await expect(row).toBeVisible();
+    await row.click();
+    await expect(page).toHaveURL(/account=411101/);
+    const view = page.getByTestId("evidence-drawer");
+    await expect(view).toBeVisible({ timeout: 20_000 });
+    await expect(view.locator('[data-evidence-target="leaf:411101"][data-highlighted="true"]')).toBeVisible();
+    if (SHOTS) {
+      await page.waitForTimeout(700); // the sheet's slide-in
+      await page.screenshot({ path: `${SHOTS}/scandia_account_411101_1440_paper_en.png` });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `${SHOTS}/scandia_account_411101_390_paper_en.png` });
+      await page.setViewportSize({ width: 1440, height: 900 });
+    }
+    await page.keyboard.press("Escape");
+    await expect(view).toBeHidden();
+    await expect(page).not.toHaveURL(/account=/);
+  });
+
+  test("a 'Ce contează acum' item that names a line opens that line's evidence", async ({ page }) => {
+    const double = new WorkspaceDouble({ theme: "dark", language: "ro" });
+    await openDashboard(page, double, COMPANIES[0]);
+    await openBar(page);
+    await page.locator('[data-row-id="now:financial_position"]').click();
+    await expect(page).toHaveURL(/line=pl\.net_financial_result/);
+    const view = page.getByTestId("evidence-drawer");
+    await expect(view).toBeVisible({ timeout: 20_000 });
+    await expect(view.locator('[data-evidence-target="line:pl.net_financial_result"][data-highlighted="true"]')).toBeVisible();
+    await expect(view.locator('[data-evidence-target^="account:"][data-highlighted="true"]').first()).toBeVisible();
+    if (SHOTS) {
+      await page.waitForTimeout(700); // the sheet's slide-in
+      await page.screenshot({ path: `${SHOTS}/scandia_line_net_financial_result_1440_terminal_ro.png` });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.waitForTimeout(300);
+      await page.screenshot({ path: `${SHOTS}/scandia_line_net_financial_result_390_terminal_ro.png` });
+    }
+  });
 });
 
 // ── G4 + the screenshot loop ────────────────────────────────────────────
