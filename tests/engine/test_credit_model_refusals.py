@@ -57,6 +57,15 @@ the leverage / equity rungs are declared, labelled pack data. This file's
 `_expected_refusals` reads those rulings from the LEAVES; the rung, range
 and out-of-range gates live in `test_credit_model_rungs_and_ranges.py` and
 `test_served_range.py`.
+
+REVISION 3 (2026-09-26, the ONE EBITDA). EBIT and EBITDA are the assembled
+P&L's one definition (net 711 and net 72x inside). Where the assembly
+REFUSES them (the stock variation could not be measured — e.g. the Scandia
+regression baseline, whose persisted envelope predates the measurement),
+altman (X3), coverage, DSCR and — with net debt — leverage refuse as
+`ebitda_refused`, each naming the stock-variation cause, and the composite
+refuses with them. `_expected_refusals` reads that from the served
+`assembled_pl` itself, not from the model.
 """
 from __future__ import annotations
 
@@ -110,8 +119,16 @@ def _expected_refusals(statements: Dict[str, Any]) -> Dict[str, str]:
         out["profitability"] = CM.REVENUE_NOT_POSITIVE
     interest = float(pl["interestExpense"])
     debt = float(bs["shortTermDebt"]) + float(bs["longTermDebt"])
-    ebit = (float(pl["revenue"]) - float(pl["costOfGoodsSold"]) - float(pl["operatingExpenses"])
-            - float(pl["depreciationAmortization"]) + float(pl["otherIncome"]))
+    ebit, ebitda = _one_ebit_ebitda(statements)
+    if ebit is None or ebitda is None:
+        # the one EBITDA / operating result refused (revision 3)
+        if "altman" not in out:
+            out["altman"] = CM.EBITDA_REFUSED
+        out["coverage"] = CM.EBITDA_REFUSED
+        out["dscr"] = CM.EBITDA_REFUSED
+        if debt - float(bs["cash"]) > 0:
+            out["leverage"] = CM.EBITDA_REFUSED
+        return out
     d1_rung = debt == 0 and interest == 0 and ebit > 0
     if not interest > 0 and not d1_rung:
         out["coverage"] = CM.INTEREST_EXPENSE_NOT_POSITIVE
@@ -119,10 +136,34 @@ def _expected_refusals(statements: Dict[str, Any]) -> Dict[str, str]:
     return out
 
 
+def _one_ebit_ebitda(statements: Dict[str, Any]) -> Tuple[Any, Any]:
+    """(EBIT, EBITDA) as the served statements state them — the assembled
+    P&L's one definition (None when it carries `ebitda_refusal`); on a
+    block assembled before the ruling, the build-up plus net 72x, and None
+    where the book posts to 711 (only its gross turnover was kept)."""
+    apl = statements.get("assembled_pl") or {}
+    if "ebitda_definition" in apl:
+        if apl.get("ebitda_refusal"):
+            return None, None
+        return apl.get("operating_result"), apl.get("ebitda")
+    pl = statements["incomeStatement"]
+    if abs(float(pl.get("inventoryVariationMemo") or 0)) >= 0.005:
+        return None, None
+    ebitda = (float(pl["revenue"]) - float(pl["costOfGoodsSold"]) - float(pl["operatingExpenses"])
+              + float(pl["otherIncome"]) + float(pl.get("capitalizedOwnWork") or 0))
+    return ebitda - float(pl["depreciationAmortization"]), ebitda
+
+
 def _check_component(where: str, comp: Dict[str, Any]) -> None:
     for field in ("code", "component", "inputs", "text"):
         assert comp.get(field), "%s: refused component %r carries no %s" % (where, comp, field)
-    if comp["component"] == "altman":
+    if CM.EBITDA_REFUSED in (comp.get("code"), comp.get("cause")):
+        # the stock-variation cause travels with the code, in both languages
+        cause = comp.get("ebitda_refusal") or {}
+        assert cause.get("code") and cause.get("text_ro") and cause.get("text_en"), (where, comp)
+        assert cause["text_en"] in comp["text"], (where, comp)
+    if comp["component"] == "altman" and CM.TOTAL_LIABILITIES_BELOW_MATERIALITY in (
+            comp.get("code"), comp.get("cause")):
         share = CM.credit_pack()["share"]
         pct = "%s%%" % format((share * 100).normalize(), "f")
         assert pct in comp["text"], "%s: the Altman refusal does not print the pack's %s: %r" % (

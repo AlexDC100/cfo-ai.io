@@ -19,13 +19,37 @@ written). Seven cases:
   · synthetic_negative_equity (declared synthetic TB, real engine output)
   · agras with every balanceSheet leaf zeroed — the `total_assets <= 0`
     branch, where no Altman and no composite may be emitted
-The ONE deliberate difference from the golden is the trailing
-`credit_model_revision` row this wave adds; it is asserted by value.
+The ONE deliberate difference from the golden at the extraction was the
+trailing `credit_model_revision` row; it is asserted by value.
+
+REVISION 3 — THE ONE EBITDA (owner ruling 2026-09-26). Every row built on
+EBITDA or the operating result moved BY RULING (net 711 and net 72x inside,
+767 financial), so the golden's law is split, not re-captured:
+  · every row OUTSIDE `CM.DEFINITION_REVISED_METRICS` and the credit family
+    is still the pre-extraction row byte for byte, in the same order — the
+    ruling moved nothing else (measured: zero drift on all seven cases);
+  · the three RETIRED rows (the gross 711 credit turnover and the totals on
+    it) are gone, and nothing else is;
+  · every one-EBITDA row is its formula over the ASSEMBLED definition, read
+    by this file off `assembled_pl` (not through the model), refusal
+    included — the Scandia baseline, persisted before the stock variation
+    was measured, refuses the whole family and the composite with it;
+  · on the book with no 711 and no 72x (retail) the one-EBITDA family IS
+    the golden, byte for byte, apart from `total_operating_revenue`
+    (redefined by the ruling: + other operating income, − 767);
+  · on the four corpus books the credit figures are the INDEPENDENT
+    measurement of the ruling (specs-durable/ebitda711/gatemap_credit_ruling
+    .json, computed offline by its own script before this module changed).
 
 WHAT THIS REDS ON, after the repair (TC-11):
-  · any change to what a row carries — a weight, a sub-score mapping, an
-    Altman coefficient, a rounding, a ratio's operands, a row's unit,
-    direction or position — on any of the seven cases;
+  · any change to what a row outside the one-EBITDA family carries — a
+    weight, a sub-score mapping, an Altman coefficient, a rounding, a
+    ratio's operands, a row's unit, direction or position — on any of the
+    seven cases;
+  · a one-EBITDA row that is not its formula over the assembled definition
+    (a second EBITDA — the EBITDA without 711/72x, the gross memo — under
+    any name), a refused EBITDA served as a number or as 0, a retired row
+    coming back, a credit figure off the independent measurement;
   · an I/O call re-added to `compute_period_metrics` (the Supabase admin
     and per-user clients are stubbed to raise), or an import of a client
     module into `engine/ratios/credit_model.py`;
@@ -99,6 +123,19 @@ def _revision_row() -> Dict[str, Any]:
     }
 
 
+def _revised() -> set:
+    """Every row whose definition the ruling moved: the one-EBITDA family,
+    the retired rows and the credit family built on them."""
+    from engine.ratios import credit_model as CM
+
+    return set(CM.DEFINITION_REVISED_METRICS) | set(CM.CREDIT_FAMILY_METRICS)
+
+
+def _untouched(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    keep = _revised()
+    return [{k: r[k] for k in ROW_KEYS} for r in rows if r["name"] not in keep]
+
+
 class _Forbidden(RuntimeError):
     pass
 
@@ -150,14 +187,21 @@ def test_the_golden_is_not_vacuous():
 
 @pytest.mark.parametrize("name,case", CASES, ids=CASE_IDS)
 def test_pure_rows_are_the_pre_extraction_rows_byte_for_byte(name, case, io_forbidden):
+    """Every row the ruling did not move, byte for byte and in order; the
+    retired rows gone and nothing else."""
     from engine.ratios import credit_model as CM
 
     statements, sq = _case_input(case)
     rows = CM.compute_period_metrics(statements, source_data_quality=sq)
 
-    expected = [{k: r[k] for k in ROW_KEYS} for r in case["rows"]]
     assert rows[-1] == _revision_row(), rows[-1]
-    got, want = _dump(rows[:-1]), _dump(expected)
+    assert CM.CREDIT_MODEL_REVISION == 3
+    names = {r["name"] for r in rows}
+    gone = sorted(r["name"] for r in case["rows"] if r["name"] not in names)
+    assert gone == sorted(CM.RETIRED_METRICS), (name, gone)
+    assert not names & set(CM.RETIRED_METRICS), names & set(CM.RETIRED_METRICS)
+    expected = _untouched(case["rows"])
+    got, want = _dump(_untouched(rows[:-1])), _dump(expected)
     if got != want:
         by_name = {r["name"]: r for r in expected}
         diffs = [
@@ -190,15 +234,33 @@ def test_the_credit_model_imports_no_client():
     # allowed to open a file on the model's behalf — the pack data the X4
     # materiality is read from (ruling R-D4, TC-10) — and it is held below
     # to that: yaml + the path to the pack, no client, no clock.
-    allowed = {"__future__", "logging", "typing", "decimal", "math", "engine.ratios.credit_pack"}
+    # `engine.country_packs.ro_romania.stock_variation` (revision 3) is the
+    # one-EBITDA refusal vocabulary — pure, held below to `typing` alone.
+    engine_modules = {"engine.ratios.credit_pack", "engine.country_packs.ro_romania"}
+    allowed = {"__future__", "logging", "typing", "decimal", "math"} | engine_modules
     imported = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             imported.update(a.name.split(".")[0] for a in node.names)
         elif isinstance(node, ast.ImportFrom):
             mod = node.module or ""
-            imported.add(mod if mod == "engine.ratios.credit_pack" else
+            imported.add(mod if mod in engine_modules else
                          mod.split(".")[0] if node.level == 0 else "." * node.level)
+    # ...and the model reads only its refusal vocabulary from it (never
+    # `measure`, whose lazy chart import is the persist path's).
+    used = {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)
+            and isinstance(n.value, ast.Name) and n.value.id == "_stock_variation"}
+    assert used <= {"refusal_text", "REASON_PREDATES"}, sorted(used)
+    sv_tree = ast.parse((REPO / "src" / "engine" / "country_packs" / "ro_romania"
+                         / "stock_variation.py").read_text("utf-8"))
+    sv_imports = set()
+    for node in ast.walk(sv_tree):
+        if isinstance(node, ast.Import):
+            sv_imports.update(a.name.split(".")[0] for a in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            sv_imports.add((node.module or "").split(".")[0] if node.level == 0
+                           else "." * node.level + (node.module or ""))
+    assert sv_imports <= {"__future__", "typing", "."}, "stock_variation imports %r" % sorted(sv_imports)
     assert imported <= allowed, "credit_model imports %r" % sorted(imported - allowed)
     names = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)}
     assert not names & {"open", "_supabase", "admin", "per_user", "httpx", "requests"}, (
@@ -258,9 +320,9 @@ def test_stage_compute_inserts_exactly_the_pure_rows(name, case, monkeypatch):
     assert _dump(inserted) == _dump(
         [{"period_id": "period-gate", "org_id": "org-gate", **r} for r in pure]
     )
-    # ...and those are the rows production persisted before the
-    # extraction, plus the one deliberate revision row.
-    assert _dump(inserted[:-1]) == _dump(case["rows"])
+    # ...and, outside the rows the ruling moved, those are the rows
+    # production persisted before the extraction, plus the revision row.
+    assert _dump(_untouched(inserted[:-1])) == _dump(_untouched(case["rows"]))
     assert inserted[-1] == {"period_id": "period-gate", "org_id": "org-gate", **_revision_row()}
 
 
@@ -278,10 +340,12 @@ def test_interest_coverage_divides_ebit_and_ebitda_to_interest_divides_ebitda(io
 
     Reds on: an `interest_coverage` row that is not round(operating_profit /
     interest, 4); an `ebitda_to_interest` row that is not
-    round(ebitda_statutory / interest, 4); the two rows agreeing on any
-    interest-paying book whose EBIT and statutory EBITDA differ (D&A > 0);
-    fewer than three such books (vacuity). Cannot see: the served route
-    (test_ratio_table's operand check) or the FE labels (ratio-byte-match).
+    round(ebitda / interest, 4) (revision 3: the one EBITDA, of which
+    `ebitda_statutory` is an alias); the two rows agreeing on any
+    interest-paying book whose EBIT and EBITDA differ (D&A > 0); a coverage
+    figure served on a book whose EBITDA is refused; fewer than three such
+    books (vacuity). Cannot see: the served route (test_ratio_table's
+    operand check) or the FE labels (ratio-byte-match).
     """
     from engine.ratios import credit_model as CM
 
@@ -292,6 +356,12 @@ def test_interest_coverage_divides_ebit_and_ebitda_to_interest_divides_ebitda(io
         interest = statements["incomeStatement"]["interestExpense"]
         rows = {r["name"]: r["value"] for r in CM.compute_period_metrics(statements, source_data_quality=sq)}
         ebit, ebitda_stat = rows["operating_profit"], rows["ebitda_statutory"]
+        if ebitda_stat != rows["ebitda"]:
+            failures.append("%s: ebitda_statutory %r is not the one EBITDA %r" % (name, ebitda_stat, rows["ebitda"]))
+        if ebit is None or ebitda_stat is None:
+            if rows["interest_coverage"] is not None or rows["ebitda_to_interest"] is not None:
+                failures.append("%s: the one EBITDA is refused yet a coverage figure is served" % name)
+            continue
         if not interest:
             if rows["interest_coverage"] is not None or rows["ebitda_to_interest"] is not None:
                 failures.append("%s: no interest expense yet a coverage figure is served" % name)
@@ -309,3 +379,145 @@ def test_interest_coverage_divides_ebit_and_ebitda_to_interest_divides_ebitda(io
                                 % (name, rows["interest_coverage"]))
     assert not failures, "\n  ".join(failures)
     assert len(distinct) >= 3, "vacuous: interest-paying books with D&A: %r" % distinct
+
+
+# ── revision 3: THE ONE EBITDA, by operands and by independent measurement ──
+
+
+def _apl_reading(statements: Dict[str, Any]) -> Dict[str, Any]:
+    """THIS FILE'S reading of the one definition off the served
+    `assembled_pl` — never through the model — so the two agree by
+    measurement. A block assembled before the ruling reads as refused when
+    the book posts to 711 (its gross memo is not the variation)."""
+    apl = statements.get("assembled_pl") or {}
+    if "ebitda_definition" in apl:
+        refused = bool(apl.get("ebitda_refusal"))
+        return {"refused": refused,
+                "ebitda": None if refused else apl["ebitda"],
+                "ebit": None if refused else apl["operating_result"],
+                "gross_profit": None if refused else apl["gross_profit"],
+                "before": apl["ebitda_before_stock_variation"],
+                "net_711": (apl.get("inventory_variation") or {}).get("value"),
+                "net_72x": (apl.get("capitalized_own_work") or {}).get("value")}
+    pl = statements["incomeStatement"]
+    before = (pl["revenue"] - pl["costOfGoodsSold"] - pl["operatingExpenses"] + pl["otherIncome"])
+    refused = abs(float(pl.get("inventoryVariationMemo") or 0)) >= 0.005
+    cap = float(pl.get("capitalizedOwnWork") or 0)
+    return {"refused": refused,
+            "ebitda": None if refused else before + cap,
+            "ebit": None if refused else before + cap - pl["depreciationAmortization"],
+            "gross_profit": None if refused else pl["revenue"] - pl["costOfGoodsSold"],
+            "before": before, "net_711": None if refused else 0.0, "net_72x": cap}
+
+
+def _r(v: Any, places: int) -> Any:
+    return None if v is None else round(v, places)
+
+
+@pytest.mark.parametrize("name,case", CASES, ids=CASE_IDS)
+def test_every_one_ebitda_row_is_the_assembled_definition(name, case, io_forbidden):
+    """Each one-EBITDA row, by operands, over the assembled definition — and
+    EBITDA = the build-up + net 711 + net 72x, one identity, to the cent."""
+    from engine.ratios import credit_model as CM
+
+    statements, sq = _case_input(case)
+    rows = {r["name"]: r["value"] for r in CM.compute_period_metrics(statements, source_data_quality=sq)}
+    a = _apl_reading(statements)
+    pl = statements["incomeStatement"]
+    revenue, interest = pl["revenue"], pl["interestExpense"]
+    bs = statements["balanceSheet"]
+    debt = bs["shortTermDebt"] + bs["longTermDebt"]
+
+    def div(n: Any, d: Any) -> Any:
+        return None if n is None or d in (None, 0) else round(n / d, 4)
+
+    want = {
+        "ebitda": _r(a["ebitda"], 2), "ebitda_cash": _r(a["ebitda"], 2),
+        "ebitda_statutory": _r(a["ebitda"], 2), "operating_profit": _r(a["ebit"], 2),
+        "gross_profit": _r(a["gross_profit"], 2), "inventory_variation": _r(a["net_711"], 2),
+        "ebitda_before_stock_variation": _r(a["before"], 2),
+        "ebitda_margin": div(a["ebitda"], revenue), "gross_margin": div(a["gross_profit"], revenue),
+        "operating_margin": div(a["ebit"], revenue), "debt_to_ebitda": div(debt, a["ebitda"]),
+        "net_debt_to_ebitda": div(debt - bs["cash"], a["ebitda"]),
+        "interest_coverage": div(a["ebit"], interest), "ebitda_to_interest": div(a["ebitda"], interest),
+        "dscr": div(a["ebitda"], interest + bs["shortTermDebt"]),
+        "dscr_with_lt_principal": div(a["ebitda"], interest + bs["longTermDebt"] / 8.0),
+    }
+    bad = ["%s: served %r, the definition gives %r" % (k, rows.get(k), v)
+           for k, v in want.items() if rows.get(k) != v]
+    assert not bad, "[%s] %s" % (name, "\n  ".join(bad))
+    if a["refused"]:
+        for k in ("core_ebitda", "core_ebitda_margin", "adjusted_ebitda", "roic", "altman_x3",
+                  "credit_composite"):
+            assert rows.get(k) is None, (name, k, rows.get(k))
+    else:
+        assert abs(a["before"] + a["net_711"] + a["net_72x"] - a["ebitda"]) < 0.01, (name, a)
+
+
+def test_a_refused_ebitda_refuses_the_composite_with_the_stock_variation_cause(io_forbidden):
+    """The Scandia baseline's persisted envelope predates the measurement:
+    the one EBITDA refuses, and with it Altman, coverage, DSCR and leverage,
+    each naming the cause — never the EBITDA without 711 in its place."""
+    from engine.ratios import credit_model as CM
+
+    case = dict(CASES)["scandia_fy2025_baseline"]
+    statements, sq = _case_input(case)
+    rows = CM.compute_period_metrics(statements, source_data_quality=sq)
+    block = CM.credit_block(rows, statements=statements)
+    assert block["composite"] is None and block["letter"] is None
+    refused = {k: v["code"] for k, v in block["refused_subscores"].items()}
+    assert refused == {"altman": CM.EBITDA_REFUSED, "leverage": CM.EBITDA_REFUSED,
+                       "coverage": CM.EBITDA_REFUSED, "dscr": CM.EBITDA_REFUSED}, refused
+    for comp in block["refused_subscores"].values():
+        assert comp["ebitda_refusal"]["code"] == "period_predates_stock_variation_measurement", comp
+        assert comp["ebitda_refusal"]["text_en"] in comp["text"]
+    assert block["reason"]["code"] == CM.CREDIT_COMPONENT_UNDEFINED
+
+
+#: THE INDEPENDENT REFEREE. specs-durable/ebitda711/gatemap_credit_ruling.json
+#: (2026-09-26): the ruling's credit figures measured OFFLINE by
+#: gatemap_credit_ruling.py on the corpus books, with net 711 = the 121
+#: bridge and 722 inside EBIT / EBITDA — before this module was changed.
+#: Ratios as the rows store them (4 dp; the margin as a fraction).
+RULED = {
+    "saga_10_col_agras": {"credit_composite": 81.0, "altman_z_score": 6.19, "ebitda_margin": 0.1069,
+                          "interest_coverage": 31.9962, "dscr": 4.7819, "debt_to_ebitda": 0.3072},
+    "saga_10_col_carniprod": {"credit_composite": 79.3, "altman_z_score": 6.39, "ebitda_margin": 0.0548,
+                              "interest_coverage": None, "dscr": None, "debt_to_ebitda": 0.0},
+    "saga_10_col_realestate": {"credit_composite": 41.5, "altman_z_score": 4.81,
+                               "interest_coverage": 0.4221, "dscr": 0.1112, "debt_to_ebitda": 33.6679},
+    "saga_10_col_retail": {"credit_composite": 20.6, "altman_z_score": 0.79, "ebitda_margin": 0.0286,
+                           "interest_coverage": 0.3249, "dscr": 0.9349, "debt_to_ebitda": 12.3084},
+}
+
+
+def test_the_credit_rows_are_the_independent_measurement_of_the_ruling(io_forbidden):
+    from engine.ratios import credit_model as CM
+
+    cases = dict(CASES)
+    bad = []
+    for name, ruled in sorted(RULED.items()):
+        statements, sq = _case_input(cases[name])
+        rows = {r["name"]: r["value"] for r in CM.compute_period_metrics(statements, source_data_quality=sq)}
+        for k, v in ruled.items():
+            if rows.get(k) != v:
+                bad.append("%s %s: %r, measured %r" % (name, k, rows.get(k), v))
+    assert not bad, "\n  ".join(bad)
+
+
+def test_with_no_711_and_no_72x_the_ruling_moves_nothing(io_forbidden):
+    """Retail posts no 711 and no 72x (measured): the one-EBITDA family IS
+    the pre-ruling golden, byte for byte — the ruling adds nothing where
+    there is nothing to add. `total_operating_revenue` alone moves (the
+    ruling's own redefinition: + other operating income, − 767)."""
+    from engine.ratios import credit_model as CM
+
+    case = dict(CASES)["saga_10_col_retail"]
+    statements, sq = _case_input(case)
+    apl = statements["assembled_pl"]
+    assert apl["inventory_variation"]["value"] == 0.0 and apl["capitalized_own_work"]["value"] == 0.0
+    rows = {r["name"]: {k: r[k] for k in ROW_KEYS}
+            for r in CM.compute_period_metrics(statements, source_data_quality=sq)}
+    golden = {r["name"]: {k: r[k] for k in ROW_KEYS} for r in case["rows"]}
+    moved = sorted(n for n in golden if n in rows and rows[n] != golden[n])
+    assert moved == ["total_operating_revenue"], moved
