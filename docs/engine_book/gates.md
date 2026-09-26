@@ -5922,3 +5922,114 @@ reservation's month and the ledger row). G3d above. The same merge kept ONE
 meter: Lane A's restart adoption (`_adopt_reservation`) moved into
 `reserve_upload_or_refuse`, which `_meter_first_analysis` and the commit
 both call.
+
+### Integration on production b45cf708 (2026-09-26)
+
+`feat/workspace-redesign` re-based by merge on `land/v6-on-release`
+b45cf708 — the parser v6 port, the absent-tax-charge rule, the per-account
+preview (`applyPreview`, d734beed) and the interest-coverage seam — with
+`feat/ws-migration` 8ff706e3 (a conversation follows its company; the
+emptied Q&A archived). One conflict (this file: both sides appended
+sections). Two reconciliations:
+
+- **One preview mechanism.** Production opens a `coming_soon` surface per
+  account through `applyPreview` (`user_prefs.prefs.preview_features` →
+  `active` + `beta`, the "Beta" label on the row and the page); the
+  redesign lane resolved its `preview` status through a second decision.
+  `applyPreview` now promotes a `preview` row the same way;
+  `lib/previewFeatures.ts` keeps only the hold the screen-swapping routes
+  need (the prefs bag hydrating, the uid-scoped first-paint cache) and
+  feeds it through the same function. A preview row an account did not
+  list stays `preview` — off, the current UI. `CFO_FEATURES_ACTIVE=
+  workspace_v2` promotes it to `active` for everyone on the engine.
+  `featurePreview.test.ts` and `workspaceV2Gate.test.tsx` (21 tests) hold
+  it; a FeatureRoute now opens a listed preview row with the Beta label.
+- **The e2e fixtures re-captured on the v6 parser.** The hermetic double
+  serves what `GET /api/period` serves; on this base Agras's 709
+  reductions enter as reductions, so its revenue is 110,798,309.14 (was
+  118,576,819.64) and EBITDA 10,776,378.24. `test_g7_*` pinned the drift
+  (`e2e fixture drifted from the served route at
+  period.statements.incomeStatement.revenue: 118576819.64 !=
+  110798309.14`) and re-wrote both fixtures with `WS_V2_WRITE_FIXTURE=1`.
+
+**Suites on 1b11dd66 (this tree, before the plant pass):** engine —
+`test_workspace_v2_gates.py` 17 + `test_no_empty_period_creators.py` 5,
+`test_ws_migration_plan.py`, `test_features_status.py`,
+`test_route_bindings.py` (3, run alone: in one session with
+`test_features_status` its `http://stub` env leaks into the route-binding
+app fixture — an ordering artefact, not a defect), `test_gate_canaries.py`,
+`test_engine_book.py` (regenerated: `invariants.md`), the quota / dedupe /
+orphan / period-clause / correction-claim gates, `statements-anchor-gap`
+and `interest-coverage-one-operand`: 247 passed. `test_duplicate_upload_
+gate.py::test_g3_recover_stuck_archives_a_duplicate_instead_of_enqueuing_it`
+was red on Lane A's own head too: its stuck copy carried the calendar date
+2026-09-21, five days past `recover-stuck`'s 24 h zombie cap on the day
+this ran (`stale_failed`, `duplicates_count` 0). The fixture ages are
+relative now; the gate reds on the same defect (a stuck copy re-enqueued).
+`tsc --noEmit` clean but for the 10 `capsuleAskGuard*` baseline errors.
+
+**PLANT → RED → REVERT → GREEN on 1b11dd66** — runners kept at
+`~/.claude/projects/…/specs-durable/ws_int/plant_runner.py` (engine +
+browser) and `e2e_plant_runner.sh`; transcripts under `…/ws_int/plants/`.
+Each plant is applied to the PRODUCT by string replacement, the gate run,
+the file restored with `git checkout --` (sha1 checked before and after),
+the gate run again.
+
+**Plants — engine** (`tests/engine/test_workspace_v2_gates.py`, `-k` per gate;
+the census `tests/engine/test_no_empty_period_creators.py`)
+
+| # | PLANT (product) | RED | GREEN after REVERT |
+|---|---|---|---|
+| G1 | `_uploads.resolve_target`: the company on screen wins over a CUI match (`if cui and on_screen is None:`) | `2 failed` — `test_g1_an_agras_file_dropped_on_a_scandia_page_lands_in_agras`, `test_g1_scandia_on_screen_never_captures_a_cui_it_does_not_hold` | 2 passed |
+| G2 | `company_identity._period`: a year in the file name returned first, dressed as `closing_balance` | `5 failed, 1 passed` — `test_g2_*` ×3 and `test_g7_*` ×2 (the persisted period is the file name's) | 6 passed |
+| G3a | `_uploads.find_duplicate` returns None | `1 failed, 3 passed` — `test_g3_the_same_file_twice_is_stored_analysed_and_counted_once` | 4 passed |
+| G4b | `pipeline._rollback_period_of_failed_run` returns at once | `1 failed, 2 passed` — `test_g4_a_run_that_fails_after_persist_leaves_no_period` | 3 passed |
+| G4 census | a browser creator of an empty period appended to `frontend/lib/orgPeriods.ts` (`.from("financial_periods").insert(…)`) | `2 failed, 3 passed` — `G4 VIOLATED — client code creates financial_periods rows`, `test_the_current_month_container_hook_is_gone` | 5 passed |
+| G7 | commit never enqueues (`pass` for `_pipeline._enqueue(doc_id)`) | `2 failed, 1 passed` — `IndexError: list index out of range` at `gw.enqueued[-1]`, both books | 3 passed |
+| G8b | `pgrest_io.PgRest.drop_row` — an HTTP DELETE on the migration wire | `1 failed, 1 passed` — `G8: a delete on the migration path: src/engine/workspaces/pgrest_io.py` | 2 passed |
+
+**Plants — browser half** (vitest)
+
+| # | PLANT (product) | RED | GREEN after REVERT |
+|---|---|---|---|
+| G1 | `UploadFlowHost.startJob` keeps the screen on the company that was open | `2 failed \| 18 passed` — "G1 — Analyse commits to Agras and the screen and header follow it there": `expected "spy" to be called with arguments: [ 'agras', { name: 'Agras SA', … } ]` | 20 passed |
+| G3 | `startUploadFlow` ignores `result.duplicate` | `2 failed \| 18 passed` — `Unable to find an element with the text: Already uploaded` (EN and RO) | 20 passed |
+| G5 | a raw `<input type="file">` on the company page | `5 failed \| 20 passed` — `oneUploadComponent` ×4 (`upload affordances outside components/cfo/upload/UploadDrop.tsx`), `workspaceRedesignScreens` ×1 | 25 passed |
+| G6 | `companyOnScreen.headerAgrees` always true | `3 failed \| 6 passed` — "opening Agras while Scandia is active switches first, and never shows Agras under Scandia" | 9 passed |
+| G8 | the danger zone calls `purgeWorkspace` instead of `archiveWorkspace` | `2 failed \| 16 passed` — `expected "spy" to be called with arguments: [ 'scandia' ]`, "no redesign module names a purge or a delete call" | 18 passed |
+
+**Plants — e2e** (the bundle rebuilt WITH the plant, served on :4418, the
+RO G7 run; the revert is the file restored and the unplanted bundle on
+:4417)
+
+| # | PLANT (product) | Result |
+|---|---|---|
+| G1 | `analyseUpload` sends the company on screen as `targetOrgId` | RED — `spec:120 expect(double.commits[0].target_org_id).toBe(ORG_AGRAS)`: `Expected: "…0000a9" Received: "…000051"` |
+| G7 | a finished analysis the card follows does not open the dashboard | RED — `toHaveURL /dashboard?period=5ea5…a925&org=0a9a…a9`, received `/workspace/0a9a…a9` |
+
+Unplanted, on the hermetic build of 1b11dd66 (`VITE_SUPABASE_URL=http://
+harness.invalid`, `VITE_API_URL=http://engine.invalid`, no `.env` in the
+worktree): `11 passed (4.3m)` — G7 RO 26.0 s and EN 26.0 s (`G6 header
+checks: 6, violations: 0` each), G5-at-runtime 8.3 s, and the 8-run
+screenshot loop (1440 and 390 × dark and Paper × RO and EN: home, the
+confirmation card, the progress held at "computing", the company page, the
+dashboard) → `specs-durable/ws_shots/` (40 PNG). Unmodelled requests, both
+languages: `GET /functions/v1/fx-rates`, `ENGINE GET /api/plan/state`,
+`/api/industry/profiles`, `/api/dashboard/config`,
+`/api/period/…/sector-benchmark` — answered empty by the double, none left
+the machine.
+
+**G5, the grep proof (this tree, tests excluded):** `type="file"` → only
+`components/cfo/upload/UploadDrop.tsx:88` (plus the CSS selector in
+`index.css:542` that EXCLUDES file inputs and the comment at
+`UploadDrop.tsx:15`); `onDrop= / onDragOver= / onDragEnter=` → none;
+`addEventListener("drop"|"dragover")` → only `UploadDrop.tsx:300-302`;
+`dataTransfer.files` → only `UploadDrop.tsx:136` and `:296`;
+`startUploadFlow(` called → only `UploadDrop.tsx:169`, `:297` and
+`lib/uploadFlow.ts:261` (`retryIdentify`).
+
+**Seen on the dashboard capture, not changed here:** the recommendation
+card's "Estimated impact: 277,9 mii RON / year" prints a Romanian
+thousands word inside the English dashboard — an engine narrative string
+served in the envelope (`recommendations[].impact`), outside the redesign
+and outside these gates; reported for the recommendations lane.
