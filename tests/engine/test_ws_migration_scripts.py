@@ -280,6 +280,110 @@ def test_execute_refuses_while_the_archive_hold_guard_is_missing(env):
     assert _migrate(env, "--execute", "--expect-plan-sha", _plan_sha(env), snap=snap) == 0, env["lines"][-6:]
 
 
+BOTH_SQL = "supabase/schema_phase_workspace_purge_now_hold.sql, supabase/schema_phase_archive_hold_guard.sql"
+
+
+def test_the_acceptance_flag_runs_past_missing_hold_guards_under_a_loud_warning(env):
+    """The owner applies the two guard files AFTER the run (2026-09-26).
+    Without --i-accept-missing-archive-guard the refusal is exactly as
+    before; with it the run proceeds, a WARNING block naming the exact SQL
+    files and the risk heads and ends the run output, and the very last
+    line is "SQL STILL TO APPLY: <files>" — as it is for every run whose
+    guard is missing, the dry-run and the refusal included."""
+    fake = env["fake"]
+    fake.rpcs = set()                                     # both guards missing
+    snap = _snapshot(env)
+    assert _migrate(env, snap=snap) == 0
+    assert env["lines"][-2] == "SQL STILL TO APPLY: " + BOTH_SQL and env["lines"][-1].startswith("DRY-RUN")
+    sha = _plan_sha(env)
+    # without the flag: refused exactly as before, the SQL named last
+    env["lines"].clear()
+    assert _migrate(env, "--execute", "--expect-plan-sha", sha, snap=snap) == 2
+    assert "REFUSED: the purge_workspace hold guard is not installed (see HOLD GUARD MISSING)." in env["lines"]
+    assert env["lines"][-1] == "SQL STILL TO APPLY: " + BOTH_SQL
+    assert fake.writes == [] and not any(l.startswith("WARNING") for l in env["lines"])
+    # with the flag: the run proceeds, warned at the top and at the bottom
+    env["lines"].clear()
+    assert _migrate(env, "--execute", "--expect-plan-sha", sha, "--i-accept-missing-archive-guard", snap=snap) == 0, \
+        "\n".join(env["lines"][-12:])
+    lines = env["lines"]
+    warn = [i for i, l in enumerate(lines) if l.startswith("WARNING: HOLD GUARD(S) NOT INSTALLED")]
+    exec_at = next(i for i, l in enumerate(lines) if l.startswith("EXECUTE at"))
+    recount = next(i for i, l in enumerate(lines) if l.startswith("RECOUNT: production equals the plan"))
+    assert len(warn) == 2 and warn[0] < exec_at < recount < warn[1], (warn, exec_at, recount)
+    # the held archives of this plan: the holding workspace and the split Q&A
+    held = [op for op in _plan(env)["ops"] if op.get("table") == "organizations"
+            and (op.get("row") or op.get("set")).get("archived_at") == "$now"
+            and (op.get("row") or op.get("set")).get("purge_after") is None]
+    assert len(held) == 2
+    for start in warn:
+        block = "\n".join(lines[start:start + 9])
+        assert "supabase/schema_phase_workspace_purge_now_hold.sql" in block
+        assert "supabase/schema_phase_archive_hold_guard.sql" in block
+        assert "purged by a direct RPC call" in block and "archives 2 workspace(s) with no deletion date (HELD)" in block
+    assert lines[-1] == "SQL STILL TO APPLY: " + BOTH_SQL
+    assert fake.deletes == []
+    run = json.loads(next((env["tmp"] / "out").glob("run_2026*.json")).read_text())
+    assert run["sql_still_to_apply"] == ["supabase/schema_phase_workspace_purge_now_hold.sql",
+                                         "supabase/schema_phase_archive_hold_guard.sql"]
+
+
+def test_the_acceptance_flag_names_only_the_guard_that_is_missing(env):
+    fake = env["fake"]
+    fake.rpcs = {"workspace_hold_guard_version"}          # only the archive guard missing
+    snap = _snapshot(env)
+    assert _migrate(env, snap=snap) == 0
+    assert env["lines"][-2] == "SQL STILL TO APPLY: supabase/schema_phase_archive_hold_guard.sql"
+    sha = _plan_sha(env)
+    env["lines"].clear()
+    assert _migrate(env, "--execute", "--expect-plan-sha", sha, snap=snap) == 2
+    assert "REFUSED: the archive/restore hold guard is not installed (see ARCHIVE HOLD GUARD MISSING)." in env["lines"]
+    assert env["lines"][-1] == "SQL STILL TO APPLY: supabase/schema_phase_archive_hold_guard.sql" and fake.writes == []
+    env["lines"].clear()
+    assert _migrate(env, "--execute", "--expect-plan-sha", sha, "--i-accept-missing-archive-guard", snap=snap) == 0
+    block = "\n".join(l for l in env["lines"] if l.startswith("WARNING") or l.startswith("  "))
+    assert "schema_phase_archive_hold_guard.sql" in block and "purge_now_hold" not in block
+    assert env["lines"][-1] == "SQL STILL TO APPLY: supabase/schema_phase_archive_hold_guard.sql"
+    # both guards present: no warning, no trailer
+    fake.rpcs = {"workspace_hold_guard_version", "workspace_archive_hold_guard_version"}
+    snap2 = _snapshot(env, "snap2.json.gz")
+    env["lines"].clear()
+    assert _migrate(env, snap=snap2) == 0
+    assert not any("SQL STILL TO APPLY" in l or "GUARD MISSING" in l for l in env["lines"])
+
+
+def test_the_known_identities_file_is_validated_on_load(tmp_path):
+    """A rule that could never match (a misspelt key, no user, neither or
+    both matchers) or that would name a company wrongly (a CUI failing its
+    control digit, a null CUI without a name) is refused by index — never
+    silently ignored."""
+    good = {"user_id": OWNER, "filename_glob": "Balanta Alfa Food_*", "cui": "RO " + SOLO,
+            "company_name": "SOLO SERVICES SRL", "caen_code": "6201", "evidence": "synthetic"}
+    named = {"user_id": OWNER, "content_sha256": "ab" * 32, "cui": None, "company_name": "Carnex"}
+
+    def load(*rules, bare=False):
+        p = tmp_path / "known.json"
+        p.write_text(json.dumps(list(rules) if bare else {"version": 2, "rules": list(rules)}))
+        return migration_cli.load_known_identities(str(p))
+
+    assert load(good, named) == [good, named]
+    assert load(good, bare=True) == [good]
+    assert migration_cli.load_known_identities(None) == []
+    for bad, why in (
+        (dict(good, filename_globb="x"), "unknown key"),
+        ({k: v for k, v in good.items() if k != "user_id"}, "user_id is required"),
+        (dict(good, content_sha256="ab" * 32), "exactly one of"),
+        ({k: v for k, v in good.items() if k != "filename_glob"}, "exactly one of"),
+        (dict(named, content_sha256="zz"), "64 hex"),
+        (dict(good, cui="12345678"), "control digit"),
+        ({k: v for k, v in good.items() if k != "cui"}, "cui is required"),
+        ({k: v for k, v in named.items() if k != "company_name"}, "must name the company"),
+        (dict(good, caen_code="ABCD"), "caen_code"),
+    ):
+        with pytest.raises(SystemExit, match=why):
+            load(good, bad)                                # the bad one is rule #1
+
+
 def _interrupt_on(monkeypatch, nth):
     real = pgrest_io.PgRest.update
     calls = {"n": 0}

@@ -73,7 +73,7 @@ Missing storage objects are listed as STORAGE MISSING; with --apply they
 make the exit 1.
 
 THE HOLD GUARDS. A workspace this script archives is HELD (archived_at
-set, purge_after NULL). Production must carry both guards before any
+set, purge_after NULL). Production should carry both guards before any
 migration run — supabase/schema_phase_workspace_purge_now_hold.sql
 (purge_workspace refuses a held archive) and
 supabase/schema_phase_archive_hold_guard.sql (archive_workspace never
@@ -81,7 +81,11 @@ archives an archived workspace again, so a held one never gets the
 deletion date the cron purge keys on; restore_workspace refuses a held
 archive unless the caller is the service role), each followed by the
 Dashboard "Reload schema cache" click. scripts/workspace_migration.py
---execute refuses while either marker is missing.
+--execute refuses while either marker is missing, unless it is run with
+--i-accept-missing-archive-guard: then it proceeds under a loud WARNING
+and ends with "SQL STILL TO APPLY: <files>" — until that SQL is applied,
+every held archive (and the originals this rollback points documents
+back at) is one direct RPC call from erasure. Apply it right after.
 """
 from __future__ import annotations
 

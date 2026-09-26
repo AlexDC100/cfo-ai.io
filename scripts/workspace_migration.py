@@ -6,7 +6,12 @@ r"""One company per workspace — the migration of existing data.
     #      supabase/schema_phase_workspace_purge_now_hold.sql
     #      supabase/schema_phase_archive_hold_guard.sql
     #    (--execute refuses to create a held archive while either marker is
-    #    missing from PostgREST's OpenAPI document)
+    #    missing from PostgREST's OpenAPI document. When the SQL can only be
+    #    applied AFTER the run, --i-accept-missing-archive-guard executes
+    #    anyway: a loud WARNING block heads and ends the run output naming
+    #    the SQL still to apply, and until it is applied a held archive can
+    #    be purged by a direct RPC call. Every run whose guard is missing
+    #    ends with "SQL STILL TO APPLY: <files>".)
     # 1. snapshot (read-only)
     python3 scripts/db_snapshot.py --out /app/data/ws_migration/snap.json.gz
     # 2. plan (read-only; downloads documents to identify them, writes nothing
@@ -53,12 +58,41 @@ Rows the plan did not touch that changed meanwhile are reported as drift.
 
 Never: a DELETE of a row or a storage object, a write to subscriptions /
 user_usage / billing_events / auth, a Stripe or Anthropic call.
+
+KNOWN IDENTITIES FILE (--known-identities). Operator-verified company
+identities, layered over what each document's own bytes say. JSON:
+
+    {"version": 2, "note": "...", "rules": [
+      {"user_id": "<auth user uuid>",       REQUIRED: the rule applies to this
+                                            user's documents only
+       "content_sha256": "<64 hex>",        EXACTLY ONE OF: the bytes' sha256
+       "filename_glob": "Balanta X_*",        (exact) / a case-insensitive
+                                            fnmatch glob on original_filename
+       "cui": "16070576" | null,            REQUIRED: digits ("RO" prefix
+                                            accepted), must pass the control
+                                            digit; null = a company with no
+                                            known CUI, keyed by company_name
+       "company_name": "X SRL",             required when cui is null; with a
+                                            cui the registry's name wins
+       "caen_code": "1013",                 optional; decides the industry the
+                                            created workspace gets
+       "evidence": "why the operator is sure"}]}
+
+Per document: a content_sha256 rule beats a filename_glob rule; a CUI the
+document itself prints beats any rule (a disagreeing rule is logged as a
+conflict and not applied); a rule with cui null pins a name AND blocks a
+registry name-match from handing the book a stranger's CUI. The file is
+validated on load (unknown keys, a missing user_id, neither or both
+matchers, a CUI failing its control digit, a null CUI without a name:
+refused, naming the rule). It is operator data — real CUIs — never
+committed; it lives beside the snapshot under /app/data/ws_migration/.
 """
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
+import re
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -76,6 +110,7 @@ def _add_src_to_path() -> None:
 _add_src_to_path()
 
 from engine.workspaces import pgrest_io  # noqa: E402
+from engine.workspaces.company_identity import normalize_cui  # noqa: E402
 from engine.workspaces.migration_plan import (  # noqa: E402
     DocFacts,
     build_plan,
@@ -107,29 +142,95 @@ HOLD_GUARD_RPC = "workspace_hold_guard_version"
 #: deletion date) and the restore_workspace guard (a held archive is not
 #: restored by its owner). Read from the OpenAPI document, never called.
 ARCHIVE_HOLD_GUARD_RPC = "workspace_archive_hold_guard_version"
+#: The SQL that installs each guard — named in every run whose guard is
+#: missing, and in the WARNING block of a run made without them.
+PURGE_HOLD_SQL = "supabase/schema_phase_workspace_purge_now_hold.sql"
+ARCHIVE_HOLD_SQL = "supabase/schema_phase_archive_hold_guard.sql"
 
 
-def archives_held_workspaces(ops: Sequence[Mapping[str, Any]]) -> bool:
-    """True when the plan archives a workspace with no deletion date (the
-    holding archive, a split workspace) — one "Delete forever" would erase
-    it unless the purge_workspace hold guard is installed."""
+def held_archives(ops: Sequence[Mapping[str, Any]]) -> int:
+    """How many workspaces the plan archives with no deletion date (the
+    holding archive, a split workspace) — each one "Delete forever" or one
+    direct RPC call from erasure unless the hold guards are installed."""
+    n = 0
     for op in ops:
         if op.get("table") != "organizations":
             continue
         vals = op.get("row") or op.get("set") or {}
         if vals.get("archived_at") == NOW and vals.get("purge_after") is None:
-            return True
-    return False
+            n += 1
+    return n
+
+
+def archives_held_workspaces(ops: Sequence[Mapping[str, Any]]) -> bool:
+    return held_archives(ops) > 0
+
+
+def still_to_apply_line(missing_sql: Sequence[str]) -> str:
+    return "SQL STILL TO APPLY: %s" % ", ".join(missing_sql)
+
+
+def guard_warning_block(missing_sql: Sequence[str], held: int) -> List[str]:
+    """The loud block that heads and ends a run made with
+    --i-accept-missing-archive-guard while a hold guard is not installed."""
+    bar = "#" * 78
+    return [
+        bar,
+        "WARNING: HOLD GUARD(S) NOT INSTALLED — --i-accept-missing-archive-guard given, the run proceeds.",
+        "  This plan archives %d workspace(s) with no deletion date (HELD). Until the SQL below is applied" % held,
+        "  (Supabase Studio, then Dashboard -> Settings -> API -> \"Reload schema cache\"), a held archive can",
+        "  be purged by a direct RPC call: purge_workspace() (\"Delete forever\") erases it, archive_workspace()",
+        "  gives it the deletion date the cron purge keys on, restore_workspace() brings it back live — with",
+        "  the archived periods and the ORIGINAL storage objects the rollback points documents back at.",
+        "  " + still_to_apply_line(missing_sql),
+        bar,
+    ]
 
 
 # ── identities ─────────────────────────────────────────────────────────
 
+RULE_KEYS = frozenset({"user_id", "content_sha256", "filename_glob", "cui", "company_name", "caen_code",
+                       "evidence"})
+
+
 def load_known_identities(path: Optional[str]) -> List[Dict[str, Any]]:
+    """The operator-verified identities (see KNOWN IDENTITIES FILE in the
+    module docstring), validated: a rule that could never match, or that
+    would name a company wrongly, is refused by index — never silently
+    ignored."""
     if not path:
         return []
     raw = json.loads(Path(path).read_text())
     rules = raw.get("rules") if isinstance(raw, dict) else raw
-    return [dict(r) for r in rules or []]
+    if not isinstance(rules, list):
+        raise SystemExit('%s: expected {"rules": [...]} (or a bare list of rules)' % path)
+    out: List[Dict[str, Any]] = []
+    for i, r in enumerate(rules):
+        where = "%s rule #%d" % (path, i)
+        if not isinstance(r, dict):
+            raise SystemExit("%s: not an object" % where)
+        unknown = sorted(set(r) - RULE_KEYS)
+        if unknown:
+            raise SystemExit("%s: unknown key(s) %s — a misspelt key never matches anything (known: %s)"
+                             % (where, unknown, sorted(RULE_KEYS)))
+        if not str(r.get("user_id") or "").strip():
+            raise SystemExit("%s: user_id is required — a rule applies to one user's documents only" % where)
+        sha, glob = r.get("content_sha256"), r.get("filename_glob")
+        if bool(sha) == bool(glob):
+            raise SystemExit("%s: exactly one of content_sha256 / filename_glob" % where)
+        if sha and not re.fullmatch(r"[0-9a-fA-F]{64}", str(sha)):
+            raise SystemExit("%s: content_sha256 must be the 64 hex digits of the bytes' sha256" % where)
+        if "cui" not in r:
+            raise SystemExit("%s: cui is required — a digits string, or null for a company with no known CUI"
+                             % where)
+        if r["cui"] is not None and normalize_cui(r["cui"]) is None:
+            raise SystemExit("%s: cui %r fails the control digit" % (where, r["cui"]))
+        if r["cui"] is None and not str(r.get("company_name") or "").strip():
+            raise SystemExit("%s: a rule with cui null must name the company (company_name)" % where)
+        if r.get("caen_code") is not None and not re.fullmatch(r"\d{2,4}", str(r["caen_code"]).strip()):
+            raise SystemExit("%s: caen_code must be 2 to 4 digits" % where)
+        out.append(dict(r))
+    return out
 
 
 def open_registry(path: Optional[str], disabled: bool) -> Any:
@@ -343,6 +444,10 @@ def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=p
                                               "refuse unless the recomputed plan hashes to this")
     ap.add_argument("--resume", action="store_true",
                     help="execute although production drifted from the snapshot (an interrupted run)")
+    ap.add_argument("--i-accept-missing-archive-guard", action="store_true",
+                    help="execute although a hold guard is not installed: a loud WARNING heads and ends the run, "
+                         "which proceeds; until the named SQL is applied a held archive can be purged by a "
+                         "direct RPC call")
     args = ap.parse_args(argv)
     if args.execute and not args.snapshot:
         raise SystemExit("--execute needs --snapshot")
@@ -409,20 +514,30 @@ def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=p
         if touched:  # structural guard; the planner never emits these
             out("REFUSED: the plan writes billing tables %s" % sorted(touched))
             return 2
-        holds = archives_held_workspaces(plan.ops)
-        hold_unguarded = holds and not db.has_rpc(HOLD_GUARD_RPC)
-        if hold_unguarded:
+        held = held_archives(plan.ops)
+        missing_sql: List[str] = []
+        if held and not db.has_rpc(HOLD_GUARD_RPC):
+            missing_sql.append(PURGE_HOLD_SQL)
             out("HOLD GUARD MISSING: the plan archives workspaces with no deletion date, and "
                 "purge_workspace() would let their owner erase them (and the originals the rollback "
-                "needs). Apply supabase/schema_phase_workspace_purge_now_hold.sql, reload the schema "
-                "cache, then execute.")
-        archive_unguarded = holds and not db.has_rpc(ARCHIVE_HOLD_GUARD_RPC)
-        if archive_unguarded:
+                "needs). Apply %s, reload the schema cache, then execute." % PURGE_HOLD_SQL)
+        if held and not db.has_rpc(ARCHIVE_HOLD_GUARD_RPC):
+            missing_sql.append(ARCHIVE_HOLD_SQL)
             out("ARCHIVE HOLD GUARD MISSING: the plan archives workspaces with no deletion date, and "
                 "archive_workspace() would give one a deletion date (the cron purge erases it 30 days "
                 "later) while restore_workspace() would let its owner bring it back live. Apply "
-                "supabase/schema_phase_archive_hold_guard.sql, reload the schema cache, then execute.")
+                "%s, reload the schema cache, then execute." % ARCHIVE_HOLD_SQL)
+
+        def trailer() -> None:
+            """The final lines of every run whose guard is missing."""
+            if missing_sql:
+                if args.execute and args.i_accept_missing_archive_guard:
+                    for line in guard_warning_block(missing_sql, held):
+                        out(line)
+                out(still_to_apply_line(missing_sql))
+
         if not args.execute:
+            trailer()
             out("DRY-RUN: nothing was written to production.")
             return 0
 
@@ -432,12 +547,17 @@ def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=p
         if plan.blocking:
             out("REFUSED: %d blocking item(s) — see BLOCKING above" % len(plan.blocking))
             return 2
-        if hold_unguarded:
-            out("REFUSED: the purge_workspace hold guard is not installed (see HOLD GUARD MISSING).")
+        if missing_sql and not args.i_accept_missing_archive_guard:
+            if PURGE_HOLD_SQL in missing_sql:
+                out("REFUSED: the purge_workspace hold guard is not installed (see HOLD GUARD MISSING).")
+            else:
+                out("REFUSED: the archive/restore hold guard is not installed (see ARCHIVE HOLD GUARD MISSING).")
+            trailer()
             return 2
-        if archive_unguarded:
-            out("REFUSED: the archive/restore hold guard is not installed (see ARCHIVE HOLD GUARD MISSING).")
-            return 2
+        if missing_sql:
+            # Accepted explicitly: the loud block heads the run output …
+            for line in guard_warning_block(missing_sql, held):
+                out(line)
         if not plan.ops:
             out("NOTHING TO DO: the plan is empty (already migrated).")
             return 0
@@ -508,7 +628,8 @@ def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=p
             check["problems"].append("RE-DATED %s" % line)
         run_log = {"run_at": run_ts, "plan_sha256": plan.ops_sha256(), "done": done,
                    "problems": check["problems"], "drift": check["drift"],
-                   "g4_empty_live_periods": g4, "cross_workspace_links": links}
+                   "g4_empty_live_periods": g4, "cross_workspace_links": links,
+                   "sql_still_to_apply": missing_sql}
         (out_dir / ("run_%s.json" % run_ts.replace(":", "").replace("+", "_"))).write_text(
             json.dumps(run_log, indent=1, default=str))
         for d in check["drift"][:50]:
@@ -520,8 +641,10 @@ def main(argv=None, *, client_factory: Optional[Callable[[], Any]] = None, out=p
         if check["problems"]:
             out("RECOUNT: FAILED — %d mismatch(es); rollback: db_restore.py %s --plan %s [--apply]"
                 % (len(check["problems"]), args.snapshot, out_dir / ("plan_%s.json" % date)))
+            trailer()   # … and ends it, whatever the verdict
             return 1
         out("RECOUNT: production equals the plan (%d drift line(s) outside it)" % len(check["drift"]))
+        trailer()
         return 0
     finally:
         close = getattr(client, "close", None)
