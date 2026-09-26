@@ -216,6 +216,92 @@ for (const lang of ["ro", "en"] as const) {
       expect(double.unhandled.filter((u) => u.startsWith("THREW"))).toEqual([]);
       console.log(`[workspace-v2] G6 company-page→Dashboard checks (${lang}): ${watch.checks}, violations: ${watch.violations.length}`);
     });
+
+    // G6, the comparison (live walkthrough, 2026-09-26). Scandia Food's
+    // dashboard, then another company's analysed period: the Overview
+    // printed "No comparison: period '<Scandia's id>' is not in this
+    // workspace". The "compare with" choice was ONE browser-wide value (and
+    // Scandia's company preference), so the dashboard asked the engine to
+    // compare the next company's period with Scandia's, and printed the
+    // engine's refusal line, raw id and all. Rule: after a company switch no
+    // request names a period of the company left behind; the prior is only
+    // ever one of the current company's own periods; a company with one
+    // period shows no comparison and no error; no raw id reaches the screen.
+    test("G6 — a company switch carries no period of the company left behind into any request, and no raw id to the screen", async ({ page }) => {
+      const COLUMNS = { prior: true, delta: true, deltaPct: true, share: true };
+      const double = new WorkspaceDouble({ theme: "light", language: lang });
+      // Agras has its analysed year from the start; Scandia's reader had
+      // chosen a comparison, synced to Scandia's company preferences.
+      double.periods[ORG_AGRAS].push(AGRAS);
+      double.orgPrefs[ORG_SCANDIA].comparatives_view = { priorPeriodId: SCANDIA_PERIOD, columns: COLUMNS };
+      await double.install(page);
+      // What every browser that used the dashboard before this fix holds:
+      // ONE "compare with" choice, under a key naming no company.
+      await page.addInitScript(
+        ({ value }) => {
+          try {
+            localStorage.setItem("cfo:comparatives-view:v1", value);
+          } catch {
+            /* ignore */
+          }
+        },
+        { value: JSON.stringify({ priorPeriodId: SCANDIA_PERIOD, columns: COLUMNS }) },
+      );
+      const watch = await installHeaderWatch(page, NAMES, OWNERS);
+      const header = page.getByTestId("header-command-bar");
+      const dashboardRow = page.locator('aside [data-testid="sidebar-dashboard"]').first();
+
+      // ── Scandia's dashboard, the way the owner opened it ───────────
+      await page.goto(`/workspace/${ORG_SCANDIA}`, { waitUntil: "domcontentloaded" });
+      await expect(page.getByTestId("company-title")).toHaveText("Scandia Food SRL", { timeout: 20_000 });
+      await dashboardRow.click();
+      await expect(page).toHaveURL(new RegExp(`/dashboard\\?period=${SCANDIA_PERIOD}&org=${ORG_SCANDIA}`));
+      await expect(header).toContainText("Scandia Food SRL", { timeout: 20_000 });
+      await expect(page.locator("body")).toContainText(millions(SCANDIA_REVENUE, lang), { timeout: 30_000 });
+
+      // ── The switch: Agras's company page, then its Dashboard ───────
+      // From the switch on, nothing asked of Agras names a Scandia period;
+      // once Agras's page is up, nothing at all does (a request Scandia's
+      // page sent for its own period as it was left is Scandia's, under
+      // Scandia's X-Org-Id — not a leak).
+      const switchedAt = double.requests.length;
+      await page.goto(`/workspace/${ORG_AGRAS}`, { waitUntil: "domcontentloaded" });
+      await expect(page.getByTestId("company-title")).toHaveText("Agras SRL", { timeout: 20_000 });
+      const mark = double.requests.length;
+      await expect(dashboardRow).toHaveAttribute("href", `/dashboard?period=${AGRAS_PERIOD}&org=${ORG_AGRAS}`);
+      await dashboardRow.click();
+      await expect(page).toHaveURL(new RegExp(`/dashboard\\?period=${AGRAS_PERIOD}&org=${ORG_AGRAS}`));
+      await expect(header).toContainText("Agras SRL", { timeout: 20_000 });
+      await expect(page.locator("body")).toContainText(millions(AGRAS_REVENUE, lang), { timeout: 30_000 });
+      // Every request the page makes on arrival has had its chance to fire.
+      await page.waitForTimeout(2_500);
+
+      const namesScandia = (r: { path: string; search: string }) => `${r.path}${r.search}`.includes(SCANDIA_PERIOD);
+      const askedOfAgras = double.requests.slice(switchedAt).filter((r) => r.org === ORG_AGRAS && namesScandia(r));
+      expect(askedOfAgras, "a request asked of Agras named a period of Scandia's").toEqual([]);
+      const after = double.requests.slice(mark);
+      const foreign = after.filter(namesScandia);
+      expect(foreign, "a request after the switch named a period of Scandia's").toEqual([]);
+      expect(
+        double.comparisons.filter((c) => c.org === ORG_AGRAS),
+        "Agras has one analysed year: there is nothing to compare it with",
+      ).toEqual([]);
+      const text = await page.locator("body").innerText();
+      expect(text).not.toContain(SCANDIA_PERIOD);
+      expect(text).not.toMatch(/not in this workspace|nu este în acest spațiu/i);
+      const states = await page
+        .locator("[data-prior-state]")
+        .evaluateAll((els) => els.map((e) => e.getAttribute("data-prior-state")));
+      expect(states.filter((st) => st === "refused" || st === "failed")).toEqual([]);
+
+      expect(watch.violations).toEqual([]);
+      expect(double.unhandled.filter((u) => u.startsWith("THREW"))).toEqual([]);
+      console.log(
+        `[workspace-v2] G6 company switch (${lang}): ${after.length} requests after the switch, ` +
+          `${foreign.length} naming Scandia's period, comparisons asked of Agras: ` +
+          `${double.comparisons.filter((c) => c.org === ORG_AGRAS).length}`,
+      );
+    });
   });
 }
 

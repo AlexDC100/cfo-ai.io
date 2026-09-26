@@ -511,10 +511,19 @@ describe("§7 a book with no comparison claims none", () => {
 
 describe("§7b a comparison that was refused, failed or is pending is stated as such — never as a missing prior", () => {
   const CASES: [string, { data?: unknown; isError?: boolean }, RegExp, string][] = [
+    // The refusal is stated as the sentence for its CODE, never as the
+    // engine's message (lib/comparisonRefusal.ts): here a code the route
+    // does not use, so the general sentence.
     [
       "refused by the engine",
       { data: { kind: "refused", code: "prior_not_servable", message: "the prior period carries no statements block" } },
-      /the engine refused the comparison \(prior_not_servable\): the prior period carries no statements block/,
+      /the engine refused the comparison \(prior_not_servable\): these two periods can't be compared/,
+      "comparison refused",
+    ],
+    [
+      "refused as another company's period",
+      { data: { kind: "refused", code: "period_not_in_workspace", message: "period '5ea50000-0000-4000-8000-0000000051f5' is not in this workspace" } },
+      /the engine refused the comparison \(period_not_in_workspace\): the comparison period belongs to another company/,
       "comparison refused",
     ],
     ["failed with a status", { data: { kind: "error", status: 502 } }, /the comparison request failed \(HTTP 502\)/, "comparison failed"],
@@ -549,6 +558,8 @@ describe("§7b a comparison that was refused, failed or is pending is stated as 
     expect(text(doc.querySelector('[data-report-credit-movement="absent"]'))).toMatch(rx);
     expect(html).not.toContain("no prior period was supplied");
     expect(html).not.toContain(NO_COMPARATIVES_NOTE);
+    // The engine's message never reaches the report: a raw period id is not a sentence.
+    expect(html).not.toContain("5ea50000-0000-4000-8000-0000000051f5");
 
     const wb = buildExcelWorkbook(st, undefined, surfaces.creditEnvelopes);
     const rows = XLSX.utils.sheet_to_json(wb.Sheets.Ratios, { header: 1, raw: false, defval: "" }) as string[][];
@@ -561,6 +572,7 @@ describe("§7b a comparison that was refused, failed or is pending is stated as 
       const all = (XLSX.utils.sheet_to_json(wb.Sheets[sheet], { header: 1, raw: false, defval: "" }) as string[][]).flat().join("\n");
       expect(all, sheet).not.toContain("no prior period was supplied");
       expect(all, sheet).not.toContain(NO_COMPARATIVES_NOTE);
+      expect(all, sheet).not.toContain("5ea50000-0000-4000-8000-0000000051f5");
     }
     const pl = XLSX.utils.sheet_to_json(wb.Sheets["P&L"], { header: 1, raw: false, defval: "" }) as string[][];
     expect(pl[0][2]).toBe(heading);

@@ -99,31 +99,51 @@ export function subscribePrefs(cb: (scope: PrefScope) => void): () => void {
 // Both are fixed by remembering what this device wrote and letting it win.
 // A pending write is cleared only when the server confirms it, so case 2
 // degrades to "device-local", which is this module's stated contract.
-const pendingWrites = new Map<string, unknown>();
+//
+// A COMPANY write belongs to the company it was made for (2026-09-26, the
+// live walkthrough: a comparison period chosen on Scandia's dashboard came
+// back on EEI's as "period '<id>' is not in this workspace"). The pending
+// map used to be keyed by the bag key alone, so an unconfirmed Scandia write
+// was overlaid onto the NEXT company's freshly read bag — and the RPC read
+// the active company when it fired, after `await getSession()`, so a switch
+// landing in between sent Scandia's value into EEI's `org_prefs`. Company
+// writes are now keyed by the company they were made for, captured when the
+// setter runs, and only that company's writes shadow its bag.
+const pendingUserWrites = new Map<string, unknown>();
+const pendingOrgWrites = new Map<string, Map<string, unknown>>();
 
-function writeKey(scope: PrefScope, key: string): string {
-  return `${scope}:${key}`;
+function pendingFor(scope: PrefScope, orgId: string | null): Map<string, unknown> | null {
+  if (scope === "user") return pendingUserWrites;
+  return orgId ? pendingOrgWrites.get(orgId) ?? null : null;
 }
 
-/** Overlay this device's unconfirmed writes onto a freshly-read bag. */
-function applyPendingWrites(scope: PrefScope, bag: Bag): Bag {
+/** Overlay this device's unconfirmed writes onto a freshly-read bag — for
+ *  the company scope, only the writes made for THAT company. */
+function applyPendingWrites(scope: PrefScope, bag: Bag, orgId: string | null = null): Bag {
+  const pending = pendingFor(scope, orgId);
+  if (!pending) return bag;
   let out = bag;
-  for (const [k, value] of pendingWrites) {
-    const [s, ...rest] = k.split(":");
-    if (s !== scope) continue;
-    out = { ...out, [rest.join(":")]: value };
-  }
+  for (const [key, value] of pending) out = { ...out, [key]: value };
   return out;
 }
 
 /** Remote value for `key`, or undefined when unset / not yet hydrated.
- *  An unconfirmed local write shadows the server value (see above). */
+ *  An unconfirmed local write shadows the server value (see above) — for
+ *  the company scope, only a write made for the company whose bag this is. */
 export function getRemotePref<T>(scope: PrefScope, key: string): T | undefined {
-  const pending = pendingWrites.get(writeKey(scope, key));
+  const pending = pendingFor(scope, scope === "org" ? orgBagFor : null)?.get(key);
   if (pending !== undefined) return pending as T;
   const bag = scope === "user" ? userBag : orgBag;
   if (!bag) return undefined;
   return bag[key] as T | undefined;
+}
+
+/** The company whose bag the company scope holds (or is reading): the one
+ *  `hydrateOrgPrefs` was last called for. Null when none. A store that is
+ *  itself scoped to a company compares against this before it adopts a
+ *  remote value or writes one. */
+export function prefsOrgId(): string | null {
+  return orgBagFor;
 }
 
 /** True once the scope's bag has been read from the server at least once. */
@@ -183,7 +203,7 @@ export async function hydrateOrgPrefs(orgId: string | null): Promise<void> {
     return;
   }
   if (orgBagFor !== orgId) return; // switched again mid-flight
-  orgBag = applyPendingWrites("org", (data?.prefs as Bag | null) ?? {});
+  orgBag = applyPendingWrites("org", (data?.prefs as Bag | null) ?? {}, orgId);
   emit("org");
 }
 
@@ -192,7 +212,8 @@ export function resetPrefs(): void {
   userBag = null;
   orgBag = null;
   orgBagFor = null;
-  pendingWrites.clear();
+  pendingUserWrites.clear();
+  pendingOrgWrites.clear();
 }
 
 // ── Writes ─────────────────────────────────────────────────────────────
@@ -203,6 +224,14 @@ export function resetPrefs(): void {
  * rather than blocking the interaction.
  */
 export function setPref(scope: PrefScope, key: string, value: unknown): void {
+  // THE COMPANY THIS WRITE IS FOR, read NOW: `orgBagFor` rather than reading
+  // lib/org.ts — keeping this module free of that import avoids a cycle,
+  // since org.ts drives hydration here. Read again after the session await
+  // below it could already name the NEXT company.
+  const forOrg = scope === "org" ? orgBagFor : null;
+  // No company bag yet: the write cannot be attributed to a company, so it
+  // stays device-local (the caller has already written localStorage).
+  if (scope === "org" && !forOrg) return;
   // Optimistic local mirror so a subsequent getRemotePref sees the new value.
   if (scope === "user") {
     if (userBag) userBag = { ...userBag, [key]: value };
@@ -211,8 +240,13 @@ export function setPref(scope: PrefScope, key: string, value: unknown): void {
   }
   // Hold the write until the server confirms it, so a hydration that raced
   // the RPC (or an RPC that failed outright) can't revert the user's choice.
-  const wk = writeKey(scope, key);
-  pendingWrites.set(wk, value);
+  let pending = pendingFor(scope, forOrg);
+  if (!pending && forOrg) {
+    pending = new Map<string, unknown>();
+    pendingOrgWrites.set(forOrg, pending);
+  }
+  pending!.set(key, value);
+  const held = pending!;
 
   const client = getSupabase();
   // No Supabase (signed-out / self-host): the choice is device-local and the
@@ -231,20 +265,17 @@ export function setPref(scope: PrefScope, key: string, value: unknown): void {
       if (error) { warn(`setPref(user:${key})`, error.message); return; }
       // Confirmed — later reads can come from the server again. Guard against
       // clearing a NEWER write that landed while this request was in flight.
-      if (pendingWrites.get(wk) === value) pendingWrites.delete(wk);
+      if (held.get(key) === value) held.delete(key);
       return;
     }
 
-    // `orgBagFor` rather than reading lib/org.ts — keeping this module free of
-    // that import avoids a cycle, since org.ts drives hydration here.
-    if (!orgBagFor) return;
     const { error } = await client.rpc("set_org_pref", {
-      p_org_id: orgBagFor,
+      p_org_id: forOrg,
       p_key: key,
       p_value: value ?? null,
     });
     if (error) { warn(`setPref(org:${key})`, error.message); return; }
-    if (pendingWrites.get(wk) === value) pendingWrites.delete(wk);
+    if (held.get(key) === value) held.delete(key);
   })();
 }
 
@@ -266,17 +297,28 @@ export function usePrefSync<T>(
   key: string,
   value: T,
   onAdopt: (remote: T) => void,
+  /** A company-scoped store names the company it holds (null: none yet).
+   *  Only THAT company's bag is then adopted, and a change of company starts
+   *  the hand-over afresh. Omitted: whichever company bag is hydrated. */
+  owner?: string | null,
 ): void {
   // The last remote value handed to onAdopt. Adopters are allowed to
   // NORMALIZE what they receive (drop unknown keys, coerce types), so the
   // post-adopt local value may legitimately never equal the remote one —
   // without this ref that too would re-adopt forever. Each distinct remote
-  // value is handed over exactly once.
+  // value is handed over exactly once — per company, for a store that names
+  // its company.
   const lastAdopted = useRef<string | null>(null);
+  const lastOwner = useRef<string | null | undefined>(owner);
 
   useEffect(() => {
+    if (lastOwner.current !== owner) {
+      lastOwner.current = owner;
+      lastAdopted.current = null;
+    }
     function check() {
       if (!prefsHydrated(scope)) return;
+      if (owner !== undefined && scope === "org" && (!owner || orgBagFor !== owner)) return;
       const remote = getRemotePref<T>(scope, key);
       if (remote === undefined || remote === null) return;
       const remoteStr = stableStringify(remote);
@@ -292,5 +334,5 @@ export function usePrefSync<T>(
     return subscribePrefs((changed) => {
       if (changed === scope) check();
     });
-  }, [scope, key, value, onAdopt]);
+  }, [scope, key, value, onAdopt, owner]);
 }

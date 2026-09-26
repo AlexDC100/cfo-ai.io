@@ -63,7 +63,7 @@ export interface FlowChoice {
   edited: { company: boolean; period: boolean; industry: boolean };
 }
 
-export type FlowErrorCode = "unsupported" | "wrong_kind" | "identify" | "commit" | "refused" | "cancelled";
+export type FlowErrorCode = "unsupported" | "wrong_kind" | "identify" | "commit" | "refused" | "cancelled" | "cap";
 
 export interface FlowState {
   phase: FlowPhase;
@@ -74,7 +74,13 @@ export interface FlowState {
   choice: FlowChoice | null;
   /** Set for phase "duplicate": the analysed period this file already backs. */
   duplicate: { documentId: string; periodId: string | null; orgId: string; companyName: string } | null;
-  error: { code: FlowErrorCode; message: string | null; kind?: KindMismatch } | null;
+  error: {
+    code: FlowErrorCode;
+    message: string | null;
+    kind?: KindMismatch;
+    /** code "cap": the plan and the number of companies it allows. */
+    cap?: { plan: string; count: number };
+  } | null;
   /** Phase "progress": the job this card is following. */
   jobDocId: string | null;
   /** More than one file was dropped; the card took the first. */
@@ -295,9 +301,20 @@ export function showJobInFlow(docId: string): void {
 }
 
 export type AnalyseOutcome =
-  | { kind: "queued"; docId: string; orgId: string; companyName: string; created: boolean }
+  | {
+      kind: "queued";
+      docId: string;
+      orgId: string;
+      companyName: string;
+      created: boolean;
+      /** The user's empty workspace became the company (renamed). */
+      adopted: boolean;
+    }
   /** The plan asks first (402); nothing was stored. Confirm, then Analyse again. */
   | { kind: "needs_confirmation"; confirmation: ExtraDocConfirmation }
+  /** A new company would pass the plan's company cap (402); nothing was
+   *  stored. The card says so and offers the upgrade or an existing company. */
+  | { kind: "cap_reached" }
   | { kind: "duplicate" }
   | { kind: "refused" }
   | { kind: "failed" }
@@ -367,14 +384,27 @@ export async function analyseUpload(opts: { confirmExtra?: boolean } = {}): Prom
     setFlow({ ...flow, phase: "confirm", error: null });
     return { kind: "needs_confirmation", confirmation: res.confirmation };
   }
+  if (res.status === "cap_reached") {
+    // Back to the card, choice intact: it says how many companies the plan
+    // allows — never "We couldn't save the file" — with the upgrade and the
+    // choice of one of the user's companies.
+    setFlow({
+      ...flow,
+      phase: "confirm",
+      error: { code: "cap", message: null, cap: { plan: res.plan, count: res.cap } },
+    });
+    return { kind: "cap_reached" };
+  }
   return {
     kind: "queued",
     docId: res.document_id,
     orgId: res.org_id,
     companyName: res.company_name || choiceCompanyName(choice),
     // The engine says whether it made a company (a "new" CUI it already
-    // holds is reused, not duplicated); the choice is the fallback.
-    created: res.created_company ?? created,
+    // holds is reused, not duplicated; an empty workspace is adopted, not
+    // duplicated); the choice is the fallback.
+    created: res.adopted_company ? false : res.created_company ?? created,
+    adopted: res.adopted_company === true,
   };
 }
 

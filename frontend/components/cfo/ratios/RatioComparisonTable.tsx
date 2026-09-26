@@ -13,6 +13,8 @@
 
 import { useTranslation } from "react-i18next";
 
+import { comparisonRefusalKey } from "@/lib/comparisonRefusal";
+
 import type { ChipTone } from "@/components/instrument/Panel";
 import {
   RATIO_DELTA_SECONDARY_CLOSE,
@@ -52,14 +54,16 @@ export function toneText(tone: ChipTone): string {
 }
 
 /** Why no prior is printed, when none is: said once, in the reader's
- *  language, never left to an empty column. */
+ *  language, never left to an empty column. A refusal is the sentence for
+ *  the engine's refusal CODE — never the engine's message, which can carry
+ *  a raw period id (lib/comparisonRefusal.ts). */
 export function PriorStateNote({ view }: { view: RatioCompareView }) {
   const { t } = useTranslation();
   const p = view.prior;
   if (p.kind === "compared") return null;
   const text =
     p.kind === "refused"
-      ? t("statements.ratioCmp.ui.comparisonRefused", { message: p.message })
+      ? t("statements.ratioCmp.ui.comparisonRefused", { message: t(comparisonRefusalKey(p.code)) })
       : p.kind === "without_ratios"
         ? t("statements.ratioCmp.ui.comparisonWithoutRatios", { prior: p.priorLabel })
         : p.kind === "loading"

@@ -63,6 +63,7 @@
 //    (`comparatives.priorServedFiguresOf`) — is compared on those; a
 //    prior without them keeps the `deriveTotals` reading, unchanged.
 
+import { comparisonRefusalEnglishInline } from "@/lib/comparisonRefusal";
 import {
   deriveTotals,
   type PriorPeriod,
@@ -150,7 +151,9 @@ const NO_PRIOR = "no prior period was supplied with this book";
 export type ExportComparisonState =
   | { kind: "none" }
   | { kind: "served" }
-  | { kind: "refused"; code: string; message: string }
+  /** The refusal CODE; printed as its sentence (lib/comparisonRefusal.ts),
+   *  never as the engine's message, which can carry a raw period id. */
+  | { kind: "refused"; code: string }
   | { kind: "failed"; status: number }
   | { kind: "pending" };
 
@@ -163,7 +166,9 @@ export function comparisonOutcomeSentence(
 ): string | null {
   const c = s.comparison ?? null;
   if (!c || c.kind === "none" || c.kind === "served") return null;
-  if (c.kind === "refused") return `the engine refused the comparison (${c.code}): ${c.message} — so ${consequence}`;
+  if (c.kind === "refused") {
+    return `the engine refused the comparison (${c.code}): ${comparisonRefusalEnglishInline(c.code)} — so ${consequence}`;
+  }
   if (c.kind === "failed") {
     return `the comparison request failed (HTTP ${c.status}${c.status === 0 ? ", no response" : ""}), so ${consequence}`;
   }

@@ -604,7 +604,9 @@
       "loading": "Comparăm perioadele…",
       "priorAbsentBs": "{{label}} nu are o linie corespunzătoare",
       "refusedSame": "O perioadă nu poate fi comparată cu ea însăși.",
-      "refusedNotInWorkspace": "Perioada de comparație nu este în acest spațiu de lucru."
+      "refusedNotInWorkspace": "Perioada de comparație aparține altei companii.",
+      "refusedNotServable": "Perioada de comparație nu are cifre analizate de comparat.",
+      "refusedGeneric": "Aceste două perioade nu pot fi comparate."
     },
     "ratioCmp": {
       "unit": {
@@ -3866,6 +3868,7 @@
       "periodValue": "încheiată la {{date}}",
       "newCompany": "Companie nouă",
       "newCompanyNote": "Niciuna dintre companiile tale nu are CUI-ul ăsta. Analizează creează compania.",
+      "adoptNote": "Folosim spațiul tău gol pentru această companie.",
       "noCuiNote": "N-am găsit CUI-ul în document, așa că îl punem la {{company}}. Schimbă dacă nu e bine.",
       "otherCompanyNote": "Documentul ăsta e al companiei {{company}}, nu al celei deschise acum.",
       "pickPeriod": "Documentul nu spune ce perioadă acoperă. Alege-o la Modifică.",
@@ -3909,6 +3912,14 @@
       "title": "Deja încărcat",
       "body": "Exact fișierul ăsta e deja analizat pentru {{company}}. Nu l-am salvat din nou și nu se numără.",
       "open": "Deja încărcat — deschide"
+    },
+    "cap": {
+      "body_one": "Planul tău permite {{count}} companie — fișierul ăsta ar fi o companie nouă.",
+      "body_few": "Planul tău permite {{count}} companii — fișierul ăsta ar fi o companie nouă.",
+      "body_other": "Planul tău permite {{count}} de companii — fișierul ăsta ar fi o companie nouă.",
+      "hint": "Treci la un plan superior ca s-o adaugi sau pune fișierul într-una dintre companiile tale.",
+      "choose": "Alege una dintre companiile tale",
+      "upgrade": "Vezi planurile"
     },
     "errors": {
       "unsupported": "Nu putem citi tipul ăsta de fișier. Folosește PDF, Excel (.xlsx, .xls), CSV sau o poză.",

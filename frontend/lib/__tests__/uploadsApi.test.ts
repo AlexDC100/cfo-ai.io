@@ -68,6 +68,17 @@ describe("POST /api/uploads/identify", () => {
     expect(() => normalizeIdentify({ identity: {} })).toThrow(UploadApiError);
   });
 
+  // A new account's first balance: its empty, CUI-less workspace becomes the
+  // company (live walkthrough, 2026-09-26) — the reason travels as the engine
+  // said it, never folded into "new company".
+  it("the empty-workspace adoption keeps its own reason", () => {
+    const n = normalizeIdentify({
+      ...IDENTIFY_BODY,
+      target: { org_id: "org-empty", name: "Nou Business SRL", is_new: true, reason: "adopt_empty_workspace" },
+    });
+    expect(n.target).toEqual({ org_id: "org-empty", name: "Nou Business SRL", is_new: true, reason: "adopt_empty_workspace" });
+  });
+
   it("a duplicate carries document, period and company", () => {
     const n = normalizeIdentify({ ...IDENTIFY_BODY, duplicate: { document_id: "d1", period_id: "p1", org_id: "agras" } });
     expect(n.duplicate).toEqual({ document_id: "d1", period_id: "p1", org_id: "agras" });
@@ -140,6 +151,34 @@ describe("POST /api/uploads/commit", () => {
     });
   });
 
+  // Live walkthrough, 2026-09-26: the commit answered 500 at the plan's
+  // workspace cap and the card read "We couldn't save the file". The engine
+  // now answers 402 {code: "workspace_cap_reached", plan, cap, message}; the
+  // client carries it TYPED, so the card can say it in words.
+  it("402 workspace_cap_reached → the plan's company cap, typed — not a refusal to save", async () => {
+    fetchMock.mockResolvedValue(
+      json(402, {
+        detail: {
+          code: "workspace_cap_reached",
+          plan: "trial",
+          cap: 1,
+          message: "Your plan allows 1 company. Upgrade to add another, or choose one of your companies for this file.",
+        },
+      }),
+    );
+    const res = await commitUpload({
+      file: new File(["x"], "b.xls"),
+      createCompany: { name: "Nou SRL", cui: "RO1", caen_code: null, industry_key: null },
+      periodEnd: "2025-12-31",
+    });
+    expect(res).toEqual({
+      status: "cap_reached",
+      plan: "trial",
+      cap: 1,
+      message: "Your plan allows 1 company. Upgrade to add another, or choose one of your companies for this file.",
+    });
+  });
+
   it("a confirmed extra rides on the commit as confirm_extra=1 — and only when confirmed", async () => {
     fetchMock.mockImplementation(async () =>
       json(200, { status: "queued", document_id: "d9", org_id: "agras", company_name: "Agras SA" }),
@@ -160,6 +199,20 @@ describe("POST /api/uploads/commit", () => {
       periodEnd: "2025-12-31",
     });
     expect(res).toEqual({ status: "queued", document_id: "d3", org_id: "o", company_name: "C SRL", created_company: false });
+  });
+
+  it("the engine's word that the empty workspace became the company travels through", async () => {
+    fetchMock.mockResolvedValue(
+      json(200, { status: "queued", document_id: "d4", org_id: "org-empty", company_name: "Nou Business SRL",
+                  created_company: false, adopted_company: true, period_end: "2025-12-31" }),
+    );
+    const res = await commitUpload({
+      file: new File(["x"], "b.xls"),
+      createCompany: { name: "Nou Business SRL", cui: "RO46355095", caen_code: null, industry_key: null },
+      periodEnd: "2025-12-31",
+    });
+    expect(res).toEqual({ status: "queued", document_id: "d4", org_id: "org-empty", company_name: "Nou Business SRL",
+                          created_company: false, adopted_company: true });
   });
 
   it("403 (not my company) is a refusal with the engine's words", async () => {

@@ -177,6 +177,42 @@ export async function deleteEmptyPeriod(periodId: string): Promise<string | null
   return error ? error.message : null;
 }
 
+/** One company's analysed periods, newest month first — and WHOSE they are. */
+export interface CompanyPeriods {
+  orgId: string;
+  periods: OrgPeriod[];
+}
+
+/** The cache key of one company's periods. Under the `periods-with-documents`
+ *  prefix, so every invalidation of that family refreshes it too. */
+export const companyPeriodsQueryKey = (orgId: string) =>
+  ["periods-with-documents", "company", orgId] as const;
+
+/**
+ * THE PERIODS OF ONE NAMED COMPANY — not "the active workspace's" at whatever
+ * moment the request happens to fire. The company is in the cache key and in
+ * the request (`fetchOrgPeriodsFor` sends it as X-Org-Id, which the engine
+ * validates), and the answer carries it, so a reader can hold the list to the
+ * company it is about. The comparison picker reads its candidates from here
+ * (2026-09-26: a prior chosen on one company's dashboard was requested on the
+ * next company's). Non-empty periods only, newest month first.
+ */
+export function useCompanyPeriods(orgId: string | null) {
+  return useQuery({
+    queryKey: companyPeriodsQueryKey(orgId ?? ""),
+    queryFn: async (): Promise<CompanyPeriods | null> => {
+      const payload = await fetchOrgPeriodsFor(orgId as string);
+      if (!payload) return null;
+      const periods = payload.periods
+        .filter((p) => p.documents.length > 0)
+        .sort((a, b) => (b.period_end ?? "").localeCompare(a.period_end ?? ""));
+      return { orgId: orgId as string, periods };
+    },
+    enabled: !!orgId,
+    staleTime: 60 * 1000,
+  });
+}
+
 /** The workspace's periods, non-empty ones only, newest month first. */
 export function useOrgPeriods() {
   return useQuery({

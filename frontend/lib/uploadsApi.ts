@@ -56,7 +56,10 @@ export type IdentityField =
   | "industry_key"
   | "industry_label";
 
-export type TargetReason = "cui_match" | "on_screen_company" | "new_cui";
+/** Why the file lands where it does. `adopt_empty_workspace`: the company is
+ *  new, and the user's empty, CUI-less workspace becomes it (a new account's
+ *  first balance) — no second workspace is created. */
+export type TargetReason = "cui_match" | "on_screen_company" | "new_cui" | "adopt_empty_workspace";
 
 export interface IdentifyTarget {
   org_id: string | null;
@@ -125,6 +128,8 @@ export type CommitResult =
       company_name: string;
       /** True when this commit created the company (a new CUI). */
       created_company?: boolean;
+      /** True when the user's empty workspace became the company. */
+      adopted_company?: boolean;
     }
   | {
       status: "duplicate";
@@ -137,6 +142,11 @@ export type CommitResult =
    *  anything is stored, so the flow shows the unchanged extra-document
    *  dialog and, once confirmed, sends the same commit again. */
   | { status: "needs_confirmation"; confirmation: ExtraDocConfirmation }
+  /** 402 `workspace_cap_reached` — a NEW company would pass the plan's
+   *  company cap (the `create_workspace` SQL floor). Nothing was stored; the
+   *  card says how many companies the plan allows and offers the upgrade or
+   *  one of the user's companies. */
+  | { status: "cap_reached"; plan: string; cap: number; message: string }
   | { status: "refused"; message: string; httpStatus: number };
 
 export interface CompanyYear {
@@ -263,7 +273,7 @@ export function normalizeIdentify(body: unknown): IdentifyResult {
       name: str(target.name),
       is_new: target.is_new === true,
       reason:
-        reason === "cui_match" || reason === "on_screen_company" || reason === "new_cui"
+        reason === "cui_match" || reason === "on_screen_company" || reason === "new_cui" || reason === "adopt_empty_workspace"
           ? reason
           : target.is_new === true
             ? "new_cui"
@@ -329,6 +339,7 @@ export async function commitUpload(input: CommitInput): Promise<CommitResult> {
         org_id: rec.org_id,
         company_name: typeof rec.company_name === "string" ? rec.company_name : "",
         ...(typeof rec.created_company === "boolean" ? { created_company: rec.created_company } : {}),
+        ...(typeof rec.adopted_company === "boolean" ? { adopted_company: rec.adopted_company } : {}),
       };
     }
     throw new UploadApiError("malformed_commit", 502);
@@ -340,6 +351,14 @@ export async function commitUpload(input: CommitInput): Promise<CommitResult> {
 
   if (res.status === 402) {
     const d = asRecord(rec?.detail) ?? rec ?? {};
+    if (d.code === "workspace_cap_reached" && typeof d.cap === "number" && Number.isFinite(d.cap)) {
+      return {
+        status: "cap_reached",
+        plan: typeof d.plan === "string" ? d.plan : "",
+        cap: d.cap,
+        message: typeof d.message === "string" ? d.message : "",
+      };
+    }
     if (d.code === "extra_doc_confirmation_required") {
       return {
         status: "needs_confirmation",

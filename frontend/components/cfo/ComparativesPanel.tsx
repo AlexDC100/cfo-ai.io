@@ -10,6 +10,8 @@
 import { createContext, useContext } from "react";
 import { useTranslation } from "react-i18next";
 
+import { comparisonRefusalKey } from "@/lib/comparisonRefusal";
+
 import {
   detailLevelLabelKey,
   formatDeltaPct,
@@ -47,7 +49,7 @@ export function ComparativesControls({
   autoPick,
   currency: _currency,
 }: {
-  /** Every period of the workspace, newest first. */
+  /** Every analysed period of the company on screen, newest first. */
   periods: readonly OrgPeriod[];
   currentId: string | null;
   /** What AUTO resolves to right now, for the option label. */
@@ -57,7 +59,17 @@ export function ComparativesControls({
   const { t } = useTranslation();
   const { view, setPriorPeriodId, setColumn } = useComparativesView();
   const candidates = periods.filter((p) => p.period_id !== currentId);
-  const value = view.priorPeriodId === null ? "auto" : view.priorPeriodId;
+  // A stored choice that is not one of THIS company's periods is ignored
+  // (lib/comparatives.ts, comparisonChoiceOf) — so the picker says AUTO,
+  // never an option it does not list.
+  const value =
+    view.priorPeriodId === null
+      ? "auto"
+      : view.priorPeriodId === "none"
+        ? "none"
+        : candidates.some((p) => p.period_id === view.priorPeriodId)
+          ? view.priorPeriodId
+          : "auto";
   const label = (p: OrgPeriod) => formatPeriodMonth(p.period_end) ?? p.period_label;
   const toggles: { key: keyof ComparativeColumns; label: string }[] = [
     { key: "prior", label: t("statements.cmp.colPrior") },
@@ -254,12 +266,12 @@ export function ComparativesSummary({
   );
 }
 
-export function ComparativesRefusedNote({ code, message }: { code: string; message: string }) {
+/** The engine refused the comparison: the sentence for its CODE — never the
+ *  engine's message, which can carry a raw period id; a code without a
+ *  sentence of its own reads the general one (lib/comparisonRefusal.ts). */
+export function ComparativesRefusedNote({ code }: { code: string }) {
   const { t } = useTranslation();
-  const text =
-    code === "same_period" ? t("statements.cmp.refusedSame")
-    : code === "period_not_in_workspace" ? t("statements.cmp.refusedNotInWorkspace")
-    : message;
+  const text = t(comparisonRefusalKey(code));
   return (
     <p className="text-[12.5px] text-ink-soft" data-testid="comparatives-refused" data-code={code}>
       {t("statements.cmp.refusedTitle")}: {text}

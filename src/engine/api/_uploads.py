@@ -19,11 +19,13 @@ THE RULES THIS MODULE HOLDS
       companies is routed to THAT company, whichever company is on screen.
       A CUI none of them holds is a new company. No readable CUI → the
       company on screen, stated on the card so the user can change it.
-  G2  The period is read off the DOCUMENT's own period line. A period the
-      identifier could only have taken from the file NAME is dropped
-      (ABSENT, the card asks), never offered; commit refuses a missing or
-      implausible period instead of inventing one, and files the document
-      with that confirmed period as its `period_end_hint`.
+  G2  The period is read off the DOCUMENT's own period line — the header
+      detector's, else (a PDF) the one the verified balanta reader reads off
+      the title block (`printed_period_of_pdf`). A period the identifier
+      could only have taken from the file NAME is dropped (ABSENT, the card
+      asks), never offered; commit refuses a missing or implausible period
+      instead of inventing one, and files the document with that confirmed
+      period as its `period_end_hint`.
   G4  Nothing here creates a `financial_periods` row. The only writer is
       the pipeline's `stage_persist`, after extraction, and a run that then
       fails removes the row it inserted (pipeline
@@ -52,6 +54,23 @@ THE METER is `pipeline.reserve_upload_or_refuse` — the function
   refused (429) exactly like every other upload, and an `allowed`
   reservation goes into the same run ledger the terminal settles.
 
+AN EMPTY WORKSPACE BECOMES THE COMPANY. A new trial account has exactly one
+  auto-created workspace, with no CUI and no data, and a plan that allows one
+  company — so its first balance, which prints a CUI, used to route to "new
+  company", meet the cap and be refused. When a file's company would be NEW
+  and the caller owns a live workspace that is EMPTY (no `financial_periods`
+  row, no live document) and has NO CUI, the commit ADOPTS it instead of
+  creating one: renamed to the company, `org_prefs {cui, company_name,
+  identity_sources}` stamped, CAEN and industry set (`adoptable_workspace`,
+  `_adopt_workspace`); identify reports `target.reason
+  "adopt_empty_workspace"`. Never a workspace with any data, with a CUI, or
+  one the caller does not own; the one on screen first, else the oldest.
+
+THE PLAN'S WORKSPACE CAP (the `create_workspace` SQL floor) is an answer,
+  never a 500: 402 `{code: "workspace_cap_reached", plan, cap, message}`,
+  nothing stored, the meter's reservation handed back
+  (`workspace_cap_refusal`). No plan or cap is decided here.
+
 Module-scope Pydantic models only (tests/engine/test_route_bindings.py).
 Python 3.9 — no `match`, no `X | Y` unions.
 """
@@ -62,6 +81,7 @@ import hashlib
 import json
 import logging
 import re
+import threading
 import unicodedata
 import uuid
 from datetime import date
@@ -84,6 +104,7 @@ MAX_UPLOAD_BYTES = 25 * 1024 * 1024
 REASON_CUI_MATCH = "cui_match"
 REASON_ON_SCREEN = "on_screen_company"
 REASON_NEW_CUI = "new_cui"
+REASON_ADOPT_EMPTY = "adopt_empty_workspace"
 
 #: The identity fields the card shows, each with the evidence it was read
 #: from.
@@ -246,15 +267,106 @@ def _open_registry() -> Any:
         return None
 
 
+def start_name_index_warmup() -> Optional[threading.Thread]:
+    """Make the registry's persisted name index current in a background
+    thread (the server's start), so the first upload after a deploy never
+    builds it in its own request (`engine.workspaces.registry_names`). None
+    when there is no registry file — which is never created here."""
+    try:
+        from engine.public_ro.store import default_db_path
+        if not default_db_path().is_file():
+            return None
+    except Exception:  # noqa: BLE001
+        return None
+
+    def _warm() -> None:
+        registry = _open_registry()
+        if registry is None:
+            return
+        try:
+            from engine.workspaces.company_identity import warm_name_index
+            logger.info("[uploads] %s", warm_name_index(registry))
+        except Exception:  # noqa: BLE001 — a warm-up is never worth a crash
+            logger.exception("[uploads] name index warm-up failed")
+        finally:
+            registry.close()
+
+    thread = threading.Thread(target=_warm, name="registry-name-index-warmup", daemon=True)
+    thread.start()
+    return thread
+
+
 def _identify_document(content: bytes, filename: str, registry: Any) -> Any:
     """The seam to `engine.workspaces.company_identity.identify_document`."""
     from engine.workspaces.company_identity import identify_document
     return identify_document(content, filename, registry=registry)
 
 
-def identify(content: bytes, filename: str) -> Dict[str, Any]:
+#: The period signals that mean "the header detector found none in the
+#: document": nothing at all, or only the file NAME (G2 drops that one).
+_NO_DOCUMENT_PERIOD = frozenset({"", "none"}) | FILENAME_SIGNALS
+
+
+def printed_period_of_pdf(content: bytes) -> Optional[Tuple[str, str]]:
+    """(period_end, the literal the document prints) — the period the
+    verified text-line balanta reader reads off a PDF's title block
+    (`pdf_balanta_text.read_balanta_text_verdict`: a Romanian month name and
+    a year closing a title line, "Decembrie 2025", exactly one of them,
+    never after a day number), checked by the engine's own period reader
+    (`_period_detect`: sanity bounds, today is never evidence). None for
+    anything else: not a PDF, a layout the reader does not verify, no
+    printed period. Document text only — never the file name."""
+    if not content or content[:4] != b"%PDF":
+        return None
+    try:
+        from engine.country_packs.ro_romania.pdf_balanta_text import printed_period, read_balanta_text_verdict
+        from engine.workspaces.company_identity import extract_document_text
+        from ._period_detect import detect_period
+    except ImportError:
+        return None
+    # The reader's own rule over the document's title lines first — one text
+    # pass over two pages. The full verified read (every page, word
+    # positions: 1-3 s) runs only for a document that prints a period there.
+    head = extract_document_text(content, "document.pdf")
+    if printed_period(list(head.header_lines)) is None:
+        return None
+    meta = read_balanta_text_verdict(content).meta or {}   # never raises
+    end, text = meta.get("period_end"), meta.get("period_text")
+    if not end or not text:
+        return None
+    checked = detect_period(extracted={"period_end": str(end)}, filename=None)
+    iso = checked.get("proposed_period_end")
+    return (str(iso), str(text).strip()[:160]) if iso else None
+
+
+def _with_printed_period(raw: Any, content: bytes) -> Any:
+    """`raw` (the identifier's answer), its period taken from the balanta
+    reader when the header detector found none in the document — the
+    WinMentor five-pair print closes its title block with "Decembrie 2025"
+    on the address line, where no closing-balance vocabulary sits, so the
+    card read "Not in the document" for a period the document prints (live
+    walkthrough, 2026-09-26). A period the header detector read stays."""
+    sources = _field(raw, "sources") or {}
+    signal = str(((sources.get("period_end") if isinstance(sources, dict) else None) or {}).get("signal") or "")
+    if signal.lower() not in _NO_DOCUMENT_PERIOD:
+        return raw
+    printed = printed_period_of_pdf(content)
+    if printed is None:
+        return raw
+    shaped = dict((name, _field(raw, name)) for name in (
+        "cui", "company_name", "caen_code", "industry_key", "industry_label", "document_kind"))
+    shaped["sources"] = dict(sources if isinstance(sources, dict) else {},
+                             period_end={"signal": "in_document", "evidence": printed[1]})
+    shaped["period_end"] = printed[0]
+    return shaped
+
+
+def identify(content: bytes, filename: str, *, printed_period: bool = True) -> Dict[str, Any]:
     """Run the identifier over the file with the registry open, and shape
-    its answer. Raises 503 when the identifier itself is not installed."""
+    its answer. Raises 503 when the identifier itself is not installed.
+    `printed_period`: read the balanta reader's printed period when the
+    header detector found none (the commit, which takes its period from
+    the card, skips it)."""
     registry = _open_registry()
     try:
         try:
@@ -270,6 +382,8 @@ def identify(content: bytes, filename: str) -> Dict[str, Any]:
                 close()
             except Exception:  # noqa: BLE001
                 pass
+    if printed_period:
+        raw = _with_printed_period(raw, content)
     return identity_payload(raw)
 
 
@@ -353,7 +467,145 @@ def find_duplicate(*, content_hash: str, user_id: str, org_id: str,
     return {"document_id": hit.existing_document_id, "period_id": hit.period_id, "org_id": org_id}
 
 
+# ── An empty workspace becomes the company ─────────────────────────────
+
+#: One adoption at a time in this process (the engine runs one): the check
+#: that a workspace is still empty and CUI-less and the stamp that makes it
+#: the company happen together. `_ADOPTING` holds a workspace from its
+#: adoption until the commit that adopted it has filed its document (or
+#: failed), so a second new company's commit racing that insert never takes
+#: the same workspace; after the insert the workspace is simply not empty.
+_ADOPT_LOCK = threading.Lock()
+_ADOPTING = set()  # type: set
+
+
+def _release_adoption(org_id: Optional[str]) -> None:
+    with _ADOPT_LOCK:
+        _ADOPTING.discard(org_id)
+
+
+def _owned_org_ids(client: Any, user_id: str) -> List[str]:
+    """The companies the caller OWNS, read through their own client."""
+    rows = client.select("memberships", filters={"user_id": "eq.%s" % user_id, "role": "eq.owner"},
+                         columns="org_id") or []
+    return [str(r.get("org_id")) for r in rows if r.get("org_id")]
+
+
+def workspace_is_empty(org_id: str) -> bool:
+    """No `financial_periods` row and no live document. Read with the
+    service role, filtered by the workspace, so no row can be hidden from
+    the check; a read that fails is NOT empty — a workspace is never taken
+    on a guess."""
+    try:
+        with _supabase.admin() as ac:
+            if ac.select("financial_periods", filters={"org_id": "eq.%s" % org_id},
+                         columns="id", limit=1):
+                return False
+            if ac.select("documents", filters={"org_id": "eq.%s" % org_id, "deleted_at": "is.null"},
+                         columns="id", limit=1):
+                return False
+    except Exception:  # noqa: BLE001
+        logger.exception("[uploads] could not tell whether workspace %s is empty", org_id)
+        return False
+    return True
+
+
+def adoptable_workspace(client: Any, user_id: str, companies: Sequence[Dict[str, Any]],
+                        on_screen_org_id: Optional[str]) -> Optional[Dict[str, Any]]:
+    """The caller's workspace a NEW company's file adopts instead of a new
+    one, or None: a live company of theirs (`companies`, from `my_companies`)
+    with NO CUI, that they OWN, that is EMPTY. The one on screen first, then
+    the oldest."""
+    blank = [c for c in companies if not c.get("cui") and c["org_id"] not in _ADOPTING]
+    if not blank:
+        return None
+    try:
+        owned = set(_owned_org_ids(client, user_id))
+    except Exception:  # noqa: BLE001 — unknown ownership adopts nothing
+        logger.exception("[uploads] membership read failed")
+        return None
+    ordered = sorted((c for c in blank if c["org_id"] in owned),
+                     key=lambda c: c["org_id"] != on_screen_org_id)   # stable: oldest first after
+    for company in ordered:
+        if workspace_is_empty(company["org_id"]):
+            return company
+    return None
+
+
+def _adopt_workspace(jwt: str, user_id: str, company: Dict[str, Any], spec: Dict[str, Any],
+                     identity_sources: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Make the empty workspace `company` the new company `spec`: renamed,
+    its industry and CAEN set, `org_prefs {cui, company_name,
+    identity_sources}` stamped — every write as the caller. Re-checked under
+    the lock first (still the caller's, still owned, still CUI-less, still
+    empty); None when it no longer qualifies, and the caller creates a
+    company instead. Idempotent: a workspace this adopted carries the CUI,
+    and the next commit for it finds it by that CUI. The caller releases the
+    hold (`_release_adoption`) once its document is filed or it failed."""
+    org_id = company["org_id"]
+    name = spec["name"]
+    industry_key = spec.get("industry_key") or None
+    with _ADOPT_LOCK:
+        with _supabase.per_user(jwt) as client:
+            fresh = next((c for c in my_companies(client, user_id) if c["org_id"] == org_id), None)
+            if (fresh is None or fresh.get("cui") or org_id in _ADOPTING
+                    or org_id not in set(_owned_org_ids(client, user_id))
+                    or not workspace_is_empty(org_id)):
+                return None
+            patch = {"name": name}  # type: Dict[str, Any]
+            if industry_key:
+                label, _label_ro = _industry_label(client, industry_key)
+                patch.update({"industry_key": industry_key, "industry_display_name": label})
+            client.update("organizations", patch, filters={"id": "eq.%s" % org_id})
+            if spec.get("caen_code"):
+                try:
+                    client.update("organizations", {"caen_code": spec["caen_code"]},
+                                  filters={"id": "eq.%s" % org_id})
+                except Exception:  # noqa: BLE001 — a CAEN is not worth the upload
+                    logger.exception("[uploads] caen_code not written for adopted workspace %s", org_id)
+            _ADOPTING.add(org_id)
+            _set_identity_prefs(client, org_id, cui=spec.get("cui"), company_name=name,
+                                identity_sources=identity_sources)
+    logger.info("[uploads] user %s adopted empty workspace %s as company %r (cui=%s)",
+                user_id, org_id, name, spec.get("cui"))
+    return {"org_id": org_id, "name": name}
+
+
 # ── Company creation ───────────────────────────────────────────────────
+
+#: The plan's workspace cap, as `create_workspace` raises it — the SQL hard
+#: floor in supabase/schema_phase_plan_caps.sql:
+#:   'workspace_cap_reached: your % plan allows % workspace(s). Upgrade to add more.'
+#: PostgREST answers 400 with that message and `SupabaseClient.rpc` raises it
+#: inside its RuntimeError text. Read here, never changed here: the plans and
+#: their caps belong to the pricing lane.
+WORKSPACE_CAP_CODE = "workspace_cap_reached"
+_WORKSPACE_CAP_RE = re.compile(
+    r"workspace_cap_reached:\s*your\s+(?P<plan>[A-Za-z0-9_\-]+)\s+plan\s+allows\s+(?P<cap>\d+)\s+workspace",
+    re.IGNORECASE,
+)
+
+
+def workspace_cap_refusal(exc: BaseException) -> Optional[HTTPException]:
+    """The plan's workspace cap as the route's answer — 402
+    `{code: "workspace_cap_reached", plan, cap, message}` — when `exc` is
+    the `create_workspace` RPC refusing at the cap; None for anything else.
+
+    It used to escape the commit as a 500, and the card read "We couldn't
+    save the file" (live walkthrough, 2026-09-26). The card now says, in the
+    reader's language, how many companies the plan allows, with the upgrade
+    path and the choice of one of the caller's companies."""
+    m = _WORKSPACE_CAP_RE.search(str(exc))
+    if not m:
+        return None
+    plan, cap = m.group("plan").lower(), int(m.group("cap"))
+    return HTTPException(402, {
+        "code": WORKSPACE_CAP_CODE,
+        "plan": plan,
+        "cap": cap,
+        "message": ("Your plan allows %d %s. Upgrade to add another, or choose one of your "
+                    "companies for this file." % (cap, "company" if cap == 1 else "companies")),
+    })
 
 
 def _create_company(jwt: str, user_id: str, spec: Dict[str, Any],
@@ -368,8 +620,16 @@ def _create_company(jwt: str, user_id: str, spec: Dict[str, Any],
     industry_key = spec.get("industry_key") or None
     with _supabase.per_user(jwt) as client:
         label, _label_ro = _industry_label(client, industry_key)
-        org_id = client.rpc("create_workspace", {
-            "p_name": name, "p_industry_key": industry_key, "p_industry_display": label})
+        try:
+            org_id = client.rpc("create_workspace", {
+                "p_name": name, "p_industry_key": industry_key, "p_industry_display": label})
+        except Exception as exc:  # noqa: BLE001 — the cap is an answer; anything else stays an error
+            refusal = workspace_cap_refusal(exc)
+            if refusal is None:
+                raise
+            logger.info("[uploads] user %s is at the plan's workspace cap (%s)", user_id,
+                        refusal.detail.get("cap"))
+            raise refusal
         org_id = str(org_id or "").strip().strip('"')
         if not org_id:
             raise HTTPException(502, {"code": "company_not_created",
@@ -762,6 +1022,13 @@ def build_router() -> APIRouter:
                 identity["industry_label"], _ro = _industry_label(client, identity["industry_key"])
             companies = my_companies(client, user_id)
             target = resolve_target(identity, companies, on_screen)
+            if target.get("is_new"):
+                # A new company lands in the caller's empty, CUI-less
+                # workspace when they have one — the commit adopts it.
+                adopt = adoptable_workspace(client, user_id, companies, on_screen)
+                if adopt is not None:
+                    target = {"org_id": adopt["org_id"], "name": target.get("name") or adopt["name"],
+                              "is_new": True, "reason": REASON_ADOPT_EMPTY}
             duplicate = None
             if target.get("org_id"):
                 duplicate = find_duplicate(content_hash=content_hash, user_id=user_id,
@@ -779,6 +1046,7 @@ def build_router() -> APIRouter:
         output_language: Optional[str] = Form(None),
         confirm_extra: Optional[str] = Form(None),
         authorization: Optional[str] = Header(None),
+        x_org_id: Optional[str] = Header(None, alias="X-Org-Id"),
     ) -> Dict[str, Any]:
         """Store the file in the company the user confirmed and analyse it.
 
@@ -792,8 +1060,11 @@ def build_router() -> APIRouter:
         `target_org_id` (a company the caller is a member of — 403
         otherwise) or `create_company` (JSON `{name, cui, caen_code,
         industry_key}`; an existing company of theirs with that CUI is used
-        instead of a second one). `period_end` is the period the user
-        confirmed — required, never inferred here."""
+        instead of a second one, and an empty CUI-less workspace of theirs
+        becomes the company instead of a new one). `period_end` is the period
+        the user confirmed — required, never inferred here. `X-Org-Id` (the
+        company on screen) only orders the caller's OWN empty workspaces when
+        one is adopted; it grants nothing."""
         jwt = _require_jwt(authorization)
         spec = _parse_create_company(create_company)
         target = str(target_org_id or "").strip()
@@ -814,8 +1085,9 @@ def build_router() -> APIRouter:
 
         # The identity again, best-effort: the new company's evidence, and
         # the CUI a pre-CUI workspace can adopt. Never a reason to refuse.
+        # The period is the card's (`period_end`), so the reader is not asked.
         try:
-            identity = identify(content, filename)
+            identity = identify(content, filename, printed_period=False)
         except Exception:  # noqa: BLE001
             logger.exception("[uploads] identification during commit failed (non-fatal)")
             identity = {"cui": None, "company_name": None, "sources": {}}
@@ -872,6 +1144,7 @@ def build_router() -> APIRouter:
         was_extra = bool(getattr(decision, "was_extra", False))
         reserved = getattr(decision, "kind", "disabled") == "allowed"
         created = False
+        adopted = False
         stored = None  # type: Optional[Tuple[str, str]]
         claimed = None  # type: Optional[Dict[str, Any]]
         queued = False
@@ -880,9 +1153,15 @@ def build_router() -> APIRouter:
                 spec = dict(spec or {})
                 if chosen_industry:  # the industry the user chose on the card wins
                     spec["industry_key"] = chosen_industry
-                company = _create_company(jwt, user_id, spec, identity.get("sources") or {})
+                with _supabase.per_user(jwt) as client:
+                    blank = adoptable_workspace(client, user_id, companies, (x_org_id or "").strip() or None)
+                if blank is not None:
+                    company = _adopt_workspace(jwt, user_id, blank, spec, identity.get("sources") or {})
+                    adopted = company is not None
+                if company is None:
+                    company = _create_company(jwt, user_id, spec, identity.get("sources") or {})
+                    created = True
                 company["cui"] = spec.get("cui")
-                created = True
             org_id = company["org_id"]
             storage_path = "%s/uploads/%s.%s" % (org_id, doc_id, _ext_of(filename))
             with _supabase.admin() as admin_client:
@@ -912,7 +1191,7 @@ def build_router() -> APIRouter:
                 row["detected_language"] = str(output_language)[:8]
             with _supabase.per_user(jwt) as client:
                 client.insert("documents", row, returning=False)
-                if not created:
+                if not created and not adopted:
                     _after_commit_to_existing(client, company, identity, companies, chosen_industry)
 
             # THE ENTRY — the one analysis-entry step /api/pipeline/run takes
@@ -988,12 +1267,16 @@ def build_router() -> APIRouter:
                 if doc_id:
                     _ug.cancel_extra_grant(doc_id)  # an unclaimed grant goes back unbilled
             raise
+        finally:
+            if adopted:
+                # Filed (or failed): the adopted workspace needs no hold now.
+                _release_adoption(company["org_id"])
         # No `_usage_limits.record_usage` here: the legacy enqueue-time bump
         # double-counted every upload (the owner's "51 documents used"); the
         # V3 commit at the run's end is the one counter.
         return {"status": "queued", "document_id": doc_id, "org_id": org_id,
                 "company_name": company["name"], "period_end": confirmed_end,
-                "created_company": created}
+                "created_company": created, "adopted_company": adopted}
 
     @router.get("/api/companies/{org_id}/years")
     def get_company_years(

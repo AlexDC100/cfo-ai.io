@@ -156,6 +156,19 @@ class _UserClient(object):
             name = str(params.get("p_name") or "").strip()
             if not name:
                 raise RuntimeError("rpc create_workspace failed (400): name required")
+            # The plan's cap, exactly as schema_phase_plan_caps.sql raises it
+            # (P0001) and SupabaseClient.rpc reports it: live memberships at
+            # or over the cap refuse. No cap set: the plan allows enough.
+            plan = self.db.plans.get(self.uid)
+            if plan is not None:
+                live = [m for m in self.db.rows("memberships") if m["user_id"] == self.uid
+                        and not any(o["id"] == m["org_id"] and o.get("archived_at")
+                                    for o in self.db.rows("organizations"))]
+                if len(live) >= plan[1]:
+                    raise RuntimeError("rpc create_workspace failed (400): %s" % {
+                        "code": "P0001", "details": None, "hint": None,
+                        "message": "workspace_cap_reached: your %s plan allows %d workspace(s). "
+                                   "Upgrade to add more." % plan})
             org = self.db.add("organizations", {"id": None, "name": name,
                                                 "industry_key": params.get("p_industry_key"),
                                                 "industry_display_name": params.get("p_industry_display")})
@@ -181,6 +194,8 @@ class WorkspaceDouble(D.PostgrestDouble):
         super(WorkspaceDouble, self).__init__(columns=_migration_columns())
         self.storage = {}  # type: Dict[str, bytes]
         self.rpcs = []  # type: List[Any]
+        #: user id -> (plan, workspace cap) for `create_workspace`'s SQL floor.
+        self.plans = {}  # type: Dict[str, Any]
 
     def upload_object(self, bucket: str, path: str, content: bytes, *, org_id: str,
                       content_type: str = "application/octet-stream") -> None:
@@ -316,9 +331,9 @@ def identify(app, user: str = USER, org: Optional[str] = ORG_SCANDIA, name: str 
 
 
 def commit(app, user: str = USER, name: str = "balanta.xlsx", body: bytes = b"PK\x03\x04 a trial balance",
-           token: Optional[str] = None, **data: Any):
+           token: Optional[str] = None, org: Optional[str] = None, **data: Any):
     form = dict((k, v if isinstance(v, str) else json.dumps(v)) for k, v in data.items() if v is not None)
-    return _client(app).post("/api/uploads/commit", headers=_headers(user, None, token),
+    return _client(app).post("/api/uploads/commit", headers=_headers(user, org, token),
                              files=_file(name, body), data=form)
 
 
@@ -429,8 +444,10 @@ def test_identify_with_no_company_on_screen_uses_the_callers_oldest_live_company
 def test_a_name_read_only_off_the_file_name_never_keys_a_company(app, world):
     """The on-screen pre-CUI workspace is adopted by NAME only when the
     DOCUMENT states the name — a name typed into the file name is shown,
-    never matched."""
+    never matched. (Scandia holds a book here: an EMPTY CUI-less workspace
+    becomes the new company whatever its name — the adoption tests below.)"""
     world.db.rows("org_prefs")[:] = [p for p in world.db.rows("org_prefs") if p["org_id"] != ORG_SCANDIA]
+    _seed_doc(world, org=ORG_SCANDIA, body=b"PK\x03\x04 last year's book", period_end="2024-12-31")
     world.identities["Scandia Food.xlsx"] = _identity(cui="12345678", name="Scandia Food",
                                                       name_signal="filename")
     target = identify(app, name="Scandia Food.xlsx").json()["target"]
@@ -617,6 +634,47 @@ def test_commit_creates_a_new_company_with_its_owner_and_identity(app, world):
     assert len([o for o in world.db.rows("organizations") if o["name"] == "Nou Business SRL"]) == 1
 
 
+@pytest.mark.parametrize("decision", ["allowed", "disabled"])
+def test_the_plans_workspace_cap_is_a_402_with_the_plan_and_cap_never_a_500(app, world, decision):
+    """Live walkthrough, 2026-09-26: a new company's commit at the plan's
+    workspace cap answered 500 — `create_workspace` raises
+    'workspace_cap_reached: your % plan allows % workspace(s)…' — and the
+    card read "We couldn't save the file". The cap is an ANSWER: 402
+    {code, plan, cap, message}; no company, no document, no object; the
+    meter's reservation handed back; nothing analysed."""
+    world.db.plans[USER] = ("trial", 2)       # Scandia and Agras are live: at the cap
+    world.identities["balanta.xlsx"] = _identity(cui=CUI_NEW, name="Nou Business SRL")
+    world.decision = decision
+    before = world.db.snapshot()
+    r = commit(app, create_company={"name": "Nou Business SRL", "cui": CUI_NEW}, period_end="2025-12-31")
+    assert r.status_code == 402, (r.status_code, r.text[:400])
+    assert r.json()["detail"] == {
+        "code": "workspace_cap_reached", "plan": "trial", "cap": 2,
+        "message": "Your plan allows 2 companies. Upgrade to add another, or choose one of your "
+                   "companies for this file."}, r.json()
+    assert world.db.snapshot() == before, "a company, a row or an object exists after the cap refused"
+    assert [f for f, _uid, _p in world.db.rpcs] == ["create_workspace"]
+    assert world.enqueued == []
+    assert world.released == ([(USER, False)] if decision == "allowed" else [])
+    # One company fewer and the same commit creates it: the cap is the plan's, not a rule of the route.
+    world.db.plans[USER] = ("trial", 3)
+    r = commit(app, create_company={"name": "Nou Business SRL", "cui": CUI_NEW}, period_end="2025-12-31")
+    assert r.status_code == 200 and r.json()["created_company"] is True, r.text[:300]
+
+
+def test_the_cap_parser_reads_the_sql_floors_own_words_and_nothing_else():
+    exc = RuntimeError("rpc create_workspace failed (400): {'code': 'P0001', 'details': None, 'hint': None, "
+                       "'message': 'workspace_cap_reached: your solo plan allows 1 workspace(s). Upgrade to add more.'}")
+    got = _uploads.workspace_cap_refusal(exc)
+    assert got is not None and got.status_code == 402
+    assert got.detail["plan"] == "solo" and got.detail["cap"] == 1
+    assert got.detail["message"].startswith("Your plan allows 1 company.")
+    for other in (RuntimeError("rpc create_workspace failed (400): name required"),
+                  RuntimeError("rpc create_workspace failed (401): not authenticated"),
+                  RuntimeError("Workspace limit reached")):
+        assert _uploads.workspace_cap_refusal(other) is None, other
+
+
 def test_commit_with_create_company_for_a_cui_i_hold_uses_that_company(app, world):
     world.identities["balanta.xlsx"] = _identity(cui=CUI_AGRAS, name="Agras SA")
     r = commit(app, create_company={"name": "Agras again", "cui": CUI_AGRAS}, period_end="2025-12-31")
@@ -738,6 +796,17 @@ def test_the_industry_chosen_on_the_card_is_the_companys(app, world):
     assert org["industry_key"] == "retail_generic" and org["industry_display_name"] == "Retail", org
 
 
+def test_a_commit_that_chooses_no_industry_never_clears_the_companys(app, world):
+    """The card's industry select left untouched sends no industry (and an
+    empty choice is no choice): the company keeps the one it has."""
+    world.identities["balanta.xlsx"] = _identity(cui=CUI_AGRAS)
+    assert commit(app, target_org_id=ORG_AGRAS, period_end="2025-12-31").status_code == 200
+    assert commit(app, body=b"PK\x03\x04 another year", target_org_id=ORG_AGRAS, period_end="2024-12-31",
+                  industry_key="").status_code == 200
+    (org,) = [o for o in world.db.rows("organizations") if o["id"] == ORG_AGRAS]
+    assert org["industry_key"] == "food_manufacturing", org
+
+
 def test_a_file_over_25_mb_is_refused_and_nothing_is_stored(app, world):
     world.identities["big.xlsx"] = _identity(cui=CUI_SCANDIA)
     before = world.db.snapshot()
@@ -762,6 +831,139 @@ def test_a_workspace_from_before_cuis_adopts_the_documents_cui_only_when_its_nam
     r = commit(app, name="other.xlsx", body=b"other", target_org_id=ORG_AGRAS, period_end="2025-12-31")
     assert r.status_code == 200
     assert [p for p in world.db.rows("org_prefs") if p["org_id"] == ORG_AGRAS] == []
+
+
+# ══════════════════════════════════════════════════════════════════════
+# An empty workspace becomes the company (a new user's first balance)
+# ══════════════════════════════════════════════════════════════════════
+#
+# Live walkthrough, 2026-09-26 (a launch blocker): a new trial account has
+# exactly ONE auto-created workspace — no CUI, no data — and a plan that
+# allows one company. Its first balance prints a CUI, so it routed to "new
+# company" → create_workspace → the cap → refused. The rule: a new company's
+# file ADOPTS the caller's live, OWNED, EMPTY (no period, no live document),
+# CUI-less workspace instead of creating one.
+
+NEWBIE = "5c0a0000-0000-4000-8000-0000000000c1"
+ORG_EMPTY = "0a9a0000-0000-4000-8000-0000000000e0"
+ORG_EMPTY_2 = "0a9a0000-0000-4000-8000-0000000000e2"
+NEW_SPEC = {"name": "Nou Business SRL", "cui": "RO" + CUI_NEW, "caen_code": "1011",
+            "industry_key": "food_manufacturing"}
+
+
+def _workspace(world: World, org_id: str, user: str, *, name: str = "My workspace", role: str = "owner",
+               created: str = "2026-09-26T00:00:00+00:00") -> None:
+    world.db.add("organizations", {"id": org_id, "name": name, "default_currency": "RON",
+                                   "industry_key": None, "archived_at": None, "created_at": created})
+    world.db.add("memberships", {"user_id": user, "org_id": org_id, "role": role, "created_at": created})
+
+
+@pytest.fixture()
+def newbie(world):
+    """A new trial account: one auto-created workspace, no CUI, no data;
+    the plan allows ONE company (the create_workspace SQL floor)."""
+    _workspace(world, ORG_EMPTY, NEWBIE)
+    world.db.plans[NEWBIE] = ("trial", 1)
+    world.identities["balanta.xlsx"] = _identity(cui=CUI_NEW, name="Nou Business SRL", caen="1011",
+                                                 industry="food_manufacturing")
+    return world
+
+
+def test_a_new_users_first_balance_adopts_their_empty_workspace(app, newbie):
+    world = newbie
+    before = world.db.snapshot()
+    body = identify(app, user=NEWBIE, org=ORG_EMPTY).json()
+    assert body["target"] == {"org_id": ORG_EMPTY, "name": "Nou Business SRL", "is_new": True,
+                              "reason": "adopt_empty_workspace"}, body["target"]
+    assert world.db.snapshot() == before, "identify wrote something"
+
+    r = commit(app, user=NEWBIE, org=ORG_EMPTY, create_company=NEW_SPEC, period_end="2025-12-31")
+    assert r.status_code == 200, r.text[:400]
+    out = r.json()
+    assert out["org_id"] == ORG_EMPTY and out["company_name"] == "Nou Business SRL", out
+    assert out["created_company"] is False and out["adopted_company"] is True, out
+    assert [f for f, _uid, _p in world.db.rpcs if f == "create_workspace"] == [], "a company was created at the cap"
+    (org,) = [o for o in world.db.rows("organizations") if o["id"] == ORG_EMPTY]
+    assert org["name"] == "Nou Business SRL" and org["caen_code"] == "1011", org
+    assert org["industry_key"] == "food_manufacturing" and org["industry_display_name"] == "Food manufacturing"
+    (prefs,) = [p["prefs"] for p in world.db.rows("org_prefs") if p["org_id"] == ORG_EMPTY]
+    assert prefs["cui"] == CUI_NEW and prefs["company_name"] == "Nou Business SRL", prefs
+    assert prefs["identity_sources"]["cui"]["signal"] == "document_header_cui", prefs
+    (doc,) = world.docs(org_id=ORG_EMPTY)
+    assert doc["uploaded_by"] == NEWBIE and doc["storage_path"].startswith(ORG_EMPTY + "/uploads/")
+    assert world.enqueued == [doc["id"]]
+    assert len([m for m in world.db.rows("memberships") if m["user_id"] == NEWBIE]) == 1
+
+    # Idempotent: the same commit again is the document already there; the
+    # next year's book finds the company by its CUI — nothing adopted again.
+    r = commit(app, user=NEWBIE, org=ORG_EMPTY, create_company=NEW_SPEC, period_end="2025-12-31")
+    assert r.json()["status"] == "duplicate" and r.json()["document_id"] == doc["id"], r.text[:300]
+    r = commit(app, user=NEWBIE, org=ORG_EMPTY, body=b"PK\x03\x04 next year", create_company=NEW_SPEC,
+               period_end="2024-12-31")
+    assert r.status_code == 200 and r.json()["org_id"] == ORG_EMPTY, r.text[:300]
+    assert r.json()["created_company"] is False and r.json()["adopted_company"] is False, r.json()
+    assert [o["name"] for o in world.db.rows("organizations") if o["id"] == ORG_EMPTY] == ["Nou Business SRL"]
+
+
+@pytest.mark.parametrize("data", ["live_document", "period"])
+def test_a_workspace_holding_any_data_is_never_adopted(app, newbie, data):
+    world = newbie
+    if data == "live_document":
+        _seed_doc(world, org=ORG_EMPTY, user=NEWBIE, body=b"PK\x03\x04 a failed book", status="failed",
+                  with_period=False)
+    else:
+        world.db.add("financial_periods", {"id": None, "org_id": ORG_EMPTY, "source_document_id": None,
+                                           "period_start": "2024-12-31", "period_end": "2024-12-31",
+                                           "currency": "RON"})
+    body = identify(app, user=NEWBIE, org=ORG_EMPTY).json()
+    assert body["target"]["reason"] == "new_cui" and body["target"]["org_id"] is None, body["target"]
+    r = commit(app, user=NEWBIE, org=ORG_EMPTY, create_company=NEW_SPEC, period_end="2025-12-31")
+    assert r.status_code == 402 and r.json()["detail"]["code"] == "workspace_cap_reached", r.text[:300]
+    (org,) = [o for o in world.db.rows("organizations") if o["id"] == ORG_EMPTY]
+    assert org["name"] == "My workspace"
+    assert [p for p in world.db.rows("org_prefs") if p["org_id"] == ORG_EMPTY] == []
+
+
+def test_a_deleted_document_alone_leaves_a_workspace_empty(app, newbie):
+    world = newbie
+    _seed_doc(world, org=ORG_EMPTY, user=NEWBIE, body=b"PK\x03\x04 deleted", deleted=True, with_period=False)
+    assert identify(app, user=NEWBIE, org=ORG_EMPTY).json()["target"]["reason"] == "adopt_empty_workspace"
+
+
+def test_a_workspace_with_a_cui_is_never_adopted(app, newbie):
+    world = newbie
+    world.db.add("org_prefs", {"org_id": ORG_EMPTY, "prefs": {"cui": "12345678"}})
+    body = identify(app, user=NEWBIE, org=ORG_EMPTY).json()
+    assert body["target"]["reason"] == "new_cui", body["target"]
+    r = commit(app, user=NEWBIE, org=ORG_EMPTY, create_company=NEW_SPEC, period_end="2025-12-31")
+    assert r.status_code == 402, r.text[:300]
+    assert [p["prefs"]["cui"] for p in world.db.rows("org_prefs") if p["org_id"] == ORG_EMPTY] == ["12345678"]
+
+
+def test_only_a_workspace_the_caller_owns_is_adopted(app, newbie):
+    """A teammate's empty workspace the caller is only a MEMBER of is not
+    theirs to rename; another account's empty workspace is never even seen."""
+    world = newbie
+    world.db.rows("memberships")[:] = [m for m in world.db.rows("memberships") if m["org_id"] != ORG_EMPTY]
+    world.db.add("memberships", {"user_id": NEWBIE, "org_id": ORG_EMPTY, "role": "member",
+                                 "created_at": "2026-09-26T00:00:00+00:00"})
+    world.db.add("memberships", {"user_id": TEAMMATE, "org_id": ORG_EMPTY, "role": "owner",
+                                 "created_at": "2026-09-25T00:00:00+00:00"})
+    _workspace(world, ORG_EMPTY_2, OUTSIDER)
+    body = identify(app, user=NEWBIE, org=ORG_EMPTY).json()
+    assert body["target"]["reason"] == "new_cui", body["target"]
+    r = commit(app, user=NEWBIE, org=ORG_EMPTY, create_company=NEW_SPEC, period_end="2025-12-31")
+    assert r.status_code == 402, r.text[:300]
+    assert {o["name"] for o in world.db.rows("organizations") if o["id"] in (ORG_EMPTY, ORG_EMPTY_2)} == {"My workspace"}
+
+
+def test_the_empty_workspace_on_screen_is_adopted_first_else_the_oldest(app, newbie):
+    world = newbie
+    world.db.plans[NEWBIE] = ("pro", 5)
+    _workspace(world, ORG_EMPTY_2, NEWBIE, name="Second", created="2026-09-27T00:00:00+00:00")
+    assert identify(app, user=NEWBIE, org=ORG_EMPTY_2).json()["target"]["org_id"] == ORG_EMPTY_2
+    r = commit(app, user=NEWBIE, create_company=NEW_SPEC, period_end="2025-12-31")
+    assert r.json()["org_id"] == ORG_EMPTY and r.json()["adopted_company"] is True, r.text[:300]
 
 
 # ══════════════════════════════════════════════════════════════════════
@@ -801,6 +1003,75 @@ def test_the_real_identifier_routes_by_the_documents_cui_and_reads_its_period(ap
     bare = balance_xlsx(["AGRAS SA", "Cod fiscal: RO%s" % agras_cui], seed=7)
     ident = identify(app, org=ORG_SCANDIA, name="balanta_2019_12.xlsx", body=bare).json()["identity"]
     assert ident["period_end"] is None and ident["cui"] == agras_cui, ident
+
+
+def _five_pair_pdf(*, printed_period: bool = True) -> bytes:
+    """A synthetic WinMentor five-pair balanta PDF (PyMuPDF; invented
+    company, invented figures) — the layout that prints its period as
+    "Decembrie 2025" closing the address line of its title block."""
+    fitz = pytest.importorskip("fitz")
+    from test_pdf_balanta_stage_extract import _synthetic_five_pair_lines
+
+    lines = _synthetic_five_pair_lines()
+    if not printed_period:
+        lines = [ln.replace(" Decembrie 2025", "") for ln in lines]
+    doc = fitz.open()
+    page = doc.new_page(width=1400, height=1000)
+    y = 30
+    for line in lines:
+        page.insert_text((20, y), line, fontsize=8)
+        y += 14
+    return doc.tobytes()
+
+
+@pytest.mark.parametrize("filename", ["balanta.pdf", "balanta_2019_12.pdf"])
+def test_the_period_a_five_pair_pdf_prints_is_the_period_identify_offers(app, world, monkeypatch, filename):
+    """Live walkthrough, 2026-09-26: the filed WinMentor five-pair PDF
+    prints "Decembrie 2025", and the card read PERIOD "Not in the document"
+    — the header detector reads a date only beside closing-balance
+    vocabulary, and the five-pair print closes its title block with the
+    month on the ADDRESS line. The verified balanta reader already reads it
+    there; identify now offers it when the header detector finds none —
+    document text only: a file NAMED for 2019 is still the document's 2025."""
+    from engine.country_packs.ro_romania import pdf_balanta_text
+
+    monkeypatch.setattr(_uploads, "_identify_document", _REAL_IDENTIFY)
+    monkeypatch.setattr(_uploads, "_open_registry", lambda: None)
+    content = _five_pair_pdf()
+    got = pdf_balanta_text.read_balanta_text_verdict(content)
+    assert got.meta and got.meta.get("period_text") == "Decembrie 2025", "the reader refused the synthetic book"
+    r = identify(app, org=ORG_SCANDIA, name=filename, body=content)
+    assert r.status_code == 200, r.text[:400]
+    ident = r.json()["identity"]
+    assert ident["period_end"] == "2025-12-31", ident
+    assert ident["sources"]["period_end"] == {"signal": "in_document", "evidence": "Decembrie 2025"}, ident["sources"]
+
+
+def test_a_five_pair_pdf_that_prints_no_period_offers_none_never_the_file_names(app, world, monkeypatch):
+    monkeypatch.setattr(_uploads, "_identify_document", _REAL_IDENTIFY)
+    monkeypatch.setattr(_uploads, "_open_registry", lambda: None)
+    content = _five_pair_pdf(printed_period=False)
+    ident = identify(app, org=ORG_SCANDIA, name="balanta_2019_12.pdf", body=content).json()["identity"]
+    assert ident["period_end"] is None, ident
+    assert ident["sources"]["period_end"]["signal"] == "none", ident["sources"]
+
+
+def test_the_full_verified_read_runs_only_for_a_pdf_whose_title_prints_a_period(app, world, monkeypatch):
+    """Latency (live walkthrough, 2026-09-26): the verified read parses every
+    page with word positions — 1-3 s on a real book — so identify asks for it
+    only when the document's title lines print a period by the reader's own
+    rule; a PDF that prints none is answered from the one text pass."""
+    from engine.country_packs.ro_romania import pdf_balanta_text
+
+    calls = []  # type: List[int]
+    real = pdf_balanta_text.read_balanta_text_verdict
+    monkeypatch.setattr(pdf_balanta_text, "read_balanta_text_verdict", lambda b: calls.append(1) or real(b))
+    monkeypatch.setattr(_uploads, "_identify_document", _REAL_IDENTIFY)
+    monkeypatch.setattr(_uploads, "_open_registry", lambda: None)
+    ident = identify(app, org=ORG_SCANDIA, name="balanta.pdf", body=_five_pair_pdf(printed_period=False)).json()
+    assert ident["identity"]["period_end"] is None and calls == [], (ident["identity"], calls)
+    ident = identify(app, org=ORG_SCANDIA, name="balanta.pdf", body=_five_pair_pdf()).json()
+    assert ident["identity"]["period_end"] == "2025-12-31" and calls == [1], (ident["identity"], calls)
 
 
 def test_the_registry_is_opened_only_where_it_already_exists(tmp_path, monkeypatch):

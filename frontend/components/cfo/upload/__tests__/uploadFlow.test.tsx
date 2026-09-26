@@ -443,6 +443,55 @@ describe("confirmation card", () => {
     expect(await screen.findByText("Analysing Carniprod SRL")).toBeInTheDocument();
   });
 
+  // Live walkthrough, 2026-09-26 (P0 for launch): a new account has ONE
+  // empty workspace and a plan for one company; its first balance prints a
+  // CUI. The engine reports that the empty workspace becomes the company, and
+  // the card says so — the commit is the ordinary new-company commit, which
+  // the engine turns into the adoption.
+  it("a new account's first balance: 'Your empty workspace becomes this company', and the screen follows", async () => {
+    api.identifyUpload.mockResolvedValue(
+      identity(
+        { target: { org_id: "scandia", name: "Carniprod SRL", is_new: true, reason: "adopt_empty_workspace" } },
+        { cui: "RO999999", company_name: "Carniprod SRL", caen_code: "1011", industry_key: "manufacturing", industry_label: "Manufacturing" },
+      ),
+    );
+    api.commitUpload.mockResolvedValue({
+      status: "queued", document_id: "doc-adopt", org_id: "scandia", company_name: "Carniprod SRL",
+      created_company: false, adopted_company: true,
+    });
+    renderHome();
+    const file = await dropOnHome("carniprod.pdf");
+    await screen.findByText("Check before we analyse");
+    expect(within(card()).getByTestId("upload-card-adopt-note")).toHaveTextContent("Your empty workspace becomes this company.");
+    expect(within(card()).queryByTestId("upload-card-new-note")).toBeNull();
+    expect(row("upload-card-company-value")).toHaveTextContent("Carniprod SRL");
+    fireEvent.click(within(card()).getByTestId("upload-card-analyse"));
+    await waitFor(() =>
+      expect(api.commitUpload).toHaveBeenCalledWith({
+        file,
+        onScreenOrgId: "scandia",
+        periodEnd: "2025-12-31",
+        industryKey: "manufacturing",
+        targetOrgId: null,
+        createCompany: { name: "Carniprod SRL", cui: "RO999999", caen_code: "1011", industry_key: "manufacturing" },
+      }),
+    );
+    // Renamed: the company list is re-read, and the screen follows the company.
+    await waitFor(() => expect(activateWorkspace).toHaveBeenCalledWith("scandia", { name: "Carniprod SRL", listChanged: true }));
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/workspace/scandia"));
+  });
+
+  it("Romanian: 'Folosim spațiul tău gol pentru această companie'", async () => {
+    await i18n.changeLanguage("ro");
+    api.identifyUpload.mockResolvedValue(
+      identity({ target: { org_id: "scandia", name: "Carniprod SRL", is_new: true, reason: "adopt_empty_workspace" } }, { cui: "RO999999", company_name: "Carniprod SRL" }),
+    );
+    renderHome();
+    await dropOnHome();
+    await screen.findByText("Verifică înainte să analizăm");
+    expect(within(card()).getByTestId("upload-card-adopt-note")).toHaveTextContent("Folosim spațiul tău gol pentru această companie.");
+  });
+
   it("Change — another of my companies, another period, another industry; each then reads 'chosen by you'", async () => {
     api.identifyUpload.mockResolvedValue(identity());
     api.commitUpload.mockResolvedValue({ status: "queued", document_id: "doc-4", org_id: "scandia", company_name: "Scandia Food SRL" });
@@ -557,6 +606,57 @@ describe("confirmation card", () => {
     expect(api.commitUpload.mock.calls[0][0].industryKey).toBeNull();
   });
 
+  // Live walkthrough, 2026-09-26: the summary named the company's industry
+  // ("from your company's settings") while Change's INDUSTRY select read
+  // "Not set". The form starts from the value the card shows, and leaving it
+  // untouched sends nothing — the company keeps its industry.
+  it("Change starts from the industry the card shows — the company's own — and an untouched select sends none", async () => {
+    api.identifyUpload.mockResolvedValue(
+      identity({}, {
+        industry_key: null,
+        industry_label: null,
+        caen_code: null,
+        sources: {
+          cui: { signal: "document_header_cui", evidence: "C.U.I. 7654321" },
+          period_end: { signal: "closing_balance", evidence: "la data de 31.12.2025" },
+        },
+      }),
+    );
+    api.commitUpload.mockResolvedValue({ status: "queued", document_id: "doc-10", org_id: "agras", company_name: "Agras SA" });
+    renderHome();
+    await dropOnHome();
+    await screen.findByText("Check before we analyse");
+    await waitFor(() => expect(row("upload-card-industry-value")).toHaveTextContent("Agriculture"));
+    fireEvent.click(within(card()).getByTestId("upload-card-change"));
+    const panel = await screen.findByTestId("upload-card-change-panel");
+    const select = within(panel).getByTestId("upload-change-industry") as HTMLSelectElement;
+    expect(select.value, "the form read another value than the card").toBe("agriculture");
+    expect(select.selectedOptions[0]?.textContent).toBe("Agriculture");
+    // An upload cannot clear the company's industry: "Not set" is not offered over it.
+    expect([...select.options].map((o) => o.value)).not.toContain("");
+    // Another field changed, the industry left as shown: the commit sends no industry.
+    fireEvent.change(within(panel).getByTestId("upload-change-month"), { target: { value: "6" } });
+    expect(row("upload-card-industry-value")).toHaveTextContent("Agriculture");
+    expect(row("upload-card-industry-from")).toHaveTextContent("from your company's settings");
+    fireEvent.click(within(card()).getByTestId("upload-card-analyse"));
+    await waitFor(() => expect(api.commitUpload).toHaveBeenCalledTimes(1));
+    expect(api.commitUpload.mock.calls[0][0].industryKey).toBeNull();
+    expect(api.commitUpload.mock.calls[0][0].periodEnd).toBe("2025-06-30");
+  });
+
+  it("a new company's form still offers 'Not set' and starts from the document's industry", async () => {
+    api.identifyUpload.mockResolvedValue(
+      identity({ target: { org_id: null, name: "Carniprod SRL", is_new: true, reason: "new_cui" } }, { cui: "RO999999", company_name: "Carniprod SRL" }),
+    );
+    renderHome();
+    await dropOnHome();
+    await screen.findByText("Check before we analyse");
+    fireEvent.click(within(card()).getByTestId("upload-card-change"));
+    const select = within(await screen.findByTestId("upload-card-change-panel")).getByTestId("upload-change-industry") as HTMLSelectElement;
+    expect(select.value).toBe("agriculture");
+    expect([...select.options].map((o) => o.value)).toContain("");
+  });
+
   it("a value the engine gave no origin for shows none — the card never guesses one", async () => {
     api.identifyUpload.mockResolvedValue(identity({}, { sources: {} }));
     renderHome();
@@ -598,6 +698,64 @@ describe("confirmation card", () => {
     expect(api.commitUpload.mock.calls[0]![0].confirmExtra).toBeUndefined();
     expect(confirmExtraDoc).not.toHaveBeenCalled();
     expect(await screen.findByText("Analysing Agras SA")).toBeInTheDocument();
+  });
+
+  // Live walkthrough, 2026-09-26: a new company's commit at the plan's
+  // workspace cap answered 500 and the card read "We couldn't save the file".
+  // The engine answers 402 workspace_cap_reached; the card says how many
+  // companies the plan allows, with the upgrade path and the choice of one of
+  // the user's companies.
+  it("the plan's company cap (402): the plan's words, the upgrade path and one of my companies — never 'couldn't save'", async () => {
+    api.identifyUpload.mockResolvedValue(
+      identity({ target: { org_id: null, name: "Carniprod SRL", is_new: true, reason: "new_cui" } }, { cui: "RO999999", company_name: "Carniprod SRL" }),
+    );
+    api.commitUpload.mockResolvedValue({ status: "cap_reached", plan: "trial", cap: 1, message: "Your plan allows 1 company." });
+    renderHome();
+    const file = await dropOnHome();
+    await screen.findByText("Check before we analyse");
+    fireEvent.click(within(card()).getByTestId("upload-card-analyse"));
+
+    const cap = await within(card()).findByTestId("upload-card-cap");
+    expect(within(cap).getByTestId("upload-card-cap-body")).toHaveTextContent(
+      "Your plan allows 1 company — this file would be a new one. Upgrade to add it, or put the file in one of your companies.",
+    );
+    expect(within(cap).getByTestId("upload-card-cap-upgrade")).toHaveAttribute("href", "/pricing");
+    expect(within(cap).getByTestId("upload-card-cap-upgrade")).toHaveTextContent("View plans");
+    expect(card()).not.toHaveTextContent("We couldn't save the file");
+    expect(within(card()).queryByTestId("upload-card-error")).toBeNull();
+    // Analysing again would only meet the same cap.
+    expect(within(card()).getByTestId("upload-card-analyse")).toBeDisabled();
+    expect(activateWorkspace).not.toHaveBeenCalled();
+
+    // "Choose one of your companies" opens Change; choosing one clears the cap.
+    fireEvent.click(within(cap).getByTestId("upload-card-cap-choose"));
+    const panel = await screen.findByTestId("upload-card-change-panel");
+    fireEvent.click(within(panel).getByTestId("upload-change-company-scandia"));
+    expect(within(card()).queryByTestId("upload-card-cap")).toBeNull();
+    expect(within(card()).getByTestId("upload-card-analyse")).not.toBeDisabled();
+    api.commitUpload.mockResolvedValue({ status: "queued", document_id: "doc-cap", org_id: "scandia", company_name: "Scandia Food SRL" });
+    fireEvent.click(within(card()).getByTestId("upload-card-analyse"));
+    await waitFor(() =>
+      expect(api.commitUpload).toHaveBeenLastCalledWith(expect.objectContaining({ file, targetOrgId: "scandia", createCompany: null })),
+    );
+  });
+
+  it("Romanian: 'Planul tău permite 5 companii — …'", async () => {
+    await i18n.changeLanguage("ro");
+    api.identifyUpload.mockResolvedValue(
+      identity({ target: { org_id: null, name: "Carniprod SRL", is_new: true, reason: "new_cui" } }, { cui: "RO999999", company_name: "Carniprod SRL" }),
+    );
+    api.commitUpload.mockResolvedValue({ status: "cap_reached", plan: "pro", cap: 5, message: "Your plan allows 5 companies." });
+    renderHome();
+    await dropOnHome();
+    await screen.findByText("Verifică înainte să analizăm");
+    fireEvent.click(within(card()).getByTestId("upload-card-analyse"));
+    const cap = await within(card()).findByTestId("upload-card-cap");
+    expect(within(cap).getByTestId("upload-card-cap-body")).toHaveTextContent(
+      "Planul tău permite 5 companii — fișierul ăsta ar fi o companie nouă.",
+    );
+    expect(within(cap).getByTestId("upload-card-cap-upgrade")).toHaveTextContent("Vezi planurile");
+    expect(card()).not.toHaveTextContent("N-am putut salva fișierul");
   });
 
   it("dismissing the extra-document question leaves the card as it was, saying nothing ran", async () => {

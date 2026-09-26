@@ -54,7 +54,7 @@ import { DashboardProvider } from "@/stores/dashboard";
 import { DashboardViewProvider } from "@/stores/dashboardView";
 // COMPARATIVES — two periods side by side (engine document, FE cells).
 import { ComparativesViewProvider, useComparativesView } from "@/stores/comparativesView";
-import { bsOpeningFill, pickDefaultPrior, useComparatives } from "@/lib/comparatives";
+import { bsOpeningFill, useComparatives, useComparisonChoice } from "@/lib/comparatives";
 import { ComparativeProvider } from "@/components/cfo/ComparativeCells";
 import {
   ComparativesControls,
@@ -67,7 +67,6 @@ import { RatiosTabContent } from "@/components/cfo/ratios/RatiosTab";
 import { CreditComparison } from "@/components/cfo/ratios/CreditComparison";
 import { useRatioSurfaces } from "@/lib/useRatioSurfaces";
 import { notesJumpTarget } from "@/lib/notesJumpTarget";
-import { usePeriodStepper } from "@/lib/usePeriodStepper";
 import { MONEY_MISSING } from "@/lib/money";
 // THE INSTRUMENT — resting-surface + figure primitives (import only).
 import { Amount } from "@/components/instrument/Amount";
@@ -397,9 +396,11 @@ const DASHBOARD_UPLOAD_ACCEPT = FINANCIAL_UPLOAD_ACCEPT;
 export default function FinancialStatements() {
   // The comparatives view store (which prior, which columns) is company-
   // scoped and read by hooks inside the page body, so the provider wraps
-  // the whole page rather than one region.
+  // the whole page rather than one region. It holds the choice of the
+  // company open now — one choice per company, never carried to the next.
+  const { org } = useActiveOrg();
   return (
-    <ComparativesViewProvider>
+    <ComparativesViewProvider orgId={org?.id ?? null}>
       <FinancialStatementsInner />
     </ComparativesViewProvider>
   );
@@ -588,22 +589,27 @@ function FinancialStatementsInner() {
 
   // ── COMPARATIVES ────────────────────────────────────────────────────
   // Which prior the reader chose (or AUTO = the previous fiscal year-end),
-  // resolved against the workspace's merged period list; then the engine's
-  // comparatives document for (current, prior). `cmpDoc` is null whenever
-  // there is no prior, the reader turned comparatives off, or the engine
-  // refused — and every statement view then renders its single-period
-  // markup unchanged.
+  // resolved ONLY against the periods of the company the period on screen
+  // belongs to — a stored choice that is not one of them is ignored — then
+  // the engine's comparatives document for (current, prior), asked of THAT
+  // company. `cmpDoc` is null whenever there is no prior, the reader turned
+  // comparatives off, or the engine refused — and every statement view then
+  // renders its single-period markup unchanged. (2026-09-26: a prior chosen
+  // on Scandia's dashboard was requested on EEI's, and the engine's refusal
+  // printed Scandia's raw period id on EEI's Overview.)
   const cmpView = useComparativesView();
-  const { periods: cmpPeriods } = usePeriodStepper();
-  const cmpAutoPick = useMemo(
-    () => pickDefaultPrior(cmpPeriods, remotePeriod.id, remotePeriod.periodEnd),
-    [cmpPeriods, remotePeriod.id, remotePeriod.periodEnd],
-  );
-  const cmpPriorId: string | null =
-    cmpView.view.priorPeriodId === "none"
-      ? null
-      : cmpView.view.priorPeriodId ?? cmpAutoPick?.period_id ?? null;
-  const cmpQuery = useComparatives(remotePeriod.id, cmpPriorId);
+  const cmpChoice = useComparisonChoice({
+    currentId: remotePeriod.id,
+    currentEnd: remotePeriod.periodEnd,
+    currentOrgId: remotePeriod.organizationId,
+    activeOrgId: activeOrgForPeriods?.id ?? null,
+    stored: cmpView.view.priorPeriodId,
+  });
+  const cmpPeriods = cmpChoice.periods;
+  const cmpAutoPick = cmpChoice.autoPick;
+  const cmpPriorId: string | null = cmpChoice.priorId;
+  const cmpCompanyId: string | null = cmpChoice.companyId;
+  const cmpQuery = useComparatives(remotePeriod.id, cmpPriorId, cmpCompanyId);
   // Sourced sector bands for the ratio cards (uploaded periods only: a
   // sample dataset has no period on the engine to ask about).
   const sectorQuery = useSectorBenchmark(remotePeriod.source === "upload" ? remotePeriod.id : null);
@@ -2326,7 +2332,7 @@ function FinancialStatementsInner() {
                 )}
               />
             </ComparativeProvider>
-            {cmpRefused && <ComparativesRefusedNote code={cmpRefused.code} message={cmpRefused.message} />}
+            {cmpRefused && <ComparativesRefusedNote code={cmpRefused.code} />}
             {/* Server-emitted, period-keyed notes & recommendations
              *  rendered as part of the P&L tab. Honest empty-state when
              *  the engine produced none for this period — never filler. */}
@@ -2390,7 +2396,7 @@ function FinancialStatementsInner() {
             ) : (
               <BalanceSheetTable statements={statements} />
             )}
-            {cmpRefused && <ComparativesRefusedNote code={cmpRefused.code} message={cmpRefused.message} />}
+            {cmpRefused && <ComparativesRefusedNote code={cmpRefused.code} />}
             <StatementNotes
               recommendations={remotePeriod.recommendations}
               alerts={remotePeriod.alerts}

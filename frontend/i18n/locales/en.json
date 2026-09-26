@@ -604,7 +604,9 @@
       "loading": "Comparing periods…",
       "priorAbsentBs": "{{label}} has no matching line",
       "refusedSame": "A period cannot be compared with itself.",
-      "refusedNotInWorkspace": "The comparison period is not in this workspace."
+      "refusedNotInWorkspace": "The comparison period belongs to another company.",
+      "refusedNotServable": "The comparison period has no analysed figures to compare.",
+      "refusedGeneric": "These two periods can't be compared."
     },
     "ratioCmp": {
       "unit": {
@@ -3840,6 +3842,7 @@
       "periodValue": "ending {{date}}",
       "newCompany": "New company",
       "newCompanyNote": "None of your companies has this CUI. Analyse creates the company.",
+      "adoptNote": "Your empty workspace becomes this company.",
       "noCuiNote": "We couldn't read a CUI in the document, so it goes to {{company}}. Change it if that's wrong.",
       "otherCompanyNote": "This document belongs to {{company}}, not to the company open now.",
       "pickPeriod": "The document doesn't say which period it covers. Choose it under Change.",
@@ -3882,6 +3885,13 @@
       "title": "Already uploaded",
       "body": "This exact file is already analysed for {{company}}. It wasn't saved again and it doesn't count.",
       "open": "Already uploaded — open it"
+    },
+    "cap": {
+      "body_one": "Your plan allows {{count}} company — this file would be a new one.",
+      "body_other": "Your plan allows {{count}} companies — this file would be a new one.",
+      "hint": "Upgrade to add it, or put the file in one of your companies.",
+      "choose": "Choose one of your companies",
+      "upgrade": "View plans"
     },
     "errors": {
       "unsupported": "We can't read this kind of file. Use PDF, Excel (.xlsx, .xls), CSV or a photo.",

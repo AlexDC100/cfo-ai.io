@@ -18,7 +18,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { AlertCircle, Check, FileText, Loader2, X } from "lucide-react";
 
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
@@ -190,7 +190,9 @@ export function UploadFlowHost() {
     try {
       const outcome = await analyseUpload(opts);
       if (outcome.kind === "queued") {
-        await startJob(outcome.docId, outcome.orgId, outcome.companyName, outcome.created);
+        // A created company is a new row in the list; an adopted workspace
+        // is renamed — either way the list is re-read.
+        await startJob(outcome.docId, outcome.orgId, outcome.companyName, outcome.created || outcome.adopted);
         return;
       }
       if (outcome.kind === "needs_confirmation") {
@@ -305,7 +307,14 @@ interface IndustryOption {
  * profiles), in the reader's language. When the catalog cannot be read the
  * workspace industries stand in, so Change never offers an empty list.
  */
-function useIndustryOptions(docKey: string | null, docLabel: string | null): IndustryOption[] {
+function useIndustryOptions(
+  docKey: string | null,
+  docLabel: string | null,
+  /** The target company's own industry, when the card shows it: it must be
+   *  one of the options, or the form could not show what the card says. */
+  companyKey: string | null = null,
+  companyLabel: string | null = null,
+): IndustryOption[] {
   const { i18n } = useTranslation();
   const ro = (i18n.language ?? "").startsWith("ro");
   const catalog = useIndustryCatalog();
@@ -318,8 +327,11 @@ function useIndustryOptions(docKey: string | null, docLabel: string | null): Ind
             .sort((a, b) => a.label.localeCompare(b.label))
         : ORG_INDUSTRIES.map((i) => ({ key: i.key, label: orgIndustryDisplayLabel(i.key) }));
     if (docKey && !list.some((i) => i.key === docKey)) list.unshift({ key: docKey, label: docLabel ?? docKey });
+    if (companyKey && companyLabel && !list.some((i) => i.key === companyKey)) {
+      list.unshift({ key: companyKey, label: companyLabel });
+    }
     return list;
-  }, [catalog, ro, docKey, docLabel]);
+  }, [catalog, ro, docKey, docLabel, companyKey, companyLabel]);
 }
 
 // ── Views ──────────────────────────────────────────────────────────────
@@ -459,7 +471,12 @@ function ConfirmView({
       })
     : null;
   void locale; // re-render on language change (formatDateOnly reads the active locale)
-  const industries = useIndustryOptions(identity.industry_key, identity.industry_label);
+  const industries = useIndustryOptions(
+    identity.industry_key,
+    identity.industry_label,
+    keepsCompanyIndustry ? targetOrg?.industry_key ?? null : null,
+    keepsCompanyIndustry ? companyIndustry : null,
+  );
   const industryValue = choice.industryKey
     ? industries.find((i) => i.key === choice.industryKey)?.label ?? choice.industryLabel ?? null
     : keepsCompanyIndustry
@@ -473,13 +490,19 @@ function ConfirmView({
     !!flow.onScreenOrgId &&
     choice.orgId !== flow.onScreenOrgId &&
     activeOrg?.id === flow.onScreenOrgId;
+  // The plan's company cap (402 workspace_cap_reached): said in words while
+  // the file is still headed for a NEW company — never "We couldn't save
+  // the file". Choosing one of the user's companies clears it.
+  const capReached = flow.error?.code === "cap" && choice.mode === "new" ? flow.error.cap ?? null : null;
 
   return (
     <>
       <CardHeader title={t("wsV2.card.title")} fileName={flow.file?.name} />
       <div className="max-h-[min(70vh,640px)] overflow-y-auto px-5 py-3 chat-scroll">
         {/* One note at most — the most important thing to read first. */}
-        {choice.mode === "new" ? (
+        {choice.mode === "new" && target.reason === "adopt_empty_workspace" ? (
+          <Note tone="accent" testid="upload-card-adopt-note">{t("wsV2.card.adoptNote")}</Note>
+        ) : choice.mode === "new" ? (
           <Note tone="accent" testid="upload-card-new-note">{t("wsV2.card.newCompanyNote")}</Note>
         ) : target.reason === "on_screen_company" && !choice.edited.company ? (
           <Note tone="neutral" testid="upload-card-nocui-note">
@@ -523,6 +546,7 @@ function ConfirmView({
             result={result}
             choice={choice}
             industries={industries}
+            shownIndustryKey={keepsCompanyIndustry ? targetOrg?.industry_key ?? null : null}
           />
         )}
 
@@ -531,7 +555,39 @@ function ConfirmView({
             {blocker === "period" ? t("wsV2.card.pickPeriod") : t("wsV2.card.pickCompany")}
           </p>
         )}
-        {flow.error && (
+        {capReached && (
+          <div
+            className="mt-2 rounded-sm bg-caution-tint px-3 py-2.5 text-[12.5px] leading-snug text-ink"
+            role="alert"
+            data-testid="upload-card-cap"
+          >
+            <p className="flex items-start gap-1.5">
+              <AlertCircle size={14} className="mt-px shrink-0 text-caution" aria-hidden />
+              <span data-testid="upload-card-cap-body">
+                {t("wsV2.cap.body", { count: capReached.count })} {t("wsV2.cap.hint")}
+              </span>
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2 pl-5">
+              <button
+                type="button"
+                onClick={() => setChanging(true)}
+                data-testid="upload-card-cap-choose"
+                className="inline-flex h-8 items-center justify-center rounded-sm border border-rule bg-surface px-3 text-[12.5px] font-medium text-ink transition-colors duration-micro hover:bg-bg-2"
+              >
+                {t("wsV2.cap.choose")}
+              </button>
+              <Link
+                to="/pricing"
+                onClick={closeUploadFlow}
+                data-testid="upload-card-cap-upgrade"
+                className="inline-flex h-8 items-center justify-center rounded-sm bg-brand px-3 text-[12.5px] font-medium text-paper transition-colors duration-micro hover:bg-brand-dark"
+              >
+                {t("wsV2.cap.upgrade")}
+              </Link>
+            </div>
+          </div>
+        )}
+        {flow.error && flow.error.code !== "cap" && (
           <p className="mt-2 flex items-start gap-1.5 text-[12px] text-alert" role="alert" data-testid="upload-card-error">
             <AlertCircle size={14} className="mt-px shrink-0" aria-hidden />
             <span>
@@ -558,7 +614,7 @@ function ConfirmView({
         <button
           type="button"
           onClick={onAnalyse}
-          disabled={saving || !!blocker}
+          disabled={saving || !!blocker || !!capReached}
           data-testid="upload-card-analyse"
           className="inline-flex h-9 items-center justify-center gap-2 rounded-sm bg-brand px-5 text-[13px] font-medium text-paper transition-colors duration-micro hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-40"
         >
@@ -595,10 +651,14 @@ function ChangePanel({
   result,
   choice,
   industries,
+  shownIndustryKey,
 }: {
   result: IdentifyResult;
   choice: FlowChoice;
   industries: IndustryOption[];
+  /** The company's own industry the card shows ("from your company's
+   *  settings") while the user has chosen none: the form starts from it. */
+  shownIndustryKey: string | null;
 }) {
   const { t } = useTranslation();
   const locale = useActiveLocale();
@@ -765,7 +825,11 @@ function ChangePanel({
       <label className="block">
         <span className={label}>{t("wsV2.change.industry")}</span>
         <select
-          value={choice.industryKey ?? ""}
+          // The value the card shows: the choice, else the company's own
+          // industry (live walkthrough, 2026-09-26: the form read "Not set"
+          // under a summary naming the company's industry). Showing it sends
+          // nothing — only a change the user makes is a choice.
+          value={choice.industryKey ?? shownIndustryKey ?? ""}
           onChange={(e) => {
             const key = e.currentTarget.value || null;
             const hit = industries.find((i) => i.key === key);
@@ -778,7 +842,11 @@ function ChangePanel({
           data-testid="upload-change-industry"
           className={field}
         >
-          <option value="">{t("wsV2.change.industryNone")}</option>
+          {/* An upload cannot clear a company's industry, so "Not set" is not
+              offered over one — it would read as a choice that does nothing. */}
+          {!(choice.mode === "existing" && shownIndustryKey) && (
+            <option value="">{t("wsV2.change.industryNone")}</option>
+          )}
           {industries.map((i) => (
             <option key={i.key} value={i.key}>
               {i.label}

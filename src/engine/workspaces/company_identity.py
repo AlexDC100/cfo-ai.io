@@ -58,8 +58,10 @@ caen_code / industry_key
   (``engine/api/seed/caen_industry_mappings.yaml`` — the file production's
   ``caen_industry_mappings`` table is loaded from).
 
-Nothing here writes anything, calls a network or reads a clock (beyond the
-engine's period helper refusing "today" as evidence).
+Nothing here writes anything — beyond the registry's derived name index
+(``engine.workspaces.registry_names``, a file beside the registry) — calls a
+network or reads a clock (beyond the engine's period helper refusing "today"
+as evidence).
 
 Python 3.9 — no ``match``, no ``X | Y`` unions.
 """
@@ -68,12 +70,15 @@ from __future__ import annotations
 import fnmatch
 import functools
 import io
+import logging
 import re
 import unicodedata
 import weakref
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime
 from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+
+logger = logging.getLogger(__name__)
 
 # ── CUI ────────────────────────────────────────────────────────────────
 
@@ -651,14 +656,41 @@ def _search(registry: Any, q: str) -> List[Dict[str, Any]]:
 
 
 #: Per-registry index: normalized name -> the one CUI registered under it,
-#: or AMBIGUOUS when several are. Built once per registry (a full pass over
-#: the spine's names, ~1M rows, seconds) — the only way "exactly one" is a
-#: fact rather than a guess about what a capped prefix page left out.
-_NAME_INDEX_MEMO: "weakref.WeakKeyDictionary[Any, Dict[str, int]]" = weakref.WeakKeyDictionary()
+#: or AMBIGUOUS when several are — decided over every registered name, the
+#: only way "exactly one" is a fact rather than a guess about what a capped
+#: prefix page left out. Building it is a full pass over the spine's names
+#: (~1M rows through the normalizer: 5-20 s), so for a registry with a file
+#: it is PERSISTED beside it and read with one indexed query per name
+#: (``engine.workspaces.registry_names``; live walkthrough, 2026-09-26: the
+#: upload route opens a registry per request, and every identify — and the
+#: commit after it — rebuilt it: 15-20 s per upload in production). A
+#: registry without a file (a test double) keeps the in-memory build. The
+#: memo holds the answer per registry object.
+_NAME_INDEX_MEMO: "weakref.WeakKeyDictionary[Any, Mapping[str, int]]" = weakref.WeakKeyDictionary()
 AMBIGUOUS = -1
 
 
-def _normalized_name_index(registry: Any) -> Optional[Dict[str, int]]:
+def _code_shape(code: Any) -> Tuple[Any, ...]:
+    """A code object's bytecode, names and constants — nested code objects
+    (the generator inside the normalizer) by their own shape, never by a
+    repr that carries a memory address and changes every process."""
+    consts = tuple(_code_shape(c) if hasattr(c, "co_code") else repr(c) for c in code.co_consts)
+    return (code.co_code, code.co_names, consts)
+
+
+@functools.lru_cache(maxsize=1)
+def normalizer_tag() -> str:
+    """A fingerprint of the normalizer itself — its code, its constants and
+    the legal-form table — so a persisted index built by another version of
+    ``normalize_company_name`` is never read as this one's. Stable across
+    processes (the persisted index outlives each one)."""
+    import hashlib
+
+    blob = repr((_code_shape(normalize_company_name.__code__), _LEGAL_FORM_SUFFIXES)).encode("utf-8")
+    return hashlib.sha256(blob).hexdigest()[:16]
+
+
+def _normalized_name_index(registry: Any) -> Optional[Mapping[str, int]]:
     """The registry's names, normalized — or None when the registry cannot
     list its names (then ``registry_match_name`` falls back to search)."""
     names = getattr(registry, "iter_company_names", None)
@@ -670,19 +702,31 @@ def _normalized_name_index(registry: Any) -> Optional[Dict[str, int]]:
         cached = None
     if cached is not None:
         return cached
-    index: Dict[str, int] = {}
-    for cui, raw in names():
-        norm = normalize_company_name(raw)
-        if not norm:
-            continue
-        cui = int(cui)
-        prev = index.get(norm)
-        index[norm] = cui if prev is None or prev == cui else AMBIGUOUS
+    from engine.workspaces.registry_names import build_name_map, registry_name_index
+
+    index = registry_name_index(registry, normalize_company_name, normalizer_tag())
+    if index is None:
+        index = build_name_map(names(), normalize_company_name)
     try:
         _NAME_INDEX_MEMO[registry] = index
     except TypeError:
         pass
     return index
+
+
+def warm_name_index(registry: Any) -> str:
+    """Make the registry's persisted name index current now (the operator
+    CLI after an ingest, the server at start) so no request pays for the
+    build. Returns a one-line status. Never raises."""
+    try:
+        index = _normalized_name_index(registry)
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("[company_identity] name index warm-up failed")
+        return "name index: failed (%s)" % type(exc).__name__
+    if index is None:
+        return "name index: the registry cannot list its names"
+    return "name index: %d names, %s" % (len(index), "persisted" if hasattr(index, "fingerprint") else "in memory")
+
 
 
 def registry_files(registry: Any, cui: str, row: Optional[Mapping[str, Any]]) -> Optional[bool]:
@@ -747,7 +791,11 @@ def _unique_registered_name(registry: Any, name: str
     except Exception:  # noqa: BLE001 — a registry that fails to list is "unsure"
         return None
     if index is not None:
-        cui_int = index.get(target)
+        try:
+            cui_int = index.get(target)
+        except Exception:  # noqa: BLE001 — an index that cannot answer is "unsure"
+            logger.exception("[company_identity] name index lookup failed")
+            return None
         if cui_int is None or cui_int == AMBIGUOUS:
             return None
         cui = normalize_cui(cui_int)
