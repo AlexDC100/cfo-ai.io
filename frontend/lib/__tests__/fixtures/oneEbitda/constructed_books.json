@@ -978,6 +978,7 @@
       "kind": "equal_movement",
       "side": "credit"
      },
+     "parser_version": "tb_parser_v6",
      "pl_leaves": 7,
      "pl_leaves_active": 7,
      "pl_leaves_closed": 7,
@@ -1298,7 +1299,10 @@
       "G5_residual": 50000.0,
       "G5_within_activity": true,
       "G6_cleared_by": "equal_movement",
-      "G6_opening": 80000.0
+      "G6_opening": 80000.0,
+      "G7_current": true,
+      "G7_parser_version": "tb_parser_v6",
+      "G7_running_parser_version": "tb_parser_v6"
      },
      "has_activity": true,
      "identity_note_en": "On a closed trial balance the 711 line is derived from account 121, so the reconciliation closes by construction.",
@@ -2749,6 +2753,7 @@
       "kind": "equal_movement",
       "side": "credit"
      },
+     "parser_version": "tb_parser_v6",
      "pl_leaves": 6,
      "pl_leaves_active": 6,
      "pl_leaves_closed": 6,
@@ -3065,7 +3070,10 @@
       "G5_residual": 50000.0,
       "G5_within_activity": true,
       "G6_cleared_by": "equal_movement",
-      "G6_opening": 80000.0
+      "G6_opening": 80000.0,
+      "G7_current": true,
+      "G7_parser_version": "tb_parser_v6",
+      "G7_running_parser_version": "tb_parser_v6"
      },
      "has_activity": true,
      "identity_note_en": "On a closed trial balance the 711 line is derived from account 121, so the reconciliation closes by construction.",
@@ -4509,6 +4517,7 @@
       "kind": "equal_movement",
       "side": "credit"
      },
+     "parser_version": "tb_parser_v6",
      "pl_leaves": 5,
      "pl_leaves_active": 5,
      "pl_leaves_closed": 5,
@@ -4823,7 +4832,10 @@
       "G5_residual": 2000.0,
       "G5_within_activity": false,
       "G6_cleared_by": "equal_movement",
-      "G6_opening": 80000.0
+      "G6_opening": 80000.0,
+      "G7_current": true,
+      "G7_parser_version": "tb_parser_v6",
+      "G7_running_parser_version": "tb_parser_v6"
      },
      "has_activity": false,
      "identity_with_121": false,
@@ -6504,6 +6516,7 @@
       "debit_natured": 880000.0
      },
      "opening_cleared_by": null,
+     "parser_version": "tb_parser_v6",
      "pl_leaves": 6,
      "pl_leaves_active": 6,
      "pl_leaves_closed": 6,
@@ -6922,7 +6935,10 @@
       "G5_residual": 130000.0,
       "G5_within_activity": true,
       "G6_cleared_by": null,
-      "G6_opening": 80000.0
+      "G6_opening": 80000.0,
+      "G7_current": true,
+      "G7_parser_version": "tb_parser_v6",
+      "G7_running_parser_version": "tb_parser_v6"
      },
      "has_activity": true,
      "identity_with_121": false,
@@ -8293,6 +8309,7 @@
      "opening_cleared_by": {
       "kind": "opening_zero"
      },
+     "parser_version": "tb_parser_v6",
      "pl_leaves": 6,
      "pl_leaves_active": 6,
      "pl_leaves_closed": 0,
@@ -8607,7 +8624,10 @@
       "G5_residual": null,
       "G5_within_activity": null,
       "G6_cleared_by": "opening_zero",
-      "G6_opening": 0.0
+      "G6_opening": 0.0,
+      "G7_current": true,
+      "G7_parser_version": "tb_parser_v6",
+      "G7_running_parser_version": "tb_parser_v6"
      },
      "has_activity": true,
      "identity_with_121": false,
@@ -10140,6 +10160,7 @@
      "opening_cleared_by": {
       "kind": "opening_zero"
      },
+     "parser_version": "tb_parser_v6",
      "pl_leaves": 6,
      "pl_leaves_active": 6,
      "pl_leaves_closed": 6,
@@ -10558,7 +10579,10 @@
       "G5_residual": null,
       "G5_within_activity": null,
       "G6_cleared_by": "opening_zero",
-      "G6_opening": 0.0
+      "G6_opening": 0.0,
+      "G7_current": true,
+      "G7_parser_version": "tb_parser_v6",
+      "G7_running_parser_version": "tb_parser_v6"
      },
      "has_activity": true,
      "identity_with_121": false,

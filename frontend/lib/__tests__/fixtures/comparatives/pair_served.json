@@ -5053,6 +5053,7 @@
       "debit_natured": 97645438.41
      },
      "opening_cleared_by": null,
+     "parser_version": "tb_parser_v6",
      "pl_leaves": 192,
      "pl_leaves_active": 189,
      "pl_leaves_closed": 189,
@@ -5369,7 +5370,10 @@
       "G5_residual": 186849.53,
       "G5_within_activity": true,
       "G6_cleared_by": "account_121_ledger",
-      "G6_opening": 638017.32
+      "G6_opening": 638017.32,
+      "G7_current": true,
+      "G7_parser_version": "tb_parser_v6",
+      "G7_running_parser_version": "tb_parser_v6"
      },
      "has_activity": true,
      "identity_note_en": "On a closed trial balance the 711 line is derived from account 121, so the reconciliation closes by construction.",
@@ -14726,7 +14730,10 @@
       "G5_residual": 1071687.03,
       "G5_within_activity": true,
       "G6_cleared_by": "equal_movement",
-      "G6_opening": 851012.45
+      "G6_opening": 851012.45,
+      "G7_current": true,
+      "G7_parser_version": "tb_parser_v6",
+      "G7_running_parser_version": "tb_parser_v6"
      },
      "has_activity": true,
      "identity_note_en": "On a closed trial balance the 711 line is derived from account 121, so the reconciliation closes by construction.",
@@ -19162,6 +19169,7 @@
       "kind": "equal_movement",
       "side": "credit"
      },
+     "parser_version": "tb_parser_v6",
      "pl_leaves": 147,
      "pl_leaves_active": 146,
      "pl_leaves_closed": 146,
@@ -19478,7 +19486,10 @@
       "G5_residual": 1071687.03,
       "G5_within_activity": true,
       "G6_cleared_by": "equal_movement",
-      "G6_opening": 851012.45
+      "G6_opening": 851012.45,
+      "G7_current": true,
+      "G7_parser_version": "tb_parser_v6",
+      "G7_running_parser_version": "tb_parser_v6"
      },
      "has_activity": true,
      "identity_note_en": "On a closed trial balance the 711 line is derived from account 121, so the reconciliation closes by construction.",

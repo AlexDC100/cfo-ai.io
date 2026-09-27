@@ -2001,6 +2001,7 @@
     "kind": "equal_movement",
     "side": "credit"
    },
+   "parser_version": "tb_parser_v6",
    "pl_leaves": 227,
    "pl_leaves_active": 193,
    "pl_leaves_closed": 193,
@@ -10290,6 +10291,7 @@
      "kind": "equal_movement",
      "side": "credit"
     },
+    "parser_version": "tb_parser_v6",
     "pl_leaves": 227,
     "pl_leaves_active": 193,
     "pl_leaves_closed": 193,
@@ -10604,7 +10606,10 @@
      "G5_residual": 0.0,
      "G5_within_activity": true,
      "G6_cleared_by": "equal_movement",
-     "G6_opening": 4577428.41
+     "G6_opening": 4577428.41,
+     "G7_current": true,
+     "G7_parser_version": "tb_parser_v6",
+     "G7_running_parser_version": "tb_parser_v6"
     },
     "has_activity": false,
     "identity_with_121": false,

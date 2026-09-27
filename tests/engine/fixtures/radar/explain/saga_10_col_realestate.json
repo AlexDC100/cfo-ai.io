@@ -1990,6 +1990,7 @@
      "kind": "equal_movement",
      "side": "debit"
     },
+    "parser_version": "tb_parser_v6",
     "pl_leaves": 56,
     "pl_leaves_active": 56,
     "pl_leaves_closed": 56,
@@ -2306,7 +2307,10 @@
      "G5_residual": 29589814.24,
      "G5_within_activity": true,
      "G6_cleared_by": "equal_movement",
-     "G6_opening": -132538.69
+     "G6_opening": -132538.69,
+     "G7_current": true,
+     "G7_parser_version": "tb_parser_v6",
+     "G7_running_parser_version": "tb_parser_v6"
     },
     "has_activity": true,
     "identity_note_en": "On a closed trial balance the 711 line is derived from account 121, so the reconciliation closes by construction.",

@@ -692,6 +692,7 @@
    "opening_cleared_by": {
     "kind": "opening_zero"
    },
+   "parser_version": "tb_parser_v6",
    "pl_leaves": 1,
    "pl_leaves_active": 1,
    "pl_leaves_closed": 0,
@@ -1259,7 +1260,10 @@
      "G5_residual": 0.0,
      "G5_within_activity": true,
      "G6_cleared_by": "opening_zero",
-     "G6_opening": 0.0
+     "G6_opening": 0.0,
+     "G7_current": true,
+     "G7_parser_version": "tb_parser_v6",
+     "G7_running_parser_version": "tb_parser_v6"
     },
     "has_activity": false,
     "identity_with_121": false,
