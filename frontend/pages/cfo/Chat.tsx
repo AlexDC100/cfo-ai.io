@@ -134,9 +134,20 @@ function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): string |
   if (canonical) {
     lines.push("");
     lines.push("Canonical metrics (single source of truth):");
-    pushIf(lines, "Revenue",                                   canonical.headline.revenue);
-    pushIf(lines, "Total operating revenue",                   canonical.headline.total_operating_revenue);
-    pushIf(lines, "EBITDA — reported (legal view, ties to acct 121)", canonical.ebitda.reported);
+    // THE ONE EBITDA (owner ruling 2026-09-26): the stock variation (711)
+    // and own work capitalised (72x) are inside it; turnover is 70x − 709.
+    // A refused EBITDA is stated with the engine's reason — the assistant
+    // must never be handed a number where the dashboard prints a refusal.
+    pushIf(lines, "Net turnover (cifra de afaceri netă, 70x − 709)", canonical.headline.revenue);
+    if (canonical.ebitda.reported === null) {
+      lines.push(
+        `  · EBITDA: REFUSED — ${canonical.ebitda.refusal?.text.en ?? "the engine served no EBITDA for this period"} ` +
+          `(EBIT, EBITDA margins and EBITDA-based ratios are refused with it)`,
+      );
+    }
+    pushIf(lines, "EBITDA (711 and 72x inside)",               canonical.ebitda.reported);
+    pushIf(lines, "Variația stocurilor de produse (net 711, inside EBITDA)", canonical.ebitda.inventory_variation);
+    pushIf(lines, "Own work capitalised (net 72x, inside EBITDA)", canonical.ebitda.capitalized_own_work);
     pushIf(lines, "EBITDA — core (basis for valuation)",       canonical.ebitda.core);
     if (canonical.ebitda.adjustments.length > 0) {
       lines.push("  EBITDA Reported→Core bridge (canonical):");
@@ -148,12 +159,11 @@ function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): string |
     }
     pushIf(lines, "EBIT",                                      canonical.headline.ebit);
     pushIf(lines, "Net profit — statutory (acct 121)",         canonical.netProfit.statutory_account_121);
-    pushIf(lines, "Net profit — reconstructed (bottom-up)",    canonical.netProfit.reconstructed);
-    pushIf(lines, "Reconciliation gap (RON)",                  canonical.netProfit.reconciliation_gap);
+    pushIf(lines, "Net result built from the accounts",        canonical.netProfit.reconstructed);
+    pushIf(lines, "Not explained by the accounts (RON)",       canonical.netProfit.reconciliation_gap);
     if (canonical.netProfit.gap_pct !== null) {
       lines.push(`  · Gap %: ${canonical.netProfit.gap_pct.toFixed(2)}%`);
     }
-    pushIf(lines, "Capitalized own work (722, memo)",          canonical.headline.capitalized_own_work_memo);
     pushIf(lines, "Interest expense",                          canonical.headline.interest_expense);
     pushIf(lines, "Depreciation",                              canonical.headline.depreciation);
     pushIf(lines, "Tax",                                       canonical.headline.tax);

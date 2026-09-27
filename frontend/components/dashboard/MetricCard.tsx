@@ -77,6 +77,9 @@ interface Props {
    *  (engine.ratios.margin_meaning via `statements.margin_meaning`). A margin
    *  card prints it in place of the percent the resolver would divide. */
   marginRefusal?: { readonly ro: string; readonly en: string } | null;
+  /** The ENGINE's refusal of EBITDA for this period (one-EBITDA ruling). A
+   *  card built on EBITDA / EBIT whose value is absent prints it. */
+  ebitdaRefusal?: { readonly code: string; readonly text: { readonly ro: string; readonly en: string } } | null;
   /** F6.1 — multi-year series for the active period (built once at the page
    *  from statements.historicalPeriods). Drives the Trend-view sparkline. */
   series?: MultiYearSeries;
@@ -95,6 +98,14 @@ interface TrendBadge {
    *  which is exactly why the badge stays a NEUTRAL chip. */
   positive: boolean;
 }
+
+/** Concepts whose value is EBITDA / EBIT or built on them — refused with
+ *  EBITDA when the engine refused it. */
+const EBITDA_BUILT_CONCEPTS: ReadonlySet<string> = new Set([
+  "ebitda", "ebit", "gross_profit", "ebitda_margin", "ebit_margin", "operating_margin",
+  "gross_margin", "gross_margin_ratio", "core_ebitda_margin", "net_debt_ebitda",
+  "debt_to_ebitda", "interest_coverage", "dscr", "pretax_profit",
+]);
 
 // Narrow no-break space — the instrument's joint between figure and unit.
 const NNBSP = " ";
@@ -128,6 +139,7 @@ export function MetricCard({
   editMode,
   overrides,
   marginRefusal = null,
+  ebitdaRefusal = null,
   series,
   view = "snapshot",
   onRearrange,
@@ -173,8 +185,16 @@ export function MetricCard({
   // A MARGIN THE ENGINE REFUSED (turnover negligible against operating
   // activity): the card states the refusal, never the resolver's division —
   // on the corpus developer that division printed −17,884.9%.
+  // A FIGURE BUILT ON A REFUSED EBITDA (one-EBITDA ruling, 2026-09-26):
+  // the engine's reason, never a dash — the resolver answers null for
+  // EBITDA, EBIT, their margins and the EBITDA leverage once the served
+  // figure is refused.
+  const ebitdaBuilt =
+    ebitdaRefusal && resolved.value === null && EBITDA_BUILT_CONCEPTS.has(card.conceptKey)
+      ? { ro: `EBITDA refuzată: ${ebitdaRefusal.text.ro}`, en: `EBITDA refused: ${ebitdaRefusal.text.en}` }
+      : null;
   const refusal =
-    marginRefusal && MARGIN_CONCEPT_KEYS.has(card.conceptKey) ? marginRefusal : null;
+    marginRefusal && MARGIN_CONCEPT_KEYS.has(card.conceptKey) ? marginRefusal : ebitdaBuilt;
 
   // PROVENANCE — by concept, from the page, verified to the cent. The
   // resolver's output carries none; the page that routed the headline

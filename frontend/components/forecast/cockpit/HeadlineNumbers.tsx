@@ -132,6 +132,17 @@ export function HeadlineNumbers({
         }
       >
         {settle(<ProjectedText text={pick(ebitda.amount, lang)} period={ebitda.period} projectedLabel={projectedLabel} />)}
+        {ebitda.year0Step ? (
+          // THE YEAR-0 → PLAN STEP, as served: year 0's EBITDA includes the
+          // stock variation (711) and own work capitalised (72x); the plan
+          // years project them at 0, and the card says so with the figures.
+          <div data-testid="cockpit-ebitda-year0-step" className="mt-1 text-[11px] leading-snug text-ink-mute">
+            {ebitda.year0Step.ebitdaYear0 && ebitda.year0Step.step
+              ? `${t("forecast.cockpit.numbers.today", "today")} ${pick(ebitda.year0Step.ebitdaYear0, lang)} (${pick(ebitda.year0Step.step, lang)}) — `
+              : ""}
+            {pick(ebitda.year0Step.text, lang)}
+          </div>
+        ) : null}
       </Card>
 
       <Card

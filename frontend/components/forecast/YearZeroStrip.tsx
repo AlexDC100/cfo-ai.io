@@ -64,7 +64,7 @@ export function YearZeroStrip({ period, currency, locale }: YearZeroStripProps) 
     ? pickLang(headline.tileEbitdaRefusal.text, i18n.language)
     : null;
   const cells: ReadonlyArray<{ id: string; label: string; value: number | null; refused?: string | null }> = [
-    { id: "revenue", label: t("forecast.year0.revenue", "Operating revenue"), value: headline.totalOperatingRevenue },
+    { id: "revenue", label: t("forecast.year0.revenue", "Net turnover"), value: headline.netTurnover },
     { id: "ebitda", label: t("forecast.year0.ebitda", "EBITDA"), value: headline.tileEbitdaRon, refused: ebitdaRefused },
     { id: "net_profit", label: t("forecast.year0.netProfit", "Net profit"), value: headline.tileNetProfitRon },
     { id: "cash", label: t("forecast.year0.cash", "Cash"), value: headline.cash },

@@ -276,7 +276,11 @@ export function AnalysingChip({ testId }: { testId: string }) {
 }
 
 function YearTile({ year, prior, onOpen }: { year: CompanyYear; prior: number | null; onOpen: () => void }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  // What the figure is — the engine's own label (net turnover, 70x − 709).
+  const basis = year.basis
+    ? ((i18n.language ?? "").toLowerCase().startsWith("ro") ? year.basis.ro : year.basis.en)
+    : null;
   const change = year.revenue_change_pct;
   const currency = (year.currency ?? "RON") as Currency;
   return (
@@ -287,7 +291,12 @@ function YearTile({ year, prior, onOpen }: { year: CompanyYear; prior: number | 
       className="flex min-h-[112px] w-[168px] shrink-0 snap-start flex-col items-start justify-between rounded-md border border-rule bg-surface px-3.5 py-3 text-left transition-colors duration-micro hover:border-rule-strong hover:bg-bg-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <span className="font-mono text-[13px] font-medium tabular-nums text-ink">{year.year}</span>
-      <span className="text-[17px] font-semibold text-ink" data-testid={`company-year-${year.year}-revenue`}>
+      {basis && (
+        <span className="text-[10.5px] leading-tight text-ink-mute" data-testid={`company-year-${year.year}-basis`}>
+          {basis}
+        </span>
+      )}
+      <span className="text-[17px] font-semibold text-ink" title={basis ?? undefined} data-testid={`company-year-${year.year}-revenue`}>
         <Money value={year.revenue} fromCurrency={currency} compact />
       </span>
       <span className="text-[11.5px] tabular-nums" data-testid={`company-year-${year.year}-change`}>

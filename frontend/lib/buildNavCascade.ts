@@ -26,6 +26,7 @@
 // asset-yielding business — captures operating cash flow but not asset value).
 
 import type { ApiLineItem } from "./plStructure";
+import { plLevelsOf } from "./servedOneEbitda";
 import type {
   AdjustmentMethod,
   AssetAdjustment,
@@ -127,6 +128,11 @@ interface BuildArgs {
   affiliateYield?: number;
   /** Romanian corporate income tax rate (default 0.16). */
   citRate?: number;
+  /** The SERVED NOI proxy (`valuation.noi_approximation.value`, "NOI
+   *  (aproximare)"): EBITDA − net 711 — the stock variation is not rental
+   *  income (owner ruling 2026-09-26, design A6). null = the engine refused
+   *  it (with EBITDA); undefined = not handed in, read off `pl` instead. */
+  noiApproximation?: number | null;
 }
 
 export function buildNavCascade(args: BuildArgs): NavCascade {
@@ -143,12 +149,27 @@ export function buildNavCascade(args: BuildArgs): NavCascade {
   // Where the canonical view exposes opex_property_management we use it;
   // else fall back to operating-view EBITDA as a NOI proxy (correct when
   // the entity's only opex IS property opex, which is typical for SPVs).
+  //
+  // THE NOI PROXY IS EBITDA − NET 711 (owner ruling 2026-09-26, design A6):
+  // the one EBITDA now carries the stock variation, and capitalised
+  // construction cost is not rental income. The engine serves the proxy
+  // (`valuation.noi_approximation`); off `pl` it is the same subtraction of
+  // two served figures. The retired chain (`ebitda_statutory ??
+  // operating_ebitda ?? revenue`) would have valued the developer's
+  // property on +550,976 (the one EBITDA) instead of −29,038,838 — a NAV
+  // moved by a definition. A refused EBITDA refuses the proxy (null): the
+  // property is then not marked to market, never marked on a stand-in.
   const rentalRevenue = pl.revenue ?? 0;
   const propertyMgmtOpex =
     (args.subAgg?.opex_property_management as number | undefined) ?? 0;
-  const noi = propertyMgmtOpex > 0
-    ? rentalRevenue - propertyMgmtOpex
-    : (pl.ebitda_statutory ?? pl.operating_ebitda ?? rentalRevenue);
+  const levels = plLevelsOf({ assembled_pl: pl, incomeStatement: null });
+  const noiProxy: number | null =
+    args.noiApproximation !== undefined
+      ? args.noiApproximation
+      : levels.ebitda === null || levels.inventoryVariation === null
+        ? null
+        : levels.ebitda - levels.inventoryVariation;
+  const noi: number | null = propertyMgmtOpex > 0 ? rentalRevenue - propertyMgmtOpex : noiProxy;
 
   // Annual dividend stream for affiliate capitalization.
   const dividendIncome = pl.dividend_income ?? pl.financial_income_other ?? 0;
@@ -189,7 +210,22 @@ export function buildNavCascade(args: BuildArgs): NavCascade {
     let fair = bookValue;
     let notes = "No fair-value adjustment";
 
-    if (rule.method === "cap_rate" && code === "215") {
+    if (rule.method === "cap_rate" && code === "215" && noi === null) {
+      // No NOI (EBITDA refused): the property stays at book — stated, not
+      // marked on a stand-in figure.
+      const netBook = bookValue - accumDep215;
+      return {
+        accountCode: "215",
+        accountName: RO_ACCOUNT_NAMES["215"] ?? "Investment property",
+        bookValue: netBook,
+        goingConcernFairValue: netBook,
+        goingConcernUplift: 0,
+        adjustmentMethod: "face_value",
+        assumptions,
+        notes: `Not marked to market: the NOI proxy is refused with EBITDA — ${levels.refusal?.text.en ?? "not served"}`,
+      };
+    }
+    if (rule.method === "cap_rate" && code === "215" && noi !== null) {
       // Net of accumulated depreciation on the book side
       const netBook = bookValue - accumDep215;
       const propertyValue = noi / capRate;
@@ -301,13 +337,14 @@ export function buildNavCascade(args: BuildArgs): NavCascade {
 
   // ── Cross-method convergence ─────────────────────────────────────────
   // Cap rate equity = property at market + other assets − bank debt.
-  const propertyValueAtMarket = noi / capRateCentral;
+  const propertyValueAtMarket = noi === null ? null : noi / capRateCentral;
   const cashVal = bs.cash ?? 0;
   // Other assets = all non-property assets (current assets + non-current except 215)
   const otherAssets =
     (bs.total_assets ?? 0)
     - (bs.ppe_net ?? bs.investment_property_net ?? 0); // strip out book property
-  const capRateEquity = propertyValueAtMarket + otherAssets - (bs.total_debt ?? 0);
+  const capRateEquity =
+    propertyValueAtMarket === null ? null : propertyValueAtMarket + otherAssets - (bs.total_debt ?? 0);
 
   // Graham — use statutory NI
   const ni = pl.net_income_statutory ?? 0;
@@ -315,10 +352,12 @@ export function buildNavCascade(args: BuildArgs): NavCascade {
   const grahamValue = ni * (8.5 + 2 * 3) * 4.4 / 4.5;
 
   // EV/EBITDA — 10.5× mid for CRE-anchored
-  const evEbitda = (pl.ebitda_statutory ?? 0) * 10.5 - ((bs.total_debt ?? 0) - cashVal);
+  // On THE ONE EBITDA; refused → no EV/EBITDA figure (never 0 × 10.5).
+  const evEbitda =
+    levels.ebitda === null ? null : levels.ebitda * 10.5 - ((bs.total_debt ?? 0) - cashVal);
 
   // Convergence band: NNNAV / cap rate / Graham (NOT EV/EBITDA — known undervaluer).
-  const convergent = [nnnav, capRateEquity, grahamValue];
+  const convergent = [nnnav, capRateEquity, grahamValue].filter((v): v is number => v !== null);
   const cLow = Math.min(...convergent);
   const cHigh = Math.max(...convergent);
   const spread = (cHigh - cLow) / Math.max(Math.abs(nnnav), 1);

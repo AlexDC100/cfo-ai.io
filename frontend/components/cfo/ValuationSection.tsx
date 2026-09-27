@@ -93,6 +93,15 @@ async function resetAssumptions(periodId: string): Promise<boolean> {
   return res.ok;
 }
 
+/** The served routing basis, in words (design A6: the company decides the
+ *  method — its sector, the margin rule — never the sign of EBITDA alone). */
+const ROUTING_BASIS_LABEL: Readonly<Record<string, string>> = {
+  sector_real_estate: "the sector — commercial real estate is valued on its assets",
+  margin_not_meaningful: "the margin rule — turnover is negligible against activity, so earnings multiples do not describe this company",
+  ebitda_refused: "EBITDA is refused for this period",
+  ebitda_not_positive: "EBITDA is not positive, so no earnings multiple applies",
+};
+
 export function ValuationSection({ valuation, periodId, currency }: Props) {
   const qc = useQueryClient();
   const conf = confidenceTone(valuation.confidence);
@@ -101,6 +110,11 @@ export function ValuationSection({ valuation, periodId, currency }: Props) {
 
   // Local-edit state for the four inputs. Initialized from server values;
   // PUT calls fire on blur (for pills) or after a 300ms debounce (slider).
+  // THE ONE EBITDA (711 and 72x inside) — or its refusal. A refused EBITDA
+  // is NOT an editable 0: the multiple method refuses and the page says
+  // why (valuation.ebitda_refusal), and the editor is not offered.
+  const ebitdaRefusal = valuation.ebitda_refusal ?? null;
+  const ebitdaRefused = valuation.inputs.ebitda_used === null && ebitdaRefusal !== null;
   const initialEbitda = valuation.inputs.ebitda_used ?? 0;
   const initialDebt = valuation.inputs.total_debt_used ?? 0;
   const initialCash = valuation.inputs.cash_used ?? 0;
@@ -217,6 +231,32 @@ export function ValuationSection({ valuation, periodId, currency }: Props) {
         )}
       </div>
 
+      {/* ── EBITDA REFUSED — the multiple method cannot run ─────────────── */}
+      {ebitdaRefused && (
+        <div
+          data-testid="valuation-ebitda-refused"
+          className="rounded-xl border border-caution/40 bg-caution-tint/40 px-4 py-3 text-[13px] text-ink leading-relaxed"
+        >
+          EBITDA refused — {ebitdaRefusal?.text_en ?? "the engine served no EBITDA for this period"}. No EBITDA
+          multiple is formed; the valuation is asset-based.
+        </div>
+      )}
+
+      {/* ── WHY THIS METHOD (served routing: sector / margin rule / EBITDA) ── */}
+      {valuation.routing?.basis && (
+        <p data-testid="valuation-routing" className="text-[12px] text-ink-soft">
+          Method chosen by: {ROUTING_BASIS_LABEL[valuation.routing.basis] ?? valuation.routing.basis}
+        </p>
+      )}
+
+      {/* ── A SAVED OVERRIDE TYPED UNDER THE PREVIOUS EBITDA DEFINITION ──── */}
+      {valuation.user_assumptions?.definition?.flag && (
+        <p data-testid="valuation-override-definition-flag" className="text-[12px] text-caution">
+          Your saved figures were {valuation.user_assumptions.definition.flag.en} — they still apply;
+          re-check the EBITDA you typed (the stock variation 711 and own work capitalised 72x are now inside).
+        </p>
+      )}
+
       {/* ── METHOD WARNINGS (industry routing, methodology demotion) ────── */}
       {valuation.method_warnings && valuation.method_warnings.length > 0 && (
         <div
@@ -289,21 +329,36 @@ export function ValuationSection({ valuation, periodId, currency }: Props) {
           data-testid="valuation-formula"
           className="mt-5 rounded-lg bg-bg/60 border border-rule px-4 py-3 font-mono text-[12.5px] text-ink-soft"
         >
-          Equity = EBITDA ({fmtMoney(ebitda, currency)}) × Multiple ({fmtMultiple(multiple)})
-          − Debt ({fmtMoney(debt, currency)}) + Cash ({fmtMoney(cash, currency)})
-          {" = "}
-          <span className="text-ink font-semibold">{fmtMoney(livePreviewEquity, currency)}</span>
+          {ebitdaRefused ? (
+            // Never "EBITDA (0) × multiple": the figure is refused, so the
+            // product of it is not stated.
+            <>Equity = EBITDA (refused) × Multiple — no EBITDA multiple is formed on a refused figure.</>
+          ) : (
+            <>
+              Equity = EBITDA ({fmtMoney(ebitda, currency)}) × Multiple ({fmtMultiple(multiple)})
+              − Debt ({fmtMoney(debt, currency)}) + Cash ({fmtMoney(cash, currency)})
+              {" = "}
+              <span className="text-ink font-semibold">{fmtMoney(livePreviewEquity, currency)}</span>
+            </>
+          )}
         </div>
 
         {/* Interactive inputs */}
         <div className="mt-5 grid grid-cols-1 md:grid-cols-4 gap-4">
-          <EditablePill
-            testId="valuation-input-ebitda"
-            label="EBITDA"
-            currency={currency}
-            value={ebitda}
-            onCommit={(v) => { setEbitda(v); void persist({ ebitda: v }); }}
-          />
+          {ebitdaRefused ? (
+            <div data-testid="valuation-input-ebitda-refused" className="text-[12px] text-ink-soft">
+              <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">EBITDA</div>
+              refused — {ebitdaRefusal?.text_en ?? "not served"}
+            </div>
+          ) : (
+            <EditablePill
+              testId="valuation-input-ebitda"
+              label="EBITDA"
+              currency={currency}
+              value={ebitda}
+              onCommit={(v) => { setEbitda(v); void persist({ ebitda: v }); }}
+            />
+          )}
           <div className="md:col-span-2">
             <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">
               Multiple · {fmtMultiple(minMultiple)} – {fmtMultiple(maxMultiple)}

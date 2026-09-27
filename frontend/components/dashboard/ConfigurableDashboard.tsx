@@ -58,12 +58,16 @@ interface Props {
    *  (`statements.margin_meaning`, read through lib/marginMeaning), or null.
    *  A margin card then prints the refusal instead of a percent. */
   marginRefusal?: { readonly ro: string; readonly en: string } | null;
+  /** The ENGINE's refusal of EBITDA (the one-EBITDA ruling: the stock
+   *  variation 711 could not be measured), or null. Every card built on
+   *  EBITDA / EBIT prints it in place of a figure — never "—" alone. */
+  ebitdaRefusal?: { readonly code: string; readonly text: { readonly ro: string; readonly en: string } } | null;
   /** F6.1 — multi-year series for the active period; drives the Trend view.
    *  When it carries <2 years the Snapshot/Trend toggle is disabled. */
   series?: MultiYearSeries;
 }
 
-export function ConfigurableDashboard({ overrides, series, marginRefusal = null }: Props) {
+export function ConfigurableDashboard({ overrides, series, marginRefusal = null, ebitdaRefusal = null }: Props) {
   const { t } = useTranslation();
   const {
     cards,
@@ -228,6 +232,7 @@ export function ConfigurableDashboard({ overrides, series, marginRefusal = null 
                     editMode={editMode}
                     overrides={overrides}
                     marginRefusal={marginRefusal}
+                    ebitdaRefusal={ebitdaRefusal}
                     series={series}
                     view={effectiveView}
                     onRearrange={() => setEditMode(true)}

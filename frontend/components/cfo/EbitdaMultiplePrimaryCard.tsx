@@ -60,7 +60,11 @@ export function EbitdaMultiplePrimaryCard({
   metrics, valuation, currency = "RON", reconciliationAnchorId = "ebitda-bridge", hideGuide = false,
 }: Props) {
   const { ebitda, balance, provenance } = metrics;
-  const coreEbitda = ebitda.core;
+  // THE ONE EBITDA's core strip (758 / 781 out, 711 and 72x inside) —
+  // NULL when the engine refused EBITDA; the card then states the refusal
+  // and forms no multiple (never EV = 0 × multiple).
+  const refusedCore = ebitda.core === null;
+  const coreEbitda = ebitda.core ?? 0;
   const netDebt = balance.net_debt;
   // F5.0 Wave 3 — gross debt + cash for the learning bridge. CanonicalBalance
   // already carries both directly; we don't need to reconstruct anything.
@@ -100,6 +104,23 @@ export function EbitdaMultiplePrimaryCard({
 
   const isAtBenchmark = benchmarkP50 !== null && Math.abs(multiple - benchmarkP50) < 0.05;
 
+  if (refusedCore) {
+    return (
+      <section
+        data-testid="ebitda-multiple-refused"
+        className="rounded-3xl border border-rule bg-surface p-6 sm:p-7"
+      >
+        <div className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold">
+          EBITDA multiple
+        </div>
+        <p className="mt-2 text-[13px] text-ink-soft leading-relaxed max-w-[640px]">
+          EBITDA refused — {ebitda.refusal?.text.en ?? "the engine served no EBITDA for this period"}.
+          No EBITDA multiple is formed on a refused figure; the asset-based view stands alone.
+        </p>
+      </section>
+    );
+  }
+
   return (
     <section
       data-testid="ebitda-multiple-primary"
@@ -129,7 +150,8 @@ export function EbitdaMultiplePrimaryCard({
           </h2>
           <p className="mt-1 text-[12.5px] text-ink-soft leading-relaxed max-w-[640px]">
             The peer-multiple view a buyer or lender will use first. Built on Core EBITDA
-            (Reported less the 758 / 781 adjustments) so the multiple reflects repeatable
+            (EBITDA less the 758 / 781 adjustments; the stock variation 711 and own work
+            capitalised 72x stay inside, as in EBITDA) so the multiple reflects repeatable
             earnings, not one-off provision reversals.
           </p>
         </div>
@@ -348,7 +370,7 @@ export function EbitdaMultiplePrimaryCard({
               <>
                 {" "}
                 <span className="text-ink-mute">
-                  (Reported {formatCanonicalCompact(ebitda.reported, currency)}
+                  (EBITDA {formatCanonicalCompact(ebitda.reported ?? Number.NaN, currency)}
                   {ebitda.adjustments.map((a) =>
                     ` − ${a.account} ${formatCanonicalCompact(Math.abs(a.amount), currency)}`,
                   ).join("")})

@@ -13,9 +13,9 @@
 // Every expression below is the dashboard's, verbatim:
 //   · operating revenue — the P&L builder's first section subtotal (net
 //     turnover since the one-EBITDA ruling), else the statement's revenue;
-//   · EBITDA — `assembled_pl.ebitda_statutory` (an alias of the one EBITDA)
-//     first, the P&L statement's served figure next; a refused EBITDA stays
-//     null with its reason (`tileEbitdaRefusal`);
+//   · EBITDA — THE ONE EBITDA as served (`assembled_pl.ebitda`, through
+//     `plLevelsOf`); a refused EBITDA stays null with its reason
+//     (`tileEbitdaRefusal`);
 //   · net profit — `resolveHeadlineNetProfit`, the one seam that figure is
 //     decided at (account 121 first);
 //   · cash — the served balance sheet's cash.
@@ -27,7 +27,7 @@ import { pickPLBuilder } from "@/lib/buildPlStatement";
 import { resolveHeadlineNetProfit } from "@/lib/headlineFigures";
 import type { PeriodLineItem, PeriodMetric } from "@/lib/activePeriod";
 import type { Statements } from "@/lib/financialReport";
-import type { ServedRefusal } from "@/lib/servedOneEbitda";
+import { plLevelsOf, type ServedRefusal } from "@/lib/servedOneEbitda";
 
 export interface CanonicalMargins {
   ebitdaMargin: number | null;
@@ -46,9 +46,10 @@ export function canonicalMarginsFrom(metrics: readonly PeriodMetric[]): Canonica
 }
 
 export interface DashboardHeadline {
-  /** Net turnover (cifra de afaceri netă) — the P&L's first subtotal. The
-   *  name predates the one-EBITDA ruling; the figure is turnover only. */
-  totalOperatingRevenue: number;
+  /** Net turnover (cifra de afaceri netă, 70x − 709) — the P&L's first
+   *  subtotal and every margin's denominator. (Was `totalOperatingRevenue`,
+   *  a name from the retired "turnover + 722" figure.) */
+  netTurnover: number;
   /** THE ONE EBITDA as served; null when the engine REFUSED it (the stock
    *  variation could not be measured) — then `tileEbitdaRefusal` says why.
    *  Never a zero, never an EBITDA rebuilt without 711. */
@@ -81,22 +82,22 @@ export function computeDashboardHeadline(args: {
     },
     statements,
   );
-  const totalOperatingRevenue =
+  const netTurnover =
     pl.sections[0]?.subtotalAmount ?? statements.incomeStatement.revenue;
-  const tileEbitdaCanonical =
-    typeof statements.assembled_pl?.ebitda_statutory === "number"
-      ? statements.assembled_pl.ebitda_statutory
-      : null;
-  // `ebitda_statutory` is an alias of the one EBITDA (null when refused);
-  // the statement carries the same served figure, or the refusal.
-  const tileEbitdaRon = tileEbitdaCanonical ?? pl.ebitda;
-  const tileEbitdaRefusal = tileEbitdaRon === null ? pl.ebitdaRefusal ?? null : null;
+  // THE ONE EBITDA: the engine's `assembled_pl.ebitda` (read through the
+  // one reader, `plLevelsOf`) on a period it assembled — never an alias
+  // name, never a rebuilt figure; null with the engine's reason when it
+  // refused it. A payload it did not assemble: the P&L statement's figure.
+  const levels = plLevelsOf(statements);
+  const tileEbitdaRon = levels.source === "served" ? levels.ebitda : pl.ebitda;
+  const tileEbitdaRefusal =
+    tileEbitdaRon === null ? (levels.source === "served" ? levels.refusal : pl.ebitdaRefusal ?? null) : null;
   const tileNetProfitRon = resolveHeadlineNetProfit(statements, metrics as PeriodMetric[], pl);
   const totalOperatingExpenses =
     pl.sections.find((s) => s.subtotalLabel?.startsWith("Total operating expenses"))
       ?.subtotalAmount ?? null;
   return {
-    totalOperatingRevenue,
+    netTurnover,
     tileEbitdaRon,
     tileEbitdaRefusal,
     tileNetProfitRon,

@@ -240,6 +240,15 @@ export function buildBankExportHtml(input: BankExportInput): string {
   const marginNote = n.ebitda.note
     ? `<p class="note" data-margin-note="1">${esc(pick(n.ebitda.note, lang))}</p>`
     : "";
+  // The year-0 → plan step (one-EBITDA ruling): year 0's EBITDA includes
+  // the stock variation and own work capitalised; the plan years hold 0.
+  const year0Step = n.ebitda.year0Step
+    ? `<p class="note" data-year0-step="1">${
+        n.ebitda.year0Step.ebitdaYear0 && n.ebitda.year0Step.step
+          ? `${esc(t("forecast.cockpit.numbers.today", "today"))} ${esc(pick(n.ebitda.year0Step.ebitdaYear0, lang))} (${esc(pick(n.ebitda.year0Step.step, lang))}) — `
+          : ""
+      }${esc(pick(n.ebitda.year0Step.text, lang))}</p>`
+    : "";
 
   const bridgeOf = (b: CockpitView["bridge"]["horizon"], title: string) =>
     b
@@ -359,6 +368,7 @@ export function buildBankExportHtml(input: BankExportInput): string {
     ${dscr}
   </div>
   ${marginNote}
+  ${year0Step}
   <p class="sentence">${esc(pick(two(doc.sentence) ?? c.sentence, lang))}</p>
   <h3>${esc(section("chart", t("forecast.cockpit.chart.aria", "EBITDA and cash")))}</h3>
   ${chartSvg(c)}

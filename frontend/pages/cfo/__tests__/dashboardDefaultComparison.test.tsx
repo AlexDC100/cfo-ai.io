@@ -215,7 +215,7 @@ describe("the Overview's key figures carry the prior period", () => {
       entity: "Entity",
       canonicalMargins: canonicalMarginsFrom(metrics),
     });
-    expect(prior.figures.revenue).toBe(h.totalOperatingRevenue);
+    expect(prior.figures.revenue).toBe(h.netTurnover);
     expect(prior.figures.ebitda).toBe(h.tileEbitdaRon);
     expect(prior.figures.cash).toBe((ps as { balanceSheet: { cash: number } }).balanceSheet.cash);
     expect(prior.figures.netDebt).toBe(deriveTotals(ps).netDebt);
@@ -242,7 +242,7 @@ describe("the Overview's key figures carry the prior period", () => {
         <KeyMetricsRow
           currency="RON"
           items={[
-            { label: "Revenue", desc: "d", value: h.totalOperatingRevenue, testid: "key-metric-revenue", trend: trendAgainstPrior(prior, "revenue", h.totalOperatingRevenue) },
+            { label: "Revenue", desc: "d", value: h.netTurnover, testid: "key-metric-revenue", trend: trendAgainstPrior(prior, "revenue", h.netTurnover) },
             { label: "EBITDA", desc: "d", value: h.tileEbitdaRon, testid: "key-metric-ebitda", trend: trendAgainstPrior(prior, "ebitda", h.tileEbitdaRon) },
             { label: "Cash", desc: "d", value: cash, testid: "key-metric-cash", trend: trendAgainstPrior(prior, "cash", cash) },
             { label: "Net debt", desc: "d", value: netDebt, testid: "key-metric-net-debt", trend: trendAgainstPrior(prior, "netDebt", netDebt) },
@@ -265,10 +265,14 @@ describe("the Overview's key figures carry the prior period", () => {
   it("FinancialStatements feeds the comparison into all four Overview tiles and offers the picker there", () => {
     const raw = readFileSync(resolve(process.cwd(), "frontend/pages/cfo/FinancialStatements.tsx"), "utf8");
     const page = raw.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
-    expect(page).toMatch(/overviewPriorOf\(cmpDoc, t\("dash\.entity"\), \(s\) => deriveTotals\(s\)\.netDebt\)/);
+    // …and the current EBITDA definition, so a prior served under another
+    // definition shows no EBITDA move (one-EBITDA ruling).
+    expect(page).toMatch(
+      /overviewPriorOf\(\s*cmpDoc,\s*t\("dash\.entity"\),\s*\(s\) => deriveTotals\(s\)\.netDebt,\s*statements \? plLevelsOf\(statements\)\.definition : undefined,\s*\)/,
+    );
     expect(page).toMatch(/const overviewPrior = useMemo\(/);
     for (const [fig, value] of [
-      ["revenue", "headline.totalOperatingRevenue"],
+      ["revenue", "headline.netTurnover"],
       ["ebitda", "headline.tileEbitdaRon"],
       ["cash", "statements.balanceSheet.cash"],
       ["netDebt", "totals.netDebt"],

@@ -24,8 +24,10 @@
 //
 // THE BRIDGE
 // ==========
-//   Reported EBITDA      = assembled_pl.ebitda_statutory  (legal view,
-//                                                          ties to acct 121)
+//   Reported EBITDA      = assembled_pl.ebitda             (THE ONE EBITDA —
+//                          owner ruling 2026-09-26: the stock variation 711
+//                          and own work capitalised 72x inside; NULL with
+//                          the engine's reason when it refused it)
 //   − Account 758        Other operating income           (non-core)
 //   − Account 781        Provision reversals              (non-core)
 //   = Core EBITDA                                          (valuation basis)
@@ -37,7 +39,7 @@
 // THE NET-PROFIT ANCHOR
 // =====================
 //   statutory      = assembled_pl.net_income_statutory  (account 121 closing C — the legally filed number)
-//   reconstructed  = derived from class 6/7 movements   (engine's bottom-up calc)
+//   reconstructed  = pretax − tax on the one definition (the result built from the accounts)
 //   gap            = reconstructed − statutory          (should be within ±2% per the methodology)
 //
 // ABSOLUTE-VALUE STRICTNESS
@@ -50,6 +52,7 @@
 
 import type { ActivePeriod, PeriodLineItem } from "./activePeriod";
 import { F36_CUTOVER_METRICS_HUB } from "@/config/features";
+import { plLevelsOf, type ServedRefusal } from "./servedOneEbitda";
 
 /**
  * F3.16-3b.6 cutover helper — resolves the Reported EBITDA value
@@ -67,8 +70,11 @@ import { F36_CUTOVER_METRICS_HUB } from "@/config/features";
  */
 function _resolveReportedEbitda(
   canonicalMethodologyValue: number | undefined,
-  legacyValue: number,
-): number {
+  legacyValue: number | null,
+): number | null {
+  // A REFUSED served EBITDA stays refused: the methodology block is not
+  // a way around the engine's refusal (it refuses the same way).
+  if (legacyValue === null) return null;
   if (F36_CUTOVER_METRICS_HUB && typeof canonicalMethodologyValue === "number") {
     return canonicalMethodologyValue;
   }
@@ -88,14 +94,19 @@ export interface CanonicalEbitdaAdjustment {
 }
 
 export interface CanonicalEbitda {
-  /** Reported (statutory) EBITDA — the legally filed view that ties
-   *  to the rest of the engine's reconciliation. Sourced from
-   *  `assembled_pl.ebitda_statutory`. */
-  reported: number;
-  /** Core / normalized EBITDA = reported − Σ adjustments. The basis
-   *  for valuation in non-RE companies (repeatable earnings, not
-   *  provision reversals). */
-  core: number;
+  /** THE ONE EBITDA as served (`assembled_pl.ebitda`: 711 and 72x inside,
+   *  767 financial). NULL when the engine refused it — `refusal` says
+   *  why; never a zero standing in for the refusal. */
+  reported: number | null;
+  /** Core / normalized EBITDA = reported − Σ adjustments (758 / 781),
+   *  on the one EBITDA; null with it. */
+  core: number | null;
+  /** The engine's typed refusal of EBITDA, when it refused it. */
+  refusal: ServedRefusal | null;
+  /** Net 711 ("Variația stocurilor de produse") and net 72x as served —
+   *  the two non-cash lines inside EBITDA; null when refused / absent. */
+  inventory_variation: number | null;
+  capitalized_own_work: number | null;
   /** Which basis valuation should default to. Always `"core"` for
    *  operating companies; the FE Valuation tab can toggle to
    *  `"reported"` as a cross-check. */
@@ -159,13 +170,14 @@ export interface CanonicalMetrics {
   /** Auxiliary headline numbers needed by some surfaces. Sourced
    *  directly from `assembled_pl` — no recompute. */
   headline: {
+    /** NET TURNOVER (70x − 709) — every margin's denominator. The
+     *  retired `total_operating_revenue` added 72x to it. */
     revenue: number;
-    total_operating_revenue: number;
-    ebit: number;
+    /** The operating result on the one definition; null when refused. */
+    ebit: number | null;
     depreciation: number;
     tax: number;
     interest_expense: number;
-    capitalized_own_work_memo: number;
   };
 }
 
@@ -200,87 +212,26 @@ const CORE_EBITDA_ADJUSTMENTS: AdjustmentRule[] = [
  */
 export function buildCanonicalMetrics(period: ActivePeriod): CanonicalMetrics | null {
   if (!period.id || !period.statements) return null;
-
-  // The engine's canonical P&L / BS / CF blobs. These are the same
-  // assemblies the rest of the app reads from — we ARE the
-  // consolidator, not a recomputer.
-  const apl = (period.statements as unknown as { assembled_pl?: Record<string, number> }).assembled_pl ?? {};
-  const abs = (period.statements as unknown as { assembled_bs?: Record<string, number> }).assembled_bs ?? {};
-  // F3.16-3b.6 — pull the canonical envelope's methodology.ebitda.reported
-  // (the YAML layer) when the cutover flag is on. F4.2-PARITY guarantees
-  // this equals apl.ebitda_statutory ±1 RON across every fixture.
+  // F3.16-3b.6 — the canonical envelope's methodology.ebitda.reported
+  // (the YAML layer) when the cutover flag is on; since the one-EBITDA
+  // ruling it IS the one EBITDA (F4.2-PARITY holds it to assembled_pl).
   const canonicalMethodology = (
     period.statements as unknown as {
       assembled_canonical_v1?: { methodology?: { ebitda?: { reported?: number } } };
     }
   ).assembled_canonical_v1?.methodology?.ebitda;
-  const legacyReported = num(apl.ebitda_statutory) ?? num(apl.ebitda) ?? 0;
-  const reported = _resolveReportedEbitda(canonicalMethodology?.reported, legacyReported);
-  const revenue = num(apl.revenue) ?? 0;
-  const totalOpRev = num(apl.total_operating_revenue) ?? revenue;
-  const ebit = num(apl.ebit) ?? 0;
-  const depreciation = num(apl.depreciation) ?? 0;
-  const tax = num(apl.tax) ?? 0;
-  const interestExpense = num(apl.interest_expense) ?? 0;
-  const capitalizedOwnWork = num(apl.capitalized_own_work_memo) ?? 0;
-  const statutoryNetProfit = num(apl.net_income_statutory) ?? 0;
-  const reconstructedNetProfit = num(apl.net_income_operational) ?? num(apl.net_income) ?? statutoryNetProfit;
-
-  // Extract 758 / 781 from the per-account line items. These are
-  // already aggregated into `other_inc` in `_ro_coa.py`; we don't
-  // change that math, we just SURFACE them as separate entries so
-  // the bridge is auditable.
-  const adjustments = extractAdjustments(period.lineItems ?? []);
-  const adjustmentSum = adjustments.reduce((acc, a) => acc + a.amount, 0);
-  const core = reported - adjustmentSum;
-
-  const totalAssets = num(abs.total_assets) ?? 0;
-  const totalEquity = num(abs.total_equity) ?? 0;
-  const totalDebt = num(abs.total_debt) ?? 0;
-  const cash = num(abs.cash) ?? 0;
-  const netDebt = totalDebt - cash;
-
-  return {
-    ebitda: {
-      reported,
-      core,
-      basis_for_valuation: "core",
-      adjustments,
-      reported_margin_pct: revenue > 0 ? (reported / revenue) * 100 : null,
-      core_margin_pct: revenue > 0 ? (core / revenue) * 100 : null,
-    },
-    netProfit: {
-      statutory_account_121: statutoryNetProfit,
-      reconstructed: reconstructedNetProfit,
-      reconciliation_gap: reconstructedNetProfit - statutoryNetProfit,
-      gap_pct: statutoryNetProfit !== 0
-        ? ((reconstructedNetProfit - statutoryNetProfit) / Math.abs(statutoryNetProfit)) * 100
-        : null,
-      anchor: "statutory_account_121",
-    },
-    balance: {
-      total_assets: totalAssets,
-      equity: totalEquity,
-      total_debt: totalDebt,
-      cash,
-      net_debt: netDebt,
-    },
+  return assemble({
+    apl: (period.statements as unknown as { assembled_pl?: Record<string, unknown> }).assembled_pl,
+    abs: (period.statements as unknown as { assembled_bs?: Record<string, number> }).assembled_bs,
+    methodologyReported: canonicalMethodology?.reported,
+    lineItems: period.lineItems ?? [],
     provenance: {
       source: period.source,
       company: period.statements.companyName ?? null,
       period: period.label,
       period_id: period.id,
     },
-    headline: {
-      revenue,
-      total_operating_revenue: totalOpRev,
-      ebit,
-      depreciation,
-      tax,
-      interest_expense: interestExpense,
-      capitalized_own_work_memo: capitalizedOwnWork,
-    },
-  };
+  });
 }
 
 /**
@@ -300,32 +251,59 @@ export function buildCanonicalMetricsFromInputs(input: {
   source?: string | null;
   /** F3.16-3b.6 — optional canonical envelope; when present and the
    *  cutover flag is on, `methodology.ebitda.reported` is preferred
-   *  over `assembled_pl.ebitda_statutory`. */
+   *  over `assembled_pl.ebitda`. */
   assembled_canonical_v1?: {
     methodology?: { ebitda?: { reported?: number } };
     [key: string]: unknown;
   };
 }): CanonicalMetrics | null {
   if (!input.period_id) return null;
-  const apl = input.assembled_pl ?? {};
-  const abs = input.assembled_bs ?? {};
-  const canonicalMethodology = input.assembled_canonical_v1?.methodology?.ebitda;
+  return assemble({
+    apl: input.assembled_pl,
+    abs: input.assembled_bs,
+    methodologyReported: input.assembled_canonical_v1?.methodology?.ebitda?.reported,
+    lineItems: input.line_items ?? [],
+    provenance: {
+      source: input.source ?? null,
+      company: input.company ?? null,
+      period: input.period ?? null,
+      period_id: input.period_id,
+    },
+  });
+}
 
-  const legacyReported = num(apl.ebitda_statutory) ?? num(apl.ebitda) ?? 0;
-  const reported = _resolveReportedEbitda(canonicalMethodology?.reported, legacyReported);
-  const revenue = num(apl.revenue) ?? 0;
-  const totalOpRev = num(apl.total_operating_revenue) ?? revenue;
-  const ebit = num(apl.ebit) ?? 0;
+/** ONE assembler for both entry points (they used to be two copies of
+ *  the same body, each with its own `?? 0`). EBITDA / core / EBIT are
+ *  the served one-definition figures or null with the engine's refusal;
+ *  margins divide NET TURNOVER. */
+function assemble(args: {
+  apl: Record<string, unknown> | undefined;
+  abs: Record<string, number> | undefined;
+  methodologyReported: number | undefined;
+  lineItems: PeriodLineItem[];
+  provenance: CanonicalProvenance;
+}): CanonicalMetrics {
+  const apl = args.apl ?? {};
+  const abs = args.abs ?? {};
+  const levels = plLevelsOf({ assembled_pl: args.apl ?? {}, incomeStatement: null });
+  const reported = _resolveReportedEbitda(args.methodologyReported, levels.ebitda);
+  const revenue = levels.turnover;
+  const ebit = levels.ebit;
   const depreciation = num(apl.depreciation) ?? 0;
   const tax = num(apl.tax) ?? 0;
   const interestExpense = num(apl.interest_expense) ?? 0;
-  const capitalizedOwnWork = num(apl.capitalized_own_work_memo) ?? 0;
   const statutoryNetProfit = num(apl.net_income_statutory) ?? 0;
-  const reconstructedNetProfit = num(apl.net_income_operational) ?? num(apl.net_income) ?? statutoryNetProfit;
+  // The result BUILT from the accounts on the one definition (pretax −
+  // tax); the pre-ruling `net_income_operational` left 711 out of it.
+  const reconstructedNetProfit = levels.netIncome ?? statutoryNetProfit;
 
-  const adjustments = extractAdjustments(input.line_items ?? []);
+  // Extract 758 / 781 from the per-account line items. These are
+  // already aggregated into `other_inc` in `_ro_coa.py`; we don't
+  // change that math, we just SURFACE them as separate entries so
+  // the bridge is auditable.
+  const adjustments = extractAdjustments(args.lineItems);
   const adjustmentSum = adjustments.reduce((acc, a) => acc + a.amount, 0);
-  const core = reported - adjustmentSum;
+  const core = reported === null ? null : reported - adjustmentSum;
 
   const totalAssets = num(abs.total_assets) ?? 0;
   const totalEquity = num(abs.total_equity) ?? 0;
@@ -337,10 +315,13 @@ export function buildCanonicalMetricsFromInputs(input: {
     ebitda: {
       reported,
       core,
+      refusal: reported === null ? levels.refusal : null,
+      inventory_variation: levels.inventoryVariation,
+      capitalized_own_work: levels.capitalizedOwnWork,
       basis_for_valuation: "core",
       adjustments,
-      reported_margin_pct: revenue > 0 ? (reported / revenue) * 100 : null,
-      core_margin_pct: revenue > 0 ? (core / revenue) * 100 : null,
+      reported_margin_pct: reported !== null && revenue > 0 ? (reported / revenue) * 100 : null,
+      core_margin_pct: core !== null && revenue > 0 ? (core / revenue) * 100 : null,
     },
     netProfit: {
       statutory_account_121: statutoryNetProfit,
@@ -358,20 +339,13 @@ export function buildCanonicalMetricsFromInputs(input: {
       cash,
       net_debt: netDebt,
     },
-    provenance: {
-      source: input.source ?? null,
-      company: input.company ?? null,
-      period: input.period ?? null,
-      period_id: input.period_id,
-    },
+    provenance: args.provenance,
     headline: {
       revenue,
-      total_operating_revenue: totalOpRev,
       ebit,
       depreciation,
       tax,
       interest_expense: interestExpense,
-      capitalized_own_work_memo: capitalizedOwnWork,
     },
   };
 }

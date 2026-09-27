@@ -74,7 +74,7 @@ describe("gate F1: year 0 is the dashboard's headline, on the served fields the 
       render(<YearZeroStrip period={period} currency="RON" locale="en-US" />);
       const painted = (id: string) =>
         Number(screen.getByTestId(`forecast-year0-${id}`).getAttribute("data-actual-value"));
-      expect(painted("revenue")).toBe(headline.totalOperatingRevenue);
+      expect(painted("revenue")).toBe(headline.netTurnover);
       expect(painted("ebitda")).toBe(headline.tileEbitdaRon);
       expect(painted("net_profit")).toBe(headline.tileNetProfitRon);
       expect(painted("cash")).toBe(headline.cash);

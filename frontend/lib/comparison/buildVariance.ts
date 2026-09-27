@@ -75,12 +75,12 @@ export function buildActualLines(
   const cogs = num(metrics.cogs);
   const ebitda = num(canon.ebitda);
   const dep = num(metrics.depreciation);
-  // Gross profit + EBIT derived consistently from the canonical anchors so
-  // the column reads as a clean waterfall (revenue − cogs; ebitda − D&A).
-  const grossProfit =
-    revenue !== null && cogs !== null ? revenue - cogs : num(metrics.grossProfit);
-  const ebit =
-    ebitda !== null && dep !== null ? ebitda - dep : num(metrics.ebit);
+  // THE ONE EBITDA (owner ruling 2026-09-26): gross profit is the served
+  // figure (turnover − cost of sales ± the stock variation 711) — `revenue
+  // − cogs` left 711 out of it — and EBIT is EBITDA − D&A on the served
+  // EBITDA. A refused EBITDA refuses both (null), never a rebuilt figure.
+  const grossProfit = canon.ebitda === null ? null : num(canon.grossProfit);
+  const ebit = ebitda !== null && dep !== null ? ebitda - dep : null;
   return {
     operating_revenue: revenue,
     cogs,

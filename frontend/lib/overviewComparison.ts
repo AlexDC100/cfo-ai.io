@@ -23,6 +23,7 @@ import type { PeriodMetric } from "@/lib/activePeriod";
 import type { ComparativesResponse } from "@/lib/comparatives";
 import { canonicalMarginsFrom, computeDashboardHeadline } from "@/lib/dashboardHeadline";
 import type { Statements } from "@/lib/financialReport";
+import { plLevelsOf } from "@/lib/servedOneEbitda";
 
 export type OverviewFigure = "revenue" | "ebitda" | "cash" | "netDebt";
 
@@ -40,6 +41,11 @@ export function overviewPriorOf(
   doc: ComparativesResponse | null | undefined,
   entity: string,
   netDebtOf: (s: Statements) => number,
+  /** The CURRENT period's `assembled_pl.ebitda_definition`. A prior EBITDA
+   *  served under another definition is no comparison (the definition
+   *  change would read as a move): its trend is withheld. Undefined =
+   *  the caller does not know it, and the prior is taken as served. */
+  currentEbitdaDefinition?: string | null,
 ): OverviewPrior | null {
   if (!doc) return null;
   const ps = doc.prior_statements as unknown as Statements | undefined;
@@ -60,8 +66,12 @@ export function overviewPriorOf(
   return {
     label: doc.prior.label || ps.periodLabel || "",
     figures: {
-      revenue: finite(headline.totalOperatingRevenue),
-      ebitda: finite(headline.tileEbitdaRon),
+      revenue: finite(headline.netTurnover),
+      ebitda:
+        currentEbitdaDefinition !== undefined &&
+        plLevelsOf(ps).definition !== currentEbitdaDefinition
+          ? null
+          : finite(headline.tileEbitdaRon),
       cash: finite(ps.balanceSheet.cash),
       netDebt: finite(netDebtOf(ps)),
     },

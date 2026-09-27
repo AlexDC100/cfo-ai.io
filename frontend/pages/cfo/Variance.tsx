@@ -61,12 +61,28 @@ function VarianceInner({
   // this analysis, or another uploaded period). null until the picker emits.
   const [lySel, setLySel] = useState<LastYearSelection | null>(null);
 
+  const actualCanon = useMemo(
+    () => (statements ? buildDashboardCanonical(statements, lineItems, metricRows) : null),
+    [statements, lineItems, metricRows],
+  );
   const actualLines = useMemo(() => {
-    if (!statements) return {} as Record<VarianceLineKey, number | null>;
+    if (!statements || !actualCanon) return {} as Record<VarianceLineKey, number | null>;
     const snap = buildReportingMetricsSnapshot(statements);
-    const canon = buildDashboardCanonical(statements, lineItems, metricRows);
-    return buildActualLines(snap, canon);
-  }, [statements, lineItems, metricRows]);
+    return buildActualLines(snap, actualCanon);
+  }, [statements, actualCanon]);
+  // The actual EBITDA's non-cash components (711, 72x) — shown inside the
+  // variance under the EBITDA row; the budget template is unchanged.
+  const ebitdaComponents = useMemo(
+    () =>
+      actualCanon
+        ? {
+            inventoryVariation: actualCanon.inventoryVariation,
+            capitalizedOwnWork: actualCanon.capitalizedOwnWork,
+            refusal: actualCanon.ebitdaRefusal,
+          }
+        : null,
+    [actualCanon],
+  );
 
   // Effective comparison: an upload always wins; otherwise the test workspace
   // shows a labeled demo; a real workspace with no upload shows none.
@@ -297,6 +313,7 @@ function VarianceInner({
 
           <VarianceTable
             rows={rows}
+            ebitdaComponents={ebitdaComponents}
             currency={currency}
             view={view}
             hasBudget={hasBudget}

@@ -74,7 +74,7 @@ export interface StoryOverviewProps {
   /** Statement currency — conversion to display currency happens here,
    *  through the same hook as Pro's key-metric row. */
   currency: string;
-  /** headline.totalOperatingRevenue — same accessor as Pro. */
+  /** headline.netTurnover — same accessor as Pro. */
   revenue: number;
   /** headline.tileNetProfitRon — same accessor as Pro. */
   profit: number;

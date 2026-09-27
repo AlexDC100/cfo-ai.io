@@ -119,6 +119,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/stores/currency";
 import { convertFromTo, formatAmountFrom, formatMoneyFrom } from "@/lib/money";
 import { componentShown, readServedOneEbitda, reconLine } from "@/lib/servedOneEbitda";
+import { briefingVisibility } from "@/lib/briefingDefinition";
 import type { Currency } from "@/lib/rates";
 
 /**
@@ -209,7 +210,9 @@ interface PeriodResponse {
     action?: string;
     impact?: string;
   }>;
-  briefing?: { summary?: string; verdict?: string } | null;
+  /** `GET /api/period` serves `body` (+ its EBITDA `definition`); `summary`
+   *  is the older report shape, read when present. */
+  briefing?: { summary?: string; verdict?: string; body?: string; definition?: unknown } | null;
   /** Per-account line items — surfaced by the engine so the canonical
    *  EBITDA reconciliation can subtract 758 / 781 from Reported EBITDA
    *  to reach Core EBITDA. Same shape `useActivePeriod` already
@@ -383,6 +386,11 @@ export default function ComprehensiveReport() {
   // Reported→Core bridge (subtracts accounts 758 + 781 from the
   // engine's `ebitda_statutory`). The KPI grid + reconciliation
   // panel + (downstream) PnlTable all read from this object.
+  // The executive briefing, hidden with the engine's note when it was
+  // written under an earlier EBITDA definition (lib/briefingDefinition).
+  const briefingShown = briefingVisibility(
+    report.briefing ? { ...report.briefing, body: report.briefing.body ?? report.briefing.summary } : null,
+  );
   const canonical = buildCanonicalMetricsFromInputs({
     assembled_pl: pl as Record<string, number>,
     assembled_bs: bs as Record<string, number>,
@@ -495,13 +503,19 @@ export default function ComprehensiveReport() {
                 construction, so it is the first thing withheld. */}
             {sectorBlocked ? (
               <div className="mt-5">{withheldNote("The executive briefing")}</div>
-            ) : report.briefing?.summary ? (
+            ) : briefingShown.hiddenNote ? (
+              // Written under an earlier EBITDA definition: hidden, with the
+              // engine's one-line note (design A9) — never stale numbers.
+              <Panel inset className="mt-5 border-l-[3px] border-l-caution px-4 py-3" data-testid="report-briefing-hidden-definition">
+                <p className="text-[12.5px] text-ink-soft leading-relaxed">{briefingShown.hiddenNote.en}</p>
+              </Panel>
+            ) : briefingShown.body ? (
               <Panel inset className="mt-5 border-l-[3px] border-l-brand px-4 py-3">
                 <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium mb-1.5">
                   Executive briefing
                 </div>
                 <p className="text-[13px] text-ink-soft leading-relaxed whitespace-pre-line">
-                  {report.briefing.summary}
+                  {briefingShown.body}
                 </p>
               </Panel>
             ) : null}
@@ -627,13 +641,15 @@ function KpiGrid({
   // independent derivations — those are the bug the canonical object
   // exists to eliminate.
   const { ebitda, netProfit, balance, headline } = canonical;
+  // Net turnover (70x − 709) — every margin's denominator (owner ruling
+  // 2026-09-26). The retired "total operating revenue" added 72x to it.
   const revenue = headline.revenue;
-  const totalOpRev = headline.total_operating_revenue;
 
   const equityRatio = balance.total_assets > 0 ? balance.equity / balance.total_assets : null;
   // Net-Debt / EBITDA — uses Core EBITDA (the basis for valuation),
   // matching the rest of the canonical object's convention.
-  const ndeRatio = ebitda.core > 0 ? balance.net_debt / ebitda.core : null;
+  // A refused EBITDA forms no leverage multiple (null, never ÷ 0).
+  const ndeRatio = ebitda.core !== null && ebitda.core > 0 ? balance.net_debt / ebitda.core : null;
   const roe = balance.equity > 0 ? netProfit.statutory_account_121 / balance.equity : null;
   const altman = credit?.altmanZ ?? null;
 
@@ -679,28 +695,42 @@ function KpiGrid({
       conceptKey: "operating_revenue",
       rawValue: revenue,
     },
+    // THE ONE EBITDA (711 and 72x inside); a refused one prints the
+    // engine's reason in place of a figure, and its margin refuses with it.
     {
-      label: "EBITDA — reported",
-      value: <MoneyAmount value={ebitda.reported} fromCurrency={src} />,
-      sub: marginSub(
+      label: "EBITDA",
+      value:
+        ebitda.reported === null ? (
+          <span className="text-[12.5px] text-ink-soft" data-testid="report-kpi-ebitda-refused">
+            refused — {ebitda.refusal?.text.en ?? "the engine served no EBITDA for this period"}
+          </span>
+        ) : (
+          <MoneyAmount value={ebitda.reported} fromCurrency={src} />
+        ),
+      sub: ebitda.reported === null ? undefined : marginSub(
         ebitda.reported_margin_pct != null ? ebitda.reported_margin_pct / 100 : null,
-        "margin · acct 121 view",
-        "Reported / statutory",
+        "margin · over net turnover · 711 and 72x inside",
+        "Over net turnover",
       ),
       conceptKey: "ebitda",
-      rawValue: ebitda.reported,
+      rawValue: ebitda.reported ?? undefined,
     },
     {
       label: "EBITDA — core",
-      value: <MoneyAmount value={ebitda.core} fromCurrency={src} />,
-      sub: marginSub(
+      value:
+        ebitda.core === null ? (
+          <span className="text-[12.5px] text-ink-soft">refused with EBITDA</span>
+        ) : (
+          <MoneyAmount value={ebitda.core} fromCurrency={src} />
+        ),
+      sub: ebitda.core === null ? undefined : marginSub(
         ebitda.core_margin_pct != null ? ebitda.core_margin_pct / 100 : null,
         "margin · excl. 758, 781",
         "Basis for valuation",
       ),
       headline: true,
       conceptKey: "ebitda",
-      rawValue: ebitda.core,
+      rawValue: ebitda.core ?? undefined,
     },
     {
       label: "Net profit — statutory (ct 121)",
@@ -713,8 +743,8 @@ function KpiGrid({
       sub: marginSub(
         typeof netMarginCanonical === "number"
           ? netMarginCanonical
-          : totalOpRev > 0
-            ? netProfit.statutory_account_121 / totalOpRev
+          : revenue > 0
+            ? netProfit.statutory_account_121 / revenue
             : null,
         "margin · legally filed",
         "Legally filed (acct 121)",
@@ -1283,7 +1313,11 @@ function ValuationView({ metrics, pl, bs, currency }: {
   // EBITDA the envelope does not carry forms no multiple, a net debt
   // with a missing addend forms no equity value, and book equity paints
   // its gap state rather than a zero floor.
-  const ebitda: number | null | undefined = pl.ebitda_statutory ?? pl.ebitda ?? metrics.ebitda;
+  // THE ONE EBITDA as served (711 and 72x inside), or its refusal — never
+  // an engine metric row standing in for a refused figure.
+  const servedOne = readServedOneEbitda(pl);
+  const ebitda: number | null | undefined = servedOne ? servedOne.ebitda : metrics.ebitda;
+  const ebitdaRefusal = servedOne && servedOne.ebitda === null ? servedOne.refusal : null;
   const hasEbitda = typeof ebitda === "number" && Number.isFinite(ebitda) && ebitda > 0;
   const netDebt = sumOf(bs.total_debt, negated(bs.cash));
   const bookEquity: number | null | undefined = bs.total_equity ?? metrics.total_equity;
@@ -1297,7 +1331,12 @@ function ValuationView({ metrics, pl, bs, currency }: {
 
   return (
     <div className="space-y-3">
-      {ebitda == null ? (
+      {ebitdaRefusal ? (
+        <Panel inset className="border-l-[3px] border-l-caution px-4 py-3 text-[12.5px] text-ink-soft" data-testid="report-valuation-ebitda-refused">
+          EBITDA refused — {ebitdaRefusal.text.en}. No EV/EBITDA multiple can be
+          formed; book equity (NAV floor) stands alone.
+        </Panel>
+      ) : ebitda == null ? (
         <Panel inset className="border-l-[3px] border-l-caution px-4 py-3 text-[12.5px] text-ink-soft">
           EBITDA is not carried by this envelope — no EV/EBITDA multiple can be
           formed. For asset-heavy or distressed cases, prefer NAV (book equity)

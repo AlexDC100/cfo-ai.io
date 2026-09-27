@@ -131,10 +131,12 @@ function revenueProvenance(input: HeadlineProvenanceInput): AmountProvenance | n
 function ebitdaProvenance(input: HeadlineProvenanceInput): AmountProvenance | null {
   const { pl, statements, values, sourceDocumentFilename, periodLabel } = input;
   if (values.ebitda === null) return null;
-  const served = statements?.assembled_pl?.ebitda_statutory;
+  // THE ONE EBITDA, by its own name (the legacy `ebitda_statutory` is an
+  // alias of it since the one-EBITDA ruling).
+  const served = statements?.assembled_pl?.ebitda;
   if (typeof served === "number" && sameCents(served, values.ebitda)) {
     return provenanceOf({
-      source: joinSource(sourceDocumentFilename, "assembled_pl.ebitda_statutory"),
+      source: joinSource(sourceDocumentFilename, "assembled_pl.ebitda"),
       period: periodLabel ?? undefined,
     });
   }

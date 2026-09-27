@@ -136,7 +136,7 @@ const CONCEPTS: Concept[] = [
   {
     concept: "EBITDA (reported / statutory)",
     sites: () => [
-      { where: "§1 tile “EBITDA — reported”", printed: kpiTile("EBITDA — reported").value },
+      { where: "§1 tile “EBITDA”", printed: kpiTile("EBITDA").value },
       // The build-up's EBITDA is the cash view. Where 722 is material the
       // two genuinely differ and the table renders the statutory figure as
       // its own memo row; that row is the one to compare against.
@@ -169,7 +169,7 @@ const PERCENT_CONCEPTS: Concept[] = [
   {
     concept: "EBITDA margin",
     sites: () => [
-      { where: "§1 tile “EBITDA — reported” sub-line", printed: leadingPercent(kpiTile("EBITDA — reported").sub) },
+      { where: "§1 tile “EBITDA” sub-line", printed: leadingPercent(kpiTile("EBITDA").sub) },
       { where: "§5 ratio “EBITDA margin”", printed: rowValue("report-section-5-ratios", "EBITDA margin") },
     ],
   },

@@ -26,11 +26,24 @@ import type { Delta, DeltaSentiment } from "@/lib/learning/computeDeltas";
 import { isWordKind } from "@/lib/changeKind";
 import type { VarianceRow } from "@/lib/comparison/buildVariance";
 import { cn } from "@/lib/utils";
+import { Fragment } from "react";
+import { useTranslation } from "react-i18next";
 
 export type VarianceView = "both" | "budget" | "last_year";
 
+/** The actual EBITDA's two non-cash components, as served (one-EBITDA
+ *  ruling, 2026-09-26): shown INSIDE the variance under the EBITDA row,
+ *  actual only — the budget template is unchanged and carries neither. */
+export interface ActualEbitdaComponents {
+  inventoryVariation: number | null;
+  capitalizedOwnWork: number | null;
+  refusal: { readonly code: string; readonly text: { readonly ro: string; readonly en: string } } | null;
+}
+
 interface Props {
   rows: VarianceRow[];
+  /** Net 711 and net 72x inside the actual EBITDA (and its refusal). */
+  ebitdaComponents?: ActualEbitdaComponents | null;
   currency: string;
   view: VarianceView;
   hasBudget: boolean;
@@ -81,7 +94,7 @@ function Val({ v, currency, emphasis }: { v: number | null; currency: string; em
   );
 }
 
-export function VarianceTable({ rows, currency, view, hasBudget, hasLastYear }: Props) {
+export function VarianceTable({ rows, ebitdaComponents = null, currency, view, hasBudget, hasLastYear }: Props) {
   const showBudget = view !== "last_year" && hasBudget;
   const showLastYear = view !== "budget" && hasLastYear;
   const { display } = useDisplayMoney();
@@ -128,8 +141,8 @@ export function VarianceTable({ rows, currency, view, hasBudget, hasLastYear }: 
         <div className="min-w-[520px]">
           <Header />
           {rows.map((r) => (
+            <Fragment key={r.key}>
             <div
-              key={r.key}
               data-testid={`variance-row-${r.key}`}
               className={cn(
                 "grid gap-2 items-center px-4 min-h-8 py-1 border-b border-rule-soft last:border-b-0",
@@ -165,9 +178,67 @@ export function VarianceTable({ rows, currency, view, hasBudget, hasLastYear }: 
                 </div>
               )}
             </div>
+            {r.key === "ebitda" && ebitdaComponents && (
+              <EbitdaComponentsRow c={ebitdaComponents} currency={currency} gridTemplate={gridTemplate} />
+            )}
+            </Fragment>
           ))}
         </div>
       </MoneyAmountGroup>
+    </div>
+  );
+}
+
+/** Under the ACTUAL EBITDA: the stock variation (711) and own work
+ *  capitalised (72x) it includes, each signed as served — or the engine's
+ *  refusal. Actual column only; budget / last-year cells stay empty on
+ *  purpose (the template carries neither line). */
+function EbitdaComponentsRow({
+  c,
+  currency,
+  gridTemplate,
+}: {
+  c: ActualEbitdaComponents;
+  currency: string;
+  gridTemplate: string;
+}) {
+  const { i18n } = useTranslation();
+  const ro = (i18n.language ?? "").toLowerCase().startsWith("ro");
+  const parts: Array<{ key: string; label: string; v: number | null }> = [];
+  if (c.inventoryVariation !== null && Math.abs(c.inventoryVariation) >= 0.005) {
+    parts.push({ key: "inventory_variation", label: "Variația stocurilor de produse (711)", v: c.inventoryVariation });
+  }
+  if (c.capitalizedOwnWork !== null && Math.abs(c.capitalizedOwnWork) >= 0.005) {
+    parts.push({
+      key: "capitalized_own_work",
+      label: ro ? "Producția imobilizată (72x)" : "Own work capitalised (72x)",
+      v: c.capitalizedOwnWork,
+    });
+  }
+  if (!c.refusal && parts.length === 0) return null;
+  return (
+    <div
+      data-testid="variance-ebitda-components"
+      className="grid gap-2 items-start px-4 py-1 border-b border-rule-soft text-[11.5px] text-ink-soft"
+      style={{ gridTemplateColumns: gridTemplate }}
+    >
+      {c.refusal ? (
+        <div className="col-span-full">
+          {ro ? `EBITDA refuzată: ${c.refusal.text.ro}` : `EBITDA refused: ${c.refusal.text.en}`}
+        </div>
+      ) : (
+        <>
+          <div className="truncate">{ro ? "din care, în EBITDA:" : "of which, inside EBITDA:"}</div>
+          <div className="text-right space-y-0.5">
+            {parts.map((p) => (
+              <div key={p.key} data-testid={`variance-ebitda-component-${p.key}`}>
+                <span className="mr-1">{p.label}</span>
+                <MoneyAmount value={p.v} fromCurrency={currency as Currency} unit={false} signed />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

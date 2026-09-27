@@ -256,7 +256,7 @@ export function NavValuationView({ cascade, entity, period, currency }: Props) {
               </tr>
               <tr>
                 <td>Cap rate method</td>
-                <td className="num">{fmt(cascade.crossMethods.capRate)}</td>
+                <td className="num">{cascade.crossMethods.capRate === null ? "refused — no NOI (EBITDA refused)" : fmt(cascade.crossMethods.capRate)}</td>
               </tr>
               <tr>
                 <td>Graham intrinsic value</td>
@@ -266,7 +266,7 @@ export function NavValuationView({ cascade, entity, period, currency }: Props) {
                 <td>
                   EV/EBITDA <span className="nav-caveat-tag">caveat</span>
                 </td>
-                <td className="num">{fmt(cascade.crossMethods.evEbitda)}</td>
+                <td className="num">{cascade.crossMethods.evEbitda === null ? "refused — EBITDA refused" : fmt(cascade.crossMethods.evEbitda)}</td>
               </tr>
               <tr className="convergence-row">
                 <td>
@@ -283,10 +283,12 @@ export function NavValuationView({ cascade, entity, period, currency }: Props) {
           </table>
         </div>
         <p className="nav-caveat-text">
-          The EV/EBITDA result of {fmtShortDisp(cascade.crossMethods.evEbitda)}M sits below
+          {cascade.crossMethods.evEbitda === null
+            ? "No EV/EBITDA figure: EBITDA is refused for this period."
+            : <>The EV/EBITDA result of {fmtShortDisp(cascade.crossMethods.evEbitda)}M sits below
           the convergence band — this is the expected pattern for asset-yielding
-          businesses. It captures operating cash flow without crediting the
-          property asset value.
+          businesses. It captures the operating result without crediting the
+          property asset value.</>}
         </p>
       </section>
 

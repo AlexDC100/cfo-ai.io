@@ -80,9 +80,11 @@ export interface NavSensitivityCell {
 }
 
 export interface NavCrossMethods {
-  capRate: number;
+  /** null when the NOI proxy is refused (with EBITDA). */
+  capRate: number | null;
   graham: number;
-  evEbitda: number;
+  /** On the one EBITDA; null when the engine refused EBITDA. */
+  evEbitda: number | null;
   convergenceBand: [number, number]; // low, high (across NNNAV + cap_rate + Graham)
   convergenceConfidence: "high" | "medium" | "low";
 }

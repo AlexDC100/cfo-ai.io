@@ -249,6 +249,10 @@ export interface StatementRow {
   readonly label: Bilingual;
   readonly year0: CockpitAmount | null;
   readonly values: readonly CockpitAmount[];
+  /** Served on the year-0-only lines (the stock variation 711 and own work
+   *  capitalised 72x): they are not projected — 0 in every plan year —
+   *  and the engine says so (one-EBITDA ruling, design A6). */
+  readonly notProjected: Bilingual | null;
 }
 
 export interface CockpitStatements {
@@ -283,6 +287,16 @@ export interface CockpitView {
       /** The one note the engine serves for its one case (a developer's
        *  capitalised 711, with the figure and the year it belongs to). */
       readonly note: Bilingual | null;
+      /** THE YEAR-0 → YEAR-1 STEP (one-EBITDA ruling): year 0's EBITDA
+       *  includes the stock variation and own work capitalised, the plan
+       *  years project them at 0 — served with its figures, so the step
+       *  between the actual and the first plan year is named, not silent. */
+      readonly year0Step: {
+        readonly text: Bilingual;
+        readonly ebitdaYear0: Bilingual | null;
+        readonly beforeStockVariation: Bilingual | null;
+        readonly step: Bilingual | null;
+      } | null;
     };
     readonly fcf: { readonly from: string; readonly to: string; readonly amount: Bilingual; readonly formula: Bilingual | null };
     readonly cash: CashNumber;
@@ -460,6 +474,7 @@ function readRows(raw: unknown, years: readonly string[]): StatementRow[] {
         label: bilingual(r.label) ?? { ro: str(r.line), en: str(r.line) },
         year0: y0 ? amountOf(y0, str(y0.period) || years[0] || "", "actual") : null,
         values: planYears.map((p) => amountOf(byPeriod.get(p), p)),
+        notProjected: bilingual(rec(r.not_projected)?.text),
       },
     ];
   });
@@ -569,6 +584,18 @@ export function readCockpit(payload: unknown): CockpitView | null {
         marginRefused: lang2(ebitdaRaw.display, "margin_refused"),
         marginYear0Refused: lang2(ebitdaRaw.display, "margin_year0_refused"),
         note: lang2(ebitdaRaw.display, "note"),
+        year0Step: (() => {
+          const st = rec(ebitdaRaw.year0_step);
+          const text = st ? lang2(st.display, "text") : null;
+          return st && text
+            ? {
+                text,
+                ebitdaYear0: lang2(st.display, "ebitda_year0"),
+                beforeStockVariation: lang2(st.display, "ebitda_year0_before_stock_variation"),
+                step: lang2(st.display, "step"),
+              }
+            : null;
+        })(),
       },
       fcf: {
         from: str(fcfRaw.from),
