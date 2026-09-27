@@ -5384,6 +5384,41 @@ FAILED tests/engine/test_industry_classifier_absent_inputs.py::test_the_benchmar
 
 **REVERT** — restored; exit `0`, `18 passed`.
 
+### floor-industry-absent — the turnover denominator (stage G1, 2026-09-27; design A3/A8)
+
+**Why.** The owner's ruling of 2026-09-26: every margin and share divides NET
+TURNOVER (cifra de afaceri, class 70 − 709) — "nowhere by
+total_operating_revenue", the industry classifier named. `classify_cost_
+structure` took `total_operating_revenue` FIRST (turnover + 72x + other
+operating income) and `cost_structure_metrics` synthesised it from the line
+items (revenue + capitalizedOwnWork + otherIncome buckets); the fallback
+likewise. On EEI that is 4.91M against a turnover of 2.73M — every share 44 %
+low. The laws that pinned the old denominator are REWRITTEN: the services
+fallback keys on `revenue`; the EEI control prints 722 on its own row instead of
+folding it into a "706" of 4,911,000; the floor census row's law is 3 → 1 (the
+two bucket defaults went with the synthesis). New laws: a SYNTHETIC witness
+(turnover 1,000,000, total operating revenue 1,500,000, personnel 450,000 — 45 %
+of turnover, the 6201 rule; 30 % of the total, no rule) classifies 6201; the
+line-item flattening reads the revenue bucket alone; without turnover the
+classification refuses (`inputs == ["revenue"]`), never falling back to the
+total. Measured on the four corpus books through the write seam: the flattened
+revenue equals `assembled_pl.revenue` to the cent and no suggested CAEN moves
+(agras 1013 0.7, carniprod 1013 0.4, realestate 6820 0.7, retail 1013 0.4).
+
+**GREEN** — `21 passed` (+ `test_floor_census_gate.py`: 23 together).
+
+**PLANT total-operating-revenue-first** — `classify_cost_structure`:
+`revenue = _measured(metrics.get("total_operating_revenue", metrics.get("revenue")))`.
+
+**RED** — exit `1`:
+```
+FAILED tests/engine/test_industry_classifier_absent_inputs.py::test_every_share_divides_net_turnover_never_total_operating_revenue
+FAILED tests/engine/test_industry_classifier_absent_inputs.py::test_without_net_turnover_the_classification_refuses
+========================= 2 failed, 19 passed in 1.74s =========================
+```
+
+**REVERT** — restored byte-exact from a copy; `21 passed`.
+
 ## ratios wave three — second repair round (2026-09-20)
 
 Seven verifier findings on `wave/ratios-b8-milestone` (one medium, six low).

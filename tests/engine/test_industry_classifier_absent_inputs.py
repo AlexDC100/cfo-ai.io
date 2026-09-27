@@ -19,6 +19,15 @@ The CAEN → industry mapping rows come from the committed seed
 TC-11, what this reds on after the repair: a CAEN suggested over a metrics
 set that lacks any cost line; a period with PL line items classified
 without them; a services-shaped fallback chosen on an absent COGS.
+
+Owner ruling 2026-09-26 (the one EBITDA, design A3/A8): every share
+divides NET TURNOVER (cifra de afaceri, the served ``revenue`` metric) —
+never ``total_operating_revenue``, which also carries own work capitalised
+(72x) and other operating income. The laws below that pinned the old
+denominator (the services fallback keyed on total operating revenue; the
+EEI control's "706" row carrying 722 inside it) are REWRITTEN; the new law
+reds when a rule is evaluated over total operating revenue on a book where
+the two differ.
 """
 
 from __future__ import annotations
@@ -136,11 +145,67 @@ def test_detect_from_signals_falls_back_and_says_why():
 def test_services_fallback_needs_a_measured_cogs():
     """High personnel and ABSENT COGS used to pass `cogs < 20%` on a 0."""
     r = det.detect_from_signals(_SeedClient(), metrics={
-        "total_operating_revenue": 1_000_000, "opex_personnel": 500_000})
+        "revenue": 1_000_000, "opex_personnel": 500_000})
     assert r.primary.industry_key == "manufacturing_generic"
     r = det.detect_from_signals(_SeedClient(), metrics={
-        "total_operating_revenue": 1_000_000, "opex_personnel": 500_000, "cogs": 50_000})
+        "revenue": 1_000_000, "opex_personnel": 500_000, "cogs": 50_000})
     assert r.primary.industry_key == "professional_services_generic"
+    # total operating revenue is never the denominator, not even as a
+    # fallback: without net turnover the shape is not measured.
+    r = det.detect_from_signals(_SeedClient(), metrics={
+        "total_operating_revenue": 1_000_000, "opex_personnel": 500_000, "cogs": 50_000})
+    assert r.primary.industry_key == "manufacturing_generic"
+
+
+# ─── the one denominator: net turnover (owner ruling 2026-09-26) ──────────
+#
+# A witness where the two revenues DIFFER enough to cross a rule boundary:
+# turnover 1,000,000 plus own work capitalised 500,000 (total operating
+# revenue 1,500,000). Personnel 450,000 is 45 % of turnover — the 6201 rule
+# (COGS < 20 %, personnel > 40 %) — but 30 % of total operating revenue,
+# where no rule matches. SYNTHETIC figures.
+
+TURNOVER_WITNESS = {
+    "revenue": 1_000_000,
+    "total_operating_revenue": 1_500_000,
+    "cogs": 100_000,
+    "opex_personnel": 450_000,
+    "depreciation_amortization": 50_000,
+    "opex_external_services": 100_000,
+    "opex_energy": 20_000,
+    "opex_rent": 20_000,
+}
+
+
+def test_every_share_divides_net_turnover_never_total_operating_revenue():
+    result = classify_cost_structure(TURNOVER_WITNESS)
+    assert result.refusal is None, result.refusal
+    assert (result.caen, result.confidence) == ("6201", SINGLE_MATCH_CONFIDENCE), (
+        "the shares were not taken over net turnover: %r" % (result,))
+    # the witness discriminates: over total operating revenue nothing matches
+    over_total = {**TURNOVER_WITNESS, "revenue": TURNOVER_WITNESS["total_operating_revenue"]}
+    assert classify_cost_structure(over_total).caen is None
+
+
+def test_the_line_item_flattening_takes_turnover_not_turnover_plus_72x():
+    """With no `revenue` metric row, the flattening reads the revenue bucket
+    ALONE — never plus capitalised own work (72x) or other operating income."""
+    items = [_pl("704", "revenue", 1_000_000), _pl("722", "capitalizedOwnWork", 500_000),
+             _pl("641", "personnel", 450_000), _pl("601", "cogs", 100_000),
+             _pl("6811", "depreciation", 50_000), _pl("622", "otherOpex", 100_000),
+             _pl("605", "otherOpex", 20_000), _pl("612", "otherOpex", 20_000)]
+    flat = cost_structure_metrics([], items)
+    assert flat["revenue"] == 1_000_000
+    assert "total_operating_revenue" not in flat
+    assert classify_cost_structure(flat).caen == "6201"
+
+
+def test_without_net_turnover_the_classification_refuses():
+    metrics = {k: v for k, v in TURNOVER_WITNESS.items() if k != "revenue"}
+    result = classify_cost_structure(metrics)
+    assert result.caen is None
+    assert result.refusal["inputs"] == ["revenue"]
+    assert "net turnover" in result.refusal["text"]
 
 
 def _pl(code, bucket, amount):
@@ -267,9 +332,13 @@ def test_report_route_gates_a_no_line_items_period_with_the_refusal(bench_app):
 
 
 def test_resolver_auto_detects_a_single_rule_match_over_measured_line_items(bench_app):
-    """Control: EEI-shaped PL line items (no COGS rows, external services 44% of
-    revenue) match exactly the 6820 rule and the seeded CAEN is served."""
-    eei_items = [_pl("706", "revenue", 4_911_000), _pl("641", "personnel", 125_808),
+    """Control: EEI-shaped PL line items (no COGS rows; turnover 706 of
+    2,727,104 and own work capitalised 722 of 2,164,080 on its own row —
+    it was folded into a single \"706\" of 4,911,000 under the old
+    denominator) — external services 80 % and personnel 4.6 % of NET
+    TURNOVER match exactly the 6820 rule and the seeded CAEN is served."""
+    eei_items = [_pl("706", "revenue", 2_727_104), _pl("722", "capitalizedOwnWork", 2_164_080),
+                 _pl("641", "personnel", 125_808),
                  _pl("622", "otherOpex", 2_172_788), _pl("6811", "depreciation", 355_606)]
     _client, _store = bench_app(metric_rows=[], line_items=eei_items)
     assert _benchmarks._resolve_effective_caen(jwt="x", period_id="p1") == (

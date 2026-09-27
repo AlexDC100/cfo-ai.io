@@ -47,8 +47,12 @@ COST_STRUCTURE_UNAVAILABLE = "cost_structure_classification_unavailable"
 
 
 # Each rule: (caen_code, human-readable label, predicate over SHARES of
-# operating revenue — ``s[key] = metrics[key] / revenue`` for every key in
-# COST_STRUCTURE_INPUTS, all measured).
+# NET TURNOVER — ``s[key] = metrics[key] / revenue`` for every key in
+# COST_STRUCTURE_INPUTS, all measured). ``revenue`` is cifra de afaceri netă
+# (class 70 − 709). Owner ruling 2026-09-26: every margin and share divides
+# by turnover, never by total operating revenue, which also carries own work
+# capitalised (72x) and other operating income — on EEI 4.91M against a
+# turnover of 2.73M, so every share was understated by 44 %.
 SUGGESTION_RULES: List[Tuple[str, str, Callable[[Dict[str, float]], bool]]] = [
     # CRE detection — multi-signal. The original rule REQUIRED D&A > 15%
     # of revenue, which fails for Romanian CRE companies that use the
@@ -153,17 +157,16 @@ def _refuse(inputs: List[str], why: str) -> CostStructureClassification:
 
 
 def classify_cost_structure(metrics: Dict[str, Any]) -> CostStructureClassification:
-    """Evaluate every rule over measured cost shares, or refuse with the reason."""
-    revenue_key = next(
-        (k for k in ("total_operating_revenue", "revenue") if metrics.get(k) is not None),
-        None,
-    )
-    revenue = _measured(metrics.get(revenue_key)) if revenue_key else None
+    """Evaluate every rule over measured cost shares of NET TURNOVER, or
+    refuse with the reason. ``total_operating_revenue`` is never the
+    denominator (owner ruling 2026-09-26), not even as a fallback: a period
+    whose metrics carry no turnover refuses."""
+    revenue = _measured(metrics.get("revenue"))
     if revenue is None:
-        return _refuse(["total_operating_revenue", "revenue"],
-                       "operating revenue is not in this period's metrics")
+        return _refuse(["revenue"],
+                       "net turnover (cifra de afaceri) is not in this period's metrics")
     if revenue <= 0:
-        return _refuse([revenue_key], "operating revenue is not positive")
+        return _refuse(["revenue"], "net turnover (cifra de afaceri) is not positive")
 
     missing = [k for k in COST_STRUCTURE_INPUTS if _measured(metrics.get(k)) is None]
     if missing:
@@ -242,12 +245,12 @@ def cost_structure_metrics(
         if amount is None:
             continue
         bucket_sums[b] = bucket_sums.get(b, 0.0) + amount
-    if "revenue" in bucket_sums and "total_operating_revenue" not in flat:
-        flat["total_operating_revenue"] = (
-            bucket_sums["revenue"]
-            + bucket_sums.get("capitalizedOwnWork", 0.0)
-            + bucket_sums.get("otherIncome", 0.0)
-        )
+    # The denominator is net turnover (the served `revenue` metric); from
+    # the line items only when no metric row carries it — the revenue
+    # bucket alone, never plus 72x / other operating income (owner ruling
+    # 2026-09-26).
+    if "revenue" in bucket_sums and "revenue" not in flat:
+        flat["revenue"] = bucket_sums["revenue"]
     # PL line items present: a bucket with no rows sums to a true zero.
     flat.setdefault("cogs", bucket_sums.get("cogs", 0.0))
     flat.setdefault("depreciation_amortization", bucket_sums.get("depreciation", 0.0))
@@ -271,7 +274,8 @@ def cost_structure_metrics(
 if __name__ == "__main__":
     eei = {
         # EEI Imobiliara — actual extracted Dec 2025 metrics
-        "total_operating_revenue": 4_911_000,
+        # net turnover (706); total operating revenue with 722 was 4,911,000
+        "revenue": 2_727_104,
         "cogs": 0,
         "opex_personnel": 125_808,
         "opex_external_services": 2_172_788,
@@ -281,7 +285,7 @@ if __name__ == "__main__":
     }
     scandia = {
         # Scandia Food SRL — FY2025 reference values
-        "total_operating_revenue": 413_727_560,
+        "revenue": 413_727_560,
         "cogs": 166_897_303,   # 601 + 602
         "opex_personnel": 78_674_529,
         "opex_external_services": 30_000_000,
@@ -298,7 +302,7 @@ if __name__ == "__main__":
     assert caen in ("1012", "1013"), f"Scandia should be 1012 or 1013, got {caen}"
     print(f"✓ Scandia → {caen} ({label}) confidence {conf}")
 
-    r = classify_cost_structure({"total_operating_revenue": 413_727_560})
+    r = classify_cost_structure({"revenue": 413_727_560})
     assert r.caen is None and r.refusal is not None, r
     print(f"✓ No cost lines → refused: {r.refusal['text']}")
 

@@ -1431,7 +1431,10 @@ def _engine_gates() -> List[Gate]:
              work_junit=True, floor=15, units="tests",
              canaries=("test_metrics_without_cost_lines_refuse_instead_of_suggesting_real_estate",
                        "test_detect_industry_for_period_reads_the_pl_line_items",
-                       "test_report_route_gates_a_no_line_items_period_with_the_refusal")),
+                       "test_report_route_gates_a_no_line_items_period_with_the_refusal",
+                       # one-EBITDA ruling (stage G1): shares over net turnover
+                       "test_every_share_divides_net_turnover_never_total_operating_revenue",
+                       "test_without_net_turnover_the_classification_refuses")),
     ]
 
 
