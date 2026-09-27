@@ -1552,11 +1552,11 @@
  },
  "period_id": "c-cur",
  "pins": {
-  "body_hash": "sha256:4091d60025b30473bb76707fbd386525c1a6824788f1a6d3fa564adaeebc1d73",
+  "body_hash": "sha256:a730e60386b81cc15036d6d4d559805e4d43a9e72f321bf95af31c8d773f4f6d",
   "cockpit_pack": "sha256:cc5ae7474d11755319867b91ab73d7a6cb8f284c0e88ff8da29c6d5f14133870",
   "engine_version": "0.1.0",
   "macro_pack": "sha256:786eec084a31392dca0f4be9c16faff90fcf6532c94bc8ed5823d5a05ff548b3",
-  "margin_pack": "sha256:39f88c776cc74fc155591ec8f59259542461572c0042734dbc840ca066139a3f",
+  "margin_pack": "sha256:bae7e9db9e98f58815b343b4695eb79b8f896679341604ac2abe05b874aa37f6",
   "pack_id": "forecast-cockpit"
  },
  "sentence": {

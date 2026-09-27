@@ -1291,8 +1291,10 @@ def build_cockpit(anchor_payload: Dict[str, Any], prior_periods: Sequence[Dict[s
     # EBITDA includes the construction cost capitalised into stock through
     # 711, "Variația stocurilor de produse"). The figure is READ from the
     # served assembled_pl.inventory_variation.value (the measured net 711) of
-    # the actual year; the note names that year, because the EBITDA above it
-    # is the final plan year's.
+    # the actual year. The EBITDA above it is the FINAL PLAN year's, which
+    # projects net 711 at 0 (year0_step below), so the note is the pack's
+    # plan-year sentence: the figure belongs to the actual year and the
+    # EBITDA above does not include it.
     apl0 = statements0.get("assembled_pl") if isinstance(statements0.get("assembled_pl"), dict) else {}
     inv0 = apl0.get("inventory_variation") if isinstance(apl0.get("inventory_variation"), dict) else {}
     note = margin_meaning.note_block(

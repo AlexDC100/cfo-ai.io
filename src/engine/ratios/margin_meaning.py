@@ -221,15 +221,18 @@ class MarginMeaningPack(object):
                                          % (PACK_FILE, NOTE_FIGURE))
         text = _two(note, "note")
         for lang in _LANGS:
-            if "{amount}" not in text[lang] or "{when}" not in text[lang]:
-                raise MarginMeaningPackError("%s#note.%s: must place {amount} and {when}"
-                                             % (PACK_FILE, lang))
-        when = _two_raw(note.get("when"), "note.when")
+            if "{amount}" not in text[lang]:
+                raise MarginMeaningPackError("%s#note.%s: must place {amount}" % (PACK_FILE, lang))
+        # The sentence under a PLAN year's EBITDA, which projects net 711 at
+        # 0: it names the actual year the figure belongs to and must not
+        # say the EBITDA above includes it.
+        plan_year = _two(note.get("plan_year"), "note.plan_year")
         for lang in _LANGS:
-            if "{year}" not in when[lang]:
-                raise MarginMeaningPackError("%s#note.when.%s: must place {year}" % (PACK_FILE, lang))
+            if "{amount}" not in plan_year[lang] or "{year}" not in plan_year[lang]:
+                raise MarginMeaningPackError("%s#note.plan_year.%s: must place {amount} and {year}"
+                                             % (PACK_FILE, lang))
         self.note = {"id": str(note.get("id") or ""), "requires": dict(requires),
-                     "figure": note["figure"], "text": text, "when": when}
+                     "figure": note["figure"], "text": text, "plan_year": plan_year}
         if not self.note["id"]:
             raise MarginMeaningPackError("%s#note.id: missing" % PACK_FILE)
         money = raw.get("money_display")
@@ -520,9 +523,12 @@ def note_block(verdict: Verdict, *, industry_family: Optional[str], inventory_va
     EBITDA includes (in currency units; None when it was refused, and then
     there is no note); the note computes nothing. ``unit_of`` is the EBITDA
     printed above the note: the amount prints in its unit (millions when it
-    is a million or more), so the two read side by side. ``year`` names the
-    year the figure belongs to where the page shows another year's EBITDA
-    above it (the cockpit's final plan year)."""
+    is a million or more), so the two read side by side. ``year`` is given
+    where the page shows a PLAN year's EBITDA above the note (the cockpit's
+    final plan year, the bank export): plan years project net 711 at 0, so
+    the note is the pack's ``plan_year`` sentence — the figure belongs to
+    ``year`` (the actual year) and the EBITDA above does NOT include it.
+    Without ``year`` the EBITDA above is the actual year's and includes it."""
     pack = margin_meaning_pack()
     figure = _exact(inventory_variation)
     if not (verdict.refused and industry_family == "real_estate"
@@ -532,9 +538,11 @@ def note_block(verdict: Verdict, *, industry_family: Optional[str], inventory_va
     unit = money_unit(unit_of) if _exact(unit_of) is not None else None
     display = {}
     for lang in _LANGS:
-        when = pack.note["when"][lang].format(year=year) if year else ""
-        display[lang] = pack.note["text"][lang].format(amount=render(inventory_variation, lang, unit),
-                                                        when=when)
+        amount = render(inventory_variation, lang, unit)
+        if year:
+            display[lang] = pack.note["plan_year"][lang].format(amount=amount, year=year)
+        else:
+            display[lang] = pack.note["text"][lang].format(amount=amount)
     return {
         "id": pack.note["id"],
         # The served figure, verbatim: the note reads it and computes nothing.

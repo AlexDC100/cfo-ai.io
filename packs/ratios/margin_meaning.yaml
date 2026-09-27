@@ -107,13 +107,20 @@ note:
     industry_family: real_estate
     inventory_variation: positive
   figure: assembled_pl.inventory_variation.value
-  ro: "Pentru un dezvoltator imobiliar, costurile de construcție capitalizate în stocuri trec prin contul 711 (Variația stocurilor de produse): EBITDA de mai sus le include — {amount}{when}."
-  en: "For a property developer, construction costs capitalised into inventory run through account 711 (Variația stocurilor de produse): the EBITDA above includes them — {amount}{when}."
-  # The year the figure belongs to, where the page shows another year's
-  # EBITDA above it (the cockpit's final plan year).
-  when:
-    ro: " în {year}"
-    en: " in {year}"
+  # Under the ACTUAL year's EBITDA (the dashboard, the report): that EBITDA
+  # includes the figure.
+  ro: "Pentru un dezvoltator imobiliar, costurile de construcție capitalizate în stocuri trec prin contul 711 (Variația stocurilor de produse): EBITDA de mai sus le include — {amount}."
+  en: "For a property developer, construction costs capitalised into inventory run through account 711 (Variația stocurilor de produse): the EBITDA above includes them — {amount}."
+  # Under a PLAN year's EBITDA (the forecast cockpit's final plan year and
+  # the bank export). Plan years project net 711 at 0 (design A6), so the
+  # EBITDA above does NOT include the figure: the note names the actual year
+  # it belongs to and says the plan years carry none. (Until 2026-09-27 the
+  # cockpit printed the actual-year sentence here — "the EBITDA above
+  # includes them — RON 29.6M in 2025." — under an FY2030 EBITDA that
+  # projects 711 at 0, on the card whose year-0 step says so.)
+  plan_year:
+    ro: "Pentru un dezvoltator imobiliar, costurile de construcție capitalizate în stocuri trec prin contul 711 (Variația stocurilor de produse): EBITDA din {year} le-a inclus — {amount}; anii de plan proiectează variația stocurilor la 0, deci EBITDA de mai sus nu le include."
+    en: "For a property developer, construction costs capitalised into inventory run through account 711 (Variația stocurilor de produse): the {year} EBITDA included them — {amount}; the plan years project the stock variation at 0, so the EBITDA above does not include them."
 
 # How the note's amount prints: one decimal, in the unit of the EBITDA the
 # note stands under (millions when that EBITDA is a million or more, else

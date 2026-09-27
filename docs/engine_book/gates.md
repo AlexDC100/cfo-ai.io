@@ -10447,6 +10447,52 @@ CANNOT SEE: what the pages paint (`margin-meaning-page`), a book outside the
 corpus, whether 10% is the right threshold (the pack states why it was
 chosen; the owner rules).
 
+### margin-meaning — the plan-year note no longer says the EBITDA above includes 711 (fixer round 1, 2026-09-27)
+
+**INCIDENT** — critic finding: `forecast/cockpit.py` served the developer's
+note under the FINAL PLAN year's EBITDA (FY2030, RON −32.9M) with the
+actual-year sentence plus a year: "…the EBITDA above includes them — RON
+29.6M in 2025." Plan years project net 711 at 0 (design A6), and the same
+card's `year0_step` says "the stock variation and own work capitalised are
+not projected: 0 in every plan year". `forecastBankExport.ts` printed that
+sentence into the lender PDF. `DEVELOPER_COCKPIT_NOTE` pinned it — the gate
+encoded the defect (TC-11).
+
+**REWRITTEN, not re-captured.** The pack now carries two sentences:
+`note.ro/en` (under the ACTUAL year's EBITDA — the dashboard, the report —
+"the EBITDA above includes them — {amount}.") and `note.plan_year` (under a
+plan year's: "the {year} EBITDA included them — {amount}; the plan years
+project the stock variation at 0, so the EBITDA above does not include
+them."). `note_block(year=…)` serves the second. The law: the cockpit and
+bank-export notes equal the plan-year sentence (engine
+`DEVELOPER_COCKPIT_NOTE`, FE `COCKPIT_NOTE` in marginMeaning.test.tsx), and
+independently of the pin, a plan-year note that says "above includes" /
+"de mai sus le include" is a failure, as is a developer card with no year-0
+stock-variation step beside its note. The fixtures were then re-captured
+through their own script (`scripts/gen_cockpit_fixtures.py --book realestate
+--requests base,export`, and the agras set, whose only move is
+`pins.margin_pack`).
+
+**PLANT actual-year-sentence-under-a-plan-year** —
+`src/engine/ratios/margin_meaning.py` `note_block`: `if year:` → `if False:`
+(the plan year gets the dashboard sentence).
+```
+RED (plant) — 3 failed, 29 passed
+E       cockpit developer en note says the plan-year EBITDA includes 711: 'For a property developer, … the EBITDA above includes them — RON 29.6M.'
+FAILED tests/engine/test_margin_meaning.py::test_no_cockpit_but_the_developers_moves_and_the_developer_shows_the_refusal
+FAILED tests/engine/test_margin_meaning.py::test_the_bank_export_carries_the_refusal_and_the_note
+FAILED tests/engine/test_margin_meaning.py::test_the_developers_committed_cockpit_fixtures_are_what_the_route_serves
+```
+**PLANT the-pre-fix-fixture (frontend half, margin-meaning-page)** —
+`tests/engine/fixtures/forecast/cockpit_realestate_base.json` restored to its
+51d4bb64 bytes:
+```
+RED (plant) — Tests 1 failed | 17 passed (18)
+   × the forecast cockpit and the bank export (the developer's real engine bytes) > the sentence carries no margin clause and the note names its year
+```
+**REVERT** — both files restored from their copies: `32 passed`; `Tests 18
+passed (18)`.
+
 ## margin-meaning-page
 
 | | |

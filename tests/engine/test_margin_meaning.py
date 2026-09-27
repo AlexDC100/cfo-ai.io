@@ -110,15 +110,25 @@ DEVELOPER_NOTE = {
            "account 711 (Variația stocurilor de produse): the EBITDA above includes them — "
            "RON 29,589.8k."),
 }
-#: The same note under the cockpit's final plan year, whose EBITDA is in
-#: millions: the amount prints in millions and names the actual year.
+#: The note under the cockpit's final PLAN year (and the bank export). That
+#: EBITDA projects net 711 at 0 (design A6 — the card's own year0_step says
+#: "not projected: 0 in every plan year"), so the note must NOT say the
+#: EBITDA above includes the stock variation: it names the actual year the
+#: figure belongs to and says the plan years carry none. The amount prints in
+#: the unit of the plan-year EBITDA above it (millions).
+#: REWRITTEN 2026-09-27 (fixer round 1), not re-captured: the previous law
+#: pinned "the EBITDA above includes them — RON 29.6M in 2025." under an
+#: FY2030 EBITDA of RON −32.9M that includes nothing of the kind — the gate
+#: encoded the defect.
 DEVELOPER_COCKPIT_NOTE = {
     "ro": ("Pentru un dezvoltator imobiliar, costurile de construcție capitalizate în stocuri "
-           "trec prin contul 711 (Variația stocurilor de produse): EBITDA de mai sus le include — "
-           "29,6 mil. lei în 2025."),
+           "trec prin contul 711 (Variația stocurilor de produse): EBITDA din 2025 le-a inclus — "
+           "29,6 mil. lei; anii de plan proiectează variația stocurilor la 0, deci EBITDA de mai "
+           "sus nu le include."),
     "en": ("For a property developer, construction costs capitalised into inventory run through "
-           "account 711 (Variația stocurilor de produse): the EBITDA above includes them — "
-           "RON 29.6M in 2025."),
+           "account 711 (Variația stocurilor de produse): the 2025 EBITDA included them — "
+           "RON 29.6M; the plan years project the stock variation at 0, so the EBITDA above "
+           "does not include them."),
 }
 
 #: turnover / total operating expense, MEASURED on every corpus book that
@@ -385,6 +395,15 @@ def cockpit_failures(active: Dict[str, Dict[str, Any]], neutral: Dict[str, Dict[
             expected_note = DEVELOPER_COCKPIT_NOTE[lang]
             if d.get("note") != expected_note:
                 failures.append("cockpit developer %s note reads %r" % (lang, d.get("note")))
+            # The EBITDA above the note is a PLAN year's, which projects net
+            # 711 at 0: a note claiming it includes the stock variation
+            # contradicts the card's own year-0 step.
+            if ("above includes" in (d.get("note") or "")
+                    or "de mai sus le include" in (d.get("note") or "")):
+                failures.append("cockpit developer %s note says the plan-year EBITDA includes 711: %r"
+                                % (lang, d.get("note")))
+            if not (e.get("year0_step") or {}).get("inventory_variation"):
+                failures.append("cockpit developer carries no year-0 stock-variation step beside its note")
             sentence = active[book]["sentence"][lang]
             if _PERCENT.search(sentence) or "marj" in sentence or "margin" in sentence:
                 failures.append("cockpit developer %s sentence carries a margin: %r" % (lang, sentence))

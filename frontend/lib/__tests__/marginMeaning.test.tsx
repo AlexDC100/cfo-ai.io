@@ -330,22 +330,31 @@ describe("the forecast cockpit and the bank export (the developer's real engine 
     expect(screen.getByTestId("cockpit-ebitda-margin-refused")).toHaveTextContent(REFUSAL.ro);
   });
 
-  // REWRITTEN for the one-EBITDA ruling (2026-09-26). The note prints its
-  // amount in the unit of the EBITDA printed ABOVE it (packs/ratios/
-  // margin_meaning.yaml#money_display): the dashboard's EBITDA is now
-  // +550,976 — thousands, "29.589,8 mii lei" — and the cockpit's final
-  // plan-year EBITDA is in millions, "29,6 mil. lei". The old law ("the
-  // cockpit note is the dashboard note plus a year") held only while both
-  // EBITDAs were −29 M. What must hold is the SENTENCE and the FIGURE: the
-  // same pack sentence, the same served net 711, and the year named.
+  // REWRITTEN (fixer round 1, 2026-09-27), not re-captured. The EBITDA
+  // printed above the cockpit's note is the FINAL PLAN year's, and plan years
+  // project net 711 at 0 (design A6 — the card's own year-0 step says so).
+  // The previous law pinned the dashboard sentence plus a year — "the EBITDA
+  // above includes them — RON 29.6M in 2025." — under an FY2030 EBITDA that
+  // includes nothing of the kind, and the bank export printed it to a lender.
+  // The plan-year note names the actual year the figure belongs to and says
+  // the plan years carry none; its amount is in the unit of the plan-year
+  // EBITDA above it (millions).
   it("the sentence carries no margin clause and the note names its year", () => {
     const COCKPIT_NOTE = {
-      ro: NOTE.ro.replace("29.589,8 mii lei.", "29,6 mil. lei în 2025."),
-      en: NOTE.en.replace("RON 29,589.8k.", "RON 29.6M in 2025."),
+      ro:
+        "Pentru un dezvoltator imobiliar, costurile de construcție capitalizate în stocuri trec prin contul 711 " +
+        "(Variația stocurilor de produse): EBITDA din 2025 le-a inclus — 29,6 mil. lei; anii de plan proiectează " +
+        "variația stocurilor la 0, deci EBITDA de mai sus nu le include.",
+      en:
+        "For a property developer, construction costs capitalised into inventory run through account 711 " +
+        "(Variația stocurilor de produse): the 2025 EBITDA included them — RON 29.6M; the plan years project " +
+        "the stock variation at 0, so the EBITDA above does not include them.",
     };
     for (const lang of ["ro", "en"] as const) {
       expect(cockpit.sentence[lang]).not.toMatch(/%|marj|margin/);
       expect(cockpit.numbers.ebitda.note?.[lang]).toBe(COCKPIT_NOTE[lang]);
+      // never the actual-year sentence under a plan-year EBITDA
+      expect(cockpit.numbers.ebitda.note?.[lang]).not.toMatch(/above includes|de mai sus le include/);
     }
   });
 
