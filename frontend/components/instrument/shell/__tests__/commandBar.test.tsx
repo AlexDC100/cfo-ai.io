@@ -246,6 +246,18 @@ function spend(): string[] {
 }
 const bar = () => screen.getByTestId("cmdbar");
 
+/** Let every pending async step run: React Query schedules its queryFn, and
+ *  every app fetch first AWAITS `authOrgHeaders()` — a request a keystroke
+ *  caused is issued only after the synchronous `type()` has returned. A
+ *  count taken before this runs cannot see it (the defect a synchronous
+ *  count hid: a per-keystroke query through the app's own hook stayed
+ *  green). Several macrotask turns, each wrapped in act. */
+async function flushAsync(turns = 3): Promise<void> {
+  for (let i = 0; i < turns; i++) {
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+  }
+}
+
 // ════════════════════════════════════════════════════════════════════════
 // AT REST — "Ce contează acum"
 // ════════════════════════════════════════════════════════════════════════
@@ -541,17 +553,27 @@ describe("absent is never 0", () => {
 });
 
 describe("cmdbar-latency — warm cache, cold open", () => {
-  it("warm: every keystroke renders under 100 ms and fetches NOTHING", () => {
+  it("warm: every keystroke renders under 100 ms and fetches NOTHING", async () => {
     mount(pairWorld());
+    // The mount's own settling (nothing should be asked for: every document
+    // is seeded) is not a keystroke's.
+    await flushAsync();
     const before = fetched.length;
     const walls: number[] = [];
+    const perKeystroke: string[] = [];
     for (const q of ["profit", "clienti", "4111", "bilant", "cifra de afaceri", "furnizrii", "marja neta", "exporta"]) {
       for (let i = 1; i <= q.length; i++) {
         const t0 = performance.now();
         type(q.slice(0, i));
         walls.push(performance.now() - t0);
+        // Count AFTER the keystroke's async work has run — a request is
+        // issued only once authOrgHeaders() resolves (outside the timing).
+        const n = fetched.length;
+        await flushAsync();
+        if (fetched.length > n) perKeystroke.push(`"${q.slice(0, i)}": ${fetched.slice(n).join(", ")}`);
       }
     }
+    expect(perKeystroke, "requests caused by a keystroke").toEqual([]);
     expect(fetched.length - before).toBe(0);
     const sorted = [...walls].sort((a, b) => a - b);
     const p95 = sorted[Math.floor(sorted.length * 0.95)];
@@ -873,7 +895,14 @@ describe("cmdbar-latency — the cold open, timed", () => {
     expect(Math.max(...walls)).toBeLessThan(100);
     // The Δ is pending on every answer (the comparatives never land here).
     expect(pending).toBeGreaterThanOrEqual(Object.keys(QUERIES).length);
-    expect(fetched.filter((u) => /\/attention|\/comparatives|\/sector-benchmark/.test(u)).length,
+    // Counted AFTER the async work has run: a synchronous count sees no
+    // request at all, per keystroke or not (every fetch awaits its headers).
+    await flushAsync();
+    const docs = fetched.filter((u) => /\/attention|\/comparatives|\/sector-benchmark/.test(u));
+    // POSITIVE CONTROL: the cold open DID ask (so the ceiling below counts
+    // real requests, not a count taken before any could be made).
+    expect(docs.length, "the cold open asked for its documents").toBeGreaterThanOrEqual(2);
+    expect(docs.length,
       "cold: the bar's documents are asked for once, by the prefetch, not per keystroke").toBeLessThanOrEqual(3);
   });
 });

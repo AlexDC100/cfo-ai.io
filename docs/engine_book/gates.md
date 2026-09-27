@@ -10938,6 +10938,35 @@ written outside the repo.
 human), and the real Scandia book (the hermetic books are the anonymized
 corpus; the owner's "36,8M, +14,6%" needs the live site).
 
+### Stage CB-H (review fixes, 2026-09-27) — what the critics found, each planted
+
+**cmdbar-latency could not see a real fetch.** The warm law counted
+`fetched.length - before` straight after a synchronous typing loop. Every app
+fetch first awaits `authOrgHeaders()` (the test mocks it async too), so a
+request a keystroke causes is issued only AFTER the count — the gate was green
+on the defect it names. The recorded CB-F1 plant (`expected 196 to be +0`) had
+called `fetch` synchronously, which no app fetch does. Repaired: both latency
+tests are async; each keystroke's async work is flushed (`flushAsync`, three
+macrotask turns inside `act`, outside the timed region) and the requests it
+caused are listed per keystroke; the cold test counts after a flush and carries
+a POSITIVE CONTROL (the cold open did ask for ≥ 2 documents — a count taken
+before any request could be made is now red, not vacuous).
+```
+### PLANT cmdbar-latency (realistic) — CommandPalette.tsx:
+###   useAttention(ctx.periodId, ctx.orgId, query ? "q"+query : "auto")   (the app's own hook)
+BEFORE the repair (synchronous count):   ✓ warm … fetches NOTHING   ✓ cold … timed   (3 passed)
+AFTER:
+   × cmdbar-latency — warm cache, cold open > warm: every keystroke renders under 100 ms and fetches NOTHING
+     → requests caused by a keystroke: expected [ …(64) ] to deeply equal []
+     +   "\"p\": http://api.test.invalid/api/period/period-agras-fy2025/attention?prior=qp",
+     +   "\"pr\": http://api.test.invalid/api/period/period-agras-fy2025/attention?prior=qpr", …
+   × cmdbar-latency — the cold open, timed > cold: every statement answer's VALUE renders under 100 ms …
+     AssertionError: cold: the bar's documents are asked for once, by the prefetch, not per keystroke:
+     expected 13 to be less than or equal to 3
+   Tests  2 failed | 1 passed | 49 skipped (52)
+REVERT: Tests  3 passed | 49 skipped (52)
+```
+
 ## evidence-lines
 
 The account view (`frontend/components/cfo/evidence/EvidenceDrawer.tsx`, design
