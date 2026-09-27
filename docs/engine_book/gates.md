@@ -11100,6 +11100,40 @@ source (`e2e/cmdbar.printers.entry.ts`).
 REVERT (each, restored byte for byte): Tests 144 passed (144) across the cmdbar-surface + cmdbar-evidence files
 ```
 
+**The sector row the bar links to was not on the page (cmdbar-evidence).** The
+"worst vs sector" item comes from the sector document, whose CAEN is the
+company's own (`organizations.caen_code`, which a workspace upload writes);
+/benchmark rendered the sector section only when the LEGACY report
+(`/api/benchmarks/report/{period}`) did not answer `caen_not_set` — and that
+report ignores the company's CAEN on purpose until a per-period assignment
+exists. So for every workspace upload `/benchmark?row=receivables_days`
+landed on "Pick an industry" with no `[data-sector-row]` (sectorRows=0), and
+the first-time IndustryPicker opened over the page; a failed report fetch
+rendered no row either. In the double the link always landed on "Period not
+found", which is why no live gate caught it. Repaired: the sourced section
+renders whatever the legacy report answers (it resolves its own CAEN and
+refuses in its own words), and the first-time picker does not open over a
+`?row=` the reader followed (Confirm industry stays one click away). New jsdom
+law (`frontend/pages/cfo/__tests__/benchmarkRowReceiver.test.tsx`, joined to
+cmdbar-evidence): the REAL page, the legacy report answering caen_not_set /
+benchmarks_not_available (the engine's own shapes) / HTTP 500 / unreachable —
+each time the row Agras's served item names is on the page and the only one
+marked, and no dialog covers it; without `?row=` the picker still opens.
+Live (G5, two new tests): the item clicked on the real dashboard lands on the
+highlighted row with the report route answering each refusal shape.
+```
+### PLANT (a) — BenchmarkReport.tsx as it was (HEAD before the fix)
+   × … legacy report caen_not_set: the sector section renders and marks the row the bar named — and no picker covers it
+   × … without an evidence row the first-time picker still opens on caen_not_set
+   AssertionError: expected 0 to be greater than 0            (no [data-sector-row] on the page)
+   Tests  2 failed | 3 passed (5)
+### PLANT (b) — the first-time picker opens over the evidence row
+   × … legacy report caen_not_set: … and no picker covers it
+   AssertionError: a modal over the evidence row: expected <div role="dialog" …(1)></div> to be null
+   Tests  1 failed | 4 passed (5)
+REVERT (each): Tests 5 passed (5)
+```
+
 ## evidence-lines
 
 The account view (`frontend/components/cfo/evidence/EvidenceDrawer.tsx`, design

@@ -234,10 +234,45 @@ test.describe("G1/G2/G3 — the bar on each company", () => {
 test.describe("G5 — an item opens its evidence", () => {
   test.use({ viewport: { width: 1440, height: 900 } });
   test.setTimeout(60_000);
-  // The benchmark page's `?row=` receiver is held in jsdom
-  // (evidenceReceivers.test.tsx): /benchmark reads
-  // /api/benchmarks/report/{period}, which the double holds no capture for,
-  // and the double invents no engine answer.
+  // The benchmark page's `?row=` receiver: /benchmark ALSO reads the legacy
+  // report (/api/benchmarks/report/{period}), which the double holds no
+  // capture for. The test below answers that ONE route with the engine's own
+  // refusal shapes (src/engine/api/_benchmarks.py — caen_not_set is its
+  // answer for a period with no per-period CAEN assignment, which is every
+  // workspace upload); the sector document is the engine's composition.
+  // Held in jsdom too, with an HTTP error and an unreachable API
+  // (frontend/pages/cfo/__tests__/benchmarkRowReceiver.test.tsx).
+  const LEGACY_REPORT: Record<string, Record<string, unknown>> = {
+    caen_not_set: {
+      error: "caen_not_set",
+      message: "Industry is not set for this period. Open the industry picker to choose one.",
+      period_id: AGRAS_PERIOD, org_id: ORG_AGRAS, refusal: null,
+    },
+    benchmarks_not_available: { error: "benchmarks_not_available", message: "No benchmark data for this CAEN yet." },
+  };
+  for (const legacy of Object.keys(LEGACY_REPORT)) {
+    test(`a 'worst vs sector' item opens its highlighted /benchmark row — the legacy report says ${legacy}`, async ({ page }) => {
+      const double = new WorkspaceDouble({ theme: "dark", language: "en" });
+      await openDashboard(page, double, COMPANIES[1]);
+      // Registered AFTER the double: Playwright matches the last route first.
+      await page.route(
+        (url) => url.hostname === "engine.invalid" && url.pathname.startsWith("/api/benchmarks/report/"),
+        (route) => route.fulfill({ status: 200, json: LEGACY_REPORT[legacy] }),
+      );
+      await openBar(page);
+      const item = (ATTENTION[AGRAS_PERIOD].items as { key: string; evidence: { kind: string; row?: string } }[])
+        .find((i) => i.evidence.kind === "benchmark_row")!;
+      await page.locator(`[data-row-id="now:${item.key}"]`).click();
+      await expect(page).toHaveURL(new RegExp(`/benchmark\\?.*row=${item.evidence.row}`));
+      const row = page.locator(`[data-sector-row="${item.evidence.row}"]`);
+      await expect(row).toBeVisible({ timeout: 20_000 });
+      await expect(row).toHaveAttribute("data-highlighted", "true");
+      // Nothing modal over the row the reader came to see.
+      await expect(page.locator('[role="dialog"]')).toHaveCount(0);
+      if (SHOTS) await page.screenshot({ path: `${SHOTS}/agras_benchmark_row_${legacy}_1440_terminal_en.png` });
+    });
+  }
+
   test("a ratio answer opens the ratios tab with its drawer", async ({ page }) => {
     const double = new WorkspaceDouble({ theme: "light", language: "en" });
     await openDashboard(page, double, COMPANIES[0]);

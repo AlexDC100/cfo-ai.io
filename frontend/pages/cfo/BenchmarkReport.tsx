@@ -12,7 +12,7 @@
 // isn't in our catalogue yet.
 
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { SectorBenchmarkSection } from "@/components/cfo/benchmark/SectorBenchmarkSection";
 import { AlertTriangle, BarChart3, Info, Layers as LayersIcon, LineChart, Loader2, ShieldAlert } from "lucide-react";
@@ -350,6 +350,12 @@ export default function BenchmarkReportPage() {
   // initiated change-industry button. The legacy IndustryConfirmModal
   // is no longer mounted by this page.
   const [showPicker, setShowPicker] = useState(false);
+  // EVIDENCE RECEIVER (design C4): `/benchmark?row=<key>` is a reader who
+  // followed "worst ratio vs sector" from the command bar to ONE sector row.
+  // The first-time picker must not open over the row they came to see (a
+  // modal hides and inerts it); "Confirm industry" stays one click away.
+  const [searchParams] = useSearchParams();
+  const evidenceRow = searchParams.get("row");
 
   const refresh = useMemo(
     () =>
@@ -381,7 +387,7 @@ export default function BenchmarkReportPage() {
           // make it simple" complaint. The picker writes per-period via
           // /api/industry/assignment/{period_id} and onChanged triggers
           // refresh() below, so the benchmark recomputes immediately.
-          if (result && "error" in result && result.error === "caen_not_set") {
+          if (result && "error" in result && result.error === "caen_not_set" && !evidenceRow) {
             setShowPicker(true);
           }
         } catch (e) {
@@ -396,7 +402,7 @@ export default function BenchmarkReportPage() {
           setLoading(false);
         }
       },
-    [periodId, isSamplePeriod],
+    [periodId, isSamplePeriod, evidenceRow],
   );
 
   useEffect(() => {
@@ -538,6 +544,9 @@ export default function BenchmarkReportPage() {
             footnote="Persists? Email contact@cfo-ai.io with the period name."
             testid="benchmark-error-empty"
           />
+          {/* The sourced block is its own document (its own CAEN, its own
+              refusal): a failed legacy report does not take it down. */}
+          <SectorBenchmarkSection periodId={periodId} />
         </div>
       </>
     );
@@ -611,9 +620,16 @@ export default function BenchmarkReportPage() {
             hero
             testid="benchmark-needs-industry-header"
           />
-          {/* The sourced block does not depend on the legacy catalogue:
-              an industry with no estimated rows can still have filings. */}
-          {!isCaenMissing ? <SectorBenchmarkSection periodId={periodId} /> : null}
+          {/* The sourced block does not depend on the legacy catalogue: an
+              industry with no estimated rows can still have filings, and a
+              period with no per-period CAEN assignment (the legacy report's
+              caen_not_set — every workspace upload, which writes the
+              company's CAEN, not an assignment) still has its sector
+              document, which resolves its OWN CAEN and refuses in its own
+              words. It used to render only when the CAEN was set, so the
+              command bar's "worst vs sector" link (/benchmark?row=) landed
+              on a page with no sector row at all. */}
+          <SectorBenchmarkSection periodId={periodId} />
           <BenchmarkPreviewStrip />
           {/* Coming soon (2026-07-26 per operator) — industry benchmarks
               aren't seeded end-to-end yet, so the panel renders blurred
