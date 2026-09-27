@@ -146,12 +146,16 @@
         "absence": null
       },
       "debt_to_ebitda": {
-        "value": -0.6388069788929972,
-        "printed": "-0.64",
+        "value": 33.66790642396625,
+        "printed": "33.67",
         "unit": "x",
-        "verdict": "ungraded",
-        "higher_is_better": null,
-        "ladder": null,
+        "verdict": "critical",
+        "higher_is_better": false,
+        "ladder": {
+          "strong": 2,
+          "healthy": 3,
+          "watch": 4.5
+        },
         "absence": null
       },
       "debt_to_equity": {
@@ -448,12 +452,16 @@
         "absence": null
       },
       "debt_to_ebitda": {
-        "value": -0.6388069788929972,
-        "printed": "-0.64",
+        "value": 33.66790642396625,
+        "printed": "33.67",
         "unit": "x",
-        "verdict": "ungraded",
-        "higher_is_better": null,
-        "ladder": null,
+        "verdict": "critical",
+        "higher_is_better": false,
+        "ladder": {
+          "strong": 2,
+          "healthy": 3,
+          "watch": 4.5
+        },
         "absence": null
       },
       "debt_to_equity": {
@@ -738,12 +746,16 @@
         "absence": null
       },
       "debt_to_ebitda": {
-        "value": -0.6388069788929972,
-        "printed": "-0.64",
+        "value": 33.66790642396625,
+        "printed": "33.67",
         "unit": "x",
-        "verdict": "ungraded",
-        "higher_is_better": null,
-        "ladder": null,
+        "verdict": "critical",
+        "higher_is_better": false,
+        "ladder": {
+          "strong": 2,
+          "healthy": 3,
+          "watch": 4.5
+        },
         "absence": null
       },
       "debt_to_equity": {

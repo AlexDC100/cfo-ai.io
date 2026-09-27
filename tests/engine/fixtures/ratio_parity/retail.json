@@ -128,7 +128,7 @@
         "absence": null
       },
       "debt_to_ebitda": {
-        "value": 12.308383179933776,
+        "value": 12.308383179933735,
         "printed": "12.31",
         "unit": "x",
         "verdict": "critical",
@@ -404,7 +404,7 @@
         "absence": null
       },
       "debt_to_ebitda": {
-        "value": 12.308383179933776,
+        "value": 12.308383179933735,
         "printed": "12.31",
         "unit": "x",
         "verdict": "critical",
@@ -680,7 +680,7 @@
         "absence": null
       },
       "debt_to_ebitda": {
-        "value": 12.308383179933776,
+        "value": 12.308383179933735,
         "printed": "12.31",
         "unit": "x",
         "verdict": "critical",

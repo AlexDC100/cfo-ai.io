@@ -128,8 +128,8 @@
         "absence": null
       },
       "debt_to_ebitda": {
-        "value": 0.3377945956358713,
-        "printed": "0.34",
+        "value": 0.3072402326493936,
+        "printed": "0.31",
         "unit": "x",
         "verdict": "strong",
         "higher_is_better": false,
@@ -404,8 +404,8 @@
         "absence": null
       },
       "debt_to_ebitda": {
-        "value": 0.3377945956358713,
-        "printed": "0.34",
+        "value": 0.3072402326493936,
+        "printed": "0.31",
         "unit": "x",
         "verdict": "strong",
         "higher_is_better": false,
@@ -680,8 +680,8 @@
         "absence": null
       },
       "debt_to_ebitda": {
-        "value": 0.3377945956358713,
-        "printed": "0.34",
+        "value": 0.3072402326493936,
+        "printed": "0.31",
         "unit": "x",
         "verdict": "strong",
         "higher_is_better": false,

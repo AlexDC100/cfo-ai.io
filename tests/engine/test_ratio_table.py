@@ -135,26 +135,26 @@ MEASURED_VERDICT_DIFFERENCES: Dict[Tuple[str, str, str], Tuple[str, str]] = {
     ("retail", "disputed", "debt_to_assets"): ("healthy", "strong"),
 }
 
-#: THE ONE EBITDA, PENDING ON THE FRONTEND (owner ruling 2026-09-26, design
-#: A7). The engine's EBITDA is the assembled one — net 711 ("Variația
+#: THE ONE EBITDA, WAS PENDING ON THE FRONTEND (owner ruling 2026-09-26, design
+#: A7; resolved by the F2 stage — see below). The engine's EBITDA is the assembled one — net 711 ("Variația
 #: stocurilor de produse") and net 72x inside (`credit_model.
 #: operating_figures`). `computeRatios` still rebuilds EBITDA in the browser
-#: from the incomeStatement mirror WITHOUT them and lets its own division win
+#: (until F2) from the incomeStatement mirror WITHOUT them and let its own division win
 #: for debt_to_ebitda (`bsOr`), so on the two committed books that post to
 #: 711 with debt it prints the pre-ruling figure. MEASURED (book, variant,
 #: key) -> (engine printed, FE printed). The FE stage deletes the browser
 #: EBITDA arithmetic; every entry then reds here as "declared but gone" and
 #: is removed. Any OTHER value difference is still a red.
-ONE_EBITDA_FE_PENDING: Dict[Tuple[str, str, str], Tuple[str, str]] = dict(
-    [((("agras", v, "debt_to_ebitda")), ("0.31", "0.34")) for v in VARIANTS]
-    + [((("realestate", v, "debt_to_ebitda")), ("33.67", "-0.64")) for v in VARIANTS])
+ONE_EBITDA_FE_PENDING: Dict[Tuple[str, str, str], Tuple[str, str]] = {}
+# EMPTIED by the FE stage (F2, 2026-09-27): `computeRatios` now divides the
+# SERVED one EBITDA (frontend/lib/servedOneEbitda.plLevelsOf), so agras
+# prints 0.31 and the developer 33.67 — the engine's figures. The six
+# entries ((agras 0.31 vs 0.34), (realestate 33.67 vs -0.64) × three
+# variants) reddened here as "declared but gone", as designed, and were
+# removed. Any value difference is a red again.
 
-#: ...and the verdict that difference moves: the FE withholds the sign of
-#: the developer's pre-ruling negative EBITDA; the engine grades 33.67x.
-ONE_EBITDA_FE_PENDING_VERDICTS: Dict[Tuple[str, str, str], Tuple[str, str]] = {
-    ("realestate", "served", "debt_to_ebitda"): ("critical", "ungraded"),
-    ("realestate", "disputed", "debt_to_ebitda"): ("critical", "ungraded"),
-}
+#: ...and the verdict that difference moved — gone with it.
+ONE_EBITDA_FE_PENDING_VERDICTS: Dict[Tuple[str, str, str], Tuple[str, str]] = {}
 
 
 # ── the served payload, composed exactly as exportBooks.ts composes it ──────
@@ -365,9 +365,8 @@ def test_engine_value_is_the_printed_fe_value_on_every_shared_key(tables, captur
         "the declared one-EBITDA FE divergence changed (the FE caught up, or moved):\n  measured %s\n"
         "  declared %s" % (sorted(pending_seen.items()), sorted(ONE_EBITDA_FE_PENDING.items())))
     # TC-3 — the comparison must have met valued rows, not only refusals.
-    # 225 since the one-EBITDA ruling: the six declared FE-pending rows are
-    # not compared, and retail's debt_to_ebitda prints the same digits but
-    # divides the served (cent-rounded) EBITDA, not the browser's float.
+    # 225 since the one-EBITDA ruling: the FE now divides the served
+    # (cent-rounded) EBITDA, so the pending rows compare again.
     assert bit_equal >= 225, "only %d of %d comparisons carried a value" % (bit_equal, compared)
 
 
