@@ -40,6 +40,22 @@ equity) and the briefing's facts (no current_year_pnl to cite; the net
 result None with net_income_refusal beside it). With 121 (`g6_uncleared`)
 the filed figure stands and is closed into equity, cited and scored.
 
+TOTAL EQUITY SHORT BY THE REFUSED RESULT (fixer round 1 of the critic,
+2026-09-27). The `unanchored` book was rebuilt to balance WITHOUT account
+121, so its equity is complete and it could not see a consumer reading
+the missing result as 0. `unanchored_unbalanced` is the export with the 121
+row dropped: the sheet is short by the year's result (bs_balance_delta
+170,000.00). There the assembler serves a completeness refusal beside
+total equity (`assembled_bs.total_equity_refusal`, the net result's code),
+and everything that divides or scores total equity refuses with it: Altman
+X2 (the served credit block's `altman_component_refusals.x2`), the equity
+sub-score (`refused_subscores.equity`), the metric rows total_equity /
+equity_ratio / debt_to_equity / lt_debt_to_equity / altman_x2 /
+credit_subscore_equity, the ratio table's equity rows, and the book-equity
+valuation (`asset_based_refusal`, no primary value). Where the sheet
+balances (`unanchored`, `g6_uncleared`) equity is complete and every one
+of them is served — asserted beside it (non-vacuity).
+
 REDS ON (TC-11): any of those surfaces carrying a number (a 0 above all)
 for a refused EBITDA, EBIT or a ratio built on them; a surface carrying a
 different code than the 711 refusal; a scope without both refusal kinds
@@ -56,7 +72,15 @@ import pytest
 from _one_definition_served import (
     EBIT_SURFACES, EBITDA_SURFACES, REFUSED_BOOKS, Refused, served)
 
-WORK: Dict[str, Any] = {"checks": 0, "books": [], "codes": {}, "net_result_refused": []}
+WORK: Dict[str, Any] = {"checks": 0, "books": [], "codes": {}, "net_result_refused": [],
+                        "equity_incomplete": [], "equity_complete": []}
+
+#: Every stored metric row that divides or reports TOTAL EQUITY (or, for
+#: X2, the cumulative book it holds).
+EQUITY_METRIC_ROWS = ("total_equity", "equity_ratio", "debt_to_equity", "lt_debt_to_equity",
+                      "altman_x2", "credit_subscore_equity")
+#: Ratio-table rows on total equity.
+EQUITY_RATIO_ROWS = ("equity_ratio", "debt_to_equity", "lt_debt_to_equity")
 
 #: Ratio-table rows built on EBITDA / EBIT / gross profit.
 RATIO_ROWS = ("ebitda_margin", "operating_margin", "gross_margin", "core_ebitda_margin",
@@ -134,6 +158,7 @@ def test_refusal_carries_every_engine_surface_refuses_with_the_711_reason(name):
 
     # 3. The ratio table: refused, reason ebitda_refused with the 711 cause.
     rows = dict((r["key"], r) for r in (b.am.get("ratio_table") or {}).get("rows") or [])
+    rows_by_key = rows
     for key in RATIO_ROWS:
         WORK["checks"] += 1
         row = rows.get(key)
@@ -320,6 +345,74 @@ def test_refusal_carries_every_engine_surface_refuses_with_the_711_reason(name):
                             % (name, bfacts.get("net_income_refusal"), code))
         WORK["net_result_refused"].append(name)
 
+    # 11. TOTAL EQUITY (fixer round 1 of the critic, 2026-09-27): short by
+    #     the refused result exactly when the sheet does not balance
+    #     without it; complete (and served) otherwise.
+    delta = abs_.get("bs_balance_delta")
+    incomplete = (apl.get("net_income_refusal") is not None
+                  and isinstance(delta, (int, float)) and abs(delta) >= 1.0)
+    ter = abs_.get("total_equity_refusal")
+    credit_env = b.am.get("credit") or {}
+    if incomplete:
+        WORK["checks"] += 1
+        if (ter or {}).get("code") != code or not (ter or {}).get("text_en") \
+                or not isinstance(abs_.get("total_equity"), (int, float)):
+            problems.append("%s: total equity short by the refused result (delta %r) serves "
+                            "total_equity %r with refusal %r, expected the 711 code %r beside it"
+                            % (name, delta, abs_.get("total_equity"), ter, code))
+        for key in EQUITY_METRIC_ROWS:
+            refused("metric row %r (equity short by the refused result)" % key,
+                    b.metrics.get(key), carries_code=False)
+        for key in EQUITY_RATIO_ROWS:
+            WORK["checks"] += 1
+            row = rows_by_key.get(key) or {}
+            reason = row.get("reason") or {}
+            if row.get("value") is not None or reason.get("code") != "ebitda_refused" \
+                    or reason.get("cause") != code:
+                problems.append("%s: ratio table %s = %r refused %r / cause %r on equity short by "
+                                "the refused result, expected ebitda_refused / %r"
+                                % (name, key, row.get("value"), reason.get("code"),
+                                   reason.get("cause"), code))
+        WORK["checks"] += 1
+        x2_ref = (credit_env.get("altman_component_refusals") or {}).get("x2") or {}
+        if (credit_env.get("altman_components") or {}).get("x2") is not None \
+                or x2_ref.get("cause") != code:
+            problems.append("%s: the served credit block's X2 %r (refusal %r), expected None "
+                            "refused with %r" % (name, (credit_env.get("altman_components") or {})
+                                                 .get("x2"), x2_ref, code))
+        WORK["checks"] += 1
+        eq_ref = (credit_env.get("refused_subscores") or {}).get("equity") or {}
+        if (credit_env.get("subscores") or {}).get("equity") is not None \
+                or eq_ref.get("code") != "ebitda_refused" \
+                or (eq_ref.get("ebitda_refusal") or {}).get("code") != code:
+            problems.append("%s: the served equity sub-score %r refused %r, expected "
+                            "ebitda_refused with the 711 cause %r"
+                            % (name, (credit_env.get("subscores") or {}).get("equity"), eq_ref, code))
+        for key in ("asset_based_equity", "total_equity_used", "primary_equity_value",
+                    "primary_equity_low", "primary_equity_high"):
+            refused("valuation %s (book equity short by the refused result)" % key,
+                    b.valuation.get(key), carries_code=False)
+        WORK["checks"] += 1
+        if (b.valuation.get("asset_based_refusal") or {}).get("cause") != code:
+            problems.append("%s: valuation asset_based_refusal %r, expected the 711 cause %r"
+                            % (name, b.valuation.get("asset_based_refusal"), code))
+        WORK["equity_incomplete"].append(name)
+    else:
+        # Non-vacuity: a sheet that balances has complete equity — served.
+        WORK["checks"] += 1
+        if ter is not None:
+            problems.append("%s: a completeness refusal %r beside total equity on a sheet "
+                            "that balances (delta %r)" % (name, ter, delta))
+        for key in ("total_equity", "equity_ratio", "altman_x2"):
+            WORK["checks"] += 1
+            if not isinstance(b.metrics.get(key), (int, float)):
+                problems.append("%s: metric row %r = %r on COMPLETE equity" % (name, key, b.metrics.get(key)))
+        WORK["checks"] += 1
+        if not isinstance(b.valuation.get("asset_based_equity"), (int, float)):
+            problems.append("%s: the asset-based valuation %r on COMPLETE equity"
+                            % (name, b.valuation.get("asset_based_equity")))
+        WORK["equity_complete"].append(name)
+
     WORK["books"].append(name)
     assert not problems, "\n".join(problems)
 
@@ -328,7 +421,12 @@ def test_refusal_carries_zz_work(capsys):
     with capsys.disabled():
         print("\nREFUSAL-CARRIES-ENGINE books judged: %s" % ", ".join(WORK["books"]))
         print("NET-RESULT refused (no account 121): %s" % ", ".join(WORK["net_result_refused"]))
+        print("EQUITY short by the refused result: %s; complete: %s"
+              % (", ".join(WORK["equity_incomplete"]), ", ".join(sorted(WORK["equity_complete"]))))
         print("GATE-WORK refusal-carries-engine units=%d" % WORK["checks"])
     assert sorted(WORK["books"]) == sorted(REFUSED_BOOKS), WORK["books"]
     # TC-3: the net-result law has a witness (a refused 711 with no 121).
-    assert WORK["net_result_refused"] == ["unanchored"], WORK["net_result_refused"]
+    assert WORK["net_result_refused"] == ["unanchored", "unanchored_unbalanced"], WORK["net_result_refused"]
+    # TC-3: the equity law has a witness on each side.
+    assert WORK["equity_incomplete"] == ["unanchored_unbalanced"], WORK["equity_incomplete"]
+    assert sorted(WORK["equity_complete"]) == ["g6_uncleared", "unanchored"], WORK["equity_complete"]

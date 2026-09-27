@@ -231,6 +231,21 @@ def _ebitda_refusal(cause: Optional[str], text_ro: Optional[str], text_en: Optio
             "inputs": list(inputs or _EBITDA_INPUTS)}
 
 
+def equity_completeness_refusal(statements: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
+    """The assembler's completeness refusal beside total equity
+    (`assembled_bs.total_equity_refusal`), or None. Served when the NET
+    RESULT is refused (no account 121, net 711 refused) and the sheet does
+    not balance without it: total equity is short by the missing result,
+    so Altman X2, the equity sub-score and every ratio on total equity
+    refuse with the net result's typed reason (never read the missing
+    result as 0)."""
+    abs_ = statements.get("assembled_bs") if isinstance(statements, Mapping) else None
+    ref = abs_.get("total_equity_refusal") if isinstance(abs_, Mapping) else None
+    if isinstance(ref, Mapping) and ref.get("code"):
+        return dict(ref)
+    return None
+
+
 def operating_figures(statements: Mapping[str, Any]) -> Dict[str, Any]:
     """THE one EBITDA and operating result a statements block serves, with
     the components the ruling places inside it and the typed refusal.
@@ -380,6 +395,7 @@ def statement_operands(statements: Mapping[str, Any]) -> Optional[Dict[str, Any]
         return None
     ops["ebitda_refusal"] = figures["refusal"]
     ops["net_income_refused"] = figures.get("net_income_refusal") is not None
+    ops["equity_incomplete"] = equity_completeness_refusal(statements)
     return ops
 
 
@@ -398,6 +414,9 @@ def component_refusals(ops: Dict[str, Any]) -> Dict[str, str]:
                     else interest not positive, and not the R-D1
                     rung (debt == 0, interest == 0, EBIT > 0)   (R-D1)
       leverage      EBITDA refused with net debt > 0            (rev. 3)
+      equity        total equity excludes a refused year's result
+                    (`equity_completeness_refusal`); Altman too,
+                    X2 having no numerator                       (rev. 3)
 
     A refusal after composition (`credit_out_of_range`) is not a predicate;
     the block finds it on the rows."""
@@ -407,7 +426,9 @@ def component_refusals(ops: Dict[str, Any]) -> Dict[str, str]:
         out["liquidity"] = CURRENT_LIABILITIES_NOT_POSITIVE
     if not ops["tl_material"]:
         out["altman"] = TOTAL_LIABILITIES_BELOW_MATERIALITY
-    elif ebit_refused:
+    elif ebit_refused or ops.get("equity_incomplete"):
+        # X3 has no operand; or X2 has none — total equity excludes the
+        # refused year's result (`equity_completeness_refusal`).
         out["altman"] = EBITDA_REFUSED
     if not ops["revenue"] > 0:
         out["profitability"] = REVENUE_NOT_POSITIVE
@@ -424,6 +445,11 @@ def component_refusals(ops: Dict[str, Any]) -> Dict[str, str]:
         out["dscr"] = INTEREST_EXPENSE_NOT_POSITIVE
     if ops.get("ebitda") is None and ops["net_debt"] > 0:
         out["leverage"] = EBITDA_REFUSED
+    if ops.get("equity_incomplete"):
+        # Total equity excludes the year's result, refused with 711 (no
+        # account 121; the sheet does not balance without it): the equity
+        # ratio has no numerator. The cause is the net result's.
+        out["equity"] = EBITDA_REFUSED
     return out
 
 
@@ -447,7 +473,8 @@ def declared_rungs(ops: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
         out["dscr"] = dict(pack["dscr"])
     if ops["net_debt"] > 0 and ebitda is not None and not ebitda > 0:
         out["leverage"] = dict(pack["leverage"])
-    if ops["equity_ratio"] is not None and ops["equity_ratio"] <= 0:
+    if ops["equity_ratio"] is not None and ops["equity_ratio"] <= 0 \
+            and not ops.get("equity_incomplete"):
         out["equity"] = dict(pack["equity"])
     return out
 
@@ -529,6 +556,7 @@ _EBITDA_REFUSED_OPERAND = {
     "coverage": "EBIT / interest",
     "dscr": "EBITDA / debt service",
     "leverage": "net debt / EBITDA",
+    "equity": "the equity ratio (total equity excludes the year's result, refused with them)",
 }
 
 
@@ -807,6 +835,13 @@ def compute_period_metrics(
     non_current_liab = bs["longTermDebt"] + bs["otherNonCurrentLiabilities"]
     total_debt = bs["shortTermDebt"] + bs["longTermDebt"]
     total_equity = bs["shareCapital"] + bs["retainedEarnings"] + bs["otherEquity"]
+    # Total equity as a RATIO OPERAND: None when it excludes a refused
+    # year's result (`equity_completeness_refusal` — no account 121, net
+    # 711 refused, the sheet short by the missing result). Every row that
+    # divides or reports total equity refuses with it; the model's X2 and
+    # equity sub-score below refuse through `component_refusals`.
+    equity_incomplete = equity_completeness_refusal(s)
+    equity_operand: Optional[float] = None if equity_incomplete is not None else total_equity
 
     def safe(num: Optional[float], denom: Optional[float]) -> Optional[float]:
         # A refused operand (None) refuses the ratio — never a 0.
@@ -864,9 +899,9 @@ def compute_period_metrics(
         {"name": "net_margin",         "value": safe(net_income_statutory, revenue), "unit": "ratio", "direction": "higher"},
         {"name": "total_assets",       "value": round(total_assets, 2),    "unit": "RON",   "direction": "neutral"},
         {"name": "total_debt",         "value": round(total_debt, 2),      "unit": "RON",   "direction": "lower"},
-        {"name": "total_equity",       "value": round(total_equity, 2),    "unit": "RON",   "direction": "higher"},
+        {"name": "total_equity",       "value": money(equity_operand),     "unit": "RON",   "direction": "higher"},
         {"name": "current_ratio",      "value": safe(current_assets, current_liab), "unit": "ratio", "direction": "higher"},
-        {"name": "debt_to_equity",     "value": safe(total_debt, total_equity),     "unit": "ratio", "direction": "lower"},
+        {"name": "debt_to_equity",     "value": safe(total_debt, equity_operand),   "unit": "ratio", "direction": "lower"},
         {"name": "debt_to_ebitda",     "value": safe(total_debt, ebitda),           "unit": "ratio", "direction": "lower"},
         # Interest coverage = EBIT / interest expense — the methodology's
         # definition (CLAUDE.md Appendix A, section 5: "Interest coverage |
@@ -882,8 +917,9 @@ def compute_period_metrics(
         # positive invested capital (ruling R-OTHER, C1.9). Revision 1 floored
         # the divisor at 1 RON: the agras book with its balance sheet zeroed
         # served ROIC 12,990,721.7 (1,299,072,170.8%, graded strong).
-        {"name": "roic",               "value": (None if total_debt + total_equity <= 0 or operating_profit is None
-                                                 else safe(operating_profit * (1 - 0.16), total_debt + total_equity)), "unit": "ratio", "direction": "higher"},
+        {"name": "roic",               "value": (None if equity_operand is None or total_debt + equity_operand <= 0
+                                                 or operating_profit is None
+                                                 else safe(operating_profit * (1 - 0.16), total_debt + equity_operand)), "unit": "ratio", "direction": "higher"},
         {"name": "cash",               "value": round(bs["cash"], 2),              "unit": "RON",   "direction": "higher"},
         {"name": "free_cash_flow",     "value": (None if net_income_statutory is None
                                                  else round(net_income_statutory + depreciation, 2)),
@@ -995,9 +1031,9 @@ def compute_period_metrics(
         {"name": "net_debt",             "value": round(net_debt, 2),                                 "unit": "RON",   "direction": "lower"},
         {"name": "net_debt_to_ebitda",   "value": safe(net_debt, ebitda),                             "unit": "ratio", "direction": "lower"},
         # Leverage
-        {"name": "equity_ratio",         "value": safe(total_equity, total_assets),                   "unit": "ratio", "direction": "higher"},
+        {"name": "equity_ratio",         "value": safe(equity_operand, total_assets),                 "unit": "ratio", "direction": "higher"},
         {"name": "debt_to_assets",       "value": safe(total_debt, total_assets),                     "unit": "ratio", "direction": "lower"},
-        {"name": "lt_debt_to_equity",    "value": safe(lt_debt, total_equity),                        "unit": "ratio", "direction": "lower"},
+        {"name": "lt_debt_to_equity",    "value": safe(lt_debt, equity_operand),                      "unit": "ratio", "direction": "lower"},
         # Coverage
         {"name": "ebitda_to_interest",   "value": safe(ebitda, interest),                             "unit": "ratio", "direction": "higher"},
         {"name": "dscr",                 "value": safe(ebitda, interest + st_debt),                   "unit": "ratio", "direction": "higher"},
@@ -1055,11 +1091,16 @@ def compute_period_metrics(
         ops = _operands(bs, interest, operating_profit, ebitda, revenue)
         ops["ebitda_refusal"] = ebitda_refusal
         ops["net_income_refused"] = net_income_statutory is None
+        ops["equity_incomplete"] = equity_incomplete
         refusals = component_refusals(ops)
         rungs = declared_rungs(ops)
 
         x1: Optional[float] = (current_assets - current_liab) / total_assets
-        x2: Optional[float] = bs["retainedEarnings"] / total_assets
+        # X2 = the cumulative book (retained earnings + the year's result)
+        # / total assets — refused when the year's result is refused and
+        # the sheet does not carry it (`equity_completeness_refusal`).
+        x2: Optional[float] = (None if equity_incomplete is not None
+                               else bs["retainedEarnings"] / total_assets)
         # X3 on the ONE operating result; refused with it (Altman then
         # refuses as `ebitda_refused`).
         x3: Optional[float] = (None if operating_profit is None
@@ -1203,7 +1244,10 @@ def compute_period_metrics(
         # Equity ratio sub-score. R-D2: equity ratio <= 0 takes the pack's
         # declared rung 0, labelled (revision 1 had no lower bound: -500.0
         # on synthetic_negative_equity, which drove the composite to -2.9).
-        if "equity" in rungs:
+        eq_subscore: Optional[float]
+        if "equity" in refusals:
+            eq_subscore = None
+        elif "equity" in rungs:
             eq_subscore = rungs["equity"]["score"]
         else:
             eq_subscore = min(100, (total_equity / total_assets) * 200)
@@ -1511,6 +1555,10 @@ def withhold_persisted(rows_by_name: Mapping[str, Any], statements: Mapping[str,
             for figure in ("altman_x4", "altman_z_score"):
                 if figure in m:
                     m[figure] = None
+    if ops is not None and ops.get("equity_incomplete") and "altman_x2" in m:
+        # X2's numerator (the cumulative book) excludes the refused year's
+        # result: a filed X2 is not served over it.
+        m["altman_x2"] = None
     refused = _refused_subscores(m, statements)
     for key, figure in bad.items():
         if key != "composite" and key not in predicate:
@@ -1636,6 +1684,12 @@ def credit_block(
     # measured operands (R-D1: debt == 0, interest == 0, EBIT > 0, all read).
     rungs = ({k: v for k, v in declared_rungs(ops).items() if subscores.get(k) is not None}
              if ops is not None else {})
+    # X2 refused beside its value, with the net result's reason, when
+    # total equity excludes the refused year's result: the reader prints
+    # "refused — <reason>", never a bare dash or the carry-forward alone.
+    x2_refusal = _x2_refusal(ops)
+    if x2_refusal is not None:
+        m["altman_x2"] = None
     block: Dict[str, Any] = {
         "revision": CREDIT_MODEL_REVISION,
         "altman": {
@@ -1662,6 +1716,8 @@ def credit_block(
         "as_filed": None,
         "as_filed_differs": False,
     }
+    if x2_refusal is not None:
+        block["altman"]["component_refusals"] = {"x2": x2_refusal}
     filed = _rows_by_name(as_filed_rows)
     if not filed:
         return block
@@ -1709,6 +1765,20 @@ def credit_block(
     return block
 
 
+def _x2_refusal(ops: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Altman X2's refusal on these operands: the completeness refusal
+    beside total equity (the year's result refused and missing from the
+    sheet), carried as the component's own `{code, cause, text_ro,
+    text_en, inputs}` — None when X2 has its numerator."""
+    ref = (ops or {}).get("equity_incomplete")
+    if not ref:
+        return None
+    return {"code": EBITDA_REFUSED, "cause": ref.get("code"),
+            "text_ro": ref.get("text_ro"), "text_en": ref.get("text_en"),
+            "inputs": ["balanceSheet.retainedEarnings", "assembled_bs.current_year_pnl",
+                       "assembled_bs.total_equity_refusal"]}
+
+
 def serve_credit_envelope(block: Dict[str, Any]) -> Dict[str, Any]:
     """The GET /api/period `assembled_metrics.credit` envelope for a period
     whose serve-time model ran, projected from its `credit_block` — the one
@@ -1725,6 +1795,8 @@ def serve_credit_envelope(block: Dict[str, Any]) -> Dict[str, Any]:
         "altman_z_score": alt.get("z"),
         "altman_variant": "Z\"",
         "altman_components": {x: alt.get(x) for x in ("x1", "x2", "x3", "x4")},
+        **({"altman_component_refusals": alt["component_refusals"]}
+           if alt.get("component_refusals") else {}),
         "altman_zone": alt.get("zone"),
         "composite_score": block.get("composite"),
         "letter_grade": block.get("letter"),

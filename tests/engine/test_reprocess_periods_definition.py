@@ -21,7 +21,17 @@ WHAT THIS REDS ON (TC-11):
     as `reprocess_required`) reported `current`, or not restamped by apply;
   · any quota call; any model call; a document that needs the model being
     written; a period whose stored document now resolves to another month
-    being written; a turnover move applied without a ruling.
+    being written; a turnover move applied without a ruling;
+  · THE VALUATIONS ROW (critic, 2026-09-27 — production held six rows the
+    engine wrote under the previous definition): a dry run that does not
+    print the stored row's `ebitda_used` against the one the rewrite
+    persists; a period whose row carries another EBITDA reported
+    `current`; an apply that leaves the row on the old EBITDA; a row the
+    USER's saved override produced treated as stale (the user's figure).
+
+The double declares the `valuations` / `user_valuation_assumptions`
+columns the engine writes (no DDL for either table is in the repo; the
+columns are `_valuation.persist_valuation`'s row and the save route's).
 """
 from __future__ import annotations
 
@@ -50,6 +60,30 @@ def _tool():
 
 
 R = _tool()
+
+#: The columns `_valuation.persist_valuation` and the save route write.
+VALUATION_COLUMNS = [
+    "id", "period_id", "org_id", "primary_method", "ebitda_used", "revenue_used",
+    "total_debt_used", "cash_used", "multiple_ebitda_p25", "multiple_ebitda_p50",
+    "multiple_ebitda_p75", "ev_ebitda_p25", "ev_ebitda_p50", "ev_ebitda_p75",
+    "equity_ebitda_p25", "equity_ebitda_p50", "equity_ebitda_p75", "multiple_revenue_p25",
+    "multiple_revenue_p50", "multiple_revenue_p75", "ev_revenue_equity_p25",
+    "ev_revenue_equity_p50", "ev_revenue_equity_p75", "dcf_wacc", "dcf_terminal_growth",
+    "dcf_enterprise_value", "dcf_equity_value", "dcf_sensitivity_low", "dcf_sensitivity_high",
+    "confidence", "multiples_source", "multiples_as_of_date"]
+USER_VALUATION_COLUMNS = ["user_id", "period_id", "ebitda_used", "multiple_used", "debt_used",
+                          "cash_used", "notes", "ebitda_definition", "updated_at"]
+
+
+@pytest.fixture(autouse=True)
+def _valuation_tables(gw):
+    """The two valuation tables as the engine writes them (see the module
+    docstring): the analysis persists its engine-written valuations row."""
+    for table, cols in (("valuations", VALUATION_COLUMNS),
+                        ("user_valuation_assumptions", USER_VALUATION_COLUMNS)):
+        have = gw.db.columns.setdefault(table, [])
+        have += [c for c in cols if c not in have]
+    yield
 
 
 @pytest.fixture()
@@ -91,6 +125,12 @@ def _analysed_pre_ruling(app, gw) -> Dict[str, Any]:
                          "body": "pass", "payload": {"rule_key": "ai_council"}})
     briefings = gw.db.rows("briefings")
     assert briefings, "the analysis wrote a briefing row"
+    # The engine-written valuations row under the PREVIOUS definition (the
+    # six production rows' shape): EV/EBITDA on the EBITDA without net 711.
+    (vrow,) = gw.db.rows("valuations")
+    assert vrow["ebitda_used"] == pytest.approx(before, abs=0.005), vrow
+    vrow["ebitda_used"] = 10776378.24
+    vrow["primary_method"] = "ev_ebitda"
     return {"period": period, "ruled_ebitda": before}
 
 
@@ -119,11 +159,17 @@ def test_the_dry_run_reports_the_move_and_writes_nothing(app, gw, no_quota):
     assert b["composite"] == 79.9 and b["letter"] and a["letter"] and a["composite"] is not None
     assert b["has_evidence"] is False and b["definition_current"] is False
     assert row["turnover_move"] is None, row
+    v = row["valuation"]
+    assert v["ebitda_used"] == pytest.approx(10776378.24, abs=0.005), v
+    assert v["ebitda_used_after"] == pytest.approx(11848065.27, abs=0.005), v
+    assert v["current"] is False, v
     text = R.render([row])
     for needle in ("anchor anchored", "book closed", "1,071,687.03", "account_121_bridge",
-                   "EBITDA 10,776,378.24 -> 11,848,065.27", "credit 79.90"):
+                   "EBITDA 10,776,378.24 -> 11,848,065.27", "credit 79.90",
+                   "valuation EBITDA 10,776,378.24 (ev_ebitda) -> 11,848,065.27",
+                   "STORED ROW ON ANOTHER EBITDA"):
         assert needle in text, (needle, text)
-    WORK["units"] += 12
+    WORK["units"] += 16
 
 
 def test_apply_rewrites_the_period_with_the_engines_stages_and_is_idempotent(app, gw, no_quota):
@@ -148,12 +194,15 @@ def test_apply_rewrites_the_period_with_the_engines_stages_and_is_idempotent(app
     assert "ai_council::summary" in keys, keys          # carried over
     assert not [k for k in keys if k.startswith("earnings_quality_capitalized_own_work")]
     assert gw.db.rows("briefings") == briefing_before, "the briefing is never rewritten"
+    (vrow,) = gw.db.rows("valuations")
+    assert vrow["ebitda_used"] == pytest.approx(11848065.27, abs=0.005), (
+        "the apply left the valuations row on the previous EBITDA", vrow)
     # A second run changes nothing: the period is current.
     snapshot = _tables(gw)
     (again,) = R.run(apply=True, period=pid)
     assert again["status"] == R.CURRENT, again
     assert _tables(gw) == snapshot, "the second apply rewrote a current period"
-    WORK["units"] += 10
+    WORK["units"] += 11
 
 
 def test_a_period_read_by_an_older_parser_is_never_current_and_apply_restamps_it(app, gw, no_quota):
@@ -194,6 +243,44 @@ def test_a_period_read_by_an_older_parser_is_never_current_and_apply_restamps_it
     (again,) = R.run(apply=False, period=pid)
     assert again["status"] == R.CURRENT, again
     WORK["units"] += 9
+
+
+def test_a_period_current_in_every_figure_but_its_valuations_row_is_never_current(app, gw, no_quota):
+    """The stored envelope, metric rows and parser stamp all current — only
+    the `valuations` row carries another EBITDA (written before the ruling,
+    not rewritten since). Reported `current`, it would keep serving the old
+    EBITDA wherever the row is read; the apply rewrites it. A row the
+    USER's saved override produced is the user's, and stays current."""
+    out = V.one_tap(app, V.agras_workbook(), "balanta.xlsx", on_screen=V.ORG_AGRAS)
+    V.run_analysis(gw, out["commit"]["document_id"])
+    no_quota()
+    (period,) = gw.db.rows("financial_periods")
+    pid = period["id"]
+    (fresh,) = R.run(apply=False, period=pid)
+    assert fresh["status"] == R.CURRENT, fresh
+    (vrow,) = gw.db.rows("valuations")
+    engine_ebitda = vrow["ebitda_used"]
+    vrow["ebitda_used"] = 10776378.24
+    snapshot = _tables(gw)
+    (row,) = R.run(apply=False, period=pid)
+    assert _tables(gw) == snapshot, "the dry run wrote"
+    assert row["status"] == R.WOULD_REPROCESS, row
+    assert row["valuation"]["current"] is False
+    (applied,) = R.run(apply=True, period=pid)
+    assert applied["status"] == R.REPROCESSED, applied
+    (vrow,) = gw.db.rows("valuations")
+    assert vrow["ebitda_used"] == pytest.approx(engine_ebitda, abs=0.005)
+    # The user's override: the row persisted on the user's typed EBITDA.
+    gw.db.add("user_valuation_assumptions", {"user_id": V.USER, "period_id": pid,
+                                             "ebitda_used": 9_000_000.0, "multiple_used": None,
+                                             "debt_used": None, "cash_used": None, "notes": None,
+                                             "ebitda_definition": None, "updated_at": None})
+    vrow["ebitda_used"] = 9_000_000.0
+    (user_row,) = R.run(apply=False, period=pid)
+    assert user_row["status"] == R.CURRENT, user_row
+    assert user_row["valuation"]["user_ebitda"] == 9_000_000.0
+    assert "user override EBITDA 9,000,000.00" in R.render([user_row])
+    WORK["units"] += 8
 
 
 def test_a_document_that_needs_the_model_is_refused_and_nothing_is_written(app, gw, no_quota):
@@ -254,4 +341,4 @@ def test_zz_scope(capsys):
         print("\nSCOPE reprocess-periods-definition: corpus/saga_10_col_agras analysed by the "
               "real pipeline over the workspace-v2 tenancy double, shaped pre-ruling; "
               "GATE-WORK reprocess-periods-definition units=%d" % WORK["units"])
-    assert WORK["units"] >= 31
+    assert WORK["units"] >= 43

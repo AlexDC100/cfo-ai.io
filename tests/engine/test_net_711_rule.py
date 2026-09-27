@@ -25,6 +25,8 @@ WHAT THIS GATE HOLDS, on CONSTRUCTED synthetic books (no client data):
   CLOSED-bridge        the 121 bridge, account_121_bridge; the chain closes
   MIXED                refused book_state_mixed
   unanchored (G2)      refused account_121_anchor_absent — NEVER 0.00
+                       (twice: a sheet rebuilt to balance without 121, and
+                       `unanchored_unbalanced`, the export with 121 dropped)
   G4 unread leaf       refused unread_pl_activity
   G4 total row read    refused pl_total_row_read_as_account (a total row
                        printed beside its analytics is read twice); a
@@ -182,6 +184,25 @@ def book_unanchored() -> List[Dict[str, Any]]:
     return _closed_pl() + _bs(170_000.0, with_121=False)
 
 
+def book_unanchored_unbalanced() -> List[Dict[str, Any]]:
+    """G2 as a real export without account 121 reads (fixer round 1 of
+    the refusal-carries critic, 2026-09-27): the closed-bridge book with its
+    121 row DROPPED — the cash and the rest of the sheet still carry the
+    year's result, so without 121 the sheet does not balance (assets exceed
+    equity + liabilities by the missing 170,000). `unanchored` above
+    rebuilt its cash so the sheet balances without 121: it cannot see a
+    consumer that reads the equity the missing result leaves short. A
+    supplier balance and a receivable (50,000 each side) give the sheet
+    material liabilities, so Altman refuses on X3 (the operating result),
+    not on R-D4."""
+    rows = [r for r in (_closed_pl() + _bs(170_000.0)) if r["cont"] != "121"]
+    rows += [
+        _row("401", "Furnizori", st_c=50_000.0, sf_c=50_000.0),
+        _row("4111", "Clienti", st_d=50_000.0, sf_d=50_000.0),
+    ]
+    return rows
+
+
 def book_g4_unread() -> List[Dict[str, Any]]:
     """An active class-7 leaf the pack has no rule for (7311): its 5,000
     would sit in the remainder and print as stock variation."""
@@ -262,6 +283,7 @@ BOOKS = {
     "closed_bridge": book_closed_bridge,
     "mixed": book_mixed,
     "unanchored": book_unanchored,
+    "unanchored_unbalanced": book_unanchored_unbalanced,
     "g4_unread": book_g4_unread,
     "g4_double_read": book_g4_double_read,
     "distinct_prefix_account": book_distinct_prefix_account,
@@ -279,6 +301,7 @@ EXPECTED = {
     "closed_bridge":      (50_000.0, "account_121_bridge",             250_000.0, 450_000.0, 0.0),
     "mixed":              (None,     "book_state_mixed",               None,      None,      0.0),
     "unanchored":         (None,     "account_121_anchor_absent",      None,      None,      0.0),
+    "unanchored_unbalanced": (None,  "account_121_anchor_absent",      None,      None,      0.0),
     "g4_unread":          (None,     "unread_pl_activity",             None,      None,      0.0),
     "g4_double_read":     (None,     "pl_total_row_read_as_account",   None,      None,      0.0),
     "distinct_prefix_account": (50_000.0, "account_121_bridge",        250_000.0, 450_000.0, 0.0),
@@ -290,7 +313,8 @@ EXPECTED = {
 
 BOOK_STATE = {
     "open": sv.OPEN, "closed_no_activity": sv.CLOSED, "closed_bridge": sv.CLOSED,
-    "mixed": sv.MIXED, "unanchored": sv.CLOSED, "g4_unread": sv.CLOSED,
+    "mixed": sv.MIXED, "unanchored": sv.CLOSED, "unanchored_unbalanced": sv.CLOSED,
+    "g4_unread": sv.CLOSED,
     "g4_double_read": sv.CLOSED, "distinct_prefix_account": sv.CLOSED,
     "g5_residual": sv.CLOSED, "g6_uncleared": sv.CLOSED, "bridge_with_722": sv.CLOSED,
     "g7_older_parser": sv.CLOSED,

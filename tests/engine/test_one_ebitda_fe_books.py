@@ -1,9 +1,11 @@
 """The frontend's constructed one-EBITDA books ARE what the route serves.
 
 ``frontend/lib/__tests__/fixtures/oneEbitda/constructed_books.json`` holds
-``GET /api/period`` for six constructed books of the ``net-711-rule`` gate
+``GET /api/period`` for seven constructed books of the ``net-711-rule`` gate
 (a bridge, no 711 postings with a 121 remainder, 72x beside a bridge, an
-open book, and two refusals — one without account 121, one with it). The
+open book, and three refusals — one without account 121, one with it, and
+the export with 121 dropped whose total equity is short by the refused
+result). The
 frontend P&L gate (``pl-one-ebitda-page``) renders them. A fixture written
 once and never re-read would let the page agree with a route that has
 moved on, so this test regenerates it through the real write seam and the
@@ -53,3 +55,10 @@ def test_the_fixture_carries_every_case_the_page_must_print():
     assert pl["bridge_with_722"]["capitalized_own_work"]["value"] > 0
     assert pl["bridge_with_722"]["inventory_variation"]["provenance"] == "account_121_bridge"
     assert pl["open"]["inventory_variation"]["provenance"] == "711_net_movement"
+    # The export with account 121 dropped: the net result refused AND total
+    # equity short by it (the sheet does not balance without the result).
+    assert pl["unanchored_unbalanced"]["net_income_refusal"]["code"] == "account_121_anchor_absent"
+    abs_ = books["unanchored_unbalanced"]["statements"]["assembled_bs"]
+    assert abs_["total_equity_refusal"]["code"] == "account_121_anchor_absent"
+    assert abs(abs_["bs_balance_delta"]) > 1.0
+    assert "total_equity_refusal" not in books["unanchored"]["statements"]["assembled_bs"]

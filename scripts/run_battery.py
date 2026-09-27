@@ -1018,7 +1018,7 @@ def _engine_gates() -> List[Gate]:
               "frontend/lib/__tests__/plOneEbitda.test.tsx", "--reporter=verbose"],
              work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=50,
              units="P&L-tab tests (served subtotals, the 711 row, refusals RO/EN, 72x, the 121 remainder, the reconciliation line, the panel, retired copy)",
-             canaries=("covers ten books, two of them refused",
+             canaries=("covers eleven books, three of them refused",
                        "unanchored: every refused figure states the engine's reason, RO and EN",
                        "closed_no_activity: no stock-variation row, the remainder labelled, then account 121",
                        "renders the owner's name verbatim in Romanian, and with the engine's gloss in English")),

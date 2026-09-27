@@ -23,12 +23,12 @@
 //   · the four firm books (tests/engine/fixtures/firm/saga_10_col_*.json,
 //     captured GET /api/period) — every one a closed book whose 711 is the
 //     121 bridge (retail: no 711 postings);
-//   · six CONSTRUCTED books of the net-711-rule gate sent through the real
+//   · seven CONSTRUCTED books of the net-711-rule gate sent through the real
 //     write seam and route (fixtures/oneEbitda/constructed_books.json, held
 //     to the live route by tests/engine/test_one_ebitda_fe_books.py): the
 //     bridge, no 711 postings with a 121 remainder, 72x beside a bridge, an
-//     open book, and the two refusals (account 121 absent; its opening not
-//     cleared).
+//     open book, and the three refusals (account 121 absent; its opening not
+//     cleared; 121 dropped from an export whose equity is then short).
 //
 // WHAT IT REDS ON (TC-11), with the tab correct:
 //   · any builder printing an EBITDA, EBIT or profit before tax that is not
@@ -86,7 +86,7 @@ const BOOKS: Record<string, () => Body> = {
     Object.keys(CONSTRUCTED).map((k) => [k, () => JSON.parse(JSON.stringify(CONSTRUCTED[k])) as Body]),
   ),
 };
-const REFUSED = ["unanchored", "g6_uncleared"];
+const REFUSED = ["unanchored", "g6_uncleared", "unanchored_unbalanced"];
 
 function build(body: Body): PLStatement {
   return pickPLBuilder(
@@ -113,9 +113,9 @@ afterEach(cleanup);
 // ── 1. THE FIGURES ARE THE SERVED ONES ────────────────────────────────
 
 describe("the P&L's subtotals are the engine's served figures, on every book", () => {
-  it("covers ten books, two of them refused", () => {
+  it("covers eleven books, three of them refused", () => {
     // Non-vacuity: a gate that loops over nothing passes.
-    expect(Object.keys(BOOKS).length).toBe(10);
+    expect(Object.keys(BOOKS).length).toBe(11);
     for (const b of REFUSED) expect(servedOf(BOOKS[b]()).ebitda, b).toBeNull();
   });
 

@@ -19,8 +19,11 @@ same served period, on the same books:
   CONSTRUCTED (the SYNTHETIC books of tests/engine/test_net_711_rule.py, no
   client data, through the same write seam and route):
       closed_bridge, bridge_with_722, open, closed_no_activity,
-      unanchored (711 refused: account 121 absent),
-      g6_uncleared (711 refused: 121's opening not cleared)
+      unanchored (711 refused: account 121 absent; the sheet rebuilt to
+      balance without it),
+      g6_uncleared (711 refused: 121's opening not cleared),
+      unanchored_unbalanced (711 refused: account 121 dropped from a real
+      export — the sheet short by the missing year's result)
 
 A surface is a small reader: (served bundle) -> a number, None, or a
 Refused(code). Nothing here computes an EBITDA — the expectation is always
@@ -44,9 +47,9 @@ AUTH = {"Authorization": "Bearer test"}
 
 CORPUS_BOOKS = ("agras", "carniprod", "realestate", "retail")
 CONSTRUCTED_BOOKS = ("closed_bridge", "bridge_with_722", "open", "closed_no_activity",
-                     "unanchored", "g6_uncleared")
+                     "unanchored", "g6_uncleared", "unanchored_unbalanced")
 ALL_BOOKS = CORPUS_BOOKS + CONSTRUCTED_BOOKS
-REFUSED_BOOKS = ("unanchored", "g6_uncleared")
+REFUSED_BOOKS = ("unanchored", "g6_uncleared", "unanchored_unbalanced")
 SERVED_BOOKS = tuple(b for b in ALL_BOOKS if b not in REFUSED_BOOKS)
 
 CENT = 0.01

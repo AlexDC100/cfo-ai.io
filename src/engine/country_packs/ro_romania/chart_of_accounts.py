@@ -2046,6 +2046,37 @@ def assemble_statements(
     assembled_bs_canonical["total_equity"] = round(total_equity, 2)
     assembled_bs_canonical["total_liabilities"] = round(total_liabilities, 2)
     assembled_bs_canonical["bs_balance_delta"] = round(bs_balance_delta, 2)
+    # ── A REFUSED net result the sheet does not already carry ───────────
+    # (critic, fixer round 1 of the refusal carries, 2026-09-27.) With the
+    # net result refused (no account 121, net 711 refused) nothing is
+    # closed into equity above. When the sheet still balances, the year's
+    # result is already inside the equity rows (moved to 117, or never
+    # posted) and total equity is complete. When it does NOT balance, the
+    # difference is the missing result: total equity is short by it, and
+    # every figure that divides or scores total equity — Altman X2 (the
+    # cumulative book, retained earnings + the year's result), the equity
+    # ratio and its sub-score, debt / equity, book-equity valuation — would
+    # read the missing result as 0. Measured on the constructed
+    # `unanchored_unbalanced` book (the bridge book with its 121 row
+    # dropped): equity 200,000.00 against assets 420,000.00, delta
+    # 170,000.00 — equity ratio 47.62 %, X2 0.2381, equity sub-score 95.2
+    # and an asset-based valuation of 200,000.00, all graded or served.
+    # The figure stays (it is what the equity rows sum to) with this
+    # completeness refusal BESIDE it, carrying the net result's own typed
+    # reason; every consumer that would use it as total equity refuses.
+    # 1.00 RON: the trial-balance validator's own tolerance.
+    if net_income_refusal is not None and abs(bs_balance_delta) >= 1.0:
+        assembled_bs_canonical["total_equity_refusal"] = {
+            "code": net_income_refusal.get("code"),
+            "kind": "incomplete",
+            "missing": "current_year_result",
+            "bs_balance_delta": round(bs_balance_delta, 2),
+            "text_ro": ("capitalurile proprii nu includ rezultatul exercițiului, refuzat: %s"
+                        % (net_income_refusal.get("text_ro") or net_income_refusal.get("code"))),
+            "text_en": ("total equity excludes the year's result, which is refused: %s"
+                        % (net_income_refusal.get("text_en") or net_income_refusal.get("code"))),
+            "source": "net_income_refusal",
+        }
 
     # ── ASSEMBLED CASH FLOW — REAL CapEx, not D&A ────────────────────────
     # The Valuation tab's FCF / DCF math has been reading `capex = D&A`

@@ -299,3 +299,163 @@ def test_the_stamp_column_has_its_migration():
     assert re.search(r"alter\s+table\s+public\.user_valuation_assumptions\s+add\s+column\s+if\s+not\s+exists"
                      r"\s+ebitda_definition\s+text", bare, re.I)
     assert bare.strip().endswith("NOTIFY pgrst, 'reload schema';")
+
+
+# ── A STORED valuations ROW is never the valuation's EBITDA (critic, 2026-09-27) ──
+#
+# Production's `valuations` table held six rows the engine wrote under the
+# previous definition (9507d2ee 54,534,488.97; ce72e080 54,443,833.33; fc85d50d
+# 220,162.84; b1aa4152 2,127,403.70; 06ffa6e8 -29,038,838.12 asset-based;
+# 267eefaa 10,207,627.66). When GET /api/period's fresh recompute failed,
+# `_serialize_valuation` served such a row as it stood: its old `ebitda_used`,
+# EV/EBITDA primary, beside a P&L serving the one EBITDA or a refusal; the
+# briefing regenerate route handed the row to the narrator. The law: a stored
+# row whose `ebitda_used` is not the served EBITDA (or the user's own typed
+# override), or any stored row over a REFUSED EBITDA, is never used as EBITDA
+# and never makes EV/EBITDA primary — the tab recomputes on the served figures
+# (over the row's peer multiples when the benchmark table is unreachable) or
+# refuses with the reason.
+
+#: agras's EBITDA before the ruling (net 711 outside) — the stored row's.
+PRE_RULING_AGRAS_EBITDA = 10_776_378.24
+
+
+def _stored_row(bk, ebitda_used: float) -> Dict[str, Any]:
+    """An engine-written valuations row (the columns persist_valuation
+    writes) on `ebitda_used`, EV/EBITDA primary over peer multiples
+    6 / 8 / 10."""
+    e = ebitda_used
+    return {"period_id": bk.period_id, "org_id": bk.org["id"], "primary_method": "ev_ebitda",
+            "ebitda_used": e, "revenue_used": 1_000_000.0, "total_debt_used": 0.0, "cash_used": 0.0,
+            "multiple_ebitda_p25": 6.0, "multiple_ebitda_p50": 8.0, "multiple_ebitda_p75": 10.0,
+            "ev_ebitda_p25": e * 6, "ev_ebitda_p50": e * 8, "ev_ebitda_p75": e * 10,
+            "equity_ebitda_p25": e * 6, "equity_ebitda_p50": e * 8, "equity_ebitda_p75": e * 10,
+            "multiple_revenue_p25": 0.5, "multiple_revenue_p50": 0.8, "multiple_revenue_p75": 1.2,
+            "ev_revenue_equity_p25": 500_000.0, "ev_revenue_equity_p50": 800_000.0,
+            "ev_revenue_equity_p75": 1_200_000.0, "dcf_wacc": 0.14, "dcf_terminal_growth": 0.03,
+            "dcf_enterprise_value": 1.0, "dcf_equity_value": 1.0, "dcf_sensitivity_low": 1.0,
+            "dcf_sensitivity_high": 1.0, "confidence": "high", "multiples_source": "stored",
+            "multiples_as_of_date": None}
+
+
+def _get_valuation(bk, monkeypatch, row: Dict[str, Any],
+                   user_row: Any = None) -> Dict[str, Any]:
+    ctx = ANCHOR._routed(bk, monkeypatch)
+    client, db = ctx.__enter__()
+    try:
+        db.tables["valuations"].append(dict(row))
+        db.tables.setdefault("user_valuation_assumptions", [])
+        if user_row is not None:
+            db.tables["user_valuation_assumptions"].append(dict(user_row))
+        resp = client.get("/api/period/%s" % bk.period_id, headers=AUTH)
+    finally:
+        ctx.__exit__(None, None, None)
+    assert resp.status_code == 200, resp.text[:400]
+    return resp.json()
+
+
+def _benchmark_table_down(monkeypatch):
+    def down(_key):
+        raise RuntimeError("industry_benchmarks unreachable")
+    monkeypatch.setattr(V, "load_valuation_benchmarks", down)
+
+
+def _recompute_fails(monkeypatch):
+    def boom(**_kw):
+        raise RuntimeError("valuation recompute failed")
+    monkeypatch.setattr(V, "compute_valuation", boom)
+
+
+def test_a_stored_row_on_the_previous_ebitda_is_recomputed_on_the_served_one(monkeypatch):
+    """The benchmark table unreachable: the SAME recompute over the row's
+    peer multiples (benchmark data), on the served one EBITDA — never the
+    row's old EBITDA and its EV/EBITDA equity."""
+    bk = _book("agras")
+    _benchmark_table_down(monkeypatch)
+    body = _get_valuation(bk, monkeypatch, _stored_row(bk, PRE_RULING_AGRAS_EBITDA))
+    val, apl = body["valuation"], body["statements"]["assembled_pl"]
+    assert val["inputs"]["ebitda_used"] == pytest.approx(apl["ebitda"], abs=0.01)
+    assert val["inputs"]["ebitda_used"] != pytest.approx(PRE_RULING_AGRAS_EBITDA, abs=1.0)
+    assert val["ebitda_definition"] == EBITDA_DEFINITION_REVISION
+    net_debt = val["inputs"]["total_debt_used"] - val["inputs"]["cash_used"]
+    assert val["primary"]["equity_p50"] == pytest.approx(apl["ebitda"] * 8.0 - net_debt, abs=0.05)
+    assert val["routing"]["basis"] == "ev_ebitda"
+
+
+def test_a_stored_row_on_the_previous_ebitda_is_refused_when_nothing_recomputes(monkeypatch):
+    bk = _book("agras")
+    _recompute_fails(monkeypatch)
+    body = _get_valuation(bk, monkeypatch, _stored_row(bk, PRE_RULING_AGRAS_EBITDA))
+    val = body["valuation"]
+    assert val["inputs"]["ebitda_used"] is None
+    assert val["ebitda_refusal"]["cause"] == V.STORED_ROW_OTHER_EBITDA
+    assert "10.78M RON" in val["ebitda_refusal"]["text_en"]
+    assert val["primary_method"] == "refused" and val["primary_method"] != "ev_ebitda"
+    for k in ("equity_p25", "equity_p50", "equity_p75", "ev_p25", "ev_p50", "ev_p75"):
+        assert val["primary"][k] is None, k
+    assert val["primary_equity_value"] is None
+    assert not any("EBITDA" in (r.get("method") or "") for r in val["football_field"])
+
+
+def test_a_stored_row_never_stands_in_for_a_refused_ebitda(monkeypatch):
+    """The constructed `unanchored` book (net 711 refused: account 121
+    absent): whatever number a stored row carries, it is not the EBITDA."""
+    import test_net_711_rule as N
+
+    bk = N._persisted("unanchored")
+    _recompute_fails(monkeypatch)
+    body = _get_valuation(bk, monkeypatch, _stored_row(bk, 250_000.0))
+    val = body["valuation"]
+    assert body["statements"]["assembled_pl"]["ebitda"] is None
+    assert val["inputs"]["ebitda_used"] is None
+    assert val["ebitda_refusal"]["cause"] == "account_121_anchor_absent"
+    assert val["primary_method"] == "refused"
+    assert val["primary"]["equity_p50"] is None
+
+
+def test_a_stored_row_the_users_override_produced_stands_flagged(monkeypatch):
+    """A row persisted on the EBITDA the USER typed is the user's figure:
+    served, and flagged when typed under the previous definition."""
+    bk = _book("agras")
+    _recompute_fails(monkeypatch)
+    user_row = {"user_id": ANCHOR.REANALYZE_USER, "period_id": bk.period_id,
+                "ebitda_used": 10_000_000.0, "multiple_used": None, "debt_used": None,
+                "cash_used": None}
+    body = _get_valuation(bk, monkeypatch, _stored_row(bk, 10_000_000.0), user_row=user_row)
+    val = body["valuation"]
+    assert val["inputs"]["ebitda_used"] == 10_000_000.0
+    assert val["primary_method"] == "ev_ebitda"
+    assert val["user_assumptions"]["definition"]["flag"]["ro"] == "salvat sub definiția anterioară a EBITDA"
+
+
+def test_the_briefing_regenerate_never_cites_a_stored_row_on_the_previous_ebitda(monkeypatch):
+    from engine.api import pipeline as P
+
+    bk = _book("agras")
+    seen = []
+
+    def narrate(doc, assembled, metrics, org, period_id, **kw):  # noqa: ARG001
+        seen.append((kw.get("valuation"), assembled["statements"]["assembled_pl"]["ebitda"]))
+        return {"briefing": "stub"}
+
+    monkeypatch.setattr(P, "stage_narrate", narrate)
+    ctx = ANCHOR._routed(bk, monkeypatch)
+    client, db = ctx.__enter__()
+    try:
+        db.upsert = lambda table, row, on_conflict=None, **_kw: db.insert(table, row)
+        db.tables.setdefault("user_valuation_assumptions", [])
+        db.tables["valuations"].append(_stored_row(bk, PRE_RULING_AGRAS_EBITDA))
+        resp = client.post("/api/period/%s/briefing/regenerate" % bk.period_id,
+                           headers=ANCHOR._member_bearer())
+        assert resp.status_code == 200, resp.text[:400]
+        _recompute_fails(monkeypatch)
+        resp = client.post("/api/period/%s/briefing/regenerate" % bk.period_id,
+                           headers=ANCHOR._member_bearer())
+        assert resp.status_code == 200, resp.text[:400]
+    finally:
+        ctx.__exit__(None, None, None)
+    (recomputed, served), (withheld, _served) = seen
+    assert recomputed["ebitda_used"] == pytest.approx(served, abs=0.01)
+    assert recomputed["ebitda_used"] != pytest.approx(PRE_RULING_AGRAS_EBITDA, abs=1.0)
+    assert withheld["ebitda_used"] is None and withheld["equity_ebitda_p50"] is None
+    assert withheld["primary_method"] == "refused"

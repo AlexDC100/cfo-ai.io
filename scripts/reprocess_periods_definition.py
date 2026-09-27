@@ -44,9 +44,23 @@ REFUSED, never written (the reason printed):
 DRY RUN (the default) prints, per period: anchor status, book state, net
 711 (+ provenance or refusal), net 72x, turnover before/after, EBITDA
 before (the stored methodology `ebitda.reported` — the pre-ruling figure on
-an unstamped block) and after, and the credit composite / letter / Altman
+an unstamped block) and after, the credit composite / letter / Altman
 Z'' before (the stored metric rows) and after (the credit model on the
-fresh statements). Nothing is written.
+fresh statements), and the stored `valuations` row's `ebitda_used` (and
+primary method) against the one the rewrite persists (the one EBITDA, or
+refused). Nothing is written.
+
+THE VALUATIONS ROW (critic, 2026-09-27). Production's `valuations` table
+held six rows the engine wrote under the previous definition (9507d2ee
+54,534,488.97; ce72e080 54,443,833.33; fc85d50d 220,162.84; b1aa4152
+2,127,403.70; 06ffa6e8 -29,038,838.12 asset-based; 267eefaa
+10,207,627.66). The apply rewrites it through the pipeline's own
+`_compute_and_persist_valuation` (no user override: the engine's row); a
+period whose row's `ebitda_used` is neither the fresh EBITDA nor the user's
+saved override is never `current`. User overrides
+(`user_valuation_assumptions`) are the user's and are not touched — GET
+/api/period serves them flagged "salvat sub definiția anterioară a EBITDA"
+when typed under the previous definition.
 
 TURNOVER MOVES BLOCK THE DEPLOY (design A10). A period persisted by an older
 parser can read a different turnover now (Carniprod 7c29a71b served
@@ -226,6 +240,29 @@ def _fresh_view(assembled: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[st
     }, metrics
 
 
+def _stored_valuation(valuation_row: Optional[Dict[str, Any]],
+                      user_row: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """The stored `valuations` row as the rewrite judges it: its
+    `ebitda_used` and primary method, and the user's saved EBITDA override
+    (the user's figure — a row persisted on it is the user's, not stale)."""
+    row = valuation_row or {}
+    return {"has_row": bool(valuation_row),
+            "ebitda_used": _num(row.get("ebitda_used")),
+            "primary_method": row.get("primary_method"),
+            "user_ebitda": _num((user_row or {}).get("ebitda_used"))}
+
+
+def _valuation_current(stored: Dict[str, Any], fresh_ebitda: Optional[float]) -> bool:
+    """A period with no stored row has nothing to rewrite; a stored row is
+    current when its `ebitda_used` is the fresh one EBITDA (both None on a
+    refused EBITDA) or the user's saved override."""
+    if not stored.get("has_row"):
+        return True
+    if stored.get("user_ebitda") is not None and _same(stored.get("ebitda_used"), stored["user_ebitda"]):
+        return True
+    return _same(stored.get("ebitda_used"), fresh_ebitda)
+
+
 def _same(a: Optional[float], b: Optional[float]) -> bool:
     if a is None or b is None:
         return a is None and b is None
@@ -266,8 +303,14 @@ def reprocess_period(period: Dict[str, Any], *, apply: bool, force: bool = False
         org_rows = client.select("organizations",
                                  filters={"id": "eq.%s" % period.get("org_id")},
                                  single=True) or []
+        valuation_rows = client.select("valuations",
+                                       filters={"period_id": "eq.%s" % period["id"]}) or []
+        user_rows = client.select("user_valuation_assumptions",
+                                  filters={"period_id": "eq.%s" % period["id"]}) or []
     org = org_rows[0] if org_rows else {"id": period.get("org_id")}
     row["before"] = _stored_view(period, metric_rows)
+    row["valuation"] = _stored_valuation(valuation_rows[0] if valuation_rows else None,
+                                         user_rows[0] if user_rows else None)
     if doc is None or doc.get("deleted_at"):
         row.update(status=REFUSED, reason="document_missing")
         return row
@@ -302,11 +345,16 @@ def reprocess_period(period: Dict[str, Any], *, apply: bool, force: bool = False
         return row
 
     before = row["before"]
+    # The row the rewrite persists carries the fresh one EBITDA (or None:
+    # refused) — `_compute_and_persist_valuation` with no user override.
+    row["valuation"]["ebitda_used_after"] = after["ebitda"]
+    row["valuation"]["current"] = _valuation_current(row["valuation"], after["ebitda"])
     current = (before["has_evidence"] and before["definition_current"]
                and before["parser_current"]
                and _same(before["turnover"], after["turnover"])
                and _same(before["ebitda"], after["ebitda"])
-               and _same(before["composite"], after["composite"]))
+               and _same(before["composite"], after["composite"])
+               and row["valuation"]["current"])
     if current and not force:
         row.update(status=CURRENT)
         return row
@@ -402,6 +450,16 @@ def render(rows: Sequence[Dict[str, Any]]) -> str:
             lines.append("  credit %s %s z %s -> %s %s z %s"
                          % (_fmt(b.get("composite")), b.get("letter") or "—", _fmt(b.get("altman_z")),
                             _fmt(a.get("composite")), a.get("letter") or "—", _fmt(a.get("altman_z"))))
+            v = r.get("valuation") or {}
+            if v.get("has_row"):
+                lines.append("  valuation EBITDA %s (%s) -> %s%s%s" % (
+                    _fmt(v.get("ebitda_used")), v.get("primary_method") or "—",
+                    _fmt(v.get("ebitda_used_after")),
+                    (" (refused: %s)" % a["ebitda_refusal"]) if a.get("ebitda_refusal") else "",
+                    "" if v.get("current") else "  [STORED ROW ON ANOTHER EBITDA: rewritten on apply]"))
+                if v.get("user_ebitda") is not None:
+                    lines.append("  user override EBITDA %s (the user's; not rewritten)"
+                                 % _fmt(v.get("user_ebitda")))
     return "\n".join(lines)
 
 

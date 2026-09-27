@@ -19,7 +19,8 @@ test would make the page agree with itself.
     PYTHONPATH=src CFO_AI_SKIP_BOOT_VERIFY=1 .venv/bin/python tests/engine/fixtures/one_ebitda/capture_constructed.py --check
 
 Output: ``frontend/lib/__tests__/fixtures/oneEbitda/constructed_books.json``
-— ``{book: {"statements": …, "line_items": […]}}``.
+— ``{book: {"statements": …, "line_items": […], "credit": {…}}}`` (``credit``
+is the served ``assembled_metrics.credit`` envelope).
 ``tests/engine/test_one_ebitda_fe_books.py`` regenerates it live and reds
 when the file goes stale.
 """
@@ -47,6 +48,7 @@ BOOKS = (
     "open",                # 711 is the book's own movement (sold C − sold D)
     "unanchored",          # 711 refused: account 121 absent (G2)
     "g6_uncleared",        # 711 refused though anchored (G6)
+    "unanchored_unbalanced",  # G2 on an export with 121 dropped: equity short by the refused result
 )
 
 #: Line-item fields that identify a persisted row, not the book.
@@ -73,7 +75,11 @@ def _served(name: str) -> Dict[str, Any]:
     items = [dict((k, v) for k, v in li.items() if k not in _VOLATILE)
              for li in (body.get("line_items") or [])]
     items.sort(key=lambda li: (str(li.get("statement")), str(li.get("ro_account_code"))))
-    return {"statements": body["statements"], "line_items": items}
+    # The served credit envelope too (assembled_metrics.credit): the
+    # browser's Altman reader and credit card read it, and a refusal of a
+    # component (X2 on equity short by a refused result) is only there.
+    return {"statements": body["statements"], "line_items": items,
+            "credit": (body.get("assembled_metrics") or {}).get("credit")}
 
 
 def capture() -> Dict[str, Any]:

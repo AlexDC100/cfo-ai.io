@@ -6745,6 +6745,58 @@ def _rebuild_assembled_for_briefing(
     return payload
 
 
+def _fresh_or_lawful_valuation(valuation: Optional[Dict[str, Any]],
+                                user_assumptions: Optional[Dict[str, Any]],
+                                statements: Optional[Dict[str, Any]],
+                                industry_key: Optional[str] = None,
+                                ) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+    """`(fresh, src)` — THE ONE place a served valuation is chosen, for GET
+    /api/period (`_serialize_valuation`) and the briefing regenerate route.
+
+    `fresh` is `_valuation.compute_valuation` on the served statements with
+    the user's saved overrides on top; when the benchmark table cannot be
+    read, the SAME recompute over the peer multiples persisted beside the
+    stored row (`_valuation.row_benchmarks` — benchmark data, never an
+    EBITDA). `src` is `fresh`, else the stored row only as far as the one
+    EBITDA law allows it (`_valuation.lawful_stored_row`: a row computed on
+    another EBITDA than the served one, or any row over a REFUSED EBITDA,
+    is never used as EBITDA and never makes EV/EBITDA primary — its
+    figures are withheld with the reason). Production held six rows the
+    engine wrote under the previous definition (critic, 2026-09-27): when
+    the recompute failed they were served as they stood, EV/EBITDA primary
+    over an old EBITDA, beside a P&L that served the one EBITDA or refused
+    it; the briefing regenerate route handed them to the narrator."""
+    fresh: Optional[Dict[str, Any]] = None
+    if statements and statements.get("assembled_pl"):
+        if industry_key is None and isinstance(statements.get("industry"), str):
+            industry_key = statements["industry"]
+        ua_dict = None
+        if user_assumptions:
+            ua_dict = {
+                k: user_assumptions.get(k)
+                for k in ("ebitda_used", "multiple_used", "debt_used", "cash_used",
+                          "ebitda_definition")
+                if user_assumptions.get(k) is not None
+            }
+        try:
+            fresh = _valuation.compute_valuation(
+                industry_key=industry_key, statements=statements, user_assumptions=ua_dict)
+        except Exception:  # noqa: BLE001
+            logger.exception("[valuation] fresh recompute failed (non-fatal)")
+            row_bm = _valuation.row_benchmarks(valuation)
+            if row_bm is not None:
+                try:
+                    fresh = _valuation.compute_valuation(
+                        industry_key=industry_key, statements=statements,
+                        user_assumptions=ua_dict, benchmarks=row_bm)
+                except Exception:  # noqa: BLE001
+                    logger.exception("[valuation] recompute on the stored multiples failed (non-fatal)")
+                    fresh = None
+    src = fresh if fresh is not None else _valuation.lawful_stored_row(
+        valuation, statements or {}, user_assumptions)
+    return fresh, src
+
+
 def _serialize_valuation(valuation: Optional[Dict[str, Any]],
                           user_assumptions: Optional[Dict[str, Any]],
                           statements: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
@@ -6762,36 +6814,7 @@ def _serialize_valuation(valuation: Optional[Dict[str, Any]],
     if not valuation:
         return None
 
-    # ── Recompute the full valuation against canonical statements ────────
-    # When statements (with assembled_*) are available, prefer the fresh
-    # recomputation over the row — the row loses the asset-based card,
-    # FCF breakdown, and method warnings on round-trip. Reapply user
-    # assumptions on top so manual overrides still take effect.
-    fresh: Optional[Dict[str, Any]] = None
-    if statements and statements.get("assembled_pl"):
-        try:
-            industry_key = None
-            if isinstance(statements.get("industry"), str):
-                industry_key = statements["industry"]
-            ua_dict = None
-            if user_assumptions:
-                ua_dict = {
-                    k: user_assumptions.get(k)
-                    for k in ("ebitda_used", "multiple_used", "debt_used", "cash_used",
-                              "ebitda_definition")
-                    if user_assumptions.get(k) is not None
-                }
-            fresh = _valuation.compute_valuation(
-                industry_key=industry_key,
-                statements=statements,
-                user_assumptions=ua_dict,
-            )
-        except Exception:  # noqa: BLE001
-            logger.exception("[/api/period] valuation fresh recompute failed (non-fatal)")
-            fresh = None
-
-    # Choose the source of truth: fresh recomputation if available, else the row.
-    src = fresh if fresh is not None else valuation
+    fresh, src = _fresh_or_lawful_valuation(valuation, user_assumptions, statements)
 
     def f(key: str) -> Optional[float]:
         v = src.get(key)
@@ -6815,7 +6838,10 @@ def _serialize_valuation(valuation: Optional[Dict[str, Any]],
             return f"{sign}{a/1_000:.0f}K"
         return f"{sign}{a:.0f}"
 
-    if is_asset_based_primary:
+    if primary_method == "refused":
+        # A stored row the one-EBITDA law withheld: its own sentence.
+        formula_text = src.get("formula_text") or "Valuation refused."
+    elif is_asset_based_primary:
         formula_text = (
             src.get("formula_text")
             or f"Equity = Book equity ({_fmt(src.get('total_equity_used'))}) "
@@ -6891,7 +6917,12 @@ def _serialize_valuation(valuation: Optional[Dict[str, Any]],
         # row does not carry one.
         "ebitda": f("ebitda"),
         "ebitda_definition": (fresh or {}).get("ebitda_definition"),
-        "ebitda_refusal": (fresh or {}).get("ebitda_refusal"),
+        # The one EBITDA's refusal (fresh), or why a stored row cannot
+        # stand in for it (`lawful_stored_row`).
+        "ebitda_refusal": src.get("ebitda_refusal"),
+        # Why the asset-based figure is absent: book equity excludes a
+        # refused year's result (`total_equity_incomplete`), else None.
+        "asset_based_refusal": src.get("asset_based_refusal"),
         "ebitda_statutory": f("ebitda_statutory"),
         "ebitda_operational": f("ebitda_operational"),
         "ebitda_operating_view": f("ebitda_operating_view"),
@@ -10142,6 +10173,25 @@ def build_router() -> APIRouter:
             # operating-view EBITDA, statutory net income, and the
             # rest of the briefing_facts envelope.
             assembled = _rebuild_assembled_for_briefing(line_items, period, org)
+            # THE STORED valuations ROW IS NOT THE VALUATION the narrator
+            # cites (the one-EBITDA law, critic 2026-09-27): the same
+            # choice GET /api/period makes — a fresh recompute on these
+            # statements with the user's saved overrides, else the row
+            # only as far as `lawful_stored_row` allows it. The row the
+            # engine wrote under the previous definition carried an
+            # EV/EBITDA equity on the old EBITDA, which a regenerated
+            # briefing (stamped with TODAY's definition) would cite.
+            if valuation:
+                try:
+                    ua_rows = admin_client.select(
+                        "user_valuation_assumptions",
+                        filters={"period_id": f"eq.{period_id}"},
+                    ) or []
+                except Exception:  # noqa: BLE001
+                    ua_rows = []
+                _fresh_val, valuation = _fresh_or_lawful_valuation(
+                    valuation, ua_rows[0] if ua_rows else None,
+                    assembled.get("statements"), industry_key=org.get("industry_key"))
 
             # FX rates for currency conversion. Skip the fetch when the
             # caller wants the period's native currency (the no-op case).

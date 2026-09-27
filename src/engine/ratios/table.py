@@ -720,6 +720,20 @@ def _compute_figs(payload: Mapping[str, Any], statements: Mapping[str, Any]
     current_liabilities = G("current_liabilities")
     total_assets = G("total_assets")
     total_equity = G("equity")
+    # Total equity that EXCLUDES a refused year's result (no account 121,
+    # net 711 refused, the sheet short by the missing result — the
+    # assembler's `total_equity_refusal`): every row on it refuses with
+    # the net result's typed reason, and no stored metric row (written
+    # before the refusal existed) stands in for it.
+    from engine.ratios.credit_model import equity_completeness_refusal
+
+    equity_refusal = equity_completeness_refusal(statements)
+    if equity_refusal is not None:
+        total_equity = _Fig(None, ("ebitda_refused", {
+            "code": "ebitda_refused", "cause": equity_refusal.get("code"),
+            "text_ro": equity_refusal.get("text_ro"), "text_en": equity_refusal.get("text_en"),
+            "inputs": ["assembled_bs.total_equity", "assembled_bs.total_equity_refusal"]}),
+            (("equity", None, "assembled_bs.total_equity"),))
     total_debt = _add(B("shortTermDebt"), B("longTermDebt"))
 
     revenue = I("revenue")
@@ -806,8 +820,13 @@ def _compute_figs(payload: Mapping[str, Any], statements: Mapping[str, Any]
                                           _positive(invested_capital, "invested capital"), "invested capital"))
 
     figs["debt_to_ebitda"] = bsOr("debt_to_ebitda", _div(total_debt, ebitda, "EBITDA"))
-    figs["debt_to_equity"] = bsOr("debt_to_equity", _div(total_debt, total_equity, "total equity"))
-    figs["equity_ratio"] = bsPctOr("equity_ratio", _pct_of(total_equity, total_assets, "total assets"))
+    if equity_refusal is not None:
+        # Refused outright — never the stored row (bsOr's fallback).
+        for key in ("debt_to_equity", "equity_ratio"):
+            figs[key] = _Fig(None, total_equity.absence, total_equity.ops)
+    else:
+        figs["debt_to_equity"] = bsOr("debt_to_equity", _div(total_debt, total_equity, "total equity"))
+        figs["equity_ratio"] = bsPctOr("equity_ratio", _pct_of(total_equity, total_assets, "total assets"))
     figs["debt_to_assets"] = bsPctOr("debt_to_assets", _pct_of(total_debt, total_assets, "total assets"))
 
     # Fallback = the metric's definition: EBIT ÷ interest (the methodology's
@@ -849,7 +868,10 @@ def _compute_figs(payload: Mapping[str, Any], statements: Mapping[str, Any]
                 "operating_margin", "core_ebitda_margin", "inventory_turnover"):
         v = m(key)
         pct = _SPEC_BY_KEY[key].display_unit == "pct"
-        if v is None and one_ebitda_refusal is not None and key in _BUILT_ON_ONE_EBITDA:
+        if key == "lt_debt_to_equity" and equity_refusal is not None:
+            # On total equity that excludes the refused year's result.
+            figs[key] = _Fig(None, total_equity.absence, ((key, None, "metrics." + key),))
+        elif v is None and one_ebitda_refusal is not None and key in _BUILT_ON_ONE_EBITDA:
             figs[key] = _Fig(None, one_ebitda_refusal, ((key, None, "metrics." + key),))
         elif v is None:
             figs[key] = _Fig(None, ("metric", "metrics." + key), ((key, None, "metrics." + key),))

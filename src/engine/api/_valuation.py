@@ -563,6 +563,12 @@ def compute_valuation(
     # for the FE to surface even if the engine doesn't yet wire them into
     # the calculation (real-estate-specific extensions).
     dcf_overrides: Optional[Dict[str, Any]] = None,
+    # The peer multiples to use instead of reading the benchmark table —
+    # `row_benchmarks(stored_row)` when the table is unreachable, so a
+    # served valuation is RECOMPUTED on the served EBITDA over the
+    # multiples persisted beside the stored row (benchmark data, not an
+    # EBITDA) rather than served as stored.
+    benchmarks: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Build the valuation payload.
 
@@ -666,7 +672,8 @@ def compute_valuation(
     total_debt_used = _safe(ua.get("debt_used"), total_debt)
     cash_used = _safe(ua.get("cash_used"), cash)
 
-    benchmarks = load_valuation_benchmarks(industry_key)
+    if benchmarks is None:
+        benchmarks = load_valuation_benchmarks(industry_key)
     ebitda_bm = benchmarks["ev_ebitda"]
     revenue_bm = benchmarks["ev_revenue"]
     industry_used = benchmarks["industry_key_used"]
@@ -846,7 +853,27 @@ def compute_valuation(
     # typically conservative relative to fair value; the briefing should
     # frame the gap (Step 7 — "Book LTV is X based on depreciated cost;
     # market LTV is likely lower").
-    asset_based_equity = round(total_equity, 2)
+    # BOOK EQUITY THAT EXCLUDES A REFUSED YEAR'S RESULT (no account 121,
+    # net 711 refused, the sheet short by the missing result — the
+    # assembler's `total_equity_refusal`) is not the company's book equity:
+    # the asset-based value REFUSES with the net result's typed reason,
+    # never the rows' sum standing in (the constructed book with its 121
+    # row dropped was valued at 200,000.00 where its equity with the
+    # year's result is 370,000.00).
+    from engine.ratios.credit_model import equity_completeness_refusal
+
+    _equity_incomplete = equity_completeness_refusal(statements)
+    asset_based_refusal: Optional[Dict[str, Any]] = None
+    if _equity_incomplete is not None:
+        asset_based_refusal = {
+            "code": "total_equity_incomplete",
+            "cause": _equity_incomplete.get("code"),
+            "text_ro": _equity_incomplete.get("text_ro"),
+            "text_en": _equity_incomplete.get("text_en"),
+            "inputs": ["assembled_bs.total_equity", "assembled_bs.total_equity_refusal"],
+        }
+    asset_based_equity: Optional[float] = (None if asset_based_refusal is not None
+                                           else round(total_equity, 2))
     asset_based_label = {
         "sector_real_estate": ("Asset-based — investment property + other assets − debt − other liab. "
                                "(book value; market value typically higher for stabilized CRE)"),
@@ -868,11 +895,13 @@ def compute_valuation(
     #   · CRE w/ investment property: book + 20-50% IP markup (Bucharest mkt)
     #   · other asset-based primary:  ±15% sensitivity around book equity
     #   · non-asset-based primary:    ±15% sensitivity around book equity
-    asset_based_subtitle = (
-        f"Book equity {_fmt_ron(asset_based_equity)} = total assets {_fmt_ron(total_assets)} "
-        f"− total liabilities {_fmt_ron(total_assets - asset_based_equity)}. ±15% sensitivity."
-    )
-    if is_cre and investment_property_book > 0:
+    asset_based_low: Optional[float]
+    asset_based_high: Optional[float]
+    if asset_based_equity is None:
+        asset_based_low = asset_based_high = None
+        asset_based_subtitle = "Book equity refused: %s" % (
+            (asset_based_refusal or {}).get("text_en") or "total equity is incomplete")
+    elif is_cre and investment_property_book > 0:
         ip_adj_low = investment_property_book * 0.2   # +20% over book
         ip_adj_high = investment_property_book * 0.5  # +50% over book
         asset_based_low = round(asset_based_equity + ip_adj_low, 2)
@@ -883,6 +912,10 @@ def compute_valuation(
             f"= +{_fmt_ron(ip_adj_low)} to +{_fmt_ron(ip_adj_high)} adjustment."
         )
     else:
+        asset_based_subtitle = (
+            f"Book equity {_fmt_ron(asset_based_equity)} = total assets {_fmt_ron(total_assets)} "
+            f"− total liabilities {_fmt_ron(total_assets - asset_based_equity)}. ±15% sensitivity."
+        )
         asset_based_low = round(asset_based_equity * 0.85, 2)
         asset_based_high = round(asset_based_equity * 1.15, 2)
 
@@ -890,14 +923,16 @@ def compute_valuation(
     # industries (CRE, holdings) and a cross-check / downside floor for
     # operating businesses. Showing it for every customer prevents the
     # "where's NAV?" question that surfaced from a holding-company user.
-    football_field.append({
-        "method": "Asset-based — net asset value",
-        "primary": primary_method == "asset_based",
-        "low": asset_based_low,
-        "mid": round((asset_based_low + asset_based_high) / 2, 2),
-        "high": asset_based_high,
-        "subtitle": asset_based_subtitle,
-    })
+    # A REFUSED book equity draws no bar (a bar at 0 is a value).
+    if asset_based_low is not None and asset_based_high is not None:
+        football_field.append({
+            "method": "Asset-based — net asset value",
+            "primary": primary_method == "asset_based",
+            "low": asset_based_low,
+            "mid": round((asset_based_low + asset_based_high) / 2, 2),
+            "high": asset_based_high,
+            "subtitle": asset_based_subtitle,
+        })
 
     # Only include EV/EBITDA on the football field if it's the primary
     # method (not demoted). It still appears in the response payload so
@@ -934,7 +969,9 @@ def compute_valuation(
     # SaaS) can opt back in without recomputing. The frontend's render layer
     # also filters DCF by method-name as defense in depth.
 
-    if primary_method == "asset_based":
+    if primary_method == "asset_based" and asset_based_equity is None:
+        formula_text = asset_based_subtitle
+    elif primary_method == "asset_based":
         formula_text = (
             f"Equity = Total assets ({_fmt_ron(total_assets)}) "
             f"− Debt ({_fmt_ron(total_debt_used)}) − Other liabilities "
@@ -974,6 +1011,9 @@ def compute_valuation(
         )
     # Every DCF refusal is stated where the page lists method warnings, and
     # a declared cost-of-debt assumption is stated beside it.
+    if asset_based_refusal is not None:
+        method_warnings.append(
+            "Asset-based value refused: %s." % (asset_based_refusal.get("text_en") or "total equity is incomplete"))
     for refusal in dcf["refusals"]:
         method_warnings.append(refusal["text"])
     wacc_components = dcf.get("wacc_components") or {}
@@ -981,7 +1021,11 @@ def compute_valuation(
         method_warnings.append(wacc_components["kd_note"])
 
     # ── Primary equity value + range — sourced from the right method ─────
-    if primary_method == "asset_based":
+    if primary_method == "asset_based" and asset_based_low is None:
+        # The primary method's own figure is refused: no primary value.
+        primary_equity_value = primary_equity_low = primary_equity_high = None
+        primary_label = "Net asset value (book equity) — refused"
+    elif primary_method == "asset_based":
         primary_equity_value = round((asset_based_low + asset_based_high) / 2, 2)
         primary_equity_low = asset_based_low
         primary_equity_high = asset_based_high
@@ -1005,8 +1049,10 @@ def compute_valuation(
         # Asset-based payload (always computed; shown when primary)
         "asset_based_equity": asset_based_equity,
         "asset_based_label": asset_based_label,
+        # Why the asset-based figure is absent (None beside a figure).
+        "asset_based_refusal": asset_based_refusal,
         "total_assets_used": round(total_assets, 2),
-        "total_equity_used": round(total_equity, 2),
+        "total_equity_used": None if asset_based_refusal is not None else round(total_equity, 2),
         "is_cre_industry": is_cre,
         "ebitda_unusable": ebitda_unusable,
         # WHY the primary method is what it is — the company (sector, the
@@ -1154,6 +1200,129 @@ def override_definition_status(user_assumptions: Optional[Dict[str, Any]]) -> Op
         "saved_under_previous_definition": not current,
         "flag": None if current else dict(PREVIOUS_DEFINITION_FLAG),
     }
+
+
+# ─── A STORED valuations ROW is never the valuation's EBITDA ───────────────
+#
+# (critic, fixer round 1, 2026-09-27.) Production's `valuations` table holds
+# rows the engine wrote under the PREVIOUS EBITDA definition (711 / 72x
+# outside): 9507d2ee 54,534,488.97, ce72e080 54,443,833.33, the developer
+# 06ffa6e8 -29,038,838.12 asset-based, … GET /api/period serves a FRESH
+# recompute on the served statements; when that recompute failed (the
+# benchmark table unreachable, any exception) `_serialize_valuation`
+# served the stored row as it was — its old `ebitda_used`, its EV/EBITDA
+# equity and `primary_method: ev_ebitda` — beside a P&L that served the
+# one EBITDA, or even a REFUSED one; and the briefing regenerate route
+# handed the same row to the narrator. The law: a stored row whose
+# `ebitda_used` is not the served EBITDA (or the user's own typed
+# override), or any stored row when the served EBITDA is refused, is never
+# used as EBITDA and never makes EV/EBITDA primary.
+
+#: Why a stored row cannot stand in (the served EBITDA is not refused).
+STORED_ROW_OTHER_EBITDA = "valuation_row_other_ebitda"
+
+_STORED_ROW_TEXT = {
+    "ro": ("evaluarea salvată a fost calculată pe un alt EBITDA (%s) decât cel servit (%s) — "
+           "definiția anterioară a EBITDA — și nu a putut fi recalculată acum"),
+    "en": ("the stored valuation was computed on another EBITDA (%s) than the one served (%s) — "
+           "the previous EBITDA definition — and could not be recomputed now"),
+}
+
+#: Every stored-row field computed ON the row's EBITDA.
+_ROW_EBITDA_FIELDS = ("ebitda_used", "ev_ebitda_p25", "ev_ebitda_p50", "ev_ebitda_p75",
+                      "equity_ebitda_p25", "equity_ebitda_p50", "equity_ebitda_p75",
+                      "primary_equity_value", "primary_equity_low", "primary_equity_high",
+                      "ebitda", "ebitda_statutory", "ebitda_operational", "ebitda_operating_view")
+
+
+def row_benchmarks(row: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """The peer multiples persisted beside a stored valuations row, in the
+    shape `load_valuation_benchmarks` returns — benchmark data (a table
+    read at the row's write time), never an EBITDA. None when the row
+    carries no EV/EBITDA multiple."""
+    if not row or _first(row.get("multiple_ebitda_p50")) is None:
+        return None
+
+    def band(prefix: str) -> Optional[Dict[str, Any]]:
+        vals = [_first(row.get("%s_p%d" % (prefix, q))) for q in (25, 50, 75)]
+        if vals[1] is None:
+            return None
+        return {"p25": vals[0], "p50": vals[1], "p75": vals[2],
+                "source": row.get("multiples_source"), "as_of_date": row.get("multiples_as_of_date")}
+
+    return {"industry_key_used": row.get("industry_key_used"),
+            "industry_key_requested": row.get("industry_key_requested") or row.get("industry_key_used"),
+            "ev_ebitda": band("multiple_ebitda"), "ev_revenue": band("multiple_revenue")}
+
+
+def stored_row_refusal(row: Optional[Dict[str, Any]], statements: Optional[Dict[str, Any]],
+                       user_assumptions: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+    """Why a stored valuations row may NOT stand in for the valuation of
+    these served statements, or None when it may.
+
+    The served EBITDA REFUSED -> that refusal (`ebitda_refused` with the
+    stock-variation cause): no stored figure stands in for it. Otherwise
+    the row's `ebitda_used` must be the served EBITDA (half a cent), or the
+    EBITDA the user typed (`user_assumptions.ebitda_used` — the user's
+    figure, flagged by `override_definition_status` when typed under an
+    earlier definition); anything else is `valuation_row_other_ebitda`.
+    Statements with no assembled P&L carry no served EBITDA to compare:
+    the row is refused there too (nothing says which definition it is)."""
+    if not row:
+        return None
+    from engine.ratios.credit_model import operating_figures
+
+    try:
+        figures = operating_figures(statements or {})
+    except (KeyError, TypeError, ValueError):
+        figures = {"ebitda": None, "refusal": None}
+    served = figures.get("ebitda")
+    refusal = figures.get("refusal")
+    if refusal is not None:
+        return dict(refusal)
+    row_ebitda = _first(row.get("ebitda_used"))
+    typed = _first((user_assumptions or {}).get("ebitda_used"))
+    if row_ebitda is not None and typed is not None and abs(row_ebitda - typed) < 0.005:
+        return None
+    if row_ebitda is not None and served is not None and abs(row_ebitda - served) < 0.005:
+        return None
+    shown_row = _fmt_ron(row_ebitda) if row_ebitda is not None else "—"
+    shown_served = _fmt_ron(served) if served is not None else "—"
+    return {"code": "ebitda_refused", "cause": STORED_ROW_OTHER_EBITDA,
+            "text_ro": _STORED_ROW_TEXT["ro"] % (shown_row, shown_served),
+            "text_en": _STORED_ROW_TEXT["en"] % (shown_row, shown_served),
+            "inputs": ["valuations.ebitda_used", "assembled_pl.ebitda"],
+            "stored_ebitda_used": row_ebitda, "served_ebitda": served}
+
+
+def lawful_stored_row(row: Optional[Dict[str, Any]], statements: Optional[Dict[str, Any]],
+                      user_assumptions: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+    """The stored row as it may be SERVED when no recompute ran: unchanged
+    when `stored_row_refusal` allows it; otherwise every figure computed on
+    its EBITDA withheld (None), EV/EBITDA NOT primary, `ebitda_refusal`
+    stating why, and every other method's figure withheld as well (they
+    were written beside the same stale EBITDA, under the same earlier
+    definition; nothing on the row says which inputs still hold). The
+    peer multiples stay: benchmark data, not an EBITDA."""
+    if not row:
+        return row
+    refusal = stored_row_refusal(row, statements, user_assumptions)
+    if refusal is None:
+        return row
+    out = dict(row)
+    for key in _ROW_EBITDA_FIELDS + ("ev_revenue_equity_p25", "ev_revenue_equity_p50",
+                                     "ev_revenue_equity_p75", "dcf_enterprise_value",
+                                     "dcf_equity_value", "dcf_sensitivity_low",
+                                     "dcf_sensitivity_high"):
+        if key in out or key in _ROW_EBITDA_FIELDS:
+            out[key] = None
+    out["primary_method"] = "refused"
+    out["primary_label"] = "Valuation refused"
+    out["ebitda_refusal"] = refusal
+    out["stored_row_refusal"] = refusal
+    out["method_warnings"] = ["Valuation refused: %s." % (refusal.get("text_en") or refusal.get("cause"))]
+    out["formula_text"] = "Valuation refused: %s." % (refusal.get("text_en") or refusal.get("cause"))
+    return out
 
 
 def _fmt_ron(n: float) -> str:
