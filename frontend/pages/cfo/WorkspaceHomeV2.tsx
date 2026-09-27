@@ -119,7 +119,7 @@ export default function WorkspaceHomeV2() {
 }
 
 function CompanyCard({ org, cui }: { org: Organization; cui: string | null }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const yearsQ = useQuery({
     queryKey: ["company-years", org.id],
@@ -160,7 +160,12 @@ function CompanyCard({ org, cui }: { org: Organization; cui: string | null }) {
             <p className="text-[11px] uppercase tracking-[0.1em] text-ink-mute">
               {t("wsV2.home.latestRevenue", { year: latest.year })}
             </p>
-            <p className="text-[18px] font-semibold text-ink">
+            {/* Net turnover (70x − 709) as the engine serves it; its own
+                label says what the figure is (one-EBITDA ruling). */}
+            <p
+              className="text-[18px] font-semibold text-ink"
+              title={latest.basis ? ((i18n.language ?? "").toLowerCase().startsWith("ro") ? latest.basis.ro : latest.basis.en) : undefined}
+            >
               <Money value={latest.revenue} fromCurrency={(latest.currency ?? "RON") as Currency} compact />
             </p>
           </>

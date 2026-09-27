@@ -3821,7 +3821,7 @@
       "empty": "No companies yet. Drop your first document above.",
       "cui": "CUI {{cui}}",
       "noCui": "No CUI yet",
-      "latestRevenue": "Revenue {{year}}",
+      "latestRevenue": "Net turnover {{year}}",
       "noYears": "No year analysed yet",
       "loadError": "We couldn't load your companies.",
       "retry": "Try again",
