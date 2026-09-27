@@ -19,7 +19,7 @@
  *
  * Not part of the product bundle: nothing under frontend/ imports it.
  */
-import { formatAmountFrom } from "@/lib/money";
+import { formatAmountFrom, formatMoneyFrom } from "@/lib/money";
 import { formatRatioSide } from "@/lib/ratioTable";
 
-(globalThis as unknown as Record<string, unknown>).__cmdbarPrinters = { formatAmountFrom, formatRatioSide };
+(globalThis as unknown as Record<string, unknown>).__cmdbarPrinters = { formatAmountFrom, formatMoneyFrom, formatRatioSide };

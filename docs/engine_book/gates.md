@@ -11061,6 +11061,45 @@ companies, RO and EN (transcript with the live runs below).
 REVERT (each, restored byte for byte): Tests 59 passed (59)
 ```
 
+**One currency, the served one (cmdbar-one-currency).** The bar printed money
+through the dashboard's display-currency formatter; the jsdom gates mocked it
+RON → RON and the live G6 printed its expectation RON → RON, so neither could
+see a conversion. With the header's CurrencyMenu on EUR, "profit" painted
+"Net result 81.060,2 from account 121" (402,869.16 RON divided by a browser
+rate — no currency, in de-DE digits under an EN UI, labelled as account 121),
+"cifra de afaceri" "9,7 Mio.", while the "What matters now" items beside them
+printed "RON -2,577,640.82": one panel, two currencies, one unnamed. Repaired:
+the bar prints every amount in the currency the engine SERVED it in, with its
+code (`servedMoney` = lib/money `formatMoneyFrom`, source = display — no rate
+is applied), so "din contul 121" is only ever said of the served figure; the
+account view it opens prints the same way (a "… RON" figure no longer lands
+on an unlabelled converted one). The jsdom currency double now CONVERTS into
+the display it is given (it passed RON → RON whatever the display), and the
+new law runs the whole panel with the display on RON, EUR and USD: every
+resting money figure names RON, the account-121 answer and the turnover are
+the served figures with their code, no € / $ / EUR / USD anywhere; the account
+view with display EUR prints the served RON leaf and line. The live G6
+expectation is `formatMoneyFrom(v, "RON", "RON", …)`, bundled from the same
+source (`e2e/cmdbar.printers.entry.ts`).
+```
+### PLANT cmdbar-one-currency (a) — CommandPalette.tsx: the pre-fix printer (useAmountFormatter, the display toggle)
+   × … display RON / EUR / USD: every money figure is the served RON figure with its code …
+   × cmdbar-figures … each statement answer … every Cont leaf … (14 in all)
+### PLANT cmdbar-one-currency (c) — converted INTO the display currency and labelled with ITS code
+###   (reads right with the display on RON — only the new law can see it)
+   × … display EUR: every money figure is the served RON figure with its code; account 121 is named only on the served figure
+   × … display USD: …
+   AssertionError: expected '2 Mio. €' to be '402,9 K RON'
+   AssertionError: expected '$1.9M' to be '402,9 K RON'
+   Tests  2 failed | 60 passed (62)
+### PLANT (b) — EvidenceDrawer.tsx: the pre-fix printer (the display toggle)
+   × cmdbar-evidence … rendered, the requested leaf is marked and prints the served balance (scandia, agras)
+   × … each statement answer lands on its line … (scandia, agras, pair)  × … display EUR: the account view prints the SERVED RON balance …
+   AssertionError: turnover: expected '48.349.081,59' to be '48.349.081,59 RON'
+   Tests  8 failed
+REVERT (each, restored byte for byte): Tests 144 passed (144) across the cmdbar-surface + cmdbar-evidence files
+```
+
 ## evidence-lines
 
 The account view (`frontend/components/cfo/evidence/EvidenceDrawer.tsx`, design

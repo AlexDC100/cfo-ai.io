@@ -4,10 +4,14 @@
 // printer the rest of the product already uses for the same served object,
 // so "the bar's figure equals the served figure" holds by construction:
 //
-//   money            the dashboard's amount formatter (stores/currency
-//                    useAmountFormatter → lib/money formatAmountFrom), passed
-//                    in as `money` so the display currency and its rates are
-//                    the header's;
+//   money            lib/money formatMoneyFrom, in the currency the engine
+//                    SERVED the figure in, with that currency's code — never
+//                    converted in the browser (`servedMoney`). The header's
+//                    display toggle converts the dashboard's tables, which
+//                    carry a currency chip; a converted figure here printed
+//                    "81.060,2 from account 121" for a 402,869.16 RON result,
+//                    with no currency, beside "RON 753,070.01" in the same
+//                    panel. One panel, one currency: the served one;
 //   a Δ of a line    the comparatives column's own `change_kind` and
 //                    `delta_pct` through lib/changeKind + formatDeltaPct —
 //                    the exact rule ComparativeCells prints (a move across
@@ -45,6 +49,8 @@ import {
   sectorValueText,
   type SectorRow,
 } from "@/lib/sectorBenchmark";
+import { formatMoneyFrom } from "@/lib/money";
+import type { Currency, Rates } from "@/lib/rates";
 
 import "./cmdbarI18n";
 import type { ServedReason } from "./cmdbarSources";
@@ -57,8 +63,24 @@ export function langOf(language: string | null | undefined): Lang {
 
 export interface Printer {
   lang: Lang;
-  /** The dashboard's money printer for the period's currency. */
+  /** The money printer: `servedMoney(<the period's served currency>)`. */
   money: (value: number) => string;
+}
+
+/** A served amount printed in the currency it was SERVED in, with that
+ *  currency's code ("402,9 K RON", "−2.577.640,82 RON") — lib/money's
+ *  formatMoneyFrom with source = display, so no rate is ever applied. The
+ *  locale follows the currency, as everywhere money is printed. */
+export function servedMoney(currency: string | null | undefined, opts: { compact?: boolean } = {}): (value: number) => string {
+  const code = (currency || "RON").toUpperCase() as Currency;
+  return (value: number) => {
+    try {
+      return formatMoneyFrom(value, code, code, {} as Rates, { compact: opts.compact });
+    } catch {
+      // Not an ISO code Intl knows: the number and the code as served.
+      return `${value.toFixed(2)} ${code}`;
+    }
+  };
 }
 
 function t(lang: Lang) {

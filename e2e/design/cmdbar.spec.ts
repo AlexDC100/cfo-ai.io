@@ -336,10 +336,11 @@ async function printServed(browser: Browser, jobs: PrintJob[]): Promise<string[]
   await pp.addScriptTag({ content: await printersBundle() });
   const out = await pp.evaluate((js: PrintJob[]) => {
     const P = (globalThis as unknown as { __cmdbarPrinters: Record<string, (...a: unknown[]) => string> }).__cmdbarPrinters;
-    // The bar's money printer: the dashboard's amount formatter, compact,
-    // from the period's currency into the header's (RON → RON here).
+    // The bar's money printer: the SERVED currency with its code, compact,
+    // never converted by the display toggle (lib/money formatMoneyFrom,
+    // source = display = the period's currency, RON here).
     return js.map((j) => j.kind === "money"
-      ? P.formatAmountFrom(j.value, "RON", "RON", { RON: 1, EUR: 1, USD: 1 }, { compact: true })
+      ? P.formatMoneyFrom(j.value, "RON", "RON", { RON: 1, EUR: 1, USD: 1 }, { compact: true })
       : P.formatRatioSide(j.row, j.row.display_unit, j.lang));
   }, jobs);
   await ctx.close();

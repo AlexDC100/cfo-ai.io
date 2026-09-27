@@ -48,7 +48,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import i18n from "@/i18n";
-import { formatAmountFrom } from "@/lib/money";
+import { formatMoneyFrom } from "@/lib/money";
 import { formatRatioSide, localiseDecimal, ratioLabelForKey, type RatioTableRow } from "@/lib/ratioTable";
 import { formatDeltaPct } from "@/lib/comparatives";
 import { changeKindWordKey, isWordKind, type ChangeKind } from "@/lib/changeKind";
@@ -73,11 +73,15 @@ const SECTOR = {
 };
 
 const RATES = { RON: 1, EUR: 5, USD: 4.6 };
-const money = (v: number) => formatAmountFrom(v, "RON", "RON", RATES as never, { compact: true });
+/** The bar's money: the SERVED currency with its code, never converted
+ *  (lib/money formatMoneyFrom, source = display). */
+const money = (v: number) => formatMoneyFrom(v, "RON", "RON", RATES as never, { compact: true });
 
 // ── host context (provided) ─────────────────────────────────────────────
 
 const H = vi.hoisted(() => ({
+  /** The header's display currency (the CurrencyMenu's choice). */
+  display: "RON" as "RON" | "EUR" | "USD",
   org: null as null | { id: string; name: string; industry_key: string | null },
   orgs: [] as { id: string; name: string; industry_key: string | null }[],
   periods: [] as { period_id: string; period_end: string | null }[],
@@ -107,11 +111,17 @@ vi.mock("@/components/cfo/Sidebar", () => ({
   SIDEBAR_TOGGLE_EVENT: "cfo-ai-sidebar-toggle",
 }));
 vi.mock("@/stores/currency", async (orig) => {
+  // The REAL conversion into the header's display currency (H.display):
+  // a surface that prints through the display toggle prints EUR here when
+  // the reader chose EUR — which the bar must not (cmdbar-one-currency).
   const { formatAmountFrom: f } = await import("@/lib/money");
+  const rates = { RON: 1, EUR: 5, USD: 4.6 };
   return {
     ...(await orig<typeof import("@/stores/currency")>()),
-    useAmountFormatter: () => (v: number | null | undefined, opts: Record<string, unknown> = {}) =>
-      f(v, "RON", "RON", { RON: 1, EUR: 5, USD: 4.6 } as never, opts),
+    useAmountFormatter: (from: string) => (v: number | null | undefined, opts: Record<string, unknown> = {}) =>
+      f(v, (from || "RON") as never, H.display, rates as never, opts),
+    useCurrency: () => ({ display: H.display, rates: { rates, source: "test", fetched_at: null }, setDisplay: () => {}, refresh: async () => {}, refreshing: false }),
+    useDisplayCurrency: () => H.display,
   };
 });
 
@@ -138,6 +148,7 @@ let savedFetch: unknown;
 let hangFetch = false;
 
 beforeEach(() => {
+  H.display = "RON";
   fetched = [];
   fetchedOrg = [];
   hangFetch = false;
@@ -636,6 +647,44 @@ describe("cmdbar-legible — a figure, its context and its basis are never cut",
     }, HEAVY);
   }
 });
+
+describe("cmdbar-one-currency — the SERVED currency, with its code, whatever the display toggle says", () => {
+  // Found by review (2026-09-27), display currency EUR: "profit" painted
+  // "Net result 81.060,2 from account 121" — the served 402,869.16 RON
+  // divided by a browser rate, no currency, labelled as account 121 — and
+  // "cifra de afaceri" "9,7 Mio.", beside "What matters now" items printed
+  // "RON -2,577,640.82": one panel, two currencies, one of them unnamed.
+  it.each(["RON", "EUR", "USD"] as const)("display %s: every money figure is the served RON figure with its code; account 121 is named only on the served figure", (display) => {
+    H.display = display;
+    const w = scandiaWorld();
+    mount(w);
+    // At rest: every item figure that is money names RON; none names another currency.
+    const rest = rowsOf("now").map((el) => el.querySelector('[data-figure="now"]')?.textContent ?? "");
+    expect(rest.length).toBeGreaterThan(0);
+    expect(rest.filter((f) => /RON/.test(f)).length, "the resting money items name their currency").toBeGreaterThanOrEqual(2);
+    for (const f of rest) expect(f).not.toMatch(/€|\$|\bEUR\b|\bUSD\b/);
+    type("profit");
+    const net = answerRowById("answer:net_result")!;
+    const served = w.body.statements.assembled_pl.net_income_statutory as number;
+    expect(net.querySelector('[data-figure="answer"]')?.textContent).toBe(money(served));
+    expect(net.querySelector('[data-figure="answer"]')?.textContent).toMatch(/RON$/);
+    expect(net.textContent).toContain("from account 121");
+    type("cifra de afaceri");
+    const turnover = answerRowById("answer:turnover")!;
+    expect(turnover.querySelector('[data-figure="answer"]')?.textContent).toBe(money(w.body.statements.assembled_pl.revenue));
+    type("4111");
+    for (const el of rowsOf("account")) expect(el.querySelector('[data-figure="account"]')?.textContent).toMatch(/RON$/);
+    // Nothing anywhere in the panel is in the display currency.
+    for (const q of ["profit", "cifra de afaceri", "numerar", "4111", "clienti"]) {
+      type(q);
+      expect(bar().textContent, q).not.toMatch(/€|\$|\bEUR\b|\bUSD\b/);
+    }
+  });
+});
+
+function answerRowById(id: string): HTMLElement | undefined {
+  return screen.queryAllByTestId("cmdbar-row-answer").find((el) => el.getAttribute("data-row-id") === id);
+}
 
 describe("absent is never 0", () => {
   it("a net result not anchored to account 121 prints the reason, not a figure", () => {

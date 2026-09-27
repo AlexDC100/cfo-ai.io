@@ -37,14 +37,17 @@ import { join, resolve } from "node:path";
 import { useLocation } from "react-router-dom";
 
 import i18n from "@/i18n";
-import { formatAmountFrom } from "@/lib/money";
+import { formatMoneyFrom } from "@/lib/money";
 
+const DISPLAY = vi.hoisted(() => ({ code: "RON" as "RON" | "EUR" | "USD" }));
 vi.mock("@/stores/currency", async (orig) => {
+  // The REAL conversion into the header's display currency: a receiver that
+  // printed through the toggle would print EUR when the reader chose EUR.
   const { formatAmountFrom: f } = await import("@/lib/money");
   return {
     ...(await orig<typeof import("@/stores/currency")>()),
-    useAmountFormatter: () => (v: number | null | undefined, opts: Record<string, unknown> = {}) =>
-      f(v, "RON", "RON", { RON: 1, EUR: 5, USD: 4.6 } as never, opts),
+    useAmountFormatter: (from: string) => (v: number | null | undefined, opts: Record<string, unknown> = {}) =>
+      f(v, (from || "RON") as never, DISPLAY.code, { RON: 1, EUR: 5, USD: 4.6 } as never, opts),
   };
 });
 
@@ -85,7 +88,8 @@ const PAIR = read("frontend/lib/__tests__/fixtures/comparatives/pair_served.json
 const SECTOR_PAIR = read("frontend/lib/__tests__/fixtures/sectorBenchmark/served_pair.json").with_prior;
 
 const RATES = { RON: 1, EUR: 5, USD: 4.6 };
-const full = (v: number) => formatAmountFrom(v, "RON", "RON", RATES as never, {});
+/** The account view's money: the SERVED currency with its code. */
+const full = (v: number) => formatMoneyFrom(v, "RON", "RON", RATES as never, {});
 
 /** The dashboard's real tab ids a statement / ratio link may name. */
 const REAL_TABS = ["pl", "balance_sheet", "cash_flow", "ratios"];
@@ -111,7 +115,7 @@ const WORLDS: World[] = [
 
 function ctxOf(w: World): ViewContext {
   return {
-    printer: { lang: "en", money: (v: number) => formatAmountFrom(v, "RON", "RON", RATES as never, { compact: true }) },
+    printer: { lang: "en", money: (v: number) => formatMoneyFrom(v, "RON", "RON", RATES as never, { compact: true }) },
     body: w.body,
     comparatives: w.comparatives ? { state: "ok", data: w.comparatives as never } : { state: "none", reason: "no_prior" },
     sector: { state: "ok", data: w.sector },
@@ -130,6 +134,7 @@ function Where() {
 }
 
 afterEach(async () => {
+  DISPLAY.code = "RON";
   cleanup();
   await act(async () => { await i18n.changeLanguage("en"); });
 });
@@ -419,6 +424,19 @@ describe("cmdbar-evidence — the account rules", () => {
     expect(d.querySelectorAll('[data-testid="evidence-leaf"]').length).toBe(0);
     expect(d.querySelector('[data-testid="evidence-total"]')).toBeNull();
     expect(d.textContent).not.toContain(full(0));
+  });
+
+  it("display EUR: the account view prints the SERVED RON balance with its code, never a converted, unlabelled one", async () => {
+    DISPLAY.code = "EUR";
+    const li = (SCANDIA.line_items as PeriodLineItem[]).find((x) => x.ro_account_code === "411121")!;
+    drawer(scandia, "/dashboard?tab=balance_sheet&account=411121&line=bs.trade_receivables_net");
+    const d = await screen.findByTestId("evidence-drawer");
+    const leaf = d.querySelector('[data-evidence-target="leaf:411121"] [data-cell="amount"]');
+    expect((leaf?.querySelector('[data-provenance="true"]') ?? leaf)?.textContent).toBe(full(li.amount));
+    expect(full(li.amount)).toMatch(/RON$/);
+    const line = d.querySelector('[data-testid="evidence-line-value"]')?.textContent ?? "";
+    expect(line).toBe(full(servedLine(SCANDIA as never, "bs", "ar_net").value as number));
+    expect(d.textContent).not.toMatch(/€|\bEUR\b/);
   });
 
   it("every leaf amount wears its provenance (account, document, method, pack)", async () => {

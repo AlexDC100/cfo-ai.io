@@ -30,10 +30,9 @@ import {
   provenanceOf,
   type AmountProvenance,
 } from "@/components/instrument/Provenance";
-import { useAmountFormatter } from "@/stores/currency";
 import { EVIDENCE_ACCOUNT_PARAM, EVIDENCE_LINE_PARAM, realStatementTab } from "@/lib/evidence/evidenceLink";
 import { HIGHLIGHT_PARAM, TAB_PARAM } from "@/lib/traceableSource";
-import { absentText, langOf, printMoney, type Printer } from "@/components/instrument/shell/cmdbar/cmdbarFigures";
+import { absentText, langOf, printMoney, servedMoney, type Printer } from "@/components/instrument/shell/cmdbar/cmdbarFigures";
 
 import "./evidenceI18n";
 import {
@@ -77,8 +76,13 @@ export function EvidenceDrawer({ body, periodLabel, documentName, currency }: Ev
   const [params, setParams] = useSearchParams();
   const { t, i18n } = useTranslation();
   const lang = langOf(i18n.language);
-  const fmt = useAmountFormatter(currency);
-  const printer = useMemo<Printer>(() => ({ lang, money: (v: number) => fmt(v) }), [lang, fmt]);
+  // The served currency, with its code — the bar's own rule: the evidence a
+  // "… RON" figure opens is printed in RON, never converted unlabelled.
+  const printer = useMemo<Printer>(() => ({ lang, money: servedMoney(currency) }), [lang, currency]);
+  const fmt = useMemo<Fmt>(
+    () => (v: number | null | undefined) => printMoney(printer, v) ?? "—",
+    [printer],
+  );
 
   const request = useMemo(() => readEvidenceRequest(params), [params]);
   const model = useMemo(

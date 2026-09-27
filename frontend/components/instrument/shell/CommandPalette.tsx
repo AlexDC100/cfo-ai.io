@@ -55,7 +55,6 @@ import { periodDashboardHref } from "@/lib/dashboardHref";
 import { useFeatureStatus } from "@/lib/features";
 import { useWorkspaces } from "@/lib/workspaces";
 import { useUploadRoute } from "@/lib/previewFeatures";
-import { useAmountFormatter } from "@/stores/currency";
 import { storeComparisonPrior } from "@/stores/comparativesView";
 import { openAskCfoAi } from "@/components/cfo/chat/openAskCfoAi";
 import { getChatShellRef } from "@/components/cfo/chat/sharedShellRef";
@@ -75,7 +74,7 @@ import { CapsuleTooltipGuard } from "./CapsuleTooltipGuard";
 import { capsuleFrame, CAPSULE_BORDER } from "./capsuleGeometry";
 import "./cmdbar/cmdbarI18n";
 import { CmdbarList } from "./cmdbar/CmdbarList";
-import { langOf, type Printer } from "./cmdbar/cmdbarFigures";
+import { langOf, servedMoney, type Printer } from "./cmdbar/cmdbarFigures";
 import {
   buildCmdbarIndex,
   searchCmdbar,
@@ -150,10 +149,13 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
   const currency =
     ((data.body?.statements as { currency?: string } | undefined)?.currency)
     ?? data.body?.period?.currency ?? "RON";
-  const fmt = useAmountFormatter(currency);
+  // ONE currency in the panel: the one the engine served the period in,
+  // printed with its code. The header's display toggle is not applied here
+  // (a browser conversion is not a served figure, and "din contul 121" on a
+  // converted number would be false).
   const printer = useMemo<Printer>(
-    () => ({ lang, money: (v: number) => fmt(v, { compact: true }) }),
-    [lang, fmt],
+    () => ({ lang, money: servedMoney(currency, { compact: true }) }),
+    [lang, currency],
   );
   const servedRules = data.attention.state === "ok"
     ? (data.attention.data as unknown as { rules?: { sector_position_only?: string[] } }).rules
