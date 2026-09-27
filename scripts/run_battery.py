@@ -1261,7 +1261,11 @@ def _engine_gates() -> List[Gate]:
              work_rx=r"GATE-WORK interest-coverage-one-operand units=(\d+)", floor=8,  # measured 9: 5 books + 4 with interest
              units="books served and coverages recomputed",
              canaries=("SCOPE interest-coverage-one-operand",
-                       "books where operating_ebit would print a different coverage: 1",
+                       # the test's TC-3 line since the one-EBITDA rewrite
+                       # (0e48c078): the discriminating operand is the
+                       # pre-ruling EBIT, not operating_ebit (now one figure)
+                       "books where the pre-ruling EBIT (without 711 / 72x) would print a "
+                       "different coverage: 2",
                        "retail             EBIT 786579.83",
                        "SCOPE coverage popover corpus fixture")),
         Gate("cron-auth",

@@ -6951,7 +6951,7 @@ would print a different coverage.
 | | |
 |---|---|
 | work count | `GATE-WORK interest-coverage-one-operand units=(\d+)` (books served + coverages recomputed; measured 9), floor 8 |
-| canaries | `SCOPE interest-coverage-one-operand`, `books where operating_ebit would print a different coverage: 1`, `retail             EBIT 786579.83`, `SCOPE coverage popover corpus fixture` |
+| canaries | `SCOPE interest-coverage-one-operand`, `books where the pre-ruling EBIT (without 711 / 72x) would print a different coverage: 2` (was `books where operating_ebit would print a different coverage: 1` — see the stage G1 note below), `retail             EBIT 786579.83`, `SCOPE coverage popover corpus fixture` |
 
 **SCOPE** — printed: `SCOPE interest-coverage-one-operand: books 5
 (agras, carniprod, realestate, retail, scandia_baseline); interest
@@ -6976,6 +6976,23 @@ applied by string replacement, the gate run, the file restored byte-exact):
 **REVERT** — every planted file restored from its byte copy (sha1
 checked); the gate `1 passed`, `interestCoverageBasis` and
 `exportRatioFormulas` `26 passed` after.
+
+**Stage G1 (2026-09-27): the canary followed the rewritten law.** The
+one-EBITDA rewrite of the test (0e48c078) made `ebit`, `operating_result` and
+`operating_ebit` one figure, so the discriminating operand became the
+pre-ruling EBIT (without 711 / 72x) and the TC-3 line now prints `books where
+the pre-ruling EBIT (without 711 / 72x) would print a different coverage: 2`
+— the registered canary still named `operating_ebit … : 1`, so the battery
+failed the gate as DISCOVERY BROKEN on a green run:
+```
+FAIL interest-coverage-one-operand (exit 0, 6.6s)
+     ! DISCOVERY BROKEN — canary absent from the gate's own output: 'books where operating_ebit would print a different coverage: 1'
+```
+With the canary following the printed law: `PASS interest-coverage-one-operand
+(8 books served and coverages recomputed)`. The Scandia baseline row now reads
+`one EBITDA refused (period_predates_stock_variation_measurement): coverage
+refused as ebitda_refused` — `_served_books` serves the archived pre-ruling
+capture as the legacy witness (BASELINE_HISTORY 2026-09-27).
 
 **After the repair it reds on (TC-11):** any served, serve-time or
 fallback interest coverage whose printed digits are not quantize(ebit /
