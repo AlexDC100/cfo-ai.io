@@ -516,7 +516,8 @@ function closingSection(
     };
   }
 
-  const filed = acc.value ?? served.netIncomeStatutory;
+  // Anchored: the engine's account-121 line states the filed figure.
+  const filed = acc.value;
   const identity =
     build?.value != null && gap?.value != null && Math.abs(gap.value) < HALF_CENT;
   if (!identity) {
@@ -667,8 +668,10 @@ export function buildPLStatement(args: BuildArgs): PLStatement {
     if (li.bucket !== "otherIncome") continue;
     const code = String(li.ro_account_code ?? "").replace(/[\s.\-/_]/g, "");
     if (!/^\d{3,}$/.test(code) || code.startsWith("711") || code.startsWith("72")) continue;
+    // A leaf with no amount is read as nothing — never as a zero row.
+    if (typeof li.amount !== "number" || !Number.isFinite(li.amount)) continue;
     const family = code.slice(0, 3);
-    otherFamilies[family] = (otherFamilies[family] ?? 0) + (Number.isFinite(li.amount) ? li.amount : 0);
+    otherFamilies[family] = (otherFamilies[family] ?? 0) + li.amount;
   }
   const otherLines: PLLine[] = Object.keys(otherFamilies)
     .sort()

@@ -89,9 +89,9 @@
     },
     "frontend/components/cfo/EbitdaReconciliationPanel.tsx": {
       "bucket": "HAS_MISSING",
-      "sites": 5,
+      "sites": 2,
       "affordances": 0,
-      "why": "OPENED 2026-09-04. The bridge is Reported − 758 − 781 = Core, with each adjustment naming its account (a.account) and amount from the per-account line items /api/period ships. Accounts ARE in the payload. Remaining work, named: wear {source: <filename> · lineItems, accounts: a.account} on each adjustment row and {method: reported − adjustments} on Core. Rendered plain until then."
+      "why": "OPENED 2026-09-04; RE-STATED 2026-09-27 (5 -> 2 sites): the panel now prints the engine's SERVED reconciliation (assembled_pl.ebitda_reconciliation — every line's label, accounts and signed value, the one-line bridge, and the served 758 / 781 / core_ebitda strip) through one formatter, instead of the canonical Reported -> Core bridge and its two margins over total operating revenue. Each line names its accounts in the payload. Remaining work, named: wear {source: <filename> · assembled_pl.ebitda_reconciliation.lines[key], accounts: line.accounts} on each value. Rendered plain until then."
     },
     "frontend/components/cfo/IndustryConfirmBanner.tsx": {
       "bucket": "HAS_MISSING",
@@ -125,9 +125,9 @@
     },
     "frontend/components/cfo/PLStatementView.tsx": {
       "bucket": "HAS_MISSING",
-      "sites": 22,
+      "sites": 14,
       "affordances": 0,
-      "why": "OPENED 2026-09-04. Built by pickPLBuilder over remotePeriod.lineItems — the per-account rows /api/period serves — so every line carries its account codes (the AccountChip beside it) and the period names its source document. The payload HAS an origin; no amount cell wears it. Key rows sit inside <LearnableNumber> (a button — the BSStatementView KNOWN GAP); the rest are plain spans. Remaining work, named: the builder hands each line a provenance {source: <filename> · lineItems, accounts: line.accounts, period} and the non-button cells wear it. Rendered plain until then — nothing invented."
+      "why": "OPENED 2026-09-04; RE-STATED 2026-09-27 (22 -> 14 sites) when the one-EBITDA ruling retired the 'clean EBITDA' footnote and the +722 bridge (their formatter calls went with them) and moved every subtotal onto the SERVED figure. Built by pickPLBuilder over the served assembled_pl and the per-account rows /api/period serves, so every line carries its account codes (the AccountChip beside it), the stock-variation and 72x rows carry the engine's provenance SENTENCE under them, and the period names its source document. No amount cell wears a provenance affordance yet. Remaining work, named: the builder hands each line a provenance {source: <filename> · assembled_pl.<field> | lineItems, accounts: line.accounts, period} and the non-button cells wear it. Rendered plain until then — nothing invented."
     },
     "frontend/components/cfo/PricingTableV2.tsx": {
       "bucket": "LACKS_SILENT",
@@ -636,11 +636,6 @@
     }
   },
   "absent_leaf": {
-    "frontend/components/cfo/PLStatementView.tsx": {
-      "bucket": "UNADJUDICATED",
-      "substitutions": 3,
-      "why": "Discovered 2026-09-04 by the absent-leaf lint's first run. Nobody has yet driven these substitutions against a real envelope (corpus/*/expected/*.json) to establish whether the leaf is genuinely filed zero or absent. Recording UNADJUDICATED rather than FILED_ZERO on purpose: a justification nobody checked is the rubber stamp this gate exists to refuse. Each file is re-bucketed as it is run against a fixture, and CEILING_UNADJUDICATED_LEAF falls with it."
-    },
     "frontend/components/cfo/ValuationSection.tsx": {
       "bucket": "UNADJUDICATED",
       "substitutions": 4,
@@ -667,9 +662,9 @@
       "why": "Discovered 2026-09-04 by the absent-leaf lint's first run. Nobody has yet driven these substitutions against a real envelope (corpus/*/expected/*.json) to establish whether the leaf is genuinely filed zero or absent. Recording UNADJUDICATED rather than FILED_ZERO on purpose: a justification nobody checked is the rubber stamp this gate exists to refuse. Each file is re-bucketed as it is run against a fixture, and CEILING_UNADJUDICATED_LEAF falls with it."
     },
     "frontend/lib/buildPlStatement.ts": {
-      "bucket": "UNADJUDICATED",
-      "substitutions": 9,
-      "why": "Discovered 2026-09-04 by the absent-leaf lint's first run. Nobody has yet driven these substitutions against a real envelope (corpus/*/expected/*.json) to establish whether the leaf is genuinely filed zero or absent. Recording UNADJUDICATED rather than FILED_ZERO on purpose: a justification nobody checked is the rubber stamp this gate exists to refuse. Each file is re-bucketed as it is run against a fixture, and CEILING_UNADJUDICATED_LEAF falls with it."
+      "bucket": "FILED_ZERO",
+      "substitutions": 2,
+      "why": "RE-ADJUDICATED 2026-09-27 against real envelopes (the four firm books and the six constructed net-711-rule books, frontend/lib/__tests__/fixtures/oneEbitda + tests/engine/fixtures/firm) when the one-EBITDA ruling moved every subtotal onto the served figure (9 -> 2). The two left paint no figure from a zero: `li.amount isFinite ? : 0` in revenueFamilyAmounts names a revenue family for the chip and the line-item view drops every family row under half a cent (every served line item carries a finite amount on all ten books); `is.capitalizedOwnWork ?? 0` is read only on a payload the engine did NOT assemble (the fictional demo, whose income statement has no 72x), and its row is omitted under half a cent. Every served subtotal that is absent is REFUSED with a typed reason, never zeroed."
     },
     "frontend/lib/canonicalMetrics.ts": {
       "bucket": "UNADJUDICATED",
@@ -717,6 +712,11 @@
       "bucket": "FILED_ZERO",
       "substitutions": 2,
       "why": "Neither substitution produces a zero. Both fall back to ANOTHER served figure: operating revenue to the statement's revenue when the P&L builder produced no first section, EBITDA to the builder's operating EBITDA when assembled_pl.ebitda_statutory is absent. Moved verbatim (2026-09-21) out of the dashboard headline memo in pages/cfo/FinancialStatements.tsx so the Forecast year 0 and the dashboard share one computation. Checked on the four corpus envelopes (frontend/components/forecast/__tests__/forecastYearZero.test.tsx): both primary leaves are served, so neither fallback fires."
+    },
+    "frontend/lib/servedOneEbitda.ts": {
+      "bucket": "FILED_ZERO",
+      "substitutions": 1,
+      "why": "ADJUDICATED 2026-09-27 on the refused constructed books (unanchored, g6_uncleared) and the four firm books: the one flagged chain `readRefusal(apl.ebitda_refusal) ?? inventoryVariation?.refusal ?? NOT_SERVED` substitutes no NUMBER — it picks which typed REFUSAL a null EBITDA carries (the engine's, else the stock variation's, else 'the engine served no EBITDA'). No figure is painted from it; the refused figure stays null everywhere downstream (plOneEbitda.test.tsx, headlineRefusedEbitda.test.tsx)."
     }
   },
   "_README_ABSENT_LEAF": [
