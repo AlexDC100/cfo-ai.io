@@ -36,10 +36,16 @@ import { statementsFor, type Book } from "./exportBooks";
 // `interest_coverage` / `ebitda_to_interest`) after the 609/709
 // contra-convention repair moved agras and retail; before it they were
 // agras 55.64 / 66.28 and retail -0.52 / 0.09.
+//
+// Re-read under the one-EBITDA ruling (2026-09-26; served_metrics.json
+// re-captured by the E2a stage): EBIT and EBITDA both carry the measured
+// net 711, so agras moves 28.14 / 38.77 -> 32.00 / 42.63 and the
+// developer (realestate) -25.13 / -25.08 -> 0.42 / 0.48. The law is
+// unchanged — the row divides EBIT, never EBITDA.
 const EBIT_BASIS: Array<[Book, number, number]> = [
   // book, EBIT / interest, EBITDA / interest (what the row must NOT be)
-  ["agras", 28.14, 38.77],
-  ["realestate", -25.13, -25.08],
+  ["agras", 32.0, 42.63],
+  ["realestate", 0.42, 0.48],
   ["retail", 0.32, 0.93],
 ];
 
@@ -129,10 +135,22 @@ describe("the no-envelope model refuses or declares the rung on a zero interest 
     },
   );
 
-  // realestate, not retail: under tb_parser_v6 retail's EBIT is positive,
-  // so it no longer carries the non-positive-EBIT case this test is about.
-  it("a non-positive EBIT declares nothing (realestate: EBIT < 0, with its interest zeroed and its debt removed)", () => {
+  // A CONSTRUCTED WITNESS. Under tb_parser_v6 retail's EBIT turned
+  // positive, and under the one-EBITDA ruling (2026-09-26) so did the
+  // developer's (+488,756.68: the capitalised 711 is inside the operating
+  // result) — no committed book carries a non-positive EBIT any more, and
+  // a gate with no witness is red, never green. The witness is the
+  // realestate book with its served EBIT and EBITDA set below zero (the
+  // pre-ruling developer figures), interest zeroed and debt removed.
+  it("a non-positive EBIT declares nothing (constructed: realestate with a negative served EBIT, interest zeroed, debt removed)", () => {
     const s = statementsFor("realestate");
+    if (s.assembled_pl) {
+      s.assembled_pl = {
+        ...s.assembled_pl,
+        ebitda: -29038838.12, ebitda_statutory: -29038838.12, operating_ebitda: -29038838.12,
+        ebit: -29101057.56, operating_ebit: -29101057.56, operating_result: -29101057.56,
+      };
+    }
     expect(s.assembled_pl?.ebit ?? Number.NaN).toBeLessThan(0);
     s.incomeStatement = { ...s.incomeStatement, interestExpense: 0 };
     s.balanceSheet = { ...s.balanceSheet, shortTermDebt: 0, longTermDebt: 0 };

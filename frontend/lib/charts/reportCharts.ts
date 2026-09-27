@@ -27,6 +27,8 @@
 import type { CreditScoreResult } from "../financialValuation";
 import type { RatioBundle, Ratio, Statements } from "../financialReport";
 import { factsFrom } from "../servedFacts";
+import { plLevelsOf } from "../servedOneEbitda";
+import { printedPl, printedRow } from "../printedPl";
 import {
   bandTracks,
   contributionBars,
@@ -119,25 +121,84 @@ export function ebitdaBridge(i: ChartInputs): ChartBlock {
     };
   }
 
-  const ap = (i.s as Statements & { assembled_pl?: Record<string, number> }).assembled_pl ?? {};
-  const cur = num(ap.ebitda_statutory);
-  const pIs = prior.incomeStatement;
-  const priorEbitda =
-    pIs.revenue - pIs.costOfGoodsSold - pIs.operatingExpenses + (pIs.otherIncome ?? 0);
-  // Every step is a difference of two SERVED lines; nothing is modelled.
-  const dRevenue = i.s.incomeStatement.revenue - pIs.revenue;
-  const dCogs = -(i.s.incomeStatement.costOfGoodsSold - pIs.costOfGoodsSold);
-  const dOpex = -(i.s.incomeStatement.operatingExpenses - pIs.operatingExpenses);
-  const dOther = (i.s.incomeStatement.otherIncome ?? 0) - (pIs.otherIncome ?? 0);
-  const stepped = priorEbitda + dRevenue + dCogs + dOpex + dOther;
-  const unexplained = (cur ?? stepped) - stepped;
+  // ── THE ONE EBITDA ON BOTH SIDES (owner ruling 2026-09-26) ─────────
+  // Each side is its OWN printed P&L (`printedPl`): the served figures of
+  // the one definition, 711 and 72x inside EBITDA. The prior used to be
+  // rebuilt as `revenue − COGS − opex + other income` — a second EBITDA
+  // without the stock variation — beside the current side's served figure,
+  // so the "unattributed" step was the net 711 wearing another name. Every
+  // step is now the movement of one served line, and they sum to the
+  // current EBITDA by construction. A side the engine refused, or two
+  // sides on different definitions, draw no bridge — they state why.
+  const priorShell: Statements = {
+    ...i.s,
+    balanceSheet: prior.balanceSheet,
+    incomeStatement: prior.incomeStatement,
+    assembled_pl: prior.assembled_pl,
+    periodLabel: prior.periodLabel,
+    prior: undefined,
+  };
+  const curP = printedPl(i.s);
+  const priorP = printedPl(priorShell);
+  const curLevels = plLevelsOf(i.s);
+  const priorLevels = plLevelsOf(priorShell);
+  const cur = curLevels.ebitda;
+  const priorEbitda = priorLevels.ebitda;
+  const refusedSide =
+    cur === null ? { period: i.s.periodLabel, refusal: curLevels.refusal }
+    : priorEbitda === null ? { period: prior.periodLabel, refusal: priorLevels.refusal }
+    : null;
+  if (refusedSide || curLevels.definition !== priorLevels.definition) {
+    const absence = {
+      missing: [
+        refusedSide
+          ? `EBITDA for ${refusedSide.period} (refused by the engine)`
+          : `EBITDA for ${prior.periodLabel} on the current definition`,
+      ],
+      because: refusedSide
+        ? `The engine refused EBITDA for ${refusedSide.period}: ${refusedSide.refusal?.text.en ?? "not served"}. A bridge needs both ends.`
+        : "The prior period's EBITDA was served under a different EBITDA definition; a bridge between two definitions would attribute the definition change to the business.",
+      toFix: refusedSide
+        ? "Resolve the refusal on that period (see its P&L), then the bridge is drawn from the two served figures."
+        : "Re-analyse the prior period so it is served on the current EBITDA definition.",
+    };
+    return {
+      id: "chart-ebitda-bridge",
+      title,
+      status: "absent",
+      svg: gapCard(title, absence),
+      rows: [],
+      table: "",
+      caption: "Not charted: the two ends of the bridge are not both served on one EBITDA definition.",
+      absence,
+    };
+  }
+  const val = (p: typeof curP, key: string): number => printedRow(p, key)?.value ?? 0;
+  const delta = (key: string): number => val(curP, key) - val(priorP, key);
+  const STEPS: Array<{ key: string; label: string; source: string }> = [
+    { key: "turnover", label: "Net turnover", source: "70x − 709 movement" },
+    { key: "cogs", label: "Cost of sales", source: "601/602/607 movement" },
+    { key: "inventory_variation", label: "Variația stocurilor de produse (711)", source: "net 711, as served" },
+    { key: "opex", label: "Operating costs", source: "603-606, 608-65x movement" },
+    { key: "other_operating_income", label: "Other income", source: "74x/75x/77x/78x movement" },
+    { key: "capitalized_own_work", label: "Own work capitalised (72x)", source: "net 72x, as served" },
+  ];
+  const stepRows = STEPS.map((st) => ({ ...st, value: delta(st.key) }))
+    // A line neither period carries is not a step.
+    .filter((st) => printedRow(curP, st.key) !== null || printedRow(priorP, st.key) !== null);
+  const stepped = (priorEbitda as number) + stepRows.reduce((a, r) => a + r.value, 0);
+  const unexplained = (cur as number) - stepped;
 
   const rows: ChartRow[] = [
-    { key: "prior", label: `EBITDA ${prior.periodLabel}`, value: priorEbitda, printed: i.money(priorEbitda), source: "prior 70x − 60x/61x/62x/64x", kind: "anchor" },
-    { key: "rev", label: "Revenue", value: dRevenue, printed: i.money(dRevenue), source: "70x movement", kind: "delta" },
-    { key: "cogs", label: "Cost of sales", value: dCogs, printed: i.money(dCogs), source: "60x movement", kind: "delta" },
-    { key: "opex", label: "Operating costs", value: dOpex, printed: i.money(dOpex), source: "61x/62x/64x/65x movement", kind: "delta" },
-    { key: "other", label: "Other income", value: dOther, printed: i.money(dOther), source: "758/781 movement", kind: "delta" },
+    { key: "prior", label: `EBITDA ${prior.periodLabel}`, value: priorEbitda as number, printed: i.money(priorEbitda as number), source: "prior period's served EBITDA", kind: "anchor" },
+    ...stepRows.map((r): ChartRow => ({
+      key: r.key,
+      label: r.label,
+      value: r.value,
+      printed: i.money(r.value),
+      source: r.source,
+      kind: "delta",
+    })),
   ];
   if (Math.abs(unexplained) > 0.005) {
     rows.push({
@@ -145,7 +206,7 @@ export function ebitdaBridge(i: ChartInputs): ChartBlock {
       label: "Unattributed",
       value: unexplained,
       printed: i.money(unexplained),
-      source: "residual vs assembled_pl.ebitda_statutory",
+      source: "residual vs assembled_pl.ebitda",
       kind: "delta",
       breach: true,
     });
@@ -153,9 +214,9 @@ export function ebitdaBridge(i: ChartInputs): ChartBlock {
   rows.push({
     key: "cur",
     label: `EBITDA ${i.s.periodLabel}`,
-    value: cur ?? stepped,
-    printed: i.money(cur ?? stepped),
-    source: "assembled_pl.ebitda_statutory",
+    value: cur as number,
+    printed: i.money(cur as number),
+    source: "assembled_pl.ebitda",
     kind: "anchor",
   });
 
@@ -168,8 +229,8 @@ export function ebitdaBridge(i: ChartInputs): ChartBlock {
     table: rowsTable(rows, i.s.currency),
     caption:
       Math.abs(unexplained) > 0.005
-        ? `The steps do not reach the current statutory EBITDA: ${i.money(unexplained)} is unattributed and is drawn as its own step rather than folded into one of the named ones.`
-        : "Each step is the movement in one class-6/7 group between the two periods; the steps sum to the current statutory EBITDA.",
+        ? `The steps do not reach the current EBITDA: ${i.money(unexplained)} is unattributed and is drawn as its own step rather than folded into one of the named ones.`
+        : "Each step is the movement in one served P&L line between the two periods — the stock variation (711) and own work capitalised (72x) included, as they are in EBITDA; the steps sum to the current EBITDA.",
   };
 }
 

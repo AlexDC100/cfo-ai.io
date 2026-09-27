@@ -42,6 +42,7 @@ import {
 import type { IncomeStatement, Statements } from "./financialReport";
 import { marginRefusalOf } from "./marginMeaning";
 import {
+  STOCK_VARIATION_NOT_MEASURED,
   componentShown,
   readServedOneEbitda,
   reconLine,
@@ -292,16 +293,8 @@ export function revenueFamilyAmounts(
 /** Half a cent: below it a money amount is a zero (the engine's floor). */
 const HALF_CENT = 0.005;
 
-/** A payload the engine did not assemble, whose income statement says it
- *  HAS 711 activity (the gross memo): the variation is not measured, so
- *  EBITDA is not known on the one definition. */
-export const STOCK_VARIATION_NOT_MEASURED: ServedRefusal = {
-  code: "stock_variation_not_measured",
-  text: {
-    ro: "variația stocurilor de produse (711) nu a fost măsurată pentru aceste date",
-    en: "the stock variation (711) was not measured for this data",
-  },
-};
+/** Re-exported: the refusal lives with the one reader (servedOneEbitda). */
+export { STOCK_VARIATION_NOT_MEASURED };
 
 const EBIT_NOT_SERVED: ServedRefusal = {
   code: "operating_result_not_served",

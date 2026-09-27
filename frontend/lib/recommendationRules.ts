@@ -998,20 +998,24 @@ const RULES: Rule[] = [
       const dscr = f.ratios.dscr;
       const dte = f.ratios.debt_to_ebitda;
       // How much of the GREEN tier each dimension has eaten. 1.0 means
-      // the book is AT or PAST it.
+      // the book is AT or PAST it — and a tier cannot be consumed more
+      // than entirely: past it, the share is 100%, and the binding figure
+      // (printed beside it) says how far past. The unclamped quotient read
+      // "1348.9% of the green tier" on the developer (DSCR 0.11× under the
+      // one-EBITDA ruling), a percent that describes no quantity.
       const consumed: { label: string; value: number }[] = [];
       if (has(dscr)) {
         // Cover at or below zero has consumed the tier entirely; a
         // ratio of tier ÷ 0 is not a number a verdict may rest on.
         consumed.push({
           label: `DSCR ${fx(dscr, 2)}× against the ${MONITORING_TIERS.green.dscr.toFixed(2)}× green floor`,
-          value: dscr > 0 ? MONITORING_TIERS.green.dscr / dscr : 1,
+          value: dscr > 0 ? Math.min(1, MONITORING_TIERS.green.dscr / dscr) : 1,
         });
       }
       if (has(dte) && f.pl.ebitda !== null && f.pl.ebitda > 0) {
         consumed.push({
           label: `Debt/EBITDA ${fx(dte, 2)}× against the ${MONITORING_TIERS.green.dte.toFixed(1)}× green ceiling`,
-          value: dte > 0 ? dte / MONITORING_TIERS.green.dte : 0,
+          value: dte > 0 ? Math.min(1, dte / MONITORING_TIERS.green.dte) : 0,
         });
       }
       if (consumed.length === 0) return null;
@@ -1052,7 +1056,11 @@ const RULES: Rule[] = [
           (roomy
             ? `${binding.label} leaves real headroom — ${sharePct(binding.value)} of the green tier is used, so the time to install monitoring is now, not after the first warning.`
             : binding.value >= 1
-              ? `${binding.label} is already AT or past that tier (${sharePct(binding.value)} of it used), so this is not preventative — the dashboard is how the next lender conversation gets prepared.`
+              // Past the tier the share is not a quantity a reader can use —
+              // "1348.9% of it used" is the green floor divided by a DSCR of
+              // 0.11× (the developer under the one-EBITDA ruling). The
+              // binding figure and its tier are printed; the multiple is not.
+              ? `${binding.label} is already AT or past that tier, so this is not preventative — the dashboard is how the next lender conversation gets prepared.`
               : `${binding.label} has used ${sharePct(binding.value)} of the green tier, so the margin is real but no longer comfortable.`) +
           ` ` + ladderSentence(graded.materiality),
         actionsFallback: [

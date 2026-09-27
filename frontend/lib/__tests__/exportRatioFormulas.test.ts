@@ -150,7 +150,7 @@ const SPECS: Spec[] = [
   {
     key: "ebitda_margin",
     label: "EBITDA margin",
-    formula: "EBITDA (statutory) ÷ revenue",
+    formula: "EBITDA ÷ net turnover",
     unit: "%",
     recompute: (e) => {
       const v = div(e.pl.ebitda_statutory, e.pl.revenue);
@@ -215,7 +215,7 @@ const SPECS: Spec[] = [
   {
     key: "debt_to_ebitda",
     label: "Debt to EBITDA",
-    formula: "total debt ÷ EBITDA (statutory)",
+    formula: "total debt ÷ EBITDA",
     unit: "x",
     recompute: (e) => div(e.bs.total_debt, e.pl.ebitda_statutory),
   },
@@ -264,7 +264,7 @@ const SPECS: Spec[] = [
   {
     key: "dscr",
     label: "Debt service coverage",
-    formula: "EBITDA (statutory) ÷ (interest expense + short-term debt)",
+    formula: "EBITDA ÷ (interest expense + short-term debt)",
     unit: "x",
     recompute: (e) => div(e.pl.ebitda_statutory, e.pl.interest_expense + e.bs.short_term_debt),
   },
@@ -294,7 +294,7 @@ const SPECS: Spec[] = [
     key: "dscr_with_lt_principal",
     label: "Debt service coverage with long-term principal",
     formula:
-      "EBITDA (statutory) ÷ (interest expense + long-term debt ÷ 8, a ~10-year amortization proxy)",
+      "EBITDA ÷ (interest expense + long-term debt ÷ 8, a ~10-year amortization proxy)",
     unit: "x",
     recompute: (e) =>
       div(e.pl.ebitda_statutory, e.pl.interest_expense + e.bs.long_term_debt / 8),
@@ -455,7 +455,9 @@ describe("G4 — every rendered ratio equals its stated formula", () => {
     // arithmetic is the credit model's and is spelled by its own ladder
     // block beneath them.
     const NOT_RATIOS = [
-      "Operating revenue",
+      // Net turnover (70x − 709), the one-EBITDA ruling's name for the
+      // first strip card (was "Operating revenue", which added 722).
+      "Net turnover",
       "EBITDA",
       "Net Income (account 121, as filed)",
       "Total Debt",

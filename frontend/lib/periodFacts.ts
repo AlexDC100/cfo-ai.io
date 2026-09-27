@@ -25,6 +25,7 @@ import { pickPLBuilder } from "./buildPlStatement";
 // deriveTotals bucket-sum reads for those concepts are deleted; the
 // legacy fallback lives inside servedFacts, not here.
 import { factsFrom } from "./servedFacts";
+import { marginRefusalOf } from "./marginMeaning";
 
 // ─── Fact blob shape ────────────────────────────────────────────────────
 // JSON-serializable (mirrors the prompt's pl_facts / bs_facts / ratio_facts
@@ -39,8 +40,6 @@ export interface PLFacts {
    *  it; null when the engine REFUSED it — a rule reading it must see the
    *  absence, never a zero. */
   ebitda: number | null;
-  /** EBITDA less net 72x; null with EBITDA. */
-  ebitda_excl_capitalized: number | null;
   /** SERVED `assembled_pl.ebitda_before_stock_variation` — the build-up
    *  BEFORE net 711 and net 72x (owner ruling 2026-09-26). The one figure
    *  allowed to differ from EBITDA, read ONLY by the cash-burn rule
@@ -155,8 +154,12 @@ export interface RatioFacts {
    *  participations (e.g., EEI's 7611/7612/762/763). */
   debt_to_ebitda_adjusted: number | null;
   // Profitability
-  ebitda_margin_gross: number | null;    // ebitda / total op revenue
-  ebitda_margin_clean: number | null;    // (ebitda - capitalized) / rental
+  /** THE ONE EBITDA over NET TURNOVER — the served `ebitda_margin`;
+   *  null when the engine refused EBITDA or ruled the margin not
+   *  meaningful (a developer's rent is not its sales). The retired
+   *  `ebitda_margin_clean` (EBITDA − 722 over 706) was a second EBITDA
+   *  margin and is gone with the 722 "dual view". */
+  ebitda_margin_gross: number | null;
   net_margin: number | null;
   roe: number | null;
   roa: number | null;
@@ -250,7 +253,9 @@ export function buildPeriodFacts(args: BuildFactsArgs): PeriodFacts {
   const servedNumber = (v: unknown): number | null =>
     typeof v === "number" && Number.isFinite(v) ? v : null;
   const servedInventoryVariation = servedPl.inventory_variation as { value?: unknown } | undefined;
-  const totalOperatingRevenue = pl.sections[0]?.subtotalAmount ?? statements.incomeStatement.revenue;
+  // Net turnover (70x − 709): the P&L builder's first subtotal — every
+  // margin's denominator (owner ruling 2026-09-26).
+  const netTurnover = pl.sections[0]?.subtotalAmount ?? statements.incomeStatement.revenue;
   const rentalRevenue =
     statements.incomeStatement.revenue;  // 706 only when 722 is memo-excluded by the canonical pipeline
   const capitalizedOwnWork = pl.capitalizedOwnWorkMemo ?? 0;
@@ -262,11 +267,10 @@ export function buildPeriodFacts(args: BuildFactsArgs): PeriodFacts {
 
   // ── PL Facts ────────────────────────────────────────────────────────
   const plFacts: PLFacts = {
-    revenue: totalOperatingRevenue,
+    revenue: netTurnover,
     rental_revenue: rentalRevenue,
     capitalized_own_work_memo: capitalizedOwnWork,
     ebitda: pl.ebitda,
-    ebitda_excl_capitalized: pl.ebitda === null ? null : pl.ebitda - capitalizedOwnWork,
     ebitda_before_stock_variation: servedNumber(servedPl.ebitda_before_stock_variation),
     inventory_variation: servedNumber(servedInventoryVariation?.value),
     depreciation: statements.incomeStatement.depreciationAmortization,
@@ -507,6 +511,7 @@ export function buildPeriodFacts(args: BuildFactsArgs): PeriodFacts {
   // as fallback for sample data without canonical metrics.
   // THE ONE EBITDA; null when refused, and so is every ratio built on it.
   const ebitdaStatutory = plFacts.ebitda;
+  const marginRefused = marginRefusalOf(statements) !== null;
   const ebitdaAdjusted = ebitdaStatutory === null ? null : ebitdaStatutory + plFacts.dividend_income;
   const m = (name: string): number | null => {
     if (!args.metricsByName) return null;
@@ -577,9 +582,15 @@ export function buildPeriodFacts(args: BuildFactsArgs): PeriodFacts {
     // silent on null and prints nothing rather than "0.00×".
     debt_to_ebitda: mOr("debt_to_ebitda", ebitdaStatutory !== null && ebitdaStatutory > 0 ? safeDiv(bsFacts.bank_debt_total, ebitdaStatutory) : null),
     debt_to_ebitda_adjusted: ebitdaAdjusted !== null && ebitdaAdjusted > 0 ? safeDiv(bsFacts.bank_debt_total, ebitdaAdjusted) : null,
-    ebitda_margin_gross: m("ebitda_margin") !== null ? (m("ebitda_margin") as number) : safeDiv(ebitdaStatutory, plFacts.revenue),
-    ebitda_margin_clean: safeDiv(plFacts.ebitda_excl_capitalized, plFacts.rental_revenue),
-    net_margin: m("net_margin") !== null ? (m("net_margin") as number) : safeDiv(plFacts.net_profit, plFacts.revenue),
+    // A margin the ENGINE ruled not meaningful is refused here too — the
+    // served row is null then, and the fallback division must not
+    // resurrect the percent (the developer's 339.3% over 0.6% of activity).
+    ebitda_margin_gross: marginRefused
+      ? null
+      : m("ebitda_margin") !== null ? (m("ebitda_margin") as number) : safeDiv(ebitdaStatutory, plFacts.revenue),
+    net_margin: marginRefused
+      ? null
+      : m("net_margin") !== null ? (m("net_margin") as number) : safeDiv(plFacts.net_profit, plFacts.revenue),
     roe: mOr("roe", safeDiv(plFacts.net_profit, bsFacts.total_equity)),
     roa: mOr("roa", safeDiv(plFacts.net_profit, bsFacts.total_assets)),
     property_yield: safeDiv(plFacts.rental_revenue, bsFacts.investment_property_net),

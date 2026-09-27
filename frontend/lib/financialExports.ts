@@ -48,6 +48,8 @@ import { ratioCompareHeadingsFor, type RatioCompareRow } from "./ratioTable";
 // status cell calls the SAME presentStatus the BS chip and the HTML export
 // footer use; this file carries no status wording of its own.
 import { factsFrom } from "./servedFacts";
+import { plLevelsOf } from "./servedOneEbitda";
+import { printedPl, printedRow, type PrintedPlRow } from "./printedPl";
 // ONE sentence for "there is nothing to compare against", shared with
 // the report model — so the workbook and the printed document cannot
 // describe the same absence two different ways.
@@ -112,6 +114,9 @@ export function buildExcelWorkbook(
   const sf = factsFrom(s);
   const cbs = sf.canonicalForRender();
   const t = deriveTotals(s);
+  // THE PRINTED P&L — the same rows, in the same order, with the same
+  // served figures as the document's P&L table (`printedPl`).
+  const ppl = printedPl(s);
   // ── THE RATIOS SHEET READ A DIFFERENT BOOK THAN THE APP ────────────
   //
   // `computeRatios(s)` — no engine metric map — recomputes FE-side every
@@ -162,13 +167,15 @@ export function buildExcelWorkbook(
     ["Generated", new Date().toLocaleString("en-GB")],
     [],
     ["Headline KPIs"],
-    ["Revenue", s.incomeStatement.revenue],
-    ["EBITDA", t.ebitda],
-    ["EBIT", t.ebit],
+    // Net turnover (70x − 709) and THE ONE EBITDA / EBIT (711 and 72x
+    // inside) — the printed P&L's own rows; a refused figure says so.
+    ["Net turnover (70x − 709)", printedCell(printedRow(ppl, "turnover"))],
+    ["EBITDA", printedCell(printedRow(ppl, "ebitda"))],
+    ["EBIT", printedCell(printedRow(ppl, "ebit"))],
     // The COVER quotes the same figure the KPI card and the printed P&L's
     // last row quote — account 121's close, not the reconstruction. See
     // `statutoryNetIncome`.
-    [NET_INCOME_LABEL, statutoryNetIncome(s, t)],
+    [NET_INCOME_LABEL, printedCell(printedRow(ppl, "net_income"))],
     // BS headline KPIs come from the servedFacts gateway (adjusted figures
     // on RECONCILED periods) so the Cover can never quote a different book
     // than the Balance Sheet sheet — no presence branch here.
@@ -218,86 +225,62 @@ export function buildExcelWorkbook(
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(cover), "Cover");
 
   // ─ P&L ───────────────────────────────────────────────────────────────────
-  const priorIs = s.prior?.incomeStatement;
-  const priorT = s.prior
-    ? deriveTotals({
+  // ONE ROW MODEL WITH THE DOCUMENT (`printedPl`): net turnover, cost of
+  // sales with "Variația stocurilor de produse" (711) beside it, gross
+  // profit, operating costs, 72x as its own operating line, THE ONE EBITDA,
+  // EBIT, the financial block, PBT, tax, and account 121 — every subtotal
+  // the sum of the rows above it, and the not-explained gap (never 711)
+  // printed with its amount. The prior column is the prior's OWN printed
+  // P&L, and only when it sits on the same EBITDA definition: a prior
+  // served under another definition prints no EBITDA-family cell.
+  const priorShell: Statements | null = s.prior
+    ? {
         ...s,
         balanceSheet: s.prior.balanceSheet,
         incomeStatement: s.prior.incomeStatement,
+        assembled_pl: s.prior.assembled_pl,
         periodLabel: s.prior.periodLabel,
         prior: undefined,
-      })
+      }
     : null;
+  const priorPpl = priorShell ? printedPl(priorShell) : null;
+  /** The prior's balance-sheet totals, for the BS sheet's prior column. */
+  const priorT = priorShell ? deriveTotals(priorShell) : null;
+  const sameDefinition =
+    priorShell !== null &&
+    plLevelsOf(priorShell).definition === plLevelsOf(s).definition;
+  const DEFINITION_KEYS = new Set([
+    "inventory_variation", "capitalized_own_work", "gross_profit", "ebitda", "ebit", "pretax", "net_result_built",
+  ]);
+  const priorValueOf = (key: string): number | null | undefined => {
+    if (!priorPpl) return undefined;
+    if (!sameDefinition && DEFINITION_KEYS.has(key)) return undefined;
+    const r = printedRow(priorPpl, key);
+    return r ? r.value : undefined;
+  };
   const plRows: (string | number)[][] = [
     // The comparison column is HEADED with what it holds. "—" as a
     // header made the whole column ambiguous before a single cell was
     // read; the sentence says the column is empty because there is no
     // period behind it, not because nothing moved.
     ["Profit & Loss", s.periodLabel, priorColumnHeading(s), "Δ Abs", "Δ %"],
-    plRow("Revenue", s.incomeStatement.revenue, priorIs?.revenue),
-    plRow("Cost of goods sold", -s.incomeStatement.costOfGoodsSold, priorIs ? -priorIs.costOfGoodsSold : undefined),
-    plRow("Gross profit", t.grossProfit, priorT?.grossProfit),
-    plRow("Operating expenses", -s.incomeStatement.operatingExpenses, priorIs ? -priorIs.operatingExpenses : undefined),
-    plRow("Other operating income", s.incomeStatement.otherIncome, priorIs?.otherIncome),
-    plRow("EBITDA", t.ebitda, priorT?.ebitda),
-    plRow("Depreciation & amortization", -s.incomeStatement.depreciationAmortization, priorIs ? -priorIs.depreciationAmortization : undefined),
-    plRow("EBIT", t.ebit, priorT?.ebit),
-    // ⚠ NO `?? 0` ON THE PRIOR SIDE. It used to read
-    // `priorIs?.financialIncome ?? 0`, so on a book with NO PRIOR PERIOD
-    // — which is every book this path serves — the sheet printed a prior
-    // of 0 and a delta equal to the whole current figure, on the one row
-    // out of sixteen where the fallback fired. Measured on agras: the
-    // comparison column said `Financial income · 456,384.14 · 0 ·
-    // 456,384.14 · no % — prior is zero` while the fifteen rows around it
-    // said "no prior period", and the printed document said "no prior
-    // period" for this row too. A reader diffing the two columns reads a
-    // movement that never happened. `undefined` is what "the source did
-    // not say" looks like, and `plRow` already renders it correctly.
-    plRow("Financial income", s.incomeStatement.financialIncome ?? 0, priorIs?.financialIncome),
-    plRow("Interest expense", -s.incomeStatement.interestExpense, priorIs ? -priorIs.interestExpense : undefined),
-    plRow(
-      "Financial expense",
-      -(s.incomeStatement.financialExpense ?? 0),
-      priorIs && typeof priorIs.financialExpense === "number" ? -priorIs.financialExpense : undefined,
-    ),
-    plRow("Net financial result", t.netFinancialResult, priorT?.netFinancialResult),
-    plRow("Profit before tax", t.pbt, priorT?.pbt),
-    plRow("Tax expense", -s.incomeStatement.taxExpense, priorIs ? -priorIs.taxExpense : undefined),
-    // ── THE COLUMN ENDS WHERE THE COMPANY'S FILING ENDS ────────────────
-    //
-    // `t.netIncome` is `pretax − tax` over the class-6/7 movements — the
-    // RECONSTRUCTION. Account 121's closing balance is what the company
-    // filed, and it is what every ratio, the KPI card, the printed P&L's
-    // last row and the Graham block four sheets away are built on.
-    //
-    // This sheet used to print the reconstruction under the bare name
-    // "Net income", so one workbook stated two different figures under
-    // one label — measured on all four committed books:
-    //
-    //   book         "Net income" here   account 121 (filed)
-    //   agras           14,106,102.03         7,533,676.02
-    //   carniprod        5,843,449.04         1,435,533.59
-    //   realestate     −30,391,418.38          −801,604.14
-    //   retail           1,161,957.98         3,205,212.62
-    //
-    // The document had already been repaired for exactly this
-    // (`exportPlFoots.test.ts`); the workbook had not, so the two
-    // deliverables disagreed about the company's profit by up to 38×.
-    //
-    // The repair is the document's: print the reconstruction under its
-    // own name, print the step, and end on the filed figure. The bridge
-    // is `filed − reconstructed` — the same subtraction the document
-    // does, not a second field read, so the two cannot drift.
-    ...(Math.abs(statutoryNetIncome(s, t) - t.netIncome) > 0.005
-      ? [
-          plRow("Net profit — reconstructed (class 6/7 movements)", t.netIncome, priorT?.netIncome),
-          plRow(
-            "± Reconciliation to account 121 — the class 6/7 movements do not sum to the filed close",
-            statutoryNetIncome(s, t) - t.netIncome,
-          ),
-        ]
+    ...ppl.rows.map((r) => {
+      const row = plRow(SHEET_LABEL[r.key] ?? r.label, r.value, priorValueOf(r.key));
+      // A refused figure states the engine's reason in the cell, never
+      // the bare word — the reader of a forwarded workbook has no popover.
+      if (r.value === null && r.refusal) row[1] = `refused — ${r.refusal.text.en}`;
+      // The measured lines (711 / 72x) carry the engine's gloss and
+      // provenance sentence in a sixth column, as the document prints it
+      // under the row.
+      if (r.note) row.push(r.note);
+      return row;
+    }),
+    ...(ppl.bridge ? [[], [`EBITDA includes the stock variation: ${ppl.bridge}`]] : []),
+    ...(ppl.identityNote ? [[ppl.identityNote]] : []),
+    ...(ppl.splitAssumption ? [[ppl.splitAssumption]] : []),
+    ...(ppl.ebitdaRefusal
+      ? [[`EBITDA refused: ${ppl.ebitdaRefusal.text.en}. EBITDA, EBIT, profit before tax and every margin and ratio built on them are refused with it.`]]
       : []),
-    plRow(NET_INCOME_LABEL, statutoryNetIncome(s, t), priorStatutoryNetIncome(s, priorT)),
   ];
   const plSheet = XLSX.utils.aoa_to_sheet(plRows);
   noteSourceFiles(plSheet, s.sourceDocument, s.prior?.sourceDocument);
@@ -573,7 +556,12 @@ export function buildExcelWorkbook(
   if (growth.length) {
     cfRows.push([], ["Multi-period growth"], ["Metric", ...growth[0].values.map((v) => v.period), "CAGR"]);
     for (const row of growth) {
-      cfRows.push([row.metric, ...row.values.map((v) => v.value), `${(row.cagr * 100).toFixed(1)}%`]);
+      cfRows.push([
+        row.metric,
+        ...row.values.map((v) =>
+          v.value !== null ? v.value : v.refusal ? `refused — ${v.refusal.text.en}` : EXPORT_UNREPORTED),
+        row.cagr === null ? "no CAGR — an end of the series is refused, not positive, or on another definition" : `${(row.cagr * 100).toFixed(1)}%`,
+      ]);
     }
   }
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(cfRows), "Cash Flow");
@@ -607,7 +595,9 @@ export function buildExcelWorkbook(
     ["Equity value", "", "", dcf.equityValue],
     [],
     ["Multiples"],
-    ["EV / EBITDA", dcf.evToEbitda.toFixed(2) + "×"],
+    ["EV / EBITDA", dcf.evToEbitda === null
+      ? (t.ebitda === null ? `refused — EBITDA refused: ${t.plRefusal?.text.en ?? "not served"}` : "not meaningful — EBITDA is not positive")
+      : dcf.evToEbitda.toFixed(2) + "×"],
     ["EV / Revenue", dcf.evToRevenue.toFixed(2) + "×"],
     [],
     ["Graham Intrinsic Value"],
@@ -852,35 +842,29 @@ function fixedCell(v: number | null | undefined, digits: number): string {
 
 // ── ONE NAME FOR THE COMPANY'S PROFIT, AND ONE FIGURE BEHIND IT ───────
 //
-// Account 121's closing balance is the statutory net profit
-// (`CLAUDE.md` Appendix A §3, "Critical reconciliation points"), and the
-// engine serves it as `assembled_pl.net_income_statutory`.
-// `deriveTotals(s).netIncome` is the class-6/7 RECONSTRUCTION, which on
-// the four committed books lands between 2.8× and 38× away from it.
-//
-// ⚠ This expression already exists three other places in the tree —
-// `financialValuation.ts:339` (`runGraham`), `:522`
-// (`computeCreditScore`) and `financialReport.ts:2862` (the printed
-// document). Its right home is the report model, so all four read one
-// function; that module is under repair by another lane in this session
-// and a cross-lane edit there would collide, so the fourth copy lives
-// here with this note rather than being written a fourth time inline in
-// three separate sheets of this file. `threeWayParity.test.ts` §4 reds
-// if any of them stops agreeing with the gateway.
-function statutoryNetIncome(s: Statements, t: { netIncome: number }): number {
-  const canonical = s.assembled_pl?.net_income_statutory;
-  return typeof canonical === "number" && Number.isFinite(canonical) ? canonical : t.netIncome;
+// Account 121's closing balance is the statutory net profit (CLAUDE.md
+// Appendix A §3), served as `assembled_pl.net_income_statutory`. Every
+// sheet reads it through `printedPl` (the same row the document ends on);
+// the helpers that used to read it here a fourth time are retired.
+
+/** A cover cell for a printed P&L row: the figure, or the refusal with
+ *  the engine's reason — never a zero and never a bare dash. */
+function printedCell(r: PrintedPlRow | null): string | number {
+  if (!r) return EXPORT_UNREPORTED;
+  if (r.value === null) return r.refusal ? `refused — ${r.refusal.text.en}` : EXPORT_UNREPORTED;
+  return r.value;
 }
 
-function priorStatutoryNetIncome(
-  s: Statements,
-  priorT: { netIncome: number } | null,
-): number | undefined {
-  if (!s.prior || !priorT) return undefined;
-  const canonical = (s.prior as { assembled_pl?: { net_income_statutory?: number } }).assembled_pl
-    ?.net_income_statutory;
-  return typeof canonical === "number" && Number.isFinite(canonical) ? canonical : priorT.netIncome;
-}
+/** Where the workbook's label for a concept differs from the document's
+ *  (the pairing `threeWayParity` holds, one concept, two spellings). */
+const SHEET_LABEL: Readonly<Record<string, string>> = {
+  gross_profit: "Gross profit",
+  other_operating_income: "Other operating income",
+  other_financial_expense: "Financial expense",
+  pretax: "Profit before tax",
+  // The same string as NET_INCOME_LABEL below (declared after this map).
+  net_income: "Net income (account 121, as filed)",
+};
 
 /** What every sheet calls the filed figure, so no sheet can call it
  *  something else. The document's own row label, word for word. */

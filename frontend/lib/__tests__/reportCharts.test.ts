@@ -400,7 +400,12 @@ describe("G-C1b — the arithmetic each chart draws", () => {
 // asserted is structure and arithmetic: that the charts draw, that their
 // steps foot, and that they stop being gap cards. When a real two-period
 // envelope lands, this fixture should be replaced with it.
-function pairedBook(): Statements {
+// The prior carries its OWN served `assembled_pl`, as a served prior does
+// (the comparatives document's `prior_statements`): under the one-EBITDA
+// ruling (2026-09-26) each side of the bridge is its own served EBITDA,
+// 711 and 72x inside, and a prior whose buckets show 711 activity with no
+// served block cannot state one (see the refusal case below).
+function pairedBook(withPriorServedPl = true): Statements {
   const current = statementsFor("agras");
   const prior = statementsFor("carniprod");
   return {
@@ -409,6 +414,7 @@ function pairedBook(): Statements {
       periodLabel: "Prior period (paired fixture)",
       balanceSheet: prior.balanceSheet,
       incomeStatement: prior.incomeStatement,
+      ...(withPriorServedPl ? { assembled_pl: prior.assembled_pl } : {}),
     },
   };
 }
@@ -452,5 +458,14 @@ describe("G-C1c — with a prior attached, the three absent charts draw", () => 
     if (labels.includes("Unattributed")) {
       expect(blk.caption).toMatch(/unattributed and is drawn as its own step/);
     }
+    // The stock variation is a named step of its own (711 is inside EBITDA).
+    expect(labels).toContain("Variația stocurilor de produse (711)");
+  });
+
+  it("a prior whose buckets show 711 activity and carry no served EBITDA: the bridge states the refusal, never a pre-ruling EBITDA", () => {
+    const blk = byId(blocks(exportDoc("agras", pairedBook(false))), "chart-ebitda-bridge");
+    expect(blk.status).toBe("absent");
+    expect(blk.hasTable).toBe(false);
+    expect(blk.gapText).toMatch(/refused by the engine|stock variation \(711\) was not measured/);
   });
 });

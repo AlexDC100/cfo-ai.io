@@ -62,6 +62,15 @@ export type FigureAbsence =
       display: { readonly ro: string; readonly en: string };
       /** The engine's own account of "activity" and the threshold. */
       basis: { readonly ro: string; readonly en: string } | null;
+    }
+  /** The ENGINE refused the figure (the one-EBITDA ruling: the stock
+   *  variation 711 could not be measured, so EBITDA, EBIT, profit before
+   *  tax and every ratio built on them are refused). `display` is the
+   *  engine's typed reason, per language — printed, never re-worded. */
+  | {
+      kind: "refused";
+      code: string;
+      display: { readonly ro: string; readonly en: string };
     };
 
 /** A number, or an absence that knows why. */
@@ -79,6 +88,17 @@ export function num(name: string, v: number | null | undefined): Fig {
     return { value: null, absence: { kind: "missing", inputs: [name] } };
   }
   return { value: v, absence: PRESENT_CACHE_NONE };
+}
+
+/** A figure the engine served, or its refusal with the engine's reason. */
+export function servedFig(
+  value: number | null,
+  refusal: { readonly code: string; readonly text: { readonly ro: string; readonly en: string } } | null,
+  name: string,
+): Fig {
+  if (typeof value === "number" && Number.isFinite(value)) return { value, absence: PRESENT_CACHE_NONE };
+  if (refusal) return { value: null, absence: { kind: "refused", code: refusal.code, display: refusal.text } };
+  return { value: null, absence: { kind: "missing", inputs: [name] } };
 }
 
 /** A figure known to be present — a constant, a day count, a coefficient.

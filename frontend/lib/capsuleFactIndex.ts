@@ -306,6 +306,11 @@ export const ENGINE_MONEY_FACTS: readonly string[] = Object.freeze([
   "bank_debt_total",
   "capex_real",
   "capitalized_construction",
+  // ── The one-EBITDA ruling (2026-09-26) ─────────────────────────────
+  // The firm covenant detector cites EBITDA with its components beside the
+  // headroom: net 72x, the build-up before 711 / 72x, and net 711
+  // ("Variația stocurilor de produse"); the net result is account 121.
+  "capitalized_own_work",
   "capitalized_own_work_memo",
   "cash",
   "cash_from_operating",
@@ -317,6 +322,7 @@ export const ENGINE_MONEY_FACTS: readonly string[] = Object.freeze([
   "dividends_payable",
   "drift",
   "ebitda",
+  "ebitda_before_stock_variation",
   "ebitda_cash",
   "ebitda_operating",
   "ebitda_operational",
@@ -328,6 +334,7 @@ export const ENGINE_MONEY_FACTS: readonly string[] = Object.freeze([
   "free_cash_flow",
   "fx_cash",
   "intercompany_loans",
+  "inventory_variation",
   // ── Radar detector families (2026-09-08) ───────────────────────────
   // The AMOUNT AT STAKE each family publishes. `serve.amount_at_stake`
   // ranks on the largest declared money figure a finding cites, and
@@ -339,6 +346,7 @@ export const ENGINE_MONEY_FACTS: readonly string[] = Object.freeze([
   "net_debt",
   "net_income",
   "net_income_operating",
+  "net_income_statutory",
   "net_result",
   "price",
   "rec_provisions",

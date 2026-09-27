@@ -45,7 +45,8 @@ import {
 import { useTranslation } from "react-i18next";
 import { absenceSentence } from "@/components/cfo/ratioAbsenceI18n";
 import { getRatioKnowledge, type RatioKnowledge, type FormulaPart } from "@/lib/ratioKnowledge";
-import { resolveFormulaInput } from "@/lib/resolveFormulaInput";
+import { formulaInputRefusal, resolveFormulaInput } from "@/lib/resolveFormulaInput";
+import { pickLang } from "@/lib/servedOneEbitda";
 import { TraceableNumber } from "./TraceableNumber";
 import { STATEMENT_TAB, HIGHLIGHT_PARAM, TAB_PARAM } from "@/lib/traceableSource";
 import { LearnableNumber } from "@/components/learning/LearnableNumber";
@@ -596,10 +597,21 @@ function FormulaDisplay({
 }
 
 function FormulaPartView({ part, statements }: { part: FormulaPart; statements: Statements }) {
+  const { i18n } = useTranslation();
   if (part.kind === "text") {
     return <span className="text-ink-mute">{part.value}</span>;
   }
   const value = resolveFormulaInput(part.valueKey, statements);
+  // A refused EBITDA / EBIT prints the engine's reason, never a bare dash.
+  const refusal = value === null ? formulaInputRefusal(part.valueKey, statements) : null;
+  if (refusal) {
+    return (
+      <span className="whitespace-nowrap" data-testid="formula-input-refused">
+        <span className="text-ink-soft text-[12px] mr-0.5">{part.label}</span>{" "}
+        <span className="text-ink-soft text-[12px]">{pickLang(refusal.text, i18n.language)}</span>
+      </span>
+    );
+  }
   return (
     <span className="whitespace-nowrap">
       <span className="text-ink-soft text-[12px] mr-0.5">{part.label}</span>{" "}

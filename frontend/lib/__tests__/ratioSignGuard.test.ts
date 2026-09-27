@@ -123,6 +123,53 @@ const EXEMPT: Record<string, string> = {
 
 const GRADE_WORDS = /\b(Strong|Healthy|Watch|Critical)\b/;
 
+// ── THE CONSTRUCTED WITNESS (one-EBITDA ruling, 2026-09-26) ──────────
+//
+// The defect this file exists for lived on the developer's NEGATIVE
+// EBITDA (−29,038,838.12). Under the owner's ruling account 711 is inside
+// EBITDA, and the developer's capitalised construction cost (net 711
+// +29,589,814.24) turns its EBITDA positive (+550,976.12): no committed
+// book carries a negative EBITDA any more. A gate with no witness is RED,
+// never green — so the sign guard is held on a CONSTRUCTION: the same
+// book with its served EBITDA / EBIT / PBT set to the pre-ruling figures
+// (711 outside), and the engine metric rows the route served for them
+// then (debt_to_ebitda −0.6388, ebitda_to_interest −25.08). It is not a
+// real period; it is the shape a genuinely loss-making operator serves.
+const PRE_RULING_DEVELOPER = {
+  ebitda: -29038838.12,
+  ebit: -29101057.56,
+  pretax: -30391418.38,
+  gross_profit: 162365.46,
+};
+function negativeEbitdaBook(): { s: Statements; metrics: Record<string, number | null> } {
+  const s = structuredClone(statementsFor("realestate")) as Statements & {
+    assembled_pl: Record<string, unknown>;
+  };
+  s.assembled_pl = {
+    ...s.assembled_pl,
+    ebitda: PRE_RULING_DEVELOPER.ebitda,
+    ebitda_statutory: PRE_RULING_DEVELOPER.ebitda,
+    operating_ebitda: PRE_RULING_DEVELOPER.ebitda,
+    ebit: PRE_RULING_DEVELOPER.ebit,
+    operating_ebit: PRE_RULING_DEVELOPER.ebit,
+    operating_result: PRE_RULING_DEVELOPER.ebit,
+    pretax: PRE_RULING_DEVELOPER.pretax,
+    gross_profit: PRE_RULING_DEVELOPER.gross_profit,
+  };
+  const metrics = {
+    ...metricsFor("realestate"),
+    ebitda: PRE_RULING_DEVELOPER.ebitda,
+    debt_to_ebitda: -0.6388,
+    ebitda_to_interest: -25.08,
+    interest_coverage: -25.13,
+  };
+  return { s, metrics };
+}
+function negativeEbitdaDoc(): Document {
+  const { s, metrics } = negativeEbitdaBook();
+  return new DOMParser().parseFromString(buildReportHtml(s, { metricsByName: metrics }), "text/html");
+}
+
 describe("D3 — every ratio row is on one side of the sign guard, deliberately", () => {
   it("no ratio key is unclassified", () => {
     const seen = new Set<string>();
@@ -140,7 +187,13 @@ describe("D3 — every ratio row is on one side of the sign guard, deliberately"
 });
 
 describe("D3 — a negative denominator never earns a grade", () => {
-  const cases: Array<{ label: string; book: string; statements: () => Statements; metrics?: Record<string, number | null> }> = [
+  const cases: Array<{
+    label: string;
+    book: string;
+    statements: () => Statements;
+    metrics?: Record<string, number | null>;
+    denoms?: () => Record<string, number>;
+  }> = [
     ...BOOKS.map((b) => ({
       label: b,
       book: b === "agras" || b === "carniprod" || b === "realestate" || b === "retail" ? `saga_10_col_${b}` : b,
@@ -158,11 +211,19 @@ describe("D3 — a negative denominator never earns a grade", () => {
           statements: Statements;
         }).statements,
     },
+    {
+      // The constructed negative-EBITDA witness (see PRE_RULING_DEVELOPER).
+      label: "constructed_negative_ebitda",
+      book: "saga_10_col_realestate",
+      statements: () => negativeEbitdaBook().s,
+      metrics: negativeEbitdaBook().metrics,
+      denoms: () => ({ ...denominators("saga_10_col_realestate"), EBITDA: PRE_RULING_DEVELOPER.ebitda }),
+    },
   ];
 
   for (const c of cases) {
     it(`${c.label}: every row whose denominator is negative prints its figure ungraded`, () => {
-      const denom = denominators(c.book);
+      const denom = c.denoms ? c.denoms() : denominators(c.book);
       const rows = everyRatio(c.statements(), c.metrics);
       const failures: string[] = [];
       let checked = 0;
@@ -195,6 +256,10 @@ describe("D3 — a negative denominator never earns a grade", () => {
         if (v < 0) hits.push(`${book}: ${name} = ${v.toLocaleString("en-US")}`);
       }
     }
+    // …and the EBITDA leg is carried by the constructed witness: under the
+    // one-EBITDA ruling no committed book has a negative EBITDA.
+    expect(PRE_RULING_DEVELOPER.ebitda).toBeLessThan(0);
+    expect(denominators("saga_10_col_realestate").EBITDA).toBeGreaterThan(0);
     expect(
       hits.length,
       "no committed book carries a negative denominator, so the guard above proves nothing",
@@ -203,8 +268,8 @@ describe("D3 — a negative denominator never earns a grade", () => {
 });
 
 describe("D3 — the printed export, on the book that was wrong", () => {
-  it("realestate: Debt / EBITDA states its figure and withholds its verdict", () => {
-    const card = cardNamed(exportDoc("realestate"), "Debt to EBITDA");
+  it("constructed negative-EBITDA book: Debt / EBITDA states its figure and withholds its verdict", () => {
+    const card = cardNamed(negativeEbitdaDoc(), "Debt to EBITDA");
     expect(
       card.meta,
       `the printed card still grades leverage on a book whose EBITDA is negative: ` +
@@ -218,13 +283,13 @@ describe("D3 — the printed export, on the book that was wrong", () => {
     expect(card.value).toBe("-0.64×");
   });
 
-  it("realestate: the withheld rows draw no band track either", () => {
+  it("constructed negative-EBITDA book: the withheld rows draw no band track either", () => {
     // The critic's second half: the marker was drawn in the STRONG zone
     // under the badge, because the track bands off the same ladder. An
     // ungraded row carries no ladder, so `zonesForKey` has nothing to
     // draw — asserted here rather than assumed, because a track built
     // from a SECOND copy of the bands would reappear silently.
-    const doc = exportDoc("realestate");
+    const doc = negativeEbitdaDoc();
     for (const label of ["Debt to EBITDA", "Gross margin"]) {
       const card = Array.from(doc.querySelectorAll(".ratio-card")).find(
         (c) => (c.querySelector(".label")?.textContent ?? "").trim() === label,
@@ -259,11 +324,18 @@ describe("D3 — the printed export, on the book that was wrong", () => {
     // The no-cost-of-sales branch the card above used to reach. It is still
     // served to a period whose margins stand — and to a payload that carries
     // no margin verdict at all (the route serves none when the rule could
-    // not run), which is what this is: the developer's own statements with
-    // the verdict removed.
-    const s = { ...statementsFor("realestate") } as ReturnType<typeof statementsFor>;
+    // not run). CONSTRUCTED under the one-EBITDA ruling: gross profit now
+    // carries the stock variation (turnover − cost of sales + net 711), so
+    // the developer's own book reads 18,324% here; the witness is the
+    // pre-ruling developer (gross profit = turnover, no 711 in it) with the
+    // verdict removed and the engine's gross-margin row at 1.0.
+    const { s, metrics } = negativeEbitdaBook();
     delete (s as { margin_meaning?: unknown }).margin_meaning;
-    const card = cardNamed(exportDoc("realestate", s), "Gross margin");
+    const doc = new DOMParser().parseFromString(
+      buildReportHtml(s, { metricsByName: { ...metrics, gross_margin: 1 } }),
+      "text/html",
+    );
+    const card = cardNamed(doc, "Gross margin");
     expect(card.value).toBe("100.0%");
     expect(card.meta).not.toMatch(GRADE_WORDS);
     expect(card.meta).toMatch(/cost of sales of RON 0/);
@@ -306,10 +378,9 @@ describe("D3 — the same rows in the workbook-facing bundle agree with the page
 
   it("the export renders from the same bundle these assertions read", () => {
     // Cheap provenance check: the printed value equals the bundle value.
-    const rows = everyRatio(statementsFor("realestate"), metricsFor("realestate"));
-    const html = buildReportHtml(statementsFor("realestate"), {
-      metricsByName: metricsFor("realestate"),
-    });
+    const { s, metrics } = negativeEbitdaBook();
+    const rows = everyRatio(s, metrics);
+    const html = buildReportHtml(s, { metricsByName: metrics });
     const dte = rows.find((r) => r.key === "debt_to_ebitda");
     expect(dte?.value).not.toBeNull();
     expect(html).toContain("-0.64×");

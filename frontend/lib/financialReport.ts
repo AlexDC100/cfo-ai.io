@@ -18,6 +18,8 @@
 // P&L concepts + debt decomposition (not carried by canonical_bs), but no
 // consumer below reads BS grand totals from it directly anymore.
 import { factsFrom, presentStatus } from "./servedFacts";
+import { plLevelsOf, type ServedRefusal } from "./servedOneEbitda";
+import { printedPl, printedRow, type PrintedPlRow } from "./printedPl";
 // ABSENCE-AWARE ARITHMETIC — see absentAware.ts for why `safeDiv` had to
 // go. Every ratio below is built out of `Fig`s so a missing input or a
 // zero denominator produces a stated refusal instead of a confident 0.
@@ -30,6 +32,7 @@ import {
   mul,
   num,
   pctOf,
+  servedFig,
   sub,
   type Fig,
   type FigureAbsence,
@@ -759,12 +762,21 @@ export interface DerivedTotals {
   totalLiabilities: number;
   totalEquity: number;
   totalLiabilitiesAndEquity: number;
-  grossProfit: number;
-  ebitda: number;
-  ebit: number;
+  // ── THE P&L LEVELS ARE THE ENGINE'S, OR REFUSED ────────────────────
+  // On a period the engine assembled these are the SERVED figures of the
+  // one definition (711 and 72x inside EBITDA, `plLevelsOf`), and NULL —
+  // never a rebuilt number — when the engine refused EBITDA; `plRefusal`
+  // then carries its typed reason. Only a payload the engine did not
+  // assemble (demo, public company) is built here, on the same definition.
+  grossProfit: number | null;
+  ebitda: number | null;
+  ebit: number | null;
   netFinancialResult: number;
-  pbt: number; // profit before tax
-  netIncome: number;
+  pbt: number | null; // profit before tax
+  /** pretax − tax: the result BUILT from the accounts, not account 121. */
+  netIncome: number | null;
+  /** Why the levels above are null (the engine's refusal of EBITDA). */
+  plRefusal: ServedRefusal | null;
   totalDebt: number;
   workingCapital: number;
   netDebt: number;
@@ -772,7 +784,6 @@ export interface DerivedTotals {
 
 export function deriveTotals(s: Statements): DerivedTotals {
   const bs = s.balanceSheet;
-  const is = s.incomeStatement;
 
   const totalCurrentAssets =
     bs.cash + bs.accountsReceivable + bs.inventory + bs.otherCurrentAssets;
@@ -787,20 +798,14 @@ export function deriveTotals(s: Statements): DerivedTotals {
   const totalLiabilities = totalCurrentLiabilities + totalNonCurrentLiabilities;
   const totalEquity = bs.shareCapital + bs.retainedEarnings + bs.otherEquity;
 
-  const grossProfit = is.revenue - is.costOfGoodsSold;
-  // Cash-view EBITDA — `is.otherIncome` must contain ONLY genuine
-  // other operating income (758/740). The BE's /api/period rebuild
-  // now carves account 711 (Variația stocurilor — non-cash inventory
-  // accrual) out of the otherIncome bucket and surfaces it on the
-  // separate `inventoryVariationMemo` field. Without that BE-side
-  // split, Scandia FY2025 reported EBITDA = 684M (165% margin)
-  // instead of the correct 54.4M (13.2% margin).
-  const ebitda = grossProfit - is.operatingExpenses + is.otherIncome;
-  const ebit = ebitda - is.depreciationAmortization;
-  const finIn = is.financialIncome ?? 0;
-  const finEx = is.financialExpense ?? 0;
-  const pbt = ebit + finIn - is.interestExpense - finEx;
-  const netIncome = pbt - is.taxExpense;
+  // THE ONE EBITDA (owner ruling 2026-09-26): 711 and 72x inside EBITDA
+  // and the operating result, outside turnover. The buckets on
+  // `incomeStatement` carry neither measured component, so a figure
+  // rebuilt from them here is `ebitda_before_stock_variation` wearing the
+  // name EBITDA (agras 10,776,378.24 against the served 11,848,065.27).
+  // The levels are read, not rebuilt — see `plLevelsOf`.
+  const levels = plLevelsOf(s);
+  const { grossProfit, ebitda, ebit, pbt, netIncome, netFinancialResult } = levels;
 
   const totalDebt = bs.shortTermDebt + bs.longTermDebt;
   const workingCapital = totalCurrentAssets - totalCurrentLiabilities;
@@ -818,9 +823,10 @@ export function deriveTotals(s: Statements): DerivedTotals {
     grossProfit,
     ebitda,
     ebit,
-    netFinancialResult: finIn - is.interestExpense - finEx,
+    netFinancialResult,
     pbt,
     netIncome,
+    plRefusal: levels.refusal,
     totalDebt,
     workingCapital,
     netDebt,
@@ -1130,7 +1136,7 @@ export function absenceI18n(a: FigureAbsence): {
   /** Key under the `ratioAbsence` bundle (components/cfo/ratioAbsenceI18n).
    *  `notMeaningful` carries no key text of its own: the engine served the
    *  sentence, per language, in `a.display` — the renderer prints it. */
-  key: "undefinedRatio" | "missingNamed" | "missingUnnamed" | "notMeaningful";
+  key: "undefinedRatio" | "missingNamed" | "missingUnnamed" | "notMeaningful" | "engineRefused";
   /** Interpolation values, already reader-worded (never camelCase). */
   vars: { denominator?: string; inputs?: string };
   /** Canonical input words, in order — for a caller that lays them out
@@ -1139,6 +1145,9 @@ export function absenceI18n(a: FigureAbsence): {
 } {
   if (a.kind === "not_meaningful") {
     return { key: "notMeaningful", vars: {}, inputWords: [] };
+  }
+  if (a.kind === "refused") {
+    return { key: "engineRefused", vars: {}, inputWords: [] };
   }
   if (a.kind === "undefined_ratio") {
     return { key: "undefinedRatio", vars: { denominator: a.denominator }, inputWords: [] };
@@ -1167,9 +1176,12 @@ export function describeAbsence(a: FigureAbsence): string {
   // the threshold it was read against (the card's value states the share,
   // so the commentary under it explains the rule rather than repeating it).
   if (a.kind === "not_meaningful") return a.basis?.en ?? a.display.en;
+  // The engine refused EBITDA (and what is built on it): its own reason.
+  if (a.kind === "refused") return `Refused — EBITDA refused: ${a.display.en}.`;
   const d = absenceI18n(a);
   switch (d.key) {
     case "notMeaningful":
+    case "engineRefused":
       return "";
     case "undefinedRatio":
       return `Undefined — ${d.vars.denominator} is zero, so this ratio has no value for this period.`;
@@ -1362,13 +1374,34 @@ export function computeRatios(
   // `revenue − 0 − 0` — on AAPL that is 391.0 B standing in for the 134.7 B
   // the same envelope reports, and every margin and coverage ratio
   // downstream is then computed against revenue.
-  const revenue = I("revenue");
-  const grossProfit = total("grossProfit", sub(revenue, I("costOfGoodsSold")));
-  const ebitda = total(
-    "ebitda",
-    add(grossProfit, mul(I("operatingExpenses"), known(-1)), I("otherIncome")),
-  );
-  const ebit = total("ebit", sub(ebitda, I("depreciationAmortization")));
+  //
+  // ── THE ONE EBITDA, READ — NEVER REBUILT, ON AN ENGINE PERIOD ───────
+  //
+  // On a period the engine assembled, gross profit, EBITDA, EBIT and PBT
+  // are its SERVED figures of the one definition (owner ruling
+  // 2026-09-26: 711 and 72x inside EBITDA and the operating result), and
+  // a figure it REFUSED is an absence carrying the engine's reason
+  // (`servedFig` → kind "refused"). The bucket arithmetic below it rebuilt
+  // `ebitda_before_stock_variation` under the name EBITDA — agras Debt /
+  // EBITDA printed 0.34× against the served 0.31×, because `bsOr` lets the
+  // browser's computation win over the engine metric. Only a payload the
+  // engine did not assemble (a public-company adapter, the demo) keeps
+  // the arithmetic, with its declared absences.
+  const levels = plLevelsOf(s);
+  const servedLevels = levels.source === "served";
+  const revenue = servedLevels ? known(levels.turnover) : I("revenue");
+  const grossProfit = servedLevels
+    ? servedFig(levels.grossProfit, levels.grossProfitRefusal, "gross profit")
+    : total("grossProfit", sub(revenue, I("costOfGoodsSold")));
+  const ebitda = servedLevels
+    ? servedFig(levels.ebitda, levels.refusal, "EBITDA")
+    : total(
+        "ebitda",
+        add(grossProfit, mul(I("operatingExpenses"), known(-1)), I("otherIncome")),
+      );
+  const ebit = servedLevels
+    ? servedFig(levels.ebit, levels.ebitRefusal, "EBIT")
+    : total("ebit", sub(ebitda, I("depreciationAmortization")));
   // `financialIncome` / `financialExpense` are OPTIONAL by declaration —
   // "not applicable" for a simple sample rather than "not reported" — so
   // an omitted one keeps its documented zero unless the manifest names it.
@@ -1379,7 +1412,9 @@ export function computeRatios(
     ? absent("financialExpense")
     : known(is.financialExpense ?? 0);
   const interestExpense = I("interestExpense");
-  const pbt = total("pbt", sub(add(ebit, finIn), add(interestExpense, finEx)));
+  const pbt = servedLevels
+    ? servedFig(levels.pbt, levels.pbtRefusal, "profit before tax")
+    : total("pbt", sub(add(ebit, finIn), add(interestExpense, finEx)));
   const netIncome = total("netIncome", sub(pbt, I("taxExpense")));
 
   // F2.2 — Canonical-or-fallback helper. Reads `m` from metricsByName if
@@ -1484,7 +1519,9 @@ export function computeRatios(
     return a === null ? mOr(metric, fallback) : known(a);
   };
   const anchoredNetIncome = anchored("net_income_statutory", "net_income_statutory", netIncome);
-  const anchoredEbitda = anchored("ebitda_statutory", "ebitda_statutory", ebitda);
+  // On an engine period the served EBITDA (or its refusal) IS the anchor —
+  // never an engine metric row or the arithmetic standing in for a refusal.
+  const anchoredEbitda = servedLevels ? ebitda : anchored("ebitda_statutory", "ebitda_statutory", ebitda);
   const anchoredRevenue = anchored("revenue", "revenue", revenue);
 
   // ── A MARGIN OVER A COST LINE THAT IS NOT THERE ─────────────────────
@@ -2013,8 +2050,8 @@ export function computeRatios(
       row("ebitda_margin", "EBITDA Margin", "%", ebitdaMargin,
         { strong: 25, healthy: 15, watch: 8 }, true,
         "≥ 15% healthy · ≥ 25% strong",
-        "EBITDA (statutory) ÷ revenue",
-        () => `${money(anchoredEbitda)} EBITDA on ${money(anchoredRevenue)} revenue — operating cash generation.`),
+        "EBITDA ÷ net turnover",
+        () => `${money(anchoredEbitda)} EBITDA on ${money(anchoredRevenue)} net turnover — the operating result before depreciation, the stock variation (711) and own work capitalised (72x) included.`),
       row("net_margin", "Net Margin", "%", netMargin,
         { strong: 15, healthy: 8, watch: 3 }, true,
         "≥ 8% healthy",
@@ -2052,7 +2089,7 @@ export function computeRatios(
       row("debt_to_ebitda", "Debt / EBITDA", "x", debtToEbitda,
         { strong: 2, healthy: 3, watch: 4.5 }, false,
         "≤ 3× healthy · ≤ 2× strong",
-        "total debt ÷ EBITDA (statutory)",
+        "total debt ÷ EBITDA",
         (v) =>
           v <= 3
             ? "Debt service comfortably aligned with cash generation."
@@ -2101,7 +2138,7 @@ export function computeRatios(
       row("dscr", "DSCR (interest + ST debt)", "x", dscr,
         { strong: 1.5, healthy: 1.25, watch: 1 }, true,
         "≥ 1.25× covenant-typical",
-        "EBITDA (statutory) ÷ (interest expense + short-term debt)",
+        "EBITDA ÷ (interest expense + short-term debt)",
         (v) =>
           v >= 1.25
             ? "Annual cash service comfortably covered."
@@ -2129,7 +2166,7 @@ export function computeRatios(
       row("dscr_with_lt_principal", "DSCR (incl. LT principal proxy)", "x", dscrWithLtPrincipal,
         { strong: 1.5, healthy: 1.25, watch: 1 }, true,
         "≥ 1.25× with 10-year amortization proxy",
-        "EBITDA (statutory) ÷ (interest expense + long-term debt ÷ 8, a ~10-year amortization proxy)",
+        "EBITDA ÷ (interest expense + long-term debt ÷ 8, a ~10-year amortization proxy)",
         (v) =>
           v >= 1.25
             ? "Comfortable coverage of interest + LT principal amortization."
@@ -2496,8 +2533,13 @@ export function generateRecommendations(
   // Build the minimal PeriodFacts the rule registry reads. We populate
   // every field the rules touch — extra fields they don't read are fine
   // to omit. STATUTORY values come from `assembled_*` when present.
-  const ebitdaStatutory = pick(apNum("ebitda_statutory"), t.ebitda);
-  const niStatutory = pick(apNum("net_income_statutory"), t.netIncome);
+  // THE ONE EBITDA (711 and 72x inside) — the ENGINE's figure on a period
+  // it assembled, NULL with its reason when it refused it; never the
+  // `deriveTotals` rebuild, which lacks both measured components.
+  const levels = plLevelsOf(s);
+  const ebitdaStatutory: number | null = levels.ebitda;
+  const servedNi = apNum("net_income_statutory");
+  const niStatutory: number = typeof servedNi === "number" ? servedNi : t.netIncome ?? Number.NaN;
   const cfo = pick(acNum("cash_from_operating"), niStatutory + pick(apNum("depreciation"), s.incomeStatement.depreciationAmortization));
   const capexReal = pick(acNum("capex_real"), -(apNum("capitalized_own_work_memo") ?? 0));
   const bankDebt = pick(abNum("total_debt"), t.totalDebt);
@@ -2545,12 +2587,13 @@ export function generateRecommendations(
   // balance carries no amortization schedule). Legacy fallback path only;
   // engine periodFacts carry the real figure when available.
   const principalProxy = bankDebt * 0.1;
-  const dscr = ebitdaStatutory > 0
-    ? ebitdaStatutory / Math.max(interest + Math.max(principalProxy, depreciation), 1)
-    : 0;
-  const dteAdj = bankDebt > 0 && ebitdaStatutory > 0
-    ? bankDebt / (ebitdaStatutory + pick(apNum("financial_income_other"), 0))
-    : 0;
+  const ebitdaPositive = ebitdaStatutory !== null && ebitdaStatutory > 0;
+  const dscr = ebitdaPositive
+    ? (ebitdaStatutory as number) / Math.max(interest + Math.max(principalProxy, depreciation), 1)
+    : null;
+  const dteAdj = bankDebt > 0 && ebitdaPositive
+    ? bankDebt / ((ebitdaStatutory as number) + pick(apNum("financial_income_other"), 0))
+    : null;
   /** The value the DOCUMENT states for a ratio, or null when it refuses
    *  to state one. A rule reading null keeps its absent-ratio discipline
    *  (`has()` / `fx()` in recommendationRules) and prints "not reported"
@@ -2604,9 +2647,10 @@ export function generateRecommendations(
     pl: {
       rental_revenue: rentalRevenue,
       capitalized_own_work_memo: capitalized,
-      revenue: pick(apNum("total_operating_revenue"), rentalRevenue + capitalized),
+      // NET TURNOVER (70x − 709) — every margin's denominator; 72x is its
+      // own operating line, never added to turnover (owner ruling).
+      revenue: levels.turnover,
       ebitda: ebitdaStatutory,
-      ebitda_excl_capitalized: ebitdaStatutory - capitalized,
       // SERVED (owner ruling 2026-09-26): the build-up before net 711 and
       // net 72x — read only by the cash-burn rule — and net 711 itself.
       ebitda_before_stock_variation: (() => {
@@ -2618,7 +2662,7 @@ export function generateRecommendations(
         return typeof iv?.value === "number" && Number.isFinite(iv.value) ? iv.value : null;
       })(),
       depreciation,
-      ebit: pick(apNum("operating_ebit"), ebitdaStatutory - depreciation),
+      ebit: levels.ebit,
       interest_expense: interest,
       // 7651 − 6651, the same difference `periodFacts.ts:268` builds out
       // of line items. The envelope carries both legs, so the printed
@@ -2633,7 +2677,7 @@ export function generateRecommendations(
       // which is why `recommendationRules.belowOperatingLine` had to
       // bracket the same span out of two other operands.
       net_financial_result: pick(apNum("net_financial_result"), 0),
-      profit_before_tax: pick(apNum("pretax"), ebitdaStatutory - depreciation - interest),
+      profit_before_tax: levels.pbt,
       tax,
       net_profit: niStatutory,
     },
@@ -2727,10 +2771,10 @@ export function generateRecommendations(
       // after the move handed a rule the EBIT figure labelled EBITDA.
       interest_coverage_ebit: stated("interest_coverage"),
       ebitda_to_interest:
-        stated("ebitda_to_interest") ?? (interest > 0 ? ebitdaStatutory / interest : null),
-      dscr: stated("dscr") ?? (ebitdaStatutory > 0 ? dscr : null),
+        stated("ebitda_to_interest") ?? (interest > 0 && ebitdaStatutory !== null ? ebitdaStatutory / interest : null),
+      dscr: stated("dscr") ?? dscr,
       debt_to_ebitda:
-        stated("debt_to_ebitda") ?? (ebitdaStatutory > 0 ? bankDebt / ebitdaStatutory : null),
+        stated("debt_to_ebitda") ?? (ebitdaPositive ? bankDebt / (ebitdaStatutory as number) : null),
       // `debt_to_ebitda_adjusted` adds participation dividends to the
       // denominator, a concept the document does not state as a row. It
       // equals `debt_to_ebitda` exactly whenever that income is zero
@@ -2739,12 +2783,12 @@ export function generateRecommendations(
       // not silently reconciled.
       debt_to_ebitda_adjusted:
         pick(apNum("financial_income_other"), 0) === 0
-          ? stated("debt_to_ebitda") ?? (ebitdaStatutory > 0 ? dteAdj : null)
-          : (ebitdaStatutory > 0 ? dteAdj : null),
+          ? stated("debt_to_ebitda") ?? dteAdj
+          : dteAdj,
       // Two margin bases this document does not print as rows. A rule
       // that wants one has to say so and get it plumbed; until then the
       // honest answer is that nobody measured it here, not that it is 0%.
-      ebitda_margin_gross: null, ebitda_margin_clean: null,
+      ebitda_margin_gross: null,
       net_margin: statedFraction("net_margin"),
       roe: statedFraction("roe"),
       roa: statedFraction("roa"),
@@ -3510,122 +3554,28 @@ export function renderReportHtml(
     ? `<p>The account mix looks like ${escapeHtml(industrySignal.display ?? "")}; this workspace is set to ${escapeHtml(industrySignal.workspace.display ?? "")} — confirm which is right. Until then no sector benchmark, and no recommendation scoped to a sector, is included below; every figure that does not depend on the sector is unchanged.</p>`
     : "";
 
-  // Statutory-canonical pick (same pattern as `generateRecommendations` at line
-  // 617-621). The standalone HTML report previously read only `is.revenue`,
-  // `t.ebitda`, and `t.netIncome` — all the OPERATIONAL view, which excludes
-  // account 722 (capitalized own work). For asset-heavy entities like EEI
-  // Imobiliara that produced Revenue 2.73M / EBITDA −37k where the engine's
-  // canonical statutory view is Revenue 4.89M / EBITDA +2.13M, and the in-app
-  // `ComprehensiveReport.tsx` already shows the correct statutory figures.
-  // The engine surfaces these on `assembled_pl` — read them here and fall back
-  // to the operational legacy fields when they aren't populated (older
-  // pipeline payloads).
-  const ap = (s as Statements & { assembled_pl?: Record<string, number> }).assembled_pl ?? {};
-  // Same typed key space as `generateRecommendations` — see
-  // `CANONICAL_PL_KEYS`. A name outside it is a compile error here too,
-  // so the renderer cannot acquire the miss the fact feed just lost.
-  const apNum = (k: CanonicalPlKey): number | undefined => ap[k];
-  const pick = (canon: number | undefined, legacy: number): number =>
-    typeof canon === "number" ? canon : legacy;
-
-  // ── ABSENT IS NOT ZERO, AND THIS BLOCK USED TO SAY IT WAS ───────────
-  //
-  // `provenance-census` counted a FOURTH absent-to-zero substitution in
-  // this file against a declared 3 and a ceiling that only falls. It was
-  // right, and the fabrications were here: three legacy fallbacks written
-  // `s.incomeStatement.<field> ?? 0`.
-  //
-  // They fire in exactly one situation — the canonical `assembled_pl` key
-  // is absent AND the statement field is absent — which is to say, when
-  // the source told us NOTHING about that line. On a current book the
-  // canonical key is always there, so this never fired in the four
-  // committed fixtures and nothing caught it. On an older payload it
-  // would have printed "Financial income RON 0" and "Capitalized own work
-  // RON 0", which are claims: they say the company earned no financial
-  // income and capitalised no work. The truth was that the source did not
-  // report it, and `money()` already knows how to say that — it returns
-  // "not reported" for null.
-  //
-  // So the fallbacks now yield NULL and the refusal propagates through the
-  // arithmetic. A subtotal built on an unreported component is itself
-  // unreported; it does not quietly become the sum of the parts that
-  // happened to be present.
-  const pickOrNull = (
-    canon: number | undefined,
-    legacy: number | null | undefined,
-  ): number | null =>
-    typeof canon === "number" ? canon : (typeof legacy === "number" ? legacy : null);
-  /** Null-propagating arithmetic: any absent operand makes the result absent. */
-  const nsum = (...xs: Array<number | null>): number | null =>
-    xs.some((x) => x === null) ? null : (xs as number[]).reduce((a, b) => a + b, 0);
-  const nneg = (x: number | null): number | null => (x === null ? null : -x);
-
-  const capOwnWork = pickOrNull(
-    apNum("capitalized_own_work_memo"),
-    s.incomeStatement.capitalizedOwnWork,
-  );
-  const operatingRevenue = pickOrNull(
-    apNum("total_operating_revenue"),
-    // Revenue itself is always present; only the 722 memo can be absent,
-    // and for the OPERATING REVENUE SUBTOTAL "none reported" is materially
-    // different from "none". Refuse rather than cast the gap away.
-    nsum(s.incomeStatement.revenue, capOwnWork),
-  );
-  const ebitdaStatutory = pick(apNum("ebitda_statutory"), t.ebitda);
-  const ebitdaCash = pick(apNum("ebitda_cash"), t.ebitda);
-  const netIncomeStatutory = pick(apNum("net_income_statutory"), t.netIncome);
-  // ── EBIT: THE ONE THAT FOOTS ────────────────────────────────────────
-  // `operating_ebit` and `ebit` are two served figures and they are not
-  // the same number: on the retail book they differ by the discounts
-  // received (767) the engine folds into the operating view —
-  // −1,254,751.03 against −1,256,674.81, 1,923.78 apart. Only `ebit` is
-  // `ebitda_statutory − depreciation`, and only `ebit + net_financial
-  // _result` reaches `pretax`. Printing `operating_ebit` in a column
-  // whose neighbours are built from `ebit` is one concept wearing two
-  // values two rows apart; G3 (exportPlFoots) reds on it.
-  const ebitStatutory = pick(apNum("ebit"), ebitdaStatutory - s.incomeStatement.depreciationAmortization);
-  // The financial block, in full. The table used to step EBIT → PBT
-  // through interest expense ALONE, so the printed column missed
-  // financial income and the non-interest financial expense the same
-  // envelope carries, and PBT did not foot on any of the four books.
-  const financialIncome = pickOrNull(
-    apNum("financial_income"),
-    s.incomeStatement.financialIncome,
-  );
-  const interestExpense = pick(apNum("interest_expense"), s.incomeStatement.interestExpense);
-  // `financial_expense` is the NON-interest half (`financial_expense_total`
-  // = interest + this, verified on all four books). A source that carries
-  // only the total gives the remainder; one that carries neither gives 0.
-  const otherFinancialExpense = pickOrNull(
-    apNum("financial_expense"),
-    typeof apNum("financial_expense_total") === "number"
-      ? (apNum("financial_expense_total") as number) - interestExpense
-      : s.incomeStatement.financialExpense,
-  );
-  const pretaxStatutory = pickOrNull(
-    apNum("pretax"),
-    nsum(ebitStatutory, financialIncome, -interestExpense, nneg(otherFinancialExpense)),
-  );
-  // ── THE RECONSTRUCTION, AND THE BRIDGE TO WHAT WAS FILED ────────────
-  // `pretax − tax` is the class-6/7 RECONSTRUCTION. The figure the memo
-  // ends on is account 121 — what the company filed. On three of the four
-  // firm books they differ, by 2.0M to 29.6M, and the reconciling amount
-  // is SERVED (`net_income_reconciliation_to_121`). It was the row that
-  // was missing, never the number.
-  const reconstructedNetIncome = pickOrNull(
-    apNum("net_income_operational"),
-    nsum(pretaxStatutory, -s.incomeStatement.taxExpense),
-  );
-  const bridgeTo121 = pickOrNull(
-    apNum("net_income_reconciliation_to_121"),
-    nsum(netIncomeStatutory, nneg(reconstructedNetIncome)),
-  );
-  // A bridge that cannot be computed is not a bridge of zero. Both of
-  // these now read false when the input is absent, so the report omits
-  // the row rather than asserting "no reconciling difference" or "no
-  // capitalised own work" on a source that never said.
-  const hasBridge = bridgeTo121 !== null && Math.abs(bridgeTo121) > 0.005;
-  const has722 = capOwnWork !== null && Math.abs(capOwnWork) > 1;
+  // ── THE ONE EBITDA, PRINTED ─────────────────────────────────────────
+  // The P&L this document prints is `printedPl(s)` — the served figures
+  // of the one definition (owner ruling 2026-09-26: 711 and 72x inside
+  // EBITDA and the operating result, 711 beside cost of sales, turnover
+  // = 70x − 709), shared row for row with the workbook's P&L sheet. The
+  // retired shape — "EBITDA (statutory)", "incl. 722", the "EBITDA (cash
+  // view, excl. 722) — memo" row and a "Total operating revenue" that
+  // added 722 to turnover — was a second EBITDA printed beside the first.
+  const ppl = printedPl(s);
+  const plRowValue = (key: string): number | null => printedRow(ppl, key)?.value ?? null;
+  /** Net turnover (70x − 709): every margin's denominator. */
+  const turnover = plRowValue("turnover");
+  const ebitdaOne = plRowValue("ebitda");
+  const ebitdaRefusal = ppl.ebitdaRefusal;
+  /** Account 121 as filed (null: not anchored); else — a payload the
+   *  engine did not assemble — the result built from its buckets. */
+  const netIncomeStatutory = ppl.netIncomeFiled;
+  /** The result BUILT from the accounts (pretax − tax, the one definition). */
+  const reconstructedNetIncome = ppl.netResultBuilt;
+  /** Account 121 − the build-up: NOT explained by any line (never 711). */
+  const bridgeTo121 = ppl.notExplained;
+  const hasBridge = bridgeTo121 !== null;
 
   // ─ Style block ─ Lender-grade institutional document.
   // Restrained palette (ink + accent + greys), serif headlines + sans body,
@@ -4787,8 +4737,8 @@ export function renderReportHtml(
   // the same name on the same page — R1, in a KPI table. Every figure
   // passed here is the one the document already resolved and prints.
   const summaryOverrides: Record<string, number | null> = {
-    revenue: operatingRevenue,
-    ebitda: ebitdaStatutory,
+    revenue: turnover,
+    ebitda: ebitdaOne,
     net_income: netIncomeStatutory,
     total_assets: sf.totalAssets(),
     total_equity: sf.totalEquity(),
@@ -5338,46 +5288,66 @@ export function renderReportHtml(
   };
 
   const incomeStatementTable = (): string => {
-    const is = s.incomeStatement;
-    // 722 (capitalized own work) and the statutory EBITDA / Net Income views
-    // are sourced from the engine's canonical `assembled_pl` block at the top
-    // of this function. When the entity has no 722 activity (e.g. Scandia food
-    // manufacturer), `has722` is false and the row is suppressed — the table
-    // looks identical to the pre-fix output. When 722 is material (EEI CRE),
-    // the row appears between Other income and EBITDA, and the EBITDA /
-    // EBIT / PBT / Net Income lines use the statutory canonical values
-    // (which include 722) so the headline ties to account 121.
+    // One row per `printedPl` row: a step, a subtotal that is the sum of
+    // the steps above it, or the account-121 total. A refused figure
+    // prints the word "refused" with the engine's reason beside it —
+    // never a zero, never a figure on another definition.
+    const cell = (r: PrintedPlRow): string => {
+      if (r.value === null) {
+        const why = r.refusal ? ` — ${escapeHtml(r.refusal.text.en)}` : "";
+        return `<td class="num" data-refused="1">refused${why}</td>`;
+      }
+      const printed = money(Math.abs(r.value), s.currency);
+      return `<td class="num">${r.value < 0 ? `(${printed})` : printed}</td>`;
+    };
+    const cls = (r: PrintedPlRow): string =>
+      r.kind === "total" ? "total" : r.kind === "subtotal" ? "subtotal" : "indent";
+    const body = ppl.rows
+      .map((r) => {
+        // The gloss and provenance sentence sit on their own one-cell row
+        // under the line (a note, not a step: nothing adds it up).
+        const note = r.note
+          ? `\n          <tr class="pl-note" data-pl-provenance="${escapeHtml(r.key)}"><td colspan="2" class="meta">${escapeHtml(r.note)}</td></tr>`
+          : "";
+        const data = r.key === "inventory_variation" ? ` data-pl-row="inventory_variation"` : r.key === "capitalized_own_work" ? ` data-pl-row="capitalized_own_work"` : "";
+        return `<tr class="${cls(r)}"${data}><td>${escapeHtml(r.label)}</td>${cell(r)}</tr>${note}`;
+      })
+      .join("\n          ");
     return `
       <table class="fin">
         <thead><tr><th>Profit & Loss</th><th class="num"${sourceTitleAttr(s.sourceDocument)}>${escapeHtml(s.periodLabel)}</th></tr></thead>
         <tbody>
-          <tr><td>Revenue</td><td class="num">${money(is.revenue, s.currency)}</td></tr>
-          <tr class="indent"><td>Cost of goods sold</td><td class="num">(${money(is.costOfGoodsSold, s.currency)})</td></tr>
-          <tr class="subtotal"><td>Gross Profit</td><td class="num">${money(t.grossProfit, s.currency)}</td></tr>
-          <tr class="indent"><td>Operating expenses</td><td class="num">(${money(is.operatingExpenses, s.currency)})</td></tr>
-          <tr class="indent"><td>Other income</td><td class="num">${money(is.otherIncome, s.currency)}</td></tr>
-          ${has722 ? `<tr class="indent"><td>Capitalized own work (722, non-cash memo)</td><td class="num">${money(capOwnWork, s.currency)}</td></tr>` : ""}
-          <tr class="subtotal"><td>EBITDA${has722 ? " (statutory)" : ""}</td><td class="num">${money(ebitdaStatutory, s.currency)}</td></tr>
-          ${has722 ? `<tr class="indent memo"><td>EBITDA (cash view, excl. 722) — memo</td><td class="num">${money(ebitdaCash, s.currency)}</td></tr>` : ""}
-          <tr class="indent"><td>Depreciation & amortization</td><td class="num">(${money(is.depreciationAmortization, s.currency)})</td></tr>
-          <tr class="subtotal"><td>EBIT</td><td class="num">${money(ebitStatutory, s.currency)}</td></tr>
-          <tr class="indent"><td>Financial income</td><td class="num">${money(financialIncome, s.currency)}</td></tr>
-          <tr class="indent"><td>Interest expense</td><td class="num">(${money(interestExpense, s.currency)})</td></tr>
-          <tr class="indent"><td>Other financial expense</td><td class="num">(${money(otherFinancialExpense, s.currency)})</td></tr>
-          <tr class="subtotal"><td>Profit Before Tax</td><td class="num">${money(pretaxStatutory, s.currency)}</td></tr>
-          <tr class="indent"><td>Tax expense</td><td class="num">(${money(is.taxExpense, s.currency)})</td></tr>
-          ${
-            hasBridge
-              ? `<tr class="subtotal"><td>Net profit — reconstructed (class 6/7 movements)</td><td class="num">${money(reconstructedNetIncome, s.currency)}</td></tr>
-          <tr class="indent"><td>&plusmn; Reconciliation to account 121 — the class 6/7 movements do not sum to the filed close</td><td class="num">${money(bridgeTo121, s.currency)}</td></tr>`
-              : ""
-          }
-          <tr class="total"><td>Net Income (account 121, as filed)</td><td class="num">${money(netIncomeStatutory, s.currency)}</td></tr>
+          ${body}
         </tbody>
       </table>
       ${
+        ppl.bridgeParts.length > 0
+          ? `<table class="fin" data-report-ebitda-bridge>
+        <thead><tr><th>EBITDA reconciliation — the stock variation and own work capitalised are inside EBITDA</th><th class="num"${sourceTitleAttr(s.sourceDocument)}>${escapeHtml(s.periodLabel)}</th></tr></thead>
+        <tbody>
+          ${ppl.bridgeParts
+            .map((p, i) => {
+              const last = i === ppl.bridgeParts.length - 1;
+              const value =
+                p.value === null
+                  ? `<td class="num" data-refused="1">refused${ebitdaRefusal ? ` — ${escapeHtml(ebitdaRefusal.text.en)}` : ""}</td>`
+                  : `<td class="num">${p.value < 0 ? `(${money(Math.abs(p.value), s.currency)})` : money(p.value, s.currency)}</td>`;
+              return `<tr class="${last ? "subtotal" : "indent"}" data-bridge-part="${escapeHtml(p.key)}"><td>${last ? "= " : ""}${escapeHtml(p.label)}</td>${value}</tr>`;
+            })
+            .join("\n          ")}
+        </tbody>
+      </table>
+      <div class="commentary" data-report-ebitda-bridge-note><strong>EBITDA includes the stock variation.</strong> Variația stocurilor de produse (711) sits beside cost of sales and own work capitalised (72x) is an operating line outside turnover; both are inside EBITDA and the operating result, and neither is in net turnover, the denominator of every margin.${ppl.identityNote ? ` ${escapeHtml(ppl.identityNote)}` : ""}${ppl.splitAssumption ? ` ${escapeHtml(ppl.splitAssumption)}` : ""}</div>`
+          : ""
+      }
+      ${
+        ebitdaRefusal
+          ? `<div class="commentary" data-report-ebitda-refused><strong>EBITDA refused.</strong> ${escapeHtml(ebitdaRefusal.text.en)}. EBITDA, the operating result, profit before tax and every margin and ratio built on them are refused with it.</div>`
+          : ""
+      }
+      ${
         hasBridge
-          ? `<div class="commentary" data-report-pl-bridge><strong>Reconstruction &rarr; filed accounts.</strong> The column above rebuilds the P&amp;L from the trial balance&rsquo;s class 6 and class 7 movements; it ends on account 121&rsquo;s closing balance (${money(netIncomeStatutory, s.currency)}) &mdash; the figure the company filed, and the one every ratio in this document is built on. The ${money(bridgeTo121, s.currency)} step is <strong>not explained</strong> by any line on this statement: the class-6/7 movements this extract carries do not sum to what account 121 closed at. It is printed with its amount rather than folded into a plug, because a build-up that foots on an invented component is worse than one that names its gap. Reconciling the two needs the source ledger, not this extract.</div>`
+          ? `<div class="commentary" data-report-pl-bridge><strong>Built from the accounts &rarr; filed accounts.</strong> The column above builds the P&amp;L from the trial balance&rsquo;s class 6 and class 7 accounts; it ends on account 121&rsquo;s closing balance (${money(netIncomeStatutory, s.currency)}) &mdash; the figure the company filed, and the one every ratio in this document is built on. The ${money(bridgeTo121, s.currency)} step is <strong>not explained</strong> by any line on this statement. It is printed with its amount rather than folded into the stock variation or a plug, because a build-up that foots on an invented component is worse than one that names its gap. Reconciling the two needs the source ledger, not this extract.</div>`
           : ""
       }
     `;
@@ -5426,14 +5396,14 @@ export function renderReportHtml(
           label: "Reconciliation to 121",
           options: [
             { value: "filed", label: "Filed close", hint: "The headline figure is account 121's closing balance — what the company filed, and what every ratio here is built on. It does not change." },
-            { value: "reconstructed", label: "Show reconstruction", hint: "Also state the class-6/7 movement reconstruction beside it. Both figures are served and they differ on this book; neither is recomputed here." },
+            { value: "reconstructed", label: "Show the build-up", hint: "Also state the result built from the revenue and expense accounts (the stock variation included) beside it. The two differ on this book by a step no account explains; neither is recomputed here." },
           ],
         }
       : {
           attr: "pl-view",
           label: "Reconciliation to 121",
           options: [],
-          unavailableReason: "nothing to reconcile — the class-6/7 reconstruction equals the filed close on this book",
+          unavailableReason: "nothing to reconcile — the result built from the accounts equals the filed close on this book",
         },
     {
       attr: "voice",
@@ -5559,28 +5529,31 @@ export function renderReportHtml(
   )}
   <div class="grid grid-4">
     <div class="ratio-card">
-      <div class="label">Operating revenue</div>
+      <div class="label">Net turnover</div>
       <div class="value" ${provAttrs({
-        label: "Operating revenue",
-        value: money(operatingRevenue, s.currency),
-        formula: "class 70 credit movements + capitalized own work (722)",
-        accounts: "70x, 722",
-        method: "assembled_pl.total_operating_revenue",
+        label: "Net turnover",
+        value: money(turnover, s.currency),
+        formula: "class 70 credit movements − 709 commercial reductions (cifra de afaceri netă)",
+        accounts: "70x − 709",
+        method: "assembled_pl.turnover",
         snapshot: `${s.companyName} · ${s.periodLabel}`,
-      })}>${money(operatingRevenue, s.currency)}</div>
-      ${has722 ? `<div class="meta">incl. 722 ${money(capOwnWork, s.currency)}</div>` : ""}
+      })}>${money(turnover, s.currency)}</div>
     </div>
     <div class="ratio-card">
-      <div class="label">EBITDA${has722 ? " (statutory)" : ""}</div>
-      <div class="value" ${provAttrs({
-        label: `EBITDA${has722 ? " (statutory)" : ""}`,
-        value: money(ebitdaStatutory, s.currency),
-        formula: "operating revenue − operating expense, before depreciation",
-        accounts: "70x/72x − 60x/61x/62x/63x/64x/65x",
-        method: "assembled_pl.ebitda_statutory",
-        snapshot: `${s.companyName} · ${s.periodLabel}`,
-      })}>${money(ebitdaStatutory, s.currency)}</div>
-      <div class="meta">${escapeHtml(marginLine("ebitda_margin"))}</div>
+      <div class="label">EBITDA</div>
+      ${
+        ebitdaOne === null
+          ? `<div class="value" data-refused="1">refused</div><div class="meta">${escapeHtml(ebitdaRefusal?.text.en ?? "the engine served no EBITDA for this period")}</div>`
+          : `<div class="value" ${provAttrs({
+              label: "EBITDA",
+              value: money(ebitdaOne, s.currency),
+              formula: "net turnover + other operating income + own work capitalised (72x) − operating costs ± the stock variation (711), before depreciation",
+              accounts: "70x/72x/74x-78x ± 711 − 60x-65x",
+              method: "assembled_pl.ebitda",
+              snapshot: `${s.companyName} · ${s.periodLabel}`,
+            })}>${money(ebitdaOne, s.currency)}</div>
+      <div class="meta">${escapeHtml(marginLine("ebitda_margin"))}</div>`
+      }
       ${marginNote ? `<div class="meta" data-margin-note="1">${escapeHtml(marginNote.display.en)}</div>` : ""}
     </div>
     <div class="ratio-card">
@@ -5595,7 +5568,7 @@ export function renderReportHtml(
       })}>${money(netIncomeStatutory, s.currency)}</div>
       ${
         hasBridge
-          ? `<div class="meta"><span data-variant="pl-filed">account 121, as filed &mdash; ${escapeHtml(marginLine("net_margin"))}</span><span data-variant="pl-reconstructed">reconstructed from class 6/7: ${money(reconstructedNetIncome, s.currency)} &mdash; <span class="no-variant">margin not restated; the served margin is built on the filed close</span></span></div>`
+          ? `<div class="meta"><span data-variant="pl-filed">account 121, as filed &mdash; ${escapeHtml(marginLine("net_margin"))}</span><span data-variant="pl-reconstructed">built from the accounts: ${money(reconstructedNetIncome, s.currency)} &mdash; <span class="no-variant">margin not restated; the served margin is built on the filed close</span></span></div>`
           : `<div class="meta">account 121, as filed &mdash; ${escapeHtml(marginLine("net_margin"))}</div>`
       }
     </div>

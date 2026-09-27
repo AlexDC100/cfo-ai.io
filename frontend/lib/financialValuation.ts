@@ -27,6 +27,7 @@ import {
 // exports. deriveTotals survives for P&L concepts and the debt/cash
 // decomposition, which canonical_bs does not carry.
 import { factsFrom } from "./servedFacts";
+import { plLevelsOf } from "./servedOneEbitda";
 import { ratioLabelForKey } from "./ratioTable";
 
 /** The Altman row's name: the one label authority ("Altman Z″", what the
@@ -42,6 +43,9 @@ function altmanLabelOf(variant: string): string {
 // ─── FCF / CFO ──────────────────────────────────────────────────────────────
 
 export interface CashFlowSnapshot {
+  /** The result built from the accounts (pretax − tax, the one definition);
+   *  on a period whose EBITDA the engine refused, the served net income
+   *  (account 121, or the engine's own build-up when unanchored). */
   netIncome: number;
   depreciationAmortization: number;
   workingCapitalChange: number;
@@ -53,10 +57,17 @@ export interface CashFlowSnapshot {
 export function deriveCashFlow(s: Statements): CashFlowSnapshot {
   const t = deriveTotals(s);
   const wcChange = workingCapitalChange(s);
-  const cfo = t.netIncome + s.incomeStatement.depreciationAmortization - wcChange;
+  // A refused EBITDA refuses the build-up of the result too; the served
+  // net income (independent of the 711 measurement on an anchored book)
+  // is the figure this approximation starts from then. NaN only for a
+  // payload carrying neither — which no engine period and no adapter is.
+  const servedNi = s.assembled_pl?.net_income_statutory;
+  const netIncome =
+    t.netIncome ?? (typeof servedNi === "number" && Number.isFinite(servedNi) ? servedNi : Number.NaN);
+  const cfo = netIncome + s.incomeStatement.depreciationAmortization - wcChange;
   const capex = s.supplementary.capex ?? s.incomeStatement.depreciationAmortization;
   return {
-    netIncome: t.netIncome,
+    netIncome,
     depreciationAmortization: s.incomeStatement.depreciationAmortization,
     workingCapitalChange: wcChange,
     cfo,
@@ -72,6 +83,9 @@ function workingCapitalChange(s: Statements): number {
     ...s,
     balanceSheet: s.prior.balanceSheet,
     incomeStatement: s.prior.incomeStatement,
+    // The prior's OWN served P&L (or none) — never the current period's,
+    // which `...s` would otherwise carry into the prior's P&L levels.
+    assembled_pl: s.prior.assembled_pl,
     periodLabel: s.prior.periodLabel,
     prior: undefined,
   });
@@ -109,7 +123,7 @@ export function computeCostOfCapital(s: Statements): CostOfCapital {
   const erp = sup.equityRiskPremium ?? 0.075;
   const beta = sup.beta ?? 1.0;
   const costOfEquity = rf + beta * erp;
-  const impliedTaxRate = t.pbt > 0 ? s.incomeStatement.taxExpense / t.pbt : 0;
+  const impliedTaxRate = t.pbt !== null && t.pbt > 0 ? s.incomeStatement.taxExpense / t.pbt : 0;
   const taxRate = sup.taxRate ?? Math.min(0.25, Math.max(0, impliedTaxRate));
   const impliedKd = t.totalDebt > 0 ? s.incomeStatement.interestExpense / t.totalDebt : 0;
   // Pre-tax Kd floor 5.0% — accounts for currency-risk premium when the
@@ -169,7 +183,8 @@ export interface DcfResult {
   intrinsicValuePerShare?: number;
   marketPricePerShare?: number;
   upside?: number;
-  evToEbitda: number;
+  /** null: EBITDA refused by the engine, or not positive — no multiple. */
+  evToEbitda: number | null;
   evToRevenue: number;
   /** 3-scenario sensitivity table — Optimistic (−100 bps), Central
    *  (computed), Conservative (+150 bps). Each entry carries its WACC,
@@ -256,7 +271,9 @@ export function runDcf(s: Statements): DcfResult {
       ? canonicalDebt - canonicalCash
       : t.netDebt;
   const equityValue = ev - netDebtCanonical;
-  const evToEbitda = t.ebitda > 0 ? ev / t.ebitda : 0;
+  // EV / EBITDA over the ONE EBITDA; null — printed with its reason, never
+  // as 0.00× — when the engine refused EBITDA or it is not positive.
+  const evToEbitda = t.ebitda !== null && t.ebitda > 0 ? ev / t.ebitda : null;
   const evToRevenue = s.incomeStatement.revenue > 0 ? ev / s.incomeStatement.revenue : 0;
 
   let intrinsicPerShare: number | undefined;
@@ -348,7 +365,8 @@ export function runGraham(s: Statements): GrahamResult {
   // Prefer the canonical statutory NI; fall back to legacy only when
   // canonical isn't present (sample mode).
   const canonicalNi = s.assembled_pl?.net_income_statutory;
-  const netIncome = typeof canonicalNi === "number" ? canonicalNi : t.netIncome;
+  const netIncome =
+    typeof canonicalNi === "number" ? canonicalNi : t.netIncome ?? Number.NaN;
   const shares = s.supplementary.sharesOutstanding;
   const eps = shares && shares > 0 ? netIncome / shares : netIncome;
   const g = (s.supplementary.forecastGrowthRate ?? 0.05) * 100; // pct units
@@ -404,8 +422,13 @@ function declaredAbsent(s: Statements, key: string): boolean {
 }
 
 function canonical(s: Statements): {
-  netIncomeStatutory: number;
-  ebitStatutory: number;
+  // ── THE P&L LEVELS ARE ABSENT-CAPABLE (the one-EBITDA ruling) ───────
+  // On a period whose EBITDA the engine refused (the stock variation could
+  // not be measured), EBIT / EBITDA are NULL with the engine's reason on
+  // `plRefusal`, and every component that divides them refuses — never a
+  // `safeDiv` zero read as "Below covenant".
+  netIncomeStatutory: number | null;
+  ebitStatutory: number | null;
   /** THE COVERAGE OPERAND — the EBIT the P&L prints (`assembled_pl.ebit`,
    *  the line `ebit + net financial result` foots to pretax from) and the
    *  one the engine's `interest_coverage` row and coverage sub-score divide
@@ -413,9 +436,11 @@ function canonical(s: Statements): {
    *  engine served its EBIT: that is `operating_ebit`, the operating VIEW,
    *  which also carries 722 capitalized own work and 767 discounts
    *  received. See `intCov`. */
-  ebitCoverage: number;
-  ebitdaStatutory: number;
-  cfo: number;
+  ebitCoverage: number | null;
+  ebitdaStatutory: number | null;
+  cfo: number | null;
+  /** The engine's refusal of EBITDA, when it refused it. */
+  plRefusal: import("./servedOneEbitda").ServedRefusal | null;
   // ── THE SIX GATEWAY TOTALS ARE ABSENT-CAPABLE ──────────────────────
   // `servedFacts` returns `number | null`; these were typed `number`, so
   // an absent total entered the credit/valuation arithmetic as whatever
@@ -584,8 +609,11 @@ function canonical(s: Statements): {
   const cfo =
     typeof cf.cash_from_operating === "number"
       ? cf.cash_from_operating
-      : netIncomeStatutory + (pl.depreciation ?? s.incomeStatement.depreciationAmortization);
+      : netIncomeStatutory === null
+        ? null
+        : netIncomeStatutory + (pl.depreciation ?? s.incomeStatement.depreciationAmortization);
   return {
+    plRefusal: t.plRefusal,
     netIncomeStatutory,
     ebitStatutory,
     ebitCoverage,
@@ -723,8 +751,12 @@ export function runPiotroski(s: Statements): PiotroskiResult {
   add(
     "ni_positive",
     "Net income positive",
-    c.netIncomeStatutory > 0 ? "pass" : "fail",
-    fmt(c.netIncomeStatutory, s.currency),
+    c.netIncomeStatutory === null ? "uncertain" : c.netIncomeStatutory > 0 ? "pass" : "fail",
+    c.netIncomeStatutory === null
+      ? "Net income was not served for this period — the check cannot be evaluated"
+      : fmt(c.netIncomeStatutory, s.currency),
+    false,
+    c.netIncomeStatutory === null,
   );
 
   // 2. Return on assets positive — sanity check on the same NI.
@@ -760,18 +792,28 @@ export function runPiotroski(s: Statements): PiotroskiResult {
   add(
     "cfo_positive",
     "Operating cash flow positive",
-    c.cfo > 0 ? "pass" : "fail",
-    fmt(c.cfo, s.currency),
+    c.cfo === null ? "uncertain" : c.cfo > 0 ? "pass" : "fail",
+    c.cfo === null
+      ? "Operating cash flow was not served for this period — the check cannot be evaluated"
+      : fmt(c.cfo, s.currency),
+    false,
+    c.cfo === null,
   );
 
   // 4. CFO > NI — earnings cash-backed.
   add(
     "cfo_gt_ni",
     "Quality of earnings (CFO > NI)",
-    c.cfo > c.netIncomeStatutory ? "pass" : "fail",
-    c.cfo > c.netIncomeStatutory
-      ? `CFO ${fmt(c.cfo, s.currency)} > NI ${fmt(c.netIncomeStatutory, s.currency)} — cash-backed`
-      : `NI ${fmt(c.netIncomeStatutory, s.currency)} > CFO ${fmt(c.cfo, s.currency)} — possible accrual inflation`,
+    c.cfo === null || c.netIncomeStatutory === null
+      ? "uncertain"
+      : c.cfo > c.netIncomeStatutory ? "pass" : "fail",
+    c.cfo === null || c.netIncomeStatutory === null
+      ? "Operating cash flow or net income was not served — the check cannot be evaluated"
+      : c.cfo > c.netIncomeStatutory
+        ? `CFO ${fmt(c.cfo, s.currency)} > NI ${fmt(c.netIncomeStatutory, s.currency)} — cash-backed`
+        : `NI ${fmt(c.netIncomeStatutory, s.currency)} > CFO ${fmt(c.cfo, s.currency)} — possible accrual inflation`,
+    false,
+    c.cfo === null || c.netIncomeStatutory === null,
   );
 
   // ── Prior-period comparisons (4 of 9) ───────────────────────────────
@@ -835,11 +877,32 @@ export function runPiotroski(s: Statements): PiotroskiResult {
         c.shareCapital === priorShareCapital ? "unchanged at" : "changed to"
       } ${fmt(c.shareCapital, s.currency)}`,
     );
-    // 8. Operating margin improving (EBIT / revenue)
-    if (priorRevenue > 0 && c.revenue > 0) {
+    // 8. Operating margin improving (EBIT / net turnover). Both EBITs on
+    //    the ONE definition, or no comparison: a prior served under a
+    //    different EBITDA definition, or a refused EBIT on either side,
+    //    leaves the check unresolved rather than grading a mixed pair.
+    const priorEbit: number | null =
+      typeof priorPl.ebit === "number" ? priorPl.ebit : prior.ebit;
+    const sameDef =
+      (typeof priorPl.ebitda_definition === "string" ? priorPl.ebitda_definition : null) ===
+      (typeof (s.assembled_pl as Record<string, unknown> | undefined)?.ebitda_definition === "string"
+        ? (s.assembled_pl as Record<string, unknown>).ebitda_definition
+        : null);
+    if (c.ebitStatutory === null || priorEbit === null || !sameDef) {
+      add(
+        "margin_improving",
+        "Operating margin improving",
+        "uncertain",
+        c.ebitStatutory === null
+          ? `Operating result refused for this period — ${c.plRefusal?.text.en ?? "not served"}`
+          : priorEbit === null
+            ? "Prior-period operating result not available"
+            : "The prior period's operating result is on a different EBITDA definition",
+        true,
+        c.ebitStatutory === null,
+      );
+    } else if (priorRevenue > 0 && c.revenue > 0) {
       const margin = safeDiv(c.ebitStatutory, c.revenue);
-      const priorEbit =
-        typeof priorPl.operating_ebit === "number" ? priorPl.operating_ebit : prior.ebit;
       const priorMargin = safeDiv(priorEbit, priorRevenue);
       add(
         "margin_improving",
@@ -2223,6 +2286,19 @@ export function computeCreditScore(
   // DSCR uses interest + an estimated principal (10% of LT debt) when the
   // book doesn't carry an explicit annual principal schedule — matches the
   // SME-CRE convention used by Romanian banks for 10-year amortizing loans.
+  // ── A REFUSED EBITDA REFUSES EVERY COMPONENT THAT DIVIDES IT ────────
+  // The one-EBITDA ruling: when the engine could not measure the stock
+  // variation (711), EBITDA, EBIT and everything built on them are
+  // refused with its typed reason. `safeDiv(x, null)` is 0 — which read
+  // "Strong" leverage and "Below covenant" coverage on a figure nobody
+  // computed. Leverage, coverage and DSCR refuse instead, and the
+  // completeness law below then mints no composite and no letter.
+  const ebitdaRefused = c.ebitdaStatutory === null || c.ebitCoverage === null;
+  const plRefusalRow = (subject: string): CreditSubscoreRefusal => ({
+    code: c.plRefusal?.code ?? "ebitda_not_served",
+    subject,
+    sentence: `Not scored — EBITDA refused: ${c.plRefusal?.text.en ?? "the engine served no EBITDA for this period"}`,
+  });
   const dte = safeDiv(c.totalDebt, c.ebitdaStatutory);
   // Interest coverage = EBIT / interest (the methodology, CLAUDE.md
   // Appendix A section 5) — the basis the engine's coverage sub-score bands
@@ -2252,7 +2328,7 @@ export function computeCreditScore(
 
   const altmanScore = scoreAltman(altman);
   const piotroskiScore = scorePiotroski(piotroski);
-  const dteScore = scoreDebtEbitda(dte, isCre);
+  const dteScore: number | null = ebitdaRefused ? null : scoreDebtEbitda(dte, isCre);
   // ── ABSENT IS NEVER ZERO, HERE TOO (owner floors ruling, 2026-09-18) ──
   // `safeDiv(ebit, 0)` is 0, and 0 read "Below covenant", sub-score 15: a
   // book with no debt and no interest (carniprod) scored 67.8 BB+ against
@@ -2278,13 +2354,15 @@ export function computeCreditScore(
   const debtReported =
     (typeof reportedTotalDebt === "number" && Number.isFinite(reportedTotalDebt)) ||
     (!declaredAbsent(s, "shortTermDebt") && !declaredAbsent(s, "longTermDebt"));
-  const coverageMeasured = interestReported && c.interestExpense > 0;
-  const dscrMeasured = interestReported && debtReported && c.interestExpense + principalProxy > 0;
+  const coverageMeasured = !ebitdaRefused && interestReported && c.interestExpense > 0;
+  const dscrMeasured = !ebitdaRefused && interestReported && debtReported && c.interestExpense + principalProxy > 0;
   const declaredDebtFree =
-    interestReported && debtReported && c.totalDebt === 0
+    !ebitdaRefused && interestReported && debtReported && c.totalDebt === 0
     && (typeof reportedTotalDebt !== "number" || reportedTotalDebt === 0)
-    && c.interestExpense === 0 && c.ebitCoverage > 0;
-  const coverageRefusal: CreditSubscoreRefusal | null = coverageMeasured || declaredDebtFree
+    && c.interestExpense === 0 && (c.ebitCoverage ?? 0) > 0;
+  const coverageRefusal: CreditSubscoreRefusal | null = ebitdaRefused
+    ? plRefusalRow("interest coverage")
+    : coverageMeasured || declaredDebtFree
     ? null
     : {
         code: interestReported ? "interest_expense_not_positive" : "credit_inputs_absent",
@@ -2293,7 +2371,9 @@ export function computeCreditScore(
           ? "Not scored — interest expense is not positive, so EBIT / interest is undefined"
           : "Not scored — interest expense is not reported, so EBIT / interest cannot be read",
       };
-  const dscrRefusal: CreditSubscoreRefusal | null = dscrMeasured || declaredDebtFree
+  const dscrRefusal: CreditSubscoreRefusal | null = ebitdaRefused
+    ? plRefusalRow("DSCR")
+    : dscrMeasured || declaredDebtFree
     ? null
     : {
         code: interestReported && debtReported ? "interest_expense_not_positive" : "credit_inputs_absent",
@@ -2369,11 +2449,12 @@ export function computeCreditScore(
     },
     {
       label: "Debt / EBITDA",
-      value: dte,
+      value: ebitdaRefused ? null : dte,
       subscore: dteScore,
       weight: 0.15,
-      contribution: dteScore * 0.15,
-      read: isCre
+      contribution: contributionOf(dteScore, 0.15),
+      refusal: ebitdaRefused ? plRefusalRow("Debt / EBITDA") : null,
+      read: ebitdaRefused ? null : isCre
         ? dte <= 0 || !Number.isFinite(dte)
           ? "Non-positive EBITDA — leverage ratio undefined"
           : dte < 6
@@ -2595,6 +2676,8 @@ function priorTotals(s: Statements): DerivedTotals {
     ...s,
     balanceSheet: s.prior!.balanceSheet,
     incomeStatement: s.prior!.incomeStatement,
+    // The prior's own served P&L, never the current one `...s` carries.
+    assembled_pl: s.prior!.assembled_pl,
     periodLabel: s.prior!.periodLabel,
     prior: undefined,
   });
@@ -2680,11 +2763,29 @@ function fmt(n: number, currency: string): string {
 }
 
 // ─── Multi-period growth rates ──────────────────────────────────────────────
+//
+// THE ONE EBITDA, PERIOD BY PERIOD. This table used to rebuild EBITDA as
+// `revenue − COGS − opex + other income` for every period — a second
+// EBITDA without the measured stock variation (711) and own work
+// capitalised (72x), and a "Revenue" row that was whatever the bucket held.
+// Each period now prints its SERVED levels (`plLevelsOf` over that
+// period's own `assembled_pl`), a refused EBITDA stays a refusal (null,
+// with the engine's reason), and growth is over NET TURNOVER. A CAGR runs
+// only between two figures on the same EBITDA definition.
+
+export interface GrowthCell {
+  period: string;
+  /** null = not stated for this period (`refusal` says why). */
+  value: number | null;
+  refusal: import("./servedOneEbitda").ServedRefusal | null;
+}
 
 export interface GrowthRow {
   metric: string;
-  values: { period: string; value: number }[];
-  cagr: number; // compound annual growth across the series
+  values: GrowthCell[];
+  /** Compound annual growth across the series; null when either end is
+   *  refused / not positive, or the ends sit on different definitions. */
+  cagr: number | null;
 }
 
 export function periodSeries(s: Statements): PriorPeriod[] {
@@ -2698,6 +2799,8 @@ export function periodSeries(s: Statements): PriorPeriod[] {
     periodLabel: s.periodLabel,
     balanceSheet: s.balanceSheet,
     incomeStatement: s.incomeStatement,
+    // The current period's OWN served P&L — each period reads its own.
+    assembled_pl: s.assembled_pl,
   });
   return series;
 }
@@ -2705,60 +2808,58 @@ export function periodSeries(s: Statements): PriorPeriod[] {
 export function multiPeriodGrowth(s: Statements): GrowthRow[] {
   const series = periodSeries(s);
   if (series.length < 2) return [];
-  const metrics: { name: string; pick: (p: PriorPeriod) => number }[] = [
-    { name: "Revenue", pick: (p) => p.incomeStatement.revenue },
+  const levels = series.map((p) => plLevelsOf(p));
+  const bsTotals = series.map((p) =>
+    deriveTotals({
+      companyName: "",
+      currency: "",
+      periodLabel: "",
+      balanceSheet: p.balanceSheet,
+      incomeStatement: p.incomeStatement,
+      assembled_pl: p.assembled_pl,
+      supplementary: {},
+    }),
+  );
+  const cell = (i: number, value: number | null, refusal: GrowthCell["refusal"] = null): GrowthCell => ({
+    period: series[i].periodLabel,
+    value,
+    refusal: value === null ? refusal : null,
+  });
+  /** Account 121 as filed when the period serves it, else the result
+   *  built from the accounts. */
+  const netResult = (i: number): number | null => {
+    const filed = series[i].assembled_pl?.net_income_statutory;
+    return typeof filed === "number" && Number.isFinite(filed) ? filed : levels[i].netIncome;
+  };
+  const rows: Array<{ name: string; cells: GrowthCell[]; sameDefinition: boolean }> = [
+    { name: "Net turnover", cells: levels.map((l, i) => cell(i, l.turnover)), sameDefinition: true },
     {
       name: "EBITDA",
-      pick: (p) =>
-        p.incomeStatement.revenue -
-        p.incomeStatement.costOfGoodsSold -
-        p.incomeStatement.operatingExpenses +
-        (p.incomeStatement.otherIncome ?? 0),
+      cells: levels.map((l, i) => cell(i, l.ebitda, l.refusal)),
+      sameDefinition: levels.every((l) => l.definition === levels[levels.length - 1].definition),
     },
-    {
-      name: "Net income",
-      pick: (p) => {
-        const t = deriveTotals({
-          companyName: "",
-          currency: "",
-          periodLabel: "",
-          balanceSheet: p.balanceSheet,
-          incomeStatement: p.incomeStatement,
-          supplementary: {},
-        });
-        return t.netIncome;
-      },
-    },
-    {
-      name: "Total assets",
-      pick: (p) => {
-        const t = deriveTotals({
-          companyName: "",
-          currency: "",
-          periodLabel: "",
-          balanceSheet: p.balanceSheet,
-          incomeStatement: p.incomeStatement,
-          supplementary: {},
-        });
-        return t.totalAssets;
-      },
-    },
+    { name: "Net income", cells: levels.map((l, i) => cell(i, netResult(i), l.refusal)), sameDefinition: true },
+    { name: "Total assets", cells: bsTotals.map((t, i) => cell(i, t.totalAssets)), sameDefinition: true },
     {
       name: "Total debt",
-      pick: (p) => p.balanceSheet.shortTermDebt + p.balanceSheet.longTermDebt,
+      cells: series.map((p, i) => cell(i, p.balanceSheet.shortTermDebt + p.balanceSheet.longTermDebt)),
+      sameDefinition: true,
     },
-    { name: "Equity", pick: (p) => p.balanceSheet.shareCapital + p.balanceSheet.retainedEarnings + p.balanceSheet.otherEquity },
+    {
+      name: "Equity",
+      cells: series.map((p, i) =>
+        cell(i, p.balanceSheet.shareCapital + p.balanceSheet.retainedEarnings + p.balanceSheet.otherEquity)),
+      sameDefinition: true,
+    },
   ];
-
-  return metrics.map((m) => {
-    const values = series.map((p) => ({ period: p.periodLabel, value: m.pick(p) }));
-    const first = values[0].value;
-    const last = values[values.length - 1].value;
-    const years = values.length - 1;
+  return rows.map(({ name, cells, sameDefinition }) => {
+    const first = cells[0].value;
+    const last = cells[cells.length - 1].value;
+    const years = cells.length - 1;
     const cagr =
-      first > 0 && last > 0 && years > 0
+      sameDefinition && first !== null && last !== null && first > 0 && last > 0 && years > 0
         ? Math.pow(last / first, 1 / years) - 1
-        : 0;
-    return { metric: m.name, values, cagr };
+        : null;
+    return { metric: name, values: cells, cagr };
   });
 }

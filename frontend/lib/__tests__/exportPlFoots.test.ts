@@ -56,6 +56,11 @@
 
 import { describe, expect, it } from "vitest";
 
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
+import { buildReportHtml } from "@/lib/financialExports";
+import type { Statements } from "@/lib/financialReport";
 import { BOOKS, type Book, exportDoc, parsePrinted, plRows, statementsFor } from "./exportBooks";
 
 /** A printed row is a SUBTOTAL when the document says so in its class. */
@@ -144,10 +149,17 @@ describe("G3 — the printed P&L foots, subtotal by subtotal", () => {
       );
     });
 
-    it(`${book}: the bridge from the reconstruction to account 121 is a labelled row`, () => {
+    // REWRITTEN for the one-EBITDA ruling (2026-09-26). The bridge the
+    // column owes a reader is account 121 − the result BUILT from the
+    // accounts on the one definition — the served "not explained" line
+    // (`net_income_unexplained_vs_121`), never the stock variation, which
+    // is now a line of its own above EBITDA. The old law read
+    // `net_income_reconciliation_to_121` — the gap to the PRE-ruling
+    // build-up, i.e. the net 711 itself on every closed manufacturer.
+    it(`${book}: the bridge from the build-up to account 121 is a labelled row`, () => {
       const pl = statementsFor(book as Book).assembled_pl ?? {};
-      const gap = pl.net_income_reconciliation_to_121;
-      if (typeof gap !== "number" || Math.abs(gap) <= 0.005) return; // nothing to bridge
+      const gap = pl.net_income_unexplained_vs_121;
+      if (typeof gap !== "number" || Math.abs(gap) <= 0.005) return; // nothing to bridge (witness below)
       const rows = plRows(exportDoc(book as Book));
       const bridge = rows.find((r) => /account 121|reconcil/i.test(r.label));
       expect(
@@ -166,4 +178,52 @@ describe("G3 — the printed P&L foots, subtotal by subtotal", () => {
         .toBeLessThanOrEqual(1);
     });
   }
+});
+
+// ── THE CONSTRUCTED WITNESS FOR THE BRIDGE ROW ────────────────────────
+//
+// On all four firm books the one-definition build-up IS account 121 (the
+// closed-book bridge derives 711 from it), so the row above has nothing to
+// fire on — and a gate with no witness is red, never green. The witness is
+// the constructed `closed_no_activity` book (net-711-rule gate, captured
+// through the real GET /api/period): no 711 activity, and 2,000 left in
+// account 121 that no revenue or expense account explains. The printed P&L
+// must state that 2,000 on its own labelled row — never fold it into 711 —
+// and still foot.
+describe("G3 — the not-explained row, on a book that has one (constructed)", () => {
+  const constructed = JSON.parse(
+    readFileSync(resolve(__dirname, "fixtures/oneEbitda/constructed_books.json"), "utf-8"),
+  ) as Record<string, { statements: Statements }>;
+  const docOf = (name: string) =>
+    new DOMParser().parseFromString(buildReportHtml(constructed[name].statements, {}), "text/html");
+
+  it("closed_no_activity: the 2,000 gap to account 121 is its own row, and 711 prints nothing", () => {
+    const apl = constructed.closed_no_activity.statements.assembled_pl as Record<string, number>;
+    expect(apl.net_income_unexplained_vs_121).toBe(2000);
+    const rows = plRows(docOf("closed_no_activity"));
+    const bridge = rows.find((r) => /not explained/i.test(r.label));
+    expect(bridge, "the not-explained gap has no row").toBeTruthy();
+    expect(parsePrinted(bridge!.printed)).toBe(2000);
+    expect(rows.some((r) => /711/.test(r.label)), "a 711 row on a book with no 711 activity").toBe(false);
+  });
+
+  it("closed_bridge: 711 is a row beside cost of sales and no not-explained row is printed", () => {
+    const rows = plRows(docOf("closed_bridge"));
+    const labels = rows.map((r) => r.label);
+    const i711 = labels.findIndex((l) => /Variația stocurilor de produse/.test(l));
+    const iCogs = labels.findIndex((l) => /Cost of goods sold/.test(l));
+    expect(i711).toBe(iCogs + 1);
+    expect(parsePrinted(rows[i711].printed)).toBe(50000);
+    expect(labels.some((l) => /not explained/i.test(l))).toBe(false);
+  });
+
+  it("unanchored: EBITDA and the operating result print the refusal, never a number", () => {
+    const rows = plRows(docOf("unanchored"));
+    for (const label of ["EBITDA", "EBIT", "Gross Profit", "Profit Before Tax"]) {
+      const r = rows.find((x) => x.label === label);
+      expect(r, label).toBeTruthy();
+      expect(r!.printed, label).toMatch(/^refused/);
+      expect(parsePrinted(r!.printed), label).toBeNull();
+    }
+  });
 });

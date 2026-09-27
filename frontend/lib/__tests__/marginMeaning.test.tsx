@@ -330,12 +330,22 @@ describe("the forecast cockpit and the bank export (the developer's real engine 
     expect(screen.getByTestId("cockpit-ebitda-margin-refused")).toHaveTextContent(REFUSAL.ro);
   });
 
+  // REWRITTEN for the one-EBITDA ruling (2026-09-26). The note prints its
+  // amount in the unit of the EBITDA printed ABOVE it (packs/ratios/
+  // margin_meaning.yaml#money_display): the dashboard's EBITDA is now
+  // +550,976 — thousands, "29.589,8 mii lei" — and the cockpit's final
+  // plan-year EBITDA is in millions, "29,6 mil. lei". The old law ("the
+  // cockpit note is the dashboard note plus a year") held only while both
+  // EBITDAs were −29 M. What must hold is the SENTENCE and the FIGURE: the
+  // same pack sentence, the same served net 711, and the year named.
   it("the sentence carries no margin clause and the note names its year", () => {
+    const COCKPIT_NOTE = {
+      ro: NOTE.ro.replace("29.589,8 mii lei.", "29,6 mil. lei în 2025."),
+      en: NOTE.en.replace("RON 29,589.8k.", "RON 29.6M in 2025."),
+    };
     for (const lang of ["ro", "en"] as const) {
       expect(cockpit.sentence[lang]).not.toMatch(/%|marj|margin/);
-      expect(cockpit.numbers.ebitda.note?.[lang]).toBe(
-        NOTE[lang].replace(/\.$/, lang === "ro" ? " în 2025." : " in 2025."),
-      );
+      expect(cockpit.numbers.ebitda.note?.[lang]).toBe(COCKPIT_NOTE[lang]);
     }
   });
 

@@ -121,7 +121,9 @@ describe("the recommendation facts carry the absence", () => {
         valuation: null, industry: null,
       });
       expect(facts.pl.ebitda).toBeNull();
-      expect(facts.pl.ebitda_excl_capitalized).toBeNull();
+      // The retired second EBITDA (EBITDA − 722) is no longer a fact at all.
+      expect("ebitda_excl_capitalized" in facts.pl).toBe(false);
+      expect(facts.ratios.ebitda_margin_gross).toBeNull();
       expect(facts.pl.ebit).toBeNull();
       expect(facts.pl.profit_before_tax).toBeNull();
       expect(facts.ratios.debt_to_ebitda_adjusted).toBeNull();

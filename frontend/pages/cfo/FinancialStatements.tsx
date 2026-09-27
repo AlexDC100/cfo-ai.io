@@ -5724,6 +5724,8 @@ function ValuationPanel({
   const { t } = useTranslation();
   const wacc = useMemo(() => computeCostOfCapital(statements), [statements]);
   const dcf = useMemo(() => runDcf(statements), [statements]);
+  // The engine's refusal of EBITDA, when it refused it (EV / EBITDA then refuses too).
+  const plRefusal = useMemo(() => deriveTotals(statements).plRefusal, [statements]);
   /** The engine's own DCF refusals for this period ([] when it computed or
    *  when the row predates the reasons). Read once; the equity tile and
    *  nothing else keys on it until C9 lands. */
@@ -5966,7 +5968,17 @@ function ValuationPanel({
           <div className="px-5 py-3 border-t border-rule bg-bg-2/20 grid grid-cols-2 gap-4">
             <div className="min-w-0">
               <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-soft font-medium truncate">EV / EBITDA</div>
-              <div className="font-mono text-[16px] font-medium text-ink tabular-nums break-words">{dcf.evToEbitda.toFixed(2)}×</div>
+              <div className="font-mono text-[16px] font-medium text-ink tabular-nums break-words">
+                {dcf.evToEbitda !== null ? (
+                  `${dcf.evToEbitda.toFixed(2)}×`
+                ) : (
+                  <span className="font-sans text-[12px] text-ink-soft" data-testid="dcf-ev-ebitda-refused">
+                    {plRefusal
+                      ? `${t("statements.pl.refused", "refused")} — ${pickLang(plRefusal.text, i18n.language)}`
+                      : t("dash.evEbitdaNotMeaningful", "not meaningful — EBITDA is not positive")}
+                  </span>
+                )}
+              </div>
             </div>
             <div className="min-w-0">
               <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-soft font-medium truncate">EV / Revenue</div>
@@ -6027,10 +6039,20 @@ function ValuationPanel({
                   <tr key={row.metric} className="border-t border-rule">
                     <td className="py-2 px-4 text-ink">{row.metric}</td>
                     {row.values.map((v) => (
-                      <td key={v.period} className="py-2 px-4 text-right font-mono tabular-nums text-ink">{fmtMoney(v.value, cur)}</td>
+                      <td key={v.period} className="py-2 px-4 text-right font-mono tabular-nums text-ink">
+                        {v.value !== null ? (
+                          fmtMoney(v.value, cur)
+                        ) : (
+                          // A refused EBITDA prints the engine's reason, never 0 or a bare dash.
+                          <span className="font-sans text-[11.5px] text-ink-soft" data-testid="growth-cell-refused">
+                            {t("statements.pl.refused", "refused")}
+                            {v.refusal ? ` — ${pickLang(v.refusal.text, i18n.language)}` : ""}
+                          </span>
+                        )}
+                      </td>
                     ))}
-                    <td className={`py-2 px-4 text-right font-mono tabular-nums font-medium ${row.cagr >= 0 ? "text-success" : "text-alert"}`}>
-                      {row.cagr >= 0 ? "+" : ""}{(row.cagr * 100).toFixed(1)}%
+                    <td className={`py-2 px-4 text-right font-mono tabular-nums font-medium ${row.cagr === null ? "text-ink-mute" : row.cagr >= 0 ? "text-success" : "text-alert"}`}>
+                      {row.cagr === null ? "—" : `${row.cagr >= 0 ? "+" : ""}${(row.cagr * 100).toFixed(1)}%`}
                     </td>
                   </tr>
                 ))}

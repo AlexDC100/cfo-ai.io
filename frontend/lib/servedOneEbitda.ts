@@ -276,3 +276,190 @@ export function reconLine(
 ): ServedReconLine | null {
   return r?.lines.find((l) => l.key === key) ?? null;
 }
+
+// ────────────────────────────────────────────────────────────────────────
+// THE P&L LEVELS OF A PAYLOAD — one reading for every browser consumer.
+//
+// `deriveTotals`, `computeRatios`, the exports, the learning metrics and
+// the no-envelope credit model used to rebuild EBITDA / EBIT / PBT / gross
+// profit from the `incomeStatement` buckets. On an engine period that is a
+// SECOND EBITDA: the buckets carry neither the measured net 711 nor the
+// net 72x, so the rebuilt figure is exactly `ebitda_before_stock_variation`
+// — agras 10,776,378.24 against the served 11,848,065.27, the developer
+// −29,038,838.12 against +550,976.12. This reader gives every one of them
+// the SERVED levels when the engine assembled the period, and refuses them
+// (null + the engine's typed reason) when the engine refused EBITDA.
+//
+// A payload the engine did not assemble (the fictional demo company, a
+// public-company adapter) keeps its arithmetic — on the SAME definition
+// (72x inside, 711 inside) — and refuses when its income statement shows
+// 711 activity it could not measure.
+// ────────────────────────────────────────────────────────────────────────
+
+/** A payload the engine did not assemble, whose income statement says it
+ *  HAS 711 activity (the gross memo): the variation is not measured, so
+ *  EBITDA is not known on the one definition. */
+export const STOCK_VARIATION_NOT_MEASURED: ServedRefusal = {
+  code: "stock_variation_not_measured",
+  text: {
+    ro: "variația stocurilor de produse (711) nu a fost măsurată pentru aceste date",
+    en: "the stock variation (711) was not measured for this data",
+  },
+};
+
+/** The served block carries EBITDA but not this level (an older capture). */
+function levelNotServed(ro: string, en: string, code: string): ServedRefusal {
+  return {
+    code,
+    text: {
+      ro: `motorul nu a servit ${ro} pentru această perioadă`,
+      en: `the engine served no ${en} for this period`,
+    },
+  };
+}
+
+/** The income-statement buckets a payload carries (the legacy mirror). */
+export interface PlBuckets {
+  revenue?: number;
+  costOfGoodsSold?: number;
+  operatingExpenses?: number;
+  otherIncome?: number;
+  depreciationAmortization?: number;
+  interestExpense?: number;
+  financialIncome?: number;
+  financialExpense?: number;
+  taxExpense?: number;
+  inventoryVariationMemo?: number;
+  capitalizedOwnWork?: number;
+}
+
+export interface PlLevels {
+  /** "served": the engine assembled this period — every level below is
+   *  its figure; "payload": no assembled block (demo, public company). */
+  readonly source: "served" | "payload";
+  /** `assembled_pl.ebitda_definition`, when served. */
+  readonly definition: string | null;
+  /** Cifra de afaceri netă (70x − 709). */
+  readonly turnover: number;
+  readonly grossProfit: number | null;
+  readonly ebitda: number | null;
+  readonly ebit: number | null;
+  readonly pbt: number | null;
+  /** pretax − tax: the result BUILT from the accounts. Account 121 is
+   *  `assembled_pl.net_income_statutory`, read by its own consumers. */
+  readonly netIncome: number | null;
+  readonly netFinancialResult: number;
+  /** Non-null exactly when `ebitda` is null. */
+  readonly refusal: ServedRefusal | null;
+  readonly grossProfitRefusal: ServedRefusal | null;
+  readonly ebitRefusal: ServedRefusal | null;
+  readonly pbtRefusal: ServedRefusal | null;
+  /** Net 711 / net 72x as served (null when refused or not served). */
+  readonly inventoryVariation: number | null;
+  readonly capitalizedOwnWork: number | null;
+  /** EBITDA − net 711 − net 72x, as served — the reconciliation line only. */
+  readonly ebitdaBeforeStockVariation: number | null;
+}
+
+const bucket = (v: number | undefined): number =>
+  typeof v === "number" && Number.isFinite(v) ? v : 0;
+
+/**
+ * The P&L levels of a payload: the engine's when it assembled the period,
+ * else the payload's own arithmetic on the one definition.
+ */
+export function plLevelsOf(s: {
+  assembled_pl?: unknown;
+  incomeStatement?: PlBuckets | null;
+}): PlLevels {
+  const is: PlBuckets = s.incomeStatement ?? {};
+  const served = readServedOneEbitda(s.assembled_pl);
+  const finIn = bucket(is.financialIncome);
+  const finEx = bucket(is.financialExpense);
+  const interest = bucket(is.interestExpense);
+  if (served) {
+    const apl = s.assembled_pl as Rec;
+    const tax = finite(apl.tax) ?? bucket(is.taxExpense);
+    const ebitda = served.ebitda;
+    const refused = ebitda === null;
+    const grossProfit = refused ? null : finite(apl.gross_profit);
+    const ebit = served.ebit;
+    const pbt = served.pretax;
+    return {
+      source: "served",
+      definition: served.definition,
+      turnover: served.turnover ?? bucket(is.revenue),
+      grossProfit,
+      ebitda,
+      ebit,
+      pbt,
+      netIncome: pbt === null ? null : pbt - tax,
+      netFinancialResult: finite(apl.net_financial_result) ?? finIn - interest - finEx,
+      refusal: served.refusal,
+      grossProfitRefusal:
+        grossProfit !== null ? null : served.refusal ?? levelNotServed("marja brută", "gross profit", "gross_profit_not_served"),
+      ebitRefusal:
+        ebit !== null ? null : served.refusal ?? levelNotServed("rezultatul din exploatare", "operating result", "operating_result_not_served"),
+      pbtRefusal:
+        pbt !== null ? null : served.refusal ?? levelNotServed("profitul înainte de impozit", "profit before tax", "pretax_not_served"),
+      inventoryVariation: served.inventoryVariation?.value ?? null,
+      capitalizedOwnWork: served.capitalizedOwnWork?.value ?? null,
+      ebitdaBeforeStockVariation: served.ebitdaBeforeStockVariation,
+    };
+  }
+  const turnover = bucket(is.revenue);
+  const has711 = Math.abs(bucket(is.inventoryVariationMemo)) >= 0.005;
+  const capitalized = bucket(is.capitalizedOwnWork);
+  const netFinancialResult = finIn - interest - finEx;
+  if (has711) {
+    const r = STOCK_VARIATION_NOT_MEASURED;
+    return {
+      source: "payload",
+      definition: null,
+      turnover,
+      grossProfit: null,
+      ebitda: null,
+      ebit: null,
+      pbt: null,
+      netIncome: null,
+      netFinancialResult,
+      refusal: r,
+      grossProfitRefusal: r,
+      ebitRefusal: r,
+      pbtRefusal: r,
+      inventoryVariation: null,
+      capitalizedOwnWork: capitalized,
+      ebitdaBeforeStockVariation:
+        turnover - bucket(is.costOfGoodsSold) - bucket(is.operatingExpenses) + bucket(is.otherIncome),
+    };
+  }
+  const grossProfit = turnover - bucket(is.costOfGoodsSold);
+  const ebitda = grossProfit - bucket(is.operatingExpenses) + bucket(is.otherIncome) + capitalized;
+  const ebit = ebitda - bucket(is.depreciationAmortization);
+  const pbt = ebit + netFinancialResult;
+  return {
+    source: "payload",
+    definition: null,
+    turnover,
+    grossProfit,
+    ebitda,
+    ebit,
+    pbt,
+    netIncome: pbt - bucket(is.taxExpense),
+    netFinancialResult,
+    refusal: null,
+    grossProfitRefusal: null,
+    ebitRefusal: null,
+    pbtRefusal: null,
+    inventoryVariation: 0,
+    capitalizedOwnWork: capitalized,
+    ebitdaBeforeStockVariation: ebitda - capitalized,
+  };
+}
+
+/** Two P&L blocks on the SAME EBITDA definition (a prior column may only
+ *  sit beside the current one when they are). Payloads the engine did not
+ *  assemble carry no definition and pair with each other. */
+export function sameEbitdaDefinition(a: PlLevels, b: PlLevels): boolean {
+  return a.definition === b.definition;
+}
