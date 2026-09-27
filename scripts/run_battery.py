@@ -535,6 +535,38 @@ def _engine_gates() -> List[Gate]:
                        "g6_uncleared, mixed, open, unanchored",
                        "NET711-PLANTS: serve-the-gross-memo, absent-anchor-to-zero, drop-guard-g6, "
                        "rebuild-forgets-the-evidence")),
+        # ── owner ruling 2026-09-26, design A8 (stage G): the ENGINE halves
+        # of one-ebitda / turnover-denominator / refusal-carries. Every
+        # engine surface — the assembled P&L and its aliases, the served
+        # reconciliation line and bridge, GET /api/period's metrics block,
+        # the stored metric rows, the ratio table, the credit model, the
+        # methodology views, FactsGateway (Capsule get_facts / advisory /
+        # radar), the valuation, the Section 9 benchmark, the forecast's
+        # year 0, the briefing's citable ratios and the confidence roll-up —
+        # carries THE ONE EBITDA, divides net turnover, and carries a refused
+        # EBITDA as the 711 refusal. Four corpus books and six CONSTRUCTED
+        # books (net-711-rule) through the real write path and GET
+        # /api/period. Measured 208 / 168 / 146. Plant logs: gates.md
+        # "one-ebitda-engine", "turnover-denominator-engine",
+        # "refusal-carries-engine".
+        Gate("one-ebitda-engine",
+             [PY, "-m", "pytest", "tests/engine/test_one_ebitda_engine.py", "-q"],
+             work_rx=r"GATE-WORK one-ebitda-engine units=(\d+)", floor=190,
+             units="engine surfaces compared with the served EBITDA / EBIT",
+             canaries=("SCOPE one-ebitda-engine: 8 served books",
+                       "ONE-EBITDA-ENGINE surfaces: 20 EBITDA + 6 EBIT per book")),
+        Gate("turnover-denominator-engine",
+             [PY, "-m", "pytest", "tests/engine/test_turnover_denominator_engine.py", "-q"],
+             work_rx=r"GATE-WORK turnover-denominator-engine units=(\d+)", floor=150,
+             units="engine revenues and margins checked against net turnover",
+             canaries=("SCOPE turnover-denominator-engine: 8 served books",
+                       "refused by the one margin rule on every displayed surface: realestate")),
+        Gate("refusal-carries-engine",
+             [PY, "-m", "pytest", "tests/engine/test_refusal_carries_engine.py", "-q"],
+             work_rx=r"GATE-WORK refusal-carries-engine units=(\d+)", floor=130,
+             units="engine surfaces checked to refuse with the 711 reason",
+             canaries=("SCOPE refusal-carries-engine: refused books g6_uncleared "
+                       "(account_121_opening_not_cleared); unanchored (account_121_anchor_absent)",)),
         # ── owner ruling 2026-09-26, design A6: valuation-one-ebitda ────
         # EV/EBITDA multiplies the ONE EBITDA (never the revision-2 fallback
         # that rebuilt a second one from the incomeStatement mirror on 0.0);

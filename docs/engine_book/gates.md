@@ -11102,3 +11102,221 @@ REVERT — the clean tree: Tests 10 passed
 
 CANNOT SEE: whether the engine was right to refuse (`net-711-rule`);
 surfaces that print no EBITDA; pixels.
+
+## one-ebitda-engine
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_one_ebitda_engine.py -q` |
+| canary | `SCOPE one-ebitda-engine: 8 served books`, `ONE-EBITDA-ENGINE surfaces: 20 EBITDA + 6 EBIT per book` |
+| work count | `GATE-WORK one-ebitda-engine units=N`, floor **190** (measured 208) |
+
+**INCIDENT** — before the owner ruling of 2026-09-26 the engine served
+several EBITDAs at once (`ebitda_statutory` incl. 722, `ebitda_operational`
+excl. 722, `ebitda_operating_view` incl. 767, `ebitda_statutory_with_711` on
+the gross 711 memo — 98.9 %-191.0 % margins on every closed manufacturer —
+the methodology YAML's `reported` with 711 outside behind FactsGateway, the
+Capsule and the firm covenants, and the valuation's revision-2 fallback that
+rebuilt a second EBITDA on 0.0). The frontend half of `one-ebitda` holds the
+browser; nothing held the ENGINE's own surfaces to one figure.
+
+**LAW** — on every book whose EBITDA is served (corpus agras, carniprod,
+realestate, retail through the real write path and GET /api/period; the
+CONSTRUCTED closed_bridge, bridge_with_722, open, closed_no_activity of
+`net-711-rule`, SYNTHETIC), 20 EBITDA surfaces and 6 EBIT surfaces carry
+`assembled_pl.ebitda` / `operating_result` to the cent: the five legacy
+aliases, the reconciliation line and its one-line bridge, GET /api/period's
+`assembled_metrics.pl`, the stored metric rows (`ebitda`, `ebitda_statutory`,
+`ebitda_cash`, `operating_profit`), the ratio table's Debt / EBITDA operand,
+`credit_model.operating_figures`, methodology `ebitda.reported` / `cash`,
+`FactsGateway.ebitda()`, the valuation's `ebitda_used`, the Section 9
+benchmark, the forecast's year 0 and the confidence roll-up
+(`reconciliation_checks` `ebitda_rollup`, REWRITTEN in this stage: turnover −
+cost of sales − opex + other operating income + net 72x + net 711 = EBITDA;
+it used to read `ebitda_statutory` without 711 and `float(None or 0)`). TC-3:
+on 6 of the 8 books the build-up before 711/72x differs from EBITDA.
+
+Plants, each applied alone by `scratchpad/g_stage/plant.py` (byte-exact
+restore checked by sha256):
+```
+PLANT credit-model-reads-the-build-up (second formula): src/engine/ratios/credit_model.py
+  exit=1 ========================= 6 failed, 4 passed in 2.36s ==========================
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[agras]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[carniprod]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[realestate]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[closed_bridge]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[bridge_with_722]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[open]
+  -> RED ; file restored byte-exact
+PLANT rollup-identity-without-711 (old law): src/engine/confidence/reconciliation_checks.py
+  exit=1 ========================= 6 failed, 4 passed in 2.37s ==========================
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[agras]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[carniprod]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[realestate]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[closed_bridge]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[bridge_with_722]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[open]
+  -> RED ; file restored byte-exact
+PLANT ebitda_cash-alias-is-the-build-up: src/engine/country_packs/ro_romania/chart_of_accounts.py
+  exit=1 ========================= 6 failed, 4 passed in 2.37s ==========================
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[agras]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[carniprod]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[realestate]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[closed_bridge]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[bridge_with_722]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[open]
+  -> RED ; file restored byte-exact
+REVERT (clean tree):
+============================== 10 passed in 2.34s ==============================
+PLANT methodology-reported-without-711 (pre-ruling YAML): methodology/ro_ras_2025_v1.yaml
+  exit=1 ========================= 6 failed, 4 passed in 2.35s ==========================
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[agras]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[carniprod]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[realestate]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[closed_bridge]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[bridge_with_722]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[open]
+  -> RED ; file restored byte-exact
+```
+
+**CANNOT SEE:** whether the served figure is right (`net-711-rule`); a
+refused EBITDA (`refusal-carries-engine`); denominators
+(`turnover-denominator-engine`); the browser (`one-ebitda`).
+
+## turnover-denominator-engine
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_turnover_denominator_engine.py -q` |
+| canary | `SCOPE turnover-denominator-engine: 8 served books`, `refused by the one margin rule on every displayed surface: realestate` |
+| work count | `GATE-WORK turnover-denominator-engine units=N`, floor **150** (measured 168) |
+
+**INCIDENT** — the ruling: "margins and growth use net turnover (701–708
+minus 709) as the denominator". Before it the briefing's citable ratios, the
+Section 9 benchmark, FactsGateway.revenue() (plus a P&L-placed delta) and
+the stored EBITDA margin divided total operating revenue. Found by this gate
+on its first run (2026-09-27): the briefing's citable ratios skipped the ONE
+margin rule — the model was handed the developer's EBITDA margin 339.34 %
+(−17,884.9 % before the ruling) while the ratio table, the benchmark and
+the cockpit refused it. Repaired in `pipeline._briefing_ratios` (the
+`margin_meaning` verdict on the same operands the table judges).
+
+**LAW** — every engine "revenue" IS turnover (metric row, FactsGateway /
+Capsule, valuation `revenue_used`, forecast year-0 revenue, methodology
+`revenue_net`, benchmark turnover); every margin = its served numerator /
+turnover (the five margin metric rows, the ratio table's four margin rows,
+the benchmark's EBITDA and net margins, the briefing's two citable margins,
+methodology EBITDA and gross margins); where the one margin rule refuses a
+book, every DISPLAYED margin refuses it. TC-3: total operating revenue ≠
+turnover on 5 of the 8 books (agras, carniprod, realestate, retail,
+bridge_with_722).
+
+Plants, each applied alone, byte-exact restore. The first attempt at the
+metric-row plant (`revenue + capitalized_own_work`) was INEFFECTIVE — the
+incomeStatement mirror the metric reads carries no 72x on these books, so
+the planted denominator equalled turnover and the gate correctly stayed
+GREEN; the plant was re-made on the metric's own `total_operating_revenue`:
+```
+PLANT metric-row-ebitda-margin-over-turnover+72x: src/engine/ratios/credit_model.py
+  exit=0 ============================== 10 passed in 2.46s ==============================
+  -> GREEN ; file restored byte-exact
+PLANT metric-row-ebitda-margin-over-total-operating-revenue: src/engine/ratios/credit_model.py
+  exit=1 ========================= 5 failed, 5 passed in 2.50s ==========================
+    FAILED tests/engine/test_turnover_denominator_engine.py::test_turnover_denominator_every_engine_revenue_and_margin[agras]
+    FAILED tests/engine/test_turnover_denominator_engine.py::test_turnover_denominator_every_engine_revenue_and_margin[carniprod]
+    FAILED tests/engine/test_turnover_denominator_engine.py::test_turnover_denominator_every_engine_revenue_and_margin[realestate]
+    FAILED tests/engine/test_turnover_denominator_engine.py::test_turnover_denominator_every_engine_revenue_and_margin[retail]
+    FAILED tests/engine/test_turnover_denominator_engine.py::test_turnover_denominator_every_engine_revenue_and_margin[bridge_with_722]
+  -> RED ; file restored byte-exact
+PLANT benchmark-ebitda-margin-over-total-operating-revenue: src/engine/api/_benchmark_engine.py
+  exit=1 ========================= 4 failed, 6 passed in 2.38s ==========================
+    FAILED tests/engine/test_turnover_denominator_engine.py::test_turnover_denominator_every_engine_revenue_and_margin[agras]
+    FAILED tests/engine/test_turnover_denominator_engine.py::test_turnover_denominator_every_engine_revenue_and_margin[carniprod]
+    FAILED tests/engine/test_turnover_denominator_engine.py::test_turnover_denominator_every_engine_revenue_and_margin[retail]
+    FAILED tests/engine/test_turnover_denominator_engine.py::test_turnover_denominator_every_engine_revenue_and_margin[bridge_with_722]
+  -> RED ; file restored byte-exact
+PLANT briefing-skips-the-one-margin-rule: src/engine/api/pipeline.py
+  exit=1 ========================= 1 failed, 9 passed in 2.50s ==========================
+    FAILED tests/engine/test_turnover_denominator_engine.py::test_turnover_denominator_every_engine_revenue_and_margin[realestate]
+  -> RED ; file restored byte-exact
+PLANT briefing-margins-over-total-operating-revenue: src/engine/api/pipeline.py
+  exit=1 ========================= 4 failed, 6 passed in 2.44s ==========================
+    FAILED tests/engine/test_turnover_denominator_engine.py::test_turnover_denominator_every_engine_revenue_and_margin[agras]
+    FAILED tests/engine/test_turnover_denominator_engine.py::test_turnover_denominator_every_engine_revenue_and_margin[carniprod]
+    FAILED tests/engine/test_turnover_denominator_engine.py::test_turnover_denominator_every_engine_revenue_and_margin[retail]
+    FAILED tests/engine/test_turnover_denominator_engine.py::test_turnover_denominator_every_engine_revenue_and_margin[bridge_with_722]
+  -> RED ; file restored byte-exact
+REVERT (clean tree):
+============================== 10 passed in 2.37s ==============================
+```
+
+**CANNOT SEE:** the numerators (`one-ebitda-engine`); the company-years
+route's growth (its own tests); the browser (`turnover-denominator`).
+Beside it, NOT judged here and reported to the coordinator: the methodology
+`ratios.net_margin` numerator (its own EBITDA − D&A − financial − tax, 781
+reversals netted in D&A) differs from account 121 (agras 0.067959 vs
+0.067995), and methodology `gross_margin` (canonical cost of sales) differs
+from the ratio table's (agras 36.48 % vs 37.29 %).
+
+## refusal-carries-engine
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_refusal_carries_engine.py -q` |
+| canary | `SCOPE refusal-carries-engine: refused books g6_uncleared (account_121_opening_not_cleared); unanchored (account_121_anchor_absent)` |
+| work count | `GATE-WORK refusal-carries-engine units=N`, floor **130** (measured 146) |
+
+**INCIDENT** — design A3: "if net 711 is refused on a book with 711
+activity, EBITDA, EBIT, gross profit and every margin/ratio built on them
+REFUSE with the same typed reason. Remove every fallback chain first." The
+engine's chains: `float(ebitda_statutory or 0)` in the alerts and the
+confidence roll-up, the valuation's recompute on 0.0, `float(apl_ebitda)`
+in the ratio table. Found by this gate on its first run (2026-09-27): the
+ratio table's metric-only rows built on EBITDA/EBIT (`operating_margin`,
+`core_ebitda_margin`, `net_debt_to_ebitda`, `ebitda_to_interest`) refused a
+refused EBITDA with the generic `engine_metric_absent` instead of
+`ebitda_refused` and the 711 cause — repaired in `ratios/table.py`
+(`_BUILT_ON_ONE_EBITDA`).
+
+**LAW** — on the two refused CONSTRUCTED books (unanchored: G2;
+g6_uncleared: G6; SYNTHETIC) every engine surface states EBITDA / EBIT and
+what is built on them as absent, never a number, and carries the 711 code
+where it carries one: the assembled P&L and aliases, the reconciliation,
+GET /api/period metrics, 15 stored metric rows, 9 ratio-table rows (reason
+`ebitda_refused`, cause = the 711 code), the credit model, the methodology
+refusals, FactsGateway (`RefusedFactError`), the valuation (EV/EBITDA
+refused, routed `ebitda_refused`), the benchmark (not graded; its own
+`ebitda_refused` + RO/EN sentence — its stored rows carry no cause), the
+forecast year 0, the briefing's citable ratios (the engine's sentence) and
+the confidence roll-up (not emitted).
+
+Plants, each applied alone, byte-exact restore:
+```
+PLANT credit-model-refused-ebitda-as-0: src/engine/ratios/credit_model.py
+  exit=1 ========================= 2 failed, 2 passed in 0.54s ==========================
+    FAILED tests/engine/test_refusal_carries_engine.py::test_refusal_carries_every_engine_surface_refuses_with_the_711_reason[unanchored]
+    FAILED tests/engine/test_refusal_carries_engine.py::test_refusal_carries_every_engine_surface_refuses_with_the_711_reason[g6_uncleared]
+  -> RED ; file restored byte-exact
+PLANT briefing-refused-ebitda-or-0: src/engine/api/pipeline.py
+  exit=1 ========================= 2 failed, 2 passed in 0.59s ==========================
+    FAILED tests/engine/test_refusal_carries_engine.py::test_refusal_carries_every_engine_surface_refuses_with_the_711_reason[unanchored]
+    FAILED tests/engine/test_refusal_carries_engine.py::test_refusal_carries_every_engine_surface_refuses_with_the_711_reason[g6_uncleared]
+  -> RED ; file restored byte-exact
+PLANT ratio-table-generic-metric-absent (the defect this gate found): src/engine/ratios/table.py
+  exit=1 ========================= 2 failed, 2 passed in 0.59s ==========================
+    FAILED tests/engine/test_refusal_carries_engine.py::test_refusal_carries_every_engine_surface_refuses_with_the_711_reason[unanchored]
+    FAILED tests/engine/test_refusal_carries_engine.py::test_refusal_carries_every_engine_surface_refuses_with_the_711_reason[g6_uncleared]
+  -> RED ; file restored byte-exact
+PLANT forecast-year0-ebitda-or-0: src/engine/forecast/history.py
+  exit=1 ========================= 2 failed, 2 passed in 0.55s ==========================
+    FAILED tests/engine/test_refusal_carries_engine.py::test_refusal_carries_every_engine_surface_refuses_with_the_711_reason[unanchored]
+    FAILED tests/engine/test_refusal_carries_engine.py::test_refusal_carries_every_engine_surface_refuses_with_the_711_reason[g6_uncleared]
+  -> RED ; file restored byte-exact
+REVERT (clean tree):
+============================== 4 passed in 0.50s ===============================
+```
+
+**CANNOT SEE:** whether the engine was right to refuse (`net-711-rule`);
+the browser (`refusal-carries`). The benchmark's refusal carries a generic
+sentence, not the typed cause (its `calculated_metrics` rows carry none) —
+reported to the coordinator.
