@@ -10605,8 +10605,8 @@ search, the craft G4 on the renderer the palette uses, and company fit.
 
 | | |
 |---|---|
-| command | `npx vitest run --root . <commandBar.test.tsx> <cmdbarSearch.test.ts> <cmdbarStrings.test.ts> <capsuleCraft.test.tsx> <roleChips.test.tsx> <companyFit.test.ts> <evidenceReceivers.test.tsx> <cmdbarSwitch.test.tsx> --reporter=verbose` (cmdbarStrings and evidenceReceivers joined in CB-F1/CB-G, cmdbarSwitch in CB-I) |
-| work count | `Tests … (\d+) passed`, floor **141** (measured 141, stage CB-I; 132 at CB-H, 118 at CB-G, 88 before) |
+| command | `npx vitest run --root . <commandBar.test.tsx> <cmdbarSearch.test.ts> <cmdbarStrings.test.ts> <capsuleCraft.test.tsx> <roleChips.test.tsx> <companyFit.test.ts> <evidenceReceivers.test.tsx> <cmdbarSwitch.test.tsx> <cmdbarSwitchAction.test.tsx> <dashboardCompanyHold.test.tsx> --reporter=verbose` (cmdbarStrings and evidenceReceivers joined in CB-F1/CB-G, cmdbarSwitch in CB-I, cmdbarSwitchAction and dashboardCompanyHold in CB-J) |
+| work count | `Tests … (\d+) passed`, floor **187** (measured 187, stage CB-J; 141 at CB-I, 132 at CB-H, 118 at CB-G, 88 before) |
 | canary | the twenty titles / GATE-WORK lines named in `scripts/run_battery.py` (swap, served items, ratio_table-not-metrics, warm zero-fetch, planted model text, digit rule, caveat once, rent-only DSCR, the ratio receiver; CB-G: every Cont leaf, every Δ, every vs-sector, the cold open timed, every spelling, the ↓ walk, diacritics no other rule rescues, Romanian letters, printed names typed back, a new query selecting its answer, each document named to its company) |
 
 **Reds on, after the repair (TC-11):** a resting list that is not the served
@@ -11492,6 +11492,251 @@ carries no period of the company left behind" green in both languages (and
 40 of 40 in the repeated runs above); the 8 skipped are workspace-v2's
 screenshot tests without `WS_SHOTS_DIR`.
 
+### Stage CB-J (the re-review of CB-I, 2026-09-27) — what it found, each planted
+
+Seven findings on HEAD a07303c4. Each was re-measured first; all seven held.
+An earlier fixer's half-edit (the switch action, the kept-payload hold, the
+in-flight law) was reused after its every law was re-run and re-planted here.
+
+**The bar's own "Switch to <company>" did not switch (high).** The action
+called `select()` IN PLACE, under the URL on display, and a screen that pins
+a company (`?org=`, one of its periods, `/workspace/<id>`) holds for it
+(`lib/companyOnScreen`). From Scandia's dashboard the header read "Agras SRL
+· Dec 2025" over a blank held page; from Scandia's company page, Agras over
+Scandia's page; when the hold's ask window ran out (`HOLD_ASK_WINDOW_MS`,
+10 s) the screen went back to Scandia. The earlier switch laws (cmdbarSwitch,
+G10) moved the URL themselves and never pressed the bar's own row. Repaired
+(`CommandPalette.tsx`, `lib/dashboardHref.ts` `companySwitchHref`): the
+action — and a company × year row of another company, and its recent pick —
+opens the company's OWN screen. Redesign on: its newest year's dashboard or
+its company page, whose hold makes the switch (the one authority; the
+workspace home switches the same way, `navigate(/workspace/<id>)`). Redesign
+off (no screen holds): the bar switches through `select()` in the same tick as
+the navigation. Nothing moves while an analysis runs (`blockedByScan`,
+checked first). And `useDashboardCompanyHold`: a `?org=` link over the
+PREVIOUS period's kept payload (`keepPreviousData`) is held for its pin — it
+painted Scandia's month under a URL naming Agras until Agras's body landed.
+
+New jsdom law, `cmdbarSwitchAction.test.tsx` (joined to cmdbar-surface, 30):
+the REAL palette beside the REAL holds (AppShell's `useDashboardCompanyHold`,
+the company page's `useCompanyOnScreen`) on a QueryClient with the app's own
+defaults, a `switchOrg` in lib/org.ts's order; the action, the year row and
+its recent pick, from six screens, redesign on and off, time run 1.5 × past
+the ask window: ends on Agras (holder, `useActiveOrg`, header), on Agras's
+own screen, exactly one switch to Agras and none back; redesign off, no
+render shows a URL pinning one company under a holder naming another; mid-
+scan, nothing moves. `GATE-WORK cmdbar-switch-action redesign=on
+pick=action from="Scandia's dashboard" … switches=1`.
+```
+### PLANT cmdbar-switch-action (a) — CommandPalette.tsx as it was (a07303c4)          RED 20 failed | 10 passed (30)
+   +   "the holder ends on 0a9a…0051, not Agras",
+   +   "the header ends on \"Scandia Food SRL\", not \"Agras SRL\"",
+   +   "the screen it ends on (/dashboard?period=5ea5…51f5&org=0a9a…0051) pins 0a9a…0051, not Agras",
+   +   "switched back: [{\"to\":\"0a9a…0051\",\"by\":\"hold\",…}]",
+   +   "the screen it ends on (/dashboard) pins no company, not Agras",
+   +   "a render with /dashboard?period=5ea5…51f5&org=0a9a…0051 (pins 0a9a…0051) under holder 0a9a…00a9",
+### PLANT (b) — lib/companyOnScreen.ts as it was (the kept payload decides)            RED 3 failed | 35 passed (38)
+   × G6 … a ?org= link over the PREVIOUS period's kept payload: the pin decides — held, switched, never the kept company's page
+   × cmdbar-switch-action … redesign on · the action / the year row · Agras's period body in flight · from Scandia's dashboard
+   +   "0 switches to Agras (one authority makes one): []",
+REVERT (each restored byte for byte, git status clean): the battery's cmdbar-surface PASS, 186
+```
+**Live, G11** (`e2e/design/cmdbar.spec.ts`, hermetic): the bar's own row
+pressed from Scandia's dashboard (EN, RO), its company page, `/benchmark`,
+the bare dashboard and `/settings`, sampled every 250 ms to 2.5 s past
+`HOLD_ASK_WINDOW_MS` (read from its source): the header names Agras within
+5 s and still names it after, the page is never held blank under it (2 s
+grace), the URL it ends on is Agras's own, the G6 header watch sees no header
+over another company's page, no request crosses companies, and the bar opened
+again searches Agras with Agras's own items. On this tree's bundle: `6 passed`
+— `GATE-WORK cmdbar-live-switch-action from="Scandia's company page"
+named_at=49 … ends=/dashboard?period=<Agras FY2025>&org=<Agras>`.
+```
+### LIVE PLANT — this tree, the palette as it was (a07303c4), its own bundle     6 failed
+   +   "the page is held blank under the new header from 2264 to 10170 ms (32 samples): \"Agras SRL · Dec 2025Ctrl+K\" at /dashboard?period=5ea5…51f5&org=0a9a…0051",
+   +   "the header went back from 10430 to 12476 ms (9 samples): \"Scandia Food SRL · Dec…Ctrl+K\" at /dashboard?period=5ea5…51f5&org=0a9a…0051",
+   +   "the screen it ends on (/dashboard?period=5ea5…51f5&org=0a9a…0051) is not Agras's own",
+   +   "after the switch, named the company left behind: GET /api/period/5ea5…51f5/attention (as 0a9a…0051)",
+   +   "the header went back from 10255 to 12301 ms (9 samples): \"Scandia Food SRL · Dec…Ctrl+K\" at /workspace/0a9a…0051",
+REVERT (this tree's bundle): 6 passed
+```
+
+**The switchingTo guard was proven by no law (low).** CB-I's guard in
+`useCmdbarData` (while the workspace holder names another company than
+`useActiveOrg()`, the scope is "loading": nothing asked, nothing painted)
+stayed green with every law when removed. New law, `cmdbarSwitch.test.tsx`
+"a switch in flight" (4): the holder names Agras and the cache is cleared,
+`useActiveOrg()` still Scandia, the company page opened or the URL left on
+Scandia's dashboard, at rest and typed — every frame names Agras, paints
+nothing, asks nothing. `GATE-WORK cmdbar-switch in-flight …`.
+```
+### PLANT cmdbar-switch in-flight — useCmdbarData.ts: switchingTo = null           RED 4 failed | 5 passed (9)
+   +   "the line names the company being left: \"Searching Scandia Food SRL · loading\"",
+   +   "asked in flight: http://api.test.invalid/api/companies/0a9a…0051/years (as 0a9a…0051)",
+   +   "asked in flight for the period body of 5ea5…51f5",
+REVERT (each restored byte for byte, git status clean): the battery's cmdbar-surface PASS, 186
+```
+
+**Full vitest red in 3 of 3 re-review runs (medium).** Re-measured on this
+branch before any timing repair (the earlier fixer's half-edit in the tree):
+`2 failed | 3970 passed` (the cold answer law
+`expected 105.68 to be less than 100`; `pair: every ratio answer lands on its
+ratio-table row` timed out at 5 137 ms), and an earlier fixer's three base
+runs `0`, `4` and `7` failed — the same laws, plus K3 and reportPriorCredit
+§4, none of whose code had moved. Two classes, neither a defect: (1) latency
+laws timed on the WALL clock, which under the suite's parallel load measures
+the load (the same keystrokes: `wall_p95 35.9 ms` alone and `51.2 ms` beside
+28 CPU hogs, `380–514 ms` in the full suite, for `~13–16 ms` of work); (2)
+correctness laws that assert no time at all, bounded by vitest's 5 s default
+(0.5–1 s alone, 5–7.5 s under load, every assertion green). Repaired without
+raising a budget: `frontend/test/cpuClock.ts` reads
+`process.threadCpuUsage()` (this thread's CPU, µs); the cmdbar warm (p95) and
+cold (max) laws and K3's per-question budget hold < 100 ms of the keystroke's
+WORK and print the wall figure beside it, unasserted — the real browser's wall
+latency stays live (G7). The correctness laws are bounded by their work
+(evidenceLanding file-wide 30 s, reportPriorCredit §4 30 s, the latency laws
+HEAVY) so real work reds on its budget, not on a hang guard.
+```
+### PLANT cmdbar-latency (work) — CommandPalette.tsx: 150 ms of real work per keystroke   RED 2 failed | 1 passed
+   AssertionError: p95 keystroke work (thread-cpu, ms): expected 159.316 to be less than 100
+   AssertionError: cold answer work (thread-cpu, ms): expected 161.582 to be less than 100
+### PLANT K3 — capsuleTier0.ts: 120 ms of work in resolveTier0                   RED 2 failed | 1 passed
+   AssertionError: K3: a zero-spend answer took ≥100ms. … expected [ …(37) ] to deeply equal []
+UNDER LOAD (28 `yes` hogs, 14 cores, twice): the CPU laws 3 passed, cpu_p95 16.8 / 16.2 ms, wall_p95 51.2 / 49.4 ms
+REVERT (restored byte for byte): the full vitest run that followed, Tests 3977 passed | 1 skipped (3978); the battery's cmdbar-surface PASS, 186
+```
+
+**The zero-fetch law was blind to a debounce that measures elapsed time
+(medium).** CB-I faked `setTimeout`/`setInterval` but not `Date`: lodash's
+`debounce` re-arms its timer until `Date.now()` says the wait has passed, so
+the virtual horizon ran its timer again and again while the real Date barely
+moved and the fetch was never issued before the count. Repaired: the fake
+clock fakes `Date` and `performance` too (`FAKED_CLOCKS`), with a positive
+control that both advance by exactly `DEBOUNCE_HORIZON_MS` across a horizon;
+the latency is read on the CPU clock, which no fake moves.
+```
+### PLANT cmdbar-latency (lodash) — CommandPalette.tsx: lodash/debounce(fetch, 300) per keystroke
+THE CB-I CLOCKS (setTimeout/setInterval only):   Tests 3 passed | 59 skipped (62)        ← blind
+THE CB-J CLOCKS (+ Date, performance):           RED 1 failed | 2 passed
+   AssertionError: requests caused by a keystroke: expected [ …(65) ] to deeply equal []
+   +   "\"p\": http://api.test.invalid/api/plant-debounced?q=p",
+   +   "\"pr\": http://api.test.invalid/api/plant-debounced?q=pr",
+REVERT (each restored byte for byte, git status clean): the battery's cmdbar-surface PASS, 186
+```
+
+**G10's paint check caught the pre-fix defect about half the time
+(medium).** Answered at once, the window in which a new key loads while the
+previous key's data is kept on screen was often shorter than one committed
+frame. Repaired: the double's `engineDelay` answers every engine document
+`SWITCH_DELAY_MS` = 900 ms late from the switch on (the status dot and the
+feature flags at once), so the window is always open. The real rates, on the
+pre-fix bundle (d7dbfd70, rebuilt hermetic), `--repeat-each=5`, paint check
+per run:
+```
+                                         CB-I law (no delay)     CB-J law (900 ms)
+Scandia → Agras, open, at rest                 3 / 5                  5 / 5
+Scandia → Agras, open, typed 'clienti'         1 / 5                  5 / 5
+Scandia → Agras, closed, opened after          0 / 5                  0 / 5   (red on the request check 5/5, both laws)
+Scandia Dec 2025 → Dec 2024, open              4 / 5 (1 run green)    5 / 5
+paint caught                                   8 / 20                 15 / 20
+runs red                                       19 / 20                20 / 20
+this tree's bundle, CB-J law                                          20 / 20 green
+```
+The "closed" variant paints nothing on the pre-fix bundle under either law:
+the bar's own queries mount when it opens, with no previous key to keep; its
+defect there is the request across companies, caught 5 of 5.
+
+**A code wrapped in punctuation found no account (low).** "(4111)",
+"\"4111\"", "#4111": the word started with a mark, so it was no code word;
+read as a name word it was a bare number, which no name carries. Repaired
+(`cmdbarSearch.ts` `unwrapWord`): the punctuation AROUND a word is stripped
+before it is classified; separators inside a code stay for `codeKey`; the
+Cont overflow row names the unwrapped prefix. New law: every code and 3/4-
+digit prefix of both books under nine wrappings finds exactly what it finds
+bare. `GATE-WORK cmdbar-wrapped-code scandia probes=2646` · `agras
+probes=2277`.
+```
+### PLANT cmdbarSearch.ts — no unwrap                                            RED 3 failed | 43 passed (46)
+   AssertionError: scandia: wrapped codes that do not find what the bare code finds (2058): …
+   +   "(101) → 0 accounts, \"101\" → 1",     "#101 → 0 accounts, \"101\" → 1",
+   AssertionError: (4111): expected [] to deeply equal [ '411121', '411102', '411104' ]
+REVERT (each restored byte for byte, git status clean): the battery's cmdbar-surface PASS, 186
+```
+
+**Engine keys on screen (low).** The account view printed "read from
+statements.insights.insights[id=earnings_quality].measures[key=non_trading]",
+"read from assembled_pl.ebitda", "Land · canonical_bs.rows[id=ppe_land]", and
+an unknown line as "(pl.nope)". Repaired (`EvidenceDrawer.tsx`,
+`evidenceView.ts` `sourceLabelKey`, `evidenceStrings.json`): the source is a
+declared label in the reader's language (`evidence.source.<pl|bs|cf|metrics|
+findings|served>`), the path kept in `data-source` for a developer; a served
+total reads "<label> — a balance sheet row"; an unknown line is one sentence,
+its key in `data-line`. New law (evidenceLanding, cmdbar-evidence), EN and
+RO: every account view the bar opens over the four worlds — items, answers,
+a served total, an unknown line — prints no engine path or id and names each
+source in words. `GATE-WORK cmdbar-evidence-words en views=58 sources=50`.
+```
+### PLANT evidence-words — EvidenceDrawer.tsx + evidenceStrings.json as they were   RED 2 failed | 32 skipped (34)
+   AssertionError: engine paths or ids on screen (58): …
+   +   "… &finding=earnings_quality&measure=non_trading: \"…RON 753,070.01read from statements.insights.insights[id=earnings_quality].\"",
+   +   "… &line=pl.ebitda: \"…read from assembled_pl.ebitdaCalculated from other lines of \"",
+REVERT (restored byte for byte): every evidence test, Tests 37 passed (37); the battery's cmdbar-evidence PASS, 39
+```
+
+**Found by this stage's own live run: a new query's first frame selected
+nothing.** The first full hermetic run of the CB-J bundle was red once, on G8
+@1440: `"stale": [ "scandia \"stoc\": selected null, not answer:inventory" ]`.
+"stoc", typed after ↓ had walked "profit" to its end, was committed with the
+previous walk's index, past the new list, and the reset to the first row
+ran in an effect AFTER that commit — one frame with no row selected. The
+settled state was right, so every law that looked after the effects was
+green, and G8 met the frame only when its sample landed between the commit
+and the effect (16 of 16 green on that bundle, `--repeat-each=8`). A first
+repair reset the selection with a setState during render (abe666ec): jsdom
+green, but live G8 then met a selection STUCK on "Întreabă CFO AI" after a
+new query in 5 of 16 runs (`"scandia \"raport\": selected ask, not
+ratio:ebitda_to_interest"`). Repaired for good (b0d0be15,
+`CommandPalette.tsx`): nothing is reset. The selection is held WITH the query
+it was made on, and the row shown selected is computed in render — the
+query's first row when the held selection belongs to another query, clamped
+to the list's end (the clamp effect is gone too); the setters read the
+render's key through a ref. New jsdom law, cmdbar-keyboard: on EVERY commit
+(a Profiler around the bar), after ↓ walks six queries to their end, each new
+query's frames select its first row. `GATE-WORK cmdbar-selection-frames
+queries=6 frames=12`. Live, the final bundle: G8 32 of 32 green
+(`--repeat-each=16`).
+```
+### PLANT cmdbar-selection-frames — CommandPalette.tsx: the reset back in an effect (abe666ec~1)   RED 1 failed
+   AssertionError: a committed frame of a new query that does not select its first row: expected [ …(12) ] to deeply equal []
+   +   "\"stoc\": a frame selected null, its first row is answer:inventory",
+   +   "\"clienti\": a frame selected null, its first row is answer:receivables",
+REVERT (restored byte for byte): cmdbar-keyboard and the whole file, Tests 63 passed (63)
+```
+
+**Floors after stage CB-J** (measured, exact): `cmdbar-surface` 141 →
+**187** (cmdbarSwitchAction 30, dashboardCompanyHold 8, the in-flight law 4,
+the wrapped code 3, the selection frames 1), `cmdbar-evidence` 37 → **39**. Narrowed battery on the
+tree: `PASS attention-rules (28)` · `attention-served-only (18)` ·
+`attention-route (8)` · `cmdbar-fixtures (6)` · `cmdbar-surface (186)` ·
+`evidence-lines (14)` · `cmdbar-evidence (39)` — 7/7 (with the selection law,
+`PASS cmdbar-surface (13.0s, 187 command-bar tests)`). Through the battery, the
+a07303c4 palette + drawer + strings: `FAIL cmdbar-surface (exit 1, 14.8s)` ·
+`FAIL cmdbar-evidence (exit 1, 5.6s)` → restored → PASS.
+
+**Live and full, stage CB-J** (the tree at b0d0be15): the hermetic bundle
+built from it, both specs in one run — `48 passed, 8 skipped (6.3m)`:
+`cmdbar.spec.ts` 37 (the CB-I 31 + G11 ×6; G10 with the 900 ms engine delay)
+and `workspace-v2.spec.ts` 11; the 8 skipped are workspace-v2's screenshot
+tests without `WS_SHOTS_DIR`. The first run of this stage's bundle (before
+b0d0be15) was `1 failed | 47 passed` — the G8 frame above. Full vitest,
+three runs back to back: `3978 passed | 1 skipped (3979)` ×3, the latency laws
+reading `cpu_p95 9.8 / 10.1 / 8.9 ms` warm and `cpu_max 8.5 / 9.2 / 7.2 ms`
+cold beside `wall_max 88.9 / 20.3 / 23.3 ms` cold — the wall figure the old
+law asserted on came within 12 ms of its budget in a green run. `tsc`: the 10
+known capsuleAskGuard errors, no other. Engine: `test_attention_route_real_app`,
+`test_attention_rules`, `test_attention_served_only`, `test_cmdbar_fixtures`,
+`test_evidence_lines` — `49 passed`.
+
 ## evidence-lines
 
 The account view (`frontend/components/cfo/evidence/EvidenceDrawer.tsx`, design
@@ -11570,7 +11815,7 @@ source file linking a retired slug.
 | | |
 |---|---|
 | command | `npx vitest run --root . frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx --reporter=verbose` |
-| work count | `Tests … (\d+) passed`, floor **37** (measured 37, stage CB-I; 35 at CB-H, 25 at CB-F2) |
+| work count | `Tests … (\d+) passed`, floor **39** (measured 39, stage CB-J; 37 at CB-I, 35 at CB-H, 25 at CB-F2) |
 | canary | six test titles named in `scripts/run_battery.py` (each world's items, the Cont model sweep, the ratio sweep, no unserved total, no retired slug) |
 
 **Reds on, after the repair (TC-11):** an item whose evidence opens no receiver
