@@ -1933,15 +1933,28 @@
     },
     "methodology": {
      "ebitda": {
-      "adjusted": 10386287.69,
-      "cash": 10776378.24,
-      "reported": 10776378.24,
-      "strict": 10386287.69
+      "adjusted": 11457974.72,
+      "cash": 11848065.27,
+      "reported": 11848065.27,
+      "strict": 11457974.72
      },
+     "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
      "errors": [],
      "industry_key_applied": "default",
+     "measured": {
+      "capitalized_own_work_net": {
+       "provenance": "no_72x_activity",
+       "refusal": null,
+       "value": 0.0
+      },
+      "inventory_variation_net": {
+       "provenance": "account_121_bridge",
+       "refusal": null,
+       "value": 1071687.03
+      }
+     },
      "methodology_id": "ro_ras_2025_v1",
-     "methodology_version": "1.0.0",
+     "methodology_version": "1.1.0",
      "missing_buckets": [
       "deferred_tax_assets.net",
       "deferred_tax_liabilities.net",
@@ -2047,14 +2060,14 @@
        "direction": "higher_is_better",
        "note": "Rough DSCR; LT debt amortized over 8y assumption. Refine via per-period schedule when available.",
        "unit": "ratio",
-       "value": 20.568378
+       "value": 22.613858
       },
       "ebitda_margin_cash": {
        "band": null,
        "direction": "higher_is_better",
        "note": "",
        "unit": "ratio",
-       "value": 0.097261
+       "value": 0.106934
       },
       "ebitda_margin_reported": {
        "band": [
@@ -2064,7 +2077,7 @@
        "direction": "higher_is_better",
        "note": "",
        "unit": "ratio",
-       "value": 0.097261
+       "value": 0.106934
       },
       "ebitda_to_interest": {
        "band": [
@@ -2074,7 +2087,7 @@
        "direction": "higher_is_better",
        "note": "",
        "unit": "ratio",
-       "value": 31.337886
+       "value": 34.45437
       },
       "equity_ratio": {
        "band": [
@@ -2091,7 +2104,7 @@
        "direction": "higher_is_better",
        "note": "",
        "unit": "ratio",
-       "value": 0.355112
+       "value": 0.364785
       },
       "interest_coverage": {
        "band": [
@@ -2101,7 +2114,7 @@
        "direction": "higher_is_better",
        "note": "",
        "unit": "ratio",
-       "value": 22.732091
+       "value": 25.848574
       },
       "inventory_turnover": {
        "band": null,
@@ -2125,7 +2138,7 @@
        "direction": "lower_is_better",
        "note": "",
        "unit": "ratio",
-       "value": 0.145283
+       "value": 0.132142
       },
       "net_margin": {
        "band": [
@@ -2135,7 +2148,7 @@
        "direction": "higher_is_better",
        "note": "",
        "unit": "ratio",
-       "value": 0.058286
+       "value": 0.067959
       },
       "quick_ratio": {
        "band": [
@@ -2155,7 +2168,7 @@
        "direction": "higher_is_better",
        "note": "",
        "unit": "ratio",
-       "value": 0.164441
+       "value": 0.191729
       },
       "return_on_equity": {
        "band": [
@@ -2165,7 +2178,7 @@
        "direction": "higher_is_better",
        "note": "",
        "unit": "ratio",
-       "value": 0.269937
+       "value": 0.314733
       },
       "working_capital": {
        "band": null,
@@ -2175,13 +2188,14 @@
        "value": 14463080.17
       }
      },
+     "refusals": {},
      "schema_version": "canonical_v1.0.0",
      "totals": {
       "current_assets": 27476056.94,
       "current_liabilities": 13012976.77,
-      "gross_profit": 39345827.3,
+      "gross_profit": 40417514.33,
       "net_debt": 1565628.87,
-      "operating_profit_reported": 7817043.15,
+      "operating_profit_reported": 8888730.18,
       "revenue_net": 110798309.14,
       "total_assets": 39272501.03,
       "total_debt": 3640202.33,
@@ -4321,119 +4335,6 @@
      {
       "accounts": [
        {
-        "amount": 7533676.02,
-        "code": "121",
-        "name": "Current year profit",
-        "role": "account_121"
-       }
-      ],
-      "claim": "Rebuilding the P&L from the movement columns reaches RON 6,461,988.99; statutory profit in account 121 is RON 7,533,676.02. The unexplained step of RON 1,071,687.03 is 16.6% of the RON 6,461,988.99 it is bridging.",
-      "claim_template": "Rebuilding the P&L from the movement columns reaches {money:reconstructed}; statutory profit in account 121 is {money:statutory}. The unexplained step of {money:step} is {measure:graded_share} of the {money:graded_base} it is bridging.",
-      "facts": [
-       {
-        "label": "Reconciliation to account 121",
-        "name": "assembled_pl.net_income_reconciliation_to_121",
-        "unit": "money",
-        "value": 1071687.03
-       },
-       {
-        "label": "Net income rebuilt from the movements",
-        "name": "assembled_pl.net_income_operational",
-        "unit": "money",
-        "value": 6461988.99
-       },
-       {
-        "label": "Net income in account 121",
-        "name": "assembled_pl.net_income_statutory",
-        "unit": "money",
-        "value": 7533676.02
-       },
-       {
-        "label": "Revenue",
-        "name": "assembled_pl.revenue",
-        "unit": "money",
-        "value": 110798309.14
-       }
-      ],
-      "formula": "|account-121 reconciliation step| ÷ |reconstructed net income|",
-      "id": "reconstruction_gap",
-      "in_summary": true,
-      "measures": [
-       {
-        "key": "step",
-        "label": "Reconciliation to account 121",
-        "unit": "money",
-        "value": 1071687.03
-       },
-       {
-        "key": "reconstructed",
-        "label": "Net income rebuilt from the movements",
-        "unit": "money",
-        "value": 6461988.99
-       },
-       {
-        "key": "statutory",
-        "label": "Net income in account 121",
-        "unit": "money",
-        "value": 7533676.02
-       },
-       {
-        "key": "graded_share",
-        "label": "Step as a share of reconstructed net income",
-        "unit": "ratio",
-        "value": 0.165844762605
-       },
-       {
-        "key": "graded_base",
-        "label": "Reconstructed net income",
-        "unit": "money",
-        "value": 6461988.99
-       }
-      ],
-      "narrative": {
-       "explanation": "Rebuilding the P&L from the movement columns reaches RON 6,461,988.99; statutory profit in account 121 is RON 7,533,676.02. The unexplained step of RON 1,071,687.03 is 16.6% of the RON 6,461,988.99 it is bridging. Graded medium: the amount at stake is 16.6% of reconstructed net income, against the ladder printed beside this finding. The step is graded against the profit it is correcting. A bridge worth a tenth of the answer is a footnote; one worth half of it means the reconstruction is not the source of the printed profit.",
-       "reason": "the advisory lane was not invoked for this build",
-       "so_what": "Ask for the year-end journals behind the step to account 121 before relying on the reconstructed P&L for anything. A large bridge means the movement columns are not the source of the reported profit.",
-       "source": "deterministic"
-      },
-      "rank": 5,
-      "rank_basis": "Ranked by severity level, then by materiality descending; ties broken by detector id ascending. The top 5 carry into the executive summary.",
-      "severity": {
-       "bands": [
-        {
-         "at_least": 0.5,
-         "level": "critical"
-        },
-        {
-         "at_least": 0.2,
-         "level": "high"
-        },
-        {
-         "at_least": 0.05,
-         "level": "medium"
-        },
-        {
-         "at_least": 0.01,
-         "level": "low"
-        },
-        {
-         "at_least": null,
-         "level": "info"
-        }
-       ],
-       "basis": "reconstructed_net_income",
-       "basis_label": "Reconstructed net income",
-       "basis_value": 6461988.99,
-       "level": "medium",
-       "magnitude": 1071687.03,
-       "materiality": 0.165845,
-       "why": "The step is graded against the profit it is correcting. A bridge worth a tenth of the answer is a footnote; one worth half of it means the reconstruction is not the source of the printed profit."
-      },
-      "title": "The P&L does not reach statutory profit on its own"
-     },
-     {
-      "accounts": [
-       {
         "amount": 95681.37,
         "code": "7581",
         "name": "5642 Rwvfqtlf mfv mwgapktuflf, piwvnf gf awvphfqpqf",
@@ -4518,7 +4419,7 @@
       ],
       "formula": "(Other operating income + provision reversals) ÷ EBITDA; operating cash proxy ÷ EBITDA; capitalised own work",
       "id": "earnings_quality",
-      "in_summary": false,
+      "in_summary": true,
       "measures": [
        {
         "key": "non_trading",
@@ -4575,7 +4476,7 @@
        "so_what": "Strip the non-trading income out before applying any multiple. Provision reversals and other operating income do not recur, and an EBITDA that leans on them overstates the run rate.",
        "source": "deterministic"
       },
-      "rank": 6,
+      "rank": 5,
       "rank_basis": "Ranked by severity level, then by materiality descending; ties broken by detector id ascending. The top 5 carry into the executive summary.",
       "severity": {
        "bands": [
@@ -4760,7 +4661,7 @@
        "so_what": "Compare the collection gap with the credit terms actually granted. Where suppliers fund the cycle, that funding is a payables line that can be withdrawn, not a permanent source.",
        "source": "deterministic"
       },
-      "rank": 7,
+      "rank": 6,
       "rank_basis": "Ranked by severity level, then by materiality descending; ties broken by detector id ascending. The top 5 carry into the executive summary.",
       "severity": {
        "bands": [
@@ -4927,7 +4828,7 @@
        "so_what": "Separate the operating result from the financial one when judging the trading business. Financial income earned on assets or affiliates does not repeat because trading improved.",
        "source": "deterministic"
       },
-      "rank": 8,
+      "rank": 7,
       "rank_basis": "Ranked by severity level, then by materiality descending; ties broken by detector id ascending. The top 5 carry into the executive summary.",
       "severity": {
        "bands": [
@@ -4963,14 +4864,20 @@
       "title": "The financial line is not incidental to the result"
      }
     ],
-    "not_fired": [],
+    "not_fired": [
+     {
+      "id": "reconstruction_gap",
+      "reason": "On this closed trial balance the stock variation (711) is derived from account 121, so the P&L reaches statutory profit by construction; the checks that still bind are the guards the derivation passed (every class-6/7 account read, the remainder within the 711 turnover, 121's opening cleared).",
+      "title": "The P&L does not reach statutory profit on its own"
+     }
+    ],
     "schema_version": "insights/1",
     "summary_ids": [
      "asset_age",
      "liquidity_quality",
      "related_party_exposure",
      "unclassified_balances",
-     "reconstruction_gap"
+     "earnings_quality"
     ]
    },
    "periodLabel": "2025-12-31",
@@ -6221,6 +6128,7 @@
      "reported": 500.0,
      "strict": 500.0
     },
+    "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
     "errors": [
      {
       "error": "ZeroDivisionError: division by zero",
@@ -6248,8 +6156,20 @@
      }
     ],
     "industry_key_applied": "default",
+    "measured": {
+     "capitalized_own_work_net": {
+      "provenance": "no_72x_activity",
+      "refusal": null,
+      "value": 0.0
+     },
+     "inventory_variation_net": {
+      "provenance": "no_711_activity",
+      "refusal": null,
+      "value": 0.0
+     }
+    },
     "methodology_id": "ro_ras_2025_v1",
-    "methodology_version": "1.0.0",
+    "methodology_version": "1.1.0",
     "missing_buckets": [
      "dap.net",
      "deferred_income_lt.net",
@@ -6511,6 +6431,7 @@
       "value": 1500.0
      }
     },
+    "refusals": {},
     "schema_version": "canonical_v1.0.0",
     "totals": {
      "current_assets": 1500.0,
@@ -7378,7 +7299,7 @@
     },
     {
      "id": "reconstruction_gap",
-     "reason": "The reconstructed P&L reaches statutory profit exactly; there is no bridging step to report.",
+     "reason": "The P&L, its named lines included, reaches statutory profit exactly; there is no unexplained step to report.",
      "title": "The P&L does not reach statutory profit on its own"
     },
     {
