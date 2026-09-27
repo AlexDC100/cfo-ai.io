@@ -27,7 +27,10 @@
 //                      interaction and renders no recommendations / briefing
 //                      / alert / narrative text.
 //   cmdbar-latency     warm cache: every keystroke renders all groups but
-//                      "Întreabă" in < 100 ms with ZERO fetches; cold open:
+//                      "Întreabă" in < 100 ms with ZERO fetches — counted
+//                      after every timer the keystroke armed has run (fake
+//                      timers, DEBOUNCE_HORIZON_MS), so a debounced fetch is
+//                      counted too; cold open:
 //                      the value first, Δ / vs-sector say "loading" — never
 //                      blank, never 0.
 //   cmdbar-keyboard    ↑↓ walk every row the reader sees and stop at the
@@ -165,6 +168,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  vi.useRealTimers(); // a latency law that failed mid-way leaves no fake clock behind
   (globalThis as unknown as Record<string, unknown>).fetch = savedFetch;
   cleanup();
   await act(async () => { await i18n.changeLanguage("en"); });
@@ -276,6 +280,27 @@ async function flushAsync(turns = 3): Promise<void> {
   for (let i = 0; i < turns; i++) {
     await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
   }
+}
+
+/** THE DEBOUNCE HORIZON. A request a keystroke DEFERS — a debounce, a
+ *  throttle, any timer — is issued only after its window, so a count taken
+ *  as soon as the keystroke's promises settle cannot see it (the review of
+ *  stage CB-H: `flushAsync` alone was blind to a 300 ms debounced fetch).
+ *  Under fake timers every timer a keystroke armed is run, up to this far
+ *  ahead, BEFORE its requests are counted. Far past any debounce a search
+ *  box would use; virtual time, so it costs nothing. */
+const DEBOUNCE_HORIZON_MS = 5_000;
+
+/** Run every timer due within the horizon (fake timers on), letting each
+ *  timer's promises settle in between, inside act. */
+async function pastTheHorizon(): Promise<void> {
+  await act(async () => { await vi.advanceTimersByTimeAsync(DEBOUNCE_HORIZON_MS); });
+}
+
+/** Fake the timers a debounce is built from — never `performance` (the
+ *  latency is measured on the real clock) nor the scheduler's own queue. */
+function fakeDebounceTimers(): void {
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
 }
 
 // ════════════════════════════════════════════════════════════════════════
@@ -728,28 +753,35 @@ describe("absent is never 0", () => {
 });
 
 describe("cmdbar-latency — warm cache, cold open", () => {
-  it("warm: every keystroke renders under 100 ms and fetches NOTHING", async () => {
+  it("warm: every keystroke renders under 100 ms and fetches NOTHING — not even after a debounce", async () => {
+    fakeDebounceTimers();
     mount(pairWorld());
     // The mount's own settling (nothing should be asked for: every document
     // is seeded) is not a keystroke's.
-    await flushAsync();
+    await pastTheHorizon();
     const before = fetched.length;
     const walls: number[] = [];
     const perKeystroke: string[] = [];
+    let horizons = 0;
     for (const q of ["profit", "clienti", "4111", "bilant", "cifra de afaceri", "furnizrii", "marja neta", "exporta"]) {
       for (let i = 1; i <= q.length; i++) {
         const t0 = performance.now();
         type(q.slice(0, i));
         walls.push(performance.now() - t0);
-        // Count AFTER the keystroke's async work has run — a request is
-        // issued only once authOrgHeaders() resolves (outside the timing).
+        // Count AFTER the keystroke's async work AND every timer it armed
+        // have run — a request is issued only once authOrgHeaders()
+        // resolves, and a debounced one only after its window (both outside
+        // the timing).
         const n = fetched.length;
-        await flushAsync();
+        await pastTheHorizon();
+        horizons++;
         if (fetched.length > n) perKeystroke.push(`"${q.slice(0, i)}": ${fetched.slice(n).join(", ")}`);
       }
     }
+    vi.useRealTimers();
     expect(perKeystroke, "requests caused by a keystroke").toEqual([]);
     expect(fetched.length - before).toBe(0);
+    expect(horizons, "VACUITY: every keystroke waited out the debounce horizon").toBe(walls.length);
     const sorted = [...walls].sort((a, b) => a - b);
     const p95 = sorted[Math.floor(sorted.length * 0.95)];
     expect(p95).toBeLessThan(100);
@@ -1050,6 +1082,7 @@ describe("cmdbar-figures — every Δ IS its comparatives column, every vs-secto
 describe("cmdbar-latency — the cold open, timed", () => {
   it("cold: every statement answer's VALUE renders under 100 ms from the period body; Δ and vs-sector say 'loading', never blank or 0", async () => {
     hangFetch = true;
+    fakeDebounceTimers();
     const w = pairWorld({ seed: "cold" });
     mount(w);
     const walls: number[] = [];
@@ -1070,9 +1103,11 @@ describe("cmdbar-latency — the cold open, timed", () => {
     expect(Math.max(...walls)).toBeLessThan(100);
     // The Δ is pending on every answer (the comparatives never land here).
     expect(pending).toBeGreaterThanOrEqual(Object.keys(QUERIES).length);
-    // Counted AFTER the async work has run: a synchronous count sees no
-    // request at all, per keystroke or not (every fetch awaits its headers).
-    await flushAsync();
+    // Counted AFTER the async work AND every timer the typing armed have
+    // run: a synchronous count sees no request at all (every fetch awaits
+    // its headers), and a debounced one is issued only after its window.
+    await pastTheHorizon();
+    vi.useRealTimers();
     const docs = fetched.filter((u) => /\/attention|\/comparatives|\/sector-benchmark/.test(u));
     // POSITIVE CONTROL: the cold open DID ask (so the ceiling below counts
     // real requests, not a count taken before any could be made).
