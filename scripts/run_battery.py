@@ -549,8 +549,8 @@ def _engine_gates() -> List[Gate]:
         # composition; four through the real write path, GET /api/period
         # and the briefing rebuild; a legacy envelope refuses; an envelope
         # restamped by an older reader refuses reprocess_required; five
-        # in-file plants. Measured 139 units. Plant log: gates.md
-        # "net-711-rule".
+        # in-file plants. Measured 139 units (159 with the unanchored_unbalanced
+        # witness, critic fixer round 1). Plant log: gates.md "net-711-rule".
         Gate("net-711-rule",
              [PY, "-m", "pytest", "tests/engine/test_net_711_rule.py", "-q", "-s"],
              work_rx=r"GATE-WORK net-711-rule units=(\d+)", floor=90,
@@ -558,7 +558,7 @@ def _engine_gates() -> List[Gate]:
              canaries=("SCOPE net-711-rule (stock_variation.measure/decide, owner ruling 2026-09-26)",
                        "NET711-BOOKS: bridge_with_722, closed_bridge, closed_no_activity, "
                        "distinct_prefix_account, g4_double_read, g4_unread, g5_residual, "
-                       "g6_uncleared, g7_older_parser, mixed, open, unanchored",
+                       "g6_uncleared, g7_older_parser, mixed, open, unanchored, unanchored_unbalanced",
                        "NET711-PLANTS: serve-the-gross-memo, absent-anchor-to-zero, drop-guard-g6, "
                        "drop-guard-g7, rebuild-forgets-the-evidence")),
         # ── design A8 (stage G1): the account-121 cross-check and its D6
@@ -605,12 +605,17 @@ def _engine_gates() -> List[Gate]:
              [PY, "-m", "pytest", "tests/engine/test_refusal_carries_engine.py", "-q"],
              # fixer round 2: floor raised from 160 with the Piotroski score, the
              # balance sheet's current-year result and the briefing facts (192).
-             work_rx=r"GATE-WORK refusal-carries-engine units=(\d+)", floor=185,
+             # critic fixer round 1 (third round): the unanchored_unbalanced
+             # witness and total equity short by the refused result (335).
+             work_rx=r"GATE-WORK refusal-carries-engine units=(\d+)", floor=300,
              units="engine surfaces checked to refuse with the 711 reason",
              canaries=("SCOPE refusal-carries-engine: refused books g6_uncleared "
                        "(account_121_opening_not_cleared); unanchored (account_121_anchor_absent)",
                        # fixer round 1: the net result refuses with 711 when there is no 121
-                       "NET-RESULT refused (no account 121): unanchored")),
+                       "NET-RESULT refused (no account 121): unanchored, unanchored_unbalanced",
+                       # critic fixer round 1: total equity short by the refused result
+                       "EQUITY short by the refused result: unanchored_unbalanced; complete: "
+                       "g6_uncleared, unanchored")),
         # ── owner ruling 2026-09-26, design A6: valuation-one-ebitda ────
         # EV/EBITDA multiplies the ONE EBITDA (never the revision-2 fallback
         # that rebuilt a second one from the incomeStatement mirror on 0.0);
@@ -618,14 +623,20 @@ def _engine_gates() -> List[Gate]:
         # routed by the ONE margin rule, not by its EBITDA sign, and its
         # value is pinned to the base-commit measurement; NOI proxy = EBITDA
         # − net 711; saved overrides stamped with the definition; a saved row
-        # whose EBITDA is null keeps the refusal. Measured 15 tests.
+        # whose EBITDA is null keeps the refusal. Measured 15 tests; 20 with
+        # the stored-valuations-row law (critic fixer round 1: a row on
+        # another EBITDA, or over a refused one, is never the EBITDA and never
+        # makes EV/EBITDA primary — GET /api/period and briefing regenerate).
         # Plant log: gates.md "valuation-one-ebitda".
         Gate("valuation-one-ebitda",
              [PY, "-m", "pytest", "tests/engine/test_valuation_one_ebitda.py", "-q"],
-             work_junit=True, floor=12, units="tests",
+             work_junit=True, floor=18, units="tests",
              canaries=("test_the_developer_is_valued_on_its_assets_by_the_margin_rule_not_by_its_ebitda_sign",
                        "test_a_refused_ebitda_refuses_every_ev_ebitda_figure_with_its_cause",
-                       "test_saving_an_override_stamps_it_and_get_serves_it_current")),
+                       "test_saving_an_override_stamps_it_and_get_serves_it_current",
+                       "test_a_stored_row_on_the_previous_ebitda_is_refused_when_nothing_recomputes",
+                       "test_a_stored_row_never_stands_in_for_a_refused_ebitda",
+                       "test_the_briefing_regenerate_never_cites_a_stored_row_on_the_previous_ebitda")),
         # ── owner ruling 2026-09-26, design A6: firm-covenant-one-ebitda ─
         # An EBITDA covenant tests THE ONE EBITDA off the served assembled
         # P&L (never the gateway's methodology `ebitda.reported`, net 711
@@ -663,11 +674,14 @@ def _engine_gates() -> List[Gate]:
         # one-EBITDA metric rows, carries council alerts and never rewrites
         # the briefing; a second apply is a no-op; a model-needing document,
         # a moved month and an unruled turnover move are refused unwritten.
-        # Corpus agras through the workspace-v2 tenancy double. Measured 31.
+        # Corpus agras through the workspace-v2 tenancy double. Measured 31;
+        # 53 with the valuations row (critic fixer round 1: old vs new
+        # ebitda_used in the dry run, never `current` on a row carrying
+        # another EBITDA, the user's override row left as the user's).
         # Plant log: gates.md "reprocess-periods-definition".
         Gate("reprocess-periods-definition",
              [PY, "-m", "pytest", "tests/engine/test_reprocess_periods_definition.py", "-q", "-s"],
-             work_rx=r"GATE-WORK reprocess-periods-definition units=(\d+)", floor=31,
+             work_rx=r"GATE-WORK reprocess-periods-definition units=(\d+)", floor=45,
              units="dry-run / apply / refusal facts checked",
              canaries=("SCOPE reprocess-periods-definition: corpus/saga_10_col_agras analysed",)),
         # ── plan/2 B4b (plan_contract_v2 5.6 / 28.3 B4): forecast-pools ──
@@ -1069,9 +1083,12 @@ def _engine_gates() -> List[Gate]:
               "frontend/lib/__tests__/refusalCarries.test.tsx", "--reporter=verbose"],
              # fixer round 2: floor raised from 12 with Graham, Piotroski, the
              # report's balance sheet and a refused prior cash flow (20).
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=20,
+             # critic fixer round 1 (third round): the unanchored_unbalanced
+             # witness, total equity short by the refused result, the refused
+             # Piotroski tile's checks and the refusal-only CF statement (30).
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=28,
              units="surface tests (a refused EBITDA stays refused, with the engine's reason, on every surface)",
-             canaries=("covers the two refused books, and on both the buckets would rebuild a number",
+             canaries=("covers the three refused books, and on each the buckets would rebuild a number",
                        "unanchored: growth, the credit model, the DCF and the NAV cascade refuse with it",
                        "a payload the engine did not assemble, whose buckets show 711 activity, refuses the same way",
                        "unanchored: the net result, ROE, ROA, the report and the cash flow refuse with the engine's reason",
@@ -1079,7 +1096,11 @@ def _engine_gates() -> List[Gate]:
                        "unanchored: the NAV cascade has no Graham figure and no band built on it — the page prints the reason",
                        "unanchored: no Piotroski score or band off nine uncertain checks — served, or a block stored before the engine refused it",
                        "unanchored: the report's balance sheet prints the reason on the current-year row — served, or stored with the build-up",
-                       "a comparative cash flow whose PRIOR period is refused prints no prior figure and no delta — the reason instead")),
+                       "a comparative cash flow whose PRIOR period is refused prints no prior figure and no delta — the reason instead",
+                       # critic fixer round 1 (third round, 2026-09-27)
+                       "unanchored_unbalanced: Book NAV, Layers 1-3, the sensitivity grid and the hero refuse — the page prints the reason",
+                       "unanchored_unbalanced: the engine Altman reader prints X2 refused, the equity sub-score refuses with the reason",
+                       "unanchored_unbalanced: the equity ratio and debt / equity refuse with the engine's reason; balanced, they compute")),
         # ── fixer round 1 (2026-09-27): valuation-refused-override ────────
         # The Valuation tab seeded a refused EBITDA as 0 and sent it on EVERY
         # save (debt, cash, the multiple slider): the engine applied the 0 as
@@ -1087,11 +1108,13 @@ def _engine_gates() -> List[Gate]:
         # an editable "EBITDA RON 0" instead of the refusal. A save now sends
         # only an EBITDA the user typed. Engine half: valuation-one-ebitda's
         # test_an_override_of_debt_or_the_multiple_alone_keeps_the_ebitda_refused.
-        # Measured 5 tests. Plant log: gates.md "valuation-refused-override".
+        # Measured 5 tests; 7 with a refused book equity and a withheld
+        # stored row printing their reason (critic fixer round 1).
+        # Plant log: gates.md "valuation-refused-override".
         Gate("valuation-refused-override",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/components/cfo/__tests__/valuationRefusedOverride.test.tsx", "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=5,
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=7,
              units="interaction tests (a valuation save sends only an EBITDA the user typed)",
              canaries=("editing Total debt sends no EBITDA",
                        "moving the multiple slider sends no EBITDA",
