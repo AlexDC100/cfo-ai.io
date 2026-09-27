@@ -561,6 +561,20 @@ def _engine_gates() -> List[Gate]:
                        "g6_uncleared, g7_older_parser, mixed, open, unanchored",
                        "NET711-PLANTS: serve-the-gross-memo, absent-anchor-to-zero, drop-guard-g6, "
                        "drop-guard-g7, rebuild-forgets-the-evidence")),
+        # ── design A8 (stage G1): the account-121 cross-check and its D6
+        # diagnosis close by construction on every corpus book since the
+        # 711 term is the bridge. Constructed witnesses (net-711-rule's
+        # misreads: closed_no_activity, g4_unread, g5_residual,
+        # g6_uncleared, g7_older_parser) through the real write path and
+        # GET /api/period keep them falsifiable; two in-file plants.
+        # Measured 30 units. Plant log: gates.md "p121-witness".
+        Gate("p121-witness",
+             [PY, "-m", "pytest", "tests/engine/test_p121_cross_check_witness.py", "-q", "-s"],
+             work_rx=r"GATE-WORK p121-witness units=(\d+)", floor=26,
+             units="cross-checks judged on constructed books, plants",
+             canaries=("SCOPE p121-witness (canonical_bs p121_cross_check + D6, design A8): "
+                       "2 folded books, 5 witnesses",
+                       "closed_no_activity (121 122000.0 vs class 7 - class 6 120000.0)")),
         # ── owner ruling 2026-09-26, design A8 (stage G): the ENGINE halves
         # of one-ebitda / turnover-denominator / refusal-carries. Every
         # engine surface — the assembled P&L and its aliases, the served

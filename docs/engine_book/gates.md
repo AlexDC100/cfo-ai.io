@@ -10728,6 +10728,54 @@ only the witness reds:
 
 CANNOT SEE: a misread equal to the stock variation on a closed book.
 
+## p121-witness
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_p121_cross_check_witness.py -q -s` |
+| canary | `SCOPE p121-witness (canonical_bs p121_cross_check + D6, design A8): 2 folded books, 5 witnesses`, `closed_no_activity (121 122000.0 vs class 7 - class 6 120000.0)` |
+| work count | `GATE-WORK p121-witness units=(\d+)`, floor **26** (measured 30) |
+
+**Why (design A8: "p121_cross_check, D6_121_MISMATCH").** The cross-check
+compares account 121 with class 7 − class 6 as the statement reads it; the BS
+diagnosis emits `D6_121_MISMATCH` off its `ok: false`. Since golden-change
+527d5222 its 711 term is the MEASURED net 711 — on a closed book the bridge,
+derived FROM 121 — so it closes by construction on every corpus book and D6 no
+longer fires anywhere. With no book where it is open, an assembler that bridged
+ANY remainder would keep both green. The witnesses are net-711-rule's
+CONSTRUCTED misreads (synthetic), persisted through `_deterministic_tb_parsed` →
+`stage_map` → `stage_persist` and served by `GET /api/period`:
+`closed_no_activity` (a 2,000.00 misread no line names), `g4_unread`,
+`g5_residual`, `g6_uncleared`, `g7_older_parser` (the fold refused, so the
+refused 711 adds nothing) — on each `ok: false`, class 7 − class 6 equals the
+measured lines, and `run_bs_diagnosis` emits D6 naming 121. The legitimate folds
+(`closed_bridge`, `bridge_with_722`) close with class 7 − class 6 = 121 and no D6.
+
+**GREEN** — `10 passed`, `GATE-WORK p121-witness units=30`.
+
+**PLANT fold-every-remainder** — `chart_of_accounts.assemble_statements`,
+`cls7_minus_cls6` adds the guard block's `G5_residual` (the 121 remainder)
+whenever one was computed, refused or not.
+
+**RED**:
+```
+FAILED …::test_a_misread_the_statement_does_not_name_keeps_the_check_open_and_d6_fires[closed_no_activity]
+FAILED …::test_a_misread_the_statement_does_not_name_keeps_the_check_open_and_d6_fires[g4_unread]
+FAILED …::test_a_misread_the_statement_does_not_name_keeps_the_check_open_and_d6_fires[g5_residual]
+FAILED …::test_a_misread_the_statement_does_not_name_keeps_the_check_open_and_d6_fires[g6_uncleared]
+FAILED …::test_a_misread_the_statement_does_not_name_keeps_the_check_open_and_d6_fires[g7_older_parser]
+FAILED …::test_zz_scope_and_work
+========================= 6 failed, 4 passed in 1.68s ==========================
+```
+(the two folded books stay green under the plant — the vacuity, shown).
+In-file plants (NET: both caught on every run): the served block rewritten to
+fold every remainder; a refused 711 contributing its residual.
+
+**REVERT** — restored byte-exact from a copy; `10 passed`.
+
+CANNOT SEE: whether a legitimately closing check on a real book hides a
+misread equal to the stock variation (only the Ministry referee can).
+
 ## valuation-one-ebitda
 
 | | |
