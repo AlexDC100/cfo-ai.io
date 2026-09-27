@@ -623,7 +623,7 @@ def _engine_gates() -> List[Gate]:
         # routed by the ONE margin rule, not by its EBITDA sign, and its
         # value is pinned to the base-commit measurement; NOI proxy = EBITDA
         # − net 711; saved overrides stamped with the definition; a saved row
-        # whose EBITDA is null keeps the refusal. Measured 15 tests; 20 with
+        # whose EBITDA is null keeps the refusal. Measured 15 tests; 21 with
         # the stored-valuations-row law (critic fixer round 1: a row on
         # another EBITDA, or over a refused one, is never the EBITDA and never
         # makes EV/EBITDA primary — GET /api/period and briefing regenerate).

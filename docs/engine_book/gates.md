@@ -11155,17 +11155,20 @@ the row (`_valuation.row_benchmarks` — benchmark data, never an EBITDA);
 else the row only as `_valuation.lawful_stored_row` allows it
 (`stored_row_refusal`): the served EBITDA refused → that refusal; the row's
 `ebitda_used` neither the served EBITDA nor the user's typed override →
-`valuation_row_other_ebitda` (both figures in the sentence). A refused row
+`valuation_row_other_ebitda` (both figures in the sentence); a row on the
+EBITDA the USER typed stands even over a refused EBITDA, as the user's
+override does in `compute_valuation`. A refused row
 serves no EBITDA, no EV/EBITDA / EV-Revenue / DCF figure, `primary_method:
 "refused"`, the reason as `ebitda_refusal`. A row the USER's override
 produced is the user's (served, flagged when typed under the previous
 definition). `scripts/reprocess_periods_definition.py` rewrites the row on
 apply (`reprocess-periods-definition`).
 
-**LAW** — five tests (20 in the file): recomputed on the served one EBITDA
+**LAW** — six tests (21 in the file): recomputed on the served one EBITDA
 over the row's multiples when the table is down; refused with
 `valuation_row_other_ebitda` when nothing recomputes; refused with the 711
-cause over the refused `unanchored` book; the user's row stands, flagged;
+cause over the refused `unanchored` book; the user's row stands, flagged
+(also over the refused book);
 `/briefing/regenerate` hands the narrator the recomputed valuation, or the
 withheld row — never the stored old EBITDA.
 
@@ -11176,27 +11179,32 @@ PLANT raw-row-when-recompute-fails: src/engine/api/pipeline.py
   FAILED tests/engine/test_valuation_one_ebitda.py::test_a_stored_row_on_the_previous_ebitda_is_refused_when_nothing_recomputes
   FAILED tests/engine/test_valuation_one_ebitda.py::test_a_stored_row_never_stands_in_for_a_refused_ebitda
   FAILED tests/engine/test_valuation_one_ebitda.py::test_the_briefing_regenerate_never_cites_a_stored_row_on_the_previous_ebitda
-  ========================= 3 failed, 17 passed in 4.25s =========================
+  ========================= 3 failed, 18 passed in 4.35s =========================
   -> RED ; file restored byte-exact
 PLANT no-recompute-on-the-row-multiples: src/engine/api/pipeline.py
   exit=1
   FAILED tests/engine/test_valuation_one_ebitda.py::test_a_stored_row_on_the_previous_ebitda_is_recomputed_on_the_served_one
-  ========================= 1 failed, 19 passed in 4.20s =========================
+  ========================= 1 failed, 20 passed in 4.34s =========================
   -> RED ; file restored byte-exact
 PLANT regenerate-hands-the-stored-row: src/engine/api/pipeline.py
   exit=1
   FAILED tests/engine/test_valuation_one_ebitda.py::test_the_briefing_regenerate_never_cites_a_stored_row_on_the_previous_ebitda
-  ========================= 1 failed, 19 passed in 4.19s =========================
+  ========================= 1 failed, 20 passed in 4.34s =========================
   -> RED ; file restored byte-exact
 PLANT stored-row-over-a-refusal-not-the-refusal: src/engine/api/_valuation.py
   exit=1
   FAILED tests/engine/test_valuation_one_ebitda.py::test_a_stored_row_never_stands_in_for_a_refused_ebitda
-  ========================= 1 failed, 19 passed in 4.22s =========================
+  ========================= 1 failed, 20 passed in 4.35s =========================
+  -> RED ; file restored byte-exact
+PLANT the-users-row-refused-over-a-refused-ebitda: src/engine/api/_valuation.py
+  exit=1
+  FAILED tests/engine/test_valuation_one_ebitda.py::test_a_stored_row_on_the_users_override_stands_over_a_refused_ebitda
+  ========================= 1 failed, 20 passed in 4.33s =========================
   -> RED ; file restored byte-exact
 REVERT (clean tree):
-  ============================== 20 passed in 4.13s ==============================
+  ============================== 21 passed in 4.26s ==============================
 ```
-**REVERT** — `20 passed`. CANNOT SEE: a production row the engine never
+**REVERT** — `21 passed`. CANNOT SEE: a production row the engine never
 recomputes because the period is never opened (the reprocess apply rewrites
 every stored period's row); pixels.
 

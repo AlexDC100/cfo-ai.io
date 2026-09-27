@@ -428,6 +428,22 @@ def test_a_stored_row_the_users_override_produced_stands_flagged(monkeypatch):
     assert val["user_assumptions"]["definition"]["flag"]["ro"] == "salvat sub definiția anterioară a EBITDA"
 
 
+def test_a_stored_row_on_the_users_override_stands_over_a_refused_ebitda(monkeypatch):
+    """As in `compute_valuation`, the EBITDA the USER typed stands over a
+    refused one: a stored row persisted on it is served, flagged."""
+    import test_net_711_rule as N
+
+    bk = N._persisted("unanchored")
+    _recompute_fails(monkeypatch)
+    user_row = {"user_id": ANCHOR.REANALYZE_USER, "period_id": bk.period_id,
+                "ebitda_used": 250_000.0, "multiple_used": None, "debt_used": None,
+                "cash_used": None}
+    val = _get_valuation(bk, monkeypatch, _stored_row(bk, 250_000.0), user_row=user_row)["valuation"]
+    assert val["inputs"]["ebitda_used"] == 250_000.0
+    assert val["primary_method"] == "ev_ebitda"
+    assert val["user_assumptions"]["definition"]["flag"] is not None
+
+
 def test_the_briefing_regenerate_never_cites_a_stored_row_on_the_previous_ebitda(monkeypatch):
     from engine.api import pipeline as P
 

@@ -1278,12 +1278,14 @@ def stored_row_refusal(row: Optional[Dict[str, Any]], statements: Optional[Dict[
         figures = {"ebitda": None, "refusal": None}
     served = figures.get("ebitda")
     refusal = figures.get("refusal")
-    if refusal is not None:
-        return dict(refusal)
     row_ebitda = _first(row.get("ebitda_used"))
     typed = _first((user_assumptions or {}).get("ebitda_used"))
+    # The user's typed EBITDA stands over a refusal, as it does in
+    # `compute_valuation`: a row persisted on it is the user's figure.
     if row_ebitda is not None and typed is not None and abs(row_ebitda - typed) < 0.005:
         return None
+    if refusal is not None:
+        return dict(refusal)
     if row_ebitda is not None and served is not None and abs(row_ebitda - served) < 0.005:
         return None
     shown_row = _fmt_ron(row_ebitda) if row_ebitda is not None else "—"
