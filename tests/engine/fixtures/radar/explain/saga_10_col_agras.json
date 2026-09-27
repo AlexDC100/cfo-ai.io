@@ -71,7 +71,7 @@
    },
    {
     "facts_cited": {
-     "ebitda_statutory": 10776378.24,
+     "ebitda_statutory": 11848065.27,
      "input_cost_ceiling_share": 0.35,
      "input_cost_share": 0.6368067818692708,
      "revenue": 110798309.14
@@ -81,8 +81,8 @@
      "ebitda_statutory",
      "revenue"
     ],
-    "numeric_fingerprint": "83256e8f8f34b6413635adf210f992b46300e9f9d47461232e8c428e2d1428bc",
-    "row_fingerprint": "3f3b7283e2abaf7bc4b16d28e60e1c404ce4cf1e7cd6e693301605cd246323ba",
+    "numeric_fingerprint": "b7c2a8da24a52f11c2b0b50f11c5165542e38ad475ccf277247a09b56cd806e3",
+    "row_fingerprint": "fd709ce7ff92f09505de8e2783383c955b91c3a59d0890c86960ff15bc16af75",
     "rule_id": "input_cost_exposure",
     "severity": "medium"
    }
@@ -572,8 +572,8 @@
      "el_eq_row_sum": true,
      "identity_holds": true,
      "p121_cross_check": {
-      "cls7_minus_cls6": 198553835.32,
-      "ok": false,
+      "cls7_minus_cls6": 7533676.02,
+      "ok": true,
       "p121": 7533676.02
      },
      "result_basis": "sf_closing_column",
@@ -1921,15 +1921,28 @@
    },
    "methodology": {
     "ebitda": {
-     "adjusted": 10386287.69,
-     "cash": 10776378.24,
-     "reported": 10776378.24,
-     "strict": 10386287.69
+     "adjusted": 11457974.72,
+     "cash": 11848065.27,
+     "reported": 11848065.27,
+     "strict": 11457974.72
     },
+    "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
     "errors": [],
     "industry_key_applied": "default",
+    "measured": {
+     "capitalized_own_work_net": {
+      "provenance": "no_72x_activity",
+      "refusal": null,
+      "value": 0.0
+     },
+     "inventory_variation_net": {
+      "provenance": "account_121_bridge",
+      "refusal": null,
+      "value": 1071687.03
+     }
+    },
     "methodology_id": "ro_ras_2025_v1",
-    "methodology_version": "1.0.0",
+    "methodology_version": "1.1.0",
     "missing_buckets": [
      "deferred_tax_assets.net",
      "deferred_tax_liabilities.net",
@@ -2035,14 +2048,14 @@
       "direction": "higher_is_better",
       "note": "Rough DSCR; LT debt amortized over 8y assumption. Refine via per-period schedule when available.",
       "unit": "ratio",
-      "value": 20.568378
+      "value": 22.613858
      },
      "ebitda_margin_cash": {
       "band": null,
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 0.097261
+      "value": 0.106934
      },
      "ebitda_margin_reported": {
       "band": [
@@ -2052,7 +2065,7 @@
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 0.097261
+      "value": 0.106934
      },
      "ebitda_to_interest": {
       "band": [
@@ -2062,7 +2075,7 @@
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 31.337886
+      "value": 34.45437
      },
      "equity_ratio": {
       "band": [
@@ -2079,7 +2092,7 @@
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 0.355112
+      "value": 0.364785
      },
      "interest_coverage": {
       "band": [
@@ -2089,7 +2102,7 @@
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 22.732091
+      "value": 25.848574
      },
      "inventory_turnover": {
       "band": null,
@@ -2113,7 +2126,7 @@
       "direction": "lower_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 0.145283
+      "value": 0.132142
      },
      "net_margin": {
       "band": [
@@ -2123,7 +2136,7 @@
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 0.058286
+      "value": 0.067959
      },
      "quick_ratio": {
       "band": [
@@ -2143,7 +2156,7 @@
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 0.164441
+      "value": 0.191729
      },
      "return_on_equity": {
       "band": [
@@ -2153,7 +2166,7 @@
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 0.269937
+      "value": 0.314733
      },
      "working_capital": {
       "band": null,
@@ -2163,13 +2176,14 @@
       "value": 14463080.17
      }
     },
+    "refusals": {},
     "schema_version": "canonical_v1.0.0",
     "totals": {
      "current_assets": 27476056.94,
      "current_liabilities": 13012976.77,
-     "gross_profit": 39345827.3,
+     "gross_profit": 40417514.33,
      "net_debt": 1565628.87,
-     "operating_profit_reported": 7817043.15,
+     "operating_profit_reported": 8888730.18,
      "revenue_net": 110798309.14,
      "total_assets": 39272501.03,
      "total_debt": 3640202.33,
@@ -2191,6 +2205,56 @@
     "worst": ""
    },
    "schema_version": "canonical_v1.0.0",
+   "stock_variation": {
+    "a711": {
+     "activity": 192091846.33,
+     "credit_turnover": 192091846.33,
+     "debit_turnover": 192091846.33,
+     "leaves": 1,
+     "listed": true,
+     "net_movement": 0.0
+    },
+    "a72x": {
+     "activity": 0.0,
+     "credit_turnover": 0.0,
+     "debit_turnover": 0.0,
+     "leaves": 0,
+     "listed": false,
+     "net_movement": 0.0
+    },
+    "account_121": {
+     "closing": 7533676.02,
+     "listed": true,
+     "opening": 851012.45,
+     "st_includes_si": false,
+     "year_credits": 116672924.87,
+     "year_debits": 109990261.3
+    },
+    "aggregate_pl": [],
+    "aggregate_pl_count": 0,
+    "basis": "trial_balance",
+    "book_state": "closed",
+    "has_cumulative": true,
+    "mixed_codes": [],
+    "nature_reads": {
+     "credit_natured_excl_711": 115601237.81,
+     "debit_natured": 109139248.82
+    },
+    "opening_cleared_by": {
+     "amount": 851012.48,
+     "code": "1171.01",
+     "kind": "equal_movement",
+     "side": "credit"
+    },
+    "pl_leaves": 147,
+    "pl_leaves_active": 146,
+    "pl_leaves_closed": 146,
+    "pl_leaves_mixed": 0,
+    "pl_leaves_open": 0,
+    "schema": "stock_variation/1",
+    "unread_pl": [],
+    "unread_pl_count": 0
+   },
    "unmapped": []
   },
   "assembled_cf": {
@@ -2296,21 +2360,182 @@
    "score_max": 9
   },
   "assembled_pl": {
-   "adjusted_ebitda": 10386287.69,
+   "adjusted_ebitda": 11457974.72,
+   "capitalized_own_work": {
+    "accounts": "72x",
+    "gloss_en": "own work capitalised",
+    "label_en": "Own work capitalised (72x) — no postings in the period",
+    "label_ro": "Producția realizată pentru scopuri proprii și capitalizată (72x) — fără înregistrări în perioadă",
+    "line_name_ro": "Producția realizată pentru scopuri proprii și capitalizată",
+    "provenance": "no_72x_activity",
+    "value": 0.0
+   },
    "capitalized_own_work_memo": 0.0,
    "cogs": 70557114.68,
-   "core_ebitda": 10386287.69,
+   "core_ebitda": 11457974.72,
    "cost_of_goods_sold": 70557114.68,
    "depreciation": 2955346.39,
    "discounts_received": 0.0,
-   "ebit": 7821031.85,
-   "ebitda": 10776378.24,
-   "ebitda_adjusted": 10776378.24,
-   "ebitda_cash": 10776378.24,
-   "ebitda_operating_view": 10776378.24,
-   "ebitda_operational": 10776378.24,
-   "ebitda_statutory": 10776378.24,
-   "ebitda_statutory_with_711": 202868224.57,
+   "ebit": 8892718.88,
+   "ebitda": 11848065.27,
+   "ebitda_before_stock_variation": 10776378.24,
+   "ebitda_cash": 11848065.27,
+   "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+   "ebitda_operating_view": 11848065.27,
+   "ebitda_operational": 11848065.27,
+   "ebitda_reconciliation": {
+    "bridge": {
+     "parts": [
+      {
+       "key": "ebitda_before_stock_variation",
+       "label_en": "EBITDA before stock variation and own work capitalised",
+       "label_ro": "EBITDA înainte de variația stocurilor și producția imobilizată",
+       "value": 10776378.24
+      },
+      {
+       "key": "inventory_variation",
+       "label_en": "Change in inventories of finished goods and WIP",
+       "label_ro": "Variația stocurilor de produse",
+       "value": 1071687.03
+      },
+      {
+       "key": "capitalized_own_work",
+       "label_en": "Own work capitalised",
+       "label_ro": "Producția imobilizată",
+       "value": 0.0
+      },
+      {
+       "key": "ebitda",
+       "label_en": "EBITDA",
+       "label_ro": "EBITDA",
+       "value": 11848065.27
+      }
+     ],
+     "refusal": null
+    },
+    "definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+    "identity_note_en": "On a closed trial balance the 711 line is derived from account 121, so the reconciliation closes by construction.",
+    "identity_note_ro": "Pe o balanță închisă linia 711 este derivată din contul 121, deci reconcilierea se închide prin construcție.",
+    "identity_with_121": true,
+    "lines": [
+     {
+      "accounts": "70x − 709",
+      "key": "turnover",
+      "label_en": "Net turnover",
+      "label_ro": "Cifra de afaceri netă",
+      "value": 110798309.14
+     },
+     {
+      "accounts": "74x, 75x, 77x, 78x",
+      "key": "other_operating_income",
+      "label_en": "Other operating income",
+      "label_ro": "Alte venituri din exploatare",
+      "value": 390090.55
+     },
+     {
+      "accounts": "72x",
+      "key": "capitalized_own_work",
+      "label_en": "Own work capitalised",
+      "label_ro": "Producția realizată pentru scopuri proprii și capitalizată",
+      "provenance": "no_72x_activity",
+      "provenance_label_en": "Own work capitalised (72x) — no postings in the period",
+      "provenance_label_ro": "Producția realizată pentru scopuri proprii și capitalizată (72x) — fără înregistrări în perioadă",
+      "value": 0.0
+     },
+     {
+      "accounts": "601, 602, 607",
+      "key": "cost_of_sales",
+      "label_en": "Cost of sales",
+      "label_ro": "Costul mărfurilor și al materiilor prime",
+      "value": -70557114.68
+     },
+     {
+      "accounts": "711",
+      "beside": "cost_of_sales",
+      "key": "inventory_variation",
+      "label_en": "Change in inventories of finished goods and WIP",
+      "label_ro": "Variația stocurilor de produse",
+      "provenance": "account_121_bridge",
+      "provenance_label_en": "Change in inventories of finished goods and WIP — derived: the result in account 121 less every other P&L line (a closed trial balance keeps no net balance on account 711)",
+      "provenance_label_ro": "Variația stocurilor de produse — derivată: rezultatul din contul 121 minus celelalte linii ale contului de profit și pierdere (o balanță închisă nu păstrează soldul net al contului 711)",
+      "refusal": null,
+      "value": 1071687.03
+     },
+     {
+      "accounts": "603-606, 608-65x",
+      "key": "operating_expenses",
+      "label_en": "Other operating expenses",
+      "label_ro": "Alte cheltuieli de exploatare",
+      "value": -29854906.77
+     },
+     {
+      "accounts": null,
+      "key": "ebitda",
+      "label_en": "EBITDA",
+      "label_ro": "EBITDA",
+      "refusal": null,
+      "subtotal": true,
+      "value": 11848065.27
+     },
+     {
+      "accounts": "681x",
+      "key": "depreciation",
+      "label_en": "Depreciation, provisions and impairment (681x)",
+      "label_ro": "Amortizări, provizioane și ajustări (681x)",
+      "value": -2955346.39
+     },
+     {
+      "accounts": null,
+      "key": "operating_result",
+      "label_en": "Operating result",
+      "label_ro": "Rezultatul din exploatare",
+      "refusal": null,
+      "subtotal": true,
+      "value": 8892718.88
+     },
+     {
+      "accounts": "76x − 66x",
+      "key": "financial_result",
+      "label_en": "Financial result",
+      "label_ro": "Rezultatul financiar",
+      "value": 112507.14
+     },
+     {
+      "accounts": "69x",
+      "key": "tax",
+      "label_en": "Income tax",
+      "label_ro": "Impozitul pe profit",
+      "value": -1471550.0
+     },
+     {
+      "accounts": null,
+      "key": "net_result",
+      "label_en": "Net result (built from the accounts)",
+      "label_ro": "Rezultatul net (din rulajele conturilor)",
+      "refusal": null,
+      "subtotal": true,
+      "value": 7533676.02
+     },
+     {
+      "accounts": "121",
+      "key": "account_121",
+      "label_en": "Net result in account 121",
+      "label_ro": "Rezultatul net din contul 121",
+      "status": "anchored",
+      "value": 7533676.02
+     },
+     {
+      "accounts": null,
+      "key": "not_explained",
+      "label_en": "Not explained by the revenue and expense accounts",
+      "label_ro": "Neexplicat de conturile de venituri și cheltuieli",
+      "value": 0.0
+     }
+    ],
+    "schema": "ebitda_reconciliation/1"
+   },
+   "ebitda_refusal": null,
+   "ebitda_statutory": 11848065.27,
    "financial_expense": 65946.65,
    "financial_expense_total": 343877.0,
    "financial_income": 456384.14,
@@ -2318,11 +2543,41 @@
    "free_cash_flow_proxy": 10489022.41,
    "fx_gain": 157000.88,
    "fx_loss": 65946.65,
-   "gross_profit": 40241194.46,
+   "gross_profit": 41312881.49,
    "income_tax": 1471550.0,
    "interest_expense": 277930.35,
    "interest_income": 299383.26,
-   "inventory_variation_memo": 192091846.33,
+   "inventory_variation": {
+    "accounts": "711",
+    "activity": 192091846.33,
+    "basis": "trial_balance",
+    "book_state": "closed",
+    "gloss_en": "change in inventories of finished goods and work in progress",
+    "guards": {
+     "G1_book_state": "closed",
+     "G2_anchored": true,
+     "G3_activity": 192091846.33,
+     "G4_double_read_pl": 0,
+     "G4_unread_pl": 0,
+     "G5_residual": 1071687.03,
+     "G5_within_activity": true,
+     "G6_cleared_by": "equal_movement",
+     "G6_opening": 851012.45
+    },
+    "has_activity": true,
+    "identity_note_en": "On a closed trial balance the 711 line is derived from account 121, so the reconciliation closes by construction.",
+    "identity_note_ro": "Pe o balanță închisă linia 711 este derivată din contul 121, deci reconcilierea se închide prin construcție.",
+    "identity_with_121": true,
+    "label_en": "Change in inventories of finished goods and WIP — derived: the result in account 121 less every other P&L line (a closed trial balance keeps no net balance on account 711)",
+    "label_ro": "Variația stocurilor de produse — derivată: rezultatul din contul 121 minus celelalte linii ale contului de profit și pierdere (o balanță închisă nu păstrează soldul net al contului 711)",
+    "line_name_ro": "Variația stocurilor de produse",
+    "measured_without_121": false,
+    "provenance": "account_121_bridge",
+    "refusal": null,
+    "schema": "stock_variation/1",
+    "stock_production_credit_turnover": 192091846.33,
+    "value": 1071687.03
+   },
    "net_financial_result": 112507.14,
    "net_income_anchor_source": "envelope_p121_cross_check",
    "net_income_anchor_status": "anchored",
@@ -2331,9 +2586,10 @@
    "net_income_reconstructed": 6461988.99,
    "net_income_statutory": 7533676.02,
    "net_income_statutory_anchor": 7533676.02,
-   "net_income_unexplained_vs_121": 1071687.03,
-   "operating_ebit": 7821031.85,
-   "operating_ebitda": 10776378.24,
+   "net_income_unexplained_vs_121": 0.0,
+   "operating_ebit": 8892718.88,
+   "operating_ebitda": 11848065.27,
+   "operating_result": 8892718.88,
    "opex_excluding_cogs_and_da": 29854906.77,
    "opex_third_party": 1313827.41,
    "opex_total": 29854906.77,
@@ -2341,12 +2597,13 @@
    "other_income_781_reversals": 3988.7,
    "other_op_income_lump": 386101.85,
    "other_operating_income": 390090.55,
-   "pretax": 7933538.99,
+   "pretax": 9005226.02,
+   "pretax_before_stock_variation": 7933538.99,
    "revenue": 110798309.14,
    "tax": 1471550.0,
    "total_operating_expense": 103367367.84,
-   "total_operating_revenue": 110798309.14,
-   "total_operating_revenue_statutory": 302890155.47
+   "total_operating_revenue": 111188399.69,
+   "turnover": 110798309.14
   },
   "balanceSheet": {
    "accountsPayable": 7554847.25,
@@ -2400,8 +2657,8 @@
     "el_eq_row_sum": true,
     "identity_holds": true,
     "p121_cross_check": {
-     "cls7_minus_cls6": 198553835.32,
-     "ok": false,
+     "cls7_minus_cls6": 7533676.02,
+     "ok": true,
      "p121": 7533676.02
     },
     "result_basis": "sf_closing_column",
@@ -3873,7 +4130,7 @@
        "key": "net_debt_ebitda",
        "label": "Net debt ÷ EBITDA as reported",
        "unit": "multiple",
-       "value": 0.229405022257
+       "value": 0.208654766298
       }
      ],
      "narrative": {
@@ -4028,119 +4285,6 @@
     {
      "accounts": [
       {
-       "amount": 7533676.02,
-       "code": "121",
-       "name": "Current year profit",
-       "role": "account_121"
-      }
-     ],
-     "claim": "Rebuilding the P&L from the movement columns reaches RON 6,461,988.99; statutory profit in account 121 is RON 7,533,676.02. The unexplained step of RON 1,071,687.03 is 16.6% of the RON 6,461,988.99 it is bridging.",
-     "claim_template": "Rebuilding the P&L from the movement columns reaches {money:reconstructed}; statutory profit in account 121 is {money:statutory}. The unexplained step of {money:step} is {measure:graded_share} of the {money:graded_base} it is bridging.",
-     "facts": [
-      {
-       "label": "Reconciliation to account 121",
-       "name": "assembled_pl.net_income_reconciliation_to_121",
-       "unit": "money",
-       "value": 1071687.03
-      },
-      {
-       "label": "Net income rebuilt from the movements",
-       "name": "assembled_pl.net_income_operational",
-       "unit": "money",
-       "value": 6461988.99
-      },
-      {
-       "label": "Net income in account 121",
-       "name": "assembled_pl.net_income_statutory",
-       "unit": "money",
-       "value": 7533676.02
-      },
-      {
-       "label": "Revenue",
-       "name": "assembled_pl.revenue",
-       "unit": "money",
-       "value": 110798309.14
-      }
-     ],
-     "formula": "|account-121 reconciliation step| ÷ |reconstructed net income|",
-     "id": "reconstruction_gap",
-     "in_summary": true,
-     "measures": [
-      {
-       "key": "step",
-       "label": "Reconciliation to account 121",
-       "unit": "money",
-       "value": 1071687.03
-      },
-      {
-       "key": "reconstructed",
-       "label": "Net income rebuilt from the movements",
-       "unit": "money",
-       "value": 6461988.99
-      },
-      {
-       "key": "statutory",
-       "label": "Net income in account 121",
-       "unit": "money",
-       "value": 7533676.02
-      },
-      {
-       "key": "graded_share",
-       "label": "Step as a share of reconstructed net income",
-       "unit": "ratio",
-       "value": 0.165844762605
-      },
-      {
-       "key": "graded_base",
-       "label": "Reconstructed net income",
-       "unit": "money",
-       "value": 6461988.99
-      }
-     ],
-     "narrative": {
-      "explanation": "Rebuilding the P&L from the movement columns reaches RON 6,461,988.99; statutory profit in account 121 is RON 7,533,676.02. The unexplained step of RON 1,071,687.03 is 16.6% of the RON 6,461,988.99 it is bridging. Graded medium: the amount at stake is 16.6% of reconstructed net income, against the ladder printed beside this finding. The step is graded against the profit it is correcting. A bridge worth a tenth of the answer is a footnote; one worth half of it means the reconstruction is not the source of the printed profit.",
-      "reason": "the advisory lane was not invoked for this build",
-      "so_what": "Ask for the year-end journals behind the step to account 121 before relying on the reconstructed P&L for anything. A large bridge means the movement columns are not the source of the reported profit.",
-      "source": "deterministic"
-     },
-     "rank": 5,
-     "rank_basis": "Ranked by severity level, then by materiality descending; ties broken by detector id ascending. The top 5 carry into the executive summary.",
-     "severity": {
-      "bands": [
-       {
-        "at_least": 0.5,
-        "level": "critical"
-       },
-       {
-        "at_least": 0.2,
-        "level": "high"
-       },
-       {
-        "at_least": 0.05,
-        "level": "medium"
-       },
-       {
-        "at_least": 0.01,
-        "level": "low"
-       },
-       {
-        "at_least": null,
-        "level": "info"
-       }
-      ],
-      "basis": "reconstructed_net_income",
-      "basis_label": "Reconstructed net income",
-      "basis_value": 6461988.99,
-      "level": "medium",
-      "magnitude": 1071687.03,
-      "materiality": 0.165845,
-      "why": "The step is graded against the profit it is correcting. A bridge worth a tenth of the answer is a footnote; one worth half of it means the reconstruction is not the source of the printed profit."
-     },
-     "title": "The P&L does not reach statutory profit on its own"
-    },
-    {
-     "accounts": [
-      {
        "amount": 95681.37,
        "code": "7581",
        "name": "5642 Rwvfqtlf mfv mwgapktuflf, piwvnf gf awvphfqpqf",
@@ -4189,14 +4333,14 @@
        "role": "otherIncome"
       }
      ],
-     "claim": "RON 390,090.55 of operating income is other operating income and provision reversals rather than trading margin — 3.6% of RON 10,776,378.24; the operating cash proxy is RON 10,489,022.41 against an EBITDA of RON 10,776,378.24, a conversion of 97.3%.",
+     "claim": "RON 390,090.55 of operating income is other operating income and provision reversals rather than trading margin — 3.3% of RON 11,848,065.27; the operating cash proxy is RON 10,489,022.41 against an EBITDA of RON 11,848,065.27, a conversion of 88.5%.",
      "claim_template": "{money:non_trading} of operating income is other operating income and provision reversals rather than trading margin — {measure:graded_share} of {money:graded_base}; the operating cash proxy is {money:cash_proxy} against an EBITDA of {money:ebitda}, a conversion of {measure:cash_conversion}.",
      "facts": [
       {
        "label": "EBITDA",
        "name": "assembled_pl.ebitda",
        "unit": "money",
-       "value": 10776378.24
+       "value": 11848065.27
       },
       {
        "label": "Other operating income",
@@ -4225,7 +4369,7 @@
      ],
      "formula": "(Other operating income + provision reversals) ÷ EBITDA; operating cash proxy ÷ EBITDA; capitalised own work",
      "id": "earnings_quality",
-     "in_summary": false,
+     "in_summary": true,
      "measures": [
       {
        "key": "non_trading",
@@ -4237,19 +4381,19 @@
        "key": "ebitda",
        "label": "EBITDA",
        "unit": "money",
-       "value": 10776378.24
+       "value": 11848065.27
       },
       {
        "key": "graded_share",
        "label": "Non-trading income as a share of ebitda",
        "unit": "ratio",
-       "value": 0.036198669099
+       "value": 0.032924409269
       },
       {
        "key": "graded_base",
        "label": "EBITDA",
        "unit": "money",
-       "value": 10776378.24
+       "value": 11848065.27
       },
       {
        "key": "provision_reversals",
@@ -4273,16 +4417,16 @@
        "key": "cash_conversion",
        "label": "Operating cash proxy ÷ EBITDA",
        "unit": "ratio",
-       "value": 0.973334656264
+       "value": 0.885294110977
       }
      ],
      "narrative": {
-      "explanation": "RON 390,090.55 of operating income is other operating income and provision reversals rather than trading margin — 3.6% of RON 10,776,378.24; the operating cash proxy is RON 10,489,022.41 against an EBITDA of RON 10,776,378.24, a conversion of 97.3%. Graded low: the amount at stake is 3.6% of ebitda, against the ladder printed beside this finding. Non-trading income is graded against the EBITDA it is inside, so the severity answers \"how much of this margin is not trading\" rather than \"is this a big number\".",
+      "explanation": "RON 390,090.55 of operating income is other operating income and provision reversals rather than trading margin — 3.3% of RON 11,848,065.27; the operating cash proxy is RON 10,489,022.41 against an EBITDA of RON 11,848,065.27, a conversion of 88.5%. Graded low: the amount at stake is 3.3% of ebitda, against the ladder printed beside this finding. Non-trading income is graded against the EBITDA it is inside, so the severity answers \"how much of this margin is not trading\" rather than \"is this a big number\".",
       "reason": "the advisory lane was not invoked for this build",
       "so_what": "Strip the non-trading income out before applying any multiple. Provision reversals and other operating income do not recur, and an EBITDA that leans on them overstates the run rate.",
       "source": "deterministic"
      },
-     "rank": 6,
+     "rank": 5,
      "rank_basis": "Ranked by severity level, then by materiality descending; ties broken by detector id ascending. The top 5 carry into the executive summary.",
      "severity": {
       "bands": [
@@ -4309,10 +4453,10 @@
       ],
       "basis": "ebitda_positive",
       "basis_label": "EBITDA",
-      "basis_value": 10776378.24,
+      "basis_value": 11848065.27,
       "level": "low",
       "magnitude": 390090.55,
-      "materiality": 0.036199,
+      "materiality": 0.032924,
       "why": "Non-trading income is graded against the EBITDA it is inside, so the severity answers \"how much of this margin is not trading\" rather than \"is this a big number\"."
      },
      "title": "Part of EBITDA is not trading income"
@@ -4467,7 +4611,7 @@
       "so_what": "Compare the collection gap with the credit terms actually granted. Where suppliers fund the cycle, that funding is a payables line that can be withdrawn, not a permanent source.",
       "source": "deterministic"
      },
-     "rank": 7,
+     "rank": 6,
      "rank_basis": "Ranked by severity level, then by materiality descending; ties broken by detector id ascending. The top 5 carry into the executive summary.",
      "severity": {
       "bands": [
@@ -4535,7 +4679,7 @@
        "role": "financialIncome"
       }
      ],
-     "claim": "This book earns more on financial assets than it pays on debt: financial income of RON 456,384.14 against financial expense of RON 343,877.00 leaves a net gain of RON 112,507.14, 1.0% of RON 10,776,378.24.",
+     "claim": "This book earns more on financial assets than it pays on debt: financial income of RON 456,384.14 against financial expense of RON 343,877.00 leaves a net gain of RON 112,507.14, 0.9% of RON 11,848,065.27.",
      "claim_template": "This book earns more on financial assets than it pays on debt: financial income of {money:financial_income} against financial expense of {money:financial_expense} leaves a net gain of {money:net_financial}, {measure:graded_share} of {money:graded_base}.",
      "facts": [
       {
@@ -4572,7 +4716,7 @@
        "label": "EBITDA",
        "name": "assembled_pl.ebitda",
        "unit": "money",
-       "value": 10776378.24
+       "value": 11848065.27
       }
      ],
      "formula": "Financial income − financial expense, against operating EBITDA",
@@ -4601,13 +4745,13 @@
        "key": "graded_share",
        "label": "Net financial result as a share of ebitda",
        "unit": "ratio",
-       "value": 0.010440162501
+       "value": 0.009495823785
       },
       {
        "key": "graded_base",
        "label": "EBITDA",
        "unit": "money",
-       "value": 10776378.24
+       "value": 11848065.27
       },
       {
        "key": "interest_expense",
@@ -4625,16 +4769,16 @@
        "key": "ebitda",
        "label": "EBITDA",
        "unit": "money",
-       "value": 10776378.24
+       "value": 11848065.27
       }
      ],
      "narrative": {
-      "explanation": "This book earns more on financial assets than it pays on debt: financial income of RON 456,384.14 against financial expense of RON 343,877.00 leaves a net gain of RON 112,507.14, 1.0% of RON 10,776,378.24. Graded info: the amount at stake is 1.0% of ebitda, against the ladder printed beside this finding. The financial result is graded against the operating earnings it sits beside, because the question is how much of the bottom line the company earned by trading rather than by lending or borrowing.",
+      "explanation": "This book earns more on financial assets than it pays on debt: financial income of RON 456,384.14 against financial expense of RON 343,877.00 leaves a net gain of RON 112,507.14, 0.9% of RON 11,848,065.27. Graded info: the amount at stake is 0.9% of ebitda, against the ladder printed beside this finding. The financial result is graded against the operating earnings it sits beside, because the question is how much of the bottom line the company earned by trading rather than by lending or borrowing.",
       "reason": "the advisory lane was not invoked for this build",
       "so_what": "Separate the operating result from the financial one when judging the trading business. Financial income earned on assets or affiliates does not repeat because trading improved.",
       "source": "deterministic"
      },
-     "rank": 8,
+     "rank": 7,
      "rank_basis": "Ranked by severity level, then by materiality descending; ties broken by detector id ascending. The top 5 carry into the executive summary.",
      "severity": {
       "bands": [
@@ -4661,23 +4805,29 @@
       ],
       "basis": "ebitda_positive",
       "basis_label": "EBITDA",
-      "basis_value": 10776378.24,
+      "basis_value": 11848065.27,
       "level": "info",
       "magnitude": 112507.14,
-      "materiality": 0.01044,
+      "materiality": 0.009496,
       "why": "The financial result is graded against the operating earnings it sits beside, because the question is how much of the bottom line the company earned by trading rather than by lending or borrowing."
      },
      "title": "The financial line is not incidental to the result"
     }
    ],
-   "not_fired": [],
+   "not_fired": [
+    {
+     "id": "reconstruction_gap",
+     "reason": "On this closed trial balance the stock variation (711) is derived from account 121, so the P&L reaches statutory profit by construction; the checks that still bind are the guards the derivation passed (every class-6/7 account read, the remainder within the 711 turnover, 121's opening cleared).",
+     "title": "The P&L does not reach statutory profit on its own"
+    }
+   ],
    "schema_version": "insights/1",
    "summary_ids": [
     "asset_age",
     "liquidity_quality",
     "related_party_exposure",
     "unclassified_balances",
-    "reconstruction_gap"
+    "earnings_quality"
    ]
   },
   "periodLabel": "2025-12-31",
