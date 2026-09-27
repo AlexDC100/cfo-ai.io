@@ -9357,10 +9357,16 @@
     "ar_net": 0.0,
     "ar_other": 0.0,
     "ar_provisions": 0.0,
-    "bs_balance_delta": -120000.0,
+    "bs_balance_delta": 0.0,
     "cash": 0.0,
     "cash_fx_component": 0.0,
-    "current_year_pnl": 120000.0,
+    "current_year_pnl": null,
+    "current_year_pnl_refusal": {
+     "code": "account_121_anchor_absent",
+     "source": "net_income_refusal",
+     "text_en": "the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+     "text_ro": "balanța este închisă, iar contul 121 lipsește: variația stocurilor (711) nu are sold net și nu poate fi derivată"
+    },
     "intangibles": 0.0,
     "intangibles_net": 0.0,
     "inventory": 250000.0,
@@ -9387,7 +9393,7 @@
     "total_current_assets": 250000.0,
     "total_current_liabilities": 50000.0,
     "total_debt": 50000.0,
-    "total_equity": 320000.0,
+    "total_equity": 200000.0,
     "total_liabilities": 50000.0,
     "total_non_current_assets": 0.0,
     "total_non_current_liabilities": 0.0
@@ -9444,10 +9450,9 @@
      },
      "retained_earnings": {
       "leaves": [
-       "retained_earnings_prior_years",
-       "current_year_profit"
+       "retained_earnings_prior_years"
       ],
-      "net": 220000.0
+      "net": 100000.0
      },
      "revenue_gross": {
       "leaves": [
@@ -9458,7 +9463,7 @@
     },
     "canonical_bs": {
      "diagnosis": [],
-     "difference": -120000.0,
+     "difference": 0.0,
      "envelope_version": "sv1",
      "excluded": [],
      "extraction": {
@@ -9523,16 +9528,6 @@
        "section": "equity"
       },
       {
-       "account_codes": [],
-       "amount": 120000.0,
-       "id": "current_year_profit",
-       "label": "Current year profit",
-       "label_key": "bs.row.current_year_profit",
-       "leaf_ids": [],
-       "opening": null,
-       "section": "equity"
-      },
-      {
        "account_codes": [
         "5121"
        ],
@@ -9563,7 +9558,7 @@
       },
       {
        "id": "equity",
-       "subtotal": 320000.0
+       "subtotal": 200000.0
       },
       {
        "id": "provisions",
@@ -9588,20 +9583,20 @@
       "source_balanced": null,
       "totals_row_found": false
      },
-     "status": "MATERIAL_IMBALANCE",
+     "status": "BALANCED",
      "status_presentation": {
-      "display_en": "Material imbalance",
-      "display_key": "bs.status.material_imbalance",
-      "display_ro": "Dezechilibru semnificativ",
-      "machine": "MATERIAL_IMBALANCE",
+      "display_en": "Balanced",
+      "display_key": "bs.status.balanced",
+      "display_ro": "Echilibrat",
+      "machine": "BALANCED",
       "micro_caption": null
      },
      "totals": {
       "assets": 250000.0,
       "current_assets": 250000.0,
       "current_liabilities": 50000.0,
-      "equity": 320000.0,
-      "equity_plus_liabilities": 370000.0,
+      "equity": 200000.0,
+      "equity_plus_liabilities": 250000.0,
       "liabilities": 50000.0
      },
      "unmapped": []
@@ -9612,12 +9607,6 @@
       "ras_line_items_count": 1,
       "ras_line_items_sum_signed": 600000.0,
       "sign_meaning": "expense_positive"
-     },
-     "current_year_profit": {
-      "magnitude": 120000.0,
-      "ras_line_items_count": 1,
-      "ras_line_items_sum_signed": 120000.0,
-      "sign_meaning": "equity_positive"
      },
      "depreciation_ppe": {
       "magnitude": 50000.0,
@@ -9817,7 +9806,7 @@
        "direction": "lower_is_better",
        "note": "",
        "unit": "ratio",
-       "value": 0.15625
+       "value": 0.25
       },
       "dscr_approx": {
        "band": null,
@@ -9885,7 +9874,7 @@
        "direction": "higher_is_better",
        "note": "",
        "unit": "ratio",
-       "value": 1.28
+       "value": 0.8
       },
       "gross_margin": {
        "band": null,
@@ -10110,7 +10099,7 @@
       "revenue_net": 1000000.0,
       "total_assets": 250000.0,
       "total_debt": 50000.0,
-      "total_equity": 320000.0,
+      "total_equity": 200000.0,
       "total_liabilities": 50000.0
      }
     },
@@ -10296,7 +10285,13 @@
     ],
     "disclosure": "Piotroski composite caps at 4 (of 9) until prior-period data is plumbed. The 4 unconditional checks (NI positive, ROA positive, CFO positive, CFO > NI) evaluate normally.",
     "has_prior_period": false,
-    "score": 0,
+    "refusal": {
+     "code": "account_121_anchor_absent",
+     "source": "net_income_refusal",
+     "text_en": "the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+     "text_ro": "balanța este închisă, iar contul 121 lipsește: variația stocurilor (711) nu are sold net și nu poate fi derivată"
+    },
+    "score": null,
     "score_max": 9
    },
    "assembled_pl": {
@@ -10684,13 +10679,13 @@
     "otherNonCurrentAssets": 0.0,
     "otherNonCurrentLiabilities": 0.0,
     "propertyPlantEquipment": 0.0,
-    "retainedEarnings": 220000.0,
+    "retainedEarnings": 100000.0,
     "shareCapital": 100000.0,
     "shortTermDebt": 50000.0
    },
    "canonical_bs": {
     "diagnosis": [],
-    "difference": -120000.0,
+    "difference": 0.0,
     "envelope_version": "sv1",
     "excluded": [],
     "extraction": {
@@ -10755,16 +10750,6 @@
       "section": "equity"
      },
      {
-      "account_codes": [],
-      "amount": 120000.0,
-      "id": "current_year_profit",
-      "label": "Current year profit",
-      "label_key": "bs.row.current_year_profit",
-      "leaf_ids": [],
-      "opening": null,
-      "section": "equity"
-     },
-     {
       "account_codes": [
        "5121"
       ],
@@ -10795,7 +10780,7 @@
      },
      {
       "id": "equity",
-      "subtotal": 320000.0
+      "subtotal": 200000.0
      },
      {
       "id": "provisions",
@@ -10820,20 +10805,20 @@
      "source_balanced": null,
      "totals_row_found": false
     },
-    "status": "MATERIAL_IMBALANCE",
+    "status": "BALANCED",
     "status_presentation": {
-     "display_en": "Material imbalance",
-     "display_key": "bs.status.material_imbalance",
-     "display_ro": "Dezechilibru semnificativ",
-     "machine": "MATERIAL_IMBALANCE",
+     "display_en": "Balanced",
+     "display_key": "bs.status.balanced",
+     "display_ro": "Echilibrat",
+     "machine": "BALANCED",
      "micro_caption": null
     },
     "totals": {
      "assets": 250000.0,
      "current_assets": 250000.0,
      "current_liabilities": 50000.0,
-     "equity": 320000.0,
-     "equity_plus_liabilities": 370000.0,
+     "equity": 200000.0,
+     "equity_plus_liabilities": 250000.0,
      "liabilities": 50000.0
     },
     "unmapped": []
@@ -10977,7 +10962,7 @@
     "ar_intercompany": 0.0,
     "ar_provisions": 0.0,
     "cash_fx": 0.0,
-    "current_year_pnl": 120000.0,
+    "current_year_pnl": null,
     "equity_revaluation": 0.0,
     "financial_income": 0.0,
     "fx_gain": 0.0,

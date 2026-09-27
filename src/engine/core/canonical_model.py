@@ -344,7 +344,9 @@ class PiotroskiCheck(TypedDict, total=True):
 
 
 class AssembledPiotroski(TypedDict, total=True):
-    score: int                  # 0-9
+    # 0-9; None (with a typed `refusal` beside it) when no check was
+    # evaluated or the net result is refused — never a 0 read off nothing.
+    score: Optional[int]
     score_max: int              # always 9
     has_prior_period: bool      # False → some checks skipped
     checks: List[Dict[str, Any]]
@@ -600,7 +602,16 @@ def validate_canonical_envelope(envelope: Any) -> ValidationReport:
     p = stmts["assembled_piotroski"]
     if _expect_keys(p, _REQUIRED_PIOTROSKI, "envelope.statements.assembled_piotroski", errors):
         score = p.get("score")
-        if not isinstance(score, int) or score < 0 or score > 9:
+        _p_refusal = p.get("refusal")
+        if score is None:
+            # A refused screen carries its reason; a bare None is not one
+            # the engine writes.
+            if not (isinstance(_p_refusal, dict) and _p_refusal.get("code")):
+                errors.append(
+                    "envelope.statements.assembled_piotroski.score: None without "
+                    "a refusal — a refused score must carry its reason"
+                )
+        elif not isinstance(score, int) or isinstance(score, bool) or score < 0 or score > 9:
             errors.append(
                 f"envelope.statements.assembled_piotroski.score: "
                 f"expected int 0-9, got {score!r}"

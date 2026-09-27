@@ -708,6 +708,7 @@ def _piotroski_checks(
     prior: Optional[Dict[str, float]],
     currency: str,
     current: Optional[Dict[str, float]] = None,
+    net_income_refusal: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, object]:
     """F1.g — emit the Piotroski 9-check bundle.
 
@@ -732,6 +733,16 @@ def _piotroski_checks(
     margin (operating EBIT / revenue) higher; asset turnover (revenue /
     total assets) higher. A check whose operand is absent on either side,
     or whose base is not positive, is `uncertain`, never a pass or a fail.
+
+    2026-09-27 (fixer round 2): a screen with NO evaluated check has no
+    score. With the net result refused (`net_income_refusal`: no account
+    121 and a refused net 711) checks 1-4 are all `uncertain`, and without
+    a prior checks 5-9 are too — the block served `score: 0`, which the
+    Risks tab banded "Distressed (0-2)": a distress verdict read off zero
+    evaluated checks. The score is None beside a typed `refusal` — the net
+    result's own reason when that is why, else
+    `piotroski_no_check_evaluated` — whenever the net result is refused or
+    no check was evaluated at all.
     """
     checks: List[Dict[str, object]] = []
     has_prior = prior is not None
@@ -859,9 +870,33 @@ def _piotroski_checks(
             _add(key, prior_labels[key], "uncertain",
                  "Prior-period data unavailable for YoY comparison.")
 
-    score = base_pass_count + yoy_pass_count  # caps at 4 when has_prior is False
+    score: Optional[int] = base_pass_count + yoy_pass_count  # caps at 4 when has_prior is False
 
-    return {
+    # No score without an evaluated check (and none on a refused net
+    # result): a count of passes over nothing evaluated is not a 0 / 9.
+    evaluated_count = sum(1 for c in checks if c.get("result") in ("pass", "fail"))
+    refusal: Optional[Dict[str, Any]] = None
+    if net_income_statutory is None and isinstance(net_income_refusal, dict) \
+            and net_income_refusal.get("code"):
+        refusal = {
+            "code": net_income_refusal.get("code"),
+            "text_ro": net_income_refusal.get("text_ro"),
+            "text_en": net_income_refusal.get("text_en"),
+            "source": "net_income_refusal",
+        }
+    elif evaluated_count == 0:
+        refusal = {
+            "code": "piotroski_no_check_evaluated",
+            "text_ro": "Niciuna dintre cele 9 verificări Piotroski nu a putut fi evaluată "
+                       "pentru această perioadă — nu există un scor.",
+            "text_en": "None of the 9 Piotroski checks could be evaluated for this "
+                       "period — there is no score.",
+            "source": "piotroski",
+        }
+    if refusal is not None:
+        score = None
+
+    out: Dict[str, object] = {
         "score": score,
         "score_max": 9,
         "has_prior_period": has_prior,
@@ -872,6 +907,11 @@ def _piotroski_checks(
             "ROA positive, CFO positive, CFO > NI) evaluate normally."
         ) if not has_prior else None,
     }
+    if refusal is not None:
+        # Only on a screen with no score: every other book's block is
+        # byte-identical to what it was.
+        out["refusal"] = refusal
+    return out
 
 
 def _band_definitions(industry: Optional[str] = None) -> Dict[str, object]:
@@ -1962,11 +2002,30 @@ def assemble_statements(
     # current_year_pnl, and total_assets = total_liabilities + total_equity
     # within rounding. Without this step, BS is off by exactly the
     # statutory net income (~RON 1.42M for EEI).
-    bs["retainedEarnings"] = round(bs["retainedEarnings"] + net_income_statutory, 2)
-    sub_agg["current_year_pnl"] = round(net_income_statutory, 2)
-
-    # Now fill the cross-references on the BS canonical view.
-    assembled_bs_canonical["current_year_pnl"] = round(net_income_statutory, 2)
+    #
+    # A REFUSED net result (no account 121, net 711 refused) is NOT closed
+    # into equity (fixer round 2, 2026-09-27). The build-up lacks the
+    # unmeasured variation, so it does not close the sheet either — the
+    # developer with its 121 rows dropped served current_year_pnl
+    # -30,391,418.38 on the report's balance sheet beside a P&L whose net
+    # result said "refused", and the briefing could cite it as the year's
+    # result. The row is None beside the net result's own refusal; equity
+    # carries no current-year result, and `bs_balance_delta` states what
+    # the trial balance leaves unexplained (the absent 121).
+    if net_income_refusal is None:
+        bs["retainedEarnings"] = round(bs["retainedEarnings"] + net_income_statutory, 2)
+        sub_agg["current_year_pnl"] = round(net_income_statutory, 2)
+        # Now fill the cross-references on the BS canonical view.
+        assembled_bs_canonical["current_year_pnl"] = round(net_income_statutory, 2)
+    else:
+        sub_agg["current_year_pnl"] = None
+        assembled_bs_canonical["current_year_pnl"] = None
+        assembled_bs_canonical["current_year_pnl_refusal"] = {
+            "code": net_income_refusal.get("code"),
+            "text_ro": net_income_refusal.get("text_ro"),
+            "text_en": net_income_refusal.get("text_en"),
+            "source": "net_income_refusal",
+        }
     # retained_earnings stays as the carry-forward (year-start) value;
     # current_year_pnl is the THIS-period contribution, surfaced separately.
     total_assets = (
@@ -2198,6 +2257,7 @@ def assemble_statements(
             # 5 "uncertain" results + cap-at-4 score per the spec.
             prior=None,
             currency=currency,
+            net_income_refusal=net_income_refusal,
         ),
         # Required by the TS Statements interface — computeRatios() reads
         # supplementary.periodDays. The day count is established from the
@@ -2294,7 +2354,10 @@ def assemble_statements(
         result["assembled_canonical_v1"] = assemble_canonical(
             line_items,
             source_data_quality=source_data_quality,
-            current_year_pnl=float(net_income_statutory or 0.0),
+            # A refused net result has NO result row (0.0 writes no
+            # current_year_profit / _loss leaf) — never the build-up.
+            current_year_pnl=(float(net_income_statutory or 0.0)
+                              if net_income_refusal is None else 0.0),
             profit_distribution_129=profit_dist_129,
         )
     except Exception:  # noqa: BLE001

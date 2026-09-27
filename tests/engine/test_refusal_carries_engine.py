@@ -32,8 +32,13 @@ On the book with NO account 121 (`unanchored`) the NET RESULT refuses too
 — the build-up lacks the refused 711 — with net margin, ROE, ROA, the free
 cash flow, the cash-flow totals, the profitability sub-score, the benchmark's
 headline profit, the briefing's net margin, FactsGateway.net_result and the
-Piotroski checks 1-4 (fixer round 1, 2026-09-27). With 121 (`g6_uncleared`)
-the filed figure stands.
+Piotroski checks 1-4 (fixer round 1, 2026-09-27) — and (fixer round 2) the
+Piotroski SCORE (None with the reason, never 0 off nine uncertain checks),
+the balance sheet's current-year result (assembled_bs, subAggregates, the
+canonical_v1 leaf and the canonical_bs row: the build-up is not closed into
+equity) and the briefing's facts (no current_year_pnl to cite; the net
+result None with net_income_refusal beside it). With 121 (`g6_uncleared`)
+the filed figure stands and is closed into equity, cited and scored.
 
 REDS ON (TC-11): any of those surfaces carrying a number (a 0 above all)
 for a refused EBITDA, EBIT or a ratio built on them; a surface carrying a
@@ -190,12 +195,36 @@ def test_refusal_carries_every_engine_surface_refuses_with_the_711_reason(name):
     #     served -30,391,418.38 where 121 holds -801,604.14 — so it refuses
     #     with the same reason, and so does everything built on it.
     anchored = apl.get("net_income_anchor_status") == "anchored"
+    abs_ = b.statements.get("assembled_bs") or {}
+    sub_agg = b.statements.get("subAggregates") or {}
+    gt = P._briefing_grand_totals(
+        {"statements": b.statements, "assembled_canonical_v1": b.envelope}, abs_)
+    bfacts = P._briefing_facts_raw(apl, abs_, gt)
+    pio = b.statements.get("assembled_piotroski") or {}
     if anchored:
         WORK["checks"] += 1
         if apl.get("net_income_refusal") is not None or not isinstance(
                 apl.get("net_income_statutory"), (int, float)):
             problems.append("%s: an ANCHORED net result was refused (%r / %r)"
                             % (name, apl.get("net_income_statutory"), apl.get("net_income_refusal")))
+        # Non-vacuity of the round-2 laws below: with 121 the filed result
+        # IS closed into equity, the briefing may cite it and Piotroski
+        # scores its evaluated checks.
+        WORK["checks"] += 1
+        if abs_.get("current_year_pnl") != apl.get("net_income_statutory") \
+                or abs_.get("current_year_pnl_refusal") is not None:
+            problems.append("%s: an ANCHORED current-year result on the balance sheet is %r "
+                            "(net result %r)" % (name, abs_.get("current_year_pnl"),
+                                                 apl.get("net_income_statutory")))
+        WORK["checks"] += 1
+        if bfacts.get("current_year_pnl") != apl.get("net_income_statutory") \
+                or "net_income_refusal" in bfacts:
+            problems.append("%s: the briefing's current_year_pnl %r on an ANCHORED book"
+                            % (name, bfacts.get("current_year_pnl")))
+        WORK["checks"] += 1
+        if not isinstance(pio.get("score"), int) or pio.get("refusal") is not None:
+            problems.append("%s: Piotroski score %r / refusal %r on an ANCHORED book"
+                            % (name, pio.get("score"), pio.get("refusal")))
     else:
         WORK["checks"] += 1
         if (apl.get("net_income_refusal") or {}).get("code") != code:
@@ -244,12 +273,51 @@ def test_refusal_carries_every_engine_surface_refuses_with_the_711_reason(name):
         else:
             problems.append("%s: FactsGateway.net_result serves %r for a REFUSED net result"
                             % (name, got))
-        pio = b.statements.get("assembled_piotroski") or {}
         for check in (pio.get("checks") or [])[:4]:
             WORK["checks"] += 1
             if check.get("result") != "uncertain":
                 problems.append("%s: Piotroski %s is %r on a refused net result"
                                 % (name, check.get("key"), check.get("result")))
+        # Fixer round 2 (2026-09-27): NO SCORE off zero evaluated checks —
+        # the block served `score: 0`, banded "Distressed (0-2)".
+        refused("assembled_piotroski.score", pio.get("score"), carries_code=False)
+        WORK["checks"] += 1
+        if (pio.get("refusal") or {}).get("code") != code:
+            problems.append("%s: assembled_piotroski refusal %r, expected the 711 code %r"
+                            % (name, pio.get("refusal"), code))
+        refused("GET /api/period assembled_metrics.piotroski.score",
+                (b.am.get("piotroski") or {}).get("score"), carries_code=False)
+        # Fixer round 2: the build-up is not closed into equity — the
+        # report's balance sheet printed it as "Current-year P&L" and the
+        # briefing could cite it as the year's result.
+        refused("assembled_bs.current_year_pnl", abs_.get("current_year_pnl"), carries_code=False)
+        WORK["checks"] += 1
+        if (abs_.get("current_year_pnl_refusal") or {}).get("code") != code:
+            problems.append("%s: assembled_bs.current_year_pnl_refusal %r, expected the 711 code %r"
+                            % (name, abs_.get("current_year_pnl_refusal"), code))
+        refused("subAggregates.current_year_pnl", sub_agg.get("current_year_pnl"), carries_code=False)
+        leaves = b.envelope.get("leaves") or {}
+        for leaf in ("current_year_profit", "current_year_loss"):
+            WORK["checks"] += 1
+            if leaf in leaves:
+                problems.append("%s: canonical_v1 carries a %s leaf %r for a REFUSED net result"
+                                % (name, leaf, leaves[leaf]))
+        rows = [r for r in ((b.envelope.get("canonical_bs") or {}).get("rows") or [])
+                if isinstance(r, dict) and r.get("id") in ("current_year_profit", "current_year_loss")]
+        WORK["checks"] += 1
+        if rows:
+            problems.append("%s: canonical_bs serves the result row %r for a REFUSED net result"
+                            % (name, rows))
+        WORK["checks"] += 1
+        if "current_year_pnl" in bfacts:
+            problems.append("%s: the briefing's facts carry current_year_pnl %r for a REFUSED "
+                            "net result (a citable MoneyFact)" % (name, bfacts["current_year_pnl"]))
+        refused("briefing facts net_income_statutory", bfacts.get("net_income_statutory"),
+                carries_code=False)
+        WORK["checks"] += 1
+        if (bfacts.get("net_income_refusal") or {}).get("code") != code:
+            problems.append("%s: the briefing's facts carry net_income_refusal %r, expected %r"
+                            % (name, bfacts.get("net_income_refusal"), code))
         WORK["net_result_refused"].append(name)
 
     WORK["books"].append(name)

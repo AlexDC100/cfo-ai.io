@@ -3464,6 +3464,88 @@ def _briefing_ratios(
     return ratios, refusals
 
 
+def _briefing_facts_raw(pl_canonical: Dict[str, Any], bs_canonical: Dict[str, Any],
+                        grand_totals: Dict[str, Any]) -> Dict[str, Any]:
+    """The briefing's fact block BEFORE FX conversion — the figures the
+    model may cite (numerals.facts_from_briefing types every money field as
+    a citable MoneyFact). Pure: `stage_narrate` calls it, and the
+    refusal-carries gate reads it on the refused books."""
+    # ABSENT != ZERO: a missing or REFUSED EBITDA or turnover stays None
+    # here (it used to default to 0.0, the same value as a measured zero).
+    # THE ONE EBITDA over TURNOVER (owner ruling 2026-09-26).
+    ebitda_one = pl_canonical.get("ebitda")
+    turnover = pl_canonical.get("turnover", pl_canonical.get("revenue"))
+    _inv = pl_canonical.get("inventory_variation")
+    _cap = pl_canonical.get("capitalized_own_work")
+    total_debt = bs_canonical.get("total_debt", 0.0)
+    total_equity = grand_totals["total_equity"]
+    cash_val = bs_canonical.get("cash", 0.0)
+    briefing_ratios, briefing_ratio_refusals = _briefing_ratios(
+        pl_canonical, bs_canonical, total_equity)
+
+    briefing_facts_raw = {
+        # P&L — the ONE definition (matches the P&L tab, KPI tiles, report,
+        # benchmark and forecast). A refused EBITDA / operating result is
+        # None with `ebitda_refusal` beside it — never 0.0.
+        "turnover": turnover,
+        "ebitda": ebitda_one,
+        "operating_result": pl_canonical.get("operating_result"),
+        "inventory_variation": (_inv.get("value") if isinstance(_inv, dict) else None),
+        "capitalized_own_work": (_cap.get("value") if isinstance(_cap, dict) else None),
+        "depreciation": pl_canonical.get("depreciation", 0.0),
+        "interest_expense": pl_canonical.get("interest_expense", 0.0),
+        "tax": pl_canonical.get("tax", 0.0),
+        "net_income_statutory": pl_canonical.get("net_income_statutory", 0.0),
+        # BS — closing balances (Solduri finale year-end convention);
+        # grand totals are the SERVED, reconciliation-adjusted figures
+        # (sv1 gateway — see _briefing_grand_totals).
+        "total_assets": grand_totals["total_assets"],
+        "total_equity": total_equity,
+        "total_liabilities": grand_totals["total_liabilities"],
+        "total_debt": total_debt,
+        "lt_debt": bs_canonical.get("lt_debt", 0.0),
+        "st_debt": bs_canonical.get("st_debt", 0.0),
+        "cash": cash_val,
+        "ar_net": bs_canonical.get("ar_net", 0.0),
+        "ap_trade": bs_canonical.get("ap_trade", 0.0),
+        "ap_dividends": bs_canonical.get("ap_dividends", 0.0),
+        "intercompany_loans": bs_canonical.get("intercompany_loans", 0.0),
+        "ppe_net": bs_canonical.get("ppe_net", 0.0),
+        "ppe_under_construction": bs_canonical.get("ppe_under_construction", 0.0),
+        "current_year_pnl": bs_canonical.get("current_year_pnl", 0.0),
+        "bs_balance_delta": grand_totals["bs_balance_delta"],
+        # Key derived ratios — operating-view based, so the briefing's
+        # leverage / coverage commentary stays consistent with the tab.
+        # A ratio that cannot be computed is None (numerals.facts_from_
+        # briefing types it RatioFact(None), so it can never be cited).
+        "ratios": briefing_ratios,
+    }
+    if ebitda_one is None and isinstance(pl_canonical.get("ebitda_refusal"), dict):
+        _r = pl_canonical["ebitda_refusal"]
+        briefing_facts_raw["ebitda_refusal"] = {
+            "code": _r.get("code"), "text_en": _r.get("text_en"), "text_ro": _r.get("text_ro")}
+    briefing_facts_raw["ebitda_definition"] = pl_canonical.get("ebitda_definition")
+    if briefing_ratio_refusals:
+        # Why each None ratio is None — the model reads the reason instead
+        # of inventing a figure. Present only when something refused, so a
+        # book whose ratios all compute sends the same payload as before.
+        briefing_facts_raw["ratio_refusals"] = briefing_ratio_refusals
+    # A REFUSED NET RESULT (no account 121, net 711 refused — fixer round 2,
+    # 2026-09-27): the net result is None above, its reason rides beside it,
+    # and the balance sheet's `current_year_pnl` is DROPPED — it used to carry
+    # the class-6/7 build-up (the developer without 121: -30,391,418.38 where
+    # 121 holds -801,604.14), which numerals.facts_from_briefing typed as a
+    # citable MoneyFact the model could narrate as the year's result.
+    _ni_refusal = pl_canonical.get("net_income_refusal")
+    if isinstance(_ni_refusal, dict) and _ni_refusal.get("code"):
+        briefing_facts_raw["net_income_statutory"] = None
+        briefing_facts_raw.pop("current_year_pnl", None)
+        briefing_facts_raw["net_income_refusal"] = {
+            "code": _ni_refusal.get("code"), "text_en": _ni_refusal.get("text_en"),
+            "text_ro": _ni_refusal.get("text_ro")}
+    return briefing_facts_raw
+
+
 def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[Dict[str, Any]],
                   org: Dict[str, Any], period_id: str,
                   parsed: Optional[Dict[str, Any]] = None,
@@ -3683,66 +3765,7 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
     # write-time briefings now cite the same figures /api/period serves.
     grand_totals = _briefing_grand_totals(assembled, bs_canonical)
 
-    # ABSENT != ZERO: a missing or REFUSED EBITDA or turnover stays None
-    # here (it used to default to 0.0, the same value as a measured zero).
-    # THE ONE EBITDA over TURNOVER (owner ruling 2026-09-26).
-    ebitda_one = pl_canonical.get("ebitda")
-    turnover = pl_canonical.get("turnover", pl_canonical.get("revenue"))
-    _inv = pl_canonical.get("inventory_variation")
-    _cap = pl_canonical.get("capitalized_own_work")
-    total_debt = bs_canonical.get("total_debt", 0.0)
-    total_equity = grand_totals["total_equity"]
-    cash_val = bs_canonical.get("cash", 0.0)
-    briefing_ratios, briefing_ratio_refusals = _briefing_ratios(
-        pl_canonical, bs_canonical, total_equity)
-
-    briefing_facts_raw = {
-        # P&L — the ONE definition (matches the P&L tab, KPI tiles, report,
-        # benchmark and forecast). A refused EBITDA / operating result is
-        # None with `ebitda_refusal` beside it — never 0.0.
-        "turnover": turnover,
-        "ebitda": ebitda_one,
-        "operating_result": pl_canonical.get("operating_result"),
-        "inventory_variation": (_inv.get("value") if isinstance(_inv, dict) else None),
-        "capitalized_own_work": (_cap.get("value") if isinstance(_cap, dict) else None),
-        "depreciation": pl_canonical.get("depreciation", 0.0),
-        "interest_expense": pl_canonical.get("interest_expense", 0.0),
-        "tax": pl_canonical.get("tax", 0.0),
-        "net_income_statutory": pl_canonical.get("net_income_statutory", 0.0),
-        # BS — closing balances (Solduri finale year-end convention);
-        # grand totals are the SERVED, reconciliation-adjusted figures
-        # (sv1 gateway — see _briefing_grand_totals).
-        "total_assets": grand_totals["total_assets"],
-        "total_equity": total_equity,
-        "total_liabilities": grand_totals["total_liabilities"],
-        "total_debt": total_debt,
-        "lt_debt": bs_canonical.get("lt_debt", 0.0),
-        "st_debt": bs_canonical.get("st_debt", 0.0),
-        "cash": cash_val,
-        "ar_net": bs_canonical.get("ar_net", 0.0),
-        "ap_trade": bs_canonical.get("ap_trade", 0.0),
-        "ap_dividends": bs_canonical.get("ap_dividends", 0.0),
-        "intercompany_loans": bs_canonical.get("intercompany_loans", 0.0),
-        "ppe_net": bs_canonical.get("ppe_net", 0.0),
-        "ppe_under_construction": bs_canonical.get("ppe_under_construction", 0.0),
-        "current_year_pnl": bs_canonical.get("current_year_pnl", 0.0),
-        "bs_balance_delta": grand_totals["bs_balance_delta"],
-        # Key derived ratios — operating-view based, so the briefing's
-        # leverage / coverage commentary stays consistent with the tab.
-        # A ratio that cannot be computed is None (numerals.facts_from_
-        # briefing types it RatioFact(None), so it can never be cited).
-        "ratios": briefing_ratios,
-    }
-    if ebitda_one is None and isinstance(pl_canonical.get("ebitda_refusal"), dict):
-        _r = pl_canonical["ebitda_refusal"]
-        briefing_facts_raw["ebitda_refusal"] = {
-            "code": _r.get("code"), "text_en": _r.get("text_en"), "text_ro": _r.get("text_ro")}
-    briefing_facts_raw["ebitda_definition"] = pl_canonical.get("ebitda_definition")
-    if briefing_ratio_refusals:
-        # Why each None ratio is None — the model reads the reason instead
-        # of inventing a figure. Present only when something refused, so a
-        # book whose ratios all compute sends the same payload as before.
-        briefing_facts_raw["ratio_refusals"] = briefing_ratio_refusals
+    briefing_facts_raw = _briefing_facts_raw(pl_canonical, bs_canonical, grand_totals)
     # ── FX conversion ─────────────────────────────────────────────────
     # Convert every monetary value in briefing_facts from the source
     # currency (the trial balance's native currency, almost always RON)
