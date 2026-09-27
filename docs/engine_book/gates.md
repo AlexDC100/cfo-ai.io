@@ -10605,8 +10605,8 @@ search, the craft G4 on the renderer the palette uses, and company fit.
 
 | | |
 |---|---|
-| command | `npx vitest run --root . <commandBar.test.tsx> <cmdbarSearch.test.ts> <cmdbarStrings.test.ts> <capsuleCraft.test.tsx> <roleChips.test.tsx> <companyFit.test.ts> <evidenceReceivers.test.tsx> --reporter=verbose` (cmdbarStrings and evidenceReceivers joined in CB-F1/CB-G) |
-| work count | `Tests … (\d+) passed`, floor **118** (measured 118, stage CB-G; was 88) |
+| command | `npx vitest run --root . <commandBar.test.tsx> <cmdbarSearch.test.ts> <cmdbarStrings.test.ts> <capsuleCraft.test.tsx> <roleChips.test.tsx> <companyFit.test.ts> <evidenceReceivers.test.tsx> <cmdbarSwitch.test.tsx> --reporter=verbose` (cmdbarStrings and evidenceReceivers joined in CB-F1/CB-G, cmdbarSwitch in CB-I) |
+| work count | `Tests … (\d+) passed`, floor **141** (measured 141, stage CB-I; 132 at CB-H, 118 at CB-G, 88 before) |
 | canary | the twenty titles / GATE-WORK lines named in `scripts/run_battery.py` (swap, served items, ratio_table-not-metrics, warm zero-fetch, planted model text, digit rule, caveat once, rent-only DSCR, the ratio receiver; CB-G: every Cont leaf, every Δ, every vs-sector, the cold open timed, every spelling, the ↓ walk, diacritics no other rule rescues, Romanian letters, printed names typed back, a new query selecting its answer, each document named to its company) |
 
 **Reds on, after the repair (TC-11):** a resting list that is not the served
@@ -11270,6 +11270,228 @@ tree before this stage) the same test failed 3 of 4 runs; on this stage's
 bundle 2 of 3. Not repaired here (the dashboard's default-comparison prior
 across a company switch, not the bar) — named for its owner.
 
+> **CORRECTED in stage CB-I (below): that paragraph is wrong.** 426c862a is
+> a commit of THIS branch, not its base; the failure is the bar's, and it was
+> caused here. Measured on the base (69fb9621), the same test is green 20 of
+> 20; on d7dbfd70 it is red 8 of 40, every red a request the bar made.
+
+### Stage CB-I (review round 1, 2026-09-27) — what the re-review found, each planted
+
+**A switch painted the company left behind and asked across companies
+(blocking).** Re-measured first, on three hermetic bundles and the SAME spec
+file (`e2e/workspace-v2.spec.ts -g "company switch carries"
+--repeat-each=10 --workers=8`, both languages):
+```
+bundle 69fb9621 (base)                    20 passed
+bundle d7dbfd70 (CB-H, this branch)       4 failed | 16 passed      (twice: 8 of 40 red)
+    Error: a request after the switch named a period of Scandia's
+    +     "org": "0a9a…0051",  "path": "/api/period/5ea5…a925/comparatives",  "search": "?prior=5ea5…51f5"
+    +     "org": "0a9a…0051",  "path": "/api/period/5ea5…51f5/sector-benchmark"
+    +     "org": "0a9a…0051",  "path": "/api/period/5ea5…51f5/attention"
+bundle CB-I (this stage)                  20 passed                 (twice: 40 of 40 green)
+```
+The base never asks for `/attention` or `/sector-benchmark`: those are the
+bar's, prefetched app-wide by `CommandBarPrefetch` (this branch). The cause is
+the app's query client, `placeholderData: keepPreviousData`
+(lib/queryClient.ts): when a key changes, the observer keeps the PREVIOUS
+key's data on screen, flagged `isPlaceholderData` — and even across
+`queryClient.clear()` (the observer remembers its last query with data). The
+bar read `data` as the answer for its new key: across Scandia → Agras,
+`useAttention(Agras…)` returned Scandia's document and the bar painted
+Scandia's "Ce contează acum" under "Searching Agras SRL"; the period body kept
+from Scandia made the scope "ready" for Agras's period while `useActiveOrg()`
+still said Scandia, and the comparison was asked of Scandia for Agras's
+period; in the window between the workspace holder naming Agras (lib/org.ts
+writes it first, then clears the cache, then the remote write, then every
+`useActiveOrg` re-resolves) the bar re-asked for Scandia's documents it had
+just lost. Every jsdom law had built its QueryClient WITHOUT the app's
+defaults, so none of them could see a placeholder.
+
+Repaired in `cmdbar/useCmdbarData.ts`: a placeholder is never read
+(`isPlaceholderData`), and every document must NAME the (org, period) it is
+read for — the body's `period.id` (and `organization.id`), the attention
+document's `period.id` / `period.org_id`, the comparison's `current` and
+`prior` period ids, the sector document's `period.id`; the company-year lists
+are read only as their own key's answer. While the workspace holder
+(`lib/activeOrg`, read with `useSyncExternalStore`) names another company
+than `useActiveOrg()`, the scope is "loading": nothing is asked, nothing is
+painted. A bare URL takes the newest analysed period from the company's OWN
+list (`useCompanyPeriods`, whose answer names the company), no longer from the
+header stepper, whose lists are not keyed by company. The palette's recent
+picks are held with the company they were read for and shown only under it.
+The jsdom `commandBar.test.tsx` worlds seed the company's period list in cold
+mode too (the pair world's ids are not UUIDs: the bar reads its period from
+that list), and the pair world's sector capture (the same book under its
+harness id `p-agras-dec2025`) is paired to its body's period id — a document
+that names another period is no longer read.
+
+New jsdom law, `cmdbarSwitch.test.tsx` (joined to cmdbar-surface): the REAL
+palette and the AppShell prefetch on a QueryClient built from the APP's own
+defaults (`queryClient.getDefaultOptions()`, keepPreviousData included),
+walked through the switch the way lib/org.ts makes it — the holder names
+Agras and the cache is cleared, `/workspace/<Agras>`, the Dashboard link
+`?period=<Agras>&org=<Agras>`, `useActiveOrg()` catching up later, Agras's
+period body landing, Agras's documents last — with the bar open at rest, open
+typed ("clienti"), and closed then opened; and a period switch (Scandia Dec
+2025 → a second, earlier Scandia period — the Agras book re-homed, so its
+figures differ) at rest and typed. Every React commit is a frame (a
+Profiler's onRender, after the DOM is mutated): under "Searching X · month",
+every figure, served chip, key metric and context a row carries must be one
+X's own documents paint for that month (X mounted alone); under any other
+header, nothing; a recent pick only under its company; a company-year row
+only with its own company's period. Every request and every period body the
+bar asks for is held to the period → company map: no company asked about
+another's period, and after the switch nothing names the company left
+behind. Positive controls: the two companies' carrier sets differ by ≥ 3
+(4 at rest, 13 typed), the frames before the switch painted Scandia, the last
+frame paints Agras's own items. `GATE-WORK cmdbar-switch company "the bar
+open, at rest" frames=28 foreign_carriers=4 requests=5` · `… period "clienti"
+frames=21 foreign_carriers=13`.
+```
+### PLANT cmdbar-switch (a) — useCmdbarData.ts as it was (d7dbfd70)                RED 5 failed (5)
+   × … Scandia → Agras … the bar open, at rest / typed 'clienti' / closed through the switch, opened before Agras's documents land
+   × … a period switch (Scandia Dec 2025 → Dec 2024) … at rest / typed 'clienti'
+   → a figure painted under a header that is not its company's: expected [ …(12) ] to deeply equal []
+   +   "[4 Agras's period body] \"Searching Agras SRL · Dec 2025\" painted now:earnings_quality | data-figure | RON 753,070.01",
+   +   "[4b the bar opened] \"Searching Agras SRL · Dec 2025\" painted now:financial_position | data-figure | RON -2,577,640.82",
+   +   "[4 Agras's period body] \"Searching Agras SRL · Dec 2025\" painted answer:receivables | data-chip-state | vs sector — Receivables days (all receivables) 99.3 days: above the upper quartile, …",
+   +   "[Dec 2024's body lands] \"Searching Scandia Food SRL · Dec 2024\" painted now:inventory_days_on_turnover | data-figure | 93.0 days",
+   → a request pairing a company with another's period, or naming the company left: expected [ …(6) ] to deeply equal []
+   +   "asked 0a9a…0051 about another company's period: …/api/period/5ea5…a925/attention",
+   +   "asked 0a9a…0051 about another company's period: …/api/period/5ea5…a925/sector-benchmark",
+   +   "after the switch, named the company left behind: …/api/period/5ea5…51f5/comparatives?prior=5ea5…51f4 (as 0a9a…0051)",
+   +   "the period body of 5ea5…51f5",
+### PLANT cmdbar-switch (b) — CommandPalette.tsx recents as they were (read once, on open)   RED 1 failed | 4 passed (5)
+   +   "[1 holder=Agras, cache cleared, /workspace/<Agras>] \"Searching Agras SRL · loading\" shows another company's recent pick recent:account:411121:ar",
+   → the switch ends on Agras's own recent picks: expected [ 'recent:account:411121:ar' ] to deeply equal [ 'recent:page:tab:pl' ]
+REVERT (each, restored byte for byte): Tests 5 passed (5)
+```
+Through the battery: plant (a) → `FAIL cmdbar-surface (exit 1, 14.5s)` →
+restored → `PASS cmdbar-surface (14.9s, 141 command-bar tests)`.
+
+New live law, **G10** (`e2e/design/cmdbar.spec.ts`, hermetic): the switch made
+IN the app — `history.pushState` + `popstate`, the way a link or Back moves
+it, so the query cache and its placeholders live on — Scandia → Agras with the
+bar open at rest, open typed, and closed (opened once the header names
+Agras); and Scandia Dec 2025 → Dec 2024 (the double serves the re-homed
+period for G10 only). A MutationObserver in the page records every different
+frame; the allowed carriers per header come from each (company, month) opened
+ALONE in its own context. On the CB-I bundle: `4 passed` —
+`GATE-WORK cmdbar-live-switch company "open, at rest" frames=5
+foreign_carriers=4 requests=21` · `… period frames=3 foreign_carriers=4`.
+**LIVE PLANT** — the d7dbfd70 bundle (the pre-fix source, unchanged):
+```
+  ✘ G10 … Scandia → Agras, the bar open, at rest / open, typed 'clienti' / closed through the switch, opened after
+  ✘ G10 … Scandia Dec 2025 → Dec 2024, the bar open
+    +     "asked 0a9a…0051 about another company's period: GET /api/period/5ea5…a925/sector-benchmark",
+    +     "asked 0a9a…0051 about another company's period: GET /api/period/5ea5…a925/attention",
+    +     "\"Searching Agras SRL · Dec 2025\" painted now:earnings_quality | data-figure | RON 753,070.01",
+    +     "\"Searching Scandia Food SRL · Dec 2024\" painted now:inventory_days_on_turnover | data-figure | 93.0 days",
+  4 failed
+REVERT (the CB-I bundle): 4 passed
+```
+
+**The zero-fetch law could not see a debounced fetch (high).** CB-H's repair
+counted after `flushAsync` — three `setTimeout(0)` turns — so a request a
+keystroke DEFERS (a debounce: every keystroke re-arms it, it fires only once
+typing stops) was issued after the last count; the live G3 waited a fixed
+300 ms, and G7 ended every query on the empty string, which cancels a pending
+debounce. Repaired: the jsdom latency laws run on fake timers (`setTimeout` /
+`setInterval` only — `performance` stays real, so the latency is still
+measured on the real clock) and, after EVERY keystroke, run every timer due
+within `DEBOUNCE_HORIZON_MS` = 5 000 ms of virtual time before counting (the
+cold count too); live, G3, G6 and G7 count only once the network has been
+quiet for `DEBOUNCE_HORIZON_MS` = 1 500 ms (`settle`), and G7 waits it out
+after each query before clearing it. One request is excused, by name: the
+header's engine-status dot polls `GET /health` on its own 20 s clock
+(lib/useBackendStatus.ts), which a 1.5 s wait can meet; nothing else is.
+```
+### PLANT cmdbar-latency (debounced) — CommandPalette.tsx: a 300 ms debounced useAttention(…, "q"+query)
+BEFORE the repair (the CB-H law):   ✓ warm: every keystroke renders under 100 ms and fetches NOTHING   (3 passed)
+AFTER:
+   × … warm: every keystroke renders under 100 ms and fetches NOTHING — not even after a debounce
+     → requests caused by a keystroke: expected [ …(64) ] to deeply equal []
+     +   "\"p\": http://api.test.invalid/api/period/period-agras-fy2025/attention?prior=qp",
+   × … the cold open, timed …
+     → cold: the bar's documents are asked for once, by the prefetch, not per keystroke: expected 4 to be less than or equal to 3
+   Tests  2 failed | 1 passed | 59 skipped (62)
+REVERT: Tests  3 passed | 59 skipped (62)
+Through the battery: FAIL cmdbar-surface (exit 1, 15.2s) → restored → PASS cmdbar-surface (14.9s, 141 command-bar tests)
+### LIVE PLANT — the same plant at 400 ms, built into its own bundle
+BEFORE the repair (the d7dbfd70 spec, G1/G2/G3 + G7):   4 passed (16.4s)
+AFTER:
+    Error: scandia: requests while typing   +   "GET /api/period/5ea5…51f5/attention",       (G3)
+    Error: scandia: requests while typing   +   "GET /api/period/5ea5…51f5/attention", … ×10  (G7)
+    Error: agras: requests while typing     +   "GET /api/period/5ea5…a925/attention", …     (G7)
+  3 failed | 1 passed
+REVERT (the CB-I bundle): 4 passed
+```
+The first live run of the new G7 on the CB-I bundle was red on `GET /health`
+alone (the status dot's 20 s poll inside the longer wait) — the reason for the
+one named exclusion above.
+
+**Only a digit word is a code (low).** CB-H made every word with a digit a
+code prefix and dropped every name word with a digit, so a word that mixes
+letters and digits — the plate on a vehicle account ("UW997149", Agras
+2111.02), a till's name ("Telkwv0", 5311.02) — found nothing. Repaired in
+`cmdbarSearch.ts`: a CODE word starts with a digit and holds no letter
+(`isCodeWord`: "4111", "167.401", "167." while typing); it becomes ONE marked
+token (`#` + the code without separators) that only an account's marked code
+can meet — so "84" never reaches the name word "84I", nor "566" the word
+"566ce". A mixed word is a name word and finds its name exactly or as a
+prefix, never by edit distance (the digit rule). Bare numbers inside names
+("… 2420.42") still answer nothing. New laws in `cmdbarSearch.test.ts`:
+every mixed name word of the Agras book (30) finds its account as typed and by
+a prefix that is still mixed; one character off, none finds it through that
+name; a leading digit run never meets the name word it starts.
+`GATE-WORK cmdbar-code-word agras mixed_name_words=30`.
+```
+### PLANT (a) cmdbarSearch.ts — the CB-H rule (hasDigit decides a code, and drops a name word)   RED 1 failed | 42 passed (43)
+   × … agras: every word of an account NAME that mixes letters and digits finds that account — as typed, and by its prefix
+   AssertionError: mixed name words that no longer find their account: expected [ '"UW997149" → 2111.02', …(46) ] to deeply equal []
+### PLANT (b) cmdbarSearch.ts — code tokens unmarked (CODE_MARK = "")                             RED 1 failed | 42 passed (43)
+   × … agras: a code word never meets a NAME word that starts with its digits ('84' ≠ '84I', '566' ≠ '566ce')
+   AssertionError: "84" (the digits "84i" of 2111.07's name starts with): expected [ '2111.07', '2111.09' ] to deeply equal []
+REVERT (each, restored byte for byte): Tests 43 passed (43)
+```
+
+**The account view printed engine ids (low).** For a finding the period does
+not serve, the view said "This period serves no measure non_trading for the
+finding earnings_quality." Repaired (`EvidenceDrawer.tsx`,
+`evidenceStrings.json`): the measure by its declared name in the reader's
+language (`evidence.measure.<key>`, RO/EN), or no name at all — "This period
+serves no figure for “Net financial result”, the measure this finding
+reports." / "Perioada nu servește nicio cifră pentru „Rezultatul financiar
+net”, măsura raportată de această constatare."; the finding id is not printed.
+New law (`evidenceLanding.test.tsx`, cmdbar-evidence), EN and RO: a served
+finding with a measure it does not carry, and a finding this book does not
+serve with an undeclared measure — the exact sentence, no engine id and no
+snake_case token anywhere in the view's text, no measure value.
+```
+### PLANT evidence-finding-absent — EvidenceDrawer.tsx + evidenceStrings.json as they were      RED 2 failed | 30 passed (32)
+   × … en: a finding this period does not serve is said in words — the measure by its name, no engine id on screen
+   × … ro: …
+   AssertionError: expected 'This period serves no measure net_fin…' to be 'This period serves no measure Net fin…'
+   AssertionError: expected 'Perioada nu servește măsura net_finan…' to be 'Perioada nu servește măsura Rezultatu…'
+REVERT: Tests 32 passed (32)
+```
+
+**Floors after stage CB-I** (measured, exact): `cmdbar-surface` 132 → **141**
+(cmdbarSwitch +5, the code-word laws +4), `cmdbar-evidence` 35 → **37**. New
+canaries in `scripts/run_battery.py`. Narrowed battery on the tree: `PASS
+attention-rules (3.9s, 28 tests)` · `PASS attention-served-only (4.0s, 18 …)`
+· `PASS attention-route (9.6s, 8 tests)` · `PASS cmdbar-fixtures (1.3s, 6 …)`
+· `PASS cmdbar-surface (14.1s, 141 command-bar tests)` · `PASS evidence-lines
+(1.2s, 14 …)` · `PASS cmdbar-evidence (5.8s, 37 evidence-landing tests)` —
+7/7. `provenance-census` reports the base's 13 findings, none new.
+
+**Live, stage CB-I** (the hermetic bundle built from the final tree, both
+specs in one run): `42 passed, 8 skipped (5.1m)` — `cmdbar.spec.ts` 31 (the
+CB-H 27 + G10 ×4) and `workspace-v2.spec.ts` 11, G6 "a company switch
+carries no period of the company left behind" green in both languages (and
+40 of 40 in the repeated runs above); the 8 skipped are workspace-v2's
+screenshot tests without `WS_SHOTS_DIR`.
+
 ## evidence-lines
 
 The account view (`frontend/components/cfo/evidence/EvidenceDrawer.tsx`, design
@@ -11348,7 +11570,7 @@ source file linking a retired slug.
 | | |
 |---|---|
 | command | `npx vitest run --root . frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx --reporter=verbose` |
-| work count | `Tests … (\d+) passed`, floor **22** (measured 25) |
+| work count | `Tests … (\d+) passed`, floor **37** (measured 37, stage CB-I; 35 at CB-H, 25 at CB-F2) |
 | canary | six test titles named in `scripts/run_battery.py` (each world's items, the Cont model sweep, the ratio sweep, no unserved total, no retired slug) |
 
 **Reds on, after the repair (TC-11):** an item whose evidence opens no receiver

@@ -1054,10 +1054,16 @@ def _engine_gates() -> List[Gate]:
         #                    answer — a defect the live G8 found) and every
         #                    document it asks for named to ITS company (a
         #                    cross-company request workspace-v2 G6 found);
-        #                    floor = the
+        #                    stage CB-I (review round 1): a company or period
+        #                    switch paints nothing of what was left behind and
+        #                    asks nothing across companies, on the APP's query
+        #                    defaults (keepPreviousData) — cmdbarSwitch; the
+        #                    zero-fetch law waits out a debounce horizon on
+        #                    fake timers; only a digit word is a code, a mixed
+        #                    word finds the name that carries it. floor = the
         #                    measured count, exact. Live half (hermetic bundle,
         #                    not in the battery — it needs a build):
-        #                    e2e/design/cmdbar.spec.ts G0-G8.
+        #                    e2e/design/cmdbar.spec.ts G0-G10.
         #                    Plant log: docs/engine_book/gates.md.
         Gate("cmdbar-fixtures",
              [PY, "-m", "pytest", "tests/engine/test_cmdbar_fixtures.py", "-q", "-s"],
@@ -1073,8 +1079,9 @@ def _engine_gates() -> List[Gate]:
               "frontend/components/cfo/chat/__tests__/roleChips.test.tsx",
               "frontend/lib/__tests__/companyFit.test.ts",
               "frontend/components/cfo/__tests__/evidenceReceivers.test.tsx",
+              "frontend/components/instrument/shell/__tests__/cmdbarSwitch.test.tsx",
               "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=132,
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=141,
              units="command-bar tests",
              canaries=("the rows ARE the served items, in the served rank, each with its figure",
                        "two companies, one fixture shape: different figures (S1) and different words (S2)",
@@ -1102,7 +1109,14 @@ def _engine_gates() -> List[Gate]:
                        "agras: '401' lists the 401 accounts — never 167.401, 628.401 or 709.401",
                        "'4111': the three largest leaves by served balance, then ONE row counting the rest and opening all six",
                        "at rest and typed, every carrier on every row is outside any truncating box",
-                       "display EUR: every money figure is the served RON figure with its code")),
+                       "display EUR: every money figure is the served RON figure with its code",
+                       # stage CB-I (review round 1, 2026-09-27)
+                       "GATE-WORK cmdbar-switch company \"the bar open, at rest\"",
+                       "GATE-WORK cmdbar-switch company \"the bar closed through the switch",
+                       "GATE-WORK cmdbar-switch period \"rest\"",
+                       "fetches NOTHING — not even after a debounce",
+                       "GATE-WORK cmdbar-code-word agras mixed_name_words=",
+                       "a code word never meets a NAME word that starts with its digits")),
         # THE EVIDENCE RECEIVERS, frontend stage CB-F2 (design C4):
         #   evidence-lines   the account view's statement lines ARE the
         #                    engine's comparatives lines: the served path,
@@ -1128,7 +1142,7 @@ def _engine_gates() -> List[Gate]:
               "frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx",
               "frontend/pages/cfo/__tests__/benchmarkRowReceiver.test.tsx",
               "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=35,
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=37,
              units="evidence-landing tests",
              canaries=("scandia: each served item opens a rendered, highlighted target that IS the item",
                        "pair: each served item opens a rendered, highlighted target that IS the item",
@@ -1140,7 +1154,10 @@ def _engine_gates() -> List[Gate]:
                        "earnings_quality opens under ITS number (758 + 781), then the accounts it cites",
                        "GATE-WORK cmdbar-cont-overflow agras probes=",
                        "legacy report caen_not_set: the sector section renders and marks the row the bar named",
-                       "display EUR: the account view prints the SERVED RON balance with its code")),
+                       "display EUR: the account view prints the SERVED RON balance with its code",
+                       # stage CB-I (review round 1, 2026-09-27)
+                       "en: a finding this period does not serve is said in words",
+                       "ro: a finding this period does not serve is said in words")),
         # FLOOR SUBSTITUTES, batch C3 (owner rulings R-D5 / R-D6 / R-OTHER,
         # 2026-09-15): the valuation DCF, the AI briefing's citable
         # ratios, the RO pack's ROA check and the served period day count.
