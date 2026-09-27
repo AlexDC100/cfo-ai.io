@@ -10616,6 +10616,40 @@ the 2,000.00 step in its message.
 CANNOT SEE: a misread that happens to equal the stock variation on a closed
 manufacturer (only the Ministry referee can — measure.md T7).
 
+## eei-canonical
+
+| | |
+|---|---|
+| command | `python scripts/validate_eei_canonical.py` (also CI `.github/workflows/tier1-validation.yml`) |
+| work count | lines `^  PASS  `, floor **28** (measured 31) |
+| canary | `PL  EBITDA = before stock variation + 722`, `PL  build-up + 722 = account 121 (722 once)`, `PASS — All audited EEI canonical assertions passed.` |
+
+**Why (design A8).** The EEI Dec 2025 audited validator asserted the OLD
+rule as its law: `net_income_operational < 0` labelled "operational view
+excluded 722". Under the owner's ruling of 2026-09-26, 722 (own work
+capitalised, 2,164,079.83) is operational — inside EBITDA and the operating
+result, outside cifra de afaceri — so that label certified the retired
+definition. REWRITTEN, not re-captured (audit.json is unchanged): 72x served at
+2,164,079.83; 711 exactly 0.00 `no_711_activity` (EEI posts none); EBITDA
+served and equal to the build-up before the stock variation + 722; EBIT =
+EBITDA − D&A; the build-up + 722 equals account 121 to the leu — 722 counted
+ONCE on EEI's no-anchor path (design A8: "do not add 722 twice"); nothing
+unexplained vs 121; "722 NOT in revenue" kept (turnover).
+
+**GREEN** — 31 PASS lines, `PASS — All audited EEI canonical assertions passed.`
+
+**PLANT 722-outside-EBITDA** — `chart_of_accounts.assemble_statements`,
+`ebitda = ebitda_before_stock_variation + capitalized + net_711` →
+`ebitda = ebitda_before_stock_variation + net_711` (the retired rule).
+RED — exit 1:
+```
+  FAIL  PL  EBITDA = before stock variation + 722  actual=    -36,676.04  expected=  2,127,403.79  tol=±1.0
+FAIL — 1 audited-canonical assertion(s) failed:
+```
+**REVERT** (restored byte-exact from a copy): 31 PASS, exit 0.
+
+CANNOT SEE: the filed 722 (audit.json carries the trial balance's own figure).
+
 ## valuation-one-ebitda
 
 | | |

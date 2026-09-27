@@ -169,9 +169,35 @@ def main() -> int:
     check("PL  capitalized_own_work_memo",     pl["capitalized_own_work_memo"],     audit_pl["capitalized_own_work_memo"])
     check("PL  net_income_statutory",          pl["net_income_statutory"],          audit_pl["net_income_statutory"])
 
-    # ── Both net income views must be present ──────────────────────────
-    check_predicate("PL  net_income_operational < 0", pl["net_income_operational"],
-                    lambda v: v < 0, "< 0 (operational view excluded 722)")
+    # ── The ONE EBITDA (owner ruling 2026-09-26) ───────────────────────
+    # 722 (own work capitalised, 2,164,079.83 on EEI) is OPERATIONAL: inside
+    # EBITDA and the operating result, outside cifra de afaceri. EEI posts
+    # no 711, so the stock variation is exactly 0.00 and 722 is the whole
+    # step from the build-up to EBITDA. The law this replaced — "the
+    # operational view EXCLUDES 722" (net_income_operational < 0 as the
+    # served meaning) — is retired: the build-up before 72x is still served,
+    # but only as the reconciliation's starting line.
+    own_work = audit_pl["capitalized_own_work_memo"]
+    cap = pl.get("capitalized_own_work") or {}
+    inv = pl.get("inventory_variation") or {}
+    check("PL  capitalized_own_work (722)", float(cap.get("value") or 0.0), own_work)
+    check_predicate("PL  711 on a book with no 711",
+                    (inv.get("value"), inv.get("provenance")),
+                    lambda v: v == (0.0, "no_711_activity"),
+                    "(0.0, 'no_711_activity')")
+    check_predicate("PL  EBITDA served (not refused)", pl.get("ebitda"),
+                    lambda v: v is not None, "a figure")
+    ebitda = float(pl.get("ebitda") or 0.0)
+    check("PL  EBITDA = before stock variation + 722",
+          ebitda, float(pl.get("ebitda_before_stock_variation") or 0.0) + own_work)
+    check("PL  EBIT = EBITDA − D&A",
+          float(pl.get("ebit") or 0.0), ebitda - float(pl.get("depreciation") or 0.0))
+    # 722 counted ONCE on the no-anchor path (design A8: "do not add 722
+    # twice"): the build-up before 72x plus 72x IS account 121, to the leu.
+    check("PL  build-up + 722 = account 121 (722 once)",
+          float(pl["net_income_operational"]) + own_work, audit_pl["net_income_statutory"])
+    check("PL  nothing unexplained vs 121",
+          float(pl.get("net_income_unexplained_vs_121") or 0.0), 0.0)
 
     # ── Industry classification ────────────────────────────────────────
     check_predicate("CLS industry_key",
@@ -200,7 +226,8 @@ def main() -> int:
                     lambda v: v < 1,
                     "cash = 5121 + 5124 + 5311 (no 581)")
 
-    # 722 NEVER in revenue — capitalized own-work is memo only
+    # 722 NEVER in revenue (cifra de afaceri) — own work capitalised is an
+    # operating line outside turnover, inside EBITDA (owner ruling).
     check_predicate("INV 722 NOT in revenue",
                     abs(pl["revenue"] - 2727103.68),
                     lambda v: v < 1,

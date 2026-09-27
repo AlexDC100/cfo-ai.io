@@ -1272,6 +1272,20 @@ def _engine_gates() -> List[Gate]:
              work_count_rx=r"^\[.+\] 5 runs — BYTE-IDENTICAL", floor=4,
              units="fixtures x5 runs",
              canaries=("prod_scandia_frozen", "anchor: SF extracted")),
+        # ── owner ruling 2026-09-26, design A8 (stage G1): the EEI audited
+        # canonical validator (CI tier1) was a law of the OLD rule —
+        # "operational view excluded 722". Rewritten: 722 (2,164,079.83) is
+        # inside EBITDA and outside turnover, counted ONCE on the no-anchor
+        # path (build-up + 722 = account 121), EBIT = EBITDA − D&A, 711 is
+        # 0.00 no_711_activity. Registered by name so a collapse of its
+        # assertion list is visible. Measured 31 PASS lines. Plant log:
+        # gates.md "eei-canonical".
+        Gate("eei-canonical", [PY, "scripts/validate_eei_canonical.py"],
+             work_count_rx=r"^  PASS  ", floor=28,
+             units="audited EEI assertions",
+             canaries=("PL  EBITDA = before stock variation + 722",
+                       "PL  build-up + 722 = account 121 (722 once)",
+                       "PASS — All audited EEI canonical assertions passed.")),
         Gate("bs-drift", [PY, "scripts/measure_bs_drift.py"],
              work_count_rx=r"^\s+\S+\s+difference\s", floor=7,
              units="fixtures",
