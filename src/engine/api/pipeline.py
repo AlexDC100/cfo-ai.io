@@ -2734,8 +2734,17 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
     # the legacy assembled shape for the rare case where canonical views
     # aren't populated. Every rule below reads from these locals — no rule
     # re-derives a metric from the raw `bs` / `pl` blobs.
-    ebitda_statutory = float(pl_canonical.get("ebitda_statutory") or 0)
-    ebitda_operational = float(pl_canonical.get("ebitda_operational") or 0)
+    # THE ONE EBITDA (owner ruling 2026-09-26): net 711 and net 72x inside.
+    # A REFUSED EBITDA (net 711 unmeasurable on a book that posts to it) is
+    # None here and every EBITDA rule stays silent on it — it used to read
+    # `or 0`, which turned a refusal into "EBITDA RON 0 — earnings-based
+    # valuation not applicable". The refusal is its own alert (R10b).
+    _ebitda_raw = pl_canonical.get("ebitda")
+    ebitda_refusal = pl_canonical.get("ebitda_refusal") if _ebitda_raw is None else None
+    ebitda_known = isinstance(_ebitda_raw, (int, float)) and not isinstance(_ebitda_raw, bool)
+    # Kept under its historical local name (the fact key the persisted
+    # alerts cite); it IS the one EBITDA — `ebitda_statutory` is its alias.
+    ebitda_statutory = float(_ebitda_raw) if ebitda_known else 0.0
     capitalized = float(
         pl_canonical.get("capitalized_own_work_memo", pl.get("capitalizedOwnWork", 0)) or 0
     )
@@ -2874,14 +2883,14 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
         )
 
     # ── R3. Leverage — Debt/EBITDA above threshold ───────────────────────
-    if ebitda_statutory > 0 and bank_debt_total > 0:
+    if ebitda_known and ebitda_statutory > 0 and bank_debt_total > 0:
         dte = _ratio_units.ratio(_q(bank_debt_total, "bank_debt_total"),
                                  _q(ebitda_statutory, "ebitda_statutory"))
         if dte > dte_critical:
             _add(
                 "leverage_debt_to_ebitda_high", "critical", "leverage",
                 f"Debt/EBITDA at {dte:.2f}× exceeds {dte_critical:.1f}× critical threshold for {industry_key}",
-                f"Bank debt RON {bank_debt_total:,.0f} divided by statutory EBITDA "
+                f"Bank debt RON {bank_debt_total:,.0f} divided by EBITDA "
                 f"RON {ebitda_statutory:,.0f} = {dte:.2f}×, above the {dte_critical:.1f}× "
                 f"critical threshold typical for this industry. Covenant breach risk.",
                 {"debt_to_ebitda": dte, "bank_debt_total": bank_debt_total,
@@ -2891,7 +2900,7 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
             _add(
                 "leverage_debt_to_ebitda_high", "high", "leverage",
                 f"Debt/EBITDA at {dte:.2f}× above {dte_high:.1f}× comfort zone for {industry_key}",
-                f"Bank debt RON {bank_debt_total:,.0f} on statutory EBITDA "
+                f"Bank debt RON {bank_debt_total:,.0f} on EBITDA "
                 f"RON {ebitda_statutory:,.0f} = {dte:.2f}×, above typical comfort but "
                 f"below covenant alarm for {industry_key}.",
                 {"debt_to_ebitda": dte, "bank_debt_total": bank_debt_total,
@@ -2921,26 +2930,14 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
                                          _q(max(share_capital, 1), "share_capital"))},
         )
 
-    # ── R5. Capitalized own-work earnings-quality observation ────────────
-    # Info-level only — the operating-view P&L already accounts for 722.
-    # This card explains the 722/628 wash to the analyst.
-    if capitalized > 100_000 and rental_revenue > 0:
-        pct = _ratio_units.ratio(_q(capitalized, "capitalized_own_work_memo"),
-                                 _q(rental_revenue, "rental_revenue"))
-        if pct > 0.5:
-            _add(
-                "earnings_quality_capitalized_own_work", "info", "data_quality",
-                f"Capitalized own-work RON {capitalized:,.0f} = {pct*100:.0f}% of rental revenue",
-                f"Account 722 (Producția imobilizări corporale) carries RON {capitalized:,.0f} of "
-                f"capitalized own-work, mirrored by a roughly equal cost on 628 — net P&L "
-                f"effect is approximately zero. Statutory EBITDA RON {ebitda_statutory:,.0f} "
-                f"(with 722) vs operational view RON {ebitda_operational:,.0f} (without). "
-                f"Bank covenants typically use the statutory view.",
-                {"capitalized_own_work_memo": capitalized,
-                 "ebitda_statutory": ebitda_statutory,
-                 "ebitda_operational": ebitda_operational,
-                 "pct_of_rental_revenue": pct},
-            )
+    # ── R5. RETIRED 2026-09-26 (owner ruling) ───────────────────────────
+    # "Capitalized own-work … Statutory EBITDA (with 722) vs operational
+    # view (without)". The ruling puts 72x INSIDE the one EBITDA and allows
+    # no served second EBITDA beside it, so the "dual view" this card sized
+    # no longer exists (both names are aliases of one figure; the card
+    # would have printed the same number twice). The own work capitalised
+    # is shown on its own line of the EBITDA reconciliation
+    # (assembled_pl.ebitda_reconciliation), with its provenance.
 
     # ── R6. Revaluation reserves — equity quality ────────────────────────
     if total_equity > 0 and abs(revaluation_reserves) > total_equity * 0.25:
@@ -3017,14 +3014,30 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
 
     # ── R10. Valuation — EBITDA non-positive ─────────────────────────────
     # Single alert covers it (no longer 6 variations from the LLM).
-    if ebitda_statutory <= 0:
+    if ebitda_known and ebitda_statutory <= 0:
         _add(
             "valuation_ebitda_negative", "high", "data_quality",
-            f"Statutory EBITDA RON {ebitda_statutory:,.0f} — earnings-based valuation not applicable",
+            f"EBITDA RON {ebitda_statutory:,.0f} — earnings-based valuation not applicable",
             f"With EBITDA at or below zero, EV/EBITDA multiples produce meaningless values. "
             f"The platform uses asset-based and revenue-multiple methods for valuation; see "
             f"the Valuation tab.",
             {"ebitda_statutory": ebitda_statutory},
+        )
+
+    # ── R10b. EBITDA refused (owner ruling 2026-09-26) ─────────────────
+    # Net 711 could not be measured on a book that posts to it, so EBITDA,
+    # the operating result and every margin on them are refused — stated,
+    # with the engine's reason, never shown as 0.
+    if not ebitda_known and isinstance(ebitda_refusal, dict):
+        _add(
+            "ebitda_refused_stock_variation", "high", "data_quality",
+            "EBITDA cannot be stated for this period — the stock variation "
+            "(711) is not measurable",
+            "EBITDA, the operating result and the margins built on them are "
+            "refused rather than shown without the stock variation: "
+            + str(ebitda_refusal.get("text_en") or ebitda_refusal.get("code") or "")
+            + ". Re-analyse the period from its trial balance to measure it.",
+            {},
         )
 
     # ── RISK INVENTORY — 5-8 named risks per analysis ───────────────────
@@ -3069,7 +3082,7 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
     net_debt_local = bank_debt_total - cash_val
     nde_local = (
         _ratio_units.ratio(_q(net_debt_local, "net_debt"), _q(ebitda_statutory, "ebitda_statutory"))
-        if ebitda_statutory > 0 else 0
+        if ebitda_known and ebitda_statutory > 0 else 0
     )
 
     # R-RI-1 — Receivables allowance elevated. Historical credit issues
@@ -3136,7 +3149,7 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
         )
 
     # R-RI-6 — Elevated leverage (Net Debt/EBITDA >4).
-    if nde_local > 4 and ebitda_statutory > 0:
+    if nde_local > 4 and ebitda_known and ebitda_statutory > 0:
         _add(
             "risk_inventory_leverage", "high", "leverage",
             f"Elevated leverage — Net Debt/EBITDA {nde_local:.1f}×",

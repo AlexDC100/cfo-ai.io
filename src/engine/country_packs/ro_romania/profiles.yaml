@@ -599,11 +599,11 @@ detectors:
       default: {share_of_revenue_high: 0.50}
     why_here:
       default: >-
-        Capitalised own work lifts the statutory EBITDA of a
-        {profile_label} without any cash arriving; the covenant
-        definition {financing_audience} uses is the statutory one, so the
-        gap between the two views is worth stating before it is
-        discovered in a compliance certificate.
+        Capitalised own work lifts the EBITDA of a {profile_label}
+        without any cash arriving; it is inside the one EBITDA this
+        platform serves, so whether the definition {financing_audience}
+        uses includes it is worth stating before it is discovered in a
+        compliance certificate.
 
   - detector: valuation_ebitda_non_positive
     category: data_quality

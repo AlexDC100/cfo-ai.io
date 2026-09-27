@@ -293,9 +293,13 @@ def _assembled(bs_extra=None, pl_extra=None, cf_extra=None, currency="RON"):
         "bs_balance_delta": 0.0,
     }
     bs.update(bs_extra or {})
-    pl = {"revenue": 5000000.0, "ebitda_statutory": 900000.0,
+    pl = {"revenue": 5000000.0, "ebitda": 900000.0, "ebitda_statutory": 900000.0,
           "ebitda_operational": 900000.0, "capitalized_own_work_memo": 0.0}
     pl.update(pl_extra or {})
+    # One EBITDA (owner ruling 2026-09-26): the legacy names are aliases of
+    # `ebitda`, which is what stage_validate reads.
+    if pl_extra and "ebitda_statutory" in pl_extra and "ebitda" not in pl_extra:
+        pl["ebitda"] = pl_extra["ebitda_statutory"]
     cf = {"cash_from_operating": 0.0, "capex_real": 0.0,
           "free_cash_flow": 0.0, "capitalized_construction": 0.0}
     cf.update(cf_extra or {})
@@ -399,13 +403,17 @@ def test_g19_the_live_sign_trap_rows_are_now_convertible():
     assert "{{money:free_cash_flow}}" in fcf["title_template"]
     assert "|abs}}" in fcf["body_template"]
 
+    # The second live sign-trap row was R5 ("statutory EBITDA with 722 vs
+    # operational view without"). R5 is RETIRED by the owner ruling of
+    # 2026-09-26 — 72x is inside the one EBITDA and no second EBITDA is
+    # served — so it must no longer fire on the book that provoked it.
     alerts = pipeline.stage_validate({}, _assembled(pl_extra={
         "capitalized_own_work_memo": 3_000_000.0,
-        "ebitda_statutory": 2127404.0, "ebitda_operational": -36676.13,
+        "ebitda": 2127404.0, "ebitda_statutory": 2127404.0,
+        "ebitda_operational": 2127404.0,
     }), "period-test")
-    eq = _rule(alerts, "earnings_quality_capitalized_own_work")
-    assert "RON" not in eq["body_template"]
-    assert "{{money:ebitda_operational}}" in eq["body_template"]
+    assert not [a for a in alerts
+                if a["rule_key"] == "earnings_quality_capitalized_own_work"], alerts
 
 
 def test_g20_a_ratio_fact_is_never_marked_as_money():
@@ -416,7 +424,8 @@ def test_g20_a_ratio_fact_is_never_marked_as_money():
 
     alerts = pipeline.stage_validate(
         {}, _assembled(bs_extra={"total_debt": 14083316.0},
-                       pl_extra={"ebitda_statutory": 2127404.0}), "period-test")
+                       pl_extra={"ebitda": 2127404.0, "ebitda_statutory": 2127404.0}),
+        "period-test")
     a = _rule(alerts, "leverage_debt_to_ebitda_high")
     assert a["fact_units"]["debt_to_ebitda"] == ru.UNIT_RATIO
     assert a["fact_units"]["threshold"] == ru.UNIT_RATIO

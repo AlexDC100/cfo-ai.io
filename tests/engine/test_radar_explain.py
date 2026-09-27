@@ -650,15 +650,46 @@ def test_r5_the_served_guard_names_every_class_in_its_reason(canary):
         assert "{" not in cached.reason and "}" not in cached.reason
 
 
+def _constructed_negative_ebitda_subject():
+    """A CONSTRUCTED loss-making book (no client data) through the REAL
+    Romanian assembly and the REAL single-period findings engine: services
+    revenue 200,000.00 against third-party services of 260,000.00, no 711
+    posting, account 121 closing at the loss.
+
+    Why constructed (owner ruling 2026-09-26): this law's witness was the
+    corpus developer's `valuation_ebitda_non_positive` finding (EBITDA
+    −29,038,838.12). Under the ruling its EBITDA includes the construction
+    cost stocked through 711 and is +550,976.12, so the finding no longer
+    fires there — and a gate with no witness passes vacuously."""
+    from engine.country_packs.ro_romania.chart_of_accounts import assemble_statements
+    accounts = [
+        {"code": "704", "name": "Venituri din servicii", "amount": 200000.0},
+        {"code": "628", "name": "Alte cheltuieli cu servicii", "amount": 260000.0},
+        {"code": "212", "name": "Constructii", "amount": 900000.0},
+        {"code": "5121", "name": "Conturi la banci in lei", "amount": 40000.0},
+        {"code": "1012", "name": "Capital subscris varsat", "amount": 1000000.0},
+        {"code": "121", "name": "Profit si pierdere", "amount": -60000.0},
+    ]
+    statements = assemble_statements(
+        accounts, company_name="Constructed SRL", period_label="FY2025",
+        account_121_anchor_override=-60000.0)["statements"]
+    result = s_engine.run_single_period(statements, period_id="constructed-loss",
+                                        snapshot_id="constructed-loss-snap")
+    subjects = X.subjects_from_result(result, org_id="org-constructed",
+                                      period_id="constructed-loss",
+                                      snapshot_hash="constructed-loss-snapshot-hash")
+    return [s for s in subjects
+            if s.finding_id.startswith("valuation_ebitda_non_positive")][0]
+
+
 def test_r5_a_sign_flip_through_abs_is_refused_on_both_paths(cases):
     """The critic's D1 on realestate: EBITDA is negative, the model writes
     `{{money:ebitda_statutory|abs}}`, `render_native` honours it and a
     reader is told "the shortfall is RON 29,038,838" with the sign gone.
     Refused at draft (the option), and refused on the served / cached
-    text too (the templatizer lifts the magnitude back as `|abs`)."""
-    bundle = cases["saga_10_col_realestate"]
-    subject = [s for s in bundle["subjects"]
-               if s.finding_id.startswith("valuation_ebitda_non_positive")][0]
+    text too (the templatizer lifts the magnitude back as `|abs`).
+    The witness is now a CONSTRUCTED loss-making book (see its builder)."""
+    subject = _constructed_negative_ebitda_subject()
     ebitda = float(subject.finding.facts_cited["ebitda_statutory"])
     assert ebitda < 0, "the fixture stopped carrying a negative EBITDA"
 

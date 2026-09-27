@@ -248,82 +248,21 @@ def detect_capitalized_own_work(ctx: _base.Ctx) -> _base.Outcome:
     if not applicability.applies:
         return _base.quiet(ctx.skipped(did, applicability.reason))
 
-    r = ctx.reader
-    capitalised = r.view("pl", "capitalized_own_work_memo")
-    revenue = r.view("pl", "revenue")
-    statutory = r.view("pl", "ebitda_statutory")
-    operational = r.view("pl", "ebitda_operational")
-    spec = ctx.threshold_spec(did, "share_of_revenue_high")
-    if capitalised is None or revenue is None:
-        return _base.quiet(ctx.skipped(
-            did, "account 722 or the turnover line is absent from this period's "
-                 "profit and loss"))
-    observed = _base.share(r, capitalised, revenue,
-                           "capitalized_own_work_memo", "revenue")
-    if observed is None:
-        return _base.quiet(ctx.skipped(
-            did, "turnover is nil, so the capitalised share has no denominator"))
-    if observed <= spec.value:
-        return _base.quiet(ctx.not_fired(
-            did, spec, ">", observed, F.UNIT_PERCENT,
-            note="capitalised own work is a minority of turnover"))
-    if statutory is None or operational is None:
-        return _base.quiet(ctx.skipped(
-            did, "the statutory and operational EBITDA views are not both "
-                 "present, so the gap this rule exists to size cannot be "
-                 "computed"))
-
-    bag = (_base.Bag()
-           .money("capitalized_own_work_memo", capitalised,
-                  "capitalised own work on account 722")
-           .money("revenue", revenue, "turnover")
-           .money("ebitda_statutory", statutory, "EBITDA, statutory view")
-           .money("ebitda_operational", operational, "EBITDA, operational view")
-           .percent("capitalised_share", observed,
-                    "capitalised own work as a share of turnover"))
-
-    impact = _base.ratio_impact_or_none(
-        "ebitda_margin_by_view",
-        "EBITDA margin, statutory view versus operational view",
-        numerator=r.q(statutory, "ebitda_statutory"),
-        denominator=r.q(revenue, "revenue"),
-        adjusted_numerator=r.q(operational, "ebitda_operational"),
-        unit=F.UNIT_PERCENT)
-
-    # Deterministic severity: when the operational view is non-positive the
-    # whole of the reported EBITDA is the 722/628 wash, which is a different
-    # statement from "a slice of it is".
-    severity = "high" if operational <= 0 else "info"
-
-    return _base.found(_base.build_finding(
-        ctx, did, severity, _COW_SUBJECT,
-        scope="Capitalised own work on 722 against turnover",
-        bag=bag,
-        comparison=F.ComparisonBasis(
-            kind="self_total",
-            description="capitalised own work is measured against the company's "
-                        "own turnover for the same period, and the two EBITDA "
-                        "views are the engine's statutory and operational "
-                        "assemblies of the same accounts",
-            basis_value=revenue, basis_unit=F.UNIT_MONEY),
-        threshold_element=_base.threshold(spec, ">", observed, F.UNIT_PERCENT),
-        impact=impact,
-        steps=(
-            F.ActionStep(
-                imperative="Recompute the covenant EBITDA on the definition "
-                           "written into the facility agreement",
-                artefact="EBITDA bridge from the statutory view to the "
-                         "operational view, line by line",
-                provider="the treasury team",
-                horizon="before the next compliance certificate"),
-            F.ActionStep(
-                imperative="Disclose the 722 treatment in the next compliance "
-                           "certificate",
-                artefact="certificate note stating which EBITDA view was used "
-                         "and why",
-                provider="the financial controller"),
-        ),
-        extra_caveats=applicability.caveats))
+    # RETIRED 2026-09-26 (owner ruling). This rule sized the gap between a
+    # "statutory" EBITDA with 722 and an "operational" one without — a
+    # second EBITDA the ruling retires: 72x is INSIDE the one EBITDA and no
+    # served field carries an EBITDA without it (both names are aliases of
+    # one figure, so the gap is 0 by construction and the finding would
+    # print the same number twice). The same dual view is retired in the
+    # alert rules (R5) and the recommendation rules
+    # (capitalized_own_work_disclosure). Own work capitalised is shown, with
+    # its provenance, on its own line of the EBITDA reconciliation
+    # (assembled_pl.ebitda_reconciliation). Stated, never silent.
+    return _base.quiet(ctx.skipped(
+        did, "retired by the 2026-09-26 EBITDA ruling: own work capitalised "
+             "(722) is inside the one EBITDA and is shown on its own line of "
+             "the EBITDA reconciliation, so there is no second EBITDA view to "
+             "size"))
 
 
 # ── valuation_ebitda_non_positive ────────────────────────────────────────
