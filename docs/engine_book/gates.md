@@ -11898,3 +11898,9 @@ bundle rebuilt. **RED**:
 ```
 **REVERT** (rebuilt) — `13 passed (30.0s)`. Verdict: proven RED.
 
+
+### Stage CB-K — G12 type-to-open, live (2026-09-27, coordinator)
+- Law: `e2e/design/cmdbar-typeopen.spec.ts` (hermetic, E2E_HERMETIC=1) — a letter typed outside an input opens the bar with that letter as the query's first character; a reopen from the header pill starts empty; a second type-to-open keeps its letter. Scandia and Agras.
+- Green on 2989cb50's bundle: 2 passed.
+- Plant (the `pendingChar.current = e.key` line in CommandPalette.tsx removed, bundle rebuilt): 2 failed — `Expected: "stoc"`, `Received: "toc"` on both companies. Restored: 2 passed.
+- Why: on production (bundle index-BsSPDpfF.js) a Chrome automation tab reported `document.visibilityState === "hidden"`; Radix's exit animation never ran there, the closed overlay stayed with pointer-events on, and typed letters read as dropped. Not reproducible in a visible browser — this law is the proof.
