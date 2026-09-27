@@ -885,7 +885,8 @@ function DisclosureBox({ text }: { text: string }) {
   );
 }
 
-function HeadlineGrid({ section }: { section: HeadlineSection }) {
+/** Exported for the refusal tests (lib/__tests__/oneEbitdaSurfaceComponents). */
+export function HeadlineGrid({ section }: { section: HeadlineSection }) {
   const locale = useActiveLocale();
   // ONE AmountGroup for the whole KPI row — the four cards share a scale
   // by construction, so "295,1 M" can never sit beside "41.944,6".
@@ -958,7 +959,8 @@ function plainValueText(
   return formatExact(value, { locale, currency: "RON" });
 }
 
-function ComparisonSection({ section, testId, periodId }: { section: ComparisonSection; testId: string; periodId: string }) {
+/** Exported for the refusal tests (lib/__tests__/oneEbitdaSurfaceComponents). */
+export function ComparisonSection({ section, testId, periodId }: { section: ComparisonSection; testId: string; periodId: string }) {
   const locale = useActiveLocale();
   if (section.comparisons.length === 0) {
     return null;
@@ -1135,7 +1137,8 @@ function SourceChip({
   );
 }
 
-function VerdictBadge({ verdict }: { verdict: Verdict }) {
+/** Exported for the refusal tests (lib/__tests__/oneEbitdaSurfaceComponents). */
+export function VerdictBadge({ verdict }: { verdict: Verdict }) {
   // Semantic ladder: accent for the top quartile, quiet success above the
   // median, caution below it, alert for the bottom quartile — the one
   // danger verdict this table can issue (matching the red the pre-

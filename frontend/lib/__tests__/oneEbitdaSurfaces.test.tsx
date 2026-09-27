@@ -31,7 +31,11 @@
 // CANNOT SEE: whether the served figure is right (net-711-rule); a refused
 // EBITDA (refusal-carries); the denominator of a margin
 // (turnover-denominator); pixels.
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// Each case renders the printed report and the workbook: slow under a
+// loaded full-suite run (5 s default timed out once), never slow alone.
+vi.setConfig({ testTimeout: 60_000 });
 import * as XLSX from "xlsx";
 
 import { deriveTotals, computeRatios, type Ratio } from "@/lib/financialReport";

@@ -28,7 +28,11 @@
 // number anywhere below, or its printed refusal losing the engine's reason.
 // CANNOT SEE: whether the engine was right to refuse (net-711-rule);
 // surfaces that do not print EBITDA; pixels.
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// Each case renders the printed report and the workbook: slow under a
+// loaded full-suite run (5 s default timed out once), never slow alone.
+vi.setConfig({ testTimeout: 60_000 });
 import * as XLSX from "xlsx";
 
 import { deriveTotals, computeRatios, describeAbsence, type Ratio } from "@/lib/financialReport";
