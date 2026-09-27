@@ -118,7 +118,7 @@ def _render(template: str, tokens: Dict[str, Any]) -> str:
 def _money_ev(pf: PeriodFacts, fact: MoneyFact, label: str) -> EvidenceFact:
     return money_evidence(fact.name, label, fact.value, fact.currency,
                           pf.period_id, fact.snapshot_id or pf.snapshot_id,
-                          fact.line_id)
+                          fact.line_id, source=fact.source)
 
 
 def _q(fact: MoneyFact, name: Optional[str] = None) -> "_ratio_units.Quantity":
@@ -515,6 +515,20 @@ def detect_covenant_risk(ctx: Ctx) -> Outcome:
             number_evidence("covenant_headroom_pct", "headroom as a share of the limit",
                             UNIT_PERCENT, share, pf.period_id, pf.snapshot_id),
         ]
+        # Beside the headroom: what the tested figure is made of, when the
+        # pack declares it (the EBITDA covenant — owner ruling 2026-09-26:
+        # the stock variation and own work capitalised sit INSIDE it, and a
+        # lender reading the certificate sees how much of the headroom they
+        # carry). Each is the served figure with the engine's own label.
+        for comp in (mspec.get("components") or ()):
+            comp_fact = pf.fact(str(comp))
+            if comp_fact is None:
+                gaps.append(Gap(spec.kind, "covenant %s: component %s of %s is not served (%s)"
+                                % (cov.covenant_id, comp, cov.metric,
+                                   pf.gaps.get(str(comp), "absent")), pf.period_id))
+                continue
+            evidence.append(_money_ev(pf, comp_fact, comp_fact.label
+                                      or str(comp).replace("_", " ")))
         tokens = {"label": cov.label, "metric": cov.metric.replace("_", " "),
                   "headroom_pct": ("%.1f%% %s" % (abs(share) * 100.0,
                                                   "below" if breach else "above")),

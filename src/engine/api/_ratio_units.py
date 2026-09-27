@@ -292,6 +292,11 @@ _MONEY_FACTS = frozenset([
     # covenant limit (packs/firm/attention.yaml COVENANT_RISK). Listed so
     # the evidence resolves to money at render rather than to a refusal.
     "covenant_limit",
+    # The ONE EBITDA's components (owner ruling 2026-09-26), cited beside
+    # an EBITDA covenant's headroom by engine.firm (COVENANT_RISK) and
+    # served on assembled_pl: EBITDA before the stock variation and own
+    # work capitalised, net 711 "Variația stocurilor de produse", net 72x.
+    "ebitda_before_stock_variation", "inventory_variation", "capitalized_own_work",
     # ── Band-crossing findings (2026-09-14) ────────────────────────────
     # findings/c_bands.py states a crossing's impact as HEADROOM MONEY:
     # the ratio's numerator at the rung crossed against the numerator as
