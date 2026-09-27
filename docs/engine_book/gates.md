@@ -10291,6 +10291,30 @@ month; and the GateDouble models no `ON DELETE CASCADE`, so derivative rows
 of a removed staged row stay in the double (production's foreign keys take
 them).
 
+### workspace-v2 — G7 also holds the detection envelope and methodology pin (stage G1, 2026-09-27)
+
+**Found while re-capturing the e2e fixtures.** A fresh `WS_V2_WRITE_FIXTURE=1`
+run served `period.methodology_version: null` where the committed fixture says
+`ro_ras_2025_v1`. Cause, on this branch: commit 525e2b75 moved the valuation
+block of `_run_pipeline_stages` into `_compute_and_persist_valuation` (shared
+with the reprocessing tool), taking the local `effective_industry_key` with
+it; the F4.3 detection-envelope build further down still named it, raised
+`NameError`, and the "non-fatal" `except` swallowed it — so NO upload
+persisted its `detection_envelope` or `methodology_version`. Fixed:
+`_effective_industry(org, assembled)` computes (stored, classification,
+effective) once; the stages keep the effective key for the envelope and hand
+the triple to the valuation helper. G7 now asserts the persisted period row
+carries `methodology_version == "ro_ras_2025_v1"` and a detection envelope
+pinned to it, and `E2E_PINNED` pins `period.period.methodology_version`.
+
+**PLANT** — the original defect: the stages' `effective_industry_key` default
+and assignment removed (the NameError back).
+**RED** — `test_g7_drop_one_tap_five_stages_then_the_served_dashboard`:
+```
+E    +  where None = <built-in method get of dict object at 0x11e2a5c80>('methodology_version')
+```
+**REVERT** — restored byte-exact from a copy: `24 passed`.
+
 ## margin-meaning
 
 | | |

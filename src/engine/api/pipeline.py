@@ -5189,22 +5189,37 @@ def _run_pipeline_sync(document_id: str) -> None:
             _doc_dedupe.clear_in_flight(document_id)
 
 
-def _compute_and_persist_valuation(doc: Dict[str, Any], org: Dict[str, Any],
-                                   assembled: Dict[str, Any],
-                                   period_id: str) -> Optional[Dict[str, Any]]:
-    """Industry classification + the valuation envelope, persisted. One
-    implementation for the pipeline and the deterministic reprocessing tool
-    (scripts/reprocess_periods_definition.py). Non-fatal: None on failure."""
-    valuation_payload: Optional[Dict[str, Any]] = None
-    # Industry classification fallback. When the org's industry_key is
-    # unset or "generic", run the auto-classifier on the assembled
-    # statements — for EEI this detects real_estate_commercial from
-    # account 215 (investment property) and account 706 (rental income)
-    # dominance, which gates the valuation method choice below.
+def _effective_industry(org: Dict[str, Any], assembled: Dict[str, Any]
+                        ) -> Tuple[Optional[str], Dict[str, Any], Optional[str]]:
+    """(stored industry key, the classification, the EFFECTIVE industry key).
+
+    Industry classification fallback. When the org's industry_key is unset
+    or "generic", run the auto-classifier on the assembled statements — for
+    EEI this detects real_estate_commercial from account 215 (investment
+    property) and account 706 (rental income) dominance, which gates the
+    valuation method choice. The effective key also pins the detection
+    envelope `_run_pipeline_stages` persists."""
     stored_industry_key = (org.get("industry_key") or "").lower().strip() or None
     classification = _ro_pack().classify_industry({"assembled": assembled})
     detected_industry_key = classification.get("industry_key") if classification.get("confidence", 0) >= 0.5 else None
     effective_industry_key = stored_industry_key if stored_industry_key and stored_industry_key != "generic" else (detected_industry_key or stored_industry_key)
+    return stored_industry_key, classification, effective_industry_key
+
+
+def _compute_and_persist_valuation(doc: Dict[str, Any], org: Dict[str, Any],
+                                   assembled: Dict[str, Any],
+                                   period_id: str,
+                                   industry: Optional[Tuple[Optional[str], Dict[str, Any],
+                                                            Optional[str]]] = None,
+                                   ) -> Optional[Dict[str, Any]]:
+    """Industry classification + the valuation envelope, persisted. One
+    implementation for the pipeline and the deterministic reprocessing tool
+    (scripts/reprocess_periods_definition.py). Non-fatal: None on failure.
+    ``industry`` — `_effective_industry(org, assembled)` when the caller
+    already holds it (the pipeline needs the effective key afterwards)."""
+    valuation_payload: Optional[Dict[str, Any]] = None
+    stored_industry_key, classification, effective_industry_key = (
+        industry if industry is not None else _effective_industry(org, assembled))
     if classification.get("confidence", 0) >= 0.5:
         logger.info(
             "[pipeline] industry classified as %s (confidence=%s, stored=%s, effective=%s)",
@@ -5540,6 +5555,12 @@ def _run_pipeline_stages(document_id: str) -> str:
 
         _admin_set_status(document_id, "computing")
         valuation_payload: Optional[Dict[str, Any]] = None
+        # The effective industry key pins the detection envelope persisted
+        # below. It used to be a local of the valuation block; when that block
+        # moved into `_compute_and_persist_valuation` the envelope build lost
+        # it (NameError, swallowed as "non-fatal") and no upload persisted its
+        # detection envelope or methodology_version.
+        effective_industry_key: Optional[str] = None
         if accounts_count > 0:
             metrics = stage_compute(doc, assembled, period_id)
             # Statutory anchor override — the TB parser captures account
@@ -5598,7 +5619,10 @@ def _run_pipeline_stages(document_id: str) -> str:
                     )
             except Exception:  # noqa: BLE001 — advisory: never breaks a run
                 logger.exception("[pipeline] unit-sanity sweep failed (non-fatal)")
-            valuation_payload = _compute_and_persist_valuation(doc, org, assembled, period_id)
+            _industry = _effective_industry(org, assembled)
+            effective_industry_key = _industry[2]
+            valuation_payload = _compute_and_persist_valuation(
+                doc, org, assembled, period_id, industry=_industry)
         else:
             metrics = []
             validation_alerts = []

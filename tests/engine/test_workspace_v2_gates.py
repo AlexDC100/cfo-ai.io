@@ -591,6 +591,7 @@ E2E_DIR = REPO / "e2e" / "fixtures" / "workspace_v2"
 #: The figures the e2e spec reads off the page; held equal to the route.
 E2E_PINNED = (
     ("period", "period", "period_end"),
+    ("period", "period", "methodology_version"),
     ("period", "organization", "id"),
     ("period", "organization", "name"),
     ("period", "statements", "incomeStatement", "revenue"),
@@ -676,6 +677,14 @@ def test_g7_drop_one_tap_five_stages_then_the_served_dashboard(app, gw, monkeypa
     assert gw.meter.committed == [(USER, False)] and gw.meter.released == []
     from engine.workspaces.migration_plan import empty_live_periods
     assert empty_live_periods(gw.db.tables) == [], "G4: the analysed run left an empty period"
+    # F4.3: the run persists its detection envelope and methodology pin.
+    # Both are written by a "non-fatal" try that swallowed a NameError on
+    # this branch (the effective industry key left behind when the
+    # valuation block moved into `_compute_and_persist_valuation`), so no
+    # upload carried them — the served period said methodology_version null.
+    assert period.get("methodology_version") == "ro_ras_2025_v1", period.get("methodology_version")
+    assert (period.get("detection_envelope") or {}).get("methodology_version") == "ro_ras_2025_v1", (
+        period.get("detection_envelope"))
 
     # The company page's year tile and the dashboard read ONE authority.
     years = _http(app).get("/api/companies/%s/years" % lands_in, headers=_headers(USER))
