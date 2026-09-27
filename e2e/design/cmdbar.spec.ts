@@ -310,6 +310,26 @@ test.describe("G5 — an item opens its evidence", () => {
     await expect(page).not.toHaveURL(/account=/);
   });
 
+  test("a finding opens under ITS own number — Scandia's earnings_quality, 758 + 781, not the 758 line", async ({ page }) => {
+    const double = new WorkspaceDouble({ theme: "light", language: "ro" });
+    await openDashboard(page, double, COMPANIES[0]);
+    await openBar(page);
+    const item = page.locator('[data-row-id="now:earnings_quality"]');
+    const printed = (await item.locator('[data-figure="now"]').textContent()) ?? "";
+    expect(printed).not.toBe("");
+    await item.click();
+    await expect(page).toHaveURL(/finding=earnings_quality/);
+    const view = page.getByTestId("evidence-drawer");
+    await expect(view).toBeVisible({ timeout: 20_000 });
+    await expect(view.getByTestId("evidence-finding-value")).toHaveText(printed);
+    await expect(view.getByTestId("evidence-line-value")).toHaveCount(0);
+    await expect(view.locator('[data-evidence-target^="account:"][data-highlighted="true"]').first()).toBeVisible();
+    if (SHOTS) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOTS}/scandia_finding_earnings_quality_1440_paper_ro.png` });
+    }
+  });
+
   test("a 'Ce contează acum' item that names a line opens that line's evidence", async ({ page }) => {
     const double = new WorkspaceDouble({ theme: "dark", language: "ro" });
     await openDashboard(page, double, COMPANIES[0]);

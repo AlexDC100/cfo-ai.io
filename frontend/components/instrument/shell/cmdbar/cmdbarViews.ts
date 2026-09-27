@@ -17,6 +17,7 @@ import type { AttentionAction, AttentionDoc, AttentionItem } from "@/lib/attenti
 import {
   accountEvidenceHref,
   dashboardEvidenceHref,
+  findingEvidenceHref,
   lineEvidenceHref,
   ratioEvidenceHref,
   sectorRowEvidenceHref,
@@ -401,7 +402,10 @@ function strings(v: unknown): string[] {
  *                  finding cited accounts, THOSE accounts (`&account=`);
  *   ratio          the ratio's drawer / its ratio-table row (`?ratio=`);
  *   benchmark_row  the sector row on /benchmark (`?row=`);
- *   account        the account view for every account the item cites.
+ *   account        the account view for every account the item cites —
+ *                  for a finding, under the finding's own measure
+ *                  (`&finding=&measure=`), so the view heads with the
+ *                  number the item printed.
  *  Exported for the landing gate (evidenceLanding.test.tsx). */
 export function evidenceHref(ctx: ViewContext, item: AttentionItem): string {
   const ev = item.evidence as Record<string, unknown>;
@@ -415,6 +419,11 @@ export function evidenceHref(ctx: ViewContext, item: AttentionItem): string {
     case "account": {
       const cited = strings(ev.accounts);
       const codes = cited.length > 0 ? cited : strings([ev.account]);
+      // A finding's accounts open under the finding's OWN measure — the
+      // number this item prints — never under another figure.
+      if (typeof ev.finding === "string" && ev.finding && typeof ev.measure === "string" && ev.measure) {
+        return findingEvidenceHref(scopeOf(ctx), codes, ev.finding, ev.measure);
+      }
       return accountEvidenceHref(scopeOf(ctx), codes);
     }
     default:

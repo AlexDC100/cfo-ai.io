@@ -30,7 +30,18 @@
       "colName": "Name",
       "colAmount": "Balance",
       "close": "Close",
-      "balance": "Balance"
+      "balance": "Balance",
+      "findingKicker": "The finding's own measure",
+      "findingNote": "This is the figure the finding reports, computed by the engine from the accounts below — not a statement line.",
+      "findingAbsent": "This period serves no measure {{measure}} for the finding {{finding}}.",
+      "measure": {
+        "depreciated_share": "Depreciated share of gross PP&E",
+        "current_ratio_trade_only": "Current ratio, non-trade receivables removed",
+        "share_of_equity": "Related-party balances as a share of equity",
+        "float": "Trade float (receivables less payables)",
+        "net_financial": "Net financial result",
+        "non_trading": "Other operating income and provision reversals"
+      }
     }
   },
   "ro": {
@@ -64,7 +75,18 @@
       "colName": "Denumire",
       "colAmount": "Sold",
       "close": "Închide",
-      "balance": "Sold"
+      "balance": "Sold",
+      "findingKicker": "Măsura proprie a constatării",
+      "findingNote": "Aceasta este cifra raportată de constatare, calculată de motor din conturile de mai jos — nu un rând din situațiile financiare.",
+      "findingAbsent": "Perioada nu servește măsura {{measure}} pentru constatarea {{finding}}.",
+      "measure": {
+        "depreciated_share": "Ponderea amortizată din imobilizările corporale brute",
+        "current_ratio_trade_only": "Lichiditatea curentă fără creanțele necomerciale",
+        "share_of_equity": "Soldurile cu părți afiliate ca pondere din capitalurile proprii",
+        "float": "Decalajul comercial (creanțe minus datorii comerciale)",
+        "net_financial": "Rezultatul financiar net",
+        "non_trading": "Alte venituri din exploatare și reluări de provizioane"
+      }
     }
   }
 }

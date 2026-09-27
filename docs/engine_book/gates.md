@@ -11134,6 +11134,68 @@ highlighted row with the report route answering each refusal shape.
 REVERT (each): Tests 5 passed (5)
 ```
 
+**An item's evidence headed with ANOTHER number (cmdbar-evidence +
+attention-rules).** Scandia's item 3 (earnings_quality) printed its headline
+measure `non_trading` = RON 753,070.01 (758 + 781) and opened the statement
+line `pl.other_operating_income`, whose account view printed "Served figure
+448,406.27" (the 758 line alone), highlighted. Agras's liquidity_quality
+printed 1.50× (current ratio, non-trade receivables removed) and opened the
+current ratio's drawer at 2.10×; asset_age printed 70.4 % (depreciated share)
+and opened PP&E net, a money figure. The landing gate only checked that the
+target rendered and was marked — green by construction. Repaired on both
+sides:
+
+* ENGINE — the pack declares honest receivers: a statement line only where
+  its served figure IS the headline measure (financial_position:
+  `net_financial` = `assembled_pl.net_financial_result`); asset_age,
+  liquidity_quality, trade_float and earnings_quality open the accounts they
+  cite (`kind: account`) with `finding` + `measure`. The composer re-checks
+  EVERY statement / ratio receiver against the headline on each book
+  (`sources.receiver_headline` — the line registry's served path, EBITDA
+  through its one reader, the ratio-table row) and declines one that heads
+  with another figure for the cited accounts, saying so in `because`
+  (`receiver_heads_with_another_figure`, the receiver, its number). New
+  laws in `test_attention_rules.py`: on every served corpus book and Scandia
+  each insight item's receiver heads with its own measure and the shipped
+  pack needed no decline (`GATE-WORK attention-receiver-headline items=9`);
+  the pre-review earnings_quality declaration is declined for the cited
+  accounts with its reason, and financial_position keeps its line.
+* FRONTEND — the account view reads `&finding=&measure=` and heads with the
+  finding's own measure from `statements.insights` (the SAME served object
+  the item carries), printed by the item's own printer, with the note "the
+  figure the finding reports, computed by the engine from the accounts below
+  — not a statement line" (RO: "Măsura proprie a constatării…"), then the
+  cited accounts. Every landing now marks ONE headline with its served value
+  (`data-evidence-headline` / `data-served-value`; the sector row carries its
+  company value). The landing law compares, for EVERY item of the four
+  engine-composed worlds, the number the landing heads with to the number the
+  item carries (and, for a finding, the printed text to the item's printed
+  text). Live G5 gained Scandia's earnings_quality landing under its own
+  printed figure. `attention.json` fixtures re-captured (Scandia item 3 and
+  Agras items 1 and 3 changed receiver; nothing else moved).
+```
+### PLANT attention-rules (a) — now.py: the headline guard off
+   E   assert 'statement' == 'account'        (the pre-review earnings_quality declaration kept its 758 line)
+   1 failed, 1 passed
+### PLANT attention-rules (b) — the pre-review pack receivers (HEAD's attention.yaml)
+   E   AssertionError: the pack declares a receiver the composer had to decline
+   E   assert 7 == 0
+   1 failed, 1 passed
+### PLANT cmdbar-evidence (a) — the pre-review compositions (HEAD's scandia/agras attention fixtures)
+   × … scandia: each served item opens a rendered, highlighted target that IS the item
+   × … agras: …
+   AssertionError: scandia earnings_quality: the landing heads with 448406.27, the item printed 753070.01
+   AssertionError: agras asset_age: the landing heads with 11055449.54, the item printed 0.704406834572
+   Tests  2 failed | 26 passed (28)
+### PLANT cmdbar-evidence (b) — cmdbarViews.ts: the item link drops `finding` (account view, no headline)
+   AssertionError: the account view has exactly one headline: expected +0 to be 1
+   Tests  2 failed | 26 passed (28)
+### PLANT cmdbar-evidence (c) — EvidenceDrawer.tsx: the finding value not marked as the headline
+   AssertionError: the account view has exactly one headline: expected +0 to be 1
+   Tests  2 failed | 26 passed (28)
+REVERT (each): engine 32 passed; Tests 30 passed (30)
+```
+
 ## evidence-lines
 
 The account view (`frontend/components/cfo/evidence/EvidenceDrawer.tsx`, design

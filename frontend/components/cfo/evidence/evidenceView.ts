@@ -26,7 +26,13 @@
 // result) has no accounts of its own and says so.
 
 import type { PeriodLineItem } from "@/lib/activePeriod";
-import { EVIDENCE_ACCOUNT_PARAM, EVIDENCE_LINE_PARAM } from "@/lib/evidence/evidenceLink";
+import {
+  EVIDENCE_ACCOUNT_PARAM,
+  EVIDENCE_FINDING_PARAM,
+  EVIDENCE_LINE_PARAM,
+  EVIDENCE_MEASURE_PARAM,
+} from "@/lib/evidence/evidenceLink";
+import { readInsights, type InsightMeasure } from "@/lib/insights";
 import { evidenceLine, type EvidenceLineSpec } from "@/lib/evidence/evidenceLines";
 import {
   servedEbitda,
@@ -40,6 +46,8 @@ export interface EvidenceRequest {
   accounts: string[];
   /** A comparatives line key (`pl.revenue`), or null. */
   line: string | null;
+  /** A finding (statements.insights id) and the measure it heads with. */
+  finding: { id: string; measure: string } | null;
 }
 
 /** The request a URL carries, or null when it carries none. */
@@ -51,8 +59,11 @@ export function readEvidenceRequest(params: URLSearchParams): EvidenceRequest | 
   }
   const lineRaw = params.get(EVIDENCE_LINE_PARAM);
   const line = lineRaw && lineRaw.trim() ? lineRaw.trim() : null;
-  if (accounts.length === 0 && !line) return null;
-  return { accounts, line };
+  const fid = (params.get(EVIDENCE_FINDING_PARAM) ?? "").trim();
+  const fmeasure = (params.get(EVIDENCE_MEASURE_PARAM) ?? "").trim();
+  const finding = fid && fmeasure ? { id: fid, measure: fmeasure } : null;
+  if (accounts.length === 0 && !line && !finding) return null;
+  return { accounts, line, finding };
 }
 
 export type EvidenceBody = {
@@ -113,8 +124,21 @@ export interface EvidenceLineBlock {
   derived: boolean;
 }
 
+/** A finding's own measure, read from the served statements.insights —
+ *  the SAME object the "Ce contează acum" item printed. */
+export interface EvidenceFindingBlock {
+  id: string;
+  measure: InsightMeasure | null;
+  /** The block's currency (statements.insights.currency). */
+  currency: string;
+  /** Where it was read. */
+  source: string;
+}
+
 export interface EvidenceModel {
   request: EvidenceRequest;
+  /** The finding the link named, when it named one: the view's headline. */
+  finding: EvidenceFindingBlock | null;
   line: EvidenceLineBlock | null;
   /** A `line` the link named that no declared line is. */
   unknownLine: string | null;
@@ -216,9 +240,23 @@ export function lineFigure(body: EvidenceBody, spec: EvidenceLineSpec): ServedFi
   return servedLine(b, spec.statement, spec.field);
 }
 
+/** The finding's measure, as served — or a block with `measure: null`
+ *  when the period serves no such finding / measure (said in words). */
+export function findingBlock(body: EvidenceBody, id: string, measureKey: string): EvidenceFindingBlock {
+  const block = readInsights(body?.statements ?? null);
+  const ins = block?.insights.find((i) => i.id === id) ?? null;
+  const measure = ins?.measures.find((m) => m.key === measureKey) ?? null;
+  return {
+    id,
+    measure,
+    currency: block?.currency ?? "",
+    source: `statements.insights.insights[id=${id}].measures[key=${measureKey}]`,
+  };
+}
+
 export function buildEvidenceModel(body: EvidenceBody, request: EvidenceRequest): EvidenceModel {
   const spec = evidenceLine(request.line);
-  const cited = spec !== null && request.accounts.length > 0;
+  const cited = (spec !== null || request.finding !== null) && request.accounts.length > 0;
   let line: EvidenceLineBlock | null = null;
   let codes = request.accounts;
   if (spec) {
@@ -238,6 +276,7 @@ export function buildEvidenceModel(body: EvidenceBody, request: EvidenceRequest)
   }
   return {
     request,
+    finding: request.finding ? findingBlock(body, request.finding.id, request.finding.measure) : null,
     line,
     unknownLine: request.line && !spec ? request.line : null,
     accounts: codes.map((c) => accountBlock(body, c)),

@@ -458,6 +458,78 @@ def test_fewer_material_findings_mean_fewer_items_never_a_filler(served):
                                            "headline_measure_absent"), c
 
 
+# ── an item's receiver heads with the item's own figure ─────────────────
+#
+# Found by review (2026-09-27): Scandia's earnings_quality item printed its
+# headline measure non_trading = 753,070.01 (758 + 781) and opened the
+# statement line "Other operating income" — 448,406.27 under "Served figure".
+# Agras's liquidity_quality printed 1.50x (trade-only current ratio) and
+# opened the current ratio's drawer at 2.10x; asset_age printed 70.4 % and
+# opened PP&E net, a money figure.
+
+
+def _scandia_e2e_body():
+    return json.loads((REPO / "e2e" / "fixtures" / "workspace_v2" / "scandia_fy2025.json")
+                      .read_text(encoding="utf-8"))["period"]
+
+
+def _insight_worlds(served):
+    worlds = {name: body for name, (body, _sector) in served.items()}
+    worlds["scandia"] = _scandia_e2e_body()
+    return worlds
+
+
+def test_every_insight_item_opens_a_receiver_that_heads_with_its_own_figure(served):
+    from engine.attention.sources import receiver_headline
+
+    checked = declined = 0
+    for name, body in _insight_worlds(served).items():
+        doc = _compose(body, prior=PRIOR_ABSENT, sector=None)
+        for item in doc["items"]:
+            if item["family"] != "insight":
+                continue
+            ev = item["evidence"]
+            measure = item["figure"]["measure"]
+            if ev["kind"] in ("statement", "ratio"):
+                shown = receiver_headline(body, ev)
+                assert shown is not None and abs(shown - measure["value"]) <= 0.005, (name, item["key"], shown, measure)
+            else:
+                assert ev["kind"] == "account", (name, item["key"], ev)
+                # The account view prints the finding's OWN measure — the
+                # served object this item carries — as its headline.
+                assert (ev["finding"], ev["measure"]) == (item["key"], measure["key"]), (name, ev)
+                assert ev["accounts"], (name, item["key"], "an account receiver with no account")
+            # The shipped pack declares honest receivers: nothing had to be
+            # declined on any served book.
+            if "because" in ev:
+                declined += 1
+            checked += 1
+    assert declined == 0, "the pack declares a receiver the composer had to decline"
+    assert checked >= 6, checked
+    print("GATE-WORK attention-receiver-headline items=%d" % checked)
+
+
+def test_a_receiver_that_heads_with_another_figure_is_declined_for_the_cited_accounts():
+    body = _scandia_e2e_body()
+    pack = load_pack()
+    # The pre-review declaration: earnings_quality -> the 758 line.
+    pack["insights"]["detectors"]["earnings_quality"]["evidence"] = {
+        "kind": "statement", "tab": "pl", "line": "pl.other_operating_income"}
+    doc = _compose(body, prior=PRIOR_ABSENT, sector=None, pack=pack)
+    eq = next(i for i in doc["items"] if i["key"] == "earnings_quality")
+    ev = eq["evidence"]
+    assert ev["kind"] == "account", ev
+    assert ev["because"]["code"] == "receiver_heads_with_another_figure"
+    assert ev["because"]["receiver"]["line"] == "pl.other_operating_income"
+    assert ev["because"]["receiver_headline"] == body["statements"]["assembled_pl"]["other_income_758"]
+    assert eq["figure"]["measure"]["value"] != ev["because"]["receiver_headline"]
+    assert (ev["finding"], ev["measure"]) == ("earnings_quality", "non_trading")
+    # The line whose figure IS the headline keeps its line receiver.
+    fp = next(i for i in doc["items"] if i["key"] == "financial_position")
+    assert fp["evidence"]["kind"] == "statement" and fp["evidence"]["line"] == "pl.net_financial_result"
+    assert "because" not in fp["evidence"]
+
+
 def test_data_quality_findings_are_not_business_items(served):
     body, sector = served["realestate"]
     ranked = {i["id"]: i["severity"]["level"] for i in body["statements"]["insights"]["insights"]}

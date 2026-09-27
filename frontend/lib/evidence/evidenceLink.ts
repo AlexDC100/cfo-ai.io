@@ -26,6 +26,11 @@ export const EVIDENCE_ACCOUNT_PARAM = "account";
 export const EVIDENCE_LINE_PARAM = "line";
 export const EVIDENCE_RATIO_PARAM = "ratio";
 export const EVIDENCE_ROW_PARAM = "row";
+/** A finding's id and the served measure it heads with: the account view
+ *  prints THAT measure first (statements.insights), then the accounts it
+ *  cites — so a "Ce contează acum" item lands under its own number. */
+export const EVIDENCE_FINDING_PARAM = "finding";
+export const EVIDENCE_MEASURE_PARAM = "measure";
 
 export type StatementTab = Extract<TabId, "pl" | "balance_sheet" | "cash_flow">;
 
@@ -76,6 +81,24 @@ export function accountEvidenceHref(
   const clean = codes.map((c) => c.trim()).filter((c) => c.length > 0);
   const tab = clean.length > 0 ? accountStatementTab(clean[0]) : "balance_sheet";
   return dashboardEvidenceHref(scope, { tab, [EVIDENCE_ACCOUNT_PARAM]: clean });
+}
+
+/** A finding's receiver: the accounts it cites, under the finding's own
+ *  served measure (EvidenceDrawer's finding block). */
+export function findingEvidenceHref(
+  scope: { periodId: string | null | undefined; orgId: string | null | undefined },
+  codes: readonly string[],
+  finding: string,
+  measure: string,
+): string {
+  const clean = codes.map((c) => c.trim()).filter((c) => c.length > 0);
+  const tab = clean.length > 0 ? accountStatementTab(clean[0]) : "balance_sheet";
+  return dashboardEvidenceHref(scope, {
+    tab,
+    [EVIDENCE_ACCOUNT_PARAM]: clean,
+    [EVIDENCE_FINDING_PARAM]: finding,
+    [EVIDENCE_MEASURE_PARAM]: measure,
+  });
 }
 
 /** The line view: a statement line's served figure and the accounts that

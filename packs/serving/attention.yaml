@@ -169,7 +169,18 @@ ratio_band:
 # served rank decides the order. Data-quality findings describe how the book
 # was read, not the business, and are not "what matters now" [DEFAULT,
 # coordinator 2026-09-26]. `headline` names the served measure the line
-# prints; `evidence` is where the item opens.
+# prints; `evidence` is where the item opens — and the receiver HEADS WITH
+# THAT SAME NUMBER (review 2026-09-27: earnings_quality printed 753,070.01 —
+# 758 + 781 — and opened "Other operating income" 448,406.27). A statement
+# line is the receiver only when its served figure IS the headline measure
+# (financial_position: net_financial = assembled_pl.net_financial_result);
+# otherwise the finding opens the accounts it cites, under its own measure
+# (`kind: account` — the account view prints the measure from
+# statements.insights). The composer re-checks every statement / ratio
+# receiver against the headline on each book and falls back to the cited
+# accounts, with `because`, when they differ (engine.attention.now
+# `_insight_item`); cmdbar-evidence holds the landed headline equal to the
+# item's figure.
 insights:
   material_levels: [critical, high, medium]
   excluded:
@@ -179,12 +190,12 @@ insights:
     asset_age:
       identity: asset_age
       headline: depreciated_share
-      evidence: {kind: statement, tab: balance_sheet, line: bs.ppe_net}
+      evidence: {kind: account}
       subject: {ro: "Activele fixe sunt spre finalul duratei de amortizare", en: "Asset base is late in its depreciation life"}
     liquidity_quality:
       identity: current_ratio
       headline: current_ratio_trade_only
-      evidence: {kind: ratio, tab: ratios, ratio: current_ratio}
+      evidence: {kind: account}
       subject: {ro: "Lichiditatea se sprijină pe creanțe care nu sunt comerciale", en: "Headline liquidity leans on receivables that are not trade"}
     related_party_exposure:
       identity: related_party
@@ -194,7 +205,7 @@ insights:
     trade_float:
       identity: receivables_days
       headline: float
-      evidence: {kind: ratio, tab: ratios, ratio: dso}
+      evidence: {kind: account}
       subject: {ro: "Clienții și furnizorii mișcă ciclul de numerar", en: "Suppliers and customers move the cash cycle"}
     financial_position:
       identity: financial_result
@@ -204,7 +215,7 @@ insights:
     earnings_quality:
       identity: earnings_quality
       headline: non_trading
-      evidence: {kind: statement, tab: pl, line: pl.other_operating_income}
+      evidence: {kind: account}
       subject: {ro: "O parte din EBITDA nu vine din activitatea comercială", en: "Part of EBITDA is not trading income"}
 
 # ── Actions (two or three), chosen by state, in this order.

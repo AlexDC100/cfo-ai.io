@@ -31,6 +31,7 @@ from typing import Any, Dict, Iterable, List, Mapping, Optional
 
 __all__ = [
     "served_ebitda",
+    "receiver_headline",
     "inventory_days",
     "anchor_status",
     "insights_block",
@@ -134,6 +135,48 @@ def inventory_days(payload: Mapping[str, Any]) -> Dict[str, Any]:
         "claim_policy": dict(INVENTORY_DAYS_SNAPSHOT_POLICY),
         "reason": row.get("reason"),
     }
+
+
+# ── The number a receiver heads with ─────────────────────────────────────
+
+
+def receiver_headline(payload: Mapping[str, Any], evidence: Mapping[str, Any]) -> Optional[float]:
+    """The served figure the receiver an item opens would print FIRST — or
+    None when that receiver heads with no figure of its own (an account
+    view of cited accounts, a benchmark row read elsewhere).
+
+      statement  the line's served value: the comparatives line registry's
+                 path (engine.comparatives.lines), EBITDA through
+                 `served_ebitda` (its one reader);
+      ratio      the served ratio-table row's `value`.
+
+    The composer holds an item's printed figure to this number: a receiver
+    that heads with ANOTHER number (753,070.01 other operating income and
+    provision reversals opening "Other operating income 448,406.27") sends
+    the reader to a contradiction."""
+    from engine.comparatives.lines import spec_for  # local: keeps this module's import floor
+
+    kind = evidence.get("kind")
+    if kind == "statement":
+        line = str(evidence.get("line") or "")
+        if line == "pl.ebitda":
+            return served_ebitda(payload)["value"]
+        spec = spec_for(line)
+        if spec is None:
+            return None
+        node: Any = _statements(payload)
+        for part in spec.path:
+            if not isinstance(node, Mapping):
+                return None
+            node = node.get(part)
+        return _num(node)
+    if kind == "ratio":
+        am = payload.get("assembled_metrics") if isinstance(payload, Mapping) else None
+        table = am.get("ratio_table") if isinstance(am, Mapping) and isinstance(am.get("ratio_table"), Mapping) else {}
+        row = next((r for r in table.get("rows") or []
+                    if isinstance(r, Mapping) and r.get("key") == evidence.get("ratio")), None)
+        return _num(row.get("value")) if isinstance(row, Mapping) else None
+    return None
 
 
 # ── The rest of the served body ──────────────────────────────────────────

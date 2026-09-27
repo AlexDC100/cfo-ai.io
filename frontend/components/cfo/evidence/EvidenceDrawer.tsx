@@ -30,9 +30,15 @@ import {
   provenanceOf,
   type AmountProvenance,
 } from "@/components/instrument/Provenance";
-import { EVIDENCE_ACCOUNT_PARAM, EVIDENCE_LINE_PARAM, realStatementTab } from "@/lib/evidence/evidenceLink";
+import {
+  EVIDENCE_ACCOUNT_PARAM,
+  EVIDENCE_FINDING_PARAM,
+  EVIDENCE_LINE_PARAM,
+  EVIDENCE_MEASURE_PARAM,
+  realStatementTab,
+} from "@/lib/evidence/evidenceLink";
 import { HIGHLIGHT_PARAM, TAB_PARAM } from "@/lib/traceableSource";
-import { absentText, langOf, printMoney, servedMoney, type Printer } from "@/components/instrument/shell/cmdbar/cmdbarFigures";
+import { absentText, langOf, printMeasure, printMoney, servedMoney, type Printer } from "@/components/instrument/shell/cmdbar/cmdbarFigures";
 
 import "./evidenceI18n";
 import {
@@ -96,7 +102,7 @@ export function EvidenceDrawer({ body, periodLabel, documentName, currency }: Ev
 
   const contentRef = useRef<HTMLDivElement | null>(null);
   const open = model !== null;
-  const requestKey = request ? `${request.line ?? ""}|${request.accounts.join(",")}` : "";
+  const requestKey = request ? `${request.finding?.id ?? ""}|${request.line ?? ""}|${request.accounts.join(",")}` : "";
   useEffect(() => {
     if (!open) return;
     const id = window.setTimeout(() => {
@@ -110,6 +116,8 @@ export function EvidenceDrawer({ body, periodLabel, documentName, currency }: Ev
     const next = new URLSearchParams(params);
     next.delete(EVIDENCE_ACCOUNT_PARAM);
     next.delete(EVIDENCE_LINE_PARAM);
+    next.delete(EVIDENCE_FINDING_PARAM);
+    next.delete(EVIDENCE_MEASURE_PARAM);
     for (const [k, v] of Object.entries(extra ?? {})) next.set(k, v);
     setParams(next, { replace: true });
   };
@@ -117,9 +125,19 @@ export function EvidenceDrawer({ body, periodLabel, documentName, currency }: Ev
   if (!model) return null;
 
   const line = model.line;
+  const finding = model.finding;
+  // The finding's measure, in the reader's language (the served label is
+  // English only); the served label when no translation is declared.
+  const measureLabel = finding?.measure
+    ? (i18n.exists(`evidence.measure.${finding.measure.key}`)
+      ? t(`evidence.measure.${finding.measure.key}`)
+      : finding.measure.label)
+    : null;
   const statementWord = (s: "BS" | "PL" | "pl" | "bs" | null) =>
     s === "PL" || s === "pl" ? t("evidence.statementPL") : t("evidence.statementBS");
-  const title = line
+  const title = finding && !line && measureLabel
+    ? measureLabel
+    : line
     ? line.spec.name[lang]
     : model.accounts.length === 1
       ? model.accounts[0].name
@@ -129,7 +147,7 @@ export function EvidenceDrawer({ body, periodLabel, documentName, currency }: Ev
   const meta = documentName
     ? t("evidence.meta", { period: periodLabel ?? "", document: documentName })
     : t("evidence.metaNoDocument", { period: periodLabel ?? "" });
-  const accountsHeading = model.cited
+  const accountsHeading = model.cited || (finding && model.accounts.length > 0)
     ? t("evidence.citedHeading")
     : line
       ? t("evidence.feedsHeading")
@@ -142,6 +160,7 @@ export function EvidenceDrawer({ body, periodLabel, documentName, currency }: Ev
         className="w-full sm:max-w-[560px] p-0 bg-bg border-l border-rule flex flex-col"
         data-testid="evidence-drawer"
         data-evidence-line={line?.spec.key ?? undefined}
+        data-evidence-finding={finding?.id ?? undefined}
         data-evidence-accounts={model.request.accounts.join(",") || undefined}
         // Focus the view itself on open, not its first focusable: that is a
         // provenance affordance, and focusing it would pop its card over the
@@ -165,6 +184,43 @@ export function EvidenceDrawer({ body, periodLabel, documentName, currency }: Ev
             </p>
           ) : null}
 
+          {finding ? (
+            // THE HEADLINE IS THE ITEM'S OWN NUMBER: a finding opens under
+            // its served measure, printed by the SAME printer the bar item
+            // used (formatMeasure) — never under a statement line that heads
+            // with another figure (review 2026-09-27: 753,070.01 opened
+            // "Other operating income" 448,406.27).
+            <section
+              className={`rounded-md border border-rule px-4 py-3 space-y-1 ${HIGHLIGHT_CLASS}`}
+              data-evidence-target={`finding:${finding.id}`}
+              data-highlighted="true"
+              data-testid="evidence-finding"
+            >
+              <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-soft">{t("evidence.findingKicker")}</div>
+              {finding.measure ? (
+                <>
+                  <div className="text-[12.5px] text-ink-2" data-testid="evidence-finding-label">{measureLabel}</div>
+                  <div
+                    className="font-mono tabular-nums text-[18px] text-ink"
+                    data-testid="evidence-finding-value"
+                    data-evidence-headline="true"
+                    data-served-value={finding.measure.value ?? ""}
+                  >
+                    {printMeasure(finding.measure, finding.currency || currency)}
+                  </div>
+                  <div className="text-[11.5px] text-ink-soft" data-testid="evidence-finding-source">
+                    {t("evidence.servedFrom", { source: finding.source })}
+                  </div>
+                  <p className="pt-1 text-[12px] text-ink-2" data-testid="evidence-finding-note">{t("evidence.findingNote")}</p>
+                </>
+              ) : (
+                <p className="text-[12.5px] text-ink" data-testid="evidence-finding-absent">
+                  {t("evidence.findingAbsent", { finding: finding.id, measure: model.request.finding?.measure ?? "" })}
+                </p>
+              )}
+            </section>
+          ) : null}
+
           {line ? (
             <section
               className={`rounded-md border border-rule px-4 py-3 space-y-1 ${HIGHLIGHT_CLASS}`}
@@ -173,7 +229,12 @@ export function EvidenceDrawer({ body, periodLabel, documentName, currency }: Ev
               data-testid="evidence-line"
             >
               <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-soft">{t("evidence.servedFigure")}</div>
-              <div className="font-mono tabular-nums text-[18px] text-ink" data-testid="evidence-line-value">
+              <div
+                className="font-mono tabular-nums text-[18px] text-ink"
+                data-testid="evidence-line-value"
+                data-evidence-headline={finding ? undefined : "true"}
+                data-served-value={line.figure.value ?? ""}
+              >
                 {printMoney(printer, line.figure.value) ?? absentText(printer, line.figure.refusal)}
               </div>
               <div className="text-[11.5px] text-ink-soft" data-testid="evidence-line-source">
@@ -214,7 +275,7 @@ export function EvidenceDrawer({ body, periodLabel, documentName, currency }: Ev
 
           {model.accounts.length > 0 ? (
             <section className="space-y-3" data-testid="evidence-accounts">
-              {line ? (
+              {line || finding ? (
                 <h3 className="text-[10.5px] uppercase tracking-[0.12em] text-ink-soft font-semibold">{accountsHeading}</h3>
               ) : null}
               {model.accounts.length === 1 ? (

@@ -385,7 +385,15 @@ def _ratio_item(slot: str, cand: Mapping[str, Any], pack: Mapping[str, Any]) -> 
     return item
 
 
-def _insight_item(slot: str, cand: Mapping[str, Any], currency: Optional[str]) -> Dict[str, Any]:
+def _same_figure(kind: str, shown: Optional[float], measure: Optional[float]) -> bool:
+    if shown is None or measure is None:
+        return False
+    tol = ZERO_FLOOR if kind == "statement" else 1e-9 * max(1.0, abs(measure))
+    return abs(shown - measure) <= tol
+
+
+def _insight_item(slot: str, cand: Mapping[str, Any], currency: Optional[str],
+                  payload: Mapping[str, Any]) -> Dict[str, Any]:
     ins = cand["insight"]
     desc = cand["desc"]
     accounts = sorted(
@@ -397,8 +405,25 @@ def _insight_item(slot: str, cand: Mapping[str, Any], currency: Optional[str]) -
         if code not in codes:
             codes.append(code)
     evidence = dict(desc["evidence"])
+    # THE RECEIVER HEADS WITH THE ITEM'S OWN NUMBER. A statement line or a
+    # ratio row opens under ITS served figure; when that is not this
+    # finding's headline measure (earnings_quality's 758 + 781 against the
+    # 758 line alone; a trade-only current ratio against the headline one)
+    # the reader clicks one number and lands on another. Such an item opens
+    # the accounts the finding cites instead, under the finding's own
+    # measure (`finding` + `measure`: the account view prints it from
+    # statements.insights, the same served object this item carries).
+    # `because` says which receiver was declined and the number it heads with.
+    if evidence["kind"] in ("statement", "ratio"):
+        shown = S.receiver_headline(payload, evidence)
+        if not _same_figure(evidence["kind"], shown, _num(cand["headline"].get("value"))):
+            evidence = {"kind": "account",
+                        "because": {"code": "receiver_heads_with_another_figure",
+                                    "receiver": dict(evidence), "receiver_headline": shown}}
     if evidence["kind"] == "account":
         evidence["account"] = codes[0] if codes else None
+        evidence["finding"] = ins.get("id")
+        evidence["measure"] = desc["headline"]
     evidence["accounts"] = codes
     sev = ins.get("severity") or {}
     return {
@@ -564,7 +589,7 @@ def compose_attention(current_payload: Mapping[str, Any], *,
             cand = take(finding_pool)
             if cand:
                 items.append(_insight_item(slot, cand, (S.insights_block(current_payload)
-                                                        or {}).get("currency")))
+                                                        or {}).get("currency"), current_payload))
             else:
                 why = insights_reason or _reason("no_material_finding")
         if cand is None:

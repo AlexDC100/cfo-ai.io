@@ -433,6 +433,7 @@
   {
    "basis_label": null,
    "evidence": {
+    "account": "781501",
     "accounts": [
      "781501",
      "758805",
@@ -445,9 +446,9 @@
      "758101",
      "758803"
     ],
-    "kind": "statement",
-    "line": "pl.other_operating_income",
-    "tab": "pl"
+    "finding": "earnings_quality",
+    "kind": "account",
+    "measure": "non_trading"
    },
    "family": "insight",
    "figure": {

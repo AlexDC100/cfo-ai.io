@@ -217,12 +217,48 @@ async function landOn(w: World, href: string): Promise<{ kind: string; target: H
   throw new Error(`${href} opens no receiver`);
 }
 
+/** The served number an item prints — the object it carries, verbatim. */
+function itemServedValue(item: AttentionDoc["items"][number]): number | string | null {
+  const f = item.figure as Record<string, any>;
+  switch (f.kind) {
+    case "comparatives_column": return f.column.current ?? null;
+    case "sector_row": return f.row.company?.value ?? null;
+    case "ratio_compare_row": return f.row.current?.value ?? f.row.current?.value_q ?? null;
+    case "insight_measure": return f.measure.value ?? null;
+    default: return null;
+  }
+}
+
+/** The number the landing HEADS with: the account view's one headline
+ *  (`data-evidence-headline` — the finding's measure, else the line's
+ *  served figure), the sector row's company figure, the ratio-table row's
+ *  current side. `text` is the printed headline where the landing prints it
+ *  with the item's own printer (a finding's measure), else null. */
+function headlineOf(landed: { kind: string; target: HTMLElement }): { value: number | string | null; text: string | null } {
+  const num = (v: string | undefined) => (v === undefined || v === "" ? null : Number(v));
+  if (landed.kind === "evidence") {
+    const heads = [...landed.target.querySelectorAll<HTMLElement>("[data-evidence-headline]")];
+    expect(heads.length, "the account view has exactly one headline").toBe(1);
+    const h = heads[0];
+    return { value: num(h.dataset.servedValue), text: h.dataset.testid === "evidence-finding-value" ? h.textContent : null };
+  }
+  if (landed.kind === "sector") return { value: num(landed.target.dataset.servedValue), text: null };
+  if (landed.kind === "ratio") {
+    const printed = JSON.parse(landed.target.dataset.ratioPrintedJson ?? "{}") as { current?: string };
+    const cmp = JSON.parse(landed.target.dataset.ratioCmpJson ?? "null") as Record<string, any> | null;
+    const side = cmp?.current ?? cmp?.row?.current ?? null;
+    return { value: side ? (side.value ?? side.value_q ?? null) : printed.current ?? null, text: null };
+  }
+  return { value: null, text: null };
+}
+
 // ════════════════════════════════════════════════════════════════════════
 
 describe("cmdbar-evidence — every 'Ce contează acum' item lands on its evidence", () => {
   for (const w of WORLDS) {
     it(`${w.name}: each served item opens a rendered, highlighted target that IS the item`, async () => {
       const ctx = ctxOf(w);
+      let headlines = 0;
       expect(w.attention.items.length).toBeGreaterThan(0);
       for (const item of w.attention.items) {
         const view = nowItemView(ctx, item, w.attention);
@@ -248,10 +284,42 @@ describe("cmdbar-evidence — every 'Ce contează acum' item lands on its eviden
         } else if (ev.kind === "benchmark_row") {
           expect(landed.target.dataset.sectorRow).toBe(ev.row);
         }
+        // THE LANDING HEADS WITH THE ITEM'S OWN NUMBER (review 2026-09-27:
+        // Scandia's earnings_quality printed 753,070.01 and landed under
+        // "Served figure 448,406.27"; Agras's 1.50x landed on 2.10x).
+        const head = headlineOf(landed);
+        const want = itemServedValue(item);
+        expect(head.value, `${w.name} ${item.key}: the landing heads with ${head.value}, the item printed ${want}`).toBe(want);
+        if (head.text !== null) expect(head.text, `${w.name} ${item.key}: printed headline`).toBe(view.figure);
+        headlines++;
         cleanup();
       }
+      expect(headlines, "every item's landing headline was compared").toBe(w.attention.items.length);
     });
   }
+
+  it.each(["en", "ro"] as const)("%s: Scandia's earnings_quality opens under ITS number (758 + 781), then the accounts it cites — not under the 758 line", async (lang) => {
+    await act(async () => { await i18n.changeLanguage(lang); });
+    const w = WORLDS[0];
+    const item = w.attention.items.find((i) => i.key === "earnings_quality")!;
+    const view = nowItemView({ ...ctxOf(w), printer: { ...ctxOf(w).printer, lang } }, item, w.attention);
+    drawer(w, view.href);
+    const d = await screen.findByTestId("evidence-drawer");
+    const value = d.querySelector('[data-testid="evidence-finding-value"]')!;
+    expect(value.textContent).toBe(view.figure);
+    expect(Number((value as HTMLElement).dataset.servedValue)).toBe(753070.01);
+    // The 758 line's own figure is not the headline anywhere on the view.
+    expect(d.querySelector('[data-testid="evidence-line-value"]')).toBeNull();
+    expect(d.querySelector('[data-testid="evidence-finding-note"]')?.textContent)
+      .toBe(i18n.getFixedT(lang)("evidence.findingNote"));
+    expect(d.querySelector('[data-testid="evidence-title"]')?.textContent)
+      .toBe(i18n.getFixedT(lang)("evidence.measure.non_trading"));
+    // Every cited 758 / 781 leaf is listed and marked.
+    for (const code of (item.evidence as { accounts: string[] }).accounts) {
+      expect(d.querySelector(`[data-evidence-target="account:${CSS.escape(code)}"]`)?.getAttribute("data-highlighted"), code).toBe("true");
+    }
+    if (lang === "ro") expect(d.textContent).toContain("Măsura proprie a constatării");
+  });
 
   it("the statement lines the engine names are all declared (none opens the 'unknown line' sentence)", () => {
     const pack = WORLDS.flatMap((w) => w.attention.items)

@@ -268,6 +268,7 @@
   {
    "basis_label": null,
    "evidence": {
+    "account": "2813.01",
     "accounts": [
      "2813.01",
      "2131.01",
@@ -293,9 +294,9 @@
      "2111.06",
      "2111.04"
     ],
-    "kind": "statement",
-    "line": "bs.ppe_net",
-    "tab": "balance_sheet"
+    "finding": "asset_age",
+    "kind": "account",
+    "measure": "depreciated_share"
    },
    "family": "insight",
    "figure": {
@@ -449,6 +450,7 @@
   {
    "basis_label": null,
    "evidence": {
+    "account": "4511.01",
     "accounts": [
      "4511.01",
      "461.016",
@@ -460,9 +462,9 @@
      "461.06",
      "481"
     ],
-    "kind": "ratio",
-    "ratio": "current_ratio",
-    "tab": "ratios"
+    "finding": "liquidity_quality",
+    "kind": "account",
+    "measure": "current_ratio_trade_only"
    },
    "family": "insight",
    "figure": {

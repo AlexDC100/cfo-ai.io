@@ -114,7 +114,7 @@ graph LR
     pkg_api -->|4| pkg_serving
     pkg_api -->|2| pkg_storage
     pkg_api -->|2| pkg_workspaces
-    pkg_attention -->|1| pkg_comparatives
+    pkg_attention -->|2| pkg_comparatives
     pkg_benchmarks_ro -->|1| pkg_public_ro
     pkg_benchmarks_ro -->|1| pkg_ratios
     pkg_benchmarks_ro -->|1| pkg_serving

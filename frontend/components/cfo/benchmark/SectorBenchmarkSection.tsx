@@ -120,6 +120,7 @@ export function SectorBenchmarkView({ doc }: { doc: SectorBenchmarkDoc }) {
                 data-testid="sector-row"
                 data-sector-row={r.key}
                 data-status={r.status}
+                data-served-value={doc.rows.find((x) => x.key === r.key)?.company?.value ?? ""}
                 data-highlighted={highlight === r.key ? "true" : undefined}
                 className={`grid grid-cols-1 sm:grid-cols-[minmax(0,1.5fr)_minmax(0,0.8fr)_minmax(0,1.4fr)_minmax(0,1.3fr)] gap-x-3 gap-y-1.5 border-t border-rule-soft px-4 py-3 ${
                   highlight === r.key ? "bg-brand-tint/40 ring-1 ring-inset ring-brand/50" : ""
