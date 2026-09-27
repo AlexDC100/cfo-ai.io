@@ -132,6 +132,9 @@ PROV_72X_NO_ACTIVITY = "no_72x_activity"
 #: No trial-balance evidence: the engine's own read of the 72x lines
 #: (the larger side of each account's cumulative turnover).
 PROV_72X_ENGINE_READ = "72x_engine_read"
+#: A filed statutory return prints 72x ("Venituri din producția de
+#: imobilizări") on its own row: the filed row IS the measurement.
+PROV_72X_STATUTORY = "72x_statutory_return_row"
 
 # ── Refusal codes ─────────────────────────────────────────────────────
 REASON_PREDATES = "period_predates_stock_variation_measurement"
@@ -589,16 +592,24 @@ def _open_book_121_clean(r121: Mapping[str, float]) -> bool:
         abs(yd) < EPS or abs(yd - transfer) < MOVEMENT_MATCH_TOLERANCE)
 
 
-def evidence_from_statutory_return(net_711: float) -> Dict[str, Any]:
+def evidence_from_statutory_return(net_711: float,
+                                   capitalized_72x: Optional[float] = None) -> Dict[str, Any]:
     """An ANAF statutory return prints the variation NET (rows "Venituri
-    aferente costului producției în curs de execuție", sold C / sold D).
-    Nothing to derive: the filed figure is the measurement."""
-    return {
+    aferente costului producției în curs de execuție", sold C / sold D)
+    and own work capitalised on its own row ("Venituri din producția de
+    imobilizări", 72x). Nothing to derive: the filed figures are the
+    measurement. ``capitalized_72x`` is None only for a caller that states
+    no 72x row (a block stored before 2026-09-27): `decide` then reads the
+    assembler's 72x bucket."""
+    out = {
         "schema": SCHEMA,
         "basis": BASIS_STATUTORY,
         "book_state": STATUTORY_RETURN,
         "statutory_net_711": _r2(net_711),
     }
+    if capitalized_72x is not None:
+        out["statutory_72x"] = _r2(capitalized_72x)
+    return out
 
 
 def absent_evidence(reason: str) -> Dict[str, Any]:
@@ -658,6 +669,10 @@ _LABEL_72X = {
         CAPITALIZED_NAME_RO + " (72x, rulajul citit de motor)",
         "Own work capitalised (72x, the engine's read of the turnover)",
     ),
+    PROV_72X_STATUTORY: (
+        CAPITALIZED_NAME_RO + " (72x, rândul din situațiile financiare depuse)",
+        "Own work capitalised (72x, the row of the filed statutory return)",
+    ),
 }
 _SPLIT_ASSUMPTION = (
     "Împărțirea dintre 711 și 72x presupune că 722 nu are înregistrări pe debit.",
@@ -713,6 +728,14 @@ def decide(
             v72, p72 = _f(a72x.get("net_movement")), PROV_72X_MOVEMENT
         else:
             v72, p72 = _f(a72x.get("credit_turnover")), PROV_72X_CLOSED
+    elif basis == BASIS_STATUTORY and evidence.get("statutory_72x") is not None:
+        # The filed 72x row. (Until 2026-09-27 the statutory synthesizer
+        # routed 722 through code 758 — other operating income — so the
+        # 72x bucket read 0.00 "no postings" on every filed return that
+        # capitalised own work, and the reconciliation line printed an
+        # EBITDA-before figure that still held it.)
+        v72 = _f(evidence.get("statutory_72x"))
+        p72 = PROV_72X_NO_ACTIVITY if abs(v72) < EPS else PROV_72X_STATUTORY
     else:
         v72 = round(_f(read_72x_lines), 2)
         p72 = PROV_72X_NO_ACTIVITY if abs(v72) < EPS else PROV_72X_ENGINE_READ

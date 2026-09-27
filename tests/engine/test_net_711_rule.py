@@ -474,6 +474,51 @@ def test_the_statutory_return_and_the_absent_evidence_branches():
     WORK["units"] += 10
 
 
+def test_a_filed_statutory_return_serves_its_72x_row_as_own_work_capitalised():
+    """A statutory return (the F30 path, `_statutory_parser`) carries 722 on
+    its own row. It was synthesized under code 758 (other operating income):
+    the one EBITDA came out right, but the served 72x line read 0.00 "no
+    postings in the period", the reconciliation line's EBITDA-before still
+    held 722 (800,000 where it is 600,000), and core / adjusted EBITDA
+    stripped it as a 758 credit — which they keep on a trial-balance period.
+    The filed row is now own work capitalised, with its own provenance, on
+    the same parts a trial balance's 72x has."""
+    from engine.api import _statutory_parser as SP
+
+    ex = SP.StatutoryExtractionResult(pl_data={
+        "cifra_afaceri_neta": 1_000_000.0, "venituri_imobilizari": 200_000.0,
+        "variatie_stocuri_credit": 50_000.0, "variatie_stocuri_debit": 0.0,
+        "cheltuieli_materii_prime": 400_000.0,
+    }, bs_data={}, period_end="2025-12-31")
+    accounts = SP.accounts_to_assemble_shape(ex)
+    assert not [a for a in accounts if a["code"].startswith("758")], accounts
+    ev = SP.stock_variation_evidence(ex)
+    assert ev["statutory_72x"] == 200_000.0 and ev["statutory_net_711"] == 50_000.0
+    pl = coa.assemble_statements(accounts, company_name="X", currency="RON", period_label="FY",
+                                 stock_variation_evidence=ev)["statements"]["assembled_pl"]
+    cap = pl["capitalized_own_work"]
+    assert (cap["value"], cap["provenance"]) == (200_000.0, sv.PROV_72X_STATUTORY), cap
+    assert "no postings" not in cap["label_en"], cap["label_en"]
+    assert pl["inventory_variation"]["value"] == 50_000.0
+    assert pl["ebitda"] == 850_000.0
+    assert pl["ebitda_before_stock_variation"] == 600_000.0
+    assert pl["other_operating_income"] == 0.0, "722 was read as other operating income"
+    parts = dict((p["key"], p["value"]) for p in pl["ebitda_reconciliation"]["bridge"]["parts"])
+    assert parts == {"ebitda_before_stock_variation": 600_000.0, "inventory_variation": 50_000.0,
+                     "capitalized_own_work": 200_000.0, "ebitda": 850_000.0}, parts
+    # core / adjusted keep 72x inside, exactly as on a trial-balance period
+    assert pl["core_ebitda"] == pl["adjusted_ebitda"] == 850_000.0
+    # A statutory block stored before the filed 72x row was recorded: the
+    # assembler's own 72x bucket (the 722 line) is read, never a 0.00.
+    legacy = sv.evidence_from_statutory_return(50_000.0)
+    assert "statutory_72x" not in legacy
+    lpl = coa.assemble_statements(accounts, company_name="X", currency="RON", period_label="FY",
+                                  stock_variation_evidence=legacy)["statements"]["assembled_pl"]
+    assert lpl["capitalized_own_work"]["value"] == 200_000.0
+    assert lpl["ebitda"] == 850_000.0 and lpl["ebitda_before_stock_variation"] == 600_000.0
+    WORK["units"] += 14
+
+
 def test_767_is_financial_and_the_open_72x_is_its_net():
     """767 (discounts received) sits in the financial result, outside
     EBITDA and EBIT; an OPEN book's 72x is Σ(credit − debit)."""

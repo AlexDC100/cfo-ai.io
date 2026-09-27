@@ -10690,6 +10690,48 @@ FAILED tests/engine/test_net_711_rule.py::test_zz_scope_and_work - AssertionE...
 CANNOT SEE (G7): a parser change that does NOT bump `PARSER_VERSION` — the
 stamp is only as honest as the version constant.
 
+### net-711-rule — a filed statutory return's 72x row is own work capitalised (fixer round 1, 2026-09-27)
+
+**INCIDENT** — critic finding: `_statutory_parser._synth_accounts_from_extraction`
+synthesized "Venituri din producția de imobilizări" (722) under code 758
+(other operating income) so that the pre-ruling statutory EBITDA would
+include it. Under the one EBITDA the figure stayed right (net 72x is inside
+either way) but its PARTS did not: a filed return with 722 200,000 and net
+711 +50,000 served `capitalized_own_work` 0.00 "no postings in the period",
+a reconciliation bridge of 800,000 · 50,000 · 0 = 850,000 (the true
+EBITDA-before is 600,000), core / adjusted EBITDA 650,000 (722 stripped as a
+758 credit — a trial-balance period keeps it), and the cash-burn rule keyed
+to `ebitda_before_stock_variation` could not see a statutory developer.
+
+722 is now synthesized under code 722 (the capitalizedOwnWork bucket, as a
+trial balance's 72x), the statutory evidence carries the filed row
+(`statutory_72x`), and `decide` serves it with provenance
+`72x_statutory_return_row`; a statutory block stored before the row was
+recorded reads the assembler's 72x bucket. Witness:
+`test_a_filed_statutory_return_serves_its_72x_row_as_own_work_capitalised`
+(bridge 600,000 · 50,000 · 200,000 = 850,000; no 758 line; core = adjusted =
+850,000; the legacy block reads 200,000). Work 153 units.
+
+**PLANT 722-as-758** — `src/engine/api/_statutory_parser.py`: the 722 line
+synthesized under code 758 again.
+```
+RED (plant) — 1 failed, 29 passed
+E   assert not [{'amount': 200000.0, 'code': '758', 'name': 'Venituri din producția de imobilizări (722, included in EBITDA)'}]
+FAILED tests/engine/test_net_711_rule.py::test_a_filed_statutory_return_serves_its_72x_row_as_own_work_capitalised
+```
+**PLANT filed-row-ignored** — `stock_variation.decide`: the statutory 72x
+branch disabled (`elif False and basis == BASIS_STATUTORY …`).
+```
+RED (plant) — 1 failed, 29 passed
+E   assert (200000.0, '72x_engine_read') == (200000.0, '72x_statutory_return_row')
+FAILED tests/engine/test_net_711_rule.py::test_a_filed_statutory_return_serves_its_72x_row_as_own_work_capitalised
+```
+**REVERT** — both files restored from their copies: `30 passed`.
+
+CANNOT SEE: a statutory period through the served route (`one-ebitda-engine`
+has no statutory book — its harness persists trial balances only); statutory
+periods ALREADY stored with 722 under 758 keep it there until reprocessed.
+
 ## net-income-anchor-witness
 
 | | |
