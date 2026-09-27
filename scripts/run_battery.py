@@ -1098,7 +1098,7 @@ def _engine_gates() -> List[Gate]:
               "frontend/components/instrument/shell/__tests__/cmdbarSwitchAction.test.tsx",
               "frontend/pages/cfo/__tests__/dashboardCompanyHold.test.tsx",
               "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=186,
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=187,
              units="command-bar tests",
              canaries=("the rows ARE the served items, in the served rank, each with its figure",
                        "two companies, one fixture shape: different figures (S1) and different words (S2)",
@@ -1142,7 +1142,8 @@ def _engine_gates() -> List[Gate]:
                        "GATE-WORK cmdbar-switch in-flight",
                        "GATE-WORK cmdbar-wrapped-code agras probes=",
                        "GATE-WORK cmdbar-latency warm keystrokes=",
-                       "GATE-WORK cmdbar-latency cold answers=")),
+                       "GATE-WORK cmdbar-latency cold answers=",
+                       "GATE-WORK cmdbar-selection-frames queries=")),
         # THE EVIDENCE RECEIVERS, frontend stage CB-F2 (design C4):
         #   evidence-lines   the account view's statement lines ARE the
         #                    engine's comparatives lines: the served path,

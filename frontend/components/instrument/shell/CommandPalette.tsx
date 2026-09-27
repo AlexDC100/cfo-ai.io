@@ -404,10 +404,18 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     if (open) setRecentsOf({ orgId: scope.orgId, list: readRecents(scope.orgId) });
   }, [open, scope.orgId]);
 
-  // Typing selects the answer (the first row); rest selects nothing.
-  useEffect(() => {
+  // Typing selects the answer (the first row); rest selects nothing — in
+  // the SAME render that shows the new query (state derived during render),
+  // never in an effect after it: the first frame of "stoc", typed after ↓
+  // had walked "profit" to its end, was committed with the previous walk's
+  // index, past the new list — no row selected until the effect ran (live
+  // G8 caught that frame once in the stage CB-J run).
+  const selectionKey = `${typing ? "typing" : "rest"}:${query}`;
+  const [selectionFor, setSelectionFor] = useState(selectionKey);
+  if (selectionFor !== selectionKey) {
+    setSelectionFor(selectionKey);
     setActiveIdx(typing ? 0 : -1);
-  }, [query, typing]);
+  }
 
   // Clamp a selection the list has shrunk under. A FUNCTIONAL update: this
   // effect runs in the same commit as the one above, and a clamp computed

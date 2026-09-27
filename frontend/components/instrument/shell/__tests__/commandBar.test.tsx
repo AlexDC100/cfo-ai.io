@@ -50,6 +50,7 @@ import { act, cleanup, fireEvent, render, screen, within } from "@testing-librar
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Profiler } from "react";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -227,7 +228,10 @@ function LocationProbe() {
   return <div data-testid="location">{loc.pathname + loc.search}</div>;
 }
 
-function mount(w: World) {
+/** `onCommit`: called on every React commit of the bar (a Profiler's
+ *  onRender runs after the DOM is mutated) — a law that must hold on EVERY
+ *  frame, not only the settled one, reads the DOM there. */
+function mount(w: World, onCommit?: () => void) {
   H.org = w.org;
   H.orgs = [w.org, { id: "org-other", name: "Other Company SRL", industry_key: null }];
   const priorPeriod = w.priorId ? [{ period_id: w.priorId, period_end: "2024-12-31", period_start: null, period_label: "Dec 2024", documents: [{ id: "d0" }] }] : [];
@@ -253,7 +257,9 @@ function mount(w: World) {
   const utils = render(
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={[`/dashboard?period=${w.periodId}`]}>
-        <CommandPalette open onOpenChange={onOpenChange} onOpenAi={() => {}} />
+        <Profiler id="cmdbar" onRender={() => onCommit?.()}>
+          <CommandPalette open onOpenChange={onOpenChange} onOpenAi={() => {}} />
+        </Profiler>
         <LocationProbe />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -1283,6 +1289,43 @@ describe("cmdbar-keyboard — the whole flow from the keyboard", () => {
     expect(input().getAttribute("aria-activedescendant")).toBe(opts()[0].id);
     key("Enter");
     expect(screen.getByTestId("location").textContent).toMatch(/line=bs\.trade_receivables_net/);
+  });
+
+  it("no committed frame of a new query carries the previous walk's selection — every commit, not only the settled one", () => {
+    // Live G8 (stage CB-J run) caught the first frame of "stoc", typed after
+    // ↓ had walked "profit" to its end, with NO row selected: the reset ran
+    // in an effect after the commit that showed the new list. The settled
+    // state was right, so every law that looked after the effects was green.
+    const frames: { query: string; sel: string | null; first: string | null }[] = [];
+    const onCommit = () => {
+      const composer = document.querySelector<HTMLTextAreaElement>('[data-testid="capsule-composer"]');
+      const rows = [...document.querySelectorAll('[data-testid="cmdbar-rows"] [role="option"]')];
+      frames.push({
+        query: composer?.value ?? "",
+        sel: document.querySelector('[data-testid="cmdbar-rows"] [role="option"][aria-selected="true"]')?.getAttribute("data-row-id") ?? null,
+        first: rows[0]?.getAttribute("data-row-id") ?? null,
+      });
+    };
+    mount(scandiaWorld(), onCommit);
+    type("profit");
+    const bad: string[] = [];
+    let judged = 0;
+    for (const q of ["stoc", "clienti", "raport", "4111", "cifra de afaceri", "profit"]) {
+      const n = opts().length;
+      for (let i = 0; i < n + 2; i++) key("ArrowDown");
+      // POSITIVE CONTROL: the walk ended below the new query's first row.
+      expect(selected(), `the walk before "${q}" ended on the last row`).toBe(n - 1);
+      const at = frames.length;
+      type(q);
+      const mine = frames.slice(at).filter((f) => f.query === q && f.first !== null);
+      expect(mine.length, `VACUITY: frames committed for "${q}"`).toBeGreaterThan(0);
+      for (const f of mine) {
+        judged++;
+        if (f.sel !== f.first) bad.push(`"${q}": a frame selected ${f.sel}, its first row is ${f.first}`);
+      }
+    }
+    expect(bad, "a committed frame of a new query that does not select its first row").toEqual([]);
+    console.log(`GATE-WORK cmdbar-selection-frames queries=6 frames=${judged}`);
   });
 
   it("Enter on the answer opens its evidence (the account view for its line)", () => {
