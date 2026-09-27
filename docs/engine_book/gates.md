@@ -12384,3 +12384,223 @@ the browser's `canonicalMetrics.balance.equity`, `periodFacts`,
 envelope is always served on these books); the BS tab's rows (they print
 what the rows sum to and state the imbalance); pixels.
 
+### refusal-carries / refusal-carries-engine — every other reader of total equity; the real developer with account 121 deleted from the file (critic round 2, 2026-09-27)
+
+**INCIDENT** — two critic findings (high, blocking) and one (high) on
+round 1: `assembled_bs.total_equity_refusal` was authoritative only for the
+surfaces round 1 gated. Measured through the real write seam and GET
+/api/period on the constructed `unanchored_unbalanced` (equity 200,000.00,
+delta 170,000.00) and on the REAL developer — `corpus/saga_10_col_realestate`
+with row 9 (account 121101) deleted from the FILE (dropping rows in the
+parser is not enough: canonical_bs re-reads the bytes, still sees 121 and
+reports delta 0) — net result refused, `bs_balance_delta` -801,604.14, served
+`total_equity` 41,085,738.87. Still printing or judging the short figure:
+- engine: the briefing's facts (`total_equity` a citable MoneyFact; Debt /
+  Equity 0.45 — 0.0 on the constructed book); the methodology view grading
+  `equity_ratio` 0.492531 against [0.3, 0.6], `debt_to_equity` 0.4515,
+  `lt_debt_to_equity` 0.359108 (no key in `methodology.refusals`);
+  `FactsGateway.equity()` → the Capsule's `equity` and `equity_ratio`
+  (0.476); the insights related-party haircut ("the equity ratio moves from
+  49.3% to 49.2%" beside a ratio row that refuses the equity ratio);
+  stage_validate R4 (Art. 153^24 fired "Equity (RON 200,000) below half of
+  share capital (RON 500,000)" where the year's result makes it 370,000) and
+  the findings detector `equity_below_half_capital` ("net assets are above
+  the statutory floor").
+- browser: the report's §1 "Equity ratio 47.6 %" (`canonicalMetrics.
+  balance.equity = total_equity ?? 0`) and §6 "Book equity (NAV floor)
+  200,000" under "book equity (NAV floor) stands alone" — on the page whose
+  §5 refuses the equity ratio; the dashboard resolver (equity ratio 0.4925,
+  debt / equity 0.4515); periodFacts' `mOr` falling back to the rows' sum
+  once the engine rows were refused (0.476 / 0) — the covenant card's
+  "equity ratio 47.6% vs typical 30% floor"; the Capsule fact index deriving
+  the equity ratio; the chat context's "Total equity".
+
+**CORRECTION** — the round-1 CANNOT SEE above said `canonicalMetrics.
+balance.equity` and `periodFacts` "do not print it". They printed it (the
+report's §1 tile, the covenant card), and FactsGateway / the Capsule were
+listed as out of scope while the finding named them.
+
+**THE FIX** — engine: `methodology.evaluate(refused_totals=...)` (the
+assembler hands it `total_equity_refusal`): `totals.total_equity` None and
+`ratios.equity_ratio` / `debt_to_equity` / `lt_debt_to_equity` refused into
+`methodology.refusals` with the net result's code. `FactsGateway.equity()`
+raises RefusedFactError on `refusals["totals.total_equity"]` (the Capsule's
+gap now carries the engine's sentence; the advisory and radar skip it);
+`statement_equity()` is the statement's own total for the readers that land
+or partition the served statement (the serve-path landing, the rebuild's
+bucket completion — whose legacy branch would otherwise close the refused
+build-up into retained earnings — the forecast opening, the briefing grand
+totals). Briefing facts: `total_equity` None + `total_equity_refusal`; Debt /
+Equity refuses with the reason; the narrate prompt says so. Insights:
+related-party exposure NotFired with the reason. stage_validate: R4 and R6
+skipped, alert `equity_refused_net_result` states why. Findings:
+`equity_below_half_capital` and the revaluation-share detector skipped with
+the reason. Browser: `equityRefusalOf` (servedOneEbitda) is the one reader;
+canonicalMetrics `balance.equity` null + `equity_refusal` (census 7 -> 6);
+the report's §1 tile and §6 row/banner print "refused — <reason>";
+`buildReportingMetrics` leaves `shareholdersEquity` absent and
+`metricCardRefusal` (extracted pure from MetricCard) prints "Total equity
+refused: <reason>" on equity cards; periodFacts `bs.total_equity` null with
+`total_equity_refusal`, the three ratios null (no `mOr`, no stale row); the
+Capsule fact index drops `equity` and the equity ratio; the chat context
+states the refusal.
+
+**LAW** — engine (`GATE-WORK refusal-carries-engine units=537`, floor 480):
+the derived witness `realestate_no121` joins the refused books (its margins
+refuse first by the one margin rule, with that code — still refused); section
+12 holds every reader above to the refusal on short equity and to the figure
+on complete equity (R4 and the floor detector on a share capital set so the
+floor WOULD fire; the related-party insight, R6 and the revaluation detector
+fire on the corpus developer WITH 121), the served legacy view's bucket
+equity to the statement's total, the forecast opening to an
+opening-does-not-balance refusal, and the serve-path landing to no error.
+Browser (`Tests 37 passed`, floor 35): round 4 (seven tests) on
+`unanchored_unbalanced`, figures kept on `unanchored`.
+
+**PLANTS** (engine, each alone, byte-exact restore, `scratchpad/rr2/plant_engine.py`):
+```
+PLANT briefing-facts-cite-the-short-equity: src/engine/api/pipeline.py
+  exit=1
+  E   AssertionError: unanchored_unbalanced: the briefing's facts carry total_equity 200000.0 (refusal None) on equity short by the refused result — a citable MoneyFact
+  E   AssertionError: realestate_no121: the briefing's facts carry total_equity 41085738.87 (refusal None) on equity short by the refused result — a citable MoneyFact
+  -> RED ; file restored byte-exact
+PLANT briefing-debt-to-equity-on-the-short-equity: src/engine/api/pipeline.py
+  exit=1
+  E   AssertionError: unanchored_unbalanced: the briefing's debt_to_equity = 0.0 (None), expected the engine's reason
+  E   AssertionError: realestate_no121: the briefing's debt_to_equity = 0.45 (None), expected the engine's reason
+  -> RED ; file restored byte-exact
+PLANT methodology-grades-the-short-equity: src/engine/methodology/evaluator.py
+  exit=1
+  E   AssertionError: unanchored_unbalanced: methodology totals.total_equity 200000.0 refused None
+  E     unanchored_unbalanced: methodology ratios.equity_ratio = 0.47619 (band [0.3, 0.6]) refused None — graded on equity short by the refused result
+  E     unanchored_unbalanced: methodology ratios.debt_to_equity = 0.0 (band [0.0, 1.0]) refused None — graded on equity short by the refused result
+  E     unanchored_unbalanced: methodology ratios.lt_debt_to_equity = 0.0 (band None) refused None — graded on equity short by the refused result
+  E     unanchored_unbalanced: FactsGateway.equity serves 20000000 on short equity
+  -> RED ; file restored byte-exact
+PLANT gateway-serves-the-short-equity: src/engine/serving/facts.py
+  exit=1
+  E   AssertionError: unanchored_unbalanced: FactsGateway.equity serves 20000000 on short equity
+  E     unanchored_unbalanced: Capsule get_facts equity serves ToolMoney(fact='total_equity', metric='equity', amount_minor=20000000, currency='RON', provenance={'period_id': 'p-unanchored_unbalanced', 'period_
+  E     unanchored_unbalanced: Capsule get_facts equity_ratio serves ToolRatio(fact='equity_share', metric='equity_ratio', unit='percent', value=0.47619047619047616, numerator_minor=20000000, denominator_minor=
+  E   AssertionError: realestate_no121: FactsGateway.equity serves 4108573887 on short equity
+  -> RED ; file restored byte-exact
+PLANT insights-haircut-on-the-short-equity: src/engine/insights/detectors.py
+  exit=1
+  E   AssertionError: unanchored_unbalanced: the related-party insight [] / [{'id': 'related_party_exposure', 'title': 'Related-party and other-debtor balances sit inside the assets', 'reason': 'No intercompany
+  E   AssertionError: realestate_no121: the related-party insight ['RON 38,640.75 of related-party and other-debtor receivables is 0.05% of total assets and 0.1% of equity; written off in full, the equity ratio
+  -> RED ; file restored byte-exact
+PLANT r4-judges-the-short-equity: src/engine/api/pipeline.py
+  exit=1
+  E   AssertionError: unanchored_unbalanced: stage_validate judged equity short by the refused result: ['data_quality_bs_imbalance', 'equity_below_half_capital', 'ebitda_refused_stock_variation']
+  E   AssertionError: realestate_no121: stage_validate judged equity short by the refused result: ['equity_below_half_capital', 'ebitda_refused_stock_variation', 'risk_inventory_cash_tight', 'risk_inventory_fx_
+  -> RED ; file restored byte-exact
+PLANT findings-floor-on-the-short-equity: src/engine/api/findings/s_solvency.py
+  exit=1
+  E   AssertionError: unanchored_unbalanced: findings equity_below_half_capital judged equity short by the refused result: fired ['data_quality_bs_imbalance', 'equity_below_half_capital'], check [{'rule_id': 'e
+  E   AssertionError: realestate_no121: findings equity_below_half_capital judged equity short by the refused result: fired ['equity_below_half_capital', 'liquidity_cash_tight', 'fx_exposure'], check [{'rule_id
+  -> RED ; file restored byte-exact
+PLANT findings-reval-share-of-the-short-equity: src/engine/api/findings/s_structure.py
+  exit=1
+  E   AssertionError: realestate_no121: findings equity_quality_revaluation_reserves judged equity short by the refused result: fired ['liquidity_cash_tight', 'equity_quality_revaluation_reserves', 'fx_exposure
+  ========================= 1 failed, 6 passed in 1.71s ==========================
+  -> RED ; file restored byte-exact
+PLANT r6-reval-share-of-the-short-equity: src/engine/api/pipeline.py
+  exit=1
+  E   AssertionError: realestate_no121: stage_validate judged equity short by the refused result: ['equity_refused_net_result', 'ebitda_refused_stock_variation', 'risk_inventory_cash_tight', 'risk_inventory_fx_
+  ========================= 1 failed, 6 passed in 1.75s ==========================
+  -> RED ; file restored byte-exact
+PLANT completion-reads-the-refused-equity: src/engine/api/pipeline.py
+  exit=1
+  E   AssertionError: unanchored_unbalanced: the served legacy view's bucket equity 320000.0 is not the statement's equity 200000.0
+  E   AssertionError: realestate_no121: the served legacy view's bucket equity 10694320.49 is not the statement's equity 41085738.87
+  -> RED ; file restored byte-exact
+PLANT forecast-opening-reads-the-refused-equity: src/engine/forecast/opening.py
+  exit=1
+  E   AssertionError: unanchored_unbalanced: the forecast opening raised RefusedFactError "'total equity refused: account_121_anchor_absent'"
+  E   AssertionError: realestate_no121: the forecast opening raised RefusedFactError "'total equity refused: account_121_anchor_absent'"
+  -> RED ; file restored byte-exact
+PLANT serve-landing-reads-the-refused-equity: src/engine/api/pipeline.py
+  exit=1
+  E   AssertionError: unanchored_unbalanced: the serve path's envelope landing failed: ['[envelope-truth] persisted-envelope override failed (non-fatal)']
+  E   AssertionError: realestate_no121: the serve path's envelope landing failed: ['[envelope-truth] persisted-envelope override failed (non-fatal)']
+  -> RED ; file restored byte-exact
+PLANT capsule-gap-drops-the-reason: src/engine/api/_capsule_tools.py
+  exit=1
+  E   AssertionError: unanchored_unbalanced: Capsule get_facts equity serves None (gap "FY2025 does not carry equity ('total equity refused: account_121_anchor_absent')."), expected the refusal with its reason
+  E     unanchored_unbalanced: Capsule get_facts equity_ratio serves None (gap "FY2025 does not carry equity ('total equity refused: account_121_anchor_absent')."), expected the refusal with its reason
+  E   AssertionError: realestate_no121: Capsule get_facts equity serves None (gap "FY2025 does not carry equity ('total equity refused: account_121_anchor_absent')."), expected the refusal with its reason
+  E     realestate_no121: Capsule get_facts equity_ratio serves None (gap "FY2025 does not carry equity ('total equity refused: account_121_anchor_absent')."), expected the refusal with its reason
+  -> RED ; file restored byte-exact
+REVERT (clean tree):
+  ============================== 7 passed in 1.65s ===============================
+```
+A fourteenth plant stayed GREEN and its code was removed instead:
+`insights/book.py` `bs("total_equity") -> None` on a refused equity — the
+related-party detector reads `equity_refusal()` first, so the branch was
+unobservable (the one-authority rule: a guard no gate can see is deleted,
+not kept).
+
+**PLANTS** (browser, each alone, byte-exact restore, `scratchpad/rr2/plant_fe.py`):
+```
+PLANT canonical-equity-or-0: frontend/lib/canonicalMetrics.ts
+   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: canonicalMetrics carries no total equity — the engine's refusal instead 4ms
+   → canonical total equity: expected 200000 to be null
+   Tests  1 failed | 36 passed (37)
+  -> RED ; file restored byte-exact
+PLANT report-kpi-drops-the-equity-reason: frontend/pages/cfo/ComprehensiveReport.tsx
+   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: the report's §1 Equity ratio and §6 Book equity print the reason — never 47.6 % or 200,000 40ms
+   → Unable to find an element by: [data-testid="report-kpi-equity-ratio-refused"]
+   Tests  1 failed | 36 passed (37)
+  -> RED ; file restored byte-exact
+PLANT report-book-equity-reads-the-rows: frontend/pages/cfo/ComprehensiveReport.tsx
+   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: the report's §1 Equity ratio and §6 Book equity print the reason — never 47.6 % or 200,000 41ms
+   → Unable to find an element by: [data-testid="report-valuation-book-equity-refused"]
+   Tests  1 failed | 36 passed (37)
+  -> RED ; file restored byte-exact
+PLANT periodfacts-equity-from-the-rows: frontend/lib/periodFacts.ts
+   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: periodFacts refuses total equity and every ratio on it — no `mOr` fallback, no stale row 4ms
+   → periodFacts total equity: expected 200000 to be null
+   Tests  1 failed | 36 passed (37)
+  -> RED ; file restored byte-exact
+PLANT periodfacts-stale-row-stands-in: frontend/lib/periodFacts.ts
+   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: periodFacts refuses total equity and every ratio on it — no `mOr` fallback, no stale row 5ms
+   → expected [ 0.4762, null, null ] to deeply equal [ null, null, null ]
+   Tests  1 failed | 36 passed (37)
+  -> RED ; file restored byte-exact
+PLANT reporting-metrics-equity-from-the-rows: frontend/lib/learning/buildReportingMetrics.ts
+   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: the dashboard resolver forms no equity ratio / debt to equity, and the card prints the reason 4ms
+   → expected 200000 to be undefined
+   Tests  1 failed | 36 passed (37)
+  -> RED ; file restored byte-exact
+PLANT metric-card-drops-the-equity-reason: frontend/components/dashboard/MetricCard.tsx
+   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: the dashboard resolver forms no equity ratio / debt to equity, and the card prints the reason 3ms
+   → card total_equity: the given combination of arguments (undefined and string) is invalid for this assertion. You can use an array, a map, an object, a set, a string, or a weakset instead of a string
+   Tests  1 failed | 36 passed (37)
+  -> RED ; file restored byte-exact
+PLANT capsule-index-equity-from-the-rows: frontend/lib/capsuleFactIndex.ts
+   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: the Capsule fact index carries no equity and derives no equity ratio 5ms
+   → expected [ 'total_assets', …(23) ] to not include 'equity'
+   Tests  1 failed | 36 passed (37)
+  -> RED ; file restored byte-exact
+PLANT capsule-index-stale-equity-ratio-row: frontend/lib/capsuleFactIndex.ts
+   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: the Capsule fact index carries no equity and derives no equity ratio 5ms
+   → a stale engine row: expected [ 'total_assets', …(23) ] to not include 'equity_ratio'
+   Tests  1 failed | 36 passed (37)
+  -> RED ; file restored byte-exact
+PLANT chat-hands-the-short-equity: frontend/pages/cfo/Chat.tsx
+   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: the chat context states the refusal — never 'Total equity 200,000' 10ms
+   → expected 'Period: FY2025\nCompany: Net 711 cons…' to contain 'Total equity: REFUSED — total equity …'
+   Tests  1 failed | 36 passed (37)
+  -> RED ; file restored byte-exact
+RESTORED: Tests  37 passed (37)
+```
+**REVERT** — engine `7 passed`; browser `Tests 37 passed (37)`.
+
+**CANNOT SEE:** whether the engine was right to refuse (net-711-rule);
+`reportComparatives` / `comparatives.ts`' total-equity line and delta (a
+comparison of two periods' statements, printed as the statement total); the
+benchmark engine's equity ratio (it reads the stored `total_equity` row,
+None on these books, and states no reason of its own); the multi-period
+findings series (`m_series` basis total equity — Radar parked); the exports'
+and BS tab's statement rows (they print what the rows sum to and state the
+imbalance); pixels.
