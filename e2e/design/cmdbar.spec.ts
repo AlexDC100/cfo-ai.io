@@ -13,7 +13,10 @@
  *       and the empty state is THAT company's (swap test, live).
  *   G2  typing: groups in order, answer first, "Întreabă CFO AI" last,
  *       Tab jumps to it; every row family paints (FAMILY_EXPECT floors).
- *   G3  a keystroke fetches NOTHING (the double counts every request).
+ *   G3  a keystroke fetches NOTHING (the double counts every request) —
+ *       counted only after the network has stayed quiet for the whole
+ *       DEBOUNCE_HORIZON_MS, so a request a keystroke DEFERS (a debounce,
+ *       any timer) is counted too (G6 and G7 count the same way).
  *   G4  no horizontal overflow at 390; the panel fits the viewport — at rest
  *       and for every typed query of the screenshot loop.
  *   G5  an item opens its evidence: a ratio answer → the ratios tab with
@@ -37,6 +40,14 @@
  *       never parked under the sticky "Întreabă CFO AI" — at 1440 and 390,
  *       both companies; and a new query selects its own first row whatever
  *       the previous walk left (both defects found by this stage's probe).
+ *   G10 A SWITCH, live (review of stage CB-H): Scandia → Agras with the bar
+ *       open (at rest, typed) and closed, and Scandia Dec 2025 → Dec 2024,
+ *       each through an in-app navigation (no reload — the query cache and
+ *       its keepPreviousData live on). Every frame the bar paints (a
+ *       MutationObserver in the page) carries only figures the header's own
+ *       company and month paint when opened alone; no request asks one
+ *       company about another's period; after the switch settles nothing
+ *       names a period of the company left behind.
  *
  * Screenshots (CMDBAR_SHOTS_DIR set): Scandia and Agras × empty and typed
  * ("profit", "4111", "clienti", "stoc", "raport") × 1440 and 390 × Terminal
@@ -65,6 +76,7 @@ import {
   ORG_AGRAS,
   ORG_SCANDIA,
   SCANDIA,
+  SECTOR_BENCHMARK,
   WorkspaceDouble,
 } from "../workspace-v2.double";
 
@@ -147,6 +159,22 @@ async function settle(page: Page, double: WorkspaceDouble, quietMs = 1200) {
   }
 }
 
+/** THE DEBOUNCE HORIZON (review of stage CB-H). A request a keystroke
+ *  DEFERS — a debounce, a throttle, any timer — is issued after its window;
+ *  a count taken a fixed 300 ms after typing could not see a 400 ms one.
+ *  Every zero-request law counts only once the network has been quiet for
+ *  this long after the last keystroke (`settle`). */
+const DEBOUNCE_HORIZON_MS = 1500;
+
+/** The requests a count holds against the bar: every request to either
+ *  doubled host EXCEPT the header's engine-status dot, which polls
+ *  `GET /health` on its own 20 s clock (lib/useBackendStatus.ts, CLAUDE.md
+ *  §17) — a wait past the debounce horizon can meet it, and it is no
+ *  keystroke's. Nothing else is excused. */
+function heldAgainstTheBar(reqs: { method: string; path: string }[]): string[] {
+  return reqs.filter((r) => !(r.method === "GET" && r.path === "/health")).map((r) => `${r.method} ${r.path}`);
+}
+
 async function typeQuery(page: Page, q: string) {
   const input = page.getByTestId("capsule-composer");
   await input.fill(q);
@@ -219,8 +247,9 @@ test.describe("G1/G2/G3 — the bar on each company", () => {
       for (const q of ["p", "pr", "pro", "prof", "profi", "profit", "4", "41", "411", "4111", "bilnat", "stocuri"]) {
         await typeQuery(pageFor, q);
       }
-      await pageFor.waitForTimeout(300);
-      const during = double.requests.slice(before).map((r) => `${r.method} ${r.path}`);
+      // Past any debounce: quiet for the whole horizon, then count.
+      await settle(pageFor, double, DEBOUNCE_HORIZON_MS);
+      const during = heldAgainstTheBar(double.requests.slice(before));
       expect(during, `${c.key}: requests while typing`).toEqual([]);
       expect(double.unhandled.filter((u) => u.startsWith("THREW"))).toEqual([]);
       console.log(`[cmdbar] ${c.key} unmodelled requests:`, JSON.stringify([...new Set(double.unhandled)]));
@@ -519,7 +548,8 @@ test.describe("G6 — every Răspuns and Cont figure the real bundle paints IS t
           .filter((m) => m.painted !== m.served);
         expect(mismatches, `${c.key}/${lang}: painted ≠ served`).toEqual([]);
 
-        const during = double.requests.slice(before).map((r) => `${r.method} ${r.path}`);
+        await settle(page, double, DEBOUNCE_HORIZON_MS);
+        const during = heldAgainstTheBar(double.requests.slice(before));
         expect(during, `${c.key}/${lang}: requests while searching`).toEqual([]);
         console.log(`GATE-WORK cmdbar-live-figures ${c.key}/${lang} answers=${Object.keys(STATEMENT_QUERIES).length} ratios=${ratios} accounts=${accounts} total=${checks.length}`);
         expect(ratios, "every ratio_table row but dio").toBe(
@@ -547,13 +577,20 @@ test.describe("G7 — < 100 ms per keystroke, zero requests, and the keyboard, o
       await settle(page, double);
       const before = double.requests.length;
       const walls: number[] = [];
+      let horizons = 0;
       for (const q of ["profit", "4111", "clienti", "stoc", "raport", "cifra de afaceri", "furnizrii", "marja neta", "bilant", "exporta"]) {
         for (let i = 1; i <= q.length; i++) {
           const { ms } = await typeInPage(page, q.slice(0, i));
           walls.push(ms);
         }
+        // The reader stops typing: a request the query DEFERS (a debounce)
+        // is issued now — wait it out before the next keystroke clears it
+        // (ending on the empty query hid a debounced fetch: the plant log).
+        await settle(page, double, DEBOUNCE_HORIZON_MS);
+        horizons++;
         walls.push((await typeInPage(page, "")).ms);
       }
+      expect(horizons, "VACUITY: every query waited out the debounce horizon").toBe(10);
       const sorted = [...walls].sort((a, b) => a - b);
       const p50 = sorted[Math.floor(sorted.length / 2)];
       const max = sorted[sorted.length - 1];
@@ -561,7 +598,8 @@ test.describe("G7 — < 100 ms per keystroke, zero requests, and the keyboard, o
       expect(walls.every((w) => Number.isFinite(w)), "every keystroke painted its query").toBe(true);
       expect(walls.length).toBeGreaterThanOrEqual(60);
       expect(max, `${c.key}: slowest keystroke`).toBeLessThan(100);
-      const during = double.requests.slice(before).map((r) => `${r.method} ${r.path}`);
+      await settle(page, double, DEBOUNCE_HORIZON_MS);
+      const during = heldAgainstTheBar(double.requests.slice(before));
       expect(during, `${c.key}: requests while typing`).toEqual([]);
       await ctx.close();
     });
@@ -786,3 +824,222 @@ for (const vp of [{ label: "1440", width: 1440, height: 900 }, { label: "390", w
     }
   }
 }
+
+// ── G10 — a company or period switch, live ──────────────────────────────
+//
+// Review of stage CB-H: the app's query client keeps the previous key's data
+// on screen while a new key loads (keepPreviousData), and the bar read it —
+// Scandia's "Ce contează acum" and sector positions under "Searching Agras
+// SRL", and `/api/period/<Agras>/comparatives?prior=<Scandia>` asked under
+// Scandia's X-Org-Id (workspace-v2 G6: 8 of 40 runs red on this branch, 20
+// of 20 green on 69fb9621). The switch is made IN the app — history +
+// popstate, the way a link or Back moves it — so the cache survives.
+
+/** A second, earlier Scandia period: the Agras book re-homed under
+ *  Scandia's name, its own id and year end — a different book, so its
+ *  figures differ from Dec 2025's. Registered in the double for G10 only. */
+const S24 = "5ea50000-0000-4000-8000-0000000051f4";
+function withScandiaDec2024(d: WorkspaceDouble) {
+  const body = {
+    ...AGRAS.period,
+    organization: { ...AGRAS.period.organization, id: ORG_SCANDIA, name: "Scandia Food SRL" },
+    period: { ...AGRAS.period.period, id: S24, period_end: "2024-12-31" },
+  };
+  d.periods[ORG_SCANDIA] = [SCANDIA, {
+    ...AGRAS, period: body,
+    years: [{ ...AGRAS.years[0], period_id: S24, year: 2024, period_end: "2024-12-31" }],
+  }];
+  const att = ATTENTION[AGRAS_PERIOD] as Record<string, any>;
+  ATTENTION[S24] = { ...att, period: { ...att.period, id: S24, org_id: ORG_SCANDIA, company_name: "Scandia Food SRL", period_end: "2024-12-31", label: "2024-12-31" } };
+  const sec = SECTOR_BENCHMARK[AGRAS_PERIOD] as Record<string, any>;
+  SECTOR_BENCHMARK[S24] = { ...sec, period: { ...sec.period, id: S24, period_end: "2024-12-31" } };
+}
+const OWNER: Record<string, string> = { [SCANDIA_PERIOD]: ORG_SCANDIA, [S24]: ORG_SCANDIA, [AGRAS_PERIOD]: ORG_AGRAS };
+
+/** In the page: what the bar paints now — the header line, and every figure,
+ *  served chip, key metric and context with its row; and a recorder that
+ *  keeps every DIFFERENT frame, on every DOM mutation. */
+const SNAP_JS = `
+  window.__cmdbarSnap = () => {
+    const scope = document.querySelector('[data-testid="cmdbar-scope"]');
+    if (!scope) return null;
+    const bar = document.querySelector('[data-testid="cmdbar"]');
+    const kinds = ["data-figure", "data-chip-state", "data-key-metric", "data-context"];
+    const carriers = Array.from(bar.querySelectorAll('[data-figure], [data-chip-state="ok"], [data-key-metric], [data-context]')).map((el) => {
+      const row = (el.closest("[data-row-id]") || { getAttribute: () => "?" }).getAttribute("data-row-id");
+      return row + " | " + kinds.find((a) => el.hasAttribute(a)) + " | " + (el.textContent || "");
+    });
+    const years = Array.from(bar.querySelectorAll('[data-row-id^="page:year:"]')).map((e) => e.getAttribute("data-row-id"));
+    return { header: scope.textContent || "", carriers, years };
+  };
+  window.__cmdbarRecord = () => {
+    window.__cmdbarFrames = [];
+    let last = "";
+    const rec = () => {
+      const f = window.__cmdbarSnap();
+      if (!f) return;
+      const k = JSON.stringify(f);
+      if (k === last) return;
+      last = k;
+      window.__cmdbarFrames.push(f);
+    };
+    new MutationObserver(rec).observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true });
+    rec();
+  };
+`;
+interface LiveFrame { header: string; carriers: string[]; years: string[] }
+const snapNow = (page: Page) => page.evaluate(() => (window as unknown as { __cmdbarSnap: () => LiveFrame | null }).__cmdbarSnap());
+
+/** In-app navigation: a link or Back moves the URL without a reload. */
+async function moveTo(page: Page, url: string) {
+  await page.evaluate((u) => {
+    window.history.pushState({}, "", u);
+    window.dispatchEvent(new PopStateEvent("popstate", { state: {} }));
+  }, url);
+}
+
+/** What (company, period) paints when opened ALONE: its header line and
+ *  every carrier at rest (and typed). */
+async function steadyOf(browser: Browser, setup: (d: WorkspaceDouble) => void, org: string, period: string, name: string, query: string) {
+  const double = new WorkspaceDouble({ theme: "dark", language: "en" });
+  setup(double);
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await ctx.newPage();
+  await double.install(page);
+  await page.goto(`/dashboard?period=${period}&org=${org}`, { waitUntil: "domcontentloaded" });
+  await expect(page.getByTestId("header-command-bar")).toContainText(name, { timeout: 25_000 });
+  await openBar(page);
+  await settle(page, double);
+  await page.evaluate(SNAP_JS);
+  const rest = (await snapNow(page))!;
+  const carriers = new Set(rest.carriers);
+  if (query) {
+    await typeQuery(page, query);
+    await expect(page.getByTestId("cmdbar-row-ask")).toContainText(query);
+    await settle(page, double);
+    (await snapNow(page))!.carriers.forEach((c) => carriers.add(c));
+  }
+  await ctx.close();
+  return { header: rest.header, carriers };
+}
+
+function paintViolations(frames: LiveFrame[], allowed: Map<string, Set<string>>): string[] {
+  const out: string[] = [];
+  for (const f of frames) {
+    const ok = allowed.get(f.header);
+    for (const c of f.carriers) if (!ok || !ok.has(c)) out.push(`"${f.header}" painted ${c}`);
+    for (const id of f.years) {
+      const [, , org, period] = id.split(":");
+      if (OWNER[period] && OWNER[period] !== org) out.push(`"${f.header}" links ${org}'s year to ${period}`);
+    }
+  }
+  return [...new Set(out)];
+}
+
+type Req = { method: string; path: string; search: string; org: string | null };
+function requestViolations(reqs: Req[], mark: number, left: string | null): string[] {
+  const out: string[] = [];
+  reqs.forEach((r, i) => {
+    const url = `${r.path}${r.search}`;
+    const named = Object.keys(OWNER).filter((p) => url.includes(p));
+    if (r.org && named.some((p) => OWNER[p] !== r.org)) out.push(`asked ${r.org} about another company's period: ${r.method} ${url}`);
+    if (left && i >= mark && named.some((p) => OWNER[p] === left)) out.push(`after the switch, named the company left behind: ${r.method} ${url} (as ${r.org})`);
+  });
+  return out;
+}
+
+test.describe("G10 — a switch paints nothing of what was left behind and asks nothing across companies", () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+  test.setTimeout(120_000);
+  const bothAnalysed = (d: WorkspaceDouble) => { d.periods[ORG_AGRAS] = [AGRAS]; };
+
+  for (const v of [
+    { name: "open, at rest", open: true, query: "" },
+    { name: "open, typed 'clienti'", open: true, query: "clienti" },
+    { name: "closed through the switch, opened after", open: false, query: "" },
+  ]) {
+    test(`Scandia → Agras, the bar ${v.name}`, async ({ browser }) => {
+      const s = await steadyOf(browser, bothAnalysed, ORG_SCANDIA, SCANDIA_PERIOD, "Scandia Food SRL", v.query);
+      const a = await steadyOf(browser, bothAnalysed, ORG_AGRAS, AGRAS_PERIOD, "Agras SRL", v.query);
+      const allowed = new Map([[s.header, s.carriers], [a.header, a.carriers]]);
+      const foreign = [...s.carriers].filter((c) => !a.carriers.has(c));
+      expect(foreign.length, "POSITIVE CONTROL: Scandia paints ≥ 3 carriers Agras does not").toBeGreaterThanOrEqual(3);
+
+      const double = new WorkspaceDouble({ theme: "dark", language: "en" });
+      bothAnalysed(double);
+      const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+      const page = await ctx.newPage();
+      await double.install(page);
+      await page.goto(`/dashboard?period=${SCANDIA_PERIOD}&org=${ORG_SCANDIA}`, { waitUntil: "domcontentloaded" });
+      await expect(page.getByTestId("header-command-bar")).toContainText("Scandia Food SRL", { timeout: 25_000 });
+      await page.evaluate(SNAP_JS);
+      if (v.open) {
+        await openBar(page);
+        if (v.query) {
+          await typeQuery(page, v.query);
+          await expect(page.getByTestId("cmdbar-row-ask")).toContainText(v.query);
+        }
+      }
+      await settle(page, double);
+      await page.evaluate(() => (window as unknown as { __cmdbarRecord: () => void }).__cmdbarRecord());
+      const switchedAt = double.requests.length;
+
+      await moveTo(page, `/dashboard?period=${AGRAS_PERIOD}&org=${ORG_AGRAS}`);
+      await expect(page.getByTestId("header-command-bar")).toContainText("Agras SRL", { timeout: 25_000 });
+      const mark = double.requests.length - switchedAt;
+      if (!v.open) await openBar(page);
+      await expect(page.getByTestId("command-palette")).toBeVisible();
+      await expect(page.getByTestId("cmdbar-scope")).toHaveText(a.header, { timeout: 20_000 });
+      await settle(page, double, DEBOUNCE_HORIZON_MS);
+
+      const frames = await page.evaluate(() => (window as unknown as { __cmdbarFrames: LiveFrame[] }).__cmdbarFrames);
+      const paint = paintViolations(frames, allowed);
+      const asks = requestViolations(double.requests.slice(switchedAt), mark, ORG_SCANDIA);
+      expect({ paint, asks }, "a foreign figure under the header, or a request across companies").toEqual({ paint: [], asks: [] });
+      // POSITIVE CONTROLS: the recorder saw the switch end on Agras's own paint.
+      const last = frames.at(-1)!;
+      expect(last.header).toBe(a.header);
+      expect(last.carriers.length).toBeGreaterThanOrEqual(3);
+      if (v.open) expect(frames.some((f) => f.header === s.header && f.carriers.length > 0), "Scandia was painted before").toBe(true);
+      console.log(`GATE-WORK cmdbar-live-switch company "${v.name}" frames=${frames.length} foreign_carriers=${foreign.length} requests=${double.requests.length - switchedAt}`);
+      await ctx.close();
+    });
+  }
+
+  test("Scandia Dec 2025 → Dec 2024, the bar open", async ({ browser }) => {
+    const setup = (d: WorkspaceDouble) => { bothAnalysed(d); withScandiaDec2024(d); };
+    const d25 = await steadyOf(browser, setup, ORG_SCANDIA, SCANDIA_PERIOD, "Scandia Food SRL", "");
+    const d24 = await steadyOf(browser, setup, ORG_SCANDIA, S24, "Scandia Food SRL", "");
+    expect(d25.header).not.toBe(d24.header);
+    const allowed = new Map([[d25.header, d25.carriers], [d24.header, d24.carriers]]);
+    const foreign = [...d25.carriers].filter((c) => !d24.carriers.has(c));
+    expect(foreign.length, "POSITIVE CONTROL: Dec 2025 paints ≥ 3 carriers Dec 2024 does not").toBeGreaterThanOrEqual(3);
+
+    const double = new WorkspaceDouble({ theme: "dark", language: "en" });
+    setup(double);
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const page = await ctx.newPage();
+    await double.install(page);
+    await page.goto(`/dashboard?period=${SCANDIA_PERIOD}&org=${ORG_SCANDIA}`, { waitUntil: "domcontentloaded" });
+    await expect(page.getByTestId("header-command-bar")).toContainText("Scandia Food SRL", { timeout: 25_000 });
+    await page.evaluate(SNAP_JS);
+    await openBar(page);
+    await settle(page, double);
+    await page.evaluate(() => (window as unknown as { __cmdbarRecord: () => void }).__cmdbarRecord());
+    const switchedAt = double.requests.length;
+    await moveTo(page, `/dashboard?period=${S24}&org=${ORG_SCANDIA}`);
+    await expect(page.getByTestId("cmdbar-scope")).toHaveText(d24.header, { timeout: 20_000 });
+    await expect(page.getByTestId("cmdbar-row-now").first()).toBeVisible({ timeout: 15_000 });
+    await settle(page, double, DEBOUNCE_HORIZON_MS);
+
+    const frames = await page.evaluate(() => (window as unknown as { __cmdbarFrames: LiveFrame[] }).__cmdbarFrames);
+    const paint = paintViolations(frames, allowed);
+    const asks = requestViolations(double.requests.slice(switchedAt), 0, null);
+    expect({ paint, asks }, "a figure of another period under the header, or a request across companies").toEqual({ paint: [], asks: [] });
+    const last = frames.at(-1)!;
+    expect(last.header).toBe(d24.header);
+    expect(last.carriers.length).toBeGreaterThanOrEqual(3);
+    console.log(`GATE-WORK cmdbar-live-switch period frames=${frames.length} foreign_carriers=${foreign.length}`);
+    await ctx.close();
+  });
+});
