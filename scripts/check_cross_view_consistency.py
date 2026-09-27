@@ -365,11 +365,16 @@ def main() -> int:
     # When industry == real_estate_commercial, the tenant_concentration
     # rule fires only when conc > 0.7 — the gate ensures the FE has a
     # mechanism for that (the field exists on BSFacts, optional).
-    statutory_ebitda = pl["ebitda_statutory"]
-    if statutory_ebitda <= 0:
+    # Since the owner ruling of 2026-09-26 the cash-burn rule
+    # `true_negative_ebitda` reads the SERVED build-up BEFORE the stock
+    # variation and own work capitalised (the one EBITDA includes both),
+    # so this is the input it would fire on.
+    before = pl.get("ebitda_before_stock_variation")
+    if isinstance(before, (int, float)) and before <= 0:
         issues.append(
-            f"Statutory EBITDA non-positive ({statutory_ebitda:,.2f}) — "
-            f"recommendation rule `true_negative_ebitda` would correctly fire"
+            f"EBITDA before the stock variation and own work capitalised "
+            f"non-positive ({before:,.2f}) — recommendation rule "
+            f"`true_negative_ebitda` would correctly fire"
         )
 
     # MIRROR of frontend/lib/periodFacts.ts `debtServiceOwn`. It used to

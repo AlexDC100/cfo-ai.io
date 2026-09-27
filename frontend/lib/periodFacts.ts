@@ -37,6 +37,14 @@ export interface PLFacts {
   capitalized_own_work_memo: number;     // 722
   ebitda: number;                        // operating-view (722 included)
   ebitda_excl_capitalized: number;       // strip 722 (clean operational view)
+  /** SERVED `assembled_pl.ebitda_before_stock_variation` — the build-up
+   *  BEFORE net 711 and net 72x (owner ruling 2026-09-26). The one figure
+   *  allowed to differ from EBITDA, read ONLY by the cash-burn rule
+   *  (`true_negative_ebitda`). null when the payload does not serve it. */
+  ebitda_before_stock_variation: number | null;
+  /** SERVED net 711 ("Variația stocurilor de produse"); null when refused
+   *  or not served. */
+  inventory_variation: number | null;
   depreciation: number;                  // 6811
   ebit: number;
   interest_expense: number;              // 666
@@ -223,6 +231,16 @@ export function buildPeriodFacts(args: BuildFactsArgs): PeriodFacts {
   // F2.1 BS-tab rewrite makes obsolete.
 
   const served = factsFrom(statements);
+  // Served one-definition fields (owner ruling 2026-09-26) — read, never
+  // derived here.
+  const servedPl =
+    ((statements as unknown as { assembled_pl?: Record<string, unknown> }).assembled_pl ?? {}) as Record<
+      string,
+      unknown
+    >;
+  const servedNumber = (v: unknown): number | null =>
+    typeof v === "number" && Number.isFinite(v) ? v : null;
+  const servedInventoryVariation = servedPl.inventory_variation as { value?: unknown } | undefined;
   const totalOperatingRevenue = pl.sections[0]?.subtotalAmount ?? statements.incomeStatement.revenue;
   const rentalRevenue =
     statements.incomeStatement.revenue;  // 706 only when 722 is memo-excluded by the canonical pipeline
@@ -240,6 +258,8 @@ export function buildPeriodFacts(args: BuildFactsArgs): PeriodFacts {
     capitalized_own_work_memo: capitalizedOwnWork,
     ebitda: pl.ebitda,
     ebitda_excl_capitalized: pl.ebitda - capitalizedOwnWork,
+    ebitda_before_stock_variation: servedNumber(servedPl.ebitda_before_stock_variation),
+    inventory_variation: servedNumber(servedInventoryVariation?.value),
     depreciation: statements.incomeStatement.depreciationAmortization,
     ebit: pl.ebit,
     interest_expense: interestExpense,

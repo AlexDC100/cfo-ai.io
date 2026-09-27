@@ -2607,6 +2607,16 @@ export function generateRecommendations(
       revenue: pick(apNum("total_operating_revenue"), rentalRevenue + capitalized),
       ebitda: ebitdaStatutory,
       ebitda_excl_capitalized: ebitdaStatutory - capitalized,
+      // SERVED (owner ruling 2026-09-26): the build-up before net 711 and
+      // net 72x — read only by the cash-burn rule — and net 711 itself.
+      ebitda_before_stock_variation: (() => {
+        const v = (ap as Record<string, unknown>).ebitda_before_stock_variation;
+        return typeof v === "number" && Number.isFinite(v) ? v : null;
+      })(),
+      inventory_variation: (() => {
+        const iv = (ap as Record<string, unknown>).inventory_variation as { value?: unknown } | undefined;
+        return typeof iv?.value === "number" && Number.isFinite(iv.value) ? iv.value : null;
+      })(),
       depreciation,
       ebit: pick(apNum("operating_ebit"), ebitdaStatutory - depreciation),
       interest_expense: interest,

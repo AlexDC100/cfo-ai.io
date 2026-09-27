@@ -1148,51 +1148,13 @@ const RULES: Rule[] = [
     },
   },
 
-  // R5. Capitalized own-work disclosure (info)
-  // Earnings-quality observation when 722 is material vs rental revenue.
-  {
-    key: "capitalized_own_work_disclosure",
-    detect: (f) => {
-      const cow = f.pl.capitalized_own_work_memo;
-      const pctRev = cow / Math.max(f.pl.rental_revenue, 1);
-      if (cow <= 0) return null;
-      if (!clearsFloor(cow, f.pl.revenue, BANDS.shareOfRevenue)) return null;
-      const graded = grade(
-        cow,
-        "Capitalised own work (722)",
-        f.pl.revenue,
-        "Revenue",
-        BANDS.shareOfRevenue,
-        "The presentation gap is graded against the top line the two " +
-          "EBITDA views are both stated on, so the verdict is how much of " +
-          "this company's reported margin the choice moves.",
-      );
-      return {
-        ruleKey: "capitalized_own_work_disclosure",
-        graded,
-        title: `Capitalized own-work ${RON(cow)} (account 722) = ${(pctRev * 100).toFixed(0)}% of rental revenue — disclose dual view`,
-        factsCited: {
-          capitalized_own_work: cow,
-          pct_of_rental_revenue: pctRev,
-          ebitda_statutory: f.pl.ebitda,
-          ebitda_operational: f.pl.ebitda_excl_capitalized,
-        },
-        rationaleFallback:
-          `The company capitalizes labor and overhead into CIP (account 231) via 722. The offsetting cost ` +
-          `sits in 628 (Other third-party services) — net P&L effect is approximately zero. However, ` +
-          `statutory EBITDA ${RON(f.pl.ebitda)} (with 722) versus operational view ` +
-          `${RON(f.pl.ebitda_excl_capitalized)} (without) produces a material presentation gap. ` +
-          `Bank covenants typically use the statutory view; investors and analysts may compute the operational view. ` +
-          ladderSentence(graded.materiality),
-        actionsFallback: [
-          "Maintain clear documentation showing the 722/628 wash so an auditor or lender can reconcile both views.",
-          `When speaking to the lender, cite statutory EBITDA (${RON(f.pl.ebitda)}).`,
-          "When speaking to a potential equity investor, present both views with the explanation.",
-          "Once CIP delivers (account 231 → 215), the 722 entry stops and the two views converge — frame the convergence as a milestone.",
-        ],
-      };
-    },
-  },
+  // R5. Capitalized own-work disclosure — RETIRED 2026-09-26 (owner ruling).
+  // It told the reader to "disclose the dual view": statutory EBITDA with
+  // 722 against an "operational" EBITDA without. The ruling puts 72x INSIDE
+  // the one EBITDA and allows no second EBITDA beside it; the own work
+  // capitalised is its own line of the EBITDA reconciliation, served with its
+  // provenance. (The engine's R5 alert and its findings twin are retired in
+  // the same change.)
 
   // ══════════════════════════════════════════════════════════════════
   // TRUE DISTRESS RULES — only fire when the condition is GENUINELY
@@ -1281,25 +1243,45 @@ const RULES: Rule[] = [
     },
   },
 
-  // R8. True negative-EBITDA — fires only when STATUTORY EBITDA < 0
+  // R8. True negative-EBITDA — operations consuming cash. REBASED
+  // 2026-09-26 (owner ruling, design A6) on the SERVED EBITDA BEFORE the
+  // stock variation and own work capitalised: the one EBITDA includes net
+  // 711 and 72x, which on a property developer carry the construction cost
+  // stocked into inventory — its EBITDA is positive (+550,976.12) while the
+  // operations consume 29.0M of cash. That build-up is the one figure the
+  // ruling lets differ from EBITDA, and only for this finding; it is worded
+  // as what it is, never as "EBITDA". Silent when it is not served.
   {
     key: "true_negative_ebitda",
     detect: (f) => {
-      if (f.pl.ebitda >= 0) return null;
+      const before = f.pl.ebitda_before_stock_variation;
+      // ABSENT != ZERO, and absent != negative: a caller that does not
+      // serve the field (undefined) keeps the rule silent.
+      if (typeof before !== "number" || !Number.isFinite(before) || before >= 0) return null;
       return {
         ruleKey: "true_negative_ebitda",
-        graded: absolute("critical", f.pl.ebitda, "Statutory EBITDA", ABSOLUTE_WHY),
-        title: `Statutory EBITDA ${RON(f.pl.ebitda)} negative — operating model is not generating cash`,
+        graded: absolute(
+          "critical",
+          before,
+          "EBITDA before the stock variation and own work capitalised",
+          ABSOLUTE_WHY,
+        ),
+        title: `Operations consume cash — EBITDA before the stock variation and own work capitalised is ${RON(before)}`,
         factsCited: {
-          ebitda_statutory: f.pl.ebitda,
+          ebitda_before_stock_variation: before,
+          ebitda: f.pl.ebitda,
+          inventory_variation: f.pl.inventory_variation,
+          capitalized_own_work: f.pl.capitalized_own_work_memo,
           rental_revenue: f.pl.rental_revenue,
         },
         rationaleFallback:
-          `Statutory EBITDA is negative. Earnings-based valuation methods (EV/EBITDA, EV/Revenue) ` +
-          `produce meaningless values; the company is consuming cash from operations. ` +
+          `Before the stock variation (711, Variația stocurilor de produse) and own work capitalised (72x), ` +
+          `the operating result is ${RON(before)}: the company is consuming cash from operations. ` +
+          `EBITDA itself (${RON(f.pl.ebitda)}) includes those two lines, so an earnings multiple on it would ` +
+          `value production stocked or capitalised as if it were cash earned. ` +
           ABSOLUTE_WHY,
         actionsFallback: [
-          "Build a path-to-positive-EBITDA plan with month-by-month milestones over the next 12 months.",
+          "Build a path-to-positive operating cash plan with month-by-month milestones over the next 12 months.",
           "Identify discretionary cost lines that can be cut without impairing the revenue base.",
           "Prepare a bridge-financing conversation with the lender now, ahead of the cash runway tightening.",
         ],
