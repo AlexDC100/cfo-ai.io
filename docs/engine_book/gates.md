@@ -10740,29 +10740,29 @@ restored from a copy:
 **PLANT no-model-guard** — the SDK stub not installed (the key placeholder
 kept).
 ```
+RED (plant) — 2 failed, 4 passed
 FAILED tests/engine/test_reprocess_periods_definition.py::test_a_document_that_needs_the_model_is_refused_and_nothing_is_written
 E   AssertionError: {... 'status': 'refused', 'reason': 'extract_failed', ... 'detail': 'RuntimeError: Claude extraction failed: ...'}
 FAILED tests/engine/test_reprocess_periods_definition.py::test_zz_scope
-2 failed, 4 passed
 ```
 **PLANT dry-run-writes** — `stage_persist` called before the dry-run return.
 ```
+RED (plant) — 3 failed, 3 passed
 FAILED tests/engine/test_reprocess_periods_definition.py::test_the_dry_run_reports_the_move_and_writes_nothing
 FAILED tests/engine/test_reprocess_periods_definition.py::test_a_turnover_move_blocks_the_apply_until_it_is_ruled
 FAILED tests/engine/test_reprocess_periods_definition.py::test_zz_scope
-3 failed, 3 passed
 ```
 **PLANT not-idempotent** — the `current` short-circuit disabled.
 ```
+RED (plant) — 2 failed, 4 passed
 FAILED tests/engine/test_reprocess_periods_definition.py::test_apply_rewrites_the_period_with_the_engines_stages_and_is_idempotent
 FAILED tests/engine/test_reprocess_periods_definition.py::test_zz_scope
-2 failed, 4 passed
 ```
 **PLANT turnover-unblocked** — `blocking()` returns `[]`.
 ```
+RED (plant) — 2 failed, 4 passed
 FAILED tests/engine/test_reprocess_periods_definition.py::test_a_turnover_move_blocks_the_apply_until_it_is_ruled
 FAILED tests/engine/test_reprocess_periods_definition.py::test_zz_scope
-2 failed, 4 passed
 ```
 **REVERT** — `6 passed`.
 
