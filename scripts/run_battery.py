@@ -917,6 +917,29 @@ def _engine_gates() -> List[Gate]:
              units="page tests (every surface that prints a margin, RO and EN, the note, the acceptance rule)",
              canaries=("THE ACCEPTANCE RULE: no percent of a thousand or more anywhere in the developer's document",
                        "the bank export prints the refusal and the note, and no percent of a thousand or more")),
+        # ── owner ruling 2026-09-26, design A7 (stage F1): pl-one-ebitda-page ──
+        # The P&L tab prints THE ONE EBITDA the engine serves: both builders
+        # read every subtotal off the served block (refused = the typed
+        # reason, never 0 or a derivation), "Variația stocurilor de produse"
+        # (711) sits beside the cost block, signed, with the engine's
+        # provenance and the owner's name verbatim (English gloss in the
+        # English UI), 72x is its own row outside net turnover, the 121
+        # remainder is never folded into 711, the served reconciliation line
+        # stands under EBITDA, the EbitdaReconciliationPanel prints the served
+        # chain, and the retired "clean EBITDA" footnote / +722 bridge stay
+        # retired. Over the four firm books and six CONSTRUCTED books of
+        # net-711-rule captured through the real route (held live by
+        # tests/engine/test_one_ebitda_fe_books.py). Measured 58 tests, floor
+        # 50. Plant log: gates.md "pl-one-ebitda-page".
+        Gate("pl-one-ebitda-page",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/plOneEbitda.test.tsx", "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=50,
+             units="P&L-tab tests (served subtotals, the 711 row, refusals RO/EN, 72x, the 121 remainder, the reconciliation line, the panel, retired copy)",
+             canaries=("covers ten books, two of them refused",
+                       "unanchored: every refused figure states the engine's reason, RO and EN",
+                       "closed_no_activity: no stock-variation row, the remainder labelled, then account 121",
+                       "renders the owner's name verbatim in Romanian, and with the engine's gloss in English")),
         # RATIOS: the engine as the one authority for ratio values, bands,
         # deltas, band movements and credit composites (critic
         # authority_decision). Four gates, one per batch, named separately
