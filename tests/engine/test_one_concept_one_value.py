@@ -103,9 +103,36 @@ def _served(name: str) -> Dict[str, Any]:
     }
 
 
+#: A CONSTRUCTED witness (owner ruling 2026-09-26). Since the ruling every
+#: firm book whose reconstruction misses account 121 misses it by its net
+#: 711 — which the statement now NAMES, derived from 121 by the bridge — so
+#: a metric built on "the build-up + the bridged 711" would equal the anchor
+#: on all of them and the law below could not see it. `closed_no_activity`
+#: (SYNTHETIC, `net-711-rule`) has NO 711 postings and an account 121 that
+#: exceeds its accounts by 2,000.00: a misread no line names. It is served
+#: through the real write path and GET /api/period (tests/engine/
+#: _one_definition_served.py); its metric rows are stage_compute's.
+CONSTRUCTED = ("constructed:closed_no_activity",)
+SCOPE = BOOKS + CONSTRUCTED
+
+
+def _served_constructed(name: str) -> Dict[str, Any]:
+    import _one_definition_served as S
+
+    b = S.served(name.split(":", 1)[1])
+    return {
+        "assembled_pl": b.apl,
+        "metrics": dict(b.metrics),
+        "p121": ((b.envelope.get("canonical_bs") or {}).get("invariants") or {}).get(
+            "p121_cross_check") or {},
+    }
+
+
 @pytest.fixture(scope="module")
 def served() -> Dict[str, Dict[str, Any]]:
-    return {name: _served(name) for name in BOOKS}
+    out = {name: _served(name) for name in BOOKS}
+    out.update((name, _served_constructed(name)) for name in CONSTRUCTED)
+    return out
 
 
 # ── the fixtures are not vacuous ──────────────────────────────────────
@@ -121,13 +148,17 @@ def test_every_book_carries_both_net_income_views_and_an_anchor(served):
     # the gate stays non-vacuous as long as at least one book differs (TC-3).
     differing = []
     tying = []
-    for name in BOOKS:
+    unnamed = []
+    for name in SCOPE:
         apl = served[name]["assembled_pl"]
         statutory = apl["net_income_statutory"]
         operational = apl["net_income_operational"]
         assert isinstance(statutory, float) and isinstance(operational, float)
         if abs(statutory - operational) > 1.0:
             differing.append(name)
+            # the ruling's witness: a divergence NO served line names
+            if abs(float(apl.get("net_income_unexplained_vs_121") or 0.0)) >= 0.005:
+                unnamed.append(name)
         else:
             assert abs(float(apl.get("net_income_unexplained_vs_121") or 0.0)) < 0.005, (
                 f"{name}: the two views agree but an unexplained step is recorded")
@@ -136,11 +167,18 @@ def test_every_book_carries_both_net_income_views_and_an_anchor(served):
             f"{name}: assembled_pl.net_income_statutory is not the account-121 "
             f"closing balance the envelope witnesses"
         )
-    print("books whose reconstruction misses account 121: %s; books that tie: %s"
-          % (", ".join(differing), ", ".join(tying) or "none"))
+    print("books whose reconstruction misses account 121: %s; books that tie: %s; "
+          "missing it by a divergence no line names: %s"
+          % (", ".join(differing), ", ".join(tying) or "none", ", ".join(unnamed) or "none"))
     assert differing, (
         "every book's two net-income views agree, so no book can distinguish "
         "an anchored figure from a reconstruction")
+    # TC-3 after the ruling (2026-09-26): the bridge makes "build-up + net
+    # 711" equal the anchor on every closed manufacturer, so at least one
+    # book must miss 121 by something the statement does NOT name.
+    assert unnamed, (
+        "every divergent book misses account 121 only by its bridged stock "
+        "variation — a metric built on the build-up plus 711 would pass: %s" % differing)
 
 
 # ── G1e: the two halves never disagree under one name ─────────────────
@@ -148,7 +186,7 @@ def test_every_book_carries_both_net_income_views_and_an_anchor(served):
 
 def test_no_name_carries_two_values_across_the_two_served_halves(served):
     disagreements = []
-    for name in BOOKS:
+    for name in SCOPE:
         apl = served[name]["assembled_pl"]
         metrics = served[name]["metrics"]
         for key in sorted(set(apl) & set(metrics)):
@@ -182,7 +220,7 @@ def test_every_net_income_ratio_is_built_on_the_anchor(served):
     Each is recomputed here from the ANCHOR and the same denominator the
     metric used, and must match what was served."""
     wrong = []
-    for name in BOOKS:
+    for name in SCOPE:
         apl = served[name]["assembled_pl"]
         metrics = served[name]["metrics"]
         anchor = float(apl["net_income_statutory"])
@@ -224,7 +262,7 @@ def test_the_credit_profitability_subscore_is_built_on_the_anchor(served):
     is not, the letter grade still states a verdict on a figure the
     report never shows."""
     wrong = []
-    for name in BOOKS:
+    for name in SCOPE:
         apl = served[name]["assembled_pl"]
         metrics = served[name]["metrics"]
         anchor = float(apl["net_income_statutory"])

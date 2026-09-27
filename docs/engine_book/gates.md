@@ -10511,6 +10511,58 @@ model, ratio table, benchmark, forecast, FE) — the `one-ebitda`,
 `turnover-denominator` and `refusal-carries` gates (stage E2/E3) own those; the
 FILED 711 (the Ministry referee is a measurement, not a gate).
 
+## net-income-anchor-witness
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_one_concept_one_value.py tests/engine/test_rebuild_net_income_anchor.py -q` (+ the two f6 tests in `forecast-model`) |
+| work count | junit-xml, floor **72** tests (measured 80) |
+| canary | `test_every_book_carries_both_net_income_views_and_an_anchor`, `test_a_constructed_no_711_misread_fires_the_override_through_every_seam`, `test_the_firing_scope_carries_a_divergence_that_is_not_the_stock_variation`, `test_enough_books_actually_fire_the_override`; in `forecast-model`: `test_f6_the_constructed_misread_opens_on_the_anchor_and_names_nothing`, `test_f6_scope_has_a_miss_that_is_not_the_stock_variation` |
+
+**Why (design A8, "anchor gates made vacuous by the bridge").** Three gates
+certified that a served net income is account 121 and not the class-6/7
+reconstruction by finding books where the two DIFFER: the rebuild-anchor
+seam's `OVERRIDE_FIRING_FLOOR`, `test_one_concept_one_value` TC-3, and
+`test_forecast_model` f6. Since the ruling, every committed book that misses
+121 misses it by its net 711 — which the statement now NAMES, derived FROM
+121 by the bridge. A defect that served "the build-up + the bridged 711" as the
+result would equal 121 on every one of them, and the three gates would stay
+green on it. Each now also requires a book whose divergence is NOT the stock
+variation: the CONSTRUCTED `closed_no_activity` (net-711-rule's synthetic
+book: no 711 postings, account 121 above its accounts by 2,000.00 — a misread
+no line names), served through the real write path (`_deterministic_tb_parsed`
+→ `stage_map` → `stage_persist`) and `GET /api/period` / the briefing-rebuild
+seam. On it: the anchor fires through both seam shapes, the 2,000.00 stays
+VISIBLE on `net_income_unexplained_vs_121` (never folded into 711), every
+net-income ratio and the credit profitability subscore are built on the anchor,
+and the forecast opening closes on the anchor while serving the reconstruction
+instead is refused at period zero for exactly that 2,000.00. A scope with no
+such witness is RED.
+
+**GREEN** — `300 passed` over the three files (with `test_forecast_model.py`).
+
+**PLANT fold-the-121-remainder** — `stock_variation.decide`, the
+no-711-activity branch serves the residual instead of 0.00 (`_serve(residual
+if residual is not None else 0.0, PROV_NO_ACTIVITY)`): the remainder is folded,
+the statement names every divergence, and "build-up + 711 = 121" holds on every
+book in scope.
+```
+RED — 5 failed, 295 passed
+FAILED tests/engine/test_forecast_model.py::test_f6_the_constructed_misread_opens_on_the_anchor_and_names_nothing
+FAILED tests/engine/test_forecast_model.py::test_f6_scope_has_a_miss_that_is_not_the_stock_variation
+FAILED tests/engine/test_one_concept_one_value.py::test_every_book_carries_both_net_income_views_and_an_anchor
+FAILED tests/engine/test_rebuild_net_income_anchor.py::test_a_constructed_no_711_misread_fires_the_override_through_every_seam
+FAILED tests/engine/test_rebuild_net_income_anchor.py::test_the_firing_scope_carries_a_divergence_that_is_not_the_stock_variation
+```
+**REVERT** (restored byte-exact from a copy): `300 passed`.
+
+The in-file plant `test_f6_plant_the_reconstruction_on_the_constructed_misread_and_the_opening_refuses`
+serves the reconstruction on the witness and asserts the opening refuses with
+the 2,000.00 step in its message.
+
+CANNOT SEE: a misread that happens to equal the stock variation on a closed
+manufacturer (only the Ministry referee can — measure.md T7).
+
 ## valuation-one-ebitda
 
 | | |

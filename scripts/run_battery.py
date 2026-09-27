@@ -419,7 +419,30 @@ def _engine_gates() -> List[Gate]:
                        # plan/2 B5
                        "test_agras_receivables_follow_the_unwind_formula_every_month",
                        "test_retail_month_one_cash_moves_by_at_most_a_month_of_the_flow_change",
-                       "test_the_calendar_is_monthly_months_then_one_period_per_plan_year")),
+                       "test_the_calendar_is_monthly_months_then_one_period_per_plan_year",
+                       # one-EBITDA ruling (stage G1): f6's CONSTRUCTED
+                       # misread witness — every committed book now misses
+                       # 121 only by its bridged 711 (gates.md
+                       # "net-income-anchor-witness")
+                       "test_f6_the_constructed_misread_opens_on_the_anchor_and_names_nothing",
+                       "test_f6_scope_has_a_miss_that_is_not_the_stock_variation")),
+        # ── owner ruling 2026-09-26, design A8 (stage G1): the anchor gates
+        # the account-121 bridge made vacuous. Every committed book that
+        # misses account 121 now misses it by its net 711, which the
+        # statement NAMES (derived from 121), so "the build-up + the bridged
+        # 711" would equal the anchor on all of them. The CONSTRUCTED
+        # witness `closed_no_activity` (net-711-rule: no 711 postings, 121
+        # above its accounts by 2,000.00) is served through the real write
+        # path; with no such witness these files are RED (TC-3). Measured 80
+        # tests. Plant log: gates.md "net-income-anchor-witness".
+        Gate("net-income-anchor-witness",
+             [PY, "-m", "pytest", "tests/engine/test_one_concept_one_value.py",
+              "tests/engine/test_rebuild_net_income_anchor.py", "-q"],
+             work_junit=True, floor=72, units="tests",
+             canaries=("test_every_book_carries_both_net_income_views_and_an_anchor",
+                       "test_a_constructed_no_711_misread_fires_the_override_through_every_seam",
+                       "test_the_firing_scope_carries_a_divergence_that_is_not_the_stock_variation",
+                       "test_enough_books_actually_fire_the_override")),
         Gate("forecast-serving-boundary",
              [PY, "-m", "pytest", "tests/engine/test_forecast_serving_boundary.py", "-q"],
              work_junit=True, floor=60, units="tests",

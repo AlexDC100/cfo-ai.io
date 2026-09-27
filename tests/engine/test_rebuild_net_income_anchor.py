@@ -303,6 +303,74 @@ def test_enough_books_actually_fire_the_override():
     )
 
 
+# ── A CONSTRUCTED witness the one-EBITDA ruling made necessary ─────────
+# Since the owner ruling of 2026-09-26 every corpus book that fires the
+# override is a CLOSED manufacturer whose divergence from account 121 IS
+# its net 711 — which the statement now NAMES, derived from 121 by the
+# bridge. So the corpus floor above still counts divergent books, but every
+# one of them diverges by the stock variation, not by a misread: a seam
+# that served the build-up PLUS the bridged 711 would equal 121 on all of
+# them. The witness below diverges by a misread (a SYNTHETIC closed book
+# with NO 711 postings whose account 121 exceeds its accounts by
+# 2,000.00, `net-711-rule`'s `closed_no_activity`): the anchor must fire
+# on it through every seam, with the 2,000.00 left VISIBLE as the
+# unexplained remainder (never folded into 711). A gate with no such
+# witness is red (TC-3).
+
+WITNESS_NO_711 = "closed_no_activity"
+
+
+def _constructed(name: str):
+    import test_net_711_rule as N
+
+    return N._persisted(name)
+
+
+def test_a_constructed_no_711_misread_fires_the_override_through_every_seam():
+    bk = _constructed(WITNESS_NO_711)
+    p121 = float(((bk.period["assembled_canonical_v1"].get("canonical_bs") or {})
+                  .get("invariants") or {}).get("p121_cross_check", {}).get("p121"))
+    fired = []
+    for where, row in (("seam/full-row", dict(bk.period)),
+                       ("seam/light-row+envelope",
+                        {k: v for k, v in bk.period.items()
+                         if k in ("id", "org_id", "period_start", "period_end", "currency",
+                                  "assembled_canonical_v1")})):
+        pl = _pl_of(P._rebuild_assembled_for_briefing(bk.line_items, row, bk.org))
+        _assert_anchored(WITNESS_NO_711, where, pl, p121)
+        recon = float(pl["net_income_reconstructed"])
+        inv = pl.get("inventory_variation") or {}
+        assert inv.get("provenance") == "no_711_activity" and inv.get("value") == 0.0, inv
+        # the misread stays VISIBLE — it is not the stock variation
+        assert round(p121 - recon, 2) == 2000.0, (where, p121, recon)
+        assert round(float(pl["net_income_unexplained_vs_121"]), 2) == 2000.0, pl
+        fired.append(where)
+    assert len(fired) == 2, fired
+
+
+def test_the_firing_scope_carries_a_divergence_that_is_not_the_stock_variation():
+    """TC-3 after the ruling: at least one book fires the override on a
+    divergence the statement does NOT name (its served remainder is not
+    zero). The corpus has none any more (every firing book's divergence is
+    its bridged 711); the constructed witness is that book."""
+    unnamed = []
+    for case_id, case_dir, p121 in ANCHOR_CASES:
+        pl = _pl_of(P._rebuild_assembled_for_briefing(
+            _book(case_id, case_dir).line_items, _book(case_id, case_dir).full_row(),
+            _book(case_id, case_dir).org))
+        if abs(float(pl.get("net_income_unexplained_vs_121") or 0.0)) >= 0.005:
+            unnamed.append(case_id)
+    bk = _constructed(WITNESS_NO_711)
+    pl = _pl_of(P._rebuild_assembled_for_briefing(bk.line_items, dict(bk.period), bk.org))
+    if (pl.get("net_income_anchor_status") == P.NET_INCOME_ANCHOR_ANCHORED
+            and abs(float(pl.get("net_income_unexplained_vs_121") or 0.0)) >= 0.005):
+        unnamed.append("constructed:" + WITNESS_NO_711)
+    print("books firing the override on a divergence the statement does not name: %s"
+          % ", ".join(unnamed))
+    assert unnamed, ("no book fires the override on a divergence that is not the "
+                     "stock variation — the anchor gate has no witness of a misread")
+
+
 # ── (1) The seam itself, three row shapes ──────────────────────────────
 
 

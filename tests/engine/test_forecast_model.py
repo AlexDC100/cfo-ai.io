@@ -496,6 +496,64 @@ def test_f6_scope_has_a_book_that_does_not_tie():
     assert differing, "every committed book ties to 121; the f6 distinction is vacuous"
 
 
+# ── F6 — a CONSTRUCTED witness the one-EBITDA ruling made necessary ────
+# Since the owner ruling of 2026-09-26 every committed book that misses
+# account 121 misses it by its net 711, which the statement now NAMES
+# (derived from 121 by the bridge): a statement serving "the build-up + the
+# bridged 711" as the result would close exactly like the anchored one on
+# all four. `closed_no_activity` (SYNTHETIC, `net-711-rule`: no 711
+# postings, account 121 above its accounts by 2,000.00 — a misread no line
+# names) is served through the real write path and GET /api/period; the
+# opening must close on the anchor, and serving the reconstruction instead
+# must be REFUSED at period zero for exactly that 2,000.00.
+
+F6_WITNESS = "closed_no_activity"
+
+
+def _constructed_payload(name):
+    import _one_definition_served as S
+
+    b = S.served(name)
+    return {"statements": b.statements, "envelope": b.envelope, "currency": "RON",
+            "period_end": "2025-12-31", "case_id": "constructed:%s" % name}
+
+
+def test_f6_the_constructed_misread_opens_on_the_anchor_and_names_nothing():
+    payload = _constructed_payload(F6_WITNESS)
+    opening = opening_for(payload)
+    assert opening.total_assets_cents() - opening.total_el_cents() == 0
+    pl = payload["statements"]["assembled_pl"]
+    assert pl["inventory_variation"]["provenance"] == "no_711_activity"
+    step = cents_from(pl["net_income_statutory"]) - cents_from(pl["net_income_operational"])
+    assert step == 200000 and cents_from(pl["net_income_unexplained_vs_121"]) == step, (
+        "the witness must miss 121 by a divergence no served line names")
+
+
+def test_f6_plant_the_reconstruction_on_the_constructed_misread_and_the_opening_refuses():
+    payload = _constructed_payload(F6_WITNESS)
+    planted, step = _serve_the_reconstruction_as_the_result(payload)
+    assert step == -200000, step
+    with pytest.raises(OpeningPositionError) as excinfo:
+        OpeningPosition.from_gateway(gateway_for(planted), str(planted["period_end"]))
+    assert "does not balance" in str(excinfo.value)
+    assert fmt(-step) in str(excinfo.value)
+
+
+def test_f6_scope_has_a_miss_that_is_not_the_stock_variation():
+    """TC-3 after the ruling: some book in scope misses account 121 by a
+    divergence the statement does not name. No committed book does any
+    more (each one's miss is its bridged 711); the constructed witness is
+    that book — without it the f6 law is asserted on the bridge alone."""
+    unnamed = [book for book in BOOKS
+               if cents_from(load(book)["statements"]["assembled_pl"]
+                             ["net_income_unexplained_vs_121"]) != 0]
+    pl = _constructed_payload(F6_WITNESS)["statements"]["assembled_pl"]
+    if cents_from(pl["net_income_unexplained_vs_121"]) != 0:
+        unnamed.append("constructed:" + F6_WITNESS)
+    print("books missing account 121 by a divergence no line names: %s" % ", ".join(unnamed))
+    assert unnamed, "every miss in scope is the bridged stock variation; f6 has no misread witness"
+
+
 
 def test_f6_plant_an_unbalanced_source_sheet_and_the_opening_refuses():
     """PLANT: the pre-anchor statement. The opening must REFUSE, and say
