@@ -62,12 +62,15 @@ interface Props {
    *  variation 711 could not be measured), or null. Every card built on
    *  EBITDA / EBIT prints it in place of a figure — never "—" alone. */
   ebitdaRefusal?: { readonly code: string; readonly text: { readonly ro: string; readonly en: string } } | null;
+  /** The ENGINE's refusal of total equity (it excludes a refused year's
+   *  result); forwarded to every card on equity or a ratio dividing it. */
+  equityRefusal?: { readonly code: string; readonly text: { readonly ro: string; readonly en: string } } | null;
   /** F6.1 — multi-year series for the active period; drives the Trend view.
    *  When it carries <2 years the Snapshot/Trend toggle is disabled. */
   series?: MultiYearSeries;
 }
 
-export function ConfigurableDashboard({ overrides, series, marginRefusal = null, ebitdaRefusal = null }: Props) {
+export function ConfigurableDashboard({ overrides, series, marginRefusal = null, ebitdaRefusal = null, equityRefusal = null }: Props) {
   const { t } = useTranslation();
   const {
     cards,
@@ -233,6 +236,7 @@ export function ConfigurableDashboard({ overrides, series, marginRefusal = null,
                     overrides={overrides}
                     marginRefusal={marginRefusal}
                     ebitdaRefusal={ebitdaRefusal}
+                    equityRefusal={equityRefusal}
                     series={series}
                     view={effectiveView}
                     onRearrange={() => setEditMode(true)}

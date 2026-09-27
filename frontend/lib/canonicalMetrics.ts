@@ -52,7 +52,7 @@
 
 import type { ActivePeriod, PeriodLineItem } from "./activePeriod";
 import { F36_CUTOVER_METRICS_HUB } from "@/config/features";
-import { plLevelsOf, readRefusal, type ServedRefusal } from "./servedOneEbitda";
+import { equityRefusalOf, plLevelsOf, readRefusal, type ServedRefusal } from "./servedOneEbitda";
 
 /**
  * F3.16-3b.6 cutover helper — resolves the Reported EBITDA value
@@ -148,7 +148,14 @@ export interface CanonicalNetProfit {
 
 export interface CanonicalBalance {
   total_assets: number;
-  equity: number;
+  /** Total equity as served — NULL when the engine refused it as the
+   *  company's equity (it excludes a refused year's result: no account
+   *  121, net 711 refused, the sheet short by the missing result —
+   *  `equity_refusal` says why), and null when the payload carries none.
+   *  Never a `?? 0`: the §1 equity ratio and ROE divide it. */
+  equity: number | null;
+  /** The engine's completeness refusal beside total equity, or null. */
+  equity_refusal: ServedRefusal | null;
   total_debt: number;
   cash: number;
   /** `total_debt − cash`. Net of cash, the figure lenders care about. */
@@ -315,7 +322,12 @@ function assemble(args: {
   const core = reported === null ? null : reported - adjustmentSum;
 
   const totalAssets = num(abs.total_assets) ?? 0;
-  const totalEquity = num(abs.total_equity) ?? 0;
+  // TOTAL EQUITY SHORT BY A REFUSED YEAR'S RESULT (critic round 2,
+  // 2026-09-27): the engine's completeness refusal beside total equity
+  // makes it null here with the reason — the report's §1 printed "Equity
+  // ratio 47.6 %" off `total_equity ?? 0` on equity missing the year.
+  const equityRefusal = equityRefusalOf(abs);
+  const totalEquity: number | null = equityRefusal ? null : num(abs.total_equity);
   const totalDebt = num(abs.total_debt) ?? 0;
   const cash = num(abs.cash) ?? 0;
   const netDebt = totalDebt - cash;
@@ -348,6 +360,7 @@ function assemble(args: {
     balance: {
       total_assets: totalAssets,
       equity: totalEquity,
+      equity_refusal: equityRefusal,
       total_debt: totalDebt,
       cash,
       net_debt: netDebt,

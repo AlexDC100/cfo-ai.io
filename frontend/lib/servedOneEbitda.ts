@@ -217,6 +217,22 @@ function readReconciliation(v: unknown): ServedReconciliation | null {
  * derivation: a period the engine assembled has its EBITDA from the engine
  * or not at all.
  */
+/**
+ * TOTAL EQUITY SHORT BY A REFUSED YEAR'S RESULT — the engine's completeness
+ * refusal beside total equity (`assembled_bs.total_equity_refusal`, critic
+ * 2026-09-27): no account 121, net 711 refused, and a sheet that does not
+ * balance without the year's result. The figure beside it is what the
+ * equity rows sum to — short by the missing result — so no surface may
+ * divide it (equity ratio, debt / equity, ROE), print it as book equity
+ * (the NAV floor) or judge it (the covenant floor). Accepts the statements
+ * payload or its `assembled_bs` block itself.
+ */
+export function equityRefusalOf(statementsOrBs: unknown): ServedRefusal | null {
+  if (!isRec(statementsOrBs)) return null;
+  const bs = isRec(statementsOrBs.assembled_bs) ? statementsOrBs.assembled_bs : statementsOrBs;
+  return readRefusal(bs.total_equity_refusal);
+}
+
 export function readServedOneEbitda(assembledPl: unknown): ServedOneEbitda | null {
   if (!isRec(assembledPl)) return null;
   const apl = assembledPl;

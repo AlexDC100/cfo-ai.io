@@ -118,7 +118,7 @@ import { getSupabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/stores/currency";
 import { convertFromTo, formatAmountFrom, formatMoneyFrom } from "@/lib/money";
-import { componentShown, readRefusal, readServedOneEbitda, reconLine } from "@/lib/servedOneEbitda";
+import { componentShown, equityRefusalOf, readRefusal, readServedOneEbitda, reconLine } from "@/lib/servedOneEbitda";
 import { briefingVisibility } from "@/lib/briefingDefinition";
 import type { Currency } from "@/lib/rates";
 
@@ -645,13 +645,18 @@ function KpiGrid({
   // 2026-09-26). The retired "total operating revenue" added 72x to it.
   const revenue = headline.revenue;
 
-  const equityRatio = balance.total_assets > 0 ? balance.equity / balance.total_assets : null;
+  // Total equity the engine REFUSED as the company's equity (it excludes a
+  // refused year's result — critic round 2, 2026-09-27) forms no equity
+  // ratio and no ROE: the tile prints the engine's reason, as §5 does.
+  const equityRefusal = balance.equity_refusal;
+  const equityRatio = balance.equity !== null && balance.total_assets > 0
+    ? balance.equity / balance.total_assets : null;
   // Net-Debt / EBITDA — uses Core EBITDA (the basis for valuation),
   // matching the rest of the canonical object's convention.
   // A refused EBITDA forms no leverage multiple (null, never ÷ 0).
   const ndeRatio = ebitda.core !== null && ebitda.core > 0 ? balance.net_debt / ebitda.core : null;
   // A refused net result (no account 121, net 711 refused) forms no ROE.
-  const roe = balance.equity > 0 && netProfit.statutory_account_121 !== null
+  const roe = balance.equity !== null && balance.equity > 0 && netProfit.statutory_account_121 !== null
     ? netProfit.statutory_account_121 / balance.equity : null;
   const altman = credit?.altmanZ ?? null;
 
@@ -766,7 +771,19 @@ function KpiGrid({
       conceptKey: "total_assets",
       rawValue: balance.total_assets,
     },
-    { label: "Equity ratio", value: <PercentLevel value={equityRatio != null ? equityRatio * 100 : null} />, sub: "Equity / Assets", conceptKey: equityRatio == null ? undefined : "equity_ratio", rawValue: equityRatio ?? undefined },
+    {
+      label: "Equity ratio",
+      value: equityRefusal ? (
+        <span className="text-[12.5px] text-ink-soft" data-testid="report-kpi-equity-ratio-refused">
+          refused — {equityRefusal.text.en}
+        </span>
+      ) : (
+        <PercentLevel value={equityRatio != null ? equityRatio * 100 : null} />
+      ),
+      sub: "Equity / Assets",
+      conceptKey: equityRatio == null ? undefined : "equity_ratio",
+      rawValue: equityRatio ?? undefined,
+    },
     { label: "Net Debt / EBITDA", value: <CappedMultiple value={ndeRatio} />, sub: "Leverage · on Core EBITDA", conceptKey: ndeRatio == null ? undefined : "net_debt_ebitda", rawValue: ndeRatio ?? undefined },
     { label: "ROE", value: <PercentLevel value={roe != null ? roe * 100 : null} />, sub: "Return on equity", conceptKey: roe == null ? undefined : "roe", rawValue: roe ?? undefined },
     { label: "Altman Z″", value: <Amount kind="count" value={altman} fractionDigits={2} />, sub: "Distress score", conceptKey: altman == null ? undefined : "altman_z_score", rawValue: altman ?? undefined },
@@ -1358,7 +1375,14 @@ function ValuationView({ metrics, pl, bs, currency }: {
   const ebitdaRefusal = servedOne && servedOne.ebitda === null ? servedOne.refusal : null;
   const hasEbitda = typeof ebitda === "number" && Number.isFinite(ebitda) && ebitda > 0;
   const netDebt = sumOf(bs.total_debt, negated(bs.cash));
-  const bookEquity: number | null | undefined = bs.total_equity ?? metrics.total_equity;
+  // BOOK EQUITY THE ENGINE REFUSED (it excludes a refused year's result —
+  // no account 121, net 711 refused, the sheet short by the missing result;
+  // critic round 2, 2026-09-27) is no NAV floor: the row prints the reason,
+  // as the Valuation tab and the NAV cascade do — never the rows' short sum
+  // and never a stale metric row.
+  const bookEquityRefusal = equityRefusalOf(bs);
+  const bookEquity: number | null | undefined = bookEquityRefusal
+    ? null : bs.total_equity ?? metrics.total_equity;
 
   const multiples = [6, 8, 10].map((mult) => ({
     label: mult === 6 ? "Conservative (6×)" : mult === 8 ? "Mid (8×)" : "Premium (10×)",
@@ -1372,7 +1396,9 @@ function ValuationView({ metrics, pl, bs, currency }: {
       {ebitdaRefusal ? (
         <Panel inset className="border-l-[3px] border-l-caution px-4 py-3 text-[12.5px] text-ink-soft" data-testid="report-valuation-ebitda-refused">
           EBITDA refused — {ebitdaRefusal.text.en}. No EV/EBITDA multiple can be
-          formed; book equity (NAV floor) stands alone.
+          formed; {bookEquityRefusal
+            ? <>book equity is refused too — {bookEquityRefusal.text.en} — so no method forms a value.</>
+            : "book equity (NAV floor) stands alone."}
         </Panel>
       ) : ebitda == null ? (
         <Panel inset className="border-l-[3px] border-l-caution px-4 py-3 text-[12.5px] text-ink-soft">
@@ -1413,7 +1439,13 @@ function ValuationView({ metrics, pl, bs, currency }: {
               <td className="px-4 py-1">Book equity (NAV floor)</td>
               <td className="px-3 py-1"></td>
               <td className="px-3 py-1 text-right">
-                <MoneyAmount value={bookEquity} fromCurrency={currency as Currency} unit={false} />
+                {bookEquityRefusal ? (
+                  <span className="text-[12px] font-normal text-ink-soft" data-testid="report-valuation-book-equity-refused">
+                    refused — {bookEquityRefusal.text.en}
+                  </span>
+                ) : (
+                  <MoneyAmount value={bookEquity} fromCurrency={currency as Currency} unit={false} />
+                )}
               </td>
             </tr>
           </tbody>

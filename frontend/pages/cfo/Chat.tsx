@@ -104,7 +104,7 @@ export default function Chat() {
 // Read-only: this function does NOT recompute, derive, or transform
 // any engine value; it formats values the engine already emitted.
 
-function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): string | undefined {
+export function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): string | undefined {
   if (!p.id) return undefined;
 
   const lines: string[] = [];
@@ -158,6 +158,12 @@ function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): string |
       lines.push("  (no 758/781 movements on file — Reported = Core for this period)");
     }
     pushIf(lines, "EBIT",                                      canonical.headline.ebit);
+    if (canonical.netProfit.refusal) {
+      lines.push(
+        `  · Net profit: REFUSED — ${canonical.netProfit.refusal.text.en} ` +
+          `(net margin, ROE and ROA are refused with it)`,
+      );
+    }
     pushIf(lines, "Net profit — statutory (acct 121)",         canonical.netProfit.statutory_account_121);
     pushIf(lines, "Net result built from the accounts",        canonical.netProfit.reconstructed);
     pushIf(lines, "Not explained by the accounts (RON)",       canonical.netProfit.reconciliation_gap);
@@ -184,7 +190,18 @@ function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): string |
     lines.push("");
     lines.push("Balance sheet highlights:");
     pushIf(lines, "Total assets", served.totalAssets());
-    pushIf(lines, "Total equity", served.totalEquity());
+    // Total equity the engine REFUSED as the company's equity (it excludes a
+    // refused year's result — critic round 2, 2026-09-27): stated with the
+    // reason, never handed to the assistant as a figure it could divide.
+    const equityRefusal = canonical?.balance.equity_refusal ?? null;
+    if (equityRefusal) {
+      lines.push(
+        `  · Total equity: REFUSED — ${equityRefusal.text.en} ` +
+          `(the equity ratio, debt / equity, ROE and a book-equity value are refused with it)`,
+      );
+    } else {
+      pushIf(lines, "Total equity", served.totalEquity());
+    }
     pushIf(lines, "Total liabilities", served.totalLiabilities());
     const status = served.status();
     if (status) {

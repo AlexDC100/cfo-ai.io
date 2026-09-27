@@ -33,7 +33,7 @@
 // inputs.
 
 import { deriveTotals, type Statements } from "@/lib/financialReport";
-import { plLevelsOf } from "@/lib/servedOneEbitda";
+import { equityRefusalOf, plLevelsOf } from "@/lib/servedOneEbitda";
 import type { ReportingMetrics } from "@/lib/learning/concepts/_schema";
 
 /** Build a ReportingMetrics snapshot from a Statements blob. Returns
@@ -99,6 +99,11 @@ export function buildReportingMetricsSnapshot(
   const t = deriveTotals(statements);
   const levels = plLevelsOf(statements);
   const present = (v: number | null): number | undefined => (v === null ? undefined : v);
+  // Total equity the engine REFUSED as the company's equity (it excludes a
+  // refused year's result — critic round 2, 2026-09-27) stays ABSENT: the
+  // dashboard resolver divided the rows' short sum into an equity ratio
+  // (0.4925) and debt / equity (0.4515) on the real developer without 121.
+  const equityRefused = equityRefusalOf(statements) !== null;
   return {
     // ── Income statement ──────────────────────────────────────
     revenue: levels.turnover,
@@ -126,7 +131,7 @@ export function buildReportingMetricsSnapshot(
     shortTermDebt: bs.shortTermDebt,
     longTermDebt: bs.longTermDebt,
     totalDebt: t.totalDebt,
-    shareholdersEquity: t.totalEquity,
+    shareholdersEquity: equityRefused ? undefined : t.totalEquity,
     // ── Cash flow ────────────────────────────────────────────
     operatingCashFlow: cfNum("cash_from_operating"),
     capex: capexTotal === undefined ? undefined : Math.abs(capexTotal),

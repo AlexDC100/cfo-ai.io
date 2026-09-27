@@ -80,6 +80,10 @@ interface Props {
   /** The ENGINE's refusal of EBITDA for this period (one-EBITDA ruling). A
    *  card built on EBITDA / EBIT whose value is absent prints it. */
   ebitdaRefusal?: { readonly code: string; readonly text: { readonly ro: string; readonly en: string } } | null;
+  /** The ENGINE's refusal of total equity as the company's equity (it
+   *  excludes a refused year's result — `assembled_bs.total_equity_refusal`).
+   *  A card on total equity or a ratio dividing it prints it. */
+  equityRefusal?: { readonly code: string; readonly text: { readonly ro: string; readonly en: string } } | null;
   /** F6.1 — multi-year series for the active period (built once at the page
    *  from statements.historicalPeriods). Drives the Trend-view sparkline. */
   series?: MultiYearSeries;
@@ -105,6 +109,12 @@ const EBITDA_BUILT_CONCEPTS: ReadonlySet<string> = new Set([
   "ebitda", "ebit", "gross_profit", "ebitda_margin", "ebit_margin", "operating_margin",
   "gross_margin", "gross_margin_ratio", "core_ebitda_margin", "net_debt_ebitda",
   "debt_to_ebitda", "interest_coverage", "dscr", "pretax_profit",
+]);
+
+/** Concepts whose value is total equity or divides it — refused with total
+ *  equity when the engine refused it (critic round 2, 2026-09-27). */
+const EQUITY_BUILT_CONCEPTS: ReadonlySet<string> = new Set([
+  "total_equity", "shareholders_equity", "equity_ratio", "debt_to_equity", "lt_debt_to_equity", "roe",
 ]);
 
 // Narrow no-break space — the instrument's joint between figure and unit.
@@ -140,6 +150,7 @@ export function MetricCard({
   overrides,
   marginRefusal = null,
   ebitdaRefusal = null,
+  equityRefusal = null,
   series,
   view = "snapshot",
   onRearrange,
@@ -193,8 +204,14 @@ export function MetricCard({
     ebitdaRefusal && resolved.value === null && EBITDA_BUILT_CONCEPTS.has(card.conceptKey)
       ? { ro: `EBITDA refuzată: ${ebitdaRefusal.text.ro}`, en: `EBITDA refused: ${ebitdaRefusal.text.en}` }
       : null;
+  // TOTAL EQUITY THE ENGINE REFUSED: a card on it, or on a ratio dividing
+  // it, states the reason — the resolver answers null for them then.
+  const equityBuilt =
+    equityRefusal && resolved.value === null && EQUITY_BUILT_CONCEPTS.has(card.conceptKey)
+      ? { ro: `Capitaluri proprii refuzate: ${equityRefusal.text.ro}`, en: `Total equity refused: ${equityRefusal.text.en}` }
+      : null;
   const refusal =
-    marginRefusal && MARGIN_CONCEPT_KEYS.has(card.conceptKey) ? marginRefusal : ebitdaBuilt;
+    marginRefusal && MARGIN_CONCEPT_KEYS.has(card.conceptKey) ? marginRefusal : ebitdaBuilt ?? equityBuilt;
 
   // PROVENANCE — by concept, from the page, verified to the cent. The
   // resolver's output carries none; the page that routed the headline

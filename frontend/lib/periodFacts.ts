@@ -26,6 +26,7 @@ import { pickPLBuilder } from "./buildPlStatement";
 // legacy fallback lives inside servedFacts, not here.
 import { factsFrom } from "./servedFacts";
 import { marginRefusalOf } from "./marginMeaning";
+import { equityRefusalOf, type ServedRefusal } from "./servedOneEbitda";
 
 // ─── Fact blob shape ────────────────────────────────────────────────────
 // JSON-serializable (mirrors the prompt's pl_facts / bs_facts / ratio_facts
@@ -93,7 +94,14 @@ export interface BSFacts {
   retained_earnings: number;             // 1171 (carry-forward)
   /** Statutory net profit (mirror of `pl.net_profit`); null with it. */
   current_year_pnl: number | null;
+  /** NULL when absent, and NULL when the engine REFUSED it as the
+   *  company's equity (`total_equity_refusal` says why). */
   total_equity: number | null;
+  /** The engine's completeness refusal beside total equity: it excludes a
+   *  refused year's result (no account 121, net 711 refused, the sheet
+   *  short by the missing result). Every ratio on total equity is null
+   *  with it — never the rows' short sum, never a bucket fallback. */
+  total_equity_refusal?: ServedRefusal | null;
   /** assets − (liabilities + equity); ~0. NULL when the envelope served
    *  neither the field nor the totals to derive it — this was typed
    *  `number` while being assigned `served.difference()`, which is
@@ -345,7 +353,13 @@ export function buildPeriodFacts(args: BuildFactsArgs): PeriodFacts {
   // tab, both exports and the ratios below.
   const totalAssets = served.totalAssets();
   const totalLiabilities = served.totalLiabilities();
-  const totalEquity = served.totalEquity();
+  // TOTAL EQUITY THE ENGINE REFUSED (it excludes a refused year's result —
+  // critic round 2, 2026-09-27) is absent here, with the reason: `mOr`
+  // below fell back to the rows' short sum when the engine's equity rows
+  // were refused (equity ratio 0.476, debt / equity 0, and the covenant
+  // card's "equity ratio 47.6% vs typical 30% floor").
+  const totalEquityRefusal = equityRefusalOf(statements);
+  const totalEquity = totalEquityRefusal ? null : served.totalEquity();
 
   // Bank debt + dividends payable from line items if available
   let bankDebt = balanceSheet.shortTermDebt + balanceSheet.longTermDebt;
@@ -443,6 +457,7 @@ export function buildPeriodFacts(args: BuildFactsArgs): PeriodFacts {
     retained_earnings: bsField("retained_earnings", retainedCarryForward || balanceSheet.retainedEarnings),
     current_year_pnl: plFacts.net_profit,
     total_equity: totalEquity,
+    total_equity_refusal: totalEquityRefusal,
     // servedFacts gateway (docs/CANONICAL_BS_V2_CONTRACT.md "Consumption
     // rules") — the balance check IS the served `difference` (exactly 0 on
     // RECONCILED periods); the presence branch and the legacy recompute
@@ -542,9 +557,13 @@ export function buildPeriodFacts(args: BuildFactsArgs): PeriodFacts {
       bsFacts.short_term_liabilities,
     )),
     cash_ratio: mOr("cash_ratio", safeDiv(bsFacts.cash, bsFacts.short_term_liabilities)),
-    debt_to_equity: mOr("debt_to_equity", safeDiv(bsFacts.bank_debt_total, bsFacts.total_equity)),
+    // A refused total equity refuses every ratio on it — a stored engine
+    // row written before the refusal does not stand in either.
+    debt_to_equity: totalEquityRefusal ? null
+      : mOr("debt_to_equity", safeDiv(bsFacts.bank_debt_total, bsFacts.total_equity)),
     debt_to_assets: mOr("debt_to_assets", safeDiv(bsFacts.bank_debt_total, bsFacts.total_assets)),
-    equity_ratio: mOr("equity_ratio", safeDiv(bsFacts.total_equity, bsFacts.total_assets)),
+    equity_ratio: totalEquityRefusal ? null
+      : mOr("equity_ratio", safeDiv(bsFacts.total_equity, bsFacts.total_assets)),
     interest_coverage_ebit: mOr("interest_coverage", safeDiv(plFacts.ebit, plFacts.interest_expense)),
     ebitda_to_interest: mOr("ebitda_to_interest", safeDiv(ebitdaStatutory, plFacts.interest_expense)),
     // ── DEBT SERVICE COVERAGE ────────────────────────────────────────
@@ -591,7 +610,7 @@ export function buildPeriodFacts(args: BuildFactsArgs): PeriodFacts {
     net_margin: marginRefused
       ? null
       : m("net_margin") !== null ? (m("net_margin") as number) : safeDiv(plFacts.net_profit, plFacts.revenue),
-    roe: mOr("roe", safeDiv(plFacts.net_profit, bsFacts.total_equity)),
+    roe: totalEquityRefusal ? null : mOr("roe", safeDiv(plFacts.net_profit, bsFacts.total_equity)),
     roa: mOr("roa", safeDiv(plFacts.net_profit, bsFacts.total_assets)),
     property_yield: safeDiv(plFacts.rental_revenue, bsFacts.investment_property_net),
   };

@@ -67,6 +67,7 @@
 
 import type { Statements, CanonicalBsRow, CanonicalBsStatus } from "./financialReport";
 import { factsFrom } from "./servedFacts";
+import { equityRefusalOf } from "./servedOneEbitda";
 import { foldQuery } from "./capsuleRouter";
 
 // ══════════════════════════════════════════════════════════════════════
@@ -578,7 +579,11 @@ function buildPeriodFactsInto(
   // this module never branches on `statements.canonical_bs` itself.
   money(ctx, "total_assets", served.totalAssets());
   money(ctx, "total_liabilities", served.totalLiabilities());
-  money(ctx, "equity", served.totalEquity());
+  // Total equity the engine REFUSED as the company's equity (it excludes a
+  // refused year's result — critic round 2, 2026-09-27) is not a fact:
+  // absent, so the equity ratio below has no operand either (F1) — it was
+  // derived as equity / total assets when the engine's own row was null.
+  money(ctx, "equity", equityRefusalOf(statements) ? null : served.totalEquity());
   money(ctx, "equity_plus_liabilities", served.equityPlusLiabilities());
   money(ctx, "current_assets", served.currentAssets());
   money(ctx, "current_liabilities", served.currentLiabilities());
@@ -703,7 +708,11 @@ function buildPeriodFactsInto(
   const metrics = input.metrics ?? null;
   ratio(ctx, metrics, "current_ratio", "ratio", "current_assets", "current_liabilities");
   ratio(ctx, metrics, "cash_ratio", "ratio", "cash", "current_liabilities");
-  ratio(ctx, metrics, "equity_ratio", "share", "equity", "total_assets");
+  if (!equityRefusalOf(statements)) {
+    // A stored equity-ratio row written before the refusal does not stand
+    // in for it either.
+    ratio(ctx, metrics, "equity_ratio", "share", "equity", "total_assets");
+  }
   ratio(ctx, metrics, "net_margin", "share", "net_result", "revenue");
   ratio(ctx, metrics, "ebitda_margin", "share", "ebitda", "revenue");
   ratio(ctx, metrics, "net_debt_ebitda", "ratio", "net_debt", "ebitda");

@@ -233,7 +233,7 @@ import { StatementNotes } from "@/components/cfo/StatementNotes";
 import { ValuationSection } from "@/components/cfo/ValuationSection";
 import { buildCanonicalMetricsFromInputs } from "@/lib/canonicalMetrics";
 import { EbitdaReconciliationPanel } from "@/components/cfo/EbitdaReconciliationPanel";
-import { pickLang, plLevelsOf } from "@/lib/servedOneEbitda";
+import { equityRefusalOf, pickLang, plLevelsOf } from "@/lib/servedOneEbitda";
 import { SourceQualityBanner } from "@/components/cfo/SourceQualityBanner";
 import { DocsToggle, useDocsCount } from "@/components/cfo/DocsPanel";
 import { PublicRecordsQuickCard } from "@/components/cfo/PublicRecordsQuickCard";
@@ -2298,6 +2298,7 @@ function FinancialStatementsInner() {
                       <ConfigurableDashboard
                         marginRefusal={marginRefusalOf(statements)}
                         ebitdaRefusal={headline.tileEbitdaRefusal}
+                        equityRefusal={equityRefusalOf(statements)}
                         overrides={{
                           operating_revenue: headline.netTurnover,
                           ebitda: headline.tileEbitdaRon,
