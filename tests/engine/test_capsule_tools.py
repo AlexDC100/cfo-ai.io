@@ -788,3 +788,48 @@ def test_context_is_not_mutated_by_any_tool(ctx):
     after = [(p.period_id, p.label, p.currency, len(p.accounts))
              for p in ctx.periods]
     assert before == after
+
+
+# ══════════════════════════════════════════════════════════════════════
+# ACCOUNT 711 — never quoted as the change in inventories (ruling 2026-09-26)
+# ══════════════════════════════════════════════════════════════════════
+
+
+def _constructed_period(name: str) -> "CT.PeriodRef":
+    """A CONSTRUCTED book of the net-711-rule gate (synthetic, no client
+    data) through the offline production composition, as a PeriodRef."""
+    import test_net_711_rule as NET
+    assembled = NET._assemble(name)
+    accounts = tuple(
+        CT.AccountRow(code=str(li.get("ro_account_code") or ""),
+                      name=str(li.get("ro_account_name") or ""),
+                      amount_minor=int(round(float(li.get("amount") or 0) * 100)),
+                      currency="RON", statement=str(li.get("statement") or ""),
+                      bucket=str(li.get("bucket") or ""))
+        for li in assembled["lineItems"] if li.get("ro_account_code"))
+    return CT.PeriodRef(period_id="p-" + name, label=name, entity_id="org-1",
+                        currency="RON", period_end="2025-12-31",
+                        envelope=assembled["assembled_canonical_v1"],
+                        statements=assembled["statements"], accounts=accounts,
+                        snapshot_id="sha256-" + name)
+
+
+@pytest.mark.parametrize("name,expect", [
+    ("closed_bridge", "is served on the profit and loss account as 50,000.00"),
+    ("g5_residual", "is refused for this period"),
+])
+def test_get_account_711_says_what_the_balance_is_and_where_the_variation_is(name, expect):
+    """What this reds on: the Capsule handing a 711 row to the model with
+    nothing saying that on a closed trial balance it is the GROSS production
+    stocked (the constructed bridge book turns 711 over 300,000.00 on each
+    side while the variation is 50,000.00) — the model would quote it as the
+    stock variation, the error the ruling exists to end."""
+    period = _constructed_period(name)
+    ctx = CT.CapsuleContext(entity_id="org-1", periods=(period,))
+    result = CT.dispatch("get_account", {"code": "711", "period": period.period_id}, ctx)
+    assert result.rows, result
+    note = [n for n in result.notes if "711" in n]
+    assert len(note) == 1, result.notes
+    assert "gross production stocked" in note[0], note
+    assert expect in note[0], note
+    assert "Variația stocurilor de produse" in note[0], note

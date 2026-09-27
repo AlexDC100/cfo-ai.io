@@ -682,8 +682,14 @@ def test_g7_drop_one_tap_five_stages_then_the_served_dashboard(app, gw, monkeypa
     assert years.status_code == 200, years.text[:300]
     (tile,) = years.json()
     served = _served_revenue(period["assembled_canonical_v1"])
+    # Turnover and its growth only (owner ruling 2026-09-26): the page's
+    # `revenue` names ARE the turnover.
     assert tile == {"period_id": period["id"], "year": 2025, "period_end": "2025-12-31",
-                    "revenue": served, "revenue_change_pct": None, "currency": "RON"}, tile
+                    "turnover": served, "turnover_change_pct": None,
+                    "revenue": served, "revenue_change_pct": None,
+                    "basis": {"ro": "cifra de afaceri netă (70x − 709)",
+                              "en": "net turnover (70x − 709)"},
+                    "currency": "RON"}, tile
     assert served > 0
     dash = _http(app).get("/api/period/%s" % period["id"], headers=_headers(USER, lands_in))
     assert dash.status_code == 200, dash.text[:400]
@@ -959,7 +965,10 @@ def test_g4_a_same_month_reupload_that_succeeds_replaces_the_month_and_archives_
     assert rows["calculated_metrics"] and rows["calculated_metrics"] != first["rows"]["calculated_metrics"]
     served = _served(app, org_id, period["id"])
     assert served["source_document"] == replaced["id"] and served["revenue"] != first["served"]["revenue"], served
-    assert served["tiles"] == [dict(first["served"]["tiles"][0], revenue=served["revenue"])], served["tiles"]
+    # The tile's turnover (and the page's `revenue` alias of it) follows the
+    # corrected document (owner ruling 2026-09-26: the tile is turnover).
+    assert served["tiles"] == [dict(first["served"]["tiles"][0], revenue=served["revenue"],
+                                    turnover=served["revenue"])], served["tiles"]
     assert served["revenue"] == _served_revenue(period["assembled_canonical_v1"])
     # Nothing of the run is left under a staged id: every row named a period
     # that exists.

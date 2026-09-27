@@ -877,11 +877,12 @@ def _require_jwt(authorization: Optional[str]) -> str:
 
 
 def _served_revenue(envelope: Any, currency: str) -> Optional[float]:
-    """The period's revenue as the engine serves it: `FactsGateway.revenue`
-    — the one typed reader of the served statement (methodology net
-    turnover plus a P&L-placed reconciliation), the value the Capsule and
-    the report read. ABSENT (None) when the envelope carries no revenue,
-    never a zero."""
+    """The period's NET TURNOVER as the engine serves it:
+    `FactsGateway.revenue` — cifra de afaceri netă, 70x − 709, and nothing
+    else (owner ruling 2026-09-26: growth divides turnover by turnover; the
+    gateway no longer adds a P&L-placed reconciliation delta to it). The
+    value the Capsule and the report read. ABSENT (None) when the envelope
+    carries none, never a zero."""
     if not isinstance(envelope, dict) or not envelope:
         return None
     from engine.serving.facts import FactsGateway, MissingFactError
@@ -898,14 +899,24 @@ def _served_revenue(envelope: Any, currency: str) -> Optional[float]:
 
 
 def _change_pct(current: Optional[float], prior: Optional[float]) -> Optional[float]:
+    """Turnover growth. ABSENT when either year is absent, when the prior is
+    nil, and across a sign change (a percent across zero means nothing)."""
     if current is None or prior is None or prior == 0:
+        return None
+    if (current < 0) != (prior < 0):
         return None
     return round((current - prior) / abs(prior) * 100.0, 1)
 
 
+#: What the tile's figure is — served, never typed in the page.
+TURNOVER_BASIS = {"ro": "cifra de afaceri netă (70x − 709)",
+                  "en": "net turnover (70x − 709)"}
+
+
 def company_years(client: Any, org_id: str) -> List[Dict[str, Any]]:
     """One row per year the company has an ANALYSED period for, oldest
-    first: `{period_id, year, period_end, revenue, revenue_change_pct,
+    first: `{period_id, year, period_end, turnover, turnover_change_pct,
+    revenue, revenue_change_pct (the same two, the page's names), basis,
     currency}`.
 
     A year is represented by its latest analysed period (a Romanian trial
@@ -977,13 +988,20 @@ def company_years(client: Any, org_id: str) -> List[Dict[str, Any]]:
 
     out = []  # type: List[Dict[str, Any]]
     for year, latest, prior in tiles:
-        revenue = revenue_of(latest)
+        turnover = revenue_of(latest)
+        change = _change_pct(turnover, revenue_of(prior))
         out.append({
             "period_id": latest["id"],
             "year": year,
             "period_end": latest["period_end"],
-            "revenue": revenue,
-            "revenue_change_pct": _change_pct(revenue, revenue_of(prior)),
+            # Turnover and its growth ONLY (design A6: workspace home
+            # company cards). `revenue` / `revenue_change_pct` are the names
+            # the page reads today; they ARE the turnover and its growth.
+            "turnover": turnover,
+            "turnover_change_pct": change,
+            "revenue": turnover,
+            "revenue_change_pct": change,
+            "basis": dict(TURNOVER_BASIS),
             "currency": latest.get("currency") or "RON",
         })
     return out
