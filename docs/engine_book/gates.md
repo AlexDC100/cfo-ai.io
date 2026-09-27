@@ -10702,6 +10702,29 @@ stage E2b, with the witness each keeps:
 - **alerts**: test_ratio_units g19's R5 half → "R5 no longer fires on the book
   that provoked it" (R5 retired).
 
+Plants on the rewritten forecast and insights laws, each alone, restored from
+a copy:
+
+**PLANT forecast-distance-on-pretax** — `PlHistory.unexplained_vs_filed` reads
+`self.pretax` (net 711 inside) instead of `pretax_before_stock_variation`.
+```
+RED (plant) — 15 failed, 353 passed (test_forecast_model + test_forecast_drivers)
+FAILED tests/engine/test_forecast_model.py::test_a_tax_rate_is_derived_only_when_it_reproduces_the_filed_profit[agras]
+FAILED tests/engine/test_forecast_model.py::test_the_demotion_states_the_gap_and_the_rate_it_displaces[agras]
+FAILED tests/engine/test_forecast_model.py::test_the_unreconciled_rate_would_have_charged_a_different_tax[carniprod]
+FAILED tests/engine/test_forecast_drivers.py::test_hg6_the_distance_is_the_engines_own_unexplained_step[realestate]
+FAILED tests/engine/test_forecast_drivers.py::test_hg8_an_inventory_variation_does_not_bridge_the_distance
+```
+**PLANT insights-whole-step** — `detect_reconstruction_gap` reads
+`net_income_reconciliation_to_121` again.
+```
+RED (plant) — 5 failed, 96 passed (test_insights_detectors + test_insights_wire)
+FAILED tests/engine/test_insights_detectors.py::test_reconstruction_gap_on_agras_is_silent_because_the_step_is_the_stock_variation
+FAILED tests/engine/test_insights_detectors.py::test_reconstruction_gap_is_silent_on_the_constructed_bridge_book
+FAILED tests/engine/test_insights_wire.py::test_agras_serves_the_reconstruction_gap_as_not_fired_with_its_reason
+```
+**REVERT** — `469 passed` on the four files.
+
 ## reprocess-periods-definition
 
 | | |
