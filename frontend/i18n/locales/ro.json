@@ -3450,7 +3450,7 @@
       "avg_personnel_cost": "costul mediu pe angajat nu este servit: are nevoie de un număr de angajați pe care balanța nu îl are",
       "segment_growth": "creșterea pe segmente nu este servită: veniturile nu sunt împărțite pe segmente în balanță",
       "policy_rate_shift": "o schimbare a dobânzii de politică monetară nu este servită: balanța nu spune care datorii se reevaluează cu ea",
-      "stock_variation": "variația stocurilor și producția imobilizată nu se proiectează: sunt zero în anii de plan, așa că primul an de plan pornește de la EBITDA anului de bază fără ele"
+      "stock_variation": "variația stocurilor de produse și producția capitalizată nu se proiectează: sunt zero în anii de plan, așa că primul an de plan pornește de la EBITDA anului de bază fără ele"
     },
     "formula": {
       "cumulativeFcf": "suma numerarului din exploatare și din investiții pe perioadele servite",
