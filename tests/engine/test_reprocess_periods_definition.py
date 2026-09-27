@@ -17,6 +17,8 @@ WHAT THIS REDS ON (TC-11):
     stamp, the metric rows on the one EBITDA, the council alerts and the
     briefing untouched;
   · an apply that is not idempotent (a second run rewrites);
+  · a period whose stored evidence was read by another parser (G7 — served
+    as `reprocess_required`) reported `current`, or not restamped by apply;
   · any quota call; any model call; a document that needs the model being
     written; a period whose stored document now resolves to another month
     being written; a turnover move applied without a ruling.
@@ -152,6 +154,46 @@ def test_apply_rewrites_the_period_with_the_engines_stages_and_is_idempotent(app
     assert again["status"] == R.CURRENT, again
     assert _tables(gw) == snapshot, "the second apply rewrote a current period"
     WORK["units"] += 10
+
+
+def test_a_period_read_by_an_older_parser_is_never_current_and_apply_restamps_it(app, gw, no_quota):
+    """G7 (design A10): a stored evidence block stamped by another reader
+    serves every EBITDA-built figure as `reprocess_required` on GET
+    /api/period — while its stored methodology figures still agree with a
+    fresh run. The tool compared only those figures, so it reported the
+    period `current` and never rewrote it: the documented remedy skipped
+    exactly the periods the refusal names, at the next parser bump."""
+    from engine.country_packs.ro_romania.trial_balance_parser import PARSER_VERSION
+
+    out = V.one_tap(app, V.agras_workbook(), "balanta.xlsx", on_screen=V.ORG_AGRAS)
+    V.run_analysis(gw, out["commit"]["document_id"])
+    no_quota()
+    (period,) = gw.db.rows("financial_periods")
+    pid = period["id"]
+    # Freshly analysed: current.
+    (fresh,) = R.run(apply=False, period=pid)
+    assert fresh["status"] == R.CURRENT, fresh
+    assert fresh["before"]["parser_current"] is True
+    # The stamp an older reader left.
+    assert PARSER_VERSION != "tb_parser_v5"
+    period["assembled_canonical_v1"]["stock_variation"]["parser_version"] = "tb_parser_v5"
+    snapshot = _tables(gw)
+    (row,) = R.run(apply=False, period=pid)
+    assert _tables(gw) == snapshot, "the dry run wrote"
+    assert row["status"] == R.WOULD_REPROCESS, row
+    assert row["before"]["parser_version"] == "tb_parser_v5"
+    assert row["before"]["parser_current"] is False
+    text = R.render([row])
+    assert "reader tb_parser_v5 -> %s" % PARSER_VERSION in text, text
+    assert "G7: served as reprocess_required" in text, text
+    # Apply rewrites the block under the running reader, and is then current.
+    (applied,) = R.run(apply=True, period=pid)
+    assert applied["status"] == R.REPROCESSED, applied
+    (period,) = gw.db.rows("financial_periods")
+    assert period["assembled_canonical_v1"]["stock_variation"]["parser_version"] == PARSER_VERSION
+    (again,) = R.run(apply=False, period=pid)
+    assert again["status"] == R.CURRENT, again
+    WORK["units"] += 9
 
 
 def test_a_document_that_needs_the_model_is_refused_and_nothing_is_written(app, gw, no_quota):

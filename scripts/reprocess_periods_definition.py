@@ -56,9 +56,11 @@ change that does not move toward it — or any change with no filed figure —
 makes the exit code 3 unless `--allow-turnover-change` is given.
 
 IDEMPOTENT. A period whose stored envelope already carries the evidence
-block and the current definition stamp, and whose fresh run reproduces its
-stored turnover, EBITDA and composite, is `current` and is not rewritten
-(`--force` rewrites it anyway).
+block, the current definition stamp and the RUNNING parser's stamp (G7 —
+the serve path refuses 711 on any other reader), and whose fresh run
+reproduces its stored turnover, EBITDA and composite, is `current` and is
+not rewritten (`--force` rewrites it anyway). The dry run prints the stored
+reader beside the running one.
 
 Usage (inside the backend container, per CLAUDE.md §14):
   python3 scripts/reprocess_periods_definition.py                 # dry run, every period
@@ -161,10 +163,13 @@ def _num(v: Any) -> Optional[float]:
 def _stored_view(period: Dict[str, Any], metric_rows: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
     """What the period serves from storage today."""
     from engine.country_packs.ro_romania.chart_of_accounts import EBITDA_DEFINITION_REVISION
+    from engine.country_packs.ro_romania.trial_balance_parser import PARSER_VERSION
     from engine.ratios import credit_model
 
     env = period.get("assembled_canonical_v1")
     env = env if isinstance(env, dict) else {}
+    evidence = env.get("stock_variation") if isinstance(env.get("stock_variation"), dict) else {}
+    stored_reader = evidence.get("parser_version")
     methodology = env.get("methodology") if isinstance(env.get("methodology"), dict) else {}
     ebitda = (methodology.get("ebitda") or {}) if isinstance(methodology.get("ebitda"), dict) else {}
     totals = (methodology.get("totals") or {}) if isinstance(methodology.get("totals"), dict) else {}
@@ -172,6 +177,15 @@ def _stored_view(period: Dict[str, Any], metric_rows: Sequence[Dict[str, Any]]) 
     composite = _num(by_name.get("credit_composite"))
     return {
         "has_evidence": isinstance(env.get("stock_variation"), dict),
+        # G7 (design A10): the serve path folds the 121 residual into 711
+        # only when the stored rows were read by the RUNNING trial-balance
+        # parser; otherwise every EBITDA-built figure refuses with
+        # `reprocess_required`. A stale stamp is therefore never `current`,
+        # whatever the stored methodology figures say (they were written at
+        # persist time and still agree with a fresh run).
+        "parser_version": stored_reader,
+        "running_parser_version": PARSER_VERSION,
+        "parser_current": stored_reader is not None and stored_reader == PARSER_VERSION,
         "definition": methodology.get("ebitda_definition"),
         "definition_current": methodology.get("ebitda_definition") == EBITDA_DEFINITION_REVISION,
         "turnover": _num(totals.get("revenue_net")),
@@ -289,6 +303,7 @@ def reprocess_period(period: Dict[str, Any], *, apply: bool, force: bool = False
 
     before = row["before"]
     current = (before["has_evidence"] and before["definition_current"]
+               and before["parser_current"]
                and _same(before["turnover"], after["turnover"])
                and _same(before["ebitda"], after["ebitda"])
                and _same(before["composite"], after["composite"]))
@@ -375,6 +390,9 @@ def render(rows: Sequence[Dict[str, Any]]) -> str:
                          % (a.get("anchor_status"), a.get("book_state"), _fmt(a.get("net_711")),
                             a.get("net_711_provenance") or a.get("net_711_refusal"),
                             _fmt(a.get("net_72x"))))
+            lines.append("  reader %s -> %s%s" % (
+                b.get("parser_version") or "unstamped", b.get("running_parser_version") or "—",
+                "" if b.get("parser_current") else "  [G7: served as reprocess_required until rewritten]"))
             lines.append("  turnover %s -> %s%s" % (_fmt(b.get("turnover")), _fmt(a.get("turnover")),
                                                     ("  [TURNOVER MOVED: %s]" % r["turnover_move"])
                                                     if r.get("turnover_move") else ""))

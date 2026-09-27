@@ -11208,7 +11208,7 @@ FAILED tests/engine/test_insights_wire.py::test_agras_serves_the_reconstruction_
 |---|---|
 | command | `python -m pytest tests/engine/test_reprocess_periods_definition.py -q -s` |
 | canary | `SCOPE reprocess-periods-definition: corpus/saga_10_col_agras analysed` |
-| work count | `GATE-WORK reprocess-periods-definition units=N`, floor **31** (measured 31) |
+| work count | `GATE-WORK reprocess-periods-definition units=N`, floor **31** (measured 40) |
 
 **SCOPE** — design A9 (deploy with reprocessing). Every stored period lacks
 the stock-variation evidence block and the one-EBITDA methodology stamp, so
@@ -11272,6 +11272,37 @@ text-layer PDFs the deterministic reader accepts); the `valuations` upsert
 non-fatal — the same as in the pipeline gates); recommendations written by
 the model before the ruling (left in place; not re-generated without the
 model).
+
+### reprocess-periods-definition — a G7-stale stamp is never `current` (fixer round 1, 2026-09-27)
+
+**INCIDENT** — critic finding: `reprocess_period`'s `current` test compared
+the STORED methodology `ebitda.reported` / turnover / composite (written at
+persist time) with the fresh run and never looked at the stored evidence
+block's `parser_version`. Agras analysed by the real pipeline, then its
+`assembled_canonical_v1.stock_variation.parser_version` set to
+`tb_parser_v5`: `R.run(apply=False)` → `current`, `R.run(apply=True)` →
+`current`, the stamp stayed `tb_parser_v5` — while GET /api/period served
+EBITDA / EBIT / gross profit as `reprocess_required` (G7) and said "it is
+recomputed when the document is reprocessed". At the next parser bump the
+documented remedy would have skipped every stored 711-active period.
+
+Now `_stored_view` carries `parser_version`, `running_parser_version` and
+`parser_current`; `current` requires `parser_current`; the dry run prints
+`reader <stored> -> <running>` and `[G7: served as reprocess_required until
+rewritten]`. New test
+`test_a_period_read_by_an_older_parser_is_never_current_and_apply_restamps_it`:
+fresh → current; stale stamp → `would_reprocess`, nothing written, the reader
+line printed; `--apply` rewrites the block under the running reader, then
+current. Work count 40 (floor 31 unchanged).
+
+**PLANT stamp-blind-current** — `scripts/reprocess_periods_definition.py`:
+`and before["parser_current"]` → `and True`.
+```
+RED (plant) — 1 failed, 6 passed
+E   assert 'current' == 'would_reprocess'
+FAILED tests/engine/test_reprocess_periods_definition.py::test_a_period_read_by_an_older_parser_is_never_current_and_apply_restamps_it
+```
+**REVERT** — the file restored from its copy: `7 passed`.
 
 ## pl-one-ebitda-page
 
