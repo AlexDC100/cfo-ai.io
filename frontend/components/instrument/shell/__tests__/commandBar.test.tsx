@@ -520,6 +520,73 @@ describe("cmdbar-figures — every figure is the served figure", () => {
   });
 });
 
+describe("Cont — nothing past the cap is hidden; the material accounts are the ones shown", () => {
+  // The owner's own example: "4111" on Scandia. Six 4111 leaves; the first
+  // three by CODE hold 1.47M of a 12.65M receivable — 411121 alone holds
+  // 11.03M (87 %) and was invisible, with nothing saying more existed.
+  it("'4111': the three largest leaves by served balance, then ONE row counting the rest and opening all six", () => {
+    const w = scandiaWorld();
+    mount(w);
+    type("4111");
+    const leaves = (w.body.line_items as { ro_account_code: string; amount: number; statement: string }[])
+      .filter((li) => li.statement !== "IGNORED" && li.ro_account_code.startsWith("4111"));
+    expect(leaves.length).toBe(6);
+    const largest = [...leaves].sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount)).slice(0, 3).map((li) => li.ro_account_code);
+    expect(largest[0]).toBe("411121");
+    const shown = rowsOf("account").map((el) => el.getAttribute("data-row-id")!.split(":")[1]);
+    expect(shown).toEqual(largest);
+    const more = rowsOf("account-more");
+    expect(more).toHaveLength(1);
+    expect(more[0].textContent).toBe("All accounts starting with 4111: 6 (3 more)");
+    // It sits in the Cont group, under its heading — no heading of its own.
+    expect(screen.queryAllByTestId("cmdbar-heading-account")).toHaveLength(1);
+    fireEvent.click(more[0]);
+    const loc = new URL(screen.getByTestId("location").textContent ?? "", "http://cfo.test");
+    expect(loc.searchParams.getAll("account")).toEqual(["4111"]);
+    expect(loc.searchParams.get("tab")).toBe("balance_sheet");
+  });
+
+  it("a name query counts every account it matched and opens exactly those", () => {
+    const w = scandiaWorld();
+    mount(w);
+    type("clienti");
+    const more = rowsOf("account-more")[0];
+    expect(more, "clienti overflows the Cont group").toBeTruthy();
+    const n = Number(more.querySelector("[data-more]")?.getAttribute("data-more"));
+    expect(n).toBeGreaterThan(0);
+    expect(more.textContent).toMatch(/^All accounts matching “clienti”: \d+ \(\d+ more\)$/);
+    fireEvent.click(more);
+    const loc = new URL(screen.getByTestId("location").textContent ?? "", "http://cfo.test");
+    expect(loc.searchParams.getAll("account").length).toBe(3 + n);
+  });
+
+  it("the keyboard reaches it: ↓ past the last account selects the overflow row, Enter opens it", () => {
+    mount(scandiaWorld());
+    type("4111");
+    const all = screen.getAllByRole("option");
+    const idx = all.findIndex((el) => el.getAttribute("data-row-kind") === "account-more");
+    expect(idx).toBeGreaterThan(0);
+    for (let i = 0; i < idx; i++) key("ArrowDown");
+    expect(input().getAttribute("aria-activedescendant")).toBe(all[idx].id);
+    key("Enter");
+    expect(screen.getByTestId("location").textContent).toContain("account=4111");
+  });
+
+  it("Romanian: the overflow row speaks Romanian, with diacritics", async () => {
+    await act(async () => { await i18n.changeLanguage("ro"); });
+    mount(scandiaWorld());
+    type("4111");
+    expect(rowsOf("account-more")[0].textContent).toBe("Toate conturile care încep cu 4111: 6 (încă 3)");
+  });
+
+  it("no overflow, no row: a query whose accounts all fit says nothing more", () => {
+    mount(scandiaWorld());
+    type("5121");
+    expect(rowsOf("account").length).toBeGreaterThan(0);
+    expect(rowsOf("account-more")).toHaveLength(0);
+  });
+});
+
 describe("absent is never 0", () => {
   it("a net result not anchored to account 121 prints the reason, not a figure", () => {
     const body = structuredClone(SCANDIA.period);
@@ -1016,10 +1083,12 @@ describe("cmdbar-keyboard — the whole flow from the keyboard", () => {
     expect(selected()).toBe(n - 1);
     expect(opts()[n - 1].getAttribute("data-row-kind")).toBe("ask");
     expect(input().getAttribute("aria-activedescendant")).toBe(opts()[n - 1].id);
-    // Every family the reader sees was walked through, in order.
-    const order = ["answer", "account", "page", "action", "ask"];
+    // Every family the reader sees was walked through, in order — the Cont
+    // group's overflow row right after its accounts.
+    const order = ["answer", "account", "account-more", "page", "action", "ask"];
     expect([...new Set(walked)]).toEqual(order.filter((k) => walked.includes(k)));
     expect(walked).toContain("account");
+    expect(walked).toContain("account-more");
     for (let i = 0; i < n + 2; i++) key("ArrowUp");
     expect(selected()).toBe(0);
   });

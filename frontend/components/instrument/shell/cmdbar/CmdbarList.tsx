@@ -18,6 +18,7 @@ import {
   Clock,
   FileText,
   Hash,
+  ListTree,
   Sparkles,
   Upload,
 } from "lucide-react";
@@ -49,6 +50,7 @@ const ROW_TESTID: Record<BarRow["kind"], string> = {
   recent: "cmdbar-row-recent",
   answer: "cmdbar-row-answer",
   account: "cmdbar-row-account",
+  "account-more": "cmdbar-row-account-more",
   page: "cmdbar-row-page",
   action: "cmdbar-row-action",
   ask: "cmdbar-row-ask",
@@ -158,6 +160,8 @@ function RowBody({ row }: { row: BarRow }) {
         </span>
       );
     }
+    case "account-more":
+      return <span data-more={row.view.more} className="text-[12px] text-ink-soft">{row.view.text}</span>;
     case "now-action":
       return <span className="truncate text-[12.5px] text-ink">{row.view.label}</span>;
     case "recent":
@@ -179,6 +183,7 @@ function RowIcon({ row }: { row: BarRow }) {
   switch (row.kind) {
     case "answer": return <Hash size={13} strokeWidth={1.75} className={cls} />;
     case "account": return <BookOpen size={13} strokeWidth={1.75} className={cls} />;
+    case "account-more": return <ListTree size={13} strokeWidth={1.75} className={cls} />;
     case "page": return <FileText size={13} strokeWidth={1.75} className={cls} />;
     case "action":
     case "now-action":

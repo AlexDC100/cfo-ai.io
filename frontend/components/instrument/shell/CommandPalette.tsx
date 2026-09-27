@@ -85,6 +85,7 @@ import {
 import { readRecents, rememberRecent, type CmdbarRecent } from "./cmdbar/cmdbarRecents";
 import { rowDomId, type BarRow } from "./cmdbar/cmdbarRows";
 import {
+  accountMoreView,
   accountView,
   nowActionView,
   nowItemView,
@@ -303,6 +304,13 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
           else if (ref.kind === "page") out.push({ kind: "page", id: hit.entry.id, label: ref.label, href: ref.href });
           else out.push({ kind: "action", id: hit.entry.id, label: ref.label });
         }
+        if (g.group === "account") {
+          // The accounts past the cap are counted and opened, never hidden.
+          const items = (hits: typeof g.hits) =>
+            hits.flatMap((h) => (h.entry.ref.kind === "account" ? [h.entry.ref.item] : []));
+          const more = accountMoreView(ctx, results.query, items(g.hits), items(g.rest));
+          if (more) out.push({ kind: "account-more", id: more.id, view: more });
+        }
       }
       if (results.ask) out.push({ kind: "ask", id: "ask", query: results.ask.query });
       measure(LAT_CMDBAR_SEARCH, LAT_CMDBAR_SEARCH);
@@ -514,6 +522,9 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
         case "account":
           remember({ id: row.id, group: "account", label: `${row.view.code} ${row.view.name}`.trim(), href: row.view.href });
           return go(row.view.href);
+        case "account-more":
+          remember({ id: row.id, group: "account", label: row.view.text, href: row.view.href });
+          return go(row.view.href);
         case "page":
           remember({ id: row.id, group: "page", label: row.label, href: row.href });
           return go(row.href);
@@ -589,6 +600,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     !activeRow ? undefined
     : activeRow.kind === "answer" ? activeRow.view.label
     : activeRow.kind === "account" ? activeRow.view.code
+    : activeRow.kind === "account-more" ? activeRow.view.text
     : activeRow.kind === "page" || activeRow.kind === "action" ? activeRow.label
     : activeRow.kind === "now" ? activeRow.view.subject
     : activeRow.kind === "now-action" ? activeRow.view.label

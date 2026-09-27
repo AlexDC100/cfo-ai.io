@@ -10999,6 +10999,40 @@ REVERT: Tests  39 passed (39)
 The Scandia twin stays green on the plant, as it should: a plain six-digit
 book has no inner segment (`inner_only=0`) — which is why the law runs on both.
 
+**The Cont group hid what it did not show.** "4111" on Scandia painted
+411101 / 411102 / 411104 — the first three by CODE, 1.47M of a 12.65M
+receivable — while 411121 (11.03M, 87 %) and two more leaves were invisible,
+with nothing saying more existed (`searchCmdbar` computed `more`; nothing
+rendered it; `cmdbar.account.more` was unused). Repaired: accounts that meet a
+query equally well are ranked by their served balance, unsigned; the hits past
+the cap travel with the group (`rest`) and become ONE row in the Cont group —
+kind `account-more`, reachable by ↓, opened by Enter — "All accounts starting
+with 4111: 6 (3 more)" / "Toate conturile care încep cu 4111: 6 (încă 3)",
+linking the account view for the typed prefix (`?account=4111`, which lists the
+prefix's leaves itself) when every match starts with it, else every matched
+code. New laws: rendered (`commandBar.test.tsx`: the three largest, the row,
+its link, the keyboard, Romanian, no row when nothing is hidden) and the link
+sweep (`evidenceLanding.test.tsx`, cmdbar-evidence: for every 1–4 character
+code prefix and every 5+ letter name word of both books that overflows, the
+row's link opens EXACTLY the accounts the bar found — none missing, none added):
+`GATE-WORK cmdbar-cont-overflow scandia probes=429 overflowing=113
+prefix_links=78` · `agras probes=780 overflowing=74 prefix_links=73`. The live
+spec's FAMILY_EXPECT gained `account-more` ("4111": Scandia 6 leaves, Agras 4).
+```
+### PLANT (a) CommandPalette.tsx — the overflow row is never pushed        RED 5 failed | 79 passed (84)
+   × … '4111': the three largest leaves by served balance, then ONE row counting the rest and opening all six
+   × … a name query counts every account it matched and opens exactly those
+   × … the keyboard reaches it  × … Romanian  × cmdbar-keyboard … ↓ walks every row
+   AssertionError: expected [] to have a length of 1 but got +0
+### PLANT (b) cmdbarIndex.ts — equals in code order (no |amount| tie-break) RED 1 failed | 83 passed (84)
+   AssertionError: expected [ '411101', '411102', '411104' ] to deeply equal [ '411121', '411102', '411104' ]
+### PLANT (c) cmdbarViews.ts — the row links only the SHOWN accounts        RED 4 failed | 80 passed (84)
+   × cmdbar-evidence … scandia / agras: … the row's link lists exactly the accounts found
+   AssertionError: scandia: overflow rows that hide or add accounts: expected [ …(113) ] to deeply equal []
+   AssertionError: expected [ '411121', '411102', '411104' ] to deeply equal [ '4111' ]
+REVERT (each, file restored byte for byte): Tests 84 passed (84)
+```
+
 ## evidence-lines
 
 The account view (`frontend/components/cfo/evidence/EvidenceDrawer.tsx`, design

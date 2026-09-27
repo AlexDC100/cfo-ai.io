@@ -96,6 +96,9 @@ const FAMILY_EXPECT = {
   "now-action": { query: "", floor: 1 },
   answer: { query: "profit", floor: 1 },
   account: { query: "4111", floor: 1 },
+  // Both books hold more 4111 leaves than the Cont group shows (Scandia 6,
+  // Agras 4): the rest are counted and opened by this row, never hidden.
+  "account-more": { query: "4111", floor: 1 },
   page: { query: "bilant", floor: 1 },
   action: { query: "exporta", floor: 1 },
   ask: { query: "profit", floor: 1 },

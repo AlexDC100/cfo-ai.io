@@ -64,13 +64,15 @@ import type { SectorBenchmarkDoc } from "@/lib/sectorBenchmark";
 import type { AttentionDoc } from "@/lib/attention";
 import type { PeriodLineItem } from "@/lib/activePeriod";
 import {
+  accountMoreView,
   accountView,
   nowItemView,
   ratioView,
   statementView,
   type ViewContext,
 } from "@/components/instrument/shell/cmdbar/cmdbarViews";
-import { ANSWERS } from "@/components/instrument/shell/cmdbar/cmdbarIndex";
+import { ANSWERS, buildCmdbarIndex, searchCmdbar, type CmdbarHit } from "@/components/instrument/shell/cmdbar/cmdbarIndex";
+import { codeKey } from "@/components/instrument/shell/cmdbar/cmdbarSearch";
 import { servedEbitda, servedLine, servedNetResult, ratioTableRows } from "@/components/instrument/shell/cmdbar/cmdbarSources";
 import strings from "@/components/cfo/evidence/evidenceStrings.json";
 
@@ -297,6 +299,49 @@ describe("cmdbar-evidence — every Cont row lands on its account, highlighted",
         cleanup();
       }
     });
+  }
+});
+
+describe("cmdbar-evidence — every Cont overflow row opens EVERY account it counted", () => {
+  for (const w of WORLDS.slice(0, 2)) {
+    it(`${w.name}: for every code prefix and name word that overflows the Cont group, the row's link lists exactly the accounts found`, () => {
+      const ctx = ctxOf(w);
+      const idx = buildCmdbarIndex({ body: w.body as never, pages: [], actions: [] });
+      const items = (w.body.line_items as PeriodLineItem[]).filter((li) => li.statement !== "IGNORED");
+      const probes = new Set<string>();
+      for (const li of items) {
+        const k = codeKey(li.ro_account_code);
+        for (const n of [1, 2, 3, 4]) if (k.length >= n) probes.add(li.ro_account_code.slice(0, n));
+        for (const word of (li.ro_account_name ?? "").split(/\s+/)) if (/^\p{L}{5,}$/u.test(word)) probes.add(word.toLowerCase());
+      }
+      const item = (h: CmdbarHit) => (h.entry.ref.kind === "account" ? h.entry.ref.item : null);
+      let overflowing = 0;
+      let prefixLinks = 0;
+      const bad: string[] = [];
+      for (const q of probes) {
+        const g = searchCmdbar(idx, q).groups.find((x) => x.group === "account");
+        if (!g) continue;
+        const shown = g.hits.map(item).filter((x): x is PeriodLineItem => !!x);
+        const hidden = g.rest.map(item).filter((x): x is PeriodLineItem => !!x);
+        const view = accountMoreView(ctx, q, shown, hidden);
+        if (hidden.length === 0) { if (view) bad.push(`"${q}": a row with nothing hidden`); continue; }
+        overflowing++;
+        if (!view) { bad.push(`"${q}": ${hidden.length} hidden, no row`); continue; }
+        if (view.more !== hidden.length || view.total !== shown.length + hidden.length) bad.push(`"${q}": counts ${view.more}/${view.total}`);
+        const req = readEvidenceRequest(new URL(view.href, "http://cfo.test").searchParams)!;
+        const m = buildEvidenceModel(evidenceBody(w), req);
+        const opened = new Set(m.accounts.flatMap((b) => b.leaves.map((l) => `${l.code}:${l.bucket}`)));
+        const found = new Set([...shown, ...hidden].map((li) => `${li.ro_account_code}:${li.bucket}`));
+        const missing = [...found].filter((k) => !opened.has(k));
+        const extra = [...opened].filter((k) => !found.has(k));
+        if (missing.length || extra.length) bad.push(`"${q}": missing ${missing.slice(0, 3)} extra ${extra.slice(0, 3)}`);
+        if (req.accounts.length === 1 && req.accounts[0] === q) prefixLinks++;
+      }
+      expect(bad, `${w.name}: overflow rows that hide or add accounts`).toEqual([]);
+      expect(overflowing, "VACUITY: overflowing queries").toBeGreaterThanOrEqual(20);
+      expect(prefixLinks, "the prefix form was exercised").toBeGreaterThanOrEqual(5);
+      console.log(`GATE-WORK cmdbar-cont-overflow ${w.name} probes=${probes.size} overflowing=${overflowing} prefix_links=${prefixLinks}`);
+    }, 30_000);
   }
 });
 

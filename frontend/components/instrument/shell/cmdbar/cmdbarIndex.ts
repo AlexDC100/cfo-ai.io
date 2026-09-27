@@ -170,7 +170,10 @@ export interface CmdbarHit {
 
 export interface CmdbarResults {
   query: string;
-  groups: { group: Exclude<CmdbarGroup, "ask">; hits: CmdbarHit[]; more: number }[];
+  /** `rest`: the hits past the group's cap, in rank order — the bar never
+   *  hides them silently (the Cont group turns them into its "all accounts"
+   *  row); `more` is their count. */
+  groups: { group: Exclude<CmdbarGroup, "ask">; hits: CmdbarHit[]; rest: CmdbarHit[]; more: number }[];
   /** Întreabă CFO AI — present for every non-empty query, always last. */
   ask: { query: string } | null;
 }
@@ -182,6 +185,14 @@ const SAME_FIGURE: Readonly<Record<string, string>> = {
   "ratio:dso": "answer:receivables",
   "ratio:dpo": "answer:payables",
 };
+
+/** An account entry's served balance, unsigned — the order of equals (a
+ *  missing amount sorts last). Not a figure the bar prints. */
+function servedMagnitude(entry: CmdbarEntry): number {
+  if (entry.ref.kind !== "account") return -1;
+  const a = entry.ref.item.amount;
+  return typeof a === "number" && Number.isFinite(a) ? Math.abs(a) : -1;
+}
 
 export function searchCmdbar(index: CmdbarIndex, query: string): CmdbarResults {
   const q = query.trim();
@@ -201,7 +212,13 @@ export function searchCmdbar(index: CmdbarIndex, query: string): CmdbarResults {
   }
   for (const g of GROUP_ORDER) {
     if (g === "ask") continue;
-    const hits = (byGroup.get(g) ?? []).sort((a, b) => b.score - a.score || a.entry.order - b.entry.order);
+    // Accounts that meet the query equally well are shown by the SIZE of
+    // their served balance: "4111" leads with the leaf that holds most of
+    // the receivable, not the first by code order.
+    const hits = (byGroup.get(g) ?? []).sort((a, b) =>
+      b.score - a.score
+      || (g === "account" ? servedMagnitude(b.entry) - servedMagnitude(a.entry) : 0)
+      || a.entry.order - b.entry.order);
     let kept = hits;
     if (g === "answer") {
       const ids = new Set(hits.map((h) => h.entry.id));
@@ -209,7 +226,7 @@ export function searchCmdbar(index: CmdbarIndex, query: string): CmdbarResults {
     }
     if (kept.length === 0) continue;
     const cap = GROUP_CAP[g];
-    groups.push({ group: g, hits: kept.slice(0, cap), more: Math.max(0, kept.length - cap) });
+    groups.push({ group: g, hits: kept.slice(0, cap), rest: kept.slice(cap), more: Math.max(0, kept.length - cap) });
   }
   return { query: q, groups, ask: { query: q } };
 }

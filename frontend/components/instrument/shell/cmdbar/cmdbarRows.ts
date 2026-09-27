@@ -3,7 +3,7 @@
 // and `activeIdx` indexes into it, so ↑↓ can never select a row the reader
 // cannot see.
 
-import type { AccountView, FigureView, NowActionView, NowItemView } from "./cmdbarViews";
+import type { AccountMoreView, AccountView, FigureView, NowActionView, NowItemView } from "./cmdbarViews";
 import type { CmdbarRecent } from "./cmdbarRecents";
 
 /** Every row kind the bar can paint — the family list the craft gate
@@ -16,6 +16,7 @@ export const CMDBAR_ROW_KINDS = [
   "recent",
   "answer",
   "account",
+  "account-more",
   "page",
   "action",
   "ask",
@@ -27,6 +28,9 @@ export type BarRow =
   | { kind: "recent"; id: string; recent: CmdbarRecent }
   | { kind: "answer"; id: string; view: FigureView }
   | { kind: "account"; id: string; view: AccountView }
+  /** The accounts past the Cont group's cap, never hidden silently: how
+   *  many more, and the account view that lists them all. */
+  | { kind: "account-more"; id: string; view: AccountMoreView }
   | { kind: "page"; id: string; label: string; href: string }
   | { kind: "action"; id: string; label: string }
   | { kind: "ask"; id: string; query: string };
@@ -39,6 +43,7 @@ export function sectionOf(row: BarRow): BarSection {
     case "now": return "now";
     case "now-action": return "nowActions";
     case "recent": return "recent";
+    case "account-more": return "account";
     default: return row.kind;
   }
 }

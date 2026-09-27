@@ -52,9 +52,10 @@
       },
       "account": {
         "keyMetric": "{{label}} {{value}}",
-        "more": "{{n}} more accounts start with {{code}}",
+        "more": "All accounts starting with {{code}}: {{total}} ({{n}} more)",
         "statementBS": "balance sheet",
-        "statementPL": "profit and loss"
+        "statementPL": "profit and loss",
+        "moreMatch": "All accounts matching “{{query}}”: {{total}} ({{n}} more)"
       },
       "page": {
         "companyYear": "{{company}} · {{year}}",
@@ -152,9 +153,10 @@
       },
       "account": {
         "keyMetric": "{{label}} {{value}}",
-        "more": "încă {{n}} conturi încep cu {{code}}",
+        "more": "Toate conturile care încep cu {{code}}: {{total}} (încă {{n}})",
         "statementBS": "bilanț",
-        "statementPL": "cont de profit și pierdere"
+        "statementPL": "cont de profit și pierdere",
+        "moreMatch": "Toate conturile care se potrivesc cu „{{query}}”: {{total}} (încă {{n}})"
       },
       "page": {
         "companyYear": "{{company}} · {{year}}",

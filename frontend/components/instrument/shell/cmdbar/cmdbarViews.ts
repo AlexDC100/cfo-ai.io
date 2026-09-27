@@ -332,6 +332,51 @@ export function accountView(ctx: ViewContext, item: PeriodLineItem): AccountView
   };
 }
 
+/** The Cont group's overflow row: every account the query found past the
+ *  group's cap is counted and opened, never hidden. */
+export interface AccountMoreView {
+  id: string;
+  text: string;
+  /** How many the group does not show, and how many it found in all. */
+  more: number;
+  total: number;
+  /** The account view listing every match: the typed code prefix itself
+   *  when every match starts with it (`?account=4111` lists all its
+   *  leaves), else every matched code. */
+  href: string;
+  codes: string[];
+}
+
+/** The overflow row for the Cont group, or null when nothing is hidden.
+ *  `shown` and `hidden` are the group's served line items, in rank order. */
+export function accountMoreView(
+  ctx: ViewContext,
+  query: string,
+  shown: readonly PeriodLineItem[],
+  hidden: readonly PeriodLineItem[],
+): AccountMoreView | null {
+  if (hidden.length === 0) return null;
+  const t = tt(ctx);
+  const all = [...shown, ...hidden];
+  const codes: string[] = [];
+  for (const li of all) if (!codes.includes(li.ro_account_code)) codes.push(li.ro_account_code);
+  const q = query.trim();
+  // A single typed word with a digit is a code prefix; the account view
+  // lists a prefix's leaves itself (evidenceView accountBlock), so the link
+  // is the prefix — exactly when every match starts with it as written.
+  const prefix = !/\s/.test(q) && /\d/.test(q) && codes.every((c) => c.startsWith(q)) ? q : null;
+  return {
+    id: `account-more:${q}`,
+    text: prefix
+      ? t("cmdbar.account.more", { code: prefix, total: all.length, n: hidden.length })
+      : t("cmdbar.account.moreMatch", { query: q, total: all.length, n: hidden.length }),
+    more: hidden.length,
+    total: all.length,
+    href: accountEvidenceHref(scopeOf(ctx), prefix ? [prefix] : codes),
+    codes,
+  };
+}
+
 // ── "Ce contează acum" ────────────────────────────────────────────────
 
 export interface NowItemView {
