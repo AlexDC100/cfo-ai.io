@@ -450,6 +450,80 @@ describe("cmdbar-evidence — every Răspuns row opens its evidence", () => {
   }
 });
 
+// Review round 1 of stage CB-I: the account view printed the engine's own
+// paths — "read from statements.insights.insights[id=earnings_quality]
+// .measures[key=non_trading]", "read from assembled_pl.ebitda", "Land ·
+// canonical_bs.rows[id=ppe_land]" — and an unknown line as "(pl.nope)".
+// The reader gets where the figure was read in words (evidence.source.*,
+// RO/EN); the path stays in `data-source` for a developer, printed nowhere.
+describe("cmdbar-evidence — the view speaks the reader's words: no engine path on screen", () => {
+  const ENGINE_PATH = /assembled_[a-z]+\.|canonical_bs|statements\.insights|\[id=|\[key=|\bline_items\b/;
+  const SNAKE = /\b[a-z0-9]+_[a-z0-9_]+\b/;
+
+  /** Every account-view link the bar builds over a world: its items'
+   *  (those that open the view), its statement answers, a served total,
+   *  a line no declaration knows. */
+  function viewHrefs(w: World): string[] {
+    const ctx = ctxOf(w);
+    const out: string[] = [];
+    for (const item of w.attention.items) {
+      const u = new URL(nowItemView(ctx, item, w.attention).href, "http://cfo.test");
+      if (u.searchParams.get("line") || u.searchParams.getAll("account").length) out.push(u.pathname + u.search);
+    }
+    for (const a of ANSWERS) out.push(statementView(ctx, a).href);
+    out.push("/dashboard?tab=balance_sheet&account=121");
+    out.push("/dashboard?tab=pl&line=pl.no_such_line");
+    return out;
+  }
+
+  for (const lang of ["en", "ro"] as const) {
+    it(`${lang}: every account view the bar opens names its source in words, and prints no engine path or id`, async () => {
+      await act(async () => { await i18n.changeLanguage(lang); });
+      const tt = i18n.getFixedT(lang);
+      const wrong: string[] = [];
+      let views = 0;
+      let sources = 0;
+      let unknown = 0;
+      for (const w of WORLDS) {
+        for (const href of viewHrefs(w)) {
+          drawer(w, href);
+          const d = await screen.findByTestId("evidence-drawer");
+          const text = d.textContent ?? "";
+          const hit = ENGINE_PATH.exec(text);
+          if (hit) wrong.push(`${w.name} ${href}: "${text.slice(Math.max(0, hit.index - 30), hit.index + 50)}"`);
+          for (const el of d.querySelectorAll<HTMLElement>("[data-source]")) {
+            const path = el.dataset.source ?? "";
+            // POSITIVE CONTROL: the developer attribute still carries the path.
+            if (!ENGINE_PATH.test(path)) wrong.push(`${w.name} ${href}: data-source "${path}" is not an engine path`);
+            const printed = el.textContent ?? "";
+            if (SNAKE.test(printed)) wrong.push(`${w.name} ${href}: a source line prints "${printed}"`);
+            if (el.dataset.testid === "evidence-total-source") continue;
+            const key = path.startsWith("statements.insights") ? "findings" : path.startsWith("assembled_pl.") ? "pl"
+              : path.startsWith("assembled_bs.") || path.startsWith("canonical_bs.") ? "bs" : path.startsWith("assembled_cf.") ? "cf"
+              : path.startsWith("assembled_metrics.") ? "metrics" : "served";
+            const want = tt("evidence.servedFrom", { source: tt(`evidence.source.${key}`) });
+            if (printed !== want) wrong.push(`${w.name} ${href}: "${printed}" ≠ "${want}"`);
+            sources++;
+          }
+          const u = d.querySelector<HTMLElement>('[data-testid="evidence-unknown-line"]');
+          if (u) {
+            unknown++;
+            if (u.textContent !== tt("evidence.unknownLine")) wrong.push(`${w.name} ${href}: unknown line "${u.textContent}"`);
+            if ((u.textContent ?? "").includes(u.dataset.line ?? "\u0000")) wrong.push(`${w.name} ${href}: the unknown line prints its key`);
+          }
+          views++;
+          cleanup();
+        }
+      }
+      expect(wrong.slice(0, 12), `engine paths or ids on screen (${wrong.length})`).toEqual([]);
+      expect(views, "VACUITY: views opened").toBeGreaterThanOrEqual(40);
+      expect(sources, "VACUITY: source lines read").toBeGreaterThanOrEqual(40);
+      expect(unknown, "VACUITY: the unknown line was opened in every world").toBe(WORLDS.length);
+      console.log(`GATE-WORK cmdbar-evidence-words ${lang} views=${views} sources=${sources}`);
+    }, 60_000);
+  }
+});
+
 describe("cmdbar-evidence — the account rules", () => {
   const scandia = WORLDS[0];
 

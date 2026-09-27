@@ -232,6 +232,22 @@ export function accountBlock(body: EvidenceBody, code: string): EvidenceAccountB
   };
 }
 
+/** Where a served figure was read, as the READER names it — a declared
+ *  label (`evidence.source.<key>`, RO/EN), never the engine's path. The
+ *  path itself ("statements.insights.insights[id=…]", "assembled_pl.ebitda",
+ *  "canonical_bs.rows[id=…]") stays in a developer attribute
+ *  (`data-source`) and is printed nowhere (review round 1 of stage CB-I). */
+export type EvidenceSourceKey = "pl" | "bs" | "cf" | "metrics" | "findings" | "served";
+
+export function sourceLabelKey(source: string): EvidenceSourceKey {
+  if (source.startsWith("assembled_pl.")) return "pl";
+  if (source.startsWith("assembled_bs.") || source.startsWith("canonical_bs.")) return "bs";
+  if (source.startsWith("assembled_cf.")) return "cf";
+  if (source.startsWith("assembled_metrics.")) return "metrics";
+  if (source.startsWith("statements.insights")) return "findings";
+  return "served";
+}
+
 /** The line's served figure, through the ONE reader for it. */
 export function lineFigure(body: EvidenceBody, spec: EvidenceLineSpec): ServedFigure {
   const b = body as never;

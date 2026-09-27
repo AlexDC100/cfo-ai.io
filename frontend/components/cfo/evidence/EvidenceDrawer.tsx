@@ -45,6 +45,7 @@ import "./evidenceI18n";
 import {
   buildEvidenceModel,
   readEvidenceRequest,
+  sourceLabelKey,
   type EvidenceAccountBlock,
   type EvidenceBody,
   type EvidenceLeaf,
@@ -184,8 +185,8 @@ export function EvidenceDrawer({ body, periodLabel, documentName, currency }: Ev
           </header>
 
           {model.unknownLine ? (
-            <p className="text-[12.5px] text-ink" data-testid="evidence-unknown-line">
-              {t("evidence.unknownLine", { line: model.unknownLine })}
+            <p className="text-[12.5px] text-ink" data-testid="evidence-unknown-line" data-line={model.unknownLine}>
+              {t("evidence.unknownLine")}
             </p>
           ) : null}
 
@@ -213,8 +214,8 @@ export function EvidenceDrawer({ body, periodLabel, documentName, currency }: Ev
                   >
                     {formatMeasure(finding.measure, finding.currency || currency)}
                   </div>
-                  <div className="text-[11.5px] text-ink-soft" data-testid="evidence-finding-source">
-                    {t("evidence.servedFrom", { source: finding.source })}
+                  <div className="text-[11.5px] text-ink-soft" data-testid="evidence-finding-source" data-source={finding.source}>
+                    {t("evidence.servedFrom", { source: t(`evidence.source.${sourceLabelKey(finding.source)}`) })}
                   </div>
                   <p className="pt-1 text-[12px] text-ink-2" data-testid="evidence-finding-note">{t("evidence.findingNote")}</p>
                 </>
@@ -244,8 +245,8 @@ export function EvidenceDrawer({ body, periodLabel, documentName, currency }: Ev
               >
                 {line.figure.value !== null ? fmt(line.figure.value) : absentText(printer, line.figure.refusal)}
               </div>
-              <div className="text-[11.5px] text-ink-soft" data-testid="evidence-line-source">
-                {t("evidence.servedFrom", { source: line.figure.source })}
+              <div className="text-[11.5px] text-ink-soft" data-testid="evidence-line-source" data-source={line.figure.source}>
+                {t("evidence.servedFrom", { source: t(`evidence.source.${sourceLabelKey(line.figure.source)}`) })}
               </div>
               {line.derived || line.spec.highlight ? (
                 <div className="pt-1 space-y-1.5">
@@ -387,8 +388,8 @@ function AccountBlockView({ block, fmt, provenance, t, statementWord }: {
               </ProvenanceAffordance>
             </span>
           </div>
-          <div className="text-[11px] text-ink-soft">
-            {t("evidence.totalSource", { label: block.total.label, source: block.total.source })}
+          <div className="text-[11px] text-ink-soft" data-testid="evidence-total-source" data-source={block.total.source}>
+            {t("evidence.totalSource", { label: block.total.label })}
           </div>
           {block.leaves.length === 0 && block.total.leafIds.length > 0 ? (
             <div className="text-[11px] text-ink-soft" data-testid="evidence-leaf-ids">
