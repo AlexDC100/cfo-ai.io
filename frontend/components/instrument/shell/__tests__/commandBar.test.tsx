@@ -202,7 +202,12 @@ function pairWorld(over: Partial<World> = {}): World {
   const body = PAIR.current_body;
   return {
     body, org: { id: body.organization.id, name: body.organization.name, industry_key: null },
-    periodId: body.period.id, attention: ATT.pair, sector: SECTOR_PAIR,
+    // The sector capture is the same book (Agras Dec 2025) under its own
+    // harness id ('p-agras-dec2025'); the bar reads a sector document only
+    // when it names the period it is read for, so the world pairs it to
+    // this body's period — as the engine serves it for this period.
+    periodId: body.period.id, attention: ATT.pair,
+    sector: { ...SECTOR_PAIR, period: { ...SECTOR_PAIR.period, id: body.period.id } },
     comparatives: PAIR.comparatives, priorId: PAIR.comparatives.prior.period_id, ...over,
   };
 }
@@ -219,11 +224,15 @@ function mount(w: World) {
   H.periods = [{ period_id: w.periodId, period_end: w.body.period.period_end }];
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: Infinity, gcTime: Infinity } } });
   qc.setQueryData(["period", w.periodId], { kind: "ok", data: w.body });
+  // The company's own analysed periods — the list the bar reads its period
+  // from when the URL names none it can use (the pair world's ids are not
+  // UUIDs) and picks the comparison among. Not one of the bar's DOCUMENTS
+  // (attention, comparatives, sector — what "cold" leaves out).
+  qc.setQueryData(["periods-with-documents", "company", w.org.id], {
+    orgId: w.org.id,
+    periods: [{ period_id: w.periodId, period_end: w.body.period.period_end, period_start: null, period_label: "", documents: [{ id: "d1" }] }, ...priorPeriod],
+  });
   if (w.seed !== "cold") {
-    qc.setQueryData(["periods-with-documents", "company", w.org.id], {
-      orgId: w.org.id,
-      periods: [{ period_id: w.periodId, period_end: w.body.period.period_end, period_start: null, period_label: "", documents: [{ id: "d1" }] }, ...priorPeriod],
-    });
     if (w.comparatives && w.priorId) qc.setQueryData(["comparatives", w.org.id, w.periodId, w.priorId], { kind: "ok", data: w.comparatives });
     if (w.sector) qc.setQueryData(cmdbarSectorQueryKey(w.org.id, w.periodId), w.sector);
     if (w.attention) qc.setQueryData(["attention", w.org.id, w.periodId, "auto"], { kind: "ok", data: w.attention });

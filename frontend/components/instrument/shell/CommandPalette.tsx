@@ -176,7 +176,15 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
 
   const [query, setQuery] = useState("");
   const [activeIdx, setActiveIdx] = useState(-1);
-  const [recents, setRecents] = useState<CmdbarRecent[]>([]);
+  // Recent picks are one company's: held WITH the company they were read
+  // for, and shown only under that company's header (a switch while the bar
+  // is open must not leave the company left behind's picks — their links
+  // name its periods — under the new one's name).
+  const [recentsOf, setRecentsOf] = useState<{ orgId: string | null; list: CmdbarRecent[] }>({ orgId: null, list: [] });
+  const recents = useMemo(
+    () => (recentsOf.orgId !== null && recentsOf.orgId === scope.orgId ? recentsOf.list : []),
+    [recentsOf, scope.orgId],
+  );
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);
   /** Set by type-to-open so the character that opened the bar is kept. */
@@ -186,6 +194,8 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
   const company = scope.companyName ?? "";
   const header =
     scope.status === "no_company" ? t("cmdbar.header.noCompany")
+    // A switch to a company not in the list yet: no name to print.
+    : scope.status === "loading" && !company ? t("cmdbar.header.loading")
     : scope.status === "no_period" ? t("cmdbar.header.noPeriod", { company })
     : scope.status === "other_company" ? t("cmdbar.header.otherCompany", { company })
     : t("cmdbar.header.searching", { company, period: month ?? t("cmdbar.header.loading") });
@@ -375,7 +385,6 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
   useEffect(() => {
     if (open) {
       mark(LAT_CAPSULE_OPEN);
-      setRecents(readRecents(scope.orgId));
       if (pendingChar.current) {
         setQuery(pendingChar.current);
         pendingChar.current = null;
@@ -387,6 +396,11 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     // Reacts to the OPEN transition only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  // The recents of the company being searched — re-read when it changes.
+  useEffect(() => {
+    if (open) setRecentsOf({ orgId: scope.orgId, list: readRecents(scope.orgId) });
+  }, [open, scope.orgId]);
 
   // Typing selects the answer (the first row); rest selects nothing.
   useEffect(() => {
@@ -436,7 +450,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
   );
 
   const remember = useCallback(
-    (r: CmdbarRecent) => setRecents(rememberRecent(scope.orgId, r)),
+    (r: CmdbarRecent) => setRecentsOf({ orgId: scope.orgId, list: rememberRecent(scope.orgId, r) }),
     [scope.orgId],
   );
 
