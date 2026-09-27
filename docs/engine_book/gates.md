@@ -10967,6 +10967,38 @@ AFTER:
 REVERT: Tests  3 passed | 49 skipped (52)
 ```
 
+**The whole-code rule (design C2: "a code query never silently picks another
+account").** The index split an account code on its punctuation, so on the
+dotted Agras book (SAGA analytic codes) "401" was an EXACT match of the second
+segment of 167.401 — a loan account, first under "401", selected, opened by
+Enter; 628.401 and 709.401 matched too, and the numbers inside Agras's account
+names ("… 2420.42") answered code queries. Repaired: an account entry's code is
+ONE token with its separators removed (`codeKey`), its name carries no digit
+token (`accountNameTokens`), and the query is read the same way for accounts
+(`accountQueryTokens`: a word with a digit stays one token). New laws in
+`cmdbarSearch.test.ts` (in `cmdbar-surface`): on BOTH books every 3- and
+4-digit code prefix and every inner segment returns ONLY codes that start with
+it — and ALL of them (hits + the served overflow count = every leaf whose code
+starts with it); Agras "401" never lists 167.401 / 628.401 / 709.401 and
+"167.401" typed whole finds it first; 25 name numbers answer nothing.
+`GATE-WORK cmdbar-whole-code scandia prefixes=251 inner_only=0` ·
+`agras prefixes=258 inner_only=44` (the positive control: 44 inner segments
+start no code at all).
+```
+### PLANT cmdbar-whole-code — cmdbarIndex.ts: the pre-fix tokenisation
+###   phrases = termPhrases([code, name]); every entry scored on tokensOf(query)
+   × … agras: every 3- and 4-digit prefix and every inner segment returns ONLY codes that start with it, and all of them
+   × … agras: '401' lists the 401 accounts — never 167.401, 628.401 or 709.401
+   × … agras: a number inside an account's NAME answers no code query
+   AssertionError: agras: accounts whose code does not start with the typed prefix: expected [ '"101" → 625.101', …(123) ] to deeply equal []
+   AssertionError: expected [ '167.401', '401.003', '401.01' ] to not include '167.401'
+   AssertionError: "2420" (from the name of 1012.01): expected 1 to be +0
+   Tests  3 failed | 36 passed (39)
+REVERT: Tests  39 passed (39)
+```
+The Scandia twin stays green on the plant, as it should: a plain six-digit
+book has no inner segment (`inner_only=0`) — which is why the law runs on both.
+
 ## evidence-lines
 
 The account view (`frontend/components/cfo/evidence/EvidenceDrawer.tsx`, design

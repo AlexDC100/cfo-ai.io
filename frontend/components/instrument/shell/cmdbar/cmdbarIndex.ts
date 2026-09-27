@@ -18,7 +18,7 @@
 // is the per-keystroke function and touches no I/O.
 
 import terms from "./cmdbarTerms.json";
-import { bestScore, termPhrases, tokensOf } from "./cmdbarSearch";
+import { accountNameTokens, accountQueryTokens, bestScore, codeKey, termPhrases, tokensOf } from "./cmdbarSearch";
 import { ratioLabelForKey, type RatioTableRow } from "@/lib/ratioTable";
 import type { PeriodLineItem } from "@/lib/activePeriod";
 import { ratioTableRows } from "./cmdbarSources";
@@ -140,7 +140,12 @@ export function buildCmdbarIndex(input: CmdbarIndexInput): CmdbarIndex {
       .filter((li) => li && typeof li.ro_account_code === "string" && li.statement !== "IGNORED")
       .sort((a, b) => a.ro_account_code.localeCompare(b.ro_account_code));
     for (const item of sorted) {
-      const phrases = termPhrases([item.ro_account_code, item.ro_account_name ?? ""]);
+      // The code is ONE token (separators removed) and the name's words
+      // carry no digit token: a typed code meets only the START of a whole
+      // code (cmdbarSearch accountQueryTokens), never an inner segment
+      // ("401" ≠ 167.401) nor a number inside the name.
+      const phrases = [[codeKey(item.ro_account_code)], accountNameTokens(item.ro_account_name ?? "")]
+        .filter((p) => p.length > 0 && p[0] !== "");
       entries.push({ id: `account:${item.ro_account_code}:${item.bucket}`, group: "account", phrases,
                      order: order++, ref: { kind: "account", item } });
     }
@@ -181,11 +186,14 @@ const SAME_FIGURE: Readonly<Record<string, string>> = {
 export function searchCmdbar(index: CmdbarIndex, query: string): CmdbarResults {
   const q = query.trim();
   const toks = tokensOf(q);
+  // Accounts read the query their own way: a word with a digit is a whole
+  // code prefix, never split on its dots (cmdbarSearch accountQueryTokens).
+  const accountToks = accountQueryTokens(q);
   const groups: CmdbarResults["groups"] = [];
   if (toks.length === 0) return { query: q, groups, ask: null };
   const byGroup = new Map<string, CmdbarHit[]>();
   for (const entry of index.entries) {
-    const score = bestScore(toks, entry.phrases);
+    const score = bestScore(entry.ref.kind === "account" ? accountToks : toks, entry.phrases);
     if (score === null) continue;
     const list = byGroup.get(entry.group) ?? [];
     list.push({ entry, score });

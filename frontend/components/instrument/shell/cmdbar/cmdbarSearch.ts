@@ -11,7 +11,14 @@
 //     more — "profitt", "clineti", "bilnat";
 //   · a token that holds a DIGIT matches exactly or as a prefix, never
 //     fuzzily: "4112" must never silently open 4111. An account code one
-//     digit off is a different account.
+//     digit off is a different account;
+//   · an ACCOUNT CODE is matched as a whole, from its start: a typed word
+//     that holds a digit is compared with the code with its separators
+//     removed (`codeKey`) — "401" finds 401.003 and 401.01, never 167.401
+//     (a loan account whose SECOND segment happens to read 401), and the
+//     digits inside an account's NAME ("… 457.364") are not code tokens.
+//     `accountQueryTokens` / `accountNameTokens` are the only way an
+//     account entry is tokenised (cmdbarIndex.ts).
 //
 // A query matches a phrase when EVERY query token matches some token of the
 // phrase. The score rewards exact over prefix over fuzzy and a phrase the
@@ -34,6 +41,36 @@ export function tokensOf(text: string): string[] {
 
 export function hasDigit(token: string): boolean {
   return /\d/.test(token);
+}
+
+/** An account code's matching form: folded, every separator removed —
+ *  "167.401" → "167401", "4111" → "4111". The code is ONE token. */
+export function codeKey(text: string): string {
+  return foldQuery(text).replace(/[^\p{L}\p{N}]+/gu, "");
+}
+
+/** The query as an ACCOUNT entry reads it: a word that holds a digit is a
+ *  code (or the start of one) and stays ONE token, separators removed —
+ *  "167.401" → ["167401"], "401" → ["401"]; every other word is tokenised
+ *  as usual. So a digit word can only meet the START of a whole code. */
+export function accountQueryTokens(query: string): string[] {
+  const out: string[] = [];
+  for (const word of foldQuery(query).split(" ")) {
+    if (!word) continue;
+    if (hasDigit(word)) {
+      const k = codeKey(word);
+      if (k) out.push(k);
+    } else {
+      out.push(...tokensOf(word));
+    }
+  }
+  return out;
+}
+
+/** An account NAME's words, without the ones that hold a digit: a number
+ *  inside a name is not the account's code and must not answer a code. */
+export function accountNameTokens(name: string): string[] {
+  return tokensOf(name).filter((t) => !hasDigit(t));
 }
 
 /** Optimal-string-alignment distance (Damerau-Levenshtein with adjacent

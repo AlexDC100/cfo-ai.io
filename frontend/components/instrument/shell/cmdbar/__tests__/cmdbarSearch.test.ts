@@ -14,6 +14,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import {
+  codeKey,
   editDistance,
   hasDigit,
   phraseScore,
@@ -25,6 +26,10 @@ import { buildCmdbarIndex, searchCmdbar, accountMetricKey } from "../cmdbarIndex
 const REPO = resolve(__dirname, "../../../../../..");
 const SCANDIA = JSON.parse(
   readFileSync(resolve(REPO, "e2e/fixtures/workspace_v2/scandia_fy2025.json"), "utf-8"),
+).period;
+
+const AGRAS = JSON.parse(
+  readFileSync(resolve(REPO, "e2e/fixtures/workspace_v2/agras_fy2025.json"), "utf-8"),
 ).period;
 
 const index = buildCmdbarIndex({
@@ -160,6 +165,85 @@ describe("THE DIGIT RULE — exact or prefix, never fuzzy", () => {
     expect(accountMetricKey("512421")).toBe("cash_ratio");
     expect(accountMetricKey("301001")).toBe("dio");
     expect(accountMetricKey("999999")).toBeNull();
+  });
+});
+
+describe("THE WHOLE-CODE RULE — a typed code meets the START of a whole code, nothing else", () => {
+  // Agras is a SAGA-style dotted book (167.401, 628.401, 709.401 …) whose
+  // account names carry numbers ("… 2420.42"); Scandia is plain six-digit.
+  // Splitting a code on its dots made "401" an EXACT match of 167.401's
+  // second segment — a loan account first under "401", selected, opened by
+  // Enter (design C2: a code query never silently picks another account).
+  const BOOKS = [
+    { name: "scandia", body: SCANDIA },
+    { name: "agras", body: AGRAS },
+  ] as const;
+  const leaves = (body: { line_items: { ro_account_code: string; statement: string }[] }) =>
+    body.line_items.filter((li) => typeof li.ro_account_code === "string" && li.statement !== "IGNORED");
+
+  for (const book of BOOKS) {
+    it(`${book.name}: every 3- and 4-digit prefix and every inner segment returns ONLY codes that start with it, and all of them`, () => {
+      const idx = buildCmdbarIndex({ body: book.body, pages: [], actions: [] });
+      const items = leaves(book.body);
+      const probes = new Set<string>();
+      for (const li of items) {
+        const k = codeKey(li.ro_account_code);
+        if (k.length >= 3) probes.add(k.slice(0, 3));
+        if (k.length >= 4) probes.add(k.slice(0, 4));
+        // Every segment after the first — the shape the old tokeniser
+        // matched EXACTLY inside another account's code.
+        for (const seg of li.ro_account_code.split(/[^0-9A-Za-z]+/).slice(1)) if (seg.length >= 3) probes.add(seg);
+      }
+      let probed = 0;
+      let innerOnly = 0;
+      const wrong: string[] = [];
+      const missed: string[] = [];
+      for (const p of probes) {
+        const g = searchCmdbar(idx, p).groups.find((x) => x.group === "account");
+        const codes = (g?.hits ?? []).map((h) => (h.entry.ref.kind === "account" ? h.entry.ref.item.ro_account_code : ""));
+        for (const c of codes) if (!codeKey(c).startsWith(p)) wrong.push(`"${p}" → ${c}`);
+        const want = items.filter((li) => codeKey(li.ro_account_code).startsWith(p)).length;
+        const got = (g?.hits.length ?? 0) + (g?.more ?? 0);
+        if (got !== want) missed.push(`"${p}": ${got} rows, ${want} codes start with it`);
+        if (want === 0) innerOnly++;
+        probed++;
+      }
+      expect(wrong, `${book.name}: accounts whose code does not start with the typed prefix`).toEqual([]);
+      expect(missed, `${book.name}: prefixes whose account count is not every code that starts with them`).toEqual([]);
+      expect(probed, "VACUITY: prefixes probed").toBeGreaterThanOrEqual(50);
+      if (book.name === "agras") {
+        // POSITIVE CONTROL: the dotted book HAS inner segments that are no
+        // code's start — the probes the old tokeniser answered wrongly.
+        expect(innerOnly, "inner segments that start no code").toBeGreaterThanOrEqual(1);
+      }
+      console.log(`GATE-WORK cmdbar-whole-code ${book.name} prefixes=${probed} inner_only=${innerOnly}`);
+    });
+  }
+
+  it("agras: '401' lists the 401 accounts — never 167.401, 628.401 or 709.401", () => {
+    const idx = buildCmdbarIndex({ body: AGRAS, pages: [], actions: [] });
+    const g = searchCmdbar(idx, "401").groups.find((x) => x.group === "account")!;
+    const codes = g.hits.map((h) => (h.entry.ref.kind === "account" ? h.entry.ref.item.ro_account_code : ""));
+    expect(codes.length).toBeGreaterThan(0);
+    for (const inner of ["167.401", "628.401", "709.401"]) expect(codes).not.toContain(inner);
+    expect(codes.every((c) => c.startsWith("401"))).toBe(true);
+    // The whole dotted code, typed with its dot, is still found — first.
+    const exact = searchCmdbar(idx, "167.401").groups.find((x) => x.group === "account")!;
+    expect(exact.hits[0].entry.ref.kind === "account" && exact.hits[0].entry.ref.item.ro_account_code).toBe("167.401");
+  });
+
+  it("agras: a number inside an account's NAME answers no code query", () => {
+    const idx = buildCmdbarIndex({ body: AGRAS, pages: [], actions: [] });
+    const items = leaves(AGRAS) as { ro_account_code: string; ro_account_name?: string; statement: string }[];
+    let probed = 0;
+    for (const li of items) {
+      const num = /(\d{4})\.\d+/.exec(li.ro_account_name ?? "")?.[1];
+      if (!num || items.some((x) => codeKey(x.ro_account_code).startsWith(num))) continue;
+      const g = searchCmdbar(idx, num).groups.find((x) => x.group === "account");
+      expect(g?.hits.length ?? 0, `"${num}" (from the name of ${li.ro_account_code})`).toBe(0);
+      if (++probed >= 25) break;
+    }
+    expect(probed, "VACUITY: name numbers probed").toBeGreaterThanOrEqual(20);
   });
 });
 
