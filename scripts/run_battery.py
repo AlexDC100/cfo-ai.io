@@ -1060,10 +1060,25 @@ def _engine_gates() -> List[Gate]:
         #                    defaults (keepPreviousData) — cmdbarSwitch; the
         #                    zero-fetch law waits out a debounce horizon on
         #                    fake timers; only a digit word is a code, a mixed
-        #                    word finds the name that carries it. floor = the
-        #                    measured count, exact. Live half (hermetic bundle,
-        #                    not in the battery — it needs a build):
-        #                    e2e/design/cmdbar.spec.ts G0-G10.
+        #                    word finds the name that carries it; review
+        #                    round 2: the bar's OWN "Switch to <company>" (and
+        #                    a company × year row, and its recent pick) opens
+        #                    that company's screen and stays switched past the
+        #                    hold's ask window, from every kind of screen, with
+        #                    the redesign on (the screen's hold is the ONE
+        #                    authority) and off (the bar switches in the same
+        #                    tick), never mid-scan — cmdbarSwitchAction; and a
+        #                    ?org= link over the previous period's kept payload
+        #                    is held for its pin — dashboardCompanyHold; the
+        #                    switchingTo guard proven (cmdbarSwitch "in
+        #                    flight"); a code wrapped in punctuation is the
+        #                    code; the latency laws hold the keystroke's WORK
+        #                    on the thread's CPU clock (test/cpuClock) and the
+        #                    zero-fetch law fakes Date and performance too, so
+        #                    a lodash (Date-measured) debounce is counted.
+        #                    floor = the measured count, exact. Live half (hermetic
+        #                    bundle, not in the battery — it needs a build):
+        #                    e2e/design/cmdbar.spec.ts G0-G11.
         #                    Plant log: docs/engine_book/gates.md.
         Gate("cmdbar-fixtures",
              [PY, "-m", "pytest", "tests/engine/test_cmdbar_fixtures.py", "-q", "-s"],
@@ -1080,8 +1095,10 @@ def _engine_gates() -> List[Gate]:
               "frontend/lib/__tests__/companyFit.test.ts",
               "frontend/components/cfo/__tests__/evidenceReceivers.test.tsx",
               "frontend/components/instrument/shell/__tests__/cmdbarSwitch.test.tsx",
+              "frontend/components/instrument/shell/__tests__/cmdbarSwitchAction.test.tsx",
+              "frontend/pages/cfo/__tests__/dashboardCompanyHold.test.tsx",
               "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=141,
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=186,
              units="command-bar tests",
              canaries=("the rows ARE the served items, in the served rank, each with its figure",
                        "two companies, one fixture shape: different figures (S1) and different words (S2)",
@@ -1116,7 +1133,16 @@ def _engine_gates() -> List[Gate]:
                        "GATE-WORK cmdbar-switch period \"rest\"",
                        "fetches NOTHING — not even after a debounce",
                        "GATE-WORK cmdbar-code-word agras mixed_name_words=",
-                       "a code word never meets a NAME word that starts with its digits")),
+                       "a code word never meets a NAME word that starts with its digits",
+                       # review round 2 of stage CB-I (2026-09-27)
+                       "GATE-WORK cmdbar-switch-action redesign=on pick=action from=\"Scandia's dashboard\"",
+                       "GATE-WORK cmdbar-switch-action redesign=off pick=page from=\"/settings\"",
+                       "with an analysis running, the pick moves nothing and switches nothing",
+                       "a ?org= link over the PREVIOUS period's kept payload: the pin decides",
+                       "GATE-WORK cmdbar-switch in-flight",
+                       "GATE-WORK cmdbar-wrapped-code agras probes=",
+                       "GATE-WORK cmdbar-latency warm keystrokes=",
+                       "GATE-WORK cmdbar-latency cold answers=")),
         # THE EVIDENCE RECEIVERS, frontend stage CB-F2 (design C4):
         #   evidence-lines   the account view's statement lines ARE the
         #                    engine's comparatives lines: the served path,
@@ -1142,7 +1168,7 @@ def _engine_gates() -> List[Gate]:
               "frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx",
               "frontend/pages/cfo/__tests__/benchmarkRowReceiver.test.tsx",
               "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=37,
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=39,
              units="evidence-landing tests",
              canaries=("scandia: each served item opens a rendered, highlighted target that IS the item",
                        "pair: each served item opens a rendered, highlighted target that IS the item",
@@ -1157,7 +1183,10 @@ def _engine_gates() -> List[Gate]:
                        "display EUR: the account view prints the SERVED RON balance with its code",
                        # stage CB-I (review round 1, 2026-09-27)
                        "en: a finding this period does not serve is said in words",
-                       "ro: a finding this period does not serve is said in words")),
+                       "ro: a finding this period does not serve is said in words",
+                       # review round 1 of stage CB-I, second pass (2026-09-27)
+                       "GATE-WORK cmdbar-evidence-words en views=",
+                       "GATE-WORK cmdbar-evidence-words ro views=")),
         # FLOOR SUBSTITUTES, batch C3 (owner rulings R-D5 / R-D6 / R-OTHER,
         # 2026-09-15): the valuation DCF, the AI briefing's citable
         # ratios, the RO pack's ROA check and the served period day count.
