@@ -20,8 +20,10 @@ import type { PeriodLineItem, PeriodMetric } from "@/lib/activePeriod";
 
 export interface DashboardCanonical {
   operatingRevenue: number;
-  ebitda: number;
-  netProfit: number;
+  /** The one EBITDA as served; null when the engine refused it (never 0). */
+  ebitda: number | null;
+  /** null when neither the metric row nor the statement states one. */
+  netProfit: number | null;
   totalDebt: number;
 }
 
@@ -50,8 +52,9 @@ export function buildDashboardCanonical(
   const ap = (statements as Statements & { assembled_pl?: Record<string, number> })
     .assembled_pl;
 
-  // EBITDA tile: engine `ebitda_statutory` when present, else FE operating
-  // view `pl.ebitda` — identical ladder to FinancialStatements.tsx:979-983.
+  // EBITDA tile: engine `ebitda_statutory` (an alias of the one EBITDA)
+  // when present, else the P&L statement's served figure — null, never a
+  // rebuilt EBITDA, when the engine refused it.
   const ebitda =
     typeof ap?.ebitda_statutory === "number" ? ap.ebitda_statutory : pl.ebitda;
 

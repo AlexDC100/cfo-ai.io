@@ -185,7 +185,7 @@ describe("revenue — the builder's own account codes, on the line-item path onl
     ).revenue;
     expect(p?.accounts).toBe("706, 708");
     expect(p?.source).toBe("carniprod_balanta_2025.xlsx");
-    expect(p?.method).toContain("Total operating revenue");
+    expect(p?.method).toContain("Total net turnover");
   });
 
   it("names NO accounts on the aggregates path — those codes are labels", () => {
@@ -213,8 +213,11 @@ describe("plBuiltFromLineItems ASKS pickPLBuilder's rule — it no longer mirror
     const s = statementsWith(CASH);
     expect(plBuiltFromLineItems(PL_ITEMS, s)).toBe(true);
     const picked = plFor(PL_ITEMS, s);
+    // The picker hands the line-item builder the period's served block —
+    // the same call, made directly, builds the same statement.
     const direct = buildPLStatement({
       lineItems: PL_ITEMS, entity: "x", period: "FY 2025", currency: "RON",
+      servedPl: s.assembled_pl,
     });
     expect(picked.sections.map((x) => x.subtotalAmount)).toEqual(
       direct.sections.map((x) => x.subtotalAmount),

@@ -1,16 +1,25 @@
 // Reference-format P&L renderer.
 //
-// Produces the visible P&L for the financial-statements tab. Layout matches
-// the spec the user provided exactly: account codes in the left column,
-// labels in the middle, amounts right-aligned with tabular-nums, EBITDA
-// boxed with double borders, financial items with explicit ± signs, key
-// margins + reconciliation footnote below.
+// Produces the visible P&L for the financial-statements tab: labels with
+// their account chips, amounts right-aligned with tabular-nums, EBITDA as a
+// block total, financial items with explicit ± signs, key margins below.
+//
+// THE ONE EBITDA (owner ruling 2026-09-26). The statement it is handed is
+// built on the engine's SERVED figures (lib/buildPlStatement.ts). This view
+// prints them and computes nothing: "Variația stocurilor de produse" (711)
+// sits right after the cost block, signed, with the engine's provenance
+// sentence under it; own work capitalised (72x) is an operating line
+// outside turnover; the engine's reconciliation line stands under EBITDA;
+// and a figure the engine refused prints its typed reason — never a zero,
+// never a bare dash. The Romanian names stay in the English UI, with the
+// engine's English gloss beside them (CLAUDE.md §11).
 //
 // All visual conventions live in the .pl-* classes — see plStatementView.css.
 
-import { useState } from "react";
+import { createContext, useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { PLStatement, PLSection, PLSectionRole, PLLine } from "@/lib/plStructure";
+import type { PLStatement, PLSection, PLSectionRole, PLLine, RoName } from "@/lib/plStructure";
+import { pickLang, type ServedOneEbitda, type ServedRefusal } from "@/lib/servedOneEbitda";
 import { formatPercent } from "@/lib/formatRon";
 import { useAmountFormatter, useDisplayCurrency } from "@/stores/currency";
 // THE DIAL — Simple mode opens statements totals-first: item rows hide
@@ -27,6 +36,7 @@ import { useHighlightFromUrl } from "./useHighlightFromUrl";
 import {
   CmpCells,
   CmpColumnHeader,
+  ComparativeDefinitionProvider,
   activeColumnCount,
   cmpColumnTemplate,
   useComparativeContext,
@@ -42,8 +52,10 @@ import "./plStatementView.css";
 /**
  * THE REFERENCE LAYOUT'S SECTIONS, BY ROLE.
  *
- * Both RO builders insert an OTHER OPERATING INCOME section (account 758)
- * after operating revenue whenever the book carries one — most books. This
+ * Both RO builders insert an OTHER OPERATING INCOME section after net
+ * turnover whenever the book carries one — most books — and, where the
+ * period carries them, the own-work-capitalised (72x) and stock-variation
+ * (711) sections around the cost block. This
  * view used to read the sections by INDEX, `[revenue, opex, d&a,
  * financial, closing]`, so on such a book the 758 section took the
  * operating-expenses slot, the EBITDA box landed between it and the
@@ -60,7 +72,9 @@ import "./plStatementView.css";
 function plLayout(sections: readonly PLSection[]): {
   operatingRevenue?: PLSection;
   otherOperatingIncome?: PLSection;
+  capitalizedOwnWork?: PLSection;
   operatingExpenses?: PLSection;
+  stockVariation?: PLSection;
   depreciationSection?: PLSection;
   financialItems?: PLSection;
   closingSection?: PLSection;
@@ -70,7 +84,9 @@ function plLayout(sections: readonly PLSection[]): {
     return {
       operatingRevenue: by("operatingRevenue"),
       otherOperatingIncome: by("otherOperatingIncome"),
+      capitalizedOwnWork: by("capitalizedOwnWork"),
       operatingExpenses: by("operatingExpenses"),
+      stockVariation: by("stockVariation"),
       depreciationSection: by("depreciation"),
       financialItems: by("financialItems"),
       closingSection: by("closing"),
@@ -82,14 +98,12 @@ function plLayout(sections: readonly PLSection[]): {
 
 interface Props {
   statement: PLStatement;
-  /** Show the reconciliation footnote (capitalized own-work + 628 explanation). */
-  showFootnote?: boolean;
   /** Hide the inline "Guide me" button — the dashboard consolidates all tab
    *  guides into a single button in the tab bar. */
   hideGuide?: boolean;
 }
 
-export function PLStatementView({ statement, showFootnote = true, hideGuide = false }: Props) {
+export function PLStatementView({ statement, hideGuide = false }: Props) {
   useHighlightFromUrl();
   const { t, i18n } = useTranslation();
   const fmt = useAmountFormatter(statement.currency);
@@ -114,11 +128,14 @@ export function PLStatementView({ statement, showFootnote = true, hideGuide = fa
   const {
     operatingRevenue,
     otherOperatingIncome,
+    capitalizedOwnWork,
     operatingExpenses,
+    stockVariation,
     depreciationSection,
     financialItems,
     closingSection,
   } = plLayout(statement.sections);
+  const lang = i18n.language;
 
   return (
     <div
@@ -156,17 +173,27 @@ export function PLStatementView({ statement, showFootnote = true, hideGuide = fa
           columns={cmp.columns}
         />
       )}
+      {/* Every row on the one EBITDA is held to a prior served on the same
+          EBITDA definition as this statement (lib/comparatives.ts). */}
+      <ComparativeDefinitionProvider definition={statement.served?.definition}>
+      <EbitdaRefusalCtx.Provider value={statement.ebitdaRefusal?.code ?? null}>
       <div className="pl-body">
-        {/* OPERATING REVENUE */}
+        {/* NET TURNOVER — cifra de afaceri netă */}
         <div data-guide="pl-revenue">
           {operatingRevenue && (
             <PLSectionView section={operatingRevenue} currency={statement.currency} keyOnly={keyOnly} />
           )}
         </div>
 
-        {/* OTHER OPERATING INCOME (758) — present only when the book carries it */}
+        {/* OTHER OPERATING INCOME — present only when the book carries it */}
         {otherOperatingIncome && (
           <PLSectionView section={otherOperatingIncome} currency={statement.currency} keyOnly={keyOnly} />
+        )}
+
+        {/* OWN WORK CAPITALISED (72x) — operating, outside turnover. Shown
+            in Simple mode too: EBITDA below includes it. */}
+        {capitalizedOwnWork && (
+          <PLSectionView section={capitalizedOwnWork} currency={statement.currency} keyOnly={false} />
         )}
 
         {/* OPERATING EXPENSES */}
@@ -174,21 +201,39 @@ export function PLStatementView({ statement, showFootnote = true, hideGuide = fa
           <PLSectionView section={operatingExpenses} currency={statement.currency} keyOnly={keyOnly} />
         )}
 
-        {/* EBITDA — boxed off with double borders. */}
+        {/* VARIAȚIA STOCURILOR DE PRODUSE (711) — beside the cost block,
+            signed as its effect on the result. Always shown, in Simple
+            mode too: EBITDA below includes it. */}
+        {stockVariation && (
+          <PLSectionView section={stockVariation} currency={statement.currency} keyOnly={false} />
+        )}
+
+        {/* EBITDA — the engine's figure, or its refusal. */}
         <div
           className="pl-ebitda-box"
           data-guide="pl-ebitda"
+          data-testid="pl-ebitda"
           {...{ [TRACEABLE_TARGET_ATTR]: "ebitda" }}
         >
           <div className="pl-row pl-total">
             <span className="pl-label">
               <SimpleTermLabel termId="ebitda">{t("statements.pl.ebitda")}</SimpleTermLabel>
             </span>
-            <LearnableNumber conceptKey="ebitda" value={statement.ebitda} className="pl-amount" block>
-              {fmt(statement.ebitda)}
-            </LearnableNumber>
+            {statement.ebitda === null ? (
+              <RefusedAmount refusal={statement.ebitdaRefusal ?? null} testid="pl-ebitda-refused" />
+            ) : (
+              <LearnableNumber conceptKey="ebitda" value={statement.ebitda} className="pl-amount" block>
+                {fmt(statement.ebitda)}
+              </LearnableNumber>
+            )}
             <CmpCells rowKey="ebitda" amount={statement.ebitda} />
           </div>
+          {statement.ebitda === null && statement.ebitdaRefusal && (
+            <RefusalNote refusal={statement.ebitdaRefusal} lang={lang} root />
+          )}
+          {statement.served && (
+            <EbitdaBridgeLine served={statement.served} currency={statement.currency} lang={lang} />
+          )}
         </div>
 
         {/* D&A → EBIT */}
@@ -201,24 +246,15 @@ export function PLStatementView({ statement, showFootnote = true, hideGuide = fa
           <PLSectionView section={financialItems} currency={statement.currency} keyOnly={keyOnly} />
         )}
 
-        {/* PBT → NET PROFIT (operational headline) */}
+        {/* PBT → NET RESULT → ACCOUNT 121 */}
         <div data-guide="pl-net-profit">
           {closingSection && (
             <PLSectionView section={closingSection} currency={statement.currency} keyOnly={keyOnly} />
           )}
         </div>
-
-        {statement.capitalizedOwnWorkMemo != null &&
-          Math.abs(statement.capitalizedOwnWorkMemo) > 1 &&
-          statement.netProfitStatutory != null && (
-            <PLReconciliationBridge
-              operational={statement.netProfit}
-              capitalizedOwnWork={statement.capitalizedOwnWorkMemo}
-              statutory={statement.netProfitStatutory}
-              currency={statement.currency}
-            />
-          )}
       </div>
+      </EbitdaRefusalCtx.Provider>
+      </ComparativeDefinitionProvider>
 
       {/* KEY MARGINS */}
       <div className="pl-key-margins">
@@ -242,13 +278,68 @@ export function PLStatementView({ statement, showFootnote = true, hideGuide = fa
         </ul>
       </div>
 
-      {/* Reconciliation footnote — surfaces 722/231/628 wash */}
-      {/* `!!` — a capitalizedOwnWorkMemo of exactly 0 used to short-circuit
-          this chain with the NUMBER 0, which React paints as a stray "0"
-          under the key margins (visible on any book with no 722). */}
-      {showFootnote && !!statement.capitalizedOwnWorkMemo && statement.capitalizedOwnWorkMemo > 0 && (
-        <PLFootnote statement={statement} />
-      )}
+    </div>
+  );
+}
+
+/** A name the engine serves in Romanian: the Romanian UI prints it; the
+ *  English UI prints it WITH the engine's English gloss beside it — the
+ *  Romanian account name is never replaced (CLAUDE.md §11). */
+function RoLabel({ roName, lang }: { roName: RoName; lang: string | undefined }) {
+  const isRo = (lang ?? "").toLowerCase().startsWith("ro");
+  return (
+    <>
+      {roName.ro}
+      {!isRo && roName.glossEn ? <span className="pl-gloss"> — {roName.glossEn}</span> : null}
+    </>
+  );
+}
+
+/** The amount cell of a figure the engine REFUSED: a word, never a number
+ *  and never a bare dash — the reason is printed under the row. */
+function RefusedAmount({ refusal, testid }: { refusal: ServedRefusal | null; testid?: string }) {
+  const { t, i18n } = useTranslation();
+  return (
+    <span
+      className="pl-amount pl-refused"
+      data-testid={testid ?? "pl-refused-amount"}
+      data-refusal-code={refusal?.code}
+      title={refusal ? pickLang(refusal.text, i18n.language) : undefined}
+    >
+      {t("statements.pl.refused")}
+    </span>
+  );
+}
+
+/** The code of the refusal EBITDA carries on this statement. Every figure
+ *  built on EBITDA (EBIT, profit before tax, the net result) is refused for
+ *  the same reason: the sentence is printed ONCE, where it starts — the
+ *  stock-variation row and the EBITDA line — and the rows below say they
+ *  are refused with EBITDA ("caveats short and once"). */
+const EbitdaRefusalCtx = createContext<string | null>(null);
+
+/** The engine's reason for a refused figure, in the reader's language —
+ *  or, on a row refused only because EBITDA is, the short pointer to it. */
+function RefusalNote({
+  refusal,
+  lang,
+  root = false,
+}: {
+  refusal: ServedRefusal;
+  lang: string | undefined;
+  /** The row where the refusal STARTS (711, EBITDA): the full sentence. */
+  root?: boolean;
+}) {
+  const { t } = useTranslation();
+  const ebitdaCode = useContext(EbitdaRefusalCtx);
+  const derived = !root && ebitdaCode !== null && refusal.code === ebitdaCode;
+  return (
+    <div
+      className="pl-row-note pl-refusal-note"
+      data-testid={derived ? "pl-refusal-derived" : "pl-refusal"}
+      data-refusal-code={refusal.code}
+    >
+      {derived ? t("statements.pl.refusedWithEbitda") : pickLang(refusal.text, lang)}
     </div>
   );
 }
@@ -268,6 +359,7 @@ function PLSectionView({
   // BSStatementView. A section that loses its lines between renders must not
   // change this component's hook count.
   const fmt = useAmountFormatter(currency);
+  const { i18n } = useTranslation();
   if (section.lines.length === 0 && !section.subtotalLabel) return null;
   const visibleLines = keyOnly
     ? section.lines.filter((l) => l.style !== "item")
@@ -277,8 +369,9 @@ function PLSectionView({
     ? { [TRACEABLE_TARGET_ATTR]: section.subtotalBucket }
     : {};
   const subtotalConceptKey = bucketToConcept(section.subtotalBucket);
+  const subtotalRefused = section.subtotalAmount === undefined && section.subtotalRefusal;
   return (
-    <div className="pl-section">
+    <div className="pl-section" data-pl-section={section.role}>
       {section.header && <div className="pl-section-header">{section.header}</div>}
 
       {visibleLines.map((line, i) => (
@@ -291,13 +384,17 @@ function PLSectionView({
           <div className="pl-row pl-subtotal" {...subtotalAttrs}>
             <span className="pl-label">
               <SimpleTermLabel termId={termForRow(section.subtotalBucket)}>
-                {section.subtotalLabel}
+                {section.subtotalRoName
+                  ? <RoLabel roName={section.subtotalRoName} lang={i18n.language} />
+                  : section.subtotalLabel}
               </SimpleTermLabel>
             </span>
-            {subtotalConceptKey ? (
+            {subtotalRefused ? (
+              <RefusedAmount refusal={section.subtotalRefusal ?? null} />
+            ) : subtotalConceptKey && section.subtotalAmount !== undefined ? (
               <LearnableNumber
                 conceptKey={subtotalConceptKey}
-                value={section.subtotalAmount ?? 0}
+                value={section.subtotalAmount}
                 className="pl-amount"
                 block
               >
@@ -306,8 +403,11 @@ function PLSectionView({
             ) : (
               <span className="pl-amount">{fmt(section.subtotalAmount)}</span>
             )}
-            <CmpCells rowKey={section.subtotalBucket} amount={section.subtotalAmount} folds={section.subtotalFolds} />
+            <CmpCells rowKey={section.subtotalBucket} amount={section.subtotalAmount} />
           </div>
+          {subtotalRefused && section.subtotalRefusal && (
+            <RefusalNote refusal={section.subtotalRefusal} lang={i18n.language} />
+          )}
         </>
       )}
     </div>
@@ -316,29 +416,55 @@ function PLSectionView({
 
 function PLLineView({ line, currency }: { line: PLLine; currency: string }) {
   const fmt = useAmountFormatter(currency);
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language;
   const lineAttrs = line.bucket ? { [TRACEABLE_TARGET_ATTR]: line.bucket } : {};
   const conceptKey = bucketToConcept(line.bucket);
+  const refused = line.amount === undefined && line.refusal;
+  const notes = (
+    <>
+      {refused && line.refusal && (
+        <RefusalNote refusal={line.refusal} lang={lang} root={line.bucket === "inventoryVariation"} />
+      )}
+      {line.provenance?.label && (
+        <div
+          className="pl-row-note pl-provenance"
+          data-testid="pl-provenance"
+          data-provenance={line.provenance.key}
+        >
+          {pickLang(line.provenance.label, lang)}
+        </div>
+      )}
+    </>
+  );
 
   if (line.style === "subtotal" && !line.accountCode) {
     return (
-      <div className="pl-row pl-subtotal" {...lineAttrs}>
-        <span className="pl-label">
-          <SimpleTermLabel termId={termForRow(line.bucket)}>{line.label}</SimpleTermLabel>
-        </span>
-        {conceptKey ? (
-          <LearnableNumber
-            conceptKey={conceptKey}
-            value={line.amount ?? 0}
-            className="pl-amount"
-            block
-          >
-            {fmt(line.amount)}
-          </LearnableNumber>
-        ) : (
-          <span className="pl-amount">{fmt(line.amount)}</span>
-        )}
-        <CmpCells rowKey={line.bucket} amount={line.amount} />
-      </div>
+      <>
+        <div className="pl-row pl-subtotal" {...lineAttrs}>
+          <span className="pl-label">
+            <SimpleTermLabel termId={termForRow(line.bucket)}>
+              {line.roName ? <RoLabel roName={line.roName} lang={lang} /> : line.label}
+            </SimpleTermLabel>
+          </span>
+          {refused ? (
+            <RefusedAmount refusal={line.refusal ?? null} />
+          ) : conceptKey && line.amount !== undefined ? (
+            <LearnableNumber
+              conceptKey={conceptKey}
+              value={line.amount}
+              className="pl-amount"
+              block
+            >
+              {fmt(line.amount)}
+            </LearnableNumber>
+          ) : (
+            <span className="pl-amount">{fmt(line.amount)}</span>
+          )}
+          <CmpCells rowKey={line.bucket} amount={line.amount} />
+        </div>
+        {notes}
+      </>
     );
   }
 
@@ -371,172 +497,103 @@ function PLLineView({ line, currency }: { line: PLLine; currency: string }) {
   const chipCode = rawChip && rawChip !== labelText.trim() ? rawChip : undefined;
 
   return (
-    <div className={`pl-row pl-row-item ${line.style}`} {...lineAttrs}>
-      <span className="pl-label">
-        <SimpleTermLabel termId={termForRow(line.bucket, line.accountCode)}>
-          {labelText}
-        </SimpleTermLabel>
-        <AccountChip code={chipCode} />
-      </span>
-      {conceptKey ? (
-        <LearnableNumber
-          conceptKey={conceptKey}
-          value={line.amount ?? 0}
-          className={`pl-amount ${amountClass}`}
-          block
-        >
-          {amount}
-        </LearnableNumber>
-      ) : (
-        <span className={`pl-amount ${amountClass}`}>{amount}</span>
-      )}
-      <CmpCells rowKey={line.bucket} amount={line.amount} />
-    </div>
+    <>
+      <div className={`pl-row pl-row-item ${line.style}`} {...lineAttrs}>
+        <span className="pl-label">
+          <SimpleTermLabel termId={termForRow(line.bucket, line.accountCode)}>
+            {line.roName ? <RoLabel roName={line.roName} lang={lang} /> : labelText}
+          </SimpleTermLabel>
+          <AccountChip code={chipCode} />
+          {line.stockDirection && (
+            <span
+              className={`pl-direction ${line.stockDirection === "increase" ? "pl-pos" : "pl-neg"}`}
+              data-testid="pl-stock-direction"
+              data-direction={line.stockDirection}
+            >
+              {t(`statements.pl.stock.${line.stockDirection}`)}
+            </span>
+          )}
+        </span>
+        {refused ? (
+          <RefusedAmount refusal={line.refusal ?? null} />
+        ) : conceptKey ? (
+          <LearnableNumber
+            conceptKey={conceptKey}
+            value={line.amount ?? 0}
+            className={`pl-amount ${amountClass}`}
+            block
+          >
+            {amount}
+          </LearnableNumber>
+        ) : (
+          <span className={`pl-amount ${amountClass}`}>{amount}</span>
+        )}
+        <CmpCells rowKey={line.bucket} amount={line.amount} />
+      </div>
+      {notes}
+    </>
   );
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// 722 reconciliation bridge — operational → +722 → statutory ct-121
+// THE RECONCILIATION LINE under EBITDA (design A5) — the engine's own:
+//
+//   EBITDA înainte de variația stocurilor și producția imobilizată X
+//   · Variația stocurilor de produse ±Y · Producția imobilizată Z
+//   = EBITDA W
+//
+// every label and every value as served (`ebitda_reconciliation.bridge`),
+// the two components signed as their effect on the result, a zero printed
+// as a zero (the reader must see the definition includes the line even
+// when this period did not post to it), and a refused part as the word.
+// Under it the engine's notes: on a closed book the 711 line is DERIVED
+// from account 121, so the chain closes by construction — said, not
+// implied; and the 711 / 72x split assumption where both moved.
+// NOTHING IS COMPUTED HERE.
 // ────────────────────────────────────────────────────────────────────────
-//
-// Rendered below the operational net-profit headline subtotal. The
-// operational figure (already shown above as the closingSection
-// subtotal) is the SINGLE headline net-profit value across the entire
-// dashboard. The bridge here exists so a board reader can audit the
-// gap to statutory ct-121 — the legally filed number — without that
-// figure ever appearing as a competing headline.
-//
-// NO COMPUTATION HAPPENS HERE. `operational`, `capitalizedOwnWork`,
-// and `statutory` are all values the engine has already emitted via
-// buildPLStatement; this component only displays them in the bridge
-// layout the user requested.
 
-function PLReconciliationBridge({
-  operational,
-  capitalizedOwnWork,
-  statutory,
+function EbitdaBridgeLine({
+  served,
   currency,
+  lang,
 }: {
-  operational: number;
-  capitalizedOwnWork: number;
-  statutory: number;
+  served: ServedOneEbitda;
   currency: string;
+  lang: string | undefined;
 }) {
   const { t } = useTranslation();
   const fmt = useAmountFormatter(currency);
-  const display = useDisplayCurrency();
+  const recon = served.reconciliation;
+  if (!recon || recon.bridge.parts.length === 0) return null;
+  const signedPart = (key: string) => key === "inventory_variation" || key === "capitalized_own_work";
+  const value = (key: string, v: number | null): string => {
+    if (v === null) return t("statements.pl.refused");
+    if (Math.abs(v) < 0.005) return "0";
+    return signedPart(key) ? fmt(v, { sign: v > 0 ? "positive" : "negative" }) : fmt(v);
+  };
   return (
-    <div className="pl-recon-bridge" data-testid="pl-recon-bridge" role="group" aria-label="Net profit reconciliation">
-      <div className="pl-recon-head">
-        {t("statements.pl.recon.heading")}
+    <div className="pl-ebitda-bridge" data-testid="pl-ebitda-bridge" data-definition={recon.definition ?? undefined}>
+      <div className="pl-bridge-parts">
+        {recon.bridge.parts.map((p, i) => (
+          <span key={p.key} className="pl-bridge-part" data-bridge-part={p.key}>
+            {i > 0 && <span className="pl-bridge-sep">{p.key === "ebitda" ? " = " : " · "}</span>}
+            <span className="pl-bridge-label">{pickLang(p.label, lang)}</span>{" "}
+            <span className="pl-bridge-value" data-bridge-value={p.value === null ? "refused" : String(p.value)}>
+              {value(p.key, p.value)}
+            </span>
+          </span>
+        ))}
       </div>
-      <div className="pl-row pl-row-item pl-recon-line">
-        <span className="pl-label">
-          {t("statements.pl.recon.capitalizedOwnWork")}
-          <AccountChip code="722" />
-        </span>
-        <span className="pl-amount">{fmt(capitalizedOwnWork)}</span>
-      </div>
-      <div className="pl-row pl-recon-total">
-        <span className="pl-label">{t("statements.pl.recon.statutoryTotal")}</span>
-        <LearnableNumber conceptKey="net_profit" value={statutory} className="pl-amount" block>
-          {fmt(statutory)}
-        </LearnableNumber>
-        <CmpCells rowKey="netIncomeStatutory" amount={statutory} />
-      </div>
-      <div className="pl-recon-note">
-        {t("tablesV2.pl.reconNote", {
-          defaultValue:
-            "Operational net profit ({{amount}} {{currency}}) is the headline figure across this report. Account 722 is a non-cash credit that capitalizes internally-incurred costs into CIP (account 231); the offsetting cost sits inside account 628 (third-party services). Net P&L effect of the 722/628 wash is ~zero; statutory ct 121 is shown above as the reconciled total — not as a competing headline.",
-          amount: fmt(operational),
-          currency: display,
-        })}
-      </div>
-    </div>
-  );
-}
-
-// ────────────────────────────────────────────────────────────────────────
-// Reconciliation footnote — the capitalized own-work / 231 / 628 wash.
-// ────────────────────────────────────────────────────────────────────────
-
-function PLFootnote({ statement }: { statement: PLStatement }) {
-  const { t } = useTranslation();
-  const fmt = useAmountFormatter(statement.currency);
-  const display = useDisplayCurrency();
-  const ownWork = statement.capitalizedOwnWorkMemo ?? 0;
-  const ext628 = statement.extServOther ?? 0;
-  // 2026-07-25 — everything below is derived from the UPLOADED statement, not
-  // asserted. Previously this footnote hardcoded a rental/property-management
-  // narrative ("revenue is essentially just rental income (706)…") that fired
-  // for ANY company with 722 activity — a manufacturer with capitalized own
-  // work read as a landlord. Now: the 722/628-wash math is company-generic
-  // (clean revenue = revenue − 722), and the rental framing renders only when
-  // rental income (706 + 767) genuinely dominates the ex-own-work revenue.
-  const revenueTotal = statement.sections[0]?.subtotalAmount ?? 0;
-  const revenueExOwnWork = revenueTotal - ownWork;
-  // THE 706 FAMILY IS READ OFF THE BOOK'S OWN REVENUE FAMILIES
-  // (`revenueFamilyAmounts`: the leaves, "7061" and "706.01" folded into
-  // "706"), never off a line whose `accountCode` happens to equal "706".
-  // On the aggregates path that code is the row's CHIP — a label listing
-  // the families the book holds — so `=== "706"` read a landlord's chip
-  // as its rent and a goods seller's "701/704/706/707/709" as none; on a
-  // sub-account ledger it matched nothing at all. The line lookup stays
-  // only for a statement built without leaves to read.
-  const families = statement.revenueFamilyAmounts;
-  const rental706 = families
-    ? (families["706"] ?? 0)
-    : (statement.sections[0]?.lines.find((l) => l.accountCode === "706")?.amount ?? 0);
-  const rentalOnly =
-    rental706 +
-    (statement.sections[0]?.lines.find((l) => l.accountCode === "767")?.amount ?? 0);
-  const rentalDominated =
-    revenueExOwnWork > 0 && rentalOnly / revenueExOwnWork >= 0.6;
-  // The OPERATING EXPENSES section, by role — `sections[1]` is the 758
-  // section on a book that carries one (see `plLayout`).
-  const opexExcl628 = (plLayout(statement.sections).operatingExpenses?.subtotalAmount ?? 0) - ext628;
-  return (
-    <div className="pl-footnote" data-testid="pl-footnote">
-      <p>
-        <strong>
-          {rentalDominated
-            ? t("statements.pl.footnote.flag", "Two things worth flagging given the structure:")
-            : t("tablesV2.pl.footnote.flagOne", "Worth flagging given the structure:")}
-        </strong>
-      </p>
-      <ol>
-        <li>
-          <strong>
-            {t("tablesV2.pl.footnote.ownWorkTitle", {
-              defaultValue:
-                "Account 722 (Capitalized own work) — {{amount}} {{currency}} is not external revenue.",
-              amount: fmt(ownWork),
-              currency: display,
-            })}
-          </strong>{" "}
-          {t("tablesV2.pl.footnote.ownWorkBody", {
-            defaultValue:
-              "It is the credit-side offset that capitalizes internally-incurred construction costs into CIP (account 231 — YTD movement matches 722 exactly). The corresponding cost is sitting inside 628 Other third-party services ({{ext}}). Net P&L effect: ~zero. For a \"clean\" operating view, strip both: revenue drops to ~{{revenue}}, opex drops to ~{{opex}}, clean EBITDA ≈ {{ebitda}}.",
-            ext: fmt(ext628),
-            revenue: fmt(revenueExOwnWork),
-            opex: fmt(opexExcl628),
-            ebitda: fmt(revenueExOwnWork - opexExcl628),
-          })}
-        </li>
-        {rentalDominated && (
-          <li>
-            <strong>
-              {t("tablesV2.pl.footnote.rentalTitle", {
-                defaultValue:
-                  "Real cash-generative operating revenue is essentially just rental income (706): {{amount}} {{currency}}.",
-                amount: fmt(rentalOnly),
-                currency: display,
-              })}
-            </strong>{" "}
-            {t("tablesV2.pl.footnote.rentalBody", "Against that base, the underlying property-management EBITDA is the more meaningful number.")}
-          </li>
-        )}
-      </ol>
+      {recon.identityNote && (
+        <div className="pl-bridge-note" data-testid="pl-identity-note">
+          {pickLang(recon.identityNote, lang)}
+        </div>
+      )}
+      {recon.splitAssumption && (
+        <div className="pl-bridge-note" data-testid="pl-split-assumption">
+          {pickLang(recon.splitAssumption, lang)}
+        </div>
+      )}
     </div>
   );
 }

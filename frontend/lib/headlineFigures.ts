@@ -18,10 +18,12 @@ export interface HeadlineStatementsLike {
   assembled_pl?: Record<string, number> | null;
 }
 
-/** The shape the page hands over from `pickPLBuilder`. */
+/** The shape the page hands over from `pickPLBuilder`. Either figure may be
+ *  null: the builder states a net result the engine refused (or did not
+ *  serve) as absent, never as a zero. */
 export interface HeadlinePlLike {
-  netProfit: number;
-  netProfitStatutory?: number;
+  netProfit: number | null;
+  netProfitStatutory?: number | null;
 }
 
 function finite(v: unknown): number | null {
@@ -42,9 +44,12 @@ function finite(v: unknown): number | null {
  *      carries the pre-anchor value there while its envelope is served
  *      anchored.
  *   2. `calculated_metrics.net_income_statutory` — that snapshot.
- *   3. the P&L builder's own figure. This is a class-6/7 RECONSTRUCTION
- *      wearing the word "statutory", and on the four firm books it is
- *      not the filed result:
+ *   3. the P&L builder's own figure. Since the one-EBITDA ruling
+ *      (2026-09-26) the builder states the SERVED net result on an engine
+ *      period — this rung is reached only when the envelope carries none.
+ *      Until then it was a class-6/7 RECONSTRUCTION wearing the word
+ *      "statutory", and on the four firm books it was not the filed
+ *      result:
  *
  *        book        account 121      builder      factor
  *        agras       7,533,676.02   14,106,102.03   1.87x
@@ -67,5 +72,10 @@ export function resolveHeadlineNetProfit(
   if (fromMetrics !== null) return fromMetrics;
   const fromBuilder = finite(pl.netProfitStatutory);
   if (fromBuilder !== null) return fromBuilder;
-  return pl.netProfit;
+  // The statement's own closing line. On an engine period the builder
+  // states the served figure (account 121, or the result built from the
+  // accounts), so this rung only speaks for a payload the engine did not
+  // assemble. A net result nobody served is NaN — the page's "absent"
+  // (it prints the gap glyph), never a zero standing in for it.
+  return finite(pl.netProfit) ?? NaN;
 }

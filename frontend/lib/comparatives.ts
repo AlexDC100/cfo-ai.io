@@ -14,14 +14,15 @@
 //    comparative lines are assembled fields. On the real analytic book
 //    revenue, cogs, operating expenses, D&A and tax agree to the cent and
 //    "other operating income" / the financial rows do not (the persisted
-//    otherIncome carries the 711 memo and 781 reversals). So every mapped
-//    row is guarded at render time: the row's own amount must equal the
-//    engine column's `current` to the cent, or the cells stay blank with a
+//    otherIncome carries the 781 reversals). So every mapped row is
+//    guarded at render time: the row's own amount must equal the engine
+//    column's `current` to the cent, or the cells stay blank with a
 //    reason. A mapping mistake can never paint a prior figure beside a
-//    number built a different way. A row whose figure folds in more than
-//    its engine line — "Total operating revenue" is net turnover plus 722
-//    — is held, before that, to the definition guard: the extra components
-//    must be zero in BOTH periods (PL_ROW_DEFINITION_FOLDS).
+//    number built a different way. A row on THE ONE EBITDA (EBITDA, EBIT,
+//    profit before tax, the stock variation, own work capitalised) is held,
+//    before that, to the definition guard: the prior's served block must be
+//    on the same EBITDA definition as the current's
+//    (PL_ROW_ONE_EBITDA_KEYS).
 //
 // 2. ABSENT IS NOT ZERO. `absent_prior` renders "new", `absent_current`
 //    renders "no longer present", `not_disclosed_at_this_detail_level`
@@ -45,7 +46,6 @@ import type { PeriodLineItem } from "@/lib/activePeriod";
 import { authOrgHeaders } from "@/lib/apiHeaders";
 import { useCompanyPeriods, type CompanyPeriods, type OrgPeriod } from "@/lib/orgPeriods";
 import { ROUNDED_MONEY_ZERO_FLOOR, type ChangeKind } from "@/lib/changeKind";
-import { servedPlAmount } from "@/lib/plStructure";
 import type {
   ExportComparisonState,
   PriorServedFigures,
@@ -539,11 +539,10 @@ export function indexCells(doc: ComparativesResponse): Map<string, ComparativeCe
  * P&L rows → engine keys. An entry names the engine line that IS the row's
  * figure BY DEFINITION. frontend/lib/__tests__/comparatives.test.ts
  * measures every aggregates-path entry against the real analytic book —
- * equal to the cent, or (the FE-composed rows, and the two 758 rows, whose
- * bucket also holds the 781 reversals on that book) refused by the guard;
- * plCompareSubtotals.test.tsx holds both builders to their keys. The
- * render-time parity guard below is what makes a wrong entry harmless
- * rather than wrong.
+ * equal to the cent, or (the 758 rows, whose bucket also holds the 781
+ * reversals on that book) refused by the guard; plCompareSubtotals.test.tsx
+ * holds both builders to their keys. The render-time parity guard below is
+ * what makes a wrong entry harmless rather than wrong.
  *
  * Keys are the `bucket` a P&L row carries (items) or the section's
  * `subtotalBucket` (subtotals). Both builders stamp these; `interestIncome`
@@ -551,23 +550,34 @@ export function indexCells(doc: ComparativesResponse): Map<string, ComparativeCe
  * and 628 on rows of their own, and `financialIncomeTotal` only the
  * aggregates builder, whose financial-income row is the whole 76x family.
  *
+ * THE ONE EBITDA (owner ruling 2026-09-26): "Total net turnover" IS the
+ * engine's net turnover — 72x and 767 are no longer folded into it, so it
+ * carries `pl.revenue` on its own figure. The stock variation (711) and own
+ * work capitalised (72x) rows carry the engine's `pl.inventory_variation`
+ * and `pl.capitalized_own_work` columns — their prior sides are the PRIOR
+ * period's own measured figures (the engine assembles both periods on the
+ * one definition). The closing line is account 121 as filed, `pl.net_income`.
+ *
  * DELIBERATELY UNKEYED (no engine line is the same figure by definition):
- * the 722 capitalized-own-work line (no engine line); the line-item
- * builder's 706 / 708 / 767 revenue lines, its per-account operating
- * costs other than 628, its dividend, FX-gain and FX-loss rows (no engine
- * line of their own); "Total operating expenses (cash)" on both paths
- * (cost of goods sold PLUS operating expenses — the engine serves the two
- * separately); and the aggregates "FX losses & other financial expense"
- * row, which excludes interest while the engine's `pl.financial_expense`
- * includes it.
+ * the line-item builder's per-family turnover rows, its per-account
+ * operating costs other than 628, its dividend, FX-gain, discounts-received
+ * and FX-loss rows, and every "not itemised by account" remainder;
+ * "Total operating expenses" on both paths (cost of goods sold PLUS
+ * operating expenses — the engine serves the two separately); the net
+ * result built from the accounts where it differs from account 121, and
+ * the part "not explained by the accounts" (no engine column); and the
+ * aggregates "FX losses & other financial expense" row, which excludes
+ * interest while the engine's `pl.financial_expense` includes it.
  */
 export const PL_ROW_TO_KEY: Readonly<Record<string, string>> = {
   revenueTurnover: "pl.revenue",
-  // "Total operating revenue" — held to PL_ROW_DEFINITION_FOLDS as well.
+  // "Total net turnover" — net turnover and nothing else.
   revenue: "pl.revenue",
   otherOperatingIncome: "pl.other_operating_income",
   otherOperatingIncomeTotal: "pl.other_operating_income",
+  capitalizedOwnWork: "pl.capitalized_own_work",
   cogs: "pl.cogs",
+  inventoryVariation: "pl.inventory_variation",
   opexTotal: "pl.opex_total",
   opexThirdParty: "pl.opex_third_party",
   depreciationAmortization: "pl.depreciation",
@@ -579,38 +589,36 @@ export const PL_ROW_TO_KEY: Readonly<Record<string, string>> = {
   netFinancialResult: "pl.net_financial_result",
   pretax: "pl.pretax",
   taxExpense: "pl.tax",
-  netIncomeOperational: "pl.net_income_operational",
   netIncomeStatutory: "pl.net_income",
 };
 
 /**
- * ROWS WHOSE FIGURE FOLDS IN MORE THAN THEIR ENGINE LINE. "Total operating
- * revenue" is net turnover PLUS capitalized own work (722) — and, on the
- * line-item path, discounts received (767), which that builder declares on
- * its section (`PLSection.subtotalFolds`). Its figure can equal the
- * engine's net turnover to the cent in the current period while the prior
- * period's total held 722: the prior cell would then print net turnover
- * under a total that includes 722. So such a row carries the engine's
- * cells only while EVERY component — those listed here, which are
- * required, and any its builder declares — is zero in BOTH periods: the
- * current's as the builder states it, the prior's as the served
- * comparatives document carries it (`prior_statements.assembled_pl`, read
- * under the served contract, `servedPlAmount`). Otherwise the cells say
- * the definition differs.
- *
- * Keyed like PL_ROW_TO_KEY; the components are served `assembled_pl`
- * fields.
+ * THE ENGINE LINES ON THE ONE EBITDA DEFINITION. Their figures moved with
+ * the owner's ruling of 2026-09-26 (711 and 72x inside, 767 financial), so
+ * a prior assembled under another definition is not the same line: such a
+ * row carries the engine's cells only while the PRIOR's served block —
+ * `prior_statements.assembled_pl.ebitda_definition`, read off the served
+ * comparatives document — names the SAME definition the current period is
+ * served on. A prior with no stamp, or another one, is refused ("the
+ * definition differs"): never a prior EBITDA beside a current one built
+ * another way.
  */
-export const PL_ROW_DEFINITION_FOLDS: Readonly<Record<string, readonly string[]>> = {
-  revenue: ["capitalized_own_work_memo"],
-};
+export const PL_ROW_ONE_EBITDA_KEYS: ReadonlySet<string> = new Set([
+  "pl.ebitda",
+  "pl.ebit",
+  "pl.pretax",
+  "pl.gross_profit",
+  "pl.inventory_variation",
+  "pl.capitalized_own_work",
+]);
 
-/** What the definition guard reads for one row: the components the row
- *  folds in, as its builder states them for the CURRENT period
- *  (`PLSection.subtotalFolds`), and the served comparatives document's
- *  `prior_statements` — the block the PRIOR's amounts are read from. */
+/** What the definition guard reads for one row: the EBITDA definition the
+ *  CURRENT period is served on (`assembled_pl.ebitda_definition`, null for
+ *  a payload the engine did not assemble), and the served comparatives
+ *  document's `prior_statements` — the block the PRIOR's stamp is read
+ *  from. */
 export interface RowDefinition {
-  folds?: Readonly<Record<string, number | null>> | null;
+  currentDefinition?: string | null;
   priorStatements?: unknown;
 }
 
@@ -626,9 +634,11 @@ export type CellOutcome =
   | { kind: "definition_differs"; rowAmount: number | null; engineCurrent: number | null; key: string }
   | { kind: "unmapped" };
 
-/** Half a cent or more, or unreadable (null): the component is carried. */
-function carriesComponent(amount: number | null | undefined): boolean {
-  return typeof amount !== "number" || !Number.isFinite(amount) || Math.abs(amount) >= PARITY_FLOOR;
+/** The EBITDA definition a served `statements` block is assembled on. */
+export function servedEbitdaDefinition(statements: unknown): string | null {
+  const apl = isPlainRecord(statements) ? (statements as Record<string, unknown>).assembled_pl : undefined;
+  const v = isPlainRecord(apl) ? (apl as Record<string, unknown>).ebitda_definition : undefined;
+  return typeof v === "string" && v.trim() ? v : null;
 }
 
 /**
@@ -637,11 +647,11 @@ function carriesComponent(amount: number | null | undefined): boolean {
  * the cells stay blank and say why — never a prior beside a differently
  * built current.
  *
- * Ahead of it, THE DEFINITION GUARD (PL_ROW_DEFINITION_FOLDS): a row whose
- * figure folds in components beyond its engine line carries the cells
- * only while every such component is zero in both periods. A component
- * the builder did not state for the current period is unreadable, and so
- * is carried.
+ * Ahead of it, THE DEFINITION GUARD (PL_ROW_ONE_EBITDA_KEYS): a row on the
+ * one EBITDA carries the cells only while the prior's served block names
+ * the definition the current period is served on. When the caller states
+ * no current definition (a payload the engine did not assemble) there is
+ * nothing to hold the prior to, and the parity guard alone decides.
  */
 export function cellForRow(
   cells: Map<string, ComparativeCell> | null,
@@ -654,22 +664,15 @@ export function cellForRow(
   if (!key) return { kind: "unmapped" };
   const cell = cells.get(key);
   if (!cell) return { kind: "unmapped" };
-  const folds = definition?.folds ?? null;
-  const components = new Set([...(PL_ROW_DEFINITION_FOLDS[rowKey] ?? []), ...Object.keys(folds ?? {})]);
-  if (components.size > 0) {
-    const priorPl = isPlainRecord(definition?.priorStatements)
-      ? (definition!.priorStatements as Record<string, unknown>).assembled_pl
-      : undefined;
-    for (const component of components) {
-      const current = folds?.[component];
-      if (carriesComponent(current) || carriesComponent(servedPlAmount(priorPl, component))) {
-        return {
-          kind: "definition_differs",
-          rowAmount: typeof rowAmount === "number" && Number.isFinite(rowAmount) ? rowAmount : null,
-          engineCurrent: cell.current,
-          key,
-        };
-      }
+  const current = definition?.currentDefinition ?? null;
+  if (current !== null && PL_ROW_ONE_EBITDA_KEYS.has(key)) {
+    if (servedEbitdaDefinition(definition?.priorStatements) !== current) {
+      return {
+        kind: "definition_differs",
+        rowAmount: typeof rowAmount === "number" && Number.isFinite(rowAmount) ? rowAmount : null,
+        engineCurrent: cell.current,
+        key,
+      };
     }
   }
   if (typeof rowAmount !== "number" || !Number.isFinite(rowAmount)) {

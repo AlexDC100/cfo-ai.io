@@ -70,7 +70,11 @@ export function TrendChange({
 export interface KeyMetricItem {
   label: string;
   desc: string;
-  value: number;
+  /** null = the engine REFUSED the figure (then `refused` says why). */
+  value: number | null;
+  /** The engine's reason for a refused figure, in the reader's language —
+   *  printed in place of the amount, never a zero. */
+  refused?: string | null;
   trend: MetricTrend | null;
   testid: string;
   /** Where the figure came from, when the payload says. Omitted or null
@@ -104,7 +108,8 @@ export function KeyMetricsRow({ items, currency }: { items: KeyMetricItem[]; cur
             key={it.testid}
             label={it.label}
             desc={it.desc}
-            value={converted[i] ?? 0}
+            value={it.value === null ? null : converted[i] ?? null}
+            refused={it.refused ?? null}
             displayCurrency={displaySymbol}
             trend={it.trend}
             convertedDelta={convertedDeltas[i] ?? null}
@@ -125,6 +130,7 @@ function KeyMetricCard({
   label,
   desc,
   value,
+  refused,
   displayCurrency,
   trend,
   convertedDelta,
@@ -134,7 +140,8 @@ function KeyMetricCard({
 }: {
   label: string;
   desc: string;
-  value: number;
+  value: number | null;
+  refused: string | null;
   displayCurrency: string;
   trend: MetricTrend | null;
   convertedDelta: number | null;
@@ -168,7 +175,13 @@ function KeyMetricCard({
         className="mt-2 text-[22px] font-medium text-ink leading-none tracking-[-0.01em]"
         data-testid={testid ? `${testid}-amount` : undefined}
       >
-        <Amount value={value} currency={displayCurrency} provenance={provenance} />
+        {value === null ? (
+          <span className="text-[13px] text-ink-soft" data-testid={testid ? `${testid}-refused` : undefined}>
+            {refused ?? t("forecast.absent", "not measurable from this book")}
+          </span>
+        ) : (
+          <Amount value={value} currency={displayCurrency} provenance={provenance} />
+        )}
       </div>
       <p className="mt-1.5 text-[11.5px] text-ink-soft leading-snug">{desc}</p>
       {trend && (

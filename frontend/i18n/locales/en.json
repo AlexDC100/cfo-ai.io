@@ -547,14 +547,12 @@
       "title": "P&L",
       "ebitda": "EBITDA",
       "keyMargins": "Key margins",
-      "recon": {
-        "heading": "Reconciliation to statutory ct 121",
-        "capitalizedOwnWork": "+ Capitalized own work",
-        "statutoryTotal": "= Net profit — statutory (ct 121)"
+      "refused": "refused",
+      "stock": {
+        "increase": "+ stock increase",
+        "decrease": "− stock decrease"
       },
-      "footnote": {
-        "flag": "Two things worth flagging given the structure:"
-      }
+      "refusedWithEbitda": "refused with EBITDA"
     },
     "bs": {
       "title": "BALANCE SHEET",
@@ -609,7 +607,8 @@
       "refusedSame": "A period cannot be compared with itself.",
       "refusedNotInWorkspace": "The comparison period belongs to another company.",
       "refusedNotServable": "The comparison period has no analysed figures to compare.",
-      "refusedGeneric": "These two periods can't be compared."
+      "refusedGeneric": "These two periods can't be compared.",
+      "refused": "refused"
     },
     "ratioCmp": {
       "unit": {
@@ -843,6 +842,18 @@
         "drift": "Reconciliation drift"
       },
       "notes": "NOTES"
+    },
+    "ebitdaRecon": {
+      "eyebrow": "EBITDA reconciliation · one definition",
+      "title": "How EBITDA is built — from net turnover to account 121",
+      "lead": "One EBITDA: the stock variation (711) and own work capitalised (72x) sit inside it, beside the costs; discounts received (767) are financial. Net turnover — the base of every margin — includes none of the three.",
+      "coreHeading": "EBITDA → Core EBITDA (valuation basis)",
+      "less758": "Less other operating income",
+      "less781": "Less provision reversals",
+      "coreTotal": "Core EBITDA",
+      "notServed": "The engine served no EBITDA reconciliation for this period.",
+      "notAnchored": "account 121 is not in the trial balance",
+      "footer": "Every figure is the engine's served reconciliation — nothing is recomputed on this page."
     }
   },
   "peerReport": {
@@ -2825,16 +2836,6 @@
   },
   "tablesV2": {
     "sourceCurrencyTooltip": "Source currency of the underlying figures",
-    "pl": {
-      "reconNote": "Operational net profit ({{amount}} {{currency}}) is the headline figure across this report. Account 722 is a non-cash credit that capitalizes internally-incurred costs into CIP (account 231); the offsetting cost sits inside account 628 (third-party services). Net P&L effect of the 722/628 wash is ~zero; statutory ct 121 is shown above as the reconciled total — not as a competing headline.",
-      "footnote": {
-        "flagOne": "Worth flagging given the structure:",
-        "ownWorkTitle": "Account 722 (Capitalized own work) — {{amount}} {{currency}} is not external revenue.",
-        "ownWorkBody": "It is the credit-side offset that capitalizes internally-incurred construction costs into CIP (account 231 — YTD movement matches 722 exactly). The corresponding cost is sitting inside 628 Other third-party services ({{ext}}). Net P&L effect: ~zero. For a \"clean\" operating view, strip both: revenue drops to ~{{revenue}}, opex drops to ~{{opex}}, clean EBITDA ≈ {{ebitda}}.",
-        "rentalTitle": "Real cash-generative operating revenue is essentially just rental income (706): {{amount}} {{currency}}.",
-        "rentalBody": "Against that base, the underlying property-management EBITDA is the more meaningful number."
-      }
-    },
     "cf": {
       "ytdCredit": "YTD credit",
       "ytdDebit": "YTD debit"

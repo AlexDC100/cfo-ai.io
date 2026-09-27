@@ -235,7 +235,7 @@ function FullDashboard({
       </TabsContent>
 
       <TabsContent value="pl" className="pt-5">
-        <PLStatementView statement={adapted.pl} showFootnote={false} />
+        <PLStatementView statement={adapted.pl} />
       </TabsContent>
 
       <TabsContent value="balance_sheet" className="pt-5">

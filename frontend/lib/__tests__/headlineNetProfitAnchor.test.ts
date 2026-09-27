@@ -30,10 +30,21 @@
 //
 // AFTER THE REPAIR it reds on: the resolver preferring anything over a
 // finite `assembled_pl.net_income_statutory`; a book whose served
-// envelope stops carrying that field silently (the absent case below
-// asserts the builder figure is used AND that it is not the anchor's
-// value, so deleting the fallback reds too); and any book whose served
+// envelope stops carrying that field silently; and any book whose served
 // anchor drifts from its `gateway_facts.net_result_cents`.
+//
+// THE ONE EBITDA (owner ruling 2026-09-26) MOVED THE WITNESS. The P&L
+// builder no longer reproduces the class-6/7 reconstruction: it states the
+// SERVED net result, ending on account 121 — so on the three bridge books
+// its figure IS the anchor, and "the builder disagrees with the anchor" has
+// no witness left there. The disagreement now lives where it is real: the
+// ENVELOPE's own `net_income_reconstructed` (the build-up before the stock
+// variation) still differs from account 121 on those books, and the builder
+// must print the anchor, never that reconstruction. The resolver's
+// precedence gets a CONSTRUCTED witness (design A8): a builder statement
+// built from an envelope that serves no anchor refuses its net result, and
+// the resolver answers "absent" — never zero, never the other envelope's
+// anchor.
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -95,22 +106,23 @@ const NONE: readonly PeriodMetric[] = [];
 const DISAGREEING: readonly Book[] = BOOKS.filter((b) => b !== "retail");
 
 describe("the books actually carry the disagreement this gate is about", () => {
-  it("retail: the v6 reconstruction IS account 121, and the builder reproduces it", () => {
+  it("retail: the v6 reconstruction IS account 121, and the builder states it", () => {
     const s = servedBook("retail");
     expect(Number.isFinite(s.anchor)).toBe(true);
     expect(s.reconstruction).toBe(s.anchor);
-    expect(s.pl.netProfitStatutory).toBeCloseTo(s.reconstruction, 2);
+    expect(s.pl.netProfitStatutory).toBe(s.anchor);
+    expect(s.pl.netProfit).toBe(s.anchor);
   });
 
-  it.each(DISAGREEING)("%s serves an anchor, and a builder figure that is not it", (book) => {
+  it.each(DISAGREEING)("%s: the envelope's reconstruction is not the anchor, and the builder prints the anchor", (book) => {
     const s = servedBook(book);
     expect(Number.isFinite(s.anchor)).toBe(true);
-    // The envelope says the reconstruction differs from the anchor…
+    // The envelope says the build-up before the stock variation differs…
     expect(s.reconstruction).not.toBe(s.anchor);
-    // …and the P&L builder reproduces the reconstruction, to the cent.
-    // (`capitalized_own_work_memo` is 0 on all four books, so the
-    // builder's "statutory" figure IS `net_income_reconstructed`.)
-    expect(s.pl.netProfitStatutory).toBeCloseTo(s.reconstruction, 2);
+    // …and the P&L states account 121 — never that reconstruction.
+    expect(s.pl.netProfitStatutory).toBe(s.anchor);
+    expect(s.pl.netProfit).toBe(s.anchor);
+    expect(s.pl.netProfit).not.toBe(s.reconstruction);
   });
 
   it("the served anchor is the gateway's own net result, to the cent", () => {
@@ -147,11 +159,20 @@ describe("a stale persisted metric never outranks the envelope", () => {
 });
 
 describe("absent is not zero, and absent is not the anchor either", () => {
-  it("a served envelope with no anchor falls back to the builder and says so", () => {
+  it("an envelope that serves no anchor: the builder refuses its net result and the resolver says absent", () => {
+    // CONSTRUCTED witness (design A8): the agras envelope with its served
+    // net-income fields removed — no anchor, no reconciliation, no result.
     const s = servedBook("agras");
-    const noAnchor = { ...s.statements, assembled_pl: {} as Record<string, number> };
-    const got = resolveHeadlineNetProfit(noAnchor, NONE, s.pl);
-    expect(got).toBe(s.pl.netProfitStatutory);
+    const apl = { ...(s.statements.assembled_pl as Record<string, unknown>) };
+    delete apl.net_income_statutory;
+    delete apl.ebitda_reconciliation;
+    const noAnchor = { ...s.statements, assembled_pl: apl as Record<string, number> };
+    const pl = pickPLBuilder({ lineItems: lineItemsFor("agras"), currency: noAnchor.currency }, noAnchor);
+    expect(pl.netProfit).toBeNull();
+    expect(pl.netProfitStatutory).toBeNull();
+    const got = resolveHeadlineNetProfit(noAnchor, NONE, pl);
+    expect(Number.isNaN(got), `absent — got ${got}`).toBe(true);
+    expect(got).not.toBe(0);
     expect(got).not.toBe(s.anchor);
   });
 

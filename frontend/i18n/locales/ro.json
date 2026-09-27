@@ -547,14 +547,12 @@
       "title": "P&L",
       "ebitda": "EBITDA",
       "keyMargins": "Marje cheie",
-      "recon": {
-        "heading": "Reconciliere cu statutarul ct 121",
-        "capitalizedOwnWork": "+ Lucrări capitalizate proprii",
-        "statutoryTotal": "= Profit net — statutar (ct 121)"
+      "refused": "refuzat",
+      "stock": {
+        "increase": "+ creștere de stoc",
+        "decrease": "− scădere de stoc"
       },
-      "footnote": {
-        "flag": "Două aspecte de semnalat dată fiind structura:"
-      }
+      "refusedWithEbitda": "refuzat odată cu EBITDA"
     },
     "bs": {
       "title": "BILANȚ",
@@ -609,7 +607,8 @@
       "refusedSame": "O perioadă nu poate fi comparată cu ea însăși.",
       "refusedNotInWorkspace": "Perioada de comparație aparține altei companii.",
       "refusedNotServable": "Perioada de comparație nu are cifre analizate de comparat.",
-      "refusedGeneric": "Aceste două perioade nu pot fi comparate."
+      "refusedGeneric": "Aceste două perioade nu pot fi comparate.",
+      "refused": "refuzat"
     },
     "ratioCmp": {
       "unit": {
@@ -843,6 +842,18 @@
         "drift": "Discrepanță reconciliere"
       },
       "notes": "NOTE"
+    },
+    "ebitdaRecon": {
+      "eyebrow": "Reconcilierea EBITDA · o singură definiție",
+      "title": "Cum se construiește EBITDA — de la cifra de afaceri netă la contul 121",
+      "lead": "O singură EBITDA: variația stocurilor de produse (711) și producția imobilizată (72x) sunt incluse, lângă costuri; reducerile comerciale primite (767) sunt financiare. Cifra de afaceri netă — baza fiecărei marje — nu include niciuna dintre ele.",
+      "coreHeading": "EBITDA → EBITDA de bază (baza evaluării)",
+      "less758": "Minus alte venituri din exploatare",
+      "less781": "Minus venituri din reluarea provizioanelor",
+      "coreTotal": "EBITDA de bază",
+      "notServed": "Motorul nu a servit reconcilierea EBITDA pentru această perioadă.",
+      "notAnchored": "contul 121 nu apare în balanță",
+      "footer": "Fiecare cifră este reconcilierea servită de motor — nimic nu se recalculează pe această pagină."
     }
   },
   "peerReport": {
@@ -2849,16 +2860,6 @@
   },
   "tablesV2": {
     "sourceCurrencyTooltip": "Moneda sursă a cifrelor din această situație",
-    "pl": {
-      "reconNote": "Profitul net operațional ({{amount}} {{currency}}) este cifra de referință în tot acest raport. Contul 722 este un credit non-cash care capitalizează costurile interne în imobilizări în curs (contul 231); costul compensator se află în contul 628 (servicii prestate de terți). Efectul net în P&L al perechii 722/628 este ~zero; ct 121 statutar apare mai sus ca total reconciliat — nu ca o cifră concurentă.",
-      "footnote": {
-        "flagOne": "De semnalat, dată fiind structura:",
-        "ownWorkTitle": "Contul 722 (Producție capitalizată) — {{amount}} {{currency}} nu este venit extern.",
-        "ownWorkBody": "Este contrapartida pe credit care capitalizează costurile interne de construcție în imobilizări în curs (contul 231 — rulajul YTD corespunde exact cu 722). Costul aferent se află în 628 Alte servicii prestate de terți ({{ext}}). Efect net în P&L: ~zero. Pentru o imagine operațională „curată”, scoate-le pe amândouă: veniturile scad la ~{{revenue}}, cheltuielile operaționale la ~{{opex}}, EBITDA curat ≈ {{ebitda}}.",
-        "rentalTitle": "Venitul operațional real, generator de numerar, este în esență doar venitul din chirii (706): {{amount}} {{currency}}.",
-        "rentalBody": "Raportat la această bază, EBITDA din administrarea proprietăților este cifra mai relevantă."
-      }
-    },
     "cf": {
       "ytdCredit": "rulaj creditor YTD",
       "ytdDebit": "rulaj debitor YTD"

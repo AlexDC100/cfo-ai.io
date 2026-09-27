@@ -2,34 +2,45 @@
 //
 // THE INCIDENT (2026-09-26). "Compare with Dec 2025" on a Dec 2024 book: the
 // prior, Δ, Δ % and share cells were filled on the net-turnover line, on
-// EBITDA, cost of goods sold and operating expenses — and blank on "Total
-// operating revenue", "Other operating income (758)" and "Total other
+// EBITDA, cost of goods sold and operating expenses — and blank on the
+// operating-revenue total, "Other operating income (758)" and "Total other
 // operating income". The engine serves `pl.revenue` and
 // `pl.other_operating_income` for both periods; the rows simply carried no
-// key the comparatives map knew (the 758 line no `bucket`, its section no
-// `subtotalBucket`, and "revenue" unmapped).
+// key the comparatives map knew.
+//
+// THE ONE EBITDA (owner ruling 2026-09-26) REWROTE THIS FILE'S SECOND LAW.
+// It used to hold "Total operating revenue" to net turnover PLUS own work
+// capitalised (722) — and, on the line-item path, discounts received (767) —
+// so the total could carry the net-turnover cells only while neither period
+// carried either. Under the ruling the first subtotal IS net turnover
+// (cifra de afaceri netă): 72x is an operating line of its own, outside
+// turnover, and 767 is financial. So the total now carries `pl.revenue` on
+// its own figure whatever either period holds of 72x or 767, the 72x row
+// carries `pl.capitalized_own_work`, and the stock variation (711) row
+// `pl.inventory_variation` — the prior side of each the PRIOR period's own
+// measured figure. The new guard in their place: a row on the one EBITDA
+// carries the engine's cells only while the prior's served block
+// (`prior_statements.assembled_pl.ebitda_definition`) names the definition
+// the current period is served on.
 //
 // THE PARITY GUARD STAYS. A row carries the engine's cells only when the
-// number it shows IS the engine's current figure — and, for "Total operating
-// revenue", only while its DEFINITION is the engine line's: that total is
-// net turnover PLUS capitalized own work (722) — and, on the line-item
-// path, discounts received (767) — so it may carry the net-turnover cells
-// only while NEITHER period carries any. Never the prior's net turnover
-// under a total that includes 722.
+// number it shows IS the engine's current figure.
 //
 // WHAT THESE RED ON, with the module correct (TC-11):
-//   · "Total operating revenue", the 758 line or its subtotal carrying no
-//     engine key again (the blank cells of the incident);
-//   · the total carrying the net-turnover cells while either period carries
-//     722 — in the row, in the current period's served memo only, or in
-//     the prior's served memo only — or while a refused (null) prior memo
-//     stands in for a zero;
+//   · "Total net turnover", the 758 line or its subtotal carrying no engine
+//     key again (the blank cells of the incident);
+//   · 72x or 767 in either period refusing — or changing — the net-turnover
+//     total's cells (the old fold law);
+//   · the 72x or the 711 row carrying no engine cells, or a prior other than
+//     the engine column's;
+//   · a prior served under another EBITDA definition painted beside the
+//     current EBITDA, EBIT or profit before tax;
+//   · a prior the engine REFUSED printed as a number or a bare dash instead
+//     of the word with the prior's own reason;
 //   · a 758 row whose figure is not the engine's 758 line painted with the
 //     engine's prior (the committed pair's row carries 781 reversals);
-//   · a prior cell printing anything but the engine column's `prior`;
 //   · the line-item builder dropping the keys of its 758, 628, 766, 666,
-//     net-financial, pre-tax and tax rows, or its total folding in a 767 a
-//     period carries without the cells saying the definition differs.
+//     net-financial, pre-tax and tax rows.
 //
 // THE FIXTURES are the committed comparatives pair (a real GET /api/period
 // body and its comparatives document, rebuilt from the committed corpus —
@@ -37,6 +48,8 @@
 // read off the fixture or invented here; no client figure, name or code
 // enters this file.
 import { beforeEach, describe, expect, it } from "vitest";
+
+import i18n from "@/i18n";
 
 import { renderWithProviders } from "@/test/renderWithProviders";
 import { ComparativeProvider } from "@/components/cfo/ComparativeCells";
@@ -84,7 +97,7 @@ function renderPl(statements: Statements, doc: ComparativesResponse, lineItems: 
   );
   const view = renderWithProviders(
     <ComparativeProvider doc={doc} columns={COLUMNS} statement="PL" currency="RON">
-      <PLStatementView statement={statement} hideGuide showFootnote={false} />
+      <PLStatementView statement={statement} hideGuide />
     </ComparativeProvider>,
   );
   return { statement, ...view };
@@ -130,27 +143,25 @@ function expectDefinitionDiffers(cells: HTMLElement, key: string) {
   expect(digits(cells.textContent)).toBe("");
 }
 
-const TOTAL_REVENUE = "Total operating revenue";
-const NET_TURNOVER = "Operating revenue (net turnover)";
-const LINE_758 = "Other operating income (758)";
+const TOTAL_REVENUE = "Total net turnover";
+const NET_TURNOVER = "Net turnover";
+const LINE_758 = "Other operating income";
 const TOTAL_758 = "Total other operating income";
 
-beforeEach(() => {
+beforeEach(async () => {
   // Pro mode: Simple opens totals-first and hides every `item` row (the 758
   // line among them) behind "Show all lines".
   localStorage.setItem("cfo-view-mode-v1", "pro");
+  await i18n.changeLanguage("en");
 });
 
 describe.each(Object.keys(FIXTURES))("the committed comparatives pair — %s", (name) => {
   const load = FIXTURES[name];
 
-  it("'Total operating revenue' carries the prior's served net turnover: neither period carries 722", () => {
+  it("'Total net turnover' carries the prior's served net turnover", () => {
     const { current_body, comparatives: doc } = load();
     const st = current_body.statements;
     const revenue = column(doc, "pl.revenue");
-    // The precondition, read off the fixture: the current total IS net
-    // turnover (no 722 in the row, none in the served memo).
-    expect(Math.abs((st.assembled_pl as Record<string, number>).capitalized_own_work_memo)).toBeLessThan(PARITY_FLOOR);
     const { container } = renderPl(st, doc);
     expectPriorCell(cellsOf(container, TOTAL_REVENUE), revenue);
     // The net-turnover line beside it carries the very same cells.
@@ -161,9 +172,9 @@ describe.each(Object.keys(FIXTURES))("the committed comparatives pair — %s", (
     const { current_body, comparatives: doc } = load();
     const st = current_body.statements;
     const line758 = column(doc, "pl.other_operating_income");
-    // The row shows the served other-operating-income bucket; on this book
-    // it holds provision reversals (781) the engine's 758 line excludes.
-    const rowAmount = st.incomeStatement.otherIncome as number;
+    // The row shows the served other-operating-income line; on this book it
+    // holds provision reversals (781) the engine's 758 line excludes.
+    const rowAmount = (st.assembled_pl as Record<string, number>).other_operating_income;
     expect(Math.abs(rowAmount - (line758.current as number))).toBeGreaterThanOrEqual(PARITY_FLOOR);
     expect((st.assembled_pl as Record<string, number>).other_income_781_reversals).toBeGreaterThan(0);
     const { container } = renderPl(st, doc);
@@ -177,58 +188,124 @@ describe.each(Object.keys(FIXTURES))("the committed comparatives pair — %s", (
     const line758 = column(doc, "pl.other_operating_income");
     // The same pair, the current book's other operating income being all
     // account 758: the row's figure is then the engine's current figure.
+    // (The builder prints the SERVED other-operating-income line, and the
+    // bucket mirror behind it: both are set.)
     st.incomeStatement.otherIncome = line758.current as number;
+    (st.assembled_pl as Record<string, number>).other_operating_income = line758.current as number;
     const { container } = renderPl(st, doc);
     expectPriorCell(cellsOf(container, LINE_758), line758);
     expectPriorCell(cellsOf(container, TOTAL_758), line758);
   });
 });
 
-// ── 722 on one side: the total's definition differs ──────────────────
-describe("'Total operating revenue' beside a period that carries capitalized own work (722)", () => {
+// ── 72x and 767: outside net turnover in both periods ────────────────
+describe("'Total net turnover' beside a period that carries own work capitalised (72x)", () => {
   const load = FIXTURES["the served pair"];
-  const memo = (st: unknown) => (st as { assembled_pl: Record<string, unknown> }).assembled_pl;
+  const apl = (st: unknown) => (st as { assembled_pl: Record<string, unknown> }).assembled_pl;
+  const setServedCapitalized = (st: unknown, value: number) => {
+    const block = apl(st);
+    block.capitalized_own_work = {
+      ...(block.capitalized_own_work as Record<string, unknown>),
+      value,
+      provenance: "72x_credit_turnover_closed_book",
+    };
+    block.capitalized_own_work_memo = value;
+  };
 
-  it("722 in the current row: definition differs, and the net-turnover line keeps its cells", () => {
+  it("72x in the current period: the total keeps the net-turnover cells, the 72x row carries its own", () => {
     const { current_body, comparatives: doc } = load();
     const st = current_body.statements;
-    (st.incomeStatement as { capitalizedOwnWork?: number }).capitalizedOwnWork = 1_234_567.89;
-    memo(st).capitalized_own_work_memo = 1_234_567.89;
+    setServedCapitalized(st, 1_234_567.89);
+    const cap = doc.columns.find((c) => c.key === "pl.capitalized_own_work")!;
+    Object.assign(cap, { current: 1_234_567.89, prior: 98_765.43, delta: 1_135_802.46, status: "compared" });
     const { container } = renderPl(st, doc);
-    expectDefinitionDiffers(cellsOf(container, TOTAL_REVENUE), "pl.revenue");
+    expectPriorCell(cellsOf(container, TOTAL_REVENUE), column(doc, "pl.revenue"));
     expectPriorCell(cellsOf(container, NET_TURNOVER), column(doc, "pl.revenue"));
+    expectPriorCell(cellsOf(container, "Producția realizată pentru scopuri proprii"), column(doc, "pl.capitalized_own_work"));
   });
 
-  it("722 only in the current period's served memo (no 722 line): definition differs although the total equals net turnover", () => {
+  it("72x only in the prior period: the net-turnover total is still net turnover on both sides", () => {
     const { current_body, comparatives: doc } = load();
-    const st = current_body.statements;
-    memo(st).capitalized_own_work_memo = 250_000.5;
-    const { container, statement } = renderPl(st, doc);
-    // The row itself IS net turnover — only the definition guard can refuse it.
-    expect(statement.sections[0].subtotalAmount).toBe(column(doc, "pl.revenue").current);
-    expectDefinitionDiffers(cellsOf(container, TOTAL_REVENUE), "pl.revenue");
-  });
-
-  it("722 only in the prior period: definition differs — never the prior's net turnover under a total that includes 722", () => {
-    const { current_body, comparatives: doc } = load();
-    memo(doc.prior_statements).capitalized_own_work_memo = 98_765.43;
-    const { container } = renderPl(current_body.statements, doc);
-    expectDefinitionDiffers(cellsOf(container, TOTAL_REVENUE), "pl.revenue");
-    expectPriorCell(cellsOf(container, NET_TURNOVER), column(doc, "pl.revenue"));
-  });
-
-  it("a prior memo the engine refused (null) is not a zero: definition differs", () => {
-    const { current_body, comparatives: doc } = load();
-    memo(doc.prior_statements).capitalized_own_work_memo = null;
-    const { container } = renderPl(current_body.statements, doc);
-    expectDefinitionDiffers(cellsOf(container, TOTAL_REVENUE), "pl.revenue");
-  });
-
-  it("a prior memo the document does not serve reads as zero, per the served contract", () => {
-    const { current_body, comparatives: doc } = load();
-    delete memo(doc.prior_statements).capitalized_own_work_memo;
+    setServedCapitalized(doc.prior_statements, 98_765.43);
     const { container } = renderPl(current_body.statements, doc);
     expectPriorCell(cellsOf(container, TOTAL_REVENUE), column(doc, "pl.revenue"));
+  });
+});
+
+// ── The stock variation (711) row and the one-EBITDA definition guard ──
+describe("the stock variation and the rows on the one EBITDA", () => {
+  const load = FIXTURES["the served pair"];
+  const apl = (st: unknown) => (st as { assembled_pl: Record<string, unknown> }).assembled_pl;
+
+  it("the 711 row carries the engine's pl.inventory_variation — the prior's own measured variation", () => {
+    const { current_body, comparatives: doc } = load();
+    const iv = column(doc, "pl.inventory_variation");
+    // The precondition, read off the fixture: both periods are bridge books.
+    expect(iv.status).toBe("compared");
+    expect(typeof iv.prior).toBe("number");
+    const { container } = renderPl(current_body.statements, doc);
+    expectPriorCell(cellsOf(container, "Variația stocurilor de produse"), iv);
+  });
+
+  it("EBITDA, EBIT and profit before tax carry the engine's cells when both periods are on one definition", () => {
+    const { current_body, comparatives: doc } = load();
+    expect(apl(doc.prior_statements).ebitda_definition).toBe(apl(current_body.statements).ebitda_definition);
+    const { container } = renderPl(current_body.statements, doc);
+    for (const key of ["pl.ebitda", "pl.ebit", "pl.pretax"]) {
+      const cells = container.querySelector(`[data-cmp-key="${key}"]`);
+      expect(cells?.getAttribute("data-cmp"), key).toBe("compared");
+    }
+  });
+
+  it("a prior served under another EBITDA definition is refused on every one-EBITDA row — and only there", () => {
+    const { current_body, comparatives: doc } = load();
+    apl(doc.prior_statements).ebitda_definition = "ebitda/2025:711-outside";
+    const { container } = renderPl(current_body.statements, doc);
+    for (const key of ["pl.ebitda", "pl.ebit", "pl.pretax", "pl.inventory_variation"]) {
+      const cells = container.querySelector(`[data-cmp-key="${key}"]`);
+      expect(cells?.getAttribute("data-cmp"), key).toBe("definition-differs");
+      expect(digits(cells?.textContent), key).toBe("");
+    }
+    // Net turnover is the same line under either definition.
+    expectPriorCell(cellsOf(container, TOTAL_REVENUE), column(doc, "pl.revenue"));
+  });
+
+  it("a prior with no definition stamp at all is refused the same way", () => {
+    const { current_body, comparatives: doc } = load();
+    delete apl(doc.prior_statements).ebitda_definition;
+    const { container } = renderPl(current_body.statements, doc);
+    expect(container.querySelector('[data-cmp-key="pl.ebitda"]')?.getAttribute("data-cmp")).toBe("definition-differs");
+  });
+
+  it("a prior the engine REFUSED is the word, titled with the prior's own reason in the reader's language", async () => {
+    const { current_body, comparatives: doc } = load();
+    const prior = apl(doc.prior_statements);
+    const refusal = {
+      code: "account_121_anchor_absent",
+      text_ro: "balanța este închisă, iar contul 121 lipsește",
+      text_en: "the trial balance is closed and account 121 is absent",
+    };
+    prior.ebitda_refusal = { ...refusal, source: "inventory_variation" };
+    prior.inventory_variation = { ...(prior.inventory_variation as object), value: null, refusal };
+    for (const key of ["pl.ebitda", "pl.inventory_variation"]) {
+      Object.assign(doc.columns.find((c) => c.key === key)!, {
+        prior: null, delta: null, delta_pct: null, status: "refused",
+        note: "Dec 2024: " + refusal.text_en,
+      });
+    }
+    for (const lang of ["en", "ro"] as const) {
+      await i18n.changeLanguage(lang);
+      const { container, unmount } = renderPl(current_body.statements, doc);
+      for (const key of ["pl.ebitda", "pl.inventory_variation"]) {
+        const cells = container.querySelector(`[data-cmp-key="${key}"]`)!;
+        expect(cells.getAttribute("data-cmp"), key).toBe("refused");
+        const word = cells.querySelector(".cmp-cell--word")!;
+        expect(word.textContent, key).toBe(lang === "ro" ? "refuzat" : "refused");
+        expect(word.getAttribute("title"), key).toBe(lang === "ro" ? refusal.text_ro : refusal.text_en);
+        expect(cells.querySelector(".cmp-cell--prior"), key).toBeNull();
+      }
+      unmount();
+    }
   });
 });
 
@@ -262,13 +339,23 @@ function leafStatements(servedPl: Record<string, unknown> = {}): Statements {
       depreciationAmortization: 20_000.0, interestExpense: 20_000.0, otherIncome: 50_000.0,
       financialIncome: 10_000.0, financialExpense: 0, taxExpense: 100_000.0,
     },
+    // The served one-EBITDA block for the leaf book: net turnover 5,000,000
+    // + other operating income 50,000 − costs 1,700,000 = EBITDA 3,350,000;
+    // − D&A 20,000 = EBIT 3,330,000; − net financial 10,000 = PBT 3,320,000.
     assembled_pl: {
+      revenue: 5_000_000.0, turnover: 5_000_000.0, other_operating_income: 50_000.0,
+      cogs: 0, opex_total: 1_700_000.0, depreciation: 20_000.0,
+      ebitda: 3_350_000.0, ebit: 3_330_000.0, net_financial_result: -10_000.0,
+      interest_expense: 20_000.0, pretax: 3_320_000.0, tax: 100_000.0,
+      ebitda_definition: DEFINITION,
       total_operating_expense: 1_720_000.0,
       capitalized_own_work_memo: 0, discounts_received: 0,
       ...servedPl,
     },
   } as unknown as Statements;
 }
+
+const DEFINITION = "ebitda/2026-09-26:711-72x-inside,767-financial";
 
 function leafColumn(key: string, current: number, prior: number) {
   return {
@@ -296,19 +383,22 @@ function leafDoc(priorServedPl: Record<string, unknown> = {}): ComparativesRespo
     ],
     common_size: [],
     prior_statements: {
-      assembled_pl: { capitalized_own_work_memo: 0, discounts_received: 0, ...priorServedPl },
+      assembled_pl: {
+        capitalized_own_work_memo: 0, discounts_received: 0, ebitda_definition: DEFINITION,
+        ...priorServedPl,
+      },
     },
   } as unknown as ComparativesResponse;
 }
 
-interface KeyedRow { key: string; amount: number | undefined; folds?: Readonly<Record<string, number | null>> }
+interface KeyedRow { key: string; amount: number | undefined }
 
 /** Every keyed row of a built statement, as the view hands them to the guard. */
 function keyedRows(statement: PLStatement): KeyedRow[] {
   const out: KeyedRow[] = [];
   for (const s of statement.sections) {
     for (const l of s.lines) if (l.bucket) out.push({ key: l.bucket, amount: l.amount });
-    if (s.subtotalBucket) out.push({ key: s.subtotalBucket, amount: s.subtotalAmount, folds: s.subtotalFolds });
+    if (s.subtotalBucket) out.push({ key: s.subtotalBucket, amount: s.subtotalAmount });
   }
   return out;
 }
@@ -318,7 +408,7 @@ function outcomeOf(statement: PLStatement, doc: ComparativesResponse, key: strin
   expect(rows, `the line-item statement carries exactly one "${key}" row`).toHaveLength(1);
   const [row] = rows;
   return cellForRow(indexCells(doc), row.key, row.amount, {
-    folds: row.folds,
+    currentDefinition: statement.served?.definition ?? null,
     priorStatements: doc.prior_statements,
   });
 }
@@ -347,25 +437,32 @@ describe("the line-item builder keys the same rows", () => {
     if (out.kind === "cell") expect(out.cell.key).toBe(engineKey);
   });
 
-  it("a prior that carries discounts received (767) — folded into this builder's total — refuses the total", () => {
+  it("767 is financial: a prior carrying discounts received leaves the net-turnover total on pl.revenue", () => {
     const statement = pickPLBuilder({ lineItems: LEAF_BOOK }, leafStatements());
     const out = outcomeOf(statement, leafDoc({ discounts_received: 12_345.67 }), "revenue");
-    expect(out.kind).toBe("definition_differs");
+    expect(out.kind).toBe("cell");
   });
 
-  it("a 767 the current period's served block carries but no exact-767 leaf shows refuses the total", () => {
-    // A 7671 sub-account: the builder's exact-code table does not read it,
-    // the engine does. The row still equals net turnover.
+  it("a 767 sub-account in the current leaves is a financial row, and the total stays net turnover", () => {
     const book = [...LEAF_BOOK, li("7671", "financialIncome", 5_000.0)];
     const statement = pickPLBuilder({ lineItems: book }, leafStatements({ discounts_received: 5_000.0 }));
     expect(statement.sections[0].subtotalAmount).toBe(5_000_000.0);
-    expect(outcomeOf(statement, leafDoc(), "revenue").kind).toBe("definition_differs");
+    expect(outcomeOf(statement, leafDoc(), "revenue").kind).toBe("cell");
+    const financial = statement.sections.find((s) => s.role === "financialItems")!;
+    expect(financial.lines.map((l) => l.accountCode)).toContain("767");
+    expect(statement.sections[0].lines.map((l) => l.accountCode)).not.toContain("767");
   });
 
-  it("722 in the current leaves refuses the total", () => {
+  it("72x in the current leaves is its own operating row, and the total stays net turnover", () => {
     const book = [...LEAF_BOOK, li("722", "capitalizedOwnWork", 80_000.0)];
-    const statement = pickPLBuilder({ lineItems: book }, leafStatements({ capitalized_own_work_memo: 80_000.0 }));
-    expect(outcomeOf(statement, leafDoc(), "revenue").kind).toBe("definition_differs");
+    const statement = pickPLBuilder(
+      { lineItems: book },
+      leafStatements({ capitalized_own_work_memo: 80_000.0, ebitda: 3_430_000.0 }),
+    );
+    expect(outcomeOf(statement, leafDoc(), "revenue").kind).toBe("cell");
+    const cap = statement.sections.find((s) => s.role === "capitalizedOwnWork")!;
+    expect(cap.lines.map((l) => l.amount)).toEqual([80_000.0]);
+    expect(statement.sections[0].lines.map((l) => l.accountCode)).toEqual(["706"]);
   });
 
   it("the parity guard still refuses a keyed row whose figure is not the engine's", () => {

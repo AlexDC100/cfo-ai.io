@@ -29,6 +29,7 @@ import {
 import type { ComparativeColumns } from "@/stores/comparativesView";
 import { useAmountFormatter } from "@/stores/currency";
 import { MONEY_MISSING } from "@/lib/money";
+import { pickLang, readRefusal } from "@/lib/servedOneEbitda";
 import {
   ROUNDED_MONEY_ZERO_FLOOR,
   changeKindWordKey,
@@ -75,6 +76,37 @@ export function useComparativeContext(): ComparativeContextValue | null {
   return useContext(Ctx);
 }
 
+/** THE EBITDA DEFINITION the statement on screen is served on
+ *  (`assembled_pl.ebitda_definition`). A P&L view provides it around its
+ *  rows so every row on the one EBITDA is held to a prior assembled on the
+ *  same definition (lib/comparatives.ts `PL_ROW_ONE_EBITDA_KEYS`). Null —
+ *  the default — holds nothing (a payload the engine did not assemble). */
+const DefinitionCtx = createContext<string | null>(null);
+
+export function ComparativeDefinitionProvider({
+  definition,
+  children,
+}: {
+  definition: string | null | undefined;
+  children: ReactNode;
+}) {
+  return <DefinitionCtx.Provider value={definition ?? null}>{children}</DefinitionCtx.Provider>;
+}
+
+/** The prior period's own refusal for an engine line, in the reader's
+ *  language, from the served comparatives document's `prior_statements`:
+ *  the stock variation's refusal on its row, the EBITDA refusal on every
+ *  row built on it. Null when the prior refused nothing. */
+function priorRefusalText(priorStatements: unknown, key: string, lang: string | undefined): string | null {
+  const ps = priorStatements as { assembled_pl?: Record<string, unknown> } | null | undefined;
+  const apl = ps?.assembled_pl;
+  if (!apl || typeof apl !== "object") return null;
+  const component =
+    key === "pl.inventory_variation" ? (apl.inventory_variation as { refusal?: unknown } | undefined)?.refusal : null;
+  const refusal = readRefusal(component) ?? readRefusal(apl.ebitda_refusal);
+  return refusal ? pickLang(refusal.text, lang) : null;
+}
+
 /** How many comparative columns are switched on (0 → the views render
  *  their single-period grid). */
 export function activeColumnCount(columns: ComparativeColumns): number {
@@ -106,30 +138,29 @@ function signClass(v: number | null): string {
 /**
  * The cells for one row. `rowKey` is the row's `bucket` / `subtotalBucket`
  * (or a full engine key like "pl.ebitda"); `amount` is what the row shows,
- * which the parity guard compares against the engine's current figure;
- * `folds` is what the row folds in beyond its engine line
- * (`PLSection.subtotalFolds`), which the definition guard holds to zero in
- * both periods — the prior's read off the served document.
+ * which the parity guard compares against the engine's current figure. A
+ * row on the one EBITDA is first held to a prior served on the same EBITDA
+ * definition as the statement on screen (`ComparativeDefinitionProvider`),
+ * the prior's stamp read off the served document.
  */
 export function CmpCells({
   rowKey,
   amount,
-  folds,
   bs,
 }: {
   rowKey: string | undefined;
   amount: number | null | undefined;
-  folds?: Readonly<Record<string, number | null>> | null;
   /** Balance-sheet rows already carry opening/closing/Δ; they only get
    *  the Δ % and share cells here. */
   bs?: boolean;
 }) {
   const ctx = useComparativeContext();
-  const { t } = useTranslation();
+  const currentDefinition = useContext(DefinitionCtx);
+  const { t, i18n } = useTranslation();
   const fmt = useAmountFormatter(ctx?.currency ?? "RON");
   if (!ctx) return null;
   const outcome = cellForRow(ctx.cells, rowKey, amount, {
-    folds,
+    currentDefinition,
     priorStatements: ctx.doc.prior_statements,
   });
   const cols = ctx.columns;
@@ -173,10 +204,18 @@ export function CmpCells({
       case "absent_current": return t("statements.cmp.gone");
       case "not_disclosed_at_this_detail_level": return t("statements.cmp.notAtLevel");
       case "incomparable": return t("statements.cmp.notAtLevel");
+      // The engine refused the figure in one period: no movement exists.
+      case "refused": return t("statements.cmp.refused");
       default: return null;
     }
   };
   const refused = refusalWord();
+  // A refusal's title is the refusing period's own reason, in the reader's
+  // language, when the prior is the one that refused; else the engine note.
+  const priorReason =
+    c.status === "refused" && c.prior === null
+      ? priorRefusalText(ctx.doc.prior_statements, c.key, i18n.language)
+      : null;
   const deltaPctText = formatDeltaPct(c.deltaPct);
   const shareText = formatShare(c.currentShare);
   const ptsText = formatPts(c.deltaPts);
@@ -185,7 +224,7 @@ export function CmpCells({
     <span className="cmp-cells" data-cmp={c.status} data-cmp-key={c.key}>
       {!bs && cols.prior && (
         c.prior === null
-          ? (refused ? word(refused, c.note) : gap(c.note))
+          ? (refused ? word(refused, priorReason ?? c.note) : gap(c.note))
           : <span className="cmp-cell cmp-cell--prior" title={c.note}>{fmt(c.prior)}</span>
       )}
       {!bs && cols.delta && (

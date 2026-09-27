@@ -462,7 +462,11 @@ interface Rule {
   detect: (facts: PeriodFacts) => RuleFinding | null;
 }
 
-const RON = (n: number) => `RON ${Math.round(n).toLocaleString()}`;
+/** A money figure in a rule's prose. An absent one (a refused EBITDA, a
+ *  net result nobody served) is "not reported" — `Math.round(null)` is 0,
+ *  and "RON 0" would be a figure the statements never stated. */
+const RON = (n: number | null | undefined) =>
+  typeof n === "number" && Number.isFinite(n) ? `RON ${Math.round(n).toLocaleString()}` : "not reported";
 
 // ─── Absent-ratio discipline ────────────────────────────────────────────
 //
@@ -772,8 +776,12 @@ const RULES: Rule[] = [
       );
       // Floored at zero for the same reason: debt cannot go below nil,
       // so neither can the ratio built on it.
-      const newDte =
-        f.pl.ebitda > 0 ? Math.max(0, debt - appliedToDebt) / f.pl.ebitda : 0;
+      // A refused EBITDA (the stock variation could not be measured) has
+      // no Debt/EBITDA after the recall either — stated as unmeasured by
+      // `fx`, never as 0.00×.
+      const ebitda = f.pl.ebitda;
+      const newDte: number | null =
+        ebitda === null ? null : ebitda > 0 ? Math.max(0, debt - appliedToDebt) / ebitda : 0;
       const graded = grade(
         ic,
         RELATED_PARTY_MAGNITUDE_LABEL,
@@ -822,10 +830,10 @@ const RULES: Rule[] = [
               `${RON(interestSavings)} a year, which is the whole interest bill of ` +
               `${RON(f.pl.interest_expense)} — and returns the remaining ${RON(returnedAsCash)} as cash ` +
               `rather than as interest saved. Debt/EBITDA goes from ` +
-              `${fx(f.ratios.debt_to_ebitda, 2)}${has(f.ratios.debt_to_ebitda) ? "×" : ""} to ${newDte.toFixed(2)}×. `
+              `${fx(f.ratios.debt_to_ebitda, 2)}${has(f.ratios.debt_to_ebitda) ? "×" : ""} to ${fx(newDte, 2)}${has(newDte) ? "×" : ""}. `
             : `Recalling the receivable and using it to prepay would reduce annual interest by ` +
               `${RON(interestSavings)} and drop Debt/EBITDA from ` +
-              `${fx(f.ratios.debt_to_ebitda, 2)}${has(f.ratios.debt_to_ebitda) ? "×" : ""} to ${newDte.toFixed(2)}× ` +
+              `${fx(f.ratios.debt_to_ebitda, 2)}${has(f.ratios.debt_to_ebitda) ? "×" : ""} to ${fx(newDte, 2)}${has(newDte) ? "×" : ""} ` +
               `(more bankable territory). `) +
           ladderSentence(graded.materiality),
         actionsFallback: [
@@ -1000,7 +1008,7 @@ const RULES: Rule[] = [
           value: dscr > 0 ? MONITORING_TIERS.green.dscr / dscr : 1,
         });
       }
-      if (has(dte) && f.pl.ebitda > 0) {
+      if (has(dte) && f.pl.ebitda !== null && f.pl.ebitda > 0) {
         consumed.push({
           label: `Debt/EBITDA ${fx(dte, 2)}× against the ${MONITORING_TIERS.green.dte.toFixed(1)}× green ceiling`,
           value: dte > 0 ? dte / MONITORING_TIERS.green.dte : 0,
@@ -1184,7 +1192,7 @@ const RULES: Rule[] = [
           interest_expense: f.pl.interest_expense,
         },
         rationaleFallback:
-          `Statutory EBITDA ${RON(f.pl.ebitda)} against interest + principal exceeds the covenant floor. ` +
+          `EBITDA ${RON(f.pl.ebitda)} against interest + principal exceeds the covenant floor. ` +
           `Genuine covenant pressure — engage the lender proactively before the next compliance certificate. ` +
           ABSOLUTE_WHY,
         actionsFallback: [
@@ -1210,7 +1218,8 @@ const RULES: Rule[] = [
       // composite of: NI < 0 AND total_equity < 0 (the actual bankruptcy
       // signature). The "true_distress_altman" rule then fires only on
       // genuine sign-correct distress, not on misapplied variants.
-      const niLoss = f.pl.net_profit < 0;
+      // An absent net result is no loss claim (and no distress claim).
+      const niLoss = f.pl.net_profit !== null && f.pl.net_profit < 0;
       // `null < 0` is false, so an ABSENT equity total silently disabled
       // the whole Art. 153^24 distress rule — the one that tells a
       // Romanian administrator they are legally obliged to convene the

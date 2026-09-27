@@ -21,6 +21,7 @@ import { useTranslation } from "react-i18next";
 
 import type { ActivePeriod } from "@/lib/activePeriod";
 import { canonicalMarginsFrom, computeDashboardHeadline } from "@/lib/dashboardHeadline";
+import { pickLang } from "@/lib/servedOneEbitda";
 
 export interface YearZeroStripProps {
   readonly period: ActivePeriod;
@@ -29,7 +30,7 @@ export interface YearZeroStripProps {
 }
 
 export function YearZeroStrip({ period, currency, locale }: YearZeroStripProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const headline = useMemo(() => {
     if (!period.statements) return null;
     try {
@@ -57,9 +58,14 @@ export function YearZeroStrip({ period, currency, locale }: YearZeroStripProps) 
     [currency, locale],
   );
   if (!headline) return null;
-  const cells: ReadonlyArray<{ id: string; label: string; value: number }> = [
+  // A refused EBITDA (the stock variation could not be measured) states the
+  // engine's reason in place of a figure — never a zero.
+  const ebitdaRefused = headline.tileEbitdaRon === null && headline.tileEbitdaRefusal
+    ? pickLang(headline.tileEbitdaRefusal.text, i18n.language)
+    : null;
+  const cells: ReadonlyArray<{ id: string; label: string; value: number | null; refused?: string | null }> = [
     { id: "revenue", label: t("forecast.year0.revenue", "Operating revenue"), value: headline.totalOperatingRevenue },
-    { id: "ebitda", label: t("forecast.year0.ebitda", "EBITDA"), value: headline.tileEbitdaRon },
+    { id: "ebitda", label: t("forecast.year0.ebitda", "EBITDA"), value: headline.tileEbitdaRon, refused: ebitdaRefused },
     { id: "net_profit", label: t("forecast.year0.netProfit", "Net profit"), value: headline.tileNetProfitRon },
     { id: "cash", label: t("forecast.year0.cash", "Cash"), value: headline.cash },
   ];
@@ -87,12 +93,12 @@ export function YearZeroStrip({ period, currency, locale }: YearZeroStripProps) 
           <div key={c.id} data-testid={`forecast-year0-${c.id}`} data-actual-value={String(c.value)}>
             <dt className="font-mono text-[10px] uppercase tracking-wider text-ink-mute">{c.label}</dt>
             <dd className="mt-0.5 text-[16px] font-medium tabular-nums text-ink">
-              {Number.isFinite(c.value)
+              {typeof c.value === "number" && Number.isFinite(c.value)
                 ? fmt.format(
                     // whole units, cents only under one unit (gate F5)
                     Math.abs(c.value) >= 1 ? Math.sign(c.value) * Math.round(Math.abs(c.value)) : c.value,
                   )
-                : t("forecast.absent", "not measurable from this book")}
+                : c.refused ?? t("forecast.absent", "not measurable from this book")}
             </dd>
           </div>
         ))}
