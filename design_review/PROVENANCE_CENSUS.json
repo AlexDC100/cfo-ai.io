@@ -323,9 +323,9 @@
     },
     "frontend/components/comparison/VarianceTable.tsx": {
       "bucket": "HAS_MISSING",
-      "sites": 3,
+      "sites": 4,
       "affordances": 0,
-      "why": "OPENED 2026-09-03. Same row payload as KpiVarianceStrip. Upstream, the ComparisonDataset the page holds names the uploaded budget file (`label`, `source: upload|demo`, `updatedAt`) — a document-level origin for the BUDGET column only; the LAST-YEAR column may come from that dataset OR from the period picker (F6.1b), and the row cannot tell which, so LY must stay plain until the page disambiguates. Remaining work, named: Variance.tsx passes `budgetOrigin` (label/source/updatedAt) and `actualOrigin` per key; this component wears them on budget and actual cells only. Rendered plain until then."
+      "why": "OPENED 2026-09-03. Same row payload as KpiVarianceStrip. Upstream, the ComparisonDataset the page holds names the uploaded budget file (`label`, `source: upload|demo`, `updatedAt`) — a document-level origin for the BUDGET column only; the LAST-YEAR column may come from that dataset OR from the period picker (F6.1b), and the row cannot tell which, so LY must stay plain until the page disambiguates. Remaining work, named: Variance.tsx passes `budgetOrigin` (label/source/updatedAt) and `actualOrigin` per key; this component wears them on budget and actual cells only. Rendered plain until then. 2026-09-27 (one-EBITDA ruling, stage F2): 3 -> 4. The added site is the actual EBITDA's non-cash components row under EBITDA — net 711 (\"Variația stocurilor de produse\") and net 72x as the engine serves them (MoneyAmount, plain: served components with no source cell on this screen; the refusal renders the engine's words, not a figure)."
     },
     "frontend/components/dashboard/MetricCard.tsx": {
       "bucket": "HAS_SHOWS",
@@ -594,9 +594,9 @@
     },
     "frontend/pages/cfo/PeerComparisonReport.tsx": {
       "bucket": "HAS_MISSING",
-      "sites": 24,
+      "sites": 29,
       "affordances": 0,
-      "why": "OPENED 2026-09-04. company_value per cost line is a period metric with a nameable field path; the P25/P50/P75 columns come from /api/benchmarks with a `source` on each benchmark row; peer revenue_mlei rows carry their source too. All 21 sites render through PercentLevel / PpDelta (no provenance prop) or plain toFixed. Remaining work, named: wrap the company and benchmark cells in ProvenanceAffordance with {source: benchmark.source, method: percentile over N peers}; deltas (gap_pp) stay plain. Rendered plain until then."
+      "why": "OPENED 2026-09-04. company_value per cost line is a period metric with a nameable field path; the P25/P50/P75 columns come from /api/benchmarks with a `source` on each benchmark row; peer revenue_mlei rows carry their source too. All 21 sites render through PercentLevel / PpDelta (no provenance prop) or plain toFixed. Remaining work, named: wrap the company and benchmark cells in ProvenanceAffordance with {source: benchmark.source, method: percentile over N peers}; deltas (gap_pp) stay plain. Rendered plain until then. 2026-09-27 (one-EBITDA ruling, stage F2): 24 -> 29. The five added sites are the benchmark percentiles (P50 in the two headline tiles, P25 / P50 / P75 in a gap-table row) printed beside a row the ENGINE refused (verdict \"refused\": the one EBITDA refused, or the margin rule on a developer) — the company column there prints the served refusal text instead of a figure. Plain, as the rest of the page."
     },
     "frontend/pages/cfo/Pricing.tsx": {
       "bucket": "LACKS_SILENT",
@@ -658,8 +658,8 @@
     },
     "frontend/lib/buildNavCascade.ts": {
       "bucket": "UNADJUDICATED",
-      "substitutions": 11,
-      "why": "Discovered 2026-09-04 by the absent-leaf lint's first run. Nobody has yet driven these substitutions against a real envelope (corpus/*/expected/*.json) to establish whether the leaf is genuinely filed zero or absent. Recording UNADJUDICATED rather than FILED_ZERO on purpose: a justification nobody checked is the rubber stamp this gate exists to refuse. Each file is re-bucketed as it is run against a fixture, and CEILING_UNADJUDICATED_LEAF falls with it."
+      "substitutions": 12,
+      "why": "Discovered 2026-09-04 by the absent-leaf lint's first run. Nobody has yet driven these substitutions against a real envelope (corpus/*/expected/*.json) to establish whether the leaf is genuinely filed zero or absent. Recording UNADJUDICATED rather than FILED_ZERO on purpose: a justification nobody checked is the rubber stamp this gate exists to refuse. Each file is re-bucketed as it is run against a fixture, and CEILING_UNADJUDICATED_LEAF falls with it. RE-MEASURED 2026-09-27 (one-EBITDA ruling, stage F2): 11 -> 12. Gone: the NOI proxy's `ebitda_statutory ?? operating_ebitda ?? revenue` chain and the EV/EBITDA `ebitda_statutory ?? 0` (the NOI proxy is now the served `noi_approximation` = EBITDA − net 711, the EV/EBITDA the one EBITDA, each null — never 0 — when EBITDA is refused). The lint now counts the `bs.total_debt ?? 0` inside those two rewritten expressions on their own lines. Still UNADJUDICATED for the balance-sheet leaves."
     },
     "frontend/lib/buildPlStatement.ts": {
       "bucket": "FILED_ZERO",
@@ -668,8 +668,8 @@
     },
     "frontend/lib/canonicalMetrics.ts": {
       "bucket": "UNADJUDICATED",
-      "substitutions": 24,
-      "why": "Discovered 2026-09-04 by the absent-leaf lint's first run. Nobody has yet driven these substitutions against a real envelope (corpus/*/expected/*.json) to establish whether the leaf is genuinely filed zero or absent. Recording UNADJUDICATED rather than FILED_ZERO on purpose: a justification nobody checked is the rubber stamp this gate exists to refuse. Each file is re-bucketed as it is run against a fixture, and CEILING_UNADJUDICATED_LEAF falls with it."
+      "substitutions": 8,
+      "why": "Discovered 2026-09-04 by the absent-leaf lint's first run. Nobody has yet driven these substitutions against a real envelope (corpus/*/expected/*.json) to establish whether the leaf is genuinely filed zero or absent. Recording UNADJUDICATED rather than FILED_ZERO on purpose: a justification nobody checked is the rubber stamp this gate exists to refuse. Each file is re-bucketed as it is run against a fixture, and CEILING_UNADJUDICATED_LEAF falls with it. RE-MEASURED 2026-09-27 (one-EBITDA ruling, stage F2): 24 -> 8. The two builders are now one assembler, and every EBITDA / EBIT / revenue substitution is gone — `ebitda_statutory ?? ebitda ?? 0` (a refused EBITDA priced at 0 on the report §1 tile and the EBITDA-multiple card) and `ebit ?? 0` read the served one EBITDA or its refusal (null). The eight left are the BS and P&L leaves (depreciation, tax, interest, net income, assets, equity, debt, cash), still UNADJUDICATED."
     },
     "frontend/lib/dashboard/resolveConceptValue.ts": {
       "bucket": "UNADJUDICATED",
@@ -678,8 +678,8 @@
     },
     "frontend/lib/financialReport.ts": {
       "bucket": "OPEN_DEFECT",
-      "substitutions": 3,
-      "why": "PROVEN. :576 `const safeDiv = (a, b) => (b === 0 ? 0 : a / b)` — a ratio whose denominator is ABSENT is unanswerable, not zero, and every 0.00x it returns is painted with a derived-origin card. The two `is.financialIncome ?? 0` / `is.financialExpense ?? 0` bindings feed the same computeRatios path. Fix is to return null and let isAbsentFigure stand the affordance down.",
+      "substitutions": 1,
+      "why": "PROVEN. :576 `const safeDiv = (a, b) => (b === 0 ? 0 : a / b)` — a ratio whose denominator is ABSENT is unanswerable, not zero, and every 0.00x it returns is painted with a derived-origin card. The two `is.financialIncome ?? 0` / `is.financialExpense ?? 0` bindings feed the same computeRatios path. Fix is to return null and let isAbsentFigure stand the affordance down. RE-MEASURED 2026-09-27 (one-EBITDA ruling, stage F2): 3 -> 1. The two `is.financialIncome ?? 0` / `is.financialExpense ?? 0` bindings left deriveTotals, which now reads the served P&L levels (servedOneEbitda.plLevelsOf, adjudicated there). Left: the zero-returning `safeDiv` (still OPEN).",
       "owner": "source lane (F2, wave of 2026-09-04) — publicCompanyAdapters/financialReport"
     },
     "frontend/lib/financialValuation.ts": {
@@ -710,13 +710,18 @@
     },
     "frontend/lib/dashboardHeadline.ts": {
       "bucket": "FILED_ZERO",
-      "substitutions": 2,
-      "why": "Neither substitution produces a zero. Both fall back to ANOTHER served figure: operating revenue to the statement's revenue when the P&L builder produced no first section, EBITDA to the builder's operating EBITDA when assembled_pl.ebitda_statutory is absent. Moved verbatim (2026-09-21) out of the dashboard headline memo in pages/cfo/FinancialStatements.tsx so the Forecast year 0 and the dashboard share one computation. Checked on the four corpus envelopes (frontend/components/forecast/__tests__/forecastYearZero.test.tsx): both primary leaves are served, so neither fallback fires."
+      "substitutions": 1,
+      "why": "Neither substitution produces a zero. Both fall back to ANOTHER served figure: operating revenue to the statement's revenue when the P&L builder produced no first section, EBITDA to the builder's operating EBITDA when assembled_pl.ebitda_statutory is absent. Moved verbatim (2026-09-21) out of the dashboard headline memo in pages/cfo/FinancialStatements.tsx so the Forecast year 0 and the dashboard share one computation. Checked on the four corpus envelopes (frontend/components/forecast/__tests__/forecastYearZero.test.tsx): both primary leaves are served, so neither fallback fires. RE-MEASURED 2026-09-27 (one-EBITDA ruling, stage F2): 2 -> 1. The EBITDA fallback is gone — the tile reads the served one EBITDA through plLevelsOf, null with the engine's refusal. Left: the net-turnover fallback to the statement's revenue (another served figure, not a zero)."
     },
     "frontend/lib/servedOneEbitda.ts": {
       "bucket": "FILED_ZERO",
+      "substitutions": 7,
+      "why": "ADJUDICATED 2026-09-27 on the refused constructed books (unanchored, g6_uncleared) and the four firm books: the one flagged chain `readRefusal(apl.ebitda_refusal) ?? inventoryVariation?.refusal ?? NOT_SERVED` substitutes no NUMBER — it picks which typed REFUSAL a null EBITDA carries (the engine's, else the stock variation's, else 'the engine served no EBITDA'). No figure is painted from it; the refused figure stays null everywhere downstream (plOneEbitda.test.tsx, headlineRefusedEbitda.test.tsx). RE-MEASURED 2026-09-27 (one-EBITDA ruling, stage F2): 1 -> 7, and FILED_ZERO holds for all seven. The six added are `plLevelsOf`'s `bucket()` reads — `financialIncome`, `financialExpense`, `interestExpense`, `revenue`, `capitalizedOwnWork` and the net-financial-result fallback — moved here VERBATIM from deriveTotals (`is.financialIncome ?? 0` …): they build the P&L levels ONLY for a payload the engine did not assemble (the demo, a public-company adapter), whose IncomeStatement declares financialIncome / financialExpense / capitalizedOwnWork optional-not-applicable (a documented zero), or, on an engine period, the net financial result when the block lacks `net_financial_result` (another served figure). No EBITDA / EBIT / PBT / gross profit is ever painted from a zero here: a refused level is null with its reason (refusalCarries.test.tsx over the two refused constructed books; oneEbitdaSurfaces.test.tsx over the eight served books)."
+    },
+    "frontend/components/cfo/EbitdaMultiplePrimaryCard.tsx": {
+      "bucket": "FILED_ZERO",
       "substitutions": 1,
-      "why": "ADJUDICATED 2026-09-27 on the refused constructed books (unanchored, g6_uncleared) and the four firm books: the one flagged chain `readRefusal(apl.ebitda_refusal) ?? inventoryVariation?.refusal ?? NOT_SERVED` substitutes no NUMBER — it picks which typed REFUSAL a null EBITDA carries (the engine's, else the stock variation's, else 'the engine served no EBITDA'). No figure is painted from it; the refused figure stays null everywhere downstream (plOneEbitda.test.tsx, headlineRefusedEbitda.test.tsx)."
+      "why": "ADJUDICATED 2026-09-27 (one-EBITDA ruling, stage F2). `coreEbitda = ebitda.core ?? 0` paints NOTHING from the zero: when the served core EBITDA is null (the engine refused EBITDA) the card returns its refusal panel (`ebitda-multiple-refused`, the engine's reason) before any figure renders; the substitution only keeps the hooks above that early return well-typed. Checked on the two refused constructed books (refusalCarries.test.tsx: canonicalMetrics core null + refusal)."
     }
   },
   "_README_ABSENT_LEAF": [
