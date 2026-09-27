@@ -502,12 +502,17 @@ def _engine_gates() -> List[Gate]:
         # reduction it is under the convention its document decided.
         Gate("statements-anchor-gap",
              [PY, "-m", "pytest", "tests/engine/test_statements_anchor_gap.py", "-q"],
-             work_rx=r"GATE-WORK statements-anchor-gap units=(\d+)", floor=58,  # 45 -> 58: + the four decision-rule documents (B4 repair)
-             units="books judged, contra rows checked and metamorphic comparisons",
+             work_rx=r"GATE-WORK statements-anchor-gap units=(\d+)", floor=65,  # 45 -> 58: + the four decision-rule documents (B4 repair); 58 -> 65: + the folds and the two constructed witnesses (one-EBITDA ruling, measured 70)
+             units="books judged, contra rows checked, metamorphic comparisons, folds and constructed witnesses",
              canaries=("SCOPE statements-anchor-gap (plan/2 B4a, contract 5.1)",
                        "floor from packs/ro/statements_anchor.yaml#anchor_gap",
                        "convention per document",
-                       "mirrored contra rows checked")),
+                       "mirrored contra rows checked",
+                       # one-EBITDA ruling (2026-09-26): the step BEFORE the
+                       # fold is judged, the fold held, and two SYNTHETIC
+                       # misreads prove the judge still reds.
+                       "fold per book (ruling 2026-09-26)",
+                       "SYNTHETIC g5_residual")),
         # ── end plan/2 B4a ───────────────────────────────────────────────
         # ── owner ruling 2026-09-26: net-711-rule ────────────────────────
         # Net 711 ("Variația stocurilor de produse") is MEASURED off the

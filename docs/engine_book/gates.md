@@ -6810,6 +6810,63 @@ replay); the served statements of periods persisted before v6 (a stored
 period keeps its v5 line items until its document is re-parsed —
 `extraction.parser_version` tells them apart).
 
+### statements-anchor-gap — REWRITTEN for the one-EBITDA ruling (stage G, 2026-09-27)
+
+**INCIDENT** — the owner ruling of 2026-09-26 names net 711 ("Variația
+stocurilor de produse") on the statement, and on a closed book that line is
+the account-121 bridge, derived FROM the remainder this gate judged. The
+gate read the served `net_income_unexplained_vs_121`, which became 0.00 by
+construction on every closed manufacturer (frozen, agras, carniprod, the
+developer): measured on the branch before this rewrite, `|121 -
+reconstruction| = 0.00 … within` on all four — green on nothing, on exactly
+the books whose floor is widest.
+
+**LAW (rewritten, not re-captured)** — the gate judges the step BEFORE the
+fold, S = account 121 − (build-up + net 72x) (`net_income_reconciliation_
+to_121` − net 72x), against the same pack floor (cent + 711/712 turnover),
+which is the engine's own guard G5; and it holds the fold per book: bridge →
+net 711 = S to the cent, remainder 0.00, provenance flagged as an identity
+with 121; no 711 postings → 711 = 0.00 and the remainder = S (never
+folded); an own movement → remainder = S − 711; refused → remainder = S and
+EBITDA refused with the 711 reason. TC-3: the scope must exercise the
+bridge. CONSTRUCTED witnesses (SYNTHETIC books of `net-711-rule`, no client
+data): `closed_no_activity` (step 2,000.00 on a one-cent floor → BEYOND,
+engine `no_711_activity`) and `g5_residual` (step 50,000.00 on a 30,000.01
+floor → BEYOND, engine refused `residual_exceeds_711_activity`, G5 false).
+
+Measured on the rewritten gate: agras step 1,071,687.03 → net 711
+1,071,687.03 (bridge), remainder 0.00; carniprod 186,849.53; frozen
+231,203.19; the developer 29,589,814.24; retail 0.00 (`no_711_activity`);
+`GATE-WORK statements-anchor-gap units=70`, `10 passed`.
+
+Plants, each applied alone by `scratchpad/g_stage/plant.py` (byte-exact
+restore checked by sha256):
+```
+PLANT read-the-served-remainder (the vacuous law): tests/engine/test_statements_anchor_gap.py
+  exit=1 ========================= 1 failed, 9 passed in 4.75s ==========================
+    FAILED tests/engine/test_statements_anchor_gap.py::test_a_the_reconstruction_reaches_account_121_within_the_pack_floor
+  -> RED ; file restored byte-exact
+PLANT fold-a-no-711-remainder-into-711 (engine): src/engine/country_packs/ro_romania/stock_variation.py
+  exit=1 ========================= 1 failed, 9 passed in 4.78s ==========================
+    FAILED tests/engine/test_statements_anchor_gap.py::test_h_a_constructed_misread_is_beyond_its_floor_and_the_engine_agrees
+  -> RED ; file restored byte-exact
+PLANT drop-guard-g5 (engine): src/engine/country_packs/ro_romania/stock_variation.py
+  exit=1 ========================= 1 failed, 9 passed in 4.68s ==========================
+    FAILED tests/engine/test_statements_anchor_gap.py::test_h_a_constructed_misread_is_beyond_its_floor_and_the_engine_agrees
+  -> RED ; file restored byte-exact
+PLANT widen-the-witness-floor (judge): tests/engine/test_statements_anchor_gap.py
+  exit=1 ========================= 1 failed, 9 passed in 4.92s ==========================
+    FAILED tests/engine/test_statements_anchor_gap.py::test_h_a_constructed_misread_is_beyond_its_floor_and_the_engine_agrees
+  -> RED ; file restored byte-exact
+REVERT (clean tree):
+============================== 10 passed in 4.83s ==============================
+```
+
+**It now cannot see:** a wrong sign SMALLER than a closed book's 711
+turnover — the bridge absorbs it into the stock variation (it is inside G5
+by definition); the residual beyond the production-stock movement stays
+PRINTED, not judged, as before.
+
 ## interest-coverage-one-operand
 
 The 0.32 / 0.3257 seam (owner, 2026-09-21: "confirm the served metric

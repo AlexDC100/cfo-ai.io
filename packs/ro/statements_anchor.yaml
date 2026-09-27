@@ -19,6 +19,17 @@
 # `cent_tolerance` plus the turnover of its rows under `hidden_net_prefixes`.
 # On a book with no such rows (retail) the floor is one cent: the
 # reconstruction must reproduce 121 exactly.
+#
+# SINCE THE ONE-EBITDA RULING (owner, 2026-09-26) the statement NAMES net
+# 711 ("Variația stocurilor de produse") instead of routing it to a memo,
+# and on a closed book that line is the account-121 bridge — derived from
+# the very step this pack bounds. The gate therefore judges the step
+# BEFORE the fold (account 121 − build-up − net 72x), never the served
+# remainder (0.00 on a bridge book by construction), and holds the fold
+# itself: bridge → 711 = the step; no 711 postings → 711 = 0.00 and the
+# step stays a visible remainder. The floor below is the SAME law as the
+# engine's guard G5 (|step| ≤ 711 activity, stock_variation.decide): a
+# book beyond it is refused by the engine and red here.
 schema_version: "statements_anchor/1"
 pack_id: "ro-statements-anchor"
 anchor_gap:
@@ -42,9 +53,9 @@ anchor_gap:
     does not explain it; the production stock movement and the residual beyond
     it are printed beside it and the residual is not yet judged
   sentence_within: >-
-    the reconstruction reaches account 121 within what the production-variation
-    turnover of this book can hide
+    the build-up reaches account 121 within what the production-variation
+    turnover of this book can hide (the step the statement names as net 711)
   sentence_beyond: >-
-    the reconstruction misses account 121 by more than the production-variation
+    the build-up misses account 121 by more than the production-variation
     turnover of this book can hide, so a class-6/7 row entered a statement
-    bucket with the wrong sign
+    bucket with the wrong sign (the engine refuses net 711 on it: guard G5)
