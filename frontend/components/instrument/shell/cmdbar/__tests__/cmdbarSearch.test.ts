@@ -325,6 +325,62 @@ describe("THE CODE WORD — only digits (with their dots) are a code; a mixed wo
   });
 });
 
+describe("THE WRAPPED CODE — punctuation around a code is not part of it", () => {
+  // Review round 1 of stage CB-I: "(4111)", "\"4111\"", "#4111" found no
+  // account. The word started with a mark, so it was no code word; read as
+  // a name word it was a bare number, which no account name carries. A
+  // reader copies a code out of a document with its brackets or quotes.
+  const BOOKS = [
+    { name: "scandia", body: SCANDIA },
+    { name: "agras", body: AGRAS },
+  ] as const;
+  const WRAPS: ReadonlyArray<(c: string) => string> = [
+    (c) => `(${c})`, (c) => `"${c}"`, (c) => `#${c}`, (c) => `„${c}”`,
+    (c) => `[${c}]`, (c) => `'${c}'`, (c) => `«${c}»`, (c) => `${c})`, (c) => `(${c}`,
+  ];
+  const hitsOf = (idx: ReturnType<typeof buildCmdbarIndex>, q: string) => {
+    const g = searchCmdbar(idx, q).groups.find((x) => x.group === "account");
+    return [...(g?.hits ?? []), ...(g?.rest ?? [])].map((h) => (h.entry.ref.kind === "account" ? h.entry.ref.item.ro_account_code : ""));
+  };
+
+  for (const book of BOOKS) {
+    it(`${book.name}: every code and code prefix, wrapped in quotes, brackets or '#', finds exactly what it finds bare`, () => {
+      const idx = buildCmdbarIndex({ body: book.body, pages: [], actions: [] });
+      const codes = (book.body.line_items as { ro_account_code: unknown; statement: string }[])
+        .filter((li) => typeof li.ro_account_code === "string" && li.statement !== "IGNORED")
+        .map((li) => li.ro_account_code as string);
+      const probes = new Set<string>();
+      for (const c of codes) {
+        const k = codeKey(c);
+        if (k.length >= 3) probes.add(k.slice(0, 3));
+        if (k.length >= 4) probes.add(k.slice(0, 4));
+      }
+      // Every 7th whole code as written, dots included ("167.401").
+      codes.forEach((c, i) => { if (i % 7 === 0) probes.add(c); });
+      const wrong: string[] = [];
+      let probed = 0;
+      for (const p of probes) {
+        const bare = hitsOf(idx, p);
+        if (bare.length === 0) continue;
+        for (const wrap of WRAPS) {
+          const got = hitsOf(idx, wrap(p));
+          if (got.join(",") !== bare.join(",")) wrong.push(`${wrap(p)} → ${got.length} accounts, "${p}" → ${bare.length}`);
+          probed++;
+        }
+      }
+      expect(wrong.slice(0, 12), `${book.name}: wrapped codes that do not find what the bare code finds (${wrong.length})`).toEqual([]);
+      expect(probed, "VACUITY: wrapped probes").toBeGreaterThanOrEqual(300);
+      console.log(`GATE-WORK cmdbar-wrapped-code ${book.name} probes=${probed}`);
+    });
+  }
+
+  it("the words the finding named: '(4111)', '\"4111\"', '#4111' list the 4111 leaves", () => {
+    const bare = accountCodes("4111");
+    expect(bare.length, "POSITIVE CONTROL: 4111 has leaves").toBeGreaterThan(0);
+    for (const q of ["(4111)", '"4111"', "#4111"]) expect(accountCodes(q), q).toEqual(bare);
+  });
+});
+
 describe("ranking — deterministic, whole phrases first", () => {
   it("scores exact over prefix over fuzzy, and a covered phrase above a touched one", () => {
     const exact = phraseScore(["profit"], ["profit"])!;

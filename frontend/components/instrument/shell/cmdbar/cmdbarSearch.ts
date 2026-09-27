@@ -74,6 +74,12 @@ export function accountCodeToken(code: string): string {
   return k ? CODE_MARK + k : "";
 }
 
+/** A typed word without the punctuation around it — quotes, brackets, a
+ *  leading "#" — kept whole inside: "(167.401)" → "167.401". */
+export function unwrapWord(word: string): string {
+  return word.replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "");
+}
+
 /** The query as an ACCOUNT entry reads it: a CODE word (isCodeWord) is a
  *  code, or the start of one, and stays ONE marked token, separators
  *  removed — "167.401" → ["#167401"], "401" → ["#401"]; every other word —
@@ -81,7 +87,13 @@ export function accountCodeToken(code: string): string {
  *  code word can only meet the START of a whole code. */
 export function accountQueryTokens(query: string): string[] {
   const out: string[] = [];
-  for (const word of foldQuery(query).split(" ")) {
+  for (const raw of foldQuery(query).split(" ")) {
+    // The punctuation AROUND a word is not part of it: "(4111)", "\"4111\"",
+    // "#4111", "„4111”" are the code 4111 (review round 1 of stage CB-I —
+    // wrapped, the word started with a mark, was no code word, and was then
+    // dropped as a bare number: no account at all). Separators INSIDE a
+    // code ("167.401") are kept for `codeKey` to remove.
+    const word = unwrapWord(raw);
     if (!word) continue;
     if (isCodeWord(word)) {
       const k = accountCodeToken(word);

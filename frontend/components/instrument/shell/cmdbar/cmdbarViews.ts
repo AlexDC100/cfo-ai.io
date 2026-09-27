@@ -43,6 +43,7 @@ import {
   type ServedFigure,
 } from "./cmdbarSources";
 import { accountMetricKey, type AnswerDef } from "./cmdbarIndex";
+import { unwrapWord } from "./cmdbarSearch";
 
 /** A cached document's state as the bar sees it. `none` carries why. */
 export type SourceState<T> =
@@ -365,7 +366,9 @@ export function accountMoreView(
   // A single typed word with a digit is a code prefix; the account view
   // lists a prefix's leaves itself (evidenceView accountBlock), so the link
   // is the prefix — exactly when every match starts with it as written.
-  const prefix = !/\s/.test(q) && /\d/.test(q) && codes.every((c) => c.startsWith(q)) ? q : null;
+  // The punctuation around the word ("(4111)", "#4111") is not the code.
+  const w = unwrapWord(q);
+  const prefix = w && !/\s/.test(q) && /\d/.test(w) && codes.every((c) => c.startsWith(w)) ? w : null;
   return {
     id: `account-more:${q}`,
     text: prefix
