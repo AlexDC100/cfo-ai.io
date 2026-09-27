@@ -267,6 +267,9 @@ const net_income: Concept = {
   related: ["ebitda", "ebitda_margin", "revenue", "net_margin"],
   computation: (ctx, value) => {
     const m = ctx.metrics ?? {};
+    // EBIT refused with EBITDA (one-EBITDA ruling): the build-up has no
+    // first operand to show — no formula rather than "EBIT 0 + …".
+    if (m.ebit === undefined) return null;
     return {
       result: { value, format: "currency", conceptKey: "net_income" },
       layout: "stacked",
