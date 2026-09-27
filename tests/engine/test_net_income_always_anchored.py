@@ -171,7 +171,11 @@ def _gap_book(extra):
                         ("5121", "Banca", 102_000.0)]
                        + [(r["cont"], "x", max(r.get("st_c", 0.0), r.get("st_d", 0.0)))
                           for r in extra])
-    ev = sv.measure(rows)
+    # The production seam (it stamps the reader that produced the rows —
+    # G7, design A10; a block with no reader stamp never bridges).
+    from engine.country_packs.ro_romania.pack import RomaniaPack
+    ev = RomaniaPack().measure_stock_variation(rows)
+    assert sv.is_measured(ev)
     st = coa.assemble_statements(accounts, account_121_anchor_override=102_000.0,
                                  stock_variation_evidence=ev)
     return st["statements"]["assembled_pl"]

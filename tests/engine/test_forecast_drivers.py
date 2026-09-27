@@ -1901,7 +1901,12 @@ def _micro_closed_evidence(filed_121, amount_711):
                  "r_d": credits - filed_121, "r_c": credits,
                  "st_d": credits - filed_121, "st_c": credits,
                  "sf_d": 0.0, "sf_c": filed_121})
-    return stock_variation.measure(rows)
+    # Through the production seam: it stamps the reader that produced the
+    # rows (G7, design A10) — a block with no reader stamp never bridges.
+    from engine.country_packs.ro_romania.pack import RomaniaPack
+    ev = RomaniaPack().measure_stock_variation(rows)
+    assert stock_variation.is_measured(ev)
+    return ev
 
 
 #: The three shapes, named by what the ENGINE does with them rather than

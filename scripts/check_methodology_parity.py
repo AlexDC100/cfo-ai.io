@@ -177,7 +177,6 @@ def _measured_kwargs(short: str) -> Dict[str, Any]:
     net 711 refuses on every closed manufacturer (G2) and the one EBITDA
     with it — the gate would compare two refusals."""
     from measure_bs_drift import _candidate_paths, _load_trial_balance_parser
-    from engine.country_packs.ro_romania import stock_variation
     sources = {
         "Scandia": ("files/scandia_trial_balance_2025_downloaded.xlsx",
                     "tests/fixtures/scandia_trial_balance_2025.xlsx",
@@ -205,7 +204,10 @@ def _measured_kwargs(short: str) -> Dict[str, Any]:
         if not paths:
             return {}
         rows = tbp.parse_trial_balance_file(paths[0].read_bytes(), paths[0].name)
-    return {"stock_variation_evidence": stock_variation.measure(rows),
+    # The write seam's own measurement: it stamps the reader that produced
+    # the rows (G7, design A10) — a block with no reader stamp never bridges.
+    from engine.country_packs.ro_romania.pack import RomaniaPack
+    return {"stock_variation_evidence": RomaniaPack().measure_stock_variation(rows),
             "account_121_anchor_override": tbp.compute_statutory_net_profit_anchor(rows)}
 
 
