@@ -144,13 +144,18 @@ export type SectorBenchmarkFetch =
   | { kind: "ok"; data: SectorBenchmarkDoc }
   | { kind: "error"; status: number };
 
-export async function fetchSectorBenchmark(periodId: string): Promise<SectorBenchmarkFetch> {
+export async function fetchSectorBenchmark(periodId: string, orgId?: string | null): Promise<SectorBenchmarkFetch> {
   // The route resolves the ACTIVE workspace from X-Org-Id; without it the
   // engine falls back to the oldest membership and the period 403s. The ONE
   // helper builds both headers (and degrades to the bare bearer when the
   // workspace will not resolve) — gate: lib/__tests__/orgScopedFetch.test.ts.
   const headers = await authOrgHeaders();
   if (!headers) return { kind: "error", status: 401 };
+  // A caller that KNOWS the period's company names it. The command bar's
+  // prefetch runs app-wide, across a company switch: read at request time,
+  // the ambient header asked Agras's workspace for a Scandia period
+  // (e2e/workspace-v2.spec.ts G6). Named, the request is that company's.
+  if (orgId) headers["X-Org-Id"] = orgId;
   try {
     const res = await fetch(`${API_URL}/api/period/${encodeURIComponent(periodId)}/sector-benchmark`, { headers });
     if (!res.ok) return { kind: "error", status: res.status };

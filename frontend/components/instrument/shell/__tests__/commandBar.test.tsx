@@ -118,22 +118,27 @@ vi.mock("@/stores/currency", async (orig) => {
 import { CommandPalette } from "../CommandPalette";
 import { LAT_CMDBAR_SEARCH, resetLatency, snapshotLatency } from "@/lib/capsuleLatency";
 import { RECENTS_KEY_PREFIX } from "../cmdbar/cmdbarRecents";
+import { cmdbarSectorQueryKey } from "../cmdbar/useCmdbarData";
 import { OPEN_ASK_CFO_AI_EVENT } from "@/components/cfo/chat/openAskCfoAi";
 
 // ── the fetch trap ──────────────────────────────────────────────────────
 
 const MODEL_SEAMS = [/\/api\/capsule\/tools\//, /functions\/v1\/chat-llm/, /anthropic/i];
 let fetched: string[] = [];
+/** The workspace each request was asked of (its X-Org-Id), in order. */
+let fetchedOrg: (string | null)[] = [];
 let savedFetch: unknown;
 let hangFetch = false;
 
 beforeEach(() => {
   fetched = [];
+  fetchedOrg = [];
   hangFetch = false;
   const g = globalThis as unknown as Record<string, unknown>;
   savedFetch = g.fetch;
-  g.fetch = async (input: unknown) => {
+  g.fetch = async (input: unknown, init?: { headers?: Record<string, string> }) => {
     fetched.push(typeof input === "string" ? input : String((input as { url?: string })?.url ?? input));
+    fetchedOrg.push(init?.headers?.["X-Org-Id"] ?? null);
     if (hangFetch) return new Promise(() => {});
     return new Response("{}", { status: 503, headers: { "Content-Type": "application/json" } });
   };
@@ -202,7 +207,7 @@ function mount(w: World) {
       periods: [{ period_id: w.periodId, period_end: w.body.period.period_end, period_start: null, period_label: "", documents: [{ id: "d1" }] }, ...priorPeriod],
     });
     if (w.comparatives && w.priorId) qc.setQueryData(["comparatives", w.org.id, w.periodId, w.priorId], { kind: "ok", data: w.comparatives });
-    if (w.sector) qc.setQueryData(["sector-benchmark", w.periodId], w.sector);
+    if (w.sector) qc.setQueryData(cmdbarSectorQueryKey(w.org.id, w.periodId), w.sector);
     if (w.attention) qc.setQueryData(["attention", w.org.id, w.periodId, "auto"], { kind: "ok", data: w.attention });
     qc.setQueryData(["company-years", w.org.id], [{ period_id: w.periodId, year: 2025, period_end: "2025-12-31", revenue: null, revenue_change_pct: null }]);
     qc.setQueryData(["company-years", "org-other"], [{ period_id: "p-other", year: 2024, period_end: "2024-12-31", revenue: null, revenue_change_pct: null }]);
@@ -446,14 +451,17 @@ describe("cmdbar-figures — every figure is the served figure", () => {
       if (r.key === "dio") continue; // through the inventory-days adapter, below
       type(r.key.replace(/_/g, " "));
       const row = rowsOf("answer").find((el) => el.getAttribute("data-row-id") === `ratio:${r.key}`);
-      if (!row) continue;
-      const printed = row.querySelector('[data-figure="answer"]')?.textContent
-        ?? row.querySelector("[data-absent]")?.textContent;
+      // EVERY served row is reachable by its own name — a skipped row is a
+      // row whose figure nobody checked.
+      expect(row, `"${r.key.replace(/_/g, " ")}" answers ratio:${r.key}`).toBeTruthy();
+      const printed = row!.querySelector('[data-figure="answer"]')?.textContent
+        ?? row!.querySelector("[data-absent]")?.textContent;
       expect(printed, r.key).toBe(formatRatioSide(r, r.display_unit, "en"));
       checked++;
       const m = metrics.get(r.key);
       if (typeof m === "number" && typeof r.value === "number" && Math.abs(m - r.value) > 1e-9) differsFromMetrics++;
     }
+    expect(checked, "every ratio_table row but dio").toBe(rows.filter((r) => r.key !== "dio").length);
     expect(checked).toBeGreaterThanOrEqual(20);
     // POSITIVE CONTROL: on this book metrics[] disagrees with the table for
     // some row, so a bar reading metrics[] would print a different figure.
@@ -741,12 +749,14 @@ describe("cmdbar-figures — every Răspuns in Romanian too", () => {
       if (r.key === "dio") continue;
       type(r.key.replace(/_/g, " "));
       const row = answerRow(`ratio:${r.key}`);
-      if (!row) continue;
-      const printed = row.querySelector('[data-figure="answer"]')?.textContent
-        ?? row.querySelector("[data-absent]")?.textContent;
+      expect(row, `"${r.key.replace(/_/g, " ")}" answers ratio:${r.key}`).toBeTruthy();
+      const printed = row!.querySelector('[data-figure="answer"]')?.textContent
+        ?? row!.querySelector("[data-absent]")?.textContent;
       expect(printed, r.key).toBe(formatRatioSide(r, r.display_unit, "ro"));
       ratios++;
     }
+    const rows = w.body.assembled_metrics.ratio_table.rows as RatioTableRow[];
+    expect(ratios, "every ratio_table row but dio").toBe(rows.filter((r) => r.key !== "dio").length);
     expect(ratios).toBeGreaterThanOrEqual(20);
   });
 });
@@ -861,6 +871,30 @@ describe("cmdbar-latency — the cold open, timed", () => {
   });
 });
 
+describe("cmdbar-scope — every document the bar asks for is asked of ITS company", () => {
+  it("attention, comparatives and the sector document carry the period's company as X-Org-Id — never the ambient workspace", async () => {
+    // Found live (e2e/workspace-v2.spec.ts G6, stage CB-G): the bar's
+    // app-wide prefetch asked for the sector document with the header read
+    // at request time, so across a company switch Agras's workspace was
+    // asked for a Scandia period. Here the ambient helper names NO
+    // workspace (see the authOrgHeaders mock): whatever the bar sends, it
+    // must have named itself.
+    hangFetch = true;
+    const w = pairWorld({ seed: "cold" });
+    mount(w);
+    await act(async () => { await new Promise((r) => setTimeout(r, 20)); });
+    const docs = fetched
+      .map((u, i) => ({ u, org: fetchedOrg[i] }))
+      .filter((r) => /\/attention|\/comparatives|\/sector-benchmark/.test(r.u));
+    const unnamed = docs.filter((r) => r.org !== w.org.id).map((r) => `${r.u} → ${r.org}`);
+    expect(unnamed, "asked of another (or no) workspace").toEqual([]);
+    // POSITIVE CONTROL: the cold open did ask for the sector document and
+    // the attention document, so the check above had subjects.
+    expect(docs.some((r) => /\/sector-benchmark/.test(r.u)), "the sector document was asked for").toBe(true);
+    expect(docs.some((r) => /\/attention/.test(r.u)), "the attention document was asked for").toBe(true);
+  });
+});
+
 describe("cmdbar-search — synonyms and diacritics on the RENDERED bar, both languages", () => {
   const SAME: [string, string[]][] = [
     ["answer:receivables", ["clienti", "clienți", "creante", "creanțe", "CREANȚE"]],
@@ -952,6 +986,25 @@ describe("cmdbar-keyboard — the whole flow from the keyboard", () => {
     expect(walked).toContain("account");
     for (let i = 0; i < n + 2; i++) key("ArrowUp");
     expect(selected()).toBe(0);
+  });
+
+  it("a new query selects ITS answer even when the old selection sat below the new list's end", () => {
+    // Found by the live keyboard probe (stage CB-G): "profit", ↓ to
+    // "Întreabă CFO AI", then "clienti" — a shorter list — left the
+    // selection clamped onto "Întreabă CFO AI", so Enter asked the chat
+    // instead of opening the answer the reader had just typed for.
+    mount(scandiaWorld());
+    type("profit");
+    const long = opts().length;
+    for (let i = 0; i < long + 2; i++) key("ArrowDown");
+    expect(opts()[selected()].getAttribute("data-row-kind")).toBe("ask");
+    type("clienti");
+    expect(opts().length, "POSITIVE CONTROL: the new list is shorter than the old selection").toBeLessThan(long);
+    expect(selected()).toBe(0);
+    expect(opts()[0].getAttribute("data-row-id")).toBe("answer:receivables");
+    expect(input().getAttribute("aria-activedescendant")).toBe(opts()[0].id);
+    key("Enter");
+    expect(screen.getByTestId("location").textContent).toMatch(/line=bs\.trade_receivables_net/);
   });
 
   it("Enter on the answer opens its evidence (the account view for its line)", () => {

@@ -34,13 +34,18 @@ import { useActiveOrg, type Organization } from "@/lib/org";
 import { formatPeriodMonth, useCompanyPeriods } from "@/lib/orgPeriods";
 import { fetchCompanyYears, type CompanyYear } from "@/lib/uploadsApi";
 import { usePeriodStepper } from "@/lib/usePeriodStepper";
-import { useSectorBenchmark } from "@/components/cfo/benchmark/SectorBenchmarkSection";
-import type { SectorBenchmarkDoc } from "@/lib/sectorBenchmark";
+import { fetchSectorBenchmark, type SectorBenchmarkDoc } from "@/lib/sectorBenchmark";
 import { readComparativesView } from "@/stores/comparativesView";
 
 import type { SourceState } from "./cmdbarViews";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The bar's sector document: keyed by the company AND the period, and
+ *  asked of that company (X-Org-Id named, never the ambient workspace) —
+ *  like the attention and comparatives documents beside it. */
+export const cmdbarSectorQueryKey = (orgId: string, periodId: string) =>
+  ["sector-benchmark", "company", orgId, periodId] as const;
 
 export type ScopeStatus =
   | "no_company"      // nobody signed in to a workspace yet
@@ -134,7 +139,15 @@ export function useCmdbarData(opts: { open: boolean }): CmdbarData {
         : "auto";
 
   const cmpQ = useComparatives(ready ? periodId : null, ready ? choice.priorId : null, companyId);
-  const sectorQ = useSectorBenchmark(ready ? periodId : null);
+  const sectorQ = useQuery({
+    queryKey: cmdbarSectorQueryKey(companyId ?? "", ready ? periodId ?? "" : ""),
+    enabled: ready && !!periodId && !!companyId,
+    staleTime: 5 * 60_000,
+    queryFn: async (): Promise<SectorBenchmarkDoc | null> => {
+      const res = await fetchSectorBenchmark(periodId!, companyId!);
+      return res.kind === "ok" ? res.data : null;
+    },
+  });
   const attentionQ = useAttention(ready ? periodId : null, companyId, prior);
 
   const comparatives: SourceState<ComparativesResponse> = !ready
