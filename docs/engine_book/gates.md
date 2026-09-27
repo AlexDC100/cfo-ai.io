@@ -10685,6 +10685,49 @@ FAIL — 1 audited-canonical assertion(s) failed:
 
 CANNOT SEE: the filed 722 (audit.json carries the trial balance's own figure).
 
+## export-ratio-anchor
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/lib/__tests__/exportRatioFormulas.test.ts --reporter=verbose` |
+| work count | `Tests … (\d+) passed`, floor **13** (measured 15) |
+| canary | `constructed closed_no_activity: every net-income ratio consumes account 121, on a divergence no line names`, `at least one book tells the filed account-121 figure from the reconstruction (TC-3)` |
+
+**Why (design A8, `exportRatioFormulas` DISCRIMINATING).** G4 proves every
+printed net-income ratio (net margin, ROA, ROE) reads account 121 by requiring
+the printed value to match the ratio on 121 and NOT on the reconstruction, on
+books where the two differ. Since the 711 ruling the four firm books differ only
+by their net 711, which the statement NAMES (derived from 121): a ratio built on
+"the build-up + the served 711 + 72x" equals the anchor on every one of them.
+The CONSTRUCTED witness — net-711-rule's `closed_no_activity` (SYNTHETIC: no 711
+postings, 121 at 122,000.00 against accounts that give 120,000.00), served
+through the real write path and `GET /api/period`
+(`constructed_books.json`) — carries a divergence no line names. Its ROE/ROA
+tell the two apart (37.9 % vs 37.3 %); the TC-3 check now also requires the
+witness to discriminate.
+
+**GREEN** — `15 passed`.
+
+**PLANT build-up-plus-named-lines** — `frontend/lib/financialReport.ts`
+`computeRatios`: `anchoredNetIncome` = `net_income_operational +
+inventory_variation.value + capitalized_own_work.value` (the reconstruction
+plus every named line).
+
+**RED** — the four firm books stay GREEN under the plant (the vacuity, shown);
+only the witness reds:
+```
+   ✓ … agras: every net-income ratio consumes the filed account-121 figure
+   ✓ … carniprod: every net-income ratio consumes the filed account-121 figure
+   ✓ … realestate: every net-income ratio consumes the filed account-121 figure
+   ✓ … retail: every net-income ratio consumes the filed account-121 figure
+   × … constructed closed_no_activity: every net-income ratio consumes account 121, on a divergence no line names
+      Tests  1 failed | 14 passed (15)
+```
+
+**REVERT** — restored byte-exact from a copy; `15 passed`.
+
+CANNOT SEE: a misread equal to the stock variation on a closed book.
+
 ## valuation-one-ebitda
 
 | | |

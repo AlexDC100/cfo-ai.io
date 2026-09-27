@@ -1024,6 +1024,20 @@ def _engine_gates() -> List[Gate]:
              canaries=("covers eight served books, and on six of them the build-up before 711 / 72x differs from EBITDA",
                        "agras: the printed report, the workbook and the charts",
                        "realestate: Debt / EBITDA and the no-envelope credit model divide the served EBITDA")),
+        # ── design A8 (stage G1): exportRatioFormulas' DISCRIMINATING scope
+        # was made vacuous by the 121 bridge — on the four firm books the
+        # build-up + the served 711 IS account 121, so a net-income ratio
+        # re-pointed at it stayed green. The constructed closed_no_activity
+        # (a 2,000.00 misread no line names) is the witness. Measured 15
+        # tests. Plant log: gates.md "export-ratio-anchor".
+        Gate("export-ratio-anchor",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/exportRatioFormulas.test.ts", "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=13,
+             units="printed-ratio tests (formulas, values, net income on account 121)",
+             canaries=("constructed closed_no_activity: every net-income ratio consumes account 121, "
+                       "on a divergence no line names",
+                       "at least one book tells the filed account-121 figure from the reconstruction (TC-3)")),
         Gate("turnover-denominator",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/lib/__tests__/turnoverDenominator.test.tsx", "--reporter=verbose"],
