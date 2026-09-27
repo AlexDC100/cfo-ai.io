@@ -71,9 +71,18 @@ export interface Printer {
  *  currency's code ("402,9 K RON", "−2.577.640,82 RON") — lib/money's
  *  formatMoneyFrom with source = display, so no rate is ever applied. The
  *  locale follows the currency, as everywhere money is printed. */
-export function servedMoney(currency: string | null | undefined, opts: { compact?: boolean } = {}): (value: number) => string {
+export function servedMoney(
+  currency: string | null | undefined,
+  opts: { compact?: boolean } = {},
+): (value: number | null | undefined) => string {
   const code = (currency || "RON").toUpperCase() as Currency;
-  return (value: number) => {
+  const key = `${code}|${opts.compact ? "c" : "f"}`;
+  const cached = SERVED_MONEY.get(key);
+  if (cached) return cached;
+  const print = (value: number | null | undefined): string => {
+    // The bar never reaches this with no value (printMoney says why
+    // instead); the account view's table cell keeps its dash.
+    if (typeof value !== "number" || !Number.isFinite(value)) return "—";
     try {
       return formatMoneyFrom(value, code, code, {} as Rates, { compact: opts.compact });
     } catch {
@@ -81,7 +90,14 @@ export function servedMoney(currency: string | null | undefined, opts: { compact
       return `${value.toFixed(2)} ${code}`;
     }
   };
+  SERVED_MONEY.set(key, print);
+  return print;
 }
+
+/** One printer per (currency, compactness): a stable identity, so a
+ *  component can bind it (`const fmt = servedMoney(currency)`) without a
+ *  memo and the provenance census counts that binding's calls. */
+const SERVED_MONEY = new Map<string, (value: number | null | undefined) => string>();
 
 function t(lang: Lang) {
   return i18n.getFixedT(lang);

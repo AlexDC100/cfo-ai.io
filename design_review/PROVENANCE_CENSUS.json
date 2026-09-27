@@ -215,9 +215,9 @@
     },
     "frontend/components/cfo/evidence/EvidenceDrawer.tsx": {
       "bucket": "HAS_SHOWS",
-      "sites": 8,
+      "sites": 9,
       "affordances": 7,
-      "why": "OPENED 2026-09-27 (design C4, stage CB-F2): the ACCOUNT VIEW, the receiver for ?account= / ?line=. Every leaf balance, served total and balance-sheet row it prints comes from the served period body (line_items, canonical_bs rows) and wears {accounts: the code, source: <document> · <sheet>, method, pack} — the same claim the balance sheet's own rows make (BSStatementView bsRowProvenance). The statement line's served figure prints its served path as visible text beside it ('read from assembled_pl.<field>') and wears no dot: it is an engine field, not a sheet cell. An absent account prints a sentence and no figure (evidenceLanding.test.tsx)."
+      "why": "OPENED 2026-09-27 (design C4, stage CB-F2): the ACCOUNT VIEW, the receiver for ?account= / ?line=. Every leaf balance, served total and balance-sheet row it prints comes from the served period body (line_items, canonical_bs rows) and wears {accounts: the code, source: <document> · <sheet>, method, pack} — the same claim the balance sheet's own rows make (BSStatementView bsRowProvenance). The statement line's served figure prints its served path as visible text beside it ('read from assembled_pl.<field>') and wears no dot: it is an engine field, not a sheet cell. An absent account prints a sentence and no figure (evidenceLanding.test.tsx). STAGE CB-H (2026-09-27): printed in the SERVED currency with its code (servedMoney, bound as `fmt`, counted like useAmountFormatter); a NINTH figure site — a finding's own measure (formatMeasure, the printer the command bar's item used), the headline when a 'Ce contează acum' finding opens its cited accounts. Like the line figure it prints its served path as visible text ('read from statements.insights.insights[id=…].measures[key=…]') and wears no dot: it is an engine measure, not a sheet cell."
     },
     "frontend/components/cfo/findings/AllChecksList.tsx": {
       "bucket": "HAS_SHOWS",
@@ -367,7 +367,7 @@
       "bucket": "HAS_MISSING",
       "sites": 1,
       "affordances": 0,
-      "why": "OPENED 2026-09-27 with the command bar rebuild. One formatter site: the money printer (useAmountFormatter, compact) the bar's figures go through; the rows themselves are painted by cmdbar/CmdbarList.tsx from view strings. Every figure carries its served source path (cmdbarViews `served.source`: assembled_pl.* / assembled_bs.* / ratio_table.* / the comparatives column / the sector row) and every row OPENS its evidence (the statement tab, the ratio, the benchmark row, the account) — but no hover affordance is worn on the bar yet. Remaining work, named: wear {source: <period label> · <served path>, accounts} on Răspuns and Cont figures."
+      "why": "OPENED 2026-09-27 with the command bar rebuild. One formatter site: the money printer (servedMoney, compact — the SERVED currency with its code, never the display toggle; stage CB-H) the bar's figures go through; the rows themselves are painted by cmdbar/CmdbarList.tsx from view strings. Every figure carries its served source path (cmdbarViews `served.source`: assembled_pl.* / assembled_bs.* / ratio_table.* / the comparatives column / the sector row) and every row OPENS its evidence (the statement tab, the ratio, the benchmark row, the account) — but no hover affordance is worn on the bar yet. Remaining work, named: wear {source: <period label> · <served path>, accounts} on Răspuns and Cont figures."
     },
     "frontend/components/instrument/shell/TrustChip.tsx": {
       "bucket": "HAS_SHOWS",

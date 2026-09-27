@@ -38,7 +38,8 @@ import {
   realStatementTab,
 } from "@/lib/evidence/evidenceLink";
 import { HIGHLIGHT_PARAM, TAB_PARAM } from "@/lib/traceableSource";
-import { absentText, langOf, printMeasure, printMoney, servedMoney, type Printer } from "@/components/instrument/shell/cmdbar/cmdbarFigures";
+import { absentText, langOf, servedMoney, type Printer } from "@/components/instrument/shell/cmdbar/cmdbarFigures";
+import { formatMeasure } from "@/lib/insights";
 
 import "./evidenceI18n";
 import {
@@ -84,11 +85,8 @@ export function EvidenceDrawer({ body, periodLabel, documentName, currency }: Ev
   const lang = langOf(i18n.language);
   // The served currency, with its code — the bar's own rule: the evidence a
   // "… RON" figure opens is printed in RON, never converted unlabelled.
-  const printer = useMemo<Printer>(() => ({ lang, money: servedMoney(currency) }), [lang, currency]);
-  const fmt = useMemo<Fmt>(
-    () => (v: number | null | undefined) => printMoney(printer, v) ?? "—",
-    [printer],
-  );
+  const fmt: Fmt = servedMoney(currency);
+  const printer = useMemo<Printer>(() => ({ lang, money: fmt }), [lang, fmt]);
 
   const request = useMemo(() => readEvidenceRequest(params), [params]);
   const model = useMemo(
@@ -206,7 +204,7 @@ export function EvidenceDrawer({ body, periodLabel, documentName, currency }: Ev
                     data-evidence-headline="true"
                     data-served-value={finding.measure.value ?? ""}
                   >
-                    {printMeasure(finding.measure, finding.currency || currency)}
+                    {formatMeasure(finding.measure, finding.currency || currency)}
                   </div>
                   <div className="text-[11.5px] text-ink-soft" data-testid="evidence-finding-source">
                     {t("evidence.servedFrom", { source: finding.source })}
@@ -235,7 +233,7 @@ export function EvidenceDrawer({ body, periodLabel, documentName, currency }: Ev
                 data-evidence-headline={finding ? undefined : "true"}
                 data-served-value={line.figure.value ?? ""}
               >
-                {printMoney(printer, line.figure.value) ?? absentText(printer, line.figure.refusal)}
+                {line.figure.value !== null ? fmt(line.figure.value) : absentText(printer, line.figure.refusal)}
               </div>
               <div className="text-[11.5px] text-ink-soft" data-testid="evidence-line-source">
                 {t("evidence.servedFrom", { source: line.figure.source })}

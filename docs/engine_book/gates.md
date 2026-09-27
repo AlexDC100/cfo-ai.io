@@ -11214,6 +11214,22 @@ command-bar tests)`. The hermetic live G3/G7 remain outside the battery (they
 need a production build); they are the pre-deploy half — see the live runs
 below.
 
+**provenance-census moved with the printer.** Swapping the account view's
+money printer for `servedMoney` made the census count 1 figure site where the
+drawer paints 8 (it counted only calls of a name bound to useAmountFormatter).
+The census now treats `servedMoney` as a BINDER like useAmountFormatter
+(`BINDING_FORMATTERS`: the figure sites are the calls of the bound name,
+`const fmt = servedMoney(currency)`; servedMoney keeps one printer per
+currency so the binding needs no memo), the drawer prints its line headline
+through `fmt(…)` again, and the NEW figure — a finding's own measure, the
+headline when a finding opens its cited accounts — is counted
+(`formatMeasure`) and registered: EvidenceDrawer 8 → **9** sites, 7 bearing
+(the measure, like the line figure, prints its served path as text and wears
+no dot). The census's findings are exactly the base's 13 (none new); PLANT
+— `servedMoney` dropped from BINDING_FORMATTERS: `COUNT DRIFT:
+…EvidenceDrawer.tsx declares 9 figure site(s), measured 2` (14 findings) →
+restored → 13.
+
 ## evidence-lines
 
 The account view (`frontend/components/cfo/evidence/EvidenceDrawer.tsx`, design

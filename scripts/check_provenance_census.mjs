@@ -200,6 +200,10 @@ const NOT_A_FIGURE = new Map([
  *  shape. */
 const FORMATTERS = {
   useAmountFormatter: "frontend/stores/currency.tsx",
+  // The command bar's and the account view's money: the SERVED currency
+  // with its code, never converted (stage CB-H, 2026-09-27). A binder, like
+  // useAmountFormatter (BINDING_FORMATTERS).
+  servedMoney: "frontend/components/instrument/shell/cmdbar/cmdbarFigures.ts",
   formatRON: "frontend/lib/formatRon.ts",
   formatPercent: "frontend/lib/formatRon.ts",
   formatMoney: "frontend/lib/money.ts",
@@ -285,6 +289,9 @@ const NOT_A_FIGURE_FORMATTER = new Map([
   ["formatPriceLabel", "a PLAN price on the marketing surface (lib/plans.ts) — not a company figure"],
 ]);
 const NATIVE_FORMATTERS = ["toFixed", "toLocaleString", "Intl.NumberFormat"];
+/** Formatters that RETURN a printer: their figure sites are the calls of
+ *  the name bound to them, not the binding call itself. */
+const BINDING_FORMATTERS = ["useAmountFormatter", "servedMoney"];
 
 /** R6 — formatters DISCOVERED BY BEHAVIOUR on this run, name-agnostic:
  *  every exported function anywhere under frontend/ that returns display
@@ -1328,22 +1335,27 @@ function formatterSites(code) {
     detail[k] = (detail[k] ?? 0) + by;
   };
 
-  // useAmountFormatter binds a function; count the CALLS of that binding.
-  const bindRx = /\b(?:const|let)\s+(\w+)\s*=\s*useAmountFormatter\s*\(/g;
-  const bound = new Set();
-  let b;
-  while ((b = bindRx.exec(code)) !== null) bound.add(b[1]);
-  for (const name of bound) {
-    const calls = code.match(new RegExp(`(?<![\\w.])${name}\\s*\\(`, "g")) ?? [];
-    bump("useAmountFormatter", calls.length);
-  }
-  if (bound.size === 0) {
-    const hookCalls = code.match(/(?<!function\s)(?<![\w.])useAmountFormatter\s*\(/g) ?? [];
-    bump("useAmountFormatter", hookCalls.length);
+  // A BINDER returns a printer; count the CALLS of each name bound to it
+  // (`const fmt = useAmountFormatter(c)` / `const fmt = servedMoney(c)` —
+  // the command bar's served-currency printer, cmdbar/cmdbarFigures.ts),
+  // and the binder's own calls only where nothing is bound.
+  for (const binder of BINDING_FORMATTERS) {
+    const bindRx = new RegExp(`\\b(?:const|let)\\s+(\\w+)(?:\\s*:\\s*\\w+)?\\s*=\\s*${binder}\\s*\\(`, "g");
+    const bound = new Set();
+    let b;
+    while ((b = bindRx.exec(code)) !== null) bound.add(b[1]);
+    for (const name of bound) {
+      const calls = code.match(new RegExp(`(?<![\\w.])${name}\\s*\\(`, "g")) ?? [];
+      bump(binder, calls.length);
+    }
+    if (bound.size === 0) {
+      const hookCalls = code.match(new RegExp(`(?<!function\\s)(?<![\\w.])${binder}\\s*\\(`, "g")) ?? [];
+      bump(binder, hookCalls.length);
+    }
   }
 
   for (const name of countedFormatterNames()) {
-    if (name === "useAmountFormatter") continue;
+    if (BINDING_FORMATTERS.includes(name)) continue;
     if (NOT_A_FIGURE_FORMATTER.has(name)) continue;
     const calls = code.match(new RegExp(`(?<!function\\s)(?<![\\w.])${name}\\s*\\(`, "g")) ?? [];
     bump(name, calls.length);
