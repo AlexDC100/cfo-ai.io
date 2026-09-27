@@ -657,13 +657,14 @@ class RomaniaPack:
         trial-balance parser's."""
         from . import stock_variation as _stock_variation
 
+        from .trial_balance_parser import PARSER_VERSION
+
         extraction = getattr(tb_rows, "extraction", None)
         parser_version = (extraction.get("parser_version")
                           if isinstance(extraction, dict) else None)
         return _stock_variation.measure(
             [r for r in (tb_rows or []) if isinstance(r, dict)],
-            parser_version=(str(parser_version) if parser_version
-                            else _stock_variation.running_parser_version()),
+            parser_version=str(parser_version) if parser_version else str(PARSER_VERSION),
         )
 
     # ── 6b. canonical_bs v2 integration glue ─────────────────

@@ -10563,9 +10563,13 @@ never persisted, so they were read in this process). `decide` adds
 `G7_parser_version` / `G7_running_parser_version` / `G7_current` to the guard
 block and, on a CLOSED anchored book with 711 activity, refuses
 `reprocess_required` (RO/EN text) before any residual-based guard when the
-stamp is not the running reader — an unstamped block included. OPEN books
-(their own net) and no-activity books (exactly 0.00) fold nothing and are
-untouched.
+stamp is not the running reader — an unstamped block included. The running
+reader is passed IN by the only caller (`chart_of_accounts.assemble_statements`
+reads `trial_balance_parser.PARSER_VERSION`): `stock_variation` stays pure
+(`test_credit_model_pure` holds it to `typing` alone — a first cut that imported
+the parser there reddened it and was moved), and a caller that does not state
+the version gets no fold (fail closed, asserted). OPEN books (their own net) and
+no-activity books (exactly 0.00) fold nothing and are untouched.
 
 **The witness** — constructed book `g7_older_parser`: the bridge book as an
 older reader returned it (701 read at 1,040,000 where the file says 1,000,000,
@@ -10586,7 +10590,7 @@ FAILED tests/engine/test_net_711_rule.py::test_g7_the_block_carries_its_reader_a
 FAILED tests/engine/test_net_711_rule.py::test_zz_scope_and_work - AssertionE...
 ```
 **PLANT stamp-the-running-reader-always** — `pack.measure_stock_variation`
-stamps `running_parser_version()` whatever the parse result says.
+stamps the running `PARSER_VERSION` whatever the parse result says.
 ```
 RED — 3 failed, 26 passed
 FAILED tests/engine/test_net_711_rule.py::test_the_rule_on_each_constructed_book[g7_older_parser]

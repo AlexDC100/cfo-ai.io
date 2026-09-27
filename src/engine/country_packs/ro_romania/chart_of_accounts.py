@@ -1491,6 +1491,9 @@ def assemble_statements(
     # anchor handed to `decide` is the one this assembly APPLIES below;
     # with none the bridge refuses (G2) — it never returns 0.00.
     from . import stock_variation as _stock_variation
+    # G7 (design A10): the reader this process runs — a block stamped by
+    # another folds no residual (`stock_variation.decide`).
+    from .trial_balance_parser import PARSER_VERSION as _RUNNING_TB_PARSER
 
     inventory_variation_block, capitalized_block = _stock_variation.decide(
         stock_variation_evidence,
@@ -1498,6 +1501,7 @@ def assemble_statements(
         net_income_operational=net_income_operational,
         read_711_lines=read_711_abs,
         read_72x_lines=capitalized_bucket,
+        running_parser_version=_RUNNING_TB_PARSER,
     )
     capitalized = capitalized_block["value"]
     net_711 = inventory_variation_block["value"]  # None when refused

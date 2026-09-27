@@ -84,7 +84,6 @@ __all__ = [
     "leaf_flags",
     "decide",
     "refusal_text",
-    "running_parser_version",
 ]
 
 #: The persisted evidence block's schema. Bump on any change to what the
@@ -225,15 +224,6 @@ LEDGER_TOLERANCE = 1.0
 MOVEMENT_MATCH_TOLERANCE = 0.05
 #: How many offending codes a block lists (the count is always exact).
 _LIST_CAP = 20
-
-
-def running_parser_version() -> str:
-    """The trial-balance reader this process runs (G7). Every row block
-    ``measure`` sees comes from it: rows are never persisted, so a block
-    stamped with another version was measured by an earlier deploy."""
-    from .trial_balance_parser import PARSER_VERSION
-
-    return str(PARSER_VERSION)
 
 
 def refusal_text(code: str) -> Tuple[str, str]:
@@ -690,6 +680,7 @@ def decide(
     net_income_operational: float,
     read_711_lines: float,
     read_72x_lines: float,
+    running_parser_version: Optional[str] = None,
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """(inventory_variation, capitalized_own_work) — the served blocks.
 
@@ -700,6 +691,12 @@ def decide(
     line items and ``read_72x_lines`` its 72x bucket sum — used ONLY when
     no trial-balance evidence exists: to know whether the book posts to
     711 at all, and as the 72x value. Never as the 711 value.
+
+    ``running_parser_version`` — the trial-balance reader the caller runs
+    (G7). The block's ``parser_version`` must equal it for the residual to
+    be folded; a caller that does not state it gets no fold (None never
+    equals a stamp), so forgetting it refuses rather than bridges. This
+    module stays pure: the caller reads the version, not this module.
     """
     anchor_applied = account_121 is not None
     if evidence is None:
@@ -819,7 +816,7 @@ def decide(
         # rows were read by the running parser. A block stamped by an older
         # reader (or not stamped) was measured before the current reading.
         stored_parser = evidence.get("parser_version")
-        running_parser = running_parser_version()
+        running_parser = running_parser_version
         guards = {
             "G1_book_state": state,
             "G2_anchored": bool(anchor_applied),
@@ -833,7 +830,7 @@ def decide(
             "G6_cleared_by": cleared_kind,
             "G7_parser_version": stored_parser,
             "G7_running_parser_version": running_parser,
-            "G7_current": stored_parser == running_parser,
+            "G7_current": stored_parser is not None and stored_parser == running_parser,
         }
         block["guards"] = guards
         listed_711 = bool(a711.get("listed"))

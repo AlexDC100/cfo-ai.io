@@ -586,7 +586,7 @@ def test_g7_the_block_carries_its_reader_and_an_older_reader_never_bridges():
     refuses 711 `reprocess_required` on the served route, EBITDA with it,
     and never serves its residual as the variation; the same period
     persisted by the running reader bridges."""
-    running = sv.running_parser_version()
+    from engine.country_packs.ro_romania.trial_balance_parser import PARSER_VERSION as running
     fresh = _assemble("closed_bridge")["assembled_canonical_v1"]["stock_variation"]
     assert fresh["parser_version"] == running, fresh.get("parser_version")
     old = _assemble("g7_older_parser")
@@ -596,6 +596,15 @@ def test_g7_the_block_carries_its_reader_and_an_older_reader_never_bridges():
     assert guards["G5_within_activity"] is True and guards["G6_cleared_by"], (
         "the witness must pass every other guard — only G7 stands between it and the fold")
     assert round(guards["G5_residual"], 2) == 10_000.0, guards["G5_residual"]
+    # a caller that does not state the running reader gets no fold (fail
+    # closed): decide on the CURRENT block, without the running version
+    cur = _assemble("closed_bridge")
+    inv, _cap = sv.decide(
+        cur["assembled_canonical_v1"]["stock_variation"],
+        account_121=170_000.0,
+        net_income_operational=cur["statements"]["assembled_pl"]["net_income_operational"],
+        read_711_lines=300_000.0, read_72x_lines=0.0)
+    assert inv["value"] is None and inv["refusal"]["code"] == sv.REASON_REPROCESS, inv
 
     bk = _persisted("closed_bridge")
     stored = bk.period["assembled_canonical_v1"]["stock_variation"]
