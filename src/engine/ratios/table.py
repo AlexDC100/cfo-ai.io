@@ -620,6 +620,11 @@ def _reason_of(absence: Tuple[Any, ...]) -> Dict[str, Any]:
     return {"code": "non_finite", "inputs": [str(absence[1])]}
 
 
+#: The metric-only rows whose metric is built on the one EBITDA or EBIT: a
+#: refused one-EBITDA refuses them with its own reason.
+_BUILT_ON_ONE_EBITDA = frozenset(("net_debt_to_ebitda", "ebitda_to_interest",
+                                  "operating_margin", "core_ebitda_margin"))
+
 #: The core P&L leaves a legacy statements block builds the one EBITDA from.
 _LEGACY_EBITDA_LEAVES = ("revenue", "costOfGoodsSold", "operatingExpenses", "otherIncome",
                          "depreciationAmortization")
@@ -810,11 +815,20 @@ def _compute_figs(payload: Mapping[str, Any], statements: Mapping[str, Any]
     figs["ccc"] = mOr("ccc", _sub(_add(figs["dso"], figs["dio"]), figs["dpo"]))
     figs["asset_turnover"] = bsOr("asset_turnover", _div(revenue, total_assets, "total assets"))
 
+    # The metric-only rows built ON the one EBITDA / EBIT: when it is
+    # REFUSED their metric is absent for THAT reason, and the row serves
+    # it (`ebitda_refused`, the stock-variation cause) — not the generic
+    # `engine_metric_absent`, which told the reader nothing about why
+    # (found by the refusal-carries-engine gate, 2026-09-27).
+    one_ebitda_refusal = (ebitda.absence if ebitda.absence is not None
+                          and ebitda.absence[0] == "ebitda_refused" else None)
     for key in ("net_debt_to_ebitda", "lt_debt_to_equity", "ebitda_to_interest",
                 "operating_margin", "core_ebitda_margin", "inventory_turnover"):
         v = m(key)
         pct = _SPEC_BY_KEY[key].display_unit == "pct"
-        if v is None:
+        if v is None and one_ebitda_refusal is not None and key in _BUILT_ON_ONE_EBITDA:
+            figs[key] = _Fig(None, one_ebitda_refusal, ((key, None, "metrics." + key),))
+        elif v is None:
             figs[key] = _Fig(None, ("metric", "metrics." + key), ((key, None, "metrics." + key),))
         else:
             figs[key] = _Fig(v * 100 if pct else v, None, ((key, v, "metrics." + key),))

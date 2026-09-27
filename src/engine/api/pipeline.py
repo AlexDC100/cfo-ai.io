@@ -3384,12 +3384,29 @@ def _briefing_ratios(
         refused_text = ("EBITDA refused: %s"
                         % (ebitda_refusal.get("text_en") or ebitda_refusal.get("code")))
 
+    # THE ONE MARGIN RULE (engine.ratios.margin_meaning), on the operands
+    # the ratio table, the benchmark and the cockpit judge: a book whose
+    # turnover is negligible against its operating activity (the developer)
+    # has NO meaningful margin. The briefing's citable ratios used to skip
+    # it — the model was handed the developer's EBITDA margin (339.34 %
+    # under the ruling, -17,884.9 % before it) while every page refused it.
+    from engine.ratios import margin_meaning as _margin_meaning
+    _verdict = _margin_meaning.judge(revenue, num(pl_canonical.get("total_operating_expense")))
+    _not_meaningful = None
+    if _verdict.refused:
+        _not_meaningful = "margin not meaningful: %s" % (
+            (_margin_meaning.refusal_display(_verdict, None) or {}).get("en")
+            or _margin_meaning.MARGIN_NOT_MEANINGFUL)
+
     def margin(key: str, numerator: Optional[float], what: str) -> Optional[float]:
         if revenue is None:
             refusals[key] = "margin not computable: net turnover not reported"
             return None
         if revenue <= 0:
             refusals[key] = "margin not computable: no net turnover in this period"
+            return None
+        if _not_meaningful is not None:
+            refusals[key] = _not_meaningful
             return None
         if numerator is None:
             refusals[key] = ("margin not computable: " + refused_text
