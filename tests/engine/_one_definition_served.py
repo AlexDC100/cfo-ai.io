@@ -24,6 +24,13 @@ same served period, on the same books:
       g6_uncleared (711 refused: 121's opening not cleared),
       unanchored_unbalanced (711 refused: account 121 dropped from a real
       export — the sheet short by the missing year's result)
+  DERIVED from a committed corpus book (critic round 2, 2026-09-27):
+      realestate_no121 — corpus/saga_10_col_realestate/input.xlsx with its
+      account-121 row (121101) DELETED FROM THE FILE, in a temporary copy
+      (dropping rows in the parser is not enough: canonical_bs re-reads the
+      bytes, still sees 121, and reports delta 0). The real developer with
+      no anchor: 711 and the net result refused, the sheet short by the
+      year's result, related-party balances present.
 
 A surface is a small reader: (served bundle) -> a number, None, or a
 Refused(code). Nothing here computes an EBITDA — the expectation is always
@@ -48,8 +55,9 @@ AUTH = {"Authorization": "Bearer test"}
 CORPUS_BOOKS = ("agras", "carniprod", "realestate", "retail")
 CONSTRUCTED_BOOKS = ("closed_bridge", "bridge_with_722", "open", "closed_no_activity",
                      "unanchored", "g6_uncleared", "unanchored_unbalanced")
-ALL_BOOKS = CORPUS_BOOKS + CONSTRUCTED_BOOKS
-REFUSED_BOOKS = ("unanchored", "g6_uncleared", "unanchored_unbalanced")
+DERIVED_BOOKS = ("realestate_no121",)
+ALL_BOOKS = CORPUS_BOOKS + CONSTRUCTED_BOOKS + DERIVED_BOOKS
+REFUSED_BOOKS = ("unanchored", "g6_uncleared", "unanchored_unbalanced", "realestate_no121")
 SERVED_BOOKS = tuple(b for b in ALL_BOOKS if b not in REFUSED_BOOKS)
 
 CENT = 0.01
@@ -98,10 +106,43 @@ def _get(book: Any) -> Dict[str, Any]:
     return resp.json()
 
 
+#: A derived book: (the corpus case it is copied from, the account prefix
+#: whose rows are deleted from the copied FILE).
+_DERIVED = {"realestate_no121": ("saga_10_col_realestate", "121")}
+
+
+def _derived_case_dir(name: str) -> Path:
+    """A temporary copy of the corpus case with the rows whose account
+    starts with the prefix deleted from the workbook itself. Nothing is
+    written into the repository."""
+    import shutil
+    import tempfile
+
+    import openpyxl
+
+    case, prefix = _DERIVED[name]
+    src = REPO / "corpus" / case
+    out = Path(tempfile.mkdtemp(prefix="derived_%s_" % name)) / ("%s_%s" % (case, name))
+    out.mkdir()
+    shutil.copy(str(src / "meta.yaml"), str(out / "meta.yaml"))
+    wb = openpyxl.load_workbook(str(src / "input.xlsx"))
+    ws = wb.worksheets[0]
+    doomed = [r for r in range(1, ws.max_row + 1)
+              if str(ws.cell(r, 1).value or "").strip().startswith(prefix)]
+    assert doomed, "%s: no %s row in %s — the witness would be vacuous" % (name, prefix, case)
+    for r in reversed(doomed):
+        ws.delete_rows(r)
+    wb.save(str(out / "input.xlsx"))
+    return out
+
+
 def _persisted(name: str) -> Any:
     if name in CORPUS_BOOKS:
         case = "saga_10_col_%s" % name
         return ANCHOR._book(case, REPO / "corpus" / case)
+    if name in _DERIVED:
+        case_dir = _derived_case_dir(name)
+        return ANCHOR._book(case_dir.name, case_dir)
     return N._persisted(name)
 
 

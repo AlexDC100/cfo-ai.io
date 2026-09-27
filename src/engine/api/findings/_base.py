@@ -122,6 +122,29 @@ class Reader(object):
                 "unknown canonical view %r (have %r)" % (name, VIEW_ORDER))
         return _num(self._views[name].get(key))
 
+    def equity_refusal(self) -> Optional[Dict[str, Any]]:
+        """The engine's completeness refusal beside total equity, or None.
+
+        Served (``total_equity_refusal`` on the balance-sheet view) when
+        the NET RESULT is refused (no account 121, net 711 refused) and the
+        sheet does not balance without it: the equity rows then sum to a
+        figure short by the missing year's result. A detector that judges
+        total equity is SKIPPED with this reason — never judged on the
+        short figure (critic round 2, 2026-09-27: the art. 153^24 floor was
+        recorded "above the floor" on equity missing the year)."""
+        ref = self._views["bs"].get("total_equity_refusal")
+        if isinstance(ref, dict) and ref.get("code"):
+            return dict(ref)
+        return None
+
+    def equity_refusal_note(self) -> Optional[str]:
+        """The skip note for a detector on total equity, or None."""
+        ref = self.equity_refusal()
+        if ref is None:
+            return None
+        return ("total equity is refused — %s — so it is not judged"
+                % (ref.get("text_en") or ref.get("code")))
+
     def value(self, *keys: str) -> Optional[float]:
         """First numeric hit for any of `keys`, searching the views in
         :data:`VIEW_ORDER`. Used only for keys that are unambiguous

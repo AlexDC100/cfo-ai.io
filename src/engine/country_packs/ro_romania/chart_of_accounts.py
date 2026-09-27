@@ -2456,6 +2456,15 @@ def assemble_statements(
                         "provenance": capitalized_block.get("provenance"),
                     },
                 },
+                # Total equity short by a REFUSED year's result (critic
+                # round 2, 2026-09-27): the methodology refuses it, and the
+                # equity ratio / debt / equity / LT debt / equity on it,
+                # with the net result's reason — FactsGateway.equity reads
+                # `refusals["totals.total_equity"]` and refuses too.
+                refused_totals=(
+                    {"total_equity": assembled_bs_canonical["total_equity_refusal"]}
+                    if isinstance(assembled_bs_canonical.get("total_equity_refusal"), dict)
+                    else None),
             )
             # Only a file that implements the ruling may be stamped with
             # it; a mismatch leaves the block unstamped, and an unstamped

@@ -607,15 +607,25 @@ def _engine_gates() -> List[Gate]:
              # balance sheet's current-year result and the briefing facts (192).
              # critic fixer round 1 (third round): the unanchored_unbalanced
              # witness and total equity short by the refused result (335).
-             work_rx=r"GATE-WORK refusal-carries-engine units=(\d+)", floor=300,
+             # critic fixer round 2: the real developer with its 121 row
+             # deleted from the file (realestate_no121) and every other
+             # reader of total equity — briefing facts, methodology,
+             # FactsGateway / Capsule, insights, R4, findings (measured 521).
+             work_rx=r"GATE-WORK refusal-carries-engine units=(\d+)", floor=480,
              units="engine surfaces checked to refuse with the 711 reason",
              canaries=("SCOPE refusal-carries-engine: refused books g6_uncleared "
-                       "(account_121_opening_not_cleared); unanchored (account_121_anchor_absent)",
+                       "(account_121_opening_not_cleared); realestate_no121 (account_121_anchor_absent); "
+                       "unanchored (account_121_anchor_absent)",
                        # fixer round 1: the net result refuses with 711 when there is no 121
-                       "NET-RESULT refused (no account 121): unanchored, unanchored_unbalanced",
+                       "NET-RESULT refused (no account 121): unanchored, unanchored_unbalanced, "
+                       "realestate_no121",
                        # critic fixer round 1: total equity short by the refused result
-                       "EQUITY short by the refused result: unanchored_unbalanced; complete: "
-                       "g6_uncleared, unanchored")),
+                       "EQUITY short by the refused result: unanchored_unbalanced, realestate_no121; "
+                       "complete: g6_uncleared, unanchored",
+                       # critic fixer round 2: every other reader of total equity
+                       "EQUITY-READERS (briefing facts + Debt/Equity, methodology, FactsGateway.equity, "
+                       "Capsule, insights, R4, findings): unanchored (served), g6_uncleared (served), "
+                       "unanchored_unbalanced (refused), realestate_no121 (refused)")),
         # ── owner ruling 2026-09-26, design A6: valuation-one-ebitda ────
         # EV/EBITDA multiplies the ONE EBITDA (never the revision-2 fallback
         # that rebuilt a second one from the incomeStatement mirror on 0.0);

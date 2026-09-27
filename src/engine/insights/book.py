@@ -186,6 +186,11 @@ class Book(object):
         do not carry, so a detector asking for something outside the five
         mapped totals keeps working rather than silently reading None.
         """
+        if key == "total_equity" and self.equity_refusal() is not None:
+            # Equity short by a REFUSED year's result is no total equity
+            # (critic round 2, 2026-09-27) — absent, with its reason at
+            # `equity_refusal()`, never the rows' short sum.
+            return None
         canonical_key = self._CANONICAL_TOTALS.get(key)
         if canonical_key is not None:
             totals = self._canonical.get("totals")
@@ -194,6 +199,16 @@ class Book(object):
                 if v is not None:
                     return v
         return _num(self._bs.get(key))
+
+    def equity_refusal(self) -> Optional[Dict[str, Any]]:
+        """The engine's completeness refusal beside total equity
+        (``assembled_bs.total_equity_refusal``: no account 121, net 711
+        refused, a sheet that does not balance without the year's result),
+        or None."""
+        ref = self._bs.get("total_equity_refusal")
+        if isinstance(ref, dict) and ref.get("code"):
+            return dict(ref)
+        return None
 
     def has_row(self, row_id: str) -> bool:
         return row_id in self._rows

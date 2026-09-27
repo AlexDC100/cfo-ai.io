@@ -57,7 +57,8 @@ def evaluate(methodology: MethodologyDoc,
              canonical_envelope: Dict[str, Any],
              industry_key: Optional[str] = None,
              operator_addbacks: Optional[float] = None,
-             measured: Optional[Dict[str, Dict[str, Any]]] = None) -> Dict[str, Any]:
+             measured: Optional[Dict[str, Dict[str, Any]]] = None,
+             refused_totals: Optional[Dict[str, Dict[str, Any]]] = None) -> Dict[str, Any]:
     """Compute all named views for one period.
 
     Args:
@@ -74,6 +75,15 @@ def evaluate(methodology: MethodologyDoc,
             produse") and ``capitalized_own_work_net`` (net 72x). A name
             the caller did not supply is REFUSED (``not_measured``), never
             0.00: the methodology cannot state the one EBITDA without them.
+        refused_totals: totals the ASSEMBLY refused, by name, each the
+            typed refusal (``{code, text_en, text_ro, ...}``). Today:
+            ``total_equity`` when it excludes a refused year's result (no
+            account 121, net 711 refused, a sheet that does not balance
+            without it — ``assembled_bs.total_equity_refusal``). The total
+            is served as None with the refusal in ``refusals``, and every
+            ratio that divides it (equity ratio, debt / equity, LT debt /
+            equity) refuses with the same reason — never graded against a
+            band on equity short by the missing result.
 
     Returns:
         {
@@ -126,7 +136,13 @@ def evaluate(methodology: MethodologyDoc,
 
     # ── Compute totals ────────────────────────────────────────────
     totals_values: Dict[str, Optional[float]] = {}
+    _refused_totals = dict((str(k), dict(v)) for k, v in (refused_totals or {}).items()
+                           if isinstance(v, dict) and v.get("code"))
     for name, formula in methodology.totals.items():
+        if name in _refused_totals:
+            totals_values[name] = None
+            refusals[f"totals.{name}"] = _refused_totals[name]
+            continue
         try:
             value = resolver.evaluate(formula.formula)
             totals_values[name] = round(value, 4)

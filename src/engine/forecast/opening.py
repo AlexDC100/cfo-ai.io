@@ -319,7 +319,10 @@ def _snapshot_id_of(gateway: Any) -> Optional[str]:
 def _served_totals(gateway: Any) -> Dict[str, int]:
     return {
         "assets": gateway.total_assets().amount_minor,
-        "equity": gateway.equity().amount_minor,
+        # The served STATEMENT's equity total: the opening sheet partitions
+        # the statement (and is then held to balance on it). `equity()`
+        # refuses on equity short by a refused year's result.
+        "equity": gateway.statement_equity().amount_minor,
         "liabilities": gateway.total_liabilities().amount_minor,
         "equity_plus_liabilities": gateway.equity_plus_liabilities().amount_minor,
         "current_assets": gateway.current_assets().amount_minor,

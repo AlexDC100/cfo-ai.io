@@ -712,10 +712,21 @@ def _money_fact(tool: str, period: PeriodRef, gateway: FactsGateway,
     try:
         value = accessor()
     except MissingFactError as exc:
+        # A REFUSED fact (RefusedFactError — EBITDA on an unmeasurable 711,
+        # the net result or total equity short by it) states the ENGINE's
+        # sentence, not only its code: the Capsule must say why, as every
+        # page does.
+        refusal = getattr(exc, "refusal", None) or {}
+        reason = refusal.get("text_en") if isinstance(refusal, dict) else None
+        detail = ("%s refuses %s: %s (%s)."
+                  % (period.label or period.period_id, spec.metric, reason,
+                     refusal.get("code"))
+                  if reason else
+                  "%s does not carry %s (%s)."
+                  % (period.label or period.period_id, spec.metric, exc))
         return None, ToolGap(
             tool=tool, code=GAP_CONCEPT_ABSENT, missing=(spec.metric,),
-            detail="%s does not carry %s (%s)."
-                   % (period.label or period.period_id, spec.metric, exc),
+            detail=detail,
             fix="Upload the full trial balance for %s to serve this figure."
                 % (period.label or period.period_id))
     if isinstance(value, LockedRatio):

@@ -254,6 +254,19 @@ def detect_related_party_exposure(book: Book, spec: DetectorSpec):
     total_assets = book.bs("total_assets")
     equity = book.bs("total_equity")
 
+    # The exposure is graded against EQUITY and restates the equity ratio.
+    # Total equity short by a REFUSED year's result (no account 121, net
+    # 711 refused, the sheet short by the missing result) is neither: the
+    # export printed "the equity ratio moves from 49.3% to 49.2%" beside a
+    # ratio row that refuses the equity ratio (critic round 2, 2026-09-27).
+    equity_refusal = book.equity_refusal()
+    if equity_refusal is not None:
+        return NotFired(
+            "Total equity is refused — %s — and this exposure is graded "
+            "against equity and restates the equity ratio, so it is not "
+            "measured." % (equity_refusal.get("text_en") or equity_refusal.get("code"))
+        )
+
     if exposure is None:
         return NotFired(
             "No intercompany or related-party receivable row is present in "

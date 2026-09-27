@@ -56,6 +56,22 @@ valuation (`asset_based_refusal`, no primary value). Where the sheet
 balances (`unanchored`, `g6_uncleared`) equity is complete and every one
 of them is served — asserted beside it (non-vacuity).
 
+EVERY OTHER READER OF TOTAL EQUITY (critic round 2, 2026-09-27). Round 1
+stopped at the gated surfaces; the briefing's facts still handed the model
+total equity as a citable MoneyFact and Debt / Equity 0.45, the methodology
+graded the equity ratio 0.4925 against its band, FactsGateway.equity (the
+Capsule's equity and equity_ratio) served the short figure, the insights
+related-party haircut printed "the equity ratio moves from 49.3% to 49.2%",
+and stage_validate R4 / the findings detector judged the Art. 153^24 floor
+on it. Section 12 holds each to the refusal on short equity and to the
+figure on complete equity (the Art. 153^24 checks on a share capital set so
+the floor WOULD fire on the figure; the related-party insight measured on
+the corpus developer WITH 121). The second witness is the REAL developer:
+`realestate_no121`, corpus/saga_10_col_realestate with account 121101
+deleted from the FILE (bs_balance_delta -801,604.14); the one margin rule
+refuses its margins first, with its own code — still refused, never a
+number.
+
 REDS ON (TC-11): any of those surfaces carrying a number (a 0 above all)
 for a refused EBITDA, EBIT or a ratio built on them; a surface carrying a
 different code than the 711 refusal; a scope without both refusal kinds
@@ -73,7 +89,7 @@ from _one_definition_served import (
     EBIT_SURFACES, EBITDA_SURFACES, REFUSED_BOOKS, Refused, served)
 
 WORK: Dict[str, Any] = {"checks": 0, "books": [], "codes": {}, "net_result_refused": [],
-                        "equity_incomplete": [], "equity_complete": []}
+                        "equity_incomplete": [], "equity_complete": [], "equity_readers": []}
 
 #: Every stored metric row that divides or reports TOTAL EQUITY (or, for
 #: X2, the cumulative book it holds).
@@ -81,6 +97,15 @@ EQUITY_METRIC_ROWS = ("total_equity", "equity_ratio", "debt_to_equity", "lt_debt
                       "altman_x2", "credit_subscore_equity")
 #: Ratio-table rows on total equity.
 EQUITY_RATIO_ROWS = ("equity_ratio", "debt_to_equity", "lt_debt_to_equity")
+
+#: Books whose margins the ONE MARGIN RULE refuses before EBITDA does (the
+#: developer: turnover 0.6 % of its operating activity). Their margin rows,
+#: briefing margins and valuation routing refuse with the margin rule's own
+#: code — still refused, never a number; every other surface carries the
+#: 711 cause.
+MARGIN_RULE_BOOKS = frozenset({"realestate_no121"})
+MARGIN_KEYS = frozenset({"ebitda_margin", "operating_margin", "gross_margin",
+                         "core_ebitda_margin", "net_margin"})
 
 #: Ratio-table rows built on EBITDA / EBIT / gross profit.
 RATIO_ROWS = ("ebitda_margin", "operating_margin", "gross_margin", "core_ebitda_margin",
@@ -101,7 +126,7 @@ def test_refusal_carries_the_witnesses_exist(capsys):
         codes[name] = inv["refusal"]["code"]
         # the buckets WOULD rebuild a number: a surface that fell back
         # would carry one
-        assert served(name).apl["ebitda_before_stock_variation"] > 0
+        assert abs(served(name).apl["ebitda_before_stock_variation"]) > 0
     WORK["codes"] = codes
     with capsys.disabled():
         print("\nSCOPE refusal-carries-engine: refused books %s"
@@ -168,6 +193,9 @@ def test_refusal_carries_every_engine_surface_refuses_with_the_711_reason(name):
         reason = row.get("reason") or {}
         if row.get("value") is not None:
             problems.append("%s: ratio table %s = %r for a refused EBITDA" % (name, key, row["value"]))
+        elif name in MARGIN_RULE_BOOKS and key in MARGIN_KEYS \
+                and reason.get("code") == "margin_not_meaningful":
+            pass  # refused first by the one margin rule — still refused
         elif reason.get("code") != "ebitda_refused" or reason.get("cause") != code:
             problems.append("%s: ratio table %s refuses with %r / cause %r, expected "
                             "ebitda_refused / %r" % (name, key, reason.get("code"),
@@ -186,7 +214,9 @@ def test_refusal_carries_every_engine_surface_refuses_with_the_711_reason(name):
     for key in ("ev_ebitda_p25", "ev_ebitda_p50", "ev_ebitda_p75",
                 "equity_ebitda_p25", "equity_ebitda_p50", "equity_ebitda_p75"):
         refused("valuation %s" % key, b.valuation.get(key), carries_code=False)
-    if (b.valuation.get("routing") or {}).get("basis") != "ebitda_refused":
+    if (b.valuation.get("routing") or {}).get("basis") not in (
+            ("ebitda_refused", "margin_not_meaningful") if name in MARGIN_RULE_BOOKS
+            else ("ebitda_refused",)):
         problems.append("%s: valuation routing %r" % (name, b.valuation.get("routing")))
 
     # 7. The benchmark: not graded, refusals typed.
@@ -201,6 +231,9 @@ def test_refusal_carries_every_engine_surface_refuses_with_the_711_reason(name):
     text = apl["inventory_variation"]["refusal"].get("text_en") or code
     for key in ("ebitda_margin_pct", "debt_to_ebitda"):
         WORK["checks"] += 1
+        if name in MARGIN_RULE_BOOKS and key.endswith("_pct") and ratios.get(key) is None \
+                and "margin not meaningful" in (refusals.get(key) or ""):
+            continue
         if ratios.get(key) is not None or text not in (refusals.get(key) or ""):
             problems.append("%s: briefing %s = %r (%r) — expected the engine's reason"
                             % (name, key, ratios.get(key), refusals.get(key)))
@@ -273,6 +306,9 @@ def test_refusal_carries_every_engine_surface_refuses_with_the_711_reason(name):
             WORK["checks"] += 1
             row = rows.get(key) or {}
             reason = row.get("reason") or {}
+            if row.get("value") is None and name in MARGIN_RULE_BOOKS and key in MARGIN_KEYS \
+                    and reason.get("code") == "margin_not_meaningful":
+                continue
             if row.get("value") is not None or reason.get("code") != "ebitda_refused" \
                     or reason.get("cause") != code:
                 problems.append("%s: ratio table %s = %r refused %r / cause %r, expected "
@@ -284,7 +320,10 @@ def test_refusal_carries_every_engine_surface_refuses_with_the_711_reason(name):
                 problems.append("%s: benchmark %s = %r (refusals %r)"
                                 % (name, key, b.bench.get(key), sorted(b.bench.get("refusals") or {})))
         WORK["checks"] += 1
-        if ratios.get("net_margin_pct") is not None or text not in (refusals.get("net_margin_pct") or ""):
+        if name in MARGIN_RULE_BOOKS and ratios.get("net_margin_pct") is None \
+                and "margin not meaningful" in (refusals.get("net_margin_pct") or ""):
+            pass
+        elif ratios.get("net_margin_pct") is not None or text not in (refusals.get("net_margin_pct") or ""):
             problems.append("%s: briefing net_margin_pct = %r (%r) — expected the engine's reason"
                             % (name, ratios.get("net_margin_pct"), refusals.get("net_margin_pct")))
         from engine.serving.facts import MissingFactError
@@ -413,8 +452,172 @@ def test_refusal_carries_every_engine_surface_refuses_with_the_711_reason(name):
                             % (name, b.valuation.get("asset_based_equity")))
         WORK["equity_complete"].append(name)
 
+    # 12. EVERY OTHER READER OF TOTAL EQUITY (critic round 2, 2026-09-27).
+    #     Round 1 refused the metric rows, the ratio table, the credit block
+    #     and the valuation; these kept printing the short figure: the
+    #     briefing's facts (a citable MoneyFact) and its Debt / Equity, the
+    #     methodology's graded equity ratio / debt to equity / LT debt to
+    #     equity, FactsGateway.equity (Capsule get_facts equity and
+    #     equity_ratio), the insights related-party haircut ("the equity
+    #     ratio moves from 49.3% to 49.2%"), stage_validate's Art. 153^24
+    #     alert (R4) and the findings detector equity_below_half_capital.
+    _equity_readers(name, b, abs_, bfacts, bfacts.get("ratios") or {},
+                    bfacts.get("ratio_refusals") or {}, code, incomplete, problems)
+
     WORK["books"].append(name)
     assert not problems, "\n".join(problems)
+
+
+def _equity_readers(name: str, b: Any, abs_: Dict[str, Any], bfacts: Dict[str, Any],
+                    ratios: Dict[str, Any], refusals: Dict[str, Any], code: str,
+                    incomplete: bool, problems: List[str]) -> None:
+    import copy
+
+    from engine.api import _capsule_tools as CT
+    from engine.api import pipeline as P
+    from engine.api.findings import s_engine
+    from engine.insights import build_insights
+    from engine.serving.facts import RefusedFactError
+
+    ter = abs_.get("total_equity_refusal") or {}
+    text = ter.get("text_en") or ""
+    te = abs_.get("total_equity")
+
+    def check(ok: bool, message: str) -> None:
+        WORK["checks"] += 1
+        if not ok:
+            problems.append("%s: %s" % (name, message))
+
+    # a. The briefing's facts and its Debt / Equity (on the facts' own
+    #    grand totals, as stage_narrate hands them to the model).
+    if incomplete:
+        check(bfacts.get("total_equity") is None
+              and (bfacts.get("total_equity_refusal") or {}).get("code") == code,
+              "the briefing's facts carry total_equity %r (refusal %r) on equity short by the "
+              "refused result — a citable MoneyFact" % (bfacts.get("total_equity"),
+                                                         bfacts.get("total_equity_refusal")))
+        check(ratios.get("debt_to_equity") is None and text and text in (refusals.get("debt_to_equity") or ""),
+              "the briefing's debt_to_equity = %r (%r), expected the engine's reason"
+              % (ratios.get("debt_to_equity"), refusals.get("debt_to_equity")))
+    else:
+        check(isinstance(bfacts.get("total_equity"), (int, float)) and "total_equity_refusal" not in bfacts,
+              "the briefing's total_equity %r on COMPLETE equity" % (bfacts.get("total_equity"),))
+        check(isinstance(ratios.get("debt_to_equity"), (int, float)),
+              "the briefing's debt_to_equity %r on COMPLETE equity" % (ratios.get("debt_to_equity"),))
+
+    # b. The methodology views.
+    meth = b.envelope.get("methodology") or {}
+    mref = meth.get("refusals") or {}
+    mtot = (meth.get("totals") or {}).get("total_equity")
+    if incomplete:
+        check(mtot is None and (mref.get("totals.total_equity") or {}).get("code") == code,
+              "methodology totals.total_equity %r refused %r" % (mtot, mref.get("totals.total_equity")))
+    else:
+        check(isinstance(mtot, (int, float)) and "totals.total_equity" not in mref,
+              "methodology totals.total_equity %r on COMPLETE equity" % (mtot,))
+    for key in ("equity_ratio", "debt_to_equity", "lt_debt_to_equity"):
+        row = (meth.get("ratios") or {}).get(key) or {}
+        if incomplete:
+            check(row.get("value") is None and (mref.get("ratios.%s" % key) or {}).get("code") == code,
+                  "methodology ratios.%s = %r (band %r) refused %r — graded on equity short by the "
+                  "refused result" % (key, row.get("value"), row.get("band"), mref.get("ratios.%s" % key)))
+        else:
+            check(isinstance(row.get("value"), (int, float)),
+                  "methodology ratios.%s = %r on COMPLETE equity" % (key, row.get("value")))
+
+    # c. FactsGateway.equity (Capsule get_facts, the advisory, radar); the
+    #    statement's own total stays beside it.
+    try:
+        got = b.gateway.equity().amount_minor
+    except RefusedFactError as err:
+        check(incomplete and (err.refusal or {}).get("code") == code,
+              "FactsGateway.equity refuses with %r on %s equity"
+              % (err.refusal, "short" if incomplete else "COMPLETE"))
+    else:
+        check(not incomplete and got == b.gateway.statement_equity().amount_minor,
+              "FactsGateway.equity serves %r on %s equity" % (got, "short" if incomplete else "complete"))
+    check(isinstance(te, (int, float))
+          and b.gateway.statement_equity().amount_minor == int(round(te * 100)),
+          "the statement's equity total %r is not what the rows sum to (%r)"
+          % (b.gateway.statement_equity().amount_minor, te))
+
+    # d. The Capsule's get_facts: equity and the equity ratio on it.
+    ref = CT.PeriodRef(period_id="p-%s" % name, label="FY2025", entity_id="e",
+                       envelope=b.envelope, statements=b.statements)
+    for metric in ("equity", "equity_ratio"):
+        value, gap, _lim = CT._metric_value("get_facts", ref, b.gateway, metric)
+        if incomplete:
+            check(value is None and gap is not None and code in gap.detail
+                  and (ter.get("text_en") or "") in gap.detail,
+                  "Capsule get_facts %s serves %r (gap %r), expected the refusal with its reason"
+                  % (metric, value, gap and gap.detail))
+        else:
+            check(value is not None and gap is None,
+                  "Capsule get_facts %s on COMPLETE equity: %r (gap %r)"
+                  % (metric, value, gap and gap.detail))
+
+    # e. The insights related-party haircut.
+    ins = build_insights({"statements": b.statements, "envelope": b.envelope,
+                          "line_items": b.body.get("line_items") or []})
+    fired = [i for i in ins["insights"] if i["id"] == "related_party_exposure"]
+    quiet = [n for n in ins["not_fired"] if n["id"] == "related_party_exposure"]
+    if incomplete:
+        check(not fired and quiet and text in quiet[0]["reason"],
+              "the related-party insight %r / %r on equity short by the refused result"
+              % ([i["claim"] for i in fired], quiet))
+    else:
+        check(not (quiet and "Total equity is refused" in quiet[0]["reason"]),
+              "the related-party insight refused on COMPLETE equity: %r" % (quiet,))
+
+    # f. stage_validate's Art. 153^24 alert (R4) and the revaluation share
+    #    (R6), on a share capital set so the floor WOULD fire on the figure.
+    st = copy.deepcopy(b.statements)
+    st["assembled_bs"]["share_capital"] = 4.0 * abs(float(te or 0.0)) + 1.0
+    alerts = P.stage_validate({"industry_key": None}, {"statements": st}, "p-%s" % name)
+    keys = [str(a.get("alert_key") or "").split(":")[0] for a in alerts]
+    refused_alert = [a for a in alerts if str(a.get("alert_key") or "").startswith("equity_refused_net_result")]
+    if incomplete:
+        check("equity_below_half_capital" not in keys
+              and "equity_quality_revaluation_reserves" not in keys
+              and refused_alert and text in str(refused_alert[0].get("body") or refused_alert[0].get("message")
+                                                or refused_alert[0]),
+              "stage_validate judged equity short by the refused result: %r" % (keys,))
+    else:
+        check("equity_below_half_capital" in keys and not refused_alert,
+              "stage_validate R4 on COMPLETE equity below half the capital: %r" % (keys,))
+
+    # g. The findings detector equity_below_half_capital, same capital.
+    res = s_engine.run_single_period(st, "p-%s" % name)
+    fired_rules = [row["rule_key"] for row in res.payloads()]
+    checks_ = [c for c in res.all_checks() if c.get("rule_id") == "equity_below_half_capital"]
+    if incomplete:
+        check("equity_below_half_capital" not in fired_rules
+              and checks_ and text in (checks_[0].get("note") or ""),
+              "findings equity_below_half_capital judged equity short by the refused result: "
+              "fired %r, check %r" % (fired_rules, checks_))
+    else:
+        check("equity_below_half_capital" in fired_rules,
+              "findings equity_below_half_capital did not fire on COMPLETE equity below half "
+              "the capital: %r" % (checks_,))
+    WORK["equity_readers"].append("%s (%s)" % (name, "refused" if incomplete else "served"))
+
+
+def test_refusal_carries_the_related_party_insight_measures_complete_equity():
+    """Non-vacuity of 12e: on the developer WITH account 121 (corpus
+    `realestate`, complete equity, related-party balances) the insight
+    fires and restates the equity ratio — the refusal on its no-121 copy
+    is not an insight that never fires."""
+    from engine.insights import build_insights
+
+    b = served("realestate")
+    ins = build_insights({"statements": b.statements, "envelope": b.envelope,
+                          "line_items": b.body.get("line_items") or []})
+    fired = [i for i in ins["insights"] if i["id"] == "related_party_exposure"]
+    WORK["checks"] += 1
+    assert fired, [n for n in ins["not_fired"] if n["id"] == "related_party_exposure"]
+    measures = dict((m["key"], m["value"]) for m in fired[0]["measures"])
+    assert isinstance(measures.get("equity_ratio"), (int, float)), measures
+    WORK["related_party_complete"] = fired[0]["claim"]
 
 
 def test_refusal_carries_zz_work(capsys):
@@ -423,10 +626,16 @@ def test_refusal_carries_zz_work(capsys):
         print("NET-RESULT refused (no account 121): %s" % ", ".join(WORK["net_result_refused"]))
         print("EQUITY short by the refused result: %s; complete: %s"
               % (", ".join(WORK["equity_incomplete"]), ", ".join(sorted(WORK["equity_complete"]))))
+        print("EQUITY-READERS (briefing facts + Debt/Equity, methodology, FactsGateway.equity, "
+              "Capsule, insights, R4, findings): %s" % ", ".join(WORK["equity_readers"]))
         print("GATE-WORK refusal-carries-engine units=%d" % WORK["checks"])
     assert sorted(WORK["books"]) == sorted(REFUSED_BOOKS), WORK["books"]
     # TC-3: the net-result law has a witness (a refused 711 with no 121).
-    assert WORK["net_result_refused"] == ["unanchored", "unanchored_unbalanced"], WORK["net_result_refused"]
-    # TC-3: the equity law has a witness on each side.
-    assert WORK["equity_incomplete"] == ["unanchored_unbalanced"], WORK["equity_incomplete"]
+    assert WORK["net_result_refused"] == ["unanchored", "unanchored_unbalanced", "realestate_no121"], \
+        WORK["net_result_refused"]
+    # TC-3: the equity law has a witness on each side — a CONSTRUCTED one
+    # and the real developer with its 121 row deleted from the file.
+    assert WORK["equity_incomplete"] == ["unanchored_unbalanced", "realestate_no121"], WORK["equity_incomplete"]
+    # 12e non-vacuity: the insight fires on complete equity.
+    assert WORK.get("related_party_complete"), WORK.get("related_party_complete")
     assert sorted(WORK["equity_complete"]) == ["g6_uncleared", "unanchored"], WORK["equity_complete"]

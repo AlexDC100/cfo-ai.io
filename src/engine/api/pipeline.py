@@ -2785,6 +2785,12 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
     total_assets = float(bs_canonical.get("total_assets") or 0)
     total_liabilities = float(bs_canonical.get("total_liabilities") or 0)
     total_equity = float(bs_canonical.get("total_equity") or 0)
+    # Total equity short by a REFUSED year's result (no account 121, net
+    # 711 refused, a sheet that does not balance without it — critic round
+    # 2, 2026-09-27): no rule judges it. On the constructed witness the
+    # Art. 153^24 floor fired on 200,000 where the year's result makes it
+    # 370,000; a missing LOSS would instead hide a real breach.
+    equity_refusal = _equity_refusal_of(bs_canonical)
     share_capital = float(bs_canonical.get("share_capital", bs.get("shareCapital", 0)) or 0)
     revaluation_reserves = float(bs_canonical.get("revaluation_reserves") or 0)
     bank_debt_total = float(bs_canonical.get("total_debt") or 0)
@@ -2944,7 +2950,20 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
     # convention) is actually below half of share_capital. Previously the
     # platform inverted the sign and tripped this rule on a positive-equity
     # company.
-    if share_capital > 0 and total_equity < share_capital / 2:
+    if equity_refusal is not None:
+        _add(
+            "equity_refused_net_result", "high", "data_quality",
+            "Equity cannot be judged for this period — it excludes the year's "
+            "result, which is refused",
+            "Total equity is refused rather than read without the year's result: "
+            + str(equity_refusal.get("text_en") or equity_refusal.get("code") or "")
+            + ". The equity-below-half-of-share-capital test (Romanian Company Law "
+            "Art. 153^24), the equity ratio and the equity-quality checks are not "
+            "performed on it. Re-analyse the period from a trial balance that "
+            "carries account 121.",
+            {},
+        )
+    elif share_capital > 0 and total_equity < share_capital / 2:
         sev = "critical" if total_equity < 0 else "high"
         title = (
             f"Negative book equity RON {total_equity:,.0f} — Romanian Company Law requires review"
@@ -2972,7 +2991,8 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
     # (assembled_pl.ebitda_reconciliation), with its provenance.
 
     # ── R6. Revaluation reserves — equity quality ────────────────────────
-    if total_equity > 0 and abs(revaluation_reserves) > total_equity * 0.25:
+    if equity_refusal is None and total_equity > 0 \
+            and abs(revaluation_reserves) > total_equity * 0.25:
         share_pct = _ratio_units.ratio(
             _q(abs(revaluation_reserves), "revaluation_reserves"),
             _q(total_equity, "total_equity")) * 100
@@ -3342,12 +3362,23 @@ def _briefing_grand_totals(assembled: Dict[str, Any],
         _gw = _FactsGateway.from_envelope(assembled.get("assembled_canonical_v1") or {})
         if _gw is not None:
             out["total_assets"] = round(_gw.total_assets().to_float(), 2)
-            out["total_equity"] = round(_gw.equity().to_float(), 2)
+            # The statement's equity total (the briefing facts refuse it
+            # beside `total_equity_refusal` — `_briefing_facts_raw`).
+            out["total_equity"] = round(_gw.statement_equity().to_float(), 2)
             out["total_liabilities"] = round(_gw.total_liabilities().to_float(), 2)
             out["bs_balance_delta"] = round(_gw.difference().to_float(), 2)
     except Exception:  # noqa: BLE001 — narration must never break on facts
         logger.exception("[stage_narrate] served grand-totals read failed (non-fatal)")
     return out
+
+
+def _equity_refusal_of(bs_canonical: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """The assembler's completeness refusal beside total equity
+    (`assembled_bs.total_equity_refusal`), or None — the ONE predicate the
+    credit model, the ratio table and the valuation read
+    (`credit_model.equity_completeness_refusal`)."""
+    from engine.ratios.credit_model import equity_completeness_refusal
+    return equity_completeness_refusal({"assembled_bs": bs_canonical or {}})
 
 
 def _briefing_ratios(
@@ -3385,6 +3416,10 @@ def _briefing_ratios(
     total_debt = num(bs_canonical.get("total_debt"))
     cash_val = num(bs_canonical.get("cash"))
     refusals: Dict[str, str] = {}
+    # Total equity short by a REFUSED year's result (critic round 2,
+    # 2026-09-27): Debt / Equity divides it, so it refuses with the net
+    # result's reason — the ratio table refuses the same row.
+    _equity_refusal = _equity_refusal_of(bs_canonical)
 
     refused_text = None
     if isinstance(ebitda_refusal, dict):
@@ -3446,7 +3481,11 @@ def _briefing_ratios(
         ratios["debt_to_ebitda"] = None
     else:
         ratios["debt_to_ebitda"] = round(total_debt / ebitda, 2)
-    if total_debt is None:
+    if _equity_refusal is not None:
+        refusals["debt_to_equity"] = ("Debt/Equity unavailable: %s"
+                                      % (_equity_refusal.get("text_en") or _equity_refusal.get("code")))
+        ratios["debt_to_equity"] = None
+    elif total_debt is None:
         refusals["debt_to_equity"] = "Debt/Equity unavailable: total debt not reported for this period"
         ratios["debt_to_equity"] = None
     elif not total_equity:
@@ -3543,6 +3582,17 @@ def _briefing_facts_raw(pl_canonical: Dict[str, Any], bs_canonical: Dict[str, An
         briefing_facts_raw["net_income_refusal"] = {
             "code": _ni_refusal.get("code"), "text_en": _ni_refusal.get("text_en"),
             "text_ro": _ni_refusal.get("text_ro")}
+    # TOTAL EQUITY SHORT BY THE REFUSED RESULT (critic round 2, 2026-09-27):
+    # the sheet does not balance without the year's result, so the equity
+    # rows sum to a figure short by it. It is not citable as the company's
+    # equity (numerals.facts_from_briefing types every number here as a
+    # MoneyFact): None, with the engine's reason beside it.
+    _eq_refusal = _equity_refusal_of(bs_canonical)
+    if _eq_refusal is not None:
+        briefing_facts_raw["total_equity"] = None
+        briefing_facts_raw["total_equity_refusal"] = {
+            "code": _eq_refusal.get("code"), "text_en": _eq_refusal.get("text_en"),
+            "text_ro": _eq_refusal.get("text_ro")}
     return briefing_facts_raw
 
 
@@ -3649,7 +3699,10 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
             "   estimate one.\n"
             " - Net profit → `briefing_facts.net_income_statutory`\n"
             " - Total debt → `briefing_facts.total_debt`\n"
-            " - Equity → `briefing_facts.total_equity`\n"
+            " - Equity → `briefing_facts.total_equity`. If it is null with\n"
+            "   `briefing_facts.total_equity_refusal`, equity is REFUSED (it\n"
+            "   excludes the year's result, which is refused): say so, never\n"
+            "   estimate it or a ratio on it.\n"
             " - Cash → `briefing_facts.cash`\n\n"
             # ── F3.16-3b.6 EBITDA RULE — binding constraint on prose ─────
             # Closes the Carniprod −6.87M briefing-prose problem (the LLM
@@ -6181,7 +6234,10 @@ def _apply_envelope_truth_to_statements(
             # round-trip artifact; never serve it as an authority.
             _served_env.pop("canonical_bs", None)
         _ta = _gateway.total_assets().to_float()
-        _te = _gateway.equity().to_float()
+        # The STATEMENT's equity total (what its rows sum to) lands here —
+        # `equity()` refuses on equity short by a refused year's result, and
+        # `assembled_bs.total_equity_refusal` rides beside this figure.
+        _te = _gateway.statement_equity().to_float()
         _tl = _gateway.total_liabilities().to_float()
         _delta = _gateway.difference().to_float()
         try:
@@ -6379,7 +6435,13 @@ def _complete_bucket_equity(
         _gw = _FactsGateway.from_envelope(period.get("assembled_canonical_v1") or {})
         if _gw is not None:
             try:
-                _env_te = _gw.equity().to_float()
+                # The statement's equity total, whatever its completeness:
+                # on equity short by a REFUSED year's result, `equity()`
+                # refuses — and the legacy branch below would then close
+                # the build-up that lacks the stock variation into
+                # retainedEarnings. The buckets must reproduce the served
+                # statement; the refusal rides beside it.
+                _env_te = _gw.statement_equity().to_float()
             except _MissingFact:
                 _env_te = None
     _bucket_equity = bs["shareCapital"] + bs["retainedEarnings"] + bs["otherEquity"]

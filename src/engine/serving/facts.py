@@ -693,7 +693,40 @@ class FactsGateway(object):
         return self._total("liabilities", self._adjusted_totals)
 
     def equity(self) -> Fact:
+        """Total equity as the company's book equity — REFUSED
+        (:class:`RefusedFactError`) when the envelope says it excludes a
+        refused year's result: no account 121, net 711 refused, and a
+        sheet that does not balance without it
+        (``methodology.refusals["totals.total_equity"]``, the net result's
+        own reason). The equity rows then sum to a figure short by the
+        missing result; reading it as book equity would grade the equity
+        ratio, debt / equity, the Art. 153^24 floor and a book-equity
+        value on the result read as 0 (critic round 2, 2026-09-27).
+        :meth:`statement_equity` is the statement's own total, for a
+        reader that prints or partitions the served statement."""
+        refusal = self.equity_refusal()
+        if refusal:
+            raise RefusedFactError(
+                "total equity refused: %s" % (refusal.get("code") or "refused"), refusal)
         return self._total("equity", self._adjusted_totals)
+
+    def statement_equity(self) -> Fact:
+        """What the served statement's equity rows sum to (adjusted),
+        whatever its completeness — the figure the balance sheet PRINTS
+        beside its imbalance, and the one a partition of the served
+        statement must reproduce (the serve path landing its totals, the
+        rebuild completing its buckets, the forecast's opening sheet).
+        Never a reader's "book equity": that is :meth:`equity`, which
+        refuses when the year's result is missing from it."""
+        return self._total("equity", self._adjusted_totals)
+
+    def equity_refusal(self) -> Optional[Dict[str, Any]]:
+        """The typed refusal :meth:`equity` raises, or None."""
+        if self.tier != self.TIER_CANONICAL:
+            return None
+        refusals = self._methodology.get("refusals")
+        refusal = refusals.get("totals.total_equity") if isinstance(refusals, dict) else None
+        return dict(refusal) if refusal else None
 
     def equity_plus_liabilities(self) -> Fact:
         return self._total("equity_plus_liabilities", self._adjusted_totals)

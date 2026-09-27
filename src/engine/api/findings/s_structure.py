@@ -261,6 +261,11 @@ def detect_revaluation_reserves(ctx: _base.Ctx) -> _base.Outcome:
         return _base.quiet(ctx.skipped(did, applicability.reason))
 
     r = ctx.reader
+    # A share of equity short by a REFUSED year's result is not a share of
+    # the company's equity (critic round 2, 2026-09-27).
+    refused = r.equity_refusal_note()
+    if refused is not None:
+        return _base.quiet(ctx.skipped(did, refused))
     reserves = r.view("bs", "revaluation_reserves")
     total_equity = r.view("bs", "total_equity")
     total_assets = r.view("bs", "total_assets")
