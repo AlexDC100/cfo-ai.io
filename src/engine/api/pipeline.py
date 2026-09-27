@@ -2705,6 +2705,38 @@ def stage_compute(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: str
     return metrics
 
 
+#: The EBITDA definition every stored briefing is stamped with.
+_EBITDA_DEFINITION_REVISION = _ro_chart_of_accounts.EBITDA_DEFINITION_REVISION
+
+#: The one-line note a briefing written under an earlier EBITDA definition is
+#: served with (and hidden behind) — never shown beside corrected numbers.
+BRIEFING_PREVIOUS_DEFINITION_NOTE = {
+    "ro": "Comentariul a fost scris sub definiția anterioară a EBITDA "
+          "(fără variația stocurilor de produse și producția imobilizată) și "
+          "este ascuns; reanalizați perioada pentru un comentariu nou.",
+    "en": "This briefing was written under the previous EBITDA definition "
+          "(without the stock variation and own work capitalised) and is "
+          "hidden; re-analyse the period for a new one.",
+}
+
+
+def briefing_definition_status(briefing: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """For a stored briefing row: the EBITDA definition it was written under
+    and, when that is not today's (or unknown — every row written before the
+    stamp existed), `written_under_previous_definition` and the note. None
+    when there is no briefing."""
+    if not briefing:
+        return None
+    stamped = briefing.get("ebitda_definition")
+    current = stamped == _EBITDA_DEFINITION_REVISION
+    return {
+        "written_under": stamped,
+        "current_definition": _EBITDA_DEFINITION_REVISION,
+        "written_under_previous_definition": not current,
+        "note": None if current else dict(BRIEFING_PREVIOUS_DEFINITION_NOTE),
+    }
+
+
 def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: str) -> List[Dict[str, Any]]:
     """Generate deterministic alerts from the canonical `period_facts`-shaped
     views (`assembled_pl`, `assembled_bs`, `assembled_cf`). Every rule has a
@@ -3331,8 +3363,14 @@ def _briefing_ratios(
             return None
         return float(v)
 
-    ebitda = num(pl_canonical.get("operating_ebitda"))
-    revenue = num(pl_canonical.get("total_operating_revenue"))
+    # THE ONE EBITDA over TURNOVER (owner ruling 2026-09-26): net 711 and net
+    # 72x inside EBITDA; every margin divides by cifra de afaceri netă
+    # (70x − 709) — never by total operating revenue, which it used to.
+    ebitda = num(pl_canonical.get("ebitda"))
+    ebitda_refusal = pl_canonical.get("ebitda_refusal") if ebitda is None else None
+    revenue = num(pl_canonical.get("turnover"))
+    if revenue is None:
+        revenue = num(pl_canonical.get("revenue"))
     net_income = num(pl_canonical.get("net_income_statutory"))
     # Absent debt or cash is absent — it used to be read as 0.0, which
     # served a citable Debt/EBITDA 0.0, Debt/Equity 0.0 and net debt 0.0
@@ -3341,29 +3379,39 @@ def _briefing_ratios(
     cash_val = num(bs_canonical.get("cash"))
     refusals: Dict[str, str] = {}
 
+    refused_text = None
+    if isinstance(ebitda_refusal, dict):
+        refused_text = ("EBITDA refused: %s"
+                        % (ebitda_refusal.get("text_en") or ebitda_refusal.get("code")))
+
     def margin(key: str, numerator: Optional[float], what: str) -> Optional[float]:
         if revenue is None:
-            refusals[key] = "margin not computable: operating revenue not reported"
+            refusals[key] = "margin not computable: net turnover not reported"
             return None
         if revenue <= 0:
-            refusals[key] = "margin not computable: no operating revenue in this period"
+            refusals[key] = "margin not computable: no net turnover in this period"
             return None
         if numerator is None:
-            refusals[key] = "margin not computable: %s not reported" % what
+            refusals[key] = ("margin not computable: " + refused_text
+                             if (what == "EBITDA" and refused_text)
+                             else "margin not computable: %s not reported" % what)
             return None
         return round(100 * numerator / revenue, 2)
 
     ratios: Dict[str, Optional[float]] = {
-        "ebitda_margin_pct": margin("ebitda_margin_pct", ebitda, "operating EBITDA"),
+        "ebitda_margin_pct": margin("ebitda_margin_pct", ebitda, "EBITDA"),
         "net_margin_pct": margin("net_margin_pct", net_income, "net income"),
     }
-    if ebitda is None or ebitda == 0:
+    if ebitda is None and refused_text:
+        refusals["debt_to_ebitda"] = "Debt/EBITDA unavailable: " + refused_text
+        ratios["debt_to_ebitda"] = None
+    elif ebitda is None or ebitda == 0:
         refusals["debt_to_ebitda"] = (
-            "Debt/EBITDA unavailable: operating EBITDA is zero or not reported for this period")
+            "Debt/EBITDA unavailable: EBITDA is zero or not reported for this period")
         ratios["debt_to_ebitda"] = None
     elif ebitda < 0:
         refusals["debt_to_ebitda"] = (
-            "Debt/EBITDA unavailable: operating EBITDA is negative, so the multiple is not meaningful")
+            "Debt/EBITDA unavailable: EBITDA is negative, so the multiple is not meaningful")
         ratios["debt_to_ebitda"] = None
     elif total_debt is None:
         refusals["debt_to_ebitda"] = "Debt/EBITDA unavailable: total debt not reported for this period"
@@ -3480,11 +3528,16 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
             "sheet all read the operating-view numbers; the briefing must\n"
             "match them or the dashboard contradicts itself.\n\n"
             "Specifically, when citing P&L numbers:\n"
-            " - Revenue → `briefing_facts.total_operating_revenue`\n"
-            " - EBITDA → `briefing_facts.operating_ebitda` (NOT `metrics.ebitda`,\n"
-            "   which is the older operational view that excludes 722)\n"
-            " - Net profit → `briefing_facts.net_income_statutory` (NOT\n"
-            "   `net_income_operational`)\n"
+            " - Revenue → `briefing_facts.turnover` (cifra de afaceri netă,\n"
+            "   70x − 709; every margin is over this)\n"
+            " - EBITDA → `briefing_facts.ebitda`. It INCLUDES the stock\n"
+            "   variation (`briefing_facts.inventory_variation`, 711,\n"
+            "   \"Variația stocurilor de produse\") and own work capitalised\n"
+            "   (`briefing_facts.capitalized_own_work`, 72x). If\n"
+            "   `briefing_facts.ebitda` is null, EBITDA is REFUSED —\n"
+            "   `briefing_facts.ebitda_refusal` says why; say so, never\n"
+            "   estimate one.\n"
+            " - Net profit → `briefing_facts.net_income_statutory`\n"
             " - Total debt → `briefing_facts.total_debt`\n"
             " - Equity → `briefing_facts.total_equity`\n"
             " - Cash → `briefing_facts.cash`\n\n"
@@ -3495,22 +3548,16 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
             # docs/F3.16-3b6-f42-hardening-plan.md §4 — the engine is the
             # source of truth; LLM prose may reference canonical fields
             # by name but MUST NOT compute new values.
-            "EBITDA RULE — EBITDA values referenced in the briefing MUST come\n"
-            "from the canonical fields in the input dict. Specifically: use\n"
-            "`briefing_facts.operating_ebitda` (equivalent to\n"
-            "`methodology.ebitda.reported`) for headline statements;\n"
-            "reference `methodology.ebitda.strict` / `cash` / `adjusted` by\n"
-            "name when comparing methodologies. DO NOT compute new EBITDA\n"
-            "values in prose. Do NOT sum or transform PL line items to\n"
-            "produce a different EBITDA. If a methodology variant you want\n"
-            "to reference is missing from the input, say so explicitly\n"
-            "(\"cash-view EBITDA was not computed for this period\") rather\n"
-            "than approximating one.\n\n"
-            "If `briefing_facts.operating_ebitda > 0` you MUST NOT describe\n"
-            "the company as posting an operating loss. The operational-view\n"
-            "EBITDA (excluding 722) can be negative even when the\n"
-            "operating-view EBITDA is positive — explain the 628↔722 wash\n"
-            "if relevant, but lead with the operating-view headline.\n\n"
+            "EBITDA RULE — there is ONE EBITDA: `briefing_facts.ebitda`\n"
+            "(equivalent to `methodology.ebitda.reported`). It includes the\n"
+            "stock variation (711) and own work capitalised (72x); do NOT\n"
+            "describe an EBITDA \"with\" or \"without\" either as a second\n"
+            "view. DO NOT compute new EBITDA values in prose. Do NOT sum or\n"
+            "transform PL line items to produce a different EBITDA. If EBITDA\n"
+            "is refused (null, with `briefing_facts.ebitda_refusal`), state\n"
+            "the refusal and its reason rather than approximating one.\n\n"
+            "If `briefing_facts.ebitda > 0` you MUST NOT describe the\n"
+            "company as posting an operating loss.\n\n"
             "CRITICAL: Apply industry-appropriate thresholds.\n"
             " - Real estate: 4-8× Debt/EBITDA is normal; do NOT recommend deleveraging below 8×.\n"
             " - SaaS: focus on rule-of-40, ARR growth, gross margin >70%.\n"
@@ -3543,7 +3590,7 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
             "  • DO NOT recommend \"covenant waiver\" unless DSCR < 1.0.\n"
             "  • DO NOT recommend \"13-week cash forecast\" unless cash <\n"
             "    3 months of debt service.\n"
-            "  • The platform reads `briefing_facts.operating_ebitda` and\n"
+            "  • The platform reads `briefing_facts.ebitda` and\n"
             "    `briefing_facts.net_income_statutory` — both POSITIVE for a\n"
             "    healthy company. Don't claim \"negative EBITDA\" or \"operating\n"
             "    loss\" when those values are positive. Always cite the\n"
@@ -3608,10 +3655,13 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
     # write-time briefings now cite the same figures /api/period serves.
     grand_totals = _briefing_grand_totals(assembled, bs_canonical)
 
-    # ABSENT != ZERO: a missing operating EBITDA or revenue stays None here
-    # (it used to default to 0.0, the same value as a measured zero).
-    operating_ebitda = pl_canonical.get("operating_ebitda")
-    total_operating_revenue = pl_canonical.get("total_operating_revenue")
+    # ABSENT != ZERO: a missing or REFUSED EBITDA or turnover stays None
+    # here (it used to default to 0.0, the same value as a measured zero).
+    # THE ONE EBITDA over TURNOVER (owner ruling 2026-09-26).
+    ebitda_one = pl_canonical.get("ebitda")
+    turnover = pl_canonical.get("turnover", pl_canonical.get("revenue"))
+    _inv = pl_canonical.get("inventory_variation")
+    _cap = pl_canonical.get("capitalized_own_work")
     total_debt = bs_canonical.get("total_debt", 0.0)
     total_equity = grand_totals["total_equity"]
     cash_val = bs_canonical.get("cash", 0.0)
@@ -3619,16 +3669,18 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
         pl_canonical, bs_canonical, total_equity)
 
     briefing_facts_raw = {
-        # P&L — operating view (matches the frontend P&L tab + KPI tiles).
-        "total_operating_revenue": total_operating_revenue,
-        "operating_ebitda": operating_ebitda,
-        "operating_ebit": pl_canonical.get("operating_ebit", 0.0),
+        # P&L — the ONE definition (matches the P&L tab, KPI tiles, report,
+        # benchmark and forecast). A refused EBITDA / operating result is
+        # None with `ebitda_refusal` beside it — never 0.0.
+        "turnover": turnover,
+        "ebitda": ebitda_one,
+        "operating_result": pl_canonical.get("operating_result"),
+        "inventory_variation": (_inv.get("value") if isinstance(_inv, dict) else None),
+        "capitalized_own_work": (_cap.get("value") if isinstance(_cap, dict) else None),
         "depreciation": pl_canonical.get("depreciation", 0.0),
         "interest_expense": pl_canonical.get("interest_expense", 0.0),
         "tax": pl_canonical.get("tax", 0.0),
         "net_income_statutory": pl_canonical.get("net_income_statutory", 0.0),
-        "net_income_operational": pl_canonical.get("net_income_operational", 0.0),
-        "capitalized_own_work_memo": pl_canonical.get("capitalized_own_work_memo", 0.0),
         # BS — closing balances (Solduri finale year-end convention);
         # grand totals are the SERVED, reconciliation-adjusted figures
         # (sv1 gateway — see _briefing_grand_totals).
@@ -3653,6 +3705,11 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
         # briefing types it RatioFact(None), so it can never be cited).
         "ratios": briefing_ratios,
     }
+    if ebitda_one is None and isinstance(pl_canonical.get("ebitda_refusal"), dict):
+        _r = pl_canonical["ebitda_refusal"]
+        briefing_facts_raw["ebitda_refusal"] = {
+            "code": _r.get("code"), "text_en": _r.get("text_en"), "text_ro": _r.get("text_ro")}
+    briefing_facts_raw["ebitda_definition"] = pl_canonical.get("ebitda_definition")
     if briefing_ratio_refusals:
         # Why each None ratio is None — the model reads the reason instead
         # of inventing a figure. Present only when something refused, so a
@@ -3857,6 +3914,12 @@ def stage_persist_narrative(
                 "body": narrate["briefing"],
                 "language": "en",
                 "model": _narrative_model(),
+                # The EBITDA definition the prose was written under (owner
+                # ruling 2026-09-26). Served beside the body so a briefing
+                # written under an earlier definition is recognised and
+                # hidden, never shown beside corrected numbers. Column added
+                # by supabase/schema_phase_briefing_ebitda_definition.sql.
+                "ebitda_definition": _EBITDA_DEFINITION_REVISION,
             },
             on_conflict="period_id",
             returning=False,
@@ -9427,6 +9490,10 @@ def build_router() -> APIRouter:
                 "body": briefing["body"],
                 "language": briefing.get("language", "en"),
                 "model": briefing.get("model"),
+                # Which EBITDA definition the prose was written under; the
+                # page hides one written under an earlier definition with
+                # the note (owner ruling 2026-09-26, design A9).
+                "definition": briefing_definition_status(briefing),
             },
             "recommendations": [
                 {
@@ -10019,6 +10086,8 @@ def build_router() -> APIRouter:
                         "body": narrative.get("briefing", ""),
                         "language": "en",
                         "model": _narrative_model(),
+                        # see stage_persist_narrative (ruling 2026-09-26)
+                        "ebitda_definition": _EBITDA_DEFINITION_REVISION,
                     },
                     on_conflict="period_id",
                     returning=False,

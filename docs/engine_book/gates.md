@@ -10603,3 +10603,101 @@ CANNOT SEE: `FactsGateway.ebitda()` itself — still methodology
 metric and the AI advisory context (design A6's methodology/FactsGateway
 item); the findings engine's CRITICAL_FINDING evidence still cites
 `ebitda_statutory` (a legacy alias, now equal to the one EBITDA).
+
+## briefing-definition
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_briefing_definition.py -q -s` |
+| canary | `SCOPE briefing-definition: GET /api/period over the tenancy double` |
+| work count | `GATE-WORK briefing-definition units=N`, floor **8** (measured 8) |
+
+**SCOPE** — design A9 (owner ruling 2026-09-26: net 711 and net 72x inside
+EBITDA, margins over turnover). A briefing is prose written once from the
+numbers of its day; one written before the ruling quotes an EBITDA the
+statements no longer serve. `stage_persist_narrative` and
+`POST /briefing/regenerate` stamp every `briefings` row with
+`EBITDA_DEFINITION_REVISION` (column added by
+`supabase/schema_phase_briefing_ebitda_definition.sql`, ending in the
+PostgREST NOTIFY); `GET /api/period/{id}` serves `briefing.definition`
+{written_under, current_definition, written_under_previous_definition, note
+RO/EN}. An unstamped (pre-ruling) row is served as written under the previous
+definition with the note the page hides it behind (FE stage). Real
+`create_app` over the tenancy double (which gained `upsert` with
+`on_conflict` merge semantics and the declared-column refusal); the real
+`stage_persist_narrative`; no model call.
+
+Source-edit plants, each applied alone on the working tree and restored from a
+copy:
+
+**PLANT unstamped-write** — `stage_persist_narrative`: the `ebitda_definition`
+key removed from the briefing upsert.
+```
+RED (plant) — 2 failed, 3 passed
+FAILED tests/engine/test_briefing_definition.py::test_the_narrate_write_stamps_the_definition_and_the_route_serves_it_current
+E   AssertionError: [{... 'body': 'EBITDA is 11.8M.', ... 'ebitda_definition': None}]
+FAILED tests/engine/test_briefing_definition.py::test_zz_scope - AssertionError
+```
+**PLANT unstamped-is-current** — `briefing_definition_status`:
+`current = stamped in (EBITDA_DEFINITION_REVISION, None)`.
+```
+RED (plant) — 3 failed, 2 passed
+FAILED tests/engine/test_briefing_definition.py::test_the_status_of_a_stored_briefing
+FAILED tests/engine/test_briefing_definition.py::test_a_briefing_written_before_the_ruling_is_served_as_such_through_the_real_route
+FAILED tests/engine/test_briefing_definition.py::test_zz_scope - AssertionError
+```
+**REVERT** — restored: `5 passed`.
+
+CANNOT SEE: the page hiding the stale briefing (FE stage A7); the regenerate
+route's write under a real Anthropic call (it is the same upsert payload; the
+route is not driven here because it calls the model).
+
+## e2b-rewritten-laws (owner ruling 2026-09-26, design A6/A8)
+
+Gates whose LAW was the pre-ruling definition, rewritten (not re-captured) in
+stage E2b, with the witness each keeps:
+
+- **F4.2-PARITY** (`scripts/check_methodology_parity.py`, not a battery gate):
+  it assembled without the stock-variation evidence and the 121 anchor, so
+  under the ruling both sides REFUSED and `float(x or 0)` compared 0.00 with
+  0.00 — green on nothing. It now passes the real write path's evidence and
+  anchor, reds on a one-sided refusal, on a both-sided refusal ("nothing
+  measured"), and when no fixture served an EBITDA through the 711 bridge
+  (`GATE-WORK methodology-parity served=8 bridge=6`).
+  PLANT pre-ruling formula (`+ measured.inventory_variation_net` → `+ 0` in
+  the YAML `reported`):
+  ```
+  Scandia     RED      reported gap -519,389.11 RON (yaml 54,443,833.33 vs in-code statutory 54,963,222.44) ...
+  Sibiu       RED      reported gap -35,537.06 RON ...
+  Frozen      RED      reported gap -231,203.19 RON ...
+  RealEstate  RED      reported gap -29,589,814.24 RON ...
+  Agras       RED      reported gap -1,071,687.03 RON ...
+  Carniprod   RED      reported gap -186,849.53 RON ...
+  Overall: RED — F4.2-PARITY fails.
+  ```
+  REVERT: 8/8 GREEN.
+- **test_facts_gateway I3**: "revenue includes a P&L-placed income delta" →
+  revenue() is turnover only; new: the gateway's stamp equals the assembly's,
+  an unstamped methodology block and a refused `reported` both raise
+  `RefusedFactError` with the code.
+- **forecast** (test_forecast_model, test_forecast_drivers): at 0 growth plan
+  year one reproduces the book's EBITDA / PBT BEFORE the stock variation and
+  the step is exactly net 711 + net 72x, stated in the projection notes
+  (vacuity guard prints agras 1,071,687.03, carniprod 186,849.53, realestate
+  29,589,814.24, retail 0.00); the tax-rate distance is the engine's
+  unexplained remainder + the served net 711; hg8 holds on two shapes
+  (unmeasured → 711 and EBITDA refused, statutory rate; a CLOSED book whose
+  bridge serves net 711 → still the statutory rate, the basis naming the
+  stock variation). The base-parity gate was the witness that the fold
+  flipped the tax rung (agras 16% → 18.5485%, 27,040.66 of plan-year-one
+  cash); it is green again with the rule keyed to the pre-fold build-up.
+- **insights reconstruction_gap**: the corpus no longer exercises it (every
+  closed manufacturer's step is its 121-derived stock variation). Constructed
+  witnesses: `closed_no_activity` (fires, 2,000.00), `g5_residual` (711
+  refused → fires on 50,000.00), `closed_bridge` (silent with the derivation
+  reason). test_insights_materiality's negative-EBITDA witness and
+  test_radar_explain r5's (sign flip through `|abs`) were the developer
+  (−29.04M, now +550,976.12): both run on a constructed loss-making book
+  through the real assembly.
+- **alerts**: test_ratio_units g19's R5 half → "R5 no longer fires on the book
+  that provoked it" (R5 retired).

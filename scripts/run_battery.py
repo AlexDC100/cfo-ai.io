@@ -558,6 +558,20 @@ def _engine_gates() -> List[Gate]:
              work_junit=True, floor=3, units="tests",
              canaries=("test_an_ebitda_covenant_tests_the_one_ebitda_and_cites_its_components_beside_the_headroom",
                        "test_a_refused_ebitda_is_a_stated_gap_never_a_covenant_test")),
+        # ── owner ruling 2026-09-26, design A9: briefing-definition ──────
+        # Every stored briefing is stamped with the EBITDA definition it was
+        # written under (stage_persist_narrative + /briefing/regenerate) and
+        # GET /api/period serves `briefing.definition` — a pre-ruling
+        # (unstamped) briefing as written under the previous definition,
+        # with the note the page hides it behind. The column has its
+        # migration ending in the PostgREST NOTIFY. Real create_app and the
+        # real narrate write over the tenancy double. Measured 8 units.
+        # Plant log: gates.md "briefing-definition".
+        Gate("briefing-definition",
+             [PY, "-m", "pytest", "tests/engine/test_briefing_definition.py", "-q", "-s"],
+             work_rx=r"GATE-WORK briefing-definition units=(\d+)", floor=8,
+             units="stamps written, statuses served, migration checks",
+             canaries=("SCOPE briefing-definition: GET /api/period over the tenancy double",)),
         # ── plan/2 B4b (plan_contract_v2 5.6 / 28.3 B4): forecast-pools ──
         # The cost pools of section 5 on the four books, no shocks: pools
         # plus unallocated equal the assembled operating cost to the cent;

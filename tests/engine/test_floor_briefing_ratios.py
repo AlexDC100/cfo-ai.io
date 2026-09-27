@@ -28,9 +28,9 @@ REPO = Path(__file__).resolve().parents[2]
 
 
 @pytest.mark.parametrize("pl,bs,expect_none", [
-    ({"operating_ebitda": 0.0, "total_operating_revenue": 1_000.0, "net_income_statutory": 1.0},
+    ({"ebitda": 0.0, "turnover": 1_000.0, "net_income_statutory": 1.0},
      {"total_debt": 2_000_000.0, "cash": 0.0}, ["debt_to_ebitda"]),
-    ({"operating_ebitda": -120_000.0, "total_operating_revenue": 0.0, "net_income_statutory": -150_000.0},
+    ({"ebitda": -120_000.0, "turnover": 0.0, "net_income_statutory": -150_000.0},
      {"total_debt": 0.0, "cash": 0.0}, ["ebitda_margin_pct", "net_margin_pct", "debt_to_ebitda"]),
     ({}, {"total_debt": 2_000_000.0, "cash": 0.0}, ["ebitda_margin_pct", "net_margin_pct", "debt_to_ebitda"]),
 ])
@@ -46,13 +46,35 @@ def test_briefing_ratios_refuse_instead_of_substituting(pl, bs, expect_none):
 
 
 def test_briefing_ratios_on_a_measured_book_are_unchanged():
+    # REWRITTEN for the owner ruling of 2026-09-26: the block reads the ONE
+    # EBITDA (`ebitda`, net 711 inside — Scandia Food FY2025 54,963,222.44)
+    # over TURNOVER (`turnover`, 70x − 709). A total operating revenue beside
+    # it is never the denominator.
     ratios, refusals = P._briefing_ratios(
-        {"operating_ebitda": 54_443_834.0, "total_operating_revenue": 413_727_560.0,
-         "net_income_statutory": 36_787_353.0},
+        {"ebitda": 54_963_222.44, "turnover": 413_727_560.16,
+         "total_operating_revenue": 426_000_000.0,
+         "operating_ebitda": 1.0,  # a legacy name is never read
+         "net_income_statutory": 36_787_352.75},
         {"total_debt": 55_345_982.91, "cash": 6_104_815.29}, 149_632_161.65)
     assert refusals == {}
-    assert ratios == {"ebitda_margin_pct": 13.16, "net_margin_pct": 8.89, "debt_to_ebitda": 1.02,
+    assert ratios == {"ebitda_margin_pct": 13.28, "net_margin_pct": 8.89, "debt_to_ebitda": 1.01,
                       "debt_to_equity": 0.37, "net_debt": 49_241_167.62}
+
+
+def test_briefing_ratios_carry_a_refused_ebitda_with_its_reason():
+    """A REFUSED EBITDA (net 711 unmeasurable on a book that posts to it)
+    refuses the EBITDA margin and Debt/EBITDA with the ENGINE's reason —
+    never "not reported", never a number."""
+    refusal = {"code": "account_121_anchor_absent",
+               "text_en": "account 121 is absent, so the stock variation cannot be derived"}
+    ratios, refusals = P._briefing_ratios(
+        {"ebitda": None, "ebitda_refusal": refusal, "turnover": 1_000.0,
+         "net_income_statutory": 50.0},
+        {"total_debt": 200.0, "cash": 50.0}, 500.0)
+    assert ratios["ebitda_margin_pct"] is None and ratios["debt_to_ebitda"] is None
+    for key in ("ebitda_margin_pct", "debt_to_ebitda"):
+        assert refusal["text_en"] in refusals[key], refusals
+    assert ratios["net_margin_pct"] == 5.0
 
 
 def test_stage_narrate_hands_the_model_refusals_not_fabricated_ratios(monkeypatch):
@@ -91,7 +113,7 @@ def test_briefing_ratios_refuse_an_absent_debt_or_cash_instead_of_reading_zero()
     `debt_to_ebitda 0.0, debt_to_equity 0.0, net_debt 0.0` with refusals
     `{}` — three citable numerals on a book that reported neither debt nor
     cash — and `{'total_debt': None, 'cash': None}` raised TypeError."""
-    pl = {"operating_ebitda": 100.0, "total_operating_revenue": 1_000.0,
+    pl = {"ebitda": 100.0, "turnover": 1_000.0,
           "net_income_statutory": 50.0}
     for bs in ({}, {"total_debt": None, "cash": None}):
         ratios, refusals = P._briefing_ratios(pl, bs, 500.0)

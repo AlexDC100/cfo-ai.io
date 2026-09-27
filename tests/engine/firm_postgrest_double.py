@@ -378,6 +378,36 @@ class PostgrestDouble(object):
         stored = [copy.deepcopy(self.add(table, dict(r))) for r in body]
         return stored if returning else []
 
+    def upsert(self, table: str, rows: Any, *, on_conflict: Optional[str] = None,
+               returning: bool = True) -> List[Dict[str, Any]]:
+        """POST with ``Prefer: resolution=merge-duplicates`` — a row whose
+        ``on_conflict`` columns match a stored row MERGES into it, any other
+        row is inserted. Every written column must be declared (``add``
+        refuses otherwise), exactly as production's PostgREST answers
+        ``400 42703`` for an unknown column."""
+        body = rows if isinstance(rows, list) else [rows]
+        self.calls.append(("upsert", table, {}, on_conflict or ""))
+        if table not in self.columns:
+            raise unknown_table(table)
+        keys = [k.strip() for k in (on_conflict or "").split(",") if k.strip()]
+        stored = []  # type: List[Dict[str, Any]]
+        for r in body:
+            unknown = set(r) - set(self.columns[table])
+            if unknown:
+                raise unknown_column(table, sorted(unknown)[0])
+            hit = None
+            if keys:
+                for existing in self.rows(table):
+                    if all(existing.get(k) == r.get(k) for k in keys):
+                        hit = existing
+                        break
+            if hit is not None:
+                hit.update(copy.deepcopy(dict(r)))
+                stored.append(copy.deepcopy(hit))
+            else:
+                stored.append(copy.deepcopy(self.add(table, dict(r))))
+        return stored if returning else []
+
     def get_user(self, jwt: str) -> Dict[str, Any]:
         """The identity the REAL client would return: VERIFIED against the
         session's test JWKS (see ``mint_jwt`` / ``install_test_jwks`` at the
