@@ -104,7 +104,7 @@ vi.mock("@/lib/usePeriodStepper", () => ({
   }),
 }));
 vi.mock("@/lib/workspaces", () => ({ useWorkspaces: () => ({ select: H.select }) }));
-vi.mock("@/lib/previewFeatures", () => ({ useUploadRoute: (legacy: string) => legacy }));
+vi.mock("@/lib/previewFeatures", () => ({ useUploadRoute: (legacy: string) => legacy, useWorkspaceV2: () => false }));
 vi.mock("@/lib/features", async (orig) => ({
   ...(await orig<typeof import("@/lib/features")>()),
   useFeatureStatus: (k: string) => (k === "forecast" ? "coming_soon" : "active"),

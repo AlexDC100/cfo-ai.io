@@ -101,7 +101,7 @@ vi.mock("@/lib/usePeriodStepper", () => ({
   }),
 }));
 vi.mock("@/lib/workspaces", () => ({ useWorkspaces: () => ({ select: () => Promise.resolve() }) }));
-vi.mock("@/lib/previewFeatures", () => ({ useUploadRoute: (legacy: string) => legacy }));
+vi.mock("@/lib/previewFeatures", () => ({ useUploadRoute: (legacy: string) => legacy, useWorkspaceV2: () => false }));
 vi.mock("@/lib/features", async (orig) => ({
   ...(await orig<typeof import("@/lib/features")>()),
   useFeatureStatus: (k: string) => (k === "forecast" ? "coming_soon" : "active"),
@@ -497,5 +497,77 @@ describe("cmdbar-switch — a period switch (Scandia Dec 2025 → Dec 2024): not
       expect(last.carriers.length).toBeGreaterThanOrEqual(3);
       console.log(`GATE-WORK cmdbar-switch period "${query || "rest"}" frames=${frames.length} foreign_carriers=${foreignSet.length}`);
     }, 30_000);
+  }
+});
+
+// ── a switch IN FLIGHT ──────────────────────────────────────────────────
+//
+// lib/org.ts writes the workspace holder FIRST (setActiveOrgId), clears the
+// cache, then awaits the remote write before any `useActiveOrg` reader
+// re-resolves. In that window the holder names Agras while the bar's
+// `useActiveOrg()` still says Scandia. The bar's guard (useCmdbarData
+// `switchingTo`) makes that window "loading": the line names the company
+// being opened, nothing is painted, NOTHING is asked. Without it the bar
+// said "Searching Scandia Food SRL" under a header already naming Agras
+// and re-asked for Scandia's documents it had just lost (its periods list,
+// its years, and — the URL still on Scandia's dashboard — its period body).
+// Review round 1 of stage CB-I: the guard was proven by no law (every law
+// above stayed green with it removed); this one is red without it.
+describe("cmdbar-switch — a switch in flight: the holder names Agras, useActiveOrg() still Scandia", () => {
+  for (const variant of [
+    { name: "the company page opened (the redesign's switch)", url: `/workspace/${ORG_A.id}` as string | null },
+    { name: "the URL still on Scandia's dashboard (a switch in place)", url: null },
+  ]) {
+    for (const query of ["", "clienti"]) {
+      it(`${variant.name}${query ? `, typed '${query}'` : ", at rest"}`, async () => {
+        frames = [];
+        fetched = [];
+        H.periodAsks = [];
+        step = "scandia";
+        const qc = appClient();
+        seedPeriod(qc, W.S25);
+        seedCompany(qc, ORG_S);
+        seedCompany(qc, ORG_A);
+        seedDocs(qc, W.S25);
+        H.org = ORG_S;
+        H.orgs = [ORG_S, ORG_A];
+        H.periods = [{ period_id: S25, period_end: "2025-12-31" }, { period_id: S24, period_end: "2024-12-31" }];
+        setActiveOrgId(USER, ORG_S.id);
+        render(tree(qc, true, `/dashboard?period=${S25}&org=${ORG_S.id}`));
+        if (query) type(query);
+        await flush();
+        // POSITIVE CONTROL: before the switch the bar searches Scandia and paints it.
+        const before = frames.at(-1)!;
+        expect(before.header).toMatch(/^Searching Scandia Food SRL · /);
+        expect(before.carriers.length).toBeGreaterThanOrEqual(3);
+
+        const framesAt = frames.length;
+        const fetchedAt = fetched.length;
+        const asksAt = H.periodAsks.length;
+        step = "in flight";
+        await act(async () => {
+          setActiveOrgId(USER, ORG_A.id);
+          qc.clear();
+          if (variant.url) navigate!(variant.url);
+        });
+        // Held in flight: the remote write has not returned, so no reader
+        // re-resolves — several turns, nothing lands.
+        await flush(8);
+
+        const inFlight = frames.slice(framesAt);
+        const out: string[] = [];
+        if (inFlight.length === 0) out.push("VACUITY: no frame was committed in flight");
+        for (const f of inFlight) {
+          if (f.header === null) continue;
+          if (f.header.includes(ORG_S.name)) out.push(`the line names the company being left: "${f.header}"`);
+          if (!f.header.includes(ORG_A.name)) out.push(`the line does not name the company being opened: "${f.header}"`);
+          for (const c of f.carriers) out.push(`painted in flight under "${f.header}": ${c}`);
+        }
+        for (const r of fetched.slice(fetchedAt)) out.push(`asked in flight: ${r.url} (as ${r.org})`);
+        for (const p of H.periodAsks.slice(asksAt)) out.push(`asked in flight for the period body of ${p}`);
+        expect([...new Set(out)], "the bar in a switch in flight").toEqual([]);
+        console.log(`GATE-WORK cmdbar-switch in-flight "${variant.url ? "company page" : "in place"}${query ? " typed" : ""}" frames=${inFlight.length} header="${inFlight.at(-1)?.header ?? ""}"`);
+      }, 30_000);
+    }
   }
 });

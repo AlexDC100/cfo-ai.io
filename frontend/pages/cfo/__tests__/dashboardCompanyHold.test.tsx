@@ -60,10 +60,10 @@ vi.mock("@/lib/org", async () => {
 });
 
 // The period on screen — what /api/period answered for `?period=`.
-const periodState = vi.hoisted(() => ({ organizationId: null as string | null, periodEnd: null as string | null, isLoading: false }));
+const periodState = vi.hoisted(() => ({ id: "p-x", organizationId: null as string | null, periodEnd: null as string | null, isLoading: false }));
 vi.mock("@/lib/activePeriod", () => ({
   usePrefetchPeriod: () => () => {},
-  useActivePeriod: () => ({ id: "p-x", isLoading: periodState.isLoading, isLoaded: !periodState.isLoading, organizationId: periodState.organizationId, periodEnd: periodState.periodEnd }),
+  useActivePeriod: () => ({ id: periodState.id, isLoading: periodState.isLoading, isLoaded: !periodState.isLoading, organizationId: periodState.organizationId, periodEnd: periodState.periodEnd }),
 }));
 vi.mock("@/lib/usePeriodStepper", () => ({
   usePeriodStepper: () => ({ periods: [], selectedEnd: periodState.periodEnd, selectedMonth: null, selectedYear: null, prevTarget: null, nextTarget: null, showStepper: false, goToPeriod: () => {} }),
@@ -110,6 +110,7 @@ beforeEach(() => {
   orgStore.emit();
   writeWorkspaceName("Scandia Food SRL");
   switchOrg.mockClear();
+  periodState.id = "p-x";
   periodState.organizationId = null;
   periodState.periodEnd = null;
   periodState.isLoading = false;
@@ -177,6 +178,43 @@ describe("G6 — a dashboard opened on another company's period switches the com
     );
     expect(screen.getByTestId("hold")).toHaveAttribute("data-holding", "true");
     await waitFor(() => expect(switchOrg).toHaveBeenCalledWith("agras"));
+  });
+
+  // The app's query client keeps the PREVIOUS period's payload while the
+  // new one loads (keepPreviousData), and useActivePeriod serves it: its
+  // company is the one being left. From Scandia's dashboard, Agras's
+  // dashboard link (the command bar's switch action, a company × year row)
+  // painted Scandia's month under a URL naming Agras, unheld, until Agras's
+  // period landed (cmdbar.spec G11, review round 2 of stage CB-I).
+  it("a ?org= link over the PREVIOUS period's kept payload: the pin decides — held, switched, never the kept company's page", async () => {
+    periodState.id = "p-scandia";            // the payload kept on screen
+    periodState.organizationId = "scandia";  // …names the company being left
+    periodState.periodEnd = "2025-12-31";
+    const { container } = render(
+      <TestProviders route="/dashboard?period=p-agras&org=agras">
+        <Probe enabled />
+      </TestProviders>,
+    );
+    const watch = watchForDesync(container);
+    expect(screen.getByTestId("hold")).toHaveAttribute("data-holding", "true");
+    await waitFor(() => expect(switchOrg).toHaveBeenCalledWith("agras"));
+    expect(switchOrg).not.toHaveBeenCalledWith("scandia");
+    await waitFor(() => expect(screen.getByTestId("hold")).toHaveAttribute("data-holding", "false"));
+    expect(screen.getByTestId("header-capsule-label").textContent).toMatch(/^Agras/);
+    watch.stop();
+    expect(watch.violations).toEqual([]);
+  });
+
+  it("a bare ?period= step over a kept payload of the SAME company: nothing held (no flash on a month step)", () => {
+    periodState.id = "p-scandia-nov";
+    periodState.organizationId = "scandia";
+    render(
+      <TestProviders route="/dashboard?period=p-scandia-dec">
+        <Probe enabled />
+      </TestProviders>,
+    );
+    expect(screen.getByTestId("hold")).toHaveAttribute("data-holding", "false");
+    expect(switchOrg).not.toHaveBeenCalled();
   });
 
   it("with the redesign off, nothing is held", () => {

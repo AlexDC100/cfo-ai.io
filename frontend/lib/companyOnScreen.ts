@@ -212,7 +212,19 @@ export function useOrgParamHold(enabled: boolean, wanted: string | null): boolea
 export function useDashboardCompanyHold(enabled: boolean, settling = false): boolean {
   const [params] = useSearchParams();
   const period = useActivePeriod();
-  const holding = useOrgParamHold(enabled, period.organizationId ?? params.get("org"));
+  const org = params.get("org");
+  const urlPeriod = params.get("period");
+  // The app's query client keeps the PREVIOUS period's payload on screen
+  // while the new one loads (`keepPreviousData`, lib/queryClient.ts), and
+  // useActivePeriod serves it — so, across a company switch, its company is
+  // the one being LEFT. A link that pins its company (`?org=`) is the answer
+  // until ITS period's payload lands: from Scandia's dashboard, Agras's
+  // dashboard link (the command bar's "Switch to Agras SRL", a company × year
+  // row) painted Scandia's month, unheld, under a URL naming Agras until
+  // Agras's period arrived (cmdbar.spec G11). Without a pin (a bare
+  // `?period=` step within a company) the kept payload still decides.
+  const kept = !!urlPeriod && !!period.id && period.id !== urlPeriod;
+  const holding = useOrgParamHold(enabled, kept && org ? org : period.organizationId ?? org);
   // `?period=` alone: hold while its company is not known yet (the payload
   // is out), and — on a full page load — while it is not yet known whether
   // the redesign is on at all (`settling`: the registry still answering).

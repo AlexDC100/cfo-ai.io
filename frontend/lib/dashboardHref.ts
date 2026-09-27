@@ -22,7 +22,36 @@ export function companyDashboardHref(
   orgId: string,
   years: ReadonlyArray<{ period_id: string; year: number }> | null | undefined,
 ): string {
+  return periodDashboardHref(orgId, latestPeriodId(years));
+}
+
+/** A company's newest analysed year, from ITS OWN years list. */
+function latestPeriodId(
+  years: ReadonlyArray<{ period_id: string; year: number }> | null | undefined,
+): string | null {
   let latest: { period_id: string; year: number } | null = null;
   for (const y of years ?? []) if (!latest || y.year >= latest.year) latest = y;
-  return periodDashboardHref(orgId, latest?.period_id ?? null);
+  return latest?.period_id ?? null;
+}
+
+/**
+ * Where "switch to <company>" lands (the command bar's action): that
+ * company's OWN screen, never the screen on display — a screen that pins
+ * another company (`?org=`, one of its periods, /workspace/<id>) holds for
+ * it and switches the active company straight back (lib/companyOnScreen).
+ *
+ *   redesign on   `companyDashboardHref` — its newest year's dashboard, or
+ *                 its company page; that screen's hold makes the switch.
+ *   redesign off  there is no company page and no hold: the caller switches
+ *                 in the same tick, and this is the company's newest year —
+ *                 or the dashboard, which opens the active company's state.
+ */
+export function companySwitchHref(
+  orgId: string,
+  years: ReadonlyArray<{ period_id: string; year: number }> | null | undefined,
+  workspaceV2: boolean,
+): string {
+  if (workspaceV2) return companyDashboardHref(orgId, years);
+  const periodId = latestPeriodId(years);
+  return periodId ? periodDashboardHref(orgId, periodId) : "/dashboard";
 }

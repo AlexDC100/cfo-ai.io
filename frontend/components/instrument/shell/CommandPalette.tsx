@@ -51,10 +51,11 @@ import { useShellNav } from "@/components/cfo/Sidebar";
 import { useActiveLocale } from "@/lib/locale";
 import { TAB_SPECS } from "@/lib/financialStatementTabs";
 import { CAPSULE_ROUTES } from "@/lib/capsuleRouter";
-import { periodDashboardHref } from "@/lib/dashboardHref";
+import { companySwitchHref, periodDashboardHref } from "@/lib/dashboardHref";
 import { useFeatureStatus } from "@/lib/features";
 import { useWorkspaces } from "@/lib/workspaces";
-import { useUploadRoute } from "@/lib/previewFeatures";
+import { useUploadRoute, useWorkspaceV2 } from "@/lib/previewFeatures";
+import { blockedByScan } from "@/lib/scanGuard";
 import { storeComparisonPrior } from "@/stores/comparativesView";
 import { openAskCfoAi } from "@/components/cfo/chat/openAskCfoAi";
 import { getChatShellRef } from "@/components/cfo/chat/sharedShellRef";
@@ -138,6 +139,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
   const reportsStatus = useFeatureStatus("comprehensive_report");
   const benchmarksStatus = useFeatureStatus("benchmarks");
   const uploadTo = useUploadRoute("/dashboard");
+  const workspaceV2 = useWorkspaceV2();
   const featureStatusOf = useCallback(
     (key: string) => (key === "forecast" ? forecastStatus : undefined),
     [forecastStatus],
@@ -449,6 +451,52 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     [close, navigate],
   );
 
+  /** Open ANOTHER company — the "Switch to <company>" action, and a
+   *  company × year row (or recent pick) of another company.
+   *
+   *  NEVER A SWITCH IN PLACE (review round 2 of stage CB-I). A screen that pins a
+   *  company — `?org=`, one of its periods, /workspace/<id> — holds for it
+   *  and switches the active company back to it (lib/companyOnScreen). The
+   *  action used to call `select()` under the URL on display: on Scandia's
+   *  dashboard it put "Agras SRL" in the header over a blank held page (on
+   *  Scandia's company page, over Scandia's page), and when the hold's ask
+   *  window ran out (HOLD_ASK_WINDOW_MS, 10 s) it switched back to Scandia.
+   *  So the bar opens the company's OWN screen (`href`):
+   *
+   *    redesign on   `href` pins the company, and that screen's hold makes
+   *                  the switch — ONE authority. A switch here as well would
+   *                  be a second: another cache wipe and remote write, the
+   *                  shape of the 2026-09-26 auth-lock flood.
+   *    redesign off  no screen holds for a company, so the bar switches, in
+   *                  the SAME tick as the navigation — switchOrg writes the
+   *                  holder and the header's name synchronously, so the first
+   *                  render of `href` already asks as the company it opens.
+   *
+   *  Nothing re-scopes while an analysis runs: the guard `select()` applies,
+   *  checked BEFORE anything moves (a navigation to another company's
+   *  screen is a switch too — its hold would make it). */
+  const openCompany = useCallback(
+    (orgId: string, href: string) => {
+      if (blockedByScan("workspace")) {
+        close();
+        return;
+      }
+      go(href);
+      if (!workspaceV2) void selectWorkspace(orgId);
+    },
+    [close, go, workspaceV2, selectWorkspace],
+  );
+
+  /** The company a company × year row opens (`page:year:<org>:<period>`),
+   *  when it is not the company the bar is searching. */
+  const otherCompanyOf = useCallback(
+    (rowId: string): string | null => {
+      const m = /^page:year:([^:]+):/.exec(rowId);
+      return m && m[1] !== scope.orgId ? m[1] : null;
+    },
+    [scope.orgId],
+  );
+
   const remember = useCallback(
     (r: CmdbarRecent) => setRecentsOf({ orgId: scope.orgId, list: rememberRecent(scope.orgId, r) }),
     [scope.orgId],
@@ -513,11 +561,11 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
       if (id === "compare") { const a = fromDoc("compare"); if (a) runAttentionAction(nowActionView(ctx, a)); return; }
       if (id === "bank-export") { const a = fromDoc("forecast_bank_export"); if (a) runAttentionAction(nowActionView(ctx, a)); return; }
       if (id.startsWith("switch:")) {
-        close();
-        void selectWorkspace(id.slice("switch:".length));
+        const orgId = id.slice("switch:".length);
+        openCompany(orgId, companySwitchHref(orgId, data.years[orgId], workspaceV2));
       }
     },
-    [go, uploadTo, ctx, attentionDoc, runAttentionAction, close, selectWorkspace],
+    [go, uploadTo, ctx, attentionDoc, runAttentionAction, openCompany, data.years, workspaceV2],
   );
 
   const runRow = useCallback(
@@ -530,7 +578,10 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
         case "recent":
           if (row.recent.group === "ask" && row.recent.query) return askChat(row.recent.query);
           if (row.recent.group === "action") return runAction(row.recent.id.replace(/^action:/, ""));
-          if (row.recent.href) return go(row.recent.href);
+          if (row.recent.href) {
+            const other = otherCompanyOf(row.recent.id);
+            return other ? openCompany(other, row.recent.href) : go(row.recent.href);
+          }
           return;
         case "answer":
           remember({ id: row.id, group: "answer", label: row.view.label, href: row.view.href });
@@ -541,9 +592,11 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
         case "account-more":
           remember({ id: row.id, group: "account", label: row.view.text, href: row.view.href });
           return go(row.view.href);
-        case "page":
+        case "page": {
           remember({ id: row.id, group: "page", label: row.label, href: row.href });
-          return go(row.href);
+          const other = otherCompanyOf(row.id);
+          return other ? openCompany(other, row.href) : go(row.href);
+        }
         case "action":
           remember({ id: row.id, group: "action", label: row.label });
           return runAction(row.id.replace(/^action:/, ""));
@@ -552,7 +605,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
           return askChat(row.query);
       }
     },
-    [rows, go, runAttentionAction, askChat, runAction, remember],
+    [rows, go, runAttentionAction, askChat, runAction, remember, otherCompanyOf, openCompany],
   );
 
   // ── type-to-open ───────────────────────────────────────────────────
