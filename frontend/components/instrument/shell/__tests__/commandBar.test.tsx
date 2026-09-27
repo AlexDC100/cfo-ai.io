@@ -121,6 +121,13 @@ import { RECENTS_KEY_PREFIX } from "../cmdbar/cmdbarRecents";
 import { cmdbarSectorQueryKey } from "../cmdbar/useCmdbarData";
 import { OPEN_ASK_CFO_AI_EVENT } from "@/components/cfo/chat/openAskCfoAi";
 
+/** The exhaustive tests type hundreds of queries (every leaf of a book,
+ *  every ratio row): well under a second alone, but the full suite runs
+ *  files in parallel and one of them met vitest's 5 s default under that
+ *  load. Their bound is the WORK, not the clock; the latency laws time
+ *  keystrokes themselves (cmdbar-latency). */
+const HEAVY = 30_000;
+
 // ── the fetch trap ──────────────────────────────────────────────────────
 
 const MODEL_SEAMS = [/\/api\/capsule\/tools\//, /functions\/v1\/chat-llm/, /anthropic/i];
@@ -466,7 +473,7 @@ describe("cmdbar-figures — every figure is the served figure", () => {
     // POSITIVE CONTROL: on this book metrics[] disagrees with the table for
     // some row, so a bar reading metrics[] would print a different figure.
     expect(differsFromMetrics).toBeGreaterThan(0);
-  });
+  }, HEAVY);
 
   it("inventory days come through the ONE adapter, with their basis, never called slow", () => {
     const w = scandiaWorld();
@@ -727,7 +734,7 @@ describe("cmdbar-figures — EVERY Cont leaf of both books, in both languages", 
         // POSITIVE CONTROL: the book holds contra accounts, so a printer that
         // dropped the sign would print another figure for them.
         expect(negatives).toBeGreaterThan(0);
-      });
+      }, HEAVY);
     }
   }
 });
@@ -758,7 +765,7 @@ describe("cmdbar-figures — every Răspuns in Romanian too", () => {
     const rows = w.body.assembled_metrics.ratio_table.rows as RatioTableRow[];
     expect(ratios, "every ratio_table row but dio").toBe(rows.filter((r) => r.key !== "dio").length);
     expect(ratios).toBeGreaterThanOrEqual(20);
-  });
+  }, HEAVY);
 });
 
 describe("cmdbar-figures — every Δ IS its comparatives column, every vs-sector IS its sector row", () => {
@@ -790,7 +797,7 @@ describe("cmdbar-figures — every Δ IS its comparatives column, every vs-secto
       // moves from zero on this pair).
       expect(pcts).toBeGreaterThanOrEqual(8);
       expect(words).toBeGreaterThanOrEqual(1);
-    });
+    }, HEAVY);
 
     it(`scandia (${lang}): each vs-sector position is the served sector row — the filed-basis stock row a position only`, async () => {
       await useLang(lang);
@@ -839,7 +846,7 @@ describe("cmdbar-figures — every Δ IS its comparatives column, every vs-secto
       }
       expect(lawful).toBeGreaterThanOrEqual(8);
       expect(refused, "POSITIVE CONTROL: revenue growth has no company figure here").toBeGreaterThanOrEqual(1);
-    });
+    }, HEAVY);
   }
 });
 
@@ -917,7 +924,7 @@ describe("cmdbar-search — synonyms and diacritics on the RENDERED bar, both la
         }
       }
       expect(spellings).toBeGreaterThanOrEqual(20);
-    });
+    }, HEAVY);
   }
 
   it("with and without accents the WHOLE result list is the same, row for row", () => {
