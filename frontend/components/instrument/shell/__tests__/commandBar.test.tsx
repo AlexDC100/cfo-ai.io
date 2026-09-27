@@ -27,10 +27,13 @@
 //                      interaction and renders no recommendations / briefing
 //                      / alert / narrative text.
 //   cmdbar-latency     warm cache: every keystroke renders all groups but
-//                      "Întreabă" in < 100 ms with ZERO fetches — counted
-//                      after every timer the keystroke armed has run (fake
-//                      timers, DEBOUNCE_HORIZON_MS), so a debounced fetch is
-//                      counted too; cold open:
+//                      "Întreabă" in < 100 ms of the render thread's CPU
+//                      (test/cpuClock — the work, not the machine's load)
+//                      with ZERO fetches — counted after every timer the
+//                      keystroke armed has run on a fake clock that fakes
+//                      Date and performance too (DEBOUNCE_HORIZON_MS), so a
+//                      debounce that measures elapsed time is counted too;
+//                      cold open:
 //                      the value first, Δ / vs-sector say "loading" — never
 //                      blank, never 0.
 //   cmdbar-keyboard    ↑↓ walk every row the reader sees and stop at the
@@ -130,6 +133,7 @@ vi.mock("@/stores/currency", async (orig) => {
 
 import { CommandPalette } from "../CommandPalette";
 import { LAT_CMDBAR_SEARCH, resetLatency, snapshotLatency } from "@/lib/capsuleLatency";
+import { CPU_CLOCK, cpuNow, wallNow } from "@/test/cpuClock";
 import { RECENTS_KEY_PREFIX } from "../cmdbar/cmdbarRecents";
 import { cmdbarSectorQueryKey } from "../cmdbar/useCmdbarData";
 import { OPEN_ASK_CFO_AI_EVENT } from "@/components/cfo/chat/openAskCfoAi";
@@ -138,7 +142,9 @@ import { OPEN_ASK_CFO_AI_EVENT } from "@/components/cfo/chat/openAskCfoAi";
  *  every ratio row): well under a second alone, but the full suite runs
  *  files in parallel and one of them met vitest's 5 s default under that
  *  load. Their bound is the WORK, not the clock; the latency laws time
- *  keystrokes themselves (cmdbar-latency). */
+ *  keystrokes themselves, on the thread's CPU (cmdbar-latency) — so a
+ *  keystroke that really costs too much reds on its BUDGET, not on this
+ *  hang guard. */
 const HEAVY = 30_000;
 
 // ── the fetch trap ──────────────────────────────────────────────────────
@@ -297,10 +303,17 @@ async function pastTheHorizon(): Promise<void> {
   await act(async () => { await vi.advanceTimersByTimeAsync(DEBOUNCE_HORIZON_MS); });
 }
 
-/** Fake the timers a debounce is built from — never `performance` (the
- *  latency is measured on the real clock) nor the scheduler's own queue. */
+/** Fake EVERY clock a debounce is built from: its timers AND the clocks
+ *  it measures elapsed time on. lodash/debounce re-arms its timer until
+ *  `Date.now()` says the wait has passed — with only the timers faked, the
+ *  virtual horizon ran its timer again and again while the real Date barely
+ *  moved, and the fetch was never issued before the count (review round 1
+ *  of stage CB-I). `performance` too, for a debounce that reads it. Never
+ *  the scheduler's own queue (setImmediate / MessageChannel). The latency
+ *  is read on the thread's CPU clock (test/cpuClock), which no fake moves. */
+const FAKED_CLOCKS = ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date", "performance"] as const;
 function fakeDebounceTimers(): void {
-  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
+  vi.useFakeTimers({ toFake: [...FAKED_CLOCKS] });
 }
 
 // ════════════════════════════════════════════════════════════════════════
@@ -760,14 +773,24 @@ describe("cmdbar-latency — warm cache, cold open", () => {
     // is seeded) is not a keystroke's.
     await pastTheHorizon();
     const before = fetched.length;
+    const cpus: number[] = [];
     const walls: number[] = [];
     const perKeystroke: string[] = [];
     let horizons = 0;
+    // POSITIVE CONTROL: the clocks a debounce measures time on are fake —
+    // the horizon moves them, not the real time that passes.
+    const d0 = Date.now();
+    const p0 = performance.now();
+    await pastTheHorizon();
+    expect(Date.now() - d0, "Date is on the fake clock").toBe(DEBOUNCE_HORIZON_MS);
+    expect(performance.now() - p0, "performance is on the fake clock").toBe(DEBOUNCE_HORIZON_MS);
     for (const q of ["profit", "clienti", "4111", "bilant", "cifra de afaceri", "furnizrii", "marja neta", "exporta"]) {
       for (let i = 1; i <= q.length; i++) {
-        const t0 = performance.now();
+        const c0 = cpuNow();
+        const w0 = wallNow();
         type(q.slice(0, i));
-        walls.push(performance.now() - t0);
+        cpus.push(cpuNow() - c0);
+        walls.push(wallNow() - w0);
         // Count AFTER the keystroke's async work AND every timer it armed
         // have run — a request is issued only once authOrgHeaders()
         // resolves, and a debounced one only after its window (both outside
@@ -781,14 +804,16 @@ describe("cmdbar-latency — warm cache, cold open", () => {
     vi.useRealTimers();
     expect(perKeystroke, "requests caused by a keystroke").toEqual([]);
     expect(fetched.length - before).toBe(0);
-    expect(horizons, "VACUITY: every keystroke waited out the debounce horizon").toBe(walls.length);
-    const sorted = [...walls].sort((a, b) => a - b);
-    const p95 = sorted[Math.floor(sorted.length * 0.95)];
-    expect(p95).toBeLessThan(100);
+    expect(horizons, "VACUITY: every keystroke waited out the debounce horizon").toBe(cpus.length);
+    const p95 = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length * 0.95)];
+    // THE BUDGET, on the work: the render thread's CPU per keystroke.
+    expect(p95(cpus), `p95 keystroke work (${CPU_CLOCK}, ms)`).toBeLessThan(100);
+    // The app's own instrument ran on every keystroke (its figure reads
+    // the faked performance clock here; the real one is held live, G7).
     const search = snapshotLatency()[LAT_CMDBAR_SEARCH] ?? [];
     expect(search.length).toBeGreaterThan(40);
-    expect(Math.max(...search)).toBeLessThan(100);
-  });
+    console.log(`GATE-WORK cmdbar-latency warm keystrokes=${cpus.length} clock=${CPU_CLOCK} cpu_p95_ms=${p95(cpus).toFixed(1)} cpu_max_ms=${Math.max(...cpus).toFixed(1)} wall_p95_ms=${p95(walls).toFixed(1)} (wall not asserted)`);
+  }, HEAVY);
 
   it("cold: the value first; Δ and vs-sector say 'loading' — never blank, never 0", () => {
     hangFetch = true;
@@ -1085,12 +1110,15 @@ describe("cmdbar-latency — the cold open, timed", () => {
     fakeDebounceTimers();
     const w = pairWorld({ seed: "cold" });
     mount(w);
+    const cpus: number[] = [];
     const walls: number[] = [];
     let pending = 0;
     for (const [id, q] of Object.entries(QUERIES)) {
-      const t0 = performance.now();
+      const c0 = cpuNow();
+      const w0 = wallNow();
       type(q);
-      walls.push(performance.now() - t0);
+      cpus.push(cpuNow() - c0);
+      walls.push(wallNow() - w0);
       const row = answerRow(`answer:${id}`);
       expect(row, id).toBeTruthy();
       expect(row!.querySelector('[data-figure="answer"]')?.textContent, id).toBe(money(servedPath(w.body, id) as number));
@@ -1100,7 +1128,9 @@ describe("cmdbar-latency — the cold open, timed", () => {
         if (c.state === "pending") { expect(c.text).toBe("loading"); pending++; }
       }
     }
-    expect(Math.max(...walls)).toBeLessThan(100);
+    // THE BUDGET, on the work (test/cpuClock): each cold answer's render.
+    expect(Math.max(...cpus), `cold answer work (${CPU_CLOCK}, ms)`).toBeLessThan(100);
+    console.log(`GATE-WORK cmdbar-latency cold answers=${cpus.length} clock=${CPU_CLOCK} cpu_max_ms=${Math.max(...cpus).toFixed(1)} wall_max_ms=${Math.max(...walls).toFixed(1)} (wall not asserted)`);
     // The Δ is pending on every answer (the comparatives never land here).
     expect(pending).toBeGreaterThanOrEqual(Object.keys(QUERIES).length);
     // Counted AFTER the async work AND every timer the typing armed have
@@ -1114,7 +1144,7 @@ describe("cmdbar-latency — the cold open, timed", () => {
     expect(docs.length, "the cold open asked for its documents").toBeGreaterThanOrEqual(2);
     expect(docs.length,
       "cold: the bar's documents are asked for once, by the prefetch, not per keystroke").toBeLessThanOrEqual(3);
-  });
+  }, HEAVY);
 });
 
 describe("cmdbar-scope — every document the bar asks for is asked of ITS company", () => {

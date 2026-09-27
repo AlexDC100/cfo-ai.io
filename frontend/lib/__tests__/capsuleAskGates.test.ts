@@ -35,6 +35,7 @@
 // here is a fixture and every network primitive is trapped.
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { cpuNow } from "@/test/cpuClock";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -584,12 +585,16 @@ describe("K3 — zero-spend coverage over the one corpus, under 100 ms", () => {
     }[] = [];
     try {
       for (const q of corpus) {
-        const t0 = performance.now();
+        // The WORK a question costs, on the thread's CPU clock
+        // (test/cpuClock): the full suite runs in parallel workers, and a
+        // wall clock under that load measured the load — this law went red
+        // on questions that cost well under a millisecond alone.
+        const t0 = cpuNow();
         const answer = resolveTier0(q, index);
         // The SECOND deterministic route to a free answer, measured in
         // the same booby-trapped section and on the same stopwatch.
         const routerFree = !willCallModel(routeQuery(q), 0);
-        const ms = performance.now() - t0;
+        const ms = cpuNow() - t0;
         rows.push({
           q,
           tier0: answer !== null,

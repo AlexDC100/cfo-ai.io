@@ -335,7 +335,10 @@ describe("§4 a card never prints one figure, verdict or ladder in its headline 
     expect(checked).toBe(12 * (CENSUS_CARDS + 3));
     expect(laddersChecked).toBeGreaterThan(12 * 10);
     expect(refusedChecked, "non-vacuity: no corpus pair serves a refused current").toBeGreaterThan(0);
-  });
+    // Bounded by its WORK (12 pairs x 25 cards, ~0.7 s alone), not vitest's
+    // 5 s default: under the full suite's parallel load it ran 7.5 s and was
+    // reported as a timeout with every assertion green.
+  }, 30_000);
 
   it("non-vacuity: the FE ladders really disagree with the served band on these pairs", () => {
     // Without the served overlay the card's badge is computeRatios' verdict.

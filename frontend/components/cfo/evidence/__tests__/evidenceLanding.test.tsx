@@ -79,6 +79,13 @@ import { codeKey } from "@/components/instrument/shell/cmdbar/cmdbarSearch";
 import { servedEbitda, servedLine, servedNetResult, ratioTableRows } from "@/components/instrument/shell/cmdbar/cmdbarSources";
 import strings from "@/components/cfo/evidence/evidenceStrings.json";
 
+/** The landing laws mount a receiver per link (every ratio row, every item,
+ *  every answer): 0.3-1 s each alone, 5-10x that under the full suite's
+ *  parallel load, where three of them met vitest's 5 s default with every
+ *  assertion green (review round 1 of stage CB-I). They assert no time;
+ *  their bound is the work, and this is only a hang guard. */
+vi.setConfig({ testTimeout: 30_000 });
+
 const REPO = resolve(__dirname, "../../../../..");
 const read = (p: string) => JSON.parse(readFileSync(resolve(REPO, p), "utf-8"));
 
