@@ -10701,3 +10701,74 @@ stage E2b, with the witness each keeps:
   through the real assembly.
 - **alerts**: test_ratio_units g19's R5 half → "R5 no longer fires on the book
   that provoked it" (R5 retired).
+
+## reprocess-periods-definition
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_reprocess_periods_definition.py -q -s` |
+| canary | `SCOPE reprocess-periods-definition: corpus/saga_10_col_agras analysed` |
+| work count | `GATE-WORK reprocess-periods-definition units=N`, floor **31** (measured 31) |
+
+**SCOPE** — design A9 (deploy with reprocessing). Every stored period lacks
+the stock-variation evidence block and the one-EBITDA methodology stamp, so
+every served view refuses its EBITDA until it is re-run from its document.
+`scripts/reprocess_periods_definition.py` re-runs it through the pipeline's
+OWN stages (stage_extract → stage_map → stage_persist → stage_compute + the
+121 metric override → stage_validate → the alerts write → valuation; the
+three shared write helpers `_persist_period_alerts`,
+`_override_statutory_net_income_metric`, `_compute_and_persist_valuation`
+were extracted from the pipeline so the tool and the pipeline run one
+implementation). The Anthropic SDK is replaced by a counting guard for the
+whole run; no `_usage_gate` entry point is reachable. The test analyses the
+committed corpus Agras book through the real upload + pipeline over the
+workspace-v2 tenancy double, then shapes the row like a pre-ruling period.
+Holds: the dry run writes nothing and reports anchor `anchored`, book
+`closed`, net 711 1,071,687.03 `account_121_bridge`, EBITDA 10,776,378.24 ->
+11,848,065.27 and the credit composite/letter before and after; the apply
+leaves the evidence + stamp + `ebitda.reported` 11,848,065.27 + the metric
+rows, carries the council alert, never touches the briefing, and a second
+apply is `current` with no write; an image document is refused
+`needs_model` unwritten; a stored row whose document now resolves to another
+month is refused `period_end_moved`; a turnover move with no filed figure, or
+AWAY from the filed one, blocks the whole apply (exit 3, nothing written) and
+a move TOWARD it applies.
+
+Source-edit plants on `scripts/reprocess_periods_definition.py`, each alone,
+restored from a copy:
+
+**PLANT no-model-guard** — the SDK stub not installed (the key placeholder
+kept).
+```
+FAILED tests/engine/test_reprocess_periods_definition.py::test_a_document_that_needs_the_model_is_refused_and_nothing_is_written
+E   AssertionError: {... 'status': 'refused', 'reason': 'extract_failed', ... 'detail': 'RuntimeError: Claude extraction failed: ...'}
+FAILED tests/engine/test_reprocess_periods_definition.py::test_zz_scope
+2 failed, 4 passed
+```
+**PLANT dry-run-writes** — `stage_persist` called before the dry-run return.
+```
+FAILED tests/engine/test_reprocess_periods_definition.py::test_the_dry_run_reports_the_move_and_writes_nothing
+FAILED tests/engine/test_reprocess_periods_definition.py::test_a_turnover_move_blocks_the_apply_until_it_is_ruled
+FAILED tests/engine/test_reprocess_periods_definition.py::test_zz_scope
+3 failed, 3 passed
+```
+**PLANT not-idempotent** — the `current` short-circuit disabled.
+```
+FAILED tests/engine/test_reprocess_periods_definition.py::test_apply_rewrites_the_period_with_the_engines_stages_and_is_idempotent
+FAILED tests/engine/test_reprocess_periods_definition.py::test_zz_scope
+2 failed, 4 passed
+```
+**PLANT turnover-unblocked** — `blocking()` returns `[]`.
+```
+FAILED tests/engine/test_reprocess_periods_definition.py::test_a_turnover_move_blocks_the_apply_until_it_is_ruled
+FAILED tests/engine/test_reprocess_periods_definition.py::test_zz_scope
+2 failed, 4 passed
+```
+**REVERT** — `6 passed`.
+
+CANNOT SEE: production's storage and document mix (which periods are
+text-layer PDFs the deterministic reader accepts); the `valuations` upsert
+(the double declares three columns of that table, so the persist is caught as
+non-fatal — the same as in the pipeline gates); recommendations written by
+the model before the ruling (left in place; not re-generated without the
+model).

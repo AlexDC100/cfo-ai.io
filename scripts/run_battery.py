@@ -572,6 +572,22 @@ def _engine_gates() -> List[Gate]:
              work_rx=r"GATE-WORK briefing-definition units=(\d+)", floor=8,
              units="stamps written, statuses served, migration checks",
              canaries=("SCOPE briefing-definition: GET /api/period over the tenancy double",)),
+        # ── owner ruling 2026-09-26, design A9: reprocess-periods-definition
+        # The deploy's reprocessing tool (scripts/reprocess_periods_
+        # definition.py) re-runs a stored period through the pipeline's own
+        # stages with the model guarded out and no quota path: the dry run
+        # writes nothing and reports anchor / book state / net 711 / old vs
+        # new EBITDA / credit letter; the apply leaves the evidence + stamp +
+        # one-EBITDA metric rows, carries council alerts and never rewrites
+        # the briefing; a second apply is a no-op; a model-needing document,
+        # a moved month and an unruled turnover move are refused unwritten.
+        # Corpus agras through the workspace-v2 tenancy double. Measured 31.
+        # Plant log: gates.md "reprocess-periods-definition".
+        Gate("reprocess-periods-definition",
+             [PY, "-m", "pytest", "tests/engine/test_reprocess_periods_definition.py", "-q", "-s"],
+             work_rx=r"GATE-WORK reprocess-periods-definition units=(\d+)", floor=31,
+             units="dry-run / apply / refusal facts checked",
+             canaries=("SCOPE reprocess-periods-definition: corpus/saga_10_col_agras analysed",)),
         # ── plan/2 B4b (plan_contract_v2 5.6 / 28.3 B4): forecast-pools ──
         # The cost pools of section 5 on the four books, no shocks: pools
         # plus unallocated equal the assembled operating cost to the cent;

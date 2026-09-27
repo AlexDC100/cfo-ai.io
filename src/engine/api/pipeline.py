@@ -3877,6 +3877,71 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
     return narrated
 
 
+def _persist_period_alerts(admin_client: Any, org_id: str, document_id: Any,
+                           period_id: str,
+                           validation_alerts: List[Dict[str, Any]]) -> None:
+    """Replace THIS period's alerts with `validation_alerts` (deduped on
+    `alert_key`, severity / category normalised, the typed payload carried).
+    One implementation for the pipeline (`stage_persist_narrative`) and the
+    deterministic reprocessing tool (scripts/reprocess_periods_definition.py).
+    """
+    admin_client.delete("alerts", filters={"period_id": f"eq.{period_id}"})
+
+    rows: List[Dict[str, Any]] = []
+    seen_keys: set[str] = set()
+    # validation_alerts already came from stage_validate deduped — but
+    # double-check at the persist boundary in case a callsite added more.
+    for a in validation_alerts:
+        key = a.get("alert_key")
+        if not key or key in seen_keys:
+            continue
+        seen_keys.add(key)
+        severity = (a.get("severity") or "medium").lower()
+        if severity not in ("critical", "high", "medium", "low", "info"):
+            severity = "medium"
+        category = (a.get("category") or "data_quality").lower()
+        # `risk_inventory` is the Section-7 category — 5-8 named structural
+        # risks the deterministic engine identifies (receivables quality,
+        # liquidity tightness, raw-material exposure, etc.). Added to the
+        # allowlist alongside the existing categories so the FE can filter
+        # to it for the Comprehensive Report's risk inventory section.
+        if category not in ("liquidity", "leverage", "margin", "inventory", "compliance",
+                             "data_quality", "working_capital", "customer", "supplier",
+                             "opportunity", "risk_inventory"):
+            category = "data_quality"
+        # Carry facts_cited + industry on the payload column for the
+        # FE's "Facts backing this alert" expander.
+        rows.append({
+            "org_id": org_id,
+            "period_id": period_id,
+            "alert_key": key,
+            "severity": severity,
+            "category": category,
+            "title": a.get("title", "Untitled alert"),
+            "body": a.get("body", ""),
+            "document_id": document_id,
+            "payload": {
+                "rule_key": a.get("rule_key"),
+                "facts_cited": a.get("facts_cited"),
+                "industry": a.get("industry"),
+                # Typed placeholders (2026-08-30). `*_template` carry
+                # `{{money:<fact>}}` in place of every cited money
+                # figure AND its currency label, so the renderer puts
+                # every figure in one claim through one money path.
+                # `fact_units` ends the guessing ("≥1000 is money",
+                # "|v|>1 is money") that renders a leverage multiple
+                # as a currency amount. All four keys are optional —
+                # a row without them falls back to `title` / `body`.
+                "title_template": a.get("title_template"),
+                "body_template": a.get("body_template"),
+                "fact_units": a.get("fact_units"),
+                "source_currency": a.get("source_currency"),
+            },
+        })
+    if rows:
+        admin_client.upsert("alerts", rows, on_conflict="period_id,alert_key", returning=False)
+
+
 def stage_persist_narrative(
     doc: Dict[str, Any],
     period_id: str,
@@ -3980,61 +4045,8 @@ def stage_persist_narrative(
         # The schema migration that adds `period_id` + the new unique
         # is at supabase/schema_phase_notes_period_scope.sql — both
         # must ship together.
-        admin_client.delete("alerts", filters={"period_id": f"eq.{period_id}"})
-
-        rows: List[Dict[str, Any]] = []
-        seen_keys: set[str] = set()
-        # validation_alerts already came from stage_validate deduped — but
-        # double-check at the persist boundary in case a callsite added more.
-        for a in validation_alerts:
-            key = a.get("alert_key")
-            if not key or key in seen_keys:
-                continue
-            seen_keys.add(key)
-            severity = (a.get("severity") or "medium").lower()
-            if severity not in ("critical", "high", "medium", "low", "info"):
-                severity = "medium"
-            category = (a.get("category") or "data_quality").lower()
-            # `risk_inventory` is the Section-7 category — 5-8 named structural
-            # risks the deterministic engine identifies (receivables quality,
-            # liquidity tightness, raw-material exposure, etc.). Added to the
-            # allowlist alongside the existing categories so the FE can filter
-            # to it for the Comprehensive Report's risk inventory section.
-            if category not in ("liquidity", "leverage", "margin", "inventory", "compliance",
-                                 "data_quality", "working_capital", "customer", "supplier",
-                                 "opportunity", "risk_inventory"):
-                category = "data_quality"
-            # Carry facts_cited + industry on the payload column for the
-            # FE's "Facts backing this alert" expander.
-            rows.append({
-                "org_id": org_id,
-                "period_id": period_id,
-                "alert_key": key,
-                "severity": severity,
-                "category": category,
-                "title": a.get("title", "Untitled alert"),
-                "body": a.get("body", ""),
-                "document_id": document_id,
-                "payload": {
-                    "rule_key": a.get("rule_key"),
-                    "facts_cited": a.get("facts_cited"),
-                    "industry": a.get("industry"),
-                    # Typed placeholders (2026-08-30). `*_template` carry
-                    # `{{money:<fact>}}` in place of every cited money
-                    # figure AND its currency label, so the renderer puts
-                    # every figure in one claim through one money path.
-                    # `fact_units` ends the guessing ("≥1000 is money",
-                    # "|v|>1 is money") that renders a leverage multiple
-                    # as a currency amount. All four keys are optional —
-                    # a row without them falls back to `title` / `body`.
-                    "title_template": a.get("title_template"),
-                    "body_template": a.get("body_template"),
-                    "fact_units": a.get("fact_units"),
-                    "source_currency": a.get("source_currency"),
-                },
-            })
-        if rows:
-            admin_client.upsert("alerts", rows, on_conflict="period_id,alert_key", returning=False)
+        _persist_period_alerts(admin_client, org_id, document_id, period_id,
+                               validation_alerts)
 
 
 # ─── Orchestrator ───────────────────────────────────────────────────────────
@@ -5160,6 +5172,84 @@ def _run_pipeline_sync(document_id: str) -> None:
             _doc_dedupe.clear_in_flight(document_id)
 
 
+def _compute_and_persist_valuation(doc: Dict[str, Any], org: Dict[str, Any],
+                                   assembled: Dict[str, Any],
+                                   period_id: str) -> Optional[Dict[str, Any]]:
+    """Industry classification + the valuation envelope, persisted. One
+    implementation for the pipeline and the deterministic reprocessing tool
+    (scripts/reprocess_periods_definition.py). Non-fatal: None on failure."""
+    valuation_payload: Optional[Dict[str, Any]] = None
+    # Industry classification fallback. When the org's industry_key is
+    # unset or "generic", run the auto-classifier on the assembled
+    # statements — for EEI this detects real_estate_commercial from
+    # account 215 (investment property) and account 706 (rental income)
+    # dominance, which gates the valuation method choice below.
+    stored_industry_key = (org.get("industry_key") or "").lower().strip() or None
+    classification = _ro_pack().classify_industry({"assembled": assembled})
+    detected_industry_key = classification.get("industry_key") if classification.get("confidence", 0) >= 0.5 else None
+    effective_industry_key = stored_industry_key if stored_industry_key and stored_industry_key != "generic" else (detected_industry_key or stored_industry_key)
+    if classification.get("confidence", 0) >= 0.5:
+        logger.info(
+            "[pipeline] industry classified as %s (confidence=%s, stored=%s, effective=%s)",
+            classification.get("industry_key"),
+            classification.get("confidence"),
+            stored_industry_key,
+            effective_industry_key,
+        )
+
+    # EBITDA-multiple valuation (primary) + DCF + EV/Revenue cross-checks.
+    # For CRE / negative-EBITDA cases, _valuation.compute_valuation
+    # demotes EV/EBITDA and uses asset-based as primary (Step 5 guard).
+    # Pure math — never blocks the rest of the pipeline if it errors.
+    try:
+        valuation_payload = _valuation.compute_valuation(
+            industry_key=effective_industry_key,
+            statements=assembled["statements"],
+        )
+        # Surface the detection result on the valuation payload so the
+        # frontend can display "Industry: Commercial Real Estate ·
+        # auto-classified · confidence 0.85 · [Change]" badge.
+        if valuation_payload is not None:
+            valuation_payload["industry_classification"] = classification
+            valuation_payload["industry_key_effective"] = effective_industry_key
+            valuation_payload["industry_key_stored"] = stored_industry_key
+        _valuation.persist_valuation(period_id, doc["org_id"], valuation_payload)
+    except Exception:  # noqa: BLE001
+        logger.exception("[pipeline] valuation compute failed (non-fatal)")
+    return valuation_payload
+
+
+def _override_statutory_net_income_metric(doc: Dict[str, Any], period_id: str,
+                                          parsed: Optional[Dict[str, Any]]) -> None:
+    """Patch the `net_income_statutory` metric row to account 121's closing
+    balance (the legally filed net profit) when the parse captured it. One
+    implementation for the pipeline and the deterministic reprocessing tool.
+    Non-fatal."""
+    anchor = (parsed or {}).get("statutory_net_profit_anchor")
+    if not anchor or abs(anchor) <= 0.01:
+        return
+    try:
+        with _supabase.admin() as ac:
+            ac.delete(
+                "calculated_metrics",
+                filters={"period_id": f"eq.{period_id}", "name": "eq.net_income_statutory"},
+            )
+            ac.insert("calculated_metrics", [{
+                "period_id": period_id,
+                "org_id": doc["org_id"],
+                "name": "net_income_statutory",
+                "value": round(float(anchor), 2),
+                "unit": "RON",
+                "direction": "higher",
+            }], returning=False)
+        logger.info(
+            "[pipeline] net_income_statutory overridden with ct 121 anchor: %s",
+            f"{float(anchor):,.0f}",
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception("[pipeline] statutory anchor override failed (non-fatal)")
+
+
 def _run_pipeline_stages(document_id: str) -> str:
     """Every pipeline stage for one document. Returns the outcome —
     "analyzed", "failed" (the failure is persisted on the row) or
@@ -5447,28 +5537,7 @@ def _run_pipeline_stages(document_id: str) -> str:
             # The 121 closing balance is the authoritative number — patch
             # `net_income_statutory` to that when available so the FE +
             # briefing cite the same figure the user sees on their filings.
-            anchor = (parsed or {}).get("statutory_net_profit_anchor")
-            if anchor and abs(anchor) > 0.01:
-                try:
-                    with _supabase.admin() as ac:
-                        ac.delete(
-                            "calculated_metrics",
-                            filters={"period_id": f"eq.{period_id}", "name": "eq.net_income_statutory"},
-                        )
-                        ac.insert("calculated_metrics", [{
-                            "period_id": period_id,
-                            "org_id": doc["org_id"],
-                            "name": "net_income_statutory",
-                            "value": round(float(anchor), 2),
-                            "unit": "RON",
-                            "direction": "higher",
-                        }], returning=False)
-                    logger.info(
-                        "[pipeline] net_income_statutory overridden with ct 121 anchor: %s",
-                        f"{float(anchor):,.0f}",
-                    )
-                except Exception:  # noqa: BLE001
-                    logger.exception("[pipeline] statutory anchor override failed (non-fatal)")
+            _override_statutory_net_income_metric(doc, period_id, parsed)
             validation_alerts = stage_validate(doc, assembled, period_id)
             # AI Council — advisory extraction-integrity review (2026-07-20).
             # A panel of independent Claude personas scans the extraction and a
@@ -5512,43 +5581,7 @@ def _run_pipeline_stages(document_id: str) -> str:
                     )
             except Exception:  # noqa: BLE001 — advisory: never breaks a run
                 logger.exception("[pipeline] unit-sanity sweep failed (non-fatal)")
-            # Industry classification fallback. When the org's industry_key is
-            # unset or "generic", run the auto-classifier on the assembled
-            # statements — for EEI this detects real_estate_commercial from
-            # account 215 (investment property) and account 706 (rental income)
-            # dominance, which gates the valuation method choice below.
-            stored_industry_key = (org.get("industry_key") or "").lower().strip() or None
-            classification = _ro_pack().classify_industry({"assembled": assembled})
-            detected_industry_key = classification.get("industry_key") if classification.get("confidence", 0) >= 0.5 else None
-            effective_industry_key = stored_industry_key if stored_industry_key and stored_industry_key != "generic" else (detected_industry_key or stored_industry_key)
-            if classification.get("confidence", 0) >= 0.5:
-                logger.info(
-                    "[pipeline] industry classified as %s (confidence=%s, stored=%s, effective=%s)",
-                    classification.get("industry_key"),
-                    classification.get("confidence"),
-                    stored_industry_key,
-                    effective_industry_key,
-                )
-
-            # EBITDA-multiple valuation (primary) + DCF + EV/Revenue cross-checks.
-            # For CRE / negative-EBITDA cases, _valuation.compute_valuation
-            # demotes EV/EBITDA and uses asset-based as primary (Step 5 guard).
-            # Pure math — never blocks the rest of the pipeline if it errors.
-            try:
-                valuation_payload = _valuation.compute_valuation(
-                    industry_key=effective_industry_key,
-                    statements=assembled["statements"],
-                )
-                # Surface the detection result on the valuation payload so the
-                # frontend can display "Industry: Commercial Real Estate ·
-                # auto-classified · confidence 0.85 · [Change]" badge.
-                if valuation_payload is not None:
-                    valuation_payload["industry_classification"] = classification
-                    valuation_payload["industry_key_effective"] = effective_industry_key
-                    valuation_payload["industry_key_stored"] = stored_industry_key
-                _valuation.persist_valuation(period_id, doc["org_id"], valuation_payload)
-            except Exception:  # noqa: BLE001
-                logger.exception("[pipeline] valuation compute failed (non-fatal)")
+            valuation_payload = _compute_and_persist_valuation(doc, org, assembled, period_id)
         else:
             metrics = []
             validation_alerts = []
