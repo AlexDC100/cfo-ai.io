@@ -1454,7 +1454,12 @@ def _notes(assumptions: AssumptionSet, history: PlHistory) -> Tuple[str, ...]:
     # the gap sized from the book's own integers rather than described:
     # a `derived` driver is the one case that otherwise says nothing on
     # the face of the projection.
+    # Since the ruling (2026-09-26) the distance to account 121 on a closed
+    # book is, in full, the stock variation the statement derives from 121
+    # — a NAMED line. Only what is left after it is "not attributable".
     unexplained = history.unexplained_vs_filed()
+    if unexplained is not None:
+        unexplained -= history.stock_variation_in_distance() or 0
     if unexplained:
         out.append(
             "measured against account 121: %s of this book's profit and "
@@ -1467,6 +1472,20 @@ def _notes(assumptions: AssumptionSet, history: PlHistory) -> Tuple[str, ...]:
             % (fmt(unexplained),
                fmt((history.pretax or 0) - (history.income_tax or 0)),
                fmt(history.net_income or 0)))
+    # The year-0 -> year-1 step (design A6): the actual year's EBITDA
+    # carries net 711 and net 72x; no plan year does. Sized from the book.
+    step = history.stock_variation_step()
+    if step:
+        out.append(
+            "the stock variation (711, Variația stocurilor de produse) and own "
+            "work capitalised (72x) are not projected: 0 in every plan year. "
+            "The actual year's EBITDA of %s includes %s of them (net 711 %s, "
+            "net 72x %s), so plan year one starts from the recurring EBITDA "
+            "of %s."
+            % (fmt(history.ebitda), fmt(step),
+               fmt(history.inventory_variation or 0),
+               fmt(history.capitalized_own_work or 0),
+               fmt(history.ebitda_before_stock_variation)))
     reversals = history.provision_reversals
     if reversals:
         out.append(

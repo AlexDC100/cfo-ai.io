@@ -161,6 +161,8 @@ from engine.serving.facts import FactsGateway
 REPO = Path(__file__).resolve().parents[2]
 FIRM = REPO / "tests" / "engine" / "fixtures" / "firm"
 BOOKS = ("agras", "carniprod", "realestate", "retail")
+#: The year-0 -> year-1 stock-variation steps the zero-growth law checked.
+WORK_711 = {"books": []}
 
 #: The gap between the canonical balance sheet and the legacy assembly on
 #: the agras book — the unclassified account-413 balance the legacy path
@@ -1083,8 +1085,18 @@ def resolution_bound(*bases_and_steps, **kw):
 @pytest.mark.parametrize("name", BOOKS)
 def test_at_zero_growth_the_plans_first_year_reproduces_the_books_own_ebitda(name):
     """"Same as last year" must actually mean it. At 0% growth the model
-    re-earns the book's own EBITDA, which it cannot do while an operating
-    income line the same statement names is missing from the P&L."""
+    re-earns the book's own RECURRING EBITDA, which it cannot do while an
+    operating income line the same statement names is missing from the P&L.
+
+    REWRITTEN for the owner ruling of 2026-09-26 (design A6), not
+    re-captured. The book's EBITDA now carries net 711 ("Variația
+    stocurilor de produse") and net 72x; the plan projects both at 0 and
+    says so. So plan year one reproduces the book's EBITDA BEFORE them to
+    the cent, and the step from the actual year to plan year one is EXACTLY
+    net 711 + net 72x — no more, no less — and is stated on the face of the
+    projection with the figures. What this reds on: a plan year that
+    carries (or drops) a stock variation, a dropped operating line, and a
+    step that is not the served components."""
     book = _book_pl(name)
     # plan/2 B3: base growth is the macro anchor on these RO books (R1), so
     # "at zero growth" is now a stated override, not the default.
@@ -1095,13 +1107,25 @@ def test_at_zero_growth_the_plans_first_year_reproduces_the_books_own_ebitda(nam
     # share-of-revenue rounding left to tolerate.
     projection = plan(name, horizon_years=1, revenue_growth=0, inflation=0)
     modelled = _year_one(projection, "ebitda")
-    reported = cents_from(book["ebitda"])
+    reported = cents_from(book["ebitda_before_stock_variation"])
     allowed = 0
     assert abs(modelled - reported) <= allowed, (
-        "%s: model EBITDA %s vs the book's own %s, short by %s — the "
-        "book names other operating income of %s"
+        "%s: model EBITDA %s vs the book's own before the stock variation %s, "
+        "short by %s — the book names other operating income of %s"
         % (name, fmt(modelled), fmt(reported), fmt(reported - modelled),
            fmt(cents_from(book["other_operating_income"]))))
+    # The year-0 -> year-1 step is the served components, to the cent.
+    step = cents_from(book["ebitda"]) - modelled
+    components = (cents_from(book["inventory_variation"]["value"])
+                  + cents_from(book["capitalized_own_work"]["value"]))
+    assert step == components, (name, fmt(step), fmt(components))
+    stated = [n for n in projection.notes if "are not projected" in n]
+    if components:
+        assert len(stated) == 1 and fmt(components) in stated[0] \
+            and fmt(cents_from(book["ebitda"])) in stated[0], (name, stated)
+    else:
+        assert not stated, (name, stated)
+    WORK_711["books"].append((name, fmt(step)))
 
 
 @pytest.mark.parametrize("name", BOOKS)
@@ -1116,7 +1140,9 @@ def test_at_zero_growth_the_plans_first_year_reproduces_the_books_pretax_result(
     projection = plan(name, horizon_years=1, revenue_growth=0, inflation=0)
     modelled = _year_one(projection, "pretax_result")
     funding_charge = -_year_one(projection, "interest_expense_funding_line")
-    reported = cents_from(book["pretax"])
+    # The plan projects net 711 and net 72x at 0 (ruling 2026-09-26): its
+    # pre-tax result reproduces the book's BEFORE them.
+    reported = cents_from(book["pretax_before_stock_variation"])
     opening = projection.opening
     allowed = resolution_bound(
         # capex (the one remaining share of revenue on the operating side)
@@ -1250,14 +1276,27 @@ def test_the_gap_the_model_measures_is_the_engines_own_unexplained_step(name):
     payload = load(name)
     pl = payload["statements"]["assembled_pl"]
     history = pl_history_from_payload(payload)
-    assert history.unexplained_vs_filed() == cents_from(
-        pl["net_income_unexplained_vs_121"]), (
+    # REWRITTEN for the ruling (2026-09-26), not re-captured. The model's
+    # distance is taken on the build-up BEFORE net 711 (the tax rule is
+    # keyed to it — design A6). The engine's `net_income_unexplained_vs_121`
+    # is what remains after the lines it NAMES, and since the ruling net 711
+    # is one of them. So: the model's distance = the engine's unexplained
+    # remainder + the served net 711 (when served), and the part the model
+    # calls the stock variation is exactly the served bridge figure.
+    served_711 = (pl.get("inventory_variation") or {}).get("value")
+    assert history.unexplained_vs_filed() == (
+        cents_from(pl["net_income_unexplained_vs_121"])
+        + cents_from(served_711 or 0)), (
             "the model's own gap and assembled_pl's differ — two "
             "authorities for one number")
     # and the nameable half of the bridge is where the engine says it is
     assert (cents_from(pl["net_income_reconciliation_to_121"])
             - cents_from(pl["capitalized_own_work_memo"])
             == history.unexplained_vs_filed())
+    if pl["inventory_variation"].get("provenance") == "account_121_bridge":
+        assert history.stock_variation_in_distance() == cents_from(served_711)
+    else:
+        assert history.stock_variation_in_distance() == 0
 
 
 @pytest.mark.parametrize("name", BOOKS)
@@ -1266,7 +1305,8 @@ def test_a_tax_rate_is_derived_only_when_it_reproduces_the_filed_profit(name):
     history = pl_history_from_payload(load(name))
     driver = plan(name, horizon_years=1).assumptions["tax_rate"]
     charged = cents_from(book["income_tax"])
-    pretax = cents_from(book["pretax"])
+    # keyed to the build-up before the stock variation (ruling 2026-09-26)
+    pretax = cents_from(book["pretax_before_stock_variation"])
     gap = history.unexplained_vs_filed()
     if driver.source == "derived":
         assert pretax > 0
@@ -1305,8 +1345,16 @@ def test_the_demotion_states_the_gap_and_the_rate_it_displaces(name):
     assert driver.source == "engine_default"
     assert fmt(history.unexplained_vs_filed()) in driver.basis
     assert fmt(history.net_income) in driver.basis
-    implied = mul_div(history.income_tax, 1_000_000, history.pretax)
+    # The rate the rule displaces is read off the build-up BEFORE the stock
+    # variation (ruling 2026-09-26: `pretax` now carries the 121-derived
+    # net 711, and a rate on it would reproduce 121 by construction).
+    implied = mul_div(history.income_tax, 1_000_000,
+                      history.pretax_before_stock_variation)
     assert ("%.4f%%" % (implied / 10_000.0)) in driver.basis
+    # On these closed manufacturers the whole distance IS the stock
+    # variation the statement derives from 121 — and the basis names it.
+    assert history.stock_variation_in_distance() == history.unexplained_vs_filed()
+    assert "Variația stocurilor de produse" in driver.basis
 
 
 @pytest.mark.parametrize("name", ("agras", "carniprod"))
@@ -1326,7 +1374,8 @@ def test_the_unreconciled_rate_would_have_charged_a_different_tax(name):
     integers, never assumed.
     """
     history = pl_history_from_payload(load(name))
-    implied = mul_div(history.income_tax, 1_000_000, history.pretax)
+    implied = mul_div(history.income_tax, 1_000_000,
+                      history.pretax_before_stock_variation)
     default = plan(name, horizon_years=5)
     previous = plan(name, horizon_years=5, tax_rate=implied / 1_000_000.0)
     assert default.assumptions["tax_rate"].exact == micros_from(0.16)
@@ -2539,3 +2588,13 @@ def test_a_default_that_no_lever_can_falsify_keeps_its_zero(
         "default has to be re-argued: something now creates the thing it "
         "says this book does not have"
         % (key, fmt(abs(charged)), statement, line))
+
+
+def test_zz_the_year0_step_law_judged_a_book_with_a_stock_variation(capsys):
+    """TC-3: the zero-growth law above is only a gate on the ruling if it
+    judged a book whose actual year carried a non-zero step (net 711 + net
+    72x). Printed; vacuous = red."""
+    with capsys.disabled():
+        print("\nforecast year0->year1 step (net 711 + net 72x): %s"
+              % ", ".join("%s %s" % b for b in WORK_711["books"]))
+    assert any(step != "0.00" for _n, step in WORK_711["books"]), WORK_711

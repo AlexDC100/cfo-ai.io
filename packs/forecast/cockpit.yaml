@@ -428,6 +428,10 @@ lines:
   pl.cost_of_sales: {ro: "Costul vânzărilor", en: "Cost of sales"}
   pl.operating_costs: {ro: "Cheltuieli de exploatare", en: "Operating costs"}
   pl.other_operating_income: {ro: "Alte venituri din exploatare", en: "Other operating income"}
+  # Year 0 only (owner ruling 2026-09-26): inside the actual year's EBITDA,
+  # projected at 0 in every plan year — the year-0 -> year-1 step.
+  pl.inventory_variation: {ro: "Variația stocurilor de produse", en: "Change in inventories of finished goods and WIP (711)"}
+  pl.capitalized_own_work: {ro: "Producția realizată pentru scopuri proprii și capitalizată", en: "Own work capitalised (72x)"}
   pl.ebitda: {ro: "EBITDA", en: "EBITDA"}
   pl.depreciation: {ro: "Amortizarea imobilizărilor corporale", en: "Depreciation"}
   pl.amortisation: {ro: "Amortizarea imobilizărilor necorporale", en: "Amortisation"}
@@ -488,6 +492,14 @@ year0_not_split:
   code: "year0_not_split"
   ro: "balanța anului de bază nu separă această linie așa cum o separă proiecția"
   en: "the base year's trial balance does not split this line the way the projection does"
+
+# The two lines the actual year carries inside EBITDA and no plan year
+# projects (owner ruling 2026-09-26, design A6). Rendered beside the year-0
+# figures and on the EBITDA card's step from the actual year to plan year one.
+stock_variation_step:
+  code: "stock_variation_not_projected"
+  ro: "variația stocurilor și producția imobilizată nu se proiectează: 0 în anii de plan"
+  en: "the stock variation and own work capitalised are not projected: 0 in every plan year"
 
 # ── the bridge from base (gate F9) ──────────────────────────────────────
 # Every step is a difference of cumulative served flows (case minus base)

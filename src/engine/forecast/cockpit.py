@@ -206,6 +206,9 @@ class CockpitPack(object):
         not_split = raw.get("year0_not_split") or {}
         self.year0_not_split = {"code": str(not_split.get("code") or ""),
                                 "text": _two(not_split, "year0_not_split")}
+        step = raw.get("stock_variation_step") or {}
+        self.stock_variation_step = {"code": str(step.get("code") or ""),
+                                     "text": _two(step, "stock_variation_step")}
         self.dscr = dict(raw.get("dscr") or {})
         self.dscr_formula = _two(self.dscr.get("formula"), "dscr.formula")
         self.cases = [CaseSpec(c, "cases[%d]" % i, ids) for i, c in enumerate(raw.get("cases") or [])]
@@ -1003,12 +1006,24 @@ def _fig(amount: int) -> Dict[str, Any]:
     return {"kind": "projected", "amount_minor": int(amount)}
 
 
-def _actual(amount: Optional[int], pack: Optional[CockpitPack] = None) -> Dict[str, Any]:
+def _actual(amount: Optional[int], pack: Optional[CockpitPack] = None,
+            refusal: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     if amount is None:
+        if refusal:
+            # The ENGINE's own reason (e.g. net 711 refused on a book that
+            # posts to it — owner ruling 2026-09-26), not "not split".
+            return {"kind": "actual", "refused": {
+                "code": str(refusal.get("code") or "refused"),
+                "text": {"ro": str(refusal.get("text_ro") or refusal.get("code") or ""),
+                         "en": str(refusal.get("text_en") or refusal.get("code") or "")}}}
         refusal = (pack or cockpit_pack()).year0_not_split
         return {"kind": "actual", "refused": {"code": refusal["code"],
                                               "text": dict(refusal["text"])}}
     return {"kind": "actual", "amount_minor": int(amount)}
+
+
+#: Year-0 P&L lines that are REFUSED with the EBITDA when net 711 is.
+_REFUSED_WITH_EBITDA = ("pl.ebitda", "pl.pretax_result", "pl.inventory_variation")
 
 
 def bridge(base: Any, case: Any, window: str, pack: Optional[CockpitPack] = None) -> Dict[str, Any]:
@@ -1289,6 +1304,28 @@ def build_cockpit(anchor_payload: Dict[str, Any], prior_periods: Sequence[Dict[s
         ebitda_block["note"] = note
         for l in _LANGS:
             ebitda_block["display"][l]["note"] = note["display"][l]
+    # The step from the actual year to plan year one (design A6): the
+    # actual EBITDA carries net 711 and net 72x, no plan year does. Served
+    # only where the book carried either, so every other book's block is
+    # byte-identical to what it was.
+    step = history.stock_variation_step()
+    if step:
+        ebitda_block["year0_step"] = {
+            "code": pack.stock_variation_step["code"],
+            "ebitda_year0": _actual(history.ebitda),
+            "inventory_variation": _actual(history.inventory_variation),
+            "capitalized_own_work": _actual(history.capitalized_own_work),
+            "ebitda_year0_before_stock_variation": _actual(history.ebitda_before_stock_variation),
+            "margin_year0_before_stock_variation_ppm": (
+                None if (margin0 is None or not revenue0)
+                else _ppm(Fraction(history.ebitda_before_stock_variation, revenue0))),
+            "display": dict((l, {
+                "text": pack.stock_variation_step["text"][l],
+                "ebitda_year0": fmt_money(history.ebitda, l, pack),
+                "step": fmt_money(step, l, pack),
+                "ebitda_year0_before_stock_variation": fmt_money(
+                    history.ebitda_before_stock_variation, l, pack)}) for l in _LANGS),
+        }
 
     # 2. cumulative free cash flow: operating + investing cash, every period
     fcf = sum(p.cf["cash_from_operating"] + p.cf["cash_from_investing"] for p in projection.periods)
@@ -1400,7 +1437,8 @@ def build_cockpit(anchor_payload: Dict[str, Any], prior_periods: Sequence[Dict[s
         "company_name": anchor_payload.get("company_name"),
         "base_period": {
             "period_end": str(opening.period_end), "label": "FY%s" % year0,
-            "figures": {"revenue": _actual(history.revenue), "ebitda": _actual(history.ebitda),
+            "figures": {"revenue": _actual(history.revenue),
+                        "ebitda": _actual(history.ebitda, pack, history.ebitda_refusal),
                         "net_income": _actual(history.net_income),
                         "cash": _actual(opening.cents("cash")),
                         "total_assets": _actual(opening.total_assets_cents()),
@@ -1605,12 +1643,19 @@ _YEAR0_PL = {
     "pl.cost_of_sales": lambda h: None if h.cogs is None else -h.cogs,
     "pl.operating_costs": lambda h: None if h.opex is None else -h.opex,
     "pl.other_operating_income": lambda h: h.other_operating_income,
+    "pl.inventory_variation": lambda h: h.inventory_variation,
+    "pl.capitalized_own_work": lambda h: h.capitalized_own_work,
     "pl.ebitda": lambda h: h.ebitda,
     "pl.interest_income": lambda h: h.interest_income,
     "pl.pretax_result": lambda h: h.pretax,
     "pl.income_tax": lambda h: None if h.income_tax is None else -h.income_tax,
     "pl.net_income": lambda h: h.net_income,
 }
+
+
+#: Lines the actual year carries INSIDE its EBITDA and no plan year projects
+#: (net 711 and net 72x — owner ruling 2026-09-26, design A6).
+_YEAR0_ONLY = ("pl.inventory_variation", "pl.capitalized_own_work")
 
 
 def _statements(pack: CockpitPack, agg: Sequence[Tuple[int, str, Dict[str, int]]],
@@ -1628,18 +1673,31 @@ def _statements(pack: CockpitPack, agg: Sequence[Tuple[int, str, Dict[str, int]]
         for line, label in pack.lines.items():
             if not (line.startswith(section + ".") or (section == "bs" and line.startswith("bs_totals."))):
                 continue
-            if line not in agg[0][2]:
+            not_projected = line in _YEAR0_ONLY
+            if line not in agg[0][2] and not not_projected:
+                continue
+            if not_projected and history.stock_variation_step() == 0:
+                # Nothing to show: the actual year carried neither line.
                 continue
             if section == "pl":
                 y0 = _YEAR0_PL.get(line)
-                zero = _actual(y0(history) if y0 is not None else None)
+                zero = _actual(y0(history) if y0 is not None else None, pack,
+                               history.ebitda_refusal if line in _REFUSED_WITH_EBITDA else None)
             elif section == "bs":
                 zero = _actual(year0_bs.get(line))
             else:
                 zero = None
-            values = [{"period": label_, "kind": "projected", "amount_minor": a[line]}
-                      for _n, label_, a in agg]
+            if not_projected:
+                # Projected at 0 in every plan year, and SAID so beside it.
+                values = [{"period": label_, "kind": "projected", "amount_minor": 0}
+                          for _n, label_, _a in agg]
+            else:
+                values = [{"period": label_, "kind": "projected", "amount_minor": a[line]}
+                          for _n, label_, a in agg]
             row = {"line": line, "label": dict(label), "values": values}
+            if not_projected:
+                row["not_projected"] = {"code": pack.stock_variation_step["code"],
+                                        "text": dict(pack.stock_variation_step["text"])}
             if zero is not None:
                 row["year0"] = dict(zero, period="FY%s" % year0)
             rows.append(row)

@@ -46,7 +46,10 @@ class PlHistory(object):
                  "interest_income", "pretax", "income_tax", "net_income",
                  "ebitda", "other_operating_income", "financial_income",
                  "financial_expense_total", "provision_reversals",
-                 "capitalized_own_work", "filed_net_income_121")
+                 "capitalized_own_work", "filed_net_income_121",
+                 "pretax_before_stock_variation",
+                 "ebitda_before_stock_variation", "inventory_variation",
+                 "inventory_variation_provenance", "ebitda_refusal")
 
     def __init__(self, revenue: Optional[int] = None, cogs: Optional[int] = None,
                  opex: Optional[int] = None, depreciation: Optional[int] = None,
@@ -61,7 +64,12 @@ class PlHistory(object):
                  financial_expense_total: Optional[int] = None,
                  provision_reversals: Optional[int] = None,
                  capitalized_own_work: Optional[int] = None,
-                 filed_net_income_121: Optional[int] = None) -> None:
+                 filed_net_income_121: Optional[int] = None,
+                 pretax_before_stock_variation: Optional[int] = None,
+                 ebitda_before_stock_variation: Optional[int] = None,
+                 inventory_variation: Optional[int] = None,
+                 inventory_variation_provenance: Optional[str] = None,
+                 ebitda_refusal: Optional[Dict[str, Any]] = None) -> None:
         self.revenue = revenue
         self.cogs = cogs
         self.opex = opex
@@ -78,6 +86,17 @@ class PlHistory(object):
         self.financial_expense_total = financial_expense_total
         self.provision_reversals = provision_reversals
         self.capitalized_own_work = capitalized_own_work
+        # THE RULING (2026-09-26): `ebitda` and `pretax` above are the ONE
+        # definition — net 711 ("Variația stocurilor de produse") and net
+        # 72x inside — and None when net 711 is refused (`ebitda_refusal`
+        # says why). The build-up BEFORE both is the recurring basis the
+        # plan years project (they carry net 711 = 0 and 72x = 0) and the
+        # basis the tax-rate rule is keyed to.
+        self.pretax_before_stock_variation = pretax_before_stock_variation
+        self.ebitda_before_stock_variation = ebitda_before_stock_variation
+        self.inventory_variation = inventory_variation
+        self.inventory_variation_provenance = inventory_variation_provenance
+        self.ebitda_refusal = ebitda_refusal
 
     # ── the two NET figures the model has a line for but the book does
     # not name directly. Both are differences, so both are ABSENT when
@@ -125,7 +144,22 @@ class PlHistory(object):
         compute it, which is not the same fact as a reconstruction that
         ties.
         """
-        if self.pretax is None or self.income_tax is None:
+        # KEYED TO THE BUILD-UP BEFORE THE STOCK VARIATION (ruling
+        # 2026-09-26, design A6). Since the ruling `pretax` includes net
+        # 711, and on a CLOSED book net 711 is DERIVED from account 121
+        # (the bridge: 121 less every other line), so `pretax − tax`
+        # reproduces 121 by construction on every such book. Measuring the
+        # distance on it would report "nothing unexplained" exactly where
+        # the 121 bridge filled the gap, and flip every closed manufacturer
+        # onto a measured tax rate read off a figure derived from the one
+        # it is checked against. So the distance is taken on the build-up
+        # BEFORE net 711 — today's rule, unchanged in value — and on a
+        # bridge book its whole amount IS the stock variation (named by
+        # `stock_variation_in_distance`).
+        pretax = self.pretax_before_stock_variation
+        if pretax is None:
+            pretax = self.pretax
+        if pretax is None or self.income_tax is None:
             return None
         # ⚠ MEASURED AGAINST THE FILED BALANCE, NOT `net_income_statutory`.
         #
@@ -155,18 +189,40 @@ class PlHistory(object):
             # build-up was never checked against anything — which is not
             # the same fact as a build-up that ties.
             return None
-        reconstructed = self.pretax - self.income_tax
+        reconstructed = pretax - self.income_tax
         return (self.filed_net_income_121 - reconstructed
                 - (self.capitalized_own_work or 0))
+
+    def stock_variation_in_distance(self) -> Optional[int]:
+        """The part of :meth:`unexplained_vs_filed` the statement NAMES
+        since the ruling: net 711 when it was derived from account 121
+        (provenance ``account_121_bridge``) — 0 otherwise. What remains
+        after it is what no line explains."""
+        if (self.inventory_variation_provenance == "account_121_bridge"
+                and self.inventory_variation is not None):
+            return self.inventory_variation
+        return 0
+
+    def stock_variation_step(self) -> Optional[int]:
+        """Net 711 + net 72x of the actual year: the step from the book's
+        EBITDA to the recurring basis the plan years project (both are
+        projected at 0). None when EBITDA is refused."""
+        if self.ebitda is None or self.ebitda_before_stock_variation is None:
+            return None
+        return self.ebitda - self.ebitda_before_stock_variation
 
     def as_dict(self) -> Dict[str, Any]:
         from .money import to_float
         out = {}
         for name in self.__slots__:
             value = getattr(self, name)
+            if name in ("inventory_variation_provenance", "ebitda_refusal"):
+                out[name] = value
+                continue
             out[name] = None if value is None else to_float(value)
         for name in ("other_financial_income", "other_financial_expense",
-                     "unexplained_vs_filed"):
+                     "unexplained_vs_filed", "stock_variation_in_distance",
+                     "stock_variation_step"):
             value = getattr(self, name)()
             out[name] = None if value is None else to_float(value)
         return out
@@ -193,6 +249,9 @@ def pl_history_from_payload(payload: Dict[str, Any]) -> PlHistory:
     pl = statements.get("assembled_pl")
     if not isinstance(pl, dict):
         pl = {}
+    inventory_variation = pl.get("inventory_variation")
+    if not isinstance(inventory_variation, dict):
+        inventory_variation = {}
     return PlHistory(
         revenue=_cents_or_none(pl.get("revenue")),
         cogs=_cents_or_none(pl.get("cogs")),
@@ -216,6 +275,16 @@ def pl_history_from_payload(payload: Dict[str, Any]) -> PlHistory:
         # row survived — see `unexplained_vs_filed` for why this and not
         # `assembled_pl.net_income_statutory`.
         filed_net_income_121=_cents_or_none(_p121_cross_check(payload)),
+        pretax_before_stock_variation=_cents_or_none(
+            pl.get("pretax_before_stock_variation")),
+        ebitda_before_stock_variation=_cents_or_none(
+            pl.get("ebitda_before_stock_variation")),
+        inventory_variation=_cents_or_none(inventory_variation.get("value")),
+        inventory_variation_provenance=(
+            str(inventory_variation.get("provenance"))
+            if inventory_variation.get("provenance") else None),
+        ebitda_refusal=(dict(pl["ebitda_refusal"])
+                        if isinstance(pl.get("ebitda_refusal"), dict) else None),
     )
 
 

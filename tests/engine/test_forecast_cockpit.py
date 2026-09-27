@@ -224,6 +224,15 @@ def _rows(body: Dict[str, Any]) -> Dict[Tuple[str, str], int]:
     out = {}  # type: Dict[Tuple[str, str], int]
     for section in ("pl", "bs", "cf"):
         for row in body["statements"][section]:
+            if row.get("not_projected"):
+                # Year-0-only lines (net 711 / net 72x — owner ruling
+                # 2026-09-26): inside the actual year's EBITDA, nil in every
+                # plan year and SAID so. No engine line projects them, so
+                # they are not compared — but a non-zero plan-year value
+                # would be a stock variation the model invented.
+                assert all(v["amount_minor"] == 0 for v in row["values"]), row
+                assert row["not_projected"]["code"] == "stock_variation_not_projected", row
+                continue
             for value in row["values"]:
                 out[(row["line"], value["period"])] = value["amount_minor"]
     return out
