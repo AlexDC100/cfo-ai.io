@@ -145,6 +145,12 @@ class Book(object):
         """One assembled-P&L figure, or None when the payload omits it."""
         return _num(self._pl.get(key))
 
+    def pl_block(self, key: str) -> Optional[Dict[str, Any]]:
+        """One structured assembled-P&L block (e.g. ``inventory_variation``:
+        value | refusal, provenance, labels), or None when absent."""
+        value = self._pl.get(key)
+        return dict(value) if isinstance(value, dict) else None
+
     #: The canonical balance sheet names its totals differently from the
     #: legacy assembly. Mapping the ones detectors actually ask for.
     _CANONICAL_TOTALS = {
@@ -297,7 +303,16 @@ class Book(object):
         if name == "gross_ppe":
             return _positive(self.row_sum(_GROSS_PPE_ROWS))
         if name == "reconstructed_net_income":
-            value = self.pl("net_income_operational")
+            # The profit the statement's lines reach — its NAMED lines
+            # included (72x, and net 711 since the 2026-09-26 ruling):
+            # statutory less the step no line explains. The reconstruction
+            # gap is graded against the profit it is correcting.
+            statutory = self.pl("net_income_statutory")
+            step = self.pl("net_income_unexplained_vs_121")
+            if statutory is not None and step is not None:
+                value = statutory - step
+            else:
+                value = self.pl("net_income_operational")
             if value is None:
                 return None
             return abs(value) if abs(value) > 0.005 else None

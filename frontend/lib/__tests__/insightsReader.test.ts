@@ -269,12 +269,12 @@ describe("the owner's own findings survive into the reader", () => {
     expect(insight.claim).toContain("1.50×");
   });
 
-  it("carries the 16.6% reconstruction gap (46.6% before plan/2 B4a read the mirrored 709 reductions as reductions)", () => {
-    const insight = insightById(
-      blockFor("agras"),
-      "reconstruction_gap",
-    ) as Insight;
-    expect(insight.claim).toContain("16.6%");
+  it("lists the reconstruction gap as checked, with the reason: its 16.6% step is the named stock variation (owner ruling 2026-09-26)", () => {
+    const block = blockFor("agras");
+    expect(insightById(block, "reconstruction_gap")).toBeNull();
+    const reason = (block.not_fired as Array<{ id: string; reason: string }>)
+      .find((n) => n.id === "reconstruction_gap")?.reason;
+    expect(reason).toContain("derived from account 121");
   });
 });
 

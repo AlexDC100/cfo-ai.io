@@ -118,13 +118,19 @@ def test_every_pack_detector_states_the_basis_it_scales_against():
 # ── every detector fires on the owner's book ──────────────────────────
 
 
-def test_all_eight_detectors_fire_on_the_agras_book():
+def test_every_detector_but_the_reconstruction_gap_fires_on_the_agras_book():
+    """RESTATED for the owner ruling of 2026-09-26: agras's step to account
+    121 is its 121-derived stock variation, a named line, so the
+    reconstruction gap is silent there (for the stated reason — see
+    test_reconstruction_gap_on_agras_is_silent_because_the_step_is_the_
+    stock_variation); the other seven still have evidence on the book."""
     block = _block("agras")
     fired = tuple(sorted(i["id"] for i in block["insights"]))
-    assert fired == EXPECTED_DETECTORS, (
-        "agras is the owner's live book and every detector has evidence on "
-        "it; not_fired carried: %s" % block["not_fired"]
+    assert fired == tuple(d for d in EXPECTED_DETECTORS if d != "reconstruction_gap"), (
+        "agras is the owner's live book and every other detector has evidence "
+        "on it; not_fired carried: %s" % block["not_fired"]
     )
+    assert [n["id"] for n in block["not_fired"]] == ["reconstruction_gap"]
 
 
 @pytest.mark.parametrize("book", BOOKS)
@@ -203,33 +209,68 @@ def test_related_party_exposure_names_the_accounts_and_haircuts_the_ratios():
     assert abs(sum(a["amount"] for a in insight["accounts"]) - 7692202.74) < 0.01
 
 
-def test_reconstruction_gap_on_agras_is_graded_from_the_measured_step():
-    """RESTATED (plan/2 B4a). The coordinator's ~47% read (14,106,102.03
-    rebuilt against 7,533,676.02 filed) was mostly the 609/709 double
-    count: agras's mirrored 709 reductions (3,889,255.25) entered revenue
-    with the exporter's positive sign. Read as reductions the rebuild is
-    6,461,988.99 and the step +1,071,687.03 (16.6%) — what the mirrored 711
-    production variation hides — grading medium, not high. The finding
-    still fires, with the honest distance."""
-    insight = _by_id(_block("agras"))["reconstruction_gap"]
-    _approx(_measure(insight, "step"), 1071687.03, 0.01)
-    _approx(_measure(insight, "reconstructed"), 6461988.99, 0.01)
-    _approx(_measure(insight, "statutory"), 7533676.02, 0.01)
-    _approx(_measure(insight, "graded_share"), 0.165845, 1e-5)
-    assert insight["severity"]["level"] == "medium"
-    # The evidence names account 121 itself, even though the served line
-    # items EXCLUDE it as the profit control account: the canonical row
-    # names exactly one account, so the row's amount is that account's
-    # balance. A finding about 121 that could not name 121 would be
-    # traceable to nothing.
-    assert [a["code"] for a in insight["accounts"]] == ["121"]
-    _approx(insight["accounts"][0]["amount"], 7533676.02, 0.01)
+def test_reconstruction_gap_on_agras_is_silent_because_the_step_is_the_stock_variation():
+    """REWRITTEN for the owner ruling of 2026-09-26 (design A8), not
+    re-captured. Agras's whole step to account 121 (+1,071,687.03, 16.6% of
+    the rebuild) was the stock variation its closed trial balance does not
+    print. Under the ruling that is a NAMED line — "Variația stocurilor de
+    produse", derived through the 121 bridge with the guards held — so
+    nothing on the statement is unexplained and the finding does not fire.
+    It says why, instead of printing the stock variation as a gap. The
+    finding keeps firing on a real misread: the constructed witnesses below."""
+    block = _block("agras")
+    assert "reconstruction_gap" not in _by_id(block)
+    why = dict((n["id"], n["reason"]) for n in block["not_fired"])["reconstruction_gap"]
+    assert "derived from account 121" in why and "guards" in why, why
+
+
+def _constructed(name: str) -> Dict[str, Any]:
+    """A CONSTRUCTED book of the net-711-rule gate (synthetic, no client
+    data) through the offline production composition."""
+    import test_net_711_rule as NET
+    assembled = NET._assemble(name)
+    return {"statements": assembled["statements"],
+            "envelope": assembled["assembled_canonical_v1"],
+            "line_items": assembled.get("lineItems") or []}
+
+
+@pytest.mark.parametrize("name,step", [
+    # closed, NO 711 activity: 121 closes 2,000.00 above what the accounts
+    # give (a constructed misread) — never folded into 711, so it is the
+    # unexplained step.
+    ("closed_no_activity", 2000.00),
+    # closed, 711 activity, the 121 remainder larger than 711's own turnover
+    # (guard G5): net 711 is REFUSED, so nothing names the step.
+    ("g5_residual", None),
+])
+def test_reconstruction_gap_fires_on_a_constructed_misread(name, step):
+    """The witness the ruling's bridge would otherwise take away (design A8:
+    "a gate with no witness is RED, never green"). What this reds on: the
+    finding reading the whole step (it would print the stock variation as a
+    gap on every closed manufacturer) or reading nothing at all (it would
+    stay silent on a misread)."""
+    payload = _constructed(name)
+    pl = payload["statements"]["assembled_pl"]
+    insight = _by_id(build_insights(payload)).get("reconstruction_gap")
+    assert insight is not None, (name, pl["net_income_unexplained_vs_121"])
+    expected = pl["net_income_unexplained_vs_121"] if step is None else step
+    assert expected != 0.0
+    _approx(_measure(insight, "step"), expected, 0.01)
     # It reconciles: reconstructed + step == statutory, to the cent.
-    assert abs(
-        _measure(insight, "reconstructed")
-        + _measure(insight, "step")
-        - _measure(insight, "statutory")
-    ) < 0.01
+    assert abs(_measure(insight, "reconstructed") + _measure(insight, "step")
+               - _measure(insight, "statutory")) < 0.01
+    # (The account list is not asserted here: the offline composition of a
+    # constructed book does not stamp the leaf ids on the canonical 121 row;
+    # the corpus books do, and agras's served evidence names 121.)
+
+
+def test_reconstruction_gap_is_silent_on_the_constructed_bridge_book():
+    """And the closed book whose 121 remainder IS its 711 (guards held):
+    silent, for the stated reason."""
+    block = build_insights(_constructed("closed_bridge"))
+    assert "reconstruction_gap" not in _by_id(block)
+    why = dict((n["id"], n["reason"]) for n in block["not_fired"])["reconstruction_gap"]
+    assert "derived from account 121" in why, why
 
 
 def test_trade_float_prices_the_cycle_in_currency_and_in_days():

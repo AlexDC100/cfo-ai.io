@@ -635,24 +635,21 @@ def test_agras_serves_the_current_ratio_collapse(monkeypatch):
     assert _measure(ins, "non_trade") == pytest.approx(7803433.57, abs=0.005)
 
 
-def test_agras_serves_the_reconstruction_gap(monkeypatch):
+def test_agras_serves_the_reconstruction_gap_as_not_fired_with_its_reason(monkeypatch):
     """The step between the rebuilt P&L and account 121.
 
-    RESTATED (plan/2 B4a): the 46.6% step this test used to pin (rebuilt
-    14,106,102.03 against 7,533,676.02 filed) was mostly the 609/709
-    double count — agras's mirrored 709 customer reductions (3,889,255.25)
-    entered revenue with the exporter's positive sign, so revenue and the
-    rebuild were overstated by twice that. Read as reductions, the rebuild
-    is 6,461,988.99 and the remaining step (+1,071,687.03, 16.6%) is what
-    the mirrored 711 production variation hides (its year net is not
-    printed). The finding still fires on the served book, now with the
-    honest distance."""
-    ins = _insight(_agras_block(monkeypatch), "reconstruction_gap")
-    assert _measure(ins, "graded_share") == pytest.approx(0.165845, abs=5e-6)
-    assert _measure(ins, "statutory") == pytest.approx(7533676.02, abs=0.005)
-    assert _measure(ins, "reconstructed") == pytest.approx(6461988.99, abs=0.005)
-    assert _measure(ins, "step") == pytest.approx(1071687.03, abs=0.005)
-    assert [a["code"] for a in ins["accounts"]] == ["121"], ins["accounts"]
+    REWRITTEN for the owner ruling of 2026-09-26 (not re-captured): the
+    agras step (+1,071,687.03, 16.6%) was the stock variation its closed
+    trial balance does not print. The served statement now names it —
+    "Variația stocurilor de produse", derived through the 121 bridge with
+    the guards held — so no line is unexplained and the served block lists
+    the finding under not_fired with the reason, never silently. The
+    finding still fires on a real misread (constructed witnesses in
+    test_insights_detectors)."""
+    block = _agras_block(monkeypatch)
+    assert "reconstruction_gap" not in [i["id"] for i in block["insights"]]
+    reasons = dict((n["id"], n["reason"]) for n in block["not_fired"])
+    assert "derived from account 121" in reasons["reconstruction_gap"], reasons
 
 
 def test_agras_serves_account_413(monkeypatch):
@@ -665,24 +662,26 @@ def test_agras_serves_account_413(monkeypatch):
     assert "46,613.06" in ins["claim"], ins["claim"]
 
 
-def test_agras_carries_all_eight_findings_into_the_summary_ordering(monkeypatch):
+def test_agras_carries_its_findings_into_the_summary_ordering(monkeypatch):
     """The whole reading, ranked, with the top five flagged for the
     executive summary."""
     block = _agras_block(monkeypatch)
     # RESTATED (plan/2 B4a): with the 609/709 double count repaired the
     # reconstruction gap shrinks from 46.6% to 16.6% and ranks fifth, not
-    # third; the same eight findings fire, in the order the smaller gap
-    # gives them.
+    # third. RESTATED (owner ruling 2026-09-26): that 16.6% is the stock
+    # variation, a named line — seven findings fire, the eighth is served
+    # under not_fired with its reason, and earnings_quality takes the fifth
+    # summary slot.
     assert [i["id"] for i in block["insights"]] == [
         "asset_age", "liquidity_quality", "related_party_exposure",
-        "unclassified_balances", "reconstruction_gap",
+        "unclassified_balances",
         "earnings_quality", "trade_float", "financial_position",
     ], [i["id"] for i in block["insights"]]
     assert block["summary_ids"] == [
         "asset_age", "liquidity_quality", "related_party_exposure",
-        "unclassified_balances", "reconstruction_gap",
+        "unclassified_balances", "earnings_quality",
     ], block["summary_ids"]
-    assert block["not_fired"] == []
+    assert [n["id"] for n in block["not_fired"]] == ["reconstruction_gap"]
 
 
 # ══ 7. THE WIRE NEVER COSTS THE READER THE REPORT ════════════════════

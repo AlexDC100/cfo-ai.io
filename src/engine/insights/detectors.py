@@ -324,11 +324,18 @@ def detect_related_party_exposure(book: Book, spec: DetectorSpec):
 
 
 def detect_reconstruction_gap(book: Book, spec: DetectorSpec):
-    step = book.pl("net_income_reconciliation_to_121")
-    if step is None:
-        step = book.pl("net_income_unexplained_vs_121")
-    reconstructed = book.pl("net_income_operational")
+    # THE UNEXPLAINED STEP ONLY (owner ruling 2026-09-26). The whole step
+    # from the build-up to account 121 (`net_income_reconciliation_to_121`)
+    # now has two NAMED lines on the statement — own work capitalised (72x)
+    # and "Variația stocurilor de produse" (net 711, which on a closed book
+    # is derived from 121 itself). Reading the whole step printed the
+    # stock variation as "unexplained" on every closed manufacturer. The
+    # finding is about what NO line explains: `net_income_unexplained_vs_121`,
+    # which stays non-zero on a real misread (a book with no 711 activity
+    # never folds its remainder; a refused 711 leaves it unexplained).
+    step = book.pl("net_income_unexplained_vs_121")
     statutory = book.pl("net_income_statutory")
+    provenance = (book.pl_block("inventory_variation") or {}).get("provenance")
 
     if step is None:
         return NotFired(
@@ -336,10 +343,23 @@ def detect_reconstruction_gap(book: Book, spec: DetectorSpec):
             "the reconstruction cannot be compared with statutory profit."
         )
     if abs(step) < 0.005:
+        if provenance == "account_121_bridge":
+            return NotFired(
+                "On this closed trial balance the stock variation (711) is "
+                "derived from account 121, so the P&L reaches statutory "
+                "profit by construction; the checks that still bind are the "
+                "guards the derivation passed (every class-6/7 account read, "
+                "the remainder within the 711 turnover, 121's opening "
+                "cleared)."
+            )
         return NotFired(
-            "The reconstructed P&L reaches statutory profit exactly; there is "
-            "no bridging step to report."
+            "The P&L, its named lines included, reaches statutory profit "
+            "exactly; there is no unexplained step to report."
         )
+    # What the lines on the statement DO reach: statutory less the step
+    # no line explains — so the claim's two money figures and the step
+    # always add up.
+    reconstructed = None if statutory is None else statutory - step
 
     # ONE CONCEPT, ONE VALUE. The share printed in the claim must be the
     # share the severity was graded on, or the card states two different
@@ -349,8 +369,8 @@ def detect_reconstruction_gap(book: Book, spec: DetectorSpec):
     share, base_value, base_label = _graded_share(book, spec, abs(step))
 
     measures = [
-        Measure("step", "Reconciliation to account 121", step, "money"),
-        Measure("reconstructed", "Net income rebuilt from the movements",
+        Measure("step", "Step to account 121 no line explains", step, "money"),
+        Measure("reconstructed", "Net income rebuilt from the accounts",
                 reconstructed, "money"),
         Measure("statutory", "Net income in account 121", statutory, "money"),
         Measure("graded_share", "Step as a share of %s" % base_label.lower(),
@@ -358,10 +378,8 @@ def detect_reconstruction_gap(book: Book, spec: DetectorSpec):
         Measure("graded_base", base_label, base_value, "money"),
     ]
     facts = [
-        _fact_pl(book, "net_income_reconciliation_to_121",
-                 "Reconciliation to account 121"),
-        _fact_pl(book, "net_income_operational",
-                 "Net income rebuilt from the movements"),
+        _fact_pl(book, "net_income_unexplained_vs_121",
+                 "Step to account 121 no line explains"),
         _fact_pl(book, "net_income_statutory", "Net income in account 121"),
         _fact_pl(book, "revenue", "Revenue"),
     ]

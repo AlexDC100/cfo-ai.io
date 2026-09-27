@@ -112,12 +112,44 @@ def test_every_money_scaled_detector_moves_with_the_books_size(detector_id: str)
     )
 
 
+def _constructed_loss_making_book() -> Dict[str, Any]:
+    """A CONSTRUCTED book with a negative EBITDA and a positive turnover,
+    assembled by the REAL Romanian assembly (no client data): services
+    revenue 200,000.00 against third-party services of 260,000.00, no 711
+    posting (net 711 is then exactly 0.00, `no_711_activity`), account 121
+    closing at the result.
+
+    Why constructed (2026-09-26 ruling): the corpus developer was this
+    gate's negative-EBITDA witness (−29,038,838.12). Under the ruling its
+    EBITDA includes the construction cost stocked through 711 and is
+    +550,976.12, so it no longer exercises the refusal — a gate with no
+    witness would pass vacuously."""
+    from engine.country_packs.ro_romania.chart_of_accounts import assemble_statements
+    accounts = [
+        {"code": "704", "name": "Venituri din servicii", "amount": 200000.0},
+        {"code": "628", "name": "Alte cheltuieli cu servicii", "amount": 260000.0},
+        {"code": "5121", "name": "Conturi la banci in lei", "amount": 40000.0},
+        {"code": "1012", "name": "Capital subscris varsat", "amount": 100000.0},
+        {"code": "121", "name": "Profit si pierdere", "amount": -60000.0},
+    ]
+    assembled = assemble_statements(accounts, company_name="Constructed SRL",
+                                    period_label="FY2025",
+                                    account_121_anchor_override=-60000.0)
+    return {"statements": assembled["statements"],
+            "envelope": assembled["assembled_canonical_v1"],
+            "line_items": assembled.get("lineItems") or []}
+
+
 def test_a_basis_that_is_not_positive_is_refused_rather_than_divided_by():
-    """A negative EBITDA is not a small scale — it is not a scale. The
-    realestate book has one, and `earnings_quality` must fall back to the
-    declared basis and SAY it fell back, not print a share whose sign is
-    an artefact."""
-    verdict = _grade_on("realestate", "earnings_quality", 16620.28)
+    """A negative EBITDA is not a small scale — it is not a scale.
+    `earnings_quality` must fall back to the declared basis and SAY it fell
+    back, not print a share whose sign is an artefact. The witness is a
+    CONSTRUCTED loss-making book (see the builder for why)."""
+    payload = _constructed_loss_making_book()
+    pl = payload["statements"]["assembled_pl"]
+    assert pl["ebitda"] is not None and pl["ebitda"] < 0, pl["ebitda"]
+    assert pl["revenue"] > 0, pl["revenue"]
+    verdict = grade(load_pack().spec("earnings_quality"), Book(payload), 16620.28)
     assert verdict.basis == "revenue", verdict.basis
     assert "not a usable scale" in verdict.why, verdict.why
     assert verdict.materiality is not None and verdict.materiality > 0
