@@ -11230,6 +11230,46 @@ no dot). The census's findings are exactly the base's 13 (none new); PLANT
 …EvidenceDrawer.tsx declares 9 figure site(s), measured 2` (14 findings) →
 restored → 13.
 
+**Live half, stage CB-H** (`e2e/design/cmdbar.spec.ts` on the hermetic
+bundle rebuilt from the final tree): **27 passed** — the CB-G 22, plus G5 ×3
+(the "worst vs sector" item landing on its highlighted /benchmark row with the
+legacy report answering caen_not_set and benchmarks_not_available; Scandia's
+earnings_quality landing under its own printed figure) and G9 ×2 (legible at
+1440 and 390). `GATE-WORK cmdbar-live-figures scandia/ro … total=333` (G6 now
+expects `formatMoneyFrom(v, "RON", "RON", …)` — the served currency with its
+code) · `cmdbar-live-latency scandia keystrokes=85 p50_ms=4.8 max_ms=13.5` ·
+`cmdbar-live-in-view @1440 rows_walked=55 overflowing_lists=6` ·
+`cmdbar-live-legible @1440 carriers=170 bases=6` / `@390 carriers=170
+bases=6`. G2's FAMILY_EXPECT holds `account-more` ("4111") on both books.
+Live plants (each built into its own bundle, the source restored byte for
+byte before the run; `scratchpad/live_plant.sh`):
+```
+### LIVE PLANT G9 — CmdbarList.tsx: the pre-fix chips line (`block truncate`)
+  ✘ G9 @1440   Error: @1440: figures, context or basis off their row or cut   (+74)
+    + "scandia/ro \"stoc\": answer:inventory Durata de rotație a stocurilor 97 de zil: cut by an ellipsis",
+    + "scandia/ro \"stoc\": answer:inventory față de sector — Zile stocuri raportate : outside its row",
+  ✘ G9 @390    Error: @390: figures, context or basis off their row or cut    (+100)
+  2 failed
+### LIVE PLANT G5 — BenchmarkReport.tsx as it was before the fix
+  ✘ … the legacy report says caen_not_set   Error: expect(locator).toBeVisible() — element(s) not found
+  ✓ … the legacy report says benchmarks_not_available   (the old page rendered the section there)
+  1 failed, 1 passed
+### LIVE PLANT G5 — cmdbarViews.ts: the item link drops `finding`
+  ✘ … a finding opens under ITS own number   Expected pattern: /finding=earnings_quality/
+    Received: "…&tab=pl&account=781501&account=758805&…&account=758803"
+### LIVE PLANT G6 — CommandPalette.tsx: the pre-fix printer (the display toggle)
+  ✘ G6 scandia (en)   Error: scandia/en: painted ≠ served   (+1532)
+REVERT: the final bundle, 27 passed
+```
+`e2e/workspace-v2.spec.ts` in the same run: 10 passed, 8 skipped (the
+screenshot tests without `WS_SHOTS_DIR`), 1 failed — G6 "a company switch
+carries no period of the company left behind" (en), a request
+`GET /api/period/<Agras>/comparatives?prior=<Scandia period>` after the
+switch. It is FLAKY and PRE-EXISTING: on the bundle built from 426c862a (the
+tree before this stage) the same test failed 3 of 4 runs; on this stage's
+bundle 2 of 3. Not repaired here (the dashboard's default-comparison prior
+across a company switch, not the bar) — named for its owner.
+
 ## evidence-lines
 
 The account view (`frontend/components/cfo/evidence/EvidenceDrawer.tsx`, design
