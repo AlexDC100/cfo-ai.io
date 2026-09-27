@@ -1610,15 +1610,28 @@
   },
   "methodology": {
    "ebitda": {
-    "adjusted": 10386287.69,
-    "cash": 10776378.24,
-    "reported": 10776378.24,
-    "strict": 10386287.69
+    "adjusted": 11457974.72,
+    "cash": 11848065.27,
+    "reported": 11848065.27,
+    "strict": 11457974.72
    },
+   "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
    "errors": [],
    "industry_key_applied": "default",
+   "measured": {
+    "capitalized_own_work_net": {
+     "provenance": "no_72x_activity",
+     "refusal": null,
+     "value": 0.0
+    },
+    "inventory_variation_net": {
+     "provenance": "account_121_bridge",
+     "refusal": null,
+     "value": 1071687.03
+    }
+   },
    "methodology_id": "ro_ras_2025_v1",
-   "methodology_version": "1.0.0",
+   "methodology_version": "1.1.0",
    "missing_buckets": [
     "deferred_tax_assets.net",
     "deferred_tax_liabilities.net",
@@ -1724,14 +1737,14 @@
      "direction": "higher_is_better",
      "note": "Rough DSCR; LT debt amortized over 8y assumption. Refine via per-period schedule when available.",
      "unit": "ratio",
-     "value": 20.568378
+     "value": 22.613858
     },
     "ebitda_margin_cash": {
      "band": null,
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 0.097261
+     "value": 0.106934
     },
     "ebitda_margin_reported": {
      "band": [
@@ -1741,7 +1754,7 @@
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 0.097261
+     "value": 0.106934
     },
     "ebitda_to_interest": {
      "band": [
@@ -1751,7 +1764,7 @@
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 31.337886
+     "value": 34.45437
     },
     "equity_ratio": {
      "band": [
@@ -1768,7 +1781,7 @@
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 0.355112
+     "value": 0.364785
     },
     "interest_coverage": {
      "band": [
@@ -1778,7 +1791,7 @@
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 22.732091
+     "value": 25.848574
     },
     "inventory_turnover": {
      "band": null,
@@ -1802,7 +1815,7 @@
      "direction": "lower_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 0.145283
+     "value": 0.132142
     },
     "net_margin": {
      "band": [
@@ -1812,7 +1825,7 @@
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 0.058286
+     "value": 0.067959
     },
     "quick_ratio": {
      "band": [
@@ -1832,7 +1845,7 @@
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 0.164441
+     "value": 0.191729
     },
     "return_on_equity": {
      "band": [
@@ -1842,7 +1855,7 @@
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 0.269937
+     "value": 0.314733
     },
     "working_capital": {
      "band": null,
@@ -1852,13 +1865,14 @@
      "value": 14463080.17
     }
    },
+   "refusals": {},
    "schema_version": "canonical_v1.0.0",
    "totals": {
     "current_assets": 27476056.94,
     "current_liabilities": 13012976.77,
-    "gross_profit": 39345827.3,
+    "gross_profit": 40417514.33,
     "net_debt": 1565628.87,
-    "operating_profit_reported": 7817043.15,
+    "operating_profit_reported": 8888730.18,
     "revenue_net": 110798309.14,
     "total_assets": 39272501.03,
     "total_debt": 3640202.33,

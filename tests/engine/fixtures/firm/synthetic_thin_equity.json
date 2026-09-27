@@ -270,6 +270,7 @@
     "reported": -90000.0,
     "strict": -90000.0
    },
+   "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
    "errors": [
     {
      "error": "ZeroDivisionError: division by zero",
@@ -321,8 +322,20 @@
     }
    ],
    "industry_key_applied": "default",
+   "measured": {
+    "capitalized_own_work_net": {
+     "provenance": "no_72x_activity",
+     "refusal": null,
+     "value": 0.0
+    },
+    "inventory_variation_net": {
+     "provenance": "no_711_activity",
+     "refusal": null,
+     "value": 0.0
+    }
+   },
    "methodology_id": "ro_ras_2025_v1",
-   "methodology_version": "1.0.0",
+   "methodology_version": "1.1.0",
    "missing_buckets": [
     "dap.net",
     "deferred_income_lt.net",
@@ -591,6 +604,7 @@
      "value": 10000.0
     }
    },
+   "refusals": {},
    "schema_version": "canonical_v1.0.0",
    "totals": {
     "current_assets": 10000.0,

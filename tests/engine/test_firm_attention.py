@@ -470,7 +470,8 @@ def _gateway_equity(case) -> float:
 
 def _gateway_ebitda(case) -> float:
     """The gateway's methodology `ebitda.reported` — the pre-ruling EBITDA
-    (net 711 outside), which the covenant no longer reads."""
+    (net 711 outside) until a06e769f made it the one EBITDA; the covenant
+    reads the served assembled P&L either way."""
     from engine.serving.facts import FactsGateway
     gw = FactsGateway.from_envelope(case["envelope"], currency=case["currency"])
     return gw.ebitda().to_float()
@@ -709,7 +710,9 @@ def test_an_ebitda_covenant_tests_the_one_ebitda_and_cites_its_components_beside
     apl = case["statements"]["assembled_pl"]
     one = apl["ebitda"]
     assert one == pytest.approx(11_848_065.27, abs=0.01)
-    assert _gateway_ebitda(case) == pytest.approx(10_776_378.24, abs=0.01)  # the retired figure
+    # Since the methodology's `reported` became the one EBITDA (a06e769f)
+    # the gateway serves the same figure — one definition, two readers.
+    assert _gateway_ebitda(case) == pytest.approx(one, abs=0.01)
     client = client_from(case, "c-agras", covenants=(_ebitda_cov("ebitda", one - 100_000.0),))
     items = by_kind(compute([client]), "c-agras", "COVENANT_RISK")
     assert len(items) == 1, items

@@ -1642,10 +1642,23 @@
     "reported": 2263417.48,
     "strict": 1536548.84
    },
+   "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
    "errors": [],
    "industry_key_applied": "default",
+   "measured": {
+    "capitalized_own_work_net": {
+     "provenance": "no_72x_activity",
+     "refusal": null,
+     "value": 0.0
+    },
+    "inventory_variation_net": {
+     "provenance": "no_711_activity",
+     "refusal": null,
+     "value": 0.0
+    }
+   },
    "methodology_id": "ro_ras_2025_v1",
-   "methodology_version": "1.0.0",
+   "methodology_version": "1.1.0",
    "missing_buckets": [
     "deferred_income_lt.net",
     "deferred_tax_assets.net",
@@ -1881,6 +1894,7 @@
      "value": -7063092.84
     }
    },
+   "refusals": {},
    "schema_version": "canonical_v1.0.0",
    "totals": {
     "current_assets": 9943352.76,
