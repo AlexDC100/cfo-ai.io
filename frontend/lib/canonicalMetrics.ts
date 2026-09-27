@@ -297,9 +297,11 @@ function assemble(args: {
   const tax = num(apl.tax) ?? 0;
   const interestExpense = num(apl.interest_expense) ?? 0;
   // A net result the engine REFUSED (no account 121, net 711 refused) is
-  // null with its reason — never the `?? 0` below standing in for it.
+  // null with its reason; one the payload does not carry is null too —
+  // never a `?? 0` standing in for it (the provenance census counted the
+  // `?? 0` that survived here, critic 2026-09-27).
   const netProfitRefusal = readRefusal(apl.net_income_refusal);
-  const statutoryNetProfit: number | null = netProfitRefusal ? null : num(apl.net_income_statutory) ?? 0;
+  const statutoryNetProfit: number | null = netProfitRefusal ? null : num(apl.net_income_statutory);
   // The result BUILT from the accounts on the one definition (pretax −
   // tax); the pre-ruling `net_income_operational` left 711 out of it.
   const reconstructedNetProfit: number | null = netProfitRefusal ? null : levels.netIncome ?? statutoryNetProfit;

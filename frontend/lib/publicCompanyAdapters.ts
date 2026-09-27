@@ -33,7 +33,7 @@ import type {
   PLLine, PLSection, PLStatement,
 } from "@/lib/plStructure";
 import type {
-  CFInvestingLine, CashFlowStatement,
+  CFInvestingLine, CashFlowStatementFigures,
 } from "@/lib/cfStructure";
 import type { ReportedTotalKey, StatementInput, Statements } from "@/lib/financialReport";
 import type { CreditScoreResult } from "@/lib/financialValuation";
@@ -178,7 +178,7 @@ export function buildPublicStatements(env: PublicCompanyEnvelope): {
   statements: Statements;
   pl: PLStatement;
   bs: BSStatement;
-  cf: CashFlowStatement;
+  cf: CashFlowStatementFigures;
   current: PublicCompanyPeriod;
   prior: PublicCompanyPeriod | null;
 } | null {
@@ -462,7 +462,7 @@ function buildBS(entity: string, cur: PublicCompanyPeriod, prior: PublicCompanyP
 
 // ── CashFlowStatement ───────────────────────────────────────────────────
 
-function buildCF(entity: string, period: string, currency: string, p: PublicCompanyPeriod): CashFlowStatement {
+function buildCF(entity: string, period: string, currency: string, p: PublicCompanyPeriod): CashFlowStatementFigures {
   const h = p.headline;
   // ── D&A: THE IDENTITY, OR NOTHING ───────────────────────────────────
   //

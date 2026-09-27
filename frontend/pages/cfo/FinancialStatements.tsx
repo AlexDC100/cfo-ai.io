@@ -6166,6 +6166,41 @@ export function RisksPanel({
             : piotroski.band.startsWith("Distressed")
               ? t("dashV2.piotroskiDistressed")
               : piotroski.band;
+  // THE PER-CHECK LIST — one renderer for the scored tile and the refused
+  // one (a refused score keeps every check, each with its own detail).
+  const piotroskiChecksTable = piotroski === null ? null : (
+        <div className="rounded-2xl border border-rule bg-surface overflow-hidden">
+          <div className="overflow-x-auto">
+          <table className="w-full text-[13px] min-w-[480px] sm:min-w-0">
+            <thead>
+              <tr className="bg-bg-2/30">
+                <th className="text-left py-2 px-4 font-medium text-ink-mute">{t("dash.check")}</th>
+                <th className="text-center py-2 px-4 font-medium text-ink-mute w-20">{t("dash.result")}</th>
+                <th className="text-left py-2 px-4 font-medium text-ink-mute">{t("dash.detail")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {piotroski.checks.map((c) => {
+                const tone =
+                  c.result === "pass"
+                    ? "text-success"
+                    : c.result === "fail"
+                      ? "text-alert"
+                      : "text-ink-mute";
+                const glyph = c.result === "pass" ? "✓" : c.result === "fail" ? "✗" : "?";
+                return (
+                  <tr key={c.key} className="border-t border-rule">
+                    <td className="py-2 px-4 text-ink">{c.label}</td>
+                    <td className={`py-2 px-4 text-center font-semibold ${tone}`}>{glyph}</td>
+                    <td className="py-2 px-4 text-ink-soft text-[12.5px]">{c.detail}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          </div>
+        </div>
+  );
 
   return (
     <>
@@ -6280,6 +6315,10 @@ export function RisksPanel({
               {piotroski.refusal?.text[(i18n.language ?? "en").startsWith("ro") ? "ro" : "en"] ?? unavail}
             </span>
           </div>
+          {/* The per-check list stays under the refusal (critic, fixer
+              round 1 of 2026-09-27: the tile said it kept the checks and
+              dropped them) — each "?" with its own detail, no score. */}
+          <div className="mt-3" data-testid="piotroski-refused-checks">{piotroskiChecksTable}</div>
         </div>
       ) : (
       <div>
@@ -6304,37 +6343,7 @@ export function RisksPanel({
           </div>
           <TrendingUp size={48} strokeWidth={1.25} className="text-ink-mute opacity-50" />
         </div>
-        <div className="rounded-2xl border border-rule bg-surface overflow-hidden">
-          <div className="overflow-x-auto">
-          <table className="w-full text-[13px] min-w-[480px] sm:min-w-0">
-            <thead>
-              <tr className="bg-bg-2/30">
-                <th className="text-left py-2 px-4 font-medium text-ink-mute">{t("dash.check")}</th>
-                <th className="text-center py-2 px-4 font-medium text-ink-mute w-20">{t("dash.result")}</th>
-                <th className="text-left py-2 px-4 font-medium text-ink-mute">{t("dash.detail")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {piotroski.checks.map((c) => {
-                const tone =
-                  c.result === "pass"
-                    ? "text-success"
-                    : c.result === "fail"
-                      ? "text-alert"
-                      : "text-ink-mute";
-                const glyph = c.result === "pass" ? "✓" : c.result === "fail" ? "✗" : "?";
-                return (
-                  <tr key={c.key} className="border-t border-rule">
-                    <td className="py-2 px-4 text-ink">{c.label}</td>
-                    <td className={`py-2 px-4 text-center font-semibold ${tone}`}>{glyph}</td>
-                    <td className="py-2 px-4 text-ink-soft text-[12.5px]">{c.detail}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          </div>
-        </div>
+        {piotroskiChecksTable}
       </div>
       )}
 

@@ -264,6 +264,12 @@ describe("refusal-carries — a refused EBITDA stays refused on every surface", 
       entity: "E", period: "P",
     });
     expect(cf.refusal?.code).toBe(r.code);
+    // THE BUILDER ITSELF RETURNS NO FIGURE for a refused statement (critic,
+    // fixer round 1 of 2026-09-27): only the two views guarded it; a future
+    // view reading `.operating.netProfit` would have printed 0.
+    expect([cf.operating, cf.investing, cf.financing, cf.reconciliation]).toEqual(
+      [undefined, undefined, undefined, undefined]);
+    expect(JSON.stringify(cf)).not.toMatch(/netProfit|cashFromOperating|closingCash/);
   });
 
   it("g6_uncleared: WITH account 121 the filed net result stands, though 711 is refused", () => {
@@ -354,6 +360,19 @@ describe("refusal-carries — round 2: Graham, Piotroski, the report's balance s
       <RisksPanel statements={b.statements} creditEnvelope={{} as CreditEnvelope} piotroskiEnvelope={served} />);
     expect(screen.getByTestId("piotroski-refused-reason").textContent).toContain(r.text_en);
     expect(document.body.textContent ?? "").not.toMatch(/Distressed|0 \/ 0/);
+    // The per-check list stays under the refusal (critic, fixer round 1
+    // of 2026-09-27): every check, each "?" with its own detail.
+    const reader = computeCreditScore(b.statements, {} as CreditEnvelope, served)!.piotroski!;
+    const rows = Array.from(screen.getByTestId("piotroski-refused-checks").querySelectorAll("tbody tr"));
+    expect(rows.length, "the refused tile dropped its checks").toBe(reader.checks.length);
+    expect(rows.length).toBe(9);
+    rows.forEach((tr, i) => {
+      const tds = Array.from(tr.querySelectorAll("td")).map((td) => (td.textContent ?? "").trim());
+      expect(tds[0]).toBe(reader.checks[i].label);
+      expect(tds[1], reader.checks[i].key).toBe("?");
+      expect(tds[2]).toBe(reader.checks[i].detail);
+      expect(tds[2].length, `${reader.checks[i].key}: no detail`).toBeGreaterThan(0);
+    });
     unmount();
     renderWithProviders(
       <RisksPanel statements={b.statements} creditEnvelope={{} as CreditEnvelope} piotroskiEnvelope={stale} />);

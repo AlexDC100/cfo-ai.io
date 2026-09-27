@@ -83,6 +83,23 @@ export function buildCashFlowStatement(args: BuildArgs): CashFlowStatement {
   const refusal =
     readRefusal((pl as Record<string, unknown>).net_income_refusal)
     ?? readRefusal((cf as Record<string, unknown>).net_income_refusal);
+  if (refusal) {
+    // THE STATEMENT IS THE REFUSAL — no figure is computed, so no view
+    // (present or future) can print one (critic, fixer round 1 of
+    // 2026-09-27: the builder returned a column built on a net profit of 0
+    // beside the refusal, and only the two views that checked for it kept
+    // it off the page).
+    return {
+      entity: args.entity,
+      period: args.period,
+      method: "indirect",
+      currency,
+      refusal,
+      isApproximated: Boolean(cf.is_approximated ?? true),
+      approximationNotes: [],
+      notes: [],
+    };
+  }
   // Net profit (statutory — the same view the P&L tab + briefing use).
   const netProfit = pl.net_income_statutory ?? cfNum(cf.net_profit, 0);
   const depreciation = pl.depreciation ?? cfNum(cf.depreciation, 0);
@@ -217,7 +234,6 @@ export function buildCashFlowStatement(args: BuildArgs): CashFlowStatement {
     period: args.period,
     method: "indirect",
     currency,
-    refusal,
     operating: {
       netProfit,
       depreciation,
