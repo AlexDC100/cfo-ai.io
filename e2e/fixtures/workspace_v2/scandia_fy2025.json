@@ -21,7 +21,7 @@
     "org_id": "0a9a0000-0000-4000-8000-0000000000a9"
    }
   ],
-  "content_hash": "6859aecf5887aa043be96cc51003f1801766db57b666ee6b9578975cf1a707b4",
+  "content_hash": "5b93790b555aa4da925b3a496130a8d577ab9bdce5fbb22f993a515d26cefdf2",
   "duplicate": null,
   "identity": {
    "caen_code": null,
@@ -815,7 +815,10 @@
       "G5_residual": 231203.19,
       "G5_within_activity": true,
       "G6_cleared_by": "equal_movement",
-      "G6_opening": 1141412.23
+      "G6_opening": 1141412.23,
+      "G7_current": true,
+      "G7_parser_version": "tb_parser_v6",
+      "G7_running_parser_version": "tb_parser_v6"
      },
      "has_activity": true,
      "identity_note_en": "On a closed trial balance the 711 line is derived from account 121, so the reconciliation closes by construction.",
@@ -7683,6 +7686,7 @@
       "kind": "equal_movement",
       "side": "credit"
      },
+     "parser_version": "tb_parser_v6",
      "pl_leaves": 175,
      "pl_leaves_active": 175,
      "pl_leaves_closed": 175,
@@ -7999,7 +8003,10 @@
       "G5_residual": 231203.19,
       "G5_within_activity": true,
       "G6_cleared_by": "equal_movement",
-      "G6_opening": 1141412.23
+      "G6_opening": 1141412.23,
+      "G7_current": true,
+      "G7_parser_version": "tb_parser_v6",
+      "G7_running_parser_version": "tb_parser_v6"
      },
      "has_activity": true,
      "identity_note_en": "On a closed trial balance the 711 line is derived from account 121, so the reconciliation closes by construction.",
