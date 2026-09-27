@@ -46,7 +46,7 @@
       "field": "cash",
       "tab": "balance_sheet",
       "ratio": "cash_ratio",
-      "terms": ["numerar", "numerarul", "disponibilitati", "disponibilități", "bani", "banca", "cash", "cash and equivalents", "cash & equivalents", "bank"]
+      "terms": ["numerar", "numerarul", "disponibilitati", "disponibilități", "bani", "banca", "numerar si echivalente", "numerar și echivalente", "cash", "cash and equivalents", "cash & equivalents", "bank"]
     },
     {
       "id": "debt",
@@ -78,7 +78,7 @@
       "tab": "balance_sheet",
       "ratio": "dso",
       "sector": "receivables_days",
-      "terms": ["clienti", "clienții", "clientii", "creante", "creanțe", "creantele", "creanțele", "creante comerciale", "zile clienti", "receivables", "trade receivables", "customers", "clients", "debtors"]
+      "terms": ["clienti", "clienții", "clientii", "creante", "creanțe", "creantele", "creanțele", "creante comerciale", "creante comerciale nete", "creanțe comerciale nete", "zile clienti", "receivables", "trade receivables", "trade receivables net", "customers", "clients", "debtors"]
     },
     {
       "id": "payables",
@@ -88,7 +88,7 @@
       "field": "ap",
       "tab": "balance_sheet",
       "ratio": "dpo",
-      "terms": ["furnizori", "furnizorii", "datorii comerciale", "datorii furnizori", "zile furnizori", "payables", "trade payables", "suppliers", "creditors"]
+      "terms": ["furnizori", "furnizorii", "datorii comerciale", "datorii furnizori", "datorii catre furnizori", "datorii către furnizori", "zile furnizori", "payables", "trade payables", "suppliers", "creditors"]
     },
     {
       "id": "equity",
