@@ -136,6 +136,7 @@ graph LR
     pkg_dst -->|2| pkg_journal
     pkg_dst -->|1| pkg_serving
     pkg_firm -->|2| pkg_api
+    pkg_firm -->|1| pkg_ratios
     pkg_firm -->|1| pkg_serving
     pkg_forecast -->|2| pkg__root_
     pkg_forecast -->|1| pkg_benchmarks_ro

@@ -544,6 +544,20 @@ def _engine_gates() -> List[Gate]:
              canaries=("test_the_developer_is_valued_on_its_assets_by_the_margin_rule_not_by_its_ebitda_sign",
                        "test_a_refused_ebitda_refuses_every_ev_ebitda_figure_with_its_cause",
                        "test_saving_an_override_stamps_it_and_get_serves_it_current")),
+        # ── owner ruling 2026-09-26, design A6: firm-covenant-one-ebitda ─
+        # An EBITDA covenant tests THE ONE EBITDA off the served assembled
+        # P&L (never the gateway's methodology `ebitda.reported`, net 711
+        # outside), cites net 711 / net 72x / EBITDA-before beside the
+        # headroom, and a refused EBITDA is a stated gap, never a test. The
+        # four tests live in test_firm_attention.py (which the `pytest`
+        # gate also runs); named here so a collapse of the selection reds.
+        # Plant log: gates.md "firm-covenant-one-ebitda".
+        Gate("firm-covenant-one-ebitda",
+             [PY, "-m", "pytest", "tests/engine/test_firm_attention.py", "-q",
+              "-k", "ebitda or cited_money_fact"],
+             work_junit=True, floor=3, units="tests",
+             canaries=("test_an_ebitda_covenant_tests_the_one_ebitda_and_cites_its_components_beside_the_headroom",
+                       "test_a_refused_ebitda_is_a_stated_gap_never_a_covenant_test")),
         # ── plan/2 B4b (plan_contract_v2 5.6 / 28.3 B4): forecast-pools ──
         # The cost pools of section 5 on the four books, no shocks: pools
         # plus unallocated equal the assembled operating cost to the cent;

@@ -10535,3 +10535,71 @@ reads `pl.ebitda_statutory` — it must read `valuation.noi_approximation`, FE
 stage A7); whether production's `valuations.ebitda_used` accepts NULL (a
 refused EBITDA persists None; no DDL for that table is in the repo — check
 before the deploy).
+
+## firm-covenant-one-ebitda
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_firm_attention.py -q -k "ebitda or cited_money_fact"` |
+| canary | `test_an_ebitda_covenant_tests_the_one_ebitda_and_cites_its_components_beside_the_headroom`, `test_a_refused_ebitda_is_a_stated_gap_never_a_covenant_test` |
+| work count | junit-xml tests, floor **3** (measured 4; the same tests also run inside the `pytest` gate) |
+
+**SCOPE** — design A6 "Firm covenants" (owner ruling 2026-09-26). The
+COVENANT_RISK detector read `ebitda` through `FactsGateway.ebitda()` — the
+methodology's `ebitda.reported`, which excludes net 711: agras 10,776,378.24
+against the one EBITDA 11,848,065.27; the developer -29,038,838.12 against
++550,976.12, so an "EBITDA >= 500,000" covenant was a 29.5M breach on the
+retired figure and is thin headroom on the ruled one. `engine.firm.facts`
+now reads `ebitda`, `ebitda_before_stock_variation`, `inventory_variation`
+(net 711 "Variația stocurilor de produse") and `capitalized_own_work` (net
+72x) off the SERVED statements through `credit_model.operating_figures`; the
+pack's `ebitda` covenant metric declares them as `components`, cited after
+the headroom with the engine's labels and `assembled_pl` provenance. The gate
+holds: the agras covenant tests 11,848,065.27 and cites the three components
+in order, adding up to it; the developer's is not a breach; a refused EBITDA
+is a gap carrying "EBITDA refused: <text> (<cause>)" while an equity
+covenant on the same client still tests; every cited money name (components
+included) is declared money.
+
+Source-edit plants, each applied alone on a clean tree at 8d217f64 and
+reverted with `git checkout --`:
+
+**PLANT covenant-reads-the-gateway** — `src/engine/firm/facts.py`
+`("ebitda", "assembled_pl:ebitda")` → `("ebitda", "ebitda")`.
+```
+RED (plant) — 3 failed, 1 passed, 46 deselected
+FAILED tests/engine/test_firm_attention.py::test_an_ebitda_covenant_tests_the_one_ebitda_and_cites_its_components_beside_the_headroom
+FAILED tests/engine/test_firm_attention.py::test_the_developer_ebitda_covenant_reads_the_ruled_ebitda_not_the_retired_one
+FAILED tests/engine/test_firm_attention.py::test_a_refused_ebitda_is_a_stated_gap_never_a_covenant_test
+E   assert 10776378.24 == 11848065.27 ± 0.01
+```
+**PLANT refused-ebitda-to-zero** — `_read_operating`: a refused (None) figure
+read as `0.0`.
+```
+RED (plant) — 1 failed, 3 passed, 46 deselected
+FAILED tests/engine/test_firm_attention.py::test_a_refused_ebitda_is_a_stated_gap_never_a_covenant_test
+E   AssertionError: a refused EBITDA must not be tested
+```
+**PLANT components-dropped** — `packs/firm/attention.yaml`: the `components`
+line of the `ebitda` covenant metric removed.
+```
+RED (plant) — 3 failed, 1 passed, 46 deselected
+FAILED tests/engine/test_firm_attention.py::test_an_ebitda_covenant_tests_the_one_ebitda_and_cites_its_components_beside_the_headroom
+FAILED tests/engine/test_firm_attention.py::test_the_developer_ebitda_covenant_reads_the_ruled_ebitda_not_the_retired_one
+FAILED tests/engine/test_firm_attention.py::test_every_cited_money_fact_is_declared_money_in_the_unit_registry
+E   AssertionError: ['ebitda', 'covenant_limit', 'covenant_headroom_pct']
+```
+**REVERT** — `git checkout -- src/engine/firm/facts.py packs/firm/attention.yaml`:
+`4 passed, 46 deselected`.
+
+Rewritten beside it (law, not re-capture):
+`test_a1_a_served_reader_that_raises_is_a_gap_on_the_period_never_a_dead_board`
+asserted `money == {}` after a gateway raise — "every money fact comes from the
+gateway". The one EBITDA does not; the law is now "no gateway fact survives
+the raise, and whatever remains is `assembled_pl`-sourced".
+
+CANNOT SEE: `FactsGateway.ebitda()` itself — still methodology
+`ebitda.reported` (net 711 outside), read by the Capsule `get_facts("ebitda")`
+metric and the AI advisory context (design A6's methodology/FactsGateway
+item); the findings engine's CRITICAL_FINDING evidence still cites
+`ebitda_statutory` (a legacy alias, now equal to the one EBITDA).
