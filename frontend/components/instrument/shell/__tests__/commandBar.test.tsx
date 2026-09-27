@@ -898,6 +898,26 @@ describe("cmdbar-search — synonyms and diacritics on the RENDERED bar, both la
     }
   });
 
+  it("diacritics no other rule rescues: short words (în, și, vamă) find their account only through folding", () => {
+    // The synonym table lists both spellings of its own words, and the
+    // one-edit typo rule forgives ONE missing accent in a word of five
+    // letters or more — so neither can stand in for folding here: "în",
+    // "și" and "vamă" are too short to be fuzzed, and the book writes the
+    // names without accents.
+    mount(scandiaWorld());
+    const probes: [string, string][] = [
+      ["casa în lei", "531101"],
+      ["chirii și redevențe", "612015"],
+      ["furnizori tva în vamă", "401401"],
+      ["imob.necorp. în curs", "208002"],
+    ];
+    for (const [q, code] of probes) {
+      type(q);
+      const first = rowsOf("account")[0];
+      expect(first?.getAttribute("data-row-id") ?? "", `"${q}"`).toMatch(new RegExp(`^account:${code}:`));
+    }
+  });
+
   it("'raport' finds the report — a page or the PDF export, never nothing", () => {
     mount(scandiaWorld());
     type("raport");
