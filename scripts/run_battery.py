@@ -603,7 +603,9 @@ def _engine_gates() -> List[Gate]:
                        "refused by the one margin rule on every displayed surface: realestate")),
         Gate("refusal-carries-engine",
              [PY, "-m", "pytest", "tests/engine/test_refusal_carries_engine.py", "-q"],
-             work_rx=r"GATE-WORK refusal-carries-engine units=(\d+)", floor=160,
+             # fixer round 2: floor raised from 160 with the Piotroski score, the
+             # balance sheet's current-year result and the briefing facts (192).
+             work_rx=r"GATE-WORK refusal-carries-engine units=(\d+)", floor=185,
              units="engine surfaces checked to refuse with the 711 reason",
              canaries=("SCOPE refusal-carries-engine: refused books g6_uncleared "
                        "(account_121_opening_not_cleared); unanchored (account_121_anchor_absent)",
@@ -1065,12 +1067,19 @@ def _engine_gates() -> List[Gate]:
         Gate("refusal-carries",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/lib/__tests__/refusalCarries.test.tsx", "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=12,
+             # fixer round 2: floor raised from 12 with Graham, Piotroski, the
+             # report's balance sheet and a refused prior cash flow (20).
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=20,
              units="surface tests (a refused EBITDA stays refused, with the engine's reason, on every surface)",
              canaries=("covers the two refused books, and on both the buckets would rebuild a number",
                        "unanchored: growth, the credit model, the DCF and the NAV cascade refuse with it",
                        "a payload the engine did not assemble, whose buckets show 711 activity, refuses the same way",
-                       "unanchored: the net result, ROE, ROA, the report and the cash flow refuse with the engine's reason")),
+                       "unanchored: the net result, ROE, ROA, the report and the cash flow refuse with the engine's reason",
+                       # fixer round 2 (2026-09-27)
+                       "unanchored: the NAV cascade has no Graham figure and no band built on it — the page prints the reason",
+                       "unanchored: no Piotroski score or band off nine uncertain checks — served, or a block stored before the engine refused it",
+                       "unanchored: the report's balance sheet prints the reason on the current-year row — served, or stored with the build-up",
+                       "a comparative cash flow whose PRIOR period is refused prints no prior figure and no delta — the reason instead")),
         # ── fixer round 1 (2026-09-27): valuation-refused-override ────────
         # The Valuation tab seeded a refused EBITDA as 0 and sent it on EVERY
         # save (debt, cash, the multiple slider): the engine applied the 0 as

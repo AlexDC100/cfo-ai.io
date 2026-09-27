@@ -11633,7 +11633,7 @@ benchmark's filed basis (sector, engine).
 |---|---|
 | command | `npx vitest run --root . frontend/lib/__tests__/refusalCarries.test.tsx --reporter=verbose` |
 | canary | `covers the two refused books, and on both the buckets would rebuild a number`, `unanchored: growth, the credit model, the DCF and the NAV cascade refuse with it`, `a payload the engine did not assemble, whose buckets show 711 activity, refuses the same way` |
-| work count | `Tests N passed`, floor **12** (measured 12) |
+| work count | `Tests N passed`, floor **20** (measured 20; was 12 before fixer round 2) |
 
 **INCIDENT** — design A3: "if net 711 is refused on a book with 711 activity,
 EBITDA, EBIT, gross profit and every margin/ratio built on them REFUSE with
@@ -11851,7 +11851,7 @@ from the ratio table's (agras 36.48 % vs 37.29 %).
 |---|---|
 | command | `python -m pytest tests/engine/test_refusal_carries_engine.py -q` |
 | canary | `SCOPE refusal-carries-engine: refused books g6_uncleared (account_121_opening_not_cleared); unanchored (account_121_anchor_absent)`, `NET-RESULT refused (no account 121): unanchored` |
-| work count | `GATE-WORK refusal-carries-engine units=N`, floor **160** (measured 177) |
+| work count | `GATE-WORK refusal-carries-engine units=N`, floor **185** (measured 192; was 160 / 177 before fixer round 2) |
 
 **INCIDENT** — design A3: "if net 711 is refused on a book with 711
 activity, EBITDA, EBIT, gross profit and every margin/ratio built on them
@@ -11990,3 +11990,86 @@ sheet's current-year result on such a book is still the build-up (so the
 sheet closes, with `bs_balance_delta` showing what it cannot explain);
 the prior column of a comparative cash-flow statement whose prior period is
 refused; pixels.
+
+### refusal-carries / refusal-carries-engine — what still turned the refused NET RESULT into a figure (fixer round 2, 2026-09-27)
+
+**INCIDENT** — the critic's round-2 findings, each measured on the real
+developer book (SRD) with its account-121 rows deleted and on the constructed
+`unanchored` book:
+- the NAV cascade read `net_income_statutory ?? 0` — NavValuationView printed
+  "Graham intrinsic value 0" and a convergence band `0.00M – 36.73M`
+  (`crossMethods {capRate:null, graham:0, convergenceBand:[0, 36733458.95]}`);
+- `assembled_piotroski` served `score: 0` with nine `uncertain` checks and
+  `piotroskiFromEngine` banded `score ?? passCount` — the Risks tab printed
+  "0 / 0 confirmed · Distressed (0–2) · 9 checks uncertain";
+- the assembler still closed the build-up into equity: `assembled_bs.
+  current_year_pnl` -30,391,418.38 (121 holds -801,604.14), `subAggregates.
+  current_year_pnl`, the canonical_v1 result leaf (the constructed book's
+  canonical_bs printed a "Current year profit 120,000" row and went
+  MATERIAL_IMBALANCE by exactly that build-up); the report's balance sheet
+  printed it as "Current-year P&L", and the briefing's facts carried it as a
+  citable `current_year_pnl` MoneyFact;
+- a comparative cash flow whose PRIOR statement is refused printed that
+  statement's net profit 0 and the CFO / CFF / net change built on it.
+
+**THE FIX** — engine: no Piotroski score (None beside a typed `refusal`: the
+net result's own reason; `piotroski_no_check_evaluated` when nothing was
+evaluated for another cause), the canonical validator accepting a None score
+only with its reason; a refused net result is not closed into equity
+(`current_year_pnl` None beside `current_year_pnl_refusal`, no canonical_v1
+result leaf, equity without a current-year result, `bs_balance_delta` stating
+what the trial balance leaves unexplained); the briefing's fact block is the
+pure `pipeline._briefing_facts_raw`, which drops `current_year_pnl` and
+carries `net_income_refusal` on a refused net result. Browser: Graham null
+with the reason and out of the band (the band only over methods that
+computed — none with NNNAV alone); no Piotroski score or band on a null
+engine score, an engine refusal or zero evaluated checks (also a block stored
+before the engine refused); the report's current-year row prints the reason
+(the balance sheet's refusal, or the P&L's on a stored period); a refused
+prior cash-flow column prints "refused" in its cells and delta with the
+reason. With account 121 (`g6_uncleared`) every one of them stands, and both
+gates assert that beside the refusal.
+
+**PLANTS** (engine, each applied alone to the committed tree, restored with
+`git checkout`):
+```
+PLANT A piotroski-score-0: chart_of_accounts.py `if refusal is not None: score = None` → `pass`
+  E     unanchored: GET /api/period assembled_metrics.piotroski.score carries 0 for a REFUSED figure (711 refused: account_121_anchor_absent)
+  FAILED tests/engine/test_refusal_carries_engine.py::test_refusal_carries_every_engine_surface_refuses_with_the_711_reason[unanchored]
+PLANT B build-up-closed-into-equity: chart_of_accounts.py sub_agg / assembled_bs current_year_pnl = round(net_income_statutory, 2)
+  E     unanchored: subAggregates.current_year_pnl carries 120000.0 for a REFUSED figure (711 refused: account_121_anchor_absent)
+  FAILED tests/engine/test_refusal_carries_engine.py::test_refusal_carries_every_engine_surface_refuses_with_the_711_reason[unanchored]
+PLANT C briefing-keeps-current_year_pnl: pipeline.py `briefing_facts_raw.pop("current_year_pnl", None)` → `pass`
+  E   AssertionError: unanchored: the briefing's facts carry current_year_pnl None for a REFUSED net result (a citable MoneyFact)
+  ========================= 1 failed, 3 passed in 0.82s ==========================
+PLANT D canonical-v1-result-leaf: chart_of_accounts.py `if net_income_refusal is None else 0.0` → `if True else 0.0`
+  E     unanchored: canonical_bs serves the result row [{'id': 'current_year_profit', … 'amount': 120000.0, …}] for a REFUSED net result
+  FAILED tests/engine/test_refusal_carries_engine.py::test_refusal_carries_every_engine_surface_refuses_with_the_711_reason[unanchored]
+RESTORED: ============================== 4 passed in 0.72s ===============================
+          GATE-WORK refusal-carries-engine units=192
+```
+**PLANTS** (browser, `frontend/lib/__tests__/refusalCarries.test.tsx`, each
+applied alone, restored with `git checkout`):
+```
+PLANT graham-or-0: buildNavCascade.ts `const ni = … : null` → `(pl.net_income_statutory as number | null) ?? 0`
+   → Graham on a refused net result: expected +0 to be null
+      Tests  1 failed | 19 passed (20)
+PLANT piotroski-score-or-passcount: financialValuation.ts piotroskiFromEngine `const refused = …` → `const refused = false`
+   → served: score: expected +0 to be null
+      Tests  1 failed | 19 passed (20)
+PLANT report-bs-build-up: ComprehensiveReport.tsx BsTable `const cyRefusal = …` → `null`
+   → expected '—' to be 'refused — the trial balance is closed…' // Object.is equality
+      Tests  1 failed | 19 passed (20)
+PLANT cf-prior-printed: CashFlowStatementView.tsx `const priorRefused = prior?.refusal …` → `false && prior?.refusal …`
+   → a prior figure printed: expected 7 to be +0 // Object.is equality
+      Tests  1 failed | 19 passed (20)
+RESTORED: Tests  20 passed (20)
+```
+
+**CANNOT SEE:** the Balance Sheet TAB's rows (canonical_bs): with no result
+leaf it prints no current-year row and states the imbalance, but no line
+names the refusal; the Graham row on the Valuation tab (`runGraham`) already
+refuses through `deriveTotals` (NaN → "—" without the reason); a period stored
+before this change keeps its stored Piotroski block and balance sheet until
+reprocessed — the browser refuses the stored Piotroski block (nothing
+evaluated) and the report row (the P&L's refusal) on it anyway; pixels.
