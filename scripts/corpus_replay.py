@@ -251,6 +251,11 @@ def scripted_anthropic_module(response_text: str):
 
     fake = ModuleType("anthropic")
     fake.Anthropic = _Anthropic  # type: ignore[attr-defined]
+    # "absent" and "present as None" are different states: restoring an
+    # absent module as None left every later `import anthropic` raising for
+    # the rest of the process (test_corpus_replay's seam check caught it
+    # after test_margin_meaning's scanned-PDF book).
+    had_module = "anthropic" in sys.modules
     prior_module = sys.modules.get("anthropic")
     prior_key = os.environ.get("ANTHROPIC_API_KEY")
     sys.modules["anthropic"] = fake
@@ -258,7 +263,10 @@ def scripted_anthropic_module(response_text: str):
     try:
         yield calls
     finally:
-        sys.modules["anthropic"] = prior_module  # type: ignore[assignment]
+        if had_module:
+            sys.modules["anthropic"] = prior_module  # type: ignore[assignment]
+        else:
+            sys.modules.pop("anthropic", None)
         if prior_key is None:
             os.environ.pop("ANTHROPIC_API_KEY", None)
         else:

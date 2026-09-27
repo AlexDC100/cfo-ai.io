@@ -93,6 +93,16 @@ def test_replay_seams_restored_after_run():
     )
 
 
+def test_the_scripted_module_restores_an_absent_anthropic_as_absent(monkeypatch):
+    """`scripted_anthropic_module` restored an ABSENT module as None, so
+    every later `import anthropic` in the process raised — the seam check
+    above then failed for whichever suite ran after a mocked-lane book."""
+    monkeypatch.delitem(sys.modules, "anthropic", raising=False)
+    with corpus_replay.scripted_anthropic_module("{}"):
+        assert sys.modules["anthropic"] is not None
+    assert "anthropic" not in sys.modules, sys.modules.get("anthropic", "absent")
+
+
 def _run_cli(*args: str, cwd: Path = REPO) -> "subprocess.CompletedProcess[str]":
     return subprocess.run(
         [sys.executable, str(REPLAY_SCRIPT), *args],
