@@ -494,6 +494,10 @@
    {
     "id": "policy_rate_shift",
     "sentence": "a policy-rate shift is not served: the book does not say which of its debt reprices with the policy rate"
+   },
+   {
+    "id": "stock_variation",
+    "sentence": "the stock variation (Variația stocurilor de produse) and own work capitalised are not projected: they are nil in every plan year, so plan year one starts from the actual year's EBITDA before them"
    }
   ],
   "sources": [
@@ -587,10 +591,10 @@
      "kind": "actual"
     },
     "ebitda": {
-     "amount_minor": 1077637824,
+     "amount_minor": 1184806527,
      "kind": "actual"
     },
-    "ebitda_margin_ppm": 97261,
+    "ebitda_margin_ppm": 106934,
     "equity": {
      "amount_minor": 2392408372,
      "kind": "actual"
@@ -1108,7 +1112,7 @@
    ],
    "ebitda": [
     {
-     "amount_minor": 1077637824,
+     "amount_minor": 1184806527,
      "kind": "actual",
      "period": "FY2025"
     },
@@ -2026,6 +2030,10 @@
    {
     "id": "policy_rate_shift",
     "sentence": "a policy-rate shift is not served: the book does not say which of its debt reprices with the policy rate"
+   },
+   {
+    "id": "stock_variation",
+    "sentence": "the stock variation (Variația stocurilor de produse) and own work capitalised are not projected: they are nil in every plan year, so plan year one starts from the actual year's EBITDA before them"
    }
   ],
   "numbers": {
@@ -2103,35 +2111,69 @@
      "en": {
       "amount": "RON 6.0M",
       "margin": "4.8%",
-      "margin_year0": "9.7%"
+      "margin_year0": "10.7%"
      },
      "ro": {
       "amount": "6,0 mil. lei",
       "margin": "4,8%",
-      "margin_year0": "9,7%"
+      "margin_year0": "10,7%"
      }
     },
     "figure": {
      "amount_minor": 599547165,
      "kind": "projected"
     },
-    "margin_change_ppm": -49434,
+    "margin_change_ppm": -59107,
     "margin_ppm": 47827,
-    "margin_year0_ppm": 97261,
-    "period": "FY2030"
+    "margin_year0_ppm": 106934,
+    "period": "FY2030",
+    "year0_step": {
+     "capitalized_own_work": {
+      "amount_minor": 0,
+      "kind": "actual"
+     },
+     "code": "stock_variation_not_projected",
+     "display": {
+      "en": {
+       "ebitda_year0": "RON 11.8M",
+       "ebitda_year0_before_stock_variation": "RON 10.8M",
+       "step": "RON 1.1M",
+       "text": "the stock variation and own work capitalised are not projected: 0 in every plan year"
+      },
+      "ro": {
+       "ebitda_year0": "11,8 mil. lei",
+       "ebitda_year0_before_stock_variation": "10,8 mil. lei",
+       "step": "1,1 mil. lei",
+       "text": "variația stocurilor și producția imobilizată nu se proiectează: 0 în anii de plan"
+      }
+     },
+     "ebitda_year0": {
+      "amount_minor": 1184806527,
+      "kind": "actual"
+     },
+     "ebitda_year0_before_stock_variation": {
+      "amount_minor": 1077637824,
+      "kind": "actual"
+     },
+     "inventory_variation": {
+      "amount_minor": 107168703,
+      "kind": "actual"
+     },
+     "margin_year0_before_stock_variation_ppm": 97261
+    }
    }
   },
   "period_id": "c-cur",
   "pins": {
-   "body_hash": "sha256:7b347ba1c665777dd8ec5c988e8964fe09feb1021fdfe7f7107207e566f937f7",
-   "cockpit_pack": "sha256:80afa3ff2921cb9c6fa060ac1a4dbf9fd8af95979ee86e291c83127fcb2e6435",
+   "body_hash": "sha256:e0c183bdd683961248d5a3a60825930f7f6f9925efbac0316fc9c28f1e5733dd",
+   "cockpit_pack": "sha256:b8441163bb0842d90e383b184ea430f8767e83564db9ad440d933a546882caf3",
    "engine_version": "0.1.0",
    "macro_pack": "sha256:786eec084a31392dca0f4be9c16faff90fcf6532c94bc8ed5823d5a05ff548b3",
-   "margin_pack": "sha256:78236be708ab1584075f779c79ab331d0f67a5f2f6e928af1a2d828798d71354",
+   "margin_pack": "sha256:39f88c776cc74fc155591ec8f59259542461572c0042734dbc840ca066139a3f",
    "pack_id": "forecast-cockpit"
   },
   "sentence": {
-   "en": "In the pessimist case, cash never goes below zero, with a low of RON 1.1M in January 2026; DSCR stays above the bank's threshold: 2.37× in 2026 against 1.25×; EBITDA reaches RON 6.0M in 2030, a margin of 4.8% against 9.7% today.",
+   "en": "In the pessimist case, cash never goes below zero, with a low of RON 1.1M in January 2026; DSCR stays above the bank's threshold: 2.37× in 2026 against 1.25×; EBITDA reaches RON 6.0M in 2030, a margin of 4.8% against 10.7% today.",
    "facts": {
     "cash": {
      "amount_minor": 112209505,
@@ -2143,7 +2185,7 @@
      "kind": "projected"
     }
    },
-   "ro": "În scenariul pesimist, numerarul nu scade sub zero, cu un minim de 1,1 mil. lei în ianuarie 2026; DSCR rămâne peste pragul băncii: 2,37× în 2026 față de 1,25×; EBITDA ajunge la 6,0 mil. lei în 2030, cu o marjă de 4,8% față de 9,7% azi.",
+   "ro": "În scenariul pesimist, numerarul nu scade sub zero, cu un minim de 1,1 mil. lei în ianuarie 2026; DSCR rămâne peste pragul băncii: 2,37× în 2026 față de 1,25×; EBITDA ajunge la 6,0 mil. lei în 2030, cu o marjă de 4,8% față de 10,7% azi.",
    "template": [
     "frame",
     "no_funding",
@@ -3746,6 +3788,98 @@
     },
     {
      "label": {
+      "en": "Change in inventories of finished goods and WIP (711)",
+      "ro": "Variația stocurilor de produse"
+     },
+     "line": "pl.inventory_variation",
+     "not_projected": {
+      "code": "stock_variation_not_projected",
+      "text": {
+       "en": "the stock variation and own work capitalised are not projected: 0 in every plan year",
+       "ro": "variația stocurilor și producția imobilizată nu se proiectează: 0 în anii de plan"
+      }
+     },
+     "values": [
+      {
+       "amount_minor": 0,
+       "kind": "projected",
+       "period": "FY2026"
+      },
+      {
+       "amount_minor": 0,
+       "kind": "projected",
+       "period": "FY2027"
+      },
+      {
+       "amount_minor": 0,
+       "kind": "projected",
+       "period": "FY2028"
+      },
+      {
+       "amount_minor": 0,
+       "kind": "projected",
+       "period": "FY2029"
+      },
+      {
+       "amount_minor": 0,
+       "kind": "projected",
+       "period": "FY2030"
+      }
+     ],
+     "year0": {
+      "amount_minor": 107168703,
+      "kind": "actual",
+      "period": "FY2025"
+     }
+    },
+    {
+     "label": {
+      "en": "Own work capitalised (72x)",
+      "ro": "Producția realizată pentru scopuri proprii și capitalizată"
+     },
+     "line": "pl.capitalized_own_work",
+     "not_projected": {
+      "code": "stock_variation_not_projected",
+      "text": {
+       "en": "the stock variation and own work capitalised are not projected: 0 in every plan year",
+       "ro": "variația stocurilor și producția imobilizată nu se proiectează: 0 în anii de plan"
+      }
+     },
+     "values": [
+      {
+       "amount_minor": 0,
+       "kind": "projected",
+       "period": "FY2026"
+      },
+      {
+       "amount_minor": 0,
+       "kind": "projected",
+       "period": "FY2027"
+      },
+      {
+       "amount_minor": 0,
+       "kind": "projected",
+       "period": "FY2028"
+      },
+      {
+       "amount_minor": 0,
+       "kind": "projected",
+       "period": "FY2029"
+      },
+      {
+       "amount_minor": 0,
+       "kind": "projected",
+       "period": "FY2030"
+      }
+     ],
+     "year0": {
+      "amount_minor": 0,
+      "kind": "actual",
+      "period": "FY2025"
+     }
+    },
+    {
+     "label": {
       "en": "EBITDA",
       "ro": "EBITDA"
      },
@@ -3778,7 +3912,7 @@
       }
      ],
      "year0": {
-      "amount_minor": 1077637824,
+      "amount_minor": 1184806527,
       "kind": "actual",
       "period": "FY2025"
      }
@@ -4171,7 +4305,7 @@
       }
      ],
      "year0": {
-      "amount_minor": 793353899,
+      "amount_minor": 900522602,
       "kind": "actual",
       "period": "FY2025"
      }
@@ -4273,10 +4407,10 @@
      "kind": "actual"
     },
     "ebitda": {
-     "amount_minor": 1077637824,
+     "amount_minor": 1184806527,
      "kind": "actual"
     },
-    "ebitda_margin_ppm": 97261,
+    "ebitda_margin_ppm": 106934,
     "equity": {
      "amount_minor": 2392408372,
      "kind": "actual"
@@ -4322,11 +4456,11 @@
   "kind": "bank_forecast",
   "period_id": "c-cur",
   "pins": {
-   "body_hash": "sha256:7b347ba1c665777dd8ec5c988e8964fe09feb1021fdfe7f7107207e566f937f7",
-   "cockpit_pack": "sha256:80afa3ff2921cb9c6fa060ac1a4dbf9fd8af95979ee86e291c83127fcb2e6435",
+   "body_hash": "sha256:e0c183bdd683961248d5a3a60825930f7f6f9925efbac0316fc9c28f1e5733dd",
+   "cockpit_pack": "sha256:b8441163bb0842d90e383b184ea430f8767e83564db9ad440d933a546882caf3",
    "engine_version": "0.1.0",
    "macro_pack": "sha256:786eec084a31392dca0f4be9c16faff90fcf6532c94bc8ed5823d5a05ff548b3",
-   "margin_pack": "sha256:78236be708ab1584075f779c79ab331d0f67a5f2f6e928af1a2d828798d71354",
+   "margin_pack": "sha256:39f88c776cc74fc155591ec8f59259542461572c0042734dbc840ca066139a3f",
    "pack_id": "forecast-cockpit"
   },
   "projected_note": {
@@ -4372,7 +4506,7 @@
    }
   },
   "sentence": {
-   "en": "In the pessimist case, cash never goes below zero, with a low of RON 1.1M in January 2026; DSCR stays above the bank's threshold: 2.37× in 2026 against 1.25×; EBITDA reaches RON 6.0M in 2030, a margin of 4.8% against 9.7% today.",
+   "en": "In the pessimist case, cash never goes below zero, with a low of RON 1.1M in January 2026; DSCR stays above the bank's threshold: 2.37× in 2026 against 1.25×; EBITDA reaches RON 6.0M in 2030, a margin of 4.8% against 10.7% today.",
    "facts": {
     "cash": {
      "amount_minor": 112209505,
@@ -4384,7 +4518,7 @@
      "kind": "projected"
     }
    },
-   "ro": "În scenariul pesimist, numerarul nu scade sub zero, cu un minim de 1,1 mil. lei în ianuarie 2026; DSCR rămâne peste pragul băncii: 2,37× în 2026 față de 1,25×; EBITDA ajunge la 6,0 mil. lei în 2030, cu o marjă de 4,8% față de 9,7% azi.",
+   "ro": "În scenariul pesimist, numerarul nu scade sub zero, cu un minim de 1,1 mil. lei în ianuarie 2026; DSCR rămâne peste pragul băncii: 2,37× în 2026 față de 1,25×; EBITDA ajunge la 6,0 mil. lei în 2030, cu o marjă de 4,8% față de 10,7% azi.",
    "template": [
     "frame",
     "no_funding",
