@@ -10605,9 +10605,9 @@ search, the craft G4 on the renderer the palette uses, and company fit.
 
 | | |
 |---|---|
-| command | `npx vitest run --root . <commandBar.test.tsx> <cmdbarSearch.test.ts> <capsuleCraft.test.tsx> <roleChips.test.tsx> <companyFit.test.ts> --reporter=verbose` |
-| work count | `Tests … (\d+) passed`, floor **85** (measured 88) |
-| canary | the eight test titles named in `scripts/run_battery.py` (swap, served items, ratio_table-not-metrics, warm zero-fetch, planted model text, digit rule, caveat once, rent-only DSCR) |
+| command | `npx vitest run --root . <commandBar.test.tsx> <cmdbarSearch.test.ts> <cmdbarStrings.test.ts> <capsuleCraft.test.tsx> <roleChips.test.tsx> <companyFit.test.ts> <evidenceReceivers.test.tsx> --reporter=verbose` (cmdbarStrings and evidenceReceivers joined in CB-F1/CB-G) |
+| work count | `Tests … (\d+) passed`, floor **118** (measured 118, stage CB-G; was 88) |
+| canary | the twenty titles / GATE-WORK lines named in `scripts/run_battery.py` (swap, served items, ratio_table-not-metrics, warm zero-fetch, planted model text, digit rule, caveat once, rent-only DSCR, the ratio receiver; CB-G: every Cont leaf, every Δ, every vs-sector, the cold open timed, every spelling, the ↓ walk, diacritics no other rule rescues, Romanian letters, printed names typed back, a new query selecting its answer, each document named to its company) |
 
 **Reds on, after the repair (TC-11):** a resting list that is not the served
 items in the served rank, or two companies whose empty states read the same
@@ -10747,6 +10747,196 @@ benchmark `?row=` receiver is held in jsdom: /benchmark reads
   Capsule surface and will fail live; `run_playwright_gate.mjs` still names
   `capsule.spec.ts::ANCHORS` in MUST_PASS and floors the three capsule specs.
   They must be retired together, with the playwright baseline re-recorded.
+
+### Stage CB-G (design C5, 2026-09-27) — the laws held exhaustively, each rule planted
+
+CB-F1 held each law on a sample; this stage holds it on EVERYTHING the two
+hermetic books serve, in both languages, and adds the laws that were held
+only in part. jsdom half (in `cmdbar-surface`, 88 → 118 tests):
+
+* **every Cont leaf** of both books (Scandia 295, Agras 287 leaves), in RO
+  and EN, found by its own code, prints its served amount through the
+  shared printer, and — for 411x / 401x / 3xx / 512x·531x — the design's
+  key metric FROM `ratio_table` (the family → metric table is written in
+  the test, not read from the bar's). Positive control: the books hold
+  contra accounts, so a sign-dropping printer prints another figure.
+  `GATE-WORK cmdbar-cont-leaves scandia/en leaves=295 key_metrics=40 …
+  agras/ro leaves=287 key_metrics=67`.
+* **every Răspuns in Romanian too**; **every ratio_table row** (27 of 28 —
+  `dio` rides the inventory adapter) is reached by its own name and printed
+  as that row — EXACT since this stage: the earlier `if (!row) continue` +
+  "≥ 20" let up to seven rows go unchecked silently.
+* **every Δ IS its comparatives column** through the shared printers (a
+  percentage where `change_kind` allows one, the served word where it
+  does not — both printers exercised), and **every vs-sector IS its sector
+  row** (lawful figure, position word, verdict — never on the filed-basis
+  inventory row, which carries the owner's "bază depusă" label).
+* **the cold open, timed**: every statement answer's VALUE under 100 ms from
+  the period body while nothing else has landed; each Δ / vs-sector chip
+  says "loading", never blank, never a 0.
+* **synonyms and diacritics on the rendered bar**, both languages: every
+  spelling of six subjects opens the same first answer; with and without
+  accents the WHOLE list is the same row for row; short words (în, și,
+  vamă) find their account only through folding.
+* **the keyboard**: typing selects the answer, ↓ walks every family in
+  order and stops on "Ask CFO AI", ↑ walks back, the composer's
+  `aria-activedescendant` names the row, Enter opens the answer's evidence,
+  ⌘/Ctrl+Enter asks whatever is selected, at rest nothing is selected.
+  **New law (a defect the live G8 found):** a new, shorter query after ↓ to
+  the end selected "Întreabă CFO AI" instead of its own answer — the clamp
+  effect computed from the render's stale `activeIdx` and overwrote the
+  fresh 0 in the same commit; Enter then asked the chat. Fixed with a
+  functional clamp (`CommandPalette.tsx`).
+* **each document named to its company** (new; a defect workspace-v2 G6
+  found on this stage's full run): the bar's app-wide prefetch read the
+  sector document through the dashboard's hook, keyed by the period alone
+  and asked of whatever workspace was active WHEN it fired — across a
+  company switch, `GET /api/period/<Scandia period>/sector-benchmark` went
+  out under Agras's X-Org-Id. The bar now keys it by company AND period and
+  names the company (`fetchSectorBenchmark(periodId, orgId)`), like its
+  attention and comparatives documents. The jsdom law: with the ambient
+  helper naming NO workspace, every `/attention`, `/comparatives`,
+  `/sector-benchmark` request the bar makes carries the period's company.
+* **cmdbar-strings** (`cmdbarStrings.test.ts`): one key set in RO and EN
+  with the same `{{variables}}`; the owner's Romanian names verbatim;
+  comma-below ș/ț only; no ASCII-folded Romanian word; every name the bar
+  PRINTS for a figure finds that figure when typed back — it did not for
+  "Trade receivables, net", "Creanțe comerciale nete", "Numerar și
+  echivalente", "Datorii către furnizori" (fixed in `cmdbarTerms.json`).
+
+Plants (each ONE defect in ONE file, direct vitest, the file restored from
+its saved copy, GREEN again after; `Tests` = the files run for that plant):
+```
+### PLANT cont-sign — accountView prints |amount|                         RED 4 failed | 45 passed (49)
+    × EVERY Cont leaf … scandia (en) / scandia (ro) / agras (en) / agras (ro)
+    AssertionError: 117101: expected '1,2 mil.' to be '−1,2 mil.'
+### PLANT cont-key-metric — accountMetrics 411 → dpo                       RED 5 failed | 44 passed (49)
+    AssertionError: 411101 → dso: expected '411101Clienti int.TT308,3 K…' to contain 'Days sales outstanding 90 days'
+### PLANT delta-column — net result compared on pl.net_income_operational RED 3 failed | 46 passed (49)
+    AssertionError: net_result: the Δ chip: expected { state: 'ok', …(1) } to deeply equal { state: 'ok', …(1) }
+### PLANT sector-position-only — the answer's chip ignores the served rule RED 2 failed | 47 passed (49)
+    AssertionError: expected 'vs sector — Inventory days on turnove…' not to contain 'worse than the sector'
+### PLANT cold-blank — a pending Δ prints nothing                          RED 2 failed | 47 passed (49)
+    AssertionError: turnover: no blank chip: expected '' not to be ''
+### PLANT cold-zero — a pending Δ prints 0%                                RED 1 failed | 48 passed (49)
+    AssertionError: turnover: no 0 chip: expected '0%' not to match /^[−-]?0([.,]0+)?\s*%?$/
+### PLANT synonyms-ro — receivables loses its Romanian words              RED 12 failed | 72 passed (84)
+    AssertionError: receivables answers "creante": expected undefined to be truthy
+### PLANT synonyms-en — turnover loses its English words                  RED 4 failed | 80 passed (84)
+    AssertionError: expected 'ratio:asset_turnover' to be 'answer:turnover'
+### PLANT diacritics — tokensOf lowercases instead of folding              RED 2 failed | 83 passed (85)
+    × folds Romanian letters and splits on punctuation
+    × diacritics no other rule rescues: short words (în, și, vamă) find their account only through folding
+    AssertionError: "casa în lei": expected '' to match /^account:531101:/
+### PLANT typo-short-words — FUZZY_MIN_LEN 5 → 4                           RED 1 failed | 34 passed (35)
+### PLANT typo-two-edits — FUZZY_MAX_DISTANCE 1 → 2                        RED 1 failed | 34 passed (35)
+### PLANT typo-off — no word is forgiven                                   RED 5 failed | 79 passed (84)
+### PLANT keyboard-down-wraps — ↓ on the last row wraps to the first      RED 1 failed | 48 passed (49)
+    AssertionError: expected 2 to be 4
+### PLANT keyboard-up-leaves — ↑ while typing selects nothing              RED 1 failed | 48 passed (49)
+### PLANT keyboard-activedescendant — the composer names no row            RED 1 failed | 48 passed (49)
+### PLANT keyboard-cmd-enter — ⌘Enter runs the selected row                RED 1 failed | 48 passed (49)
+### PLANT keyboard-stale-clamp — the pre-fix clamp (render's activeIdx)    RED 1 failed | 50 skipped (51)
+    × a new query selects ITS answer even when the old selection sat below the new list's end
+    AssertionError: expected 4 to be +0
+### PLANT scope — the bar's sector fetch without its company (the ambient header)  RED 1 failed | 51 passed (52)
+    × cmdbar-scope … carry the period's company as X-Org-Id — never the ambient workspace
+    AssertionError: asked of another (or no) workspace: expected [ Array(1) ] to deeply equal []
+### PLANT ratio-exact — one ratio_table row (roic) unreachable by name     RED 4 failed | 47 passed (51)
+    AssertionError: "roic" answers ratio:roic: expected undefined to be truthy   (GREEN before this stage: skipped)
+### PLANT swap — a hard-coded resting list                                 RED 4 failed | 45 passed (49)
+    AssertionError: expected 0 to be greater than or equal to 3
+### PLANT served-equality — ratio values taken from metrics[]              RED 11 failed | 38 passed (49)
+    AssertionError: dso: expected '89.61 days' to be '90 days'
+### PLANT no-model-numeral — the first recommendation as a resting item    RED 1 failed | 48 passed (49)
+    AssertionError: expected 'Searching Scandia Food SRL · Dec 2025…' not to contain 'MODEL-SENTINEL'
+### PLANT strings-parity — a Romanian key deleted                          RED 1 failed | 4 passed (5)
+### PLANT strings-variables — the Romanian header drops {{period}}         RED 2 failed | 3 passed (5)
+### PLANT strings-folded — 'Răspuns' written 'Raspuns'                     RED 2 failed | 3 passed (5)
+### PLANT strings-cedilla — 'Acțiune' with the cedilla ţ (U+0163)          RED 2 failed | 3 passed (5)
+### PLANT strings-printed-name — receivables loses "creanțe comerciale nete" RED 1 failed | 4 passed (5)
+REVERT (each): GREEN, same counts all passed
+```
+**Through the battery** (the stale-clamp plant, at floor 117 before the scope
+law joined): `FAIL cmdbar-surface (exit 1, 13.4s)` → revert → `PASS
+cmdbar-surface (13.6s, 117 command-bar tests)`; then, at floor 118, the
+scope plant (the bar's sector fetch without its company): `FAIL
+cmdbar-surface (exit 1, 13.5s)` → revert → `PASS cmdbar-surface (13.4s, 118
+command-bar tests)`.
+The keyboard-stale-clamp RED is the pre-fix code itself: the test was
+written against it and seen red before the fix landed.
+
+**Live half, stage CB-G** (`e2e/design/cmdbar.spec.ts`, hermetic bundle,
+not in the battery):
+
+* **G6 served equality** — every Răspuns (11 statement answers, EVERY
+  ratio_table row but dio — 27) and EVERY leaf account the REAL bundle
+  paints character-equals the value in the body the double served, printed
+  by the app's own printers bundled from the same source
+  (`e2e/cmdbar.printers.entry.ts`, esbuild, loaded into a blank page of the
+  same browser — same Intl/ICU), in RO and EN, with zero requests
+  meanwhile: `GATE-WORK cmdbar-live-figures scandia/ro answers=11 ratios=27
+  accounts=295 total=333` · `agras/en … accounts=287 total=325`.
+* **G7 latency** — every keystroke of ten queries (85 keystrokes per
+  company) re-renders the groups in < 100 ms, measured in the page from the
+  input event to the list naming the query, with zero requests:
+  `GATE-WORK cmdbar-live-latency scandia keystrokes=85 p50_ms=4.6
+  max_ms=10.0` · `agras … p50_ms=5.1 max_ms=10.2`; the keyboard flow live.
+* **G8 in view** (new, found by this stage's probe) — every row ↓ selects
+  is the row the reader SEES: `elementFromPoint` at its centre lands inside
+  it, at 1440 and 390, both companies, six queries; and each new query
+  selects its own first row. The defect: "Întreabă CFO AI" is sticky at the
+  bottom of the list, and `scrollIntoView({block:"nearest"})` parked the
+  row above it UNDER it (Scandia, "profit", the P&L page at 1440 — selected,
+  announced by `aria-activedescendant`, invisible). Fixed by lifting the
+  selected row clear of the sticky row. Positive control: a list that
+  overflows the card was walked at each width (`overflowing_lists=4`).
+  `GATE-WORK cmdbar-live-in-view @1440 rows_walked=50 overflowing_lists=4`.
+* **G4** now covers every typed state of the screenshot loop ("profit",
+  "4111", "clienti", "stoc", "raport"), each painting rows besides the ask
+  row, the panel inside the viewport, no horizontal overflow.
+
+Live plants (each built into its own bundle, the file restored before the
+run; `cbg_work/live_plant.sh`):
+```
+### LIVE PLANT G6 — ratio values taken from metrics[] (cmdbarSources.ts)
+  ✘ G6 scandia (ro) / scandia (en) / agras (ro) / agras (en)
+    Error: scandia/ro: painted ≠ served
+    +   "painted": "89,61 zile",  "served": "90 de zile",  "what": "ratio:dso",
+### LIVE PLANT G6 — a Cont row prints |amount| (cmdbarViews.ts)
+    Error: scandia/en: painted ≠ served
+    +   "painted": "1,2 mil.",  "served": "−1,2 mil.",  "what": "account:117101",
+### LIVE PLANT G6 exact — one ratio_table row (roic) unreachable by its name (cmdbarIndex.ts)
+  ✘ 4 failed   Error: scandia/ro: "roic" answers ratio:roic   Received: undefined
+### LIVE PLANT G7 — a 120 ms search (CommandPalette.tsx)
+GATE-WORK cmdbar-live-latency scandia keystrokes=85 p50_ms=245.4 max_ms=251.7
+    Error: scandia: slowest keystroke   Expected: < 100   Received: 251.70000004768372
+### LIVE PLANT G7 — ↓ on the last row wraps to the first (CommandPalette.tsx)
+    Expected: "ask"   Received: "account"
+### LIVE (pre-fix bundle) G8 — both defects as found
+  ✘ @1440 / @390   covered: "scandia \"profit\" page:tab:pl: under DIV", …
+                   stale:   "scandia \"stoc\": selected ask, not answer:inventory", … (7 each width)
+### LIVE PLANT G8 (a) — the lift clear of the sticky row removed
+  ✘ @1440   "covered": [ "scandia \"profit\" page:tab:pl: under DIV" ]      ✓ @390
+### LIVE PLANT G8 (b) — the clamp computed from the render's stale activeIdx
+  ✘ @1440  ✘ @390   "stale": [ "scandia \"stoc\": selected ask, not answer:inventory", … ]
+### LIVE (pre-fix bundle) workspace-v2 G6 — the bar's sector prefetch across a company switch
+  ✘ e2e/workspace-v2.spec.ts:231 (ro) and (en)
+    Error: a request asked of Agras named a period of Scandia's
+    +     "org": "0a9a0000-0000-4000-8000-0000000000a9",
+    +     "path": "/api/period/5ea50000-0000-4000-8000-0000000051f5/sector-benchmark",
+  2 failed · 8 skipped · 31 passed
+```
+**GREEN** (rebuilt from the fixed tree, both specs in one run): `33 passed,
+8 skipped (3.6m)` — `cmdbar.spec.ts` 22 (G0, G1/G2/G3, G5 ×3, G6 ×4, G7 ×3,
+G8 ×2, G4 ×8) and `workspace-v2.spec.ts` 11 (its 8 screenshot tests skip
+without `WS_SHOTS_DIR`); 96 captures (Scandia and Agras × empty + five typed
+× 1440/390 × Terminal/Paper × RO/EN) plus the G5 account-view captures,
+written outside the repo.
+
+**Cannot see:** pixels beyond overflow/in-view (the captures are for a
+human), and the real Scandia book (the hermetic books are the anonymized
+corpus; the owner's "36,8M, +14,6%" needs the live site).
 
 ## evidence-lines
 

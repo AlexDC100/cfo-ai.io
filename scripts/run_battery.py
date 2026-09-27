@@ -1041,8 +1041,20 @@ def _engine_gates() -> List[Gate]:
         #                    ZERO fetches per keystroke, "loading" never blank
         #                    or 0 when cold, the digit rule, synonyms, typos,
         #                    the caveat once, the rent-only DSCR only for a
-        #                    rental company. Live half (hermetic bundle, not in
-        #                    the battery): e2e/design/cmdbar.spec.ts.
+        #                    rental company. Stage CB-G (design C5) made the
+        #                    figure law exhaustive — every Cont leaf of both
+        #                    books in RO and EN, every Δ against its
+        #                    comparatives column, every vs-sector against its
+        #                    sector row — and added the cold open timed, the
+        #                    rendered synonyms/diacritics and the keyboard
+        #                    flow (incl. a new, shorter query selecting its own
+        #                    answer — a defect the live G8 found) and every
+        #                    document it asks for named to ITS company (a
+        #                    cross-company request workspace-v2 G6 found);
+        #                    floor = the
+        #                    measured count, exact. Live half (hermetic bundle,
+        #                    not in the battery — it needs a build):
+        #                    e2e/design/cmdbar.spec.ts G0-G8.
         #                    Plant log: docs/engine_book/gates.md.
         Gate("cmdbar-fixtures",
              [PY, "-m", "pytest", "tests/engine/test_cmdbar_fixtures.py", "-q", "-s"],
@@ -1053,12 +1065,13 @@ def _engine_gates() -> List[Gate]:
              ["npx", "vitest", "run", "--root", ".",
               "frontend/components/instrument/shell/__tests__/commandBar.test.tsx",
               "frontend/components/instrument/shell/cmdbar/__tests__/cmdbarSearch.test.ts",
+              "frontend/components/instrument/shell/cmdbar/__tests__/cmdbarStrings.test.ts",
               "frontend/components/instrument/shell/__tests__/capsuleCraft.test.tsx",
               "frontend/components/cfo/chat/__tests__/roleChips.test.tsx",
               "frontend/lib/__tests__/companyFit.test.ts",
               "frontend/components/cfo/__tests__/evidenceReceivers.test.tsx",
               "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=88,
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=118,
              units="command-bar tests",
              canaries=("the rows ARE the served items, in the served rank, each with its figure",
                        "two companies, one fixture shape: different figures (S1) and different words (S2)",
@@ -1068,7 +1081,19 @@ def _engine_gates() -> List[Gate]:
                        "a code one digit off never silently picks another account",
                        "one caveat node, referenced by the listbox, never repeated on an item",
                        "any other company (or an unknown one) is never offered the rent-only DSCR",
-                       "the bar's link lands on the drawer for that ratio, and closing it drops the parameter")),
+                       "the bar's link lands on the drawer for that ratio, and closing it drops the parameter",
+                       # stage CB-G (design C5): the laws held exhaustively
+                       "GATE-WORK cmdbar-cont-leaves agras/ro leaves=",
+                       "each statement answer's Δ is the served column through the shared printers",
+                       "each vs-sector position is the served sector row",
+                       "cold: every statement answer's VALUE renders under 100 ms",
+                       "every spelling of a subject",
+                       "↓ walks every row and stops on 'Ask CFO AI'",
+                       "diacritics no other rule rescues",
+                       "Romanian is written with its own letters",
+                       "typing the name the bar prints for a figure opens that figure first",
+                       "a new query selects ITS answer even when the old selection sat below",
+                       "carry the period's company as X-Org-Id")),
         # THE EVIDENCE RECEIVERS, frontend stage CB-F2 (design C4):
         #   evidence-lines   the account view's statement lines ARE the
         #                    engine's comparatives lines: the served path,
