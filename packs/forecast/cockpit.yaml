@@ -498,7 +498,7 @@ year0_not_split:
 # figures and on the EBITDA card's step from the actual year to plan year one.
 stock_variation_step:
   code: "stock_variation_not_projected"
-  ro: "variația stocurilor și producția imobilizată nu se proiectează: 0 în anii de plan"
+  ro: "variația stocurilor de produse și producția capitalizată nu se proiectează: 0 în anii de plan"
   en: "the stock variation and own work capitalised are not projected: 0 in every plan year"
 
 # ── the bridge from base (gate F9) ──────────────────────────────────────

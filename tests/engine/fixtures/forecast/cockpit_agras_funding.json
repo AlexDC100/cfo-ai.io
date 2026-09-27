@@ -1557,7 +1557,7 @@
       "ebitda_year0": "11,8 mil. lei",
       "ebitda_year0_before_stock_variation": "10,8 mil. lei",
       "step": "1,1 mil. lei",
-      "text": "variația stocurilor și producția imobilizată nu se proiectează: 0 în anii de plan"
+      "text": "variația stocurilor de produse și producția capitalizată nu se proiectează: 0 în anii de plan"
      }
     },
     "ebitda_year0": {
@@ -1578,8 +1578,8 @@
  },
  "period_id": "c-cur",
  "pins": {
-  "body_hash": "sha256:1a064be623e3803468c451e4cd12b6631e98b594134ded9931bcfc914c2ce4c3",
-  "cockpit_pack": "sha256:b8441163bb0842d90e383b184ea430f8767e83564db9ad440d933a546882caf3",
+  "body_hash": "sha256:eadf8471804ff2e228c934c326bd02649ff2acb0531b53575a174de93eb1db74",
+  "cockpit_pack": "sha256:cc5ae7474d11755319867b91ab73d7a6cb8f284c0e88ff8da29c6d5f14133870",
   "engine_version": "0.1.0",
   "macro_pack": "sha256:786eec084a31392dca0f4be9c16faff90fcf6532c94bc8ed5823d5a05ff548b3",
   "margin_pack": "sha256:39f88c776cc74fc155591ec8f59259542461572c0042734dbc840ca066139a3f",
@@ -3209,7 +3209,7 @@
      "code": "stock_variation_not_projected",
      "text": {
       "en": "the stock variation and own work capitalised are not projected: 0 in every plan year",
-      "ro": "variația stocurilor și producția imobilizată nu se proiectează: 0 în anii de plan"
+      "ro": "variația stocurilor de produse și producția capitalizată nu se proiectează: 0 în anii de plan"
      }
     },
     "values": [
@@ -3255,7 +3255,7 @@
      "code": "stock_variation_not_projected",
      "text": {
       "en": "the stock variation and own work capitalised are not projected: 0 in every plan year",
-      "ro": "variația stocurilor și producția imobilizată nu se proiectează: 0 în anii de plan"
+      "ro": "variația stocurilor de produse și producția capitalizată nu se proiectează: 0 în anii de plan"
      }
     },
     "values": [
