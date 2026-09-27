@@ -383,14 +383,29 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     setActiveIdx(typing ? 0 : -1);
   }, [query, typing]);
 
+  // Clamp a selection the list has shrunk under. A FUNCTIONAL update: this
+  // effect runs in the same commit as the one above, and a clamp computed
+  // from this render's (stale) activeIdx would overwrite the fresh 0 — a
+  // new, shorter query then landed on "Întreabă CFO AI" instead of its
+  // answer (commandBar.test.tsx, cmdbar-keyboard).
   useEffect(() => {
-    if (activeIdx >= rows.length) setActiveIdx(rows.length - 1);
+    setActiveIdx((i) => (i >= rows.length ? rows.length - 1 : i));
   }, [rows.length, activeIdx]);
 
   useEffect(() => {
     if (activeIdx < 0) return;
-    const el = listRef.current?.querySelector<HTMLElement>(`[data-idx="${activeIdx}"]`);
-    el?.scrollIntoView?.({ block: "nearest" });
+    const list = listRef.current;
+    const el = list?.querySelector<HTMLElement>(`[data-idx="${activeIdx}"]`);
+    if (!list || !el) return;
+    el.scrollIntoView?.({ block: "nearest" });
+    // "Întreabă CFO AI" sticks to the bottom of the list, so "nearest" can
+    // park the selected row UNDER it (the live keyboard gate saw the P&L
+    // page row selected and hidden). Lift the row clear of the sticky row.
+    if (el.getAttribute("data-row-kind") === "ask") return;
+    const sticky = list.querySelector<HTMLElement>('[data-row-kind="ask"]')?.parentElement;
+    if (!sticky) return;
+    const covered = el.getBoundingClientRect().bottom - sticky.getBoundingClientRect().top;
+    if (covered > 0) list.scrollTop += covered;
   }, [activeIdx]);
 
   useEffect(() => {
