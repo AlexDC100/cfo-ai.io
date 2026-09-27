@@ -103,6 +103,27 @@ class MissingFactError(KeyError):
     and fall back explicitly — the gateway never fabricates a zero."""
 
 
+class RefusedFactError(MissingFactError):
+    """The served envelope carries the concept but REFUSES it, with a typed
+    reason (``refusal``: ``{code, text_en, text_ro, ...}``) — e.g. EBITDA
+    on a book whose net 711 cannot be measured (owner ruling 2026-09-26),
+    or on a methodology block written before that ruling. A subclass of
+    :class:`MissingFactError` so every caller that already degrades on an
+    absent fact keeps degrading; a caller that can print the reason reads
+    ``refusal``. Never a zero."""
+
+    def __init__(self, message: str, refusal: Optional[Dict[str, Any]] = None) -> None:
+        super().__init__(message)
+        self.refusal = dict(refusal or {})
+
+
+#: The EBITDA definition a methodology block must be stamped with before
+#: the gateway serves its EBITDA (literal, so the gateway never imports the
+#: country pack at import time; locked equal to chart_of_accounts.
+#: EBITDA_DEFINITION_REVISION by tests/engine/test_facts_gateway.py).
+EBITDA_DEFINITION_REVISION = "ebitda/2026-09-26:711-72x-inside,767-financial"
+
+
 class AdditiveServeViolation(AssertionError):
     """A serve-stage mutation removed or retyped a pipeline-produced
     field — forbidden by the sv1 additive-only serve contract."""
@@ -757,8 +778,9 @@ class FactsGateway(object):
         return self._fact(self._pnl_delta_cents())
 
     def revenue(self) -> Fact:
-        """Net revenue (methodology ``totals.revenue_net``) plus a
-        ``pl_other_income``-placed reconciliation delta. Summary tier:
+        """Net turnover — cifra de afaceri netă, class 70 − 709
+        (methodology ``totals.revenue_net``), and nothing else: no
+        reconciliation delta is added (see below). Summary tier:
         I13 (Cifra de afaceri neta) — its own resolution, deliberately
         NOT the methodology path's asymmetric positive-delta rule.
 
@@ -779,8 +801,13 @@ class FactsGateway(object):
         base = self._methodology_cents("totals.revenue_net")
         if base is None:
             raise MissingFactError("envelope carries no methodology revenue_net")
-        delta = self._pnl_delta_cents()
-        return self._fact(base + delta if delta > 0 else base)
+        # TURNOVER ONLY (owner ruling 2026-09-26: margins and growth divide
+        # by cifra de afaceri netă, 70x − 709). A P&L-placed reconciliation
+        # delta is NOT turnover — it used to be added here when positive,
+        # which put a balancing figure into the denominator of every margin
+        # and every growth rate read through the gateway. It still reaches
+        # net_result() and expenses(); it is never sales.
+        return self._fact(base)
 
     def expenses(self) -> Fact:
         """Total expense burden implied by the served statement:
@@ -1114,9 +1141,38 @@ class FactsGateway(object):
                 if isinstance(value, MarketRefusal)]
 
     def ebitda(self) -> Fact:
-        """Reported EBITDA (methodology ``ebitda.reported``) plus a
-        pnl-placed reconciliation delta — the placement vocabulary is
-        other OPERATING income/expense, which reported EBITDA includes."""
+        """THE ONE EBITDA (methodology ``ebitda.reported`` — net 711 and net
+        72x inside, owner ruling 2026-09-26) plus a pnl-placed
+        reconciliation delta — the placement vocabulary is other OPERATING
+        income/expense, which EBITDA includes.
+
+        Refuses (:class:`RefusedFactError`, never a zero) when the block's
+        EBITDA is refused — net 711 could not be measured on a book that
+        posts to it — and when the block predates the ruling (no
+        ``ebitda_definition`` stamp): its ``reported`` figure is the
+        pre-ruling EBITDA without the stock variation, a second definition
+        the gateway must not serve beside the statements' one."""
+        stamp = self._methodology.get("ebitda_definition")
+        if stamp != EBITDA_DEFINITION_REVISION:
+            raise RefusedFactError(
+                "methodology block predates the EBITDA definition %s"
+                % EBITDA_DEFINITION_REVISION,
+                {"code": "period_predates_ebitda_definition",
+                 "definition": EBITDA_DEFINITION_REVISION,
+                 "stamped": stamp,
+                 "text_en": "This period was analysed before EBITDA included the "
+                            "stock variation (711) and own work capitalised "
+                            "(72x); it must be re-analysed before its EBITDA "
+                            "can be served.",
+                 "text_ro": "Perioada a fost analizată înainte ca EBITDA să "
+                            "includă variația stocurilor de produse (711) și "
+                            "producția imobilizată (72x); trebuie reanalizată "
+                            "înainte ca EBITDA să poată fi afișată."})
+        refusals = self._methodology.get("refusals")
+        refusal = refusals.get("ebitda.reported") if isinstance(refusals, dict) else None
+        if refusal:
+            raise RefusedFactError(
+                "EBITDA refused: %s" % (refusal.get("code") or "refused"), refusal)
         base = self._methodology_cents("ebitda.reported")
         if base is None:
             raise MissingFactError("envelope carries no methodology ebitda.reported")

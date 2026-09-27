@@ -2281,9 +2281,30 @@ def assemble_statements(
             from engine.methodology import evaluate as methodology_evaluate  # type: ignore
             methodology = load_methodology("ro_ras_2025_v1")
             industry_key = industry if isinstance(industry, str) else None
+            # The ONE EBITDA (ruling 2026-09-26): net 711 and net 72x are
+            # MEASURED here, not read off a canonical bucket (the 711 memo
+            # leaf is the gross credit turnover on a closed book). A
+            # refused 711 refuses `ebitda.reported` and every view on it.
             canonical_env["methodology"] = methodology_evaluate(
                 methodology, canonical_env, industry_key=industry_key,
+                measured={
+                    "inventory_variation_net": {
+                        "value": inventory_variation_block.get("value"),
+                        "refusal": inventory_variation_block.get("refusal"),
+                        "provenance": inventory_variation_block.get("provenance"),
+                    },
+                    "capitalized_own_work_net": {
+                        "value": capitalized_block.get("value"),
+                        "refusal": capitalized_block.get("refusal"),
+                        "provenance": capitalized_block.get("provenance"),
+                    },
+                },
             )
+            # Only a file that implements the ruling may be stamped with
+            # it; a mismatch leaves the block unstamped, and an unstamped
+            # block serves no EBITDA (FactsGateway.ebitda refuses it).
+            if methodology.ebitda_definition == EBITDA_DEFINITION_REVISION:
+                canonical_env["methodology"]["ebitda_definition"] = EBITDA_DEFINITION_REVISION
         except Exception:  # noqa: BLE001
             # PyYAML missing, file missing, formula error — surface as
             # absent `methodology` key, not a pipeline break.

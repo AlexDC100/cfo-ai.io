@@ -9,7 +9,7 @@ diverges, the YAML has a bug, NOT the in-code values.
 
 Acceptance (locked 2026-05-26 by F3.16-3b.6 ship-B —
 [F3.16-3b6-FOLLOWUP-VARIANT-PARITY] Phase 3 deliverable):
-  - For every fixture: methodology.ebitda.reported  ≈ in-code ebitda_statutory   (HARD ±1 RON)
+  - For every fixture: methodology.ebitda.reported  ≈ in-code ebitda (THE ONE EBITDA, ruling 2026-09-26; ebitda_statutory is its alias)   (HARD ±1 RON)
   - For every fixture: methodology.ebitda.strict    ≈ in-code adjusted_ebitda    (HARD ±1 RON)  ← newly hardened
   - For every fixture: methodology.ebitda.cash      ≈ in-code ebitda_cash        (HARD ±1 RON)  ← newly hardened
   - methodology.ebitda.adjusted is unchanged (not yet computed in YAML;
@@ -94,16 +94,37 @@ def _check_fixture(name: str, assembled: dict) -> Tuple[bool, str, Dict[str, flo
 
     statements = assembled.get("statements") or {}
     pl = statements.get("assembled_pl") or {}
-    incode_ebitda_statutory = float(pl.get("ebitda_statutory") or 0)
-    incode_adjusted_ebitda = float(pl.get("adjusted_ebitda") or 0)
-    incode_ebitda_cash = float(pl.get("ebitda_cash") or 0)
 
     if not yaml_ebitda:
         return False, "methodology.ebitda absent", {}
 
-    yaml_reported = float(yaml_ebitda.get("reported") or 0)
-    yaml_strict = float(yaml_ebitda.get("strict") or 0)
-    yaml_cash = float(yaml_ebitda.get("cash") or 0)
+    # THE ONE EBITDA (ruling 2026-09-26). A refused figure is None on
+    # BOTH sides or the gate is red — it used to read `or 0`, so a
+    # fixture refused by both sides compared 0.00 with 0.00 and passed
+    # without measuring anything (an assembly with no stock-variation
+    # evidence and no 121 anchor refuses every manufacturer).
+    pairs = (("reported", "ebitda"), ("strict", "adjusted_ebitda"),
+             ("cash", "ebitda_cash"))
+    for view, field in pairs:
+        y, c = yaml_ebitda.get(view), pl.get(field)
+        if (y is None) != (c is None):
+            return False, ("%s: methodology %r vs in-code %s %r — one side "
+                           "refused, the other served" % (view, y, field, c)), {}
+    if yaml_ebitda.get("reported") is None:
+        return False, ("REFUSED on both sides (%s) — nothing measured; a "
+                       "refusal is not parity" % ((pl.get("ebitda_refusal") or {})
+                                                   .get("code"),)), {}
+    SERVED["n"] += 1
+    if ((pl.get("inventory_variation") or {}).get("provenance")
+            == "account_121_bridge"):
+        SERVED["bridge"] += 1
+
+    incode_ebitda_statutory = float(pl.get("ebitda"))
+    incode_adjusted_ebitda = float(pl.get("adjusted_ebitda"))
+    incode_ebitda_cash = float(pl.get("ebitda_cash"))
+    yaml_reported = float(yaml_ebitda.get("reported"))
+    yaml_strict = float(yaml_ebitda.get("strict"))
+    yaml_cash = float(yaml_ebitda.get("cash"))
 
     deltas: Dict[str, float] = {
         "reported_vs_in-code_statutory": yaml_reported - incode_ebitda_statutory,
@@ -140,6 +161,52 @@ def _check_fixture(name: str, assembled: dict) -> Tuple[bool, str, Dict[str, flo
         f"strict Δ {deltas['strict_vs_in-code_adjusted']:+,.2f}, "
         f"cash Δ {deltas['cash_vs_in-code_cash']:+,.2f} RON)"
     ), deltas
+
+
+#: How many fixtures served a (non-refused) EBITDA, and how many of those
+#: carried net 711 through the account-121 bridge. Zero of either is RED:
+#: a parity gate that compared nothing, or never saw the ruling's hard
+#: case, proves nothing.
+SERVED = {"n": 0, "bridge": 0}
+
+
+def _measured_kwargs(short: str) -> Dict[str, Any]:
+    """The stock-variation evidence and the account-121 anchor the REAL
+    write path hands `assemble_statements` (pipeline._deterministic_tb_
+    parsed → stage_map), measured from the same source rows. Without them
+    net 711 refuses on every closed manufacturer (G2) and the one EBITDA
+    with it — the gate would compare two refusals."""
+    from measure_bs_drift import _candidate_paths, _load_trial_balance_parser
+    from engine.country_packs.ro_romania import stock_variation
+    sources = {
+        "Scandia": ("files/scandia_trial_balance_2025_downloaded.xlsx",
+                    "tests/fixtures/scandia_trial_balance_2025.xlsx",
+                    "tests/fixtures/trial_balance/scandia_trial_balance_2025.xlsx"),
+        "Frozen": ("files/prod_scandia_frozen_31.12.2025.xlsx",
+                   "files/scandia_frozen_tb_2025.xlsx",
+                   "tests/fixtures/scandia_frozen_tb_2025.xlsx"),
+        "RealEstate": ("files/scandia_realestate_tb_2025.xlsx",
+                       "tests/fixtures/scandia_realestate_tb_2025.xlsx"),
+        "Agras": ("files/agras_tb_2025.xlsx", "tests/fixtures/agras_tb_2025.xlsx"),
+        "Carniprod": ("files/carniprod_tb_2025.xlsx", "tests/fixtures/carniprod_tb_2025.xlsx"),
+        "Retail": ("files/scandia_retail_tb_2025.xlsx", "tests/fixtures/scandia_retail_tb_2025.xlsx"),
+    }
+    tbp = _load_trial_balance_parser()
+    if short == "Sibiu":
+        paths = _candidate_paths("files/scandia_sibiu_tb_2019.pdf",
+                                 "tests/fixtures/scandia_sibiu_tb_2019.pdf")
+        if not paths:
+            return {}
+        from engine.country_packs.ro_romania import pdf_ingester
+        rows = pdf_ingester.parse_pdf_trial_balance(paths[0].read_bytes(),
+                                                    filename=paths[0].name)
+    else:
+        paths = _candidate_paths(*sources[short]) if short in sources else []
+        if not paths:
+            return {}
+        rows = tbp.parse_trial_balance_file(paths[0].read_bytes(), paths[0].name)
+    return {"stock_variation_evidence": stock_variation.measure(rows),
+            "account_121_anchor_override": tbp.compute_statutory_net_profit_anchor(rows)}
 
 
 def main() -> int:
@@ -184,7 +251,7 @@ def main() -> int:
     for short, accts, fname in fixtures:
         try:
             result = fn(accts, company_name=fname, currency="RON", period_label="FY2025",
-                        industry=None)
+                        industry=None, **_measured_kwargs(short))
             ok, detail, _ = _check_fixture(short, result)
             verdict = "GREEN" if ok else "RED"
             if not ok:
@@ -194,6 +261,11 @@ def main() -> int:
             print(f"  {short:<11s} RED      exception {type(e).__name__}: {e}")
             all_pass = False
     print()
+    print("GATE-WORK methodology-parity served=%d bridge=%d" % (SERVED["n"], SERVED["bridge"]))
+    if SERVED["n"] == 0 or SERVED["bridge"] == 0:
+        print("VACUOUS — no fixture served an EBITDA through the 711 bridge; "
+              "a parity gate that compared nothing is RED.")
+        all_pass = False
     print("Overall: " + ("GREEN — F4.2-PARITY passes; YAML methodology matches in-code EBITDA."
                           if all_pass else
                           "RED — F4.2-PARITY fails. Methodology bug; do not deploy."))

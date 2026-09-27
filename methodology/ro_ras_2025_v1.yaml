@@ -32,46 +32,64 @@ applies_to:
   standards: [ras_omfp_1802]
   fiscal_year_range: ["2024-01-01", "2025-12-31"]
 schema_version: canonical_v1.0.0
-methodology_version: "1.0.0"
+methodology_version: "1.1.0"
 created_at: "2026-05-23"
 authors: ["alex_cretin"]
 
 # ─── EBITDA family ────────────────────────────────────────────────────────
-# Four named views. `reported` is the headline; the other three derive
-# from it via base+subtract+add composition for transparency.
+# Four named views. `reported` is THE ONE EBITDA every surface serves; the
+# other three derive from it via base+subtract+add composition.
 #
-# Important: capitalized_own_work_memo (722) and inventory_variation_memo
-# (711) are RAS-specific MEMO buckets; IFRS books them inside COGS. The
-# Romanian convention adds 722 BACK to the operating revenue side (it's
-# revenue earned by capitalizing internal labor), and nets 711 against
-# COGS (production stocked minus consumed). These two adjustments
-# produce the divergence between RAS statutory and IFRS / cash views.
+# THE RULING (owner, 2026-09-26). Account 711 ("Variația stocurilor de
+# produse", the change in inventories of finished goods and work in
+# progress) and 72x (own work capitalised) are INSIDE EBITDA and the
+# operating result, with their sign, and OUTSIDE cifra de afaceri. 711 is
+# presented next to cost of sales, never as revenue. 767 (discounts
+# received) is financial, outside EBITDA. Margins divide by turnover
+# (totals.revenue_net = 70x − 709).
+#
+# Neither figure can be read off a canonical bucket. On a CLOSED trial
+# balance (every class-6/7 account closed into 121) the canonical
+# `inventory_variation_memo` leaf holds the GROSS production stocked (the
+# credit turnover of 711), not the variation — 630M against a variation of
+# about 1M on Scandia Food FY2025. The assembly MEASURES both
+# (country_packs/ro_romania/stock_variation.py: the account-121 bridge on a
+# closed book, the leaves' own net on an open one, guarded G1-G6) and hands
+# them in as `measured.inventory_variation_net` / `measured.
+# capitalized_own_work_net`. A refused net 711 refuses `reported` and
+# every view built on it — never 0.00, never the pre-ruling formula.
+
+# Stamp the assembly writes beside the evaluated block. A methodology block
+# without it predates the ruling and serves no EBITDA (FactsGateway).
+ebitda_definition: "ebitda/2026-09-26:711-72x-inside,767-financial"
 
 ebitda_variants:
 
   reported:
     description: >
-      Headline EBITDA as filed under RAS statutory reporting. Includes
-      722 capitalized own-work (per Romanian convention), 758 other
-      operating income, and 781 provision reversals (credit operating
-      adjustments). Excludes 711 inventory variation (memo-only;
-      already net-zero in the COGS aggregate). Lender covenants
-      typically reference this number — matches in-code
-      `ebitda_statutory` field on assembled_pl within 1 RON.
+      THE ONE EBITDA (owner ruling 2026-09-26): turnover (70x − 709) + other
+      operating income + 781 provision reversals − cost of sales − general
+      operating expenses − personnel, + net 711 "Variația stocurilor de
+      produse" (signed, next to cost of sales) + net 72x own work
+      capitalised. 767 is financial (not in other_op_income). Matches the
+      in-code `assembled_pl.ebitda` within 1 RON (F4.2-PARITY).
     formula: >
       revenue_gross.net
       + other_op_income.net
-      + ?capitalized_own_work_memo
       + ?provision_reversals
       - cogs.net
       - opex_general.net
       - personnel_total.net
-    excludes_by_convention: [dap.net, financial_income.net, financial_expense.net, income_tax.net, inventory_variation_memo]
+      + measured.inventory_variation_net
+      + measured.capitalized_own_work_net
+    excludes_by_convention: [dap.net, financial_income.net, financial_expense.net, income_tax.net, inventory_variation_memo, capitalized_own_work_memo]
     note: >
       781 provision reversals lives in canonical `dap` aggregate with
       EXPENSE_NEGATIVE sign_meaning, but is added back to reported
       EBITDA because it's a credit (income), not a depreciation charge.
-      D&A as a whole is excluded by convention.
+      D&A as a whole is excluded by convention. The two memo buckets are
+      excluded because they are not the measured figures: the 711 leaf is
+      the gross credit turnover on a closed book.
 
   strict:
     description: >
@@ -100,26 +118,19 @@ ebitda_variants:
 
   cash:
     description: >
-      EBITDA measured on a cash basis — strips capitalized own-work
-      (722) which is the only non-cash item already inside `reported`.
-      Per F3.16-3b.6 Phase 2 decision (2026-05-26): the in-code
-      ebitda_cash = bare operating EBITDA (excludes 722; does NOT
-      subtract 711 because 711 is already net-zero in COGS via the
-      production-variation wash). The YAML matches.
+      Since the 2026-09-26 ruling this is an ALIAS of `reported` — there is
+      one EBITDA. It used to strip 72x own work capitalised (a second,
+      "cash-view" EBITDA); the ruling puts 72x inside EBITDA, so no served
+      view may carry an EBITDA without it (the in-code `ebitda_cash` is an
+      alias of the one figure as well).
     base: reported
-    subtract:
-      - ?capitalized_own_work_memo
+    subtract: []
     add: []
     note: >
-      Pre-3b.6-A YAML also subtracted 711 (inventory variation memo)
-      and 781 (provision reversals) and 765 (fx_gain_unrealized), and
-      added back 6812 (provision_charges) / 6651 (fx_loss_unrealized)
-      / 654 (impairment_receivables). Empirical Phase 1 probe showed
-      this produced 100-1571 % divergence vs in-code (chiefly via the
-      711 double-strip on inventory-heavy fixtures — 192M on Agras,
-      83M on Frozen). Phase 2 chose Candidate B (in-code is right);
-      YAML now matches the in-code's "bare EBITDA + capitalized strip"
-      view. See [F3.16-3b6-FOLLOWUP-VARIANT-PARITY].
+      Kept as a name so readers of `methodology.ebitda.cash` read the one
+      figure rather than a missing key. Pre-3b.6-A history of this view
+      (the 711 double-strip, Candidate B) lives in
+      docs/F3.16-3b6-variant-analysis.md.
 
   adjusted:
     description: >
@@ -142,12 +153,12 @@ totals:
     note: "Top-line revenue net of commercial reductions (709 already nets here)."
 
   gross_profit:
-    formula: revenue_gross.net - cogs.net
-    note: "Revenue net minus direct cost of goods/services sold."
+    formula: revenue_gross.net - cogs.net + measured.inventory_variation_net
+    note: "Turnover minus cost of sales plus net 711 (Variația stocurilor de produse sits in the cost-of-sales block). 72x is outside gross profit. Refused with net 711."
 
   operating_profit_reported:
     formula: ebitda.reported - dap.net
-    note: "EBIT view of reported EBITDA (D&A subtracted)."
+    note: "Operating result (EBIT) = the one EBITDA − D&A. Refused with it."
 
   net_debt:
     formula: >
@@ -356,19 +367,13 @@ ratios:
 # the defaults above when no override exists for the period's industry_key.
 industry_overrides:
 
-  real_estate_developer:
-    note: >
-      Developers in pre-livrare phase capitalize cost flows into PPE
-      under construction; reported EBITDA reflects recurring operations
-      only (rental + services), not the construction P&L which lives on
-      the BS until handover.
-    overrides:
-      ebitda_variants.reported.formula: >
-        revenue_rental_royalty
-        + revenue_services
-        + ?government_grants_recognized
-        - opex_general.net
-        - personnel_total.net
+  # real_estate_developer — RETIRED 2026-09-26. It replaced `reported`
+  # with a second EBITDA (rental + services − opex − personnel) that left
+  # the construction P&L out. Under the ruling the developer's EBITDA is
+  # the ONE definition: the construction cost stocked through 711 comes
+  # back in as the measured net 711. Whether a margin over its turnover
+  # means anything is decided by engine.ratios.margin_meaning, which
+  # refuses it on the developer — not by a second formula here.
 
   hospitality_hotels:
     note: >

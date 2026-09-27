@@ -77,6 +77,10 @@ class MethodologyDoc:
     ratios: Dict[str, NamedFormula]
     industry_overrides: Dict[str, IndustryOverride]
     source_path: str
+    #: The EBITDA definition revision the file implements (owner ruling
+    #: 2026-09-26). The assembly stamps it beside the evaluated block so a
+    #: reader can tell a block built under the ruling from an older one.
+    ebitda_definition: str = ""
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -251,6 +255,7 @@ def _build_doc(data: Dict[str, Any], source_path: str) -> MethodologyDoc:
         ratios=ratios,
         industry_overrides=industry,
         source_path=source_path,
+        ebitda_definition=str(data.get("ebitda_definition") or ""),
     )
 
 
