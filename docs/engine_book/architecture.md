@@ -107,7 +107,7 @@ graph LR
     pkg_api -->|1| pkg_public_market
     pkg_api -->|3| pkg_public_ro
     pkg_api -->|1| pkg_radar
-    pkg_api -->|2| pkg_ratios
+    pkg_api -->|4| pkg_ratios
     pkg_api -->|1| pkg_routing
     pkg_api -->|4| pkg_serving
     pkg_api -->|2| pkg_storage
@@ -180,7 +180,7 @@ graph LR
     pkg_radar -->|1| pkg_ir
     pkg_radar -->|1| pkg_serving
     pkg_ratios -->|1| pkg_comparatives
-    pkg_ratios -->|1| pkg_country_packs
+    pkg_ratios -->|2| pkg_country_packs
     pkg_ratios -->|1| pkg_serving
     pkg_routing -->|1| pkg_core
     pkg_serving -->|1| pkg_api

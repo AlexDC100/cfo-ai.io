@@ -10453,3 +10453,85 @@ CANNOT SEE: consumers of the one EBITDA outside `assemble_statements` (credit
 model, ratio table, benchmark, forecast, FE) — the `one-ebitda`,
 `turnover-denominator` and `refusal-carries` gates (stage E2/E3) own those; the
 FILED 711 (the Ministry referee is a measurement, not a gate).
+
+## valuation-one-ebitda
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_valuation_one_ebitda.py -q` |
+| canary | `test_the_developer_is_valued_on_its_assets_by_the_margin_rule_not_by_its_ebitda_sign`, `test_a_refused_ebitda_refuses_every_ev_ebitda_figure_with_its_cause`, `test_saving_an_override_stamps_it_and_get_serves_it_current` |
+| work count | junit-xml tests, floor **12** (measured 14) |
+
+**SCOPE** — design A6 "Valuation" (owner ruling 2026-09-26: net 711
+"Variația stocurilor de produse" and net 72x inside EBITDA; 767 financial).
+`_valuation.compute_valuation` read `assembled_pl.ebitda_statutory` and, when
+it was 0.0, RECOMPUTED a second EBITDA from the incomeStatement mirror
+(revenue − cost of sales − opex + other income + 722, no 711): a refused
+EBITDA (None) or a real zero fell through to another definition. It also
+routed the developer to asset-based valuation BECAUSE its EBITDA was negative
+— a sign the ruling flipped (-29,038,838.12 -> +550,976.12). The gate holds:
+EV/EBITDA multiplies `credit_model.operating_figures` (the assembled one
+EBITDA) on agras / carniprod / retail through the real GET /api/period, the
+legacy names are aliases, agras's multiple differs from the pre-ruling figure
+by exactly net 711; a refused EBITDA refuses every EV/EBITDA figure with the
+stock-variation cause and routes to asset-based saying why; a served 0.00 is
+a zero; a user override stands over a refusal; the developer is routed by the
+ONE margin rule (`routing.basis = margin_not_meaningful`) and its primary
+value is pinned to the base-commit measurement 40,284,134.73; the NAV
+cap-rate NOI proxy is EBITDA − net 711 labelled "NOI (aproximare)" (the
+developer's equals its pre-ruling EBITDA, so the NAV figure does not move
+because of 711); PUT /valuation-assumptions stamps the override with
+`EBITDA_DEFINITION_REVISION` (engine-set — a body value is ignored) and GET
+serves a row saved before the stamp flagged "salvat sub definiția anterioară
+a EBITDA"; the stamp column has its migration ending in the PostgREST NOTIFY.
+
+Source-edit plants, each applied alone on a clean tree at 061b9ee7 and
+reverted with `git checkout --`:
+
+**PLANT second-ebitda-fallback** — `src/engine/api/_valuation.py`: after
+`ebitda_computed = figures["ebitda"]`, `if not ebitda_computed:` rebuild it
+from the incomeStatement mirror (the revision-2 fallback).
+```
+RED (plant) — 2 failed, 12 passed
+FAILED tests/engine/test_valuation_one_ebitda.py::test_a_refused_ebitda_refuses_every_ev_ebitda_figure_with_its_cause
+FAILED tests/engine/test_valuation_one_ebitda.py::test_a_zero_ebitda_is_a_zero_not_a_second_definition
+E   assert (10776378.24 is None)
+E   assert 10776378.24 == 0.0
+```
+**PLANT route-by-ebitda-sign** — `elif margin_refused:` → `elif False and margin_refused:`
+(the developer falls back to routing by its EBITDA, now positive).
+```
+RED (plant) — 1 failed, 13 passed
+FAILED tests/engine/test_valuation_one_ebitda.py::test_the_developer_is_valued_on_its_assets_by_the_margin_rule_not_by_its_ebitda_sign
+E     {'basis': 'ev_ebitda'} != {'basis': 'margin_not_meaningful'}
+```
+**PLANT unstamped-save** — `src/engine/api/pipeline.py` save route:
+`"ebitda_definition": _valuation.EBITDA_DEFINITION_REVISION` →
+`body.get("ebitda_definition")`.
+```
+RED (plant) — 1 failed, 13 passed
+FAILED tests/engine/test_valuation_one_ebitda.py::test_saving_an_override_stamps_it_and_get_serves_it_current
+E   AssertionError: assert 'forged' == 'ebitda/2026-...767-financial'
+```
+**REVERT** — `git checkout -- src/engine/api/_valuation.py src/engine/api/pipeline.py`:
+`14 passed`.
+
+Rewritten beside it (law, not re-capture): `scripts/check_cross_view_consistency.py`
+checks 5 / 8 / 20 held the retired "three EBITDA views" (statutory =
+operational + 722, operating_view = statutory + 767, valuation reads
+ebitda_statutory). They now hold NI statutory = operational + net 72x + net
+711 + not explained; every legacy name = the one EBITDA = before + net 711 +
+net 72x, 767 outside; valuation `ebitda_used` and the NOI proxy on the one
+EBITDA. Planted a second EBITDA under `ebitda_statutory` (RED: "ebitda_statutory
+(-35676.04) is not the one EBITDA (2,127,403.79)") and a valuation reading
+`ebitda_before_stock_variation` (RED on checks 20 and 20b). That script is not
+a battery gate and stays red at its base on an unrelated check (BS balance of
+the synthetic EEI stub, 2,827,483.85).
+
+CANNOT SEE: the persisted `valuations` row path (a GET whose fresh recompute
+fails serves the row, which carries no definition — served with
+`ebitda_definition: null`); the FE NAV cascade (`buildNavCascade.ts` still
+reads `pl.ebitda_statutory` — it must read `valuation.noi_approximation`, FE
+stage A7); whether production's `valuations.ebitda_used` accepts NULL (a
+refused EBITDA persists None; no DDL for that table is in the repo — check
+before the deploy).

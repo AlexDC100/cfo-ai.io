@@ -530,6 +530,20 @@ def _engine_gates() -> List[Gate]:
                        "g6_uncleared, mixed, open, unanchored",
                        "NET711-PLANTS: serve-the-gross-memo, absent-anchor-to-zero, drop-guard-g6, "
                        "rebuild-forgets-the-evidence")),
+        # ── owner ruling 2026-09-26, design A6: valuation-one-ebitda ────
+        # EV/EBITDA multiplies the ONE EBITDA (never the revision-2 fallback
+        # that rebuilt a second one from the incomeStatement mirror on 0.0);
+        # a refused EBITDA refuses EV/EBITDA with its cause; the developer is
+        # routed by the ONE margin rule, not by its EBITDA sign, and its
+        # value is pinned to the base-commit measurement; NOI proxy = EBITDA
+        # − net 711; saved overrides stamped with the definition. Measured
+        # 14 tests. Plant log: gates.md "valuation-one-ebitda".
+        Gate("valuation-one-ebitda",
+             [PY, "-m", "pytest", "tests/engine/test_valuation_one_ebitda.py", "-q"],
+             work_junit=True, floor=12, units="tests",
+             canaries=("test_the_developer_is_valued_on_its_assets_by_the_margin_rule_not_by_its_ebitda_sign",
+                       "test_a_refused_ebitda_refuses_every_ev_ebitda_figure_with_its_cause",
+                       "test_saving_an_override_stamps_it_and_get_serves_it_current")),
         # ── plan/2 B4b (plan_contract_v2 5.6 / 28.3 B4): forecast-pools ──
         # The cost pools of section 5 on the four books, no shocks: pools
         # plus unallocated equal the assembled operating cost to the cent;
