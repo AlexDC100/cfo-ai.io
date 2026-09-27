@@ -10784,6 +10784,32 @@ the 2,000.00 step in its message.
 CANNOT SEE: a misread that happens to equal the stock variation on a closed
 manufacturer (only the Ministry referee can — measure.md T7).
 
+### net-income-anchor-witness — the no-anchor seam law REWRITTEN (fixer round 1, 2026-09-27)
+
+`test_seam_without_envelope_or_121_line_item_says_absent` required, with no
+envelope and no 121 line item, that `net_income_statutory` be a NUMBER equal
+to the reconstruction — "kept, never nulled — the frontend reads it through
+`?? 0`". Under the one-EBITDA ruling five of the six corpus books post to
+711, so with 121 stripped their net 711 is refused (G2) and the build-up is
+short by the unmeasured variation (agras 1,071,687.03, the developer
+29,589,814.24): the law pinned exactly the figure the critic found on the
+dashboard. It now branches on the served 711: refused → the net result is
+refused with the 711 code (`net_income_refusal`), `net_income_statutory` and
+`net_income_reconstructed` None; measured (retail, no 711 activity) → the
+build-up is served, labelled `absent`, as before. New
+`test_the_no_anchor_seam_witnesses_both_branches` reds unless both branches
+occur (measured: refused on pdf_positional, saga_10_col, agras, carniprod,
+realestate; served on retail). 81 tests.
+
+**PLANT serve-the-build-up** — `chart_of_accounts.py`: `net_income_served =
+net_income_statutory` (the refusal ignored).
+```
+RED (plant) — 5 failed, 76 passed (test_rebuild_net_income_anchor + test_one_concept_one_value)
+FAILED tests/engine/test_rebuild_net_income_anchor.py::test_seam_without_envelope_or_121_line_item_says_absent[pdf_positional]
+FAILED …[saga_10_col]  FAILED …[saga_10_col_agras]  FAILED …[saga_10_col_carniprod]  FAILED …[saga_10_col_realestate]
+```
+**REVERT** — the file restored from its copy: `81 passed`.
+
 ## eei-canonical
 
 | | |

@@ -435,18 +435,58 @@ def test_seam_without_envelope_or_121_line_item_says_absent(case_id, case_dir, p
     )
     assert pl["net_income_anchor_source"] is None
     recon = pl.get("net_income_reconstructed")
+    inv = pl.get("inventory_variation") or {}
+    if inv.get("value") is None:
+        # REWRITTEN (fixer round 1, 2026-09-27), not re-captured. A book
+        # that posts to 711 has, with no account 121, a REFUSED net 711
+        # (G2) — and then a refused NET RESULT: the class-6/7 build-up
+        # lacks the unmeasured variation (agras's is short by 1,071,687.03,
+        # the developer's by 29,589,814.24). The old law here required that
+        # short build-up to be served under the statutory name "because the
+        # frontend reads it through `?? 0`"; the frontend now reads the
+        # refusal (refusal-carries). The payload must say WHY, with the 711
+        # code, and serve no number under either name.
+        code = (inv.get("refusal") or {}).get("code")
+        assert code, "[%s] seam/no-anchor: 711 refused without a code: %r" % (case_id, inv)
+        assert (pl.get("net_income_refusal") or {}).get("code") == code, (
+            "[%s] seam/no-anchor: 711 refused (%s) with no anchor, yet the net result "
+            "is not refused: %r" % (case_id, code, pl.get("net_income_refusal")))
+        assert pl.get("net_income_statutory") is None and recon is None, (
+            "[%s] seam/no-anchor: a refused net result was served as %r / %r"
+            % (case_id, pl.get("net_income_statutory"), recon))
+        return
     assert isinstance(recon, (int, float)), (
         "[%s] seam/no-anchor: net_income_reconstructed must be present so "
         "an unanchored figure is still readable." % case_id
     )
-    # `net_income_statutory` is kept, never nulled — the frontend reads it
-    # through `?? 0` fallbacks and a null would render a fabricated zero.
+    # With 711 measured (no 711 activity: an exact 0.00) the build-up is
+    # the whole result, served under the statutory name and labelled
+    # `absent` — never nulled into a fabricated zero.
+    assert pl.get("net_income_refusal") is None
     assert isinstance(pl.get("net_income_statutory"), (int, float))
     assert abs(float(pl["net_income_statutory"]) - float(recon)) < 0.005, (
         "[%s] seam/no-anchor: with no anchor the served statutory figure "
         "IS the reconstruction (%s vs %s) — they must agree exactly."
         % (case_id, pl["net_income_statutory"], recon)
     )
+
+
+def test_the_no_anchor_seam_witnesses_both_branches():
+    """TC-3 for the rewritten law above: with 121 stripped, some corpus
+    book REFUSES its net result (it posts to 711) and some book SERVES the
+    build-up (no 711 activity) — otherwise one branch is asserted on
+    nothing."""
+    refused, served = [], []
+    for case_id, case_dir, _p121 in ANCHOR_CASES:
+        bk = _book(case_id, case_dir)
+        stripped = [li for li in bk.line_items
+                    if not str(li.get("ro_account_code") or "").startswith("121")]
+        pl = _pl_of(P._rebuild_assembled_for_briefing(
+            stripped, bk.light_row_without_envelope(), bk.org))
+        (refused if pl.get("net_income_refusal") else served).append(case_id)
+    print("seam/no-anchor: net result refused on %s; served on %s"
+          % (", ".join(refused), ", ".join(served)))
+    assert refused and served, (refused, served)
 
 
 @pytest.mark.parametrize("case_id,case_dir,p121", ANCHOR_CASES, ids=CASE_IDS)
