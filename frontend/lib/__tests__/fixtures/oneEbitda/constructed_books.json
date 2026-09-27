@@ -13244,7 +13244,6 @@
       "prepaid_expenses_and_other.net",
       "provisions_lt.net",
       "provisions_st.net",
-      "reserves.net",
       "right_of_use_assets.net",
       "tax_payables.net"
      ],
@@ -13334,8 +13333,18 @@
        ],
        "direction": "lower_is_better",
        "note": "",
+       "reason": "refused",
+       "refusal": {
+        "bs_balance_delta": 170000.0,
+        "code": "account_121_anchor_absent",
+        "kind": "incomplete",
+        "missing": "current_year_result",
+        "source": "net_income_refusal",
+        "text_en": "total equity excludes the year's result, which is refused: the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+        "text_ro": "capitalurile proprii nu includ rezultatul exercițiului, refuzat: balanța este închisă, iar contul 121 lipsește: variația stocurilor (711) nu are sold net și nu poate fi derivată"
+       },
        "unit": "ratio",
-       "value": 0.0
+       "value": null
       },
       "dscr_approx": {
        "band": null,
@@ -13402,8 +13411,18 @@
        ],
        "direction": "higher_is_better",
        "note": "",
+       "reason": "refused",
+       "refusal": {
+        "bs_balance_delta": 170000.0,
+        "code": "account_121_anchor_absent",
+        "kind": "incomplete",
+        "missing": "current_year_result",
+        "source": "net_income_refusal",
+        "text_en": "total equity excludes the year's result, which is refused: the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+        "text_ro": "capitalurile proprii nu includ rezultatul exercițiului, refuzat: balanța este închisă, iar contul 121 lipsește: variația stocurilor (711) nu are sold net și nu poate fi derivată"
+       },
        "unit": "ratio",
-       "value": 0.47619
+       "value": null
       },
       "gross_margin": {
        "band": null,
@@ -13445,8 +13464,18 @@
        "band": null,
        "direction": "lower_is_better",
        "note": "",
+       "reason": "refused",
+       "refusal": {
+        "bs_balance_delta": 170000.0,
+        "code": "account_121_anchor_absent",
+        "kind": "incomplete",
+        "missing": "current_year_result",
+        "source": "net_income_refusal",
+        "text_en": "total equity excludes the year's result, which is refused: the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+        "text_ro": "capitalurile proprii nu includ rezultatul exercițiului, refuzat: balanța este închisă, iar contul 121 lipsește: variația stocurilor (711) nu are sold net și nu poate fi derivată"
+       },
        "unit": "ratio",
-       "value": 0.0
+       "value": null
       },
       "net_debt_to_ebitda": {
        "band": [
@@ -13551,6 +13580,15 @@
        "text_en": "the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
        "text_ro": "balanța este închisă, iar contul 121 lipsește: variația stocurilor (711) nu are sold net și nu poate fi derivată"
       },
+      "ratios.debt_to_equity": {
+       "bs_balance_delta": 170000.0,
+       "code": "account_121_anchor_absent",
+       "kind": "incomplete",
+       "missing": "current_year_result",
+       "source": "net_income_refusal",
+       "text_en": "total equity excludes the year's result, which is refused: the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+       "text_ro": "capitalurile proprii nu includ rezultatul exercițiului, refuzat: balanța este închisă, iar contul 121 lipsește: variația stocurilor (711) nu are sold net și nu poate fi derivată"
+      },
       "ratios.dscr_approx": {
        "code": "account_121_anchor_absent",
        "text_en": "the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
@@ -13571,6 +13609,15 @@
        "text_en": "the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
        "text_ro": "balanța este închisă, iar contul 121 lipsește: variația stocurilor (711) nu are sold net și nu poate fi derivată"
       },
+      "ratios.equity_ratio": {
+       "bs_balance_delta": 170000.0,
+       "code": "account_121_anchor_absent",
+       "kind": "incomplete",
+       "missing": "current_year_result",
+       "source": "net_income_refusal",
+       "text_en": "total equity excludes the year's result, which is refused: the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+       "text_ro": "capitalurile proprii nu includ rezultatul exercițiului, refuzat: balanța este închisă, iar contul 121 lipsește: variația stocurilor (711) nu are sold net și nu poate fi derivată"
+      },
       "ratios.gross_margin": {
        "code": "account_121_anchor_absent",
        "text_en": "the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
@@ -13580,6 +13627,15 @@
        "code": "account_121_anchor_absent",
        "text_en": "the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
        "text_ro": "balanța este închisă, iar contul 121 lipsește: variația stocurilor (711) nu are sold net și nu poate fi derivată"
+      },
+      "ratios.lt_debt_to_equity": {
+       "bs_balance_delta": 170000.0,
+       "code": "account_121_anchor_absent",
+       "kind": "incomplete",
+       "missing": "current_year_result",
+       "source": "net_income_refusal",
+       "text_en": "total equity excludes the year's result, which is refused: the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+       "text_ro": "capitalurile proprii nu includ rezultatul exercițiului, refuzat: balanța este închisă, iar contul 121 lipsește: variația stocurilor (711) nu are sold net și nu poate fi derivată"
       },
       "ratios.net_debt_to_ebitda": {
        "code": "account_121_anchor_absent",
@@ -13616,6 +13672,15 @@
        "code": "account_121_anchor_absent",
        "text_en": "the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
        "text_ro": "balanța este închisă, iar contul 121 lipsește: variația stocurilor (711) nu are sold net și nu poate fi derivată"
+      },
+      "totals.total_equity": {
+       "bs_balance_delta": 170000.0,
+       "code": "account_121_anchor_absent",
+       "kind": "incomplete",
+       "missing": "current_year_result",
+       "source": "net_income_refusal",
+       "text_en": "total equity excludes the year's result, which is refused: the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+       "text_ro": "capitalurile proprii nu includ rezultatul exercițiului, refuzat: balanța este închisă, iar contul 121 lipsește: variația stocurilor (711) nu are sold net și nu poate fi derivată"
       }
      },
      "schema_version": "canonical_v1.0.0",
@@ -13628,7 +13693,7 @@
       "revenue_net": 1000000.0,
       "total_assets": 420000.0,
       "total_debt": 0.0,
-      "total_equity": 200000.0,
+      "total_equity": null,
       "total_liabilities": 50000.0
      }
     },
@@ -14614,7 +14679,7 @@
      },
      {
       "id": "related_party_exposure",
-      "reason": "No intercompany or related-party receivable row is present in the classified balance sheet.",
+      "reason": "Total equity is refused — total equity excludes the year's result, which is refused: the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived — and this exposure is graded against equity and restates the equity ratio, so it is not measured.",
       "title": "Related-party and other-debtor balances sit inside the assets"
      },
      {
