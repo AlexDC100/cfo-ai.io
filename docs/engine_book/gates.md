@@ -11033,6 +11033,34 @@ spec's FAMILY_EXPECT gained `account-more` ("4111": Scandia 6 leaves, Agras 4).
 REVERT (each, file restored byte for byte): Tests 84 passed (84)
 ```
 
+**The context was cut on screen (cmdbar-legible).** A Răspuns row's context
+— Δ, margin, vs-sector, the BASIS a figure is on — was one `block truncate`
+span; so were a resting item's context and basis and a Cont row's key metric.
+At 1440 "stoc" painted "Durata de rotație a stocurilor 97 de zile" and cut
+the sector value, its position, the "bază depusă" label and "stoc la închidere
+÷ cheltuieli totale de exploatare — o singură dată, nu o medie"; at 390
+"profit" cut "Marja operațională 6…" mid-figure. Every gate read textContent,
+so the basis requirement passed in the DOM and failed on screen. Repaired: the
+context and basis lines wrap; a figure itself never breaks (`whitespace-nowrap`).
+jsdom law (`commandBar.test.tsx`, in cmdbar-surface): at rest and for eight
+queries on Scandia, Agras and the pair, RO and EN, nothing that carries a
+figure, a change, a position or a basis sits in or under a truncating box;
+positive control ≥ 100 carriers and ≥ 3 basis labels checked. Live law (G9,
+hermetic bundle): each carrier's boxes — every line of a wrapped span — inside
+its row and the list's width, none cut by an ellipsis, at 1440 and 390, both
+companies, RO and EN (transcript with the live runs below).
+```
+### PLANT cmdbar-legible (a) — CmdbarList.tsx: the pre-fix chips line, `block truncate`
+   × cmdbar-legible … en: at rest and typed, every carrier on every row is outside any truncating box
+   × cmdbar-legible … ro: …
+   AssertionError: carriers inside a truncating box: expected [ …(82) ] to deeply equal []
+   Tests  2 failed | 57 passed (59)
+### PLANT cmdbar-legible (b) — a resting item's basis line `block truncate`
+   AssertionError: carriers inside a truncating box: expected [ Array(1) ] to deeply equal []
+   Tests  2 failed | 57 passed (59)
+REVERT (each, restored byte for byte): Tests 59 passed (59)
+```
+
 ## evidence-lines
 
 The account view (`frontend/components/cfo/evidence/EvidenceDrawer.tsx`, design

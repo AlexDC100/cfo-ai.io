@@ -587,6 +587,56 @@ describe("Cont — nothing past the cap is hidden; the material accounts are the
   });
 });
 
+describe("cmdbar-legible — a figure, its context and its basis are never cut", () => {
+  // Found live (review, 2026-09-27): the context line was one `truncate`
+  // span, so at 1440 "stoc" ended "…Zile stocuri raportate la ci…" — the
+  // sector value, its position, the "bază depusă" label and the inventory
+  // basis the owner requires were in the DOM (every textContent gate passed)
+  // and off the screen; at 390 "Marja operațională 6…" cut a FIGURE. The law
+  // here is structural (jsdom has no layout): nothing that carries a figure,
+  // a change, a position or a basis sits in, or under, a truncating box. The
+  // live G9 (e2e/design/cmdbar.spec.ts) holds each box inside its row, on
+  // screen, at 1440 and 390.
+  const CARRIERS = "[data-figure],[data-absent],[data-basis],[data-chip-state],[data-context],[data-chips],[data-key-metric],[data-more]";
+  const CUTS = /(^|\s)(truncate|text-ellipsis|line-clamp-\d+)(\s|$)/;
+  function cut(el: Element): string | null {
+    for (let n: Element | null = el; n && n.getAttribute("role") !== "option"; n = n.parentElement) {
+      const cls = n.getAttribute("class") ?? "";
+      if (CUTS.test(cls)) return cls.match(CUTS)![2];
+    }
+    return null;
+  }
+  const worlds: [string, () => World][] = [["scandia", () => scandiaWorld()], ["agras", () => agrasWorld()], ["pair", () => pairWorld()]];
+  for (const lang of LANGS) {
+    it(`${lang}: at rest and typed, every carrier on every row is outside any truncating box`, async () => {
+      await useLang(lang);
+      let carriers = 0;
+      let bases = 0;
+      const bad: string[] = [];
+      for (const [name, make] of worlds) {
+        const { unmount } = mount(make());
+        for (const q of ["", "stoc", "clienti", "profit", "4111", "cifra de afaceri", "zile stoc", "marja operationala"]) {
+          type(q);
+          for (const opt of screen.queryAllByRole("option")) {
+            for (const el of Array.from(opt.querySelectorAll(CARRIERS))) {
+              carriers++;
+              if (el.hasAttribute("data-basis")) bases++;
+              const c = cut(el);
+              if (c) bad.push(`${name} "${q}" ${opt.getAttribute("data-row-id")}: ${el.outerHTML.slice(0, 60)}… under .${c}`);
+            }
+          }
+        }
+        unmount();
+      }
+      expect(bad, "carriers inside a truncating box").toEqual([]);
+      // POSITIVE CONTROL: the rows carried figures, chips and — the owner's
+      // requirement — the inventory basis and the filed-basis label.
+      expect(carriers).toBeGreaterThanOrEqual(100);
+      expect(bases).toBeGreaterThanOrEqual(3);
+    }, HEAVY);
+  }
+});
+
 describe("absent is never 0", () => {
   it("a net result not anchored to account 121 prints the reason, not a figure", () => {
     const body = structuredClone(SCANDIA.period);

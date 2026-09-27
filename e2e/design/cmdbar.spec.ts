@@ -30,6 +30,9 @@
  *       list naming the query, with ZERO requests; the keyboard flow
  *       (↓ stops on "Întreabă CFO AI", ↑ back to the answer, Enter opens the
  *       answer's evidence, Esc closes) on the real bundle.
+ *   G9  LEGIBLE, live: every figure, change, position and basis a row
+ *       carries lies inside its row and the list's width, never cut by an
+ *       ellipsis — at rest and typed, 1440 and 390, both companies, RO/EN.
  *   G8  IN VIEW, live: every row ↓ selects is the row the reader sees —
  *       never parked under the sticky "Întreabă CFO AI" — at 1440 and 390,
  *       both companies; and a new query selects its own first row whatever
@@ -600,6 +603,79 @@ test.describe("G8 — the row the keyboard selects is the row the reader SEES", 
       // POSITIVE CONTROL: the walk only means something where the list
       // outgrows the card (the sticky row then overlays content).
       expect(overflowing, "an overflowing list was walked").toBeGreaterThanOrEqual(1);
+    });
+  }
+});
+
+test.describe("G9 — every figure, context and basis is ON SCREEN, inside its row", () => {
+  // Found by review (2026-09-27): the context line was one truncating span —
+  // at 1440 "stoc" painted "Durata de rotație a stocurilor 97 de zile"
+  // without the sector value, its position, the "bază depusă" label or the
+  // inventory basis the owner requires (the DOM held them, so every
+  // textContent gate passed); at 390 "profit" cut "Marja operațională 6…"
+  // mid-figure. Here every carrier's boxes (each line of a wrapped span)
+  // lie inside its row and inside the list's width, and no box on the way
+  // up to the row clips its text with an ellipsis.
+  test.setTimeout(180_000);
+  const CARRIERS = "[data-figure],[data-absent],[data-basis],[data-chip-state],[data-context],[data-chips],[data-key-metric],[data-more]";
+  for (const vp of [{ label: "1440", width: 1440, height: 900 }, { label: "390", width: 390, height: 844 }]) {
+    test(`@${vp.label}: at rest and for "stoc", "clienti", "profit", "cifra de afaceri", both companies, RO and EN`, async ({ browser }) => {
+      let checked = 0;
+      let bases = 0;
+      const bad: string[] = [];
+      for (const c of COMPANIES) {
+        for (const lang of ["ro", "en"] as const) {
+          const double = new WorkspaceDouble({ theme: "dark", language: lang });
+          const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height } });
+          const page = await ctx.newPage();
+          await openDashboard(page, double, c);
+          await openBar(page);
+          for (const q of ["", "stoc", "clienti", "profit", "cifra de afaceri"]) {
+            if (q) {
+              await typeQuery(page, q);
+              await expect(page.getByTestId("cmdbar-row-ask")).toContainText(q);
+            }
+            await page.waitForTimeout(120);
+            const res = await page.evaluate((sel) => {
+              const out = { checked: 0, bases: 0, bad: [] as string[] };
+              const list = document.getElementById("command-palette-list")!.getBoundingClientRect();
+              for (const opt of Array.from(document.querySelectorAll('[data-testid="cmdbar-rows"] [role="option"]'))) {
+                const row = opt.getBoundingClientRect();
+                const id = opt.getAttribute("data-row-id");
+                for (const el of Array.from(opt.querySelectorAll(sel))) {
+                  out.checked++;
+                  if (el.hasAttribute("data-basis")) out.bases++;
+                  const what = `${id} ${(el.textContent ?? "").slice(0, 40)}`;
+                  for (const r of Array.from(el.getClientRects())) {
+                    if (r.width === 0 && r.height === 0) continue;
+                    if (r.left < row.left - 1 || r.right > row.right + 1 || r.top < row.top - 1 || r.bottom > row.bottom + 1) {
+                      out.bad.push(`${what}: outside its row`);
+                    }
+                    if (r.right > list.right + 1 || r.left < list.left - 1) out.bad.push(`${what}: past the list's edge`);
+                  }
+                  for (let n: Element | null = el; n && n !== opt; n = n.parentElement) {
+                    const cs = getComputedStyle(n);
+                    if (cs.textOverflow === "ellipsis" && (n as HTMLElement).scrollWidth > (n as HTMLElement).clientWidth + 1) {
+                      out.bad.push(`${what}: cut by an ellipsis`);
+                    }
+                  }
+                }
+              }
+              return out;
+            }, CARRIERS);
+            checked += res.checked;
+            bases += res.bases;
+            bad.push(...res.bad.map((b) => `${c.key}/${lang} "${q}": ${b}`));
+          }
+          await ctx.close();
+        }
+      }
+      console.log(`GATE-WORK cmdbar-live-legible @${vp.label} carriers=${checked} bases=${bases}`);
+      expect(bad, `@${vp.label}: figures, context or basis off their row or cut`).toEqual([]);
+      expect(checked, "VACUITY: carriers checked").toBeGreaterThanOrEqual(100);
+      // POSITIVE CONTROL: the owner's basis requirement was on screen to be
+      // checked (the inventory basis, the filed-basis label).
+      expect(bases, "basis labels checked").toBeGreaterThanOrEqual(4);
     });
   }
 });

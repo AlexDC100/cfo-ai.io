@@ -98,16 +98,24 @@ function Sep() {
 function RowBody({ row }: { row: BarRow }) {
   const { t } = useTranslation();
   switch (row.kind) {
+    // THE CONTEXT IS READ, NOT CUT (review, 2026-09-27): a row's context —
+    // its Δ, its margin, its vs-sector position, the BASIS a figure is on —
+    // wraps onto as many lines as it needs. Nothing that carries a figure or
+    // a basis sits in a truncating box (commandBar.test.tsx "cmdbar-legible"
+    // holds it; the live G9 holds each box inside its row at 1440 and 390):
+    // "Durata de rotație a stocurilor 97 de zile" was painted without the
+    // basis the owner requires, and "Marja operațională 6…" cut a figure.
+    // A figure itself never breaks (`whitespace-nowrap`); words wrap between.
     case "now": {
       const v = row.view;
       return (
         <span className="min-w-0 flex-1">
-          <span className="flex min-w-0 items-baseline gap-2">
-            <span className="truncate text-[12.5px] text-ink">{v.subject}</span>
-            <span data-figure="now" className="shrink-0 font-mono text-[12.5px] tabular-nums text-ink">{v.figure}</span>
-            {v.context && <span className="truncate text-[11.5px] text-ink-soft">{v.context}</span>}
+          <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+            <span className="min-w-0 text-[12.5px] text-ink">{v.subject}</span>
+            <span data-figure="now" className="whitespace-nowrap font-mono text-[12.5px] tabular-nums text-ink">{v.figure}</span>
+            {v.context && <span data-context className="min-w-0 text-[11.5px] text-ink-soft">{v.context}</span>}
           </span>
-          {v.basis && <span data-basis className="block truncate text-[11px] text-ink-soft">{v.basis}</span>}
+          {v.basis && <span data-basis className="block text-[11px] text-ink-soft">{v.basis}</span>}
         </span>
       );
     }
@@ -119,17 +127,17 @@ function RowBody({ row }: { row: BarRow }) {
       if (v.sector) chips.push(v.sector);
       return (
         <span className="min-w-0 flex-1">
-          <span className="flex min-w-0 items-baseline gap-2">
-            <span className="truncate text-[12.5px] text-ink">{v.label}</span>
+          <span className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+            <span className="min-w-0 text-[12.5px] text-ink">{v.label}</span>
             {v.value !== null ? (
-              <span data-figure="answer" className="shrink-0 font-mono text-[13px] font-medium tabular-nums text-ink">{v.value}</span>
+              <span data-figure="answer" className="whitespace-nowrap font-mono text-[13px] font-medium tabular-nums text-ink">{v.value}</span>
             ) : (
-              <span data-absent className="truncate text-[12px] italic text-ink-soft">{v.absent}</span>
+              <span data-absent className="min-w-0 text-[12px] italic text-ink-soft">{v.absent}</span>
             )}
-            {v.tag && <span className="shrink-0 text-[11px] text-ink-soft">{v.tag}</span>}
+            {v.tag && <span className="whitespace-nowrap text-[11px] text-ink-soft">{v.tag}</span>}
           </span>
           {(chips.length > 0 || v.basis) && (
-            <span className="block truncate text-[11px]">
+            <span data-chips className="block text-[11px] leading-snug">
               {chips.map((c, i) => (
                 <span key={i}>{i > 0 && <Sep />}<ChipText chip={c} /></span>
               ))}
@@ -147,14 +155,14 @@ function RowBody({ row }: { row: BarRow }) {
             <span className="shrink-0 font-mono text-[12px] tabular-nums text-ink">{v.code}</span>
             <span className="truncate text-[12.5px] text-ink">{v.name}</span>
             {v.value !== null ? (
-              <span data-figure="account" className="ml-auto shrink-0 font-mono text-[12.5px] tabular-nums text-ink">{v.value}</span>
+              <span data-figure="account" className="ml-auto shrink-0 whitespace-nowrap font-mono text-[12.5px] tabular-nums text-ink">{v.value}</span>
             ) : (
               <span data-absent className="ml-auto shrink-0 text-[12px] italic text-ink-soft">{v.absent}</span>
             )}
           </span>
-          <span className="block truncate text-[11px] text-ink-soft">
+          <span data-chips className="block text-[11px] leading-snug text-ink-soft">
             {v.statement}
-            {v.keyMetric && <><Sep />{v.keyMetric}</>}
+            {v.keyMetric && <><Sep /><span data-key-metric>{v.keyMetric}</span></>}
             {v.basis && <><Sep /><span data-basis>{v.basis}</span></>}
           </span>
         </span>
