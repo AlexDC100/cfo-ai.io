@@ -86,16 +86,16 @@ export interface PLSection {
    *  adapter) is read positionally, as before — see PLStatementView's
    *  `plLayout`. */
   role?: PLSectionRole;
-  /** Section header, e.g. "OPERATING REVENUE". Empty string = no header. */
+  /** Section header, e.g. "NET TURNOVER". Empty string = no header. */
   header: string;
   /** Line items in display order. */
   lines: PLLine[];
-  /** Optional subtotal label (e.g. "Total operating revenue"). */
+  /** Optional subtotal label (e.g. "Total net turnover"). */
   subtotalLabel?: string;
   /** Optional subtotal amount paired with subtotalLabel. */
   subtotalAmount?: number;
   /** Stable Traceable bucket key for the section subtotal — e.g.
-   *  "revenue" (= Total operating revenue), "ebit", "pretax", "netIncome".
+   *  "revenue" (= Total net turnover), "ebit", "pretax", "netIncomeStatutory".
    *  PLStatementView emits this on the subtotal row. */
   subtotalBucket?: string;
   /** The engine's Romanian name for the subtotal (with its gloss). */

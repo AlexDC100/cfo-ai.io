@@ -29,6 +29,7 @@ const BUCKET_TO_CONCEPT: Readonly<Record<string, string>> = {
   pretax: "pretax_profit",
   taxExpense: "income_tax",
   netIncome: "net_profit",
+  netIncomeStatutory: "net_profit",
   netIncomeOperational: "net_profit",
   currentYearNetProfit: "net_profit",
 

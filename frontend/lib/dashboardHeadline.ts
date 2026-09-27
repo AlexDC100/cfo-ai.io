@@ -55,7 +55,7 @@ export interface DashboardHeadline {
   tileEbitdaRon: number | null;
   tileEbitdaRefusal: ServedRefusal | null;
   tileNetProfitRon: number;
-  /** The P&L builder's "Total operating expenses (cash)" subtotal; null when
+  /** The P&L builder's "Total operating expenses" subtotal; null when
    *  the builder produced no such section (absent is not zero). */
   totalOperatingExpenses: number | null;
   /** The served balance sheet's cash, as the cash card prints it. */
