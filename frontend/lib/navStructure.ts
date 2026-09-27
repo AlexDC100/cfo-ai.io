@@ -79,14 +79,22 @@ export interface NavSensitivityCell {
   nnnav: number;
 }
 
+export type NavConvergentMethod = "nnnav" | "cap_rate" | "graham";
+
 export interface NavCrossMethods {
   /** null when the NOI proxy is refused (with EBITDA). */
   capRate: number | null;
-  graham: number;
+  /** null when the net result is refused (no account 121 and a refused
+   *  net 711) or not served — `grahamRefusal` says why. */
+  graham: number | null;
+  grahamRefusal: { code: string; text: { en: string; ro: string } } | null;
   /** On the one EBITDA; null when the engine refused EBITDA. */
   evEbitda: number | null;
-  convergenceBand: [number, number]; // low, high (across NNNAV + cap_rate + Graham)
-  convergenceConfidence: "high" | "medium" | "low";
+  /** low, high — over the methods in `convergentMethods` only (NNNAV and
+   *  whichever of cap rate / Graham computed). null with NNNAV alone. */
+  convergenceBand: [number, number] | null;
+  convergenceConfidence: "high" | "medium" | "low" | null;
+  convergentMethods: NavConvergentMethod[];
 }
 
 export interface NavUseCaseMapping {

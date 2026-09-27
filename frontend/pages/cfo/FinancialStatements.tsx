@@ -6118,7 +6118,7 @@ export function RisksPanel({
    *  (`<CreditComparison surface="risks" />`). */
   creditComparison?: ReactNode;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const credit = useMemo(
     () => computeCreditScore(statements, creditEnvelope, piotroskiEnvelope, metricsByName),
     [statements, creditEnvelope, piotroskiEnvelope, metricsByName],
@@ -6155,7 +6155,7 @@ export function RisksPanel({
     : credit.grade === "distress" ? t("dashV2.gradeDistress")
     : credit.grade.replace(/_/g, " ");
   const piotroskiBandLabel =
-    piotroski === null
+    piotroski === null || piotroski.band === null
       ? null
       : piotroski.band.startsWith("Strong")
         ? t("dashV2.piotroskiStrong")
@@ -6265,6 +6265,20 @@ export function RisksPanel({
               defaultValue:
                 "The Piotroski screen was not reported for this period. It is not scored here, and the composite credit score above does not include it.",
             })}
+          </div>
+        </div>
+      ) : piotroski.score === null ? (
+        /* NO SCORE OFF ZERO EVALUATED CHECKS (fixer round 2, 2026-09-27).
+           With the net result refused every check is uncertain; this tile
+           printed "0 / 0 confirmed · Distressed (0–2)". It states the
+           engine's reason instead — and the checks, each "?" with its own. */
+        <div data-testid="piotroski-refused">
+          <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft mb-3">{t("dash.piotroskiTitle")}</h2>
+          <div className="rounded-2xl border border-rule bg-surface p-5 text-[13px] text-ink-soft leading-relaxed">
+            <span data-testid="piotroski-refused-reason">
+              {(i18n.language ?? "en").startsWith("ro") ? "Refuzat" : "Refused"} —{" "}
+              {piotroski.refusal?.text[(i18n.language ?? "en").startsWith("ro") ? "ro" : "en"] ?? unavail}
+            </span>
           </div>
         </div>
       ) : (

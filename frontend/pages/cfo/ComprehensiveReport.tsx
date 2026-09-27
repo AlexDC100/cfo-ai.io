@@ -530,7 +530,7 @@ export default function ComprehensiveReport() {
           {/* ── 3. BALANCE SHEET ────────────────────────────────────── */}
           <section id="bs" data-testid="report-section-3-bs">
             <SectionHeader number={3} title="Balance Sheet" />
-            <BsTable bs={bs} currency={currency} origin={origin} />
+            <BsTable bs={bs} pl={pl} currency={currency} origin={origin} />
           </section>
 
           {/* ── 4. CASH FLOW ────────────────────────────────────────── */}
@@ -1020,9 +1020,29 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
   );
 }
 
-type BsRow = [label: string, value: number | undefined, origin: AmountProvenance | null];
+type BsRow = [
+  label: string,
+  value: number | undefined,
+  origin: AmountProvenance | null,
+  /** The engine's reason, printed in place of the amount (never a 0). */
+  refusal?: string | null,
+];
 
-function BsTable({ bs, currency, origin }: { bs: Record<string, number>; currency: string; origin: ReportOrigin }) {
+function BsTable({ bs, pl, currency, origin }: {
+  bs: Record<string, number>;
+  pl: Record<string, number>;
+  currency: string;
+  origin: ReportOrigin;
+}) {
+  // A REFUSED net result (no account 121, net 711 refused — fixer round 2,
+  // 2026-09-27) has no current-year row: this printed the class-6/7
+  // build-up (-30,391,418 on the developer, -36.4 % of assets) beside a P&L
+  // whose foot said the net result is refused. The engine's reason, from
+  // the balance sheet's own refusal or — on a period stored before it —
+  // the P&L's.
+  const cyRefusal =
+    readRefusal((bs as Record<string, unknown>).current_year_pnl_refusal)
+    ?? readRefusal((pl as Record<string, unknown>).net_income_refusal);
   // The "% of assets" denominator. Absent → no percentages.
   const total: number | undefined = bs.total_assets;
   const f = (path: string) => origin.field(`assembled_bs.${path}`);
@@ -1042,7 +1062,9 @@ function BsTable({ bs, currency, origin }: { bs: Record<string, number>; currenc
       sumOf(bs.revaluation_reserves, bs.retained_earnings, bs.other_equity_non_revaluation),
       origin.derived("assembled_bs.revaluation_reserves + retained_earnings + other_equity_non_revaluation"),
     ],
-    ["Current-year P&L", bs.current_year_pnl, f("current_year_pnl")],
+    cyRefusal
+      ? ["Current-year P&L", undefined, null, `refused — ${cyRefusal.text.en}`]
+      : ["Current-year P&L", bs.current_year_pnl, f("current_year_pnl")],
     ["Long-term debt", bs.lt_debt, f("lt_debt")],
     ["Short-term debt", bs.st_debt, f("st_debt")],
     ["Accounts payable", bs.ap, f("ap")],
@@ -1079,11 +1101,15 @@ function BsHalf({ title, rows, totalLabel, totalValue, totalOrigin, reference, c
           </tr>
         </thead>
         <tbody>
-          {rows.map(([label, val, rowOrigin]) => (
+          {rows.map(([label, val, rowOrigin, refusal]) => (
             <tr key={label} className="border-t border-rule-soft first:border-t-0 h-8">
               <td className="px-4 py-1">{label}</td>
               <td className="px-3 py-1 text-right">
-                <MoneyAmount value={val} fromCurrency={currency as Currency} unit={false} provenance={rowOrigin} />
+                {refusal ? (
+                  <span className="text-ink-soft" data-testid="report-bs-row-refused">{refusal}</span>
+                ) : (
+                  <MoneyAmount value={val} fromCurrency={currency as Currency} unit={false} provenance={rowOrigin} />
+                )}
               </td>
               <td className="px-3 py-1 text-right text-ink-soft">
                 {val != null && reference != null && reference > 0 ? <PercentLevel value={(val / reference) * 100} /> : null}

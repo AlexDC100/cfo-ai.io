@@ -343,14 +343,31 @@ export function BsCmpCells({
 export function CfCmpCells({
   current,
   prior,
+  priorRefused = null,
 }: {
   current: number | null | undefined;
   prior: number | null | undefined;
+  /** The PRIOR statement is refused (its net result refused by the engine:
+   *  no account 121, net 711 refused) — its reason. The prior cell and the
+   *  delta print "refused" with it, never a figure built on a net profit
+   *  nobody stated. */
+  priorRefused?: string | null;
 }) {
   const ctx = useComparativeContext();
   const fmt = useAmountFormatter(ctx?.currency ?? "RON");
   if (!ctx) return null;
   const cols = ctx.columns;
+  if (priorRefused) {
+    const refused = (
+      <span className="cmp-cell cmp-cell--gap" data-cmp-refused="" title={priorRefused}>refused</span>
+    );
+    return (
+      <span className="cmp-cells" data-cmp="cf">
+        {cols.prior && refused}
+        {cols.delta && refused}
+      </span>
+    );
+  }
   const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
   const gap = <span className="cmp-cell cmp-cell--gap">{MONEY_MISSING}</span>;
   const delta = isNum(current) && isNum(prior) ? current - prior : null;

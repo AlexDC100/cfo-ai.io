@@ -27,7 +27,7 @@ import {
 // exports. deriveTotals survives for P&L concepts and the debt/cash
 // decomposition, which canonical_bs does not carry.
 import { factsFrom } from "./servedFacts";
-import { plLevelsOf } from "./servedOneEbitda";
+import { plLevelsOf, readRefusal } from "./servedOneEbitda";
 import { ratioLabelForKey } from "./ratioTable";
 
 /** The Altman row's name: the one label authority ("Altman Z″", what the
@@ -713,8 +713,12 @@ export interface PiotroskiCheck {
 }
 
 export interface PiotroskiResult {
-  score: number;
-  band: "Strong (8–9)" | "Solid (6–7)" | "Weak (3–5)" | "Distressed (0–2)";
+  /** NULL — with `refusal` — when no check was evaluated (every one
+   *  uncertain) or the engine refused the score (a refused net result).
+   *  A count of passes over nothing evaluated is not a 0 / 9. */
+  score: number | null;
+  band: "Strong (8–9)" | "Solid (6–7)" | "Weak (3–5)" | "Distressed (0–2)" | null;
+  refusal: { code: string; text: { en: string; ro: string } } | null;
   checks: PiotroskiCheck[];
   uncertainCount: number;
   /** Subset of `uncertainCount` caused by an absent current-period
@@ -971,11 +975,27 @@ export function runPiotroski(s: Statements): PiotroskiResult {
   const failCount = checks.filter((c) => c.result === "fail").length;
   const uncertainCount = checks.filter((c) => c.result === "uncertain").length;
   const unresolvedCount = checks.filter((c) => c.unresolved).length;
-  const score = passCount;
-  const band: PiotroskiResult["band"] =
-    score >= 8 ? "Strong (8–9)" : score >= 6 ? "Solid (6–7)" : score >= 3 ? "Weak (3–5)" : "Distressed (0–2)";
+  // No check evaluated → no score and no band (never "Distressed" off 0/0).
+  const refusal = passCount + failCount === 0 ? PIOTROSKI_NO_CHECK_EVALUATED : null;
+  const score = refusal ? null : passCount;
+  const band = piotroskiBand(score);
 
-  return { score, band, checks, passCount, failCount, uncertainCount, unresolvedCount };
+  return { score, band, refusal, checks, passCount, failCount, uncertainCount, unresolvedCount };
+}
+
+/** The refusal a screen with NO evaluated check carries when the engine
+ *  sent no reason of its own. */
+export const PIOTROSKI_NO_CHECK_EVALUATED: NonNullable<PiotroskiResult["refusal"]> = {
+  code: "piotroski_no_check_evaluated",
+  text: {
+    en: "None of the 9 Piotroski checks could be evaluated for this period — there is no score.",
+    ro: "Niciuna dintre cele 9 verificări Piotroski nu a putut fi evaluată pentru această perioadă — nu există un scor.",
+  },
+};
+
+function piotroskiBand(score: number | null): PiotroskiResult["band"] {
+  if (score === null) return null;
+  return score >= 8 ? "Strong (8–9)" : score >= 6 ? "Solid (6–7)" : score >= 3 ? "Weak (3–5)" : "Distressed (0–2)";
 }
 
 // ─── Altman Z-Score — single canonical variant (F2.2) ────────────────────
@@ -1438,6 +1458,9 @@ export interface PiotroskiEnvelope {
   has_prior_period?: boolean | null;
   checks?: Array<{ key: string; label: string; result: "pass" | "fail" | "uncertain"; detail?: string | null }> | null;
   disclosure?: string | null;
+  /** Why `score` is null: the net result's own reason, or
+   *  `piotroski_no_check_evaluated` (engine, fixer round 2). */
+  refusal?: { code?: string | null; text_en?: string | null; text_ro?: string | null } | null;
 }
 
 // F2.4 — Build a FE-shaped PiotroskiResult from the engine's assembled_piotroski.
@@ -1460,13 +1483,19 @@ function piotroskiFromEngine(env: PiotroskiEnvelope): PiotroskiResult {
   const failCount = checks.filter((c) => c.result === "fail").length;
   const uncertainCount = checks.filter((c) => c.result === "uncertain").length;
   const unresolvedCount = 0;
-  const score = env.score ?? passCount;
-  const band: PiotroskiResult["band"] =
-    score >= 8 ? "Strong (8–9)" :
-    score >= 6 ? "Solid (6–7)" :
-    score >= 3 ? "Weak (3–5)" :
-    "Distressed (0–2)";
-  return { score, band, checks, uncertainCount, unresolvedCount, passCount, failCount };
+  // NO SCORE WITHOUT AN EVALUATED CHECK (fixer round 2, 2026-09-27). The
+  // engine served `score: 0` with all nine checks uncertain on a refused
+  // net result, and `score ?? passCount` banded it "Distressed (0–2)" —
+  // a distress verdict read off zero evaluated checks. A null engine
+  // score, or nothing evaluated, is no score and no band, with the
+  // engine's reason (or the no-check reason).
+  const engineRefusal = readRefusal(env.refusal);
+  const refused =
+    engineRefusal !== null || env.score === null || passCount + failCount === 0;
+  const refusal = refused ? engineRefusal ?? PIOTROSKI_NO_CHECK_EVALUATED : null;
+  const score = refused ? null : env.score ?? passCount;
+  const band = piotroskiBand(score);
+  return { score, band, refusal, checks, uncertainCount, unresolvedCount, passCount, failCount };
 }
 
 // F2.4 — Generate a one-line "read" for a subscore value (0-100).
@@ -2437,7 +2466,7 @@ export function computeCreditScore(
         // The reason travels with the Piotroski block itself (each
         // unrun check is marked "?" and says which figure was missing)
         // and, in the workbook, with its own note row.
-        piotroski.unresolvedCount > 0
+        piotroski.unresolvedCount > 0 || piotroski.score === null
           ? null
           : piotroski.uncertainCount > 0
             ? `${piotroski.score} / ${9 - piotroski.uncertainCount} confirmed (${piotroski.uncertainCount} uncertain — prior-period data missing)`
@@ -2608,6 +2637,8 @@ function scorePiotroski(p: PiotroskiResult): number | null {
   // 55.6, and losing one denominator to an unfiled total-assets makes it
   // 5 over 8 = 62.5 off the identical company.
   if (p.unresolvedCount > 0) return null;
+  // Nothing evaluated → no sub-score (it was 0 / max(0, 1) = 0).
+  if (p.score === null || p.passCount + p.failCount === 0) return null;
   const denom = Math.max(9 - p.uncertainCount, 1);
   return Math.min((p.passCount / denom) * 100, 100);
 }

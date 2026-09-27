@@ -10,7 +10,7 @@
 // DCF and EV/Revenue are hidden for CRE via industry routing in the
 // parent component — they remain available for SaaS / manufacturing.
 
-import type { NavCascade, NavLayer } from "@/lib/navStructure";
+import type { NavCascade, NavConvergentMethod, NavLayer } from "@/lib/navStructure";
 import { formatPercent } from "@/lib/formatRon";
 import { useAmountFormatter, useDisplayCurrency, useRates } from "@/stores/currency";
 import { convertFromTo } from "@/lib/money";
@@ -22,6 +22,19 @@ interface Props {
   entity: string;
   period: string;
   currency: string;
+}
+
+const METHOD_NAMES: Record<NavConvergentMethod, string> = {
+  nnnav: "NNNAV",
+  cap_rate: "cap rate",
+  graham: "Graham",
+};
+
+/** "Three asset-aware methods (NNNAV, cap rate, Graham)" — or two, naming
+ *  only the methods that computed: a refused method is not in the band. */
+function convergenceNames(methods: NavConvergentMethod[]): string {
+  const n = methods.length === 3 ? "Three" : methods.length === 2 ? "Two" : String(methods.length);
+  return `${n} asset-aware methods (${methods.map((m) => METHOD_NAMES[m]).join(", ")})`;
 }
 
 function fmtShort(n: number): string {
@@ -64,9 +77,9 @@ export function NavValuationView({ cascade, entity, period, currency }: Props) {
             Primary number is the EPRA NNNAV (Layer 3) of {fmt(primary.value)} for{" "}
             {entity} as of {period}.
           </p>
-          {cascade.crossMethods.convergenceConfidence === "high" && (
+          {cascade.crossMethods.convergenceConfidence === "high" && cascade.crossMethods.convergenceBand && (
             <p className="nav-hero-convergence">
-              ✓ Three asset-aware methods (NNNAV, cap rate, Graham) converge in{" "}
+              ✓ {convergenceNames(cascade.crossMethods.convergentMethods)} converge in{" "}
               {fmtShortDisp(cascade.crossMethods.convergenceBand[0])}M –{" "}
               {fmtShortDisp(cascade.crossMethods.convergenceBand[1])}M.
             </p>
@@ -260,7 +273,11 @@ export function NavValuationView({ cascade, entity, period, currency }: Props) {
               </tr>
               <tr>
                 <td>Graham intrinsic value</td>
-                <td className="num">{fmt(cascade.crossMethods.graham)}</td>
+                <td className="num" data-testid="nav-graham">
+                  {cascade.crossMethods.graham === null
+                    ? `refused — ${cascade.crossMethods.grahamRefusal?.text.en ?? "net result not served"}`
+                    : fmt(cascade.crossMethods.graham)}
+                </td>
               </tr>
               <tr className="secondary">
                 <td>
@@ -272,11 +289,15 @@ export function NavValuationView({ cascade, entity, period, currency }: Props) {
                 <td>
                   <strong>Convergence band</strong>
                 </td>
-                <td className="num">
-                  <strong>
-                    {fmtShortDisp(cascade.crossMethods.convergenceBand[0])}M –{" "}
-                    {fmtShortDisp(cascade.crossMethods.convergenceBand[1])}M
-                  </strong>
+                <td className="num" data-testid="nav-convergence-band">
+                  {cascade.crossMethods.convergenceBand === null ? (
+                    "not computed — only NNNAV computed"
+                  ) : (
+                    <strong>
+                      {fmtShortDisp(cascade.crossMethods.convergenceBand[0])}M –{" "}
+                      {fmtShortDisp(cascade.crossMethods.convergenceBand[1])}M
+                    </strong>
+                  )}
                 </td>
               </tr>
             </tbody>

@@ -68,14 +68,24 @@ export function CashFlowStatementView({ statement, hideGuide = false, prior = nu
 }
 
 function CashFlowStatementBody({ statement, hideGuide = false, prior = null }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { operating, investing, financing, reconciliation, notes } = statement;
   const cmp = useComparativeContext();
   const cmpOn = !!cmp && !!prior && (cmp.columns.prior || cmp.columns.delta);
   const cmpStyle = cmpOn
     ? ({ "--cmp-cols": cmpColumnTemplate(cmp!.columns, "cf") } as React.CSSProperties)
     : undefined;
-  const p = prior;
+  // A PRIOR statement whose net result the engine refused (fixer round 2,
+  // 2026-09-27): the builder ran the indirect method on a net profit of 0
+  // (`?? cfNum(…, 0)`) and this column printed it, and CFO / CFF / the
+  // net change built on it, beside a current column that is honest. Its
+  // cells and the delta print "refused" with the engine's reason; no
+  // figure of a refused statement is ever read.
+  const lang = (i18n.language ?? "en").startsWith("ro") ? "ro" : "en";
+  const priorRefused = prior?.refusal
+    ? `${lang === "ro" ? "Refuzat" : "Refused"} — ${prior.refusal.text[lang]}`
+    : null;
+  const p = priorRefused ? null : prior;
   const driftExceedsTolerance = Math.abs(reconciliation.drift) > 1;
   const showApproximationBanner = statement.isApproximated;
   // 2026-05-24 — currency conversion via display-currency toggle.
@@ -117,6 +127,11 @@ function CashFlowStatementBody({ statement, hideGuide = false, prior = null }: P
         />
       )}
 
+      {cmpOn && priorRefused && (
+        <p className="cf-method" data-testid="cf-prior-refused">
+          {cmp!.doc.prior.label}: {priorRefused}
+        </p>
+      )}
       <div className="cf-body">
         {cmpOn && (
           <CmpColumnHeader
@@ -144,7 +159,7 @@ function CashFlowStatementBody({ statement, hideGuide = false, prior = null }: P
                 <LearnableNumber conceptKey="net_profit" value={operating.netProfit} className="cf-amount" block>
                   {fmt(operating.netProfit)}
                 </LearnableNumber>
-                {cmpOn && <CfCmpCells current={operating.netProfit} prior={p?.operating.netProfit} />}
+                {cmpOn && <CfCmpCells priorRefused={priorRefused} current={operating.netProfit} prior={p?.operating.netProfit} />}
               </div>
               <div className="cf-row cf-row-item">
                 <span className="cf-label">
@@ -163,7 +178,7 @@ function CashFlowStatementBody({ statement, hideGuide = false, prior = null }: P
                 ) : (
                   <span className="cf-amount">{fmt(operating.depreciation)}</span>
                 )}
-                {cmpOn && <CfCmpCells current={operating.depreciation} prior={p?.operating.depreciation} />}
+                {cmpOn && <CfCmpCells priorRefused={priorRefused} current={operating.depreciation} prior={p?.operating.depreciation} />}
               </div>
 
               <div className="cf-subtotal-rule" />
@@ -178,7 +193,7 @@ function CashFlowStatementBody({ statement, hideGuide = false, prior = null }: P
             ) : (
               <span className="cf-amount">{fmt(operating.cfBeforeWcChanges)}</span>
             )}
-            {cmpOn && <CfCmpCells current={operating.cfBeforeWcChanges} prior={p?.operating.cfBeforeWcChanges} />}
+            {cmpOn && <CfCmpCells priorRefused={priorRefused} current={operating.cfBeforeWcChanges} prior={p?.operating.cfBeforeWcChanges} />}
           </div>
 
           {!keyOnly && operating.wcChanges.length > 0 && (
@@ -216,7 +231,7 @@ function CashFlowStatementBody({ statement, hideGuide = false, prior = null }: P
             <LearnableNumber conceptKey="operating_cash_flow" value={operating.cashFromOperating} className="cf-amount" block>
               {fmt(operating.cashFromOperating)}
             </LearnableNumber>
-            {cmpOn && <CfCmpCells current={operating.cashFromOperating} prior={p?.operating.cashFromOperating} />}
+            {cmpOn && <CfCmpCells priorRefused={priorRefused} current={operating.cashFromOperating} prior={p?.operating.cashFromOperating} />}
           </div>
         </section>
 
@@ -240,7 +255,7 @@ function CashFlowStatementBody({ statement, hideGuide = false, prior = null }: P
             <LearnableNumber conceptKey="investing_cash_flow" value={investing.cashUsedInInvesting} className="cf-amount" block>
               {fmt(investing.cashUsedInInvesting, { paren: true })}
             </LearnableNumber>
-            {cmpOn && <CfCmpCells current={investing.cashUsedInInvesting} prior={p?.investing.cashUsedInInvesting} />}
+            {cmpOn && <CfCmpCells priorRefused={priorRefused} current={investing.cashUsedInInvesting} prior={p?.investing.cashUsedInInvesting} />}
           </div>
         </section>
 
@@ -260,7 +275,7 @@ function CashFlowStatementBody({ statement, hideGuide = false, prior = null }: P
                 ? fmt(financing.bankLoanDrawdowns, { sign: "positive" })
                 : "—"}
             </LearnableNumber>
-            {cmpOn && <CfCmpCells current={financing.bankLoanDrawdowns} prior={p?.financing.bankLoanDrawdowns} />}
+            {cmpOn && <CfCmpCells priorRefused={priorRefused} current={financing.bankLoanDrawdowns} prior={p?.financing.bankLoanDrawdowns} />}
           </div>
           <div className="cf-row cf-row-item">
             <span className="cf-label">
@@ -273,7 +288,7 @@ function CashFlowStatementBody({ statement, hideGuide = false, prior = null }: P
                 ? fmt(financing.bankLoanRepayments, { paren: true })
                 : "—"}
             </LearnableNumber>
-            {cmpOn && <CfCmpCells current={financing.bankLoanRepayments} prior={p?.financing.bankLoanRepayments} />}
+            {cmpOn && <CfCmpCells priorRefused={priorRefused} current={financing.bankLoanRepayments} prior={p?.financing.bankLoanRepayments} />}
           </div>
           <div className="cf-row cf-row-item">
             <span className="cf-label">
@@ -285,7 +300,7 @@ function CashFlowStatementBody({ statement, hideGuide = false, prior = null }: P
             <LearnableNumber conceptKey="dividends_paid" value={financing.dividendsPaid} className="cf-amount" block>
               {fmt(financing.dividendsPaid)}
             </LearnableNumber>
-            {cmpOn && <CfCmpCells current={financing.dividendsPaid} prior={p?.financing.dividendsPaid} />}
+            {cmpOn && <CfCmpCells priorRefused={priorRefused} current={financing.dividendsPaid} prior={p?.financing.dividendsPaid} />}
           </div>
           </>
           )}
@@ -297,7 +312,7 @@ function CashFlowStatementBody({ statement, hideGuide = false, prior = null }: P
                 ? fmt(financing.cashFromFinancing, { sign: "positive" })
                 : fmt(financing.cashFromFinancing, { paren: true })}
             </LearnableNumber>
-            {cmpOn && <CfCmpCells current={financing.cashFromFinancing} prior={p?.financing.cashFromFinancing} />}
+            {cmpOn && <CfCmpCells priorRefused={priorRefused} current={financing.cashFromFinancing} prior={p?.financing.cashFromFinancing} />}
           </div>
         </section>
 
@@ -311,21 +326,21 @@ function CashFlowStatementBody({ statement, hideGuide = false, prior = null }: P
                 ? fmt(reconciliation.netChangeInCash, { sign: "positive" })
                 : fmt(reconciliation.netChangeInCash, { paren: true })}
             </LearnableNumber>
-            {cmpOn && <CfCmpCells current={reconciliation.netChangeInCash} prior={p?.reconciliation.netChangeInCash} />}
+            {cmpOn && <CfCmpCells priorRefused={priorRefused} current={reconciliation.netChangeInCash} prior={p?.reconciliation.netChangeInCash} />}
           </div>
           <div className="cf-row cf-recon-row">
             <span className="cf-label">{t("statements.cf.recon.opening")}</span>
             <LearnableNumber conceptKey="opening_cash" value={reconciliation.openingCash} className="cf-amount" block>
               {fmt(reconciliation.openingCash)}
             </LearnableNumber>
-            {cmpOn && <CfCmpCells current={reconciliation.openingCash} prior={p?.reconciliation.openingCash} />}
+            {cmpOn && <CfCmpCells priorRefused={priorRefused} current={reconciliation.openingCash} prior={p?.reconciliation.openingCash} />}
           </div>
           <div className="cf-row cf-recon-row cf-closing" data-testid="cf-closing-cash">
             <span className="cf-label">{t("statements.cf.recon.closing")}</span>
             <LearnableNumber conceptKey="closing_cash" value={reconciliation.closingCashComputed} className="cf-amount" block>
               {fmt(reconciliation.closingCashComputed)}
             </LearnableNumber>
-            {cmpOn && <CfCmpCells current={reconciliation.closingCashComputed} prior={p?.reconciliation.closingCashComputed} />}
+            {cmpOn && <CfCmpCells priorRefused={priorRefused} current={reconciliation.closingCashComputed} prior={p?.reconciliation.closingCashComputed} />}
           </div>
           <div className="cf-double-rule" />
 

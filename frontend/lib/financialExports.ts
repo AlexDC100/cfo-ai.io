@@ -671,8 +671,11 @@ export function buildExcelWorkbook(
           [EXPORT_PIOTROSKI_ABSENT_NOTE],
         ] as (string | number)[][])
       : ([
-          ["Score (0–9)", piotroski.score],
-          ["Band", piotroski.band],
+          // No score / band off zero evaluated checks: the engine's reason.
+          ["Score (0–9)", piotroski.score === null
+            ? `refused — ${piotroski.refusal?.text.en ?? EXPORT_UNREPORTED}`
+            : piotroski.score],
+          ["Band", piotroski.band ?? "refused"],
           ...(piotroski.unresolvedCount > 0
             ? [[EXPORT_PIOTROSKI_UNRESOLVED_NOTE]]
             : []),

@@ -33,11 +33,22 @@
 // account 121 the filed figure stands (fixer round 1, 2026-09-27).
 // CANNOT SEE: whether the engine was right to refuse (net-711-rule);
 // surfaces that do not print EBITDA; pixels.
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, screen } from "@testing-library/react";
 
 // Each case renders the printed report and the workbook: slow under a
 // loaded full-suite run (5 s default timed out once), never slow alone.
 vi.setConfig({ testTimeout: 60_000 });
+// The Comprehensive Report (round 2) resolves its period through auth and
+// Supabase; the report tests of this repo stub those three the same way
+// (comprehensiveReportAbsent / oneConceptOneValue). No other case here
+// reaches them.
+vi.mock("@/lib/supabase", () => ({ getSupabase: () => null }));
+const stableToast = { toast: () => undefined };
+vi.mock("@/hooks/use-toast", () => ({ useToast: () => stableToast }));
+vi.mock("@/hooks/useActivePeriodFallback", () => ({
+  useActivePeriodFallback: () => ({ periodId: "p-report", status: "resolved" }),
+}));
 import * as XLSX from "xlsx";
 
 import { deriveTotals, computeRatios, describeAbsence, type Ratio } from "@/lib/financialReport";
@@ -51,12 +62,24 @@ import { resolveConceptValue } from "@/lib/dashboard/resolveConceptValue";
 import { buildPeriodFacts } from "@/lib/periodFacts";
 import { printedPl, printedRow } from "@/lib/printedPl";
 import { buildExcelWorkbook, buildReportHtml } from "@/lib/financialExports";
-import { computeCreditScore, multiPeriodGrowth, runDcf } from "@/lib/financialValuation";
+import {
+  computeCreditScore, multiPeriodGrowth, runDcf, PIOTROSKI_NO_CHECK_EVALUATED,
+  type CreditEnvelope, type PiotroskiEnvelope,
+} from "@/lib/financialValuation";
 import { buildNavCascade } from "@/lib/buildNavCascade";
 import { buildCashFlowStatement } from "@/lib/buildCashFlowStatement";
 import { formulaInputRefusal, resolveFormulaInput } from "@/lib/resolveFormulaInput";
 import { absenceSentence } from "@/components/cfo/ratioAbsenceI18n";
 import type { ApiLineItem } from "@/lib/plStructure";
+import type { Statements } from "@/lib/financialReport";
+import type { ComparativesResponse } from "@/lib/comparatives";
+import { renderWithProviders } from "@/test/renderWithProviders";
+import { NavValuationView } from "@/components/cfo/NavValuationView";
+import { CashFlowStatementView } from "@/components/cfo/CashFlowStatementView";
+import { ComparativeProvider } from "@/components/cfo/ComparativeCells";
+import { RisksPanel } from "@/pages/cfo/FinancialStatements";
+import ComprehensiveReport from "@/pages/cfo/ComprehensiveReport";
+import pairJson from "./fixtures/comparatives/pair_served.json";
 
 import { cardNamed, plRows } from "./exportBooks";
 import { constructedBook, pairedWithItself, refusedBooks, servedRefusal, type SurfaceBook } from "./oneEbitdaSurfaceBooks";
@@ -250,5 +273,164 @@ describe("refusal-carries — a refused EBITDA stays refused on every surface", 
     const t = deriveTotals(payload);
     expect([t.ebitda, t.ebit, t.pbt, t.grossProfit]).toEqual([null, null, null, null]);
     expect(t.plRefusal).toEqual(STOCK_VARIATION_NOT_MEASURED);
+  });
+});
+
+// ── FIXER ROUND 2 (2026-09-27) ────────────────────────────────────────────
+// Round 1 refused the net result on a book with no account 121 and a
+// refused 711. Four surfaces still turned that refusal into a figure:
+//   · the NAV cascade's Graham row read `net_income_statutory ?? 0` —
+//     "Graham intrinsic value 0" and a convergence band starting at 0 on
+//     the developer (NavValuationView);
+//   · Piotroski: the engine served `score: 0` with nine uncertain checks and
+//     `score ?? passCount` banded it "Distressed (0–2)" — the Risks tab
+//     printed "0 / 0 confirmed · Distressed (0–2)";
+//   · the report's balance sheet printed the build-up as "Current-year P&L"
+//     (the engine closed it into equity);
+//   · a comparative cash flow whose PRIOR period is refused printed that
+//     statement's net profit 0 and the CFO / CFF / net change built on it.
+// REDS ON: any of those printing a figure (a 0 above all) or a band for the
+// refused book, or losing the engine's reason. The book WITH account 121
+// (g6_uncleared) keeps every one of them — asserted beside it.
+describe("refusal-carries — round 2: Graham, Piotroski, the report's balance sheet, a refused prior cash flow", () => {
+  afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+  const U = () => BOOKS.find((x) => x.name === "unanchored")!;
+  const G6 = () => BOOKS.find((x) => x.name === "g6_uncleared")!;
+  const navOf = (b: SurfaceBook) => buildNavCascade({
+    pl: b.statements.assembled_pl as Record<string, number>,
+    bs: b.statements.assembled_bs as Record<string, number>,
+    lineItems: [],
+  });
+
+  it("unanchored: the NAV cascade has no Graham figure and no band built on it — the page prints the reason", () => {
+    const b = U();
+    const r = servedRefusal(b);
+    const nav = navOf(b);
+    expect(nav.crossMethods.graham, "Graham on a refused net result").toBeNull();
+    expect(nav.crossMethods.grahamRefusal?.code).toBe(r.code);
+    expect(nav.crossMethods.convergentMethods).toEqual(["nnnav"]);
+    expect(nav.crossMethods.convergenceBand, "a band with one method (or a refused one)").toBeNull();
+    expect(nav.crossMethods.convergenceConfidence).toBeNull();
+    renderWithProviders(<NavValuationView cascade={nav} entity="E" period="P" currency="RON" />);
+    expect(screen.getByTestId("nav-graham").textContent).toBe(`refused — ${r.text_en}`);
+    expect(screen.getByTestId("nav-convergence-band").textContent).toMatch(/^not computed/);
+  });
+
+  it("g6_uncleared: WITH account 121 Graham computes and bounds the band", () => {
+    const b = G6();
+    const nav = navOf(b);
+    expect(typeof nav.crossMethods.graham).toBe("number");
+    expect(nav.crossMethods.grahamRefusal).toBeNull();
+    expect(nav.crossMethods.convergentMethods).toContain("graham");
+    expect(nav.crossMethods.convergenceBand).not.toBeNull();
+  });
+
+  it("unanchored: no Piotroski score or band off nine uncertain checks — served, or a block stored before the engine refused it", () => {
+    const b = U();
+    const r = servedRefusal(b);
+    const served = (b.statements as { assembled_piotroski?: PiotroskiEnvelope }).assembled_piotroski!;
+    expect(served.score, "the engine served a score").toBeNull();
+    expect(served.refusal?.code).toBe(r.code);
+    // A block persisted before the engine refused the score: score 0, no
+    // reason, nine uncertain checks — still no verdict off nothing.
+    const stale: PiotroskiEnvelope = { ...served, score: 0, refusal: undefined };
+    for (const [label, env, code] of [["served", served, r.code], ["stale", stale, PIOTROSKI_NO_CHECK_EVALUATED.code]] as const) {
+      const p = computeCreditScore(b.statements, {} as CreditEnvelope, env)!.piotroski!;
+      expect(p.score, `${label}: score`).toBeNull();
+      expect(p.band, `${label}: band`).toBeNull();
+      expect(p.refusal?.code, `${label}: reason`).toBe(code);
+    }
+    const { unmount } = renderWithProviders(
+      <RisksPanel statements={b.statements} creditEnvelope={{} as CreditEnvelope} piotroskiEnvelope={served} />);
+    expect(screen.getByTestId("piotroski-refused-reason").textContent).toContain(r.text_en);
+    expect(document.body.textContent ?? "").not.toMatch(/Distressed|0 \/ 0/);
+    unmount();
+    renderWithProviders(
+      <RisksPanel statements={b.statements} creditEnvelope={{} as CreditEnvelope} piotroskiEnvelope={stale} />);
+    expect(screen.getByTestId("piotroski-refused-reason").textContent).toContain(PIOTROSKI_NO_CHECK_EVALUATED.text.en);
+  });
+
+  it("g6_uncleared: WITH account 121 the evaluated checks are scored and banded", () => {
+    const b = G6();
+    const env = (b.statements as { assembled_piotroski?: PiotroskiEnvelope }).assembled_piotroski!;
+    const p = computeCreditScore(b.statements, {} as CreditEnvelope, env)!.piotroski!;
+    expect(p.score).toBe(4);
+    expect(p.band).toBe("Weak (3–5)");
+    expect(p.refusal).toBeNull();
+  });
+
+  const reportBody = (b: SurfaceBook, statements: Statements) => ({
+    period: { id: `p-${b.name}`, period_end: "2025-12-31", currency: "RON",
+      source_document: { filename: `${b.name}.xlsx`, id: `d-${b.name}` } },
+    statements, metrics: [], line_items: b.lineItems, alerts: [], recommendations: [],
+  });
+  const mountReportFor = async (b: SurfaceBook, statements: Statements) => {
+    const body = reportBody(b, statements);
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => body })));
+    renderWithProviders(<ComprehensiveReport />, { route: `/report?period=p-${b.name}` });
+    const root = await screen.findByTestId("comprehensive-report");
+    const bs = root.querySelector('[data-testid="report-section-3-bs"]')!;
+    return Array.from(bs.querySelectorAll("tr"))
+      .map((tr) => Array.from(tr.querySelectorAll("td")).map((td) => (td.textContent ?? "").trim()))
+      .find((tds) => tds[0] === "Current-year P&L");
+  };
+
+  it("unanchored: the report's balance sheet prints the reason on the current-year row — served, or stored with the build-up", async () => {
+    const b = U();
+    const r = servedRefusal(b);
+    expect((b.statements.assembled_bs as Record<string, unknown>).current_year_pnl, "the engine served a figure").toBeNull();
+    const row = await mountReportFor(b, b.statements);
+    expect(row?.[1]).toBe(`refused — ${r.text_en}`);
+    cleanup();
+    // A period stored before the engine stopped closing the build-up into
+    // equity: its P&L refusal still refuses the row.
+    const stale = JSON.parse(JSON.stringify(b.statements)) as Statements;
+    const sbs = stale.assembled_bs as Record<string, unknown>;
+    sbs.current_year_pnl = b.apl.net_income_operational;
+    delete sbs.current_year_pnl_refusal;
+    const staleRow = await mountReportFor(b, stale);
+    expect(staleRow?.[1]).toBe(`refused — ${r.text_en}`);
+  });
+
+  it("g6_uncleared: WITH account 121 the report's current-year row prints the filed result", async () => {
+    const b = G6();
+    const row = await mountReportFor(b, b.statements);
+    expect(row?.[1]).not.toMatch(/refused/);
+    expect(row?.[1]).toMatch(/250/);
+  });
+
+  const cfOf = (b: SurfaceBook) => buildCashFlowStatement({
+    pl: b.statements.assembled_pl as Record<string, number>,
+    bs: b.statements.assembled_bs as Record<string, number>,
+    cf: (b.statements as { assembled_cf?: Record<string, number> }).assembled_cf,
+    entity: "E", period: b.name,
+  });
+  const renderCf = (current: SurfaceBook, prior: SurfaceBook) => renderWithProviders(
+    <ComparativeProvider doc={(pairJson as unknown as { comparatives: ComparativesResponse }).comparatives}
+      columns={{ prior: true, delta: true, deltaPct: false, share: false }} statement="PL" currency="RON">
+      <CashFlowStatementView statement={cfOf(current)} prior={cfOf(prior)} hideGuide />
+    </ComparativeProvider>);
+
+  it("a comparative cash flow whose PRIOR period is refused prints no prior figure and no delta — the reason instead", () => {
+    const prior = U();
+    const r = servedRefusal(prior);
+    expect(cfOf(prior).refusal?.code).toBe(r.code);
+    const { container } = renderCf(constructedBook("closed_bridge"), prior);
+    expect(screen.getByTestId("cf-prior-refused").textContent).toContain(r.text_en);
+    expect(container.querySelectorAll(".cmp-cell--prior").length, "a prior figure printed").toBe(0);
+    // Every compare row the view renders (Simple mode shows the key rows)
+    // carries "refused" in BOTH the prior and the delta cell.
+    const refusedCells = container.querySelectorAll("[data-cmp-refused]");
+    const cmpRows = container.querySelectorAll('[data-cmp="cf"]');
+    expect(cmpRows.length).toBeGreaterThan(0);
+    expect(refusedCells.length).toBe(2 * cmpRows.length);
+    for (const c of Array.from(refusedCells)) expect(c.getAttribute("title")).toContain(r.text_en);
+  });
+
+  it("…and a prior period that is NOT refused prints its column", () => {
+    const { container } = renderCf(constructedBook("closed_bridge"), G6());
+    expect(screen.queryByTestId("cf-prior-refused")).toBeNull();
+    expect(container.querySelectorAll(".cmp-cell--prior").length).toBeGreaterThan(0);
+    expect(container.querySelectorAll("[data-cmp-refused]").length).toBe(0);
   });
 });

@@ -26,13 +26,14 @@
 // asset-yielding business — captures operating cash flow but not asset value).
 
 import type { ApiLineItem } from "./plStructure";
-import { plLevelsOf } from "./servedOneEbitda";
+import { plLevelsOf, readRefusal } from "./servedOneEbitda";
 import type {
   AdjustmentMethod,
   AssetAdjustment,
   HiddenItem,
   LiabilityAdjustment,
   NavCascade,
+  NavConvergentMethod,
   NavCrossMethods,
   NavLayer,
   NavSensitivityCell,
@@ -346,30 +347,52 @@ export function buildNavCascade(args: BuildArgs): NavCascade {
   const capRateEquity =
     propertyValueAtMarket === null ? null : propertyValueAtMarket + otherAssets - (bs.total_debt ?? 0);
 
-  // Graham — use statutory NI
-  const ni = pl.net_income_statutory ?? 0;
+  // Graham — on the statutory net result. REFUSED (no account 121 and a
+  // refused net 711) or not served → no Graham figure, with the engine's
+  // reason (fixer round 2, 2026-09-27): `?? 0` here printed "Graham
+  // intrinsic value 0" and a convergence band starting at 0 on the
+  // developer whose net result the engine refused.
+  const niRaw: unknown = (pl as Record<string, unknown>).net_income_statutory;
+  const grahamRefusal = readRefusal((pl as Record<string, unknown>).net_income_refusal);
+  const ni: number | null =
+    grahamRefusal === null && typeof niRaw === "number" && Number.isFinite(niRaw) ? niRaw : null;
   // V = NI × (8.5 + 2g_pct) × 4.4 / Y_pct ; g=3, Y=4.5
-  const grahamValue = ni * (8.5 + 2 * 3) * 4.4 / 4.5;
+  const grahamValue: number | null = ni === null ? null : ni * (8.5 + 2 * 3) * 4.4 / 4.5;
 
   // EV/EBITDA — 10.5× mid for CRE-anchored
   // On THE ONE EBITDA; refused → no EV/EBITDA figure (never 0 × 10.5).
   const evEbitda =
     levels.ebitda === null ? null : levels.ebitda * 10.5 - ((bs.total_debt ?? 0) - cashVal);
 
-  // Convergence band: NNNAV / cap rate / Graham (NOT EV/EBITDA — known undervaluer).
-  const convergent = [nnnav, capRateEquity, grahamValue].filter((v): v is number => v !== null);
+  // Convergence band: NNNAV / cap rate / Graham (NOT EV/EBITDA — known
+  // undervaluer), over the methods that COMPUTED only. A refused method is
+  // not a bound of the band; with NNNAV alone there is nothing to converge
+  // and no band (never a one-point band read as "high" convergence).
+  const convergentMethods: NavConvergentMethod[] = ["nnnav"];
+  const convergent: number[] = [nnnav];
+  if (capRateEquity !== null) { convergentMethods.push("cap_rate"); convergent.push(capRateEquity); }
+  if (grahamValue !== null) { convergentMethods.push("graham"); convergent.push(grahamValue); }
+  const hasBand = convergent.length >= 2;
   const cLow = Math.min(...convergent);
   const cHigh = Math.max(...convergent);
   const spread = (cHigh - cLow) / Math.max(Math.abs(nnnav), 1);
-  const convergenceConfidence: "high" | "medium" | "low" =
-    spread < 0.20 ? "high" : spread < 0.40 ? "medium" : "low";
+  const convergenceConfidence: "high" | "medium" | "low" | null = !hasBand
+    ? null
+    : spread < 0.20 ? "high" : spread < 0.40 ? "medium" : "low";
 
   const crossMethods: NavCrossMethods = {
     capRate: capRateEquity,
     graham: grahamValue,
+    grahamRefusal: grahamValue === null
+      ? grahamRefusal ?? {
+        code: "net_income_not_served",
+        text: { en: "the net result is not served for this period", ro: "rezultatul net nu este furnizat pentru această perioadă" },
+      }
+      : null,
     evEbitda,
-    convergenceBand: [cLow, cHigh],
+    convergenceBand: hasBand ? [cLow, cHigh] : null,
     convergenceConfidence,
+    convergentMethods,
   };
 
   // ── Layer descriptions ───────────────────────────────────────────────
