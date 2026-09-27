@@ -648,11 +648,22 @@ class RomaniaPack:
         book state, the 711 / 72x turnovers, account 121's opening and its
         clearing, unread class-6/7 activity (`stock_variation.measure`).
         ONE code object for the pipeline's persist seam and the offline
-        seam below."""
+        seam below.
+
+        The block is stamped with the reader that produced the rows (G7,
+        design A10): the parse result's own `extraction.parser_version`,
+        or — for rows handed over in-process without one (rows are never
+        persisted, so they were read in this process) — the running
+        trial-balance parser's."""
         from . import stock_variation as _stock_variation
 
+        extraction = getattr(tb_rows, "extraction", None)
+        parser_version = (extraction.get("parser_version")
+                          if isinstance(extraction, dict) else None)
         return _stock_variation.measure(
-            [r for r in (tb_rows or []) if isinstance(r, dict)]
+            [r for r in (tb_rows or []) if isinstance(r, dict)],
+            parser_version=(str(parser_version) if parser_version
+                            else _stock_variation.running_parser_version()),
         )
 
     # ── 6b. canonical_bs v2 integration glue ─────────────────

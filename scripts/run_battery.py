@@ -541,13 +541,16 @@ def _engine_gates() -> List[Gate]:
         # Net 711 ("Variația stocurilor de produse") is MEASURED off the
         # trial balance (stock_variation.measure/decide), never the gross
         # memo (Σ sume totale C — the production stocked on a closed book),
-        # never a 0.00 standing in for an absent account-121 anchor. Eleven
+        # never a 0.00 standing in for an absent account-121 anchor. Twelve
         # constructed books (OPEN, CLOSED-no-activity, CLOSED-bridge, MIXED,
         # unanchored, G4 unread, G4 total row, a distinct prefix-coded
-        # account, G5, G6, bridge+722) through the offline
+        # account, G5, G6, bridge+722, and G7 — rows read by an older
+        # trial-balance parser, design A10) through the offline
         # composition; four through the real write path, GET /api/period
-        # and the briefing rebuild; a legacy envelope refuses; four in-file
-        # plants. Measured 123 units. Plant log: gates.md "net-711-rule".
+        # and the briefing rebuild; a legacy envelope refuses; an envelope
+        # restamped by an older reader refuses reprocess_required; five
+        # in-file plants. Measured 139 units. Plant log: gates.md
+        # "net-711-rule".
         Gate("net-711-rule",
              [PY, "-m", "pytest", "tests/engine/test_net_711_rule.py", "-q", "-s"],
              work_rx=r"GATE-WORK net-711-rule units=(\d+)", floor=90,
@@ -555,9 +558,9 @@ def _engine_gates() -> List[Gate]:
              canaries=("SCOPE net-711-rule (stock_variation.measure/decide, owner ruling 2026-09-26)",
                        "NET711-BOOKS: bridge_with_722, closed_bridge, closed_no_activity, "
                        "distinct_prefix_account, g4_double_read, g4_unread, g5_residual, "
-                       "g6_uncleared, mixed, open, unanchored",
+                       "g6_uncleared, g7_older_parser, mixed, open, unanchored",
                        "NET711-PLANTS: serve-the-gross-memo, absent-anchor-to-zero, drop-guard-g6, "
-                       "rebuild-forgets-the-evidence")),
+                       "drop-guard-g7, rebuild-forgets-the-evidence")),
         # ── owner ruling 2026-09-26, design A8 (stage G): the ENGINE halves
         # of one-ebitda / turnover-denominator / refusal-carries. Every
         # engine surface — the assembled P&L and its aliases, the served

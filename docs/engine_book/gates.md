@@ -10419,8 +10419,8 @@ CANNOT SEE: the verdict itself (the engine gate decides it), pixels.
 | | |
 |---|---|
 | command | `python -m pytest tests/engine/test_net_711_rule.py -q -s` |
-| canary | `SCOPE net-711-rule (stock_variation.measure/decide, owner ruling 2026-09-26)`, `NET711-BOOKS: bridge_with_722, closed_bridge, …`, `NET711-PLANTS: serve-the-gross-memo, absent-anchor-to-zero, drop-guard-g6, rebuild-forgets-the-evidence` |
-| work count | `GATE-WORK net-711-rule units=(\d+)`, floor **90** (measured 123) |
+| canary | `SCOPE net-711-rule (stock_variation.measure/decide, owner ruling 2026-09-26)`, `NET711-BOOKS: bridge_with_722, closed_bridge, …`, `NET711-PLANTS: serve-the-gross-memo, absent-anchor-to-zero, drop-guard-g6, drop-guard-g7, rebuild-forgets-the-evidence` |
+| work count | `GATE-WORK net-711-rule units=(\d+)`, floor **90** (measured 123; 139 with G7) |
 
 **SCOPE** — the incident (specs-durable/ebitda711/measure.md, refereed against
 the Ministry of Finance filings): the engine served `inventory_variation_memo`
@@ -10510,6 +10510,59 @@ CANNOT SEE: consumers of the one EBITDA outside `assemble_statements` (credit
 model, ratio table, benchmark, forecast, FE) — the `one-ebitda`,
 `turnover-denominator` and `refusal-carries` gates (stage E2/E3) own those; the
 FILED 711 (the Ministry referee is a measurement, not a gate).
+
+### net-711-rule — guard G7 added (stage G1, 2026-09-27; design A10)
+
+**Why.** The production survey (specs-durable/prod_711_survey_2026-09-26.jsonl)
+found Carniprod 7c29a71b serving turnover 99,424,740.16 against a filed
+94,509,940: its line items were persisted before parser v6. Its account-121
+residual (−4,407,915.45) is a PARSING difference, not stock variation — and it
+passes G2–G6. The coordinator's guard G7: the residual may be folded into 711
+only when the period's rows were read by the RUNNING trial-balance parser.
+
+**What changed.** `measure(tb_rows, parser_version=…)` records the reader on
+the block (`parser_version`); `RomaniaPack.measure_stock_variation` supplies the
+parse result's own `extraction.parser_version`, or the running
+`trial_balance_parser.PARSER_VERSION` for rows handed over in-process (rows are
+never persisted, so they were read in this process). `decide` adds
+`G7_parser_version` / `G7_running_parser_version` / `G7_current` to the guard
+block and, on a CLOSED anchored book with 711 activity, refuses
+`reprocess_required` (RO/EN text) before any residual-based guard when the
+stamp is not the running reader — an unstamped block included. OPEN books
+(their own net) and no-activity books (exactly 0.00) fold nothing and are
+untouched.
+
+**The witness** — constructed book `g7_older_parser`: the bridge book as an
+older reader returned it (701 read at 1,040,000 where the file says 1,000,000,
+the parse result stamped `tb_parser_v5`). Account 121 still says 170,000, so the
+residual is 10,000 — it passes G4, G5 (10,000 ≤ 300,000) and G6. Without G7 it
+prints as "Variația stocurilor de produse" 10,000. Through the real write path:
+a period persisted by the running reader bridges; the same stored envelope
+restamped `tb_parser_v5` — and unstamped — refuses `reprocess_required` on
+`GET /api/period`, EBITDA with it. In-file plant `drop-guard-g7` serves the
+residual on the witness → the checker reds.
+
+**PLANT drop-G7** — delete `elif not guards["G7_current"]: _refuse(REASON_REPROCESS)`
+from `decide`.
+```
+RED — 3 failed, 26 passed
+FAILED tests/engine/test_net_711_rule.py::test_the_rule_on_each_constructed_book[g7_older_parser]
+FAILED tests/engine/test_net_711_rule.py::test_g7_the_block_carries_its_reader_and_an_older_reader_never_bridges
+FAILED tests/engine/test_net_711_rule.py::test_zz_scope_and_work - AssertionE...
+```
+**PLANT stamp-the-running-reader-always** — `pack.measure_stock_variation`
+stamps `running_parser_version()` whatever the parse result says.
+```
+RED — 3 failed, 26 passed
+FAILED tests/engine/test_net_711_rule.py::test_the_rule_on_each_constructed_book[g7_older_parser]
+FAILED tests/engine/test_net_711_rule.py::test_g7_the_block_carries_its_reader_and_an_older_reader_never_bridges
+FAILED tests/engine/test_net_711_rule.py::test_zz_scope_and_work - AssertionE...
+```
+**REVERT** (each plant restored byte-exact from a copy): `29 passed`,
+`GATE-WORK net-711-rule units=139`.
+
+CANNOT SEE (G7): a parser change that does NOT bump `PARSER_VERSION` — the
+stamp is only as honest as the version constant.
 
 ## net-income-anchor-witness
 

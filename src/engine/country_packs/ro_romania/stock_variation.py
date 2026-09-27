@@ -41,6 +41,12 @@ THE RULE (measure.md "The rule", implemented here, decided nowhere else):
   G2 account 121 anchor applied   G5 |residual| ≤ 711 activity
   G3 711 activity > 0             G6 121's opening (prior-year result)
                                      shown cleared in the period
+  G7 the period's rows were read by the RUNNING trial-balance parser
+     (design A10): the residual is 121 less every line the parser read,
+     so a period persisted by an older parser folds that parser's reading
+     differences into "stock variation" (Carniprod 7c29a71b: turnover
+     99,424,740.16 served against 94,509,940 filed — a −4.41M "711"). It
+     refuses `reprocess_required` until the document is reprocessed.
 
 The bridge never returns 0.00 when the anchor is absent: absent anchor is
 a refusal (G2), never a zero.
@@ -78,6 +84,7 @@ __all__ = [
     "leaf_flags",
     "decide",
     "refusal_text",
+    "running_parser_version",
 ]
 
 #: The persisted evidence block's schema. Bump on any change to what the
@@ -139,6 +146,7 @@ REASON_UNREAD = "unread_pl_activity"
 REASON_DOUBLE_READ = "pl_total_row_read_as_account"
 REASON_RESIDUAL = "residual_exceeds_711_activity"
 REASON_OPENING = "account_121_opening_not_cleared"
+REASON_REPROCESS = "reprocess_required"
 
 _REFUSAL_TEXT = {
     REASON_PREDATES: (
@@ -200,6 +208,14 @@ _REFUSAL_TEXT = {
         "the opening balance of account 121 (the prior-year result) is not shown cleared in the "
         "period, so it would enter the stock variation",
     ),
+    REASON_REPROCESS: (
+        "balanța a fost citită cu o versiune anterioară a cititorului de balanțe, deci diferența "
+        "față de contul 121 poate fi o diferență de citire, nu variația stocurilor; se recalculează "
+        "la reprocesarea documentului",
+        "the trial balance was read by an earlier version of the trial-balance reader, so the "
+        "difference to account 121 may be a reading difference, not the stock variation; it is "
+        "recomputed when the document is reprocessed",
+    ),
 }
 
 #: Cent slack for exact comparisons (float representation only).
@@ -209,6 +225,15 @@ LEDGER_TOLERANCE = 1.0
 MOVEMENT_MATCH_TOLERANCE = 0.05
 #: How many offending codes a block lists (the count is always exact).
 _LIST_CAP = 20
+
+
+def running_parser_version() -> str:
+    """The trial-balance reader this process runs (G7). Every row block
+    ``measure`` sees comes from it: rows are never persisted, so a block
+    stamped with another version was measured by an earlier deploy."""
+    from .trial_balance_parser import PARSER_VERSION
+
+    return str(PARSER_VERSION)
 
 
 def refusal_text(code: str) -> Tuple[str, str]:
@@ -340,7 +365,8 @@ def _empty_turnover() -> Dict[str, float]:
             "credit_turnover": 0.0, "debit_turnover": 0.0}
 
 
-def measure(tb_rows: Iterable[Mapping[str, Any]]) -> Dict[str, Any]:
+def measure(tb_rows: Iterable[Mapping[str, Any]],
+            parser_version: Optional[str] = None) -> Dict[str, Any]:
     """The evidence block, from the parsed 10-column rows. PURE.
 
     Reads the leaves and the distinct accounts (``row_reading``); an
@@ -349,6 +375,11 @@ def measure(tb_rows: Iterable[Mapping[str, Any]]) -> Dict[str, Any]:
     order its exporter printed it in (row permutation is a metamorphic
     invariant of the whole envelope). Every number is rounded to the
     cent; counts are exact; offending-code lists are capped at 20.
+
+    ``parser_version`` — the reader that produced the rows, recorded on the
+    block so a later rebuild can apply G7 (``decide``). The pack's
+    ``measure_stock_variation`` supplies it; a block recorded without one
+    never bridges.
     """
     bucket_for, pl_buckets = _pl_bucket_reader()
     rows = sorted(
@@ -524,6 +555,7 @@ def measure(tb_rows: Iterable[Mapping[str, Any]]) -> Dict[str, Any]:
     return {
         "schema": SCHEMA,
         "basis": BASIS_TRIAL_BALANCE,
+        "parser_version": parser_version,
         "book_state": state,
         "has_cumulative": has_cumulative,
         "pl_leaves": pl_leaves,
@@ -783,6 +815,11 @@ def decide(
                       and abs(dres) <= LEDGER_TOLERANCE)
             if ledger:
                 cleared_kind = "account_121_ledger"
+        # G7 (design A10): the residual may be folded into 711 only when the
+        # rows were read by the running parser. A block stamped by an older
+        # reader (or not stamped) was measured before the current reading.
+        stored_parser = evidence.get("parser_version")
+        running_parser = running_parser_version()
         guards = {
             "G1_book_state": state,
             "G2_anchored": bool(anchor_applied),
@@ -794,6 +831,9 @@ def decide(
                                    else abs(residual) <= activity + EPS),
             "G6_opening": _r2(opening),
             "G6_cleared_by": cleared_kind,
+            "G7_parser_version": stored_parser,
+            "G7_running_parser_version": running_parser,
+            "G7_current": stored_parser == running_parser,
         }
         block["guards"] = guards
         listed_711 = bool(a711.get("listed"))
@@ -814,6 +854,8 @@ def decide(
             _refuse(REASON_MOVEMENTS_ABSENT)
         elif not anchor_applied:
             _refuse(REASON_UNANCHORED)
+        elif not guards["G7_current"]:
+            _refuse(REASON_REPROCESS)
         elif unread_n:
             _refuse(REASON_UNREAD)
         elif double_n:

@@ -31,6 +31,9 @@ WHAT THIS GATE HOLDS, on CONSTRUCTED synthetic books (no client data):
                        DISTINCT prefix-coded account is read, not skipped
   G5 residual > 711    refused residual_exceeds_711_activity
   G6 uncleared 121     refused account_121_opening_not_cleared
+  G7 older reader      refused reprocess_required (design A10) — the rows
+                       were read by another trial-balance parser version,
+                       so the residual may be a reading difference
 
 and on each: EBITDA / EBIT / gross profit / PBT on the one definition — or
 refused with the SAME typed reason; the gross 711 credit turnover served
@@ -231,6 +234,28 @@ def book_bridge_with_722() -> List[Dict[str, Any]]:
                                   st_d=40_000.0, st_c=40_000.0)]) + _bs(210_000.0)
 
 
+#: The reader version G7's witness was "read" by — any version but the
+#: running one (the pack stamps the parse result's own version).
+OLDER_PARSER = "tb_parser_v5"
+
+
+def book_g7_older_parser() -> List[Dict[str, Any]]:
+    """G7 (design A10): the bridge book as an OLDER trial-balance reader
+    returned it — it read 701 at 1,040,000 where the file says 1,000,000
+    (Carniprod 7c29a71b: turnover 99,424,740.16 served, 94,509,940 filed).
+    Account 121 still says 170,000, so the residual is 10,000 — a reading
+    difference that passes G4-G6 and would print as "stock variation".
+    The parse result carries its reader's version; the running reader is
+    another, so the fold refuses `reprocess_required`."""
+    from engine.country_packs.ro_romania.trial_balance_parser import TrialBalanceParseResult
+
+    rows = [r for r in book_closed_bridge() if r["cont"] != "701"]
+    rows.insert(0, _row("701", "Venituri din vanzarea produselor finite",
+                        st_d=1_040_000.0, st_c=1_040_000.0))
+    return TrialBalanceParseResult(
+        rows, extraction={"method": "deterministic", "parser_version": OLDER_PARSER})
+
+
 BOOKS = {
     "open": book_open,
     "closed_no_activity": book_closed_no_activity,
@@ -243,6 +268,7 @@ BOOKS = {
     "g5_residual": book_g5_residual,
     "g6_uncleared": book_g6_uncleared,
     "bridge_with_722": book_bridge_with_722,
+    "g7_older_parser": book_g7_older_parser,
 }
 
 #: What each book must serve: (net 711, provenance or refusal code,
@@ -259,6 +285,7 @@ EXPECTED = {
     "g5_residual":        (None,     "residual_exceeds_711_activity",  None,      None,      0.0),
     "g6_uncleared":       (None,     "account_121_opening_not_cleared", None,     None,      0.0),
     "bridge_with_722":    (50_000.0, "account_121_bridge",             290_000.0, 450_000.0, 40_000.0),
+    "g7_older_parser":    (None,     "reprocess_required",             None,      None,      0.0),
 }
 
 BOOK_STATE = {
@@ -266,6 +293,7 @@ BOOK_STATE = {
     "mixed": sv.MIXED, "unanchored": sv.CLOSED, "g4_unread": sv.CLOSED,
     "g4_double_read": sv.CLOSED, "distinct_prefix_account": sv.CLOSED,
     "g5_residual": sv.CLOSED, "g6_uncleared": sv.CLOSED, "bridge_with_722": sv.CLOSED,
+    "g7_older_parser": sv.CLOSED,
 }
 
 _BALANCE_TOLERANCE = 0.005
@@ -550,6 +578,42 @@ def test_a_period_written_before_the_measurement_refuses_711():
     WORK["units"] += 4
 
 
+def test_g7_the_block_carries_its_reader_and_an_older_reader_never_bridges():
+    """G7 (design A10), at both times. PERSIST: the block records the reader
+    that produced the rows (the running one on a fresh parse; the parse
+    result's own version when it carries one). REBUILD: a period persisted
+    by an older reader — its stored block stamped with that reader —
+    refuses 711 `reprocess_required` on the served route, EBITDA with it,
+    and never serves its residual as the variation; the same period
+    persisted by the running reader bridges."""
+    running = sv.running_parser_version()
+    fresh = _assemble("closed_bridge")["assembled_canonical_v1"]["stock_variation"]
+    assert fresh["parser_version"] == running, fresh.get("parser_version")
+    old = _assemble("g7_older_parser")
+    assert old["assembled_canonical_v1"]["stock_variation"]["parser_version"] == OLDER_PARSER
+    guards = old["statements"]["assembled_pl"]["inventory_variation"]["guards"]
+    assert guards["G7_parser_version"] == OLDER_PARSER and guards["G7_current"] is False
+    assert guards["G5_within_activity"] is True and guards["G6_cleared_by"], (
+        "the witness must pass every other guard — only G7 stands between it and the fold")
+    assert round(guards["G5_residual"], 2) == 10_000.0, guards["G5_residual"]
+
+    bk = _persisted("closed_bridge")
+    stored = bk.period["assembled_canonical_v1"]["stock_variation"]
+    assert stored["parser_version"] == running, "stage_persist dropped the reader stamp"
+    bk.period = copy.deepcopy(bk.period)
+    bk.period["assembled_canonical_v1"]["stock_variation"]["parser_version"] = OLDER_PARSER
+    served = _served_pl(bk)
+    inv = served["inventory_variation"]
+    assert inv["value"] is None and inv["refusal"]["code"] == sv.REASON_REPROCESS, inv
+    assert served["ebitda"] is None and served["ebitda_refusal"]["code"] == sv.REASON_REPROCESS
+    # an unstamped block (measured before G7 existed) is not the running reader either
+    bk.period["assembled_canonical_v1"]["stock_variation"].pop("parser_version")
+    unstamped = _served_pl(bk)["inventory_variation"]
+    assert unstamped["refusal"]["code"] == sv.REASON_REPROCESS, unstamped
+    WORK["routes"].append("g7_older_parser")
+    WORK["units"] += 9
+
+
 # ── 3. Plants: the checkers above must fail on each defect ───────────────
 
 
@@ -566,6 +630,9 @@ def _with_plant(monkeypatch, plant: str) -> None:
         elif plant == "drop-guard-g6" and (inv.get("refusal") or {}).get("code") == \
                 sv.REASON_OPENING:
             inv.update(value=inv["guards"]["G5_residual"], refusal=None, provenance=sv.PROV_BRIDGE)
+        elif plant == "drop-guard-g7" and (inv.get("refusal") or {}).get("code") == \
+                sv.REASON_REPROCESS:
+            inv.update(value=inv["guards"]["G5_residual"], refusal=None, provenance=sv.PROV_BRIDGE)
         return inv, cap
 
     monkeypatch.setattr(sv, "decide", planted)
@@ -575,6 +642,7 @@ def _with_plant(monkeypatch, plant: str) -> None:
     ("serve-the-gross-memo", "closed_bridge"),
     ("absent-anchor-to-zero", "unanchored"),
     ("drop-guard-g6", "g6_uncleared"),
+    ("drop-guard-g7", "g7_older_parser"),
 ])
 def test_plant_is_caught(plant, book, monkeypatch):
     _with_plant(monkeypatch, plant)
@@ -607,4 +675,4 @@ def test_zz_scope_and_work(capsys):
         print("GATE-WORK net-711-rule units=%d" % WORK["units"])
     assert len(WORK["books"]) == len(BOOKS), "TC-3: the sweep judged %d of %d books" % (
         len(WORK["books"]), len(BOOKS))
-    assert len(WORK["plants"]) == 4
+    assert len(WORK["plants"]) == 5
