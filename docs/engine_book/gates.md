@@ -10864,3 +10864,184 @@ CANNOT SEE: whether the engine's served figures are right (`net-711-rule`
 is that gate); the other surfaces that print EBITDA (dashboard tiles,
 exports, forecast, benchmark — later stages of A7 and the `one-ebitda` /
 `refusal-carries` gates of A8); pixels.
+
+## one-ebitda
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/lib/__tests__/oneEbitdaSurfaces.test.tsx --reporter=verbose` |
+| canary | `covers eight served books, and on six of them the build-up before 711 / 72x differs from EBITDA`, `agras: the printed report, the workbook and the charts`, `realestate: Debt / EBITDA and the no-envelope credit model divide the served EBITDA` |
+| work count | `Tests N passed`, floor **20** (measured 25) |
+
+**INCIDENT** — the owner's ruling of 2026-09-26 (711 and 72x inside EBITDA
+and the operating result, one definition everywhere). Before stage F2 the
+browser rebuilt EBITDA from the `incomeStatement` buckets in a dozen places
+(`deriveTotals`, `computeRatios`, the workbook, the printed P&L column and
+KPI tile, `multiPeriodGrowth`, the EBITDA bridge chart's prior bar, the NAV
+cascade, the no-envelope credit model, the recommendation facts) — the
+buckets carry neither the measured net 711 nor net 72x, so every rebuild was
+`ebitda_before_stock_variation` wearing the name EBITDA: agras 10,776,378.24
+beside the served 11,848,065.27; the developer −29,038,838.12 beside
++550,976.12; Debt / EBITDA 0.34× against the served 0.31× (`bsOr` let the
+browser's division win).
+
+**SCOPE** — every served book (the four firm books and the four served
+CONSTRUCTED books of `net-711-rule`, captured through the real route): each
+surface prints `assembled_pl.ebitda` — the served field is the expectation.
+Surfaces: `plLevelsOf`, `deriveTotals`, `canonicalMetrics` (report §1),
+the dashboard headline and canon (scenarios / budget), the learning
+snapshot and the configurable-dashboard resolver, the recommendation facts,
+the printed P&L row and KPI tile, the workbook's P&L sheet and cover,
+multi-year growth, the EBITDA bridge chart (both anchors), the NAV
+EV/EBITDA cross-check, `computeRatios`' Debt / EBITDA and the no-envelope
+credit model's Debt / EBITDA.
+
+Plants, each applied alone by `scratchpad/f2_plants.py` (restored
+byte-exact, asserted), four of four RED:
+```
+PLANT second-formula-in-the-reader (plLevelsOf serves the build-up before 711 / 72x as EBITDA) — 14 failed | 11 passed
+  × … > agras: the levels, the headline, the canon, the learning snapshot and the facts
+  × … > agras: the printed report, the workbook and the charts
+  × … > agras: Debt / EBITDA and the no-envelope credit model divide the served EBITDA
+  × … > carniprod: the levels, the headline, the canon, the learning snapshot and the facts
+  × … > carniprod: the printed report, the workbook and the charts
+  × … > realestate: the levels, the headline, the canon, the learning snapshot and the facts
+  … and 8 more
+PLANT bucket-rebuild-in-deriveTotals (deriveTotals rebuilds EBITDA from the incomeStatement buckets) — 6 failed | 19 passed
+  × … > agras: the levels, the headline, the canon, the learning snapshot and the facts
+  × … > carniprod: the levels, the headline, the canon, the learning snapshot and the facts
+  × … > realestate: the levels, the headline, the canon, the learning snapshot and the facts
+  × … > bridge_with_722: the levels, the headline, the canon, the learning snapshot and the facts
+  × … > closed_bridge: the levels, the headline, the canon, the learning snapshot and the facts
+  × … > open: the levels, the headline, the canon, the learning snapshot and the facts
+PLANT printed-row-reads-the-build-up (the report / workbook EBITDA row prints ebitda_before_stock_variation) — 6 failed | 19 passed
+  × … > agras: the printed report, the workbook and the charts
+  × … > carniprod: the printed report, the workbook and the charts
+  × … > realestate: the printed report, the workbook and the charts
+  × … > bridge_with_722: the printed report, the workbook and the charts
+  × … > closed_bridge: the printed report, the workbook and the charts
+  × … > open: the printed report, the workbook and the charts
+PLANT second-ebitda-in-computeRatios (Debt / EBITDA divides the build-up) — 2 failed | 23 passed
+  × … > agras: Debt / EBITDA and the no-envelope credit model divide the served EBITDA
+  × … > realestate: Debt / EBITDA and the no-envelope credit model divide the served EBITDA
+REVERT — the clean tree: Tests 25 passed
+```
+
+CANNOT SEE: whether the served figure is right (`net-711-rule`); a refused
+EBITDA (`refusal-carries`); a margin's denominator (`turnover-denominator`);
+the engine-side surfaces (credit model, valuation, briefing — their own
+gates); pixels.
+
+## turnover-denominator
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/lib/__tests__/turnoverDenominator.test.tsx --reporter=verbose` |
+| canary | `four books carry total operating revenue ≠ net turnover (72x or other operating income), so a wrong denominator shows`, `bridge_with_722: the first line, the margins, the facts, the report, the workbook and growth` |
+| work count | `Tests N passed`, floor **6** (measured 8) |
+
+**INCIDENT** — "margins and growth use net turnover (701–708 minus 709) as
+the denominator" (owner, 2026-09-26). Before stage F2 the report's §1 tile
+and `canonicalMetrics` divided EBITDA by `total_operating_revenue` (turnover
++ other operating income + 72x), the recommendation facts' `revenue` was
+that total, and the report / workbook / dashboard headed the first line
+"Revenue" / "Operating revenue" over it — two EBITDA margins on one page on
+any book with 72x or material other income.
+
+**SCOPE** — the seven served books the margin rule does not refuse; the
+WITNESSES are the four where total operating revenue differs from turnover
+(agras, carniprod, retail: other operating income; `bridge_with_722`: 72x),
+asserted so the gate cannot pass on books where the two coincide. Holds:
+the reader's turnover, the dashboard headline's `netTurnover`, the canon's
+revenue and reported margin, `computeRatios`' EBITDA and gross margins, the
+learning snapshot's revenue and the resolver's EBITDA margin, the "Compania
+ta" overlay margin, the recommendation facts' revenue and EBITDA margin, the
+printed report's "Net turnover" card, the workbook's cover and P&L first
+line, and the net-turnover growth row.
+
+Plants, each applied alone by `scratchpad/f2_plants.py`, three of three RED:
+```
+PLANT total-operating-revenue-as-turnover (the reader's turnover is total operating revenue) — 4 failed | 4 passed
+  × … > agras: the first line, the margins, the facts, the report, the workbook and growth
+  × … > carniprod: the first line, the margins, the facts, the report, the workbook and growth
+  × … > retail: the first line, the margins, the facts, the report, the workbook and growth
+  × … > bridge_with_722: the first line, the margins, the facts, the report, the workbook and growth
+PLANT canonical-margin-over-total (report §1 margin divides total operating revenue) — 4 failed | 4 passed
+  × … > agras: the first line, the margins, the facts, the report, the workbook and growth
+  × … > carniprod: the first line, the margins, the facts, the report, the workbook and growth
+  × … > retail: the first line, the margins, the facts, the report, the workbook and growth
+  × … > bridge_with_722: the first line, the margins, the facts, the report, the workbook and growth
+PLANT facts-revenue-total (the recommendation facts' revenue is total operating revenue) — 4 failed | 4 passed
+  × … > agras: the first line, the margins, the facts, the report, the workbook and growth
+  × … > carniprod: the first line, the margins, the facts, the report, the workbook and growth
+  × … > retail: the first line, the margins, the facts, the report, the workbook and growth
+  × … > bridge_with_722: the first line, the margins, the facts, the report, the workbook and growth
+REVERT — the clean tree: Tests 8 passed
+```
+
+CANNOT SEE: whether turnover itself is read right (engine); a margin the
+engine refuses (the developer — `margin-meaning`, `refusal-carries`); the
+benchmark's filed basis (sector, engine).
+
+## refusal-carries
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/lib/__tests__/refusalCarries.test.tsx --reporter=verbose` |
+| canary | `covers the two refused books, and on both the buckets would rebuild a number`, `unanchored: growth, the credit model, the DCF and the NAV cascade refuse with it`, `a payload the engine did not assemble, whose buckets show 711 activity, refuses the same way` |
+| work count | `Tests N passed`, floor **8** (measured 10) |
+
+**INCIDENT** — design A3: "if net 711 is refused on a book with 711 activity,
+EBITDA, EBIT, gross profit and every margin/ratio built on them REFUSE with
+the same typed reason. Remove every fallback chain first". Before stage F2:
+`canonicalMetrics` (`ebitda_statutory ?? ebitda ?? 0` — the report tile and
+the EBITDA-multiple card priced the company on 0), `deriveTotals` (the
+bucket build-up standing in for the refused figure on the workbook, the
+printed P&L, the popovers and the no-envelope credit model),
+`computeRatios`' `anchored()` falling through to the browser's EBITDA, the
+budget variance's `revenue − cogs`, the report valuation's `?? metrics.
+ebitda`, the NAV cascade's `ebitda_statutory ?? 0`, and the credit model's
+`safeDiv(x, null) = 0` read as "Below covenant".
+
+**SCOPE** — the two refused CONSTRUCTED books (account 121 absent; its
+opening not cleared), captured through the real route. Every surface states
+EBITDA / EBIT / gross profit / PBT as absent, and where it prints a reason,
+the engine's (`ebitda_refusal.code`, `text_en`, `text_ro`): the reader,
+`deriveTotals`, the canon, the headline, the dashboard canon and the budget
+actuals, the facts, `computeRatios` (absence kind `refused`, RO and EN
+sentence), the learning snapshot and resolver, the ratio drawer's formula
+input, the printed P&L rows and KPI tile (`refused — <reason>`), the
+workbook P&L and cover, multi-year growth, the no-envelope credit model
+(three components refused, no composite, no letter), the DCF's EV/EBITDA and
+the NAV cascade's EV/EBITDA and cap-rate; and a payload the engine did not
+assemble whose buckets show 711 activity.
+
+Plants, each applied alone by `scratchpad/f2_plants.py`, four of four RED:
+```
+PLANT refused-as-zero-in-the-reader (plLevelsOf reads a refused EBITDA as 0) — 8 failed | 2 passed
+  × … > g6_uncleared: the levels, deriveTotals, the headline, the canon, the variance and the facts
+  × … > g6_uncleared: the ratios, the learning resolver and the ratio drawer state the engine's reason
+  × … > g6_uncleared: the printed report and the workbook print "refused" with the engine's reason
+  × … > g6_uncleared: growth, the credit model, the DCF and the NAV cascade refuse with it
+  × … > unanchored: the levels, deriveTotals, the headline, the canon, the variance and the facts
+  × … > unanchored: the ratios, the learning resolver and the ratio drawer state the engine's reason
+  … and 2 more
+PLANT canonical-?? 0 (canonicalMetrics reports a refused EBITDA as 0) — 2 failed | 8 passed
+  × … > g6_uncleared: the levels, deriveTotals, the headline, the canon, the variance and the facts
+  × … > unanchored: the levels, deriveTotals, the headline, the canon, the variance and the facts
+PLANT credit-safeDiv-zero (the no-envelope credit model scores a refused EBITDA) — 2 failed | 8 passed
+  × … > g6_uncleared: growth, the credit model, the DCF and the NAV cascade refuse with it
+  × … > unanchored: growth, the credit model, the DCF and the NAV cascade refuse with it
+PLANT deriveTotals-bucket-fallback (a refused EBITDA falls back to the bucket build-up) — 7 failed | 3 passed
+  × … > g6_uncleared: the levels, deriveTotals, the headline, the canon, the variance and the facts
+  × … > g6_uncleared: the ratios, the learning resolver and the ratio drawer state the engine's reason
+  × … > g6_uncleared: growth, the credit model, the DCF and the NAV cascade refuse with it
+  × … > unanchored: the levels, deriveTotals, the headline, the canon, the variance and the facts
+  × … > unanchored: the ratios, the learning resolver and the ratio drawer state the engine's reason
+  × … > unanchored: growth, the credit model, the DCF and the NAV cascade refuse with it
+  … and 1 more
+REVERT — the clean tree: Tests 10 passed
+```
+
+CANNOT SEE: whether the engine was right to refuse (`net-711-rule`);
+surfaces that print no EBITDA; pixels.

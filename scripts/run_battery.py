@@ -940,6 +940,42 @@ def _engine_gates() -> List[Gate]:
                        "unanchored: every refused figure states the engine's reason, RO and EN",
                        "closed_no_activity: no stock-variation row, the remainder labelled, then account 121",
                        "renders the owner's name verbatim in Romanian, and with the engine's gloss in English")),
+        # ── owner ruling 2026-09-26, design A8 (stage F2): the three surface
+        # gates. Every other frontend surface — deriveTotals, computeRatios,
+        # canonicalMetrics, the dashboard headline / canon / configurable
+        # tiles, the learning snapshot, the recommendation facts, the printed
+        # report and the workbook (P&L sheet + cover), multi-year growth, the
+        # EBITDA bridge chart, the NAV cascade and the no-envelope credit
+        # model — prints THE ONE EBITDA the engine serves (one-ebitda), divides
+        # every margin and growth figure by net turnover (turnover-
+        # denominator), and carries a refused EBITDA as the engine's refusal
+        # (refusal-carries). Over the four firm books and the six CONSTRUCTED
+        # books of net-711-rule captured through the real route. Measured 25 /
+        # 8 / 10 tests. Plant log: gates.md "one-ebitda", "turnover-
+        # denominator", "refusal-carries".
+        Gate("one-ebitda",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/oneEbitdaSurfaces.test.tsx", "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=20,
+             units="surface tests (every browser surface prints the served EBITDA on eight served books)",
+             canaries=("covers eight served books, and on six of them the build-up before 711 / 72x differs from EBITDA",
+                       "agras: the printed report, the workbook and the charts",
+                       "realestate: Debt / EBITDA and the no-envelope credit model divide the served EBITDA")),
+        Gate("turnover-denominator",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/turnoverDenominator.test.tsx", "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=6,
+             units="surface tests (margins and growth over net turnover, on books where total operating revenue differs)",
+             canaries=("four books carry total operating revenue ≠ net turnover (72x or other operating income), so a wrong denominator shows",
+                       "bridge_with_722: the first line, the margins, the facts, the report, the workbook and growth")),
+        Gate("refusal-carries",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/refusalCarries.test.tsx", "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=8,
+             units="surface tests (a refused EBITDA stays refused, with the engine's reason, on every surface)",
+             canaries=("covers the two refused books, and on both the buckets would rebuild a number",
+                       "unanchored: growth, the credit model, the DCF and the NAV cascade refuse with it",
+                       "a payload the engine did not assemble, whose buckets show 711 activity, refuses the same way")),
         # RATIOS: the engine as the one authority for ratio values, bands,
         # deltas, band movements and credit composites (critic
         # authority_decision). Four gates, one per batch, named separately
