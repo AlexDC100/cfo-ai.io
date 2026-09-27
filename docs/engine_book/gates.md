@@ -11196,6 +11196,24 @@ sides:
 REVERT (each): engine 32 passed; Tests 30 passed (30)
 ```
 
+**Floors after stage CB-H** (measured, exact): `cmdbar-surface` 118 → **132**,
+`cmdbar-evidence` 25 → **35** (floor 22 → 35; `benchmarkRowReceiver.test.tsx`
+joined its command), `attention-rules` 26 → **28** (floor 24 → 28); new
+canaries named in `scripts/run_battery.py`. Narrowed battery on the tree:
+`PASS attention-rules (3.8s, 28 tests)` · `PASS attention-served-only (4.0s,
+18 …)` · `PASS attention-route (9.5s, 8 tests)` · `PASS cmdbar-fixtures (1.2s,
+6 …)` · `PASS cmdbar-surface (14.5s, 132 command-bar tests)` · `PASS
+evidence-lines (1.2s, 14 …)` · `PASS cmdbar-evidence (5.8s, 35
+evidence-landing tests)` — 7/7.
+
+**Through the battery**, the realistic per-keystroke fetch (the zero-fetch
+plant the old synchronous count could not see — `useAttention(…, query ?
+"q"+query : "auto")` in CommandPalette.tsx): `BATTERY: FAIL — 0/1 gates
+green` (cmdbar-surface) → restored → `PASS cmdbar-surface (14.2s, 132
+command-bar tests)`. The hermetic live G3/G7 remain outside the battery (they
+need a production build); they are the pre-deploy half — see the live runs
+below.
+
 ## evidence-lines
 
 The account view (`frontend/components/cfo/evidence/EvidenceDrawer.tsx`, design
