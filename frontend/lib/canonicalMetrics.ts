@@ -104,10 +104,13 @@ export interface CanonicalEbitda {
    *  Dashboard. Each entry is subtracted from `reported` to get
    *  `core`. Empty when no non-core items are present. */
   adjustments: CanonicalEbitdaAdjustment[];
-  /** Reported margin = reported ÷ total operating revenue × 100,
-   *  in percentage points. Null when revenue is zero. */
+  /** Reported margin = reported ÷ NET TURNOVER × 100, in percentage
+   *  points (owner ruling 2026-09-26: every margin divides by turnover —
+   *  it used to divide by total operating revenue, so the report's §1 tile
+   *  and its §5 ratio printed two EBITDA margins). Null when turnover is
+   *  zero. */
   reported_margin_pct: number | null;
-  /** Core margin = core ÷ total operating revenue × 100. */
+  /** Core margin = core ÷ net turnover × 100. */
   core_margin_pct: number | null;
 }
 
@@ -243,8 +246,8 @@ export function buildCanonicalMetrics(period: ActivePeriod): CanonicalMetrics | 
       core,
       basis_for_valuation: "core",
       adjustments,
-      reported_margin_pct: totalOpRev > 0 ? (reported / totalOpRev) * 100 : null,
-      core_margin_pct: totalOpRev > 0 ? (core / totalOpRev) * 100 : null,
+      reported_margin_pct: revenue > 0 ? (reported / revenue) * 100 : null,
+      core_margin_pct: revenue > 0 ? (core / revenue) * 100 : null,
     },
     netProfit: {
       statutory_account_121: statutoryNetProfit,
@@ -336,8 +339,8 @@ export function buildCanonicalMetricsFromInputs(input: {
       core,
       basis_for_valuation: "core",
       adjustments,
-      reported_margin_pct: totalOpRev > 0 ? (reported / totalOpRev) * 100 : null,
-      core_margin_pct: totalOpRev > 0 ? (core / totalOpRev) * 100 : null,
+      reported_margin_pct: revenue > 0 ? (reported / revenue) * 100 : null,
+      core_margin_pct: revenue > 0 ? (core / revenue) * 100 : null,
     },
     netProfit: {
       statutory_account_121: statutoryNetProfit,

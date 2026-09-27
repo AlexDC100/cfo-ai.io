@@ -51,7 +51,6 @@ import { ReportingContextProvider } from "@/components/learning/ReportingContext
 import { DashboardProvider } from "@/stores/dashboard";
 import { DashboardViewProvider } from "@/stores/dashboardView";
 import { pickPLBuilder } from "@/lib/buildPlStatement";
-import { buildCanonicalMetricsFromInputs } from "@/lib/canonicalMetrics";
 import { computeRatios, formatRatio, ratioBadgeLabel, type Ratio } from "@/lib/financialReport";
 import { readCockpit } from "@/lib/forecastCockpit";
 import { buildBankExportHtml } from "@/lib/forecastBankExport";
@@ -74,13 +73,17 @@ const REFUSAL = {
   ro: "marjă nesemnificativă: cifra de afaceri este 0,6% din activitate",
   en: "margin not meaningful: turnover is 0.6% of activity",
 };
+// The engine's note under the ONE EBITDA (owner ruling 2026-09-26): EBITDA
+// INCLUDES the stock variation, and the note names the figure. (Before the
+// ruling it said the opposite — "the EBITDA above does not include them" —
+// and pointed at a second EBITDA "including 711"; there is no second one.)
 const NOTE = {
   ro:
-    "Pentru un dezvoltator imobiliar, costurile de construcție sunt capitalizate în stocuri (contul 711): " +
-    "EBITDA de mai sus nu le include. EBITDA inclusiv 711: 0,6 mil. lei.",
+    "Pentru un dezvoltator imobiliar, costurile de construcție capitalizate în stocuri trec prin contul 711 " +
+    "(Variația stocurilor de produse): EBITDA de mai sus le include — 29.589,8 mii lei.",
   en:
-    "For a property developer, construction costs are capitalised into inventory (account 711): " +
-    "the EBITDA above does not include them. EBITDA including 711: RON 0.6M.",
+    "For a property developer, construction costs capitalised into inventory run through account 711 " +
+    "(Variația stocurilor de produse): the EBITDA above includes them — RON 29,589.8k.",
 };
 
 /** A percent of a thousand or more, in either direction, as a document prints it. */
@@ -248,18 +251,14 @@ describe("the dashboard's KPI grid and the one note", () => {
     }
   });
 
-  it("the EBITDA reconciliation states the refusal instead of its two margins", () => {
+  it("the EBITDA reconciliation states the refusal and prints no margin", () => {
     const s = statementsFor(DEVELOPER);
-    const canonical = buildCanonicalMetricsFromInputs({
-      assembled_pl: s.assembled_pl ?? {},
-      assembled_bs: s.assembled_bs ?? {},
-      line_items: [],
-      period_id: "p-developer",
-    });
-    expect(canonical).not.toBeNull();
-    render(<EbitdaReconciliationPanel metrics={canonical!} marginRefusal={marginRefusalOf(s)} />);
+    renderWithProviders(<EbitdaReconciliationPanel statements={s} marginRefusal={marginRefusalOf(s)} />);
     expect(screen.getByTestId("ebitda-recon-margin-refused")).toHaveTextContent(REFUSAL.en);
     expect(screen.getByTestId("ebitda-reconciliation-panel").textContent ?? "").not.toMatch(/margin\s+[−-]?\d/);
+    // No percent anywhere but the share inside the engine's own sentence.
+    const text = (screen.getByTestId("ebitda-reconciliation-panel").textContent ?? "").replace(REFUSAL.en, "");
+    expect(text).not.toMatch(/\d\s?%/);
   });
 });
 

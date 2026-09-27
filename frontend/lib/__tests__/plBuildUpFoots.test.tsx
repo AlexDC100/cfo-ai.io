@@ -86,9 +86,15 @@ const REQUIRED_ROWS = [
   "Net financial result",
   "Pre-tax profit",
   "Income tax",
-  "Net profit — reconstructed (class 6/7 movements)",
-  "= Net profit — statutory (account 121, as filed)",
+  "Net profit — built from the accounts",
+  "= Net profit — account 121 (as filed)",
 ];
+
+/** THE ONE EBITDA (owner ruling 2026-09-26): on a book whose stock variation
+ *  moved the result, its row is a STEP of the column — beside cost of
+ *  sales, inside EBITDA. The three bridge books all carry one. */
+const STOCK_VARIATION_ROW = /^Variația stocurilor de produse \(711\)/;
+const BRIDGE_BOOKS = new Set(["agras", "carniprod", "realestate"]);
 
 type PlRow = {
   label: string;
@@ -135,8 +141,15 @@ describe("G2 — the rendered P&L build-up foots", () => {
       const rows = pnlRows();
 
       const labels = rows.map((r) => r.label);
-      const missing = REQUIRED_ROWS.filter((l) => !labels.includes(l));
+      const missing = REQUIRED_ROWS.filter((l) => !labels.some((x) => x === l || x.startsWith(`${l} `)));
       expect(missing, `${book}: the build-up carries no row labelled`).toEqual([]);
+      const stock = rows.find((r) => STOCK_VARIATION_ROW.test(r.label));
+      if (BRIDGE_BOOKS.has(book)) {
+        expect(stock, `${book}: the stock-variation row`).toBeDefined();
+        expect(stock!.role, `${book}: the stock variation is a step of the column`).toBe("step");
+      } else {
+        expect(stock, `${book}: no 711 postings, no row`).toBeUndefined();
+      }
 
       // A row with no declared role is a row nobody can tell is part of
       // the sum or not — the state the table was in before this gate.

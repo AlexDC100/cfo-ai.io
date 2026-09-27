@@ -233,6 +233,7 @@ import { StatementNotes } from "@/components/cfo/StatementNotes";
 import { ValuationSection } from "@/components/cfo/ValuationSection";
 import { buildCanonicalMetricsFromInputs } from "@/lib/canonicalMetrics";
 import { EbitdaReconciliationPanel } from "@/components/cfo/EbitdaReconciliationPanel";
+import { pickLang } from "@/lib/servedOneEbitda";
 import { SourceQualityBanner } from "@/components/cfo/SourceQualityBanner";
 import { DocsToggle, useDocsCount } from "@/components/cfo/DocsPanel";
 import { PublicRecordsQuickCard } from "@/components/cfo/PublicRecordsQuickCard";
@@ -827,7 +828,7 @@ function FinancialStatementsInner() {
     // P&L builder, EBITDA from `assembled_pl.ebitda_statutory` first, net
     // profit through `resolveHeadlineNetProfit`, the builder's "Total
     // operating expenses (cash)" subtotal for Simple mode's runway sentence.
-    const { totalOperatingRevenue, tileEbitdaRon, tileNetProfitRon, totalOperatingExpenses, pl } =
+    const { totalOperatingRevenue, tileEbitdaRon, tileEbitdaRefusal, tileNetProfitRon, totalOperatingExpenses, pl } =
       computeDashboardHeadline({
         statements,
         lineItems: remotePeriod.lineItems,
@@ -841,7 +842,7 @@ function FinancialStatementsInner() {
         : remotePeriod.detectedType === "trial_balance"
           ? t("dash.sourceTbTooltip")
           : null;
-    return { totalOperatingRevenue, tileEbitdaRon, tileNetProfitRon, sourceTooltip, totalOperatingExpenses, pl };
+    return { totalOperatingRevenue, tileEbitdaRon, tileEbitdaRefusal, tileNetProfitRon, sourceTooltip, totalOperatingExpenses, pl };
   }, [statements, totals, remotePeriod.lineItems, remotePeriod.metrics, remotePeriod.detectedType, dashboardCanonicalMargins, t]);
 
   // ── PROVENANCE for the headline figures — built ONCE, beside them ──────
@@ -2215,7 +2216,13 @@ function FinancialStatementsInner() {
                     label: t("dashV2.metricEbitda"),
                     desc: t("dashV2.metricEbitdaDesc"),
                     value: headline.tileEbitdaRon,
-                    trend: trendAgainstPrior(overviewPrior, "ebitda", headline.tileEbitdaRon) ?? trendFor("ebitda"),
+                    // A refused EBITDA states the engine's reason, never 0.
+                    refused: headline.tileEbitdaRefusal
+                      ? pickLang(headline.tileEbitdaRefusal.text, i18n.language)
+                      : null,
+                    trend: headline.tileEbitdaRon === null
+                      ? null
+                      : trendAgainstPrior(overviewPrior, "ebitda", headline.tileEbitdaRon) ?? trendFor("ebitda"),
                     testid: "key-metric-ebitda",
                     provenance: headlineProvenance.ebitda,
                   },
@@ -2635,10 +2642,12 @@ function FinancialStatementsInner() {
                         valuation={remotePeriod.valuation}
                         currency={statements.currency}
                       />
-                      {/* Itemized 758 → 781 → Core bridge anchor — the
-                       *  provenance line in the primary card jumps here. */}
+                      {/* The one EBITDA, explained by the engine's served
+                       *  reconciliation, down to the Core EBITDA the
+                       *  multiple is applied to — the provenance line in
+                       *  the primary card jumps here. */}
                       <div id="ebitda-bridge">
-                        <EbitdaReconciliationPanel metrics={canonical} currency={statements.currency} marginRefusal={marginRefusalOf(statements)} />
+                        <EbitdaReconciliationPanel statements={statements} currency={statements.currency} marginRefusal={marginRefusalOf(statements)} />
                       </div>
                     </>
                   )}

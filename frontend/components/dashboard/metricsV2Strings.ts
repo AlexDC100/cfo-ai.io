@@ -53,16 +53,17 @@ export const metricsV2En = {
   concepts: {
     revenue: "Everything you billed customers this period, before costs.",
     operating_revenue:
-      "All income from the day-to-day business, including other operating income.",
+      "Net turnover (cifra de afaceri netă): sales of goods and services, net of discounts given — the base of every margin.",
     net_turnover: "Sales of goods and services, net of discounts given.",
     cogs: "What the goods you sold cost you to buy or make.",
-    gross_profit: "Sales minus the direct cost of what you sold.",
+    gross_profit:
+      "Sales minus the direct cost of what you sold, adjusted for the change in stocks of products you made (711).",
     operating_expenses:
       "Everything running the business costs — salaries, rent, services, materials.",
     opex: "Everything running the business costs — salaries, rent, services, materials.",
     ebit: "Profit from operations, before interest and tax.",
     ebitda:
-      "Operating profit before interest, tax and depreciation — a proxy for cash generated.",
+      "Operating profit before interest, tax and depreciation. It includes the change in stocks of products you made (711) and work capitalised into your own assets (72x), which move no cash.",
     depreciation_amortization:
       "The yearly wear-and-tear cost of equipment and other long-lived assets.",
     depreciation:
@@ -102,7 +103,7 @@ export const metricsV2En = {
     enterprise_value: "What the whole business is worth, debt included.",
     equity_value: "What the owners' share of the business is worth.",
     ebitda_margin:
-      "EBITDA as a share of sales — how profitable the operations are.",
+      "EBITDA as a share of net turnover — how profitable the operations are.",
     ebit_margin: "Operating profit as a share of sales.",
     net_margin: "How much of each sale ends up as final profit.",
     gross_margin:
@@ -180,16 +181,17 @@ export const metricsV2Ro = {
   concepts: {
     revenue: "Tot ce ai facturat clienților în această perioadă, înainte de costuri.",
     operating_revenue:
-      "Toate veniturile din activitatea de zi cu zi, inclusiv alte venituri din exploatare.",
+      "Cifra de afaceri netă: vânzările de bunuri și servicii, după reducerile acordate — baza fiecărei marje.",
     net_turnover: "Vânzările de bunuri și servicii, după reducerile acordate.",
     cogs: "Cât te-au costat bunurile pe care le-ai vândut.",
-    gross_profit: "Vânzările minus costul direct al celor vândute.",
+    gross_profit:
+      "Vânzările minus costul direct al celor vândute, ajustat cu variația stocurilor de produse (711).",
     operating_expenses:
       "Tot ce te costă funcționarea afacerii — salarii, chirie, servicii, materiale.",
     opex: "Tot ce te costă funcționarea afacerii — salarii, chirie, servicii, materiale.",
     ebit: "Profitul din operațiuni, înainte de dobânzi și impozite.",
     ebitda:
-      "Profitul operațional înainte de dobânzi, impozite și amortizare — aproximează numerarul generat.",
+      "Profitul operațional înainte de dobânzi, impozite și amortizare. Include variația stocurilor de produse (711) și producția imobilizată (72x), care nu mișcă numerar.",
     depreciation_amortization:
       "Costul anual al uzurii echipamentelor și celorlalte active pe termen lung.",
     depreciation:
@@ -230,7 +232,7 @@ export const metricsV2Ro = {
     enterprise_value: "Cât valorează întreaga afacere, incluzând datoriile.",
     equity_value: "Cât valorează partea acționarilor din afacere.",
     ebitda_margin:
-      "EBITDA ca procent din vânzări — cât de profitabile sunt operațiunile.",
+      "EBITDA ca procent din cifra de afaceri netă — cât de profitabile sunt operațiunile.",
     ebit_margin: "Profitul operațional ca procent din vânzări.",
     net_margin: "Cât din fiecare vânzare ajunge profit final.",
     gross_margin:

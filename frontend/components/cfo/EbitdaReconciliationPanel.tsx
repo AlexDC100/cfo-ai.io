@@ -1,134 +1,273 @@
-// EbitdaReconciliationPanel — itemized Reported → Core EBITDA bridge.
+// EbitdaReconciliationPanel — THE ONE EBITDA, explained by the engine's own
+// reconciliation (design A5, owner ruling 2026-09-26).
 //
-// Renders the canonical bridge: Reported EBITDA − 758 (Other operating
-// income) − 781 (Provision reversals) = Core EBITDA. Lines come from
-// the canonical metric object (which extracts them from the per-account
-// line items already shipped on `/api/period/{id}`); arithmetic is
-// exact and traceable. No engine recompute here.
+// Three parts, every figure and every line name SERVED
+// (`statements.assembled_pl.ebitda_reconciliation`, read through
+// lib/servedOneEbitda.ts) — nothing here is added, subtracted or divided:
 //
-// Spec mandate (Phase 1 G1): the bridge MUST be exact and itemized,
-// with each adjustment showing account + label + amount.
+//   1. THE CHAIN — net turnover → other operating income → own work
+//      capitalised (72x) → cost of sales, with "Variația stocurilor de
+//      produse" (711) beside it, signed and with its provenance → other
+//      operating expenses → EBITDA → D&A → operating result → financial
+//      result → tax → net result = account 121 (or "not anchored"). On a
+//      closed book the 711 line is DERIVED from account 121, so the chain
+//      closes by construction; the engine's note says so.
+//   2. THE ONE-LINE BRIDGE — EBITDA before the stock variation and own work
+//      capitalised · the stock variation · own work capitalised = EBITDA.
+//   3. EBITDA → CORE EBITDA (the valuation basis): the served 758 and 781
+//      strips and the served core figure — on the one EBITDA.
+//
+// A refused figure prints the engine's typed reason, never a zero. The
+// Romanian line names stay in the English UI, with the engine's English
+// gloss beside them (CLAUDE.md §11).
+//
+// It replaces the "Reported → Core, one company, two valid EBITDAs" panel:
+// under the ruling there is ONE EBITDA, and the old panel's margins divided
+// by total operating revenue — a denominator the ruling retired.
 
-import type { CanonicalMetrics } from "@/lib/canonicalMetrics";
-import { formatCanonicalFull, formatCanonicalPct } from "@/lib/canonicalMetrics";
-import { pickMargin, type MarginBilingual } from "@/lib/marginMeaning";
 import { Info } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import type { Statements } from "@/lib/financialReport";
+import { pickMargin, type MarginBilingual } from "@/lib/marginMeaning";
+import {
+  pickLang,
+  readServedOneEbitda,
+  type Bilingual,
+  type ServedReconLine,
+  type ServedRefusal,
+} from "@/lib/servedOneEbitda";
+import { formatAmountFrom } from "@/lib/money";
+import type { Currency } from "@/lib/rates";
+import { useCurrency } from "@/stores/currency";
+
 interface Props {
-  metrics: CanonicalMetrics;
+  /** The period's served statements — the panel reads `assembled_pl`. */
+  statements: Pick<Statements, "assembled_pl"> | null | undefined;
   currency?: string;
   testid?: string;
   /** The ENGINE's refusal of every margin over turnover for this period
-   *  (`statements.margin_meaning`): the footer states it instead of the two
-   *  margins this panel would otherwise divide. */
+   *  (`statements.margin_meaning`): stated in the footer. */
   marginRefusal?: MarginBilingual | null;
 }
 
+/** The Romanian name, with the English gloss beside it in the English UI. */
+function NameWithGloss({ label, lang }: { label: Bilingual; lang: string | undefined }) {
+  const isRo = (lang ?? "").toLowerCase().startsWith("ro");
+  return (
+    <>
+      {label.ro}
+      {!isRo && label.en !== label.ro && (
+        <span className="text-ink-mute font-normal"> — {label.en}</span>
+      )}
+    </>
+  );
+}
+
 export function EbitdaReconciliationPanel({
-  metrics,
+  statements,
   currency = "RON",
   testid = "ebitda-reconciliation-panel",
   marginRefusal = null,
 }: Props) {
-  const { i18n } = useTranslation();
-  const { ebitda } = metrics;
-  const hasAdjustments = ebitda.adjustments.length > 0;
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language;
+  // The display currency and rates, read the way every report surface reads
+  // them (`useCurrency` + `formatAmountFrom`), so the panel prints the same
+  // converted figure as the table beside it.
+  const { display, rates } = useCurrency();
+  const fmt = (v: number, opts: { sign?: "positive" | "negative" } = {}) =>
+    formatAmountFrom(v, ((currency as Currency) || "RON"), display, rates.rates, opts);
+  const served = readServedOneEbitda(statements?.assembled_pl);
+  const recon = served?.reconciliation ?? null;
+
+  const money = (v: number | null, signed = false): string => {
+    if (v === null) return t("statements.pl.refused");
+    if (Math.abs(v) < 0.005) return "0";
+    return signed ? fmt(v, { sign: v > 0 ? "positive" : "negative" }) : fmt(v);
+  };
+  const reason = (r: ServedRefusal | null | undefined) => (r ? pickLang(r.text, lang) : null);
 
   return (
     <section
       data-testid={testid}
-      className="
-        rounded-2xl border border-rule bg-surface
-        p-5 sm:p-6
-      "
+      data-definition={recon?.definition ?? undefined}
+      className="rounded-2xl border border-rule bg-surface p-5 sm:p-6"
     >
-      <header className="flex items-start justify-between gap-3 flex-wrap mb-4">
-        <div>
-          <div className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold inline-flex items-center gap-1.5">
-            <Info size={11} strokeWidth={2} className="text-brand-d" />
-            EBITDA reconciliation · Reported → Core
-          </div>
-          <h3 className="mt-1.5 text-[16px] font-semibold text-ink leading-tight">
-            One company. Two valid EBITDAs. Here&rsquo;s the bridge between them.
-          </h3>
-          <p className="mt-1 text-[12.5px] text-ink-soft leading-relaxed max-w-[640px]">
-            <span className="text-ink font-medium">Reported</span> is the legally filed view used for lender ratios and reconciliation.{" "}
-            <span className="text-ink font-medium">Core</span> strips non-recurring items (758 other operating income, 781 provision reversals) and is the basis used for valuation.
-          </p>
+      <header className="mb-4">
+        <div className="text-[10.5px] uppercase tracking-[0.14em] text-ink-mute font-semibold inline-flex items-center gap-1.5">
+          <Info size={11} strokeWidth={2} className="text-brand-d" />
+          {t("statements.ebitdaRecon.eyebrow")}
         </div>
+        <h3 className="mt-1.5 text-[16px] font-semibold text-ink leading-tight">
+          {t("statements.ebitdaRecon.title")}
+        </h3>
+        <p className="mt-1 text-[12.5px] text-ink-soft leading-relaxed max-w-[680px]">
+          {t("statements.ebitdaRecon.lead")}
+        </p>
       </header>
 
-      <ol className="space-y-2 text-[13px]" data-testid="ebitda-reconciliation-rows">
-        {/* Reported (anchor) */}
-        <li className="grid grid-cols-[100px_1fr_180px] gap-3 items-baseline py-1.5">
-          <span className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-semibold">Anchor</span>
-          <span className="text-ink font-medium">Reported EBITDA</span>
-          <span className="text-right tabular-nums font-semibold text-ink">
-            {currency} {formatCanonicalFull(ebitda.reported)}
-          </span>
-        </li>
+      {!recon ? (
+        <p className="text-[12.5px] text-ink-soft" data-testid="ebitda-recon-not-served">
+          {t("statements.ebitdaRecon.notServed")}
+        </p>
+      ) : (
+        <>
+          {/* 1. THE CHAIN, as served. */}
+          <ol className="space-y-0.5 text-[13px]" data-testid="ebitda-reconciliation-rows">
+            {recon.lines.map((l) => (
+              <ReconRow key={l.key} line={l} lang={lang} money={money} reason={reason} />
+            ))}
+          </ol>
 
-        {/* Itemized adjustments — only render the rule's account and
-         *  its actual computed amount. When the engine emits zero for
-         *  that account, the row is omitted (per `extractAdjustments`
-         *  semantics). NEVER a placeholder. */}
-        {hasAdjustments ? (
-          ebitda.adjustments.map((a) => (
-            <li
-              key={a.account}
-              className="grid grid-cols-[100px_1fr_180px] gap-3 items-baseline py-1.5 border-t border-rule/60"
-            >
-              <span className="font-mono text-[11px] text-ink-mute">{a.account}</span>
-              <span className="text-ink-soft">
-                <span className="text-ink-mute mr-1">−</span>
-                {a.label}
-              </span>
-              <span className="text-right tabular-nums text-ink-soft">
-                <span className="text-ink-mute mr-0.5">−</span>
-                {currency} {formatCanonicalFull(Math.abs(a.amount))}
-              </span>
-            </li>
-          ))
-        ) : (
-          <li className="grid grid-cols-[100px_1fr_180px] gap-3 items-baseline py-1.5 border-t border-rule/60">
-            <span className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-semibold">Note</span>
-            <span className="text-ink-soft">No 758 or 781 movements on file — Reported = Core for this period.</span>
-            <span className="text-right tabular-nums text-ink-soft">{currency} 0</span>
-          </li>
-        )}
+          {/* 2. THE ONE-LINE BRIDGE, as served. */}
+          {recon.bridge.parts.length > 0 && (
+            <div className="mt-4 rounded-md bg-bg-2 px-3 py-2 text-[12.5px] text-ink-soft" data-testid="ebitda-recon-bridge">
+              {recon.bridge.parts.map((p, i) => {
+                const signed = p.key === "inventory_variation" || p.key === "capitalized_own_work";
+                return (
+                  <span key={p.key} data-bridge-part={p.key}>
+                    {i > 0 && <span className="text-ink-mute">{p.key === "ebitda" ? " = " : " · "}</span>}
+                    {pickLang(p.label, lang)}{" "}
+                    <span className="tabular-nums text-ink">{money(p.value, signed)}</span>
+                  </span>
+                );
+              })}
+              {recon.bridge.refusal && (
+                <div className="mt-1 text-alert" data-testid="ebitda-recon-bridge-refused">
+                  {reason(recon.bridge.refusal)}
+                </div>
+              )}
+            </div>
+          )}
+          {recon.identityNote && (
+            <p className="mt-2 text-[11.5px] text-ink-mute" data-testid="ebitda-recon-identity-note">
+              {pickLang(recon.identityNote, lang)}
+            </p>
+          )}
+          {recon.splitAssumption && (
+            <p className="mt-1 text-[11.5px] text-ink-mute" data-testid="ebitda-recon-split-assumption">
+              {pickLang(recon.splitAssumption, lang)}
+            </p>
+          )}
 
-        {/* Core (basis for valuation) */}
-        <li className="grid grid-cols-[100px_1fr_180px] gap-3 items-baseline py-2.5 border-t-2 border-ink/80 mt-1">
-          <span className="text-[10.5px] uppercase tracking-[0.1em] text-brand-d font-semibold">= Core</span>
-          <span className="text-ink font-semibold">
-            Core EBITDA
-            <span className="ml-2 text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium">basis for valuation</span>
-          </span>
-          <span className="text-right tabular-nums font-semibold text-ink text-[14px]">
-            {currency} {formatCanonicalFull(ebitda.core)}
-          </span>
-        </li>
-      </ol>
+          {/* 3. EBITDA → CORE EBITDA (valuation basis), on the one EBITDA. */}
+          {served && (served.coreEbitda !== null || served.ebitda === null) && (
+            <div className="mt-5 pt-3 border-t border-rule/60" data-testid="ebitda-recon-core">
+              <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-semibold mb-1.5">
+                {t("statements.ebitdaRecon.coreHeading")}
+              </div>
+              <ol className="space-y-0.5 text-[13px]">
+                <CoreRow label={t("statements.pl.ebitda")} value={money(served.ebitda)} strong />
+                {served.otherIncome758 !== null && Math.abs(served.otherIncome758) >= 0.005 && (
+                  <CoreRow label={t("statements.ebitdaRecon.less758")} account="758" value={money(-served.otherIncome758, true)} />
+                )}
+                {served.reversals781 !== null && Math.abs(served.reversals781) >= 0.005 && (
+                  <CoreRow label={t("statements.ebitdaRecon.less781")} account="781" value={money(-served.reversals781, true)} />
+                )}
+                <CoreRow
+                  label={t("statements.ebitdaRecon.coreTotal")}
+                  value={money(served.coreEbitda)}
+                  strong
+                  testid="ebitda-recon-core-total"
+                />
+              </ol>
+              {served.ebitda === null && served.refusal && (
+                <p className="mt-1 text-[11.5px] text-alert" data-testid="ebitda-recon-core-refused">
+                  {reason(served.refusal)}
+                </p>
+              )}
+            </div>
+          )}
+        </>
+      )}
 
       <footer className="mt-4 pt-3 border-t border-rule/60 flex items-center justify-between gap-3 flex-wrap text-[11.5px] text-ink-mute">
-        {marginRefusal ? (
+        {marginRefusal && (
           <span data-testid="ebitda-recon-margin-refused" className="text-ink-soft">
-            {pickMargin(marginRefusal, i18n.language)}
-          </span>
-        ) : (
-          <span>
-            Reported margin{" "}
-            <span className="text-ink-soft tabular-nums">{formatCanonicalPct(ebitda.reported_margin_pct)}</span>
-            <span className="mx-1.5">·</span>
-            Core margin{" "}
-            <span className="text-ink-soft tabular-nums">{formatCanonicalPct(ebitda.core_margin_pct)}</span>
+            {pickMargin(marginRefusal, lang)}
           </span>
         )}
-        <span className="text-ink-mute">
-          Bridge math: every figure traces to {metrics.provenance.source ?? "the trial balance"} — no engine recompute.
-        </span>
+        <span className="text-ink-mute">{t("statements.ebitdaRecon.footer")}</span>
       </footer>
     </section>
+  );
+}
+
+function ReconRow({
+  line,
+  lang,
+  money,
+  reason,
+}: {
+  line: ServedReconLine;
+  lang: string | undefined;
+  money: (v: number | null, signed?: boolean) => string;
+  reason: (r: ServedRefusal | null | undefined) => string | null;
+}) {
+  const { t } = useTranslation();
+  const component = line.key === "inventory_variation" || line.key === "capitalized_own_work";
+  const notAnchored = line.key === "account_121" && line.status === "not_anchored";
+  const refusal = line.value === null ? reason(line.refusal) : null;
+  return (
+    <li
+      data-recon-line={line.key}
+      data-recon-value={line.value === null ? "none" : String(line.value)}
+      className={`grid grid-cols-[1fr_auto] gap-3 items-baseline py-1 ${
+        line.subtotal || line.key === "account_121" ? "border-t border-rule/60 font-semibold text-ink" : "text-ink-soft"
+      } ${line.key === "inventory_variation" ? "pl-4" : ""}`}
+    >
+      <span>
+        <NameWithGloss label={line.label} lang={lang} />
+        {line.accounts && (
+          <span className="ml-1.5 font-mono text-[10px] text-ink-mute">{line.accounts}</span>
+        )}
+        {component && line.provenanceLabel && (
+          <span className="block text-[11.5px] font-normal text-ink-mute" data-testid="ebitda-recon-provenance">
+            {pickLang(line.provenanceLabel, lang)}
+          </span>
+        )}
+        {refusal && (
+          <span className="block text-[11.5px] font-normal text-alert" data-testid="ebitda-recon-refused">
+            {refusal}
+          </span>
+        )}
+        {notAnchored && (
+          <span className="block text-[11.5px] font-normal text-ink-mute">
+            {t("statements.ebitdaRecon.notAnchored")}
+          </span>
+        )}
+      </span>
+      <span className="text-right tabular-nums">
+        {notAnchored ? "—" : money(line.value, component)}
+      </span>
+    </li>
+  );
+}
+
+function CoreRow({
+  label,
+  value,
+  account,
+  strong = false,
+  testid,
+}: {
+  label: string;
+  value: string;
+  account?: string;
+  strong?: boolean;
+  testid?: string;
+}) {
+  return (
+    <li
+      className={`grid grid-cols-[1fr_auto] gap-3 items-baseline py-1 ${strong ? "font-semibold text-ink" : "text-ink-soft"}`}
+      data-testid={testid}
+    >
+      <span>
+        {label}
+        {account && <span className="ml-1.5 font-mono text-[10px] text-ink-mute">{account}</span>}
+      </span>
+      <span className="text-right tabular-nums">{value}</span>
+    </li>
   );
 }

@@ -26,9 +26,36 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
       en: "Profit before financing & depreciation (EBITDA)",
       ro: "Profit înainte de finanțare și amortizare (EBITDA)",
     },
+    // THE ONE EBITDA (owner ruling 2026-09-26): the stock variation (711)
+    // and own work capitalised (72x) are INSIDE it, so it names both — two
+    // lines that move no cash — instead of calling itself a cash proxy.
     plain: {
-      en: "What the business earns from its day-to-day work, before loan costs, taxes and the accounting wear-and-tear on equipment. A rough proxy for the cash the operations generate.",
-      ro: "Ce câștigă afacerea din activitatea de zi cu zi, înainte de costul creditelor, impozite și uzura contabilă a echipamentelor. O aproximare a numerarului generat de operațiuni.",
+      en: "What the business earns from its day-to-day work, before loan costs, taxes and the accounting wear-and-tear on equipment. It includes two lines that move no cash — the change in stocks of products the company made (711) and work capitalised into its own assets (72x) — so it is not the cash the operations generated.",
+      ro: "Ce câștigă afacerea din activitatea de zi cu zi, înainte de costul creditelor, impozite și uzura contabilă a echipamentelor. Include două linii care nu mișcă numerar — variația stocurilor de produse (711) și producția imobilizată (72x) — deci nu este numerarul generat de operațiuni.",
+    },
+  },
+  stock_variation: {
+    // The owner's name for the line, verbatim, in both languages: the
+    // English UI keeps the Romanian account name and explains it.
+    term: { en: "Variația stocurilor de produse (711)", ro: "Variația stocurilor de produse (711)" },
+    simple: {
+      en: "Change in stocks of products you made (Variația stocurilor de produse)",
+      ro: "Cât s-au schimbat stocurile de produse proprii (variația stocurilor de produse)",
+    },
+    plain: {
+      en: "The change in finished goods and work in progress the company made itself, valued at production cost. An increase means part of this period's costs went into stock and is added back; a decrease brings in costs from earlier periods.",
+      ro: "Schimbarea stocurilor de produse finite și producție în curs făcute de firmă, la costul de producție. O creștere înseamnă că o parte din costurile perioadei au intrat în stoc și se adaugă înapoi; o scădere aduce costuri din perioadele anterioare.",
+    },
+  },
+  own_work_capitalised: {
+    term: { en: "Producția imobilizată (72x)", ro: "Producția imobilizată (72x)" },
+    simple: {
+      en: "Work done on your own assets (Producția imobilizată)",
+      ro: "Lucrări făcute pentru propriile active (producția imobilizată)",
+    },
+    plain: {
+      en: "Costs the company spent building or improving its own assets, moved out of the period's expenses and into the balance sheet. It counts inside EBITDA but not in net turnover, because nothing was sold.",
+      ro: "Costurile cu care firma și-a construit sau îmbunătățit propriile active, mutate din cheltuielile perioadei în bilanț. Intră în EBITDA, dar nu în cifra de afaceri netă, pentru că nu s-a vândut nimic.",
     },
   },
   net_debt: {
@@ -208,11 +235,11 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     },
   },
   revenue: {
-    term: { en: "Revenue", ro: "Cifră de afaceri" },
-    simple: { en: "Total sales (revenue)", ro: "Vânzări totale (cifră de afaceri)" },
+    term: { en: "Net turnover", ro: "Cifra de afaceri netă" },
+    simple: { en: "Total sales (net turnover)", ro: "Vânzări totale (cifra de afaceri netă)" },
     plain: {
-      en: "Everything you invoiced in the period, before any costs. The top line.",
-      ro: "Tot ce ai facturat în perioadă, înainte de orice costuri. Linia de sus.",
+      en: "What you invoiced for goods and services in the period, net of discounts given (accounts 701–708 less 709). Every margin is measured against it.",
+      ro: "Ce ai facturat pentru bunuri și servicii în perioadă, după reducerile acordate (conturile 701–708 minus 709). Fiecare marjă se raportează la ea.",
     },
   },
   net_profit: {
