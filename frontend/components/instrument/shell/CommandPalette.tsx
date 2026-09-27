@@ -177,7 +177,9 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
   );
 
   const [query, setQuery] = useState("");
-  const [activeIdx, setActiveIdx] = useState(-1);
+  // The keyboard's selection, held WITH the query it was made on — the
+  // row the reader sees selected is derived from it below the rows.
+  const [selection, setSelection] = useState<{ key: string; idx: number }>({ key: "rest:", idx: -1 });
   // Recent picks are one company's: held WITH the company they were read
   // for, and shown only under that company's header (a switch while the bar
   // is open must not leave the company left behind's picks — their links
@@ -404,27 +406,30 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     if (open) setRecentsOf({ orgId: scope.orgId, list: readRecents(scope.orgId) });
   }, [open, scope.orgId]);
 
-  // Typing selects the answer (the first row); rest selects nothing — in
-  // the SAME render that shows the new query (state derived during render),
-  // never in an effect after it: the first frame of "stoc", typed after ↓
-  // had walked "profit" to its end, was committed with the previous walk's
-  // index, past the new list — no row selected until the effect ran (live
-  // G8 caught that frame once in the stage CB-J run).
+  // THE SELECTION, DERIVED IN RENDER. Typing selects the answer (the first
+  // row), rest selects nothing, and a selection made on another query is not
+  // this one's: the row shown selected is computed from the query on screen
+  // in the SAME render, never reset by an effect after it. With the reset in
+  // an effect, the first frame of "stoc", typed after ↓ had walked "profit"
+  // to its end, was committed with the previous walk's index past the new
+  // list — no row selected (live G8, stage CB-J); a reset made in render with
+  // setState met a stuck "Întreabă CFO AI" in 5 of 16 live runs. Nothing is
+  // reset here — there is nothing to race. A list that shrank under the
+  // selection clamps it the same way (the old clamp effect, gone).
   const selectionKey = `${typing ? "typing" : "rest"}:${query}`;
-  const [selectionFor, setSelectionFor] = useState(selectionKey);
-  if (selectionFor !== selectionKey) {
-    setSelectionFor(selectionKey);
-    setActiveIdx(typing ? 0 : -1);
-  }
-
-  // Clamp a selection the list has shrunk under. A FUNCTIONAL update: this
-  // effect runs in the same commit as the one above, and a clamp computed
-  // from this render's (stale) activeIdx would overwrite the fresh 0 — a
-  // new, shorter query then landed on "Întreabă CFO AI" instead of its
-  // answer (commandBar.test.tsx, cmdbar-keyboard).
-  useEffect(() => {
-    setActiveIdx((i) => (i >= rows.length ? rows.length - 1 : i));
-  }, [rows.length, activeIdx]);
+  const restIdx = typing ? 0 : -1;
+  const activeIdx = Math.min(selection.key === selectionKey ? selection.idx : restIdx, rows.length - 1);
+  // What the setters read: this render's key, selection and last row — the
+  // handlers that call them are bound to this render.
+  const current = useRef({ key: selectionKey, idx: activeIdx, rest: restIdx, last: rows.length - 1 });
+  current.current = { key: selectionKey, idx: activeIdx, rest: restIdx, last: rows.length - 1 };
+  const setActiveIdx = useCallback((next: number | ((i: number) => number)) => {
+    setSelection((held) => {
+      const c = current.current;
+      const from = held.key === c.key ? Math.min(held.idx, c.last) : c.rest;
+      return { key: c.key, idx: typeof next === "function" ? next(from) : next };
+    });
+  }, []);
 
   useEffect(() => {
     if (activeIdx < 0) return;
