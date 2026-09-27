@@ -4,7 +4,9 @@
 // a prefix only — an account code one digit off is another account.
 //
 // WHAT IT REDS ON, AFTER THE REPAIR (TC-11): a fuzzy match on a digit token
-// ("4112" reaching 4111xx); a typo tolerance loosened past one edit or down
+// ("4112" reaching 4111xx); a word that mixes letters and digits no longer
+// finding the account name that carries it, or a code word ("84") meeting a
+// name word ("84I"); a typo tolerance loosened past one edit or down
 // to four-letter words; a synonym table that stops joining a RO word to its
 // figure; a non-deterministic order. WHAT IT CANNOT SEE: the rendered rows
 // (commandBar.test.tsx).
@@ -17,6 +19,7 @@ import {
   codeKey,
   editDistance,
   hasDigit,
+  isCodeWord,
   phraseScore,
   tokenMatch,
   tokensOf,
@@ -244,6 +247,81 @@ describe("THE WHOLE-CODE RULE — a typed code meets the START of a whole code, 
       if (++probed >= 25) break;
     }
     expect(probed, "VACUITY: name numbers probed").toBeGreaterThanOrEqual(20);
+  });
+});
+
+describe("THE CODE WORD — only digits (with their dots) are a code; a mixed word is a name word", () => {
+  // Review of stage CB-H: "any word with a digit is treated as a code
+  // prefix", so a word that mixes letters and digits — the plate on a
+  // vehicle account ("UW997149", Agras 2111.02), a till's name ("Telkwv0",
+  // 5311.02) — could no longer find the account whose NAME carries it: the
+  // query read it as a code, and the name index dropped it as a number.
+  const leaves = (body: { line_items: { ro_account_code: string; ro_account_name?: string; statement: string }[] }) =>
+    body.line_items.filter((li) => typeof li.ro_account_code === "string" && li.statement !== "IGNORED");
+  const mixedWords = (body: typeof AGRAS) => {
+    const out: { word: string; code: string }[] = [];
+    for (const li of leaves(body)) {
+      for (const t of tokensOf(li.ro_account_name ?? "")) {
+        if (/\d/.test(t) && /\p{L}/u.test(t)) out.push({ word: t, code: li.ro_account_code });
+      }
+    }
+    return out;
+  };
+  const accountHits = (idx: ReturnType<typeof buildCmdbarIndex>, q: string) => {
+    const g = searchCmdbar(idx, q).groups.find((x) => x.group === "account");
+    return [...(g?.hits ?? []), ...(g?.rest ?? [])].map((h) => (h.entry.ref.kind === "account" ? h.entry.ref.item.ro_account_code : ""));
+  };
+
+  it("a code word is digits, optionally with separators, and no letter", () => {
+    for (const w of ["4111", "167.401", "167.", "5121", "2420.42"]) expect(isCodeWord(w), w).toBe(true);
+    for (const w of ["uw997149", "84i", "telkwv0", "tva19", "clienti", ""]) expect(isCodeWord(w), w).toBe(false);
+  });
+
+  it("agras: every word of an account NAME that mixes letters and digits finds that account — as typed, and by its prefix", () => {
+    const idx = buildCmdbarIndex({ body: AGRAS, pages: [], actions: [] });
+    const words = mixedWords(AGRAS);
+    const missed: string[] = [];
+    for (const { word, code } of words) {
+      const original = (leaves(AGRAS).find((li) => li.ro_account_code === code)?.ro_account_name ?? "")
+        .split(/[^\p{L}\p{N}]+/u).find((w) => w.toLowerCase() === word) ?? word;
+      // The prefix still being typed is a mixed word too ("566c" of "566ce");
+      // its digits alone ("566") are a code word — the law below.
+      const prefix = word.slice(0, -1);
+      const probes = /\p{L}/u.test(prefix) && /\d/.test(prefix) ? [original, prefix] : [original];
+      for (const q of probes) {
+        if (!accountHits(idx, q).includes(code)) missed.push(`"${q}" → ${code}`);
+      }
+    }
+    expect(missed, "mixed name words that no longer find their account").toEqual([]);
+    expect(words.length, "VACUITY: mixed name words probed").toBeGreaterThanOrEqual(20);
+    console.log(`GATE-WORK cmdbar-code-word agras mixed_name_words=${words.length}`);
+  });
+
+  it("agras: a mixed word one character off finds nothing through that name — no edit distance on a digit token", () => {
+    const idx = buildCmdbarIndex({ body: AGRAS, pages: [], actions: [] });
+    let probed = 0;
+    for (const { word, code } of mixedWords(AGRAS)) {
+      if (word.length < 5) continue;
+      const last = word.slice(-1);
+      const off = word.slice(0, -1) + (/\d/.test(last) ? String((Number(last) + 1) % 10) : last === "z" ? "a" : String.fromCharCode(last.charCodeAt(0) + 1));
+      if (mixedWords(AGRAS).some((m) => m.word.startsWith(off))) continue;
+      expect(accountHits(idx, off), `"${off}" (one off "${word}" of ${code})`).not.toContain(code);
+      probed++;
+    }
+    expect(probed, "VACUITY: one-off mixed words probed").toBeGreaterThanOrEqual(15);
+  });
+
+  it("agras: a code word never meets a NAME word that starts with its digits ('84' ≠ '84I', '566' ≠ '566ce')", () => {
+    const idx = buildCmdbarIndex({ body: AGRAS, pages: [], actions: [] });
+    let probed = 0;
+    for (const { word, code } of mixedWords(AGRAS)) {
+      const digits = /^\d+/.exec(word)?.[0];
+      if (!digits) continue;
+      const wrong = accountHits(idx, digits).filter((c) => !codeKey(c).startsWith(digits));
+      expect(wrong, `"${digits}" (the digits "${word}" of ${code}'s name starts with)`).toEqual([]);
+      probed++;
+    }
+    expect(probed, "VACUITY: name words that start with digits").toBeGreaterThanOrEqual(3);
   });
 });
 

@@ -12,13 +12,18 @@
 //   · a token that holds a DIGIT matches exactly or as a prefix, never
 //     fuzzily: "4112" must never silently open 4111. An account code one
 //     digit off is a different account;
-//   · an ACCOUNT CODE is matched as a whole, from its start: a typed word
-//     that holds a digit is compared with the code with its separators
-//     removed (`codeKey`) — "401" finds 401.003 and 401.01, never 167.401
-//     (a loan account whose SECOND segment happens to read 401), and the
-//     digits inside an account's NAME ("… 457.364") are not code tokens.
-//     `accountQueryTokens` / `accountNameTokens` are the only way an
-//     account entry is tokenised (cmdbarIndex.ts).
+//   · an ACCOUNT CODE is matched as a whole, from its start: a typed CODE
+//     WORD — digits, optionally with dots or other separators, and no letter
+//     ("4111", "167.401", "167.") — is compared with the code with its
+//     separators removed (`codeKey`), and with nothing else: "401" finds
+//     401.003 and 401.01, never 167.401 (a loan account whose SECOND segment
+//     happens to read 401), and never a number inside an account's NAME
+//     ("… 457.364", "84I"). A word that mixes letters and digits is a NAME
+//     word ("UW997149", a plate on a vehicle account; "Telkwv0") and finds
+//     the name that carries it — exactly or as a prefix, never by edit
+//     distance (the digit rule above). `accountQueryTokens` /
+//     `accountNameTokens` / `accountCodeToken` are the only way an account
+//     entry is tokenised (cmdbarIndex.ts).
 //
 // A query matches a phrase when EVERY query token matches some token of the
 // phrase. The score rewards exact over prefix over fuzzy and a phrase the
@@ -43,22 +48,43 @@ export function hasDigit(token: string): boolean {
   return /\d/.test(token);
 }
 
+/** A CODE word: it starts with a digit and holds no letter — "4111",
+ *  "167.401", "167." while the reader is still typing. A word that mixes
+ *  letters and digits ("uw997149", "84i") is not a code: it is a NAME word. */
+export function isCodeWord(word: string): boolean {
+  return /^\d[^\p{L}]*$/u.test(word);
+}
+
+/** Marks a code token: no word of a name ever starts with it (tokensOf
+ *  keeps letters and digits only), so a typed code can meet an account's
+ *  CODE and never a name word that happens to start with the same digits
+ *  ("84" never finds a name word "84i"). */
+const CODE_MARK = "#";
+
 /** An account code's matching form: folded, every separator removed —
  *  "167.401" → "167401", "4111" → "4111". The code is ONE token. */
 export function codeKey(text: string): string {
   return foldQuery(text).replace(/[^\p{L}\p{N}]+/gu, "");
 }
 
-/** The query as an ACCOUNT entry reads it: a word that holds a digit is a
- *  code (or the start of one) and stays ONE token, separators removed —
- *  "167.401" → ["167401"], "401" → ["401"]; every other word is tokenised
- *  as usual. So a digit word can only meet the START of a whole code. */
+/** An account CODE as the index holds it: ONE marked token, separators
+ *  removed — "167.401" → "#167401". Empty for an empty code. */
+export function accountCodeToken(code: string): string {
+  const k = codeKey(code);
+  return k ? CODE_MARK + k : "";
+}
+
+/** The query as an ACCOUNT entry reads it: a CODE word (isCodeWord) is a
+ *  code, or the start of one, and stays ONE marked token, separators
+ *  removed — "167.401" → ["#167401"], "401" → ["#401"]; every other word —
+ *  a mixed one ("UW997149") included — is tokenised as a name word. So a
+ *  code word can only meet the START of a whole code. */
 export function accountQueryTokens(query: string): string[] {
   const out: string[] = [];
   for (const word of foldQuery(query).split(" ")) {
     if (!word) continue;
-    if (hasDigit(word)) {
-      const k = codeKey(word);
+    if (isCodeWord(word)) {
+      const k = accountCodeToken(word);
       if (k) out.push(k);
     } else {
       out.push(...tokensOf(word));
@@ -67,10 +93,12 @@ export function accountQueryTokens(query: string): string[] {
   return out;
 }
 
-/** An account NAME's words, without the ones that hold a digit: a number
- *  inside a name is not the account's code and must not answer a code. */
+/** An account NAME's words, without the bare numbers: a number inside a
+ *  name ("… 2420.42") is not the account's code and answers no query. A
+ *  word that mixes letters and digits ("UW997149", "Telkwv0") stays — it
+ *  is how the reader names that account. */
 export function accountNameTokens(name: string): string[] {
-  return tokensOf(name).filter((t) => !hasDigit(t));
+  return tokensOf(name).filter((t) => !isCodeWord(t));
 }
 
 /** Optimal-string-alignment distance (Damerau-Levenshtein with adjacent

@@ -18,7 +18,7 @@
 // is the per-keystroke function and touches no I/O.
 
 import terms from "./cmdbarTerms.json";
-import { accountNameTokens, accountQueryTokens, bestScore, codeKey, termPhrases, tokensOf } from "./cmdbarSearch";
+import { accountCodeToken, accountNameTokens, accountQueryTokens, bestScore, termPhrases, tokensOf } from "./cmdbarSearch";
 import { ratioLabelForKey, type RatioTableRow } from "@/lib/ratioTable";
 import type { PeriodLineItem } from "@/lib/activePeriod";
 import { ratioTableRows } from "./cmdbarSources";
@@ -140,11 +140,12 @@ export function buildCmdbarIndex(input: CmdbarIndexInput): CmdbarIndex {
       .filter((li) => li && typeof li.ro_account_code === "string" && li.statement !== "IGNORED")
       .sort((a, b) => a.ro_account_code.localeCompare(b.ro_account_code));
     for (const item of sorted) {
-      // The code is ONE token (separators removed) and the name's words
-      // carry no digit token: a typed code meets only the START of a whole
-      // code (cmdbarSearch accountQueryTokens), never an inner segment
-      // ("401" ≠ 167.401) nor a number inside the name.
-      const phrases = [[codeKey(item.ro_account_code)], accountNameTokens(item.ro_account_name ?? "")]
+      // The code is ONE marked token (separators removed) and the name's
+      // words carry no bare number: a typed code meets only the START of a
+      // whole code (cmdbarSearch accountQueryTokens), never an inner segment
+      // ("401" ≠ 167.401) nor a number inside the name; a mixed word
+      // ("UW997149") finds the name that carries it.
+      const phrases = [[accountCodeToken(item.ro_account_code)], accountNameTokens(item.ro_account_name ?? "")]
         .filter((p) => p.length > 0 && p[0] !== "");
       entries.push({ id: `account:${item.ro_account_code}:${item.bucket}`, group: "account", phrases,
                      order: order++, ref: { kind: "account", item } });
@@ -197,8 +198,9 @@ function servedMagnitude(entry: CmdbarEntry): number {
 export function searchCmdbar(index: CmdbarIndex, query: string): CmdbarResults {
   const q = query.trim();
   const toks = tokensOf(q);
-  // Accounts read the query their own way: a word with a digit is a whole
-  // code prefix, never split on its dots (cmdbarSearch accountQueryTokens).
+  // Accounts read the query their own way: a code word (digits, no letter)
+  // is a whole-code prefix, never split on its dots; a mixed word is a name
+  // word (cmdbarSearch accountQueryTokens).
   const accountToks = accountQueryTokens(q);
   const groups: CmdbarResults["groups"] = [];
   if (toks.length === 0) return { query: q, groups, ask: null };
