@@ -164,6 +164,23 @@ def test_a_user_override_stands_over_a_refused_ebitda(monkeypatch):
     assert out["user_override_definition"]["saved_under_previous_definition"] is False
 
 
+def test_an_override_of_debt_or_the_multiple_alone_keeps_the_ebitda_refused(monkeypatch):
+    """The Valuation tab saves the fields the user moved; on a refused
+    period the EBITDA is sent as null (frontend/components/cfo/__tests__/
+    valuationRefusedOverride.test.tsx). A null EBITDA in the saved row is
+    NOT an override: the refusal stands, routed and worded as refused —
+    never a 0.00 that routes on `ebitda_not_positive`."""
+    out = _value(_refused(_served_statements("agras", monkeypatch)),
+                 user_assumptions={"ebitda_used": None, "multiple_used": 9.0,
+                                   "debt_used": 5_000.0, "cash_used": None,
+                                   "ebitda_definition": EBITDA_DEFINITION_REVISION})
+    assert out["ebitda_used"] is None
+    assert out["routing"]["basis"] == "ebitda_refused"
+    assert out["ebitda_refusal"]["cause"] == "mixed_book_state"
+    assert out["equity_ebitda_p50"] is None
+    assert not any("EBITDA = 0" in w for w in out["method_warnings"])
+
+
 # ── The developer: routed by the company, its value unmoved ───────────────
 
 #: Primary value measured on the base commit 69fb9621 (EBITDA -29,038,838.12,

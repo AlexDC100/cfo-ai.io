@@ -114,15 +114,25 @@ export function ValuationSection({ valuation, periodId, currency }: Props) {
   // is NOT an editable 0: the multiple method refuses and the page says
   // why (valuation.ebitda_refusal), and the editor is not offered.
   const ebitdaRefusal = valuation.ebitda_refusal ?? null;
-  const ebitdaRefused = valuation.inputs.ebitda_used === null && ebitdaRefusal !== null;
-  const initialEbitda = valuation.inputs.ebitda_used ?? 0;
+  // No served EBITDA is never an editable 0 — refused (with its typed
+  // reason) or, on a legacy body, simply not served.
+  const ebitdaRefused = valuation.inputs.ebitda_used === null;
+  const initialEbitda: number | null = valuation.inputs.ebitda_used;
+  // The EBITDA the USER typed — this session, or saved earlier (the
+  // override the engine already applied). Only this is ever sent as
+  // `ebitda_used`: moving the multiple or editing debt / cash must not
+  // pin the served EBITDA as a user assumption, and above all must never
+  // save a refused EBITDA as a 0 override (the refusal would then vanish
+  // from the page behind an editable "EBITDA RON 0").
+  const savedEbitdaOverride = valuation.user_assumptions?.ebitda_used ?? null;
   const initialDebt = valuation.inputs.total_debt_used ?? 0;
   const initialCash = valuation.inputs.cash_used ?? 0;
   const initialMultiple = valuation.primary.multiple_p50 ?? 0;
   const minMultiple = valuation.primary.multiple_p25 ?? Math.max(initialMultiple - 5, 0);
   const maxMultiple = valuation.primary.multiple_p75 ?? initialMultiple + 5;
 
-  const [ebitda, setEbitda] = useState<number>(initialEbitda);
+  const [ebitda, setEbitda] = useState<number | null>(initialEbitda);
+  const [typedEbitda, setTypedEbitda] = useState<number | null>(savedEbitdaOverride);
   const [debt, setDebt] = useState<number>(initialDebt);
   const [cash, setCash] = useState<number>(initialCash);
   const [multiple, setMultiple] = useState<number>(initialMultiple);
@@ -130,12 +140,14 @@ export function ValuationSection({ valuation, periodId, currency }: Props) {
 
   // Re-sync if the period valuation reloads (e.g. after pipeline re-run or reset)
   useEffect(() => {
-    setEbitda(valuation.inputs.ebitda_used ?? 0);
+    setEbitda(valuation.inputs.ebitda_used);
+    setTypedEbitda(valuation.user_assumptions?.ebitda_used ?? null);
     setDebt(valuation.inputs.total_debt_used ?? 0);
     setCash(valuation.inputs.cash_used ?? 0);
     setMultiple(valuation.primary.multiple_p50 ?? 0);
   }, [
     valuation.inputs.ebitda_used,
+    valuation.user_assumptions?.ebitda_used,
     valuation.inputs.total_debt_used,
     valuation.inputs.cash_used,
     valuation.primary.multiple_p50,
@@ -145,7 +157,8 @@ export function ValuationSection({ valuation, periodId, currency }: Props) {
     async (overrides: Partial<{ ebitda: number; multiple: number; debt: number; cash: number }>) => {
       setSaving(true);
       const body = {
-        ebitda_used: overrides.ebitda ?? ebitda,
+        // Only a typed EBITDA — null leaves the engine's own (or its refusal).
+        ebitda_used: overrides.ebitda ?? typedEbitda,
         multiple_used: overrides.multiple ?? multiple,
         debt_used: overrides.debt ?? debt,
         cash_used: overrides.cash ?? cash,
@@ -156,7 +169,7 @@ export function ValuationSection({ valuation, periodId, currency }: Props) {
         qc.invalidateQueries({ queryKey: periodQueryKey(periodId) });
       }
     },
-    [ebitda, multiple, debt, cash, periodId, qc],
+    [typedEbitda, multiple, debt, cash, periodId, qc],
   );
 
   // Debounced slider commit
@@ -177,8 +190,9 @@ export function ValuationSection({ valuation, periodId, currency }: Props) {
 
   // Client-side recomputed primary equity preview while the user drags the slider
   // before the server round-trip completes. Same formula as the engine.
-  const livePreviewEquity = useMemo(() => {
-    return ebitda * multiple - debt + cash;
+  const livePreviewEquity = useMemo<number | null>(() => {
+    // No EBITDA, no product of it.
+    return ebitda === null ? null : ebitda * multiple - debt + cash;
   }, [ebitda, multiple, debt, cash]);
 
   // Football-field domain: span across every method's low / high
@@ -190,7 +204,7 @@ export function ValuationSection({ valuation, periodId, currency }: Props) {
       if (r.high !== null && r.high > hi) hi = r.high;
     }
     if (!isFinite(lo) || !isFinite(hi) || hi === lo) {
-      return { lo: 0, hi: Math.max(livePreviewEquity * 1.5, 1) };
+      return { lo: 0, hi: livePreviewEquity === null ? 1 : Math.max(livePreviewEquity * 1.5, 1) };
     }
     // Pad ends 5% so bars don't kiss the axis
     const pad = (hi - lo) * 0.05;
@@ -345,7 +359,7 @@ export function ValuationSection({ valuation, periodId, currency }: Props) {
 
         {/* Interactive inputs */}
         <div className="mt-5 grid grid-cols-1 md:grid-cols-4 gap-4">
-          {ebitdaRefused ? (
+          {ebitdaRefused || ebitda === null ? (
             <div data-testid="valuation-input-ebitda-refused" className="text-[12px] text-ink-soft">
               <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">EBITDA</div>
               refused — {ebitdaRefusal?.text_en ?? "not served"}
@@ -356,7 +370,7 @@ export function ValuationSection({ valuation, periodId, currency }: Props) {
               label="EBITDA"
               currency={currency}
               value={ebitda}
-              onCommit={(v) => { setEbitda(v); void persist({ ebitda: v }); }}
+              onCommit={(v) => { setEbitda(v); setTypedEbitda(v); void persist({ ebitda: v }); }}
             />
           )}
           <div className="md:col-span-2">

@@ -613,8 +613,9 @@ def _engine_gates() -> List[Gate]:
         # a refused EBITDA refuses EV/EBITDA with its cause; the developer is
         # routed by the ONE margin rule, not by its EBITDA sign, and its
         # value is pinned to the base-commit measurement; NOI proxy = EBITDA
-        # − net 711; saved overrides stamped with the definition. Measured
-        # 14 tests. Plant log: gates.md "valuation-one-ebitda".
+        # − net 711; saved overrides stamped with the definition; a saved row
+        # whose EBITDA is null keeps the refusal. Measured 15 tests.
+        # Plant log: gates.md "valuation-one-ebitda".
         Gate("valuation-one-ebitda",
              [PY, "-m", "pytest", "tests/engine/test_valuation_one_ebitda.py", "-q"],
              work_junit=True, floor=12, units="tests",
@@ -1067,6 +1068,22 @@ def _engine_gates() -> List[Gate]:
              canaries=("covers the two refused books, and on both the buckets would rebuild a number",
                        "unanchored: growth, the credit model, the DCF and the NAV cascade refuse with it",
                        "a payload the engine did not assemble, whose buckets show 711 activity, refuses the same way")),
+        # ── fixer round 1 (2026-09-27): valuation-refused-override ────────
+        # The Valuation tab seeded a refused EBITDA as 0 and sent it on EVERY
+        # save (debt, cash, the multiple slider): the engine applied the 0 as
+        # a user override, routed on `ebitda_not_positive` and the page showed
+        # an editable "EBITDA RON 0" instead of the refusal. A save now sends
+        # only an EBITDA the user typed. Engine half: valuation-one-ebitda's
+        # test_an_override_of_debt_or_the_multiple_alone_keeps_the_ebitda_refused.
+        # Measured 5 tests. Plant log: gates.md "valuation-refused-override".
+        Gate("valuation-refused-override",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/components/cfo/__tests__/valuationRefusedOverride.test.tsx", "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=5,
+             units="interaction tests (a valuation save sends only an EBITDA the user typed)",
+             canaries=("editing Total debt sends no EBITDA",
+                       "moving the multiple slider sends no EBITDA",
+                       "editing Cash does not pin the served EBITDA as a user assumption")),
         # RATIOS: the engine as the one authority for ratio values, bands,
         # deltas, band movements and credit composites (critic
         # authority_decision). Four gates, one per batch, named separately

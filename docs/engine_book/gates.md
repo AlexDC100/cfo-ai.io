@@ -10870,7 +10870,7 @@ re-captured — see BASELINE_HISTORY 2026-09-27).
 |---|---|
 | command | `python -m pytest tests/engine/test_valuation_one_ebitda.py -q` |
 | canary | `test_the_developer_is_valued_on_its_assets_by_the_margin_rule_not_by_its_ebitda_sign`, `test_a_refused_ebitda_refuses_every_ev_ebitda_figure_with_its_cause`, `test_saving_an_override_stamps_it_and_get_serves_it_current` |
-| work count | junit-xml tests, floor **12** (measured 14) |
+| work count | junit-xml tests, floor **12** (measured 15) |
 
 **SCOPE** — design A6 "Valuation" (owner ruling 2026-09-26: net 711
 "Variația stocurilor de produse" and net 72x inside EBITDA; 767 financial).
@@ -10945,6 +10945,73 @@ reads `pl.ebitda_statutory` — it must read `valuation.noi_approximation`, FE
 stage A7); whether production's `valuations.ebitda_used` accepts NULL (a
 refused EBITDA persists None; no DDL for that table is in the repo — check
 before the deploy).
+
+### valuation-one-ebitda — a saved row whose EBITDA is null keeps the refusal (fixer round 1, 2026-09-27)
+
+The Valuation tab sent `ebitda_used: 0` on every save of a refused period
+(see `valuation-refused-override` for the browser half). The engine half:
+`test_an_override_of_debt_or_the_multiple_alone_keeps_the_ebitda_refused` —
+a saved row `{ebitda_used: null, multiple_used: 9, debt_used: 5000}` over a
+refused agras EBITDA keeps `ebitda_used = None`, `routing.basis =
+ebitda_refused`, the stock-variation cause, no EV/EBITDA equity and no
+"EBITDA = 0" warning. Measured 15 tests (floor 12 unchanged).
+
+**PLANT null-override-read-as-zero** — `src/engine/api/_valuation.py`:
+`_first(ua.get("ebitda_used"), ebitda_computed)` →
+`_first(ua.get("ebitda_used") or 0.0, ebitda_computed)` when a row exists.
+```
+RED (plant) — 1 failed, 14 passed
+FAILED tests/engine/test_valuation_one_ebitda.py::test_an_override_of_debt_or_the_multiple_alone_keeps_the_ebitda_refused
+```
+**REVERT** — the file restored byte-for-byte: `15 passed`.
+
+## valuation-refused-override
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/components/cfo/__tests__/valuationRefusedOverride.test.tsx --reporter=verbose` |
+| canary | `editing Total debt sends no EBITDA`, `moving the multiple slider sends no EBITDA`, `editing Cash does not pin the served EBITDA as a user assumption` |
+| work count | `Tests N passed`, floor **5** (measured 5) |
+
+**INCIDENT** — critic finding (fixer round 1, 2026-09-27):
+`frontend/components/cfo/ValuationSection.tsx` seeded its EBITDA state with
+`valuation.inputs.ebitda_used ?? 0` and `persist()` always sent
+`ebitda_used: overrides.ebitda ?? ebitda`. On a refused period (EBITDA served
+as null with `ebitda_refusal`) only the EBITDA pill was hidden: editing Total
+debt PUT `{"ebitda_used":0,"multiple_used":8,"debt_used":5000,"cash_used":0}`
+and the multiple slider PUT `{"ebitda_used":0,"multiple_used":9,…}`. The
+route stores the body as sent, `compute_valuation` applies the override
+(`_first(0.0, None)` = 0.0), routes on `ebitda_not_positive` with the warning
+"EBITDA = 0 RON", and the page — no longer seeing a null EBITDA — showed an
+editable "EBITDA RON 0" and "Equity = EBITDA (RON 0) × Multiple" instead of
+the refusal. The saved row carries today's definition stamp, so no flag
+appeared either. The same save pinned a SERVED EBITDA as a user assumption
+whenever only debt, cash or the multiple moved.
+
+**SCOPE** — interaction tests on the rendered component with `fetch`
+stubbed: on a refused period, a debt edit and a slider move each PUT exactly
+once with `ebitda_used: null` and the refusal still on the page; on a served
+period, a cash edit sends `ebitda_used: null`, a typed EBITDA is sent and kept
+on the next save, and an override saved earlier is kept when only debt moves.
+
+**PLANT old-component** — `frontend/components/cfo/ValuationSection.tsx`
+restored to its HEAD (51d4bb64) content (the `?? 0` seed and the
+send-the-state save):
+```
+RED (plant) — Tests 3 failed | 2 passed (5)
+   × a refused EBITDA is never saved as a 0 override > editing Total debt sends no EBITDA
+     → expected +0 to be null
+   × a refused EBITDA is never saved as a 0 override > moving the multiple slider sends no EBITDA
+     → expected +0 to be null
+   × a served EBITDA is saved only when the user typed it > editing Cash does not pin the served EBITDA as a user assumption
+     → expected 11848065.27 to be null
+```
+**REVERT** — the fixed component restored: `Tests 5 passed (5)`.
+
+CANNOT SEE: the engine's handling of the saved row (`valuation-one-ebitda`
+holds it); a row ALREADY saved in production with `ebitda_used = 0` over a
+refused EBITDA (none can exist before this branch deploys: refused EBITDAs
+are served only from this branch); pixels.
 
 ## firm-covenant-one-ebitda
 
