@@ -10780,6 +10780,49 @@ fold every remainder; a refused 711 contributing its residual.
 CANNOT SEE: whether a legitimately closing check on a real book hides a
 misread equal to the stock variation (only the Ministry referee can).
 
+## f31-parity
+
+| | |
+|---|---|
+| command | `python scripts/check_assembled_parity.py` |
+| work count | lines `GREEN <fixture> byte-identical`, floor **2** (measured 2) |
+| canary | `GREEN  eei_dec_2025`, `GREEN  scandia_fy2025`, `Overall: GREEN — F3.1-PARITY gate passes` |
+
+**Why.** The F3.1-PARITY pair (`regression_baselines/eei_dec_2025.json`,
+`scandia_fy2025.json`) pins `assemble_statements` byte for byte. It was RED at
+the production base 69fb9621 (EEI 5 / Scandia 54 differing paths — the
+unconditional account-121 anchor, parser v6, `pack_provenance`) and ran in no
+battery. Re-captured under the owner's 711 ruling (design A8; BASELINE_HISTORY
+2026-09-27): the capture and the check now thread the stock-variation evidence
+the write seam measures off the same parsed rows (`evidence_for`), without which
+Scandia's 711 — and its EBITDA — refused. Scandia EBITDA 54,443,833.33 →
+54,963,222.44 (+ the bridged net 711 519,389.11), its false D6 gone; EEI EBITDA
+−36,676.13 → 2,127,403.70 (722 inside).
+
+**GREEN** — `GREEN eei_dec_2025 byte-identical (account_count=62)`, `GREEN
+scandia_fy2025 byte-identical (account_count=654)`, exit 0.
+
+**PLANT 722-outside-EBITDA** — `chart_of_accounts`: `ebitda =
+ebitda_before_stock_variation + net_711`.
+**RED** — exit 1:
+```
+  RED    eei_dec_2025          16 differing paths:
+  GREEN  scandia_fy2025        byte-identical (account_count=654)
+Overall: RED — F3.1-PARITY gate FAILS. Do not deploy.
+```
+**PLANT capture-without-evidence** — `check_assembled_parity.py` calls
+`_capture(name, accts, ro_coa)` (no evidence).
+**RED** — exit 1:
+```
+  GREEN  eei_dec_2025          byte-identical (account_count=62)
+  RED    scandia_fy2025        105 differing paths:
+Overall: RED — F3.1-PARITY gate FAILS. Do not deploy.
+```
+**REVERT** (both restored byte-exact from copies): GREEN on both, exit 0.
+
+CANNOT SEE: the six unasserted baselines (frozen findings inputs; not
+re-captured — see BASELINE_HISTORY 2026-09-27).
+
 ## valuation-one-ebitda
 
 | | |

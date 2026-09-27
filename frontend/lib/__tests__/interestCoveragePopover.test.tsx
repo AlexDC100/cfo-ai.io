@@ -98,6 +98,10 @@ const SCANDIA_BASELINE = resolve(
 // divides now carries the measured net 711 — agras 31.9962, realestate
 // 0.4221, retail 0.3249; before the ruling agras 28.14 and realestate
 // -25.13); carniprod has no interest and is refused (zero_denominator).
+// The Scandia regression baseline was re-captured under the ruling on
+// 2026-09-27 (BASELINE_HISTORY): its EBIT carries the bridged net 711
+// (41,313,577.93 ÷ interest 3,075,221.80) and the engine gate, served that
+// baseline through GET /api/period, printed 13.43 (13.27 before the ruling).
 // Literals, never recomputed here from the same statements the popover
 // reads.
 const SERVED_DIGITS: Record<string, string | null> = {
@@ -105,7 +109,7 @@ const SERVED_DIGITS: Record<string, string | null> = {
   carniprod: null,
   realestate: "0.42",
   retail: "0.32",
-  scandia_baseline: "13.27",
+  scandia_baseline: "13.43",
 };
 
 function cases(): Array<{ name: string; s: Served; metrics?: Record<string, number | null> }> {

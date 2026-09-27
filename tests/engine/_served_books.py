@@ -8,14 +8,20 @@ through the REAL router over that module's projection-faithful Supabase
 double (`_routed`). Imported, not copied: two gates that disagree about
 what "served" means would each be green over a different product.
 
-The Scandia baseline (`regression_baselines/scandia_fy2025.json`) is a
-committed CAPTURE, not a corpus workbook: it carries the persisted line
-items and the persisted `assembled_canonical_v1`, so it is seeded as the
-row pair `stage_persist` would have written (period row with that
-envelope, its line items) and read back through the same route. It
-predates `pack_provenance` and the account-121 anchor on its own
-envelope, which is exactly what a period persisted before those stamps
-looks like when it is served today.
+The Scandia baseline is a committed CAPTURE, not a corpus workbook: it
+carries the persisted line items and the persisted `assembled_canonical_v1`,
+so it is seeded as the row pair `stage_persist` would have written (period
+row with that envelope, its line items) and read back through the same
+route. It predates `pack_provenance`, the account-121 anchor and the
+stock-variation evidence on its own envelope, which is exactly what a period
+persisted before those stamps looks like when it is served today — a LEGACY
+witness (its one EBITDA refuses `period_predates_stock_variation_
+measurement`).
+
+It is read from `regression_baselines/archive/scandia_fy2025_pre_one_ebitda
+.json`: the parity pair itself was re-captured under the owner's 711 ruling
+on 2026-09-27 (BASELINE_HISTORY) and now carries the evidence, so it is no
+longer a legacy period. The archive is those same pre-ruling bytes.
 """
 from __future__ import annotations
 
@@ -31,7 +37,7 @@ import test_rebuild_net_income_anchor as ANCHOR
 
 REPO = Path(__file__).resolve().parents[2]
 SCANDIA_BASELINE = (REPO / "src" / "engine" / "country_packs" / "ro_romania" / "fixtures"
-                    / "regression_baselines" / "scandia_fy2025.json")
+                    / "regression_baselines" / "archive" / "scandia_fy2025_pre_one_ebitda.json")
 
 #: The four committed corpus books the ratio table is held to.
 CORPUS_BOOKS: Tuple[str, ...] = ("agras", "carniprod", "realestate", "retail")

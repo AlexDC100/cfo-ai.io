@@ -2,8 +2,8 @@
   "_meta": {
     "fixture": "scandia_fy2025",
     "company": "Scandia Food SRL",
-    "captured_from": "one-EBITDA ruling re-capture (2026-09-27) — stock-variation evidence threaded as the write seam does",
-    "engine_module": "/private/tmp/claude-501/-Users-alex-Desktop-folder-claude-Scandia-copy/3ffcb142-1cba-4f4d-a1ef-1e69d9ad3827/scratchpad/wt-711/src/engine/country_packs/ro_romania/chart_of_accounts.py",
+    "captured_from": "F3.1a — pre-refactor baseline",
+    "engine_module": "/Users/alex/Desktop/folder claude Scandia copy/src/engine/country_packs/ro_romania/chart_of_accounts.py",
     "account_count": 654
   },
   "assembled": {
@@ -26,7 +26,7 @@
         "longTermDebt": 39960308.72,
         "otherNonCurrentLiabilities": 5820378.22,
         "shareCapital": 20446900.0,
-        "retainedEarnings": 64716616.77,
+        "retainedEarnings": 64197227.66,
         "otherEquity": 64988033.99
       },
       "incomeStatement": {
@@ -43,23 +43,23 @@
         "inventoryVariationMemo": 630091698.19
       },
       "subAggregates": {
-        "ar_provisions": 0.0,
-        "ar_intercompany": 4262846.59,
-        "ar_doubtful": 133858.47,
         "fx_loss": 1579544.76,
-        "fx_gain": 558829.54,
-        "ppe_advances": 402873.09,
-        "ppe_under_construction": 6031376.49,
-        "interest_expense": 3075221.8,
+        "cash_fx": 15831.29,
         "financial_income": 7760979.0,
+        "fx_gain": 558829.54,
+        "ar_intercompany": 4262846.59,
+        "ppe_advances": 402873.09,
+        "interest_income": 1016436.75,
+        "equity_revaluation": 10507869.61,
+        "opex_third_party": 12426910.23,
+        "ar_provisions": 0.0,
+        "interest_expense": 3075221.8,
         "ap_dividends": 4678772.34,
+        "ppe_under_construction": 6031376.49,
+        "ar_doubtful": 133858.47,
         "ppe_investment": 0.0,
         "retained_earnings": 27929264.02,
-        "interest_income": 1016436.75,
-        "opex_third_party": 12426910.23,
-        "cash_fx": 15831.29,
-        "equity_revaluation": 10507869.61,
-        "current_year_pnl": 36787352.75
+        "current_year_pnl": 36267963.64
       },
       "assembled_bs": {
         "cash": 6104815.29,
@@ -85,11 +85,11 @@
         "revaluation_reserves": 10507869.61,
         "retained_earnings": 27929264.02,
         "other_equity_non_revaluation": 54480164.38,
-        "current_year_pnl": 36787352.75,
+        "current_year_pnl": 36267963.64,
         "total_assets": 292483659.99,
-        "total_equity": 150151550.76,
+        "total_equity": 149632161.65,
         "total_liabilities": 142754834.12,
-        "bs_balance_delta": -422724.89,
+        "bs_balance_delta": 96664.22,
         "accounts_receivable": 42578040.6,
         "inventory": 55341817.75,
         "other_current_assets": 8475424.54,
@@ -109,69 +109,25 @@
       },
       "assembled_pl": {
         "revenue": 413727560.16,
-        "turnover": 413727560.16,
         "cogs": 212035114.77,
-        "gross_profit": 202211834.5,
+        "gross_profit": 201692445.39,
         "opex_total": 158895220.38,
         "opex_third_party": 12426910.23,
         "depreciation": 13649644.51,
-        "ebitda": 54963222.44,
-        "ebit": 41313577.93,
-        "operating_result": 41313577.93,
-        "ebitda_before_stock_variation": 54443833.33,
-        "ebitda_operational": 54963222.44,
-        "ebitda_statutory": 54963222.44,
-        "ebitda_operating_view": 54963222.44,
-        "ebitda_cash": 54963222.44,
-        "operating_ebitda": 54963222.44,
-        "operating_ebit": 41313577.93,
-        "ebitda_refusal": null,
-        "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
-        "inventory_variation": {
-          "schema": "stock_variation/1",
-          "value": 519389.11,
-          "refusal": null,
-          "provenance": "account_121_bridge",
-          "line_name_ro": "Variația stocurilor de produse",
-          "gloss_en": "change in inventories of finished goods and work in progress",
-          "label_ro": "Variația stocurilor de produse — derivată: rezultatul din contul 121 minus celelalte linii ale contului de profit și pierdere (o balanță închisă nu păstrează soldul net al contului 711)",
-          "label_en": "Change in inventories of finished goods and WIP — derived: the result in account 121 less every other P&L line (a closed trial balance keeps no net balance on account 711)",
-          "accounts": "711",
-          "basis": "trial_balance",
-          "book_state": "closed",
-          "activity": 762030968.13,
-          "has_activity": true,
-          "guards": {
-            "G1_book_state": "closed",
-            "G2_anchored": true,
-            "G3_activity": 762030968.13,
-            "G4_unread_pl": 0,
-            "G4_double_read_pl": 0,
-            "G5_residual": 519389.11,
-            "G5_within_activity": true,
-            "G6_opening": 32108059.51,
-            "G6_cleared_by": "equal_movement",
-            "G7_parser_version": "tb_parser_v6",
-            "G7_running_parser_version": "tb_parser_v6",
-            "G7_current": true
-          },
-          "measured_without_121": false,
-          "identity_with_121": true,
-          "stock_production_credit_turnover": 630091698.19,
-          "identity_note_ro": "Pe o balanță închisă linia 711 este derivată din contul 121, deci reconcilierea se închide prin construcție.",
-          "identity_note_en": "On a closed trial balance the 711 line is derived from account 121, so the reconciliation closes by construction."
-        },
-        "capitalized_own_work": {
-          "value": 0.0,
-          "provenance": "no_72x_activity",
-          "line_name_ro": "Producția realizată pentru scopuri proprii și capitalizată",
-          "gloss_en": "own work capitalised",
-          "label_ro": "Producția realizată pentru scopuri proprii și capitalizată (72x) — fără înregistrări în perioadă",
-          "label_en": "Own work capitalised (72x) — no postings in the period",
-          "accounts": "72x"
-        },
+        "ebitda": 54443833.33,
+        "ebit": 40794188.82,
+        "ebitda_operational": 54443833.33,
+        "ebitda_statutory": 54443833.33,
+        "ebitda_operating_view": 54443833.33,
+        "ebitda_adjusted": 62204812.33,
         "discounts_received": 0.0,
-        "total_operating_revenue": 425374168.48,
+        "total_operating_revenue": 413727560.16,
+        "total_operating_revenue_statutory": 1043819258.35,
+        "operating_ebitda": 54443833.33,
+        "operating_ebit": 40794188.82,
+        "ebitda_cash": 54443833.33,
+        "ebitda_statutory_with_711": 684535531.52,
+        "inventory_variation_memo": 630091698.19,
         "interest_expense": 3075221.8,
         "interest_income": 1016436.75,
         "fx_gain": 558829.54,
@@ -179,11 +135,10 @@
         "financial_income_other": 7760979.0,
         "financial_income": 9336245.29,
         "financial_expense": 4035024.67,
-        "pretax": 43539576.75,
-        "pretax_before_stock_variation": 43020187.64,
+        "pretax": 43020187.64,
         "tax": 6752224.0,
         "net_income_operational": 36267963.64,
-        "net_income_statutory": 36787352.75,
+        "net_income_statutory": 36267963.64,
         "capitalized_own_work_memo": 0.0,
         "cost_of_goods_sold": 212035114.77,
         "income_tax": 6752224.0,
@@ -192,177 +147,23 @@
         "other_income_758": 3231332.91,
         "other_op_income_lump": 3231332.91,
         "other_income_781_reversals": 8415275.41,
-        "core_ebitda": 43316614.12,
-        "adjusted_ebitda": 43316614.12,
+        "core_ebitda": 42797225.01,
+        "adjusted_ebitda": 42797225.01,
         "net_financial_result": 2225998.82,
         "financial_expense_total": 7110246.47,
-        "free_cash_flow_proxy": 50436997.26,
-        "other_operating_income": 11646608.32,
-        "net_income_reconciliation_to_121": 519389.11,
-        "net_income_unexplained_vs_121": -0.0,
-        "ebitda_reconciliation": {
-          "schema": "ebitda_reconciliation/1",
-          "definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
-          "lines": [
-            {
-              "key": "turnover",
-              "label_ro": "Cifra de afaceri netă",
-              "label_en": "Net turnover",
-              "accounts": "70x − 709",
-              "value": 413727560.16
-            },
-            {
-              "key": "other_operating_income",
-              "label_ro": "Alte venituri din exploatare",
-              "label_en": "Other operating income",
-              "accounts": "74x, 75x, 77x, 78x",
-              "value": 11646608.32
-            },
-            {
-              "key": "capitalized_own_work",
-              "label_ro": "Producția realizată pentru scopuri proprii și capitalizată",
-              "label_en": "Own work capitalised",
-              "provenance_label_ro": "Producția realizată pentru scopuri proprii și capitalizată (72x) — fără înregistrări în perioadă",
-              "provenance_label_en": "Own work capitalised (72x) — no postings in the period",
-              "accounts": "72x",
-              "value": 0.0,
-              "provenance": "no_72x_activity"
-            },
-            {
-              "key": "cost_of_sales",
-              "label_ro": "Costul mărfurilor și al materiilor prime",
-              "label_en": "Cost of sales",
-              "accounts": "601, 602, 607",
-              "value": -212035114.77
-            },
-            {
-              "key": "inventory_variation",
-              "label_ro": "Variația stocurilor de produse",
-              "label_en": "Change in inventories of finished goods and WIP",
-              "provenance_label_ro": "Variația stocurilor de produse — derivată: rezultatul din contul 121 minus celelalte linii ale contului de profit și pierdere (o balanță închisă nu păstrează soldul net al contului 711)",
-              "provenance_label_en": "Change in inventories of finished goods and WIP — derived: the result in account 121 less every other P&L line (a closed trial balance keeps no net balance on account 711)",
-              "accounts": "711",
-              "value": 519389.11,
-              "provenance": "account_121_bridge",
-              "refusal": null,
-              "beside": "cost_of_sales"
-            },
-            {
-              "key": "operating_expenses",
-              "label_ro": "Alte cheltuieli de exploatare",
-              "label_en": "Other operating expenses",
-              "accounts": "603-606, 608-65x",
-              "value": -158895220.38
-            },
-            {
-              "key": "ebitda",
-              "label_ro": "EBITDA",
-              "label_en": "EBITDA",
-              "accounts": null,
-              "value": 54963222.44,
-              "subtotal": true,
-              "refusal": null
-            },
-            {
-              "key": "depreciation",
-              "label_ro": "Amortizări, provizioane și ajustări (681x)",
-              "label_en": "Depreciation, provisions and impairment (681x)",
-              "accounts": "681x",
-              "value": -13649644.51
-            },
-            {
-              "key": "operating_result",
-              "label_ro": "Rezultatul din exploatare",
-              "label_en": "Operating result",
-              "accounts": null,
-              "value": 41313577.93,
-              "subtotal": true,
-              "refusal": null
-            },
-            {
-              "key": "financial_result",
-              "label_ro": "Rezultatul financiar",
-              "label_en": "Financial result",
-              "accounts": "76x − 66x",
-              "value": 2225998.82
-            },
-            {
-              "key": "tax",
-              "label_ro": "Impozitul pe profit",
-              "label_en": "Income tax",
-              "accounts": "69x",
-              "value": -6752224.0
-            },
-            {
-              "key": "net_result",
-              "label_ro": "Rezultatul net (din rulajele conturilor)",
-              "label_en": "Net result (built from the accounts)",
-              "accounts": null,
-              "value": 36787352.75,
-              "subtotal": true,
-              "refusal": null
-            },
-            {
-              "key": "account_121",
-              "label_ro": "Rezultatul net din contul 121",
-              "label_en": "Net result in account 121",
-              "accounts": "121",
-              "value": 36787352.75,
-              "status": "anchored"
-            },
-            {
-              "key": "not_explained",
-              "label_ro": "Neexplicat de conturile de venituri și cheltuieli",
-              "label_en": "Not explained by the revenue and expense accounts",
-              "accounts": null,
-              "value": -0.0
-            }
-          ],
-          "bridge": {
-            "parts": [
-              {
-                "key": "ebitda_before_stock_variation",
-                "label_ro": "EBITDA înainte de variația stocurilor și producția imobilizată",
-                "label_en": "EBITDA before stock variation and own work capitalised",
-                "value": 54443833.33
-              },
-              {
-                "key": "inventory_variation",
-                "label_ro": "Variația stocurilor de produse",
-                "label_en": "Change in inventories of finished goods and WIP",
-                "value": 519389.11
-              },
-              {
-                "key": "capitalized_own_work",
-                "label_ro": "Producția imobilizată",
-                "label_en": "Own work capitalised",
-                "value": 0.0
-              },
-              {
-                "key": "ebitda",
-                "label_ro": "EBITDA",
-                "label_en": "EBITDA",
-                "value": 54963222.44
-              }
-            ],
-            "refusal": null
-          },
-          "identity_with_121": true,
-          "identity_note_ro": "Pe o balanță închisă linia 711 este derivată din contul 121, deci reconcilierea se închide prin construcție.",
-          "identity_note_en": "On a closed trial balance the 711 line is derived from account 121, so the reconciliation closes by construction."
-        }
+        "free_cash_flow_proxy": 49917608.15
       },
       "assembled_cf": {
-        "net_profit": 36787352.75,
+        "net_profit": 36267963.64,
         "depreciation": 13649644.51,
         "provision_movement": 6987964.99,
-        "cf_before_wc": 57424962.25,
+        "cf_before_wc": 56905573.14,
         "delta_receivables": -2128902.03,
         "delta_inventory": -2767090.89,
         "delta_trade_pay": 2771735.45,
         "delta_tax_pay": 52307.53,
         "net_wc_change": -2071949.94,
-        "cash_from_operating": 55353012.31,
+        "cash_from_operating": 54833623.2,
         "capex_real": -0.0,
         "capex_other_approx": -5638008.75,
         "cip_change": -3015688.25,
@@ -376,11 +177,11 @@
         "bank_loan_drawdowns": 1538567.42,
         "bank_loan_repayments": -3996030.87,
         "interest_paid": -3075221.8,
-        "dividends_paid": -18393676.38,
-        "cash_used_in_financing": -23926361.63,
-        "net_change_in_cash": 31550369.43,
+        "dividends_paid": -18133981.82,
+        "cash_used_in_financing": -23666667.07,
+        "net_change_in_cash": 31290674.88,
         "closing_cash_actual": 6104815.29,
-        "free_cash_flow": 55353012.31,
+        "free_cash_flow": 54833623.2,
         "is_approximated": true,
         "approximation_notes": [
           "Working-capital movements estimated at 5% of current balances; actual ΔAR / ΔInventory / ΔAP cannot be computed without a prior-period trial balance.",
@@ -388,7 +189,7 @@
         ],
         "dividends_declared_but_unpaid": true,
         "cash_from_investing": 123718.75,
-        "cash_from_financing": -23926361.63,
+        "cash_from_financing": -23666667.07,
         "capex_total": -5638008.75,
         "working_capital_change": -2071949.94
       },
@@ -536,8 +337,7 @@
             "strong": 60,
             "healthy": 45,
             "watch": 30,
-            "direction": "higher",
-            "floor": "watch"
+            "direction": "higher"
           },
           "ccc": {
             "strong": 30,
@@ -571,25 +371,25 @@
             "key": "ni_positive",
             "label": "Net income positive",
             "result": "pass",
-            "detail": "36,787,353 RON"
+            "detail": "36,267,964 RON"
           },
           {
             "key": "roa_positive",
             "label": "ROA positive",
             "result": "pass",
-            "detail": "12.58% on 292,483,660 RON total assets"
+            "detail": "12.40% on 292,483,660 RON total assets"
           },
           {
             "key": "cfo_positive",
             "label": "Cash from operating positive",
             "result": "pass",
-            "detail": "55,353,012 RON"
+            "detail": "54,833,623 RON"
           },
           {
             "key": "cfo_gt_ni",
             "label": "CFO greater than net income (earnings quality)",
             "result": "pass",
-            "detail": "CFO 55,353,012 > NI 36,787,353"
+            "detail": "CFO 54,833,623 > NI 36,267,964"
           },
           {
             "key": "roa_improving",
@@ -6646,10 +6446,10 @@
           "ras_line_items_sum_signed": -146475585.99
         },
         "inventory_raw_materials": {
-          "magnitude": 8936309.25,
+          "magnitude": 11402890.82,
           "sign_meaning": "asset_positive",
-          "ras_line_items_count": 5,
-          "ras_line_items_sum_signed": 8902890.45
+          "ras_line_items_count": 9,
+          "ras_line_items_sum_signed": 6448266.66
         },
         "inventory_consumables": {
           "magnitude": 10360772.58,
@@ -6664,10 +6464,10 @@
           "ras_line_items_sum_signed": 966013.58
         },
         "inventory_finished_goods": {
-          "magnitude": 25486132.9,
+          "magnitude": 23033243.9,
           "sign_meaning": "asset_positive",
-          "ras_line_items_count": 13,
-          "ras_line_items_sum_signed": 20592312.68
+          "ras_line_items_count": 11,
+          "ras_line_items_sum_signed": 23033243.9
         },
         "inventory_at_third_parties": {
           "magnitude": 1778841.54,
@@ -6676,10 +6476,10 @@
           "ras_line_items_sum_signed": 1778841.54
         },
         "inventory_merchandise_resale": {
-          "magnitude": 14579906.54,
+          "magnitude": 14566213.97,
           "sign_meaning": "asset_positive",
-          "ras_line_items_count": 12,
-          "ras_line_items_sum_signed": 14552521.4
+          "ras_line_items_count": 10,
+          "ras_line_items_sum_signed": 14566213.97
         },
         "inventory_packaging": {
           "magnitude": 894021.41,
@@ -7060,10 +6860,10 @@
           "ras_line_items_sum_signed": 8415275.41
         },
         "current_year_profit": {
-          "magnitude": 36787352.75,
+          "magnitude": 36267963.64,
           "sign_meaning": "equity_positive",
           "ras_line_items_count": 1,
-          "ras_line_items_sum_signed": 36787352.75
+          "ras_line_items_sum_signed": 36267963.64
         }
       },
       "aggregates": {
@@ -7219,7 +7019,7 @@
           ]
         },
         "retained_earnings": {
-          "net": 64716616.77,
+          "net": 64197227.66,
           "leaves": [
             "retained_earnings_prior_years",
             "accumulated_losses_prior_years",
@@ -7322,89 +7122,32 @@
         "basis": "methodology_totals",
         "worst": ""
       },
-      "stock_variation": {
-        "schema": "stock_variation/1",
-        "basis": "trial_balance",
-        "parser_version": "tb_parser_v6",
-        "book_state": "closed",
-        "has_cumulative": true,
-        "pl_leaves": 391,
-        "pl_leaves_active": 378,
-        "pl_leaves_closed": 378,
-        "pl_leaves_open": 0,
-        "pl_leaves_mixed": 0,
-        "mixed_codes": [],
-        "a711": {
-          "listed": true,
-          "leaves": 41,
-          "activity": 762030968.13,
-          "net_movement": 0.0,
-          "credit_turnover": 630091698.19,
-          "debit_turnover": 630091698.19
-        },
-        "a72x": {
-          "listed": false,
-          "leaves": 0,
-          "activity": 0.0,
-          "net_movement": 0.0,
-          "credit_turnover": 0.0,
-          "debit_turnover": 0.0
-        },
-        "unread_pl_count": 0,
-        "unread_pl": [],
-        "aggregate_pl_count": 0,
-        "aggregate_pl": [],
-        "account_121": {
-          "listed": true,
-          "opening": 32108059.51,
-          "closing": 36787352.75,
-          "year_credits": 470674200.49,
-          "year_debits": 465994907.25,
-          "st_includes_si": false
-        },
-        "nature_reads": {
-          "credit_natured_excl_711": 470485906.89,
-          "debit_natured": 362666957.01
-        },
-        "opening_cleared_by": {
-          "kind": "equal_movement",
-          "code": "129001",
-          "side": "credit",
-          "amount": 32108059.51
-        }
-      },
-      "pack_provenance": {
-        "jurisdiction": "RO",
-        "pack": "omfp1802@v1",
-        "pack_hash": "36e3fb50e0cc541c81db3c0e87f943998c013a4ffd3704347f362d9f78990e16",
-        "mapping_version": "ro_omfp1802_v2"
-      },
       "methodology": {
         "methodology_id": "ro_ras_2025_v1",
-        "methodology_version": "1.1.0",
+        "methodology_version": "1.0.0",
         "schema_version": "canonical_v1.0.0",
         "industry_key_applied": "default",
         "ebitda": {
-          "reported": 54963222.44,
-          "strict": 43316614.12,
-          "cash": 54963222.44,
-          "adjusted": 43316614.12
+          "reported": 54443833.33,
+          "strict": 42797225.01,
+          "cash": 54443833.33,
+          "adjusted": 42797225.01
         },
         "totals": {
           "revenue_net": 413727560.16,
-          "gross_profit": 202240833.67,
-          "operating_profit_reported": 32898302.52,
+          "gross_profit": 201721444.56,
+          "operating_profit_reported": 32378913.41,
           "net_debt": 49241167.62,
           "total_debt": 55345982.91,
           "current_assets": 112500098.18,
           "current_liabilities": 96974147.18,
           "total_assets": 292483659.99,
-          "total_equity": 150151550.76,
+          "total_equity": 149632161.65,
           "total_liabilities": 142754834.12
         },
         "ratios": {
           "ebitda_margin_reported": {
-            "value": 0.1328,
+            "value": 0.1316,
             "unit": "ratio",
             "direction": "higher_is_better",
             "band": [
@@ -7414,14 +7157,14 @@
             "note": ""
           },
           "ebitda_margin_cash": {
-            "value": 0.1328,
+            "value": 0.1316,
             "unit": "ratio",
             "direction": "higher_is_better",
             "band": null,
             "note": ""
           },
           "net_margin": {
-            "value": 0.0686,
+            "value": 0.0673,
             "unit": "ratio",
             "direction": "higher_is_better",
             "band": [
@@ -7431,14 +7174,14 @@
             "note": ""
           },
           "gross_margin": {
-            "value": 0.4888,
+            "value": 0.4876,
             "unit": "ratio",
             "direction": "higher_is_better",
             "band": null,
             "note": ""
           },
           "return_on_equity": {
-            "value": 0.189,
+            "value": 0.1861,
             "unit": "ratio",
             "direction": "higher_is_better",
             "band": [
@@ -7448,7 +7191,7 @@
             "note": ""
           },
           "return_on_assets": {
-            "value": 0.097,
+            "value": 0.0952,
             "unit": "ratio",
             "direction": "higher_is_better",
             "band": [
@@ -7495,7 +7238,7 @@
             "note": ""
           },
           "equity_ratio": {
-            "value": 0.5134,
+            "value": 0.5116,
             "unit": "ratio",
             "direction": "higher_is_better",
             "band": [
@@ -7505,7 +7248,7 @@
             "note": ""
           },
           "debt_to_equity": {
-            "value": 0.3686,
+            "value": 0.3699,
             "unit": "ratio",
             "direction": "lower_is_better",
             "band": [
@@ -7515,14 +7258,14 @@
             "note": ""
           },
           "lt_debt_to_equity": {
-            "value": 0.2661,
+            "value": 0.2671,
             "unit": "ratio",
             "direction": "lower_is_better",
             "band": null,
             "note": ""
           },
           "net_debt_to_ebitda": {
-            "value": 0.8959,
+            "value": 0.9044,
             "unit": "ratio",
             "direction": "lower_is_better",
             "band": [
@@ -7539,7 +7282,7 @@
             "note": ""
           },
           "interest_coverage": {
-            "value": 4.6269,
+            "value": 4.5538,
             "unit": "ratio",
             "direction": "higher_is_better",
             "band": [
@@ -7549,7 +7292,7 @@
             "note": ""
           },
           "ebitda_to_interest": {
-            "value": 7.7301,
+            "value": 7.6571,
             "unit": "ratio",
             "direction": "higher_is_better",
             "band": [
@@ -7559,7 +7302,7 @@
             "note": ""
           },
           "dscr_approx": {
-            "value": 4.5404,
+            "value": 4.4975,
             "unit": "ratio",
             "direction": "higher_is_better",
             "band": null,
@@ -7624,19 +7367,6 @@
             "note": "Proxy: D&A as % revenue. Real capex requires period-over-period PPE delta + disposals (F4.3 cash flow refinement)."
           }
         },
-        "measured": {
-          "capitalized_own_work_net": {
-            "value": 0.0,
-            "refusal": null,
-            "provenance": "no_72x_activity"
-          },
-          "inventory_variation_net": {
-            "value": 519389.11,
-            "refusal": null,
-            "provenance": "account_121_bridge"
-          }
-        },
-        "refusals": {},
         "missing_buckets": [
           "deferred_tax_assets.net",
           "deferred_tax_liabilities.net",
@@ -7646,8 +7376,7 @@
           "provisions_st.net",
           "right_of_use_assets.net"
         ],
-        "errors": [],
-        "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial"
+        "errors": []
       },
       "canonical_bs": {
         "schema": "bs_v2",
@@ -8075,14 +7804,18 @@
               "3",
               "301"
             ],
-            "amount": 8902890.45,
+            "amount": 6448266.66,
             "opening": null,
             "leaf_ids": [
               "301001",
               "301002",
               "301003",
               "321001",
-              "327001"
+              "327001",
+              "348101",
+              "348201",
+              "378101",
+              "378111"
             ]
           },
           {
@@ -8128,10 +7861,9 @@
             "label_key": "bs.row.inventory_finished_goods",
             "label": "Finished goods",
             "account_codes": [
-              "345",
-              "348"
+              "345"
             ],
-            "amount": 20592312.68,
+            "amount": 23033243.9,
             "opening": null,
             "leaf_ids": [
               "345139",
@@ -8144,9 +7876,7 @@
               "345345",
               "345346",
               "345347",
-              "345410",
-              "348101",
-              "348201"
+              "345410"
             ]
           },
           {
@@ -8155,10 +7885,9 @@
             "label_key": "bs.row.inventory_merchandise_resale",
             "label": "Merchandise for resale",
             "account_codes": [
-              "371",
-              "378"
+              "371"
             ],
-            "amount": 14552521.4,
+            "amount": 14566213.97,
             "opening": null,
             "leaf_ids": [
               "371101",
@@ -8170,9 +7899,7 @@
               "371205",
               "371206",
               "371207",
-              "371401",
-              "378101",
-              "378111"
+              "371401"
             ]
           },
           {
@@ -8349,7 +8076,7 @@
             "label_key": "bs.row.current_year_profit",
             "label": "Current year profit",
             "account_codes": [],
-            "amount": 36787352.75,
+            "amount": 36267963.64,
             "opening": null,
             "leaf_ids": []
           },
@@ -8692,7 +8419,7 @@
           },
           {
             "id": "equity",
-            "subtotal": 150151550.76
+            "subtotal": 149632161.65
           },
           {
             "id": "provisions",
@@ -8713,15 +8440,23 @@
         ],
         "totals": {
           "assets": 292483659.99,
-          "equity": 150151550.76,
+          "equity": 149632161.65,
           "liabilities": 142754834.12,
-          "equity_plus_liabilities": 292906384.88,
+          "equity_plus_liabilities": 292386995.77,
           "current_assets": 111424986.73,
           "current_liabilities": 96961452.18
         },
-        "difference": -422724.89,
+        "difference": 96664.22,
         "status": "MINOR_DRIFT",
-        "diagnosis": [],
+        "diagnosis": [
+          {
+            "code": "D6_121_MISMATCH",
+            "detail": "account 121 closing 36,787,352.75 ≠ class7−class6 666,359,661.83",
+            "leaf_ids": [
+              "121"
+            ]
+          }
+        ],
         "unmapped": [],
         "excluded": [
           {
@@ -8734,9 +8469,9 @@
           "el_eq_row_sum": true,
           "source_conservation": true,
           "p121_cross_check": {
-            "ok": true,
+            "ok": false,
             "p121": 36787352.75,
-            "cls7_minus_cls6": 36787352.75
+            "cls7_minus_cls6": 666359661.83
           },
           "identity_holds": true,
           "result_basis": "reconstruction"

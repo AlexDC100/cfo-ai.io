@@ -3937,7 +3937,7 @@
      "value": 100
     }
    ],
-   "source": "src/engine/country_packs/ro_romania/fixtures/regression_baselines/scandia_fy2025.json",
+   "source": "src/engine/country_packs/ro_romania/fixtures/regression_baselines/archive/scandia_fy2025_pre_one_ebitda.json",
    "source_data_quality": null,
    "statements_path": "assembled.statements"
   },

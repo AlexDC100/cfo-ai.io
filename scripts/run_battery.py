@@ -1314,6 +1314,17 @@ def _engine_gates() -> List[Gate]:
              canaries=("PL  EBITDA = before stock variation + 722",
                        "PL  build-up + 722 = account 121 (722 once)",
                        "PASS — All audited EEI canonical assertions passed.")),
+        # ── F3.1-PARITY (stage G1, 2026-09-27): the byte-identical parity
+        # pair (eei_dec_2025, scandia_fy2025) re-captured under the one-
+        # EBITDA ruling with the stock-variation evidence the write seam
+        # measures threaded through; it was RED at the production base
+        # (stale since before the ruling) and unregistered. Plant log:
+        # gates.md "f31-parity".
+        Gate("f31-parity", [PY, "scripts/check_assembled_parity.py"],
+             work_count_rx=r"^\s+GREEN\s+\S+\s+byte-identical", floor=2,
+             units="parity fixtures byte-identical",
+             canaries=("GREEN  eei_dec_2025", "GREEN  scandia_fy2025",
+                       "Overall: GREEN — F3.1-PARITY gate passes")),
         Gate("bs-drift", [PY, "scripts/measure_bs_drift.py"],
              work_count_rx=r"^\s+\S+\s+difference\s", floor=7,
              units="fixtures",
