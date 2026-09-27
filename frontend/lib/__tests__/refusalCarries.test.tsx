@@ -416,8 +416,8 @@ describe("refusal-carries — round 2: Graham, Piotroski, the report's balance s
     const r = servedRefusal(prior);
     expect(cfOf(prior).refusal?.code).toBe(r.code);
     const { container } = renderCf(constructedBook("closed_bridge"), prior);
-    expect(screen.getByTestId("cf-prior-refused").textContent).toContain(r.text_en);
     expect(container.querySelectorAll(".cmp-cell--prior").length, "a prior figure printed").toBe(0);
+    expect(screen.getByTestId("cf-prior-refused").textContent).toContain(r.text_en);
     // Every compare row the view renders (Simple mode shows the key rows)
     // carries "refused" in BOTH the prior and the delta cell.
     const refusedCells = container.querySelectorAll("[data-cmp-refused]");
