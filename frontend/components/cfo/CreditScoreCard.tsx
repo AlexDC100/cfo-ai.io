@@ -350,7 +350,14 @@ export function CreditScoreCard({ data }: Props) {
                 data-model={data.model ?? "none"}
                 data-letter-source={data.letterSource}
               >
-                <LearnableNumber conceptKey="credit_grade" value={data.composite}>{grade}</LearnableNumber>
+                {/* The grade's popover explains it through the composite; with
+                    no composite there is nothing to explain, so the letter
+                    is printed plain — never a popover over a null read as 0. */}
+                {data.composite === null ? (
+                  grade
+                ) : (
+                  <LearnableNumber conceptKey="credit_grade" value={data.composite}>{grade}</LearnableNumber>
+                )}
               </span>
             )}
           </div>

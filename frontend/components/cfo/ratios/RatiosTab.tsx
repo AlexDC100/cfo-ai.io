@@ -231,9 +231,15 @@ export function RatioTile({
             className="font-mono text-[22px] font-medium text-ink leading-tight tabular-nums tracking-[-0.005em]"
             data-testid="ratio-current"
           >
-            <LearnableNumber conceptKey={ratio.key} value={side?.value ?? null}>
-              {printed.current}
-            </LearnableNumber>
+            {/* No served value, no popover: it would explain a figure
+                nobody computed (null read as 0). */}
+            {side?.value == null ? (
+              printed.current
+            ) : (
+              <LearnableNumber conceptKey={ratio.key} value={side.value}>
+                {printed.current}
+              </LearnableNumber>
+            )}
           </div>
         )
       ) : ratio.value === null ? (

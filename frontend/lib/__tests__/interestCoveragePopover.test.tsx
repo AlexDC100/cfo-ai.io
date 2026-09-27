@@ -122,7 +122,11 @@ function cases(): Array<{ name: string; s: Served; metrics?: Record<string, numb
 function specFor(metrics: ReportingMetrics, value: number, locale: "en" | "ro" = "en"): FormulaSpec {
   const concept = lookupConcept("interest_coverage");
   expect(concept?.computation, "interest_coverage has no computation").toBeTruthy();
-  return concept!.computation!({ metrics, currency: "RON", locale } as never, value);
+  const spec = concept!.computation!({ metrics, currency: "RON", locale } as never, value);
+  // A refused EBIT has no formula (null); every book this helper is called
+  // on carries a measured card, so a null here is a failure, not a skip.
+  if (spec === null) throw new Error("interest_coverage served no formula on a book with a measured card");
+  return spec;
 }
 
 function renderedText(spec: FormulaSpec, metrics: ReportingMetrics, locale: "en" | "ro" = "en"): string {

@@ -344,7 +344,7 @@ const EMPTY: Bilingual = { ro: "", en: "" };
 
 export class CockpitContractError extends Error {}
 
-function need(cond: boolean, what: string): void {
+function need(cond: boolean, what: string): asserts cond {
   if (!cond) {
     throw new CockpitContractError(
       `forecastCockpit: the served cockpit breaks its own contract — ${what}. ` +

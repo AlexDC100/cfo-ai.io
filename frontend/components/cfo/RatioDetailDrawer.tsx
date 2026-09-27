@@ -274,9 +274,15 @@ function DrawerBody({
                     className="mt-0.5 text-[34px] sm:text-[38px] leading-none font-semibold tabular-nums text-ink"
                     data-testid="ratio-detail-current"
                   >
-                    <LearnableNumber conceptKey={ratio.key} value={servedSide?.value ?? null}>
-                      {printed.current}
-                    </LearnableNumber>
+                    {/* No served value, no popover: it would explain a
+                        figure nobody computed (null read as 0). */}
+                    {servedSide?.value == null ? (
+                      printed.current
+                    ) : (
+                      <LearnableNumber conceptKey={ratio.key} value={servedSide.value}>
+                        {printed.current}
+                      </LearnableNumber>
+                    )}
                   </div>
                 )
               ) : ratio.value === null ? (
