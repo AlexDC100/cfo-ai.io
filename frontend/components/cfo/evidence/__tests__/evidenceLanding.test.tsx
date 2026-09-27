@@ -494,6 +494,36 @@ describe("cmdbar-evidence — the account rules", () => {
     expect(d.textContent).not.toContain(full(0));
   });
 
+  // Review of stage CB-H: the sentence for a finding the period does not
+  // serve printed the engine's ids — "This period serves no measure
+  // non_trading for the finding earnings_quality." The reader gets the
+  // measure's declared name in their language, or no name — never an id.
+  for (const lang of ["en", "ro"] as const) {
+    it(`${lang}: a finding this period does not serve is said in words — the measure by its name, no engine id on screen`, async () => {
+      await act(async () => { await i18n.changeLanguage(lang); });
+      const tt = i18n.getFixedT(lang);
+      const cases = [
+        // Served finding, a measure it does not carry — a declared name.
+        { href: "/dashboard?tab=pl&finding=asset_age&measure=net_financial&account=2131", ids: ["asset_age", "net_financial"],
+          want: tt("evidence.findingAbsent", { measure: tt("evidence.measure.net_financial") }) },
+        // A finding Scandia does not serve (Agras's), a measure with no declared name.
+        { href: "/dashboard?tab=bs&finding=unclassified_balances&measure=unclassified&account=4111", ids: ["unclassified_balances", "unclassified"],
+          want: tt("evidence.findingAbsentUnnamed") },
+      ];
+      for (const c of cases) {
+        drawer(scandia, c.href);
+        const d = await screen.findByTestId("evidence-drawer");
+        const sentence = d.querySelector('[data-testid="evidence-finding-absent"]')?.textContent ?? "";
+        expect(sentence).toBe(c.want);
+        // No engine identifier anywhere the reader reads (attributes aside).
+        for (const id of c.ids) expect(d.textContent, `"${id}" on screen`).not.toMatch(new RegExp(`\\b${id}\\b`));
+        expect(d.textContent).not.toMatch(/\b[a-z]+_[a-z_]+\b/);
+        expect(d.querySelector('[data-testid="evidence-finding-value"]')).toBeNull();
+        cleanup();
+      }
+    });
+  }
+
   it("display EUR: the account view prints the SERVED RON balance with its code, never a converted, unlabelled one", async () => {
     DISPLAY.code = "EUR";
     const li = (SCANDIA.line_items as PeriodLineItem[]).find((x) => x.ro_account_code === "411121")!;

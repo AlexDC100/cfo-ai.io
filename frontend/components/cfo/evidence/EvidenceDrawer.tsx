@@ -131,6 +131,13 @@ export function EvidenceDrawer({ body, periodLabel, documentName, currency }: Ev
       ? t(`evidence.measure.${finding.measure.key}`)
       : finding.measure.label)
     : null;
+  // A finding this period does not serve is said in the reader's words:
+  // the measure by its declared RO/EN name, or not named at all — never the
+  // engine's ids (`earnings_quality`, `non_trading`) on the reader's screen.
+  const absentMeasure = finding && !finding.measure ? model.request.finding?.measure ?? "" : "";
+  const absentLabel = absentMeasure && i18n.exists(`evidence.measure.${absentMeasure}`)
+    ? t(`evidence.measure.${absentMeasure}`)
+    : null;
   const statementWord = (s: "BS" | "PL" | "pl" | "bs" | null) =>
     s === "PL" || s === "pl" ? t("evidence.statementPL") : t("evidence.statementBS");
   const title = finding && !line && measureLabel
@@ -213,7 +220,9 @@ export function EvidenceDrawer({ body, periodLabel, documentName, currency }: Ev
                 </>
               ) : (
                 <p className="text-[12.5px] text-ink" data-testid="evidence-finding-absent">
-                  {t("evidence.findingAbsent", { finding: finding.id, measure: model.request.finding?.measure ?? "" })}
+                  {absentLabel
+                    ? t("evidence.findingAbsent", { measure: absentLabel })
+                    : t("evidence.findingAbsentUnnamed")}
                 </p>
               )}
             </section>
