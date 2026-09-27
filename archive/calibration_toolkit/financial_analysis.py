@@ -1,3 +1,9 @@
+# SUPERSEDED 2026-09-26 (owner ruling on account 711 / 72x and EBITDA) — see
+# archive/calibration_toolkit/README.md. `prod_var_net` below (Σ 711 C − Σ 711 D)
+# is 0.00 on a closed trial balance, not the stock variation; the engine
+# derives net 711 through the account-121 bridge (country_packs/ro_romania/
+# stock_variation.py) and puts it, with net 72x, INSIDE EBITDA. Kept verbatim
+# as history; not imported by the product.
 """
 Comprehensive Financial Analysis — Romanian SME / Mid-cap from RAS Trial Balance
 ================================================================================
