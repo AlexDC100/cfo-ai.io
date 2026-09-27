@@ -254,9 +254,15 @@ describe("a refused stock variation refuses EBITDA, EBIT, profit before tax and 
     const body = BOOKS.unanchored();
     const st = build(body);
     const served = servedOf(body);
-    // The served `net_income_statutory` is the reconstruction WITHOUT the
-    // refused 711; the statement does not print it as the net result.
-    expect(served.netIncomeStatutory).not.toBeNull();
+    // REWRITTEN (fixer round 1, 2026-09-27), not re-captured. The engine
+    // used to SERVE `net_income_statutory` as the reconstruction WITHOUT the
+    // refused 711 (the precondition this line asserted), and only this
+    // builder declined to print it — the dashboard tile, ROE and ROA read it.
+    // The engine now refuses the net result itself, with the 711 reason.
+    expect(served.netIncomeStatutory).toBeNull();
+    const niRefusal = (body.statements.assembled_pl as Record<string, unknown>).net_income_refusal as
+      { code?: string } | undefined;
+    expect(niRefusal?.code).toBe(served.refusal?.code);
     expect(st.netProfit).toBeNull();
     const closing = st.sections.find((s) => s.role === "closing")!;
     expect(closing.subtotalAmount).toBeUndefined();

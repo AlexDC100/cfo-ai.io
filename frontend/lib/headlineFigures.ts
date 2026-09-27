@@ -65,7 +65,13 @@ export function resolveHeadlineNetProfit(
   metrics: readonly PeriodMetric[] | null | undefined,
   pl: HeadlinePlLike,
 ): number {
-  const fromEnvelope = finite((statements?.assembled_pl ?? {})["net_income_statutory"]);
+  const apl = (statements?.assembled_pl ?? {}) as Record<string, unknown>;
+  // REFUSED by the engine (no account 121 and a refused net 711 — the
+  // build-up lacks the unmeasured stock variation): absent, with the
+  // engine's reason beside it (`dashboardHeadline.tileNetProfitRefusal`).
+  // Never a stored metric row or the builder's figure standing in for it.
+  if (apl["net_income_refusal"] && typeof apl["net_income_refusal"] === "object") return NaN;
+  const fromEnvelope = finite(apl["net_income_statutory"]);
   if (fromEnvelope !== null) return fromEnvelope;
   const row = (metrics ?? []).find((m) => m.name === "net_income_statutory");
   const fromMetrics = finite(row?.value);

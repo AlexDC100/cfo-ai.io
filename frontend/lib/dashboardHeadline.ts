@@ -27,7 +27,7 @@ import { pickPLBuilder } from "@/lib/buildPlStatement";
 import { resolveHeadlineNetProfit } from "@/lib/headlineFigures";
 import type { PeriodLineItem, PeriodMetric } from "@/lib/activePeriod";
 import type { Statements } from "@/lib/financialReport";
-import { plLevelsOf, type ServedRefusal } from "@/lib/servedOneEbitda";
+import { plLevelsOf, readRefusal, type ServedRefusal } from "@/lib/servedOneEbitda";
 
 export interface CanonicalMargins {
   ebitdaMargin: number | null;
@@ -56,6 +56,9 @@ export interface DashboardHeadline {
   tileEbitdaRon: number | null;
   tileEbitdaRefusal: ServedRefusal | null;
   tileNetProfitRon: number;
+  /** The engine's reason when it REFUSED the net result (no account 121
+   *  and a refused net 711); `tileNetProfitRon` is then NaN (absent). */
+  tileNetProfitRefusal: ServedRefusal | null;
   /** The P&L builder's "Total operating expenses" subtotal; null when
    *  the builder produced no such section (absent is not zero). */
   totalOperatingExpenses: number | null;
@@ -93,6 +96,8 @@ export function computeDashboardHeadline(args: {
   const tileEbitdaRefusal =
     tileEbitdaRon === null ? (levels.source === "served" ? levels.refusal : pl.ebitdaRefusal ?? null) : null;
   const tileNetProfitRon = resolveHeadlineNetProfit(statements, metrics as PeriodMetric[], pl);
+  const tileNetProfitRefusal = readRefusal(
+    ((statements as { assembled_pl?: Record<string, unknown> }).assembled_pl ?? {})["net_income_refusal"]);
   const totalOperatingExpenses =
     pl.sections.find((s) => s.subtotalLabel?.startsWith("Total operating expenses"))
       ?.subtotalAmount ?? null;
@@ -101,6 +106,7 @@ export function computeDashboardHeadline(args: {
     tileEbitdaRon,
     tileEbitdaRefusal,
     tileNetProfitRon,
+    tileNetProfitRefusal,
     totalOperatingExpenses,
     cash: statements.balanceSheet.cash,
     pl,

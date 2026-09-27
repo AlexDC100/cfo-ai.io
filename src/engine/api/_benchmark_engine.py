@@ -150,6 +150,11 @@ _EBITDA_FAMILY_ROWS = (
 REFUSAL_STALE = "period_predates_ebitda_definition"
 REFUSAL_EBITDA = "ebitda_refused"
 REFUSAL_MARGIN = "margin_not_meaningful"
+#: The NET RESULT is refused with 711: no account 121 in the trial balance,
+#: so the class-6/7 build-up — short by the unmeasured stock variation — is
+#: all there would be (`assembled_pl.net_income_refusal`). Stored as a
+#: `net_income_statutory` row whose value is None.
+REFUSAL_NET_INCOME = "net_income_refused"
 _REFUSAL_TEXT = {
     REFUSAL_STALE: {
         "ro": "Perioada a fost analizată înainte de definiția unică a EBITDA (cu variația stocurilor "
@@ -162,6 +167,12 @@ _REFUSAL_TEXT = {
               "putut fi măsurată din balanță.",
         "en": "EBITDA is refused for this period: the stock variation (Variația stocurilor de "
               "produse) could not be measured from the trial balance.",
+    },
+    REFUSAL_NET_INCOME: {
+        "ro": "Rezultatul net este refuzat pentru această perioadă: variația stocurilor de produse nu "
+              "a putut fi măsurată, iar balanța nu conține contul 121.",
+        "en": "The net result is refused for this period: the stock variation (Variația stocurilor "
+              "de produse) could not be measured and the trial balance carries no account 121.",
     },
 }
 
@@ -285,6 +296,18 @@ def compute_company_metrics(
         for name in _EBITDA_FAMILY_ROWS:
             out.pop(name, None)
 
+    # The NET RESULT refused with 711 (no account 121): the stored
+    # `net_income_statutory` row is PRESENT with no value — refused, not
+    # absent (a legacy period with no statutory row keeps the operating
+    # view below). The headline, the "Compania ta" row and the graded net
+    # margin refuse together; the operating view (the build-up, short by
+    # the unmeasured variation) must not stand in for it.
+    net_income_refused = "net_income_statutory" in refused_rows
+    if net_income_refused:
+        for name in ("net_income_statutory", "net_income_operating"):
+            refusals[name] = _refusal(REFUSAL_NET_INCOME)
+        refusals.setdefault("net_margin", _refusal(REFUSAL_NET_INCOME))
+
     if turnover is None or turnover <= 0:
         # No turnover → none of the % ratios are meaningful; a stored margin
         # the page must not grade is not carried either.
@@ -313,7 +336,7 @@ def compute_company_metrics(
     # the peer row and the margin all refuse together instead of grading a
     # company against its peers on a profit nobody filed.
     net_income_reported = out.get("net_income")
-    if net_income_reported is not None:
+    if net_income_reported is not None and not net_income_refused:
         # The legacy operating view (no account-121 row): the build-up plus
         # own work capitalised — the stored net 72x row, else the 72x
         # bucket sum of a period stored before that row — labelled as such
@@ -461,7 +484,9 @@ NET_INCOME_SLOT = ("net_income_statutory", "net_income_operating")
 #: BUMP THIS whenever a change alters what this module puts on screen.
 #: 4 (2026-09-26): the ONE EBITDA, margins over turnover, the margin rule's
 #: refusal on the company side and the "Compania ta" row, peer basis served.
-REPORT_REVISION = 4
+#: 5 (2026-09-27): a net result refused with 711 (no account 121) refuses the
+#: headline profit, the peer row and the net margin — never the build-up.
+REPORT_REVISION = 5
 
 
 def headline_net_income_key(company_metrics: Dict[str, Any]) -> str:

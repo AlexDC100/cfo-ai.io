@@ -11461,6 +11461,28 @@ is that gate); the other surfaces that print EBITDA (dashboard tiles,
 exports, forecast, benchmark — later stages of A7 and the `one-ebitda` /
 `refusal-carries` gates of A8); pixels.
 
+### pl-one-ebitda-page — the unanchored net result law REWRITTEN (fixer round 1, 2026-09-27)
+
+`unanchored: the net result is refused too` asserted, as its precondition,
+`expect(served.netIncomeStatutory).not.toBeNull()` — the engine SERVING the
+build-up that lacks the refused 711 under the statutory name, which the
+dashboard tile, ROE and ROA then read. The law now holds the engine's
+refusal: `net_income_statutory` null with `net_income_refusal` carrying the
+711 code, and the statement's closing row refused with it.
+
+**PLANT the-pre-fix-fixture** — `frontend/lib/__tests__/fixtures/oneEbitda/
+constructed_books.json` restored to its 51d4bb64 bytes (the engine serving
+120,000.00):
+```
+RED (plant) — Tests 2 failed | 68 passed (70) (plOneEbitda + refusalCarries)
+   × … > unanchored: the net result is refused too — never the served build-up that lacks 711
+     → expected 120000 to be null
+   × … > unanchored: the net result, ROE, ROA, the report and the cash flow refuse with the engine's reason
+     → expected undefined to be 'account_121_anchor_absent'
+```
+**REVERT** — the re-captured fixture restored: `Tests 58 passed (58)` on
+plOneEbitda.
+
 ## one-ebitda
 
 | | |
@@ -11585,7 +11607,7 @@ benchmark's filed basis (sector, engine).
 |---|---|
 | command | `npx vitest run --root . frontend/lib/__tests__/refusalCarries.test.tsx --reporter=verbose` |
 | canary | `covers the two refused books, and on both the buckets would rebuild a number`, `unanchored: growth, the credit model, the DCF and the NAV cascade refuse with it`, `a payload the engine did not assemble, whose buckets show 711 activity, refuses the same way` |
-| work count | `Tests N passed`, floor **8** (measured 10) |
+| work count | `Tests N passed`, floor **12** (measured 12) |
 
 **INCIDENT** — design A3: "if net 711 is refused on a book with 711 activity,
 EBITDA, EBIT, gross profit and every margin/ratio built on them REFUSE with
@@ -11802,8 +11824,8 @@ from the ratio table's (agras 36.48 % vs 37.29 %).
 | | |
 |---|---|
 | command | `python -m pytest tests/engine/test_refusal_carries_engine.py -q` |
-| canary | `SCOPE refusal-carries-engine: refused books g6_uncleared (account_121_opening_not_cleared); unanchored (account_121_anchor_absent)` |
-| work count | `GATE-WORK refusal-carries-engine units=N`, floor **130** (measured 146) |
+| canary | `SCOPE refusal-carries-engine: refused books g6_uncleared (account_121_opening_not_cleared); unanchored (account_121_anchor_absent)`, `NET-RESULT refused (no account 121): unanchored` |
+| work count | `GATE-WORK refusal-carries-engine units=N`, floor **160** (measured 177) |
 
 **INCIDENT** — design A3: "if net 711 is refused on a book with 711
 activity, EBITDA, EBIT, gross profit and every margin/ratio built on them
@@ -11859,3 +11881,86 @@ REVERT (clean tree):
 the browser (`refusal-carries`). The benchmark's refusal carries a generic
 sentence, not the typed cause (its `calculated_metrics` rows carry none) —
 reported to the coordinator.
+
+### refusal-carries / refusal-carries-engine — the NET RESULT on a book with no account 121 (fixer round 1, 2026-09-27)
+
+**INCIDENT** — two critic findings, one defect.
+`chart_of_accounts.assemble_statements` set `net_income_statutory =
+net_income_operational + capitalized + build_up_711`, and `build_up_711` is
+0.0 when 711 is refused. With account 121 present the anchor replaced it;
+WITHOUT 121 that build-up — short by exactly the unmeasured variation — was
+served under the statutory name while `pretax` two fields above was refused.
+Measured: the constructed `unanchored` book served net income 120,000.00,
+net margin 12 %, ROE 37.5 %, ROA 48 % (all graded), the benchmark graded
+the net margin; SRD (the developer) with its account-121 rows dropped served
+-30,391,418.38 against 121's -801,604.14 (the gap is the refused 29,589,814.24),
+ROE -75.44 %, ROA -36.43 %, a persisted net margin of -187.18 %, and the
+dashboard tile, the report and computeRatios printed them. Neither gate
+looked at net income (they checked EBITDA / EBIT / gross profit / PBT only).
+
+**THE FIX** — the engine refuses the NET RESULT with the same typed reason
+when 711 is refused and there is no account 121 (`assembled_pl.
+net_income_refusal`, emitted only then): `net_income_statutory`,
+`net_income_reconstructed`, `net_income_reconciliation_to_121`,
+`net_income_unexplained_vs_121` and `free_cash_flow_proxy` are None; the
+cash-flow totals built on it are None with the refusal beside them; the
+Piotroski checks 1-4 are `uncertain`; the metric rows `net_income_statutory`,
+`net_margin`, `roe`, `roa`, `free_cash_flow` and the profitability sub-score
+are None (`component_refusals` refuses profitability); the ratio table's
+net margin / ROE / ROA refuse `ebitda_refused` with the 711 cause (never a
+stored row standing in); the Section 9 benchmark refuses its headline
+profit, peer row and net margin (`net_income_refused`, report revision 5);
+the briefing's net margin carries the engine's reason; FactsGateway.
+net_result raises RefusedFactError (methodology refusal `totals.net_result`
+— the balance sheet still closes the build-up into equity so it balances,
+and says beside it that the figure is no net result). Browser: the dashboard
+tile is absent with `tileNetProfitRefusal` (a stale `net_income_statutory`
+metric row no longer stands in), `canonicalMetrics.netProfit` is null with
+its refusal (was `?? 0`), the report's net-profit tile and P&L foot print
+the reason, `printedPl`'s net income row carries it, and the cash-flow
+statement states the refusal instead of a column built on a net profit of 0.
+With account 121 (`g6_uncleared`) the filed figure stands, and both gates
+assert that too.
+
+**PLANT serve-the-build-up** (engine) — `chart_of_accounts.py`:
+`net_income_served = None if net_income_refusal is not None else
+net_income_statutory` → `net_income_served = net_income_statutory`.
+```
+RED (plant) — 1 failed, 3 passed
+E   AssertionError: unanchored: assembled_pl.net_income_statutory carries 120000.0 for a REFUSED figure (711 refused: account_121_anchor_absent)
+E     unanchored: assembled_pl.net_income_reconciliation_to_121 carries 0.0 for a REFUSED figure …
+E     unanchored: assembled_pl.free_cash_flow_proxy carries 170000.0 for a REFUSED figure …
+E     unanchored: briefing net_margin_pct = 12.0 (None) — expected the engine's reason
+E     unanchored: Piotroski ni_positive is 'pass' on a refused net result
+```
+**PLANT served-None-read-as-not-surfaced** (engine) — `credit_model.py`: the
+refusal branch disabled, so `_canonical` falls back to the build-up.
+```
+RED (plant) — 1 failed, 3 passed
+E   AssertionError: unanchored: metric row 'net_income_statutory' carries 120000.0 for a REFUSED figure …
+E     unanchored: metric row 'net_margin' carries 0.12 … 'roe' carries 0.375 … 'roa' carries 0.48 …
+E     unanchored: metric row 'credit_subscore_profitability' carries 52.5 …
+E     unanchored: benchmark net_margin = 12.0 (refusals ['debt_to_ebitda', 'ebitda', 'ebitda_margin'])
+```
+**PLANT stale-metric-row-on-the-tile** (browser) — `headlineFigures.ts`: the
+refusal check removed (rung 2, the stored row, answers).
+```
+RED (plant) — Tests 1 failed | 11 passed (12)
+   × … > unanchored: the net result, ROE, ROA, the report and the cash flow refuse with the engine's reason
+     → tile printed 120000: expected false to be true
+```
+**PLANT canonical-?? 0** (browser) — `canonicalMetrics.ts`:
+`statutoryNetProfit = num(apl.net_income_statutory) ?? 0` again.
+```
+RED (plant) — Tests 1 failed | 11 passed (12)
+     → expected [ +0, null, null ] to deeply equal [ null, null, null ]
+```
+**REVERT** — every file restored from its copy: engine `4 passed`
+(`GATE-WORK refusal-carries-engine units=177`); browser `Tests 12 passed (12)`.
+
+CANNOT SEE: a period stored before this change keeps its old metric rows and
+envelope until reprocessed (the reprocess tool rewrites them); the balance
+sheet's current-year result on such a book is still the build-up (so the
+sheet closes, with `bs_balance_delta` showing what it cannot explain);
+the prior column of a comparative cash-flow statement whose prior period is
+refused; pixels.

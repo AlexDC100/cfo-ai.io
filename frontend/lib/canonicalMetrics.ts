@@ -52,7 +52,7 @@
 
 import type { ActivePeriod, PeriodLineItem } from "./activePeriod";
 import { F36_CUTOVER_METRICS_HUB } from "@/config/features";
-import { plLevelsOf, type ServedRefusal } from "./servedOneEbitda";
+import { plLevelsOf, readRefusal, type ServedRefusal } from "./servedOneEbitda";
 
 /**
  * F3.16-3b.6 cutover helper — resolves the Reported EBITDA value
@@ -127,14 +127,18 @@ export interface CanonicalEbitda {
 
 export interface CanonicalNetProfit {
   /** Closing C balance of account 121 — the legally filed number.
-   *  Always the headline. */
-  statutory_account_121: number;
+   *  Always the headline. NULL when the engine REFUSED the net result
+   *  (no account 121 and a refused net 711 — `refusal` says why). */
+  statutory_account_121: number | null;
   /** Bottom-up reconstruction from class 6 / 7 movements. Should
-   *  match statutory within ±2% per the methodology. */
-  reconstructed: number;
+   *  match statutory within ±2% per the methodology. Null with the
+   *  refusal (the build-up lacks the unmeasured stock variation). */
+  reconstructed: number | null;
   /** `reconstructed − statutory_account_121`. Surfaced honestly so
-   *  any drift is visible, not hidden. */
-  reconciliation_gap: number;
+   *  any drift is visible, not hidden. Null when either side is. */
+  reconciliation_gap: number | null;
+  /** The engine's reason for a refused net result, or null. */
+  refusal: ServedRefusal | null;
   /** Gap as a percentage of `statutory_account_121`. Null when
    *  statutory is zero. */
   gap_pct: number | null;
@@ -292,10 +296,13 @@ function assemble(args: {
   const depreciation = num(apl.depreciation) ?? 0;
   const tax = num(apl.tax) ?? 0;
   const interestExpense = num(apl.interest_expense) ?? 0;
-  const statutoryNetProfit = num(apl.net_income_statutory) ?? 0;
+  // A net result the engine REFUSED (no account 121, net 711 refused) is
+  // null with its reason — never the `?? 0` below standing in for it.
+  const netProfitRefusal = readRefusal(apl.net_income_refusal);
+  const statutoryNetProfit: number | null = netProfitRefusal ? null : num(apl.net_income_statutory) ?? 0;
   // The result BUILT from the accounts on the one definition (pretax −
   // tax); the pre-ruling `net_income_operational` left 711 out of it.
-  const reconstructedNetProfit = levels.netIncome ?? statutoryNetProfit;
+  const reconstructedNetProfit: number | null = netProfitRefusal ? null : levels.netIncome ?? statutoryNetProfit;
 
   // Extract 758 / 781 from the per-account line items. These are
   // already aggregated into `other_inc` in `_ro_coa.py`; we don't
@@ -326,10 +333,14 @@ function assemble(args: {
     netProfit: {
       statutory_account_121: statutoryNetProfit,
       reconstructed: reconstructedNetProfit,
-      reconciliation_gap: reconstructedNetProfit - statutoryNetProfit,
-      gap_pct: statutoryNetProfit !== 0
+      reconciliation_gap:
+        reconstructedNetProfit === null || statutoryNetProfit === null
+          ? null
+          : reconstructedNetProfit - statutoryNetProfit,
+      gap_pct: reconstructedNetProfit !== null && statutoryNetProfit !== null && statutoryNetProfit !== 0
         ? ((reconstructedNetProfit - statutoryNetProfit) / Math.abs(statutoryNetProfit)) * 100
         : null,
+      refusal: netProfitRefusal,
       anchor: "statutory_account_121",
     },
     balance: {

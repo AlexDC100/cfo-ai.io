@@ -118,7 +118,7 @@ import { getSupabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/stores/currency";
 import { convertFromTo, formatAmountFrom, formatMoneyFrom } from "@/lib/money";
-import { componentShown, readServedOneEbitda, reconLine } from "@/lib/servedOneEbitda";
+import { componentShown, readRefusal, readServedOneEbitda, reconLine } from "@/lib/servedOneEbitda";
 import { briefingVisibility } from "@/lib/briefingDefinition";
 import type { Currency } from "@/lib/rates";
 
@@ -650,7 +650,9 @@ function KpiGrid({
   // matching the rest of the canonical object's convention.
   // A refused EBITDA forms no leverage multiple (null, never ÷ 0).
   const ndeRatio = ebitda.core !== null && ebitda.core > 0 ? balance.net_debt / ebitda.core : null;
-  const roe = balance.equity > 0 ? netProfit.statutory_account_121 / balance.equity : null;
+  // A refused net result (no account 121, net 711 refused) forms no ROE.
+  const roe = balance.equity > 0 && netProfit.statutory_account_121 !== null
+    ? netProfit.statutory_account_121 / balance.equity : null;
   const altman = credit?.altmanZ ?? null;
 
   const src = currency as Currency;
@@ -734,23 +736,28 @@ function KpiGrid({
     },
     {
       label: "Net profit — statutory (ct 121)",
-      value: <MoneyAmount value={netProfit.statutory_account_121} fromCurrency={src} />,
+      // Refused by the engine: its reason, never a figure (and never 0).
+      value: netProfit.refusal
+        ? <span data-testid="report-net-profit-refused">refused — {netProfit.refusal.text.en}</span>
+        : <MoneyAmount value={netProfit.statutory_account_121} fromCurrency={src} />,
       // F1.e — Margin reads engine-canonical `net_margin` from
       // calculated_metrics so this tile agrees with the dashboard tile
       // and the Ratios row on the same page. The "legally filed"
       // sub-label refers to the source-currency value (per ¶ in F1.e
       // protocol — sub-label scope, not margin denominator).
       sub: marginSub(
-        typeof netMarginCanonical === "number"
-          ? netMarginCanonical
-          : revenue > 0
-            ? netProfit.statutory_account_121 / revenue
-            : null,
+        netProfit.statutory_account_121 === null
+          ? null
+          : typeof netMarginCanonical === "number"
+            ? netMarginCanonical
+            : revenue > 0
+              ? netProfit.statutory_account_121 / revenue
+              : null,
         "margin · legally filed",
         "Legally filed (acct 121)",
       ),
       conceptKey: "net_profit",
-      rawValue: netProfit.statutory_account_121,
+      rawValue: netProfit.statutory_account_121 ?? undefined,
     },
     {
       label: "Total assets",
@@ -833,7 +840,11 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
   const built = reconLine(recon, "net_result");
   const acc121 = reconLine(recon, "account_121");
   const gap = reconLine(recon, "not_explained");
-  const filedNetProfit: number | undefined = pl.net_income_statutory;
+  const filedNetProfit: number | undefined =
+    typeof pl.net_income_statutory === "number" ? pl.net_income_statutory : undefined;
+  // The net result REFUSED by the engine (no account 121, net 711
+  // refused): the last row prints its reason, never a build-up.
+  const netResultRefusal = readRefusal((pl as Record<string, unknown>).net_income_refusal);
   const unexplained = gap?.value ?? null;
   const hasUnexplained = unexplained !== null && Math.abs(unexplained) >= 0.005;
   const has711 = componentShown(iv);
@@ -917,6 +928,7 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
     style: "headline",
     origin: f("net_income_statutory"),
     role: "subtotal",
+    note: netResultRefusal ? netResultRefusal.text.en : null,
   });
 
   // Instrument row styling — semantic emphasis through tokens only.

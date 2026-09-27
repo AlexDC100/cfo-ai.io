@@ -742,7 +742,24 @@ def _compute_figs(payload: Mapping[str, Any], statements: Mapping[str, Any]
     net_income = _sub(pbt, I("taxExpense"))
 
     apl_ni = apl.get("net_income_statutory")
-    if _is_num(apl_ni):
+    ni_refusal = apl.get("net_income_refusal")
+    if isinstance(ni_refusal, Mapping):
+        # The NET RESULT is refused with 711 (no account 121; the build-up
+        # lacks the unmeasured variation): net margin, ROA and ROE refuse
+        # with the same typed reason — never the metric row or this
+        # table's own reconstruction standing in for it.
+        from engine.ratios.credit_model import operating_figures
+
+        try:
+            ni_cause = operating_figures(statements).get("net_income_refusal")
+        except (KeyError, TypeError, ValueError):
+            ni_cause = None
+        anchored_net_income = _Fig(None, ("ebitda_refused", ni_cause or {
+            "code": "ebitda_refused", "cause": ni_refusal.get("code"),
+            "text_ro": ni_refusal.get("text_ro"), "text_en": ni_refusal.get("text_en"),
+            "inputs": ["assembled_pl.net_income_statutory"]}),
+            (("net_income_statutory", None, "assembled_pl.net_income_statutory"),))
+    elif _is_num(apl_ni):
         anchored_net_income = _Fig(float(apl_ni), None, (("net_income_statutory", float(apl_ni),
                                                           "assembled_pl.net_income_statutory"),))
     else:
@@ -770,9 +787,15 @@ def _compute_figs(payload: Mapping[str, Any], statements: Mapping[str, Any]
     # Fallback = the metric's definition: ANCHORED net income ÷ revenue —
     # the same net income ROA and ROE below divide (never the class-6/7
     # reconstruction the FE fallback reads).
-    figs["net_margin"] = mPctOr("net_margin", _pct_of(anchored_net_income, revenue, "revenue"))
-    figs["roa"] = bsPctOr("roa", _pct_of(anchored_net_income, total_assets, "total assets"))
-    figs["roe"] = bsPctOr("roe", _pct_of(anchored_net_income, total_equity, "total equity"))
+    if isinstance(ni_refusal, Mapping):
+        # Refused outright: a stored metric row (written before the
+        # refusal existed) must not stand in for the refused net result.
+        for key in ("net_margin", "roa", "roe"):
+            figs[key] = _Fig(None, anchored_net_income.absence, anchored_net_income.ops)
+    else:
+        figs["net_margin"] = mPctOr("net_margin", _pct_of(anchored_net_income, revenue, "revenue"))
+        figs["roa"] = bsPctOr("roa", _pct_of(anchored_net_income, total_assets, "total assets"))
+        figs["roe"] = bsPctOr("roe", _pct_of(anchored_net_income, total_equity, "total equity"))
     # ROIC is DEFINED only for positive invested capital (ruling R-OTHER,
     # C2.1): zero refuses as `zero_denominator`, negative (negative equity
     # exceeding debt) as `nonpositive_denominator` — the value is never

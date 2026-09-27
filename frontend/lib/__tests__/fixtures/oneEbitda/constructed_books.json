@@ -10088,6 +10088,12 @@
        "text_en": "the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
        "text_ro": "balanța este închisă, iar contul 121 lipsește: variația stocurilor (711) nu are sold net și nu poate fi derivată"
       },
+      "totals.net_result": {
+       "code": "account_121_anchor_absent",
+       "source": "inventory_variation",
+       "text_en": "the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+       "text_ro": "balanța este închisă, iar contul 121 lipsește: variația stocurilor (711) nu are sold net și nu poate fi derivată"
+      },
       "totals.operating_profit_reported": {
        "code": "account_121_anchor_absent",
        "text_en": "the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
@@ -10184,12 +10190,12 @@
     "capex_real": -0.0,
     "capex_total": -0.0,
     "capitalized_construction": -0.0,
-    "cash_from_financing": -55000.0,
+    "cash_from_financing": null,
     "cash_from_investing": 0.0,
-    "cash_from_operating": 157500.0,
-    "cash_used_in_financing": -55000.0,
+    "cash_from_operating": null,
+    "cash_used_in_financing": null,
     "cash_used_in_investing": 0.0,
-    "cf_before_wc": 170000.0,
+    "cf_before_wc": null,
     "cip_change": -0.0,
     "closing_cash_actual": 0.0,
     "delta_inventory": -12500.0,
@@ -10200,14 +10206,33 @@
     "delta_trade_pay": 0.0,
     "depreciation": 50000.0,
     "dividends_declared_but_unpaid": false,
-    "dividends_paid": -60000.0,
+    "dividends_paid": null,
     "dividends_received": 0,
-    "free_cash_flow": 157500.0,
+    "free_cash_flow": null,
     "interest_paid": 0,
     "interest_received": 0,
     "is_approximated": true,
-    "net_change_in_cash": 102500.0,
-    "net_profit": 120000.0,
+    "net_change_in_cash": null,
+    "net_income_refusal": {
+     "code": "account_121_anchor_absent",
+     "fields": [
+      "net_income_statutory",
+      "net_income_reconstructed",
+      "net_income_reconciliation_to_121",
+      "net_income_unexplained_vs_121",
+      "free_cash_flow_proxy",
+      "net_margin",
+      "roe",
+      "roa",
+      "free_cash_flow",
+      "assembled_cf.net_profit",
+      "assembled_cf.cash_from_operating"
+     ],
+     "source": "inventory_variation",
+     "text_en": "the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+     "text_ro": "balanța este închisă, iar contul 121 lipsește: variația stocurilor (711) nu are sold net și nu poate fi derivată"
+    },
+    "net_profit": null,
     "net_wc_change": -12500.0,
     "provision_movement": 0,
     "working_capital_change": -12500.0
@@ -10215,28 +10240,28 @@
    "assembled_piotroski": {
     "checks": [
      {
-      "detail": "120,000 RON",
+      "detail": "Net income refused for this period: the stock variation (account 711) could not be measured and there is no account 121.",
       "key": "ni_positive",
       "label": "Net income positive",
-      "result": "pass"
+      "result": "uncertain"
      },
      {
-      "detail": "48.00% on 250,000 RON total assets",
+      "detail": "Net income refused for this period: the stock variation (account 711) could not be measured and there is no account 121.",
       "key": "roa_positive",
       "label": "ROA positive",
-      "result": "pass"
+      "result": "uncertain"
      },
      {
-      "detail": "157,500 RON",
+      "detail": "Net income refused for this period: the stock variation (account 711) could not be measured and there is no account 121.",
       "key": "cfo_positive",
       "label": "Cash from operating positive",
-      "result": "pass"
+      "result": "uncertain"
      },
      {
-      "detail": "CFO 157,500 > NI 120,000",
+      "detail": "Net income refused for this period: the stock variation (account 711) could not be measured and there is no account 121.",
       "key": "cfo_gt_ni",
       "label": "CFO greater than net income (earnings quality)",
-      "result": "pass"
+      "result": "uncertain"
      },
      {
       "detail": "Prior-period data unavailable for YoY comparison.",
@@ -10271,7 +10296,7 @@
     ],
     "disclosure": "Piotroski composite caps at 4 (of 9) until prior-period data is plumbed. The 4 unconditional checks (NI positive, ROA positive, CFO positive, CFO > NI) evaluate normally.",
     "has_prior_period": false,
-    "score": 4,
+    "score": 0,
     "score_max": 9
    },
    "assembled_pl": {
@@ -10557,7 +10582,7 @@
     "financial_expense_total": 0.0,
     "financial_income": 0.0,
     "financial_income_other": 0.0,
-    "free_cash_flow_proxy": 170000.0,
+    "free_cash_flow_proxy": null,
     "fx_gain": 0.0,
     "fx_loss": 0.0,
     "gross_profit": null,
@@ -10604,11 +10629,30 @@
     "net_income_anchor_source": null,
     "net_income_anchor_status": "absent",
     "net_income_operational": 120000.0,
-    "net_income_reconciliation_to_121": 0.0,
-    "net_income_reconstructed": 120000.0,
-    "net_income_statutory": 120000.0,
+    "net_income_reconciliation_to_121": null,
+    "net_income_reconstructed": null,
+    "net_income_refusal": {
+     "code": "account_121_anchor_absent",
+     "fields": [
+      "net_income_statutory",
+      "net_income_reconstructed",
+      "net_income_reconciliation_to_121",
+      "net_income_unexplained_vs_121",
+      "free_cash_flow_proxy",
+      "net_margin",
+      "roe",
+      "roa",
+      "free_cash_flow",
+      "assembled_cf.net_profit",
+      "assembled_cf.cash_from_operating"
+     ],
+     "source": "inventory_variation",
+     "text_en": "the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+     "text_ro": "balanța este închisă, iar contul 121 lipsește: variația stocurilor (711) nu are sold net și nu poate fi derivată"
+    },
+    "net_income_statutory": null,
     "net_income_statutory_anchor": null,
-    "net_income_unexplained_vs_121": 0.0,
+    "net_income_unexplained_vs_121": null,
     "operating_ebit": null,
     "operating_ebitda": null,
     "operating_result": null,
@@ -10904,7 +10948,7 @@
      },
      {
       "id": "reconstruction_gap",
-      "reason": "The P&L, its named lines included, reaches statutory profit exactly; there is no unexplained step to report.",
+      "reason": "The payload carries no reconciliation step to account 121, so the reconstruction cannot be compared with statutory profit.",
       "title": "The P&L does not reach statutory profit on its own"
      },
      {

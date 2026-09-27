@@ -28,6 +28,13 @@ benchmark (not graded), the forecast's year 0, the briefing's citable
 ratios (the engine's reason, never "not reported") and the confidence
 roll-up (not emitted — never a delta against 0).
 
+On the book with NO account 121 (`unanchored`) the NET RESULT refuses too
+— the build-up lacks the refused 711 — with net margin, ROE, ROA, the free
+cash flow, the cash-flow totals, the profitability sub-score, the benchmark's
+headline profit, the briefing's net margin, FactsGateway.net_result and the
+Piotroski checks 1-4 (fixer round 1, 2026-09-27). With 121 (`g6_uncleared`)
+the filed figure stands.
+
 REDS ON (TC-11): any of those surfaces carrying a number (a 0 above all)
 for a refused EBITDA, EBIT or a ratio built on them; a surface carrying a
 different code than the 711 refusal; a scope without both refusal kinds
@@ -44,7 +51,7 @@ import pytest
 from _one_definition_served import (
     EBIT_SURFACES, EBITDA_SURFACES, REFUSED_BOOKS, Refused, served)
 
-WORK: Dict[str, Any] = {"checks": 0, "books": [], "codes": {}}
+WORK: Dict[str, Any] = {"checks": 0, "books": [], "codes": {}, "net_result_refused": []}
 
 #: Ratio-table rows built on EBITDA / EBIT / gross profit.
 RATIO_ROWS = ("ebitda_margin", "operating_margin", "gross_margin", "core_ebitda_margin",
@@ -176,6 +183,75 @@ def test_refusal_carries_every_engine_surface_refuses_with_the_711_reason(name):
         if (meth_refusals.get(view) or {}).get("code") != code:
             problems.append("%s: methodology refusal for %s is %r" % (name, view, meth_refusals.get(view)))
 
+    # 10. THE NET RESULT (fixer round 1, 2026-09-27). With account 121 the
+    #     filed figure stands whatever 711 is (g6_uncleared). WITHOUT it
+    #     (unanchored) the net result is the class-6/7 build-up, which
+    #     lacks the refused 711 — the developer with its 121 rows dropped
+    #     served -30,391,418.38 where 121 holds -801,604.14 — so it refuses
+    #     with the same reason, and so does everything built on it.
+    anchored = apl.get("net_income_anchor_status") == "anchored"
+    if anchored:
+        WORK["checks"] += 1
+        if apl.get("net_income_refusal") is not None or not isinstance(
+                apl.get("net_income_statutory"), (int, float)):
+            problems.append("%s: an ANCHORED net result was refused (%r / %r)"
+                            % (name, apl.get("net_income_statutory"), apl.get("net_income_refusal")))
+    else:
+        WORK["checks"] += 1
+        if (apl.get("net_income_refusal") or {}).get("code") != code:
+            problems.append("%s: net_income_refusal %r, expected the 711 code %r"
+                            % (name, apl.get("net_income_refusal"), code))
+        for fld in ("net_income_statutory", "net_income_reconstructed",
+                    "net_income_reconciliation_to_121", "net_income_unexplained_vs_121",
+                    "free_cash_flow_proxy"):
+            refused("assembled_pl.%s" % fld, apl.get(fld), carries_code=False)
+        for fld in ("net_income_statutory",):
+            refused("GET /api/period assembled_metrics.pl.%s" % fld,
+                    (b.am.get("pl") or {}).get(fld), carries_code=False)
+        cf = b.statements.get("assembled_cf") or {}
+        for fld in ("net_profit", "cf_before_wc", "cash_from_operating", "free_cash_flow",
+                    "net_change_in_cash"):
+            refused("assembled_cf.%s" % fld, cf.get(fld), carries_code=False)
+        for key in ("net_income_statutory", "net_margin", "roe", "roa", "free_cash_flow",
+                    "credit_subscore_profitability"):
+            refused("metric row %r" % key, b.metrics.get(key), carries_code=False)
+        for key in ("net_margin", "roe", "roa"):
+            WORK["checks"] += 1
+            row = rows.get(key) or {}
+            reason = row.get("reason") or {}
+            if row.get("value") is not None or reason.get("code") != "ebitda_refused" \
+                    or reason.get("cause") != code:
+                problems.append("%s: ratio table %s = %r refused %r / cause %r, expected "
+                                "ebitda_refused / %r" % (name, key, row.get("value"),
+                                                        reason.get("code"), reason.get("cause"), code))
+        for key in ("net_margin", "net_income_statutory", "net_income_operating"):
+            WORK["checks"] += 1
+            if b.bench.get(key) is not None or key not in (b.bench.get("refusals") or {}):
+                problems.append("%s: benchmark %s = %r (refusals %r)"
+                                % (name, key, b.bench.get(key), sorted(b.bench.get("refusals") or {})))
+        WORK["checks"] += 1
+        if ratios.get("net_margin_pct") is not None or text not in (refusals.get("net_margin_pct") or ""):
+            problems.append("%s: briefing net_margin_pct = %r (%r) — expected the engine's reason"
+                            % (name, ratios.get("net_margin_pct"), refusals.get("net_margin_pct")))
+        from engine.serving.facts import MissingFactError
+        WORK["checks"] += 1
+        try:
+            got = b.gateway.net_result().amount_minor
+        except MissingFactError as err:
+            if (getattr(err, "refusal", None) or {}).get("code") != code:
+                problems.append("%s: FactsGateway.net_result refuses with %r"
+                                % (name, getattr(err, "refusal", None)))
+        else:
+            problems.append("%s: FactsGateway.net_result serves %r for a REFUSED net result"
+                            % (name, got))
+        pio = b.statements.get("assembled_piotroski") or {}
+        for check in (pio.get("checks") or [])[:4]:
+            WORK["checks"] += 1
+            if check.get("result") != "uncertain":
+                problems.append("%s: Piotroski %s is %r on a refused net result"
+                                % (name, check.get("key"), check.get("result")))
+        WORK["net_result_refused"].append(name)
+
     WORK["books"].append(name)
     assert not problems, "\n".join(problems)
 
@@ -183,5 +259,8 @@ def test_refusal_carries_every_engine_surface_refuses_with_the_711_reason(name):
 def test_refusal_carries_zz_work(capsys):
     with capsys.disabled():
         print("\nREFUSAL-CARRIES-ENGINE books judged: %s" % ", ".join(WORK["books"]))
+        print("NET-RESULT refused (no account 121): %s" % ", ".join(WORK["net_result_refused"]))
         print("GATE-WORK refusal-carries-engine units=%d" % WORK["checks"])
     assert sorted(WORK["books"]) == sorted(REFUSED_BOOKS), WORK["books"]
+    # TC-3: the net-result law has a witness (a refused 711 with no 121).
+    assert WORK["net_result_refused"] == ["unanchored"], WORK["net_result_refused"]

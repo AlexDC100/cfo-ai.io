@@ -43,6 +43,7 @@ import type { Statements } from "./financialReport";
 import {
   componentShown,
   plLevelsOf,
+  readRefusal,
   readServedOneEbitda,
   reconLine,
   type ServedComponent,
@@ -237,7 +238,10 @@ export function printedPl(s: Statements): PrintedPl {
       en: "account 121 is not anchored for this period",
     },
   };
-  push("net_income", NET_INCOME_FILED_LABEL, netIncomeFiled, "total", notAnchored);
+  // A net result the engine REFUSED carries ITS reason (the stock
+  // variation, no account 121), not the generic "not anchored".
+  const netRefusal = readRefusal(apl ? apl.net_income_refusal : null);
+  push("net_income", NET_INCOME_FILED_LABEL, netIncomeFiled, "total", netRefusal ?? notAnchored);
 
   // ── the one-line bridge and the notes ─────────────────────────────────
   const parts = recon?.bridge.parts ?? [];

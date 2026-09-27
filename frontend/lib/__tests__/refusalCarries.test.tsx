@@ -26,6 +26,11 @@
 // REDS ON (TC-11): a refused EBITDA / EBIT / gross profit / PBT / EBITDA
 // margin / Debt-EBITDA / coverage / DSCR / EV-EBITDA / NOI turning into a
 // number anywhere below, or its printed refusal losing the engine's reason.
+// On the book with NO account 121 the NET RESULT is refused too (the
+// build-up lacks the refused 711): the dashboard tile (even over a stale
+// metric row), the canonical net profit, ROE / ROA / net margin, the
+// printed net income row and the cash-flow statement carry the reason; with
+// account 121 the filed figure stands (fixer round 1, 2026-09-27).
 // CANNOT SEE: whether the engine was right to refuse (net-711-rule);
 // surfaces that do not print EBITDA; pixels.
 import { describe, expect, it, vi } from "vitest";
@@ -48,6 +53,7 @@ import { printedPl, printedRow } from "@/lib/printedPl";
 import { buildExcelWorkbook, buildReportHtml } from "@/lib/financialExports";
 import { computeCreditScore, multiPeriodGrowth, runDcf } from "@/lib/financialValuation";
 import { buildNavCascade } from "@/lib/buildNavCascade";
+import { buildCashFlowStatement } from "@/lib/buildCashFlowStatement";
 import { formulaInputRefusal, resolveFormulaInput } from "@/lib/resolveFormulaInput";
 import { absenceSentence } from "@/components/cfo/ratioAbsenceI18n";
 import type { ApiLineItem } from "@/lib/plStructure";
@@ -182,6 +188,61 @@ describe("refusal-carries — a refused EBITDA stays refused on every surface", 
       expect(nav.crossMethods.capRate).toBeNull();
     });
   }
+
+  // THE NET RESULT (fixer round 1, 2026-09-27). With account 121 the filed
+  // figure stands whatever 711 is (g6_uncleared). WITHOUT it (unanchored)
+  // the net result is the class-6/7 build-up, which lacks the refused 711 —
+  // the developer with its 121 rows dropped printed -30,391,418.38 on the
+  // dashboard tile, ROE -75.4 % and ROA -36.4 % where 121 holds -801,604.14.
+  // The engine refuses it; every surface states the refusal — never a
+  // stale metric row, the builder's figure, or a 0.
+  it("unanchored: the net result, ROE, ROA, the report and the cash flow refuse with the engine's reason", () => {
+    const b = BOOKS.find((x) => x.name === "unanchored")!;
+    const r = servedRefusal(b);
+    expect((b.apl.net_income_refusal as { code?: string } | undefined)?.code).toBe(r.code);
+    // A stored metric row written before the refusal existed must not stand in.
+    const stale = [{ name: "net_income_statutory", value: 120000 }] as unknown as Parameters<
+      typeof computeDashboardHeadline>[0]["metrics"];
+    const headline = computeDashboardHeadline({
+      statements: b.statements, lineItems: b.lineItems, metrics: stale, entity: "E",
+      canonicalMargins: canonicalMarginsFrom([]),
+    });
+    expect(Number.isNaN(headline.tileNetProfitRon), `tile printed ${headline.tileNetProfitRon}`).toBe(true);
+    expect(headline.tileNetProfitRefusal?.code).toBe(r.code);
+    const canon = buildCanonicalMetricsFromInputs({
+      assembled_pl: b.statements.assembled_pl as Record<string, number>,
+      line_items: b.lineItems, period_id: `p-${b.name}`,
+    })!;
+    expect([canon.netProfit.statutory_account_121, canon.netProfit.reconstructed,
+      canon.netProfit.reconciliation_gap]).toEqual([null, null, null]);
+    expect(canon.netProfit.refusal?.code).toBe(r.code);
+    for (const key of ["net_margin", "roe", "roa"]) {
+      const row = ratioNamed(b, key);
+      expect(row?.value, `${key} printed a number`).toBeNull();
+      expect(row?.unavailable?.kind, `${key} is not refused`).toBe("refused");
+    }
+    const ni = printedRow(printedPl(b.statements), "net_income");
+    expect(ni?.value).toBeNull();
+    expect(ni?.refusal?.code).toBe(r.code);
+    const cf = buildCashFlowStatement({
+      pl: b.statements.assembled_pl as Record<string, number>,
+      bs: b.statements.assembled_bs as Record<string, number>,
+      cf: (b.statements as { assembled_cf?: Record<string, number> }).assembled_cf,
+      entity: "E", period: "P",
+    });
+    expect(cf.refusal?.code).toBe(r.code);
+  });
+
+  it("g6_uncleared: WITH account 121 the filed net result stands, though 711 is refused", () => {
+    const b = BOOKS.find((x) => x.name === "g6_uncleared")!;
+    expect(b.apl.net_income_refusal).toBeUndefined();
+    const headline = computeDashboardHeadline({
+      statements: b.statements, lineItems: b.lineItems, metrics: [], entity: "E",
+      canonicalMargins: canonicalMarginsFrom([]),
+    });
+    expect(headline.tileNetProfitRon).toBe(b.apl.net_income_statutory);
+    expect(headline.tileNetProfitRefusal).toBeNull();
+  });
 
   it("a payload the engine did not assemble, whose buckets show 711 activity, refuses the same way", () => {
     const b = constructedBook("closed_bridge");

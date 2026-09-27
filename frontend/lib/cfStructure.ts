@@ -58,6 +58,13 @@ export interface CashFlowStatement {
     cashFromFinancing: number;
   };
 
+  /** The engine REFUSED the net result the indirect method starts from
+   *  (no account 121 and a refused net 711 — the build-up lacks the
+   *  unmeasured stock variation). The view then states this reason in
+   *  place of the statement: every figure below would be built on a net
+   *  profit nobody stated. Null / absent otherwise. */
+  refusal?: { code: string; text: { ro: string; en: string } } | null;
+
   reconciliation: {
     netChangeInCash: number;
     openingCash: number;

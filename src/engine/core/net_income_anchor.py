@@ -109,9 +109,16 @@ def annotate_net_income_anchor(
     operational = _num("net_income_operational")
     statutory = _num("net_income_statutory")
 
+    # A REFUSED net result (`net_income_refusal`: no account 121 and a
+    # refused net 711) has no reconstruction either: the build-up lacks the
+    # unmeasured 711, which is exactly why the result was refused. Serving
+    # it here would put that short figure back on the page under "built
+    # from the accounts" (the report printed it on the row after the
+    # refusal).
+    refused = isinstance(pl.get("net_income_refusal"), dict)
     pl["net_income_reconstructed"] = (
         round(operational + _named_build_up_components(pl), 2)
-        if operational is not None else None
+        if operational is not None and not refused else None
     )
     pl["net_income_statutory_anchor"] = (
         round(float(anchor), 2) if anchor is not None else None

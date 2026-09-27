@@ -772,6 +772,15 @@ class FactsGateway(object):
             raise MissingFactError(
                 "net_result requires a canonical_bs serving (tier=%s)" % self.tier
             )
+        # The net result REFUSED with 711 (no account 121; owner ruling
+        # 2026-09-26): the balance sheet's result row holds the class-6/7
+        # build-up — short by the unmeasured stock variation — only so the
+        # sheet closes. It is never served as the net result.
+        refusals = self._methodology.get("refusals")
+        refusal = refusals.get("totals.net_result") if isinstance(refusals, dict) else None
+        if refusal:
+            raise RefusedFactError(
+                "net result refused: %s" % (refusal.get("code") or "refused"), refusal)
         row_cents = self._result_rows_cents(self._served)
         if row_cents is not None:
             return self._fact(row_cents)

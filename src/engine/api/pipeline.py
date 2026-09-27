@@ -3081,7 +3081,14 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
     # FE can group them into a distinct section (Section 7 in the
     # comprehensive report) without interleaving with data-quality alerts.
     revenue_local = float(pl_canonical.get("revenue", pl.get("revenue", 0)) or 0)
-    net_income_local = float(pl_canonical.get("net_income_statutory") or pl_canonical.get("net_income_operational") or 0)
+    if isinstance(pl_canonical.get("net_income_refusal"), dict):
+        # The net result is REFUSED with 711 (no account 121): the
+        # operational build-up below is short by the unmeasured variation
+        # and must not stand in for it. 0.0 here means "not stated" — every
+        # risk that reads it runs only on a positive net income.
+        net_income_local = 0.0
+    else:
+        net_income_local = float(pl_canonical.get("net_income_statutory") or pl_canonical.get("net_income_operational") or 0)
     trade_rec_local = float(bs_canonical.get("ar_net") or 0)
     rec_provisions_local = float(bs_canonical.get("ar_provisions") or 0)
     inventory_local = float(bs.get("inventory", 0) or 0)
@@ -3409,8 +3416,12 @@ def _briefing_ratios(
             refusals[key] = _not_meaningful
             return None
         if numerator is None:
+            # The net result refused with 711 (no account 121) carries the
+            # same stock-variation reason as EBITDA — not "not reported".
+            _same_cause = what == "EBITDA" or (
+                what == "net income" and isinstance(pl_canonical.get("net_income_refusal"), dict))
             refusals[key] = ("margin not computable: " + refused_text
-                             if (what == "EBITDA" and refused_text)
+                             if (_same_cause and refused_text)
                              else "margin not computable: %s not reported" % what)
             return None
         return round(100 * numerator / revenue, 2)

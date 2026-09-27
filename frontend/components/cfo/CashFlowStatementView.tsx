@@ -48,6 +48,26 @@ interface Props {
 }
 
 export function CashFlowStatementView({ statement, hideGuide = false, prior = null }: Props) {
+  const { t, i18n } = useTranslation();
+  // The engine REFUSED the net result the indirect method starts from: its
+  // reason, never a statement built on a net profit of 0.
+  if (statement.refusal) {
+    const lang = (i18n.language ?? "en").startsWith("ro") ? "ro" : "en";
+    return (
+      <div className="cf-statement" data-testid="cf-statement-refused">
+        <h2>
+          {t("statements.cf.title")} — {statement.entity} — {statement.period}
+        </h2>
+        <p data-testid="cf-refused-reason">
+          {lang === "ro" ? "Refuzat" : "Refused"} — {statement.refusal.text[lang]}
+        </p>
+      </div>
+    );
+  }
+  return <CashFlowStatementBody statement={statement} hideGuide={hideGuide} prior={prior} />;
+}
+
+function CashFlowStatementBody({ statement, hideGuide = false, prior = null }: Props) {
   const { t } = useTranslation();
   const { operating, investing, financing, reconciliation, notes } = statement;
   const cmp = useComparativeContext();

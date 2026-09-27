@@ -271,9 +271,17 @@ def operating_figures(statements: Mapping[str, Any]) -> Dict[str, Any]:
             "capitalized_own_work": (_fnum(cap.get("value")) if isinstance(cap, Mapping)
                                      else _fnum(apl.get("capitalized_own_work_memo"))),
             "refusal": None,
+            # The NET RESULT refused with 711 (no account 121 to stand in
+            # for the unmeasured variation) — the assembler's own block.
+            "net_income_refusal": None,
             "source": "assembled_pl",
             "definition": apl.get("ebitda_definition"),
         }
+        ni_ref = apl.get("net_income_refusal")
+        if isinstance(ni_ref, Mapping):
+            out["net_income_refusal"] = _ebitda_refusal(
+                ni_ref.get("code"), ni_ref.get("text_ro"), ni_ref.get("text_en"),
+                ["assembled_pl.net_income_statutory", "assembled_pl.inventory_variation"])
         served = apl.get("ebitda_refusal")
         if isinstance(served, Mapping):
             out["refusal"] = _ebitda_refusal(served.get("code"), served.get("text_ro"),
@@ -299,6 +307,7 @@ def operating_figures(statements: Mapping[str, Any]) -> Dict[str, Any]:
         "inventory_variation": None,
         "capitalized_own_work": cap,
         "refusal": None,
+        "net_income_refusal": None,
         "source": "incomeStatement",
         "definition": None,
     }
@@ -370,6 +379,7 @@ def statement_operands(statements: Mapping[str, Any]) -> Optional[Dict[str, Any]
     except (KeyError, TypeError):
         return None
     ops["ebitda_refusal"] = figures["refusal"]
+    ops["net_income_refused"] = figures.get("net_income_refusal") is not None
     return ops
 
 
@@ -401,6 +411,11 @@ def component_refusals(ops: Dict[str, Any]) -> Dict[str, str]:
         out["altman"] = EBITDA_REFUSED
     if not ops["revenue"] > 0:
         out["profitability"] = REVENUE_NOT_POSITIVE
+    elif ops.get("net_income_refused"):
+        # ROE and the net margin read the NET RESULT, refused with 711 when
+        # there is no account 121 (the build-up lacks the unmeasured
+        # variation). The cause beside the code is the stock variation's.
+        out["profitability"] = EBITDA_REFUSED
     if ebit_refused or ops.get("ebitda") is None:
         out["coverage"] = EBITDA_REFUSED
         out["dscr"] = EBITDA_REFUSED
@@ -762,9 +777,17 @@ def compute_period_metrics(
         value = pl_canonical.get(name)
         return fallback if value is None else float(value)
 
-    net_income_statutory = _canonical(
-        "net_income_statutory", net_income + capitalized_own_work
-    )
+    # REFUSED (None) when the assembly refused the net result — no
+    # account 121 and a refused net 711 (`assembled_pl.net_income_refusal`).
+    # `_canonical` reads a served None as "not surfaced" and would put the
+    # build-up WITHOUT 711 back under the statutory name; it must not.
+    net_income_statutory: Optional[float]
+    if figures.get("net_income_refusal") is not None:
+        net_income_statutory = None
+    else:
+        net_income_statutory = _canonical(
+            "net_income_statutory", net_income + capitalized_own_work
+        )
     # The legacy EBITDA names are ALIASES of the one figure: no row carries
     # a second EBITDA. `total_operating_revenue` is the assembled
     # venituri din exploatare without 711 (turnover + other operating
@@ -809,7 +832,7 @@ def compute_period_metrics(
         # `net_income_operational` (alias of net_income).
         {"name": "net_income",         "value": round(net_income, 2),      "unit": "RON",   "direction": "higher"},
         {"name": "net_income_operational", "value": round(net_income, 2),  "unit": "RON",   "direction": "higher"},
-        {"name": "net_income_statutory",   "value": round(net_income_statutory, 2), "unit": "RON", "direction": "higher"},
+        {"name": "net_income_statutory",   "value": money(net_income_statutory), "unit": "RON", "direction": "higher"},
         {"name": "ebitda_statutory",       "value": money(ebitda_statutory),        "unit": "RON", "direction": "higher"},
         {"name": "total_operating_revenue","value": round(total_operating_revenue, 2),"unit": "RON","direction": "higher"},
         {"name": "capitalized_own_work_memo", "value": round(capitalized_own_work, 2), "unit": "RON", "direction": "neutral"},
@@ -862,7 +885,9 @@ def compute_period_metrics(
         {"name": "roic",               "value": (None if total_debt + total_equity <= 0 or operating_profit is None
                                                  else safe(operating_profit * (1 - 0.16), total_debt + total_equity)), "unit": "ratio", "direction": "higher"},
         {"name": "cash",               "value": round(bs["cash"], 2),              "unit": "RON",   "direction": "higher"},
-        {"name": "free_cash_flow",     "value": round(net_income_statutory + depreciation, 2),"unit": "RON",  "direction": "higher"},
+        {"name": "free_cash_flow",     "value": (None if net_income_statutory is None
+                                                 else round(net_income_statutory + depreciation, 2)),
+         "unit": "RON",  "direction": "higher"},
     ]
 
     # F3.11 — F3.9 source-data quality telemetry. Persisted as numeric
@@ -1029,6 +1054,7 @@ def compute_period_metrics(
     if total_assets > 0:
         ops = _operands(bs, interest, operating_profit, ebitda, revenue)
         ops["ebitda_refusal"] = ebitda_refusal
+        ops["net_income_refused"] = net_income_statutory is None
         refusals = component_refusals(ops)
         rungs = declared_rungs(ops)
 

@@ -603,10 +603,12 @@ def _engine_gates() -> List[Gate]:
                        "refused by the one margin rule on every displayed surface: realestate")),
         Gate("refusal-carries-engine",
              [PY, "-m", "pytest", "tests/engine/test_refusal_carries_engine.py", "-q"],
-             work_rx=r"GATE-WORK refusal-carries-engine units=(\d+)", floor=130,
+             work_rx=r"GATE-WORK refusal-carries-engine units=(\d+)", floor=160,
              units="engine surfaces checked to refuse with the 711 reason",
              canaries=("SCOPE refusal-carries-engine: refused books g6_uncleared "
-                       "(account_121_opening_not_cleared); unanchored (account_121_anchor_absent)",)),
+                       "(account_121_opening_not_cleared); unanchored (account_121_anchor_absent)",
+                       # fixer round 1: the net result refuses with 711 when there is no 121
+                       "NET-RESULT refused (no account 121): unanchored")),
         # ── owner ruling 2026-09-26, design A6: valuation-one-ebitda ────
         # EV/EBITDA multiplies the ONE EBITDA (never the revision-2 fallback
         # that rebuilt a second one from the incomeStatement mirror on 0.0);
@@ -1063,11 +1065,12 @@ def _engine_gates() -> List[Gate]:
         Gate("refusal-carries",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/lib/__tests__/refusalCarries.test.tsx", "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=8,
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=12,
              units="surface tests (a refused EBITDA stays refused, with the engine's reason, on every surface)",
              canaries=("covers the two refused books, and on both the buckets would rebuild a number",
                        "unanchored: growth, the credit model, the DCF and the NAV cascade refuse with it",
-                       "a payload the engine did not assemble, whose buckets show 711 activity, refuses the same way")),
+                       "a payload the engine did not assemble, whose buckets show 711 activity, refuses the same way",
+                       "unanchored: the net result, ROE, ROA, the report and the cash flow refuse with the engine's reason")),
         # ── fixer round 1 (2026-09-27): valuation-refused-override ────────
         # The Valuation tab seeded a refused EBITDA as 0 and sent it on EVERY
         # save (debt, cash, the multiple slider): the engine applied the 0 as

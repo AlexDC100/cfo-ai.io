@@ -702,9 +702,9 @@ _GENERAL_SME_BAND_DEFINITIONS: Dict[str, Dict[str, object]] = {
 
 def _piotroski_checks(
     *,
-    net_income_statutory: float,
+    net_income_statutory: Optional[float],
     total_assets: float,
-    cash_from_operating: float,
+    cash_from_operating: Optional[float],
     prior: Optional[Dict[str, float]],
     currency: str,
     current: Optional[Dict[str, float]] = None,
@@ -740,44 +740,50 @@ def _piotroski_checks(
         checks.append({"key": key, "label": label, "result": result, "detail": detail})
 
     # ── Checks 1-4 (no prior period needed) ──────────────────────
-    ni_pass = net_income_statutory > 0
+    # A REFUSED net result (None: no account 121 and a refused net 711)
+    # makes every check that reads it `uncertain` — out of the score, never
+    # a pass or a fail on a figure the statement does not state.
+    _refused_ni = "Net income refused for this period: the stock variation (account 711) could not be measured and there is no account 121."
+    ni_known = net_income_statutory is not None
+    ni_pass = ni_known and net_income_statutory > 0
     _add(
         "ni_positive", "Net income positive",
-        "pass" if ni_pass else "fail",
-        f"{net_income_statutory:,.0f} {currency}",
+        ("pass" if ni_pass else "fail") if ni_known else "uncertain",
+        f"{net_income_statutory:,.0f} {currency}" if ni_known else _refused_ni,
     )
     # ROA is undefined on a non-positive asset base. It is `uncertain` and
     # left out of the score — the same treatment `_ratio` / `_yoy` give the
     # prior-period checks below — never a `fail` at an invented 0.00%.
     roa_defined = total_assets > 0
-    roa_pass = roa_defined and (net_income_statutory / total_assets) > 0
+    roa_pass = roa_defined and ni_known and (net_income_statutory / total_assets) > 0
     _add(
         "roa_positive", "ROA positive",
-        ("pass" if roa_pass else "fail") if roa_defined else "uncertain",
+        ("pass" if roa_pass else "fail") if (roa_defined and ni_known) else "uncertain",
         (
             f"{net_income_statutory / total_assets * 100:.2f}% on "
             f"{total_assets:,.0f} {currency} total assets"
-        ) if roa_defined else (
+        ) if (roa_defined and ni_known) else (
             f"ROA not computable: total assets are not positive "
             f"({total_assets:,.0f} {currency})."
-        ),
+        ) if ni_known else _refused_ni,
     )
-    cfo_pass = cash_from_operating > 0
+    cfo_known = cash_from_operating is not None
+    cfo_pass = cfo_known and cash_from_operating > 0
     _add(
         "cfo_positive", "Cash from operating positive",
-        "pass" if cfo_pass else "fail",
-        f"{cash_from_operating:,.0f} {currency}",
+        ("pass" if cfo_pass else "fail") if cfo_known else "uncertain",
+        f"{cash_from_operating:,.0f} {currency}" if cfo_known else _refused_ni,
     )
-    cfo_gt_ni_pass = cash_from_operating > net_income_statutory
+    cfo_gt_ni_pass = cfo_known and ni_known and cash_from_operating > net_income_statutory
     _add(
         "cfo_gt_ni", "CFO greater than net income (earnings quality)",
-        "pass" if cfo_gt_ni_pass else "fail",
+        ("pass" if cfo_gt_ni_pass else "fail") if (cfo_known and ni_known) else "uncertain",
         (
             f"CFO {cash_from_operating:,.0f} > NI {net_income_statutory:,.0f}"
             if cfo_gt_ni_pass else
             f"NI {net_income_statutory:,.0f} > CFO {cash_from_operating:,.0f} "
             "— possible accrual inflation"
-        ),
+        ) if (cfo_known and ni_known) else _refused_ni,
     )
     base_pass_count = sum(1 for r in (ni_pass, roa_pass, cfo_pass, cfo_gt_ni_pass) if r)
 
@@ -1573,6 +1579,36 @@ def assemble_statements(
         anchor_override_applied = True
         net_income_statutory = account_121_anchor
 
+    # ── The net result REFUSES with 711 when there is no anchor ─────────
+    # (owner ruling 2026-09-26, design A3: a refused net 711 refuses EBITDA,
+    # EBIT and everything built on them.) With account 121 present the
+    # filed figure stands whatever 711 is. Without it the net result is the
+    # class-6/7 build-up — and a refused 711 is not in the build-up (0.00
+    # above), so the build-up is short by exactly the unmeasured variation:
+    # the developer's book with its 121 rows dropped served -30,391,418.38
+    # where 121 holds -801,604.14 — the refused 29,589,814.24. That figure
+    # was served under the statutory name (the dashboard tile, ROE, ROA and
+    # the net margin all read it) while `pretax` two fields above was
+    # refused. It is refused with the same typed reason.
+    #
+    # `net_income_statutory` below stays the build-up INTERNALLY, only for
+    # the balance sheet's current-year result (the equity section needs a
+    # number to close into; its `bs_balance_delta` then shows what the
+    # build-up could not explain) — it is never SERVED as a net result.
+    net_income_refusal = None
+    if definition_refused and account_121_anchor is None:
+        net_income_refusal = {
+            **dict(inventory_variation_block["refusal"] or {}),
+            "source": "inventory_variation",
+            "fields": [
+                "net_income_statutory", "net_income_reconstructed",
+                "net_income_reconciliation_to_121", "net_income_unexplained_vs_121",
+                "free_cash_flow_proxy", "net_margin", "roe", "roa", "free_cash_flow",
+                "assembled_cf.net_profit", "assembled_cf.cash_from_operating",
+            ],
+        }
+    net_income_served = None if net_income_refusal is not None else net_income_statutory
+
     # ── The bridge from the reconstruction to the filed figure ──────────
     # After the override above, `net_income_statutory` and
     # `net_income_operational` are two DIFFERENT numbers for what a reader
@@ -1598,7 +1634,9 @@ def assemble_statements(
     #     absorb it would make the build-up foot on a fiction, which is
     #     worse than an honest gap: see the `p121_cross_check` block
     #     below, whose `ok=false` is the same fact stated for diagnosis.
-    net_income_reconciliation_to_121 = net_income_statutory - net_income_operational
+    net_income_reconciliation_to_121 = (
+        None if net_income_served is None else net_income_statutory - net_income_operational
+    )
     # WHAT THIS FIELD MEANS, and what it used to mean (2026-09-09).
     # It is the part of the step from the reconstruction to the filed
     # figure that this data CANNOT attribute — the reconciliation less the
@@ -1626,8 +1664,12 @@ def assemble_statements(
     # remainder still holds whatever 711 is — it is what the served lines
     # cannot explain, which is exactly this field's name.
     _named_711 = net_711 if net_711 is not None else 0.0
+    # Refused with the net result (no anchor, 711 refused): nothing is
+    # "explained" or "unexplained" against a figure that is not there —
+    # never a 0.00 that reads as "the build-up ties".
     net_income_unexplained_vs_121 = (
-        net_income_reconciliation_to_121 - capitalized - _named_711
+        None if net_income_served is None
+        else net_income_reconciliation_to_121 - capitalized - _named_711
         if account_121_anchor is not None else 0.0
     )
 
@@ -1774,7 +1816,8 @@ def assemble_statements(
     financial_expense_total = fin_exp + interest
     # FCF proxy — net income + D&A. Marked `_proxy` to distinguish from
     # the proper CFO − Capex computed later (F1.c). Per §13.3.
-    free_cash_flow_proxy = net_income_statutory + depreciation
+    free_cash_flow_proxy = (None if net_income_served is None
+                            else net_income_statutory + depreciation)
 
     def _r(value: Optional[float]) -> Optional[float]:
         # A refused figure stays None — never rounded into a 0.00.
@@ -1840,7 +1883,10 @@ def assemble_statements(
         # Both net income views — neither hidden, neither default.
         # `net_income_operational` is the build-up BEFORE 72x and 711.
         "net_income_operational": round(net_income_operational, 2),
-        "net_income_statutory": round(net_income_statutory, 2),
+        # Refused (None) when the net result cannot be stated: no account
+        # 121 and a refused net 711 — `net_income_refusal` (emitted below,
+        # only then) says why.
+        "net_income_statutory": _r(net_income_served),
         # Net 72x as a scalar (= capitalized_own_work.value).
         "capitalized_own_work_memo": round(capitalized, 2),
 
@@ -1862,7 +1908,7 @@ def assemble_statements(
         "adjusted_ebitda": _r(adjusted_ebitda),
         "net_financial_result": round(net_financial_result, 2),
         "financial_expense_total": round(financial_expense_total, 2),
-        "free_cash_flow_proxy": round(free_cash_flow_proxy, 2),
+        "free_cash_flow_proxy": _r(free_cash_flow_proxy),
 
         # ── The other-operating-income line the build-up needs ──────────
         # `other_inc` is the addend this assembly ACTUALLY used to form
@@ -1879,9 +1925,13 @@ def assemble_statements(
         # whole step; `..._unexplained_vs_121` is the part of it that no
         # line on this statement accounts for (72x and a MEASURED net 711
         # are the nameable parts).
-        "net_income_reconciliation_to_121": round(net_income_reconciliation_to_121, 2),
-        "net_income_unexplained_vs_121": round(net_income_unexplained_vs_121, 2),
+        "net_income_reconciliation_to_121": _r(net_income_reconciliation_to_121),
+        "net_income_unexplained_vs_121": _r(net_income_unexplained_vs_121),
     }
+    if net_income_refusal is not None:
+        # Only on a refused net result: every other book's P&L is
+        # byte-identical to what it was.
+        assembled_pl_canonical["net_income_refusal"] = net_income_refusal
     # ── The reconciliation line (design A5), served beside EBITDA ────────
     assembled_pl_canonical["ebitda_reconciliation"] = _ebitda_reconciliation(
         turnover=revenue,
@@ -2100,6 +2150,15 @@ def assemble_statements(
         # names); spec uses `working_capital_change`.
         "working_capital_change": round(net_wc_change_approx, 2),
     }
+    if net_income_refusal is not None:
+        # The indirect method STARTS from the net result: with it refused,
+        # every total built on it is refused too (never computed on the
+        # build-up that lacks the unmeasured 711).
+        for _k in ("net_profit", "cf_before_wc", "cash_from_operating", "dividends_paid",
+                   "cash_used_in_financing", "cash_from_financing", "net_change_in_cash",
+                   "free_cash_flow"):
+            assembled_cf_canonical[_k] = None
+        assembled_cf_canonical["net_income_refusal"] = net_income_refusal
 
     statements = {
         "companyName": company_name,
@@ -2131,9 +2190,9 @@ def assemble_statements(
         # case (per SPEC §9 — "honest cap"). The FE's `runPiotroski`
         # becomes a pure renderer.
         "assembled_piotroski": _piotroski_checks(
-            net_income_statutory=net_income_statutory,
+            net_income_statutory=net_income_served,
             total_assets=total_assets,
-            cash_from_operating=cash_from_operating,
+            cash_from_operating=assembled_cf_canonical["cash_from_operating"],
             # Prior-period data plumbing is scheduled for a small
             # follow-up; `prior` is None for now, which triggers the
             # 5 "uncertain" results + cap-at-4 score per the spec.
@@ -2309,6 +2368,19 @@ def assemble_statements(
             # block serves no EBITDA (FactsGateway.ebitda refuses it).
             if methodology.ebitda_definition == EBITDA_DEFINITION_REVISION:
                 canonical_env["methodology"]["ebitda_definition"] = EBITDA_DEFINITION_REVISION
+            # The NET RESULT refused with 711 (no account 121): the canonical
+            # balance sheet still closes the build-up into equity (it needs
+            # a number to balance on), so the envelope says, beside it, that
+            # this figure is NOT a net result a reader may be given —
+            # FactsGateway.net_result refuses on it (Capsule get_facts, the
+            # advisory, radar).
+            if net_income_refusal is not None:
+                canonical_env["methodology"].setdefault("refusals", {})["totals.net_result"] = {
+                    "code": net_income_refusal.get("code"),
+                    "text_ro": net_income_refusal.get("text_ro"),
+                    "text_en": net_income_refusal.get("text_en"),
+                    "source": "inventory_variation",
+                }
         except Exception:  # noqa: BLE001
             # PyYAML missing, file missing, formula error — surface as
             # absent `methodology` key, not a pipeline break.
