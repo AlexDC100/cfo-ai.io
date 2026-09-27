@@ -169,6 +169,14 @@ export class WorkspaceDouble {
   /** Every comparatives request: the company asked (X-Org-Id), the period, the prior. */
   readonly comparisons: { org: string | null; period: string; prior: string | null }[] = [];
   holdAt: string | undefined;
+  /** A deterministic delay, in ms, before the double answers an ENGINE
+   *  request (by path + search); null or 0 answers at once. The request is
+   *  logged when it is made, not when it is answered. cmdbar.spec G10 sets
+   *  it at the switch, so the window in which a new key loads while the
+   *  previous key's data is kept on screen is always open — answered at
+   *  once, that window was often shorter than one committed frame and the
+   *  paint check caught the pre-fix defect only about half the time. */
+  engineDelay: ((pathAndSearch: string) => number) | null = null;
 
   constructor(readonly opts: DoubleOptions) {
     this.holdAt = opts.holdAt;
@@ -254,7 +262,11 @@ export class WorkspaceDouble {
       org: req.headers()["x-org-id"] ?? null,
     });
     try {
-      if (url.hostname === ENGINE_HOST) return await this.engine(route, req, url);
+      if (url.hostname === ENGINE_HOST) {
+        const wait = this.engineDelay?.(url.pathname + url.search) ?? 0;
+        if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+        return await this.engine(route, req, url);
+      }
       if (url.pathname.startsWith("/auth/v1/")) return await this.auth(route, req, url);
       if (url.pathname.startsWith("/rest/v1/")) return await this.rest(route, req, url);
       if (url.pathname.startsWith("/realtime/")) return await route.abort();

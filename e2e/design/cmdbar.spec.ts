@@ -47,7 +47,20 @@
  *       MutationObserver in the page) carries only figures the header's own
  *       company and month paint when opened alone; no request asks one
  *       company about another's period; after the switch settles nothing
- *       names a period of the company left behind.
+ *       names a period of the company left behind. From the switch on the
+ *       double answers every engine document SWITCH_DELAY_MS late, so the
+ *       window a kept (placeholder) payload is shown in is always open.
+ *   G11 THE BAR'S OWN SWITCH, live (review round 2 of stage CB-I): from
+ *       Scandia's dashboard (EN and RO), its company page, /benchmark, a
+ *       bare /dashboard and /settings, the reader picks "Switch to Agras
+ *       SRL". The header names Agras within SWITCH_WITHIN_MS and still names
+ *       it past the hold's ask window (HOLD_ASK_WINDOW_MS, read from
+ *       lib/companyOnScreen.ts); the page is never held blank under it; the
+ *       URL it ends on is Agras's own screen; the G6 header watch sees no
+ *       header over another company's page; no request pairs a company with
+ *       another's period, and once the header names Agras nothing names
+ *       Scandia's; the bar opened again searches Agras with Agras's own
+ *       items. G10 moves the URL itself — this one presses the bar's row.
  *
  * Screenshots (CMDBAR_SHOTS_DIR set): Scandia and Agras × empty and typed
  * ("profit", "4111", "clienti", "stoc", "raport") × 1440 and 390 × Terminal
@@ -66,7 +79,7 @@
  */
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import * as esbuild from "esbuild";
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -78,6 +91,7 @@ import {
   SCANDIA,
   SECTOR_BENCHMARK,
   WorkspaceDouble,
+  installHeaderWatch,
 } from "../workspace-v2.double";
 
 test.skip(
@@ -856,6 +870,17 @@ function withScandiaDec2024(d: WorkspaceDouble) {
 }
 const OWNER: Record<string, string> = { [SCANDIA_PERIOD]: ORG_SCANDIA, [S24]: ORG_SCANDIA, [AGRAS_PERIOD]: ORG_AGRAS };
 
+/** From the switch on, every engine document is answered SWITCH_DELAY_MS
+ *  late (the double's `engineDelay`; the status dot and the feature flags
+ *  at once). Review round 1 of stage CB-I: answered at once, the window in
+ *  which the new key loads while the previous key's data is kept on screen
+ *  was often shorter than one committed frame, and the paint check caught
+ *  the pre-fix bundle only about half the time. Held open, it is caught on
+ *  every run (the rates are in docs/engine_book/gates.md). */
+const SWITCH_DELAY_MS = 900;
+const slowDocuments = (pathAndSearch: string) =>
+  pathAndSearch.startsWith("/health") || pathAndSearch.startsWith("/api/features/") ? 0 : SWITCH_DELAY_MS;
+
 /** In the page: what the bar paints now — the header line, and every figure,
  *  served chip, key metric and context with its row; and a recorder that
  *  keeps every DIFFERENT frame, on every DOM mutation. */
@@ -983,6 +1008,7 @@ test.describe("G10 — a switch paints nothing of what was left behind and asks 
       await settle(page, double);
       await page.evaluate(() => (window as unknown as { __cmdbarRecord: () => void }).__cmdbarRecord());
       const switchedAt = double.requests.length;
+      double.engineDelay = slowDocuments;
 
       await moveTo(page, `/dashboard?period=${AGRAS_PERIOD}&org=${ORG_AGRAS}`);
       await expect(page.getByTestId("header-command-bar")).toContainText("Agras SRL", { timeout: 25_000 });
@@ -1027,6 +1053,7 @@ test.describe("G10 — a switch paints nothing of what was left behind and asks 
     await settle(page, double);
     await page.evaluate(() => (window as unknown as { __cmdbarRecord: () => void }).__cmdbarRecord());
     const switchedAt = double.requests.length;
+    double.engineDelay = slowDocuments;
     await moveTo(page, `/dashboard?period=${S24}&org=${ORG_SCANDIA}`);
     await expect(page.getByTestId("cmdbar-scope")).toHaveText(d24.header, { timeout: 20_000 });
     await expect(page.getByTestId("cmdbar-row-now").first()).toBeVisible({ timeout: 15_000 });
@@ -1042,4 +1069,126 @@ test.describe("G10 — a switch paints nothing of what was left behind and asks 
     console.log(`GATE-WORK cmdbar-live-switch period frames=${frames.length} foreign_carriers=${foreign.length}`);
     await ctx.close();
   });
+});
+
+// ── G11 — the bar's own "Switch to <company>", live ─────────────────────
+//
+// Review round 2 of stage CB-I. The action switched IN PLACE, under the URL
+// on display (CommandPalette `select()`), and a screen that pins a company
+// holds for it (lib/companyOnScreen): on Scandia's dashboard (and a bare
+// /dashboard) the header read "Agras SRL · Dec 2025" over a blank held page,
+// on Scandia's company page it read Agras over Scandia's page, and when the
+// hold's ask window ran out the screen went back to Scandia; /benchmark never
+// switched. G10 moves the URL itself; this presses the bar's own row.
+
+/** The hold's ask window, read from its source: the law samples past it. */
+const HOLD_ASK_WINDOW_MS = (() => {
+  const src = readFileSync(resolve(REPO, "frontend/lib/companyOnScreen.ts"), "utf-8");
+  const m = /export const HOLD_ASK_WINDOW_MS = ([\d_]+);/.exec(src);
+  if (!m) throw new Error("HOLD_ASK_WINDOW_MS is no longer declared in lib/companyOnScreen.ts — retarget G11");
+  return Number(m[1].replace(/_/g, ""));
+})();
+/** How soon after the pick the header must name the new company. */
+const SWITCH_WITHIN_MS = 5_000;
+/** How long after the header names it the page may still be held (the
+ *  hold lifts once the remote write re-resolves every reader). */
+const HELD_GRACE_MS = 2_000;
+
+/** The company a URL pins: `?org=`, its period's company, or the company
+ *  page — none for /settings, a bare /dashboard, /benchmark with no period. */
+function companyOfUrl(url: string): string | null {
+  const u = new URL(url, "http://x.invalid");
+  const org = u.searchParams.get("org");
+  if (org) return org;
+  const period = u.searchParams.get("period");
+  if (period && OWNER[period]) return OWNER[period];
+  const m = /^\/workspace\/([^/]+)$/.exec(u.pathname);
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
+test.describe("G11 — the bar's own 'Switch to Agras SRL' switches, and stays switched", () => {
+  test.use({ viewport: { width: 1440, height: 900 } });
+  test.setTimeout(120_000);
+  const NAMES = { [ORG_SCANDIA]: "Scandia Food SRL", [ORG_AGRAS]: "Agras SRL" };
+  const STARTS = [
+    { name: "Scandia's dashboard", url: `/dashboard?period=${SCANDIA_PERIOD}&org=${ORG_SCANDIA}`, language: "en" },
+    { name: "Scandia's dashboard, in Romanian", url: `/dashboard?period=${SCANDIA_PERIOD}&org=${ORG_SCANDIA}`, language: "ro" },
+    { name: "Scandia's company page", url: `/workspace/${ORG_SCANDIA}`, language: "en" },
+    { name: "/benchmark of Scandia's period", url: `/benchmark?period=${SCANDIA_PERIOD}`, language: "en" },
+    { name: "the bare dashboard", url: "/dashboard", language: "en" },
+    { name: "/settings", url: "/settings", language: "en" },
+  ] as const;
+
+  for (const start of STARTS) {
+    test(`from ${start.name}`, async ({ page }) => {
+      const double = new WorkspaceDouble({ theme: "dark", language: start.language });
+      double.periods[ORG_AGRAS] = [AGRAS];
+      const watch = await installHeaderWatch(page, NAMES, OWNER);
+      await double.install(page);
+      await page.goto(start.url, { waitUntil: "domcontentloaded" });
+      await expect(page.getByTestId("header-command-bar")).toContainText("Scandia Food SRL", { timeout: 25_000 });
+      await settle(page, double);
+
+      await page.getByTestId("header-command-bar").click();
+      await expect(page.getByTestId("command-palette")).toBeVisible();
+      await typeQuery(page, "agras");
+      // Agras's own year has been read (the bar reads every company's years
+      // while it is open), so the action opens its dashboard.
+      await expect(page.locator(`[data-row-id="page:year:${ORG_AGRAS}:${AGRAS_PERIOD}"]`)).toBeVisible({ timeout: 10_000 });
+      const row = page.locator(`[data-row-id="action:switch:${ORG_AGRAS}"]`);
+      // POSITIVE CONTROL: the row pressed is the bar's own switch action.
+      await expect(row).toContainText(start.language === "ro" ? "Treci la Agras SRL" : "Switch to Agras SRL");
+
+      const pickedAt = double.requests.length;
+      const watchedAt = watch.violations.length;
+      const t0 = Date.now();
+      await row.click();
+      type Sample = { at: number; header: string; held: boolean; url: string; reqs: number };
+      const samples: Sample[] = [];
+      while (Date.now() - t0 < HOLD_ASK_WINDOW_MS + 2_500) {
+        const s = await page.evaluate(() => ({
+          header: document.querySelector('[data-testid="header-command-bar"]')?.textContent?.trim() ?? "",
+          // The dashboard's hold (AppShell) or the company page's own.
+          held: !!document.querySelector('[data-testid="org-param-hold"], [data-testid="company-page-hold"]'),
+          url: location.pathname + location.search,
+        }));
+        samples.push({ ...s, at: Date.now() - t0, reqs: double.requests.length });
+        await page.waitForTimeout(250);
+      }
+
+      const out: string[] = [];
+      const named = samples.find((s) => s.header.startsWith("Agras SRL"));
+      if (!named || named.at > SWITCH_WITHIN_MS) {
+        out.push(`the header did not name Agras within ${SWITCH_WITHIN_MS} ms (first: ${named ? named.at + " ms" : "never"})`);
+      }
+      // Each kind of failure once, as the span of samples it covers.
+      const span = (what: string, bad: (s: Sample) => boolean) => {
+        const hit = samples.slice(named ? samples.indexOf(named) : samples.length).filter(bad);
+        if (hit.length) {
+          const a = hit[0], b = hit.at(-1)!;
+          out.push(`${what} from ${a.at} to ${b.at} ms (${hit.length} samples): "${b.header}" at ${b.url}`);
+        }
+      };
+      span("the header went back", (s) => !s.header.startsWith("Agras SRL"));
+      span("the page is held blank under the new header", (s) => s.held && !!named && s.at > named.at + HELD_GRACE_MS);
+      const last = samples.at(-1)!;
+      if (last.at < HOLD_ASK_WINDOW_MS) out.push(`VACUITY: sampled only ${last.at} ms, not past the ask window`);
+      if (companyOfUrl(last.url) !== ORG_AGRAS) out.push(`the screen it ends on (${last.url}) is not Agras's own`);
+      const mark = (named?.reqs ?? double.requests.length) - pickedAt;
+      out.push(...requestViolations(double.requests.slice(pickedAt), mark, ORG_SCANDIA));
+      // From the pick on (the header watch runs from the page load).
+      out.push(...watch.violations.slice(watchedAt).map((v) => `header watch: ${v}`));
+      expect([...new Set(out)], "the bar's own switch").toEqual([]);
+
+      // The bar opened again searches Agras, with Agras's own items.
+      await page.getByTestId("header-command-bar").click();
+      await expect(page.getByTestId("cmdbar-scope")).toHaveText(
+        new RegExp(`^${start.language === "ro" ? "Caut în" : "Searching"} Agras SRL · `), { timeout: 15_000 });
+      await expect(page.getByTestId("cmdbar-row-now").first()).toBeVisible({ timeout: 15_000 });
+      const ids = await page.getByTestId("cmdbar-row-now").evaluateAll((els) => els.map((e) => e.getAttribute("data-row-id")));
+      expect(ids).toEqual((ATTENTION[AGRAS_PERIOD].items as { key: string }[]).map((i) => `now:${i.key}`));
+      expect(watch.checks, "VACUITY: the header watch ran").toBeGreaterThan(0);
+      console.log(`GATE-WORK cmdbar-live-switch-action from="${start.name}" named_at=${named?.at} samples=${samples.length} ends=${last.url.replace(/[0-9a-f-]{36}/g, (id) => (id === ORG_AGRAS ? "<Agras>" : id === AGRAS_PERIOD ? "<Agras FY2025>" : id))} requests=${double.requests.length - pickedAt}`);
+    });
+  }
 });
