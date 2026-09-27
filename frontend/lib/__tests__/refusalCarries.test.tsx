@@ -31,6 +31,13 @@
 // metric row), the canonical net profit, ROE / ROA / net margin, the
 // printed net income row and the cash-flow statement carry the reason; with
 // account 121 the filed figure stands (fixer round 1, 2026-09-27).
+// TOTAL EQUITY SHORT BY THE REFUSED RESULT (critic fixer round 1, round 3
+// here): on `unanchored_unbalanced` — the export with account 121 dropped,
+// so the sheet does not balance without the year's result — the engine
+// serves a completeness refusal beside total equity; the NAV cascade
+// refuses Book NAV, Layers 1-3 and the hero, the engine Altman reader
+// prints X2 refused, and the equity ratio and debt / equity refuse, all
+// with the engine's reason. `unanchored` (rebuilt to balance) keeps them.
 // CANNOT SEE: whether the engine was right to refuse (net-711-rule);
 // surfaces that do not print EBITDA; pixels.
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -75,6 +82,7 @@ import type { Statements } from "@/lib/financialReport";
 import type { ComparativesResponse } from "@/lib/comparatives";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import { NavValuationView } from "@/components/cfo/NavValuationView";
+import { CreditScoreCard, creditCardData } from "@/components/cfo/CreditScoreCard";
 import { CashFlowStatementView } from "@/components/cfo/CashFlowStatementView";
 import { ComparativeProvider } from "@/components/cfo/ComparativeCells";
 import { RisksPanel } from "@/pages/cfo/FinancialStatements";
@@ -82,7 +90,9 @@ import ComprehensiveReport from "@/pages/cfo/ComprehensiveReport";
 import pairJson from "./fixtures/comparatives/pair_served.json";
 
 import { cardNamed, plRows } from "./exportBooks";
-import { constructedBook, pairedWithItself, refusedBooks, servedRefusal, type SurfaceBook } from "./oneEbitdaSurfaceBooks";
+import {
+  constructedBook, constructedCredit, pairedWithItself, refusedBooks, servedRefusal, type SurfaceBook,
+} from "./oneEbitdaSurfaceBooks";
 
 const BOOKS = refusedBooks();
 
@@ -98,8 +108,8 @@ function sheetCell(wb: XLSX.WorkBook, sheet: string, label: string): unknown {
 }
 
 describe("refusal-carries — the witnesses exist", () => {
-  it("covers the two refused books, and on both the buckets would rebuild a number", () => {
-    expect(BOOKS.map((b) => b.name)).toEqual(["g6_uncleared", "unanchored"]);
+  it("covers the three refused books, and on each the buckets would rebuild a number", () => {
+    expect(BOOKS.map((b) => b.name)).toEqual(["g6_uncleared", "unanchored", "unanchored_unbalanced"]);
     for (const b of BOOKS) {
       expect(b.apl.ebitda, `${b.name}: the engine did not refuse`).toBeNull();
       // Non-vacuity: a surface that fell back to the buckets would print this.
@@ -432,5 +442,111 @@ describe("refusal-carries — round 2: Graham, Piotroski, the report's balance s
     expect(screen.queryByTestId("cf-prior-refused")).toBeNull();
     expect(container.querySelectorAll(".cmp-cell--prior").length).toBeGreaterThan(0);
     expect(container.querySelectorAll("[data-cmp-refused]").length).toBe(0);
+  });
+});
+
+// ── ROUND 3 (critic fixer round 1, 2026-09-27): TOTAL EQUITY SHORT BY THE
+// REFUSED RESULT ─────────────────────────────────────────────────────────
+// `unanchored` was rebuilt to balance WITHOUT account 121, so its equity
+// is complete and it could not see a surface reading the missing result as
+// 0. `unanchored_unbalanced` is the export with the 121 row dropped (sheet
+// short by 170,000.00). Measured before the fix: the NAV cascade printed
+// Book NAV 200,000 (Layers 2-3 and the hero on it), the credit card X2
+// 0.2381, the ratio card Equity Ratio 47.6 % — on equity missing the year.
+// REDS ON: any of them printing a figure (or a bare dash) instead of the
+// engine's reason; the balanced witness losing its figures (vacuity).
+describe("refusal-carries — round 3: total equity short by the refused result", () => {
+  afterEach(() => { cleanup(); });
+  const UB = () => BOOKS.find((x) => x.name === "unanchored_unbalanced")!;
+  const U = () => BOOKS.find((x) => x.name === "unanchored")!;
+  const equityRefusalOf = (b: SurfaceBook) =>
+    (b.statements.assembled_bs as Record<string, unknown>).total_equity_refusal as
+      { code: string; text_en: string; text_ro: string } | undefined;
+  const navOf = (b: SurfaceBook) => buildNavCascade({
+    pl: b.statements.assembled_pl as Record<string, number>,
+    bs: b.statements.assembled_bs as Record<string, number>,
+    lineItems: [],
+  });
+
+  it("unanchored_unbalanced: the engine serves the completeness refusal beside total equity", () => {
+    const b = UB();
+    const r = servedRefusal(b);
+    const er = equityRefusalOf(b)!;
+    expect(er.code).toBe(r.code);
+    expect(er.text_en).toContain(r.text_en);
+    expect(typeof (b.statements.assembled_bs as Record<string, unknown>).total_equity).toBe("number");
+    expect(equityRefusalOf(U()), "a sheet that balances has complete equity").toBeUndefined();
+  });
+
+  it("unanchored_unbalanced: Book NAV, Layers 1-3, the sensitivity grid and the hero refuse — the page prints the reason", () => {
+    const b = UB();
+    const er = equityRefusalOf(b)!;
+    const nav = navOf(b);
+    for (const layer of nav.layers) {
+      expect(layer.value, `layer ${layer.layer}`).toBeNull();
+      expect(layer.refusal?.code, `layer ${layer.layer}`).toBe(er.code);
+    }
+    expect(nav.bookNavRefusal?.text.en).toBe(er.text_en);
+    expect(nav.sensitivityNnnav.every((c) => c.nnnav === null)).toBe(true);
+    expect(nav.crossMethods.convergentMethods).not.toContain("nnnav");
+    expect(nav.crossMethods.convergenceBand).toBeNull();
+    renderWithProviders(<NavValuationView cascade={nav} entity="E" period="P" currency="RON" />);
+    expect(screen.getByTestId("nav-hero-refused").textContent).toBe(`refused — ${er.text_en}`);
+    for (const id of [1, 2, 3]) {
+      expect(screen.getByTestId(`nav-layer-${id}-refused`).textContent).toContain(er.text_en);
+    }
+    expect(screen.getByTestId("nav-convergence-nnnav").textContent).toContain(er.text_en);
+    expect(screen.getByTestId("nav-hero-refused-reason").textContent).toContain(er.text_en);
+  });
+
+  it("unanchored (sheet balances): Book NAV is the served total equity", () => {
+    const b = U();
+    const nav = navOf(b);
+    expect(nav.layers[0].value).toBe((b.statements.assembled_bs as Record<string, number>).total_equity);
+    expect(nav.bookNavRefusal).toBeNull();
+    expect(nav.crossMethods.convergentMethods).toContain("nnnav");
+  });
+
+  it("unanchored_unbalanced: the engine Altman reader prints X2 refused, the equity sub-score refuses with the reason", () => {
+    const b = UB();
+    const r = servedRefusal(b);
+    const credit = constructedCredit(b.name) as CreditEnvelope;
+    const result = computeCreditScore(b.statements, credit);
+    expect(result.altman.components.x2_re_to_assets, "X2 printed").toBeNull();
+    expect(result.altman.componentRefusals?.x2?.code).toBe(r.code);
+    expect(result.altman.componentRefusals?.x2?.text.en).toContain(r.text_en);
+    const equity = result.components.find((c) => c.label.startsWith("Equity-ratio sub-score"))!;
+    expect(equity.subscore).toBeNull();
+    expect(equity.refusal?.sentence).toContain(r.text_en);
+    const data = creditCardData(result)!;
+    expect(data.altmanX2Refusal).toContain(r.text_en);
+    renderWithProviders(<CreditScoreCard data={data} />);
+    expect(screen.getByTestId("report-altman-x2").textContent).toContain(r.text_en);
+  });
+
+  it("unanchored (sheet balances): X2 is served by the engine reader", () => {
+    const b = U();
+    const result = computeCreditScore(b.statements, constructedCredit(b.name) as CreditEnvelope);
+    expect(typeof result.altman.components.x2_re_to_assets).toBe("number");
+    expect(result.altman.componentRefusals?.x2 ?? null).toBeNull();
+  });
+
+  it("unanchored_unbalanced: the equity ratio and debt / equity refuse with the engine's reason; balanced, they compute", () => {
+    const b = UB();
+    const er = equityRefusalOf(b)!;
+    for (const key of ["equity_ratio", "debt_to_equity"]) {
+      const row = ratioNamed(b, key);
+      expect(row?.value, `${key} printed a number`).toBeNull();
+      expect(row?.unavailable?.kind, key).toBe("refused");
+      expect(describeAbsence(row!.unavailable!)).toContain(er.text_en);
+      // A stored metric row written before the refusal must not stand in.
+      const withStale = computeRatios(b.statements, undefined, { equity_ratio: 0.4762, debt_to_equity: 0 } as never);
+      const stale = [withStale.liquidity, withStale.profitability, withStale.leverage, withStale.coverage,
+        withStale.efficiency].flat().find((x) => x.key === key);
+      expect(stale?.value, `${key} from a stale metric row`).toBeNull();
+    }
+    for (const key of ["equity_ratio", "debt_to_equity"]) {
+      expect(typeof ratioNamed(U(), key)?.value, `${key} on the balanced book`).toBe("number");
+    }
   });
 });

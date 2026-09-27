@@ -5,12 +5,13 @@
 //     `GET /api/period` (tests/engine/fixtures/firm/saga_10_col_*.json,
 //     composed by exportBooks.statementsFor exactly as production serves
 //     them), with their served metric rows;
-//   · the six CONSTRUCTED books of net-711-rule, sent through the real
+//   · the seven CONSTRUCTED books of net-711-rule, sent through the real
 //     write seam and route (fixtures/oneEbitda/constructed_books.json,
 //     held live by tests/engine/test_one_ebitda_fe_books.py): the bridge,
 //     no 711 postings with a 121 remainder, 72x beside a bridge (total
-//     operating revenue ≠ turnover), an open book, and the two REFUSALS
-//     (account 121 absent; its opening not cleared).
+//     operating revenue ≠ turnover), an open book, and the three REFUSALS
+//     (account 121 absent; its opening not cleared; 121 dropped from an
+//     export, so total equity is short by the refused result).
 //
 // Every surface is fed the SAME payload the page is fed; nothing here
 // computes an expected figure from the statements the code under test
@@ -32,11 +33,11 @@ export interface SurfaceBook {
   apl: Record<string, unknown>;
 }
 
-type Body = { statements: Statements; line_items: PeriodLineItem[] };
+type Body = { statements: Statements; line_items: PeriodLineItem[]; credit?: unknown };
 const CONSTRUCTED = constructed as unknown as Record<string, Body>;
 
 export const CONSTRUCTED_NAMES = Object.keys(CONSTRUCTED).sort();
-export const REFUSED_NAMES = ["g6_uncleared", "unanchored"] as const;
+export const REFUSED_NAMES = ["g6_uncleared", "unanchored", "unanchored_unbalanced"] as const;
 
 function clone<T>(v: T): T {
   return JSON.parse(JSON.stringify(v)) as T;
@@ -51,6 +52,12 @@ export function firmBook(name: Book): SurfaceBook {
     metrics: metricsFor(name),
     apl: (s.assembled_pl ?? {}) as Record<string, unknown>,
   };
+}
+
+/** The served credit envelope (`assembled_metrics.credit`) of a
+ *  constructed book, as the route served it. */
+export function constructedCredit(name: string): unknown {
+  return clone(CONSTRUCTED[name].credit ?? null);
 }
 
 export function constructedBook(name: string): SurfaceBook {

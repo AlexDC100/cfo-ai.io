@@ -18,7 +18,7 @@
 // P&L concepts + debt decomposition (not carried by canonical_bs), but no
 // consumer below reads BS grand totals from it directly anymore.
 import { factsFrom, presentStatus } from "./servedFacts";
-import { plLevelsOf, type ServedRefusal } from "./servedOneEbitda";
+import { plLevelsOf, readRefusal, type ServedRefusal } from "./servedOneEbitda";
 import { printedPl, printedRow, type PrintedPlRow } from "./printedPl";
 // ABSENCE-AWARE ARITHMETIC — see absentAware.ts for why `safeDiv` had to
 // go. Every ratio below is built out of `Fig`s so a missing input or a
@@ -1343,7 +1343,7 @@ export function computeRatios(
       ),
     ),
   );
-  const totalEquity = total(
+  const totalEquityComputed = total(
     "totalEquity",
     gate(
       "total equity",
@@ -1351,6 +1351,16 @@ export function computeRatios(
       add(B("shareCapital"), B("retainedEarnings"), B("otherEquity")),
     ),
   );
+  // TOTAL EQUITY THAT EXCLUDES A REFUSED YEAR'S RESULT (no account 121,
+  // net 711 refused, the sheet short by the missing result — the engine's
+  // `assembled_bs.total_equity_refusal`, critic 2026-09-27) is refused
+  // here with the engine's reason: the equity ratio and debt / equity
+  // divide it, and neither the rows' sum nor a stored metric row stands in.
+  const equityRefusal = readRefusal(
+    (s.assembled_bs as Record<string, unknown> | undefined)?.total_equity_refusal);
+  const totalEquity: Fig = equityRefusal
+    ? servedFig(null, equityRefusal, "total equity")
+    : totalEquityComputed;
   const totalLiabilities = total(
     "totalLiabilities",
     gate(
@@ -1601,8 +1611,12 @@ export function computeRatios(
 
   // Leverage ─────────────────────────────────────────────────────────────────
   const debtToEbitda = bsOr("debt_to_ebitda", div(totalDebt, ebitda, "EBITDA"));
-  const debtToEquity = bsOr("debt_to_equity", div(totalDebt, totalEquity, "total equity"));
-  const equityRatio = bsPctOr("equity_ratio", pctOf(totalEquity, totalAssets, "total assets"));
+  const debtToEquity = equityRefusal
+    ? totalEquity
+    : bsOr("debt_to_equity", div(totalDebt, totalEquity, "total equity"));
+  const equityRatio = equityRefusal
+    ? totalEquity
+    : bsPctOr("equity_ratio", pctOf(totalEquity, totalAssets, "total assets"));
   // F2.2 — LTV stays FE-arithmetic when propertyMarketValue is supplied
   // (user input, not engine-derived). When no override, read engine's
   // `debt_to_assets` canonical. This is one of the few FE-arithmetic sites

@@ -98,6 +98,9 @@ export interface CreditScoreData {
    *  — an unmeasured component is not a component of 0.00. */
   altmanX1: number | null;
   altmanX2: number | null;
+  /** "refused — <reason>" when the engine refused X2 (total equity
+   *  excludes a refused year's result); null beside a value. */
+  altmanX2Refusal: string | null;
   altmanX3: number | null;
   altmanX4: number | null;
   /** The seven weighted sub-scores, 0-100 each.
@@ -236,6 +239,9 @@ export function creditCardData(result: CreditScoreResult | null): CreditScoreDat
     ladder,
     altmanX1: result.altman.components.x1_wc_to_assets,
     altmanX2: result.altman.components.x2_re_to_assets,
+    altmanX2Refusal: result.altman.componentRefusals?.x2
+      ? `refused — ${result.altman.componentRefusals.x2.text.en}`
+      : null,
     altmanX3: result.altman.components.x3_ebit_to_assets,
     altmanX4: result.altman.components.x4_equity_to_liabilities,
     // The bars render the 0–100 WEIGHTED INPUTS, which is `subscore` on
@@ -405,7 +411,9 @@ export function CreditScoreCard({ data }: Props) {
             <span className="text-ink-mute">X1 (working capital)</span>
             <span className="text-right">{fmtComponent(data.altmanX1)}</span>
             <span className="text-ink-mute">X2 (retained / assets)</span>
-            <span className="text-right">{fmtComponent(data.altmanX2)}</span>
+            <span className="text-right" data-testid="report-altman-x2">
+              {data.altmanX2Refusal ?? fmtComponent(data.altmanX2)}
+            </span>
             <span className="text-ink-mute">X3 (EBIT / assets)</span>
             <span className="text-right">{fmtComponent(data.altmanX3)}</span>
             <span className="text-ink-mute">X4 (equity / liab)</span>

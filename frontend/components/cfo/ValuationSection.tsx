@@ -256,6 +256,17 @@ export function ValuationSection({ valuation, periodId, currency }: Props) {
         </div>
       )}
 
+      {/* ── BOOK EQUITY REFUSED — the asset-based value cannot be formed ── */}
+      {valuation.asset_based_refusal && (
+        <div
+          data-testid="valuation-asset-based-refused"
+          className="rounded-xl border border-caution/40 bg-caution-tint/40 px-4 py-3 text-[13px] text-ink leading-relaxed"
+        >
+          Book equity refused — {valuation.asset_based_refusal.text_en ?? "total equity is incomplete for this period"}.
+          No asset-based value is formed.
+        </div>
+      )}
+
       {/* ── WHY THIS METHOD (served routing: sector / margin rule / EBITDA) ── */}
       {valuation.routing?.basis && (
         <p data-testid="valuation-routing" className="text-[12px] text-ink-soft">
@@ -299,12 +310,15 @@ export function ValuationSection({ valuation, periodId, currency }: Props) {
                 : "EV / EBITDA (peer multiple)"))}
             </div>
             <div className="font-mono tabular-nums text-[30px] text-ink leading-tight mt-1" data-testid="valuation-equity-p50">
-              {fmtMoney(
-                valuation.primary_method === "asset_based"
-                  ? (valuation.primary_equity_value ?? null)
-                  : livePreviewEquity,
-                currency,
-              )}
+              {valuation.primary_method === "asset_based" && valuation.primary_equity_value == null
+                && valuation.asset_based_refusal
+                ? "refused"
+                : fmtMoney(
+                  valuation.primary_method === "asset_based"
+                    ? (valuation.primary_equity_value ?? null)
+                    : livePreviewEquity,
+                  currency,
+                )}
             </div>
             <div className="text-[12.5px] text-ink-soft mt-1" data-testid="valuation-equity-range">
               Range:{" "}

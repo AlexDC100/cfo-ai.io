@@ -128,6 +128,10 @@ export interface PeriodValuation {
   /** The one EBITDA and its refusal, as the valuation serves them. */
   ebitda?: number | null;
   ebitda_refusal?: { code: string; text_ro?: string; text_en?: string } | null;
+  /** Why the asset-based (book equity) figure is absent: total equity
+   *  excludes a refused year's result (`total_equity_incomplete`, the
+   *  net result's code as `cause`). null beside a figure. */
+  asset_based_refusal?: { code: string; cause?: string | null; text_ro?: string; text_en?: string } | null;
   /** "NOI (aproximare)" = EBITDA − net 711: the NAV cap-rate NOI proxy. */
   noi_approximation?: {
     value: number | null;

@@ -36,6 +36,7 @@ import type {
   NavConvergentMethod,
   NavCrossMethods,
   NavLayer,
+  NavRefusal,
   NavSensitivityCell,
 } from "./navStructure";
 
@@ -291,10 +292,27 @@ export function buildNavCascade(args: BuildArgs): NavCascade {
   const totalUplift = centralAdjustments.reduce((s, a) => s + a.goingConcernUplift, 0);
 
   // ── Layer 1: Book NAV ────────────────────────────────────────────────
-  const bookNav = bs.total_equity ?? 0;
+  // THE SERVED TOTAL EQUITY, or its refusal (critic, fixer round 1,
+  // 2026-09-27). `bs.total_equity ?? 0` valued a book whose equity the
+  // engine said excludes a REFUSED year's result (no account 121, net 711
+  // refused, the sheet short by the missing result —
+  // `assembled_bs.total_equity_refusal`) at the rows' sum, and a book
+  // with no equity served at 0 — Layer 1, Layers 2-3 built on it and the
+  // hero. A refused Book NAV refuses all three, with the engine's reason.
+  const bsRec = bs as Record<string, unknown>;
+  const equityRaw: unknown = bsRec.total_equity;
+  const bookNavRefusal: NavRefusal | null =
+    readRefusal(bsRec.total_equity_refusal)
+    ?? (typeof equityRaw === "number" && Number.isFinite(equityRaw)
+      ? null
+      : {
+        code: "total_equity_not_served",
+        text: { en: "total equity is not served for this period", ro: "capitalurile proprii nu sunt furnizate pentru această perioadă" },
+      });
+  const bookNav: number | null = bookNavRefusal === null ? (equityRaw as number) : null;
 
   // ── Layer 2: Adjusted NAV (gross of deferred tax) ────────────────────
-  const adjustedNav = bookNav + totalUplift;
+  const adjustedNav: number | null = bookNav === null ? null : bookNav + totalUplift;
 
   // ── Layer 3: NNNAV (less deferred tax on revaluations) ───────────────
   // Deferred tax = (existing revaluation reserve + new uplift) × CIT rate.
@@ -302,7 +320,7 @@ export function buildNavCascade(args: BuildArgs): NavCascade {
   // canonical BS view if extracted, else 0.
   const revaluationReserve = bs.revaluation_reserves ?? 0;
   const deferredTax = (revaluationReserve + totalUplift) * citRate;
-  const nnnav = adjustedNav - deferredTax;
+  const nnnav: number | null = adjustedNav === null ? null : adjustedNav - deferredTax;
 
   // ── Liability adjustments (face value for fixed-rate RON/EUR bank debt) ─
   const liabilityAdjustments: LiabilityAdjustment[] = [];
@@ -330,9 +348,10 @@ export function buildNavCascade(args: BuildArgs): NavCascade {
     for (const ay of yieldScenarios) {
       const adjs = buildAdjustments(cr, ay);
       const uplift = adjs.reduce((s, a) => s + a.goingConcernUplift, 0);
-      const adjusted = bookNav + uplift;
       const dt = (revaluationReserve + uplift) * citRate;
-      sensitivityNnnav.push({ capRate: cr, affiliateYield: ay, nnnav: adjusted - dt });
+      sensitivityNnnav.push({
+        capRate: cr, affiliateYield: ay, nnnav: bookNav === null ? null : bookNav + uplift - dt,
+      });
     }
   }
 
@@ -368,14 +387,15 @@ export function buildNavCascade(args: BuildArgs): NavCascade {
   // undervaluer), over the methods that COMPUTED only. A refused method is
   // not a bound of the band; with NNNAV alone there is nothing to converge
   // and no band (never a one-point band read as "high" convergence).
-  const convergentMethods: NavConvergentMethod[] = ["nnnav"];
-  const convergent: number[] = [nnnav];
+  const convergentMethods: NavConvergentMethod[] = [];
+  const convergent: number[] = [];
+  if (nnnav !== null) { convergentMethods.push("nnnav"); convergent.push(nnnav); }
   if (capRateEquity !== null) { convergentMethods.push("cap_rate"); convergent.push(capRateEquity); }
   if (grahamValue !== null) { convergentMethods.push("graham"); convergent.push(grahamValue); }
   const hasBand = convergent.length >= 2;
   const cLow = Math.min(...convergent);
   const cHigh = Math.max(...convergent);
-  const spread = (cHigh - cLow) / Math.max(Math.abs(nnnav), 1);
+  const spread = (cHigh - cLow) / Math.max(Math.abs(nnnav ?? cHigh), 1);
   const convergenceConfidence: "high" | "medium" | "low" | null = !hasBand
     ? null
     : spread < 0.20 ? "high" : spread < 0.40 ? "medium" : "low";
@@ -401,6 +421,7 @@ export function buildNavCascade(args: BuildArgs): NavCascade {
       layer: 1,
       name: "Book NAV",
       value: bookNav,
+      refusal: bookNavRefusal,
       description:
         "Statutory equity per balance sheet. The legal minimum claim and deepest defensible floor.",
       useCases: ["Statutory reporting", "Tax disputes", "Minimum negotiating floor"],
@@ -409,6 +430,7 @@ export function buildNavCascade(args: BuildArgs): NavCascade {
       layer: 2,
       name: "Adjusted NAV",
       value: adjustedNav,
+      refusal: bookNavRefusal,
       description:
         "Book NAV plus fair-value uplift on identifiable assets (property marked to market, affiliates capitalized at yield). Gross of deferred tax — the upper bound for a trade sale.",
       useCases: ["Refinancing LTV", "Trade sale ceiling", "Insurance valuation"],
@@ -417,6 +439,7 @@ export function buildNavCascade(args: BuildArgs): NavCascade {
       layer: 3,
       name: "EPRA NNNAV",
       value: nnnav,
+      refusal: bookNavRefusal,
       description:
         "Triple-net NAV with deferred tax on revaluations deducted. IFRS-aligned; the single most defensible number for negotiation with a banker or counterparty.",
       useCases: [
@@ -429,6 +452,7 @@ export function buildNavCascade(args: BuildArgs): NavCascade {
 
   return {
     layers,
+    bookNavRefusal,
     assetAdjustments: centralAdjustments.sort(
       (a, b) => Math.abs(b.goingConcernUplift) - Math.abs(a.goingConcernUplift),
     ),

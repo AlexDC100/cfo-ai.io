@@ -155,3 +155,38 @@ describe("a served EBITDA is saved only when the user typed it", () => {
     expect(puts[0].body.ebitda_used).toBe(9_000_000);
   });
 });
+
+// BOOK EQUITY REFUSED (critic fixer round 1, 2026-09-27): the engine
+// refuses the asset-based value when total equity excludes a refused
+// year's result (`asset_based_refusal`, no primary value). The tab states
+// it — never a bare "—" where the primary value would be. A stored row the
+// one-EBITDA law withheld (`primary_method: "refused"`) prints its reason.
+describe("a refused asset-based value and a withheld stored row print their reason", () => {
+  it("book equity refused: the banner and the primary value say refused, with the engine's reason", () => {
+    renderWithProviders(<ValuationSection valuation={valuationOf({
+      ebitda_refusal: { code: "ebitda_refused", text_en: "account 121 is absent" },
+      asset_based_refusal: {
+        code: "total_equity_incomplete", cause: "account_121_anchor_absent",
+        text_en: "total equity excludes the year's result, which is refused: account 121 is absent",
+      },
+      primary_equity_value: null,
+    })} periodId="p1" currency="RON" />);
+    expect(screen.getByTestId("valuation-asset-based-refused").textContent)
+      .toContain("total equity excludes the year's result, which is refused: account 121 is absent");
+    expect(screen.getByTestId("valuation-equity-p50").textContent).toBe("refused");
+  });
+
+  it("a stored row on the previous EBITDA: no EBITDA, the stored row's reason, no EV/EBITDA value", () => {
+    renderWithProviders(<ValuationSection valuation={valuationOf({
+      primary_method: "refused",
+      primary_label: "Valuation refused",
+      ebitda_refusal: {
+        code: "ebitda_refused",
+        text_en: "the stored valuation was computed on another EBITDA (10.78M RON) than the one served (11.85M RON)",
+      },
+    })} periodId="p1" currency="RON" />);
+    expect(screen.getByTestId("valuation-ebitda-refused").textContent)
+      .toContain("the stored valuation was computed on another EBITDA (10.78M RON)");
+    expect(screen.getByTestId("valuation-equity-p50").textContent).toBe("—");
+  });
+});

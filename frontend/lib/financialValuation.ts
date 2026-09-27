@@ -1046,6 +1046,11 @@ export interface AltmanResult {
     value: number | null;
     weighted: number | null;
   }>;
+  /** A component the ENGINE refused, with its typed reason — today X2
+   *  when total equity excludes a refused year's result (no account 121,
+   *  net 711 refused, the sheet short by the missing result): the reader
+   *  prints "refused — <reason>", never a bare dash. */
+  componentRefusals?: { x2?: { code: string; text: { en: string; ro: string } } | null };
   /** NULL when neither the engine row nor a complete FE fallback exists. */
   score: number | null;
   /** NULL exactly when `score` is null — and ALWAYS derived from THAT
@@ -1399,6 +1404,11 @@ export interface CreditEnvelope {
   altman_components?: {
     x1?: number | null; x2?: number | null; x3?: number | null; x4?: number | null;
   } | null;
+  /** The components the engine REFUSED, each with its typed reason (X2
+   *  when total equity excludes a refused year's result). */
+  altman_component_refusals?: {
+    x2?: { code?: string | null; cause?: string | null; text_ro?: string | null; text_en?: string | null } | null;
+  } | null;
   /** THE MODEL'S WEIGHT TABLE — the only weights a composite is ever
    *  multiplied by. NEVER renormalised (R-COMPOSITE): with a refused
    *  component the engine serves no composite and no letter, and this
@@ -1698,10 +1708,22 @@ function altmanFromEngine(
     merged.altman_z_score = null;
     if (breach !== "altman_z_score") merged[breach] = null;
   }
-  if (merged.altman_z_score !== null) return altmanReaderOf(merged);
-  // No engine score. Emit the components the engine DID send (so the
-  // breakdown table still shows what is known) with no score and no zone.
-  return altmanReaderOf(merged, /* refuseScore */ true);
+  // A component the engine REFUSED is absent here too, with its reason —
+  // never a metric row (written before the refusal existed) standing in.
+  const x2Ref = e.altman_component_refusals?.x2;
+  const x2Refusal = x2Ref && (x2Ref.text_en || x2Ref.text_ro)
+    ? {
+      code: String(x2Ref.cause ?? x2Ref.code ?? "refused"),
+      text: { en: String(x2Ref.text_en ?? x2Ref.text_ro), ro: String(x2Ref.text_ro ?? x2Ref.text_en) },
+    }
+    : null;
+  if (x2Refusal) merged.altman_x2 = null;
+  const out = merged.altman_z_score !== null
+    ? altmanReaderOf(merged)
+    // No engine score. Emit the components the engine DID send (so the
+    // breakdown table still shows what is known) with no score and no zone.
+    : altmanReaderOf(merged, /* refuseScore */ true);
+  return x2Refusal ? { ...out, componentRefusals: { x2: x2Refusal } } : out;
 }
 
 // ── THE LADDER. ONE OF THEM, AND IT BELONGS TO THE ENGINE ───────────
