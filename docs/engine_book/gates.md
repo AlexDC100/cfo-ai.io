@@ -12382,7 +12382,8 @@ WACC equity weight (the DCF is refused on this book anyway: no net result),
 the browser's `canonicalMetrics.balance.equity`, `periodFacts`,
 `reportComparatives` and the no-envelope FE credit model's X4 (the engine
 envelope is always served on these books); the BS tab's rows (they print
-what the rows sum to and state the imbalance); pixels.
+what the rows sum to and state the imbalance) and the export's executive-summary "Total equity" tile (the
+statement total; its Equity ratio tile refuses); pixels.
 
 ### refusal-carries / refusal-carries-engine — every other reader of total equity; the real developer with account 121 deleted from the file (critic round 2, 2026-09-27)
 
@@ -12454,8 +12455,12 @@ floor WOULD fire; the related-party insight, R6 and the revaluation detector
 fire on the corpus developer WITH 121), the served legacy view's bucket
 equity to the statement's total, the forecast opening to an
 opening-does-not-balance refusal, and the serve-path landing to no error.
-Browser (`Tests 37 passed`, floor 35): round 4 (seven tests) on
-`unanchored_unbalanced`, figures kept on `unanchored`.
+Browser (`Tests 38 passed`, floor 35): round 4 (eight tests) on
+`unanchored_unbalanced`, figures kept on `unanchored` — including the
+document's recommendation rules (`generateRecommendations`, the
+`detectConditions` path): the intercompany-recall rule grades its exposure
+against total equity, so a 150,000 receivable fires on the balanced book
+and is not graded on the short one.
 
 **PLANTS** (engine, each alone, byte-exact restore, `scratchpad/rr2/plant_engine.py`):
 ```
@@ -12545,56 +12550,61 @@ not kept).
 PLANT canonical-equity-or-0: frontend/lib/canonicalMetrics.ts
    × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: canonicalMetrics carries no total equity — the engine's refusal instead 4ms
    → canonical total equity: expected 200000 to be null
-   Tests  1 failed | 36 passed (37)
+   Tests  1 failed | 37 passed (38)
   -> RED ; file restored byte-exact
 PLANT report-kpi-drops-the-equity-reason: frontend/pages/cfo/ComprehensiveReport.tsx
-   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: the report's §1 Equity ratio and §6 Book equity print the reason — never 47.6 % or 200,000 40ms
+   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: the report's §1 Equity ratio and §6 Book equity print the reason — never 47.6 % or 200,000 39ms
    → Unable to find an element by: [data-testid="report-kpi-equity-ratio-refused"]
-   Tests  1 failed | 36 passed (37)
+   Tests  1 failed | 37 passed (38)
   -> RED ; file restored byte-exact
 PLANT report-book-equity-reads-the-rows: frontend/pages/cfo/ComprehensiveReport.tsx
-   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: the report's §1 Equity ratio and §6 Book equity print the reason — never 47.6 % or 200,000 41ms
+   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: the report's §1 Equity ratio and §6 Book equity print the reason — never 47.6 % or 200,000 44ms
    → Unable to find an element by: [data-testid="report-valuation-book-equity-refused"]
-   Tests  1 failed | 36 passed (37)
+   Tests  1 failed | 37 passed (38)
   -> RED ; file restored byte-exact
 PLANT periodfacts-equity-from-the-rows: frontend/lib/periodFacts.ts
    × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: periodFacts refuses total equity and every ratio on it — no `mOr` fallback, no stale row 4ms
    → periodFacts total equity: expected 200000 to be null
-   Tests  1 failed | 36 passed (37)
+   Tests  1 failed | 37 passed (38)
   -> RED ; file restored byte-exact
 PLANT periodfacts-stale-row-stands-in: frontend/lib/periodFacts.ts
-   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: periodFacts refuses total equity and every ratio on it — no `mOr` fallback, no stale row 5ms
+   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: periodFacts refuses total equity and every ratio on it — no `mOr` fallback, no stale row 15ms
    → expected [ 0.4762, null, null ] to deeply equal [ null, null, null ]
-   Tests  1 failed | 36 passed (37)
+   Tests  1 failed | 37 passed (38)
   -> RED ; file restored byte-exact
 PLANT reporting-metrics-equity-from-the-rows: frontend/lib/learning/buildReportingMetrics.ts
-   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: the dashboard resolver forms no equity ratio / debt to equity, and the card prints the reason 4ms
+   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: the dashboard resolver forms no equity ratio / debt to equity, and the card prints the reason 6ms
    → expected 200000 to be undefined
-   Tests  1 failed | 36 passed (37)
+   Tests  1 failed | 37 passed (38)
   -> RED ; file restored byte-exact
 PLANT metric-card-drops-the-equity-reason: frontend/components/dashboard/MetricCard.tsx
-   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: the dashboard resolver forms no equity ratio / debt to equity, and the card prints the reason 3ms
-   → card total_equity: the given combination of arguments (undefined and string) is invalid for this assertion. You can use an array, a map, an object, a set, a string, or a weakset instead of a string
-   Tests  1 failed | 36 passed (37)
+   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: the dashboard resolver forms no equity ratio / debt to equity, and the card prints the reason 10ms
+   → card total_equity: expected '(the card printed no refusal)' to contain 'total equity excludes the year\'s res…'
+   Tests  1 failed | 37 passed (38)
   -> RED ; file restored byte-exact
 PLANT capsule-index-equity-from-the-rows: frontend/lib/capsuleFactIndex.ts
-   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: the Capsule fact index carries no equity and derives no equity ratio 5ms
+   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: the Capsule fact index carries no equity and derives no equity ratio 20ms
    → expected [ 'total_assets', …(23) ] to not include 'equity'
-   Tests  1 failed | 36 passed (37)
+   Tests  1 failed | 37 passed (38)
   -> RED ; file restored byte-exact
 PLANT capsule-index-stale-equity-ratio-row: frontend/lib/capsuleFactIndex.ts
-   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: the Capsule fact index carries no equity and derives no equity ratio 5ms
+   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: the Capsule fact index carries no equity and derives no equity ratio 9ms
    → a stale engine row: expected [ 'total_assets', …(23) ] to not include 'equity_ratio'
-   Tests  1 failed | 36 passed (37)
+   Tests  1 failed | 37 passed (38)
+  -> RED ; file restored byte-exact
+PLANT document-rules-grade-the-short-equity: frontend/lib/financialReport.ts
+   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: the document's recommendation rules grade no exposure against the short equity 5ms
+   → expected [ 'intercompany_receivable_recall' ] to not include 'intercompany_receivable_recall'
+   Tests  1 failed | 37 passed (38)
   -> RED ; file restored byte-exact
 PLANT chat-hands-the-short-equity: frontend/pages/cfo/Chat.tsx
-   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: the chat context states the refusal — never 'Total equity 200,000' 10ms
+   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: the chat context states the refusal — never 'Total equity 200,000' 9ms
    → expected 'Period: FY2025\nCompany: Net 711 cons…' to contain 'Total equity: REFUSED — total equity …'
-   Tests  1 failed | 36 passed (37)
+   Tests  1 failed | 37 passed (38)
   -> RED ; file restored byte-exact
-RESTORED: Tests  37 passed (37)
+RESTORED: Tests  38 passed (38)
 ```
-**REVERT** — engine `7 passed`; browser `Tests 37 passed (37)`.
+**REVERT** — engine `7 passed`; browser `Tests 38 passed (38)`.
 
 **CANNOT SEE:** whether the engine was right to refuse (net-711-rule);
 `reportComparatives` / `comparatives.ts`' total-equity line and delta (a
@@ -12603,4 +12613,5 @@ benchmark engine's equity ratio (it reads the stored `total_equity` row,
 None on these books, and states no reason of its own); the multi-period
 findings series (`m_series` basis total equity — Radar parked); the exports'
 and BS tab's statement rows (they print what the rows sum to and state the
-imbalance); pixels.
+imbalance) and the export's executive-summary "Total equity" tile (the
+statement total; its Equity ratio tile refuses); pixels.

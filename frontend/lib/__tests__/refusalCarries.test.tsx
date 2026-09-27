@@ -65,7 +65,7 @@ vi.mock("@/hooks/useActivePeriodFallback", () => ({
 }));
 import * as XLSX from "xlsx";
 
-import { deriveTotals, computeRatios, describeAbsence, type Ratio } from "@/lib/financialReport";
+import { deriveTotals, computeRatios, describeAbsence, generateRecommendations, type Ratio } from "@/lib/financialReport";
 import { plLevelsOf, STOCK_VARIATION_NOT_MEASURED } from "@/lib/servedOneEbitda";
 import { buildCanonicalMetricsFromInputs } from "@/lib/canonicalMetrics";
 import { canonicalMarginsFrom, computeDashboardHeadline } from "@/lib/dashboardHeadline";
@@ -696,6 +696,20 @@ describe("refusal-carries — round 4: every reader of total equity", () => {
       expect(typeof resolveConceptValue(c, su).value, `resolver ${c} on the balanced book`).toBe("number");
     }
     expect(metricCardRefusal("equity_ratio", 0.8, { equityRefusal: null })).toBeNull();
+  });
+
+  it("unanchored_unbalanced: the document's recommendation rules grade no exposure against the short equity", () => {
+    // The intercompany-recall rule grades the exposure as a share of total
+    // equity (the insight engine's basis). A receivable of 150,000 is 75 %
+    // of the balanced book's equity — it fires there — and on the
+    // unbalanced one it must not be graded against equity short by the year.
+    const withIc = (b: SurfaceBook) => {
+      const st = JSON.parse(JSON.stringify(b.statements)) as Statements;
+      (st.assembled_bs as Record<string, unknown>).ar_intercompany = 150_000;
+      return generateRecommendations(st, computeRatios(st)).map((r) => r.ruleKey ?? r.id);
+    };
+    expect(withIc(U()), "non-vacuity: the rule fires on complete equity").toContain("intercompany_receivable_recall");
+    expect(withIc(UB())).not.toContain("intercompany_receivable_recall");
   });
 
   it("unanchored_unbalanced: the Capsule fact index carries no equity and derives no equity ratio", () => {

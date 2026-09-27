@@ -1098,8 +1098,9 @@ def _engine_gates() -> List[Gate]:
              # Piotroski tile's checks and the refusal-only CF statement (30).
              # critic fixer round 2: every other reader of total equity — the
              # report's §1 equity ratio and §6 book equity, canonicalMetrics,
-             # the dashboard resolver and cards, periodFacts, the Capsule fact
-             # index and the chat context (37).
+             # the dashboard resolver and cards, periodFacts, the document's
+             # recommendation rules, the Capsule fact index and the chat
+             # context (38).
              work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=35,
              units="surface tests (a refused EBITDA stays refused, with the engine's reason, on every surface)",
              canaries=("covers the three refused books, and on each the buckets would rebuild a number",
@@ -1118,6 +1119,7 @@ def _engine_gates() -> List[Gate]:
                        "unanchored_unbalanced: the report's §1 Equity ratio and §6 Book equity print the reason — never 47.6 % or 200,000",
                        "unanchored_unbalanced: periodFacts refuses total equity and every ratio on it — no `mOr` fallback, no stale row",
                        "unanchored_unbalanced: the chat context states the refusal — never 'Total equity 200,000'",
+                       "unanchored_unbalanced: the document's recommendation rules grade no exposure against the short equity",
                        "unanchored_unbalanced: the equity ratio and debt / equity refuse with the engine's reason; balanced, they compute")),
         # ── fixer round 1 (2026-09-27): valuation-refused-override ────────
         # The Valuation tab seeded a refused EBITDA as 0 and sent it on EVERY

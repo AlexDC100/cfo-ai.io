@@ -2558,7 +2558,12 @@ export function generateRecommendations(
   const capexReal = pick(acNum("capex_real"), -(apNum("capitalized_own_work_memo") ?? 0));
   const bankDebt = pick(abNum("total_debt"), t.totalDebt);
   const totalAssets = sf.totalAssets();
-  const totalEquity = sf.totalEquity();
+  // Total equity the engine REFUSED as the company's equity (it excludes a
+  // refused year's result — critic round 2, 2026-09-27) reaches the rules
+  // as an absence, exactly as periodFacts hands it: the intercompany rule
+  // graded its exposure against the short figure.
+  const totalEquity = readRefusal(
+    (s.assembled_bs as Record<string, unknown> | undefined)?.total_equity_refusal) ? null : sf.totalEquity();
   const cash = pick(abNum("cash"), s.balanceSheet.cash);
   const cashFx = pick(abNum("cash_fx_component"), 0);
   const apDividends = pick(abNum("ap_dividends"), 0);
