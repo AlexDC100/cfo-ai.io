@@ -38,6 +38,13 @@
 // refuses Book NAV, Layers 1-3 and the hero, the engine Altman reader
 // prints X2 refused, and the equity ratio and debt / equity refuse, all
 // with the engine's reason. `unanchored` (rebuilt to balance) keeps them.
+// EVERY OTHER READER OF TOTAL EQUITY (critic round 2, round 4 here): the
+// report's §1 equity-ratio KPI ("Equity ratio 47.6 %") and §6 "Book equity
+// (NAV floor) 200,000" under "stands alone", canonicalMetrics'
+// `total_equity ?? 0`, the dashboard resolver and its cards, periodFacts'
+// `mOr` falling back to the rows' sum, the Capsule fact index's derived
+// equity ratio and the chat context all refuse with the engine's reason on
+// `unanchored_unbalanced`, and keep their figures on `unanchored`.
 // CANNOT SEE: whether the engine was right to refuse (net-711-rule);
 // surfaces that do not print EBITDA; pixels.
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -87,6 +94,9 @@ import { CashFlowStatementView } from "@/components/cfo/CashFlowStatementView";
 import { ComparativeProvider } from "@/components/cfo/ComparativeCells";
 import { RisksPanel } from "@/pages/cfo/FinancialStatements";
 import ComprehensiveReport from "@/pages/cfo/ComprehensiveReport";
+import { buildWorkspaceSnapshot } from "@/pages/cfo/Chat";
+import { metricCardRefusal } from "@/components/dashboard/MetricCard";
+import { buildFactIndex } from "@/lib/capsuleFactIndex";
 import pairJson from "./fixtures/comparatives/pair_served.json";
 
 import { cardNamed, plRows } from "./exportBooks";
@@ -567,5 +577,150 @@ describe("refusal-carries — round 3: total equity short by the refused result"
     for (const key of ["equity_ratio", "debt_to_equity"]) {
       expect(typeof ratioNamed(U(), key)?.value, `${key} on the balanced book`).toBe("number");
     }
+  });
+});
+
+// ── ROUND 4 (critic round 2, 2026-09-27): EVERY OTHER READER OF TOTAL
+// EQUITY ───────────────────────────────────────────────────────────────
+// Round 3 held computeRatios, the NAV cascade and the credit card; the
+// report it already mounted still printed "Equity ratio 47.6 %" (§1, off
+// `canonicalMetrics.balance.equity = total_equity ?? 0`) and "Book equity
+// (NAV floor) 200,000" under "book equity (NAV floor) stands alone" (§6);
+// periodFacts' `mOr` fell back to the rows' sum once the engine rows were
+// refused (equity ratio 0.476, debt / equity 0), the dashboard resolver and
+// the Capsule fact index derived the equity ratio, and the chat context
+// handed the assistant "Total equity 200,000".
+// REDS ON: any of them printing a figure (or a bare dash) instead of the
+// engine's reason on `unanchored_unbalanced`; the balanced `unanchored`
+// losing its figures (vacuity).
+describe("refusal-carries — round 4: every reader of total equity", () => {
+  afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+  const UB = () => BOOKS.find((x) => x.name === "unanchored_unbalanced")!;
+  const U = () => BOOKS.find((x) => x.name === "unanchored")!;
+  const erOf = (b: SurfaceBook) =>
+    (b.statements.assembled_bs as Record<string, unknown>).total_equity_refusal as
+      { code: string; text_en: string; text_ro: string } | undefined;
+  const teOf = (b: SurfaceBook) => (b.statements.assembled_bs as Record<string, number>).total_equity;
+  const canonOf = (b: SurfaceBook) => buildCanonicalMetricsFromInputs({
+    assembled_pl: b.statements.assembled_pl as Record<string, number>,
+    assembled_bs: b.statements.assembled_bs as Record<string, number>,
+    line_items: b.lineItems, period_id: `p-${b.name}`,
+  })!;
+  const mountReport = async (b: SurfaceBook) => {
+    const body = {
+      period: { id: `p-${b.name}`, period_end: "2025-12-31", currency: "RON",
+        source_document: { filename: `${b.name}.xlsx`, id: `d-${b.name}` } },
+      statements: b.statements, metrics: [], line_items: b.lineItems, alerts: [], recommendations: [],
+    };
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => body })));
+    renderWithProviders(<ComprehensiveReport />, { route: `/report?period=p-${b.name}` });
+    return screen.findByTestId("comprehensive-report");
+  };
+  const valuationRow = (root: HTMLElement) => Array.from(root.querySelectorAll("tr"))
+    .map((tr) => Array.from(tr.querySelectorAll("td")).map((td) => (td.textContent ?? "").trim()))
+    .find((tds) => tds[0] === "Book equity (NAV floor)");
+
+  it("unanchored_unbalanced: canonicalMetrics carries no total equity — the engine's refusal instead", () => {
+    const er = erOf(UB())!;
+    const c = canonOf(UB());
+    expect(c.balance.equity, "canonical total equity").toBeNull();
+    expect(c.balance.equity_refusal?.code).toBe(er.code);
+    expect(c.balance.equity_refusal?.text.en).toBe(er.text_en);
+    const cu = canonOf(U());
+    expect(cu.balance.equity).toBe(teOf(U()));
+    expect(cu.balance.equity_refusal).toBeNull();
+  });
+
+  it("unanchored_unbalanced: the report's §1 Equity ratio and §6 Book equity print the reason — never 47.6 % or 200,000", async () => {
+    const b = UB();
+    const er = erOf(b)!;
+    const root = await mountReport(b);
+    expect(screen.getByTestId("report-kpi-equity-ratio-refused").textContent).toBe(`refused — ${er.text_en}`);
+    expect(root.textContent, "the §1 KPI printed the short equity ratio").not.toMatch(/47[.,]6\s*%/);
+    expect(screen.getByTestId("report-valuation-book-equity-refused").textContent).toBe(`refused — ${er.text_en}`);
+    expect(valuationRow(root)?.[2]).toBe(`refused — ${er.text_en}`);
+    const banner = screen.getByTestId("report-valuation-ebitda-refused").textContent ?? "";
+    expect(banner).not.toContain("stands alone");
+    expect(banner).toContain(er.text_en);
+  });
+
+  it("unanchored (sheet balances): §1 prints the equity ratio and §6 the book equity", async () => {
+    const b = U();
+    const root = await mountReport(b);
+    expect(screen.queryByTestId("report-kpi-equity-ratio-refused")).toBeNull();
+    expect(screen.queryByTestId("report-valuation-book-equity-refused")).toBeNull();
+    expect(valuationRow(root)?.[2]).toMatch(/200/);
+    expect(screen.getByTestId("report-valuation-ebitda-refused").textContent).toContain("stands alone");
+  });
+
+  it("unanchored_unbalanced: periodFacts refuses total equity and every ratio on it — no `mOr` fallback, no stale row", () => {
+    const b = UB();
+    const er = erOf(b)!;
+    const stale = { equity_ratio: 0.4762, debt_to_equity: 0, roe: 0.1 };
+    for (const metricsByName of [undefined, stale]) {
+      const facts = buildPeriodFacts({
+        periodId: `p-${b.name}`, statements: b.statements,
+        lineItems: b.lineItems as unknown as ApiLineItem[], valuation: null, industry: null,
+        metricsByName,
+      } as Parameters<typeof buildPeriodFacts>[0]);
+      expect(facts.bs.total_equity, "periodFacts total equity").toBeNull();
+      expect(facts.bs.total_equity_refusal?.code).toBe(er.code);
+      expect([facts.ratios.equity_ratio, facts.ratios.debt_to_equity, facts.ratios.roe]).toEqual([null, null, null]);
+    }
+    const fu = buildPeriodFacts({
+      periodId: `p-${U().name}`, statements: U().statements,
+      lineItems: U().lineItems as unknown as ApiLineItem[], valuation: null, industry: null,
+    });
+    expect(fu.bs.total_equity).toBe(teOf(U()));
+    expect(typeof fu.ratios.equity_ratio).toBe("number");
+    expect(typeof fu.ratios.debt_to_equity).toBe("number");
+  });
+
+  it("unanchored_unbalanced: the dashboard resolver forms no equity ratio / debt to equity, and the card prints the reason", () => {
+    const b = UB();
+    const er = erOf(b)!;
+    const snap = buildReportingMetricsSnapshot(b.statements);
+    expect(snap.shareholdersEquity).toBeUndefined();
+    const refusal = { code: er.code, text: { ro: er.text_ro, en: er.text_en } };
+    for (const c of ["total_equity", "shareholders_equity", "equity_ratio", "debt_to_equity"]) {
+      const v = resolveConceptValue(c, snap).value;
+      expect(v, `resolver ${c}`).toBeNull();
+      expect(metricCardRefusal(c, v, { equityRefusal: refusal })?.en ?? "(the card printed no refusal)", `card ${c}`)
+        .toContain(er.text_en);
+    }
+    // The card states the refusal whatever the resolver was handed.
+    expect(metricCardRefusal("equity_ratio", 0.4925, { equityRefusal: refusal })?.en ?? "(the card printed 0.4925)")
+      .toContain(er.text_en);
+    const su = buildReportingMetricsSnapshot(U().statements);
+    for (const c of ["total_equity", "equity_ratio", "debt_to_equity"]) {
+      expect(typeof resolveConceptValue(c, su).value, `resolver ${c} on the balanced book`).toBe("number");
+    }
+    expect(metricCardRefusal("equity_ratio", 0.8, { equityRefusal: null })).toBeNull();
+  });
+
+  it("unanchored_unbalanced: the Capsule fact index carries no equity and derives no equity ratio", () => {
+    const factsOf = (b: SurfaceBook, metrics: Record<string, number | null> | null = null) => buildFactIndex({
+      periods: [{ periodId: `p-${b.name}`, periodLabel: "December 2025", statements: b.statements, metrics }],
+      activePeriodId: `p-${b.name}`,
+    } as Parameters<typeof buildFactIndex>[0]).facts.map((f) => f.factKey);
+    const refused = factsOf(UB());
+    expect(refused).not.toContain("equity");
+    expect(refused).not.toContain("equity_ratio");
+    expect(factsOf(UB(), { equity_ratio: 0.4762 }), "a stale engine row").not.toContain("equity_ratio");
+    const served = factsOf(U());
+    expect(served).toContain("equity");
+    expect(served).toContain("equity_ratio");
+  });
+
+  it("unanchored_unbalanced: the chat context states the refusal — never 'Total equity 200,000'", () => {
+    const snap = (b: SurfaceBook) => buildWorkspaceSnapshot({
+      id: `p-${b.name}`, label: "FY2025", statements: b.statements, lineItems: b.lineItems,
+      metrics: [], industry: null, briefing: null, recommendations: [], alerts: [], source: "upload",
+    } as unknown as Parameters<typeof buildWorkspaceSnapshot>[0]) ?? "";
+    const er = erOf(UB())!;
+    const text = snap(UB());
+    expect(text).toContain(`Total equity: REFUSED — ${er.text_en}`);
+    expect(text).not.toMatch(/Total equity: 200/);
+    expect(snap(U())).toMatch(/Total equity: 200/);
   });
 });

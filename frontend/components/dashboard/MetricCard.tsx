@@ -117,6 +117,39 @@ const EQUITY_BUILT_CONCEPTS: ReadonlySet<string> = new Set([
   "total_equity", "shareholders_equity", "equity_ratio", "debt_to_equity", "lt_debt_to_equity", "roe",
 ]);
 
+type CardRefusal = { readonly code: string; readonly text: { readonly ro: string; readonly en: string } };
+
+/** What a card prints INSTEAD of a figure, or null (pure — the gate reads
+ *  it). A margin the engine ruled not meaningful states that; a figure
+ *  built on a refused EBITDA states the EBITDA refusal (the resolver
+ *  answers null for it); a card on TOTAL EQUITY or a ratio dividing it
+ *  states the engine's equity refusal whenever there is one — the refusal
+ *  is authoritative, whatever the resolver was handed (critic round 2,
+ *  2026-09-27: the resolver divided the rows' short sum into an equity
+ *  ratio of 0.4925 on the real developer without account 121). */
+export function metricCardRefusal(
+  conceptKey: string,
+  resolvedValue: number | null,
+  refusals: {
+    marginRefusal?: { readonly ro: string; readonly en: string } | null;
+    ebitdaRefusal?: CardRefusal | null;
+    equityRefusal?: CardRefusal | null;
+  },
+): { readonly ro: string; readonly en: string } | null {
+  const { marginRefusal = null, ebitdaRefusal = null, equityRefusal = null } = refusals;
+  if (marginRefusal && MARGIN_CONCEPT_KEYS.has(conceptKey)) return marginRefusal;
+  if (ebitdaRefusal && resolvedValue === null && EBITDA_BUILT_CONCEPTS.has(conceptKey)) {
+    return { ro: `EBITDA refuzată: ${ebitdaRefusal.text.ro}`, en: `EBITDA refused: ${ebitdaRefusal.text.en}` };
+  }
+  if (equityRefusal && EQUITY_BUILT_CONCEPTS.has(conceptKey)) {
+    return {
+      ro: `Capitaluri proprii refuzate: ${equityRefusal.text.ro}`,
+      en: `Total equity refused: ${equityRefusal.text.en}`,
+    };
+  }
+  return null;
+}
+
 // Narrow no-break space — the instrument's joint between figure and unit.
 const NNBSP = " ";
 
@@ -200,18 +233,9 @@ export function MetricCard({
   // the engine's reason, never a dash — the resolver answers null for
   // EBITDA, EBIT, their margins and the EBITDA leverage once the served
   // figure is refused.
-  const ebitdaBuilt =
-    ebitdaRefusal && resolved.value === null && EBITDA_BUILT_CONCEPTS.has(card.conceptKey)
-      ? { ro: `EBITDA refuzată: ${ebitdaRefusal.text.ro}`, en: `EBITDA refused: ${ebitdaRefusal.text.en}` }
-      : null;
-  // TOTAL EQUITY THE ENGINE REFUSED: a card on it, or on a ratio dividing
-  // it, states the reason — the resolver answers null for them then.
-  const equityBuilt =
-    equityRefusal && resolved.value === null && EQUITY_BUILT_CONCEPTS.has(card.conceptKey)
-      ? { ro: `Capitaluri proprii refuzate: ${equityRefusal.text.ro}`, en: `Total equity refused: ${equityRefusal.text.en}` }
-      : null;
-  const refusal =
-    marginRefusal && MARGIN_CONCEPT_KEYS.has(card.conceptKey) ? marginRefusal : ebitdaBuilt ?? equityBuilt;
+  const refusal = metricCardRefusal(card.conceptKey, resolved.value, {
+    marginRefusal, ebitdaRefusal, equityRefusal,
+  });
 
   // PROVENANCE — by concept, from the page, verified to the cent. The
   // resolver's output carries none; the page that routed the headline

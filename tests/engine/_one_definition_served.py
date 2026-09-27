@@ -109,6 +109,7 @@ def _get(book: Any) -> Dict[str, Any]:
 #: A derived book: (the corpus case it is copied from, the account prefix
 #: whose rows are deleted from the copied FILE).
 _DERIVED = {"realestate_no121": ("saga_10_col_realestate", "121")}
+_DERIVED_DIRS: Dict[str, Path] = {}
 
 
 def _derived_case_dir(name: str) -> Path:
@@ -120,6 +121,8 @@ def _derived_case_dir(name: str) -> Path:
 
     import openpyxl
 
+    if name in _DERIVED_DIRS:
+        return _DERIVED_DIRS[name]
     case, prefix = _DERIVED[name]
     src = REPO / "corpus" / case
     out = Path(tempfile.mkdtemp(prefix="derived_%s_" % name)) / ("%s_%s" % (case, name))
@@ -133,6 +136,7 @@ def _derived_case_dir(name: str) -> Path:
     for r in reversed(doomed):
         ws.delete_rows(r)
     wb.save(str(out / "input.xlsx"))
+    _DERIVED_DIRS[name] = out
     return out
 
 
@@ -179,7 +183,8 @@ def served(name: str) -> types.SimpleNamespace:
     from engine.ratios import credit_model
     from engine.serving.facts import FactsGateway
 
-    body = _get(_persisted(name))
+    persisted = _persisted(name)
+    body = _get(persisted)
     statements = body["statements"]
     envelope = statements.get("assembled_canonical_v1") or {}
     rows = _metric_rows(statements)
@@ -191,6 +196,7 @@ def served(name: str) -> types.SimpleNamespace:
         V.load_valuation_benchmarks = original
     bundle = types.SimpleNamespace(
         name=name,
+        persisted=persisted,
         body=body,
         statements=statements,
         apl=statements["assembled_pl"],

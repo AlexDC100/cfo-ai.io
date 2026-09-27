@@ -590,33 +590,101 @@ def _equity_readers(name: str, b: Any, abs_: Dict[str, Any], bfacts: Dict[str, A
     res = s_engine.run_single_period(st, "p-%s" % name)
     fired_rules = [row["rule_key"] for row in res.payloads()]
     checks_ = [c for c in res.all_checks() if c.get("rule_id") == "equity_below_half_capital"]
+    reval = [c for c in res.all_checks() if c.get("rule_id") == "equity_quality_revaluation_reserves"]
     if incomplete:
         check("equity_below_half_capital" not in fired_rules
               and checks_ and text in (checks_[0].get("note") or ""),
               "findings equity_below_half_capital judged equity short by the refused result: "
               "fired %r, check %r" % (fired_rules, checks_))
+        # The revaluation reserve as a share of equity: not judged either
+        # (no observation formed — skipped, by its applicability or with
+        # the equity refusal).
+        check("equity_quality_revaluation_reserves" not in fired_rules
+              and all(c.get("observed") is None and not c.get("fired") for c in reval),
+              "findings equity_quality_revaluation_reserves judged equity short by the refused "
+              "result: fired %r, checks %r" % (fired_rules, reval))
     else:
         check("equity_below_half_capital" in fired_rules,
               "findings equity_below_half_capital did not fire on COMPLETE equity below half "
               "the capital: %r" % (checks_,))
+
+    # h. The statement's equity total stays what the rows sum to: the
+    #    served legacy view's bucket equity (the rebuild completes its
+    #    buckets to it) reproduces it to the cent — the completion never
+    #    closes the refused build-up into retained earnings, as its legacy
+    #    branch would if it read the refused `equity()`.
+    lbs = b.statements.get("balanceSheet") or {}
+    buckets = round(float(lbs.get("shareCapital") or 0) + float(lbs.get("retainedEarnings") or 0)
+                    + float(lbs.get("otherEquity") or 0), 2)
+    check(isinstance(te, (int, float)) and abs(buckets - float(te)) < 0.005,
+          "the served legacy view's bucket equity %r is not the statement's equity %r"
+          % (buckets, te))
+
+    # i. The forecast's opening sheet partitions the served STATEMENT: on a
+    #    sheet short by the refused result it refuses as an opening that
+    #    does not balance (naming the difference), never as a refused fact.
+    from engine.forecast.opening import OpeningPosition, OpeningPositionError
+    try:
+        OpeningPosition.from_gateway(b.gateway, "2025-12-31")
+    except OpeningPositionError as err:
+        check(incomplete and "balance" in str(err).lower(),
+              "the forecast opening refused %r on %s equity" % (str(err)[:160], "short" if incomplete else "complete"))
+    except Exception as err:  # noqa: BLE001 — the defect this reds on
+        check(False, "the forecast opening raised %s %r" % (type(err).__name__, str(err)[:160]))
+    else:
+        check(not incomplete, "the forecast opening opened on a sheet short by the refused result")
+
+    # j. The serve path lands the statement's totals without an error: the
+    #    landing reads the STATEMENT's equity (`statement_equity`) — reading
+    #    the refused `equity()` there raised inside a non-fatal block and
+    #    silently served the re-assembled totals instead of the persisted
+    #    (reconciliation-adjusted) ones.
+    import logging
+
+    class _Errors(logging.Handler):
+        def __init__(self) -> None:
+            logging.Handler.__init__(self, logging.ERROR)
+            self.messages: List[str] = []
+
+        def emit(self, record: logging.LogRecord) -> None:
+            self.messages.append(record.getMessage())
+
+    handler = _Errors()
+    plog = logging.getLogger(P.__name__)
+    plog.addHandler(handler)
+    try:
+        P._apply_envelope_truth_to_statements(copy.deepcopy(b.statements),
+                                              dict(b.persisted.period))
+    finally:
+        plog.removeHandler(handler)
+    check(not handler.messages,
+          "the serve path's envelope landing failed: %r" % (handler.messages,))
     WORK["equity_readers"].append("%s (%s)" % (name, "refused" if incomplete else "served"))
 
 
-def test_refusal_carries_the_related_party_insight_measures_complete_equity():
-    """Non-vacuity of 12e: on the developer WITH account 121 (corpus
-    `realestate`, complete equity, related-party balances) the insight
-    fires and restates the equity ratio — the refusal on its no-121 copy
-    is not an insight that never fires."""
+def test_refusal_carries_the_equity_readers_judge_complete_equity():
+    """Non-vacuity of 12e-g on the REAL developer: WITH account 121 (corpus
+    `realestate`, complete equity) the related-party insight fires and
+    restates the equity ratio, and the revaluation reserve is judged as a
+    share of equity by R6 and by the findings detector — so their refusal
+    on its no-121 copy is not a check that never fires."""
+    from engine.api import pipeline as P
+    from engine.api.findings import s_engine
     from engine.insights import build_insights
 
     b = served("realestate")
     ins = build_insights({"statements": b.statements, "envelope": b.envelope,
                           "line_items": b.body.get("line_items") or []})
     fired = [i for i in ins["insights"] if i["id"] == "related_party_exposure"]
-    WORK["checks"] += 1
+    WORK["checks"] += 3
     assert fired, [n for n in ins["not_fired"] if n["id"] == "related_party_exposure"]
     measures = dict((m["key"], m["value"]) for m in fired[0]["measures"])
     assert isinstance(measures.get("equity_ratio"), (int, float)), measures
+    alerts = P.stage_validate({"industry_key": None}, {"statements": b.statements}, "p-realestate")
+    keys = [str(a.get("alert_key") or "").split(":")[0] for a in alerts]
+    assert "equity_quality_revaluation_reserves" in keys and "equity_refused_net_result" not in keys, keys
+    res = s_engine.run_single_period(b.statements, "p-realestate")
+    assert "equity_quality_revaluation_reserves" in [row["rule_key"] for row in res.payloads()]
     WORK["related_party_complete"] = fired[0]["claim"]
 
 
@@ -636,6 +704,7 @@ def test_refusal_carries_zz_work(capsys):
     # TC-3: the equity law has a witness on each side — a CONSTRUCTED one
     # and the real developer with its 121 row deleted from the file.
     assert WORK["equity_incomplete"] == ["unanchored_unbalanced", "realestate_no121"], WORK["equity_incomplete"]
-    # 12e non-vacuity: the insight fires on complete equity.
+    # 12e-g non-vacuity: the insight, R6 and the findings detector judge
+    # complete equity on the real developer.
     assert WORK.get("related_party_complete"), WORK.get("related_party_complete")
     assert sorted(WORK["equity_complete"]) == ["g6_uncleared", "unanchored"], WORK["equity_complete"]
