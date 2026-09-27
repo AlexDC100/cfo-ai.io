@@ -99,12 +99,24 @@ def main() -> int:
     ebit_check = pl["ebitda"] - pl["depreciation"] - pl["ebit"]
     check("EBIT = EBITDA − Depreciation", ebit_check, 0.0)
 
-    # 5. NI statutory = NI operational + capitalized_own_work_memo
-    check(
-        "Statutory NI = Operational NI + 722 memo",
-        pl["net_income_statutory"] - pl["net_income_operational"] - pl["capitalized_own_work_memo"],
-        0.0,
-    )
+    # 5. NI statutory = NI operational + the ruling's named components (net
+    #    72x own work capitalised + net 711 "Variația stocurilor de produse")
+    #    + what account 121 holds beyond them (served, never folded). The
+    #    old law ("+ 722 memo") held only on a book with no 711 posting.
+    inv_block = pl.get("inventory_variation") or {}
+    cap_block = pl.get("capitalized_own_work") or {}
+    net_711 = inv_block.get("value")
+    net_72x = cap_block.get("value")
+    if net_711 is None or net_72x is None:
+        issues.append(f"Ruling components not served: net 711 {net_711!r}, net 72x {net_72x!r} "
+                      f"(refusal {pl.get('ebitda_refusal')!r})")
+    else:
+        check(
+            "Statutory NI = Operational NI + net 72x + net 711 + not explained",
+            pl["net_income_statutory"] - pl["net_income_operational"] - net_72x - net_711
+            - (pl.get("net_income_unexplained_vs_121") or 0.0),
+            0.0,
+        )
 
     # 6. Cash sub-aggregate must be a component of total cash (cash_fx ≤ cash)
     sub_agg = result["statements"]["subAggregates"]
@@ -116,27 +128,34 @@ def main() -> int:
     if sub_agg.get("ap_dividends", 0) <= 0:
         issues.append("ap_dividends sub-aggregate is zero — 457 mapping broken")
 
-    # 8. THREE EBITDA VIEWS — all three must be present and consistent.
-    #    operating_view = statutory + discounts_received_767
-    #    statutory      = operational + capitalized_own_work_memo
-    eb_op = pl.get("ebitda_operational")
-    eb_st = pl.get("ebitda_statutory")
-    eb_ov = pl.get("ebitda_operating_view")
-    if eb_op is None or eb_st is None or eb_ov is None:
-        issues.append(
-            f"Missing EBITDA view(s): operational={eb_op}, statutory={eb_st}, operating_view={eb_ov}"
-        )
+    # 8. THE ONE EBITDA (owner ruling 2026-09-26). The retired law here was
+    #    "three views": statutory = operational + 722 and operating_view =
+    #    statutory + 767 — three different EBITDAs under three names. Now:
+    #    every legacy name is an alias of `ebitda`; `ebitda` = EBITDA before
+    #    the stock variation + net 711 + net 72x (the served components);
+    #    767 (discounts received) is financial, so the EBITDA must not move
+    #    by it.
+    eb_one = pl.get("ebitda")
+    aliases = ("ebitda_statutory", "ebitda_operational", "ebitda_operating_view",
+               "operating_ebitda", "ebitda_cash")
+    if eb_one is None:
+        issues.append(f"The one EBITDA is not served (refusal {pl.get('ebitda_refusal')!r})")
     else:
-        if abs((eb_st - eb_op) - pl["capitalized_own_work_memo"]) > 1.0:
+        for name in aliases:
+            if name in pl and (pl[name] is None or abs(pl[name] - eb_one) > 1.0):
+                issues.append(f"{name} ({pl[name]!r}) is not the one EBITDA ({eb_one:,.2f})")
+        before = pl.get("ebitda_before_stock_variation")
+        if before is None or net_711 is None or net_72x is None:
+            issues.append("EBITDA components not served: before-stock-variation "
+                          f"{before!r}, net 711 {net_711!r}, net 72x {net_72x!r}")
+        elif abs(before + net_711 + net_72x - eb_one) > 1.0:
             issues.append(
-                f"ebitda_statutory − ebitda_operational ({eb_st - eb_op:,.2f}) "
-                f"!= capitalized_own_work_memo ({pl['capitalized_own_work_memo']:,.2f})"
-            )
-        if abs((eb_ov - eb_st) - pl.get("discounts_received", 0)) > 1.0:
-            issues.append(
-                f"ebitda_operating_view − ebitda_statutory ({eb_ov - eb_st:,.2f}) "
-                f"!= discounts_received ({pl.get('discounts_received', 0):,.2f})"
-            )
+                f"EBITDA ({eb_one:,.2f}) != before stock variation ({before:,.2f}) "
+                f"+ net 711 ({net_711:,.2f}) + net 72x ({net_72x:,.2f})")
+        disc = pl.get("discounts_received") or 0.0
+        if disc and abs(pl.get("ebit", 0) + pl.get("depreciation", 0) - eb_one) > 1.0:
+            issues.append("EBIT + D&A does not reproduce the one EBITDA on a book with 767 "
+                          f"({disc:,.2f}): 767 is financial and stays outside both")
 
     # 9. REAL CapEx must NOT equal D&A — that's the lazy template default
     #    and the specific bug from the Valuation tab screenshots.
@@ -296,14 +315,21 @@ def main() -> int:
                 f"{loss_codes}; a non-positive base FCF must refuse (dcf_base_fcf_not_positive)"
             )
 
-        # 20. EBITDA used by valuation engine == ebitda_statutory (NOT
-        #     ebitda_operational which would flip the EV/EBITDA sign).
+        # 20. The EBITDA the valuation engine uses is the ONE EBITDA the
+        #     assembled P&L serves (net 711 and net 72x inside) — never a
+        #     second one rebuilt from the incomeStatement mirror.
         eb_used = float(valuation.get("ebitda_used") or 0)
-        if abs(eb_used - pl["ebitda_statutory"]) > 1.0:
+        if valuation.get("ebitda_used") is None or abs(eb_used - pl["ebitda"]) > 1.0:
             issues.append(
-                f"Valuation uses ebitda_used={eb_used:,.2f}, "
-                f"expected ebitda_statutory={pl['ebitda_statutory']:,.2f}"
+                f"Valuation uses ebitda_used={valuation.get('ebitda_used')!r}, "
+                f"expected the one EBITDA={pl['ebitda']:,.2f}"
             )
+        # 20b. The NAV cap-rate NOI proxy is EBITDA − net 711 (production
+        #      stocked is not rental income), labelled as an approximation.
+        noi = valuation.get("noi_approximation") or {}
+        if noi.get("value") is None or abs(noi["value"] - (pl["ebitda"] - net_711)) > 1.0 \
+                or (noi.get("label") or {}).get("ro") != "NOI (aproximare)":
+            issues.append(f"NOI proxy {noi!r} is not EBITDA − net 711 labelled 'NOI (aproximare)'")
 
         # Pretty-print the DCF + valuation summary so the runner can eyeball it.
         print()
@@ -517,7 +543,7 @@ def main() -> int:
         ("subAggregates.cash_fx",      sub_agg.get("cash_fx", 0)),
         ("PL ebitda_operational",    pl.get("ebitda_operational", 0)),
         ("PL ebitda_statutory",      pl.get("ebitda_statutory", 0)),
-        ("PL ebitda_operating_view", pl.get("ebitda_operating_view", 0)),
+        ("PL ebitda_before_stock_variation", pl.get("ebitda_before_stock_variation", 0)),
         ("PL discounts_received",    pl.get("discounts_received", 0)),
         ("CF net_profit",            cf.get("net_profit", 0)),
         ("CF depreciation",          cf.get("depreciation", 0)),

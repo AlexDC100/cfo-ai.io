@@ -6593,7 +6593,8 @@ def _serialize_valuation(valuation: Optional[Dict[str, Any]],
             if user_assumptions:
                 ua_dict = {
                     k: user_assumptions.get(k)
-                    for k in ("ebitda_used", "multiple_used", "debt_used", "cash_used")
+                    for k in ("ebitda_used", "multiple_used", "debt_used", "cash_used",
+                              "ebitda_definition")
                     if user_assumptions.get(k) is not None
                 }
             fresh = _valuation.compute_valuation(
@@ -6699,10 +6700,22 @@ def _serialize_valuation(valuation: Optional[Dict[str, Any]],
         # CapEx, statutory net income. Only available when fresh recompute
         # ran (canonical statements present).
         "fcf_breakdown": (fresh or {}).get("fcf_breakdown"),
-        # Three EBITDA views so the FE can show which one EV/EBITDA used.
+        # THE ONE EBITDA (owner ruling 2026-09-26: net 711 and net 72x
+        # inside), its definition revision and its typed refusal. The three
+        # legacy view names are aliases of it. A valuation served from the
+        # persisted row alone (no fresh recompute) states no definition: the
+        # row does not carry one.
+        "ebitda": f("ebitda"),
+        "ebitda_definition": (fresh or {}).get("ebitda_definition"),
+        "ebitda_refusal": (fresh or {}).get("ebitda_refusal"),
         "ebitda_statutory": f("ebitda_statutory"),
         "ebitda_operational": f("ebitda_operational"),
         "ebitda_operating_view": f("ebitda_operating_view"),
+        # Why the primary method is what it is (sector / the margin rule /
+        # the EBITDA's refusal or sign) and the NAV cap-rate NOI proxy
+        # (EBITDA − net 711, "NOI (aproximare)") the NAV cascade reads.
+        "routing": (fresh or {}).get("routing"),
+        "noi_approximation": (fresh or {}).get("noi_approximation"),
         "confidence": src.get("confidence"),
         "multiples_source": src.get("multiples_source"),
         "multiples_as_of_date": str(src.get("multiples_as_of_date")) if src.get("multiples_as_of_date") else None,
@@ -6752,6 +6765,10 @@ def _serialize_valuation(valuation: Optional[Dict[str, Any]],
             "multiple_used": user_assumptions.get("multiple_used"),
             "debt_used": user_assumptions.get("debt_used"),
             "cash_used": user_assumptions.get("cash_used"),
+            # Which EBITDA definition the override was typed under, and the
+            # flag "salvat sub definiția anterioară a EBITDA" when it is not
+            # today's (a row saved before the stamp existed reads NULL).
+            "definition": _valuation.override_definition_status(user_assumptions),
         },
     }
 
@@ -9583,6 +9600,13 @@ def build_router() -> APIRouter:
                 "debt_used": body.get("debt_used"),
                 "cash_used": body.get("cash_used"),
                 "notes": body.get("notes"),
+                # The EBITDA definition this override was typed under (owner
+                # ruling 2026-09-26: 711 and 72x inside). Stamped by the
+                # engine, never taken from the body; a row saved before the
+                # stamp existed reads NULL and is served flagged
+                # (`_valuation.override_definition_status`). Column added by
+                # supabase/schema_phase_valuation_ebitda_definition.sql.
+                "ebitda_definition": _valuation.EBITDA_DEFINITION_REVISION,
                 "updated_at": _now_iso(),
             }
             client.upsert(
@@ -9807,6 +9831,7 @@ def build_router() -> APIRouter:
                     "multiple_used": ua.get("multiple_used"),
                     "debt_used":     ua.get("debt_used"),
                     "cash_used":     ua.get("cash_used"),
+                    "ebitda_definition": ua.get("ebitda_definition"),
                 }
 
             try:
