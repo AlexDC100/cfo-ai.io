@@ -60,6 +60,11 @@ export interface ServedComponent {
   readonly identityNote: Bilingual | null;
   /** 711 and 72x both active on a closed book: the split assumption. */
   readonly splitAssumption: Bilingual | null;
+  /** The trial balance's state as `stock_variation.decide` read it
+   *  ("closed" | "open" | "mixed"), when served. On a CLOSED book an
+   *  account-711 row holds the production stocked in the period (its
+   *  credit turnover), not the variation. */
+  readonly bookState: string | null;
 }
 
 /** One line of the served reconciliation chain (design A5). */
@@ -167,6 +172,7 @@ function readComponent(v: unknown, key: ServedComponent["key"]): ServedComponent
     accounts: str(v.accounts) ?? (key === "inventory_variation" ? "711" : "72x"),
     identityNote: bilingual(v.identity_note_ro, v.identity_note_en),
     splitAssumption: bilingual(v.split_assumption_ro, v.split_assumption_en),
+    bookState: str(v.book_state),
   };
 }
 

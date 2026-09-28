@@ -165,6 +165,11 @@ function RowBody({ row }: { row: BarRow }) {
             {v.keyMetric && <><Sep /><span data-key-metric>{v.keyMetric}</span></>}
             {v.basis && <><Sep /><span data-basis>{v.basis}</span></>}
           </span>
+          {/* An account-711 row never prints without what its amount IS:
+              the production stocked (on a closed book, its credit
+              turnover), not the change in inventories (owner ruling
+              2026-09-26, design A1 / A6). */}
+          {v.note && <span data-stock-note className="block text-[11px] leading-snug text-ink-soft">{v.note}</span>}
         </span>
       );
     }

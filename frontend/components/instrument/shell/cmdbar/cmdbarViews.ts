@@ -37,10 +37,12 @@ import {
 } from "./cmdbarFigures";
 import {
   inventoryDays,
+  isStockVariationAccount,
   ratioTableRows,
   servedEbitda,
   servedLine,
   servedNetResult,
+  stockVariation,
   type ServedFigure,
 } from "./cmdbarSources";
 import { accountMetricKey, type AnswerDef } from "./cmdbarIndex";
@@ -244,10 +246,18 @@ export function statementView(ctx: ViewContext, a: AnswerDef): FigureView {
     const inv = inventoryDaysLine(ctx);
     if (inv.text) { lines.push(inv.text); ratioKeys.push(inv.key); basis = inv.basis; }
   }
+  // A prior the engine REFUSED on this line (its words served — the
+  // operating result under the one-EBITDA refusal, total equity short by a
+  // refused result) carries no Δ: the column would compare a figure the
+  // engine does not state. A line merely absent from the prior keeps the
+  // column's own word ("new").
   const guard =
     a.reader === "net_result" ? (p: ServedBody) => servedNetResult(p as never)
     : a.reader === "ebitda" ? (p: ServedBody) => servedEbitda(p as never)
-    : undefined;
+    : (p: ServedBody) => {
+        const f = servedLine(p as never, a.statement ?? "pl", a.field ?? "");
+        return f.refusal?.text ? f : null;
+      };
   // An answer that prints the split never carries the filed-basis row.
   const sector = sectorChip(ctx, a.sector, undefined, !!a.inventoryDays);
   return {
@@ -326,8 +336,51 @@ export interface AccountView {
   absent: string | null;
   keyMetric: string | null;
   basis: string | null;
+  /** An account-711 row: what its amount IS (the Capsule's note, from the
+   *  served stock-variation block) — null for every other account. */
+  note: string | null;
   href: string;
   served: { amount: number | null; metricKey: string | null };
+}
+
+export interface StockVariationNote {
+  /** The book is CLOSED: a 711 row's amount is its credit turnover (the
+   *  production stocked) — never labelled a balance. */
+  turnover: boolean;
+  /** What a 711 row holds, then the served variation ("Variația stocurilor
+   *  de produse") with its provenance — or its refusal in the engine's
+   *  words, or that the period serves none. */
+  text: string;
+  /** The served numbers the text came from (for the gates). */
+  served: { value: number | null; bookState: string | null; source: string };
+}
+
+/** THE NOTE AN ACCOUNT-711 ROW NEVER PRINTS WITHOUT (owner ruling
+ *  2026-09-26, design A1 / A6): on a closed trial balance a 711 row holds
+ *  the gross production stocked in the period — its credit turnover — not
+ *  the change in inventories, which feeds EBITDA as the served net 711.
+ *  The browser twin of the Capsule's `_stock_variation_account_note`
+ *  (src/engine/api/_capsule_tools.py), over the SAME served block; the
+ *  variation is printed by the bar's money printer, its provenance in the
+ *  engine's words. Used by the bar's Cont row and the account view. */
+export function stockVariationNote(printer: Printer, body: ServedBody | null): StockVariationNote {
+  const t = i18n.getFixedT(printer.lang);
+  const sv = stockVariation(body as never);
+  const closed = sv.bookState === "closed";
+  const head = t(closed ? "cmdbar.account.stockVariation.closed" : "cmdbar.account.stockVariation.open");
+  const name = sv.nameRo ?? t("cmdbar.account.stockVariation.name");
+  let tail: string;
+  if (sv.value !== null) {
+    const provenance = sv.provenanceLabel ? sv.provenanceLabel[printer.lang] : null;
+    tail = provenance
+      ? t("cmdbar.account.stockVariation.served", { name, value: printer.money(sv.value), provenance })
+      : t("cmdbar.account.stockVariation.servedBare", { name, value: printer.money(sv.value) });
+  } else if (sv.refusal) {
+    tail = t("cmdbar.account.stockVariation.refused", { name, reason: absentText(printer, sv.refusal) });
+  } else {
+    tail = t("cmdbar.account.stockVariation.notServed");
+  }
+  return { turnover: closed, text: `${head} ${tail}`, served: { value: sv.value, bookState: sv.bookState, source: sv.source } };
 }
 
 /** Cont — one served leaf account (never a sum the engine did not serve). */
@@ -353,6 +406,7 @@ export function accountView(ctx: ViewContext, item: PeriodLineItem): AccountView
     absent: value === null ? absentText(ctx.printer, { code: "line_absent" }) : null,
     keyMetric,
     basis,
+    note: isStockVariationAccount(item.ro_account_code) ? stockVariationNote(ctx.printer, ctx.body).text : null,
     // The account view (`?account=`): the account's served leaves with
     // period, document and provenance, the requested code highlighted.
     href: accountEvidenceHref(scopeOf(ctx), [item.ro_account_code]),

@@ -136,6 +136,7 @@ vi.mock("@/stores/currency", async (orig) => {
 });
 
 import { CommandPalette } from "../CommandPalette";
+import { accountView, type ViewContext } from "../cmdbar/cmdbarViews";
 import { LAT_CMDBAR_SEARCH, resetLatency, snapshotLatency } from "@/lib/capsuleLatency";
 import { CPU_CLOCK, cpuNow, wallNow } from "@/test/cpuClock";
 import { RECENTS_KEY_PREFIX } from "../cmdbar/cmdbarRecents";
@@ -1468,3 +1469,230 @@ describe("cmdbar-keyboard — the whole flow from the keyboard", () => {
     expect(loc).toContain(`period=${scandiaWorld().periodId}`);
   });
 });
+
+// ════════════════════════════════════════════════════════════════════════
+// RELEASE r-rulings, FIXER ROUND 1 (2026-09-28) — a refused line is not an
+// absent one, and an account-711 row never prints without what it IS.
+//
+//   · TOTAL EQUITY the engine refuses as total equity (`assembled_bs.
+//     total_equity_refusal`: no account 121, a refused net 711, a sheet that
+//     does not balance without the year's result) printed as "Total equity
+//     200 K RON" — the short figure the dashboard card refuses;
+//   · the OPERATING RESULT refused with the one EBITDA printed "not in this
+//     book" beside an EBITDA row carrying the engine's reason — every stored
+//     period until it is reprocessed (§25);
+//   · a 711 leaf (on a closed book: the production stocked, its credit
+//     turnover) printed as a bare P&L amount under the Stocuri answer, with
+//     none of the note the Capsule adds (design A1 / A6).
+//
+// WHAT IT REDS ON, AFTER THE REPAIR (TC-11): the equity answer printing any
+// figure, or the bar's own "not in this book", where the engine serves the
+// equity refusal; the operating result printing a figure or "not in this
+// book" where the one-EBITDA refusal names it; a Δ against a prior the
+// engine refused on that line; a 711 row (rendered or modelled, RO or EN)
+// without the note, or a note that is not the served variation / its
+// provenance / the closed-book wording; a note on any other account.
+// Plants: docs/engine_book/gates.md, "Release r-rulings — fixer round 1".
+// ════════════════════════════════════════════════════════════════════════
+
+/** The engine's constructed book `name` (oneEbitda/constructed_books.json)
+ *  served as the period's body: its statements and line items under
+ *  the first hermetic capture's period / company shell (the host context
+ *  the bar needs), with
+ *  no other book's ratio table beside it. */
+function constructedBody(name: string): Record<string, any> {
+  const book = ONE_EBITDA_BOOKS[name];
+  const body = structuredClone(SCANDIA.period);
+  body.statements = structuredClone(book.statements);
+  body.line_items = structuredClone(book.line_items);
+  body.assembled_metrics = null;
+  return body;
+}
+
+/** A served sector document with no rows: the constructed books have no
+ *  sector, and the capture's rows must not be printed beside them. */
+const NO_SECTOR_ROWS = { ...SECTOR.scandia, rows: [] };
+
+describe("absent is never 0 — a REFUSED line prints the engine's words (fixer round 1)", () => {
+  const NOT_IN_BOOK = { en: "not in this book", ro: "nu apare în balanță" } as const;
+
+  it("total equity the engine refuses AS total equity prints the engine's words — never the short figure, never 'not in this book'", async () => {
+    const book = ONE_EBITDA_BOOKS.unanchored_unbalanced;
+    const served = book.statements.assembled_bs.total_equity_refusal;
+    // POSITIVE CONTROL: the short figure IS served beside the refusal — what
+    // a reader of the bare line prints.
+    expect(book.statements.assembled_bs.total_equity).toBe(200000);
+    expect(served.code).toBe("account_121_anchor_absent");
+    for (const lang of LANGS) {
+      await useLang(lang);
+      mount(scandiaWorld({ body: constructedBody("unanchored_unbalanced"), sector: NO_SECTOR_ROWS }));
+      type(lang === "ro" ? "capitaluri proprii" : "total equity");
+      const row = answerRow("answer:equity");
+      expect(row, `${lang}: the equity answer`).toBeTruthy();
+      expect(row!.querySelector('[data-figure="answer"]'), `${lang}: no figure`).toBeNull();
+      expect(row!.querySelector("[data-absent]")?.textContent).toBe(lang === "ro" ? served.text_ro : served.text_en);
+      expect(row!.textContent).not.toContain(money(200000));
+      expect(row!.textContent).not.toContain(served.code);
+      expect(row!.textContent).not.toContain(NOT_IN_BOOK[lang]);
+      expect(row!.textContent).not.toMatch(/(^|\s)0(\s|$)/);
+      cleanup();
+    }
+    // The same book's OTHER balance-sheet lines are not refused: the
+    // refusal is equity's, not the sheet's.
+    await useLang("en");
+    mount(scandiaWorld({ body: constructedBody("unanchored_unbalanced"), sector: NO_SECTOR_ROWS }));
+    type("total assets");
+    expect(answerRow("answer:total_assets")?.querySelector('[data-figure="answer"]')?.textContent)
+      .toBe(money(book.statements.assembled_bs.total_assets));
+  });
+
+  it("a prior whose total equity the engine refuses carries no Δ — the prior's refusal, never a change against the short figure", () => {
+    const served = ONE_EBITDA_BOOKS.unanchored_unbalanced.statements.assembled_bs.total_equity_refusal;
+    const cmp = structuredClone(PAIR.comparatives);
+    cmp.prior_statements.assembled_bs.total_equity_refusal = served;
+    // POSITIVE CONTROL: the column itself still compares — the comparatives
+    // document reads no balance-sheet refusal, so only the bar's guard
+    // keeps the change off the row.
+    expect(cmp.columns.find((c: { key: string }) => c.key === "bs.total_equity").status).toBe("compared");
+    mount(pairWorld({ comparatives: cmp }));
+    type("total equity");
+    const row = answerRow("answer:equity")!;
+    expect(row.querySelector('[data-figure="answer"]')?.textContent).toBe(money(PAIR.current_body.statements.assembled_bs.total_equity));
+    const chips = chipTexts(row);
+    expect(chips[0]).toEqual({ state: "none", text: served.text_en });
+    expect(chips.some((c) => / vs /.test(c.text))).toBe(false);
+  });
+
+  for (const name of ["g6_uncleared", "unanchored_unbalanced"] as const) {
+    it(`${name}: a refused operating result prints the one-EBITDA refusal in the engine's words — never 'not in this book', never a figure`, async () => {
+      const apl = ONE_EBITDA_BOOKS[name].statements.assembled_pl;
+      const served = apl.ebitda_refusal;
+      // POSITIVE CONTROL: the refusal names the operating result.
+      expect(served.fields).toContain("ebit");
+      expect(apl.ebit).toBeNull();
+      for (const lang of LANGS) {
+        await useLang(lang);
+        mount(scandiaWorld({ body: constructedBody(name), sector: NO_SECTOR_ROWS }));
+        type(lang === "ro" ? "rezultat din exploatare" : "operating result");
+        const row = answerRow("answer:operating_result");
+        expect(row, `${lang}: the operating-result answer`).toBeTruthy();
+        expect(row!.querySelector('[data-figure="answer"]')).toBeNull();
+        const words = lang === "ro" ? served.text_ro : served.text_en;
+        expect(row!.querySelector("[data-absent]")?.textContent).toBe(words);
+        expect(row!.textContent).not.toContain(NOT_IN_BOOK[lang]);
+        expect(row!.textContent).not.toContain(served.code);
+        // The EBITDA row beside it says the SAME thing — one reason.
+        type("ebitda");
+        expect(answerRow("answer:ebitda")!.querySelector("[data-absent]")?.textContent).toBe(words);
+        cleanup();
+      }
+    });
+  }
+
+  it("an operating result the engine SERVES still prints its figure (the reader refuses only what the engine refused)", () => {
+    mount(scandiaWorld());
+    type("operating result");
+    const ebit = SCANDIA.period.statements.assembled_pl.ebit;
+    expect(typeof ebit).toBe("number");
+    expect(answerRow("answer:operating_result")!.querySelector('[data-figure="answer"]')?.textContent).toBe(money(ebit));
+  });
+});
+
+describe("cmdbar-711 — an account-711 row never prints without what it IS (fixer round 1)", () => {
+  /** The note as the engine's served block words it — assembled here from
+   *  the served JSON and the strings, NOT from the bar's function. */
+  function expectedNote(body: Record<string, any>, lang: Lang, fmt: (v: number) => string): string {
+    const iv = body.statements.assembled_pl.inventory_variation;
+    const tt = i18n.getFixedT(lang);
+    const head = tt(iv.book_state === "closed" ? "cmdbar.account.stockVariation.closed" : "cmdbar.account.stockVariation.open");
+    const name = iv.line_name_ro;
+    const tail = iv.value !== null
+      ? tt("cmdbar.account.stockVariation.served", { name, value: fmt(iv.value), provenance: lang === "ro" ? iv.label_ro : iv.label_en })
+      : tt("cmdbar.account.stockVariation.refused", { name, reason: lang === "ro" ? iv.refusal.text_ro : iv.refusal.text_en });
+    return `${head} ${tail}`;
+  }
+
+  const books: [string, () => World][] = [["scandia", () => scandiaWorld()], ["agras", () => agrasWorld()]];
+  for (const [name, world] of books) {
+    for (const lang of LANGS) {
+      it(`${name} (${lang}): every 711 row the bar lists for '711' and 'stoc' carries the served note; no other row carries one`, async () => {
+        await useLang(lang);
+        const w = world();
+        const iv = w.body.statements.assembled_pl.inventory_variation;
+        // POSITIVE CONTROL: a closed book whose 711 leaves are the gross
+        // (their sum is the served audit-named credit turnover) and whose
+        // served variation is a different, measured figure.
+        expect(iv.book_state).toBe("closed");
+        expect(iv.provenance).toBe("account_121_bridge");
+        const leaves711 = (w.body.line_items as PeriodLineItemLite[]).filter((li) => li.ro_account_code.startsWith("711"));
+        expect(leaves711.length).toBeGreaterThan(0);
+        expect(Math.abs(leaves711.reduce((s, li) => s + li.amount, 0) - iv.stock_production_credit_turnover)).toBeLessThan(0.01);
+        expect(iv.value).not.toBe(iv.stock_production_credit_turnover);
+        mount(w);
+        const want = expectedNote(w.body, lang, money);
+        expect(want).toContain(money(iv.value));
+        expect(want).toContain(lang === "ro" ? iv.label_ro : iv.label_en);
+        let with711 = 0;
+        for (const q of ["711", "stoc", ...leaves711.map((li) => li.ro_account_code)]) {
+          type(q);
+          for (const row of rowsOf("account")) {
+            const code = (row.getAttribute("data-row-id") ?? "").split(":")[1] ?? "";
+            const note = row.querySelector("[data-stock-note]");
+            if (code.startsWith("711")) {
+              expect(note?.textContent, `"${q}" → ${code}`).toBe(want);
+              with711++;
+            } else {
+              expect(note, `"${q}" → ${code}: a note on a non-711 account`).toBeNull();
+            }
+          }
+        }
+        expect(with711, "VACUITY: 711 rows seen").toBeGreaterThanOrEqual(leaves711.length);
+        console.log(`GATE-WORK cmdbar-711-note ${name}/${lang} rows=${with711} leaves=${leaves711.length}`);
+      }, HEAVY);
+    }
+  }
+
+  it("modelled over EVERY line item of both books: a note on each 711 leaf and on nothing else", () => {
+    let notes = 0;
+    let others = 0;
+    for (const [, world] of books) {
+      const w = world();
+      const ctx: ViewContext = {
+        printer: { lang: "en", money },
+        body: w.body as never,
+        comparatives: { state: "none", reason: "no_prior" },
+        sector: { state: "none", reason: "off" },
+        periodId: w.periodId,
+        orgId: w.org.id,
+      };
+      const want = expectedNote(w.body, "en", money);
+      for (const li of w.body.line_items as PeriodLineItemLite[]) {
+        if (li.statement === "IGNORED") continue;
+        const v = accountView(ctx, li as never);
+        if (li.ro_account_code.startsWith("711")) { expect(v.note, li.ro_account_code).toBe(want); notes++; }
+        else { expect(v.note, li.ro_account_code).toBeNull(); others++; }
+      }
+    }
+    expect(notes, "VACUITY: 711 leaves").toBeGreaterThanOrEqual(11);
+    expect(others, "VACUITY: other leaves").toBeGreaterThanOrEqual(500);
+  });
+
+  it("a 711 row on a book whose variation the engine REFUSED says so in the engine's words — never a variation figure", async () => {
+    const body = constructedBody("unanchored");
+    const iv = body.statements.assembled_pl.inventory_variation;
+    expect(iv.value).toBeNull();
+    for (const lang of LANGS) {
+      await useLang(lang);
+      mount(scandiaWorld({ body, sector: NO_SECTOR_ROWS }));
+      type("711");
+      const row = rowsOf("account").find((el) => (el.getAttribute("data-row-id") ?? "").startsWith("account:711:"));
+      expect(row, lang).toBeTruthy();
+      const note = row!.querySelector("[data-stock-note]")?.textContent ?? "";
+      expect(note).toBe(expectedNote(body, lang, money));
+      expect(note).toContain(lang === "ro" ? iv.refusal.text_ro : iv.refusal.text_en);
+      cleanup();
+    }
+  });
+});
+
+type PeriodLineItemLite = { ro_account_code: string; bucket: string; amount: number; statement: string };

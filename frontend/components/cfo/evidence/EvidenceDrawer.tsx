@@ -14,6 +14,12 @@
 //
 // Closing drops `account` / `line` (Back does not reopen it); the tab the
 // link opened stays, so the statement is what is behind it.
+//
+// ACCOUNT 711 (owner ruling 2026-09-26, design A1 / A6): a 711 row never
+// prints without what its amount IS — on a closed trial balance the
+// production stocked in the period (its credit turnover, so never labelled
+// a balance), not the change in inventories, which is the served net 711
+// ("Variația stocurilor de produse") with its provenance, or its refusal.
 
 import { useEffect, useMemo, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -39,6 +45,8 @@ import {
 } from "@/lib/evidence/evidenceLink";
 import { HIGHLIGHT_PARAM, TAB_PARAM } from "@/lib/traceableSource";
 import { absentText, langOf, servedMoney, type Printer } from "@/components/instrument/shell/cmdbar/cmdbarFigures";
+import { isStockVariationAccount } from "@/components/instrument/shell/cmdbar/cmdbarSources";
+import { stockVariationNote, type StockVariationNote } from "@/components/instrument/shell/cmdbar/cmdbarViews";
 import { formatMeasure } from "@/lib/insights";
 
 import "./evidenceI18n";
@@ -95,6 +103,7 @@ export function EvidenceDrawer({ body, periodLabel, documentName, currency }: Ev
     [request, body],
   );
   const reading = useMemo(() => readingOf(body), [body]);
+  const stockNote = useMemo(() => stockVariationNote(printer, body), [printer, body]);
   const source = [documentName, reading.sheet].filter((s): s is string => !!s && s.trim().length > 0).join(" · ");
   const provenance = (accounts: string): AmountProvenance | null =>
     provenanceOf({ accounts, source: source || undefined, method: reading.method, pack: reading.pack });
@@ -274,7 +283,7 @@ export function EvidenceDrawer({ body, periodLabel, documentName, currency }: Ev
           {line && line.leaves.length > 0 ? (
             <section className="space-y-2" data-testid="evidence-feeds">
               <h3 className="text-[10.5px] uppercase tracking-[0.12em] text-ink-soft font-semibold">{accountsHeading}</h3>
-              <LeafTable leaves={line.leaves} fmt={fmt} provenance={provenance} t={t} highlight={false} />
+              <LeafTable leaves={line.leaves} fmt={fmt} provenance={provenance} t={t} highlight={false} stockNote={stockNote} withNote />
             </section>
           ) : null}
           {line && !line.derived && line.leaves.length === 0 && model.accounts.length === 0 ? (
@@ -293,9 +302,10 @@ export function EvidenceDrawer({ body, periodLabel, documentName, currency }: Ev
                   provenance={provenance}
                   t={t}
                   statementWord={statementWord}
+                  stockNote={stockNote}
                 />
               ) : (
-                <AccountsTable blocks={model.accounts} fmt={fmt} provenance={provenance} t={t} />
+                <AccountsTable blocks={model.accounts} fmt={fmt} provenance={provenance} t={t} stockNote={stockNote} />
               )}
             </section>
           ) : null}
@@ -308,21 +318,49 @@ export function EvidenceDrawer({ body, periodLabel, documentName, currency }: Ev
 type Fmt = (v: number | null | undefined) => string;
 type T = (key: string, vars?: Record<string, unknown>) => string;
 
-function LeafTable({ leaves, fmt, provenance, t, highlight }: {
+const has711 = (leaves: readonly EvidenceLeaf[]) => leaves.some((l) => isStockVariationAccount(l.code));
+
+/** The amount column's name: "Balance", except over account-711 rows only
+ *  on a CLOSED book, where the amount is the credit turnover. */
+function amountHeading(leaves: readonly EvidenceLeaf[], note: StockVariationNote, t: T): string {
+  return note.turnover && leaves.length > 0 && leaves.every((l) => isStockVariationAccount(l.code))
+    ? t("evidence.colTurnover711")
+    : t("evidence.colAmount");
+}
+
+function StockNote({ note }: { note: StockVariationNote }) {
+  return (
+    <p
+      className="text-[11.5px] leading-snug text-ink-2"
+      data-testid="evidence-stock-note"
+      data-source={note.served.source}
+      data-served-value={note.served.value ?? ""}
+    >
+      {note.text}
+    </p>
+  );
+}
+
+function LeafTable({ leaves, fmt, provenance, t, highlight, stockNote, withNote = false }: {
   leaves: EvidenceLeaf[];
   fmt: Fmt;
   provenance: (accounts: string) => AmountProvenance | null;
   t: T;
   /** Highlight the leaves that ARE a requested code. */
   highlight: boolean;
+  stockNote: StockVariationNote;
+  /** Print the account-711 note under the table (when it lists one) — off
+   *  where the enclosing block prints it once. */
+  withNote?: boolean;
 }) {
   return (
+    <>
     <table className="w-full text-[12.5px]">
       <thead>
         <tr className="text-[10.5px] uppercase tracking-[0.06em] text-ink-mute">
           <th scope="col" className="py-1 pr-2 text-left font-medium">{t("evidence.colCode")}</th>
           <th scope="col" className="py-1 px-2 text-left font-medium">{t("evidence.colName")}</th>
-          <th scope="col" className="py-1 pl-2 text-right font-medium">{t("evidence.colAmount")}</th>
+          <th scope="col" className="py-1 pl-2 text-right font-medium">{amountHeading(leaves, stockNote, t)}</th>
         </tr>
       </thead>
       <tbody>
@@ -349,16 +387,20 @@ function LeafTable({ leaves, fmt, provenance, t, highlight }: {
         })}
       </tbody>
     </table>
+    {withNote && has711(leaves) ? <StockNote note={stockNote} /> : null}
+    </>
   );
 }
 
-function AccountBlockView({ block, fmt, provenance, t, statementWord }: {
+function AccountBlockView({ block, fmt, provenance, t, statementWord, stockNote }: {
   block: EvidenceAccountBlock;
   fmt: Fmt;
   provenance: (accounts: string) => AmountProvenance | null;
   t: T;
   statementWord: (s: "BS" | "PL" | null) => string;
+  stockNote: StockVariationNote;
 }) {
+  const is711 = has711(block.leaves);
   return (
     <div
       className={`rounded-md border border-rule px-4 py-3 space-y-2 ${HIGHLIGHT_CLASS}`}
@@ -409,7 +451,9 @@ function AccountBlockView({ block, fmt, provenance, t, statementWord }: {
           data-account-code={block.leaves[0].code}
           data-highlighted="true"
         >
-          <span className="text-[12px] text-ink">{t("evidence.balance")}</span>
+          <span className="text-[12px] text-ink" data-testid="evidence-amount-label">
+            {stockNote.turnover && isStockVariationAccount(block.leaves[0].code) ? t("evidence.turnover711") : t("evidence.balance")}
+          </span>
           <span className="font-mono tabular-nums text-[13px] text-ink" data-cell="amount">
             <ProvenanceAffordance provenance={provenance(block.leaves[0].code)} value={block.leaves[0].amount}>
               {fmt(block.leaves[0].amount)}
@@ -419,9 +463,11 @@ function AccountBlockView({ block, fmt, provenance, t, statementWord }: {
       ) : block.leaves.length > 0 ? (
         <>
           <div className="text-[11px] text-ink-soft">{t("evidence.leafCount", { count: block.leaves.length })}</div>
-          <LeafTable leaves={block.leaves} fmt={fmt} provenance={provenance} t={t} highlight />
+          <LeafTable leaves={block.leaves} fmt={fmt} provenance={provenance} t={t} highlight stockNote={stockNote} />
         </>
       ) : null}
+
+      {is711 ? <StockNote note={stockNote} /> : null}
 
       {block.rollups.length > 0 ? (
         <div className="pt-1 space-y-1" data-testid="evidence-rollups">
@@ -449,12 +495,14 @@ function AccountBlockView({ block, fmt, provenance, t, statementWord }: {
  *  leaf marked; an absent code says so in its own row; a served total for
  *  exactly that code on its own row. The balance-sheet rows they roll into
  *  are listed once, below. */
-function AccountsTable({ blocks, fmt, provenance, t }: {
+function AccountsTable({ blocks, fmt, provenance, t, stockNote }: {
   blocks: EvidenceAccountBlock[];
   fmt: Fmt;
   provenance: (accounts: string) => AmountProvenance | null;
   t: T;
+  stockNote: StockVariationNote;
 }) {
+  const leaves = blocks.flatMap((b) => b.leaves);
   const rollups = new Map<string, EvidenceAccountBlock["rollups"][number]>();
   for (const b of blocks) for (const r of b.rollups) if (!rollups.has(r.id)) rollups.set(r.id, r);
   return (
@@ -464,7 +512,7 @@ function AccountsTable({ blocks, fmt, provenance, t }: {
           <tr className="text-[10.5px] uppercase tracking-[0.06em] text-ink-mute">
             <th scope="col" className="py-1 pr-2 text-left font-medium">{t("evidence.colCode")}</th>
             <th scope="col" className="py-1 px-2 text-left font-medium">{t("evidence.colName")}</th>
-            <th scope="col" className="py-1 pl-2 text-right font-medium">{t("evidence.colAmount")}</th>
+            <th scope="col" className="py-1 pl-2 text-right font-medium">{amountHeading(leaves, stockNote, t)}</th>
           </tr>
         </thead>
         {blocks.map((b) => (
@@ -518,6 +566,7 @@ function AccountsTable({ blocks, fmt, provenance, t }: {
           </tbody>
         ))}
       </table>
+      {has711(leaves) ? <StockNote note={stockNote} /> : null}
       {rollups.size > 0 ? (
         <div className="space-y-1" data-testid="evidence-rollups">
           <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-soft">{t("evidence.rollupHeading")}</div>

@@ -703,3 +703,110 @@ describe("cmdbar-evidence — strings and slugs", () => {
     expect(hits).toEqual([]);
   });
 });
+
+// RELEASE r-rulings, FIXER ROUND 1 (2026-09-28): opening a 711 leaf from the
+// bar printed "Contul 711104 … Sold <the leaf's amount>" — the production
+// stocked on a closed book (its credit turnover) labelled a BALANCE, with
+// none of the note the Capsule adds (design A1 / A6). And a refused line
+// (the operating result under the one-EBITDA refusal, total equity short by
+// a refused result) printed the bar's "not in this book" or the short
+// figure as its served figure.
+//
+// WHAT IT REDS ON, AFTER THE REPAIR (TC-11): a 711 leaf in the account view
+// — alone, under its prefix, in a line's feeds, among a finding's accounts —
+// without the note, or labelled "Balance" / "Sold" on a closed book; a note
+// on a view with no 711 leaf; a refused operating result or total equity
+// printed as a figure or as "not in this book".
+describe("cmdbar-evidence — account 711 and the refused lines (fixer round 1)", () => {
+  const scandia = WORLDS[0];
+  const IV = SCANDIA.statements.assembled_pl.inventory_variation;
+
+  function expectedNote(lang: "en" | "ro", body: Record<string, any> = SCANDIA): string {
+    const iv = body.statements.assembled_pl.inventory_variation;
+    const tt = i18n.getFixedT(lang);
+    const head = tt(iv.book_state === "closed" ? "cmdbar.account.stockVariation.closed" : "cmdbar.account.stockVariation.open");
+    const tail = iv.value !== null
+      ? tt("cmdbar.account.stockVariation.served", { name: iv.line_name_ro, value: full(iv.value), provenance: lang === "ro" ? iv.label_ro : iv.label_en })
+      : tt("cmdbar.account.stockVariation.refused", { name: iv.line_name_ro, reason: lang === "ro" ? iv.refusal.text_ro : iv.refusal.text_en });
+    return `${head} ${tail}`;
+  }
+
+  for (const lang of ["en", "ro"] as const) {
+    it(`${lang}: a 711 leaf opens labelled as its credit turnover (never a balance) with the served variation beside it`, async () => {
+      await act(async () => { await i18n.changeLanguage(lang); });
+      const tt = i18n.getFixedT(lang);
+      // POSITIVE CONTROL: a closed book, the leaf is the gross, the served
+      // variation a different figure.
+      expect(IV.book_state).toBe("closed");
+      const li = (SCANDIA.line_items as PeriodLineItem[]).find((x) => x.ro_account_code === "711104")!;
+      expect(li.amount).not.toBe(IV.value);
+      drawer(scandia, accountView(ctxOf(scandia), li).href);
+      const d = await screen.findByTestId("evidence-drawer");
+      expect(d.querySelector('[data-testid="evidence-amount-label"]')?.textContent?.trim()).toBe(tt("evidence.turnover711"));
+      expect(d.querySelector('[data-testid="evidence-amount-label"]')?.textContent?.trim()).not.toBe(tt("evidence.balance"));
+      const notes = [...d.querySelectorAll('[data-testid="evidence-stock-note"]')];
+      expect(notes.length, "the note, once").toBe(1);
+      expect(notes[0].textContent).toBe(expectedNote(lang));
+      expect(notes[0].textContent).toContain(full(IV.value));
+      // The leaf's own amount is still the served one.
+      expect(d.querySelector('[data-evidence-target="leaf:711104"] [data-cell="amount"]')?.textContent).toContain(full(li.amount));
+      cleanup();
+    });
+
+    it(`${lang}: every view that lists a 711 leaf carries the note once — the prefix, a line's feeds, several accounts; a view without one carries none`, async () => {
+      await act(async () => { await i18n.changeLanguage(lang); });
+      const tt = i18n.getFixedT(lang);
+      const cases: { href: string; note: boolean; heading?: string }[] = [
+        { href: "/dashboard?tab=pl&account=711", note: true, heading: tt("evidence.colTurnover711") },
+        { href: "/dashboard?tab=pl&line=pl.other_operating_income", note: true, heading: tt("evidence.colAmount") },
+        { href: "/dashboard?tab=pl&account=711104&account=758", note: true, heading: tt("evidence.colAmount") },
+        // POSITIVE CONTROLS: no 711 leaf, no note, the balance heading.
+        { href: "/dashboard?tab=balance_sheet&account=4111", note: false, heading: tt("evidence.colAmount") },
+        { href: "/dashboard?tab=pl&account=758", note: false },
+      ];
+      for (const c of cases) {
+        drawer(scandia, c.href);
+        const d = await screen.findByTestId("evidence-drawer");
+        const leaves711 = [...d.querySelectorAll<HTMLElement>('[data-testid="evidence-leaf"]')].filter((r) => (r.dataset.accountCode ?? "").startsWith("711"));
+        expect(leaves711.length > 0, `${c.href}: lists a 711 leaf`).toBe(c.note);
+        const notes = [...d.querySelectorAll('[data-testid="evidence-stock-note"]')].map((n) => n.textContent);
+        expect(notes, c.href).toEqual(c.note ? [expectedNote(lang)] : []);
+        if (c.heading) {
+          const heads = [...d.querySelectorAll("thead th")].map((th) => th.textContent);
+          expect(heads[heads.length - 1], c.href).toBe(c.heading);
+        }
+        cleanup();
+      }
+    });
+  }
+
+  it("a 711 leaf on a book whose variation the engine REFUSED carries that refusal in the engine's words", async () => {
+    const book = read("frontend/lib/__tests__/fixtures/oneEbitda/constructed_books.json").unanchored;
+    const w: World = { ...scandia, body: { ...SCANDIA, statements: book.statements, line_items: book.line_items, assembled_metrics: null } };
+    drawer(w, "/dashboard?tab=pl&account=711");
+    const d = await screen.findByTestId("evidence-drawer");
+    const note = d.querySelector('[data-testid="evidence-stock-note"]')?.textContent ?? "";
+    expect(note).toBe(expectedNote("en", w.body));
+    expect(note).toContain(book.statements.assembled_pl.inventory_variation.refusal.text_en);
+  });
+
+  it("a refused operating result and a refused total equity open on the engine's words — never 'not in this book', never the short figure", async () => {
+    const books = read("frontend/lib/__tests__/fixtures/oneEbitda/constructed_books.json");
+    const book = books.unanchored_unbalanced;
+    const w: World = { ...scandia, body: { ...SCANDIA, statements: book.statements, line_items: book.line_items, assembled_metrics: null } };
+    const cases = [
+      { line: "pl.ebit", words: book.statements.assembled_pl.ebitda_refusal.text_en, short: null as number | null },
+      { line: "bs.total_equity", words: book.statements.assembled_bs.total_equity_refusal.text_en, short: book.statements.assembled_bs.total_equity as number },
+    ];
+    for (const c of cases) {
+      drawer(w, `/dashboard?tab=pl&line=${c.line}`);
+      const d = await screen.findByTestId("evidence-drawer");
+      const v = d.querySelector<HTMLElement>('[data-testid="evidence-line-value"]')!;
+      expect(v.textContent, c.line).toBe(c.words);
+      expect(v.dataset.servedValue, c.line).toBe("");
+      expect(d.textContent).not.toContain("not in this book");
+      if (c.short !== null) expect(d.textContent).not.toContain(full(c.short));
+      cleanup();
+    }
+  });
+});

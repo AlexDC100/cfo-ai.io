@@ -130,11 +130,11 @@ describe("G4 — the command bar names a group once, never beside a row", () => 
       href: "/dashboard?tab=pl", served: { value: 1, source: "x", ratioKeys: [], sectorKey: null, columnKey: null } } },
     { kind: "account", id: "account:411101:ar", view: {
       id: "account:411101:ar", code: "411101", name: "Clienti int.TT", statement: "balance sheet", value: "308,3 K",
-      absent: null, keyMetric: "Days sales outstanding 90 days", basis: null, href: "/dashboard?tab=balance_sheet",
+      absent: null, keyMetric: "Days sales outstanding 90 days", basis: null, note: null, href: "/dashboard?tab=balance_sheet",
       served: { amount: 1, metricKey: "dso" } } },
     { kind: "account", id: "account:411102:ar", view: {
       id: "account:411102:ar", code: "411102", name: "Clienti int.KA", statement: "balance sheet", value: "700,9 K",
-      absent: null, keyMetric: null, basis: null, href: "/dashboard?tab=balance_sheet",
+      absent: null, keyMetric: null, basis: null, note: null, href: "/dashboard?tab=balance_sheet",
       served: { amount: 1, metricKey: "dso" } } },
     { kind: "page", id: "page:tab:pl", label: "P&L", href: "/dashboard?tab=pl" },
     { kind: "action", id: "action:upload", label: "Upload a trial balance" },

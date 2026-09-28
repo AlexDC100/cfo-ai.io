@@ -24,13 +24,23 @@
 // Also the account-121 rule: the net result is "din contul 121" only when
 // the served anchor status says it IS account 121.
 //
+// A REFUSED LINE IS NOT AN ABSENT ONE (src/engine/comparatives/lines.py
+// `refusal_of`). The one-EBITDA refusal refuses the operating result, gross
+// profit and PBT with it; with no account 121 and a refused net 711 the
+// engine refuses TOTAL EQUITY as total equity (`assembled_bs.
+// total_equity_refusal` — the equity rows sum short by the year's result).
+// `servedLine` reads both through the browser's one readers of them
+// (lib/servedOneEbitda `plLevelsOf`, `equityRefusalOf`) and returns the
+// refusal WITH the engine's words — never "not in this book", never the
+// short figure.
+//
 // Pure. No arithmetic: every value returned is a served value or null
 // with the served reason.
 
 import type { PeriodApiResponse } from "@/lib/activePeriod";
 import { readInventoryDays, readInventoryDaysSplit } from "@/lib/inventoryDays";
 import type { RatioTableRow } from "@/lib/ratioTable";
-import { readServedOneEbitda } from "@/lib/servedOneEbitda";
+import { equityRefusalOf, plLevelsOf, readServedOneEbitda, type ServedRefusal } from "@/lib/servedOneEbitda";
 
 export interface ServedReason {
   code: string;
@@ -124,16 +134,114 @@ export function servedNetResult(body: Body | null | undefined): ServedFigure & {
   return { value, refusal: null, source: "assembled_pl.net_income_statutory", anchor };
 }
 
-/** A money line of the served statements (`assembled_pl.<field>` /
- *  `assembled_bs.<field>`) — the SAME path the comparatives column reads
- *  (src/engine/comparatives/lines.py), so the value printed before the
- *  comparison lands is the column's `current` once it does. */
-export function servedLine(body: Body | null | undefined, statement: "pl" | "bs", field: string): ServedFigure {
-  const value = num((statement === "pl" ? pl(body) : bs(body))[field]);
-  const source = `assembled_${statement}.${field}`;
+/** A served refusal as the bar carries it: its code and the engine's own
+ *  words in both languages (absentText prints them). */
+function worded(r: ServedRefusal): ServedReason {
+  return { code: r.code, inputs: [], text: { ro: r.text.ro, en: r.text.en } };
+}
+
+/** THE OPERATING RESULT (EBIT) as served, through the browser's one reader
+ *  of the P&L levels (lib/servedOneEbitda `plLevelsOf` — the source the
+ *  report and the dashboard's EBIT card print): the figure, or the one
+ *  EBITDA's refusal with the engine's words (EBIT refuses with it). Only
+ *  the SERVED block is read — a body the engine did not assemble has no
+ *  operating result here, never one rebuilt from buckets. */
+export function servedEbit(body: Body | null | undefined): ServedFigure {
+  const st = body?.statements as unknown;
+  const apl = isObj(st) ? st.assembled_pl : null;
+  const source = "assembled_pl.ebit";
+  if (!isObj(apl)) return { value: null, refusal: { code: "line_absent", inputs: [source] }, source };
+  const levels = plLevelsOf({ assembled_pl: apl });
+  if (levels.ebit !== null) return { value: levels.ebit, refusal: null, source };
+  return {
+    value: null,
+    refusal: levels.ebitRefusal ? worded(levels.ebitRefusal) : { code: "line_absent", inputs: [source] },
+    source,
+  };
+}
+
+/** TOTAL EQUITY as served — or, when the engine refuses it as total equity
+ *  (`assembled_bs.total_equity_refusal`: the year's result is refused and
+ *  the sheet does not balance without it), that refusal with the engine's
+ *  words. The short figure beside the refusal is never printed as total
+ *  equity (chart_of_accounts.py: "every consumer that would use it as total
+ *  equity refuses"). */
+export function servedTotalEquity(body: Body | null | undefined): ServedFigure {
+  const source = "assembled_bs.total_equity";
+  const refusal = equityRefusalOf(body?.statements as unknown);
+  if (refusal) return { value: null, refusal: worded(refusal), source };
+  const value = num(bs(body).total_equity);
   return value === null
     ? { value: null, refusal: { code: "line_absent", inputs: [source] }, source }
     : { value, refusal: null, source };
+}
+
+/** A money line of the served statements (`assembled_pl.<field>` /
+ *  `assembled_bs.<field>`) — the SAME path the comparatives column reads
+ *  (src/engine/comparatives/lines.py), so the value printed before the
+ *  comparison lands is the column's `current` once it does. A line the
+ *  engine REFUSED returns that refusal with its words: the operating
+ *  result through `servedEbit`, total equity through `servedTotalEquity`,
+ *  and any other P&L level the one-EBITDA refusal names in its `fields`
+ *  (gross profit, PBT — `refusal_of`'s own rule). */
+export function servedLine(body: Body | null | undefined, statement: "pl" | "bs", field: string): ServedFigure {
+  if (statement === "pl" && (field === "ebit" || field === "operating_result")) return servedEbit(body);
+  if (statement === "bs" && field === "total_equity") return servedTotalEquity(body);
+  const block = statement === "pl" ? pl(body) : bs(body);
+  const value = num(block[field]);
+  const source = `assembled_${statement}.${field}`;
+  if (value === null && statement === "pl") {
+    const r = block.ebitda_refusal;
+    const fields = isObj(r) && Array.isArray(r.fields) ? r.fields : [];
+    const one = fields.includes(field) ? readServedOneEbitda(block) : null;
+    if (one?.refusal) return { value: null, refusal: worded(one.refusal), source };
+  }
+  return value === null
+    ? { value: null, refusal: { code: "line_absent", inputs: [source] }, source }
+    : { value, refusal: null, source };
+}
+
+// ── Account 711: what its rows ARE ──────────────────────────────────────
+
+/** An account-711 row ("Venituri aferente costurilor stocurilor de
+ *  produse"): on a closed trial balance it holds the production stocked in
+ *  the period (its credit turnover), not the change in inventories. */
+export function isStockVariationAccount(code: string | null | undefined): boolean {
+  return typeof code === "string" && code.startsWith("711");
+}
+
+export interface StockVariation {
+  /** A served `assembled_pl.inventory_variation` block was read. */
+  served: boolean;
+  /** The served book state ("closed" | "open" | "mixed"), or null. */
+  bookState: string | null;
+  /** Net 711 — "Variația stocurilor de produse" — as served, or null. */
+  value: number | null;
+  /** The engine's refusal of it, with its words, when refused. */
+  refusal: ServedReason | null;
+  /** The engine's provenance sentence, both languages. */
+  provenanceLabel: { ro: string; en: string } | null;
+  /** The owner's Romanian name of the line, verbatim. */
+  nameRo: string | null;
+  source: "assembled_pl.inventory_variation";
+}
+
+/** The served stock variation — the SAME block the Capsule's account note
+ *  reads (src/engine/api/_capsule_tools.py `_stock_variation_account_note`)
+ *  — through lib/servedOneEbitda. Nothing is computed here. */
+export function stockVariation(body: Body | null | undefined): StockVariation {
+  const st = body?.statements as unknown;
+  const one = readServedOneEbitda(isObj(st) ? st.assembled_pl : null);
+  const c = one?.inventoryVariation ?? null;
+  return {
+    served: c !== null,
+    bookState: c?.bookState ?? null,
+    value: c?.value ?? null,
+    refusal: c?.refusal ? worded(c.refusal) : null,
+    provenanceLabel: c?.provenanceLabel ? { ro: c.provenanceLabel.ro, en: c.provenanceLabel.en } : null,
+    nameRo: c?.nameRo ?? null,
+    source: "assembled_pl.inventory_variation",
+  };
 }
 
 // ── Ratios: assembled_metrics.ratio_table ONLY ──────────────────────────

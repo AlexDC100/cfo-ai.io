@@ -55,7 +55,16 @@
         "more": "All accounts starting with {{code}}: {{total}} ({{n}} more)",
         "statementBS": "balance sheet",
         "statementPL": "profit and loss",
-        "moreMatch": "All accounts matching “{{query}}”: {{total}} ({{n}} more)"
+        "moreMatch": "All accounts matching “{{query}}”: {{total}} ({{n}} more)",
+        "stockVariation": {
+          "name": "Variația stocurilor de produse",
+          "closed": "On this closed trial balance an account-711 row holds the production stocked in the period (its credit turnover), not the change in inventories.",
+          "open": "An account-711 row is an account balance, not necessarily the change in inventories.",
+          "served": "The change in inventories — {{name}} — is served on the profit and loss account as {{value}} ({{provenance}}).",
+          "servedBare": "The change in inventories — {{name}} — is served on the profit and loss account as {{value}}.",
+          "refused": "The change in inventories — {{name}} — is refused for this period: {{reason}}.",
+          "notServed": "This period serves no measured change in inventories."
+        }
       },
       "page": {
         "companyYear": "{{company}} · {{year}}",
@@ -153,7 +162,16 @@
         "more": "Toate conturile care încep cu {{code}}: {{total}} (încă {{n}})",
         "statementBS": "bilanț",
         "statementPL": "cont de profit și pierdere",
-        "moreMatch": "Toate conturile care se potrivesc cu „{{query}}”: {{total}} (încă {{n}})"
+        "moreMatch": "Toate conturile care se potrivesc cu „{{query}}”: {{total}} (încă {{n}})",
+        "stockVariation": {
+          "name": "Variația stocurilor de produse",
+          "closed": "Pe această balanță închisă, un cont 711 arată producția stocată în perioadă (rulajul creditor), nu variația stocurilor.",
+          "open": "Un cont 711 arată un sold de cont, nu neapărat variația stocurilor.",
+          "served": "{{name}} este servită în contul de profit și pierdere: {{value}} ({{provenance}}).",
+          "servedBare": "{{name}} este servită în contul de profit și pierdere: {{value}}.",
+          "refused": "{{name}} este refuzată pentru această perioadă: {{reason}}.",
+          "notServed": "Perioada nu servește o variație a stocurilor măsurată."
+        }
       },
       "page": {
         "companyYear": "{{company}} · {{year}}",
