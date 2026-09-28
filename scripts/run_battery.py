@@ -1582,8 +1582,9 @@ def _engine_gates() -> List[Gate]:
               "--reporter=verbose"],
              # release r-rulings (2026-09-28): the served inventory-days block,
              # no sector chip beside the split, a refusal in the engine's words
-             # (measured 190).
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=190,
+             # (measured 190); fixer round 1: refused total equity / operating
+             # result in the engine's words, the 711 note (measured 201).
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=201,
              units="command-bar tests",
              canaries=("the rows ARE the served items, in the served rank, each with its figure",
                        "inventory days are the served block — its figure, its basis label, no filed-basis row beside it",
@@ -1631,7 +1632,15 @@ def _engine_gates() -> List[Gate]:
                        "GATE-WORK cmdbar-wrapped-code agras probes=",
                        "GATE-WORK cmdbar-latency warm keystrokes=",
                        "GATE-WORK cmdbar-latency cold answers=",
-                       "GATE-WORK cmdbar-selection-frames queries=")),
+                       "GATE-WORK cmdbar-selection-frames queries=",
+                       # release r-rulings, fixer round 1 (2026-09-28)
+                       "total equity the engine refuses AS total equity prints the engine's words",
+                       "a prior whose total equity the engine refuses carries no Δ",
+                       "g6_uncleared: a refused operating result prints the one-EBITDA refusal in the engine's words",
+                       "GATE-WORK cmdbar-711-note scandia/ro rows=",
+                       "GATE-WORK cmdbar-711-note agras/en rows=",
+                       "a note on each 711 leaf and on nothing else",
+                       "a 711 row on a book whose variation the engine REFUSED says so in the engine's words")),
         # THE EVIDENCE RECEIVERS, frontend stage CB-F2 (design C4):
         #   evidence-lines   the account view's statement lines ARE the
         #                    engine's comparatives lines: the served path,
@@ -1657,7 +1666,10 @@ def _engine_gates() -> List[Gate]:
               "frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx",
               "frontend/pages/cfo/__tests__/benchmarkRowReceiver.test.tsx",
               "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=39,
+             # release r-rulings, fixer round 1 (2026-09-28): the 711 note
+             # and label in the account view, refused lines in the engine's
+             # words (measured 45).
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=45,
              units="evidence-landing tests",
              canaries=("scandia: each served item opens a rendered, highlighted target that IS the item",
                        "pair: each served item opens a rendered, highlighted target that IS the item",
@@ -1675,7 +1687,12 @@ def _engine_gates() -> List[Gate]:
                        "ro: a finding this period does not serve is said in words",
                        # review round 1 of stage CB-I, second pass (2026-09-27)
                        "GATE-WORK cmdbar-evidence-words en views=",
-                       "GATE-WORK cmdbar-evidence-words ro views=")),
+                       "GATE-WORK cmdbar-evidence-words ro views=",
+                       # release r-rulings, fixer round 1 (2026-09-28)
+                       "ro: a 711 leaf opens labelled as its credit turnover (never a balance)",
+                       "every view that lists a 711 leaf carries the note once",
+                       "a 711 leaf on a book whose variation the engine REFUSED carries that refusal",
+                       "a refused operating result and a refused total equity open on the engine's words")),
         # FLOOR SUBSTITUTES, batch C3 (owner rulings R-D5 / R-D6 / R-OTHER,
         # 2026-09-15): the valuation DCF, the AI briefing's citable
         # ratios, the RO pack's ROA check and the served period day count.

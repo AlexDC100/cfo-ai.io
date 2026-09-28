@@ -15920,3 +15920,225 @@ on both; F-A3.1 unchanged (EEI 0.0000 %, Scandia 0.1445 %).
 specs `e2e/design/cmdbar.spec.ts`, `cmdbar-typeopen.spec.ts`,
 `workspace-v2.spec.ts` on a rebuilt bundle); production data (the reprocess
 dry run is the deploy's).
+
+### Release r-rulings — fixer round 1: refused lines in the engine's words, the 711 note (2026-09-28)
+
+**Findings (critic round 1).** (1) The command bar printed "Total equity 200 K
+RON" where the engine refuses total equity AS total equity
+(`assembled_bs.total_equity_refusal`, the constructed `unanchored_unbalanced`
+book) — the dashboard card, the report, Chat and the Capsule all refuse it; no
+file under the shell read `equityRefusalOf`. (2) Under the one-EBITDA refusal the
+operating result printed "not in this book" / "nu apare în balanță" beside the
+EBITDA row's reason — every stored period until it is reprocessed (§25).
+(4) A 711 leaf — on a closed book the production stocked, its credit turnover —
+was listed under the Stocuri answer as a bare P&L amount and opened as
+"Contul 711104 … Sold …", with none of the note the Capsule adds
+(`_capsule_tools._stock_variation_account_note`, design A1 / A6). The account
+view's `?line=` headline read the same `servedLine`, so it carried (1) and (2)
+too.
+
+**The repair.** `cmdbarSources.servedLine` reads the operating result through
+`servedEbit` (lib/servedOneEbitda `plLevelsOf`, the report's source) and total
+equity through `servedTotalEquity` (`equityRefusalOf`); each returns the refusal
+WITH the engine's words, which `absentText` prints. A line answer's prior that
+the engine refused on that line carries no Δ (the comparatives document reads no
+balance-sheet refusal, so the column itself still says "compared"). The Cont row
+and the account view carry `stockVariationNote` — what a 711 row holds (closed /
+not closed, from the served `book_state`), then the served net 711
+("Variația stocurilor de produse") printed by the bar's money printer with the
+engine's provenance sentence, or its refusal in the engine's words; a closed
+book's 711 amount is labelled "Rulaj creditor (producția stocată)" / "Credit
+turnover (production stocked)", never "Sold" / "Balance". `ServedComponent`
+gains `bookState` (read, not derived).
+
+**The laws** (commandBar.test.tsx → cmdbar-surface, evidenceLanding.test.tsx →
+cmdbar-evidence):
+
+| gate | law | plant |
+|---|---|---|
+| cmdbar-surface, cmdbar-evidence | a refused total equity prints the engine's words, RO and EN — never the short figure (POSITIVE CONTROL: 200000 is served beside the refusal), never "not in this book"; the book's other lines still print | D1 |
+| cmdbar-surface, cmdbar-evidence | a refused operating result prints the one-EBITDA refusal's words (g6_uncleared, unanchored_unbalanced), the same words as the EBITDA row; a served EBIT still prints | D2, D2b |
+| cmdbar-surface | a prior whose total equity the engine refuses carries no Δ (POSITIVE CONTROL: the column itself is "compared") | D3 |
+| cmdbar-surface | every 711 row the bar lists ('711', 'stoc', each leaf code; both books, RO and EN) carries the served note; modelled over every line item, a note on each 711 leaf and on nothing else; a refused variation's note carries the engine's refusal | D4, D5, D6 |
+| cmdbar-evidence | a 711 leaf opens labelled as its credit turnover with the note once; the prefix, a line's feeds and several accounts carry it once; a view with no 711 leaf carries none and keeps "Balance" | D5, D6, D7, D8 |
+
+D2 first STAYED GREEN: a generic branch (any P&L field named in the refusal's
+`fields` refuses with it) duplicated `servedEbit` for EBIT, and no other field it
+covered is a line the bar or the account view reads. D2b (both paths removed)
+went RED; the unreached branch was removed (c6804fd2) and D2 re-run RED on its
+own.
+
+```
+PLANT D1 — cmdbarSources.servedLine: total equity read as the bare line again (the equity refusal ignored)
+  cmd: vitest frontend/components/instrument/shell/__tests__/commandBar.test.tsx frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx -t 'fixer round 1'
+  exit 1 -> RED
+    × frontend/components/instrument/shell/__tests__/commandBar.test.tsx > absent is never 0 — a REFUSED line prints the engine's words (fixer round 1) > total equity the engine refuses AS total
+    × frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx > cmdbar-evidence — account 711 and the refused lines (fixer round 1) > a refused operating result and a refused total e
+    × frontend/components/instrument/shell/__tests__/commandBar.test.tsx > absent is never 0 — a REFUSED line prints the engine's words (fixer round 1) > a prior whose total equity the engine re
+    Test Files  2 failed (2)
+    Tests  3 failed | 14 passed | 100 skipped (117)
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+    AssertionError: en: no figure: expected <span data-figure="answer" …(1)></span> to be null
+    AssertionError: expected { state: 'ok', …(1) } to deeply equal { state: 'none', …(1) }
+    AssertionError: bs.total_equity: expected '200.000,00 RON' to be 'total equity excludes the year\'s res…' // Object.is equality
+  REVERT (git checkout -- frontend/components/instrument/shell/cmdbar/cmdbarSources.ts, byte-exact) exit 0
+    Test Files  2 passed (2)
+    Tests  17 passed | 100 skipped (117)
+PLANT D2 (first run) — cmdbarSources.servedLine: the operating result read as the bare line again ("not in this book" under the one-EBITDA refusal)
+  cmd: vitest frontend/components/instrument/shell/__tests__/commandBar.test.tsx frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx -t 'fixer round 1'
+  exit 0 -> GREEN (PLANT SURVIVED)
+    Test Files  2 passed (2)
+    Tests  17 passed | 100 skipped (117)
+  REVERT (git checkout -- frontend/components/instrument/shell/cmdbar/cmdbarSources.ts, byte-exact) exit 0
+    Test Files  2 passed (2)
+    Tests  17 passed | 100 skipped (117)
+PLANT D2b — cmdbarSources.servedLine: the operating result read as the bare line again — BOTH refusal paths gone (the plLevelsOf reader and the refusal's `fields`)
+  cmd: vitest frontend/components/instrument/shell/__tests__/commandBar.test.tsx frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx -t 'fixer round 1'
+  exit 1 -> RED
+    × frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx > cmdbar-evidence — account 711 and the refused lines (fixer round 1) > a refused operating result and a refused total e
+    × frontend/components/instrument/shell/__tests__/commandBar.test.tsx > absent is never 0 — a REFUSED line prints the engine's words (fixer round 1) > g6_uncleared: a refused operating result
+    × frontend/components/instrument/shell/__tests__/commandBar.test.tsx > absent is never 0 — a REFUSED line prints the engine's words (fixer round 1) > unanchored_unbalanced: a refused operati
+    Test Files  2 failed (2)
+    Tests  3 failed | 14 passed | 100 skipped (117)
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+    AssertionError: expected 'not in this book' to be 'the opening balance of account 121 (t…' // Object.is equality
+    AssertionError: expected 'not in this book' to be 'the trial balance is closed and accou…' // Object.is equality
+    AssertionError: pl.ebit: expected 'not in this book' to be 'the trial balance is closed and accou…' // Object.is equality
+  REVERT (git checkout -- frontend/components/instrument/shell/cmdbar/cmdbarSources.ts, byte-exact) exit 0
+    Test Files  2 passed (2)
+    Tests  17 passed | 100 skipped (117)
+PLANT D2 (re-run after c6804fd2) — cmdbarSources.servedLine: the operating result read as the bare line again ("not in this book" under the one-EBITDA refusal)
+  cmd: vitest frontend/components/instrument/shell/__tests__/commandBar.test.tsx frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx -t 'fixer round 1'
+  exit 1 -> RED
+    × frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx > cmdbar-evidence — account 711 and the refused lines (fixer round 1) > a refused operating result and a refused total e
+    × frontend/components/instrument/shell/__tests__/commandBar.test.tsx > absent is never 0 — a REFUSED line prints the engine's words (fixer round 1) > g6_uncleared: a refused operating result
+    × frontend/components/instrument/shell/__tests__/commandBar.test.tsx > absent is never 0 — a REFUSED line prints the engine's words (fixer round 1) > unanchored_unbalanced: a refused operati
+    Test Files  2 failed (2)
+    Tests  3 failed | 14 passed | 100 skipped (117)
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+    AssertionError: expected 'not in this book' to be 'the opening balance of account 121 (t…' // Object.is equality
+    AssertionError: expected 'not in this book' to be 'the trial balance is closed and accou…' // Object.is equality
+    AssertionError: pl.ebit: expected 'not in this book' to be 'the trial balance is closed and accou…' // Object.is equality
+  REVERT (git checkout -- frontend/components/instrument/shell/cmdbar/cmdbarSources.ts, byte-exact) exit 0
+    Test Files  2 passed (2)
+    Tests  17 passed | 100 skipped (117)
+PLANT D3 — cmdbarViews.statementView: no guard on a line answer's prior (a delta against a prior the engine refused)
+  cmd: vitest frontend/components/instrument/shell/__tests__/commandBar.test.tsx -t 'fixer round 1'
+  exit 1 -> RED
+    × frontend/components/instrument/shell/__tests__/commandBar.test.tsx > absent is never 0 — a REFUSED line prints the engine's words (fixer round 1) > a prior whose total equity the engine re
+    Test Files  1 failed (1)
+    Tests  1 failed | 10 passed | 66 skipped (77)
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    AssertionError: expected { state: 'ok', …(1) } to deeply equal { state: 'none', …(1) }
+  REVERT (git checkout -- frontend/components/instrument/shell/cmdbar/cmdbarViews.ts, byte-exact) exit 0
+    Test Files  1 passed (1)
+    Tests  11 passed | 66 skipped (77)
+PLANT D4 — cmdbarViews.accountView: a 711 Cont row without its note
+  cmd: vitest frontend/components/instrument/shell/__tests__/commandBar.test.tsx -t 'fixer round 1'
+  exit 1 -> RED
+    × frontend/components/instrument/shell/__tests__/commandBar.test.tsx > cmdbar-711 — an account-711 row never prints without what it IS (fixer round 1) > scandia (en): every 711 row the bar l
+    × frontend/components/instrument/shell/__tests__/commandBar.test.tsx > cmdbar-711 — an account-711 row never prints without what it IS (fixer round 1) > scandia (ro): every 711 row the bar l
+    × frontend/components/instrument/shell/__tests__/commandBar.test.tsx > cmdbar-711 — an account-711 row never prints without what it IS (fixer round 1) > agras (en): every 711 row the bar lis
+    × frontend/components/instrument/shell/__tests__/commandBar.test.tsx > cmdbar-711 — an account-711 row never prints without what it IS (fixer round 1) > agras (ro): every 711 row the bar lis
+    × frontend/components/instrument/shell/__tests__/commandBar.test.tsx > cmdbar-711 — an account-711 row never prints without what it IS (fixer round 1) > modelled over EVERY line item of both
+    × frontend/components/instrument/shell/__tests__/commandBar.test.tsx > cmdbar-711 — an account-711 row never prints without what it IS (fixer round 1) > a 711 row on a book whose variation t
+    Test Files  1 failed (1)
+    Tests  6 failed | 5 passed | 66 skipped (77)
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+    AssertionError: "711" → 711104: expected undefined to be 'On this closed trial balance an accou…' // Object.is equality
+    AssertionError: "711" → 711104: expected undefined to be 'Pe această balanță închisă, un cont 7…' // Object.is equality
+    AssertionError: "711" → 711: expected undefined to be 'On this closed trial balance an accou…' // Object.is equality
+    AssertionError: "711" → 711: expected undefined to be 'Pe această balanță închisă, un cont 7…' // Object.is equality
+    AssertionError: 711101: expected null to be 'On this closed trial balance an accou…' // Object.is equality
+    AssertionError: expected '' to be 'On this closed trial balance an accou…' // Object.is equality
+  REVERT (git checkout -- frontend/components/instrument/shell/cmdbar/cmdbarViews.ts, byte-exact) exit 0
+    Test Files  1 passed (1)
+    Tests  11 passed | 66 skipped (77)
+PLANT D5 — cmdbarSources.isStockVariationAccount: every class-7 account carries the 711 note
+  cmd: vitest frontend/components/instrument/shell/__tests__/commandBar.test.tsx frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx -t 'fixer round 1'
+  exit 1 -> RED
+    × frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx > cmdbar-evidence — account 711 and the refused lines (fixer round 1) > en: every view that lists a 711 leaf carries the
+    × frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx > cmdbar-evidence — account 711 and the refused lines (fixer round 1) > ro: every view that lists a 711 leaf carries the
+    × frontend/components/instrument/shell/__tests__/commandBar.test.tsx > cmdbar-711 — an account-711 row never prints without what it IS (fixer round 1) > modelled over EVERY line item of both
+    Test Files  2 failed (2)
+    Tests  3 failed | 14 passed | 100 skipped (117)
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+    AssertionError: 701501: expected 'On this closed trial balance an accou…' to be null
+    AssertionError: /dashboard?tab=pl&line=pl.other_operating_income: expected 'Credit turnover' to be 'Balance' // Object.is equality
+    AssertionError: /dashboard?tab=pl&line=pl.other_operating_income: expected 'Rulaj creditor' to be 'Sold' // Object.is equality
+  REVERT (git checkout -- frontend/components/instrument/shell/cmdbar/cmdbarSources.ts, byte-exact) exit 0
+    Test Files  2 passed (2)
+    Tests  17 passed | 100 skipped (117)
+PLANT D6 — cmdbarViews.stockVariationNote: the note prints the 711 leaves' gross credit turnover as the variation
+  cmd: vitest frontend/components/instrument/shell/__tests__/commandBar.test.tsx frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx -t 'fixer round 1'
+  exit 1 -> RED
+    × frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx > cmdbar-evidence — account 711 and the refused lines (fixer round 1) > en: a 711 leaf opens labelled as its credit turn
+    × frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx > cmdbar-evidence — account 711 and the refused lines (fixer round 1) > en: every view that lists a 711 leaf carries the
+    × frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx > cmdbar-evidence — account 711 and the refused lines (fixer round 1) > ro: a 711 leaf opens labelled as its credit turn
+    × frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx > cmdbar-evidence — account 711 and the refused lines (fixer round 1) > ro: every view that lists a 711 leaf carries the
+    × frontend/components/instrument/shell/__tests__/commandBar.test.tsx > cmdbar-711 — an account-711 row never prints without what it IS (fixer round 1) > scandia (en): every 711 row the bar l
+    × frontend/components/instrument/shell/__tests__/commandBar.test.tsx > cmdbar-711 — an account-711 row never prints without what it IS (fixer round 1) > scandia (ro): every 711 row the bar l
+    × frontend/components/instrument/shell/__tests__/commandBar.test.tsx > cmdbar-711 — an account-711 row never prints without what it IS (fixer round 1) > agras (en): every 711 row the bar lis
+    × frontend/components/instrument/shell/__tests__/commandBar.test.tsx > cmdbar-711 — an account-711 row never prints without what it IS (fixer round 1) > agras (ro): every 711 row the bar lis
+    × frontend/components/instrument/shell/__tests__/commandBar.test.tsx > cmdbar-711 — an account-711 row never prints without what it IS (fixer round 1) > modelled over EVERY line item of both
+    Test Files  2 failed (2)
+    Tests  9 failed | 8 passed | 100 skipped (117)
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 9 ⎯⎯⎯⎯⎯⎯⎯
+    AssertionError: "711" → 711104: expected 'On this closed trial balance an accou…' to be 'On this closed trial balance an accou…' // Object.is equality
+    AssertionError: "711" → 711104: expected 'Pe această balanță închisă, un cont 7…' to be 'Pe această balanță închisă, un cont 7…' // Object.is equality
+    AssertionError: "711" → 711: expected 'On this closed trial balance an accou…' to be 'On this closed trial balance an accou…' // Object.is equality
+    AssertionError: "711" → 711: expected 'Pe această balanță închisă, un cont 7…' to be 'Pe această balanță închisă, un cont 7…' // Object.is equality
+    AssertionError: 711101: expected 'On this closed trial balance an accou…' to be 'On this closed trial balance an accou…' // Object.is equality
+    AssertionError: expected 'On this closed trial balance an accou…' to be 'On this closed trial balance an accou…' // Object.is equality
+    AssertionError: /dashboard?tab=pl&account=711: expected [ Array(1) ] to deeply equal [ Array(1) ]
+    AssertionError: expected 'Pe această balanță închisă, un cont 7…' to be 'Pe această balanță închisă, un cont 7…' // Object.is equality
+  REVERT (git checkout -- frontend/components/instrument/shell/cmdbar/cmdbarViews.ts, byte-exact) exit 0
+    Test Files  2 passed (2)
+    Tests  17 passed | 100 skipped (117)
+PLANT D7 — EvidenceDrawer.AccountBlockView: a single 711 leaf opened without the note
+  cmd: vitest frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx -t 'fixer round 1'
+  exit 1 -> RED
+    × frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx > cmdbar-evidence — account 711 and the refused lines (fixer round 1) > en: a 711 leaf opens labelled as its credit turn
+    × frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx > cmdbar-evidence — account 711 and the refused lines (fixer round 1) > en: every view that lists a 711 leaf carries the
+    × frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx > cmdbar-evidence — account 711 and the refused lines (fixer round 1) > ro: a 711 leaf opens labelled as its credit turn
+    × frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx > cmdbar-evidence — account 711 and the refused lines (fixer round 1) > ro: every view that lists a 711 leaf carries the
+    × frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx > cmdbar-evidence — account 711 and the refused lines (fixer round 1) > a 711 leaf on a book whose variation the engine 
+    Test Files  1 failed (1)
+    Tests  5 failed | 1 passed | 34 skipped (40)
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 5 ⎯⎯⎯⎯⎯⎯⎯
+    AssertionError: the note, once: expected +0 to be 1 // Object.is equality
+    AssertionError: /dashboard?tab=pl&account=711: expected [] to deeply equal [ Array(1) ]
+    AssertionError: expected '' to be 'On this closed trial balance an accou…' // Object.is equality
+  REVERT (git checkout -- frontend/components/cfo/evidence/EvidenceDrawer.tsx, byte-exact) exit 0
+    Test Files  1 passed (1)
+    Tests  6 passed | 34 skipped (40)
+PLANT D8 — EvidenceDrawer.AccountBlockView: a closed book's 711 amount labelled "Balance" / "Sold" again
+  cmd: vitest frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx -t 'fixer round 1'
+  exit 1 -> RED
+    × frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx > cmdbar-evidence — account 711 and the refused lines (fixer round 1) > en: a 711 leaf opens labelled as its credit turn
+    × frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx > cmdbar-evidence — account 711 and the refused lines (fixer round 1) > ro: a 711 leaf opens labelled as its credit turn
+    Test Files  1 failed (1)
+    Tests  2 failed | 4 passed | 34 skipped (40)
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+    AssertionError: expected 'Balance' to be 'Credit turnover (production stocked)' // Object.is equality
+    AssertionError: expected 'Sold' to be 'Rulaj creditor (producția stocată)' // Object.is equality
+  REVERT (git checkout -- frontend/components/cfo/evidence/EvidenceDrawer.tsx, byte-exact) exit 0
+    Test Files  1 passed (1)
+    Tests  6 passed | 34 skipped (40)
+```
+
+**GREEN (through `run_battery.main`, gate list narrowed):** see the fixer's
+report for the run. Floors raised to the measured work: cmdbar-surface 190 → 201,
+cmdbar-evidence 39 → 45; canaries added for each new law.
+
+**NOT FIXED — owner ruling required (finding 3).** The printed report shows the
+cash conversion cycle as two numbers: the card / table / band track "108 days"
+(served `ccc` value_q), the cycle chart "109 days" (90 + 98 − 79, the sum of the
+printed terms on the period-end DIO term), with the exact 108.3414 in the
+tooltip and caption. The merge contract (item b, 56526587) chose the chart that
+adds up as printed; the critic's recommendation (the served CCC value_q made the
+sum of the printed terms, in the engine) changes a served metric's definition.
+Both laws cannot hold with today's strings; the choice is the owner's.
+
+**CANNOT SEE:** pixels (the hermetic Playwright specs on a rebuilt bundle), and
+production periods (the reprocess dry run is the deploy's).
