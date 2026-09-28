@@ -132,7 +132,10 @@ export function waterfall(o: WaterfallOpts): string {
           ? STEP_UP
           : STEP_DOWN;
     const extra = r.approximated ? ` stroke="${INK_MUTE}" stroke-width="0.8"` : "";
-    body += rect(x, yTop, barW, h, r.approximated ? `url(#${HATCH_ID})` : fill, extra.trim());
+    const bar = rect(x, yTop, barW, h, r.approximated ? `url(#${HATCH_ID})` : fill, extra.trim());
+    // A bar whose printed figure is not the served figure's own rounding
+    // carries the exact one as its tooltip.
+    body += r.exact ? `<g><title>${esc(`${r.label}: ${r.printed} — exact ${r.exact}`)}</title>${bar}</g>` : bar;
     if (r.approximated) body += rect(x, yTop, barW, h, "none", `stroke="${fill}" stroke-width="1.4"`);
 
     // The printed figure, above the bar — the SAME string the table prints.

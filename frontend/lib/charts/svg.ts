@@ -42,6 +42,10 @@ export interface ChartRow {
   approximated?: boolean;
   /** Waterfall only: an `anchor` is an absolute level, a `delta` a step. */
   kind?: "anchor" | "delta";
+  /** The exact figure behind a printed one that is not the served figure's
+   *  own rounding (a total printed as the sum of its printed terms): the
+   *  bar's tooltip (`<title>`) carries it, and the caption states it. */
+  exact?: string;
 }
 
 export interface ChartAbsence {

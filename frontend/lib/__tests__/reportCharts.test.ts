@@ -33,7 +33,7 @@
 import { describe, expect, it } from "vitest";
 
 import { BOOKS, type Book, exportDoc, exportHtml, metricsFor, statementsFor } from "./exportBooks";
-import { computeRatios, type Statements } from "@/lib/financialReport";
+import { computeRatios, formatRatio, type Statements } from "@/lib/financialReport";
 
 interface Block {
   id: string;
@@ -283,6 +283,8 @@ describe("G-C1b — the arithmetic each chart draws", () => {
     return (neg ? -1 : 1) * Number(digits);
   };
   const parseDays = (s: string): number => Number(s.replace(/[^\d.-]/g, ""));
+  const cycles: string[] = [];
+  const footedApart: string[] = [];
 
   // A waterfall whose steps do not reach its closing anchor is a picture
   // that lies about a total. The cash walk is anchor · deltas · anchor.
@@ -296,19 +298,45 @@ describe("G-C1b — the arithmetic each chart draws", () => {
     expect(Math.abs(stepped - closing), `walk ${stepped} vs anchor ${closing}`).toBeLessThanOrEqual(v.length / 2 + 0.5);
   });
 
-  it.each(BOOKS)("%s: DSO + DIO − DPO = CCC, as printed", (b: Book) => {
-    const blk = byId(blocks(exportDoc(b)), "chart-wc-cycle");
+  // THE CYCLE ADDS UP AS PRINTED (merge contract 2026-09-28). The four
+  // figures a reader sees on the page must foot EXACTLY: retail printed
+  // 1 + 39 − 30 under "11 days" (the terms print their cards' whole days,
+  // the exact cycle rounded on its own). The CCC bar prints the sum of the
+  // printed terms, and where that is not the card's rounding the exact
+  // served cycle is in the bar's tooltip and in the caption.
+  it.each(BOOKS)("%s: DSO + DIO − DPO = CCC, EXACTLY as printed", (b: Book) => {
+    const doc = exportDoc(b);
+    const blk = byId(blocks(doc), "chart-wc-cycle");
     if (blk.status !== "drawn") return;
     const [dso, dio, dpo, ccc] = blk.tableRows.map((r) => parseDays(r.printed));
-    // Half a display step per printed row, as the cash walk: every term now
-    // prints the string its card prints (the ratio table's days rule, whole
-    // days — agras printed a CCC bar of 33.2 under a card of 33), so four
-    // whole-day roundings can differ from the printed cycle by up to 2.
-    expect(Math.abs(dso + dio + dpo - ccc)).toBeLessThanOrEqual(blk.tableRows.length * 0.5);
-    // …and UNROUNDED the terms foot to the served cycle: the chart states a
-    // drift in its caption when they do not (terms on two day counts).
-    expect(blk.caption, `${b}: ${blk.caption}`).toMatch(/sum to the served cycle of/);
+    // Zero tolerance: whole days sum exactly (float noise only).
+    expect(Math.abs(dso + dio + dpo - ccc), `${b}: ${blk.tableRows.map((r) => r.printed).join(" | ")}`).toBeLessThan(1e-9);
+    // The drawing prints the same four strings above its bars.
+    for (const r of blk.tableRows) expect(blk.svgTexts.some((t) => t.endsWith(r.printed)), `${b}: ${r.printed} drawn`).toBe(true);
+    // …and UNROUNDED the terms foot to the served cycle (no day-count drift).
     expect(blk.caption).not.toMatch(/not all computed off the same day count/);
+    const card = computeRatios(statementsFor(b), metricsFor(b)).efficiency.find((r) => r.key === "ccc");
+    const svg = doc.querySelector('[data-chart-block="chart-wc-cycle"] svg.chart');
+    const tips = Array.from(svg?.querySelectorAll("title") ?? []).map((t) => t.textContent ?? "").filter((t) => t.startsWith("equals CCC"));
+    const cardPrinted = formatRatio(card!);
+    if (cardPrinted === blk.tableRows[3].printed) {
+      expect(blk.caption, `${b}: ${blk.caption}`).toMatch(/the printed terms sum to .*, the served cycle\./);
+      expect(tips, "no tooltip where the sum IS the card's figure").toEqual([]);
+    } else {
+      // The exact served cycle, stated where the reader can find it.
+      const exact = `${Number((card!.value as number).toFixed(4))} days`;
+      expect(blk.caption).toContain(`the CCC bar prints the sum of the printed terms, ${blk.tableRows[3].printed}`);
+      expect(blk.caption).toContain(`the served cycle, unrounded, is ${exact}`);
+      expect(blk.caption).toContain(`the CCC card rounds it to ${cardPrinted}`);
+      expect(tips).toEqual([`equals CCC: ${blk.tableRows[3].printed} — exact ${exact}`]);
+      footedApart.push(b);
+    }
+    cycles.push(b);
+  });
+
+  it("POSITIVE CONTROL: the books include one whose exact cycle rounds apart from its printed terms (retail)", () => {
+    expect(cycles.length, "cycle charts drawn").toBeGreaterThanOrEqual(3);
+    expect(footedApart, "a book where the card's rounding and the printed sum differ").toContain("retail");
   });
 
   // The chart decomposes a number the document also prints as a headline.
