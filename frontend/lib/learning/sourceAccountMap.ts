@@ -35,32 +35,18 @@ export const STATIC_SOURCE_ACCOUNTS: Readonly<Record<string, StaticAccountEntry[
     { code: "708", label: "Activity revenue / supplier discounts", side: "C" },
     { code: "709", label: "Commercial reductions (contra)", side: "C" },
   ],
+  // NET TURNOVER (70x − 709) — the dashboard's first tile since the
+  // one-EBITDA ruling (2026-09-26). 72x (own work capitalised) and 758
+  // (other operating income) are operating lines of their own, OUTSIDE
+  // turnover; listing them here made the composition sum to more than the
+  // header. 711 is the stock variation, inside EBITDA, never turnover.
   operating_revenue: [
-    // LEARN-FIX-1B (2026-06-13) — 711 (Production variation) is a memo
-    // movement, NOT a top-line revenue contributor. The engine's
-    // `total_operating_revenue` excludes 711's gross movement (its net
-    // effect feeds inventory, not turnover). Keeping 711 here made the
-    // composition sum ~1.05B for Scandia when the header says 413.7M.
-    // Drop it — same prefixes as `revenue` plus the 708/758 memo items
-    // that DO net positively into total_operating_revenue.
-    //
-    // LEARN-FIX-1B-cont (2026-06-14) — ADD 722 (Capitalized own work).
-    // The engine's `totalOperatingRevenue` is built as
-    //   revenue + capitalizedOwnWorkMemo
-    // (see FinancialStatements.tsx:1036 — the Operating revenue KPI
-    // tile's sub-text reads `incl. 722 CIP <Money>`). Without 722 in the
-    // composition, the bars summed to revenue-only on every
-    // 722-bearing fixture (Scandia's CIP is ~2.16M of a 4.91M header)
-    // and the bars all rendered as a misleading "100% on 706" — a
-    // direct contradiction with the header. Add 722 so the bars reconcile.
     { code: "701", label: "Sales of finished products", side: "C" },
     { code: "704", label: "Services rendered", side: "C" },
     { code: "706", label: "Rental & royalty income", side: "C" },
     { code: "707", label: "Sales of merchandise", side: "C" },
     { code: "708", label: "Activity revenue / supplier discounts", side: "C" },
     { code: "709", label: "Commercial reductions (contra)", side: "C" },
-    { code: "722", label: "Capitalized own work (CIP)", side: "C" },
-    { code: "758", label: "Other operating revenue", side: "C" },
   ],
 
   // ── P&L expenses ───────────────────────────────────────────────

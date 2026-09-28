@@ -20,6 +20,7 @@
           "specialization": "Pui integrat (Fragedo)",
           "tier": "leader",
           "source": "Ministerul Finanțelor 2024 + Transavia annual report",
+          "revenue_basis": "filed_net_turnover",
           "display_order": 1
         },
         {
@@ -34,6 +35,7 @@
           "specialization": "Pui + ouă + ready-meal",
           "tier": "strong",
           "source": "Risco.ro consolidated 2024",
+          "revenue_basis": "consolidated_turnover",
           "display_order": 2
         },
         {
@@ -48,6 +50,7 @@
           "specialization": "Pui (parte din grup)",
           "tier": "strong",
           "source": "Ministerul Finanțelor 2024",
+          "revenue_basis": "filed_net_turnover",
           "display_order": 3
         },
         {
@@ -62,6 +65,7 @@
           "specialization": "Pui (fuziune multi-entitate)",
           "tier": "distressed",
           "source": "Termene.ro 2023",
+          "revenue_basis": "filed_net_turnover",
           "display_order": 4
         },
         {
@@ -76,6 +80,7 @@
           "specialization": "Mezeluri (porc)",
           "tier": "strong",
           "source": "Ministerul Finanțelor 2022",
+          "revenue_basis": "filed_net_turnover",
           "display_order": 5
         },
         {
@@ -90,6 +95,7 @@
           "specialization": "Mezeluri premium",
           "tier": "thin_margin",
           "source": "Termene.ro 2023",
+          "revenue_basis": "filed_net_turnover",
           "display_order": 6
         }
       ],
@@ -204,6 +210,7 @@
           "specialization": "Shopping centers (Promenada, Mega Mall etc.)",
           "tier": "leader",
           "source": "NEPI Rockcastle annual report 2024",
+          "revenue_basis": "annual_report_revenue",
           "display_order": 1
         },
         {
@@ -218,6 +225,7 @@
           "specialization": "Office towers Bucharest (Globalworth Tower etc.)",
           "tier": "strong",
           "source": "Globalworth FY2024 report",
+          "revenue_basis": "annual_report_revenue",
           "display_order": 2
         },
         {
@@ -232,6 +240,7 @@
           "specialization": "Mixed-use (AFI Cotroceni, AFI Tech Park)",
           "tier": "strong",
           "source": "AFI Europe 2024 disclosures",
+          "revenue_basis": "annual_report_revenue",
           "display_order": 3
         },
         {
@@ -246,6 +255,7 @@
           "specialization": "Mixed-use (Palas Iași, Iulius Town Timișoara)",
           "tier": "strong",
           "source": "Termene.ro 2023",
+          "revenue_basis": "filed_net_turnover",
           "display_order": 4
         },
         {
@@ -260,6 +270,7 @@
           "specialization": "Retail park development (post-investment cycle)",
           "tier": "thin_margin",
           "source": "Ministerul Finanțelor 2023",
+          "revenue_basis": "filed_net_turnover",
           "display_order": 5
         },
         {
@@ -274,6 +285,7 @@
           "specialization": "Auchan-anchored retail parks (refinancing pressure)",
           "tier": "distressed",
           "source": "Termene.ro 2022",
+          "revenue_basis": "filed_net_turnover",
           "display_order": 6
         }
       ],
@@ -388,6 +400,7 @@
           "specialization": "Digital transformation, fintech, payments (UK-listed)",
           "tier": "leader",
           "source": "Endava plc FY2024 (RO segment estimate)",
+          "revenue_basis": "segment_estimate",
           "display_order": 1
         },
         {
@@ -402,6 +415,7 @@
           "specialization": "Cybersecurity SaaS (product IP, not services)",
           "tier": "leader",
           "source": "Ministerul Finanțelor 2024",
+          "revenue_basis": "filed_net_turnover",
           "display_order": 2
         },
         {
@@ -416,6 +430,7 @@
           "specialization": "Banking + insurance software (Salesforce / SAP partner)",
           "tier": "strong",
           "source": "Termene.ro 2023",
+          "revenue_basis": "filed_net_turnover",
           "display_order": 3
         },
         {
@@ -430,6 +445,7 @@
           "specialization": "Outsourcing factory model (FR clients)",
           "tier": "strong",
           "source": "Risco.ro 2023",
+          "revenue_basis": "filed_net_turnover",
           "display_order": 4
         },
         {
@@ -444,6 +460,7 @@
           "specialization": "Mid-market custom software (RO + EU SMB)",
           "tier": "thin_margin",
           "source": "Ministerul Finanțelor 2023",
+          "revenue_basis": "filed_net_turnover",
           "display_order": 5
         }
       ],

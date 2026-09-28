@@ -31,6 +31,9 @@ const ebit_margin: Concept = {
   related: ["ebitda_margin", "net_margin", "ebit", "operating_revenue"],
   computation: (ctx, v) => {
     const m = ctx.metrics ?? {};
+    // A refused EBITDA / EBIT (one-EBITDA ruling) has no operand to show:
+    // no formula, never a "0" standing in for the refused figure.
+    if (m.ebit === undefined) return null;
     return {
       result: { value: v, format: "percentage" },
       layout: "fraction",
@@ -409,6 +412,8 @@ const debt_to_equity: Concept = {
   related: ["equity_ratio", "lt_debt_to_equity", "net_debt_ebitda"],
   computation: (ctx, v) => {
     const m = ctx.metrics ?? {};
+    // A refused EBITDA has no operand to show — no formula, never "÷ 0".
+    if (m.ebitda === undefined) return null;
     return {
       result: { value: v, format: "ratio" },
       layout: "fraction",
@@ -825,7 +830,9 @@ const enterprise_value: Concept = {
   related: ["equity_value", "ev_ebitda_multiple", "total_debt", "ebitda"],
   computation: (ctx, v) => {
     const m = ctx.metrics ?? {};
-    const ebitda = m.ebitda ?? 0;
+    // A refused EBITDA has no operand to show — no formula, never "0 ×".
+    if (m.ebitda === undefined) return null;
+    const ebitda = m.ebitda;
     const mult = m.evEbitdaMultiple ?? (ebitda ? v / ebitda : 0);
     return {
       result: { value: v, format: "currency" },
@@ -898,6 +905,7 @@ const ev_ebitda_multiple: Concept = {
   related: ["enterprise_value", "ebitda", "dcf_value"],
   computation: (ctx, v) => {
     const m = ctx.metrics ?? {};
+    if (m.ebitda === undefined) return null;
     return {
       result: { value: v, format: "ratio" },
       layout: "fraction",

@@ -351,6 +351,12 @@ const RULES: readonly Rule[] = [
       `rezultatul reconstituit al acestei balanțe, de ${c.n(m[1])} (înainte de impozitare ${c.n(m[2])} minus impozit ${c.n(m[3])}), nu ajunge la suma de ${c.n(m[4])} raportată în contul ${m[5]}, iar ${c.n(m[6])} din această diferență nu se pot atribui niciunei linii din situație. O cotă efectivă de ${c.n(m[7])}% citită din două cifre ale acestei reconstituiri ar fi măsurată PESTE diferență, nu din companie`,
   ),
   rule(
+    "tax.stock_variation",
+    `this book's result before the stock variation, (${N}) \\(pre-tax (${N}) less tax (${N})\\), does not reach the (${N}) it filed in account (\\d+); the (${N}) between them is the stock variation \\((\\d+), Variația stocurilor de produse\\), which this closed trial balance states only as account (\\d+) less every other line\\. An effective rate of (${N})% read off the build-up before it would be measured ACROSS that derived figure rather than from the company`,
+    (m, c) =>
+      `rezultatul acestei balanțe înainte de variația stocurilor, de ${c.n(m[1])} (înainte de impozitare ${c.n(m[2])} minus impozit ${c.n(m[3])}), nu ajunge la suma de ${c.n(m[4])} raportată în contul ${m[5]}; cei ${c.n(m[6])} dintre ele sunt variația stocurilor de produse (${m[7]}), pe care această balanță închisă o arată doar ca soldul contului ${m[8]} minus toate celelalte linii. O cotă efectivă de ${c.n(m[9])}% citită din reconstituirea dinaintea ei ar fi măsurată PESTE această cifră derivată, nu din companie`,
+  ),
+  rule(
     "tax.no_net_income",
     `this book reports a positive pre-tax result of (${N}) but does not carry both an income-tax charge and the net income filed in account (\\d+), so there is nothing to check an effective rate against`,
     (m, c) =>

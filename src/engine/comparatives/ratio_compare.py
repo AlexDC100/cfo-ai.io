@@ -159,6 +159,8 @@ COMPOSITE_REASON_CODES: Tuple[str, ...] = (
     "revenue_not_positive",
     "interest_expense_not_positive",
     "credit_out_of_range",
+    # revision 3: the one EBITDA / operating result refused (711 unmeasured)
+    "ebitda_refused",
     "credit_component_undefined",
 )
 

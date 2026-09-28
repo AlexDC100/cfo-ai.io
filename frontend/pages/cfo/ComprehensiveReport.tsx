@@ -118,6 +118,10 @@ import { getSupabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/stores/currency";
 import { convertFromTo, formatAmountFrom, formatMoneyFrom } from "@/lib/money";
+import {
+  componentShown, equityRefusalOf, netIncomeRefusalOf, readRefusal, readServedOneEbitda, reconLine,
+} from "@/lib/servedOneEbitda";
+import { briefingVisibility } from "@/lib/briefingDefinition";
 import type { Currency } from "@/lib/rates";
 
 /**
@@ -208,7 +212,9 @@ interface PeriodResponse {
     action?: string;
     impact?: string;
   }>;
-  briefing?: { summary?: string; verdict?: string } | null;
+  /** `GET /api/period` serves `body` (+ its EBITDA `definition`); `summary`
+   *  is the older report shape, read when present. */
+  briefing?: { summary?: string; verdict?: string; body?: string; definition?: unknown } | null;
   /** Per-account line items — surfaced by the engine so the canonical
    *  EBITDA reconciliation can subtract 758 / 781 from Reported EBITDA
    *  to reach Core EBITDA. Same shape `useActivePeriod` already
@@ -382,6 +388,11 @@ export default function ComprehensiveReport() {
   // Reported→Core bridge (subtracts accounts 758 + 781 from the
   // engine's `ebitda_statutory`). The KPI grid + reconciliation
   // panel + (downstream) PnlTable all read from this object.
+  // The executive briefing, hidden with the engine's note when it was
+  // written under an earlier EBITDA definition (lib/briefingDefinition).
+  const briefingShown = briefingVisibility(
+    report.briefing ? { ...report.briefing, body: report.briefing.body ?? report.briefing.summary } : null,
+  );
   const canonical = buildCanonicalMetricsFromInputs({
     assembled_pl: pl as Record<string, number>,
     assembled_bs: bs as Record<string, number>,
@@ -469,12 +480,13 @@ export default function ComprehensiveReport() {
                   currency={currency}
                   marginRefusal={marginRefusalOf(report.statements)}
                 />
-                {/* Itemized Reported → Core EBITDA bridge — the spec's
-                 *  non-negotiable: each adjustment (758, 781) shown
-                 *  with account / label / amount, arithmetic exact. */}
+                {/* The one EBITDA, explained by the engine's served
+                 *  reconciliation: net turnover → … → account 121, the
+                 *  one-line bridge, and the Core strip (758, 781) the
+                 *  valuation multiple is applied to. */}
                 <div className="mt-5">
                   <EbitdaReconciliationPanel
-                    metrics={canonical}
+                    statements={report.statements}
                     currency={currency}
                     marginRefusal={marginRefusalOf(report.statements)}
                   />
@@ -493,13 +505,19 @@ export default function ComprehensiveReport() {
                 construction, so it is the first thing withheld. */}
             {sectorBlocked ? (
               <div className="mt-5">{withheldNote("The executive briefing")}</div>
-            ) : report.briefing?.summary ? (
+            ) : briefingShown.hiddenNote ? (
+              // Written under an earlier EBITDA definition: hidden, with the
+              // engine's one-line note (design A9) — never stale numbers.
+              <Panel inset className="mt-5 border-l-[3px] border-l-caution px-4 py-3" data-testid="report-briefing-hidden-definition">
+                <p className="text-[12.5px] text-ink-soft leading-relaxed">{briefingShown.hiddenNote.en}</p>
+              </Panel>
+            ) : briefingShown.body ? (
               <Panel inset className="mt-5 border-l-[3px] border-l-brand px-4 py-3">
                 <div className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute font-medium mb-1.5">
                   Executive briefing
                 </div>
                 <p className="text-[13px] text-ink-soft leading-relaxed whitespace-pre-line">
-                  {relabelOperationalInBriefing(report.briefing.summary)}
+                  {briefingShown.body}
                 </p>
               </Panel>
             ) : null}
@@ -514,7 +532,7 @@ export default function ComprehensiveReport() {
           {/* ── 3. BALANCE SHEET ────────────────────────────────────── */}
           <section id="bs" data-testid="report-section-3-bs">
             <SectionHeader number={3} title="Balance Sheet" />
-            <BsTable bs={bs} currency={currency} origin={origin} />
+            <BsTable bs={bs} pl={pl} currency={currency} origin={origin} />
           </section>
 
           {/* ── 4. CASH FLOW ────────────────────────────────────────── */}
@@ -526,7 +544,18 @@ export default function ComprehensiveReport() {
           {/* ── 5. RATIOS ───────────────────────────────────────────── */}
           <section id="ratios" data-testid="report-section-5-ratios">
             <SectionHeader number={5} title="Financial Ratios" />
-            <RatiosTables metrics={metricsByName} marginRefusal={marginRefusalOf(report.statements)} />
+            <RatiosTables
+              metrics={metricsByName}
+              marginRefusal={marginRefusalOf(report.statements)}
+              refusals={{
+                netResult: netIncomeRefusalOf(report.statements)?.text.en ?? null,
+                equity: equityRefusalOf(report.statements)?.text.en ?? null,
+                ebitda: (() => {
+                  const one = readServedOneEbitda(pl);
+                  return one && one.ebitda === null ? one.refusal?.text.en ?? null : null;
+                })(),
+              }}
+            />
           </section>
 
           {/* ── 6. VALUATION ────────────────────────────────────────── */}
@@ -598,22 +627,6 @@ function CurrencyDisplayChip() {
   return <span className="font-semibold tabular-nums">{display}</span>;
 }
 
-// ─── Briefing label-transform ─────────────────────────────────────────────
-// Engine-generated narrative occasionally calls the operational net-profit
-// figure (excl. RAS 722 capitalized own-work) "statutory" — a known mislabel.
-// We rewrite the wording at render time. Numbers untouched; engine untouched.
-// For companies with no 722 activity the rewrite is a no-op semantically
-// (operational ≡ statutory) so it's safe to apply unconditionally.
-function relabelOperationalInBriefing(summary: string): string {
-  if (!summary) return summary;
-  // Catch "statutory net profit", "statutory net income", and the cap-S variants
-  // in mid-sentence. Word-boundary anchored so unrelated uses of "statutory"
-  // (e.g. "statutory reserves") aren't touched.
-  return summary
-    .replace(/\bstatutory net profit\b/gi, "operational net profit (excl. capitalized own-work)")
-    .replace(/\bstatutory net income\b/gi, "operational net income (excl. capitalized own-work)");
-}
-
 function KpiGrid({
   canonical, credit, netMarginCanonical, currency, marginRefusal = null,
 }: {
@@ -641,14 +654,23 @@ function KpiGrid({
   // independent derivations — those are the bug the canonical object
   // exists to eliminate.
   const { ebitda, netProfit, balance, headline } = canonical;
+  // Net turnover (70x − 709) — every margin's denominator (owner ruling
+  // 2026-09-26). The retired "total operating revenue" added 72x to it.
   const revenue = headline.revenue;
-  const totalOpRev = headline.total_operating_revenue;
 
-  const equityRatio = balance.total_assets > 0 ? balance.equity / balance.total_assets : null;
+  // Total equity the engine REFUSED as the company's equity (it excludes a
+  // refused year's result — critic round 2, 2026-09-27) forms no equity
+  // ratio and no ROE: the tile prints the engine's reason, as §5 does.
+  const equityRefusal = balance.equity_refusal;
+  const equityRatio = balance.equity !== null && balance.total_assets > 0
+    ? balance.equity / balance.total_assets : null;
   // Net-Debt / EBITDA — uses Core EBITDA (the basis for valuation),
   // matching the rest of the canonical object's convention.
-  const ndeRatio = ebitda.core > 0 ? balance.net_debt / ebitda.core : null;
-  const roe = balance.equity > 0 ? netProfit.statutory_account_121 / balance.equity : null;
+  // A refused EBITDA forms no leverage multiple (null, never ÷ 0).
+  const ndeRatio = ebitda.core !== null && ebitda.core > 0 ? balance.net_debt / ebitda.core : null;
+  // A refused net result (no account 121, net 711 refused) forms no ROE.
+  const roe = balance.equity !== null && balance.equity > 0 && netProfit.statutory_account_121 !== null
+    ? netProfit.statutory_account_121 / balance.equity : null;
   const altman = credit?.altmanZ ?? null;
 
   const src = currency as Currency;
@@ -693,48 +715,67 @@ function KpiGrid({
       conceptKey: "operating_revenue",
       rawValue: revenue,
     },
+    // THE ONE EBITDA (711 and 72x inside); a refused one prints the
+    // engine's reason in place of a figure, and its margin refuses with it.
     {
-      label: "EBITDA — reported",
-      value: <MoneyAmount value={ebitda.reported} fromCurrency={src} />,
-      sub: marginSub(
+      label: "EBITDA",
+      value:
+        ebitda.reported === null ? (
+          <span className="text-[12.5px] text-ink-soft" data-testid="report-kpi-ebitda-refused">
+            refused — {ebitda.refusal?.text.en ?? "the engine served no EBITDA for this period"}
+          </span>
+        ) : (
+          <MoneyAmount value={ebitda.reported} fromCurrency={src} />
+        ),
+      sub: ebitda.reported === null ? undefined : marginSub(
         ebitda.reported_margin_pct != null ? ebitda.reported_margin_pct / 100 : null,
-        "margin · acct 121 view",
-        "Reported / statutory",
+        "margin · over net turnover · 711 and 72x inside",
+        "Over net turnover",
       ),
       conceptKey: "ebitda",
-      rawValue: ebitda.reported,
+      rawValue: ebitda.reported ?? undefined,
     },
     {
       label: "EBITDA — core",
-      value: <MoneyAmount value={ebitda.core} fromCurrency={src} />,
-      sub: marginSub(
+      value:
+        ebitda.core === null ? (
+          <span className="text-[12.5px] text-ink-soft">refused with EBITDA</span>
+        ) : (
+          <MoneyAmount value={ebitda.core} fromCurrency={src} />
+        ),
+      sub: ebitda.core === null ? undefined : marginSub(
         ebitda.core_margin_pct != null ? ebitda.core_margin_pct / 100 : null,
         "margin · excl. 758, 781",
         "Basis for valuation",
       ),
       headline: true,
       conceptKey: "ebitda",
-      rawValue: ebitda.core,
+      rawValue: ebitda.core ?? undefined,
     },
     {
       label: "Net profit — statutory (ct 121)",
-      value: <MoneyAmount value={netProfit.statutory_account_121} fromCurrency={src} />,
+      // Refused by the engine: its reason, never a figure (and never 0).
+      value: netProfit.refusal
+        ? <span data-testid="report-net-profit-refused">refused — {netProfit.refusal.text.en}</span>
+        : <MoneyAmount value={netProfit.statutory_account_121} fromCurrency={src} />,
       // F1.e — Margin reads engine-canonical `net_margin` from
       // calculated_metrics so this tile agrees with the dashboard tile
       // and the Ratios row on the same page. The "legally filed"
       // sub-label refers to the source-currency value (per ¶ in F1.e
       // protocol — sub-label scope, not margin denominator).
       sub: marginSub(
-        typeof netMarginCanonical === "number"
-          ? netMarginCanonical
-          : totalOpRev > 0
-            ? netProfit.statutory_account_121 / totalOpRev
-            : null,
+        netProfit.statutory_account_121 === null
+          ? null
+          : typeof netMarginCanonical === "number"
+            ? netMarginCanonical
+            : revenue > 0
+              ? netProfit.statutory_account_121 / revenue
+              : null,
         "margin · legally filed",
         "Legally filed (acct 121)",
       ),
       conceptKey: "net_profit",
-      rawValue: netProfit.statutory_account_121,
+      rawValue: netProfit.statutory_account_121 ?? undefined,
     },
     {
       label: "Total assets",
@@ -743,7 +784,19 @@ function KpiGrid({
       conceptKey: "total_assets",
       rawValue: balance.total_assets,
     },
-    { label: "Equity ratio", value: <PercentLevel value={equityRatio != null ? equityRatio * 100 : null} />, sub: "Equity / Assets", conceptKey: equityRatio == null ? undefined : "equity_ratio", rawValue: equityRatio ?? undefined },
+    {
+      label: "Equity ratio",
+      value: equityRefusal ? (
+        <span className="text-[12.5px] text-ink-soft" data-testid="report-kpi-equity-ratio-refused">
+          refused — {equityRefusal.text.en}
+        </span>
+      ) : (
+        <PercentLevel value={equityRatio != null ? equityRatio * 100 : null} />
+      ),
+      sub: "Equity / Assets",
+      conceptKey: equityRatio == null ? undefined : "equity_ratio",
+      rawValue: equityRatio ?? undefined,
+    },
     { label: "Net Debt / EBITDA", value: <CappedMultiple value={ndeRatio} />, sub: "Leverage · on Core EBITDA", conceptKey: ndeRatio == null ? undefined : "net_debt_ebitda", rawValue: ndeRatio ?? undefined },
     { label: "ROE", value: <PercentLevel value={roe != null ? roe * 100 : null} />, sub: "Return on equity", conceptKey: roe == null ? undefined : "roe", rawValue: roe ?? undefined },
     { label: "Altman Z″", value: <Amount kind="count" value={altman} fractionDigits={2} />, sub: "Distress score", conceptKey: altman == null ? undefined : "altman_z_score", rawValue: altman ?? undefined },
@@ -780,46 +833,54 @@ function KpiGrid({
 
 function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; currency: string; origin: ReportOrigin }) {
   const { fmt, displayCurrency } = useReportFmt(currency);
-  // The % column's denominator. Absent revenue → no percentages, never a
-  // division guarded by a fabricated zero.
+  // The % column's denominator — net turnover, the base of every margin
+  // (owner ruling 2026-09-26). Absent → no percentages, never a division
+  // guarded by a fabricated zero.
   const revenue: number | undefined = pl.revenue;
   const f = (path: string) => origin.field(`assembled_pl.${path}`);
   const neg = (path: string) => origin.field(`assembled_pl.${path}`, "presented negative");
 
   // ── The build-up, as a column a reader can add up ─────────────────
   //
-  // Every row below is either a STEP in one running total or a MEMO
-  // standing beside it, and the table says which. Until 2026-09-06 it
-  // was neither: "Depreciation & amortization" was subtracted two rows
-  // ABOVE the EBITDA it is added back into, "Other operating income"
-  // read `assembled_pl.other_operating_income` — a field the engine did
-  // not emit — and painted the gap glyph while EBITDA silently included
-  // it, and the last row printed the account-121 anchor under the label
-  // "Net profit — operational". On agras the column ran
-  // 15,577,652.03 − 1,471,550.00 and then printed 7,533,676.02: a
-  // 6,572,426.01 step with no line and no name.
+  // Every row below is either a STEP in one running total or a SUBTOTAL
+  // stating it, and the table says which (`data-pl-role`). Each subtotal is
+  // the engine's SERVED figure; each step is the served line the engine
+  // formed it from — so the column foots on every book with no client
+  // arithmetic reconciling anything.
   //
-  // The chain now runs on the fields the canonical assembly itself used
-  // to form each subtotal — `revenue`, not `total_operating_revenue`
-  // (which carries discounts received, a credit the EBITDA the engine
-  // computes does not) — so each subtotal is the sum of the steps above
-  // it on every book, with no client arithmetic reconciling anything.
+  // THE ONE EBITDA (owner ruling 2026-09-26). The stock variation (711,
+  // "Variația stocurilor de produse") sits beside cost of sales, signed as
+  // its effect on the result; own work capitalised (72x) is an operating
+  // line outside net turnover; both are inside EBITDA. 767 is financial.
+  // The retired rows went with the old definitions: the "+ Capitalized own
+  // work (722)" step after net profit (72x is above EBITDA now), the
+  // "EBITDA (statutory, incl. 722)" memo (there is one EBITDA) and the
+  // "Total operating revenue" memo (no margin divides by it).
   //
-  // The tail is the honest part. The class-6/7 reconstruction and the
-  // filed account-121 figure are two different numbers on three of the
-  // four firm books, by factors of 1.9× to 37.9×. The build-up ends on
-  // the FILED figure — it is what the company reported, what the KPI
-  // tile, the dashboard and every ratio on this page now state, and a
-  // memo that ended anywhere else would be stating a number nobody
-  // filed. The step to it is shown, split into what can be named (722)
-  // and what cannot, and the part that cannot is LABELLED unexplained
-  // with its amount rather than absorbed into a plug.
-  const reconstructed: number | undefined = pl.net_income_operational;
-  const filedNetProfit: number | undefined = pl.net_income_statutory;
-  const capOwnWork: number | undefined = pl.capitalized_own_work_memo;
-  const unexplained: number | undefined = pl.net_income_unexplained_vs_121;
-  const has722 = capOwnWork != null && Math.abs(capOwnWork) > 0.5;
-  const hasUnexplained = unexplained != null && Math.abs(unexplained) > 0.005;
+  // THE TAIL ends on account 121, the filed figure. Where the result built
+  // from the accounts IS account 121 — every bridge book, where the 711 line
+  // is derived from 121, and every book whose lines explain it — the chain
+  // closes; where they differ (a closed book with no 711 postings and a 121
+  // remainder), the remainder is its own LABELLED step, never folded into
+  // 711.
+  const served = readServedOneEbitda(pl);
+  const recon = served?.reconciliation ?? null;
+  const iv = served?.inventoryVariation ?? null;
+  const cap = served?.capitalizedOwnWork ?? null;
+  const built = reconLine(recon, "net_result");
+  const acc121 = reconLine(recon, "account_121");
+  const gap = reconLine(recon, "not_explained");
+  const filedNetProfit: number | undefined =
+    typeof pl.net_income_statutory === "number" ? pl.net_income_statutory : undefined;
+  // The net result REFUSED by the engine (no account 121, net 711
+  // refused): the last row prints its reason, never a build-up.
+  const netResultRefusal = readRefusal((pl as Record<string, unknown>).net_income_refusal);
+  const unexplained = gap?.value ?? null;
+  const hasUnexplained = unexplained !== null && Math.abs(unexplained) >= 0.005;
+  const has711 = componentShown(iv);
+  const has72x = componentShown(cap);
+  const num = (v: number | null | undefined): number | undefined =>
+    typeof v === "number" && Number.isFinite(v) ? v : undefined;
 
   // Row schema  →  { label, value, style, sub?, indent? }
   type RowStyle =
@@ -828,85 +889,77 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
     | "subtotal"
     | "highlight"
     | "headline"        // the filed net-profit headline (primary emphasis)
-    | "reconciliation"  // the steps from the reconstruction to account 121
-    | "memo";
-  /** `step` rows accumulate into the running total; `memo` rows stand
-   *  beside it and are never added. */
+    | "reconciliation"; // the step from the build to account 121
+  /** `step` rows accumulate into the running total; `subtotal` rows state
+   *  it. */
   type Row = {
     label: string;
     val: number | undefined;
     style: RowStyle;
     origin: AmountProvenance | null;
-    role: "step" | "subtotal" | "memo";
+    role: "step" | "subtotal";
+    /** The engine's reason, printed under a refused figure. */
+    note?: string | null;
   };
+
+  const ivLabel = iv ? `${iv.nameRo ?? "Variația stocurilor de produse"} (711)${iv.glossEn ? ` — ${iv.glossEn}` : ""}` : "";
+  const capLabel = cap ? `${cap.nameRo ?? "Own work capitalised"} (72x)${cap.glossEn ? ` — ${cap.glossEn}` : ""}` : "";
+  const refusalEn = served?.refusal?.text.en ?? null;
 
   const rows: Row[] = [
     { label: "Net turnover", val: pl.revenue, style: "subtotal", origin: f("revenue"), role: "step" },
     { label: "Other operating income", val: pl.other_operating_income, style: "indent", origin: f("other_operating_income"), role: "step" },
-    { label: "Cost of goods sold", val: negated(pl.cogs), style: "indent", origin: neg("cogs"), role: "step" },
-    { label: "Operating expenses", val: negated(pl.opex_total), style: "indent", origin: neg("opex_total"), role: "step" },
-    { label: "EBITDA", val: pl.ebitda_cash ?? pl.ebitda_operational, style: "highlight", origin: f(pl.ebitda_cash != null ? "ebitda_cash" : "ebitda_operational"), role: "subtotal" },
-    { label: "Depreciation & amortization", val: negated(pl.depreciation), style: "indent", origin: neg("depreciation"), role: "step" },
-    { label: "EBIT", val: pl.ebit, style: "highlight", origin: f("ebit"), role: "subtotal" },
-    { label: "Net financial result", val: pl.net_financial_result, style: "indent", origin: f("net_financial_result"), role: "step" },
-    { label: "Pre-tax profit", val: pl.pretax, style: "subtotal", origin: f("pretax"), role: "subtotal" },
-    { label: "Income tax", val: negated(pl.tax), style: "indent", origin: neg("tax"), role: "step" },
-    // ── the reconstruction, then the bridge to what was filed ─────────
-    { label: "Net profit — reconstructed (class 6/7 movements)", val: reconstructed, style: "subtotal", origin: f("net_income_operational"), role: "subtotal" },
   ];
-
-  if (has722) {
+  if (has72x) {
+    rows.push({ label: capLabel, val: num(cap?.value), style: "indent", origin: f("capitalized_own_work.value"), role: "step" });
+  }
+  rows.push({ label: "Cost of goods sold", val: negated(pl.cogs), style: "indent", origin: neg("cogs"), role: "step" });
+  if (has711) {
     rows.push({
-      label: "+ Capitalized own work (722)",
-      val: capOwnWork,
-      style: "reconciliation",
-      origin: f("capitalized_own_work_memo"),
+      label: ivLabel,
+      val: num(iv?.value),
+      style: "indent",
+      origin: f("inventory_variation.value"),
       role: "step",
+      note: iv?.value === null ? iv?.refusal?.text.en ?? refusalEn : iv?.provenanceLabel?.en ?? null,
     });
   }
+  rows.push(
+    { label: "Operating expenses", val: negated(pl.opex_total), style: "indent", origin: neg("opex_total"), role: "step" },
+    { label: "EBITDA", val: num(served?.ebitda), style: "highlight", origin: f("ebitda"), role: "subtotal", note: served?.ebitda == null ? refusalEn : null },
+    { label: "Depreciation & amortization", val: negated(pl.depreciation), style: "indent", origin: neg("depreciation"), role: "step" },
+    { label: "EBIT", val: num(served?.ebit), style: "highlight", origin: f("ebit"), role: "subtotal", note: served?.ebit == null ? refusalEn : null },
+    { label: "Net financial result", val: pl.net_financial_result, style: "indent", origin: f("net_financial_result"), role: "step" },
+    { label: "Pre-tax profit", val: num(served?.pretax), style: "subtotal", origin: f("pretax"), role: "subtotal", note: served?.pretax == null ? refusalEn : null },
+    { label: "Income tax", val: negated(pl.tax), style: "indent", origin: neg("tax"), role: "step" },
+    {
+      label: "Net profit — built from the accounts",
+      val: num(built?.value),
+      style: "subtotal",
+      origin: f("ebitda_reconciliation.lines.net_result"),
+      role: "subtotal",
+      note: built && built.value === null ? built.refusal?.text.en ?? refusalEn : null,
+    },
+  );
   if (hasUnexplained) {
     rows.push({
-      label: "± Unexplained — reconstruction vs filed account 121",
-      val: unexplained,
+      label: "± Not explained by the revenue and expense accounts",
+      val: unexplained ?? undefined,
       style: "reconciliation",
       origin: f("net_income_unexplained_vs_121"),
       role: "step",
     });
   }
   rows.push({
-    label: "= Net profit — statutory (account 121, as filed)",
+    label: acc121?.status === "not_anchored"
+      ? "= Net profit — built from the accounts (no account 121 in the trial balance)"
+      : "= Net profit — account 121 (as filed)",
     val: filedNetProfit,
     style: "headline",
     origin: f("net_income_statutory"),
     role: "subtotal",
+    note: netResultRefusal ? netResultRefusal.text.en : null,
   });
-
-  // ── memos — figures the reader recognises that are NOT steps here ──
-  // `total_operating_revenue` carries discounts received (767), which
-  // the engine's EBITDA does not, so it cannot sit inside this column
-  // without breaking it. `ebitda_statutory` re-adds 722. Both are real
-  // served figures and both stay visible, beside the column rather than
-  // inside it.
-  rows.splice(1, 0, {
-    label: "Total operating revenue (memo — incl. discounts received)",
-    val: pl.total_operating_revenue,
-    style: "memo",
-    origin: f("total_operating_revenue"),
-    role: "memo",
-  });
-  if (has722) {
-    rows.splice(
-      rows.findIndex((r) => r.label === "EBITDA") + 1,
-      0,
-      {
-        label: "EBITDA (statutory, incl. 722) — memo",
-        val: pl.ebitda_statutory,
-        style: "memo",
-        origin: f("ebitda_statutory"),
-        role: "memo",
-      },
-    );
-  }
 
   // Instrument row styling — semantic emphasis through tokens only.
   const rowCls: Record<RowStyle, string> = {
@@ -916,7 +969,6 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
     highlight: "bg-brand-tint/30 font-semibold text-ink",
     headline: "bg-brand-tint/50 font-semibold text-ink",
     reconciliation: "text-ink-mute",
-    memo: "",
   };
   const labelCls: Record<RowStyle, string> = {
     normal: "",
@@ -925,7 +977,6 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
     highlight: "",
     headline: "",
     reconciliation: "pl-8 italic",
-    memo: "pl-8 italic text-ink-mute",
   };
 
   return (
@@ -949,7 +1000,14 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
                   data-pl-exact={v == null ? undefined : String(v)}
                   className={`h-8 ${r.style === "headline" ? "border-t border-t-rule-strong" : r.style === "reconciliation" ? "border-t border-dashed border-rule-strong" : "border-t border-rule-soft"} first:border-t-0 ${rowCls[r.style]}`}
                 >
-                  <td className={`px-4 py-1 ${labelCls[r.style]}`}>{r.label}</td>
+                  <td className={`px-4 py-1 ${labelCls[r.style]}`}>
+                    {r.label}
+                    {r.note && (
+                      <span className="block text-[11px] font-normal not-italic text-ink-mute" data-pl-note="">
+                        {r.note}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-3 py-1 text-right">
                     <MoneyAmount value={v} fromCurrency={currency as Currency} unit={false} provenance={r.origin} />
                   </td>
@@ -963,35 +1021,27 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
         </table>
       </Panel>
 
-      {/* Commentary — what the bridge at the foot of the column IS.
-       *  Rendered whenever the build-up carries a bridge at all, because
-       *  a reader who sees a step must be able to read what caused it. */}
-      {(has722 || hasUnexplained) && (
+      {/* Commentary — what the foot of the column IS. */}
+      {(has711 || has72x || hasUnexplained) && (
         <Panel inset className="mt-4 border-l-[3px] border-l-brand px-4 py-3 text-[12.5px] text-ink-soft leading-relaxed" role="note">
           <span className="font-semibold text-brand-d dark:text-brand-l">
-            Reconstruction → filed accounts —
+            From net turnover to account 121 —
           </span>{" "}
-          The column above rebuilds the P&amp;L from the trial balance&rsquo;s class 6 and class 7
-          movements. It ends on account 121&rsquo;s closing balance ({fmt(filedNetProfit)}{" "}
-          {displayCurrency}) — the figure the company filed, and the one every KPI tile and ratio on
-          this page states.
-          {has722 && (
-            <>
-              {" "}
-              Account 722 (capitalized own work, {fmt(capOwnWork)} {displayCurrency}) is a non-cash
-              credit that capitalizes internally-incurred costs into CIP (account 231); the
-              corresponding cost sits inside account 628, so the P&amp;L effect of the 722/628 wash is
-              ~zero and the reconstruction excludes it.
-            </>
-          )}
+          The column above builds the P&amp;L from the trial balance&rsquo;s class 6 and class 7
+          movements, with the stock variation (711) and own work capitalised (72x) inside EBITDA —
+          one definition on every page. It ends on account 121&rsquo;s closing balance
+          ({fmt(filedNetProfit)} {displayCurrency}) — the figure the company filed, and the one
+          every KPI tile and ratio on this page states.
+          {recon?.identityNote && <> {recon.identityNote.en}</>}
+          {recon?.splitAssumption && <> {recon.splitAssumption.en}</>}
           {hasUnexplained && (
             <>
               {" "}
               The remaining {fmt(unexplained)} {displayCurrency} is <strong>not explained</strong> by
               any line on this statement: the class-6/7 movements this trial balance carries do not
               sum to what account 121 closed at. It is shown with its amount rather than folded into
-              a plug, because a build-up that foots on an invented component is worse than one that
-              names its gap. Reconciling the two needs the source ledger, not this extract.
+              the stock variation or a plug, because a build-up that foots on an invented component
+              is worse than one that names its gap.
             </>
           )}
         </Panel>
@@ -1000,9 +1050,29 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
   );
 }
 
-type BsRow = [label: string, value: number | undefined, origin: AmountProvenance | null];
+type BsRow = [
+  label: string,
+  value: number | undefined,
+  origin: AmountProvenance | null,
+  /** The engine's reason, printed in place of the amount (never a 0). */
+  refusal?: string | null,
+];
 
-function BsTable({ bs, currency, origin }: { bs: Record<string, number>; currency: string; origin: ReportOrigin }) {
+function BsTable({ bs, pl, currency, origin }: {
+  bs: Record<string, number>;
+  pl: Record<string, number>;
+  currency: string;
+  origin: ReportOrigin;
+}) {
+  // A REFUSED net result (no account 121, net 711 refused — fixer round 2,
+  // 2026-09-27) has no current-year row: this printed the class-6/7
+  // build-up (-30,391,418 on the developer, -36.4 % of assets) beside a P&L
+  // whose foot said the net result is refused. The engine's reason, from
+  // the balance sheet's own refusal or — on a period stored before it —
+  // the P&L's.
+  const cyRefusal =
+    readRefusal((bs as Record<string, unknown>).current_year_pnl_refusal)
+    ?? readRefusal((pl as Record<string, unknown>).net_income_refusal);
   // The "% of assets" denominator. Absent → no percentages.
   const total: number | undefined = bs.total_assets;
   const f = (path: string) => origin.field(`assembled_bs.${path}`);
@@ -1022,7 +1092,9 @@ function BsTable({ bs, currency, origin }: { bs: Record<string, number>; currenc
       sumOf(bs.revaluation_reserves, bs.retained_earnings, bs.other_equity_non_revaluation),
       origin.derived("assembled_bs.revaluation_reserves + retained_earnings + other_equity_non_revaluation"),
     ],
-    ["Current-year P&L", bs.current_year_pnl, f("current_year_pnl")],
+    cyRefusal
+      ? ["Current-year P&L", undefined, null, `refused — ${cyRefusal.text.en}`]
+      : ["Current-year P&L", bs.current_year_pnl, f("current_year_pnl")],
     ["Long-term debt", bs.lt_debt, f("lt_debt")],
     ["Short-term debt", bs.st_debt, f("st_debt")],
     ["Accounts payable", bs.ap, f("ap")],
@@ -1059,11 +1131,15 @@ function BsHalf({ title, rows, totalLabel, totalValue, totalOrigin, reference, c
           </tr>
         </thead>
         <tbody>
-          {rows.map(([label, val, rowOrigin]) => (
+          {rows.map(([label, val, rowOrigin, refusal]) => (
             <tr key={label} className="border-t border-rule-soft first:border-t-0 h-8">
               <td className="px-4 py-1">{label}</td>
               <td className="px-3 py-1 text-right">
-                <MoneyAmount value={val} fromCurrency={currency as Currency} unit={false} provenance={rowOrigin} />
+                {refusal ? (
+                  <span className="text-ink-soft" data-testid="report-bs-row-refused">{refusal}</span>
+                ) : (
+                  <MoneyAmount value={val} fromCurrency={currency as Currency} unit={false} provenance={rowOrigin} />
+                )}
               </td>
               <td className="px-3 py-1 text-right text-ink-soft">
                 {val != null && reference != null && reference > 0 ? <PercentLevel value={(val / reference) * 100} /> : null}
@@ -1097,13 +1173,26 @@ function CashFlowTable({ cf, currency, origin }: { cf: Record<string, number | b
   // so the ~ in the label and the card can never disagree.
   const f = (k: string) =>
     origin.field(`assembled_cf.${k}`, isApprox ? "indirect method · approximated" : undefined);
+  // The NET RESULT refused (no account 121, net 711 refused): every row the
+  // engine could not walk from it is absent, and says why — never a bare
+  // dash under "Net profit", "Cash from operating activities" or "Net
+  // change in cash" (critic round 3, 2026-09-28).
+  const cfRefusal = readRefusal((cf as Record<string, unknown>).net_income_refusal);
+  const cell = (key: string, value: number | undefined, prov: AmountProvenance | null) =>
+    value === undefined && cfRefusal ? (
+      <span data-testid={`report-cf-${key}-refused`} className="text-ink-soft font-normal">
+        refused — {cfRefusal.text.en}
+      </span>
+    ) : (
+      <MoneyAmount value={value} fromCurrency={currency as Currency} unit={false} provenance={prov} />
+    );
 
-  type CfRow = [label: string, value: number | undefined, origin: AmountProvenance | null];
+  type CfRow = [label: string, value: number | undefined, origin: AmountProvenance | null, key?: string];
   const sections: Array<{ title: string; rows: CfRow[]; subtotal: CfRow; }> = [
     {
       title: "Operating",
       rows: [
-        ["Net profit", n("net_profit"), f("net_profit")],
+        ["Net profit", n("net_profit"), f("net_profit"), "net_profit"],
         ["+ Depreciation & amortization", n("depreciation"), f("depreciation")],
         ["+ Provision movements", n("provision_movement"), f("provision_movement")],
         ["Δ Inventory", n("delta_inventory"), f("delta_inventory")],
@@ -1111,7 +1200,7 @@ function CashFlowTable({ cf, currency, origin }: { cf: Record<string, number | b
         ["Δ Trade payables", n("delta_trade_pay"), f("delta_trade_pay")],
         ["Δ Tax payables", n("delta_tax_pay"), f("delta_tax_pay")],
       ],
-      subtotal: ["Cash from operating activities", n("cash_from_operating"), f("cash_from_operating")],
+      subtotal: ["Cash from operating activities", n("cash_from_operating"), f("cash_from_operating"), "cash_from_operating"],
     },
     {
       title: "Investing",
@@ -1131,9 +1220,9 @@ function CashFlowTable({ cf, currency, origin }: { cf: Record<string, number | b
         ["Δ Long-term debt", n("delta_lt_debt"), f("delta_lt_debt")],
         ["Δ Short-term bank credit", n("delta_st_bank"), f("delta_st_bank")],
         ["− Interest paid", n("interest_paid"), f("interest_paid")],
-        ["− Dividends paid", n("dividends_paid"), f("dividends_paid")],
+        ["− Dividends paid", n("dividends_paid"), f("dividends_paid"), "dividends_paid"],
       ],
-      subtotal: ["Cash used in financing", n("cash_used_in_financing"), f("cash_used_in_financing")],
+      subtotal: ["Cash used in financing", n("cash_used_in_financing"), f("cash_used_in_financing"), "cash_used_in_financing"],
     },
   ];
 
@@ -1162,18 +1251,22 @@ function CashFlowTable({ cf, currency, origin }: { cf: Record<string, number | b
           />
           <table className="w-full text-[12.5px]">
             <tbody>
-              {s.rows.map(([label, val, rowOrigin]) => (
+              {s.rows.map(([label, val, rowOrigin, key]) => (
                 <tr key={label} className="border-t border-rule-soft first:border-t-0 h-8">
                   <td className="px-4 py-1 pl-8 text-ink-soft">{isApprox ? `~ ${label}` : label}</td>
                   <td className="px-3 py-1 text-right">
-                    <MoneyAmount value={val} fromCurrency={currency as Currency} unit={false} provenance={rowOrigin} />
+                    {key ? cell(key, val, rowOrigin) : (
+                      <MoneyAmount value={val} fromCurrency={currency as Currency} unit={false} provenance={rowOrigin} />
+                    )}
                   </td>
                 </tr>
               ))}
               <tr className="border-t border-t-rule-strong h-8 bg-bg-2/60 font-semibold text-ink">
                 <td className="px-4 py-1">{s.subtotal[0]}</td>
                 <td className="px-3 py-1 text-right">
-                  <MoneyAmount value={s.subtotal[1]} fromCurrency={currency as Currency} unit={false} provenance={s.subtotal[2]} />
+                  {s.subtotal[3] ? cell(s.subtotal[3], s.subtotal[1], s.subtotal[2]) : (
+                    <MoneyAmount value={s.subtotal[1]} fromCurrency={currency as Currency} unit={false} provenance={s.subtotal[2]} />
+                  )}
                 </td>
               </tr>
             </tbody>
@@ -1186,7 +1279,7 @@ function CashFlowTable({ cf, currency, origin }: { cf: Record<string, number | b
             <tr className="h-8 bg-bg-2/60 font-semibold text-ink">
               <td className="px-4 py-1">Net change in cash</td>
               <td className="px-3 py-1 text-right">
-                <MoneyAmount value={n("net_change_in_cash")} fromCurrency={currency as Currency} unit={false} provenance={f("net_change_in_cash")} />
+                {cell("net_change_in_cash", n("net_change_in_cash"), f("net_change_in_cash"))}
               </td>
             </tr>
           </tbody>
@@ -1199,13 +1292,25 @@ function CashFlowTable({ cf, currency, origin }: { cf: Record<string, number | b
 function RatiosTables({
   metrics,
   marginRefusal = null,
+  refusals = {},
 }: {
   metrics: Record<string, number | null>;
   /** The ENGINE's refusal of every margin over turnover (engine.ratios.
    *  margin_meaning): the three margin rows state it instead of a percent. */
   marginRefusal?: MarginBilingual | null;
+  /** The engine's refusals a ratio row with no figure is refused BY (its
+   *  own sentence, English: this is the English board document) — the net
+   *  result (ROE, ROA, net margin), total equity short by it (the equity
+   *  ratio, debt / equity) and EBITDA (the multiples and coverage on it).
+   *  A refused row prints the reason, never a bare dash (design A7;
+   *  critic round 3, 2026-09-28: "ROE | —", "Equity ratio | —"). */
+  refusals?: { netResult?: string | null; equity?: string | null; ebitda?: string | null };
 }) {
   const m = (k: string) => metrics[k];
+  const refusedCell = (key: string, reason: string | null | undefined, node: React.ReactNode) =>
+    m(key) == null && reason ? (
+      <span data-testid={`report-ratio-${key}-refused`} className="text-ink-soft">refused — {reason}</span>
+    ) : node;
   // Every ratio figure flows through the instrument, by unit.
   const pct = (v: number | null | undefined) => (
     <PercentLevel value={v != null ? v * 100 : null} />
@@ -1214,7 +1319,7 @@ function RatiosTables({
     marginRefusal ? (
       <span data-testid="report-ratio-margin-refused" className="text-ink-soft">{marginRefusal.en}</span>
     ) : (
-      pct(m(k))
+      refusedCell(k, k === "net_margin" ? refusals.netResult : refusals.ebitda, pct(m(k)))
     );
   const mult = (v: number | null | undefined) => <CappedMultiple value={v} />;
   const days = (v: number | null | undefined) =>
@@ -1231,9 +1336,9 @@ function RatiosTables({
         ["Gross margin",   margin("gross_margin")],
         ["EBITDA margin",  margin("ebitda_margin")],
         ["Net margin",     margin("net_margin")],
-        ["ROE",            pct(m("roe"))],
-        ["ROA",            pct(m("roa"))],
-        ["ROIC",           pct(m("roic"))],
+        ["ROE",            refusedCell("roe", refusals.netResult ?? refusals.equity, pct(m("roe")))],
+        ["ROA",            refusedCell("roa", refusals.netResult, pct(m("roa")))],
+        ["ROIC",           refusedCell("roic", refusals.ebitda ?? refusals.equity, pct(m("roic")))],
       ],
     },
     {
@@ -1247,9 +1352,9 @@ function RatiosTables({
     {
       title: "Leverage",
       rows: [
-        ["Equity ratio",      pct(m("equity_ratio"))],
-        ["Debt / Equity",     mult(m("debt_to_equity"))],
-        ["Net Debt / EBITDA", mult(m("debt_to_ebitda"))],
+        ["Equity ratio",      refusedCell("equity_ratio", refusals.equity, pct(m("equity_ratio")))],
+        ["Debt / Equity",     refusedCell("debt_to_equity", refusals.equity, mult(m("debt_to_equity")))],
+        ["Net Debt / EBITDA", refusedCell("debt_to_ebitda", refusals.ebitda, mult(m("debt_to_ebitda")))],
       ],
     },
     {
@@ -1260,7 +1365,7 @@ function RatiosTables({
         // the exports and the workbook. A bare "Interest coverage" beside
         // a figure whose definition was revised states no basis at all.
         [ratioLabelForKey("interest_coverage") ?? "Interest coverage (EBIT / interest)",
-          mult(m("interest_coverage"))],
+          refusedCell("interest_coverage", refusals.ebitda, mult(m("interest_coverage")))],
       ],
     },
     {
@@ -1305,10 +1410,21 @@ function ValuationView({ metrics, pl, bs, currency }: {
   // EBITDA the envelope does not carry forms no multiple, a net debt
   // with a missing addend forms no equity value, and book equity paints
   // its gap state rather than a zero floor.
-  const ebitda: number | null | undefined = pl.ebitda_statutory ?? pl.ebitda ?? metrics.ebitda;
+  // THE ONE EBITDA as served (711 and 72x inside), or its refusal — never
+  // an engine metric row standing in for a refused figure.
+  const servedOne = readServedOneEbitda(pl);
+  const ebitda: number | null | undefined = servedOne ? servedOne.ebitda : metrics.ebitda;
+  const ebitdaRefusal = servedOne && servedOne.ebitda === null ? servedOne.refusal : null;
   const hasEbitda = typeof ebitda === "number" && Number.isFinite(ebitda) && ebitda > 0;
   const netDebt = sumOf(bs.total_debt, negated(bs.cash));
-  const bookEquity: number | null | undefined = bs.total_equity ?? metrics.total_equity;
+  // BOOK EQUITY THE ENGINE REFUSED (it excludes a refused year's result —
+  // no account 121, net 711 refused, the sheet short by the missing result;
+  // critic round 2, 2026-09-27) is no NAV floor: the row prints the reason,
+  // as the Valuation tab and the NAV cascade do — never the rows' short sum
+  // and never a stale metric row.
+  const bookEquityRefusal = equityRefusalOf(bs);
+  const bookEquity: number | null | undefined = bookEquityRefusal
+    ? null : bs.total_equity ?? metrics.total_equity;
 
   const multiples = [6, 8, 10].map((mult) => ({
     label: mult === 6 ? "Conservative (6×)" : mult === 8 ? "Mid (8×)" : "Premium (10×)",
@@ -1319,7 +1435,14 @@ function ValuationView({ metrics, pl, bs, currency }: {
 
   return (
     <div className="space-y-3">
-      {ebitda == null ? (
+      {ebitdaRefusal ? (
+        <Panel inset className="border-l-[3px] border-l-caution px-4 py-3 text-[12.5px] text-ink-soft" data-testid="report-valuation-ebitda-refused">
+          EBITDA refused — {ebitdaRefusal.text.en}. No EV/EBITDA multiple can be
+          formed; {bookEquityRefusal
+            ? <>book equity is refused too — {bookEquityRefusal.text.en} — so no method forms a value.</>
+            : "book equity (NAV floor) stands alone."}
+        </Panel>
+      ) : ebitda == null ? (
         <Panel inset className="border-l-[3px] border-l-caution px-4 py-3 text-[12.5px] text-ink-soft">
           EBITDA is not carried by this envelope — no EV/EBITDA multiple can be
           formed. For asset-heavy or distressed cases, prefer NAV (book equity)
@@ -1358,7 +1481,13 @@ function ValuationView({ metrics, pl, bs, currency }: {
               <td className="px-4 py-1">Book equity (NAV floor)</td>
               <td className="px-3 py-1"></td>
               <td className="px-3 py-1 text-right">
-                <MoneyAmount value={bookEquity} fromCurrency={currency as Currency} unit={false} />
+                {bookEquityRefusal ? (
+                  <span className="text-[12px] font-normal text-ink-soft" data-testid="report-valuation-book-equity-refused">
+                    refused — {bookEquityRefusal.text.en}
+                  </span>
+                ) : (
+                  <MoneyAmount value={bookEquity} fromCurrency={currency as Currency} unit={false} />
+                )}
               </td>
             </tr>
           </tbody>

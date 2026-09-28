@@ -48,7 +48,8 @@ function statementsWith(cash: number): Statements {
     balanceSheet: { cash, shortTermDebt: 1_000, longTermDebt: 2_000 } as Statements["balanceSheet"],
     incomeStatement: { revenue: 90_000_000.5 } as Statements["incomeStatement"],
     supplementary: {} as Statements["supplementary"],
-    assembled_pl: { ebitda_statutory: 12_345_678.9 },
+    // The served block names the one EBITDA `ebitda` (the legacy alias rides beside it).
+    assembled_pl: { ebitda: 12_345_678.9, ebitda_statutory: 12_345_678.9 },
     canonical_bs: envelope,
   };
 }
@@ -134,9 +135,11 @@ describe("net profit — account 121 only from the envelope's own anchor", () =>
 });
 
 describe("EBITDA — the served field, else the builder", () => {
-  it("names assembled_pl.ebitda_statutory when that is the figure", () => {
+  // The one EBITDA by its own served name (one-EBITDA ruling): the legacy
+  // `ebitda_statutory` is an alias of it and is no longer named.
+  it("names assembled_pl.ebitda when that is the figure", () => {
     const p = buildHeadlineProvenance(baseInput()).ebitda;
-    expect(p?.source).toBe("carniprod_balanta_2025.xlsx · assembled_pl.ebitda_statutory");
+    expect(p?.source).toBe("carniprod_balanta_2025.xlsx · assembled_pl.ebitda");
   });
 
   it("names nothing when neither the field nor a builder produced the figure", () => {
@@ -185,7 +188,7 @@ describe("revenue — the builder's own account codes, on the line-item path onl
     ).revenue;
     expect(p?.accounts).toBe("706, 708");
     expect(p?.source).toBe("carniprod_balanta_2025.xlsx");
-    expect(p?.method).toContain("Total operating revenue");
+    expect(p?.method).toContain("Total net turnover");
   });
 
   it("names NO accounts on the aggregates path — those codes are labels", () => {
@@ -213,8 +216,11 @@ describe("plBuiltFromLineItems ASKS pickPLBuilder's rule — it no longer mirror
     const s = statementsWith(CASH);
     expect(plBuiltFromLineItems(PL_ITEMS, s)).toBe(true);
     const picked = plFor(PL_ITEMS, s);
+    // The picker hands the line-item builder the period's served block —
+    // the same call, made directly, builds the same statement.
     const direct = buildPLStatement({
       lineItems: PL_ITEMS, entity: "x", period: "FY 2025", currency: "RON",
+      servedPl: s.assembled_pl,
     });
     expect(picked.sections.map((x) => x.subtotalAmount)).toEqual(
       direct.sections.map((x) => x.subtotalAmount),

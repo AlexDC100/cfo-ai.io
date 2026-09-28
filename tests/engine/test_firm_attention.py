@@ -468,6 +468,15 @@ def _gateway_equity(case) -> float:
     return gw.equity().to_float()
 
 
+def _gateway_ebitda(case) -> float:
+    """The gateway's methodology `ebitda.reported` — the pre-ruling EBITDA
+    (net 711 outside) until a06e769f made it the one EBITDA; the covenant
+    reads the served assembled P&L either way."""
+    from engine.serving.facts import FactsGateway
+    gw = FactsGateway.from_envelope(case["envelope"], currency=case["currency"])
+    return gw.ebitda().to_float()
+
+
 def test_fc4_materiality_refuses_on_an_unknown_denominator_and_caps_the_grade():
     pack = PK.load_attention_pack()
     policy = R.MaterialityPolicy.from_pack()
@@ -682,6 +691,92 @@ def test_covenant_risk_breach_and_thin_headroom_are_graded_and_dated(cases):
     assert ev["equity"].unit == "money" and ev["covenant_limit"].provenance["source"].startswith("covenant:")
 
 
+# ── The EBITDA covenant tests THE ONE EBITDA (owner ruling 2026-09-26) ──
+#
+# The covenant used to read the gateway's `ebitda()` — the methodology's
+# `ebitda.reported`, which excludes net 711: agras 10,776,378.24 against the
+# one EBITDA 11,848,065.27, the developer -29,038,838.12 against +550,976.12.
+# It now reads the served assembled P&L (credit_model.operating_figures) and
+# cites the components the ruling puts inside it beside the headroom.
+
+
+def _ebitda_cov(cov_id: str, limit: float, warn: float = 0.05) -> CovenantRecord:
+    return CovenantRecord(cov_id, "Minimum EBITDA — BCR facility", "ebitda", ">=", limit,
+                          headroom_warn_share=warn, test_date="2026-03-31")
+
+
+def test_an_ebitda_covenant_tests_the_one_ebitda_and_cites_its_components_beside_the_headroom(cases):
+    case = cases["saga_10_col_agras"]
+    apl = case["statements"]["assembled_pl"]
+    one = apl["ebitda"]
+    assert one == pytest.approx(11_848_065.27, abs=0.01)
+    # Since the methodology's `reported` became the one EBITDA (a06e769f)
+    # the gateway serves the same figure — one definition, two readers.
+    assert _gateway_ebitda(case) == pytest.approx(one, abs=0.01)
+    client = client_from(case, "c-agras", covenants=(_ebitda_cov("ebitda", one - 100_000.0),))
+    items = by_kind(compute([client]), "c-agras", "COVENANT_RISK")
+    assert len(items) == 1, items
+    ev = items[0].evidence
+    facts_in_order = [e.fact for e in ev]
+    assert facts_in_order == ["ebitda", "covenant_limit", "covenant_headroom_pct",
+                              "ebitda_before_stock_variation", "inventory_variation",
+                              "capitalized_own_work"], facts_in_order
+    by = dict((e.fact, e) for e in ev)
+    assert by["ebitda"].value == pytest.approx(one, abs=0.01)
+    assert by["inventory_variation"].value == pytest.approx(apl["inventory_variation"]["value"], abs=0.01)
+    assert by["inventory_variation"].value == pytest.approx(1_071_687.03, abs=0.01)
+    parts = (by["ebitda_before_stock_variation"].value + by["inventory_variation"].value
+             + by["capitalized_own_work"].value)
+    assert parts == pytest.approx(one, abs=0.01), "the components must add up to the tested figure"
+    assert by["inventory_variation"].label.startswith("Variația stocurilor de produse (711)")
+    for name in ("ebitda", "ebitda_before_stock_variation", "inventory_variation",
+                 "capitalized_own_work"):
+        assert by[name].unit == "money" and by[name].currency == "RON"
+        assert by[name].provenance["source"] == "assembled_pl"
+        assert by[name].provenance["line_id"] == "assembled_pl.%s" % name
+        assert by[name].provenance["snapshot_id"]
+
+
+def test_the_developer_ebitda_covenant_reads_the_ruled_ebitda_not_the_retired_one(cases):
+    """The same covenant on the developer: under the retired figure
+    (-29,038,838.12) it was a 29.5M breach; on the one EBITDA (+550,976.12)
+    it is thin headroom, not a breach."""
+    case = cases["saga_10_col_realestate"]
+    one = case["statements"]["assembled_pl"]["ebitda"]
+    assert one == pytest.approx(550_976.12, abs=0.01)
+    client = client_from(case, "c-re", covenants=(_ebitda_cov("ebitda", 500_000.0, warn=0.2),))
+    items = by_kind(compute([client]), "c-re", "COVENANT_RISK")
+    assert len(items) == 1, items
+    assert "breach" not in items[0].severity_breakdown
+    by = dict((e.fact, e) for e in items[0].evidence)
+    assert by["ebitda"].value == pytest.approx(one, abs=0.01)
+    assert by["inventory_variation"].value == pytest.approx(29_589_814.24, abs=0.01)
+
+
+def test_a_refused_ebitda_is_a_stated_gap_never_a_covenant_test(cases):
+    case = copy.deepcopy(cases["saga_10_col_agras"])
+    apl = case["statements"]["assembled_pl"]
+    for k in ("ebitda", "ebit", "operating_result", "gross_profit", "ebitda_statutory",
+              "ebitda_operational", "ebitda_operating_view", "operating_ebitda"):
+        apl[k] = None
+    apl["inventory_variation"] = dict(apl["inventory_variation"], value=None)
+    apl["ebitda_refusal"] = {"code": "mixed_book_state",
+                             "text_ro": "balanța nu este nici închisă, nici deschisă",
+                             "text_en": "the trial balance is neither closed nor open"}
+    equity = _gateway_equity(case)
+    client = client_from(case, "c-refused", covenants=(
+        _ebitda_cov("ebitda", 1.0),
+        CovenantRecord("nav", "Net assets floor", "equity", ">=", equity - 1.0,
+                       headroom_warn_share=0.05)))
+    report = compute([client])
+    items = dict((i.scope_key, i) for i in by_kind(report, "c-refused", "COVENANT_RISK"))
+    assert set(items) == {"covenant:nav"}, "a refused EBITDA must not be tested"
+    reasons = [g.reason for g in gaps_of(report, "c-refused") if g.kind == "COVENANT_RISK"]
+    assert any("covenant ebitda" in r and "EBITDA refused" in r
+               and "neither closed nor open" in r and "mixed_book_state" in r
+               for r in reasons), reasons
+
+
 def test_cash_runway_is_profile_aware_and_reads_cash_through_the_gateway(cases):
     """Carniprod holds days of cash; the real-estate vehicle holds a year."""
     report = compute([client_from(cases["saga_10_col_carniprod"], "c-carniprod"),
@@ -783,7 +878,9 @@ def test_every_cited_money_fact_is_declared_money_in_the_unit_registry(cases):
     covenant = CovenantRecord("c", "L", "equity", ">=",
                               _gateway_equity(cases["saga_10_col_agras"]) - 1.0,
                               headroom_warn_share=0.05)
-    book = _book(cases) + [client_from(cases["saga_10_col_agras"], "c-cov", covenants=(covenant,))]
+    ebitda_cov = _ebitda_cov("e", cases["saga_10_col_agras"]["statements"]["assembled_pl"]["ebitda"] - 1.0)
+    book = _book(cases) + [client_from(cases["saga_10_col_agras"], "c-cov",
+                                       covenants=(covenant, ebitda_cov))]
     report = compute(book, as_of=AS_OF_STALE)
     cited = set()
     own = set()   # cited by this package's own detectors (not carried from a finding)
@@ -795,7 +892,8 @@ def test_every_cited_money_fact_is_declared_money_in_the_unit_registry(cases):
                     if item.kind != "CRITICAL_FINDING":
                         own.add(e.fact)
     assert cited >= {"cash", "difference", "equity", "share_capital", "total_assets",
-                     "expenses", "covenant_limit"}, cited
+                     "expenses", "covenant_limit", "ebitda", "ebitda_before_stock_variation",
+                     "inventory_variation", "capitalized_own_work"}, cited
     undeclared = sorted(f for f in cited if _ratio_units.unit_for_fact(f) != _ratio_units.UNIT_MONEY)
     assert not undeclared, "money evidence cited under undeclared names: %r" % undeclared
     # A CRITICAL_FINDING carries the finding engine's own cited facts
@@ -1184,4 +1282,11 @@ def test_a1_a_served_reader_that_raises_is_a_gap_on_the_period_never_a_dead_boar
     assert any("served reader raised" in r and "planted to raise" in r for r in reasons), reasons
     assert not by_kind(report, "c-raise", "CASH_RUNWAY"), "no served facts, no money item"
     built = facts.build_period_facts(client.periods[0], ("cash",))
-    assert "planted to raise" in built.gaps["gateway"] and built.money == {}
+    assert "planted to raise" in built.gaps["gateway"]
+    # No fact the gateway serves survives its raise. The ONE EBITDA and its
+    # components (owner ruling 2026-09-26) are read off the SERVED
+    # statements, not the gateway, so they stand — each says so.
+    gateway_names = [n for n, acc in facts.SERVED_MONEY_FACTS
+                     if not acc.startswith(facts.ASSEMBLED_PL_PREFIX)]
+    assert not [n for n in gateway_names if n in built.money], built.money
+    assert all(f.source == facts.SOURCE_ASSEMBLED_PL for f in built.money.values()), built.money

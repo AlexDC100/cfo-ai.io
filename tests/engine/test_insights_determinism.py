@@ -92,7 +92,11 @@ def test_a_statements_only_payload_reports_its_gaps_instead_of_crashing():
     }
     assert "asset_age" in silent, "no canonical rows, so no asset base to age"
     # The P&L-only detectors still work off the assembled P&L.
-    assert "reconstruction_gap" in fired
+    # (Since the 2026-09-26 ruling agras's step to account 121 is its
+    # 121-derived stock variation, a named line — so `reconstruction_gap`
+    # is silent here; it fires on the constructed misreads in
+    # test_insights_detectors.)
+    assert "reconstruction_gap" in silent
     assert "financial_position" in fired
 
 

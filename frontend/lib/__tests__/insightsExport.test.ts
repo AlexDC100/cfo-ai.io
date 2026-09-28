@@ -374,8 +374,17 @@ describe("G-R9 · a detector that ran and did not fire is still news", () => {
   });
 
   it("a book with nothing to report prints no empty 'checked and clear' list", () => {
-    expect(insightsFixture("agras").not_fired.length).toBe(0);
-    const doc = exportDoc("agras", withInsights("agras"));
+    // Since the owner ruling of 2026-09-26 every corpus book lists the
+    // reconstruction gap under not_fired (its step to account 121 is the
+    // named, 121-derived stock variation), so the empty case is CONSTRUCTED:
+    // agras's served block with an empty not_fired list.
+    expect(insightsFixture("agras").not_fired.length).toBe(1);
+    const served = withInsights("agras");
+    const empty = {
+      ...served,
+      insights: { ...(served as unknown as { insights: Record<string, unknown> }).insights, not_fired: [] },
+    } as typeof served;
+    const doc = exportDoc("agras", empty);
     expect(doc.querySelector(".insight-not-fired")).toBeNull();
   });
 });

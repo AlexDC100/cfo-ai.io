@@ -324,9 +324,9 @@ def _universal_fallback(client: Any,
     `manufacturing_generic` otherwise."""
     is_services_like = False
     if metrics:
-        revenue = metrics.get("total_operating_revenue")
-        if revenue is None:
-            revenue = metrics.get("revenue")
+        # Net turnover only (owner ruling 2026-09-26) — never total
+        # operating revenue, which carries 72x and other operating income.
+        revenue = metrics.get("revenue")
         personnel = metrics.get("opex_personnel")
         cogs = metrics.get("cogs")
         # Services-shaped only on MEASURED personnel and COGS: an absent COGS
@@ -589,7 +589,7 @@ if __name__ == "__main__":
 
     # Services-shaped metrics → professional_services_generic fallback
     r = detect_from_signals(stub, metrics={
-        "total_operating_revenue": 1_000_000,
+        "revenue": 1_000_000,
         "opex_personnel": 500_000,
         "cogs": 50_000,
     })

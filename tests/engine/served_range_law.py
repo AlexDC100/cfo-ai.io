@@ -13,6 +13,15 @@ the surface must carry when the score is absent inside its domain.
 The Altman materiality share (1%) is copied here as a literal ON PURPOSE:
 the gate must red if the product's pack moves it without this law moving
 too — that is a ruling change, not a refactor.
+
+THE ONE EBITDA (owner ruling 2026-09-26). EBIT and EBITDA are read as the
+served body STATES them: the assembled P&L's `operating_result` / `ebitda`
+(net 711 and net 72x inside), and ABSENT when it serves `ebitda_refusal` —
+then Altman (X3), coverage, DSCR and, with net debt, leverage are OUT of
+their domain and must refuse. Until the ruling this law rebuilt EBIT from
+the incomeStatement leaves WITHOUT 711 / 72x — a second definition. A block
+assembled before the ruling (no `ebitda_definition`) is read from the
+leaves plus 72x, and absent where the book posts to 711.
 """
 from __future__ import annotations
 
@@ -45,20 +54,35 @@ def operands(statements: Mapping[str, Any]) -> Dict[str, Any]:
     eq = sum(_f(bs.get(k)) for k in _EQ)
     debt = _f(bs.get("shortTermDebt")) + _f(bs.get("longTermDebt"))
     revenue = _f(pl.get("revenue"))
-    ebit = (revenue - _f(pl.get("costOfGoodsSold")) - _f(pl.get("operatingExpenses"))
-            - _f(pl.get("depreciationAmortization")) + _f(pl.get("otherIncome")))
+    ebit, ebitda = _one_ebit_ebitda(statements)
     interest = _f(pl.get("interestExpense"))
     return {
         "total_assets": ta, "current_liabilities": cl, "total_liabilities": tl,
         "total_equity": eq, "total_debt": debt, "net_debt": debt - _f(bs.get("cash")),
-        "revenue": revenue, "ebit": ebit, "ebitda": ebit + _f(pl.get("depreciationAmortization")),
+        "revenue": revenue, "ebit": ebit, "ebitda": ebitda,
         "interest": interest, "invested_capital": debt + eq,
         "current_assets": sum(_f(bs.get(k)) for k in _TA[:4]),
         "cash": _f(bs.get("cash")), "inventory": _f(bs.get("inventory")),
         # the two unbounded Altman terms, from the leaves, for the Z'' bound
         "x2": (_f(bs.get("retainedEarnings")) / ta) if ta > 0 else None,
-        "x3": (ebit / ta) if ta > 0 else None,
+        "x3": (ebit / ta) if ta > 0 and ebit is not None else None,
     }
+
+
+def _one_ebit_ebitda(statements: Mapping[str, Any]):
+    """(EBIT, EBITDA) as the served body states them — None, None when the
+    served one-EBITDA is refused (never a figure rebuilt without 711)."""
+    apl = statements.get("assembled_pl") or {}
+    pl = statements.get("incomeStatement") or {}
+    if "ebitda_definition" in apl:
+        if apl.get("ebitda_refusal") or apl.get("ebitda") is None:
+            return None, None
+        return _f(apl.get("operating_result")), _f(apl.get("ebitda"))
+    if abs(_f(pl.get("inventoryVariationMemo"))) >= 0.005:
+        return None, None
+    ebitda = (_f(pl.get("revenue")) - _f(pl.get("costOfGoodsSold")) - _f(pl.get("operatingExpenses"))
+              + _f(pl.get("otherIncome")) + _f(pl.get("capitalizedOwnWork")))
+    return ebitda - _f(pl.get("depreciationAmortization")), ebitda
 
 
 # ── domain predicates: True when the score MUST be served ────────────────────
@@ -68,7 +92,7 @@ def _model_runs(o: Mapping[str, Any]) -> bool:
 
 
 def _altman_defined(o: Mapping[str, Any]) -> bool:
-    return _model_runs(o) and o["total_liabilities"] > 0 and \
+    return _model_runs(o) and o["total_liabilities"] > 0 and o["ebit"] is not None and \
         o["total_liabilities"] >= X4_MATERIALITY_SHARE * o["total_assets"]
 
 
@@ -85,20 +109,26 @@ def _profitability_defined(o: Mapping[str, Any]) -> bool:
 
 
 def _d1_rung(o: Mapping[str, Any]) -> bool:
-    return o["total_debt"] == 0 and o["interest"] == 0 and o["ebit"] > 0
+    return o["total_debt"] == 0 and o["interest"] == 0 and o["ebit"] is not None and o["ebit"] > 0
 
 
 def _coverage_defined(o: Mapping[str, Any]) -> bool:
-    return _model_runs(o) and (o["interest"] > 0 or _d1_rung(o))
+    return _model_runs(o) and o["ebit"] is not None and o["ebitda"] is not None and \
+        (o["interest"] > 0 or _d1_rung(o))
+
+
+def _leverage_defined(o: Mapping[str, Any]) -> bool:
+    # net cash scores whatever EBITDA is; net debt needs the one EBITDA
+    return _model_runs(o) and (o["ebitda"] is not None or o["net_debt"] <= 0)
 
 
 def _composite_defined(o: Mapping[str, Any]) -> bool:
     return all(p(o) for p in (_altman_defined, _liquidity_defined, _profitability_defined,
-                              _coverage_defined))
+                              _coverage_defined, _leverage_defined))
 
 
 def _roic_defined(o: Mapping[str, Any]) -> bool:
-    return o["invested_capital"] > 0
+    return o["invested_capital"] > 0 and o["ebit"] is not None
 
 
 #: Altman Z'' coefficients (Appendix A section 7), copied here on purpose.
@@ -146,7 +176,8 @@ class Row:
 #: The refusal codes a credit component may carry (the composer's vocabulary
 #: as this law reads it; a code outside it is a defect).
 COMPONENT_CODES = ["current_liabilities_not_positive", "total_liabilities_below_materiality",
-                   "revenue_not_positive", "interest_expense_not_positive", "credit_out_of_range"]
+                   "revenue_not_positive", "interest_expense_not_positive", "credit_out_of_range",
+                   "ebitda_refused"]
 COMPOSITE_CODES = ["credit_component_undefined", "credit_out_of_range", "credit_inputs_absent"]
 
 SUBSCORE_SOURCE = "CLAUDE.md Appendix A §7: seven sub-scores on a 0-100 scale"
@@ -158,7 +189,8 @@ LAW: List[Row] = [
     Row("credit_subscore_altman", "subscores.altman", 0, 100, _altman_defined, SUBSCORE_SOURCE, COMPONENT_CODES),
     Row("credit_subscore_profitability", "subscores.profitability", 0, 100, _profitability_defined,
         SUBSCORE_SOURCE, COMPONENT_CODES),
-    Row("credit_subscore_leverage", "subscores.leverage", 0, 100, _model_runs, SUBSCORE_SOURCE, COMPONENT_CODES),
+    Row("credit_subscore_leverage", "subscores.leverage", 0, 100, _leverage_defined, SUBSCORE_SOURCE,
+        COMPONENT_CODES),
     Row("credit_subscore_coverage", "subscores.coverage", 0, 100, _coverage_defined, SUBSCORE_SOURCE,
         COMPONENT_CODES),
     Row("credit_subscore_dscr", "subscores.dscr", 0, 100, _coverage_defined, SUBSCORE_SOURCE, COMPONENT_CODES),
@@ -221,8 +253,9 @@ def persisted_figure_may_be_served(row: "Row", v: Any, o: Mapping[str, Any]) -> 
 
 #: Non-credit rows the same law holds on the served ratio table.
 RATIO_LAW = [
-    ("roic", _roic_defined, "defined only for invested capital (debt + equity) > 0",
-     ["zero_denominator", "nonpositive_denominator", "operand_absent", "engine_metric_absent"]),
+    ("roic", _roic_defined, "defined only for invested capital (debt + equity) > 0 and a served EBIT",
+     ["zero_denominator", "nonpositive_denominator", "operand_absent", "engine_metric_absent",
+      "ebitda_refused"]),
 ]
 
 PIOTROSKI_RANGE = (0, 9)

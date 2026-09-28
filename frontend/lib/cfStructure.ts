@@ -25,12 +25,30 @@ export interface CFInvestingLine {
   amount: number;
 }
 
-export interface CashFlowStatement {
+/** What every cash-flow statement carries, refused or not. */
+interface CashFlowStatementBase {
   entity: string;
   period: string;
   method: "indirect";
   currency: string;
+  /** Honesty flag — true when the backend computed working-capital movements,
+   *  CapEx, financing flows, or dividends paid from approximations rather
+   *  than from real period-over-period movements. Drives the FE banner +
+   *  upload-prior-period CTA. The banner reads: "Cash flow is approximated —
+   *  upload prior year for exact figures."
+   *
+   *  Set by `_ro_coa.assembled_cf.is_approximated`. Becomes `false` once a
+   *  multi-period upload threads a prior-period dataframe through the
+   *  pipeline (planned, not yet shipped). */
+  isApproximated: boolean;
+  /** Human-readable list of what was approximated and why. Each entry
+   *  becomes a bullet inside the approximation banner. */
+  approximationNotes: string[];
+  notes: string[];
+}
 
+/** A statement the indirect method was run for: every figure. */
+export interface CashFlowStatementFigures extends CashFlowStatementBase {
   operating: {
     netProfit: number;
     /** ABSENT-CAPABLE. The public adapter derives D&A from the
@@ -66,18 +84,30 @@ export interface CashFlowStatement {
     drift: number;
   };
 
-  /** Honesty flag — true when the backend computed working-capital movements,
-   *  CapEx, financing flows, or dividends paid from approximations rather
-   *  than from real period-over-period movements. Drives the FE banner +
-   *  upload-prior-period CTA. The banner reads: "Cash flow is approximated —
-   *  upload prior year for exact figures."
-   *
-   *  Set by `_ro_coa.assembled_cf.is_approximated`. Becomes `false` once a
-   *  multi-period upload threads a prior-period dataframe through the
-   *  pipeline (planned, not yet shipped). */
-  isApproximated: boolean;
-  /** Human-readable list of what was approximated and why. Each entry
-   *  becomes a bullet inside the approximation banner. */
-  approximationNotes: string[];
-  notes: string[];
+  refusal?: null;
+}
+
+/** The engine REFUSED the net result the indirect method starts from (no
+ *  account 121 and a refused net 711 — the build-up lacks the unmeasured
+ *  stock variation). The statement is THE REFUSAL: it carries no figure
+ *  at all (critic, fixer round 1 of 2026-09-27 — the builder used to
+ *  return a full column built on a net profit of 0 beside the refusal,
+ *  and only the two views that knew to look for it kept it off the page;
+ *  now no view can print a figure of a refused statement, because there
+ *  is none to print). */
+export interface RefusedCashFlowStatement extends CashFlowStatementBase {
+  refusal: { code: string; text: { ro: string; en: string } };
+  operating?: undefined;
+  investing?: undefined;
+  financing?: undefined;
+  reconciliation?: undefined;
+}
+
+export type CashFlowStatement = CashFlowStatementFigures | RefusedCashFlowStatement;
+
+/** The statement's figures, or null when it is a refusal. */
+export function cashFlowFigures(
+  s: CashFlowStatement | null | undefined,
+): CashFlowStatementFigures | null {
+  return s && !s.refusal ? (s as CashFlowStatementFigures) : null;
 }

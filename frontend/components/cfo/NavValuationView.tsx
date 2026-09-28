@@ -10,7 +10,7 @@
 // DCF and EV/Revenue are hidden for CRE via industry routing in the
 // parent component — they remain available for SaaS / manufacturing.
 
-import type { NavCascade, NavLayer } from "@/lib/navStructure";
+import type { NavCascade, NavConvergentMethod, NavLayer } from "@/lib/navStructure";
 import { formatPercent } from "@/lib/formatRon";
 import { useAmountFormatter, useDisplayCurrency, useRates } from "@/stores/currency";
 import { convertFromTo } from "@/lib/money";
@@ -22,6 +22,19 @@ interface Props {
   entity: string;
   period: string;
   currency: string;
+}
+
+const METHOD_NAMES: Record<NavConvergentMethod, string> = {
+  nnnav: "NNNAV",
+  cap_rate: "cap rate",
+  graham: "Graham",
+};
+
+/** "Three asset-aware methods (NNNAV, cap rate, Graham)" — or two, naming
+ *  only the methods that computed: a refused method is not in the band. */
+function convergenceNames(methods: NavConvergentMethod[]): string {
+  const n = methods.length === 3 ? "Three" : methods.length === 2 ? "Two" : String(methods.length);
+  return `${n} asset-aware methods (${methods.map((m) => METHOD_NAMES[m]).join(", ")})`;
 }
 
 function fmtShort(n: number): string {
@@ -45,28 +58,47 @@ export function NavValuationView({ cascade, entity, period, currency }: Props) {
   const primary = cascade.layers.find((l) => l.layer === 3)!;
   const layer1 = cascade.layers.find((l) => l.layer === 1)!;
   const layer2 = cascade.layers.find((l) => l.layer === 2)!;
-  const sensValues = cascade.sensitivityNnnav.map((s) => s.nnnav);
-  const sensLow = Math.min(...sensValues);
-  const sensHigh = Math.max(...sensValues);
+  // A REFUSED Book NAV (the engine's total equity excludes a refused
+  // year's result, or none is served) refuses Layers 1-3, the sensitivity
+  // grid and the hero with the engine's reason — never a figure of 0.
+  const bookNavRefused = cascade.bookNavRefusal !== null && cascade.bookNavRefusal !== undefined;
+  const refusedText = `refused — ${cascade.bookNavRefusal?.text.en ?? "total equity is not served"}`;
+  const fmtLayer = (v: number | null): string => (v === null ? refusedText : fmt(v));
+  const sensValues = cascade.sensitivityNnnav
+    .map((s) => s.nnnav)
+    .filter((v): v is number => v !== null);
+  const sensLow = sensValues.length ? Math.min(...sensValues) : null;
+  const sensHigh = sensValues.length ? Math.max(...sensValues) : null;
 
   return (
     <div className="nav-valuation-view" data-testid="nav-valuation-view">
       {/* ── HERO: NNNAV central + range ─────────────────────────────── */}
       <header className="nav-hero">
         <div className="nav-hero-central">
-          <div className="nav-hero-num">{fmtShortDisp(primary.value)}M</div>
+          {primary.value === null ? (
+            <div className="nav-hero-num" data-testid="nav-hero-refused">{refusedText}</div>
+          ) : (
+            <div className="nav-hero-num">{fmtShortDisp(primary.value)}M</div>
+          )}
           <div className="nav-hero-unit">{display} equity value · NNNAV</div>
           <div className="nav-hero-label">EPRA NNNAV — Primary</div>
         </div>
         <div className="nav-hero-text">
-          <p>
-            <strong>Indicative equity value: {fmtShortDisp(sensLow)}M – {fmtShortDisp(sensHigh)}M {display}</strong>.
-            Primary number is the EPRA NNNAV (Layer 3) of {fmt(primary.value)} for{" "}
-            {entity} as of {period}.
-          </p>
-          {cascade.crossMethods.convergenceConfidence === "high" && (
+          {primary.value === null || sensLow === null || sensHigh === null ? (
+            <p data-testid="nav-hero-refused-reason">
+              <strong>No NAV figure for {entity} as of {period}</strong>: book equity is{" "}
+              {refusedText}. Layers 1–3 are built on it and are refused with it.
+            </p>
+          ) : (
+            <p>
+              <strong>Indicative equity value: {fmtShortDisp(sensLow)}M – {fmtShortDisp(sensHigh)}M {display}</strong>.
+              Primary number is the EPRA NNNAV (Layer 3) of {fmt(primary.value)} for{" "}
+              {entity} as of {period}.
+            </p>
+          )}
+          {cascade.crossMethods.convergenceConfidence === "high" && cascade.crossMethods.convergenceBand && (
             <p className="nav-hero-convergence">
-              ✓ Three asset-aware methods (NNNAV, cap rate, Graham) converge in{" "}
+              ✓ {convergenceNames(cascade.crossMethods.convergentMethods)} converge in{" "}
               {fmtShortDisp(cascade.crossMethods.convergenceBand[0])}M –{" "}
               {fmtShortDisp(cascade.crossMethods.convergenceBand[1])}M.
             </p>
@@ -165,7 +197,7 @@ export function NavValuationView({ cascade, entity, period, currency }: Props) {
                   <strong>{fmt(cascade.totalAssetUpliftGoingConcern, { signed: true })}</strong>
                 </td>
                 <td>
-                  Layer 1 Book ({fmt(layer1.value)}) → Layer 2 Adjusted ({fmt(layer2.value)})
+                  Layer 1 Book ({fmtLayer(layer1.value)}) → Layer 2 Adjusted ({fmtLayer(layer2.value)})
                 </td>
               </tr>
             </tbody>
@@ -223,8 +255,9 @@ export function NavValuationView({ cascade, entity, period, currency }: Props) {
                       <td
                         key={ay}
                         className={`num ${isCentral ? "central" : ""}`}
+                        data-testid="nav-sensitivity-cell"
                       >
-                        {cell ? fmt(cell.nnnav) : "—"}
+                        {cell ? (cell.nnnav === null ? "refused" : fmt(cell.nnnav)) : "—"}
                       </td>
                     );
                   })}
@@ -233,6 +266,12 @@ export function NavValuationView({ cascade, entity, period, currency }: Props) {
             </tbody>
           </table>
         </div>
+        {cascade.bookNavRefusal && (
+          // A grid of "refused" cells says why, once, beside them.
+          <p className="nav-caption" data-testid="nav-sensitivity-refused">
+            Every cell refused — {cascade.bookNavRefusal.text.en}
+          </p>
+        )}
         <p className="nav-caption">
           Central case ({(cascade.keyAssumptions.capRateCentral * 100).toFixed(1)}% cap rate,{" "}
           {(cascade.keyAssumptions.affiliateYieldCentral * 100).toFixed(0)}% affiliate yield)
@@ -250,43 +289,55 @@ export function NavValuationView({ cascade, entity, period, currency }: Props) {
                 <td>
                   <strong>NNNAV (primary)</strong>
                 </td>
-                <td className="num">
-                  <strong>{fmt(primary.value)}</strong>
+                <td className="num" data-testid="nav-convergence-nnnav">
+                  <strong>{fmtLayer(primary.value)}</strong>
                 </td>
               </tr>
               <tr>
                 <td>Cap rate method</td>
-                <td className="num">{fmt(cascade.crossMethods.capRate)}</td>
+                <td className="num">{cascade.crossMethods.capRate === null ? "refused — no NOI (EBITDA refused)" : fmt(cascade.crossMethods.capRate)}</td>
               </tr>
               <tr>
                 <td>Graham intrinsic value</td>
-                <td className="num">{fmt(cascade.crossMethods.graham)}</td>
+                <td className="num" data-testid="nav-graham">
+                  {cascade.crossMethods.graham === null
+                    ? `refused — ${cascade.crossMethods.grahamRefusal?.text.en ?? "net result not served"}`
+                    : fmt(cascade.crossMethods.graham)}
+                </td>
               </tr>
               <tr className="secondary">
                 <td>
                   EV/EBITDA <span className="nav-caveat-tag">caveat</span>
                 </td>
-                <td className="num">{fmt(cascade.crossMethods.evEbitda)}</td>
+                <td className="num">{cascade.crossMethods.evEbitda === null ? "refused — EBITDA refused" : fmt(cascade.crossMethods.evEbitda)}</td>
               </tr>
               <tr className="convergence-row">
                 <td>
                   <strong>Convergence band</strong>
                 </td>
-                <td className="num">
-                  <strong>
-                    {fmtShortDisp(cascade.crossMethods.convergenceBand[0])}M –{" "}
-                    {fmtShortDisp(cascade.crossMethods.convergenceBand[1])}M
-                  </strong>
+                <td className="num" data-testid="nav-convergence-band">
+                  {cascade.crossMethods.convergenceBand === null ? (
+                    bookNavRefused
+                      ? "not computed — NNNAV refused"
+                      : "not computed — only NNNAV computed"
+                  ) : (
+                    <strong>
+                      {fmtShortDisp(cascade.crossMethods.convergenceBand[0])}M –{" "}
+                      {fmtShortDisp(cascade.crossMethods.convergenceBand[1])}M
+                    </strong>
+                  )}
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
         <p className="nav-caveat-text">
-          The EV/EBITDA result of {fmtShortDisp(cascade.crossMethods.evEbitda)}M sits below
+          {cascade.crossMethods.evEbitda === null
+            ? "No EV/EBITDA figure: EBITDA is refused for this period."
+            : <>The EV/EBITDA result of {fmtShortDisp(cascade.crossMethods.evEbitda)}M sits below
           the convergence band — this is the expected pattern for asset-yielding
-          businesses. It captures operating cash flow without crediting the
-          property asset value.
+          businesses. It captures the operating result without crediting the
+          property asset value.</>}
         </p>
       </section>
 
@@ -316,7 +367,7 @@ export function NavValuationView({ cascade, entity, period, currency }: Props) {
                     <td>
                       Layer {mapping.layer} — {layer?.name}
                     </td>
-                    <td className="num">{fmt(layer?.value ?? 0)}</td>
+                    <td className="num">{layer ? fmtLayer(layer.value) : "—"}</td>
                     <td className="rationale">{mapping.rationale}</td>
                   </tr>
                 );
@@ -373,9 +424,15 @@ function NavLayerCard({
       {isPrimary && <span className="nav-primary-badge">PRIMARY</span>}
       <div className="nav-layer-label">Layer {layer.layer}</div>
       <div className="nav-layer-name">{layer.name}</div>
-      <div className="nav-layer-value">
-        {fmt(layer.value)} <span className="nav-layer-ccy">{display}</span>
-      </div>
+      {layer.value === null ? (
+        <div className="nav-layer-value" data-testid={`nav-layer-${layer.layer}-refused`}>
+          refused — {layer.refusal?.text.en ?? "total equity is not served"}
+        </div>
+      ) : (
+        <div className="nav-layer-value">
+          {fmt(layer.value)} <span className="nav-layer-ccy">{display}</span>
+        </div>
+      )}
       <div className="nav-layer-description">{layer.description}</div>
       <div className="nav-layer-use-cases">
         <strong>Use for:</strong> {layer.useCases.join(" · ")}

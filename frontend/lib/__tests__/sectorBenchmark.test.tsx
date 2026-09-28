@@ -106,6 +106,30 @@ describe("THE LAW: no source, year or n — no figure", () => {
     expect(printed.reason).toBe(en.benchmarkPage.sector.reason.prior_period_absent);
   });
 
+  it("a figure the engine REFUSED prints the engine's own sentence in the page's language, never a figure", () => {
+    // critic round 3, 2026-09-28: the equity ratio on total equity short by
+    // a refused year's result is `company_refused` with the engine's reason
+    // (engine witness: refusal-carries-engine section 12k).
+    const doc = DOC_NO_PRIOR();
+    const row = doc.rows.find((r) => r.key === "equity_ratio")!;
+    row.status = "company_refused";
+    row.company = { ...row.company, value: null };
+    row.position = null;
+    row.reason = {
+      code: "company_figure_refused", cause: "account_121_anchor_absent", inputs: ["assembled_bs.total_equity"],
+      text: "total equity excludes the year's result, which is refused",
+      text_en: "total equity excludes the year's result, which is refused",
+      text_ro: "capitalurile proprii nu includ rezultatul exercițiului, refuzat",
+    };
+    const printedEn = printSectorRows(doc, "en").find((r) => r.key === "equity_ratio")!;
+    expect(printedEn.status).toBe("refused");
+    expect(printedEn.company).toBe("");
+    expect(printedEn.bar).toBeNull();
+    expect(printedEn.reason).toBe("Not compared — refused: total equity excludes the year's result, which is refused");
+    const printedRo = printSectorRows(doc, "ro").find((r) => r.key === "equity_ratio")!;
+    expect(printedRo.reason).toBe("Necomparat — refuzat: capitalurile proprii nu includ rezultatul exercițiului, refuzat");
+  });
+
   it("a movement item without its citation does not print", () => {
     const doc = DOC();
     expect(printSectorMovements(doc, "en").improved.length).toBe(doc.movements.improved.length);

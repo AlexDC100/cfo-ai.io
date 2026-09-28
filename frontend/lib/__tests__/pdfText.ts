@@ -451,7 +451,7 @@ class PdfDoc {
         }
         return;
       }
-      if (isName(type) && type.name === "Pages") return;
+      if (type !== undefined && isName(type) && type.name === "Pages") return;
       const page: PdfDict = new Map(node);
       for (const [k, v] of merged) if (!page.has(k)) page.set(k, v);
       out.push(page);

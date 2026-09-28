@@ -27,6 +27,7 @@
 import { describe, it, expect } from "vitest";
 
 import { buildCashFlowStatement } from "@/lib/buildCashFlowStatement";
+import { cashFlowFigures } from "@/lib/cfStructure";
 import realPeriod from "./fixtures/capsuleTier0/period_carniprod_fy2025.json";
 
 type CfRecord = Record<string, number | boolean | string[] | undefined>;
@@ -36,7 +37,8 @@ const REAL_PL = (realPeriod as { assembled_pl: Record<string, number> }).assembl
 const REAL_BS = (realPeriod as { assembled_bs: Record<string, number> }).assembled_bs;
 
 function build(cf: CfRecord) {
-  return buildCashFlowStatement({
+  // A served (not refused) statement: its figures.
+  return cashFlowFigures(buildCashFlowStatement({
     pl: REAL_PL,
     bs: REAL_BS,
     cf,
@@ -44,7 +46,7 @@ function build(cf: CfRecord) {
     period: "FY2025",
     currency: "RON",
     yearLabel: "2025",
-  });
+  }))!;
 }
 
 /** Every money field the statement exposes, flattened. If any one of these
@@ -150,14 +152,14 @@ describe("buildCashFlowStatement — numeric narrowing", () => {
       it(`${key} = ${JSON.stringify(bad)} → all money fields stay finite numbers`, () => {
         // `net_profit` / `depreciation` are only reached when the PL view
         // does not supply them, which is the real single-view fallback path.
-        const s = buildCashFlowStatement({
+        const s = cashFlowFigures(buildCashFlowStatement({
           pl: {},
           bs: REAL_BS,
           cf: { ...REAL_CF, [key]: bad },
           entity: "Carniprod SRL",
           period: "FY2025",
           currency: "RON",
-        });
+        }))!;
         for (const [name, v] of moneyFields(s)) {
           expect(typeof v, `${key} → ${name}`).toBe("number");
           expect(Number.isFinite(v as number), `${key} → ${name}`).toBe(true);

@@ -45,7 +45,7 @@ graph LR
     pkg_confidence["confidence (5 modules)"]
     pkg_consensus["consensus (6 modules)"]
     pkg_core["core (9 modules)"]
-    pkg_country_packs["country_packs (18 modules)"]
+    pkg_country_packs["country_packs (19 modules)"]
     pkg_detection["detection (2 modules)"]
     pkg_dst["dst (4 modules)"]
     pkg_firm["firm (12 modules)"]
@@ -94,7 +94,7 @@ graph LR
     pkg_api -->|1| pkg_comparatives
     pkg_api -->|1| pkg_consensus
     pkg_api -->|4| pkg_core
-    pkg_api -->|6| pkg_country_packs
+    pkg_api -->|7| pkg_country_packs
     pkg_api -->|1| pkg_detection
     pkg_api -->|3| pkg_firm
     pkg_api -->|2| pkg_forecast
@@ -109,7 +109,7 @@ graph LR
     pkg_api -->|1| pkg_public_market
     pkg_api -->|3| pkg_public_ro
     pkg_api -->|1| pkg_radar
-    pkg_api -->|2| pkg_ratios
+    pkg_api -->|4| pkg_ratios
     pkg_api -->|1| pkg_routing
     pkg_api -->|4| pkg_serving
     pkg_api -->|2| pkg_storage
@@ -139,6 +139,7 @@ graph LR
     pkg_dst -->|2| pkg_journal
     pkg_dst -->|1| pkg_serving
     pkg_firm -->|2| pkg_api
+    pkg_firm -->|1| pkg_ratios
     pkg_firm -->|1| pkg_serving
     pkg_forecast -->|2| pkg__root_
     pkg_forecast -->|1| pkg_benchmarks_ro
@@ -183,7 +184,7 @@ graph LR
     pkg_radar -->|1| pkg_ir
     pkg_radar -->|1| pkg_serving
     pkg_ratios -->|1| pkg_comparatives
-    pkg_ratios -->|1| pkg_country_packs
+    pkg_ratios -->|2| pkg_country_packs
     pkg_ratios -->|1| pkg_serving
     pkg_routing -->|1| pkg_core
     pkg_serving -->|1| pkg_api

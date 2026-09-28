@@ -18,14 +18,15 @@
 // below is either read from a served object or verified against one to
 // the cent before it is made:
 //
-//   · revenue    the P&L builder's "Total operating revenue" subtotal. Its
+//   · revenue    the P&L builder's "Total net turnover" subtotal. Its
 //                section lists the account codes it summed — those are
 //                the accounts, but ONLY on the line-item path: the
 //                aggregates builder assigns codes to buckets as labels,
 //                and a label is not a code that was read.
-//   · EBITDA     `assembled_pl.ebitda_statutory` when the engine served
-//                it, else the builder's subtotal. The field path IS the
-//                source; a reader with the /api/period JSON can open it.
+//   · EBITDA     `assembled_pl.ebitda_statutory` (an alias of the one
+//                EBITDA) when the engine served it, else the statement's
+//                figure. The field path IS the source; a reader with the
+//                /api/period JSON can open it. A refused EBITDA has none.
 //   · profit     `assembled_pl.net_income_statutory` when the engine
 //                served it, else `calculated_metrics.net_income_statutory`
 //                — the same rung order `headlineFigures` picks the
@@ -55,7 +56,9 @@ import type { CanonicalBs, Statements } from "@/lib/financialReport";
 
 export interface HeadlineValues {
   revenue: number;
-  ebitda: number;
+  /** null when the engine REFUSED EBITDA (the stock variation could not be
+   *  measured) — a refused figure has no origin to name. */
+  ebitda: number | null;
   profit: number;
   cash: number;
   totalDebt: number;
@@ -127,16 +130,22 @@ function revenueProvenance(input: HeadlineProvenanceInput): AmountProvenance | n
 
 function ebitdaProvenance(input: HeadlineProvenanceInput): AmountProvenance | null {
   const { pl, statements, values, sourceDocumentFilename, periodLabel } = input;
-  const served = statements?.assembled_pl?.ebitda_statutory;
+  if (values.ebitda === null) return null;
+  // THE ONE EBITDA, by its own name (the legacy `ebitda_statutory` is an
+  // alias of it since the one-EBITDA ruling).
+  const served = statements?.assembled_pl?.ebitda;
   if (typeof served === "number" && sameCents(served, values.ebitda)) {
     return provenanceOf({
-      source: joinSource(sourceDocumentFilename, "assembled_pl.ebitda_statutory"),
+      source: joinSource(sourceDocumentFilename, "assembled_pl.ebitda"),
       period: periodLabel ?? undefined,
     });
   }
-  if (pl && sameCents(pl.ebitda, values.ebitda)) {
+  // The P&L statement prints the served EBITDA on an engine period; this
+  // rung speaks only for a payload the engine did not assemble, whose
+  // statement builds it on the same definition.
+  if (pl && typeof pl.ebitda === "number" && sameCents(pl.ebitda, values.ebitda)) {
     return provenanceOf({
-      method: "P&L builder · operating revenue − operating expenses (cash)",
+      method: "P&L statement · EBITDA (net turnover + other operating income + 72x − costs ± 711)",
       period: periodLabel ?? undefined,
     });
   }
@@ -186,13 +195,13 @@ function profitProvenance(input: HeadlineProvenanceInput): AmountProvenance | nu
   }
   if (pl && typeof pl.netProfitStatutory === "number" && sameCents(pl.netProfitStatutory, values.profit)) {
     return provenanceOf({
-      method: "P&L builder · statutory net profit (operational + 722)",
+      method: "P&L statement · net result as served (account 121 where anchored)",
       period: periodLabel ?? undefined,
     });
   }
-  if (pl && sameCents(pl.netProfit, values.profit)) {
+  if (pl && typeof pl.netProfit === "number" && sameCents(pl.netProfit, values.profit)) {
     return provenanceOf({
-      method: "P&L builder · operational net profit (excl. 722)",
+      method: "P&L statement · net result (closing line)",
       period: periodLabel ?? undefined,
     });
   }

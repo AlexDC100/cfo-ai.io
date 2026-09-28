@@ -28,11 +28,9 @@ logger = logging.getLogger(__name__)
 
 METRIC_DISPLAY: Dict[str, Dict[str, Any]] = {
     # Headline (currency values shown in the summary tiles)
-    "revenue":                 {"ro": "Cifra de afaceri",            "en": "Revenue",                "fmt": "currency"},
-    "total_operating_revenue": {"ro": "Venituri operaționale totale", "en": "Total operating revenue", "fmt": "currency"},
-    "ebitda_cash":             {"ro": "EBITDA (cash)",                "en": "EBITDA (cash)",          "fmt": "currency"},
+    "revenue":                 {"ro": "Cifra de afaceri netă",       "en": "Net turnover",           "fmt": "currency"},
+    # THE ONE EBITDA (owner ruling 2026-09-26): net 711 and net 72x inside.
     "ebitda":                  {"ro": "EBITDA",                       "en": "EBITDA",                 "fmt": "currency"},
-    "ebitda_operating":        {"ro": "EBITDA",                       "en": "EBITDA",                 "fmt": "currency"},
     "net_income":              {"ro": "Profit / pierdere netă (cash)", "en": "Net income / loss (cash)", "fmt": "currency"},
     "net_income_operating":    {"ro": "Profit / pierdere netă (operațional)", "en": "Net income / loss (operating view)", "fmt": "currency"},
     # The STATUTORY figure — account 121's closing balance, the number on the
@@ -127,24 +125,112 @@ def _verdict(value: float, p25: Optional[float], p50: Optional[float], p75: Opti
 
 # ─── Customer-metric computation ────────────────────────────────────────────
 
+#: The first credit-model revision whose stored EBITDA-family rows carry the
+#: ONE EBITDA (owner ruling 2026-09-26: net 711 and net 72x inside, 767
+#: financial) — `engine.ratios.credit_model.ONE_EBITDA_REVISION`, spelled
+#: here so this module reads rows only. A period whose rows are stamped
+#: below it (or not at all) stored the EBITDA WITHOUT 711 / 72x under the
+#: same names: its EBITDA figures and its margins are REFUSED here until the
+#: period is reprocessed, never graded against the sector.
+ONE_EBITDA_REVISION = 3
+
+#: Stored rows that carry EBITDA or a figure built on it. On a stale period
+#: they are dropped from the company metrics (a pre-ruling figure is never
+#: printed as the one EBITDA).
+_EBITDA_FAMILY_ROWS = (
+    "ebitda", "ebitda_cash", "ebitda_statutory", "operating_profit", "gross_profit",
+    "ebitda_margin", "gross_margin", "operating_margin", "debt_to_ebitda", "net_debt_to_ebitda",
+    "ebitda_to_interest", "dscr", "dscr_with_lt_principal", "interest_coverage", "roic",
+    "core_ebitda", "core_ebitda_margin", "adjusted_ebitda", "total_operating_revenue",
+    "ebitda_statutory_with_711", "inventory_variation_memo", "total_operating_revenue_statutory",
+)
+
+#: Why a company figure is not graded — the served refusal vocabulary of
+#: this report (each with its RO / EN sentence, never typed by the FE).
+REFUSAL_STALE = "period_predates_ebitda_definition"
+REFUSAL_EBITDA = "ebitda_refused"
+REFUSAL_MARGIN = "margin_not_meaningful"
+#: The NET RESULT is refused with 711: no account 121 in the trial balance,
+#: so the class-6/7 build-up — short by the unmeasured stock variation — is
+#: all there would be (`assembled_pl.net_income_refusal`). Stored as a
+#: `net_income_statutory` row whose value is None.
+REFUSAL_NET_INCOME = "net_income_refused"
+_REFUSAL_TEXT = {
+    REFUSAL_STALE: {
+        "ro": "Perioada a fost analizată înainte de definiția unică a EBITDA (cu variația stocurilor "
+              "de produse și producția imobilizată); cifra se recalculează la reprocesarea perioadei.",
+        "en": "The period was analysed before the one EBITDA definition (with the stock variation "
+              "and own work capitalised); the figure is recomputed when the period is reprocessed.",
+    },
+    REFUSAL_EBITDA: {
+        "ro": "EBITDA este refuzat pentru această perioadă: variația stocurilor de produse nu a "
+              "putut fi măsurată din balanță.",
+        "en": "EBITDA is refused for this period: the stock variation (Variația stocurilor de "
+              "produse) could not be measured from the trial balance.",
+    },
+    REFUSAL_NET_INCOME: {
+        "ro": "Rezultatul net este refuzat pentru această perioadă: variația stocurilor de produse nu "
+              "a putut fi măsurată, iar balanța nu conține contul 121.",
+        "en": "The net result is refused for this period: the stock variation (Variația stocurilor "
+              "de produse) could not be measured and the trial balance carries no account 121.",
+    },
+}
+
+#: The company figures the margin rule covers on this page.
+_MARGIN_METRICS = ("ebitda_margin", "net_margin")
+#: The company figures built on EBITDA on this page.
+_EBITDA_METRICS = ("ebitda", "ebitda_margin", "debt_to_ebitda")
+
+
+def _refusal(code: str, display: Optional[Dict[str, str]] = None,
+             **extra: Any) -> Dict[str, Any]:
+    out: Dict[str, Any] = {"code": code, "display": dict(display or _REFUSAL_TEXT[code])}
+    out.update(extra)
+    return out
+
 
 def compute_company_metrics(
     calculated_metrics: List[Dict[str, Any]],
     line_items: List[Dict[str, Any]],
-) -> Dict[str, float]:
+) -> Dict[str, Any]:
     """Roll the raw `calculated_metrics` rows + `statement_line_items`
     into a flat dict of metric_name → value the comparison engine can
-    look up. Normalizes percentage representation: the DB stores
-    `ebitda_margin` as a 0-to-1 ratio; benchmarks store it as a 0-to-100
-    percentage. We multiply by 100 here so comparison math is apples
-    to apples."""
-    out: Dict[str, float] = {}
+    look up, plus `refusals` — `{metric: {code, display{ro,en}, ...}}` for
+    every company figure the page must NOT grade. Normalizes percentage
+    representation: the DB stores `ebitda_margin` as a 0-to-1 ratio;
+    benchmarks store it as a 0-to-100 percentage.
+
+    THE ONE DEFINITION (owner ruling 2026-09-26):
+      · every margin and every cost-structure share divides TURNOVER — the
+        `revenue` row, cifra de afaceri netă (class 70 − 709) — never total
+        operating revenue (the filed percentile bands and the named peers
+        are on filed net turnover too, I13);
+      · EBITDA is the stored `ebitda` row — the one EBITDA (net 711 and
+        net 72x inside) — read, never rebuilt from buckets; refused when the
+        row is refused, and refused as stale on a period whose rows predate
+        the definition (`ONE_EBITDA_REVISION`);
+      · the ONE margin rule (engine.ratios.margin_meaning, over the stored
+        `revenue` and `total_operating_expense` rows) refuses both margins
+        on a book whose turnover is negligible against its operating
+        activity — the developer — exactly where the ratio table refuses
+        them.
+    """
+    from engine.ratios import margin_meaning as _mm
+
+    out: Dict[str, Any] = {}
+    refused_rows = set()
+    refusals: Dict[str, Dict[str, Any]] = {}
 
     # 1. Headline values straight from calculated_metrics.
     for row in calculated_metrics or []:
         name = row.get("name")
         value = row.get("value")
-        if name is None or value is None:
+        if name is None:
+            continue
+        if value is None:
+            # A row the model REFUSED (the one EBITDA and the rows on it)
+            # — absent here, and remembered so its refusal is stated.
+            refused_rows.add(name)
             continue
         try:
             v = float(value)
@@ -166,15 +252,12 @@ def compute_company_metrics(
             v = v * 100.0
         out[name] = v
 
-    # 2. Currency basics — revenue + COGS bucket totals from line items
-    # (used for the cost-breakdown ratios below). Bucket totals are
-    # already aggregated by statement+bucket in the persisted line items.
+    # 2. Currency basics — bucket totals from line items (the cost-structure
+    # numerators below).
     revenue_bucket = 0.0
     cogs_bucket = 0.0
-    opex_bucket = 0.0
     depreciation_bucket = 0.0
     cap_own_bucket = 0.0
-    other_income_bucket = 0.0
     for li in line_items or []:
         if li.get("statement") != "PL":
             continue
@@ -187,70 +270,63 @@ def compute_company_metrics(
             revenue_bucket += amt
         elif bucket == "cogs":
             cogs_bucket += amt
-        elif bucket in ("operatingExpenses",):
-            opex_bucket += amt
         elif bucket in ("depreciation", "depreciationAmortization"):
             depreciation_bucket += amt
         elif bucket == "capitalizedOwnWork":
             cap_own_bucket += amt
-        elif bucket == "otherIncome":
-            other_income_bucket += amt
 
-    # 3. Derive total_operating_revenue if it isn't already in
-    # calculated_metrics. The TB-pipeline stage_compute writes
-    # `revenue` (= cifra de afaceri only) — but the assembled-PL
-    # canonical view computes total_operating_revenue including
-    # 722 + 711 + other income. Use the bucket sums as a best-effort
-    # fallback so benchmark ratios don't divide by an under-stated
-    # denominator.
-    if "total_operating_revenue" not in out:
-        if revenue_bucket > 0:
-            out["total_operating_revenue"] = revenue_bucket + cap_own_bucket + other_income_bucket
-        elif "revenue" in out:
-            out["total_operating_revenue"] = out["revenue"]
+    # 3. THE DENOMINATOR: turnover. The stored `revenue` row (class 70 −
+    # 709), else the revenue bucket sum — never total operating revenue.
+    turnover = out.get("revenue")
+    if turnover is None and revenue_bucket > 0:
+        turnover = revenue_bucket
+    out["turnover"] = turnover
 
-    # Denominator for the ratio breakdown — prefer total_operating_revenue,
-    # fall back to plain revenue if it's still missing.
-    rev_denom = out.get("total_operating_revenue") or out.get("revenue") or revenue_bucket or 0
-    if rev_denom <= 0:
-        # No revenue → none of the % ratios are meaningful.
+    # 4. Which EBITDA this period's rows carry.
+    revision = out.get("credit_model_revision")
+    stale = revision is None or revision < ONE_EBITDA_REVISION
+    if stale:
+        for name in _EBITDA_FAMILY_ROWS:
+            out.pop(name, None)
+        for name in _EBITDA_METRICS + _MARGIN_METRICS:
+            refusals[name] = _refusal(REFUSAL_STALE, revision=revision)
+    elif "ebitda" in refused_rows or out.get("ebitda") is None:
+        for name in _EBITDA_METRICS:
+            refusals[name] = _refusal(REFUSAL_EBITDA)
+        for name in _EBITDA_FAMILY_ROWS:
+            out.pop(name, None)
+
+    # The NET RESULT refused with 711 (no account 121): the stored
+    # `net_income_statutory` row is PRESENT with no value — refused, not
+    # absent (a legacy period with no statutory row keeps the operating
+    # view below). The headline, the "Compania ta" row and the graded net
+    # margin refuse together; the operating view (the build-up, short by
+    # the unmeasured variation) must not stand in for it.
+    net_income_refused = "net_income_statutory" in refused_rows
+    if net_income_refused:
+        for name in ("net_income_statutory", "net_income_operating"):
+            refusals[name] = _refusal(REFUSAL_NET_INCOME)
+        refusals.setdefault("net_margin", _refusal(REFUSAL_NET_INCOME))
+
+    if turnover is None or turnover <= 0:
+        # No turnover → none of the % ratios are meaningful; a stored margin
+        # the page must not grade is not carried either.
+        for name in refusals:
+            out.pop(name, None)
+        out["refusals"] = refusals
         return out
 
-    # ── RECOMPUTE ebitda_margin / net_margin against OPERATING revenue ──
-    # stage_compute persists `ebitda_margin` as ebitda / revenue, where
-    # `revenue` is the narrow Cifra-de-afaceri figure and `ebitda` is the
-    # cash view (excludes 722 capitalized own-work + 711 inventory
-    # variation memo). That's the right number for a manufacturer but
-    # wrong for real-estate / asset-intensive companies that book a
-    # large 722 (investment-property uplift) and small cifra — there,
-    # the "cash" EBITDA looks ~0 against narrow revenue, while the real
-    # OMFP F30 row-43 EBITDA against operating revenue is healthy.
-    #
-    # Industry benchmark percentiles and named-peer data are both
-    # expressed against OPERATING revenue (Transavia 24.9% margin,
-    # NEPI 40%, etc. — all use the OMFP row-1 + 9 + 13 + 16 total).
-    # To make the comparison apples-to-apples, we override the two
-    # margins here using the operating view: EBITDA includes 722 + 711
-    # net + other_income, denominator is total_operating_revenue.
-    #
-    # For Scandia the override changes nothing (722 ≈ 0).
-    # For EEI (722 = 2.16M on 2.73M revenue) it flips the sign of the
-    # EBITDA margin from −1.3% (nonsense vs CRE peers) to +43% (which
-    # actually places EEI within the CRE percentile band).
-    ebitda_cash = None
-    for row in calculated_metrics or []:
-        if row.get("name") == "ebitda_cash":
-            try:
-                ebitda_cash = float(row.get("value") or 0)
-            except (TypeError, ValueError):
-                ebitda_cash = None
-            break
-    if ebitda_cash is None:
-        # Fallback to bucket math when the cached metric isn't there.
-        ebitda_cash = revenue_bucket - cogs_bucket - opex_bucket + other_income_bucket
-    # 711 inventory-variation memo — already routed to inv_var_memo in
-    # the API layer; for older payloads it's inside otherIncome.
-    ebitda_operating = ebitda_cash + cap_own_bucket
+    # 5. THE ONE MARGIN RULE, on the stored operands (a stale period has no
+    # activity row, and its margins are refused as stale above).
+    if not stale:
+        verdict = _mm.judge(turnover, out.get("total_operating_expense"))
+        if verdict.refused:
+            display = _mm.refusal_display(verdict, None) or {}
+            for name in _MARGIN_METRICS:
+                refusals[name] = _refusal(REFUSAL_MARGIN, display,
+                                          margin_meaning=_mm.served_block(
+                                              verdict, ("metrics.revenue", "metrics.total_operating_expense")))
+
     # `or 0` IS A FLOOR, and this one reached the screen (2026-09-21). A period
     # whose calculated_metrics carry no `net_income` row got a profit of
     # cap_own_bucket — commonly 0.00 — printed as a figure rather than refused,
@@ -260,84 +336,78 @@ def compute_company_metrics(
     # the peer row and the margin all refuse together instead of grading a
     # company against its peers on a profit nobody filed.
     net_income_reported = out.get("net_income")
-    if net_income_reported is None:
-        net_income_operating = None
-    else:
-        net_income_operating = net_income_reported + cap_own_bucket
-    if net_income_operating is not None:
-        out["net_income_operating"] = net_income_operating
+    if net_income_reported is not None and not net_income_refused:
+        # The legacy operating view (no account-121 row): the build-up plus
+        # own work capitalised — the stored net 72x row, else the 72x
+        # bucket sum of a period stored before that row — labelled as such
+        # on the page.
+        cap = out.get("capitalized_own_work_memo")
+        out["net_income_operating"] = net_income_reported + (cap_own_bucket if cap is None else cap)
 
     # ── ONE PROFIT PER PAGE ─────────────────────────────────────────────
-    # `headline_metrics` decided on 2026-09-20 which profit the headline
-    # tile prints: the account-121 anchor when the period carries one, the
-    # operating view only when it does not. The MARGIN under that tile — the
-    # one graded against the sector percentile bands and repeated in the
-    # gap-vs-leader table — kept dividing the reconstruction, so the page
-    # printed one profit and graded a different one. Measured on the four
-    # committed firm books:
-    #
-    #   book         headline tile     margin was    margin is
-    #   agras         7,533,676.02        11.90 %       6.35 %
-    #   carniprod     1,435,533.59         5.88 %       1.44 %
-    #   realestate     -801,604.14   -18,717.91 %    -493.70 %
-    #   retail        3,205,212.62         1.46 %       4.03 %
-    #
-    # Only the NUMERATOR's source changes. The denominator stays operating
-    # revenue and the no-anchor fallback stays `net_income + 722` — both are
-    # the deliberate EEI decision recorded above, and neither is what this
-    # was about.
+    # The headline prints the account-121 anchor when the period carries it
+    # (`headline_net_income_key`); the graded net margin divides THAT profit
+    # by turnover, and so does the "Compania ta" row.
     headline_net_income = headline_net_income_of(out)
 
-    out["ebitda_margin"] = (ebitda_operating / rev_denom) * 100.0
-    if headline_net_income is not None:
-        out["net_margin"] = (headline_net_income / rev_denom) * 100.0
-    # Surface both views explicitly so the FE / future surfaces can show
-    # cash-vs-operating side by side without re-deriving.
-    out["ebitda_margin_cash"] = (ebitda_cash / rev_denom) * 100.0
-    out["ebitda_operating"] = ebitda_operating
+    if "ebitda_margin" not in refusals:
+        out["ebitda_margin"] = (out["ebitda"] / turnover) * 100.0
+    else:
+        out.pop("ebitda_margin", None)
+    if "net_margin" not in refusals and headline_net_income is not None:
+        out["net_margin"] = (headline_net_income / turnover) * 100.0
+    else:
+        out.pop("net_margin", None)
 
-    # 4. Derived ratio metrics (the comparison engine's bread and butter).
+    # 6. Cost structure, every share over turnover.
     if cogs_bucket > 0:
-        out["cogs_pct_revenue"] = (cogs_bucket / rev_denom) * 100.0
+        out["cogs_pct_revenue"] = (cogs_bucket / turnover) * 100.0
 
     personnel = _sum_line_items_by_prefix(line_items, OPEX_PERSONNEL_PREFIXES)
     energy = _sum_line_items_by_prefix(line_items, OPEX_ENERGY_PREFIXES)
     rent = _sum_line_items_by_prefix(line_items, OPEX_RENT_PREFIXES)
     services = _sum_line_items_by_prefix(line_items, OPEX_EXTERNAL_SERVICES_PREFIXES)
     if personnel > 0:
-        out["opex_personnel_pct_revenue"] = (personnel / rev_denom) * 100.0
+        out["opex_personnel_pct_revenue"] = (personnel / turnover) * 100.0
     if energy > 0:
-        out["opex_energy_pct_revenue"] = (energy / rev_denom) * 100.0
+        out["opex_energy_pct_revenue"] = (energy / turnover) * 100.0
     if rent > 0:
-        out["opex_rent_pct_revenue"] = (rent / rev_denom) * 100.0
+        out["opex_rent_pct_revenue"] = (rent / turnover) * 100.0
     if services > 0:
         # Exclude rent (612) which is also in 61x range — we already
         # accounted for it under opex_rent_pct_revenue.
         services_minus_rent = services - rent
         if services_minus_rent > 0:
-            out["opex_external_services_pct_revenue"] = (services_minus_rent / rev_denom) * 100.0
+            out["opex_external_services_pct_revenue"] = (services_minus_rent / turnover) * 100.0
     if depreciation_bucket > 0:
-        out["depreciation_pct_revenue"] = (depreciation_bucket / rev_denom) * 100.0
+        out["depreciation_pct_revenue"] = (depreciation_bucket / turnover) * 100.0
 
-    # 5. equity_ratio = total_equity / total_assets — neither parser
+    # 7. equity_ratio = total_equity / total_assets — neither parser
     # writes this directly, but both write the two components.
     eq = out.get("total_equity")
     ta = out.get("total_assets")
     if eq is not None and ta is not None and ta > 0:
         out["equity_ratio"] = (eq / ta) * 100.0
 
+    out["refusals"] = refusals
     return out
 
 
 # ─── Comparison builder ─────────────────────────────────────────────────────
 
 
-def build_comparison_row(metric_name: str, company_value: Optional[float], bench: Dict[str, Any]) -> Dict[str, Any]:
-    """Build a single comparison row for the report."""
+def build_comparison_row(metric_name: str, company_value: Optional[float], bench: Dict[str, Any],
+                         refusal: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """Build a single comparison row for the report. A company figure the
+    page must not grade (`refusal`: stale definition, a refused EBITDA, a
+    margin the one rule refuses) carries no value, no verdict and no gap —
+    and says why."""
     lower_better = LOWER_IS_BETTER.get(metric_name, False)
     display = METRIC_DISPLAY.get(metric_name, {"ro": metric_name, "en": metric_name, "fmt": "ratio"})
+    if refusal is not None:
+        company_value = None
     if company_value is None:
-        verdict = "not_available"
+        verdict = "refused" if refusal is not None else "not_available"
         gap = None
     else:
         verdict = _verdict(company_value, bench.get("p25"), bench.get("p50"), bench.get("p75"), lower_better)
@@ -351,8 +421,20 @@ def build_comparison_row(metric_name: str, company_value: Optional[float], bench
         "verdict": verdict,
         "gap_pp": gap,
         "lower_is_better": lower_better,
+        "refusal": refusal,
+        # Every margin and cost share on this page divides net turnover.
+        "denominator": ("net_turnover" if metric_name in _TURNOVER_DENOMINATED else None),
     }
 
+
+#: The company figures on this page that divide net turnover (cifra de
+#: afaceri netă, class 70 − 709) — served beside each row so no surface
+#: guesses the basis.
+_TURNOVER_DENOMINATED = frozenset({
+    "ebitda_margin", "net_margin", "cogs_pct_revenue", "opex_personnel_pct_revenue",
+    "opex_energy_pct_revenue", "opex_external_services_pct_revenue", "opex_rent_pct_revenue",
+    "depreciation_pct_revenue",
+})
 
 SECTIONS: Dict[str, Tuple[List[str], str, str]] = {
     # section_key: (metric_names_in_order, title_ro, title_en)
@@ -375,19 +457,17 @@ SECTIONS: Dict[str, Tuple[List[str], str, str]] = {
 }
 
 
-# Headline tiles — kept in the OPERATING view so they match the frame of
-# reference the comparison sections + named-peer tables use right below.
-# For a manufacturer (Scandia) where 722 ≈ 0, ebitda_operating == ebitda_cash
-# and net_income_operating == net_income — same numbers, just consistent
-# labeling. For a real-estate company (EEI) where 722 dominates revenue,
-# the cash-view tiles previously read -37K / -739K right next to a +43%
-# EBITDA margin in the comparison table — obviously wrong. Operating-view
-# tiles fix that: EEI reads +2.1M EBITDA / +1.4M net income, internally
-# consistent with the rest of the page.
-#: The four figures at the top of the benchmark report. The net-income slot is
+# Headline tiles — THE ONE DEFINITION (owner ruling 2026-09-26): net
+# turnover, the one EBITDA (net 711 and net 72x inside — EEI's 722 is in it,
+# the developer's stock variation too) and the account-121 profit. Before the
+# ruling this page kept an "operating view" of its own (EBITDA = cash EBITDA
+# + 722 over total operating revenue) so EEI's margin read sensibly; the one
+# EBITDA carries 722 on every surface, and total operating revenue is no
+# longer a denominator anywhere, so neither tile is needed.
+#: The figures at the top of the benchmark report. The net-income slot is
 #: resolved per period by `headline_metrics()` — statutory when the period
 #: carries the account-121 anchor, the operating view only when it does not.
-HEADLINE_METRICS = ["revenue", "total_operating_revenue", "ebitda_operating", "net_income_operating"]
+HEADLINE_METRICS = ["revenue", "ebitda", "net_income_operating"]
 NET_INCOME_SLOT = ("net_income_statutory", "net_income_operating")
 
 #: The report's own revision. `_benchmarks.py` stamps it into the cached
@@ -402,7 +482,11 @@ NET_INCOME_SLOT = ("net_income_statutory", "net_income_operating")
 #: generated on 9 September.
 #:
 #: BUMP THIS whenever a change alters what this module puts on screen.
-REPORT_REVISION = 3
+#: 4 (2026-09-26): the ONE EBITDA, margins over turnover, the margin rule's
+#: refusal on the company side and the "Compania ta" row, peer basis served.
+#: 5 (2026-09-27): a net result refused with 711 (no account 121) refuses the
+#: headline profit, the peer row and the net margin — never the build-up.
+REPORT_REVISION = 5
 
 
 def headline_net_income_key(company_metrics: Dict[str, Any]) -> str:
@@ -500,6 +584,7 @@ def build_benchmark_report(
     Caller is responsible for fetching the inputs and caching the
     result in `benchmark_reports.report_data`."""
     company_metrics = compute_company_metrics(calculated_metrics, line_items)
+    refusals: Dict[str, Dict[str, Any]] = company_metrics.get("refusals") or {}
     _headline = headline_metrics(company_metrics)
 
     sections_out: Dict[str, Any] = {
@@ -507,8 +592,11 @@ def build_benchmark_report(
             "title_ro": "Sumar headline",
             "title_en": "Headline summary",
             "metrics": _headline,
-            "company_values": {m: company_metrics.get(m) for m in _headline},
+            "company_values": {m: (None if m in refusals else company_metrics.get(m)) for m in _headline},
             "display": {m: METRIC_DISPLAY.get(m, {"ro": m, "en": m}) for m in _headline},
+            # Why a headline figure is not printed (the one EBITDA refused,
+            # or the period predates its definition) — never a blank.
+            "refusals": {m: refusals[m] for m in _headline if m in refusals},
         },
     }
     for section_key, (metric_names, title_ro, title_en) in SECTIONS.items():
@@ -519,7 +607,8 @@ def build_benchmark_report(
                 # Industry has no value for this metric — skip rather
                 # than render an empty row.
                 continue
-            comparisons.append(build_comparison_row(mname, company_metrics.get(mname), bench))
+            comparisons.append(build_comparison_row(mname, company_metrics.get(mname), bench,
+                                                    refusals.get(mname)))
         sections_out[section_key] = {
             "title_ro": title_ro,
             "title_en": title_en,
@@ -553,6 +642,45 @@ def build_benchmark_report(
 # ─── Deep-analysis assembler ───────────────────────────────────────────────
 
 
+#: The basis of a named peer's revenue and margins, by its declared source —
+#: recorded on every seed row (benchmarks_deep_seed.json `revenue_basis`) and
+#: served beside every peer, so the company's own row (trial-balance net
+#: turnover) is never read as sitting on a basis it does not. The filed
+#: Romanian accounts (Ministerul Finanțelor, and Termene.ro / Risco.ro which
+#: republish them) state cifra de afaceri netă (I13); a group's consolidated
+#: figures, an IFRS annual report and a segment estimate are other bases.
+PEER_BASIS_FILED = "filed_net_turnover"
+PEER_BASIS_CONSOLIDATED = "consolidated_turnover"
+PEER_BASIS_ANNUAL_REPORT = "annual_report_revenue"
+PEER_BASIS_ESTIMATE = "segment_estimate"
+SELF_BASIS = "trial_balance_net_turnover"
+PEER_BASIS_DISPLAY: Dict[str, Dict[str, str]] = {
+    PEER_BASIS_FILED: {"ro": "cifra de afaceri netă din situațiile financiare depuse",
+                       "en": "net turnover from the filed financial statements"},
+    PEER_BASIS_CONSOLIDATED: {"ro": "cifra de afaceri consolidată a grupului",
+                              "en": "the group's consolidated turnover"},
+    PEER_BASIS_ANNUAL_REPORT: {"ro": "veniturile din raportul anual al grupului",
+                               "en": "revenue from the group's annual report"},
+    PEER_BASIS_ESTIMATE: {"ro": "estimare pe segment", "en": "segment estimate"},
+    SELF_BASIS: {"ro": "cifra de afaceri netă din balanța de verificare (70x − 709)",
+                 "en": "net turnover from the trial balance (70x − 709)"},
+}
+
+
+def peer_revenue_basis(peer: Dict[str, Any]) -> str:
+    """The basis of one seeded peer's figures, from its declared source and
+    name — the ONE classifier, used to record the seed and to serve it."""
+    source = str(peer.get("source") or "").lower()
+    name = str(peer.get("company_name") or "").lower()
+    if "estimate" in source:
+        return PEER_BASIS_ESTIMATE
+    if "consolidat" in source or "consolidat" in name:
+        return PEER_BASIS_CONSOLIDATED
+    if "ministerul" in source or "termene" in source or "risco" in source:
+        return PEER_BASIS_FILED
+    return PEER_BASIS_ANNUAL_REPORT
+
+
 def _build_deep_section(
     *,
     peers: List[Dict[str, Any]],
@@ -573,6 +701,7 @@ def _build_deep_section(
         (p for p in peers if p.get("tier") == "leader"), None
     )
 
+    refusals: Dict[str, Dict[str, Any]] = company_metrics.get("refusals") or {}
     # Inject the "this is you" row.
     cur_year_revenue_lei = company_metrics.get("revenue") or 0.0
     cur_year_revenue_mlei = cur_year_revenue_lei / 1_000_000 if cur_year_revenue_lei else None
@@ -591,16 +720,30 @@ def _build_deep_section(
         # capitalized-own-work total as the bottom line of a period that
         # reported no profit at all. Absent stays blank.
         "net_profit_mlei": _self_net_profit_mlei(company_metrics),
-        "net_margin_pct": company_metrics.get("net_margin"),
-        "ebitda_margin_pct": company_metrics.get("ebitda_margin"),
+        # A margin the one rule refuses (the developer) or an EBITDA margin
+        # refused with the EBITDA is not printed in the peer table either —
+        # the same refusal as the graded rows above, never a percent beside
+        # the peers' filed ones.
+        "net_margin_pct": None if "net_margin" in refusals else company_metrics.get("net_margin"),
+        "ebitda_margin_pct": None if "ebitda_margin" in refusals else company_metrics.get("ebitda_margin"),
         "equity_ratio_pct": company_metrics.get("equity_ratio"),
         "debt_to_equity": None,
         "specialization": "Compania ta",
         "tier": "self",
         "source": "Trial balance — current period",
+        "revenue_basis": SELF_BASIS,
+        "revenue_basis_display": dict(PEER_BASIS_DISPLAY[SELF_BASIS]),
+        "refusals": {k: refusals[k] for k in ("net_margin", "ebitda_margin") if k in refusals},
         "display_order": 99,  # sort to the end by default; FE may reorder
     }
-    peers_full = list(peers) + [self_row]
+    peers_basis = []
+    for peer in peers:
+        row = dict(peer)
+        basis = row.get("revenue_basis") or peer_revenue_basis(row)
+        row["revenue_basis"] = basis
+        row["revenue_basis_display"] = dict(PEER_BASIS_DISPLAY[basis])
+        peers_basis.append(row)
+    peers_full = peers_basis + [self_row]
     peers_full.sort(key=lambda p: (p.get("display_order") or 99))
 
     # Gap-vs-leader table — only meaningful when we have a leader row.

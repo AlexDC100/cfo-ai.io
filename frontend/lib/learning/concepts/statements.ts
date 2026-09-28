@@ -652,15 +652,19 @@ const ppe: Concept = {
   related: ["capex", "depreciation_amortization", "non_current_assets"],
 };
 
+// The dashboard's first tile is NET TURNOVER (cifra de afaceri netă,
+// 70x − 709) since the one-EBITDA ruling — the denominator of every margin.
+// 72x and other operating income are operating lines of their own, not
+// part of it.
 const operating_revenue: Concept = {
   key: "operating_revenue",
-  name: { en: "Operating Revenue", ro: "Venituri operaționale" },
+  name: { en: "Net turnover", ro: "Cifra de afaceri netă" },
   category: "Profitability",
   shortDefinition: {
-    en: "Total revenue from the company's main operating activities. The " +
-        "denominator for every margin ratio.",
-    ro: "Total venituri din activitatea principală a companiei. Numitorul " +
-        "pentru toate marjele.",
+    en: "Sales of goods and services net of commercial reductions (70x − 709). " +
+        "The denominator for every margin ratio.",
+    ro: "Vânzările de bunuri și servicii, după reducerile comerciale (70x − 709). " +
+        "Numitorul pentru toate marjele.",
   },
   related: ["revenue", "ebitda_margin", "gross_margin"],
 };
@@ -670,12 +674,12 @@ const gross_profit: Concept = {
   name: { en: "Gross Profit", ro: "Profit brut" },
   category: "Profitability",
   shortDefinition: {
-    en: "Revenue minus cost of goods sold — the margin left after paying for " +
-        "what was sold, before operating expenses.",
-    ro: "Venituri minus costul bunurilor vândute — marja rămasă după plata " +
-        "costului direct, înainte de cheltuielile operaționale.",
+    en: "Net turnover minus cost of goods sold, adjusted for the change in the " +
+        "stock of products made (711) — the margin left before operating expenses.",
+    ro: "Cifra de afaceri netă minus costul bunurilor vândute, ajustată cu variația " +
+        "stocurilor de produse (711) — marja rămasă înainte de cheltuielile operaționale.",
   },
-  inlineFormula: "Revenue − COGS",
+  inlineFormula: "Net turnover − COGS ± 711",
   related: ["operating_revenue", "cogs", "gross_margin", "ebit"],
 };
 

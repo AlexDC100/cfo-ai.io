@@ -1,16 +1,33 @@
-// Build a structured P&L statement from the backend's flat line-items list.
+// Build a structured P&L statement for the P&L tab — from the engine's
+// SERVED figures, never a second opinion about them.
 //
-// CONVENTION: "OPERATING VIEW" (the reference used by Romanian SME CFOs).
-//   - Account 706 + 722 + 767 → operating revenue (all included)
-//   - Account 628 → operating expense (included in opex)
-//   - Net P&L effect of 722/628 ≈ zero (they offset), but both are surfaced
-//     as line items for traceability.
-//   - This produces EBITDA = 2,149,571 for EEI Dec 2025 (matches the
-//     reference target).
+// THE ONE EBITDA (owner ruling 2026-09-26). Account 711 — "Variația
+// stocurilor de produse" — sits INSIDE EBITDA and the operating result, with
+// its sign, next to cost of sales: never as revenue, never inside cifra de
+// afaceri. 72x (own work capitalised) the same way: operating, inside EBITDA,
+// outside turnover. 767 (discounts received) is FINANCIAL. Margins divide by
+// net turnover (70x − 709).
 //
-// The audit.json reference supports both views (operating + financial);
-// this builder defaults to operating view. Add a `view: "financial"` arg
-// later if you want to switch behavior.
+// On an engine period (a payload carrying `statements.assembled_pl`) every
+// subtotal this file states — net turnover, EBITDA, EBIT, profit before tax,
+// the net result — is the engine's served figure, read through
+// lib/servedOneEbitda.ts. A refused figure is `null` with the engine's typed
+// reason beside it: never 0, never a figure rebuilt here from other lines,
+// never another definition. The rows between the subtotals are the served
+// lines (aggregates) or the period's own leaves (line items); where the
+// leaves do not reach a served total, the difference is a LABELLED row, so
+// every section still adds up to the engine's figure.
+//
+// A payload the engine did not assemble (the fictional demo company) has no
+// served figures; its statement is built from the payload's own income
+// statement on the SAME definition, and refuses EBITDA if the payload says
+// it has 711 activity it could not measure.
+//
+// Both builders place: NET TURNOVER → OTHER OPERATING INCOME → own work
+// capitalised (72x) → OPERATING EXPENSES → the stock variation (711) → EBITDA
+// (with the engine's reconciliation line under it) → D&A → EBIT → FINANCIAL
+// ITEMS → profit before tax → tax → the net result, ending on account 121
+// where the trial balance carries it.
 
 import {
   ApiLineItem,
@@ -18,13 +35,22 @@ import {
   PLSection,
   PLStatement,
   PLKeyMargin,
-  servedPlAmount,
+  RoName,
   sumByExact,
   sumByPrefix,
 } from "./plStructure";
 import type { IncomeStatement, Statements } from "./financialReport";
 import { marginRefusalOf } from "./marginMeaning";
-import { ROUNDED_MONEY_ZERO_FLOOR } from "./changeKind";
+import {
+  STOCK_VARIATION_NOT_MEASURED,
+  componentShown,
+  readServedOneEbitda,
+  reconLine,
+  type Bilingual,
+  type ServedComponent,
+  type ServedOneEbitda,
+  type ServedRefusal,
+} from "./servedOneEbitda";
 
 
 /** Drop nulls from a sparse line list, WITHOUT losing PLLine's literal types.
@@ -52,43 +78,41 @@ interface BuildArgs {
   /** Entity name + period label for the header. */
   entity: string;
   period: string;
-  /** ISO period_end ("2025-12-31") — used for the footnote's month name. */
+  /** ISO period_end ("2025-12-31") — used for the month name. */
   periodEnd?: string;
   /** Currency code (defaults RON). */
   currency?: string;
   /**
-   * F1.e — Optional engine-canonical margin pair. When provided, the Key
-   * Margins block collapses from the legacy 3-row dual-basis presentation
-   * (EBITDA / EBITDA excl 722 / Net on statutory NP) to the two canonical
-   * rows the engine emits via `calculated_metrics.ebitda_margin` and
-   * `calculated_metrics.net_margin`. The dual-basis comparison still lives
-   * on the Comprehensive Report Overview REPORTED/CORE tiles and the
-   * EBITDA Reconciliation panel (intentional dual-view surfaces).
+   * F1.e — Optional engine-canonical margin pair (`calculated_metrics.
+   * ebitda_margin` / `net_margin`, both over net turnover). A margin the
+   * row does not carry falls back, per margin, to the served figure over
+   * served turnover — and refuses when EBITDA is refused.
    */
   canonicalMargins?: { ebitdaMargin: number | null; netMargin: number | null };
-  /** `assembled_pl.ebitda` — the engine's figure. See
-   *  EBITDA_COMPOSITION_NOTE: one metric name, one formula, everywhere. */
-  servedEbitda?: number | null;
-  /** The period's served `assembled_pl` block. Read ONLY for the
-   *  components "Total operating revenue" folds in beyond net turnover
-   *  (722, 767 — see `currentFoldAmount`), so the comparatives guard knows
-   *  a period carries them even where the leaves do not show them. It
-   *  changes no figure on the statement. */
+  /** The period's SERVED `statements.assembled_pl` block — the one source of
+   *  every subtotal on an engine period (see the file header). Absent: the
+   *  payload is not an engine period and the statement is built from the
+   *  leaves on the same definition. */
   servedPl?: unknown;
 }
 
 // Account-to-label table used to render the per-line labels next to the
-// account code. These are English labels — they match the reference output.
+// account code on the line-item view. These are English labels.
 const ACCOUNT_LABELS: Record<string, string> = {
-  // Revenue
+  // Net turnover (70x − 709)
   "701": "Sales of finished goods",
+  "702": "Sales of semi-finished goods",
+  "703": "Sales of residual products",
   "704": "Service revenue",
+  "705": "Studies & research",
   "706": "Rental & lease income",
   "707": "Goods resold",
-  "708": "Other operating income",
-  "722": "Capitalized own work (CIP)",
+  "708": "Other activity revenue",
+  "709": "Commercial discounts granted",
+  // Other operating income
+  "741": "Operating subsidies",
   "758": "Other operating income (758)",
-  "767": "Discounts received",
+  "781": "Provision reversals",
   // Operating expenses
   "6024": "Spare parts",
   "6051": "Energy",
@@ -116,7 +140,7 @@ const ACCOUNT_LABELS: Record<string, string> = {
   "763":  "Income from long-term receivables",
   "7651": "FX gains",
   "766":  "Interest income",
-  "767__": "(handled as revenue)",
+  "767":  "Discounts received (767)",
   "6651": "FX losses",
   "666":  "Interest expense",
   // Tax
@@ -139,28 +163,23 @@ function periodMonthName(isoDate?: string): string {
 
 /** ONE EBITDA, AND IT IS THE ENGINE'S.
  *
- *  `assembled_pl.ebitda` is the figure every other surface reads — the
- *  forecast's `PlHistory`, the ratios, the credit composite, the
- *  valuation. Measured on three real books, it equals
- *  `revenue − cogs − opex + other_operating_income` to the cent.
+ *  `assembled_pl.ebitda` is the figure every surface reads — the forecast's
+ *  `PlHistory`, the ratios, the credit composite, the valuation. Since the
+ *  owner's ruling of 2026-09-26 it is
  *
- *  This file used to derive its own, from `total_operating_revenue`,
- *  which EXCLUDES account 758. So the dashboard P&L and the forecast
- *  stated two EBITDAs for one period — 42,797,225.01 against
- *  54,443,833.33 on Scandia, every EBITDA ratio 27% apart. On the retail
- *  book the two differ in SIGN: the engine serves +220,162.84 and the
- *  derivation gives −506,705.80.
+ *     net turnover + other operating income + net 72x
+ *       − cost of sales − operating expenses + net 711
  *
- *  The served figure wins. The derivation survives only as the fallback
- *  for a payload that carries no `ebitda` key, and it now uses the SAME
- *  formula, so the two cannot disagree even then.
+ *  with 767 financial. This file used to derive its own EBITDA (first from
+ *  `total_operating_revenue`, then from the leaves), and the P&L tab and the
+ *  forecast stated two EBITDAs for one period — 27% apart on Scandia, of
+ *  opposite sign on retail. It now prints the served figure, and a refused
+ *  one as refused. The derivation survives only for a payload the engine did
+ *  not assemble, on the same formula.
  *
- *  Whether 758 BELONGS in EBITDA is a separate question, deliberately not
- *  answered here: non-trading income inside EBITDA is already surfaced by
- *  the earnings-quality detector, which is where that analysis belongs.
- *  One definition first; the definition itself is revisited after launch.
- */
-export const EBITDA_COMPOSITION_NOTE = "includes other operating income (758)";
+ *  What the definition includes is stated here, not left to the reader. */
+export const EBITDA_COMPOSITION_NOTE =
+  "includes other operating income (758), own work capitalised (72x) and the stock variation (711); 767 is financial";
 
 /** The exact account codes the LINE-ITEM P&L view knows how to place.
  *
@@ -250,7 +269,7 @@ export function revenueFamiliesChip(
  *  "706" are one family. Balance-sheet rows and rows outside the revenue
  *  bucket are ignored; a leaf without an amount still names its family
  *  (the chip lists it) at zero. The chip on the aggregates row and the
- *  footnote's rental-dominance test both read this — one reading of the
+ *  line-item view's turnover rows both read this — one reading of the
  *  leaves, never a hard-coded code. */
 export function revenueFamilyAmounts(
   items:
@@ -269,98 +288,425 @@ export function revenueFamilyAmounts(
   return families;
 }
 
-/** THE CURRENT PERIOD'S AMOUNT OF A COMPONENT A TOTAL FOLDS IN beyond the
- *  engine line its key maps to (`PLSection.subtotalFolds`): what the row
- *  itself folds in — or, when it folds in none, what the period's served
- *  P&L carries (`servedPlAmount`, the served contract).
- *
- *  Both, because a period can carry a component its row never saw. GET
- *  /api/period serves no `incomeStatement.capitalizedOwnWork`, so the
- *  aggregates total folds in zero 722 whatever the book holds; the
- *  line-item total reads 767 by exact code and misses a 7671 sub-account
- *  the engine reads. Either way the period's "Total operating revenue" is
- *  not its net turnover, and the comparatives guard must hear so. A folded
- *  amount that is not a finite number is unreadable: null. */
-function currentFoldAmount(folded: number, servedPl: unknown, field: string): number | null {
-  if (!Number.isFinite(folded)) return null;
-  if (Math.abs(folded) >= ROUNDED_MONEY_ZERO_FLOOR) return folded;
-  return servedPlAmount(servedPl, field);
+// ── The served figures both builders share ────────────────────────────
+
+/** Half a cent: below it a money amount is a zero (the engine's floor). */
+const HALF_CENT = 0.005;
+
+/** Re-exported: the refusal lives with the one reader (servedOneEbitda). */
+export { STOCK_VARIATION_NOT_MEASURED };
+
+const EBIT_NOT_SERVED: ServedRefusal = {
+  code: "operating_result_not_served",
+  text: {
+    ro: "motorul nu a servit rezultatul din exploatare pentru această perioadă",
+    en: "the engine served no operating result for this period",
+  },
+};
+
+const PRETAX_NOT_SERVED: ServedRefusal = {
+  code: "pretax_not_served",
+  text: {
+    ro: "motorul nu a servit profitul înainte de impozit pentru această perioadă",
+    en: "the engine served no profit before tax for this period",
+  },
+};
+
+const NET_RESULT_NOT_SERVED: ServedRefusal = {
+  code: "net_result_not_served",
+  text: {
+    ro: "motorul nu a servit rezultatul net pentru această perioadă",
+    en: "the engine served no net result for this period",
+  },
+};
+
+type Rec = Record<string, unknown>;
+
+function asRec(v: unknown): Rec | null {
+  return typeof v === "object" && v !== null && !Array.isArray(v) ? (v as Rec) : null;
 }
 
-function oneEbitda(
-  served: number | null | undefined,
-  totalOperatingRevenue: number,
-  totalOpexCash: number,
-  otherOperatingIncome: number,
-): number {
-  if (typeof served === "number" && Number.isFinite(served)) return served;
-  return totalOperatingRevenue - totalOpexCash + otherOperatingIncome;
+function finite(v: unknown): number | null {
+  return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
+
+/** A served reconciliation label as a Romanian name with its English gloss
+ *  (no gloss when the two languages say the same word, e.g. "EBITDA"). */
+function roNameOf(label: Bilingual | null | undefined): RoName | undefined {
+  if (!label) return undefined;
+  return { ro: label.ro, glossEn: label.en !== label.ro ? label.en : null };
+}
+
+/** The row for a served measured component (net 711 or net 72x): the
+ *  engine's Romanian name and English gloss, its provenance sentence, and
+ *  either its value or its refusal — never a zero standing in for one. */
+function componentLine(c: ServedComponent, bucket: string): PLLine {
+  const name = c.nameRo ?? c.accounts;
+  const line: PLLine = {
+    accountCode: c.accounts,
+    label: c.glossEn ? `${name} — ${c.glossEn}` : name,
+    roName: { ro: name, glossEn: c.glossEn },
+    style: "item",
+    bucket,
+    ...(c.provenance ? { provenance: { key: c.provenance, label: c.provenanceLabel } } : {}),
+  };
+  if (c.value === null) return c.refusal ? { ...line, refusal: c.refusal } : line;
+  return { ...line, amount: c.value };
+}
+
+/** "Variația stocurilor de produse" — signed as its effect on the result:
+ *  + a stock increase (the period's production cost carried to the balance
+ *  sheet), − a decrease. */
+function stockVariationSection(served: ServedOneEbitda | null): PLSection | null {
+  const c = served?.inventoryVariation;
+  if (!componentShown(c)) return null;
+  const line = componentLine(c, "inventoryVariation");
+  const signed: PLLine =
+    c.value === null
+      ? line
+      : {
+          ...line,
+          sign: c.value > 0 ? "positive" : "negative",
+          stockDirection: c.value > 0 ? "increase" : "decrease",
+        };
+  return { role: "stockVariation", header: "", lines: [signed] };
+}
+
+/** Own work capitalised (72x): an operating line OUTSIDE turnover. On an
+ *  engine period, the served component; a served block without it (an
+ *  older capture) states the served scalar; a payload the engine did not
+ *  assemble, its own figure. */
+function capitalizedOwnWorkSection(
+  served: ServedOneEbitda | null,
+  servedScalar: number | null,
+  payloadAmount: number,
+): PLSection | null {
+  const c = served?.capitalizedOwnWork;
+  if (c) {
+    return componentShown(c)
+      ? { role: "capitalizedOwnWork", header: "", lines: [componentLine(c, "capitalizedOwnWork")] }
+      : null;
+  }
+  const amount = served ? (servedScalar ?? 0) : payloadAmount;
+  if (Math.abs(amount) < HALF_CENT) return null;
+  return {
+    role: "capitalizedOwnWork",
+    header: "",
+    lines: [{ accountCode: "72x", label: "Own work capitalised (72x)", amount, style: "item", bucket: "capitalizedOwnWork" }],
+  };
+}
+
+/** The operating subtotals after EBITDA: EBIT and profit before tax. On an
+ *  engine period both are the served figures (refused with EBITDA, or "not
+ *  served" when the block does not carry them); on a payload the engine did
+ *  not assemble they are built on the same definition. */
+function operatingTail(
+  served: ServedOneEbitda | null,
+  ebitda: number | null,
+  ebitdaRefusal: ServedRefusal | null,
+  dna: number,
+  netFinancialResult: number,
+): { ebit: number | null; ebitRefusal: ServedRefusal | null; pbt: number | null; pbtRefusal: ServedRefusal | null } {
+  if (served) {
+    const ebit = served.ebit;
+    const pbt = served.pretax;
+    return {
+      ebit,
+      ebitRefusal: ebit === null ? served.refusal ?? EBIT_NOT_SERVED : null,
+      pbt,
+      pbtRefusal: pbt === null ? served.refusal ?? PRETAX_NOT_SERVED : null,
+    };
+  }
+  if (ebitda === null) {
+    return { ebit: null, ebitRefusal: ebitdaRefusal, pbt: null, pbtRefusal: ebitdaRefusal };
+  }
+  const ebit = ebitda - dna;
+  return { ebit, ebitRefusal: null, pbt: ebit + netFinancialResult, pbtRefusal: null };
+}
+
+/** A subtotal-style row that states a figure or its refusal. */
+function figureLine(
+  base: Omit<PLLine, "amount" | "refusal">,
+  amount: number | null,
+  refusal: ServedRefusal | null,
+): PLLine {
+  if (amount !== null) return { ...base, amount };
+  return refusal ? { ...base, refusal } : base;
+}
+
+/** PROFIT BEFORE TAX → TAX → THE NET RESULT, ENDING ON ACCOUNT 121.
+ *
+ *  On an engine period the closing lines are the engine's reconciliation
+ *  (design A5): where the result built from the accounts IS account 121
+ *  (every bridge book — the 711 line is derived from 121, so the chain
+ *  closes by construction — and every book whose lines explain it), one
+ *  line states it. Where they differ — a closed book with no 711 postings
+ *  and a 121 remainder, or a refused build — the build, the part "not
+ *  explained by the revenue and expense accounts" and account 121 each get
+ *  their own line: the remainder is shown, never folded into 711. With no
+ *  account 121 in the trial balance, the build is the result and says so.
+ *
+ *  The retired "+ capitalized own work (722) → statutory" step is gone: 72x
+ *  is inside EBITDA now, so there is nothing to add back. */
+function closingSection(
+  served: ServedOneEbitda | null,
+  pbt: number | null,
+  pbtRefusal: ServedRefusal | null,
+  tax: number,
+  taxLine: PLLine | null,
+): { section: PLSection; netProfit: number | null } {
+  const lines: PLLine[] = plLines([
+    figureLine({ label: "Profit before tax", style: "subtotal", bucket: "pretax" }, pbt, pbtRefusal),
+    taxLine,
+  ]);
+  const base = { role: "closing" as const, header: "", subtotalBucket: "netIncomeStatutory" };
+
+  if (!served) {
+    const net = pbt === null ? null : pbt - tax;
+    return {
+      section: {
+        ...base,
+        lines,
+        subtotalLabel: "Net profit",
+        ...(net !== null ? { subtotalAmount: net } : pbtRefusal ? { subtotalRefusal: pbtRefusal } : {}),
+      },
+      netProfit: net,
+    };
+  }
+
+  const recon = served.reconciliation;
+  const acc = reconLine(recon, "account_121");
+  const build = reconLine(recon, "net_result");
+  const gap = reconLine(recon, "not_explained");
+  const buildRefusal = build?.refusal ?? served.refusal ?? NET_RESULT_NOT_SERVED;
+
+  if (!recon || !acc) {
+    // A served block without the reconciliation (an older capture): the
+    // engine's net result, or its absence — never pbt − tax rebuilt here.
+    const net = served.netIncomeStatutory;
+    return {
+      section: {
+        ...base,
+        lines,
+        subtotalLabel: "Net profit",
+        ...(net !== null ? { subtotalAmount: net } : { subtotalRefusal: NET_RESULT_NOT_SERVED }),
+      },
+      netProfit: net,
+    };
+  }
+
+  if (acc.status !== "anchored") {
+    const net = build?.value ?? null;
+    return {
+      section: {
+        ...base,
+        lines,
+        subtotalLabel: "Net result — built from the accounts (no account 121 in the trial balance)",
+        subtotalRoName: roNameOf(build?.label),
+        ...(net !== null ? { subtotalAmount: net } : { subtotalRefusal: buildRefusal }),
+      },
+      netProfit: net,
+    };
+  }
+
+  // Anchored: the engine's account-121 line states the filed figure.
+  const filed = acc.value;
+  const identity =
+    build?.value != null && gap?.value != null && Math.abs(gap.value) < HALF_CENT;
+  if (!identity) {
+    lines.push(
+      figureLine(
+        {
+          label: build?.label.en ?? "Net result (built from the accounts)",
+          roName: roNameOf(build?.label),
+          style: "subtotal",
+        },
+        build?.value ?? null,
+        buildRefusal,
+      ),
+      figureLine(
+        {
+          label: gap?.label.en ?? "Not explained by the revenue and expense accounts",
+          roName: roNameOf(gap?.label),
+          style: "item",
+          sign: "neutral",
+        },
+        gap?.value ?? null,
+        buildRefusal,
+      ),
+    );
+  }
+  return {
+    section: {
+      ...base,
+      lines,
+      subtotalLabel: identity ? "Net profit (account 121)" : "= Net result, account 121 (as filed)",
+      subtotalRoName: roNameOf(acc.label),
+      ...(filed !== null ? { subtotalAmount: filed } : { subtotalRefusal: NET_RESULT_NOT_SERVED }),
+    },
+    netProfit: filed,
+  };
+}
+
+/** A margin refused because the figure over it is: said once above (the
+ *  stock-variation row and the EBITDA line carry the engine's sentence). */
+export const REFUSED_WITH_EBITDA: Bilingual = {
+  ro: "refuzată odată cu EBITDA — motivul este mai sus",
+  en: "refused with EBITDA — the reason is stated above",
+};
+
+/** KEY MARGINS — both over NET TURNOVER. The engine's metric row first; a
+ *  row the period does not carry falls back, per margin, to the statement's
+ *  own served figure over served turnover. A refused EBITDA refuses its
+ *  margin — and a refused net result its — whatever a metric row says:
+ *  never 0.00%, never a percent over a figure the statement refused. */
+function keyMarginsFor(
+  cm: { ebitdaMargin: number | null; netMargin: number | null } | undefined,
+  ebitda: number | null,
+  ebitdaRefusal: ServedRefusal | null,
+  netProfit: number | null,
+  netProfitRefused: boolean,
+  turnover: number,
+): PLKeyMargin[] {
+  const over = (canonical: number | null | undefined, numerator: number | null): number | null => {
+    if (typeof canonical === "number" && Number.isFinite(canonical)) return canonical;
+    if (numerator !== null && Number.isFinite(numerator) && Number.isFinite(turnover) && turnover > 0) {
+      return numerator / turnover;
+    }
+    return null;
+  };
+  const ebitdaMargin: PLKeyMargin =
+    ebitda === null
+      ? { label: "EBITDA margin", value: null, pct: true, ...(ebitdaRefusal ? { refusal: REFUSED_WITH_EBITDA } : {}) }
+      : { label: "EBITDA margin", value: over(cm?.ebitdaMargin, ebitda), pct: true };
+  const netMargin: PLKeyMargin =
+    netProfit === null && netProfitRefused
+      ? { label: "Net margin", value: null, pct: true, refusal: REFUSED_WITH_EBITDA }
+      : { label: "Net margin", value: over(cm?.netMargin, netProfit), pct: true };
+  return [ebitdaMargin, netMargin];
+}
+
+/** Lines that must add up to a SERVED total: when the itemised rows fall
+ *  short of it, the difference is a labelled row of its own — the section
+ *  still states the engine's figure, and still adds up. */
+function withRemainder(
+  lines: PLLine[],
+  servedTotal: number | null,
+  remainder: { accountCode: string; label: string; signed?: boolean },
+): PLLine[] {
+  if (servedTotal === null) return lines;
+  const itemised = lines.reduce((s, l) => s + (l.sign === "negative" ? -(l.amount ?? 0) : (l.amount ?? 0)), 0);
+  const diff = servedTotal - itemised;
+  if (Math.abs(diff) < HALF_CENT) return lines;
+  const row: PLLine = remainder.signed
+    ? { accountCode: remainder.accountCode, label: remainder.label, amount: Math.abs(diff), style: "item",
+        sign: diff >= 0 ? "positive" : "negative" }
+    : { accountCode: remainder.accountCode, label: remainder.label, amount: diff, style: "item" };
+  return [...lines, row];
+}
+
+function sumAmounts(lines: readonly PLLine[]): number {
+  return lines.reduce((s, l) => s + (l.amount ?? 0), 0);
+}
+
+/** A payload the engine did not assemble: its EBITDA on the one definition,
+ *  unless it says it has 711 activity it did not measure. */
+function payloadEbitda(
+  has711Activity: boolean,
+  turnover: number,
+  otherIncome: number,
+  capitalized: number,
+  costs: number,
+): { ebitda: number | null; refusal: ServedRefusal | null } {
+  if (has711Activity) return { ebitda: null, refusal: STOCK_VARIATION_NOT_MEASURED };
+  return { ebitda: turnover + otherIncome + capitalized - costs, refusal: null };
+}
+
+// ────────────────────────────────────────────────────────────────────────
+// LINE-ITEM BUILDER — per-account rows off the period's own leaves, every
+// subtotal the served one (see the file header).
+// ────────────────────────────────────────────────────────────────────────
 
 export function buildPLStatement(args: BuildArgs): PLStatement {
   const items = args.lineItems.filter((li) => li.statement === "PL");
   const currency = args.currency ?? "RON";
+  const served = readServedOneEbitda(args.servedPl);
+  const apl = asRec(args.servedPl);
+  const sv = (field: string): number | null => finite(apl?.[field]);
 
-  // ── OPERATING REVENUE (706 + 722 + 767 + 708) ────────────────────────
-  // Same sectioning principle as `buildPLStatementFromAggregates` below:
-  // account 758 (other operating income) is presented in its OWN
-  // sub-section, not summed into the operating-revenue subtotal (which
-  // drives EBITDA). This keeps every section internally consistent —
-  // displayed lines always equal their subtotal — without re-classifying
-  // any engine value.
-  const revRental = sumByExact(items, "706");
-  const revCapOwnWork = sumByPrefix(items, "721", "722", "725");
-  const revDiscounts = sumByExact(items, "767");
-  const revOther = sumByExact(items, "708");
-  const revOtherOperating = sumByExact(items, "758");
-
-  const operatingRevenueLines: PLLine[] = plLines([
-    revRental ? { accountCode: "706", label: labelFor("706"), amount: revRental, style: "item" } : null,
-    revCapOwnWork ? { accountCode: "722", label: labelFor("722"), amount: revCapOwnWork, style: "item" } : null,
-    revDiscounts ? { accountCode: "767", label: labelFor("767"), amount: revDiscounts, style: "item" } : null,
-    revOther ? { accountCode: "708", label: labelFor("708"), amount: revOther, style: "item" } : null,
-  ]);
-
-  const totalOperatingRevenue = revRental + revCapOwnWork + revDiscounts + revOther;
-
+  // ── NET TURNOVER (70x − 709), one row per account family ─────────────
+  const families = revenueFamilyAmounts(items);
+  const familyLines: PLLine[] = Object.keys(families)
+    .sort()
+    .filter((f) => Math.abs(families[f]) >= HALF_CENT)
+    .map((f) => ({ accountCode: f, label: labelFor(f), amount: families[f], style: "item" as const }));
+  const turnover = served?.turnover ?? sumAmounts(familyLines);
   const operatingRevenue: PLSection = {
     role: "operatingRevenue",
-    header: "OPERATING REVENUE",
-    lines: operatingRevenueLines,
-    subtotalLabel: "Total operating revenue",
-    subtotalAmount: totalOperatingRevenue,
+    header: "NET TURNOVER",
+    lines: withRemainder(familyLines, served ? turnover : null, {
+      accountCode: "70x", label: "Net turnover not itemised by account",
+    }),
+    subtotalLabel: "Total net turnover",
+    subtotalAmount: turnover,
     subtotalBucket: "revenue",
-    // Comparatives: this total is the engine's net turnover only while
-    // neither period carries 722 or 767 — the two components it folds in.
-    subtotalFolds: {
-      capitalized_own_work_memo: currentFoldAmount(revCapOwnWork, args.servedPl, "capitalized_own_work_memo"),
-      discounts_received: currentFoldAmount(revDiscounts, args.servedPl, "discounts_received"),
-    },
   };
 
-  // ── OTHER OPERATING INCOME (758) ─────────────────────────────────────
-  // Displayed separately for transparency; explicitly excluded from
-  // EBITDA per the engine's canonical operating-revenue definition.
-  // Comparatives keys (lib/comparatives.ts PL_ROW_TO_KEY): the line and its
-  // subtotal are the engine's 758 line, `pl.other_operating_income`.
-  const otherOperatingIncomeLines: PLLine[] = revOtherOperating !== 0
-    ? [{ accountCode: "758", label: labelFor("758"), amount: revOtherOperating, style: "item", bucket: "otherOperatingIncome" }]
-    : [];
-  const otherOperatingIncomeSection: PLSection = {
-    role: "otherOperatingIncome",
-    header: "OTHER OPERATING INCOME",
-    lines: otherOperatingIncomeLines,
-    subtotalLabel: "Total other operating income (excluded from operating revenue / EBITDA above)",
-    subtotalAmount: revOtherOperating,
-    subtotalBucket: "otherOperatingIncomeTotal",
-  };
+  // ── OTHER OPERATING INCOME (74x / 75x / 77x / 78x) ───────────────────
+  // The otherIncome bucket's leaves, WITHOUT 711 (the line items carry its
+  // gross credit turnover there — the production stocked, not the
+  // variation) and without 72x (own work capitalised has its own line).
+  const otherFamilies: Record<string, number> = {};
+  for (const li of items) {
+    if (li.bucket !== "otherIncome") continue;
+    const code = String(li.ro_account_code ?? "").replace(/[\s.\-/_]/g, "");
+    if (!/^\d{3,}$/.test(code) || code.startsWith("711") || code.startsWith("72")) continue;
+    // A leaf with no amount is read as nothing — never as a zero row.
+    if (typeof li.amount !== "number" || !Number.isFinite(li.amount)) continue;
+    const family = code.slice(0, 3);
+    otherFamilies[family] = (otherFamilies[family] ?? 0) + li.amount;
+  }
+  const otherLines: PLLine[] = Object.keys(otherFamilies)
+    .sort()
+    .filter((f) => Math.abs(otherFamilies[f]) >= HALF_CENT)
+    .map((f) => ({
+      accountCode: f,
+      label: labelFor(f),
+      amount: otherFamilies[f],
+      style: "item" as const,
+      // Comparatives key: the 758 family IS the engine's 758 line.
+      ...(f === "758" ? { bucket: "otherOperatingIncome" } : {}),
+    }));
+  const otherIncome = sv("other_operating_income") ?? sumAmounts(otherLines);
+  const otherIncomeLines = withRemainder(otherLines, apl ? otherIncome : null, {
+    accountCode: "7xx", label: "Other operating income not itemised by account",
+  });
+  const otherOperatingIncomeSection: PLSection | null =
+    Math.abs(otherIncome) >= HALF_CENT
+      ? {
+          role: "otherOperatingIncome",
+          header: "OTHER OPERATING INCOME",
+          lines: otherIncomeLines,
+          subtotalLabel: "Total other operating income",
+          subtotalAmount: otherIncome,
+          subtotalBucket: "otherOperatingIncomeTotal",
+        }
+      : null;
 
-  // ── OPERATING EXPENSES (excl D&A, interest, FX, tax) ─────────────────
+  // ── OWN WORK CAPITALISED (72x) — operating, outside turnover ─────────
+  const payloadCapitalized = sumByPrefix(items, "721", "722", "725");
+  const capitalizedSection = capitalizedOwnWorkSection(
+    served, sv("capitalized_own_work_memo"), payloadCapitalized);
+  const capitalized = served
+    ? served.capitalizedOwnWork?.value ?? sv("capitalized_own_work_memo") ?? 0
+    : payloadCapitalized;
+
+  // ── OPERATING EXPENSES (excl. D&A) ───────────────────────────────────
   // The same table `plUsesLineItems` measures coverage against — if these
   // two ever differed, the router would admit a book this builder cannot
-  // actually render.
-  const opexCodes = OPEX_CODES;
-  const opexLines: PLLine[] = opexCodes
+  // actually render. What the table does not reach of the served costs is
+  // a labelled row, so the section states the engine's total.
+  const opexLines: PLLine[] = OPEX_CODES
     .map((code) => ({ code, amount: sumByExact(items, code) }))
     .filter((x) => Math.abs(x.amount) > 0)
     .map(({ code, amount }) => ({
@@ -371,47 +717,46 @@ export function buildPLStatement(args: BuildArgs): PLStatement {
       // Comparatives key: 628 is the engine's third-party-services line.
       ...(code === "628" ? { bucket: "opexThirdParty" } : {}),
     }));
-
-  const totalOpexCash = opexLines.reduce((s, l) => s + (l.amount ?? 0), 0);
-
+  const servedOpex = sv("opex_total") ?? sv("opex_excluding_cogs_and_da");
+  const servedCosts = apl && (sv("cogs") !== null || servedOpex !== null)
+    ? (sv("cogs") ?? 0) + (servedOpex ?? 0)
+    : null;
+  const costLines = withRemainder(opexLines, servedCosts, {
+    accountCode: "6xx", label: "Other operating expenses not itemised by account",
+  });
+  const totalCosts = sumAmounts(costLines);
   const operatingExpenses: PLSection = {
     role: "operatingExpenses",
     header: "OPERATING EXPENSES (excl. D&A)",
-    lines: opexLines,
-    subtotalLabel: "Total operating expenses (cash)",
-    subtotalAmount: totalOpexCash,
+    lines: costLines,
+    subtotalLabel: "Total operating expenses",
+    subtotalAmount: totalCosts,
   };
 
-  // ── EBITDA — the engine's figure, see EBITDA_COMPOSITION_NOTE ────────
-  const ebitda = oneEbitda(
-    args.servedEbitda, totalOperatingRevenue, totalOpexCash, revOtherOperating);
+  // ── THE STOCK VARIATION (711) and THE ONE EBITDA ─────────────────────
+  const stockSection = stockVariationSection(served);
+  const has711 = items.some(
+    (li) => String(li.ro_account_code ?? "").startsWith("711") && Math.abs(li.amount) >= HALF_CENT);
+  const { ebitda, refusal: ebitdaRefusal } = served
+    ? { ebitda: served.ebitda, refusal: served.refusal }
+    : payloadEbitda(has711, turnover, otherIncome, capitalized, totalCosts);
 
   // ── D&A → EBIT ───────────────────────────────────────────────────────
-  const depreciation = sumByPrefix(items, "6811", "6812");
+  const depreciation = sv("depreciation") ?? sumByPrefix(items, "6811", "6812");
+  const depreciationLines: PLLine[] = depreciation
+    ? [{ accountCode: apl ? "681x" : "6811", label: labelFor("6811"), amount: depreciation, style: "item", bucket: "depreciationAmortization" }]
+    : [];
 
-  const depreciationSection: PLSection = {
-    role: "depreciation",
-    header: "",
-    lines: depreciation
-      ? [{ accountCode: "6811", label: labelFor("6811"), amount: depreciation, style: "item", bucket: "depreciationAmortization" }]
-      : [],
-    subtotalLabel: "EBIT",
-    subtotalAmount: ebitda - depreciation,
-    subtotalBucket: "ebit",
-  };
-
-  const ebit = ebitda - depreciation;
-
-  // ── FINANCIAL ITEMS ──────────────────────────────────────────────────
+  // ── FINANCIAL ITEMS (767 discounts received is financial) ────────────
   const dividendIncome = sumByPrefix(items, "7611", "7612", "762", "763");
   const fxGain = sumByExact(items, "7651");
   const interestIncome = sumByExact(items, "766");
+  const discountsReceived = sumByPrefix(items, "767");
   const fxLoss = sumByExact(items, "6651");
-  const interestExpense = sumByExact(items, "666");
+  const interestExpense = sv("interest_expense") ?? sumByExact(items, "666");
 
   // `bucket` is the comparatives key (PL_ROW_TO_KEY) where the engine
-  // serves the same line: interest income (766) and expense (666). The
-  // dividend, FX-gain and FX-loss rows have no engine line of their own.
+  // serves the same line: interest income (766) and expense (666).
   const finPos = (code: string, label: string, amt: number, bucket?: string): PLLine | null =>
     Math.abs(amt) > 0
       ? { accountCode: code, label, amount: amt, style: "item", sign: "positive", ...(bucket ? { bucket } : {}) }
@@ -421,17 +766,20 @@ export function buildPLStatement(args: BuildArgs): PLStatement {
       ? { accountCode: code, label, amount: amt, style: "item", sign: "negative", ...(bucket ? { bucket } : {}) }
       : null;
 
-  const financialLines: PLLine[] = plLines([
+  const financialItemLines: PLLine[] = plLines([
     finPos("7611", labelFor("7611"), dividendIncome),
     finPos("7651", labelFor("7651"), fxGain),
     finPos("766",  labelFor("766"),  interestIncome, "interestIncome"),
+    finPos("767",  labelFor("767"),  discountsReceived),
     finNeg("6651", labelFor("6651"), fxLoss),
     finNeg("666",  labelFor("666"),  interestExpense, "interestExpense"),
   ]);
-
   const netFinancialResult =
-    dividendIncome + fxGain + interestIncome - fxLoss - interestExpense;
-
+    sv("net_financial_result") ??
+    dividendIncome + fxGain + interestIncome + discountsReceived - fxLoss - interestExpense;
+  const financialLines = withRemainder(financialItemLines, apl ? netFinancialResult : null, {
+    accountCode: "76x/66x", label: "Other financial items not itemised by account", signed: true,
+  });
   const financialItems: PLSection = {
     role: "financialItems",
     header: "FINANCIAL ITEMS",
@@ -441,110 +789,23 @@ export function buildPLStatement(args: BuildArgs): PLStatement {
     subtotalBucket: "netFinancialResult",
   };
 
-  // ── PBT → NET PROFIT ─────────────────────────────────────────────────
-  // Two valid views of "net profit" coexist in Romanian books:
-  //   · netProfit (operational)  — excludes 722 capitalized own-work
-  //   · netProfitStatutory       — includes 722, matches account 121
-  //                                closing balance (legally filed)
-  // The HEADLINE row is OPERATIONAL — that's the figure the dashboard
-  // surfaces everywhere (KPI tile, briefing, P&L) for one consistent
-  // screen-wide net-profit value. The statutory ct-121 view is shown
-  // below the headline as an explicit operational → +722 → statutory
-  // BRIDGE rendered by PLStatementView (`PLReconciliationBridge`).
-  // Treating statutory as the headline previously caused the on-screen
-  // contradiction "Net profit 1.43M" (operational tile) versus "NET
-  // PROFIT 3.59M" (statutory subtotal) for the same company — board
-  // readers see one company / two net-profit numbers and stop trusting
-  // the document.
-  const profitBeforeTax = ebit + netFinancialResult;
-  const tax = sumByPrefix(items, "691");
-  const netProfit = profitBeforeTax - tax;                        // operational
-  const netProfitStatutory = netProfit + revCapOwnWork;           // includes 722
-
-  const closingSection: PLSection = {
-    role: "closing",
+  const { ebit, ebitRefusal, pbt, pbtRefusal } = operatingTail(
+    served, ebitda, ebitdaRefusal, depreciation, netFinancialResult);
+  const depreciationSection: PLSection = {
+    role: "depreciation",
     header: "",
-    lines: plLines([
-      { label: "Profit before tax", amount: profitBeforeTax, style: "subtotal", bucket: "pretax" },
-      tax > 0
-        ? { accountCode: "691", label: labelFor("691"), amount: tax, style: "item", bucket: "taxExpense" }
-        : null,
-    ]),
-    // OPERATIONAL is the headline subtotal. The 722 bridge to statutory
-    // ct-121 is rendered by PLReconciliationBridge in PLStatementView,
-    // visually subordinated to this headline (it's a reconciliation, not
-    // a competing total).
-    subtotalLabel: "Net profit — operational (excl. 722)",
-    subtotalAmount: netProfit,
-    subtotalBucket: "netIncomeOperational",
+    lines: depreciationLines,
+    subtotalLabel: "EBIT",
+    ...(ebit !== null ? { subtotalAmount: ebit } : ebitRefusal ? { subtotalRefusal: ebitRefusal } : {}),
+    subtotalBucket: "ebit",
   };
 
-  // ── KEY MARGINS ──────────────────────────────────────────────────────
-  // Operating-view EBITDA margin uses total operating revenue (incl 722, 767)
-  // as denominator. Clean view excludes capitalized own-work from both sides.
-  const operatingRevenueExclCIP =
-    revRental + revDiscounts + revOther;
-  const ext_serv_other = sumByExact(items, "628");
-  const cleanEbitda =
-    ebitda - revCapOwnWork + ext_serv_other - ext_serv_other; // net effect: ebitda - revCapOwnWork
-  // The 628/722 offset means the clean view drops revenue AND opex by the
-  // same amount — net effect on EBITDA is roughly zero (within rounding).
-
-  // F1.e — Key Margins: two canonical rows when the engine-canonical pair
-  // is provided (the only path that fires in the post-F1.e UI). The legacy
-  // 3-row dual-basis presentation is preserved as a fallback for callers
-  // that haven't been migrated yet — but every active caller in
-  // FinancialStatements.tsx / ComprehensiveReport.tsx supplies the canonical
-  // pair, so the fallback is back-compat only and shouldn't fire in prod.
-  // The `cleanEbitda` and `operatingRevenueExclCIP` locals are still scoped
-  // above for the fallback path.
-  void cleanEbitda;
-  void operatingRevenueExclCIP;
-  const cm = args.canonicalMargins;
-  // PER MARGIN, NOT PER OBJECT (2026-09-21). `canonicalMargins` is a memo that
-  // always returns an OBJECT whose fields may be null, so `cm ? canonical :
-  // arithmetic` always took the canonical branch and the arithmetic branch
-  // below was dead code — the real fallback was `?? 0`, and an absent margin
-  // rendered as 0.00%. Each margin now falls back on its own, and refuses
-  // (null) when neither the engine row nor the operands are there.
-  const marginOrNull = (canonical: number | null | undefined,
-                        numerator: number, denominator: number): number | null => {
-    if (typeof canonical === "number" && Number.isFinite(canonical)) return canonical;
-    if (Number.isFinite(numerator) && Number.isFinite(denominator) && denominator > 0) {
-      return numerator / denominator;
-    }
-    return null;
-  };
-  const keyMargins: PLKeyMargin[] = cm
-    ? [
-        {
-          label: "EBITDA margin",
-          value: marginOrNull(cm.ebitdaMargin, ebitda, totalOperatingRevenue),
-          pct: true,
-        },
-        {
-          label: "Net margin",
-          value: marginOrNull(cm.netMargin, netProfitStatutory, totalOperatingRevenue),
-          pct: true,
-        },
-      ]
-    : [
-        {
-          label: "EBITDA margin (on total operating revenue)",
-          value: totalOperatingRevenue > 0 ? ebitda / totalOperatingRevenue : 0,
-          pct: true,
-        },
-        {
-          label: "EBITDA margin excl. capitalized own work",
-          value: operatingRevenueExclCIP > 0 ? cleanEbitda / operatingRevenueExclCIP : 0,
-          pct: true,
-        },
-        {
-          label: "Net margin (on statutory net profit)",
-          value: totalOperatingRevenue > 0 ? netProfitStatutory / totalOperatingRevenue : 0,
-          pct: true,
-        },
-      ];
+  // ── PBT → NET RESULT → ACCOUNT 121 ───────────────────────────────────
+  const tax = sv("tax") ?? sumByPrefix(items, "691");
+  const taxLine: PLLine | null = tax > 0
+    ? { accountCode: "691", label: labelFor("691"), amount: tax, style: "item", bucket: "taxExpense" }
+    : null;
+  const { section: closing, netProfit } = closingSection(served, pbt, pbtRefusal, tax, taxLine);
 
   return {
     entity: args.entity,
@@ -552,40 +813,41 @@ export function buildPLStatement(args: BuildArgs): PLStatement {
     currency,
     sections: [
       operatingRevenue,
-      ...(otherOperatingIncomeLines.length > 0 ? [otherOperatingIncomeSection] : []),
+      ...(otherOperatingIncomeSection ? [otherOperatingIncomeSection] : []),
+      ...(capitalizedSection ? [capitalizedSection] : []),
       operatingExpenses,
+      ...(stockSection ? [stockSection] : []),
       depreciationSection,
       financialItems,
-      closingSection,
+      closing,
     ],
-    keyMargins,
+    keyMargins: keyMarginsFor(
+      args.canonicalMargins, ebitda, ebitdaRefusal, netProfit, closing.subtotalRefusal !== undefined, turnover),
     ebitda,
+    ebitdaRefusal,
     ebit,
     netFinancialResult,
-    profitBeforeTax,
+    profitBeforeTax: pbt,
     tax,
     netProfit,
-    netProfitStatutory,
-    capitalizedOwnWorkMemo: revCapOwnWork,
-    extServOther: ext_serv_other,
+    ...(served ? { netProfitStatutory: served.netIncomeStatutory } : {}),
+    capitalizedOwnWorkMemo: capitalized,
     periodMonth: periodMonthName(args.periodEnd),
-    revenueFamilyAmounts: revenueFamilyAmounts(items),
+    served,
   };
 }
 
 // ────────────────────────────────────────────────────────────────────────
-// Aggregates-only builder — works when only the assembled Statements blob
-// is available (no per-account line items). Produces the same reference
-// layout, just with category-level lines instead of per-account rows.
-//
-// Operating-view convention: 722 (capitalized own-work memo) is INCLUDED
-// in operating revenue here. The reference target produces EBITDA =
-// 2,149,571 for EEI Dec 2025; this aggregates-only path gets to the same
-// number using `incomeStatement.capitalizedOwnWork` + `operatingExpenses`.
+// Aggregates-only builder — the engine's served lines, one row per bucket,
+// when the leaves cannot be placed account by account.
 // ────────────────────────────────────────────────────────────────────────
 
 interface IncomeStatementCanonical extends IncomeStatement {
   capitalizedOwnWork?: number;
+  /** The GROSS credit turnover of 711 (the legacy mirror). Read ONLY to know
+   *  that a payload the engine did not assemble HAS 711 activity — never as
+   *  the variation. */
+  inventoryVariationMemo?: number;
 }
 
 /**
@@ -597,10 +859,8 @@ interface IncomeStatementCanonical extends IncomeStatement {
  * which the exact-match `sumByExact(items, "706")` lookups can't find, so
  * revenue/opex tiles end up at 0.
  *
- * Heuristic: if more than half of the PL line items have codes longer than
- * 4 characters, fall back to the aggregates-from-bucket-sums builder which
- * reads from `statements.incomeStatement.*` (the backend already summed
- * everything into the right buckets server-side).
+ * The router measures COVERAGE (see `plUsesLineItems`); both builders take
+ * the SERVED `assembled_pl` block for every subtotal.
  */
 export function pickPLBuilder(
   args: {
@@ -611,8 +871,7 @@ export function pickPLBuilder(
     periodEnd?: string;
     /**
      * F1.e — Engine-canonical margin pair (calculated_metrics.ebitda_margin
-     * + calculated_metrics.net_margin). When provided, both builder
-     * branches collapse Key Margins to 2 canonical rows.
+     * + calculated_metrics.net_margin), both over net turnover.
      */
     canonicalMargins?: { ebitdaMargin: number | null; netMargin: number | null };
   },
@@ -624,10 +883,8 @@ export function pickPLBuilder(
 /** THE KEY MARGINS OVER A NEGLIGIBLE TURNOVER. When the ENGINE ruled the
  *  period's margins not meaningful (`statements.margin_meaning`, the one
  *  rule in engine.ratios.margin_meaning), every Key Margins row refuses with
- *  the engine's sentence — the canonical pair, the arithmetic fallback and
- *  the legacy rows are all the same meaningless division. Measured on the
- *  `realestate` book: "EBITDA margin −17,884.9%". A payload with no verdict
- *  keeps its margins. */
+ *  the engine's sentence. Measured on the `realestate` book: "EBITDA margin
+ *  −17,884.9%". A payload with no verdict keeps its margins. */
 function withMarginRefusal(pl: PLStatement, statements: Statements): PLStatement {
   const refusal = marginRefusalOf(statements);
   if (!refusal) return pl;
@@ -661,9 +918,8 @@ function pickPLBuilderUnjudged(
   // table has no way to say "I did not recognise this account", so 67 of
   // them vanished without a word.
   if (!plUsesLineItems(items, statements)) {
-    return buildPLStatementFromAggregates(statements, args.canonicalMargins, undefined, {
+    return buildPLStatementFromAggregates(statements, args.canonicalMargins, {
       revenueChip: revenueFamiliesChip(items),
-      revenueFamilies: revenueFamilyAmounts(items),
     });
   }
   return buildPLStatement({
@@ -680,140 +936,100 @@ function pickPLBuilderUnjudged(
 export function buildPLStatementFromAggregates(
   statements: Statements,
   canonicalMargins?: { ebitdaMargin: number | null; netMargin: number | null },
-  servedEbitda?: number | null,
   opts: {
+    /** The account-family chip for the turnover row — see
+     *  `revenueFamiliesChip`. Defaults to "70x", the bucket itself. */
     revenueChip?: string;
-    revenueFamilies?: Record<string, number>;
   } = {},
 ): PLStatement {
   return withMarginRefusal(
-    buildPLStatementFromAggregatesUnjudged(statements, canonicalMargins, servedEbitda, opts),
+    buildPLStatementFromAggregatesUnjudged(statements, canonicalMargins, opts),
     statements,
   );
 }
 
 function buildPLStatementFromAggregatesUnjudged(
   statements: Statements,
-  // F1.e — see BuildArgs.canonicalMargins for the full rationale. Mirrored
-  // here so the aggregates-path caller can supply the same canonical pair.
-  canonicalMargins?: { ebitdaMargin: number | null; netMargin: number | null },
-  servedEbitda?: number | null,
-  opts: {
-    /** The account-family chip for the revenue row — see
-     *  `revenueFamiliesChip`. Defaults to "70x", the bucket itself. */
-    revenueChip?: string;
-    /** Revenue by family, read off the same leaves as the chip — see
-     *  `revenueFamilyAmounts`. Absent when no leaves were available. */
-    revenueFamilies?: Record<string, number>;
-  } = {},
+  canonicalMargins: { ebitdaMargin: number | null; netMargin: number | null } | undefined,
+  opts: { revenueChip?: string },
 ): PLStatement {
-  const is = statements.incomeStatement as IncomeStatementCanonical;
-  const revenue = is.revenue;
-  const cogs = is.costOfGoodsSold;
-  const opex = is.operatingExpenses;
-  const otherIncome = is.otherIncome ?? 0;
-  const dna = is.depreciationAmortization;
-  const interestExpense = is.interestExpense;
-  const finIncome = is.financialIncome ?? 0;
-  const finExpense = is.financialExpense ?? 0;
-  const tax = is.taxExpense ?? 0;
-  const capOwnWork = is.capitalizedOwnWork ?? 0;
+  const is = (statements.incomeStatement ?? {}) as IncomeStatementCanonical;
+  const served = readServedOneEbitda(statements.assembled_pl);
+  const apl = asRec(statements.assembled_pl);
+  // A served line, else the engine's own bucket mirror on `incomeStatement`
+  // (the same persisted sum) — never a figure rebuilt from other lines.
+  const line = (field: string, mirror: number | undefined): number =>
+    finite(apl?.[field]) ?? (typeof mirror === "number" && Number.isFinite(mirror) ? mirror : 0);
 
-  // ── OPERATING REVENUE ────────────────────────────────────────────────
-  // `total_operating_revenue` includes 706 + 722 and EXCLUDES 758. That
-  // stays true and this subtotal stays as it is.
-  //
-  // What used to be written here — "EBITDA downstream uses this exact
-  // figure" — was NOT true: the engine's own `assembled_pl.ebitda`
-  // includes 758, so the sentence justified a derivation that disagreed
-  // with the engine on every book. EBITDA no longer comes from this
-  // subtotal at all; see EBITDA_COMPOSITION_NOTE.
-  //
-  // The previous bug rendered 758 visually INSIDE this section but
-  // omitted it from the subtotal, producing a section whose listed
-  // lines did not foot to its own total. The fix splits 758 out into
-  // its own correctly-labelled section below (see "OTHER OPERATING
-  // INCOME" further down) so:
-  //   · OPERATING REVENUE lines and total agree (only 706 + 722).
-  //   · 758 still appears, in its own footed section, plainly labelled.
-  //   · EBITDA / EBIT / PBT / Net profit are byte-identical to before.
-  // This is display-sectioning only; no engine value recomputed.
+  const turnover = served?.turnover ?? line("revenue", is.revenue);
+  const cogs = line("cogs", is.costOfGoodsSold);
+  const opex = finite(apl?.opex_total) ?? line("opex_excluding_cogs_and_da", is.operatingExpenses);
+  const otherIncome = line("other_operating_income", is.otherIncome);
+  const dna = line("depreciation", is.depreciationAmortization);
+  const interestExpense = line("interest_expense", is.interestExpense);
+  const finIncome = line("financial_income", is.financialIncome);
+  const finExpense = line("financial_expense", is.financialExpense);
+  const tax = line("tax", is.taxExpense);
+  const payloadCapitalized = is.capitalizedOwnWork ?? 0;
+  const capitalized = served
+    ? served.capitalizedOwnWork?.value ?? finite(apl?.capitalized_own_work_memo) ?? 0
+    : payloadCapitalized;
+
+  // ── NET TURNOVER ─────────────────────────────────────────────────────
+  // Cifra de afaceri netă (70x − 709) and nothing else: 72x has its own
+  // line below, 767 is financial, 711 sits beside the costs.
   const operatingRevenueLines: PLLine[] = [];
-  if (revenue) {
+  if (Math.abs(turnover) >= HALF_CENT) {
     operatingRevenueLines.push({
       // The chip names the families THIS book's revenue bucket holds (or
-      // the bucket, "70x") — never a subset written into the code. See
-      // `revenueFamiliesChip` for the label this replaced and why.
+      // the bucket, "70x") — never a subset written into the code.
       accountCode: opts.revenueChip ?? "70x",
-      label: "Operating revenue (net turnover)",
-      amount: revenue,
+      label: "Net turnover",
+      amount: turnover,
       style: "item",
       // Comparatives key (lib/comparatives.ts PL_ROW_TO_KEY): this row IS
-      // the engine's net turnover — measured equal to the cent.
+      // the engine's net turnover.
       bucket: "revenueTurnover",
     });
   }
-  if (capOwnWork > 0) {
-    operatingRevenueLines.push({
-      accountCode: "722",
-      label: "Capitalized own work (CIP)",
-      amount: capOwnWork,
-      style: "item",
-    });
-  }
-
-  const totalOperatingRevenue = revenue + capOwnWork;
-
   const operatingRevenue: PLSection = {
     role: "operatingRevenue",
-    header: "OPERATING REVENUE",
+    header: "NET TURNOVER",
     lines: operatingRevenueLines,
-    subtotalLabel: "Total operating revenue",
-    subtotalAmount: totalOperatingRevenue,
+    subtotalLabel: "Total net turnover",
+    subtotalAmount: turnover,
     subtotalBucket: "revenue",
-    // Comparatives: net turnover + 722 is the engine's net turnover only
-    // while neither period carries 722 (lib/comparatives.ts cellForRow).
-    subtotalFolds: {
-      capitalized_own_work_memo: currentFoldAmount(capOwnWork, statements.assembled_pl, "capitalized_own_work_memo"),
-    },
   };
 
-  // ── OTHER OPERATING INCOME (758) ─────────────────────────────────────
-  // Account 758 ("Alte venituri din exploatare") is reported here as a
-  // separate one-line section. It is excluded from the EBITDA-driving
-  // operating-revenue subtotal above, per the engine's canonical
-  // classification. Showing it on its own line, in its own footed
-  // section, gives the board reader complete visibility WITHOUT the
-  // misleading layout where 758 sat under a subtotal that excluded it.
-  //
-  // Comparatives keys (lib/comparatives.ts PL_ROW_TO_KEY): the line and its
-  // subtotal are keyed to the engine's 758 line, `pl.other_operating_income`.
-  // The figure here is the served other-operating-income BUCKET, which on
-  // a book with provision reversals (781) or 74x/75x/77x income is wider
-  // than 758 alone — the parity guard then refuses the cells, never paints
-  // the 758 prior beside the wider figure.
-  const otherOperatingIncomeLines: PLLine[] = [];
-  if (otherIncome !== 0) {
-    otherOperatingIncomeLines.push({
-      accountCode: "758",
-      label: "Other operating income (758)",
-      amount: otherIncome,
-      style: "item",
-      bucket: "otherOperatingIncome",
-    });
-  }
-  const otherOperatingIncomeSection: PLSection = {
-    role: "otherOperatingIncome",
-    header: "OTHER OPERATING INCOME",
-    lines: otherOperatingIncomeLines,
-    subtotalLabel: "Total other operating income (excluded from operating revenue / EBITDA above)",
-    subtotalAmount: otherIncome,
-    subtotalBucket: "otherOperatingIncomeTotal",
-  };
+  // ── OTHER OPERATING INCOME ───────────────────────────────────────────
+  // The served other-operating-income line — the addend the engine's
+  // EBITDA uses (758, 781 reversals, 74x subsidies, …). It IS inside
+  // EBITDA; the old subtotal label saying it was excluded was wrong.
+  const otherOperatingIncomeSection: PLSection | null =
+    Math.abs(otherIncome) >= HALF_CENT
+      ? {
+          role: "otherOperatingIncome",
+          header: "OTHER OPERATING INCOME",
+          lines: [{
+            accountCode: reconLine(served?.reconciliation, "other_operating_income")?.accounts ?? "758",
+            label: "Other operating income",
+            amount: otherIncome,
+            style: "item",
+            bucket: "otherOperatingIncome",
+          }],
+          subtotalLabel: "Total other operating income",
+          subtotalAmount: otherIncome,
+          subtotalBucket: "otherOperatingIncomeTotal",
+        }
+      : null;
+
+  // ── OWN WORK CAPITALISED (72x) ───────────────────────────────────────
+  const capitalizedSection = capitalizedOwnWorkSection(
+    served, finite(apl?.capitalized_own_work_memo), payloadCapitalized);
 
   // ── OPERATING EXPENSES ───────────────────────────────────────────────
   const opexLines: PLLine[] = [];
-  if (cogs > 0) {
+  if (Math.abs(cogs) >= HALF_CENT) {
     opexLines.push({
       accountCode: "60x",
       label: "Cost of goods sold (601/602/607)",
@@ -822,7 +1038,7 @@ function buildPLStatementFromAggregatesUnjudged(
       bucket: "cogs",
     });
   }
-  if (opex > 0) {
+  if (Math.abs(opex) >= HALF_CENT) {
     opexLines.push({
       accountCode: "6xx",
       label: "Operating expenses (62x/63x/64x — incl. 628 third-party services)",
@@ -831,35 +1047,21 @@ function buildPLStatementFromAggregatesUnjudged(
       bucket: "opexTotal",
     });
   }
-
-  const totalOpexCash = cogs + opex;
-
   const operatingExpenses: PLSection = {
     role: "operatingExpenses",
     header: "OPERATING EXPENSES (excl. D&A)",
     lines: opexLines,
-    subtotalLabel: "Total operating expenses (cash)",
-    subtotalAmount: totalOpexCash,
+    subtotalLabel: "Total operating expenses",
+    subtotalAmount: cogs + opex,
   };
 
-  // ── EBITDA — the engine's figure, see EBITDA_COMPOSITION_NOTE ────────
-  const ebitda = oneEbitda(
-    servedEbitda ?? (is as { ebitda?: number | null }).ebitda,
-    totalOperatingRevenue, totalOpexCash, otherIncome);
-
-  // ── D&A → EBIT ───────────────────────────────────────────────────────
-  const depreciationSection: PLSection = {
-    role: "depreciation",
-    header: "",
-    lines: dna > 0
-      ? [{ accountCode: "6811", label: "Depreciation & amortization", amount: dna, style: "item", bucket: "depreciationAmortization" }]
-      : [],
-    subtotalLabel: "EBIT",
-    subtotalAmount: ebitda - dna,
-    subtotalBucket: "ebit",
-  };
-
-  const ebit = ebitda - dna;
+  // ── THE STOCK VARIATION (711) and THE ONE EBITDA ─────────────────────
+  const stockSection = stockVariationSection(served);
+  const { ebitda, refusal: ebitdaRefusal } = served
+    ? { ebitda: served.ebitda, refusal: served.refusal }
+    : payloadEbitda(
+        Math.abs(is.inventoryVariationMemo ?? 0) >= HALF_CENT,
+        turnover, otherIncome, capitalized, cogs + opex);
 
   // ── FINANCIAL ITEMS ──────────────────────────────────────────────────
   // Comparatives keys: financial income and interest expense are the
@@ -870,7 +1072,7 @@ function buildPLStatementFromAggregatesUnjudged(
   if (finIncome > 0) {
     financialLines.push({
       accountCode: "76x",
-      label: "Financial income (dividends, interest, FX gain, discounts)",
+      label: "Financial income (dividends, interest, FX gain, discounts received 767)",
       amount: finIncome,
       style: "item",
       sign: "positive",
@@ -896,9 +1098,8 @@ function buildPLStatementFromAggregatesUnjudged(
       sign: "negative",
     });
   }
-
-  const netFinancialResult = finIncome - interestExpense - finExpense;
-
+  const netFinancialResult =
+    finite(apl?.net_financial_result) ?? finIncome - interestExpense - finExpense;
   const financialItems: PLSection = {
     role: "financialItems",
     header: "FINANCIAL ITEMS",
@@ -908,81 +1109,25 @@ function buildPLStatementFromAggregatesUnjudged(
     subtotalBucket: "netFinancialResult",
   };
 
-  // ── PBT → NET PROFIT ─────────────────────────────────────────────────
-  // Same operational-headline treatment as the line-items variant above.
-  // The headline subtotal is OPERATIONAL net profit (excl. 722); the
-  // statutory ct-121 view is rendered below by PLReconciliationBridge
-  // as an explicit bridge, never as a competing total. One company →
-  // one screen-wide net-profit figure.
-  const profitBeforeTax = ebit + netFinancialResult;
-  const netProfit = profitBeforeTax - tax;                  // operational
-  const netProfitStatutory = netProfit + capOwnWork;        // includes 722
-
-  const closingSection: PLSection = {
-    role: "closing",
+  // ── D&A → EBIT ───────────────────────────────────────────────────────
+  const { ebit, ebitRefusal, pbt, pbtRefusal } = operatingTail(
+    served, ebitda, ebitdaRefusal, dna, netFinancialResult);
+  const depreciationSection: PLSection = {
+    role: "depreciation",
     header: "",
-    lines: plLines([
-      { label: "Profit before tax", amount: profitBeforeTax, style: "subtotal", bucket: "pretax" },
-      tax > 0
-        ? { accountCode: "691", label: "Income tax", amount: tax, style: "item", bucket: "taxExpense" }
-        : null,
-    ]),
-    subtotalLabel: "Net profit — operational (excl. 722)",
-    subtotalAmount: netProfit,
-    subtotalBucket: "netIncomeOperational",
+    lines: dna > 0
+      ? [{ accountCode: "6811", label: "Depreciation & amortization", amount: dna, style: "item", bucket: "depreciationAmortization" }]
+      : [],
+    subtotalLabel: "EBIT",
+    ...(ebit !== null ? { subtotalAmount: ebit } : ebitRefusal ? { subtotalRefusal: ebitRefusal } : {}),
+    subtotalBucket: "ebit",
   };
 
-  // ── KEY MARGINS ──────────────────────────────────────────────────────
-  // Clean EBITDA strips the capitalized own-work (revenue) and the matching
-  // portion of opex (assumed to mirror 722 — i.e. the 628/722 wash).
-  const cleanEbitda = ebitda - capOwnWork;  // revenue drops; opex offset assumed
-  // Same single-source convention as `totalOperatingRevenue` above —
-  // never adds `otherIncome` to the headline number (711 was the bug).
-  const operatingRevExclCIP = revenue;
-
-  // F1.e — see the BuildArgs.canonicalMargins comment in buildPLStatement.
-  // Aggregates-path mirror.
-  void cleanEbitda;
-  void operatingRevExclCIP;
-  // Per margin, not per object — see the same repair in buildPLStatement above.
-  const marginOrNullAgg = (canonical: number | null | undefined,
-                           numerator: number, denominator: number): number | null => {
-    if (typeof canonical === "number" && Number.isFinite(canonical)) return canonical;
-    if (Number.isFinite(numerator) && Number.isFinite(denominator) && denominator > 0) {
-      return numerator / denominator;
-    }
-    return null;
-  };
-  const keyMargins: PLKeyMargin[] = canonicalMargins
-    ? [
-        {
-          label: "EBITDA margin",
-          value: marginOrNullAgg(canonicalMargins.ebitdaMargin, ebitda, totalOperatingRevenue),
-          pct: true,
-        },
-        {
-          label: "Net margin",
-          value: marginOrNullAgg(canonicalMargins.netMargin, netProfitStatutory, totalOperatingRevenue),
-          pct: true,
-        },
-      ]
-    : [
-        {
-          label: "EBITDA margin (on total operating revenue)",
-          value: totalOperatingRevenue > 0 ? ebitda / totalOperatingRevenue : 0,
-          pct: true,
-        },
-        {
-          label: "EBITDA margin excl. capitalized own work",
-          value: operatingRevExclCIP > 0 ? cleanEbitda / operatingRevExclCIP : 0,
-          pct: true,
-        },
-        {
-          label: "Net margin (on statutory net profit)",
-          value: totalOperatingRevenue > 0 ? netProfitStatutory / totalOperatingRevenue : 0,
-          pct: true,
-        },
-      ];
+  // ── PBT → NET RESULT → ACCOUNT 121 ───────────────────────────────────
+  const taxLine: PLLine | null = tax > 0
+    ? { accountCode: "691", label: "Income tax", amount: tax, style: "item", bucket: "taxExpense" }
+    : null;
+  const { section: closing, netProfit } = closingSection(served, pbt, pbtRefusal, tax, taxLine);
 
   return {
     entity: statements.companyName ?? "Entity",
@@ -990,27 +1135,26 @@ function buildPLStatementFromAggregatesUnjudged(
     currency: statements.currency,
     sections: [
       operatingRevenue,
-      // 758 sits between operating revenue and operating expenses,
-      // visually distinct, with a subtotal label that names the
-      // exclusion explicitly. EBITDA below stays computed off
-      // `totalOperatingRevenue` only (engine's canonical view).
-      ...(otherOperatingIncomeLines.length > 0 ? [otherOperatingIncomeSection] : []),
+      ...(otherOperatingIncomeSection ? [otherOperatingIncomeSection] : []),
+      ...(capitalizedSection ? [capitalizedSection] : []),
       operatingExpenses,
+      ...(stockSection ? [stockSection] : []),
       depreciationSection,
       financialItems,
-      closingSection,
+      closing,
     ],
-    keyMargins,
+    keyMargins: keyMarginsFor(
+      canonicalMargins, ebitda, ebitdaRefusal, netProfit, closing.subtotalRefusal !== undefined, turnover),
     ebitda,
+    ebitdaRefusal,
     ebit,
     netFinancialResult,
-    profitBeforeTax,
+    profitBeforeTax: pbt,
     tax,
     netProfit,
-    netProfitStatutory,
-    capitalizedOwnWorkMemo: capOwnWork,
-    extServOther: opex,  // proxy — the actual 628 is hidden in opex aggregate
+    ...(served ? { netProfitStatutory: served.netIncomeStatutory } : {}),
+    capitalizedOwnWorkMemo: capitalized,
     periodMonth: "the period",
-    ...(opts.revenueFamilies ? { revenueFamilyAmounts: opts.revenueFamilies } : {}),
+    served,
   };
 }

@@ -25,6 +25,7 @@ import type { DocumentType } from "@/lib/financialStatementTabs";
 import type { Statements } from "@/lib/financialReport";
 import type { Invoice } from "@/lib/invoiceAnalytics";
 import { getSupabase } from "@/lib/supabase";
+import { briefingVisibility } from "@/lib/briefingDefinition";
 
 // canonical_bs v2 — the engine-owned Balance Sheet authority
 // (docs/CANONICAL_BS_V2_CONTRACT.md). It rides the /api/period payload at
@@ -119,10 +120,29 @@ export interface PeriodValuation {
     is_development_phase: boolean;
     stabilized_fcf: number;
   } | null;
-  // Three EBITDA views — so the user can audit which one EV/EBITDA used.
+  // Legacy names — since the one-EBITDA ruling all three are aliases of
+  // THE ONE EBITDA the valuation multiplied (null when refused).
   ebitda_statutory?: number | null;
   ebitda_operational?: number | null;
   ebitda_operating_view?: number | null;
+  /** The one EBITDA and its refusal, as the valuation serves them. */
+  ebitda?: number | null;
+  /** `cause` "valuation_row_other_ebitda": the STORED row was withheld (it
+   *  was computed on another EBITDA than the one served) — the EBITDA
+   *  itself is not refused. */
+  ebitda_refusal?: { code: string; cause?: string | null; text_ro?: string; text_en?: string } | null;
+  /** Why the asset-based (book equity) figure is absent: total equity
+   *  excludes a refused year's result (`total_equity_incomplete`, the
+   *  net result's code as `cause`). null beside a figure. */
+  asset_based_refusal?: { code: string; cause?: string | null; text_ro?: string; text_en?: string } | null;
+  /** "NOI (aproximare)" = EBITDA − net 711: the NAV cap-rate NOI proxy. */
+  noi_approximation?: {
+    value: number | null;
+    label?: { ro: string; en: string };
+    note?: { ro: string; en: string };
+  } | null;
+  /** How the primary method was chosen (sector / margin rule / EBITDA). */
+  routing?: { basis?: string; [k: string]: unknown } | null;
   confidence: "high" | "medium" | "low" | null;
   // Both are emitted by `_valuation.py`'s payload dict (`asset_based_equity`
   // is "always computed; shown when primary", `equity_ebitda_p50` is the
@@ -180,6 +200,14 @@ export interface PeriodValuation {
     multiple_used: number | null;
     debt_used: number | null;
     cash_used: number | null;
+    /** Which EBITDA definition the override was typed under; `flag` is the
+     *  served "salvat sub definiția anterioară a EBITDA" when not today's. */
+    definition?: {
+      saved_under: string | null;
+      current_definition: string;
+      saved_under_previous_definition: boolean;
+      flag: { ro: string; en: string } | null;
+    } | null;
   } | null;
 }
 
@@ -210,8 +238,13 @@ export interface ActivePeriod {
   recommendations: PeriodRecommendation[];
   /** Server-generated alerts. Empty for samples. */
   alerts: PeriodAlertItem[];
-  /** Server-generated CFO briefing string. */
+  /** Server-generated CFO briefing string — null when there is none, AND
+   *  when it was written under an earlier EBITDA definition (then
+   *  `briefingHiddenNote` carries the engine's one-line note). */
   briefing: string | null;
+  /** The engine's note standing in for a briefing hidden because it was
+   *  written under an earlier EBITDA definition (lib/briefingDefinition). */
+  briefingHiddenNote?: { ro: string; en: string } | null;
   /** Document types this period exposes — drives downstream tab visibility. */
   availableTypes: DocumentType[];
   /** True if a period is loaded. Pages use this as the empty-state flag. */
@@ -314,7 +347,18 @@ export interface PeriodApiResponse {
    *  (served verbatim by the engine; contract types re-exported above). */
   statements: Statements;
   metrics: PeriodMetric[];
-  briefing: { body: string; language: string; model: string | null } | null;
+  briefing: {
+    body: string;
+    language: string;
+    model: string | null;
+    /** The EBITDA definition the prose was written under (design A9). */
+    definition?: {
+      written_under: string | null;
+      current_definition: string;
+      written_under_previous_definition: boolean;
+      note: { ro: string; en: string } | null;
+    } | null;
+  } | null;
   recommendations: PeriodRecommendation[];
   alerts: PeriodAlertItem[];
   valuation: PeriodValuation | null;
@@ -478,7 +522,10 @@ export function useActivePeriod(): ActivePeriod {
         metrics: payload.metrics,
         recommendations: payload.recommendations,
         alerts: payload.alerts,
-        briefing: payload.briefing?.body ?? null,
+        // Hidden (with the engine's note) when written under an earlier
+        // EBITDA definition — never shown with stale numbers.
+        briefing: briefingVisibility(payload.briefing).body,
+        briefingHiddenNote: briefingVisibility(payload.briefing).hiddenNote,
         availableTypes: ["bilant", "pl"] as DocumentType[],
         isLoaded: true,
         isLoading: false,

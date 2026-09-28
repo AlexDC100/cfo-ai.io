@@ -6,10 +6,10 @@
     "kind": "actual"
    },
    "ebitda": {
-    "amount_minor": 1077637824,
+    "amount_minor": 1184806527,
     "kind": "actual"
    },
-   "ebitda_margin_ppm": 97261,
+   "ebitda_margin_ppm": 106934,
    "equity": {
     "amount_minor": 2392408372,
     "kind": "actual"
@@ -527,7 +527,7 @@
   ],
   "ebitda": [
    {
-    "amount_minor": 1077637824,
+    "amount_minor": 1184806527,
     "kind": "actual",
     "period": "FY2025"
    },
@@ -1439,6 +1439,10 @@
   {
    "id": "policy_rate_shift",
    "sentence": "a policy-rate shift is not served: the book does not say which of its debt reprices with the policy rate"
+  },
+  {
+   "id": "stock_variation",
+   "sentence": "the stock variation (Variația stocurilor de produse) and own work capitalised are not projected: they are nil in every plan year, so plan year one starts from the actual year's EBITDA before them"
   }
  ],
  "numbers": {
@@ -1520,35 +1524,69 @@
     "en": {
      "amount": "RON −16.9M",
      "margin": "−64.2%",
-     "margin_year0": "9.7%"
+     "margin_year0": "10.7%"
     },
     "ro": {
      "amount": "−16,9 mil. lei",
      "margin": "−64,2%",
-     "margin_year0": "9,7%"
+     "margin_year0": "10,7%"
     }
    },
    "figure": {
     "amount_minor": -1688777019,
     "kind": "projected"
    },
-   "margin_change_ppm": -739554,
+   "margin_change_ppm": -749227,
    "margin_ppm": -642293,
-   "margin_year0_ppm": 97261,
-   "period": "FY2030"
+   "margin_year0_ppm": 106934,
+   "period": "FY2030",
+   "year0_step": {
+    "capitalized_own_work": {
+     "amount_minor": 0,
+     "kind": "actual"
+    },
+    "code": "stock_variation_not_projected",
+    "display": {
+     "en": {
+      "ebitda_year0": "RON 11.8M",
+      "ebitda_year0_before_stock_variation": "RON 10.8M",
+      "step": "RON 1.1M",
+      "text": "the stock variation and own work capitalised are not projected: 0 in every plan year"
+     },
+     "ro": {
+      "ebitda_year0": "11,8 mil. lei",
+      "ebitda_year0_before_stock_variation": "10,8 mil. lei",
+      "step": "1,1 mil. lei",
+      "text": "variația stocurilor de produse și producția capitalizată nu se proiectează: 0 în anii de plan"
+     }
+    },
+    "ebitda_year0": {
+     "amount_minor": 1184806527,
+     "kind": "actual"
+    },
+    "ebitda_year0_before_stock_variation": {
+     "amount_minor": 1077637824,
+     "kind": "actual"
+    },
+    "inventory_variation": {
+     "amount_minor": 107168703,
+     "kind": "actual"
+    },
+    "margin_year0_before_stock_variation_ppm": 97261
+   }
   }
  },
  "period_id": "c-cur",
  "pins": {
-  "body_hash": "sha256:38fd3bd358b56f8f980a8f34e9178566b2b7434bd9f95c8174e779ef104acb99",
-  "cockpit_pack": "sha256:80afa3ff2921cb9c6fa060ac1a4dbf9fd8af95979ee86e291c83127fcb2e6435",
+  "body_hash": "sha256:4f8e0847ecf1a7a13117a683c7b12a9c17e395fae8c281a6beb76db444a722f0",
+  "cockpit_pack": "sha256:cc5ae7474d11755319867b91ab73d7a6cb8f284c0e88ff8da29c6d5f14133870",
   "engine_version": "0.1.0",
   "macro_pack": "sha256:786eec084a31392dca0f4be9c16faff90fcf6532c94bc8ed5823d5a05ff548b3",
-  "margin_pack": "sha256:78236be708ab1584075f779c79ab331d0f67a5f2f6e928af1a2d828798d71354",
+  "margin_pack": "sha256:bae7e9db9e98f58815b343b4695eb79b8f896679341604ac2abe05b874aa37f6",
   "pack_id": "forecast-cockpit"
  },
  "sentence": {
-  "en": "In the base case, you need a credit line of up to RON 79.9M starting in January 2026; DSCR falls below the bank's threshold: 0.03× in 2026 against 1.25×; EBITDA reaches RON −16.9M in 2030, a margin of −64.2% against 9.7% today.",
+  "en": "In the base case, you need a credit line of up to RON 79.9M starting in January 2026; DSCR falls below the bank's threshold: 0.03× in 2026 against 1.25×; EBITDA reaches RON −16.9M in 2030, a margin of −64.2% against 10.7% today.",
   "facts": {
    "cash": {
     "amount_minor": 7993498282,
@@ -1560,7 +1598,7 @@
     "kind": "projected"
    }
   },
-  "ro": "În scenariul de bază, ai nevoie de o linie de credit de până la 79,9 mil. lei începând din ianuarie 2026; DSCR scade sub pragul băncii: 0,03× în 2026 față de 1,25×; EBITDA ajunge la −16,9 mil. lei în 2030, cu o marjă de −64,2% față de 9,7% azi.",
+  "ro": "În scenariul de bază, ai nevoie de o linie de credit de până la 79,9 mil. lei începând din ianuarie 2026; DSCR scade sub pragul băncii: 0,03× în 2026 față de 1,25×; EBITDA ajunge la −16,9 mil. lei în 2030, cu o marjă de −64,2% față de 10,7% azi.",
   "template": [
    "frame",
    "funding",
@@ -3163,6 +3201,98 @@
    },
    {
     "label": {
+     "en": "Change in inventories of finished goods and WIP (711)",
+     "ro": "Variația stocurilor de produse"
+    },
+    "line": "pl.inventory_variation",
+    "not_projected": {
+     "code": "stock_variation_not_projected",
+     "text": {
+      "en": "the stock variation and own work capitalised are not projected: 0 in every plan year",
+      "ro": "variația stocurilor de produse și producția capitalizată nu se proiectează: 0 în anii de plan"
+     }
+    },
+    "values": [
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": 107168703,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   },
+   {
+    "label": {
+     "en": "Own work capitalised (72x)",
+     "ro": "Producția realizată pentru scopuri proprii și capitalizată"
+    },
+    "line": "pl.capitalized_own_work",
+    "not_projected": {
+     "code": "stock_variation_not_projected",
+     "text": {
+      "en": "the stock variation and own work capitalised are not projected: 0 in every plan year",
+      "ro": "variația stocurilor de produse și producția capitalizată nu se proiectează: 0 în anii de plan"
+     }
+    },
+    "values": [
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": 0,
+     "kind": "actual",
+     "period": "FY2025"
+    }
+   },
+   {
+    "label": {
      "en": "EBITDA",
      "ro": "EBITDA"
     },
@@ -3195,7 +3325,7 @@
      }
     ],
     "year0": {
-     "amount_minor": 1077637824,
+     "amount_minor": 1184806527,
      "kind": "actual",
      "period": "FY2025"
     }
@@ -3588,7 +3718,7 @@
      }
     ],
     "year0": {
-     "amount_minor": 793353899,
+     "amount_minor": 900522602,
      "kind": "actual",
      "period": "FY2025"
     }

@@ -11,6 +11,8 @@ import type { PeerEntry } from "@/lib/benchmarkPeersStore";
 import { fetchPriceHistory } from "@/lib/publicCompanyPriceHistory";
 import { deriveTotals } from "@/lib/financialReport";
 import type { Statements } from "@/lib/financialReport";
+import { plLevelsOf } from "@/lib/servedOneEbitda";
+import { marginRefusalOf } from "@/lib/marginMeaning";
 import type { SeriesDatum } from "@/lib/learning/multiPeriodSeries";
 
 // ── Workspace industry → BVB universe sector ─────────────────────────────
@@ -375,17 +377,29 @@ export function workspaceBenchMetrics(
 ): WorkspaceBenchMetrics | null {
   if (!statements) return null;
   const t = deriveTotals(statements);
-  const rev = statements.incomeStatement.revenue;
+  // Net turnover (70x − 709) is every margin's denominator — the served
+  // figure on a period the engine assembled, the adapter's revenue
+  // otherwise. EBITDA is the ONE EBITDA (`deriveTotals` reads it), null
+  // when the engine refused it — then the margin and the leverage are
+  // null too, never a division by a rebuilt figure.
+  const rev = plLevelsOf(statements).turnover;
   if (!Number.isFinite(rev) || rev === 0) return null;
   const priorRev = statements.prior?.incomeStatement.revenue;
+  // The engine's margin verdict (a developer's rent is not its sales):
+  // "Compania ta" prints no margin the dashboard refuses.
+  const marginRefused = marginRefusalOf(statements) !== null;
+  const ebitda = t.ebitda;
+  const net = t.netIncome;
   return {
     name: workspaceName || statements.companyName,
     revenue: rev,
-    ebitda_margin_pct: Number.isFinite(t.ebitda) ? (t.ebitda / rev) * 100 : null,
-    net_margin_pct: Number.isFinite(t.netIncome) ? (t.netIncome / rev) * 100 : null,
+    ebitda_margin_pct:
+      !marginRefused && ebitda !== null && Number.isFinite(ebitda) ? (ebitda / rev) * 100 : null,
+    net_margin_pct:
+      !marginRefused && net !== null && Number.isFinite(net) ? (net / rev) * 100 : null,
     net_debt_to_ebitda:
-      Number.isFinite(t.netDebt) && Number.isFinite(t.ebitda) && t.ebitda > 0
-        ? t.netDebt / t.ebitda
+      Number.isFinite(t.netDebt) && ebitda !== null && Number.isFinite(ebitda) && ebitda > 0
+        ? t.netDebt / ebitda
         : null,
     debt_to_equity:
       Number.isFinite(t.totalDebt) && Number.isFinite(t.totalEquity) && t.totalEquity > 0

@@ -7,6 +7,23 @@
 // The build function (buildPLStatement) takes per-account line items from
 // the backend and produces this structured form. The renderer
 // (PLStatementView) consumes it and produces the visible P&L.
+//
+// THE ONE EBITDA (owner ruling 2026-09-26). On an engine period every
+// subtotal the statement states — net turnover, EBITDA, EBIT, profit before
+// tax, the net result — is the SERVED figure (lib/servedOneEbitda.ts), and a
+// refused one is `null` with its typed reason beside it, never a zero and
+// never a figure this file derived. The stock variation (711) and own work
+// capitalised (72x) are rows of their own, named by the engine.
+
+import type { Bilingual, ServedOneEbitda, ServedRefusal } from "./servedOneEbitda";
+
+/** A name the engine serves in Romanian with an English gloss. The Romanian
+ *  UI prints `ro`; the English UI prints `ro` and the gloss beside it
+ *  (CLAUDE.md §11: Romanian account names stay; the English explains). */
+export interface RoName {
+  readonly ro: string;
+  readonly glossEn?: string | null;
+}
 
 export type LineStyle = "item" | "subtotal" | "total" | "boxed" | "section_header";
 export type LineSign = "positive" | "negative" | "neutral";
@@ -16,8 +33,22 @@ export interface PLLine {
   accountCode?: string;
   /** Line description, e.g. "Rental & lease income". */
   label: string;
-  /** Line amount; undefined for headers. */
+  /** Line amount; undefined for headers and for a REFUSED figure (then
+   *  `refusal` says why). */
   amount?: number;
+  /** The engine's own Romanian name for the line (with its English gloss).
+   *  When present the view prints it instead of `label`, which stays the
+   *  English fallback for non-view readers. */
+  roName?: RoName;
+  /** The engine's provenance for a MEASURED line (net 711, net 72x): its
+   *  key and its sentence, printed under the row. */
+  provenance?: { readonly key: string; readonly label: Bilingual | null };
+  /** A figure the engine REFUSED. The row prints the reason, never a
+   *  number and never a bare dash. */
+  refusal?: ServedRefusal;
+  /** The stock variation's direction, as the owner asked it shown:
+   *  "+ creștere de stoc" / "− scădere de stoc". */
+  stockDirection?: "increase" | "decrease";
   /** Rendering style. */
   style: LineStyle;
   /** For financial-items section — controls ± prefix on the amount. */
@@ -40,7 +71,11 @@ export interface PLLine {
 export type PLSectionRole =
   | "operatingRevenue"
   | "otherOperatingIncome"
+  /** Own work capitalised (72x): operating, outside turnover. */
+  | "capitalizedOwnWork"
   | "operatingExpenses"
+  /** Variația stocurilor de produse (711): beside the cost block, signed. */
+  | "stockVariation"
   | "depreciation"
   | "financialItems"
   | "closing";
@@ -51,28 +86,24 @@ export interface PLSection {
    *  adapter) is read positionally, as before — see PLStatementView's
    *  `plLayout`. */
   role?: PLSectionRole;
-  /** Section header, e.g. "OPERATING REVENUE". Empty string = no header. */
+  /** Section header, e.g. "NET TURNOVER". Empty string = no header. */
   header: string;
   /** Line items in display order. */
   lines: PLLine[];
-  /** Optional subtotal label (e.g. "Total operating revenue"). */
+  /** Optional subtotal label (e.g. "Total net turnover"). */
   subtotalLabel?: string;
   /** Optional subtotal amount paired with subtotalLabel. */
   subtotalAmount?: number;
   /** Stable Traceable bucket key for the section subtotal — e.g.
-   *  "revenue" (= Total operating revenue), "ebit", "pretax", "netIncome".
+   *  "revenue" (= Total net turnover), "ebit", "pretax", "netIncomeStatutory".
    *  PLStatementView emits this on the subtotal row. */
   subtotalBucket?: string;
-  /** WHAT THIS SUBTOTAL FOLDS IN BEYOND THE ENGINE LINE ITS KEY MAPS TO,
-   *  for the comparatives guard (lib/comparatives.ts `cellForRow`). Keyed
-   *  by the served `assembled_pl` field that states each component; the
-   *  value is the CURRENT period's amount (null: unreadable). "Total
-   *  operating revenue" is net turnover PLUS capitalized own work (722) —
-   *  and, on the line-item path, discounts received (767) — so it may
-   *  carry the engine's net-turnover cells only while every component here
-   *  is zero in BOTH periods (the prior's is read off the served
-   *  comparatives document). Absent: the subtotal folds nothing in. */
-  subtotalFolds?: Readonly<Record<string, number | null>>;
+  /** The engine's Romanian name for the subtotal (with its gloss). */
+  subtotalRoName?: RoName;
+  /** The engine's Romanian name for the header (with its gloss). */
+  headerRoName?: RoName;
+  /** The subtotal the engine REFUSED (then `subtotalAmount` is undefined). */
+  subtotalRefusal?: ServedRefusal;
 }
 
 export interface PLKeyMargin {
@@ -96,39 +127,36 @@ export interface PLStatement {
   currency: string;
   sections: PLSection[];
   keyMargins: PLKeyMargin[];
-  ebitda: number;
-  ebit: number;
+  /** THE ONE EBITDA — the engine's `assembled_pl.ebitda` on an engine
+   *  period (711 and 72x inside, 767 financial). null = REFUSED: the stock
+   *  variation could not be measured, and `ebitdaRefusal` says why. */
+  ebitda: number | null;
+  /** Why `ebitda` (and EBIT, profit before tax, the net result built from
+   *  the accounts) is null. */
+  ebitdaRefusal?: ServedRefusal | null;
+  /** The operating result (EBIT) — served, or null with the refusal. */
+  ebit: number | null;
   netFinancialResult: number;
-  profitBeforeTax: number;
+  /** Profit before tax on the one definition — served, or null. */
+  profitBeforeTax: number | null;
   tax: number;
-  /** Operational net profit — excludes account 722 (capitalized own-work).
-   *  This is the "cash earnings" view used by buyers, lenders, and the
-   *  valuation tab. For Scandia FY2025: RON 34.57M. */
-  netProfit: number;
-  /** Statutory net profit — INCLUDES 722. Matches account 121 closing
-   *  balance, i.e. the legally filed net profit on ANAF books. This is
-   *  the headline figure shown in the P&L tab and cited in the briefing
-   *  because it's the number a Romanian CFO recognizes from their own
-   *  accounts. For Scandia FY2025: RON 36.79M. */
-  netProfitStatutory?: number;
-  /** Capitalized own-work (722) — surfaced for the reconciliation footnote. */
+  /** The net result the statement's closing line states: account 121 (as
+   *  filed) where the trial balance anchors it, else the result built from
+   *  the accounts. null when that build is refused and no anchor exists. */
+  netProfit: number | null;
+  /** `assembled_pl.net_income_statutory` as served (account 121 when
+   *  anchored). Absent on a payload the engine did not assemble. */
+  netProfitStatutory?: number | null;
+  /** Net 72x — own work capitalised — inside EBITDA, outside turnover. */
   capitalizedOwnWorkMemo?: number;
-  /** Account 628 third-party services — surfaced for the footnote. */
-  extServOther?: number;
   /** Account 231 closing — for the CIP reconciliation. */
   cipUnderDevelopment?: number;
-  /** Period month name for the footnote ("December", etc.). */
+  /** Period month name ("December", etc.). */
   periodMonth?: string;
-  /** Revenue by three-digit account family ("701", "706", …), read off
-   *  the period's OWN revenue-bucket leaves — the same reading as the
-   *  aggregates row's chip (`revenueFamiliesChip`). The footnote's
-   *  rental-dominance test reads the 706 family here. It used to look for
-   *  a line whose `accountCode` was exactly "706": on a sub-account ledger
-   *  (7061, 7062, …) that found nothing, and on the aggregates path it
-   *  found the row's chip — a label — so a chip reading "706" made every
-   *  such book a landlord and a chip listing five families made none.
-   *  Absent when no leaves were available to read. */
-  revenueFamilyAmounts?: Record<string, number>;
+  /** The served one-EBITDA reading (bridge, provenance, notes) the view
+   *  prints under the EBITDA line. null on a payload the engine did not
+   *  assemble — the fictional demo, a public-company adapter. */
+  served?: ServedOneEbitda | null;
 }
 
 // ───────────────────────────────────────────────────────────────────────

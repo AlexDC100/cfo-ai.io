@@ -462,7 +462,11 @@ interface Rule {
   detect: (facts: PeriodFacts) => RuleFinding | null;
 }
 
-const RON = (n: number) => `RON ${Math.round(n).toLocaleString()}`;
+/** A money figure in a rule's prose. An absent one (a refused EBITDA, a
+ *  net result nobody served) is "not reported" — `Math.round(null)` is 0,
+ *  and "RON 0" would be a figure the statements never stated. */
+const RON = (n: number | null | undefined) =>
+  typeof n === "number" && Number.isFinite(n) ? `RON ${Math.round(n).toLocaleString()}` : "not reported";
 
 // ─── Absent-ratio discipline ────────────────────────────────────────────
 //
@@ -772,8 +776,12 @@ const RULES: Rule[] = [
       );
       // Floored at zero for the same reason: debt cannot go below nil,
       // so neither can the ratio built on it.
-      const newDte =
-        f.pl.ebitda > 0 ? Math.max(0, debt - appliedToDebt) / f.pl.ebitda : 0;
+      // A refused EBITDA (the stock variation could not be measured) has
+      // no Debt/EBITDA after the recall either — stated as unmeasured by
+      // `fx`, never as 0.00×.
+      const ebitda = f.pl.ebitda;
+      const newDte: number | null =
+        ebitda === null ? null : ebitda > 0 ? Math.max(0, debt - appliedToDebt) / ebitda : 0;
       const graded = grade(
         ic,
         RELATED_PARTY_MAGNITUDE_LABEL,
@@ -822,10 +830,10 @@ const RULES: Rule[] = [
               `${RON(interestSavings)} a year, which is the whole interest bill of ` +
               `${RON(f.pl.interest_expense)} — and returns the remaining ${RON(returnedAsCash)} as cash ` +
               `rather than as interest saved. Debt/EBITDA goes from ` +
-              `${fx(f.ratios.debt_to_ebitda, 2)}${has(f.ratios.debt_to_ebitda) ? "×" : ""} to ${newDte.toFixed(2)}×. `
+              `${fx(f.ratios.debt_to_ebitda, 2)}${has(f.ratios.debt_to_ebitda) ? "×" : ""} to ${fx(newDte, 2)}${has(newDte) ? "×" : ""}. `
             : `Recalling the receivable and using it to prepay would reduce annual interest by ` +
               `${RON(interestSavings)} and drop Debt/EBITDA from ` +
-              `${fx(f.ratios.debt_to_ebitda, 2)}${has(f.ratios.debt_to_ebitda) ? "×" : ""} to ${newDte.toFixed(2)}× ` +
+              `${fx(f.ratios.debt_to_ebitda, 2)}${has(f.ratios.debt_to_ebitda) ? "×" : ""} to ${fx(newDte, 2)}${has(newDte) ? "×" : ""} ` +
               `(more bankable territory). `) +
           ladderSentence(graded.materiality),
         actionsFallback: [
@@ -990,20 +998,24 @@ const RULES: Rule[] = [
       const dscr = f.ratios.dscr;
       const dte = f.ratios.debt_to_ebitda;
       // How much of the GREEN tier each dimension has eaten. 1.0 means
-      // the book is AT or PAST it.
+      // the book is AT or PAST it — and a tier cannot be consumed more
+      // than entirely: past it, the share is 100%, and the binding figure
+      // (printed beside it) says how far past. The unclamped quotient read
+      // "1348.9% of the green tier" on the developer (DSCR 0.11× under the
+      // one-EBITDA ruling), a percent that describes no quantity.
       const consumed: { label: string; value: number }[] = [];
       if (has(dscr)) {
         // Cover at or below zero has consumed the tier entirely; a
         // ratio of tier ÷ 0 is not a number a verdict may rest on.
         consumed.push({
           label: `DSCR ${fx(dscr, 2)}× against the ${MONITORING_TIERS.green.dscr.toFixed(2)}× green floor`,
-          value: dscr > 0 ? MONITORING_TIERS.green.dscr / dscr : 1,
+          value: dscr > 0 ? Math.min(1, MONITORING_TIERS.green.dscr / dscr) : 1,
         });
       }
-      if (has(dte) && f.pl.ebitda > 0) {
+      if (has(dte) && f.pl.ebitda !== null && f.pl.ebitda > 0) {
         consumed.push({
           label: `Debt/EBITDA ${fx(dte, 2)}× against the ${MONITORING_TIERS.green.dte.toFixed(1)}× green ceiling`,
-          value: dte > 0 ? dte / MONITORING_TIERS.green.dte : 0,
+          value: dte > 0 ? Math.min(1, dte / MONITORING_TIERS.green.dte) : 0,
         });
       }
       if (consumed.length === 0) return null;
@@ -1044,7 +1056,11 @@ const RULES: Rule[] = [
           (roomy
             ? `${binding.label} leaves real headroom — ${sharePct(binding.value)} of the green tier is used, so the time to install monitoring is now, not after the first warning.`
             : binding.value >= 1
-              ? `${binding.label} is already AT or past that tier (${sharePct(binding.value)} of it used), so this is not preventative — the dashboard is how the next lender conversation gets prepared.`
+              // Past the tier the share is not a quantity a reader can use —
+              // "1348.9% of it used" is the green floor divided by a DSCR of
+              // 0.11× (the developer under the one-EBITDA ruling). The
+              // binding figure and its tier are printed; the multiple is not.
+              ? `${binding.label} is already AT or past that tier, so this is not preventative — the dashboard is how the next lender conversation gets prepared.`
               : `${binding.label} has used ${sharePct(binding.value)} of the green tier, so the margin is real but no longer comfortable.`) +
           ` ` + ladderSentence(graded.materiality),
         actionsFallback: [
@@ -1148,51 +1164,13 @@ const RULES: Rule[] = [
     },
   },
 
-  // R5. Capitalized own-work disclosure (info)
-  // Earnings-quality observation when 722 is material vs rental revenue.
-  {
-    key: "capitalized_own_work_disclosure",
-    detect: (f) => {
-      const cow = f.pl.capitalized_own_work_memo;
-      const pctRev = cow / Math.max(f.pl.rental_revenue, 1);
-      if (cow <= 0) return null;
-      if (!clearsFloor(cow, f.pl.revenue, BANDS.shareOfRevenue)) return null;
-      const graded = grade(
-        cow,
-        "Capitalised own work (722)",
-        f.pl.revenue,
-        "Revenue",
-        BANDS.shareOfRevenue,
-        "The presentation gap is graded against the top line the two " +
-          "EBITDA views are both stated on, so the verdict is how much of " +
-          "this company's reported margin the choice moves.",
-      );
-      return {
-        ruleKey: "capitalized_own_work_disclosure",
-        graded,
-        title: `Capitalized own-work ${RON(cow)} (account 722) = ${(pctRev * 100).toFixed(0)}% of rental revenue — disclose dual view`,
-        factsCited: {
-          capitalized_own_work: cow,
-          pct_of_rental_revenue: pctRev,
-          ebitda_statutory: f.pl.ebitda,
-          ebitda_operational: f.pl.ebitda_excl_capitalized,
-        },
-        rationaleFallback:
-          `The company capitalizes labor and overhead into CIP (account 231) via 722. The offsetting cost ` +
-          `sits in 628 (Other third-party services) — net P&L effect is approximately zero. However, ` +
-          `statutory EBITDA ${RON(f.pl.ebitda)} (with 722) versus operational view ` +
-          `${RON(f.pl.ebitda_excl_capitalized)} (without) produces a material presentation gap. ` +
-          `Bank covenants typically use the statutory view; investors and analysts may compute the operational view. ` +
-          ladderSentence(graded.materiality),
-        actionsFallback: [
-          "Maintain clear documentation showing the 722/628 wash so an auditor or lender can reconcile both views.",
-          `When speaking to the lender, cite statutory EBITDA (${RON(f.pl.ebitda)}).`,
-          "When speaking to a potential equity investor, present both views with the explanation.",
-          "Once CIP delivers (account 231 → 215), the 722 entry stops and the two views converge — frame the convergence as a milestone.",
-        ],
-      };
-    },
-  },
+  // R5. Capitalized own-work disclosure — RETIRED 2026-09-26 (owner ruling).
+  // It told the reader to "disclose the dual view": statutory EBITDA with
+  // 722 against an "operational" EBITDA without. The ruling puts 72x INSIDE
+  // the one EBITDA and allows no second EBITDA beside it; the own work
+  // capitalised is its own line of the EBITDA reconciliation, served with its
+  // provenance. (The engine's R5 alert and its findings twin are retired in
+  // the same change.)
 
   // ══════════════════════════════════════════════════════════════════
   // TRUE DISTRESS RULES — only fire when the condition is GENUINELY
@@ -1222,7 +1200,7 @@ const RULES: Rule[] = [
           interest_expense: f.pl.interest_expense,
         },
         rationaleFallback:
-          `Statutory EBITDA ${RON(f.pl.ebitda)} against interest + principal exceeds the covenant floor. ` +
+          `EBITDA ${RON(f.pl.ebitda)} against interest + principal exceeds the covenant floor. ` +
           `Genuine covenant pressure — engage the lender proactively before the next compliance certificate. ` +
           ABSOLUTE_WHY,
         actionsFallback: [
@@ -1248,7 +1226,8 @@ const RULES: Rule[] = [
       // composite of: NI < 0 AND total_equity < 0 (the actual bankruptcy
       // signature). The "true_distress_altman" rule then fires only on
       // genuine sign-correct distress, not on misapplied variants.
-      const niLoss = f.pl.net_profit < 0;
+      // An absent net result is no loss claim (and no distress claim).
+      const niLoss = f.pl.net_profit !== null && f.pl.net_profit < 0;
       // `null < 0` is false, so an ABSENT equity total silently disabled
       // the whole Art. 153^24 distress rule — the one that tells a
       // Romanian administrator they are legally obliged to convene the
@@ -1281,25 +1260,45 @@ const RULES: Rule[] = [
     },
   },
 
-  // R8. True negative-EBITDA — fires only when STATUTORY EBITDA < 0
+  // R8. True negative-EBITDA — operations consuming cash. REBASED
+  // 2026-09-26 (owner ruling, design A6) on the SERVED EBITDA BEFORE the
+  // stock variation and own work capitalised: the one EBITDA includes net
+  // 711 and 72x, which on a property developer carry the construction cost
+  // stocked into inventory — its EBITDA is positive (+550,976.12) while the
+  // operations consume 29.0M of cash. That build-up is the one figure the
+  // ruling lets differ from EBITDA, and only for this finding; it is worded
+  // as what it is, never as "EBITDA". Silent when it is not served.
   {
     key: "true_negative_ebitda",
     detect: (f) => {
-      if (f.pl.ebitda >= 0) return null;
+      const before = f.pl.ebitda_before_stock_variation;
+      // ABSENT != ZERO, and absent != negative: a caller that does not
+      // serve the field (undefined) keeps the rule silent.
+      if (typeof before !== "number" || !Number.isFinite(before) || before >= 0) return null;
       return {
         ruleKey: "true_negative_ebitda",
-        graded: absolute("critical", f.pl.ebitda, "Statutory EBITDA", ABSOLUTE_WHY),
-        title: `Statutory EBITDA ${RON(f.pl.ebitda)} negative — operating model is not generating cash`,
+        graded: absolute(
+          "critical",
+          before,
+          "EBITDA before the stock variation and own work capitalised",
+          ABSOLUTE_WHY,
+        ),
+        title: `Operations consume cash — EBITDA before the stock variation and own work capitalised is ${RON(before)}`,
         factsCited: {
-          ebitda_statutory: f.pl.ebitda,
+          ebitda_before_stock_variation: before,
+          ebitda: f.pl.ebitda,
+          inventory_variation: f.pl.inventory_variation,
+          capitalized_own_work: f.pl.capitalized_own_work_memo,
           rental_revenue: f.pl.rental_revenue,
         },
         rationaleFallback:
-          `Statutory EBITDA is negative. Earnings-based valuation methods (EV/EBITDA, EV/Revenue) ` +
-          `produce meaningless values; the company is consuming cash from operations. ` +
+          `Before the stock variation (711, Variația stocurilor de produse) and own work capitalised (72x), ` +
+          `the operating result is ${RON(before)}: the company is consuming cash from operations. ` +
+          `EBITDA itself (${RON(f.pl.ebitda)}) includes those two lines, so an earnings multiple on it would ` +
+          `value production stocked or capitalised as if it were cash earned. ` +
           ABSOLUTE_WHY,
         actionsFallback: [
-          "Build a path-to-positive-EBITDA plan with month-by-month milestones over the next 12 months.",
+          "Build a path-to-positive operating cash plan with month-by-month milestones over the next 12 months.",
           "Identify discretionary cost lines that can be cut without impairing the revenue base.",
           "Prepare a bridge-financing conversation with the lender now, ahead of the cash runway tightening.",
         ],

@@ -211,6 +211,7 @@
     "reported": 0.0,
     "strict": 0.0
    },
+   "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
    "errors": [
     {
      "error": "ZeroDivisionError: division by zero",
@@ -278,8 +279,20 @@
     }
    ],
    "industry_key_applied": "default",
+   "measured": {
+    "capitalized_own_work_net": {
+     "provenance": "no_72x_activity",
+     "refusal": null,
+     "value": 0.0
+    },
+    "inventory_variation_net": {
+     "provenance": "no_711_activity",
+     "refusal": null,
+     "value": 0.0
+    }
+   },
    "methodology_id": "ro_ras_2025_v1",
-   "methodology_version": "1.0.0",
+   "methodology_version": "1.1.0",
    "missing_buckets": [
     "cogs.net",
     "dap.net",
@@ -555,6 +568,7 @@
      "value": 1000000.0
     }
    },
+   "refusals": {},
    "schema_version": "canonical_v1.0.0",
    "totals": {
     "current_assets": 1000000.0,
@@ -611,6 +625,54 @@
    "sum_closing_debit": 1000000.0,
    "warn": false,
    "warn_threshold_pct": 2.0
+  },
+  "stock_variation": {
+   "a711": {
+    "activity": 0.0,
+    "credit_turnover": 0.0,
+    "debit_turnover": 0.0,
+    "leaves": 0,
+    "listed": false,
+    "net_movement": 0.0
+   },
+   "a72x": {
+    "activity": 0.0,
+    "credit_turnover": 0.0,
+    "debit_turnover": 0.0,
+    "leaves": 0,
+    "listed": false,
+    "net_movement": 0.0
+   },
+   "account_121": {
+    "closing": 0.0,
+    "listed": false,
+    "opening": 0.0,
+    "st_includes_si": true,
+    "year_credits": 0.0,
+    "year_debits": 0.0
+   },
+   "aggregate_pl": [],
+   "aggregate_pl_count": 0,
+   "basis": "trial_balance",
+   "book_state": "no_pl_activity",
+   "has_cumulative": false,
+   "mixed_codes": [],
+   "nature_reads": {
+    "credit_natured_excl_711": 0.0,
+    "debit_natured": 0.0
+   },
+   "opening_cleared_by": {
+    "kind": "opening_zero"
+   },
+   "parser_version": "tb_parser_v6",
+   "pl_leaves": 0,
+   "pl_leaves_active": 0,
+   "pl_leaves_closed": 0,
+   "pl_leaves_mixed": 0,
+   "pl_leaves_open": 0,
+   "schema": "stock_variation/1",
+   "unread_pl": [],
+   "unread_pl_count": 0
   },
   "unmapped": []
  },
@@ -2641,6 +2703,7 @@
      "reported": 0.0,
      "strict": 0.0
     },
+    "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
     "errors": [
      {
       "error": "ZeroDivisionError: division by zero",
@@ -2708,8 +2771,20 @@
      }
     ],
     "industry_key_applied": "default",
+    "measured": {
+     "capitalized_own_work_net": {
+      "provenance": "no_72x_activity",
+      "refusal": null,
+      "value": 0.0
+     },
+     "inventory_variation_net": {
+      "provenance": "no_711_activity",
+      "refusal": null,
+      "value": 0.0
+     }
+    },
     "methodology_id": "ro_ras_2025_v1",
-    "methodology_version": "1.0.0",
+    "methodology_version": "1.1.0",
     "missing_buckets": [
      "cogs.net",
      "dap.net",
@@ -2985,6 +3060,7 @@
       "value": 1000000.0
      }
     },
+    "refusals": {},
     "schema_version": "canonical_v1.0.0",
     "totals": {
      "current_assets": 1000000.0,
@@ -3013,6 +3089,54 @@
     "worst": ""
    },
    "schema_version": "canonical_v1.0.0",
+   "stock_variation": {
+    "a711": {
+     "activity": 0.0,
+     "credit_turnover": 0.0,
+     "debit_turnover": 0.0,
+     "leaves": 0,
+     "listed": false,
+     "net_movement": 0.0
+    },
+    "a72x": {
+     "activity": 0.0,
+     "credit_turnover": 0.0,
+     "debit_turnover": 0.0,
+     "leaves": 0,
+     "listed": false,
+     "net_movement": 0.0
+    },
+    "account_121": {
+     "closing": 0.0,
+     "listed": false,
+     "opening": 0.0,
+     "st_includes_si": true,
+     "year_credits": 0.0,
+     "year_debits": 0.0
+    },
+    "aggregate_pl": [],
+    "aggregate_pl_count": 0,
+    "basis": "trial_balance",
+    "book_state": "no_pl_activity",
+    "has_cumulative": false,
+    "mixed_codes": [],
+    "nature_reads": {
+     "credit_natured_excl_711": 0.0,
+     "debit_natured": 0.0
+    },
+    "opening_cleared_by": {
+     "kind": "opening_zero"
+    },
+    "parser_version": "tb_parser_v6",
+    "pl_leaves": 0,
+    "pl_leaves_active": 0,
+    "pl_leaves_closed": 0,
+    "pl_leaves_mixed": 0,
+    "pl_leaves_open": 0,
+    "schema": "stock_variation/1",
+    "unread_pl": [],
+    "unread_pl_count": 0
+   },
    "unmapped": []
   },
   "assembled_cf": {
@@ -3119,6 +3243,15 @@
   },
   "assembled_pl": {
    "adjusted_ebitda": 0.0,
+   "capitalized_own_work": {
+    "accounts": "72x",
+    "gloss_en": "own work capitalised",
+    "label_en": "Own work capitalised (72x) — no postings in the period",
+    "label_ro": "Producția realizată pentru scopuri proprii și capitalizată (72x) — fără înregistrări în perioadă",
+    "line_name_ro": "Producția realizată pentru scopuri proprii și capitalizată",
+    "provenance": "no_72x_activity",
+    "value": 0.0
+   },
    "capitalized_own_work_memo": 0.0,
    "cogs": 0.0,
    "core_ebitda": 0.0,
@@ -3127,12 +3260,162 @@
    "discounts_received": 0.0,
    "ebit": 0.0,
    "ebitda": 0.0,
-   "ebitda_adjusted": 0.0,
+   "ebitda_before_stock_variation": 0.0,
    "ebitda_cash": 0.0,
+   "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
    "ebitda_operating_view": 0.0,
    "ebitda_operational": 0.0,
+   "ebitda_reconciliation": {
+    "bridge": {
+     "parts": [
+      {
+       "key": "ebitda_before_stock_variation",
+       "label_en": "EBITDA before stock variation and own work capitalised",
+       "label_ro": "EBITDA înainte de variația stocurilor și producția imobilizată",
+       "value": 0.0
+      },
+      {
+       "key": "inventory_variation",
+       "label_en": "Change in inventories of finished goods and WIP",
+       "label_ro": "Variația stocurilor de produse",
+       "value": 0.0
+      },
+      {
+       "key": "capitalized_own_work",
+       "label_en": "Own work capitalised",
+       "label_ro": "Producția imobilizată",
+       "value": 0.0
+      },
+      {
+       "key": "ebitda",
+       "label_en": "EBITDA",
+       "label_ro": "EBITDA",
+       "value": 0.0
+      }
+     ],
+     "refusal": null
+    },
+    "definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+    "identity_with_121": false,
+    "lines": [
+     {
+      "accounts": "70x − 709",
+      "key": "turnover",
+      "label_en": "Net turnover",
+      "label_ro": "Cifra de afaceri netă",
+      "value": 0.0
+     },
+     {
+      "accounts": "74x, 75x, 77x, 78x",
+      "key": "other_operating_income",
+      "label_en": "Other operating income",
+      "label_ro": "Alte venituri din exploatare",
+      "value": 0.0
+     },
+     {
+      "accounts": "72x",
+      "key": "capitalized_own_work",
+      "label_en": "Own work capitalised",
+      "label_ro": "Producția realizată pentru scopuri proprii și capitalizată",
+      "provenance": "no_72x_activity",
+      "provenance_label_en": "Own work capitalised (72x) — no postings in the period",
+      "provenance_label_ro": "Producția realizată pentru scopuri proprii și capitalizată (72x) — fără înregistrări în perioadă",
+      "value": 0.0
+     },
+     {
+      "accounts": "601, 602, 607",
+      "key": "cost_of_sales",
+      "label_en": "Cost of sales",
+      "label_ro": "Costul mărfurilor și al materiilor prime",
+      "value": -0.0
+     },
+     {
+      "accounts": "711",
+      "beside": "cost_of_sales",
+      "key": "inventory_variation",
+      "label_en": "Change in inventories of finished goods and WIP",
+      "label_ro": "Variația stocurilor de produse",
+      "provenance": "no_711_activity",
+      "provenance_label_en": "Change in inventories of finished goods and WIP (711) — no postings in the period",
+      "provenance_label_ro": "Variația stocurilor de produse (711) — fără înregistrări în perioadă",
+      "refusal": null,
+      "value": 0.0
+     },
+     {
+      "accounts": "603-606, 608-65x",
+      "key": "operating_expenses",
+      "label_en": "Other operating expenses",
+      "label_ro": "Alte cheltuieli de exploatare",
+      "value": -0.0
+     },
+     {
+      "accounts": null,
+      "key": "ebitda",
+      "label_en": "EBITDA",
+      "label_ro": "EBITDA",
+      "refusal": null,
+      "subtotal": true,
+      "value": 0.0
+     },
+     {
+      "accounts": "681x",
+      "key": "depreciation",
+      "label_en": "Depreciation, provisions and impairment (681x)",
+      "label_ro": "Amortizări, provizioane și ajustări (681x)",
+      "value": -0.0
+     },
+     {
+      "accounts": null,
+      "key": "operating_result",
+      "label_en": "Operating result",
+      "label_ro": "Rezultatul din exploatare",
+      "refusal": null,
+      "subtotal": true,
+      "value": 0.0
+     },
+     {
+      "accounts": "76x − 66x",
+      "key": "financial_result",
+      "label_en": "Financial result",
+      "label_ro": "Rezultatul financiar",
+      "value": 0.0
+     },
+     {
+      "accounts": "69x",
+      "key": "tax",
+      "label_en": "Income tax",
+      "label_ro": "Impozitul pe profit",
+      "value": -0.0
+     },
+     {
+      "accounts": null,
+      "key": "net_result",
+      "label_en": "Net result (built from the accounts)",
+      "label_ro": "Rezultatul net (din rulajele conturilor)",
+      "refusal": null,
+      "subtotal": true,
+      "value": 0.0
+     },
+     {
+      "accounts": "121",
+      "key": "account_121",
+      "label_en": "Net result in account 121",
+      "label_ro": "Rezultatul net din contul 121",
+      "status": "not_anchored",
+      "value": null
+     },
+     {
+      "accounts": null,
+      "key": "not_explained",
+      "label_en": "Not explained by the revenue and expense accounts",
+      "label_ro": "Neexplicat de conturile de venituri și cheltuieli",
+      "value": null
+     }
+    ],
+    "schema": "ebitda_reconciliation/1"
+   },
+   "ebitda_refusal": null,
    "ebitda_statutory": 0.0,
-   "ebitda_statutory_with_711": 0.0,
    "financial_expense": 0.0,
    "financial_expense_total": 0.0,
    "financial_income": 0.0,
@@ -3144,7 +3427,38 @@
    "income_tax": 0.0,
    "interest_expense": 0.0,
    "interest_income": 0.0,
-   "inventory_variation_memo": 0.0,
+   "inventory_variation": {
+    "accounts": "711",
+    "activity": 0.0,
+    "basis": "trial_balance",
+    "book_state": "no_pl_activity",
+    "gloss_en": "change in inventories of finished goods and work in progress",
+    "guards": {
+     "G1_book_state": "no_pl_activity",
+     "G2_anchored": false,
+     "G3_activity": 0.0,
+     "G4_double_read_pl": 0,
+     "G4_unread_pl": 0,
+     "G5_residual": null,
+     "G5_within_activity": null,
+     "G6_cleared_by": "opening_zero",
+     "G6_opening": 0.0,
+     "G7_current": true,
+     "G7_parser_version": "tb_parser_v6",
+     "G7_running_parser_version": "tb_parser_v6"
+    },
+    "has_activity": false,
+    "identity_with_121": false,
+    "label_en": "Change in inventories of finished goods and WIP (711) — no postings in the period",
+    "label_ro": "Variația stocurilor de produse (711) — fără înregistrări în perioadă",
+    "line_name_ro": "Variația stocurilor de produse",
+    "measured_without_121": true,
+    "provenance": "no_711_activity",
+    "refusal": null,
+    "schema": "stock_variation/1",
+    "stock_production_credit_turnover": 0.0,
+    "value": 0.0
+   },
    "net_financial_result": 0.0,
    "net_income_anchor_source": null,
    "net_income_anchor_status": "absent",
@@ -3156,6 +3470,7 @@
    "net_income_unexplained_vs_121": 0.0,
    "operating_ebit": 0.0,
    "operating_ebitda": 0.0,
+   "operating_result": 0.0,
    "opex_excluding_cogs_and_da": 0.0,
    "opex_third_party": 0.0,
    "opex_total": 0.0,
@@ -3164,11 +3479,12 @@
    "other_op_income_lump": 0,
    "other_operating_income": 0.0,
    "pretax": 0.0,
+   "pretax_before_stock_variation": 0.0,
    "revenue": 0.0,
    "tax": 0.0,
    "total_operating_expense": 0.0,
    "total_operating_revenue": 0.0,
-   "total_operating_revenue_statutory": 0.0
+   "turnover": 0.0
   },
   "balanceSheet": {
    "accountsPayable": 0.0,
@@ -3552,7 +3868,7 @@
     },
     {
      "id": "reconstruction_gap",
-     "reason": "The reconstructed P&L reaches statutory profit exactly; there is no bridging step to report.",
+     "reason": "The P&L, its named lines included, reaches statutory profit exactly; there is no unexplained step to report.",
      "title": "The P&L does not reach statutory profit on its own"
     },
     {

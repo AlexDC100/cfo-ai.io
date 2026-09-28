@@ -1377,8 +1377,14 @@ def test_hx1_a_zero_tax_charge_no_account_stands_behind_is_refused(book):
             or abs(tax) > 1e-9:
         return
     model = _model_assumptions(payload)["tax_rate"]
-    unexplained = float(payload["statements"]["assembled_pl"].get(
-        "net_income_unexplained_vs_121") or 0.0)
+    # The distance the tax rule is KEYED to (ruling 2026-09-26): the step
+    # from the build-up BEFORE the stock variation to account 121, less
+    # 72x — the engine's unexplained remainder plus a served (121-derived)
+    # net 711. `net_income_unexplained_vs_121` alone is 0.00 on a bridge
+    # book (the developer), which would send it down the "ties" branch.
+    pl_ = payload["statements"]["assembled_pl"]
+    unexplained = float(pl_.get("net_income_unexplained_vs_121") or 0.0) + float(
+        (pl_.get("inventory_variation") or {}).get("value") or 0.0)
     if abs(unexplained) < 0.005:
         # RESTATED (plan/2 B4 repair, B4V-6): the statement rows reach the
         # engine since B4b, so the ENGINE now sees that no profit-tax row
@@ -1767,7 +1773,7 @@ _MICRO = {"revenue": 200000.0, "opex": 170000.0, "depreciation": 10000.0,
 
 
 def _micro_book(filed_121, tax=1000.0, with_charge_account=True,
-                extra_accounts=()):
+                extra_accounts=(), stock_variation_evidence=None):
     """A REAL assembled payload whose filed account-121 balance is placed
     by the caller and whose SHAPE is then decided by the engine.
 
@@ -1809,7 +1815,8 @@ def _micro_book(filed_121, tax=1000.0, with_charge_account=True,
                                payables)
         return assemble_statements(
             rows, company_name="Micro SRL", period_label="FY2025",
-            account_121_anchor_override=filed_121)
+            account_121_anchor_override=filed_121,
+            stock_variation_evidence=stock_variation_evidence)
 
     # Pass 1 — any payables figure; account 401 is a class-4 liability and
     # cannot move the current-year result. Pass 2 sizes the ledger so the
@@ -1856,15 +1863,50 @@ def _micro_accounts(m, tax, with_charge_account, extra_accounts, payables):
 
 def _build_up(payload):
     """The build-up the rate sits in, bridged the way the ASSEMBLY bridges
-    it: pre-tax result less the charge, plus capitalised own work.
+    it: pre-tax result BEFORE the stock variation less the charge, plus
+    capitalised own work.
 
     That is `chart_of_accounts.py`'s own definition of statutory net
     income, so this file measures the same quantity the engine does and
-    the two cannot mean different things by "reaches account 121".
+    the two cannot mean different things by "reaches account 121". Since
+    the ruling (2026-09-26) `pretax` itself carries net 711 and 72x, so the
+    build-up reads `pretax_before_stock_variation` — the figure the tax
+    rule is keyed to.
     """
     pl = payload["statements"]["assembled_pl"]
-    return round(pl["pretax"] - pl["income_tax"]
+    return round(pl["pretax_before_stock_variation"] - pl["income_tax"]
                  + (pl.get("capitalized_own_work_memo") or 0.0), 2)
+
+
+def _micro_closed_evidence(filed_121, amount_711):
+    """The stock-variation evidence of the micro book as a CLOSED trial
+    balance (every class-6/7 leaf closed into 121: cumulative debit =
+    credit, closing 0) — measured by the real `stock_variation.measure`
+    from constructed rows, never hand-written."""
+    from engine.country_packs.ro_romania import stock_variation
+
+    m = _MICRO
+
+    def row(code, amount):
+        return {"cont": code, "nume_cont": code, "si_d": 0.0, "si_c": 0.0,
+                "r_d": amount, "r_c": amount, "st_d": amount, "st_c": amount,
+                "sf_d": 0.0, "sf_c": 0.0}
+
+    rows = [row("704", m["revenue"]), row("628", m["opex"]),
+            row("6811", m["depreciation"]), row("691", 1000.0),
+            row("711", amount_711)]
+    credits = m["revenue"] + amount_711
+    rows.append({"cont": "121", "nume_cont": "Profit si pierdere",
+                 "si_d": 0.0, "si_c": 0.0,
+                 "r_d": credits - filed_121, "r_c": credits,
+                 "st_d": credits - filed_121, "st_c": credits,
+                 "sf_d": 0.0, "sf_c": filed_121})
+    # Through the production seam: it stamps the reader that produced the
+    # rows (G7, design A10) — a block with no reader stamp never bridges.
+    from engine.country_packs.ro_romania.pack import RomaniaPack
+    ev = RomaniaPack().measure_stock_variation(rows)
+    assert stock_variation.is_measured(ev)
+    return ev
 
 
 #: The three shapes, named by what the ENGINE does with them rather than
@@ -2094,10 +2136,17 @@ def test_hg6_the_distance_is_the_engines_own_unexplained_step(book):
     _, history = _opening_and_history(payload)
     gap = history.unexplained_vs_filed()
     assert gap is not None, book
-    assert abs(gap) == abs(cents_from(pl["net_income_unexplained_vs_121"])), (
+    # REWRITTEN for the ruling (2026-09-26): the model's distance is taken
+    # before the stock variation; the assembly publishes what remains
+    # after the lines it names, net 711 among them. One number, split once.
+    served_711 = (pl.get("inventory_variation") or {}).get("value") or 0.0
+    assert gap == cents_from(pl["net_income_unexplained_vs_121"]) + cents_from(served_711), (
         "%s: the engine measures %s from account 121 and the assembly "
-        "publishes %s — two authorities for one number"
-        % (book, gap, pl["net_income_unexplained_vs_121"]))
+        "publishes %s + a stock variation of %s — two authorities for one number"
+        % (book, gap, pl["net_income_unexplained_vs_121"], served_711))
+    assert history.stock_variation_in_distance() == (
+        cents_from(served_711)
+        if pl["inventory_variation"].get("provenance") == "account_121_bridge" else 0)
 
 
 def test_hg7_capitalised_own_work_does_bridge_the_distance():
@@ -2122,44 +2171,68 @@ def test_hg7_capitalised_own_work_does_bridge_the_distance():
         "account 121: got %r / %r"
         % (_p121_block(payload)["p121"], pl["capitalized_own_work_memo"],
            driver.value, driver.status))
+    # keyed to the build-up before the stock variation (ruling 2026-09-26):
+    # `pretax` carries the 72x the rate is not measured on
     assert driver.value == pytest.approx(
-        pl["income_tax"] / pl["pretax"], abs=5e-7)
+        pl["income_tax"] / pl["pretax_before_stock_variation"], abs=5e-7)
 
 
 def test_hg8_an_inventory_variation_does_not_bridge_the_distance():
-    """And the component that is NOT part of that bridge does not close it.
+    """And the stock variation does not close it for the TAX RULE.
 
-    Same book, same distance, 711 instead of 722. The assembly's
-    reconciliation to statutory net income does not carry the inventory
-    variation, so the build-up does not reproduce the filed figure.
+    REWRITTEN for the owner ruling of 2026-09-26 (design A6), not
+    re-captured. Same book, same distance, 711 instead of 722. Two shapes:
 
-    RESTATED (plan/2 B3 repair): the refusal is the engine's (book rung
-    absent, statutory rung taken). The retired second rule also NAMED the
-    inventory variation in its sentence; the engine's sentence names the
-    unattributed distance instead, and that loss is recorded in the
-    as-built log (B3R) for the sentence work of B6.
+      · no trial-balance evidence (the rows were never measured): net 711
+        is REFUSED on a book that posts to it, so EBITDA, EBIT and PBT
+        refuse with it (never the pre-ruling figure, never 0) and the
+        distance stays unattributed;
+      · a CLOSED book: net 711 IS served — the account-121 bridge, which on
+        a closed trial balance is derived FROM the filed figure. The rule
+        stays keyed to the build-up BEFORE that fold (design A6: "the fold
+        must not flip books to the measured rung"), so the rate is still
+        not measured, and the sentence NAMES the stock variation instead of
+        calling the distance unattributable.
+
+    What this reds on: a tax rate measured across a 121-derived 711
+    (`pretax` read instead of the pre-stock-variation build-up), a refused
+    711 read as 0, a sentence that hides the distance.
     """
     from engine.forecast.money import cents_from, fmt
 
-    payload = _micro_book(22000.0, extra_accounts=[
-        {"code": "711", "name": "Venituri aferente costurilor stocurilor",
-         "amount": 3000.0}])
+    extra = [{"code": "711", "name": "Venituri aferente costurilor stocurilor",
+              "amount": 3000.0}]
+    # ── unmeasured: refused ─────────────────────────────────────────────
+    payload = _micro_book(22000.0, extra_accounts=extra)
     pl = payload["statements"]["assembled_pl"]
-    assert pl["inventory_variation_memo"] == 3000.0, pl
+    assert pl["inventory_variation"]["value"] is None, pl["inventory_variation"]
+    assert pl["inventory_variation"]["stock_production_credit_turnover"] == 3000.0
+    assert pl["ebitda"] is None and pl["pretax"] is None
+    assert pl["ebitda_refusal"]["code"] == "stock_variation_evidence_absent"
     distance = round(_p121_block(payload)["p121"] - _build_up(payload), 2)
     assert pl["net_income_unexplained_vs_121"] == distance != 0.0, (
-        "the assembly must itself report the inventory variation as NOT "
-        "bridging the distance to the filed balance; got %r"
-        % (pl["net_income_unexplained_vs_121"],))
+        "a refused 711 names nothing: the whole distance stays unexplained; "
+        "got %r" % (pl["net_income_unexplained_vs_121"],))
     driver = build_case_set([payload]).case("base").driver("tax_rate")
-    assert driver.tier != "book", (
-        "the inventory variation is not in the assembly's reconciliation "
-        "to the filed figure, so the build-up of %s does not reach the %s "
-        "filed: got %r / %r"
-        % (_build_up(payload), _p121_block(payload)["p121"],
-           driver.value, driver.tier))
+    assert driver.tier != "book", (driver.value, driver.tier)
     step = driver.fallback_steps[0]
     assert fmt(cents_from(abs(distance))) in step["reason"], step
+
+    # ── closed book: the bridge serves it, the rule still does not measure ──
+    closed = _micro_book(22000.0, extra_accounts=extra,
+                         stock_variation_evidence=_micro_closed_evidence(22000.0, 3000.0))
+    pl = closed["statements"]["assembled_pl"]
+    assert pl["inventory_variation"]["provenance"] == "account_121_bridge", pl["inventory_variation"]
+    assert pl["inventory_variation"]["value"] == distance
+    assert pl["net_income_unexplained_vs_121"] == 0.0
+    assert pl["pretax"] - pl["income_tax"] == 22000.0  # reproduces 121 by construction
+    driver = build_case_set([closed]).case("base").driver("tax_rate")
+    assert driver.tier != "book", (
+        "net 711 derived from account 121 must not flip the book onto a "
+        "measured rate: got %r / %r" % (driver.value, driver.tier))
+    reason = driver.fallback_steps[0]["reason"]
+    assert fmt(cents_from(abs(distance))) in reason, reason
+    assert "Variația stocurilor de produse" in reason, reason
 
 
 # ── plan/2 B3: printed scope (TC-12/TC-13; B0-16 assigned it to B3) ─────

@@ -57,6 +57,7 @@ import {
   type Comparatives,
 } from "./reportComparatives";
 import { readInsights, summaryInsights, type Insight } from "./insights";
+import { equityRefusalOf, netIncomeRefusalOf, readServedOneEbitda } from "./servedOneEbitda";
 
 // ── 1. THE VERDICT AND WHAT PRODUCED IT ───────────────────────────────
 
@@ -99,6 +100,11 @@ export interface SummaryTile {
   /** Present on a RATIO tile: the served two-period row it prints, or the
    *  stated reason there is none. */
   ratio: SummaryRatioTile | null;
+  /** The ENGINE's reason when it refused this figure (EBITDA, the net
+   *  result, total equity short by it) — English, the board document's
+   *  language. The tile prints "refused — <reason>", never "not
+   *  reported" (critic round 3, 2026-09-28). */
+  refusal?: string | null;
 }
 
 export interface SummaryRatioTile {
@@ -442,6 +448,15 @@ export function buildExecutiveSummary(
   const altmanLabel = extraRatios.find((x) => x.key === ALTMAN_RATIO_KEY)?.label ?? null;
   const cmp = servedRatioComparison(s);
   const servedRows = new Map(cmp ? servedMovableRows(cmp).map((row) => [row.key, row]) : []);
+  // The engine's refusals a tile with no figure is refused BY.
+  const oneEbitda = readServedOneEbitda(s.assembled_pl);
+  const ebitdaRefusal = oneEbitda && oneEbitda.ebitda === null ? oneEbitda.refusal?.text.en ?? null : null;
+  const tileRefusal: Record<string, string | null> = {
+    ebitda: ebitdaRefusal,
+    net_income: netIncomeRefusalOf(s)?.text.en ?? null,
+    equity_ratio: equityRefusalOf(s)?.text.en ?? null,
+    net_debt_ebitda: ebitdaRefusal,
+  };
   const tiles: SummaryTile[] = SUMMARY_TILE_KEYS.map((key) => {
     const ratioSpec = SUMMARY_RATIO_TILES[key];
     if (ratioSpec) {
@@ -453,6 +468,7 @@ export function buildExecutiveSummary(
         : (allRatios(ratios, extraRatios).find((x) => x.key === key)?.value ?? null);
       return {
         key,
+        refusal: tileRefusal[key] ?? null,
         label: ratioSpec.label,
         unit: row ? (row.display_unit as RatioDisplayUnit) : ratioSpec.unit,
         // The served full-precision value when a table was served; the
@@ -474,6 +490,7 @@ export function buildExecutiveSummary(
     const line = comparativeLine(comparatives, key);
     return {
       key,
+      refusal: tileRefusal[key] ?? null,
       label: line?.label ?? key,
       unit: line?.unit ?? "money",
       value: line ? line.current : null,

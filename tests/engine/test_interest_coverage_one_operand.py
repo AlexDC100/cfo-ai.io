@@ -25,24 +25,38 @@ to `pretax` (ComprehensiveReport's and the export's "EBIT" rows both read
 `assembled_pl.ebit`). So the frontend moved to it, not the engine to the
 operating view.
 
+THE ONE EBITDA (owner ruling 2026-09-26)
+----------------------------------------
+Since the ruling the P&L carries ONE operating result: `ebit`,
+`operating_result` and the legacy `operating_ebit` are one figure (net 711
+"Variația stocurilor de produse" and net 72x inside, 767 financial). The
+two-EBIT seam above is closed by construction; what is left to hold is that
+the coverage divides THAT figure, and not the pre-ruling EBIT without 711 /
+72x (`ebitda_before_stock_variation - depreciation`), which still prints a
+different coverage on the manufacturers (agras 28.14 against 32.00).
+
 WHAT THIS GATE CHECKS (the real GET /api/period, no double)
 ============================================================
 On the four corpus books and the Scandia regression baseline, served
 through `_served_books` (the production write path and the real router):
+  0. ONE EBIT: `ebit`, `operating_result` and `operating_ebit` are one
+     figure; where the assembly refuses the one EBITDA (the Scandia
+     baseline, persisted before the stock variation was measured) all three
+     and `pretax` are null and the coverage row refuses as `ebitda_refused`.
   1. `ebit` is the EBIT the P&L prints: ebit + net_financial_result ==
      pretax, to the cent.
   2. The served ratio-table row `interest_coverage` prints exactly
      quantize(ebit / interest) — the served metric equals its own
      recomputation to the printed digit — whenever interest is positive.
   2b. The table's own definition (a payload with no metric rows, so the
-     row falls back to its formula and prints its operands: revenue, COGS,
-     opex, other income, D&A, interest): the operands build the P&L's EBIT
-     to the cent and recompute the served digits.
+     row falls back to its formula and prints its operands: the assembled
+     `operating_result` and interest): the operands recompute the served
+     digits and the operating result is the P&L's EBIT to the cent.
   3. The serve-time credit metric row carries the same value to 4 dp.
   4. Non-vacuity (TC-3): at least one book on which quantize(ebit /
-     interest) and quantize(operating_ebit / interest) PRINT DIFFERENTLY
-     (retail), so a row re-pointed at `operating_ebit` reds here; and at
-     least two books with positive interest.
+     interest) and the pre-ruling EBIT's coverage PRINT DIFFERENTLY, so a
+     row re-pointed at the EBIT without 711 / 72x reds here; and at least
+     two books with positive interest.
 The frontend halves are held in vitest: `interestCoverageBasis.test.ts`
 (the no-envelope credit model, retail strict at 0.32),
 `exportRatioFormulas.test.ts` G4 (the export's printed value against its
@@ -55,9 +69,11 @@ to the card's digits on every corpus book with interest, over the corpus
 fixture `test_coverage_popover_corpus_fixture.py` keeps fresh).
 
 WHAT IT REDS ON (TC-11): the engine row, the metric row or the table
-fallback dividing `operating_ebit` (or any EBIT whose recomputation does
-not print the served digits); a served EBIT that no longer foots to
-pretax; a scope with no book that discriminates the two operands.
+fallback dividing any EBIT other than the one operating result (the
+pre-ruling EBIT without 711 / 72x included); a second EBIT served under a
+legacy name; a refused EBITDA served as a coverage; a served EBIT that no
+longer foots to pretax; a scope with no book that discriminates the two
+operands.
 IT CANNOT SEE: surfaces that recompute coverage outside the served row
 (held by the three vitest halves above); books with zero interest
 (carniprod is refused / declared, and is printed as such).
@@ -105,12 +121,26 @@ def test_every_printed_interest_coverage_divides_the_printed_ebit(books, capsys)
         pl = body["statements"]["assembled_pl"]
         ebit, op_ebit = pl["ebit"], pl["operating_ebit"]
         interest = pl["interest_expense"]
+        served = _row(body["assembled_metrics"]["ratio_table"], "interest_coverage")
+        # 0. ONE EBIT under every name — or one refusal
+        if ebit != op_ebit or ebit != pl["operating_result"]:
+            failures.append("%s: two EBITs served: ebit %s, operating_ebit %s, operating_result %s"
+                            % (name, ebit, op_ebit, pl["operating_result"]))
+        if pl.get("ebitda_refusal"):
+            if ebit is not None or pl["pretax"] is not None:
+                failures.append("%s: the one EBITDA is refused yet EBIT %s / pretax %s is served"
+                                % (name, ebit, pl["pretax"]))
+            if served.get("value") is not None or (served.get("reason") or {}).get("code") != "ebitda_refused":
+                failures.append("%s: the coverage row does not refuse with the EBITDA: %s / %r"
+                                % (name, served.get("value_q"), served.get("reason")))
+            lines.append("  %-18s one EBITDA refused (%s): coverage refused as %s"
+                         % (name, pl["ebitda_refusal"].get("code"), (served.get("reason") or {}).get("code")))
+            continue
         # 1. the P&L's EBIT line is `ebit`: it foots to pretax
         foot = _cents(ebit) + _cents(pl["net_financial_result"]) - _cents(pl["pretax"])
         if foot != 0:
             failures.append("%s: ebit %s + net financial result %s != pretax %s (off %s)"
                             % (name, ebit, pl["net_financial_result"], pl["pretax"], foot))
-        served = _row(body["assembled_metrics"]["ratio_table"], "interest_coverage")
         table = T.build_ratio_table(body, serve_time_metrics=True)
         rebuilt = _row(table, "interest_coverage")
         if not interest > 0:
@@ -120,11 +150,13 @@ def test_every_printed_interest_coverage_divides_the_printed_ebit(books, capsys)
             continue
         measured += 1
         want = _q(ebit / interest)
-        other = _q(op_ebit / interest)
+        pre_ruling_ebit = pl["ebitda_before_stock_variation"] - pl["depreciation"]
+        other = _q(pre_ruling_ebit / interest)
         if want != other:
             discriminating += 1
-        lines.append("  %-18s EBIT %s / interest %s = %s printed; served %s; operating_ebit %s would print %s"
-                     % (name, ebit, interest, want, served.get("value_q"), op_ebit, other))
+        lines.append("  %-18s EBIT %s / interest %s = %s printed; served %s; the pre-ruling EBIT %s "
+                     "would print %s" % (name, ebit, interest, want, served.get("value_q"),
+                                         round(pre_ruling_ebit, 2), other))
         # 2. the served row prints its own recomputation
         for label, row in (("served", served), ("serve-time table", rebuilt)):
             if row.get("value_q") != want:
@@ -132,28 +164,25 @@ def test_every_printed_interest_coverage_divides_the_printed_ebit(books, capsys)
                                 % (name, label, row.get("value_q"), want))
         # 2b. ... and the table's own definition, from the operands it
         # prints when no metric row stands in front of it (the parity basis
-        # over a payload with no persisted metrics): revenue - COGS - opex
-        # + other income - D&A, over interest expense
+        # over a payload with no persisted metrics): the assembled operating
+        # result over interest expense
         bare = T.build_ratio_table({"statements": body["statements"], "metrics": []})
         fallback = _row(bare, "interest_coverage")
         if fallback.get("value_q") != want:
             failures.append("%s: the table's own EBIT / interest prints %s, recomputes %s"
                             % (name, fallback.get("value_q"), want))
         ops = dict((o["name"], o["value"]) for o in fallback.get("operands") or [])
-        need = ("revenue", "costOfGoodsSold", "operatingExpenses", "otherIncome",
-                "depreciationAmortization", "interestExpense")
-        if not all(k in ops for k in need):
-            failures.append("%s: the table's fallback prints operands %s, not the EBIT build-up %s"
-                            % (name, sorted(ops), need))
+        sources = [o["source"] for o in fallback.get("operands") or []]
+        if sources != ["assembled_pl.operating_result", "incomeStatement.interestExpense"]:
+            failures.append("%s: the table's fallback reads %s, not the one operating result over "
+                            "interest" % (name, sources))
         else:
-            from_ops = (ops["revenue"] - ops["costOfGoodsSold"] - ops["operatingExpenses"]
-                        + ops["otherIncome"] - ops["depreciationAmortization"])
-            if _q(from_ops / ops["interestExpense"]) != served.get("value_q"):
+            if _q(ops["ebit"] / ops["interestExpense"]) != served.get("value_q"):
                 failures.append("%s: the row's own operands recompute %s, the served row prints %s"
-                                % (name, _q(from_ops / ops["interestExpense"]), served.get("value_q")))
-            if _cents(from_ops) != _cents(ebit):
-                failures.append("%s: the row's operands build EBIT %s, the P&L prints %s"
-                                % (name, _cents(from_ops), _cents(ebit)))
+                                % (name, _q(ops["ebit"] / ops["interestExpense"]), served.get("value_q")))
+            if _cents(ops["ebit"]) != _cents(ebit):
+                failures.append("%s: the row's operand EBIT %s is not the P&L's %s"
+                                % (name, _cents(ops["ebit"]), _cents(ebit)))
         # 3. the metric row the table reads carries the same quotient
         metric = [m for m in body.get("metrics") or [] if m.get("name") == "interest_coverage"]
         if metric:
@@ -163,7 +192,7 @@ def test_every_printed_interest_coverage_divides_the_printed_ebit(books, capsys)
                                 % (name, v, round(ebit / interest, 4)))
     with capsys.disabled():
         print("\nSCOPE interest-coverage-one-operand: books %d (%s); interest measured on %d; "
-              "books where operating_ebit would print a different coverage: %d"
+              "books where the pre-ruling EBIT (without 711 / 72x) would print a different coverage: %d"
               % (len(books), ", ".join(books), measured, discriminating))
         print("\n".join(lines))
         print("GATE-WORK interest-coverage-one-operand units=%d" % (len(books) + measured))
@@ -171,5 +200,5 @@ def test_every_printed_interest_coverage_divides_the_printed_ebit(books, capsys)
     # 4. TC-3: the gate can tell the two operands apart on this scope
     assert measured >= 2, "fewer than two books with positive interest: %d" % measured
     assert discriminating >= 1, (
-        "no book prints a different coverage on operating_ebit than on ebit, so this "
-        "scope cannot tell which EBIT the row divides")
+        "no book prints a different coverage on the pre-ruling EBIT than on the one EBIT, "
+        "so this scope cannot tell which EBIT the row divides")

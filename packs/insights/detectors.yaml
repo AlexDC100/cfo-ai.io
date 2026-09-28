@@ -131,7 +131,9 @@ detectors:
   - id: reconstruction_gap
     title: "The P&L does not reach statutory profit on its own"
     formula: >-
-      |account-121 reconciliation step| ÷ |reconstructed net income|
+      |step to account 121 no line explains| ÷ |net income the lines reach|
+      (the named lines — own work capitalised and, since 2026-09-26, the
+      stock variation 711 — are not part of the step)
     basis: reconstructed_net_income
     basis_label: "Reconstructed net income"
     basis_why: >-
@@ -140,7 +142,7 @@ detectors:
       means the reconstruction is not the source of the printed profit.
     basis_fallback: revenue
     magnitude: reconciliation_step
-    magnitude_label: "Reconciliation to account 121"
+    magnitude_label: "Step to account 121 no line explains"
     bands:
       - {level: critical, at_least: 0.50}
       - {level: high,     at_least: 0.20}
@@ -148,7 +150,7 @@ detectors:
       - {level: low,      at_least: 0.01}
       - {level: info,     at_least: null}
     claim: >-
-      Rebuilding the P&L from the movement columns reaches
+      Rebuilding the P&L from the accounts reaches
       {money:reconstructed}; statutory profit in account 121 is
       {money:statutory}. The unexplained step of {money:step} is
       {measure:graded_share} of the {money:graded_base} it is bridging.

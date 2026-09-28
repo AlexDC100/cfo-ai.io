@@ -12,6 +12,11 @@
 
 const BUCKET_TERM: Record<string, string> = {
   revenue: "revenue",
+  revenueTurnover: "revenue",
+  netIncomeStatutory: "net_profit",
+  // The one EBITDA's two components (owner ruling 2026-09-26).
+  inventoryVariation: "stock_variation",
+  capitalizedOwnWork: "own_work_capitalised",
   netIncomeOperational: "net_profit",
   netIncome: "net_profit",
   currentYearNetProfit: "net_profit",

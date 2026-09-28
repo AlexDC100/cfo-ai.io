@@ -53,6 +53,24 @@ with 1 RON of liabilities served Z'' 10,416.74 "safe" and 63.5 BBB. A
 composite scored over part of its model is a different model wearing its
 name. A book with no refusal is computed by the same expression as
 revision 1, byte for byte.
+
+THE ONE EBITDA (revision 3, 2026-09-26, owner ruling on account 711).
+Every row built on EBITDA or the operating result — EBITDA itself, EBIT
+(`operating_profit`), gross profit, the margins over turnover, Debt /
+EBITDA, interest coverage, EBITDA / interest, both DSCRs, ROIC, core and
+adjusted EBITDA, and the credit components that divide them (Altman X3,
+leverage, coverage, DSCR) — reads ONE figure: `operating_figures`, which
+reads the assembled P&L's one definition (net 711 "Variația stocurilor de
+produse" and net 72x inside, 767 financial). Revision 2 built EBITDA from
+the legacy `incomeStatement` mirror WITHOUT 711 and 72x and a second,
+"statutory" EBITDA with 72x for the DSCRs, and persisted the GROSS 711
+credit turnover as `ebitda_statutory_with_711` (98.9 %-191.0 % margins on
+every closed manufacturer). Those rows are retired; the legacy names are
+aliases of the one figure. When the assembled P&L REFUSES the one EBITDA
+(the stock variation could not be measured on a book that posts to 711),
+every one of those rows is None and the components that need it refuse
+with `ebitda_refused`, naming the stock-variation cause — never a fallback
+to the definition without 711, never 0.
 """
 
 from __future__ import annotations
@@ -62,6 +80,7 @@ import math
 from decimal import Decimal
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
+from engine.country_packs.ro_romania import stock_variation as _stock_variation
 from engine.ratios.credit_pack import CREDIT_PACK_FILE, credit_pack, share_percent, x4_materiality_share
 
 logger = logging.getLogger(__name__)
@@ -69,7 +88,16 @@ logger = logging.getLogger(__name__)
 #: The revision of the arithmetic below. Bump it on ANY change to what a
 #: row means: a weight, a sub-score mapping, an Altman coefficient, a
 #: ladder rung, a ratio's numerator or denominator.
-CREDIT_MODEL_REVISION = 2
+#: 3 (2026-09-26): the ONE EBITDA — every EBITDA / EBIT row reads
+#: `operating_figures` (net 711 and net 72x inside, 767 financial).
+CREDIT_MODEL_REVISION = 3
+
+#: The first revision whose EBITDA-family rows carry the one definition.
+#: A persisted set of rows stamped below it (or unstamped) carries the
+#: definition WITHOUT 711 / 72x under the same names — a reader of stored
+#: rows (the Section 9 benchmark) refuses those figures rather than grade
+#: them.
+ONE_EBITDA_REVISION = 3
 
 #: The calculated_metrics row name that carries `CREDIT_MODEL_REVISION`.
 CREDIT_MODEL_REVISION_METRIC = "credit_model_revision"
@@ -135,12 +163,18 @@ TOTAL_LIABILITIES_BELOW_MATERIALITY = "total_liabilities_below_materiality"
 REVENUE_NOT_POSITIVE = "revenue_not_positive"
 INTEREST_EXPENSE_NOT_POSITIVE = "interest_expense_not_positive"
 CREDIT_OUT_OF_RANGE = "credit_out_of_range"
+#: The one EBITDA / operating result is REFUSED on these statements (the
+#: stock variation, account 711, could not be measured on a book that posts
+#: to it): Altman X3, coverage, DSCR and — with net debt — leverage have no
+#: operand. The refusal carries the stock-variation cause beside the code.
+EBITDA_REFUSED = "ebitda_refused"
 CREDIT_SUBSCORE_REFUSAL_CODES: Tuple[str, ...] = (
     CURRENT_LIABILITIES_NOT_POSITIVE,
     TOTAL_LIABILITIES_BELOW_MATERIALITY,
     REVENUE_NOT_POSITIVE,
     INTEREST_EXPENSE_NOT_POSITIVE,
     CREDIT_OUT_OF_RANGE,
+    EBITDA_REFUSED,
 )
 
 #: Why the composite and the letter refuse when a component is undefined.
@@ -161,6 +195,10 @@ _TOTAL_LIABILITY_INPUTS = _CURRENT_LIABILITY_INPUTS + (
 
 _DEBT_INPUTS = ("balanceSheet.shortTermDebt", "balanceSheet.longTermDebt")
 
+#: The inputs a refused one-EBITDA names (the assembled P&L's own fields).
+_EBITDA_INPUTS = ["assembled_pl.ebitda", "assembled_pl.operating_result",
+                  "assembled_pl.inventory_variation"]
+
 #: The inputs each predicate refusal names.
 _REFUSAL_INPUTS: Dict[str, List[str]] = {
     CURRENT_LIABILITIES_NOT_POSITIVE: list(_CURRENT_LIABILITY_INPUTS),
@@ -168,10 +206,139 @@ _REFUSAL_INPUTS: Dict[str, List[str]] = {
     REVENUE_NOT_POSITIVE: ["incomeStatement.revenue"],
     INTEREST_EXPENSE_NOT_POSITIVE: ["incomeStatement.interestExpense"] + list(_DEBT_INPUTS)
     + ["incomeStatement.operating_profit"],
+    EBITDA_REFUSED: list(_EBITDA_INPUTS),
 }
 
 
-def _operands(bs: Dict[str, Any], interest: float, ebit: float, ebitda: float,
+# ── THE ONE EBITDA, read — never re-derived ─────────────────────────────────
+
+#: Half a cent: below it a 711 memo is "no postings".
+_ZERO = 0.005
+
+
+def _fnum(v: Any) -> Optional[float]:
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        return None
+    f = float(v)
+    return f if math.isfinite(f) else None
+
+
+def _ebitda_refusal(cause: Optional[str], text_ro: Optional[str], text_en: Optional[str],
+                    inputs: Optional[List[str]] = None) -> Dict[str, Any]:
+    """The typed refusal every EBITDA-family figure carries: the code, the
+    stock-variation cause beside it, and its sentence in both languages."""
+    return {"code": EBITDA_REFUSED, "cause": cause, "text_ro": text_ro, "text_en": text_en,
+            "inputs": list(inputs or _EBITDA_INPUTS)}
+
+
+def equity_completeness_refusal(statements: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
+    """The assembler's completeness refusal beside total equity
+    (`assembled_bs.total_equity_refusal`), or None. Served when the NET
+    RESULT is refused (no account 121, net 711 refused) and the sheet does
+    not balance without it: total equity is short by the missing result,
+    so Altman X2, the equity sub-score and every ratio on total equity
+    refuse with the net result's typed reason (never read the missing
+    result as 0)."""
+    abs_ = statements.get("assembled_bs") if isinstance(statements, Mapping) else None
+    ref = abs_.get("total_equity_refusal") if isinstance(abs_, Mapping) else None
+    if isinstance(ref, Mapping) and ref.get("code"):
+        return dict(ref)
+    return None
+
+
+def operating_figures(statements: Mapping[str, Any]) -> Dict[str, Any]:
+    """THE one EBITDA and operating result a statements block serves, with
+    the components the ruling places inside it and the typed refusal.
+
+    `{ebitda, ebit, gross_profit, ebitda_before_stock_variation,
+    inventory_variation, capitalized_own_work, refusal, source,
+    definition}` — every figure a float or None.
+
+    ASSEMBLED (every RO statements block the pipeline, the serve path and
+    every rebuild produce): read from `assembled_pl` — `ebitda`,
+    `operating_result`, `gross_profit`, `ebitda_before_stock_variation`,
+    `inventory_variation.value` (net 711), `capitalized_own_work.value`
+    (net 72x) and `ebitda_refusal`. Nothing is recomputed: the assembler
+    (`chart_of_accounts.assemble_statements`) is the one authority.
+
+    LEGACY (a statements block assembled before the ruling — no
+    `assembled_pl.ebitda_definition` — e.g. a committed fixture): the same
+    definition from the `incomeStatement` leaves, and only where it is
+    KNOWN: a book with no 711 line (`inventoryVariationMemo` zero or
+    absent) has a net 711 of exactly 0 and its EBITDA is the build-up plus
+    net 72x; a book that posts to 711 carried only the GROSS credit
+    turnover there, which is not the variation, so the one EBITDA REFUSES
+    (`period_predates_stock_variation_measurement`) — never the build-up
+    without 711.
+
+    Raises KeyError / TypeError on a legacy block missing a core P&L leaf
+    (the model's contract: a missing operand is named, never zeroed)."""
+    apl = statements.get("assembled_pl") if isinstance(statements, Mapping) else None
+    if isinstance(apl, Mapping) and "ebitda_definition" in apl:
+        inv = apl.get("inventory_variation")
+        cap = apl.get("capitalized_own_work")
+        out: Dict[str, Any] = {
+            "ebitda": _fnum(apl.get("ebitda")),
+            "ebit": _fnum(apl.get("operating_result", apl.get("ebit"))),
+            "gross_profit": _fnum(apl.get("gross_profit")),
+            "ebitda_before_stock_variation": _fnum(apl.get("ebitda_before_stock_variation")),
+            "inventory_variation": _fnum(inv.get("value")) if isinstance(inv, Mapping) else None,
+            "capitalized_own_work": (_fnum(cap.get("value")) if isinstance(cap, Mapping)
+                                     else _fnum(apl.get("capitalized_own_work_memo"))),
+            "refusal": None,
+            # The NET RESULT refused with 711 (no account 121 to stand in
+            # for the unmeasured variation) — the assembler's own block.
+            "net_income_refusal": None,
+            "source": "assembled_pl",
+            "definition": apl.get("ebitda_definition"),
+        }
+        ni_ref = apl.get("net_income_refusal")
+        if isinstance(ni_ref, Mapping):
+            out["net_income_refusal"] = _ebitda_refusal(
+                ni_ref.get("code"), ni_ref.get("text_ro"), ni_ref.get("text_en"),
+                ["assembled_pl.net_income_statutory", "assembled_pl.inventory_variation"])
+        served = apl.get("ebitda_refusal")
+        if isinstance(served, Mapping):
+            out["refusal"] = _ebitda_refusal(served.get("code"), served.get("text_ro"),
+                                             served.get("text_en"))
+        elif out["ebitda"] is None or out["ebit"] is None:
+            out["refusal"] = _ebitda_refusal(
+                "ebitda_not_served", "EBITDA nu este prezent în contul de profit și pierdere asamblat",
+                "EBITDA is not served on the assembled P&L")
+        if out["refusal"] is not None:
+            out["ebitda"] = out["ebit"] = out["gross_profit"] = None
+        return out
+
+    pl = statements["incomeStatement"]
+    revenue = float(pl["revenue"])
+    cogs = float(pl["costOfGoodsSold"])
+    before = revenue - cogs - float(pl["operatingExpenses"]) + float(pl["otherIncome"])
+    depreciation = float(pl["depreciationAmortization"])
+    cap = float(pl.get("capitalizedOwnWork", 0) or 0)
+    memo = _fnum(pl.get("inventoryVariationMemo")) or 0.0
+    out = {
+        "ebitda": None, "ebit": None, "gross_profit": None,
+        "ebitda_before_stock_variation": before,
+        "inventory_variation": None,
+        "capitalized_own_work": cap,
+        "refusal": None,
+        "net_income_refusal": None,
+        "source": "incomeStatement",
+        "definition": None,
+    }
+    if abs(memo) >= _ZERO:
+        ro, en = _stock_variation.refusal_text(_stock_variation.REASON_PREDATES)
+        out["refusal"] = _ebitda_refusal(_stock_variation.REASON_PREDATES, ro, en,
+                                         ["incomeStatement.inventoryVariationMemo"])
+        return out
+    out["inventory_variation"] = 0.0
+    out["ebitda"] = before + cap
+    out["ebit"] = out["ebitda"] - depreciation
+    out["gross_profit"] = revenue - cogs
+    return out
+
+
+def _operands(bs: Dict[str, Any], interest: float, ebit: Optional[float], ebitda: Optional[float],
               revenue: float) -> Dict[str, Any]:
     """The primitives every predicate below reads, from the statements'
     leaves — the SAME arithmetic `compute_period_metrics` uses for its
@@ -220,11 +387,16 @@ def statement_operands(statements: Mapping[str, Any]) -> Optional[Dict[str, Any]
     if not isinstance(bs, Mapping) or not isinstance(pl, Mapping):
         return None
     try:
-        gross_profit = pl["revenue"] - pl["costOfGoodsSold"]
-        ebit = gross_profit - pl["operatingExpenses"] - pl["depreciationAmortization"] + pl["otherIncome"]
-        return _operands(bs, pl["interestExpense"], ebit, ebit + pl["depreciationAmortization"], pl["revenue"])
+        # The ONE EBITDA / operating result (revision 3) — the same figures
+        # `compute_period_metrics` divides, refusal included.
+        figures = operating_figures(statements)
+        ops = _operands(bs, pl["interestExpense"], figures["ebit"], figures["ebitda"], pl["revenue"])
     except (KeyError, TypeError):
         return None
+    ops["ebitda_refusal"] = figures["refusal"]
+    ops["net_income_refused"] = figures.get("net_income_refusal") is not None
+    ops["equity_incomplete"] = equity_completeness_refusal(statements)
+    return ops
 
 
 def component_refusals(ops: Dict[str, Any]) -> Dict[str, str]:
@@ -233,23 +405,51 @@ def component_refusals(ops: Dict[str, Any]) -> Dict[str, str]:
     function, so the two cannot disagree.
 
       liquidity     current liabilities not positive            (Q2)
-      altman        total liabilities below the pack share of TA (R-D4)
+      altman        total liabilities below the pack share of TA (R-D4);
+                    else the operating result refused (X3)      (rev. 3)
       profitability revenue not positive                        (R-D2)
-      coverage/dscr interest not positive, and not the R-D1 rung
-                    (debt == 0, interest == 0, EBIT > 0)        (R-D1)
+      coverage/dscr the operating result refused (EBIT / EBITDA
+                    have no value, so neither does the rung's
+                    EBIT > 0 test)                              (rev. 3);
+                    else interest not positive, and not the R-D1
+                    rung (debt == 0, interest == 0, EBIT > 0)   (R-D1)
+      leverage      EBITDA refused with net debt > 0            (rev. 3)
+      equity        total equity excludes a refused year's result
+                    (`equity_completeness_refusal`); Altman too,
+                    X2 having no numerator                       (rev. 3)
 
     A refusal after composition (`credit_out_of_range`) is not a predicate;
     the block finds it on the rows."""
     out: Dict[str, str] = {}
+    ebit_refused = ops.get("ebit") is None
     if not ops["current_liab_positive"]:
         out["liquidity"] = CURRENT_LIABILITIES_NOT_POSITIVE
     if not ops["tl_material"]:
         out["altman"] = TOTAL_LIABILITIES_BELOW_MATERIALITY
+    elif ebit_refused or ops.get("equity_incomplete"):
+        # X3 has no operand; or X2 has none — total equity excludes the
+        # refused year's result (`equity_completeness_refusal`).
+        out["altman"] = EBITDA_REFUSED
     if not ops["revenue"] > 0:
         out["profitability"] = REVENUE_NOT_POSITIVE
-    if not ops["interest_positive"] and "coverage" not in declared_rungs(ops):
+    elif ops.get("net_income_refused"):
+        # ROE and the net margin read the NET RESULT, refused with 711 when
+        # there is no account 121 (the build-up lacks the unmeasured
+        # variation). The cause beside the code is the stock variation's.
+        out["profitability"] = EBITDA_REFUSED
+    if ebit_refused or ops.get("ebitda") is None:
+        out["coverage"] = EBITDA_REFUSED
+        out["dscr"] = EBITDA_REFUSED
+    elif not ops["interest_positive"] and "coverage" not in declared_rungs(ops):
         out["coverage"] = INTEREST_EXPENSE_NOT_POSITIVE
         out["dscr"] = INTEREST_EXPENSE_NOT_POSITIVE
+    if ops.get("ebitda") is None and ops["net_debt"] > 0:
+        out["leverage"] = EBITDA_REFUSED
+    if ops.get("equity_incomplete"):
+        # Total equity excludes the year's result, refused with 711 (no
+        # account 121; the sheet does not balance without it): the equity
+        # ratio has no numerator. The cause is the net result's.
+        out["equity"] = EBITDA_REFUSED
     return out
 
 
@@ -265,12 +465,16 @@ def declared_rungs(ops: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
     """
     pack = credit_pack()["declared_rungs"]
     out: Dict[str, Dict[str, Any]] = {}
-    if ops["total_debt"] == 0 and ops["interest_zero"] and ops["ebit"] > 0:
+    # A refused EBIT / EBITDA (None) is not measured: no rung is declared
+    # over it (`component_refusals` refuses those components instead).
+    ebit, ebitda = ops.get("ebit"), ops.get("ebitda")
+    if ops["total_debt"] == 0 and ops["interest_zero"] and ebit is not None and ebit > 0:
         out["coverage"] = dict(pack["coverage"])
         out["dscr"] = dict(pack["dscr"])
-    if ops["net_debt"] > 0 and not ops["ebitda"] > 0:
+    if ops["net_debt"] > 0 and ebitda is not None and not ebitda > 0:
         out["leverage"] = dict(pack["leverage"])
-    if ops["equity_ratio"] is not None and ops["equity_ratio"] <= 0:
+    if ops["equity_ratio"] is not None and ops["equity_ratio"] <= 0 \
+            and not ops.get("equity_incomplete"):
         out["equity"] = dict(pack["equity"])
     return out
 
@@ -346,19 +550,60 @@ def altman_out_of_range(x1: Optional[float], x2: Optional[float], x3: Optional[f
     return None
 
 
+#: What each component divides the refused figure into (EBITDA_REFUSED).
+_EBITDA_REFUSED_OPERAND = {
+    "altman": "X3 (operating result / total assets)",
+    "coverage": "EBIT / interest",
+    "dscr": "EBITDA / debt service",
+    "leverage": "net debt / EBITDA",
+    "equity": "the equity ratio (total equity excludes the year's result, refused with them)",
+}
+
+
 def subscore_refusal(key: str, code: Optional[str] = None,
                      out_of_range_input: Optional[str] = None,
-                     bound_underivable: bool = False) -> Dict[str, Any]:
+                     bound_underivable: bool = False,
+                     cause: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
     """The served refusal of one sub-score: `{code, component, inputs, text}`
     and, for the Altman materiality refusal, the pack materiality it was
     read against (`materiality: {share, basis, source, file}`) — the
     threshold rendered from the pack, never written as prose (TC-10). A
     `credit_out_of_range` refusal names the figure that left its range and
-    the range it was read against."""
+    the range it was read against. An `ebitda_refused` refusal carries the
+    stock-variation cause (`ebitda_refusal: {code, text_ro, text_en}`) —
+    `cause` is the one-EBITDA refusal `operating_figures` read."""
     code = code or CREDIT_INPUTS_ABSENT
     out: Dict[str, Any] = {"code": code, "component": key,
                            "inputs": list(_REFUSAL_INPUTS.get(code, ["credit_model.%s" % key]))}
-    if code == TOTAL_LIABILITIES_BELOW_MATERIALITY:
+    if code == EBITDA_REFUSED:
+        c = dict(cause or {})
+        # The stock-variation cause (never under `cause`, which the
+        # composite's component list uses for the component's own code).
+        out["ebitda_refusal"] = {"code": c.get("cause"), "text_ro": c.get("text_ro"),
+                                 "text_en": c.get("text_en")}
+        if c.get("inputs"):
+            out["inputs"] = list(c["inputs"])
+        tail = (" — " + c["text_en"]) if c.get("text_en") else ""
+        if key == "equity":
+            # Its OWN cause (critic round 3, 2026-09-28): the equity ratio
+            # is refused because total equity excludes the refused year's
+            # result — not because EBITDA is.
+            out["text"] = (
+                "The equity component is not scored: total equity excludes the year's result, "
+                "which is refused for this period, so the equity ratio is not defined%s." % tail)
+        elif key == "profitability":
+            # ROE and the net margin read the NET RESULT, refused with the
+            # stock variation when there is no account 121.
+            out["text"] = (
+                "The profitability component is not scored: the net result is refused for this "
+                "period, so ROE and the net margin are not defined%s." % tail)
+        else:
+            out["text"] = (
+                "The %s component is not scored: EBITDA and the operating result are refused for "
+                "this period, so %s is not defined%s." % (
+                    "interest-coverage" if key == "coverage" else ("DSCR" if key == "dscr" else key),
+                    _EBITDA_REFUSED_OPERAND.get(key, "the component's operand"), tail))
+    elif code == TOTAL_LIABILITIES_BELOW_MATERIALITY:
         pack = credit_pack()
         out["materiality"] = {"share": format(pack["share"], "f"), "basis": pack["basis"],
                               "source": pack["source"], "file": pack["file"]}
@@ -504,17 +749,27 @@ def compute_period_metrics(
     fin_inc = pl["financialIncome"]
     fin_exp = pl["financialExpense"]
     tax = pl["taxExpense"]
-    # Inventory variation memo (RAS 711) — non-cash; EXCLUDED from cash EBITDA.
-    # `other_inc` no longer contains it after the _ro_coa.py mapping fix; this
-    # field is surfaced separately so the statutory-view metric can re-add it.
-    inv_var_memo = pl.get("inventoryVariationMemo", 0.0)
 
-    gross_profit = revenue - cogs
-    operating_profit = gross_profit - opex - depreciation + other_inc
-    ebitda = operating_profit + depreciation  # CASH view — primary
-    ebitda_statutory_with_711 = ebitda + inv_var_memo  # IFRS / total-production view
-    pretax = operating_profit + fin_inc - fin_exp - interest
-    net_income = pretax - tax  # OPERATIONAL view — excludes account 722
+    # ── THE ONE EBITDA (revision 3, owner ruling 2026-09-26) ────────────
+    # EBITDA, EBIT (`operating_profit`) and gross profit are READ from the
+    # assembled P&L (`operating_figures`): net 711 ("Variația stocurilor de
+    # produse", beside cost of sales, signed) and net 72x (own work
+    # capitalised) inside, 767 financial. None when the assembly refuses
+    # them — and then every row below that divides them is None too.
+    # Revision 2 built a "cash" EBITDA here without 711 / 72x, a second
+    # "statutory" one with 72x for the DSCRs, and persisted the GROSS 711
+    # credit turnover as `ebitda_statutory_with_711`.
+    figures = operating_figures(s)
+    ebitda = figures["ebitda"]
+    operating_profit = figures["ebit"]
+    gross_profit = figures["gross_profit"]
+    ebitda_refusal = figures["refusal"]
+    # The class-6/7 build-up BEFORE 711 and 72x — what `net_income` /
+    # `net_income_operational` have always named (the reconstruction the
+    # account-121 anchor is measured against). Unchanged arithmetic.
+    ebitda_before = revenue - cogs - opex + other_inc
+    pretax = ebitda_before - depreciation + fin_inc - fin_exp - interest
+    net_income = pretax - tax  # OPERATIONAL view — excludes 711 and 72x
 
     # ── Statutory net profit (anchors to account 121 closing balance) ──
     # Two valid views of "net profit" coexist in Romanian books:
@@ -564,24 +819,28 @@ def compute_period_metrics(
         value = pl_canonical.get(name)
         return fallback if value is None else float(value)
 
-    net_income_statutory = _canonical(
-        "net_income_statutory", net_income + capitalized_own_work
-    )
-    # Companion statutory views — symmetric with net_income_statutory.
-    # ebitda_statutory  = cash EBITDA + 722 (includes capitalized own-work);
-    # total_operating_revenue is the OPERATING revenue line the report's
-    # build-up and the KPI tiles state (revenue + discounts received);
-    # the total-production view that re-adds 722 + 711 + other income is a
-    # DIFFERENT figure and now says so in its own name rather than
-    # answering to `total_operating_revenue` as well.
-    # Surfacing as named metrics so regression checks can query by exact name.
-    ebitda_statutory = ebitda + capitalized_own_work
-    total_operating_revenue_statutory = _canonical(
-        "total_operating_revenue_statutory",
-        revenue + capitalized_own_work + inv_var_memo + other_inc,
-    )
+    # REFUSED (None) when the assembly refused the net result — no
+    # account 121 and a refused net 711 (`assembled_pl.net_income_refusal`).
+    # `_canonical` reads a served None as "not surfaced" and would put the
+    # build-up WITHOUT 711 back under the statutory name; it must not.
+    net_income_statutory: Optional[float]
+    net_income_buildup: Optional[float] = (
+        None if figures.get("net_income_refusal") is not None else round(net_income, 2))
+    if figures.get("net_income_refusal") is not None:
+        net_income_statutory = None
+    else:
+        net_income_statutory = _canonical(
+            "net_income_statutory", net_income + capitalized_own_work
+        )
+    # The legacy EBITDA names are ALIASES of the one figure: no row carries
+    # a second EBITDA. `total_operating_revenue` is the assembled
+    # venituri din exploatare without 711 (turnover + other operating
+    # income + 72x) — a figure, never a margin denominator. The
+    # total-production view (`total_operating_revenue_statutory`, which
+    # added the gross 711 credit turnover) is retired.
+    ebitda_statutory = ebitda
     total_operating_revenue = _canonical(
-        "total_operating_revenue", total_operating_revenue_statutory
+        "total_operating_revenue", revenue + other_inc + capitalized_own_work
     )
 
     current_assets = bs["cash"] + bs["accountsReceivable"] + bs["inventory"] + bs["otherCurrentAssets"]
@@ -592,36 +851,63 @@ def compute_period_metrics(
     non_current_liab = bs["longTermDebt"] + bs["otherNonCurrentLiabilities"]
     total_debt = bs["shortTermDebt"] + bs["longTermDebt"]
     total_equity = bs["shareCapital"] + bs["retainedEarnings"] + bs["otherEquity"]
+    # Total equity as a RATIO OPERAND: None when it excludes a refused
+    # year's result (`equity_completeness_refusal` — no account 121, net
+    # 711 refused, the sheet short by the missing result). Every row that
+    # divides or reports total equity refuses with it; the model's X2 and
+    # equity sub-score below refuse through `component_refusals`.
+    equity_incomplete = equity_completeness_refusal(s)
+    equity_operand: Optional[float] = None if equity_incomplete is not None else total_equity
 
-    def safe(num: float, denom: float) -> Optional[float]:
-        return None if denom == 0 else round(num / denom, 4)
+    def safe(num: Optional[float], denom: Optional[float]) -> Optional[float]:
+        # A refused operand (None) refuses the ratio — never a 0.
+        if num is None or denom is None or denom == 0:
+            return None
+        return round(num / denom, 4)
+
+    def money(v: Optional[float]) -> Optional[float]:
+        return None if v is None else round(v, 2)
 
     metrics: List[Dict[str, Any]] = [
         {"name": "revenue",            "value": round(revenue, 2),         "unit": "RON",   "direction": "higher"},
-        {"name": "gross_profit",       "value": round(gross_profit, 2),    "unit": "RON",   "direction": "higher"},
-        {"name": "ebitda",             "value": round(ebitda, 2),          "unit": "RON",   "direction": "higher"},
-        # Explicit cash + statutory views so consumers don't need to recompute.
-        {"name": "ebitda_cash",        "value": round(ebitda, 2),          "unit": "RON",   "direction": "higher"},
-        {"name": "ebitda_statutory_with_711", "value": round(ebitda_statutory_with_711, 2), "unit": "RON", "direction": "higher"},
-        {"name": "inventory_variation_memo",  "value": round(inv_var_memo, 2),               "unit": "RON", "direction": "neutral"},
-        {"name": "operating_profit",   "value": round(operating_profit, 2),"unit": "RON",   "direction": "higher"},
+        {"name": "gross_profit",       "value": money(gross_profit),       "unit": "RON",   "direction": "higher"},
+        # THE ONE EBITDA. `ebitda_cash` and `ebitda_statutory` below are
+        # aliases of it (revision 3): one figure under every legacy name.
+        {"name": "ebitda",             "value": money(ebitda),             "unit": "RON",   "direction": "higher"},
+        {"name": "ebitda_cash",        "value": money(ebitda),             "unit": "RON",   "direction": "higher"},
+        {"name": "operating_profit",   "value": money(operating_profit),   "unit": "RON",   "direction": "higher"},
         # `net_income` (existing) is the OPERATIONAL view — kept under the
         # existing key for back-compat. Old FE / briefing consumers see the
         # same number they always did. NEW callers should prefer the
         # explicit `net_income_statutory` (matches account 121 / oracle) or
         # `net_income_operational` (alias of net_income).
-        {"name": "net_income",         "value": round(net_income, 2),      "unit": "RON",   "direction": "higher"},
-        {"name": "net_income_operational", "value": round(net_income, 2),  "unit": "RON",   "direction": "higher"},
-        {"name": "net_income_statutory",   "value": round(net_income_statutory, 2), "unit": "RON", "direction": "higher"},
-        {"name": "ebitda_statutory",       "value": round(ebitda_statutory, 2),     "unit": "RON", "direction": "higher"},
+        # REFUSED (None) when the assembly refused the net result (no
+        # account 121, net 711 refused): the build-up here lacks the
+        # refused 711, so it is short by exactly the unmeasured variation
+        # (the developer with no 121: -30,391,418.38 where 121 closes at
+        # -801,604.14). Served under these names it reached the briefing
+        # narrator and the Ask-CFO chat beside the refused net result
+        # (critic round 3, 2026-09-28).
+        {"name": "net_income",         "value": net_income_buildup,        "unit": "RON",   "direction": "higher"},
+        {"name": "net_income_operational", "value": net_income_buildup,    "unit": "RON",   "direction": "higher"},
+        {"name": "net_income_statutory",   "value": money(net_income_statutory), "unit": "RON", "direction": "higher"},
+        {"name": "ebitda_statutory",       "value": money(ebitda_statutory),        "unit": "RON", "direction": "higher"},
         {"name": "total_operating_revenue","value": round(total_operating_revenue, 2),"unit": "RON","direction": "higher"},
-        # The total-production view (revenue + 722 + 711 + other income),
-        # under a name that means it. Until 2026-09-06 this number WAS
-        # `total_operating_revenue` here while `assembled_pl` served the
-        # operating line under the same name — agras 311,058,756.52 in one
-        # half of the response and 118,576,819.64 in the other.
-        {"name": "total_operating_revenue_statutory", "value": round(total_operating_revenue_statutory, 2), "unit": "RON", "direction": "higher"},
         {"name": "capitalized_own_work_memo", "value": round(capitalized_own_work, 2), "unit": "RON", "direction": "neutral"},
+        # The two components the ruling places inside EBITDA, beside the
+        # build-up before them: EBITDA = ebitda_before_stock_variation +
+        # inventory_variation (net 711) + capitalized_own_work_memo (net
+        # 72x). Net 711 is None when it was refused.
+        {"name": "inventory_variation", "value": money(figures["inventory_variation"]), "unit": "RON", "direction": "neutral"},
+        {"name": "ebitda_before_stock_variation", "value": money(figures["ebitda_before_stock_variation"]),
+         "unit": "RON", "direction": "higher"},
+        # The margin rule's ACTIVITY basis (engine.ratios.margin_meaning:
+        # cost of sales + operating expenses + depreciation — the same sum
+        # as assembled_pl.total_operating_expense), persisted beside turnover
+        # so a reader of stored rows (the Section 9 benchmark) asks the ONE
+        # margin rule instead of printing a margin it cannot judge.
+        {"name": "total_operating_expense", "value": round(cogs + opex + depreciation, 2),
+         "unit": "RON", "direction": "neutral"},
         {"name": "gross_margin",       "value": safe(gross_profit, revenue),"unit": "ratio","direction": "higher"},
         {"name": "ebitda_margin",      "value": safe(ebitda, revenue),     "unit": "ratio", "direction": "higher"},
         # ── Every ratio with net income in it reads the ANCHOR ─────────
@@ -636,9 +922,9 @@ def compute_period_metrics(
         {"name": "net_margin",         "value": safe(net_income_statutory, revenue), "unit": "ratio", "direction": "higher"},
         {"name": "total_assets",       "value": round(total_assets, 2),    "unit": "RON",   "direction": "neutral"},
         {"name": "total_debt",         "value": round(total_debt, 2),      "unit": "RON",   "direction": "lower"},
-        {"name": "total_equity",       "value": round(total_equity, 2),    "unit": "RON",   "direction": "higher"},
+        {"name": "total_equity",       "value": money(equity_operand),     "unit": "RON",   "direction": "higher"},
         {"name": "current_ratio",      "value": safe(current_assets, current_liab), "unit": "ratio", "direction": "higher"},
-        {"name": "debt_to_equity",     "value": safe(total_debt, total_equity),     "unit": "ratio", "direction": "lower"},
+        {"name": "debt_to_equity",     "value": safe(total_debt, equity_operand),   "unit": "ratio", "direction": "lower"},
         {"name": "debt_to_ebitda",     "value": safe(total_debt, ebitda),           "unit": "ratio", "direction": "lower"},
         # Interest coverage = EBIT / interest expense — the methodology's
         # definition (CLAUDE.md Appendix A, section 5: "Interest coverage |
@@ -654,10 +940,13 @@ def compute_period_metrics(
         # positive invested capital (ruling R-OTHER, C1.9). Revision 1 floored
         # the divisor at 1 RON: the agras book with its balance sheet zeroed
         # served ROIC 12,990,721.7 (1,299,072,170.8%, graded strong).
-        {"name": "roic",               "value": (None if total_debt + total_equity <= 0
-                                                 else safe(operating_profit * (1 - 0.16), total_debt + total_equity)), "unit": "ratio", "direction": "higher"},
+        {"name": "roic",               "value": (None if equity_operand is None or total_debt + equity_operand <= 0
+                                                 or operating_profit is None
+                                                 else safe(operating_profit * (1 - 0.16), total_debt + equity_operand)), "unit": "ratio", "direction": "higher"},
         {"name": "cash",               "value": round(bs["cash"], 2),              "unit": "RON",   "direction": "higher"},
-        {"name": "free_cash_flow",     "value": round(net_income_statutory + depreciation, 2),"unit": "RON",  "direction": "higher"},
+        {"name": "free_cash_flow",     "value": (None if net_income_statutory is None
+                                                 else round(net_income_statutory + depreciation, 2)),
+         "unit": "RON",  "direction": "higher"},
     ]
 
     # F3.11 — F3.9 source-data quality telemetry. Persisted as numeric
@@ -676,15 +965,22 @@ def compute_period_metrics(
     # subtracted lines (758 + 781) shown as the reconciliation bridge.
     pl_canonical_for_adj = s.get("assembled_pl") or {}
     if isinstance(pl_canonical_for_adj, dict):
-        adj_ebitda_val = pl_canonical_for_adj.get("adjusted_ebitda")
         oi_758_val = pl_canonical_for_adj.get("other_income_758", 0) or 0
         oi_781_val = pl_canonical_for_adj.get("other_income_781_reversals", 0) or 0
-        if adj_ebitda_val is None:
-            # Fallback: compute from `ebitda` (cash view) − 758 − 781 if
-            # canonical hasn't surfaced it yet (older cached fixtures).
+        # On the ONE EBITDA, and refused with it. A key the canonical P&L
+        # SERVES as None (refused) stays None: the revision-2 fallback read
+        # a None here as "not surfaced yet" and printed the EBITDA without
+        # 711 / 72x in its place — a second definition under the name.
+        if ebitda_refusal is not None:
+            adj_ebitda_val = None
+        elif "adjusted_ebitda" in pl_canonical_for_adj:
+            adj_ebitda_val = _fnum(pl_canonical_for_adj.get("adjusted_ebitda"))
+        else:
+            # A canonical P&L assembled before F3.14 surfaced it: the same
+            # strip on the one EBITDA.
             adj_ebitda_val = ebitda - float(oi_758_val) - float(oi_781_val)
         metrics.extend([
-            {"name": "adjusted_ebitda",               "value": round(float(adj_ebitda_val), 2),
+            {"name": "adjusted_ebitda",               "value": money(adj_ebitda_val),
              "unit": "RON",   "direction": "higher"},
             {"name": "other_income_758",              "value": round(float(oi_758_val), 2),
              "unit": "RON",   "direction": "neutral"},
@@ -735,8 +1031,12 @@ def compute_period_metrics(
     # local arithmetic only when the canonical field is missing (pre-
     # F3.14 cached re-assemblies that bypass the F1.a code path).
     pl_canonical_for_core = s.get("assembled_pl") or {}
-    if isinstance(pl_canonical_for_core, dict) and "core_ebitda" in pl_canonical_for_core:
-        core_ebitda = float(pl_canonical_for_core.get("core_ebitda") or 0.0)
+    if ebitda_refusal is not None:
+        # Refused with the one EBITDA — never `or 0.0` (revision 2 turned a
+        # served None into a 0.00 core EBITDA and a 0.0% margin).
+        core_ebitda = None
+    elif isinstance(pl_canonical_for_core, dict) and "core_ebitda" in pl_canonical_for_core:
+        core_ebitda = _fnum(pl_canonical_for_core.get("core_ebitda"))
     else:
         # Fallback: narrow definition matching chart_of_accounts.py:1418
         # exactly (the two named-account sums), so even the fallback path
@@ -752,17 +1052,17 @@ def compute_period_metrics(
         {"name": "cash_ratio",           "value": safe(bs.get("cash", 0.0), current_liab),            "unit": "ratio", "direction": "higher"},
         {"name": "working_capital",      "value": round(current_assets - current_liab, 2),            "unit": "RON",   "direction": "higher"},
         {"name": "net_debt",             "value": round(net_debt, 2),                                 "unit": "RON",   "direction": "lower"},
-        {"name": "net_debt_to_ebitda",   "value": safe(net_debt, ebitda_statutory),                   "unit": "ratio", "direction": "lower"},
+        {"name": "net_debt_to_ebitda",   "value": safe(net_debt, ebitda),                             "unit": "ratio", "direction": "lower"},
         # Leverage
-        {"name": "equity_ratio",         "value": safe(total_equity, total_assets),                   "unit": "ratio", "direction": "higher"},
+        {"name": "equity_ratio",         "value": safe(equity_operand, total_assets),                 "unit": "ratio", "direction": "higher"},
         {"name": "debt_to_assets",       "value": safe(total_debt, total_assets),                     "unit": "ratio", "direction": "lower"},
-        {"name": "lt_debt_to_equity",    "value": safe(lt_debt, total_equity),                        "unit": "ratio", "direction": "lower"},
+        {"name": "lt_debt_to_equity",    "value": safe(lt_debt, equity_operand),                      "unit": "ratio", "direction": "lower"},
         # Coverage
-        {"name": "ebitda_to_interest",   "value": safe(ebitda_statutory, interest),                   "unit": "ratio", "direction": "higher"},
-        {"name": "dscr",                 "value": safe(ebitda_statutory, interest + st_debt),         "unit": "ratio", "direction": "higher"},
+        {"name": "ebitda_to_interest",   "value": safe(ebitda, interest),                             "unit": "ratio", "direction": "higher"},
+        {"name": "dscr",                 "value": safe(ebitda, interest + st_debt),                   "unit": "ratio", "direction": "higher"},
         # 8-year amortization proxy for LT principal — methodology cheat
         # sheet calls this the "DSCR with LT principal" view.
-        {"name": "dscr_with_lt_principal","value": safe(ebitda_statutory, interest + lt_debt / 8.0),   "unit": "ratio", "direction": "higher"},
+        {"name": "dscr_with_lt_principal","value": safe(ebitda, interest + lt_debt / 8.0),             "unit": "ratio", "direction": "higher"},
         # Efficiency
         {"name": "asset_turnover",       "value": safe(revenue, total_assets),                        "unit": "ratio", "direction": "higher"},
         {"name": "dso",                  "value": safe(ar * 365, revenue),                            "unit": "days",  "direction": "lower"},
@@ -780,15 +1080,13 @@ def compute_period_metrics(
             )
         ), "unit": "days", "direction": "lower"},
         {"name": "inventory_turnover",   "value": safe(total_operating_expense, inventory),           "unit": "ratio", "direction": "higher"},
-        # Margins — operating_margin (operational EBIT) + core_ebitda_margin.
-        # `operating_margin` here uses `operating_profit` (= OPERATIONAL
-        # EBIT, 722-excluded). The statutory operating margin would use
-        # `ebit_statutory` if we surfaced it; not in this batch.
+        # Margins over TURNOVER — operating_margin (the one operating
+        # result, 711 and 72x inside) + core_ebitda_margin.
         {"name": "operating_margin",     "value": safe(operating_profit, revenue),                    "unit": "ratio", "direction": "higher"},
         {"name": "core_ebitda_margin",   "value": safe(core_ebitda, revenue),                         "unit": "ratio", "direction": "higher"},
         # Core EBITDA itself — surfaced as a RON figure so the FE can
         # render the dual-basis card without recomputing.
-        {"name": "core_ebitda",          "value": round(core_ebitda, 2),                              "unit": "RON",   "direction": "higher"},
+        {"name": "core_ebitda",          "value": money(core_ebitda),                                 "unit": "RON",   "direction": "higher"},
     ])
 
     # ── Altman Z″ score (emerging-markets variant) + composite credit ──
@@ -814,12 +1112,22 @@ def compute_period_metrics(
     letter_grade = None
     if total_assets > 0:
         ops = _operands(bs, interest, operating_profit, ebitda, revenue)
+        ops["ebitda_refusal"] = ebitda_refusal
+        ops["net_income_refused"] = net_income_statutory is None
+        ops["equity_incomplete"] = equity_incomplete
         refusals = component_refusals(ops)
         rungs = declared_rungs(ops)
 
         x1: Optional[float] = (current_assets - current_liab) / total_assets
-        x2: Optional[float] = bs["retainedEarnings"] / total_assets
-        x3: Optional[float] = operating_profit / total_assets
+        # X2 = the cumulative book (retained earnings + the year's result)
+        # / total assets — refused when the year's result is refused and
+        # the sheet does not carry it (`equity_completeness_refusal`).
+        x2: Optional[float] = (None if equity_incomplete is not None
+                               else bs["retainedEarnings"] / total_assets)
+        # X3 on the ONE operating result; refused with it (Altman then
+        # refuses as `ebitda_refused`).
+        x3: Optional[float] = (None if operating_profit is None
+                               else operating_profit / total_assets)
         # X4 = book equity / total liabilities — DEFINED only when total
         # liabilities reach the pack's materiality share of total assets
         # (R-D4, `packs/credit/model.yaml`). Revision 1 divided by
@@ -873,14 +1181,18 @@ def compute_period_metrics(
             else:
                 prof_subscore = min(100, max(0, (net_margin_val * 100 * 5) / 1.5))
 
-        # Leverage sub-score (lower Net Debt/EBITDA = higher score). The
-        # net_debt_ebitda formula uses CASH ebitda not statutory.
+        # Leverage sub-score (lower Net Debt/EBITDA = higher score), on the
+        # ONE EBITDA (revision 3; revision 2 divided the EBITDA without 711
+        # and 72x). Refused with it when net debt is positive.
         # R-D3: net debt <= 0 is measured net cash and scores 100 whatever
         # EBITDA's sign; net debt > 0 with EBITDA <= 0 takes the pack's
         # declared rung 0, labelled. Revision 1 read EBITDA <= 0 as a 999
         # sentinel (score 0) even on a net-cash book.
         net_debt = total_debt - bs["cash"]
-        if "leverage" in rungs:
+        lev_subscore: Optional[float]
+        if "leverage" in refusals:
+            lev_subscore = None
+        elif "leverage" in rungs:
             lev_subscore = rungs["leverage"]["score"]
         elif net_debt <= 0:
             lev_subscore = 100
@@ -955,7 +1267,10 @@ def compute_period_metrics(
         # Equity ratio sub-score. R-D2: equity ratio <= 0 takes the pack's
         # declared rung 0, labelled (revision 1 had no lower bound: -500.0
         # on synthetic_negative_equity, which drove the composite to -2.9).
-        if "equity" in rungs:
+        eq_subscore: Optional[float]
+        if "equity" in refusals:
+            eq_subscore = None
+        elif "equity" in rungs:
             eq_subscore = rungs["equity"]["score"]
         else:
             eq_subscore = min(100, (total_equity / total_assets) * 200)
@@ -1053,10 +1368,77 @@ CREDIT_FAMILY_METRICS: Tuple[str, ...] = (
 #: two surfaces of one period. These rows are therefore served from the
 #: serve-time model exactly like the credit family, and the filed value
 #: is disclosed, verbatim, in `credit_metrics_as_filed`.
-DEFINITION_REVISED_METRICS: Tuple[str, ...] = ("interest_coverage",)
+#:
+#: THE ONE EBITDA (revision 3, 2026-09-26). Every row built on EBITDA or
+#: the operating result was revised with it (711 and 72x inside, 767
+#: financial), so a period persisted under revision 2 carries the EBITDA
+#: WITHOUT 711 / 72x under these names: each is served from the
+#: serve-time model. The three rows revision 3 RETIRED
+#: (`ebitda_statutory_with_711`, `inventory_variation_memo`,
+#: `total_operating_revenue_statutory` — the gross 711 credit turnover and
+#: the totals built on it) are listed too: the serve-time model does not
+#: emit them, so `serve_credit_rows` DROPS the persisted copy rather than
+#: serve a figure the definition no longer has.
+ONE_EBITDA_REVISED_METRICS: Tuple[str, ...] = (
+    "gross_profit", "ebitda", "ebitda_cash", "ebitda_statutory", "operating_profit",
+    "total_operating_revenue", "gross_margin", "ebitda_margin", "debt_to_ebitda", "roic",
+    "net_debt_to_ebitda", "ebitda_to_interest", "dscr", "dscr_with_lt_principal",
+    "operating_margin", "core_ebitda", "core_ebitda_margin", "adjusted_ebitda",
+    "inventory_variation", "ebitda_before_stock_variation",
+)
+#: Rows revision 3 added that carry no EBITDA (a stored-row reader's
+#: operands): absent from a revision-2 filing, never back-filled.
+REVISION_3_ADDED_METRICS: Tuple[str, ...] = ("total_operating_expense",)
+RETIRED_METRICS: Tuple[str, ...] = (
+    "ebitda_statutory_with_711", "inventory_variation_memo", "total_operating_revenue_statutory",
+)
+DEFINITION_REVISED_METRICS: Tuple[str, ...] = (
+    ("interest_coverage",) + ONE_EBITDA_REVISED_METRICS + RETIRED_METRICS)
 
 #: Every persisted row a serve-basis response replaces.
 SERVE_REPLACED_METRICS: Tuple[str, ...] = CREDIT_FAMILY_METRICS + DEFINITION_REVISED_METRICS
+
+
+#: Rows `compute_period_metrics` REFUSES (value None) when the assembly
+#: refused the NET RESULT (`assembled_pl.net_income_refusal`: no account
+#: 121, net 711 refused) — the build-up without the refused 711 under its
+#: own names, and every ratio on the net result.
+NET_RESULT_REFUSED_METRICS: Tuple[str, ...] = (
+    "net_income", "net_income_operational", "net_income_statutory",
+    "net_margin", "roa", "roe", "free_cash_flow",
+)
+#: Rows it refuses when TOTAL EQUITY excludes that refused result
+#: (`assembled_bs.total_equity_refusal`). The credit family's X2 and equity
+#: sub-score are withheld by `withhold_persisted`; `roic` (on the refused
+#: EBIT too) is a definition-revised row the serve-time model replaces, and
+#: is left out here so `credit_metrics_as_filed` stays verbatim.
+EQUITY_INCOMPLETE_METRICS: Tuple[str, ...] = (
+    "total_equity", "equity_ratio", "debt_to_equity", "lt_debt_to_equity",
+)
+
+
+def withhold_refused_result_rows(rows: Any, statements: Mapping[str, Any]
+                                 ) -> List[Dict[str, Any]]:
+    """PERSISTED metric rows with every row the model now refuses on these
+    statements carried as refused (value None): the net-result rows when
+    the net result is refused, the equity rows when total equity excludes
+    it. A period persisted before the refusal existed still holds the
+    numbers under these names, and `GET /api/period` (`metrics[]`, which
+    the Ask-CFO chat prints as "Headline metrics") and the briefing
+    narrator (`enforce_metric_rows`) would otherwise hand them on beside
+    the refusal. New rows; the input is not mutated."""
+    out = [dict(r) for r in (rows or []) if isinstance(r, dict)]
+    withheld = set()
+    apl = statements.get("assembled_pl") if isinstance(statements, Mapping) else None
+    if isinstance(apl, Mapping) and isinstance(apl.get("net_income_refusal"), Mapping):
+        withheld.update(NET_RESULT_REFUSED_METRICS)
+    if equity_completeness_refusal(statements) is not None:
+        withheld.update(EQUITY_INCOMPLETE_METRICS)
+    if withheld:
+        for r in out:
+            if r.get("name") in withheld:
+                r["value"] = None
+    return out
 
 
 def serve_credit_rows(
@@ -1125,7 +1507,7 @@ def _refused_subscores(rows_by_name: Dict[str, Any],
             out[key] = subscore_refusal(key, CREDIT_INPUTS_ABSENT)
             continue
         if key in predicate:
-            out[key] = subscore_refusal(key, predicate[key])
+            out[key] = subscore_refusal(key, predicate[key], cause=ops.get("ebitda_refusal"))
             continue
         out[key] = subscore_refusal(key, CREDIT_OUT_OF_RANGE, _out_of_range_figure(key, rows_by_name))
     return out
@@ -1238,6 +1620,10 @@ def withhold_persisted(rows_by_name: Mapping[str, Any], statements: Mapping[str,
             for figure in ("altman_x4", "altman_z_score"):
                 if figure in m:
                     m[figure] = None
+    if ops is not None and ops.get("equity_incomplete") and "altman_x2" in m:
+        # X2's numerator (the cumulative book) excludes the refused year's
+        # result: a filed X2 is not served over it.
+        m["altman_x2"] = None
     refused = _refused_subscores(m, statements)
     for key, figure in bad.items():
         if key != "composite" and key not in predicate:
@@ -1282,7 +1668,10 @@ def lawful_persisted_rows(rows: Any, statements: Mapping[str, Any]) -> List[Dict
     Z'' 1584.89 to write prose from."""
     from engine.ratios.credit_pack import CreditPackError
 
-    out = [dict(r) for r in (rows or []) if isinstance(r, dict)]
+    # The net-result and equity rows the model refuses on these statements
+    # are refused here too (a period persisted before the refusal holds
+    # the numbers).
+    out = withhold_refused_result_rows(rows, statements)
     by_name = _rows_by_name(out)
     try:
         checked, _refused, _withdrawn = withhold_persisted(by_name, statements)
@@ -1363,6 +1752,12 @@ def credit_block(
     # measured operands (R-D1: debt == 0, interest == 0, EBIT > 0, all read).
     rungs = ({k: v for k, v in declared_rungs(ops).items() if subscores.get(k) is not None}
              if ops is not None else {})
+    # X2 refused beside its value, with the net result's reason, when
+    # total equity excludes the refused year's result: the reader prints
+    # "refused — <reason>", never a bare dash or the carry-forward alone.
+    x2_refusal = _x2_refusal(ops)
+    if x2_refusal is not None:
+        m["altman_x2"] = None
     block: Dict[str, Any] = {
         "revision": CREDIT_MODEL_REVISION,
         "altman": {
@@ -1389,6 +1784,8 @@ def credit_block(
         "as_filed": None,
         "as_filed_differs": False,
     }
+    if x2_refusal is not None:
+        block["altman"]["component_refusals"] = {"x2": x2_refusal}
     filed = _rows_by_name(as_filed_rows)
     if not filed:
         return block
@@ -1436,6 +1833,20 @@ def credit_block(
     return block
 
 
+def _x2_refusal(ops: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Altman X2's refusal on these operands: the completeness refusal
+    beside total equity (the year's result refused and missing from the
+    sheet), carried as the component's own `{code, cause, text_ro,
+    text_en, inputs}` — None when X2 has its numerator."""
+    ref = (ops or {}).get("equity_incomplete")
+    if not ref:
+        return None
+    return {"code": EBITDA_REFUSED, "cause": ref.get("code"),
+            "text_ro": ref.get("text_ro"), "text_en": ref.get("text_en"),
+            "inputs": ["balanceSheet.retainedEarnings", "assembled_bs.current_year_pnl",
+                       "assembled_bs.total_equity_refusal"]}
+
+
 def serve_credit_envelope(block: Dict[str, Any]) -> Dict[str, Any]:
     """The GET /api/period `assembled_metrics.credit` envelope for a period
     whose serve-time model ran, projected from its `credit_block` — the one
@@ -1452,6 +1863,8 @@ def serve_credit_envelope(block: Dict[str, Any]) -> Dict[str, Any]:
         "altman_z_score": alt.get("z"),
         "altman_variant": "Z\"",
         "altman_components": {x: alt.get(x) for x in ("x1", "x2", "x3", "x4")},
+        **({"altman_component_refusals": alt["component_refusals"]}
+           if alt.get("component_refusals") else {}),
         "altman_zone": alt.get("zone"),
         "composite_score": block.get("composite"),
         "letter_grade": block.get("letter"),

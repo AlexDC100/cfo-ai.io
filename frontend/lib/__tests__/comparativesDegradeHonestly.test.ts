@@ -108,7 +108,8 @@ describe("comparatives — the WORKBOOK's own comparison column", () => {
   // because "it has no misleading cells" and "it has none because it has
   // no column" are different claims and only the second one is true.
   const SHEETS: Array<[string, string, string]> = [
-    ["P&L", "Profit & Loss", "Revenue"],
+    // The first P&L row is net turnover (70x − 709) under the one-EBITDA ruling.
+    ["P&L", "Profit & Loss", "Net turnover (70x − 709)"],
   ];
 
   it.each(BOOKS)(

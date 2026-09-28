@@ -25,6 +25,8 @@ import { pickPLBuilder } from "./buildPlStatement";
 // deriveTotals bucket-sum reads for those concepts are deleted; the
 // legacy fallback lives inside servedFacts, not here.
 import { factsFrom } from "./servedFacts";
+import { marginRefusalOf } from "./marginMeaning";
+import { equityRefusalOf, type ServedRefusal } from "./servedOneEbitda";
 
 // ─── Fact blob shape ────────────────────────────────────────────────────
 // JSON-serializable (mirrors the prompt's pl_facts / bs_facts / ratio_facts
@@ -32,20 +34,34 @@ import { factsFrom } from "./servedFacts";
 // strings, no narrative.
 
 export interface PLFacts {
-  revenue: number;                       // Total operating revenue (706 + 722 + 767 + 708)
+  revenue: number;                       // Net turnover (70x − 709) — the P&L's first subtotal
   rental_revenue: number;                // 706 only
-  capitalized_own_work_memo: number;     // 722
-  ebitda: number;                        // operating-view (722 included)
-  ebitda_excl_capitalized: number;       // strip 722 (clean operational view)
+  capitalized_own_work_memo: number;     // net 72x (inside EBITDA, outside turnover)
+  /** THE ONE EBITDA (711 and 72x inside, 767 financial) as the P&L states
+   *  it; null when the engine REFUSED it — a rule reading it must see the
+   *  absence, never a zero. */
+  ebitda: number | null;
+  /** SERVED `assembled_pl.ebitda_before_stock_variation` — the build-up
+   *  BEFORE net 711 and net 72x (owner ruling 2026-09-26). The one figure
+   *  allowed to differ from EBITDA, read ONLY by the cash-burn rule
+   *  (`true_negative_ebitda`). null when the payload does not serve it. */
+  ebitda_before_stock_variation: number | null;
+  /** SERVED net 711 ("Variația stocurilor de produse"); null when refused
+   *  or not served. */
+  inventory_variation: number | null;
   depreciation: number;                  // 6811
-  ebit: number;
+  /** Served; null with a refused EBITDA. */
+  ebit: number | null;
   interest_expense: number;              // 666
   fx_result: number;                     // 7651 − 6651
   dividend_income: number;               // 7611 + 7612 + 762 + 763
   net_financial_result: number;
-  profit_before_tax: number;
+  /** Served; null with a refused EBITDA. */
+  profit_before_tax: number | null;
   tax: number;                           // 691
-  net_profit: number;                    // statutory
+  /** The statement's closing line — account 121 where anchored; null only
+   *  when that result is refused and no anchor exists. */
+  net_profit: number | null;
 }
 
 export interface BSFacts {
@@ -76,8 +92,16 @@ export interface BSFacts {
   share_capital: number;
   revaluation_reserves: number;          // 105
   retained_earnings: number;             // 1171 (carry-forward)
-  current_year_pnl: number;              // statutory net profit (mirror of net_profit)
+  /** Statutory net profit (mirror of `pl.net_profit`); null with it. */
+  current_year_pnl: number | null;
+  /** NULL when absent, and NULL when the engine REFUSED it as the
+   *  company's equity (`total_equity_refusal` says why). */
   total_equity: number | null;
+  /** The engine's completeness refusal beside total equity: it excludes a
+   *  refused year's result (no account 121, net 711 refused, the sheet
+   *  short by the missing result). Every ratio on total equity is null
+   *  with it — never the rows' short sum, never a bucket fallback. */
+  total_equity_refusal?: ServedRefusal | null;
   /** assets − (liabilities + equity); ~0. NULL when the envelope served
    *  neither the field nor the totals to derive it — this was typed
    *  `number` while being assigned `served.difference()`, which is
@@ -138,8 +162,12 @@ export interface RatioFacts {
    *  participations (e.g., EEI's 7611/7612/762/763). */
   debt_to_ebitda_adjusted: number | null;
   // Profitability
-  ebitda_margin_gross: number | null;    // ebitda / total op revenue
-  ebitda_margin_clean: number | null;    // (ebitda - capitalized) / rental
+  /** THE ONE EBITDA over NET TURNOVER — the served `ebitda_margin`;
+   *  null when the engine refused EBITDA or ruled the margin not
+   *  meaningful (a developer's rent is not its sales). The retired
+   *  `ebitda_margin_clean` (EBITDA − 722 over 706) was a second EBITDA
+   *  margin and is gone with the 722 "dual view". */
+  ebitda_margin_gross: number | null;
   net_margin: number | null;
   roe: number | null;
   roa: number | null;
@@ -223,7 +251,19 @@ export function buildPeriodFacts(args: BuildFactsArgs): PeriodFacts {
   // F2.1 BS-tab rewrite makes obsolete.
 
   const served = factsFrom(statements);
-  const totalOperatingRevenue = pl.sections[0]?.subtotalAmount ?? statements.incomeStatement.revenue;
+  // Served one-definition fields (owner ruling 2026-09-26) — read, never
+  // derived here.
+  const servedPl =
+    ((statements as unknown as { assembled_pl?: Record<string, unknown> }).assembled_pl ?? {}) as Record<
+      string,
+      unknown
+    >;
+  const servedNumber = (v: unknown): number | null =>
+    typeof v === "number" && Number.isFinite(v) ? v : null;
+  const servedInventoryVariation = servedPl.inventory_variation as { value?: unknown } | undefined;
+  // Net turnover (70x − 709): the P&L builder's first subtotal — every
+  // margin's denominator (owner ruling 2026-09-26).
+  const netTurnover = pl.sections[0]?.subtotalAmount ?? statements.incomeStatement.revenue;
   const rentalRevenue =
     statements.incomeStatement.revenue;  // 706 only when 722 is memo-excluded by the canonical pipeline
   const capitalizedOwnWork = pl.capitalizedOwnWorkMemo ?? 0;
@@ -235,11 +275,12 @@ export function buildPeriodFacts(args: BuildFactsArgs): PeriodFacts {
 
   // ── PL Facts ────────────────────────────────────────────────────────
   const plFacts: PLFacts = {
-    revenue: totalOperatingRevenue,
+    revenue: netTurnover,
     rental_revenue: rentalRevenue,
     capitalized_own_work_memo: capitalizedOwnWork,
     ebitda: pl.ebitda,
-    ebitda_excl_capitalized: pl.ebitda - capitalizedOwnWork,
+    ebitda_before_stock_variation: servedNumber(servedPl.ebitda_before_stock_variation),
+    inventory_variation: servedNumber(servedInventoryVariation?.value),
     depreciation: statements.incomeStatement.depreciationAmortization,
     ebit: pl.ebit,
     interest_expense: interestExpense,
@@ -312,7 +353,13 @@ export function buildPeriodFacts(args: BuildFactsArgs): PeriodFacts {
   // tab, both exports and the ratios below.
   const totalAssets = served.totalAssets();
   const totalLiabilities = served.totalLiabilities();
-  const totalEquity = served.totalEquity();
+  // TOTAL EQUITY THE ENGINE REFUSED (it excludes a refused year's result —
+  // critic round 2, 2026-09-27) is absent here, with the reason: `mOr`
+  // below fell back to the rows' short sum when the engine's equity rows
+  // were refused (equity ratio 0.476, debt / equity 0, and the covenant
+  // card's "equity ratio 47.6% vs typical 30% floor").
+  const totalEquityRefusal = equityRefusalOf(statements);
+  const totalEquity = totalEquityRefusal ? null : served.totalEquity();
 
   // Bank debt + dividends payable from line items if available
   let bankDebt = balanceSheet.shortTermDebt + balanceSheet.longTermDebt;
@@ -410,6 +457,7 @@ export function buildPeriodFacts(args: BuildFactsArgs): PeriodFacts {
     retained_earnings: bsField("retained_earnings", retainedCarryForward || balanceSheet.retainedEarnings),
     current_year_pnl: plFacts.net_profit,
     total_equity: totalEquity,
+    total_equity_refusal: totalEquityRefusal,
     // servedFacts gateway (docs/CANONICAL_BS_V2_CONTRACT.md "Consumption
     // rules") — the balance check IS the served `difference` (exactly 0 on
     // RECONCILED periods); the presence branch and the legacy recompute
@@ -427,7 +475,10 @@ export function buildPeriodFacts(args: BuildFactsArgs): PeriodFacts {
   // opening balances. Use what we have; flag drift when present.
   const openingCash = 0;  // unknown without prior period
   const closingCash = bsFacts.cash;
-  const cfo = plFacts.net_profit + plFacts.depreciation;
+  // A net result the engine refused (no anchor, a refused build) leaves the
+  // proxy without its first term: NaN — stated as absent by every
+  // formatter — never a cash flow computed from a zero.
+  const cfo = plFacts.net_profit === null ? NaN : plFacts.net_profit + plFacts.depreciation;
   const cfi = -capitalizedOwnWork;  // capex proxy: capitalized own work moved into 231
   const cff = 0;  // requires prior bank-debt balance to derive drawdowns vs repayments
   const cfFacts: CFFacts = {
@@ -473,8 +524,10 @@ export function buildPeriodFacts(args: BuildFactsArgs): PeriodFacts {
   // FE arithmetic when supplied. Same canonical-first pattern as F2.2
   // computeRatios. The engine emits matching rows; FE arithmetic stays
   // as fallback for sample data without canonical metrics.
+  // THE ONE EBITDA; null when refused, and so is every ratio built on it.
   const ebitdaStatutory = plFacts.ebitda;
-  const ebitdaAdjusted = ebitdaStatutory + plFacts.dividend_income;
+  const marginRefused = marginRefusalOf(statements) !== null;
+  const ebitdaAdjusted = ebitdaStatutory === null ? null : ebitdaStatutory + plFacts.dividend_income;
   const m = (name: string): number | null => {
     if (!args.metricsByName) return null;
     const v = args.metricsByName[name];
@@ -504,9 +557,13 @@ export function buildPeriodFacts(args: BuildFactsArgs): PeriodFacts {
       bsFacts.short_term_liabilities,
     )),
     cash_ratio: mOr("cash_ratio", safeDiv(bsFacts.cash, bsFacts.short_term_liabilities)),
-    debt_to_equity: mOr("debt_to_equity", safeDiv(bsFacts.bank_debt_total, bsFacts.total_equity)),
+    // A refused total equity refuses every ratio on it — a stored engine
+    // row written before the refusal does not stand in either.
+    debt_to_equity: totalEquityRefusal ? null
+      : mOr("debt_to_equity", safeDiv(bsFacts.bank_debt_total, bsFacts.total_equity)),
     debt_to_assets: mOr("debt_to_assets", safeDiv(bsFacts.bank_debt_total, bsFacts.total_assets)),
-    equity_ratio: mOr("equity_ratio", safeDiv(bsFacts.total_equity, bsFacts.total_assets)),
+    equity_ratio: totalEquityRefusal ? null
+      : mOr("equity_ratio", safeDiv(bsFacts.total_equity, bsFacts.total_assets)),
     interest_coverage_ebit: mOr("interest_coverage", safeDiv(plFacts.ebit, plFacts.interest_expense)),
     ebitda_to_interest: mOr("ebitda_to_interest", safeDiv(ebitdaStatutory, plFacts.interest_expense)),
     // ── DEBT SERVICE COVERAGE ────────────────────────────────────────
@@ -542,12 +599,18 @@ export function buildPeriodFacts(args: BuildFactsArgs): PeriodFacts {
     // ratio undefined. A 0 here reads as "no leverage", the opposite of
     // what a loss-making book means; every rule that cites it stays
     // silent on null and prints nothing rather than "0.00×".
-    debt_to_ebitda: mOr("debt_to_ebitda", ebitdaStatutory > 0 ? safeDiv(bsFacts.bank_debt_total, ebitdaStatutory) : null),
-    debt_to_ebitda_adjusted: ebitdaAdjusted > 0 ? safeDiv(bsFacts.bank_debt_total, ebitdaAdjusted) : null,
-    ebitda_margin_gross: m("ebitda_margin") !== null ? (m("ebitda_margin") as number) : safeDiv(ebitdaStatutory, plFacts.revenue),
-    ebitda_margin_clean: safeDiv(ebitdaStatutory - plFacts.capitalized_own_work_memo, plFacts.rental_revenue),
-    net_margin: m("net_margin") !== null ? (m("net_margin") as number) : safeDiv(plFacts.net_profit, plFacts.revenue),
-    roe: mOr("roe", safeDiv(plFacts.net_profit, bsFacts.total_equity)),
+    debt_to_ebitda: mOr("debt_to_ebitda", ebitdaStatutory !== null && ebitdaStatutory > 0 ? safeDiv(bsFacts.bank_debt_total, ebitdaStatutory) : null),
+    debt_to_ebitda_adjusted: ebitdaAdjusted !== null && ebitdaAdjusted > 0 ? safeDiv(bsFacts.bank_debt_total, ebitdaAdjusted) : null,
+    // A margin the ENGINE ruled not meaningful is refused here too — the
+    // served row is null then, and the fallback division must not
+    // resurrect the percent (the developer's 339.3% over 0.6% of activity).
+    ebitda_margin_gross: marginRefused
+      ? null
+      : m("ebitda_margin") !== null ? (m("ebitda_margin") as number) : safeDiv(ebitdaStatutory, plFacts.revenue),
+    net_margin: marginRefused
+      ? null
+      : m("net_margin") !== null ? (m("net_margin") as number) : safeDiv(plFacts.net_profit, plFacts.revenue),
+    roe: totalEquityRefusal ? null : mOr("roe", safeDiv(plFacts.net_profit, bsFacts.total_equity)),
     roa: mOr("roa", safeDiv(plFacts.net_profit, bsFacts.total_assets)),
     property_yield: safeDiv(plFacts.rental_revenue, bsFacts.investment_property_net),
   };
@@ -643,7 +706,7 @@ export function checkCrossViewConsistency(facts: PeriodFacts): ConsistencyIssue[
   // no drift. (`null > 0` is false, so the old code reached the same
   // branch by coercion; it now says so.)
   const dte = facts.ratios.debt_to_ebitda;
-  if (dte !== null && Number.isFinite(dte) && dte > 0) {
+  if (dte !== null && Number.isFinite(dte) && dte > 0 && facts.pl.ebitda !== null) {
     const ebitdaImplied = facts.bs.bank_debt_total / dte;
     if (Math.abs(ebitdaImplied - facts.pl.ebitda) > tol) {
       issues.push({
@@ -687,7 +750,11 @@ export function checkCrossViewConsistency(facts: PeriodFacts): ConsistencyIssue[
   }
 
   // Net profit must equal P&L's net_profit and BS's current_year_pnl
-  if (Math.abs(facts.bs.current_year_pnl - facts.pl.net_profit) > tol) {
+  // An absent net result corroborates nothing: no opinion, not "no drift".
+  if (
+    facts.bs.current_year_pnl !== null && facts.pl.net_profit !== null &&
+    Math.abs(facts.bs.current_year_pnl - facts.pl.net_profit) > tol
+  ) {
     issues.push({
       field: "net profit (PL vs BS current_year_pnl)",
       expected: facts.pl.net_profit,

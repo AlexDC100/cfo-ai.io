@@ -149,7 +149,7 @@ function renderPl(doc: ComparativesResponse) {
       statement="PL"
       currency="RON"
     >
-      <PLStatementView statement={statement} hideGuide showFootnote={false} />
+      <PLStatementView statement={statement} hideGuide />
     </ComparativeProvider>,
   );
   return { statement, ...view };

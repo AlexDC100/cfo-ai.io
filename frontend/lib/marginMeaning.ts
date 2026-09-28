@@ -20,8 +20,9 @@
 //
 // This module ONLY READS what was served: no threshold, no division, no
 // percent is computed here — the refusal text arrives rendered, in both
-// languages, and the one note arrives with its figure already read off
-// `assembled_pl.ebitda_statutory_with_711`. A payload that carries no
+// languages, and the one note ("EBITDA includes the stock variation")
+// arrives with its figure already read off the measured net 711,
+// `assembled_pl.inventory_variation.value` (one-EBITDA ruling). A payload that carries no
 // verdict (an older period, a public-company adapter, a sample) refuses
 // nothing, which is the behaviour it had before the rule.
 
@@ -36,7 +37,7 @@ export type MarginMeaningStatus = "meaningful" | "not_meaningful" | "not_applica
 export interface MarginNote {
   /** The note as the engine rendered it (RO + EN), amount included. */
   readonly display: MarginBilingual;
-  /** The served figure the note quotes (assembled_pl.ebitda_statutory_with_711). */
+  /** The served figure the note quotes (assembled_pl.inventory_variation.value, net 711). */
   readonly figure: number | null;
 }
 

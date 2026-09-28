@@ -162,7 +162,15 @@ describe("the strip model compares like with like", () => {
     expect(cents(ni.vs.prior_period.absolute)).not.toBe(cents(reconstructedMove));
   });
 
-  it("a prior without served figures keeps the deriveTotals reading (fallback unchanged)", () => {
+  // REWRITTEN for the one-EBITDA ruling (2026-09-26). The old law was
+  // "a prior without served figures keeps the deriveTotals reading" — the
+  // class-6/7 build-up WITHOUT the stock variation, which on this prior
+  // (carniprod, 711 active) is 1,248,684.06 against account 121's
+  // 1,435,533.59. Under the ruling that build-up is not the result on the
+  // one definition, and the bare prior's buckets cannot measure its 711:
+  // the prior's net income REFUSES, and the line states it rather than
+  // printing a move off the pre-ruling reconstruction.
+  it("a prior without served figures refuses its result when its buckets show 711 activity it cannot measure", () => {
     const p = fresh();
     const st = surfaces(p).statementsForExport!;
     const bare: Statements = {
@@ -173,10 +181,29 @@ describe("the strip model compares like with like", () => {
         incomeStatement: st.prior!.incomeStatement,
       },
     };
+    // The witness: the bare prior's buckets carry 711 activity.
+    expect(Math.abs(bare.prior!.incomeStatement.inventoryVariationMemo ?? 0)).toBeGreaterThan(0);
     const cmp = buildComparatives(bare, reportOverrides(st));
     const ni = cmp.lines.find((l) => l.key === "net_income")!;
-    const priorT = deriveTotals({ ...st, ...bare.prior!, prior: undefined });
-    expect(cents(ni.vs.prior_period.absolute)).toBe(cents(currentPl(p).net_income_statutory - priorT.netIncome));
+    expect(ni.vs.prior_period.absolute).toBeNull();
+    expect(ni.vs.prior_period.unavailable).toMatch(/comparison period does not report/);
+    // Never the pre-ruling reconstruction.
+    expect(cents(ni.vs.prior_period.absolute)).not.toBe(
+      cents(currentPl(p).net_income_statutory - priorPl(p).net_income_reconstructed),
+    );
+    // A prior WITHOUT 711 activity keeps its bucket reading (the fallback
+    // is unchanged where the one definition can be built from buckets).
+    const no711: Statements = {
+      ...bare,
+      prior: { ...bare.prior!, incomeStatement: { ...bare.prior!.incomeStatement, inventoryVariationMemo: 0 } },
+    };
+    const cmp2 = buildComparatives(no711, reportOverrides(st));
+    const ni2 = cmp2.lines.find((l) => l.key === "net_income")!;
+    const priorT = deriveTotals({ ...st, ...no711.prior!, assembled_pl: undefined, prior: undefined });
+    expect(priorT.netIncome).not.toBeNull();
+    expect(cents(ni2.vs.prior_period.absolute)).toBe(
+      cents(currentPl(p).net_income_statutory - (priorT.netIncome as number)),
+    );
   });
 });
 
@@ -211,8 +238,13 @@ describe("the three deliverables print the served prior", () => {
     const row = workbookRow(wb, "P&L", "Net income (account 121, as filed)");
     expect(row[1]).toBe(currentPl(p).net_income_statutory);
     expect(row[2]).toBe(p.comparatives.bridges.pl.prior_total);
-    // The reconstruction keeps its own, named row.
-    const rec = workbookRow(wb, "P&L", "Net profit — reconstructed (class 6/7 movements)");
-    expect(cents(rec[2] as number)).toBe(cents(priorPl(p).net_income_reconstructed));
+    // One-EBITDA ruling: on this bridge book the result built from the
+    // accounts IS account 121 (711 inside), so no separate build-up row is
+    // printed — and the pre-ruling reconstruction (711 outside,
+    // 1,248,684.06 on the prior) is printed in no cell of the sheet.
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets["P&L"], { header: 1 });
+    expect(rows.some((r) => String((r as unknown[])[0] ?? "").startsWith("Net profit — reconstructed"))).toBe(false);
+    const cells = rows.flat().filter((v): v is number => typeof v === "number");
+    expect(cells.map(cents)).not.toContain(cents(priorPl(p).net_income_reconstructed));
   });
 });

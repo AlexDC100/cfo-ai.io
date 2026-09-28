@@ -17,11 +17,24 @@
 import { deriveTotals, type Statements } from "@/lib/financialReport";
 import { pickPLBuilder } from "@/lib/buildPlStatement";
 import type { PeriodLineItem, PeriodMetric } from "@/lib/activePeriod";
+import { plLevelsOf, type ServedRefusal } from "@/lib/servedOneEbitda";
 
 export interface DashboardCanonical {
+  /** Net turnover (70x − 709) — the dashboard's first P&L subtotal. */
   operatingRevenue: number;
-  ebitda: number;
-  netProfit: number;
+  /** The one EBITDA as served; null when the engine refused it (never 0). */
+  ebitda: number | null;
+  /** Gross profit on the one definition (turnover − cost of sales ± net
+   *  711), served; null when refused with EBITDA. */
+  grossProfit: number | null;
+  /** The two non-cash lines INSIDE EBITDA, as served: net 711 ("Variația
+   *  stocurilor de produse") and net 72x; null when refused / not served. */
+  inventoryVariation: number | null;
+  capitalizedOwnWork: number | null;
+  /** The engine's refusal of EBITDA, when it refused it. */
+  ebitdaRefusal: ServedRefusal | null;
+  /** null when neither the metric row nor the statement states one. */
+  netProfit: number | null;
   totalDebt: number;
 }
 
@@ -50,10 +63,12 @@ export function buildDashboardCanonical(
   const ap = (statements as Statements & { assembled_pl?: Record<string, number> })
     .assembled_pl;
 
-  // EBITDA tile: engine `ebitda_statutory` when present, else FE operating
-  // view `pl.ebitda` — identical ladder to FinancialStatements.tsx:979-983.
-  const ebitda =
-    typeof ap?.ebitda_statutory === "number" ? ap.ebitda_statutory : pl.ebitda;
+  // EBITDA tile: THE ONE EBITDA as served (`plLevelsOf`), else — a payload
+  // the engine did not assemble — the P&L statement's figure; null, never a
+  // rebuilt EBITDA, when the engine refused it.
+  void ap;
+  const levels = plLevelsOf(statements);
+  const ebitda = levels.source === "served" ? levels.ebitda : pl.ebitda;
 
   // Net profit tile: `net_income_statutory` metric row → pl.netProfitStatutory
   // → pl.netProfit — identical ladder to FinancialStatements.tsx:994-1002.
@@ -65,5 +80,14 @@ export function buildDashboardCanonical(
         ? pl.netProfitStatutory
         : pl.netProfit;
 
-  return { operatingRevenue, ebitda, netProfit, totalDebt: totals.totalDebt };
+  return {
+    operatingRevenue,
+    ebitda,
+    grossProfit: levels.grossProfit,
+    inventoryVariation: levels.source === "served" ? levels.inventoryVariation : null,
+    capitalizedOwnWork: levels.source === "served" ? levels.capitalizedOwnWork : null,
+    ebitdaRefusal: ebitda === null ? levels.refusal ?? pl.ebitdaRefusal ?? null : null,
+    netProfit,
+    totalDebt: totals.totalDebt,
+  };
 }

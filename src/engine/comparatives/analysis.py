@@ -26,17 +26,26 @@ Three readings of the same two envelopes, each with its own refusal.
                 does not know the business.
 
 The identities the bridge relies on were MEASURED on the committed real
-baselines (scandia_fy2025, eei_dec_2025) before being written down here:
+baselines (scandia_fy2025, eei_dec_2025) before being written down here,
+and re-measured on the ONE EBITDA (owner ruling 2026-09-26) over every
+corpus pair the gates run:
 
-    ebitda   = revenue + other_operating_income - cogs - opex_total
+    ebitda   = revenue + other_operating_income + capitalized_own_work
+               - cogs + inventory_variation - opex_total
                (other_operating_income is the assembler's own term; on
-               the condensed real book it is NOT 758 + 781)
+               the condensed real book it is NOT 758 + 781; net 72x and
+               the MEASURED net 711 — "Variația stocurilor de produse",
+               beside cost of sales — are inside it since the ruling)
     ebit     = ebitda - depreciation
     pretax   = ebit + net_financial_result
-    ni_op    = pretax - tax
-    ni_stat  = ni_op + (ni_stat - ni_op)        # the statutory adjustment:
-                                                # capitalised own work (722)
-                                                # and the account-121 anchor
+    ni_stat  = pretax - tax + (not explained by the accounts)
+               # the statutory adjustment is what account 121 holds beyond
+               # every line above: 0.00 where 711 came off the 121 bridge,
+               # the visible remainder on a book with no 711 postings
+
+A period whose assembly REFUSED the one EBITDA (the stock variation could
+not be measured) has no EBITDA to walk through: the P&L bridge refuses with
+that reason, on either side.
     canonical_bs.totals.assets                  = Σ rows in the asset sections
     canonical_bs.totals.equity_plus_liabilities = Σ rows in the other sections
     (the bs_v2 object the balance-sheet tab renders; rows are paired
@@ -236,10 +245,16 @@ class Bridge:
 def _raw(envelope: Mapping[str, Any], statement_key: str, field: str) -> Optional[float]:
     """The assembler's own number, dense — this is the walk's arithmetic,
     so it reads what the totals were built from. None only when the
-    field is not there or not a finite number."""
+    field is not there or not a finite number. A dotted `field` reads a
+    nested block (`inventory_variation.value`)."""
     node = unwrap_envelope(envelope).get("statements") or {}
     block = node.get(statement_key) or {}
-    val = block.get(field)
+    parts = field.split(".")
+    for part in parts[:-1]:
+        block = block.get(part) if isinstance(block, Mapping) else None
+        if not isinstance(block, Mapping):
+            return None
+    val = block.get(parts[-1])
     if isinstance(val, bool) or not isinstance(val, (int, float)):
         return None
     f = float(val)
@@ -328,11 +343,20 @@ def _walk(statement, from_label, to_label, cur_env, pri_env, total_field_key,
 #: to equal it on the analytic Scandia book and MISSED it by 326,903.15 on
 #: the condensed one — an identity assumed, not read. The walk now carries
 #: the assembler's term itself, so it closes wherever the assembler does.
+#:
+#: THE ONE EBITDA (owner ruling 2026-09-26): own work capitalised (net 72x)
+#: and the MEASURED stock variation (net 711, "Variația stocurilor de
+#: produse", beside cost of sales, signed) are steps of their own — inside
+#: EBITDA, outside turnover — read from the blocks the assembler serves.
 _PL_STEPS = (
     ("pl.revenue", "Net turnover", "assembled_pl", "revenue", +1),
     ("pl.other_operating_income_total", "Other operating income (EBITDA basis)",
      "assembled_pl", "other_operating_income", +1),
+    ("pl.capitalized_own_work", "Own work capitalised (72x)",
+     "assembled_pl", "capitalized_own_work.value", +1),
     ("pl.cogs", "Cost of goods sold", "assembled_pl", "cogs", -1),
+    ("pl.inventory_variation", "Variația stocurilor de produse (711)",
+     "assembled_pl", "inventory_variation.value", +1),
     ("pl.opex_total", "Operating expenses", "assembled_pl", "opex_total", -1),
     ("pl.depreciation", "Depreciation & amortisation", "assembled_pl", "depreciation", -1),
     ("pl.net_financial_result", "Net financial result", "assembled_pl", "net_financial_result", +1),
@@ -340,15 +364,37 @@ _PL_STEPS = (
 )
 
 
+def _ebitda_refusal(envelope: Mapping[str, Any]) -> Optional[Mapping[str, Any]]:
+    node = unwrap_envelope(envelope).get("statements") or {}
+    apl = node.get("assembled_pl") if isinstance(node, Mapping) else None
+    refusal = apl.get("ebitda_refusal") if isinstance(apl, Mapping) else None
+    return refusal if isinstance(refusal, Mapping) else None
+
+
 def pl_bridge(cur_env, pri_env, table=None):
     # type: (Mapping[str, Any], Mapping[str, Any], Optional[ComparativeTable]) -> Bridge
     """Prior statutory net income → current statutory net income.
 
     The last step is the statutory adjustment — `net_income_statutory -
-    net_income_operational` in each period — which is capitalised own work
-    (722) and, where the account-121 anchor applied, the anchor gap. It is
-    a named step because it is a real difference between two numbers the
-    assembler serves, not a plug."""
+    (net_income_operational + net 72x + net 711)` in each period — what
+    account 121 holds beyond every line the walk names (0.00 where net 711
+    came off the 121 bridge). It is a named step because it is a real
+    difference between two numbers the assembler serves, not a plug.
+
+    A period whose assembly refused the one EBITDA refuses the bridge, by
+    name and with the reason: its stock variation cannot be stated, so
+    neither can the walk through its EBITDA."""
+    refused = [(side, r) for side, r in (("current", _ebitda_refusal(cur_env)),
+                                        ("prior", _ebitda_refusal(pri_env))) if r is not None]
+    if refused:
+        return Bridge(statement="PL", from_label="net income (statutory)",
+                      to_label="net income (statutory)",
+                      prior_total=_raw(pri_env, "assembled_pl", "net_income_statutory"),
+                      current_total=_raw(cur_env, "assembled_pl", "net_income_statutory"),
+                      steps=(), residual=None, closes=False,
+                      reason="bridge refused: the one EBITDA is refused for %s" % "; ".join(
+                          "the %s period (%s: %s)" % (side, r.get("code"), r.get("text_en") or "")
+                          for side, r in refused))
     bridge = _walk("PL", "net income (statutory)", "net income (statutory)",
                    cur_env, pri_env, ("assembled_pl", "net_income_statutory"),
                    _PL_STEPS, table)
@@ -358,8 +404,17 @@ def pl_bridge(cur_env, pri_env, table=None):
         return bridge
     cur_adj = None
     pri_adj = None
-    cs, co = _raw(cur_env, "assembled_pl", "net_income_statutory"), _raw(cur_env, "assembled_pl", "net_income_operational")
-    ps, po = _raw(pri_env, "assembled_pl", "net_income_statutory"), _raw(pri_env, "assembled_pl", "net_income_operational")
+
+    def _named(env):  # type: (Mapping[str, Any]) -> Optional[float]
+        """net income built from the named lines: the operational build-up
+        plus net 72x plus net 711."""
+        parts = (_raw(env, "assembled_pl", "net_income_operational"),
+                 _raw(env, "assembled_pl", "capitalized_own_work.value"),
+                 _raw(env, "assembled_pl", "inventory_variation.value"))
+        return None if any(v is None for v in parts) else sum(parts)  # type: ignore[arg-type]
+
+    cs, co = _raw(cur_env, "assembled_pl", "net_income_statutory"), _named(cur_env)
+    ps, po = _raw(pri_env, "assembled_pl", "net_income_statutory"), _named(pri_env)
     if cs is not None and co is not None:
         cur_adj = cs - co
     if ps is not None and po is not None:
@@ -375,7 +430,7 @@ def pl_bridge(cur_env, pri_env, table=None):
                       steps=bridge.steps, residual=None, closes=False,
                       reason="bridge refused: envelope field(s) missing — %s" % ", ".join(gaps))
     adj = _step("pl.statutory_adjustment",
-                "Statutory adjustment (722 capitalised own work; account-121 anchor)",
+                "Statutory adjustment (account 121 beyond the named lines)",
                 cur_adj, pri_adj, +1, True, True)
     steps = tuple(bridge.steps) + (adj,)
     if bridge.prior_total is None or bridge.current_total is None:

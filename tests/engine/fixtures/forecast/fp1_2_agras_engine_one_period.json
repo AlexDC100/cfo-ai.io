@@ -69,7 +69,7 @@
   "period_id": "route-period-agras",
   "snapshot_id": "sha256-10b9c390378a05d332cf2e3b24323576f47ab333939f1c5836e41dbccaf4fa3d"
  },
- "body_hash": "sha256:41a44a06e34e526ecbc118ec1d3663df58cecf16a1a8cf13b3376ff346915cc5",
+ "body_hash": "sha256:e46a794f32be5f093909072911c43323646a91ec6b1293e1c7f7c58ece132078",
  "client": {
   "analysis_debounce_ms": 600,
   "debounce_ms": 150,
@@ -117,6 +117,15 @@
     "sentence": {
      "code": "policy_rate_shift",
      "text": "a policy-rate shift is not served: the book does not say which of its debt reprices with the policy rate"
+    }
+   },
+   {
+    "key": "stock_variation",
+    "panel": null,
+    "rail_group": null,
+    "sentence": {
+     "code": "stock_variation",
+     "text": "the stock variation (Variația stocurilor de produse) and own work capitalised are not projected: they are nil in every plan year, so plan year one starts from the actual year's EBITDA before them"
     }
    }
   ]
@@ -4311,7 +4320,7 @@
         "outcome": "absent",
         "reason": {
          "code": "book_absent",
-         "text": "this book's reconstructed result of 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and 1,071,687.03 of that distance is not attributable to any line on this statement. An effective rate of 18.5485% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company"
+         "text": "this book's result before the stock variation, 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00), does not reach the 7,533,676.02 it filed in account 121; the 1,071,687.03 between them is the stock variation (711, Variația stocurilor de produse), which this closed trial balance states only as account 121 less every other line. An effective rate of 18.5485% read off the build-up before it would be measured ACROSS that derived figure rather than from the company"
         },
         "tier": "book"
        }
@@ -4329,7 +4338,7 @@
       "sector": null,
       "sentence": {
        "code": "packs/forecast/ro_macro.yaml#statutory.profit_tax_rate",
-       "text": "this book's reconstructed result of 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and 1,071,687.03 of that distance is not attributable to any line on this statement. An effective rate of 18.5485% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead"
+       "text": "this book's result before the stock variation, 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00), does not reach the 7,533,676.02 it filed in account 121; the 1,071,687.03 between them is the stock variation (711, Variația stocurilor de produse), which this closed trial balance states only as account 121 less every other line. An effective rate of 18.5485% read off the build-up before it would be measured ACROSS that derived figure rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead"
       },
       "source": null,
       "tier": "macro"
@@ -4351,7 +4360,7 @@
       "outcome": "absent",
       "reason": {
        "code": "book_absent",
-       "text": "this book's reconstructed result of 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and 1,071,687.03 of that distance is not attributable to any line on this statement. An effective rate of 18.5485% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company"
+       "text": "this book's result before the stock variation, 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00), does not reach the 7,533,676.02 it filed in account 121; the 1,071,687.03 between them is the stock variation (711, Variația stocurilor de produse), which this closed trial balance states only as account 121 less every other line. An effective rate of 18.5485% read off the build-up before it would be measured ACROSS that derived figure rather than from the company"
       },
       "tier": "book"
      }
@@ -4369,7 +4378,7 @@
     "sector": null,
     "sentence": {
      "code": "packs/forecast/ro_macro.yaml#statutory.profit_tax_rate",
-     "text": "this book's reconstructed result of 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and 1,071,687.03 of that distance is not attributable to any line on this statement. An effective rate of 18.5485% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead"
+     "text": "this book's result before the stock variation, 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00), does not reach the 7,533,676.02 it filed in account 121; the 1,071,687.03 between them is the stock variation (711, Variația stocurilor de produse), which this closed trial balance states only as account 121 less every other line. An effective rate of 18.5485% read off the build-up before it would be measured ACROSS that derived figure rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead"
     },
     "source": null,
     "tier": "macro"
@@ -7824,7 +7833,7 @@
   },
   {
    "code": "note.tax_rate",
-   "text": "tax_rate: this book's reconstructed result of 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and 1,071,687.03 of that distance is not attributable to any line on this statement. An effective rate of 18.5485% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead (engine_default)"
+   "text": "tax_rate: this book's result before the stock variation, 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00), does not reach the 7,533,676.02 it filed in account 121; the 1,071,687.03 between them is the stock variation (711, Variația stocurilor de produse), which this closed trial balance states only as account 121 less every other line. An effective rate of 18.5485% read off the build-up before it would be measured ACROSS that derived figure rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead (engine_default)"
   },
   {
    "code": "note.interest_income_rate",
@@ -7943,8 +7952,8 @@
    "text": "model convention: financial income and expense other than interest are HELD at the source period's own annual amounts and repeated every year. Nothing in a trial balance says foreign-exchange movement or income from holdings scales with trading, so none of it is grown with revenue — and none of it is dropped either."
   },
   {
-   "code": "note.measured_against_account_121",
-   "text": "measured against account 121: 1,071,687.03 of this book's profit and loss account is not attributable to any line on it — the reconstruction reaches 6,461,988.99 where the company filed 7,533,676.02. EVERY driver measured from this statement, the cost pools and working-capital ratios included, is measured from that build-up; only the tax rate is displaced by it, because only the tax rate claims to reproduce a figure filed beside it."
+   "code": "note",
+   "text": "the stock variation (711, Variația stocurilor de produse) and own work capitalised (72x) are not projected: 0 in every plan year. The actual year's EBITDA of 11,848,065.27 includes 1,071,687.03 of them (net 711 1,071,687.03, net 72x 0.00), so plan year one starts from the recurring EBITDA of 10,776,378.24."
   },
   {
    "code": "note.measured_exposure_to_the_convention_above",
@@ -7963,7 +7972,7 @@
   "engine_version": "0.1.0",
   "history_hash": "sha256:868153d2ad4c4dde97d47e65cc43344e839f85407885e54a2b65ae9664fadb7a",
   "macro_snapshot_id": null,
-  "pack_hash": "sha256:6ea718f3bcdc02c3c84936d20db23bdfe350c6af7ae9ad61d882483d3634aec9",
+  "pack_hash": "sha256:a561997c0592fa571d510da5c17590bdf94f7290cec70942e155233b352eb03d",
   "sector_snapshot_id": null
  },
  "pins_changed": [],

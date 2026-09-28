@@ -2,8 +2,8 @@
   "_meta": {
     "fixture": "eei_dec_2025",
     "company": "EEI IMOBILIARA INVESTMENT SRL",
-    "captured_from": "F3.1a — pre-refactor baseline",
-    "engine_module": "/Users/alex/Desktop/folder claude Scandia copy/src/engine/country_packs/ro_romania/chart_of_accounts.py",
+    "captured_from": "one-EBITDA ruling re-capture (2026-09-27) — stock-variation evidence threaded as the write seam does",
+    "engine_module": "/private/tmp/claude-501/-Users-alex-Desktop-folder-claude-Scandia-copy/3ffcb142-1cba-4f4d-a1ef-1e69d9ad3827/scratchpad/wt-711/src/engine/country_packs/ro_romania/chart_of_accounts.py",
     "account_count": 62
   },
   "assembled": {
@@ -43,22 +43,22 @@
         "inventoryVariationMemo": 0.0
       },
       "subAggregates": {
-        "fx_loss": 338580.67,
-        "cash_fx": 679102.51,
-        "financial_income": 716544.16,
-        "fx_gain": 26632.48,
-        "ar_intercompany": 2596892.49,
-        "ppe_advances": 2021340.0,
-        "interest_income": 2460.43,
-        "equity_revaluation": 3980157.61,
-        "opex_third_party": 2172788.6,
         "ar_provisions": 0.0,
-        "interest_expense": 716741.02,
-        "ap_dividends": 1.0,
-        "ppe_under_construction": 2164079.83,
+        "ar_intercompany": 2596892.49,
         "ar_doubtful": 167026.63,
+        "fx_loss": 338580.67,
+        "fx_gain": 26632.48,
+        "ppe_advances": 2021340.0,
+        "ppe_under_construction": 2164079.83,
+        "interest_expense": 716741.02,
+        "financial_income": 716544.16,
+        "ap_dividends": 1.0,
         "ppe_investment": 14457160.32,
         "retained_earnings": 364310.48,
+        "interest_income": 2460.43,
+        "opex_third_party": 2172788.6,
+        "cash_fx": 679102.51,
+        "equity_revaluation": 3980157.61,
         "current_year_pnl": 1425245.58
       },
       "assembled_bs": {
@@ -109,25 +109,54 @@
       },
       "assembled_pl": {
         "revenue": 2727103.68,
+        "turnover": 2727103.68,
         "cogs": 0.0,
         "gross_profit": 2727103.68,
         "opex_total": 2763779.81,
         "opex_third_party": 2172788.6,
         "depreciation": 355606.5,
-        "ebitda": -36676.13,
-        "ebit": -392282.63,
-        "ebitda_operational": -36676.13,
+        "ebitda": 2127403.7,
+        "ebit": 1771797.2,
+        "operating_result": 1771797.2,
+        "ebitda_before_stock_variation": -36676.13,
+        "ebitda_operational": 2127403.7,
         "ebitda_statutory": 2127403.7,
-        "ebitda_operating_view": 2149570.7,
-        "ebitda_adjusted": 2843947.86,
+        "ebitda_operating_view": 2127403.7,
+        "ebitda_cash": 2127403.7,
+        "operating_ebitda": 2127403.7,
+        "operating_ebit": 1771797.2,
+        "ebitda_refusal": null,
+        "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+        "inventory_variation": {
+          "schema": "stock_variation/1",
+          "value": 0.0,
+          "refusal": null,
+          "provenance": "no_711_activity",
+          "line_name_ro": "Variația stocurilor de produse",
+          "gloss_en": "change in inventories of finished goods and work in progress",
+          "label_ro": "Variația stocurilor de produse (711) — fără înregistrări în perioadă",
+          "label_en": "Change in inventories of finished goods and WIP (711) — no postings in the period",
+          "accounts": "711",
+          "basis": "absent",
+          "book_state": null,
+          "activity": 0.0,
+          "has_activity": false,
+          "guards": null,
+          "measured_without_121": true,
+          "identity_with_121": false,
+          "stock_production_credit_turnover": 0.0
+        },
+        "capitalized_own_work": {
+          "value": 2164079.83,
+          "provenance": "72x_engine_read",
+          "line_name_ro": "Producția realizată pentru scopuri proprii și capitalizată",
+          "gloss_en": "own work capitalised",
+          "label_ro": "Producția realizată pentru scopuri proprii și capitalizată (72x, rulajul citit de motor)",
+          "label_en": "Own work capitalised (72x, the engine's read of the turnover)",
+          "accounts": "72x"
+        },
         "discounts_received": 22167.0,
-        "total_operating_revenue": 4913350.51,
-        "total_operating_revenue_statutory": 4913350.51,
-        "operating_ebitda": 2149570.7,
-        "operating_ebit": 1793964.2,
-        "ebitda_cash": -36676.13,
-        "ebitda_statutory_with_711": 2127403.7,
-        "inventory_variation_memo": 0.0,
+        "total_operating_revenue": 4891183.51,
         "interest_expense": 716741.02,
         "interest_income": 2460.43,
         "fx_gain": 26632.48,
@@ -135,7 +164,8 @@
         "financial_income_other": 716544.16,
         "financial_income": 745637.07,
         "financial_expense": 338580.67,
-        "pretax": -701967.25,
+        "pretax": 1462112.58,
+        "pretax_before_stock_variation": -701967.25,
         "tax": 36867.0,
         "net_income_operational": -738834.25,
         "net_income_statutory": 1425245.58,
@@ -151,7 +181,159 @@
         "adjusted_ebitda": 2127403.7,
         "net_financial_result": -309684.62,
         "financial_expense_total": 1055321.69,
-        "free_cash_flow_proxy": 1780852.08
+        "free_cash_flow_proxy": 1780852.08,
+        "other_operating_income": 0.0,
+        "net_income_reconciliation_to_121": 2164079.83,
+        "net_income_unexplained_vs_121": 0.0,
+        "ebitda_reconciliation": {
+          "schema": "ebitda_reconciliation/1",
+          "definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+          "lines": [
+            {
+              "key": "turnover",
+              "label_ro": "Cifra de afaceri netă",
+              "label_en": "Net turnover",
+              "accounts": "70x − 709",
+              "value": 2727103.68
+            },
+            {
+              "key": "other_operating_income",
+              "label_ro": "Alte venituri din exploatare",
+              "label_en": "Other operating income",
+              "accounts": "74x, 75x, 77x, 78x",
+              "value": 0.0
+            },
+            {
+              "key": "capitalized_own_work",
+              "label_ro": "Producția realizată pentru scopuri proprii și capitalizată",
+              "label_en": "Own work capitalised",
+              "provenance_label_ro": "Producția realizată pentru scopuri proprii și capitalizată (72x, rulajul citit de motor)",
+              "provenance_label_en": "Own work capitalised (72x, the engine's read of the turnover)",
+              "accounts": "72x",
+              "value": 2164079.83,
+              "provenance": "72x_engine_read"
+            },
+            {
+              "key": "cost_of_sales",
+              "label_ro": "Costul mărfurilor și al materiilor prime",
+              "label_en": "Cost of sales",
+              "accounts": "601, 602, 607",
+              "value": -0.0
+            },
+            {
+              "key": "inventory_variation",
+              "label_ro": "Variația stocurilor de produse",
+              "label_en": "Change in inventories of finished goods and WIP",
+              "provenance_label_ro": "Variația stocurilor de produse (711) — fără înregistrări în perioadă",
+              "provenance_label_en": "Change in inventories of finished goods and WIP (711) — no postings in the period",
+              "accounts": "711",
+              "value": 0.0,
+              "provenance": "no_711_activity",
+              "refusal": null,
+              "beside": "cost_of_sales"
+            },
+            {
+              "key": "operating_expenses",
+              "label_ro": "Alte cheltuieli de exploatare",
+              "label_en": "Other operating expenses",
+              "accounts": "603-606, 608-65x",
+              "value": -2763779.81
+            },
+            {
+              "key": "ebitda",
+              "label_ro": "EBITDA",
+              "label_en": "EBITDA",
+              "accounts": null,
+              "value": 2127403.7,
+              "subtotal": true,
+              "refusal": null
+            },
+            {
+              "key": "depreciation",
+              "label_ro": "Amortizări, provizioane și ajustări (681x)",
+              "label_en": "Depreciation, provisions and impairment (681x)",
+              "accounts": "681x",
+              "value": -355606.5
+            },
+            {
+              "key": "operating_result",
+              "label_ro": "Rezultatul din exploatare",
+              "label_en": "Operating result",
+              "accounts": null,
+              "value": 1771797.2,
+              "subtotal": true,
+              "refusal": null
+            },
+            {
+              "key": "financial_result",
+              "label_ro": "Rezultatul financiar",
+              "label_en": "Financial result",
+              "accounts": "76x − 66x",
+              "value": -309684.62
+            },
+            {
+              "key": "tax",
+              "label_ro": "Impozitul pe profit",
+              "label_en": "Income tax",
+              "accounts": "69x",
+              "value": -36867.0
+            },
+            {
+              "key": "net_result",
+              "label_ro": "Rezultatul net (din rulajele conturilor)",
+              "label_en": "Net result (built from the accounts)",
+              "accounts": null,
+              "value": 1425245.58,
+              "subtotal": true,
+              "refusal": null
+            },
+            {
+              "key": "account_121",
+              "label_ro": "Rezultatul net din contul 121",
+              "label_en": "Net result in account 121",
+              "accounts": "121",
+              "value": null,
+              "status": "not_anchored"
+            },
+            {
+              "key": "not_explained",
+              "label_ro": "Neexplicat de conturile de venituri și cheltuieli",
+              "label_en": "Not explained by the revenue and expense accounts",
+              "accounts": null,
+              "value": null
+            }
+          ],
+          "bridge": {
+            "parts": [
+              {
+                "key": "ebitda_before_stock_variation",
+                "label_ro": "EBITDA înainte de variația stocurilor și producția imobilizată",
+                "label_en": "EBITDA before stock variation and own work capitalised",
+                "value": -36676.13
+              },
+              {
+                "key": "inventory_variation",
+                "label_ro": "Variația stocurilor de produse",
+                "label_en": "Change in inventories of finished goods and WIP",
+                "value": 0.0
+              },
+              {
+                "key": "capitalized_own_work",
+                "label_ro": "Producția imobilizată",
+                "label_en": "Own work capitalised",
+                "value": 2164079.83
+              },
+              {
+                "key": "ebitda",
+                "label_ro": "EBITDA",
+                "label_en": "EBITDA",
+                "value": 2127403.7
+              }
+            ],
+            "refusal": null
+          },
+          "identity_with_121": false
+        }
       },
       "assembled_cf": {
         "net_profit": 1425245.58,
@@ -337,7 +519,8 @@
             "strong": 60,
             "healthy": 45,
             "watch": 30,
-            "direction": "higher"
+            "direction": "higher",
+            "floor": "watch"
           },
           "ccc": {
             "strong": 30,
@@ -1491,15 +1674,21 @@
         "basis": "methodology_totals",
         "worst": ""
       },
+      "pack_provenance": {
+        "jurisdiction": "RO",
+        "pack": "omfp1802@v1",
+        "pack_hash": "36e3fb50e0cc541c81db3c0e87f943998c013a4ffd3704347f362d9f78990e16",
+        "mapping_version": "ro_omfp1802_v2"
+      },
       "methodology": {
         "methodology_id": "ro_ras_2025_v1",
-        "methodology_version": "1.0.0",
+        "methodology_version": "1.1.0",
         "schema_version": "canonical_v1.0.0",
         "industry_key_applied": "default",
         "ebitda": {
           "reported": 2127403.7,
           "strict": 2127403.7,
-          "cash": -36676.13,
+          "cash": 2127403.7,
           "adjusted": 2127403.7
         },
         "totals": {
@@ -1526,7 +1715,7 @@
             "note": ""
           },
           "ebitda_margin_cash": {
-            "value": -0.0134,
+            "value": 0.7801,
             "unit": "ratio",
             "direction": "higher_is_better",
             "band": null,
@@ -1737,6 +1926,19 @@
             "note": "Proxy: D&A as % revenue. Real capex requires period-over-period PPE delta + disposals (F4.3 cash flow refinement)."
           }
         },
+        "measured": {
+          "capitalized_own_work_net": {
+            "value": 2164079.83,
+            "refusal": null,
+            "provenance": "72x_engine_read"
+          },
+          "inventory_variation_net": {
+            "value": 0.0,
+            "refusal": null,
+            "provenance": "no_711_activity"
+          }
+        },
+        "refusals": {},
         "missing_buckets": [
           "deferred_income_lt.net",
           "deferred_revenue_st.net",
@@ -1756,7 +1958,8 @@
             "scope": "ratios.inventory_turnover",
             "error": "ZeroDivisionError: division by zero"
           }
-        ]
+        ],
+        "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial"
       },
       "canonical_bs": {
         "schema": "bs_v2",

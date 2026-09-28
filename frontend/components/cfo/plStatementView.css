@@ -220,87 +220,62 @@
   color: hsl(var(--ink));
 }
 
-/* ── Footnote — scholarly, restrained ──────────────────────────────── */
+/* ── The one EBITDA: served notes, refusals, the reconciliation line ──
+ * (owner ruling 2026-09-26). Every word and figure below is the engine's;
+ * these rules only place them. A row note sits under its row, indented
+ * like the row's label; a refused amount is a word, never a number.     */
 
-.pl-footnote {
-  margin-top: 28px;
-  padding: 18px 22px;
-  background: hsl(var(--bg-2));
-  border-left: 2px solid hsl(var(--caution));
-  border-radius: 0 4px 4px 0;
-  font-size: 12.5px;
-  line-height: 1.65;
-  color: hsl(var(--ink-soft));
-}
-
-.pl-footnote strong { color: hsl(var(--ink)); font-weight: 600; }
-.pl-footnote ol     { margin: 8px 0 0 18px; padding: 0; }
-.pl-footnote li     { margin-bottom: 12px; }
-.pl-footnote li:last-child { margin-bottom: 0; }
-
-/* ── 722 reconciliation bridge ──────────────────────────────────────────
- * Rendered below the operational net-profit headline subtotal. Statutory
- * ct-121 is the RECONCILED total here, deliberately visually subordinated
- * to the operational headline above. Same grid as the rest of the
- * statement (64px code | 1fr label | 180px amount) for column alignment.
- * No numbers are computed here — values come pre-resolved from the engine
- * via buildPLStatement; this is presentation only.                     */
-
-.pl-recon-bridge {
-  margin: 10px 0 4px 0;
-  padding-top: 6px;
-  break-inside: avoid;
-  page-break-inside: avoid;
-}
-
-.pl-recon-head {
-  font-size: 9.5px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
+.pl-gloss {
   color: hsl(var(--ink-mute));
-  margin: 0 0 6px 0;
+  font-weight: 400;
 }
 
-.pl-recon-line {
-  padding: 3px 0;
-  font-size: 12.5px;
-}
-.pl-recon-line .pl-label { color: hsl(var(--ink-soft)); }
-.pl-recon-line .pl-amount { color: hsl(var(--ink-soft)); font-weight: 500; }
-
-.pl-recon-total {
-  display: grid;
-  grid-template-columns: 1fr 180px;
-  align-items: baseline;
-  gap: 14px;
-  padding: 6px 0;
-  border-top: 1px dashed hsl(var(--rule-strong));
-  font-size: 13px;
-}
-.pl-recon-total .pl-label {
-  font-weight: 600;
-  color: hsl(var(--ink));
-}
-.pl-recon-total .pl-amount {
-  font-family: "JetBrains Mono", ui-monospace, monospace;
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum" 1;
-  font-weight: 600;
-  color: hsl(var(--ink));
-  text-align: right;
+.pl-direction {
+  margin-left: 8px;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
   white-space: nowrap;
 }
 
-.pl-recon-note {
-  margin-top: 10px;
-  padding: 10px 14px;
-  background: hsl(var(--caution-tint));
-  border-left: 4px solid hsl(var(--caution));
-  font-size: 12px;
-  line-height: 1.55;
-  color: hsl(var(--ink));
+.pl-row-note {
+  padding: 0 0 6px 16px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: hsl(var(--ink-mute));
+}
+.pl-refusal-note { color: hsl(var(--alert)); }
+
+.pl-refused {
+  font-family: inherit;
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: hsl(var(--alert));
+}
+
+.pl-ebitda-bridge {
+  margin: 2px 0 4px 0;
+  padding: 8px 12px;
+  background: hsl(var(--bg-2));
+  border-left: 2px solid hsl(var(--rule-strong));
   border-radius: 0 4px 4px 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: hsl(var(--ink-soft));
+}
+.pl-bridge-value {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  color: hsl(var(--ink));
+  white-space: nowrap;
+}
+.pl-bridge-sep { color: hsl(var(--ink-mute)); }
+.pl-bridge-note {
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: hsl(var(--ink-mute));
 }
 
 /* ── Mobile (<640px) ────────────────────────────────────────────────────
@@ -318,8 +293,7 @@
 @media (max-width: 639px) {
   .pl-statement { padding: 28px 18px; }
   .pl-row,
-  .pl-subtotal-rule,
-  .pl-recon-total {
+  .pl-subtotal-rule {
     grid-template-columns: 1fr;
     grid-template-areas:
       "label"
@@ -370,7 +344,7 @@
   .pl-header { border-bottom-color: black; }
   .pl-subtotal-rule::after,
   .pl-ebitda-box { border-color: black; }
-  .pl-recon-bridge { break-inside: avoid; page-break-inside: avoid; }
+  .pl-ebitda-bridge { break-inside: avoid; page-break-inside: avoid; }
 }
 
 /* ── Comparatives (two periods side by side) ──────────────────────────
@@ -382,8 +356,7 @@
    row whose definition is not the engine's) renders the gap glyph or a
    word — never a zero. */
 .pl-statement.pl-cmp .pl-row,
-.pl-statement.pl-cmp .pl-subtotal-rule,
-.pl-statement.pl-cmp .pl-recon-total {
+.pl-statement.pl-cmp .pl-subtotal-rule {
   /* --cmp-cols is set by the view from the columns the reader switched
      on, so the grid never reserves space for a column that is not there. */
   grid-template-columns: minmax(0, 1fr) 150px var(--cmp-cols, 150px 120px 84px 96px);
@@ -427,8 +400,7 @@
 .cmp-col-header span:first-child { text-align: left; }
 @media (max-width: 639px) {
   .pl-statement.pl-cmp .pl-row,
-  .pl-statement.pl-cmp .pl-subtotal-rule,
-  .pl-statement.pl-cmp .pl-recon-total {
+  .pl-statement.pl-cmp .pl-subtotal-rule {
     grid-template-columns: 1fr;
     grid-template-areas: "label" "amount" "cmp";
   }

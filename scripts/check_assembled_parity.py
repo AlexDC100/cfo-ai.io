@@ -32,7 +32,7 @@ sys.path.insert(0, str(REPO / "src"))
 sys.path.insert(0, str(REPO / "scripts"))
 from capture_assembled_baseline import (  # noqa: E402
     _capture, _load_ro_coa, load_eei, load_scandia,
-    _normalize_for_assembler,
+    _normalize_for_assembler, evidence_for,
 )
 
 
@@ -101,7 +101,7 @@ def main() -> None:
             continue
         wrapped = json.loads(baseline_path.read_text())
         baseline = wrapped["assembled"]
-        current = _capture(name, accts, ro_coa)
+        current = _capture(name, accts, ro_coa, evidence_for(slug))
         diffs = _diff(baseline, current)
         if not diffs:
             print(f"  GREEN  {slug:<20}  byte-identical (account_count={len(accts)})")

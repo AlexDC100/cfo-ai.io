@@ -123,7 +123,31 @@ def load_scandia() -> tuple[List[Dict], str]:
     return accounts, "Scandia Food SRL"
 
 
-def _capture(name: str, accounts: List[Dict], ro_coa) -> Dict[str, Any]:
+def evidence_for(slug: str) -> Optional[Dict[str, Any]]:
+    """The stock-variation evidence the production write seam measures off
+    the SAME parsed rows (`RomaniaPack.measure_stock_variation`, called by
+    `pipeline._deterministic_tb_parsed`) — owner ruling 2026-09-26: net 711
+    is measured from the trial balance's leaves, never read off the
+    collapsed line amount. Without it a closed manufacturer's 711 REFUSES
+    (`stock_variation_evidence_absent`) and so does its EBITDA, which is
+    not what the product serves for a trial balance it parsed.
+
+    Scandia: measured off its xlsx rows. EEI: its fixture is one amount per
+    account (no trial-balance columns), and it posts no 711 — None, the
+    engine's own no-evidence path (711 exactly 0.00, 72x the engine read)."""
+    if slug != "scandia_fy2025":
+        return None
+    p = REPO / "files/scandia_trial_balance_2025_downloaded.xlsx"
+    if not p.is_file():
+        p = Path("/app/files/scandia_trial_balance_2025_downloaded.xlsx")
+    tbp = _load_tbp()
+    rows = tbp.parse_trial_balance_file(p.read_bytes(), p.name)
+    from engine.country_packs.ro_romania.pack import RomaniaPack
+    return RomaniaPack().measure_stock_variation(rows)
+
+
+def _capture(name: str, accounts: List[Dict], ro_coa,
+             stock_variation_evidence: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Run assemble_statements and serialize the full output."""
     result = ro_coa.assemble_statements(
         accounts,
@@ -136,6 +160,7 @@ def _capture(name: str, accounts: List[Dict], ro_coa) -> Dict[str, Any]:
         # assembler no longer claims a period length it was not given.
         period_start="2025-01-01",
         period_end="2025-12-31",
+        stock_variation_evidence=stock_variation_evidence,
     )
     # Make floats JSON-serializable with full precision; round at 4
     # decimal places to absorb meaningless trailing noise but catch
@@ -197,13 +222,14 @@ def main() -> None:
         if out_path.is_file() and not args.rebaseline:
             print(f"  SKIP {slug} — baseline exists at {out_path} (use --rebaseline to overwrite)")
             continue
-        captured = _capture(name, accts, ro_coa)
+        captured = _capture(name, accts, ro_coa, evidence_for(slug))
         # Add metadata
         wrapped = {
             "_meta": {
                 "fixture": slug,
                 "company": name,
-                "captured_from": "F3.1a — pre-refactor baseline",
+                "captured_from": "one-EBITDA ruling re-capture (2026-09-27) — "
+                                 "stock-variation evidence threaded as the write seam does",
                 "engine_module": getattr(ro_coa, "__file__", "?"),
                 "account_count": len(accts),
             },

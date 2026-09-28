@@ -1,3 +1,20 @@
+> **SUPERSEDED 2026-09-26 on account 711 / 72x and EBITDA (owner ruling).**
+> The engine, not this archive, is the authority. Net 711 ("Variația
+> stocurilor de produse") and net 72x (own work capitalised) are INSIDE
+> EBITDA and the operating result, with their sign, next to cost of sales,
+> OUTSIDE cifra de afaceri; margins and growth divide by net turnover
+> (70x − 709); 767 is financial. On a CLOSED trial balance (every class-6/7
+> account closed into 121 — every real book measured) account 711 carries no
+> net: "711 nets to ~0" and "(711_C − 711_D)" below read ZERO or the gross
+> production stocked, never the variation. The engine derives net 711 through
+> the account-121 bridge under guards G1–G6 and REFUSES otherwise
+> (`src/engine/country_packs/ro_romania/stock_variation.py`; the one EBITDA is
+> `assembled_pl.ebitda`, the reconciliation line
+> `assembled_pl.ebitda_reconciliation`). A reconstruction that "equals account
+> 121 (gap 0%)" on a closed manufacturer is an identity of that derivation, not
+> evidence that the P&L was read right. This file is kept verbatim below as
+> history.
+
 # Comprehensive Financial Analysis Methodology
 
 A reusable framework for producing CFO-grade financial analyses from Romanian trial balances (RAS) — 8 sections, end-to-end. Calibrated on the Scandia Food FY2025 case.

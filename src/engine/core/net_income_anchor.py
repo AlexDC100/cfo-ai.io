@@ -68,9 +68,10 @@ def annotate_net_income_anchor(
     Adds, always:
       · ``net_income_reconstructed``   the class-6/7 build-up, i.e. the
         number `net_income_statutory` would carry with no anchor.
-        Derived as `net_income_operational + capitalized_own_work_memo`
-        — that identity IS the assembler's pre-override expression
-        (chart_of_accounts.py:1069), so this costs nothing and needs no
+        Derived as `net_income_operational` + the named build-up
+        components (`_named_build_up_components`: net 72x, and net 711
+        when it was measured without account 121) — the assembler's own
+        pre-override expression, so this costs nothing and needs no
         second assembly.
       · ``net_income_statutory_anchor``  account 121, or null.
       · ``net_income_anchor_source``     where the anchor came from.
@@ -106,12 +107,18 @@ def annotate_net_income_anchor(
         return float(val) if isinstance(val, (int, float)) else None
 
     operational = _num("net_income_operational")
-    capitalized = _num("capitalized_own_work_memo")
     statutory = _num("net_income_statutory")
 
+    # A REFUSED net result (`net_income_refusal`: no account 121 and a
+    # refused net 711) has no reconstruction either: the build-up lacks the
+    # unmeasured 711, which is exactly why the result was refused. Serving
+    # it here would put that short figure back on the page under "built
+    # from the accounts" (the report printed it on the row after the
+    # refusal).
+    refused = isinstance(pl.get("net_income_refusal"), dict)
     pl["net_income_reconstructed"] = (
-        round(operational + (capitalized or 0.0), 2)
-        if operational is not None else None
+        round(operational + _named_build_up_components(pl), 2)
+        if operational is not None and not refused else None
     )
     pl["net_income_statutory_anchor"] = (
         round(float(anchor), 2) if anchor is not None else None
@@ -123,6 +130,38 @@ def annotate_net_income_anchor(
         pl["net_income_anchor_status"] = NET_INCOME_ANCHOR_ANCHORED
     else:
         pl["net_income_anchor_status"] = NET_INCOME_ANCHOR_WITHIN_TOLERANCE
+
+
+def _named_build_up_components(pl: Dict[str, Any]) -> float:
+    """What the class-6/7 BUILD-UP adds to `net_income_operational`,
+    derived from the NAMED components the assembly serves — never from a
+    hard-coded "operational + 722" identity (owner ruling 2026-09-26):
+
+      · net 72x — `capitalized_own_work.value`;
+      · net 711 — `inventory_variation.value`, but ONLY when it was
+        measured without account 121 (`measured_without_121`: its own
+        movement on an open book, an exact zero, a filed statutory row).
+        The account-121 bridge is derived FROM 121; a "reconstruction"
+        containing it would equal 121 by construction and the anchor
+        label would stop meaning anything. A refused 711 is not a line
+        the build-up has.
+
+    A payload from a pack that serves no named blocks (the HU pack, a
+    pre-ruling cache) keeps the one component it does name,
+    `capitalized_own_work_memo`.
+    """
+    def _val(x: Any) -> float:
+        return float(x) if isinstance(x, (int, float)) else 0.0
+
+    cap_block = pl.get("capitalized_own_work")
+    inv_block = pl.get("inventory_variation")
+    if isinstance(cap_block, dict):
+        total = _val(cap_block.get("value"))
+    else:
+        total = _val(pl.get("capitalized_own_work_memo"))
+    if isinstance(inv_block, dict) and inv_block.get("measured_without_121"):
+        total += _val(inv_block.get("value"))
+    return total
 
 
 def annotate_from_parsed_tb_rows(

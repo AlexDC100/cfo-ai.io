@@ -278,6 +278,11 @@ _MONEY_FACTS = frozenset([
     # figure and declined to render it.
     "total_operating_revenue", "ebitda_cash", "ebitda_operating",
     "net_income_operating",
+    # The benchmark headline's account-121 profit (2026-09-20 headline
+    # anchor) was declared in METRIC_DISPLAY and never here — found by
+    # check_metric_declared on the one-EBITDA pass (2026-09-26), red at
+    # the base commit already.
+    "net_income_statutory",
     # serving/facts._MARKET_METRICS: all five were undeclared. A listed
     # company's price and capitalisation are money like any other.
     "price", "market_cap", "enterprise_value",
@@ -287,6 +292,11 @@ _MONEY_FACTS = frozenset([
     # covenant limit (packs/firm/attention.yaml COVENANT_RISK). Listed so
     # the evidence resolves to money at render rather than to a refusal.
     "covenant_limit",
+    # The ONE EBITDA's components (owner ruling 2026-09-26), cited beside
+    # an EBITDA covenant's headroom by engine.firm (COVENANT_RISK) and
+    # served on assembled_pl: EBITDA before the stock variation and own
+    # work capitalised, net 711 "Variația stocurilor de produse", net 72x.
+    "ebitda_before_stock_variation", "inventory_variation", "capitalized_own_work",
     # ── Band-crossing findings (2026-09-14) ────────────────────────────
     # findings/c_bands.py states a crossing's impact as HEADROOM MONEY:
     # the ratio's numerator at the rung crossed against the numerator as

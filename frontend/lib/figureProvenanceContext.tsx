@@ -22,8 +22,9 @@ import type { AmountProvenance } from "@/components/instrument/Provenance";
 
 export interface FigureProvenanceEntry {
   /** The figure this provenance was built for. The consumer compares
-   *  before it claims. */
-  value: number;
+   *  before it claims. null — a figure the engine refused — vouches for
+   *  nothing. */
+  value: number | null;
   provenance: AmountProvenance | null;
 }
 
@@ -57,6 +58,6 @@ export function useFigureProvenance(
   const entry = map[conceptKey];
   if (!entry || !entry.provenance) return null;
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
-  if (Math.abs(value - entry.value) > CENT) return null;
+  if (entry.value === null || Math.abs(value - entry.value) > CENT) return null;
   return entry.provenance;
 }

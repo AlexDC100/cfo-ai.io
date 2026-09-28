@@ -47,6 +47,17 @@ MARGIN_NOT_MEANINGFUL = "margin_not_meaningful"
 
 SCHEMA = "sector_benchmark/1"
 
+#: The row reason for a company figure the engine REFUSED (a refused
+#: operand, or a ratio card that refused the same figure). Carries the
+#: engine's code as ``cause`` and its sentence (``text_en`` / ``text_ro``).
+COMPANY_FIGURE_REFUSED = "company_figure_refused"
+
+#: Ratio-card reasons that say the card LACKED an input, not that the
+#: figure was refused: the filed basis may still carry it, so it is
+#: restated there (with its operands printed). Every other card refusal is
+#: carried onto the page.
+CARD_ABSENCE_CODES = frozenset({"operand_absent", "engine_metric_absent"})
+
 #: A percentile needs at least this many peers AND the distribution.
 PERCENTILE_MIN_N = 20
 
@@ -104,8 +115,37 @@ def _is_num(v: Any) -> bool:
     return isinstance(v, (int, float)) and not isinstance(v, bool) and v == v
 
 
-def _op(name: str, value: Optional[float], source: str) -> Dict[str, Any]:
-    return {"name": name, "value": value, "source": source}
+def _op(name: str, value: Optional[float], source: str,
+        refusal: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    op = {"name": name, "value": value, "source": source}
+    if refusal is not None:
+        # The engine REFUSED this operand (never absent, never zero): the
+        # figure on it refuses with the engine's typed reason.
+        op["value"] = None
+        op["refusal"] = refusal
+    return op
+
+
+def _served_refusal(statements: Mapping[str, Any], block: str, key: str
+                    ) -> Optional[Dict[str, Any]]:
+    """The engine's typed refusal served at ``statements[block][key]``
+    (``assembled_pl.net_income_refusal``, ``assembled_bs.
+    total_equity_refusal``), or None. Read off the served body — this seam
+    never re-decides a refusal."""
+    b = statements.get(block)
+    ref = b.get(key) if isinstance(b, Mapping) else None
+    if not (isinstance(ref, Mapping) and ref.get("code")):
+        return None
+    return {"code": ref.get("code"), "text_en": ref.get("text_en"),
+            "text_ro": ref.get("text_ro"), "source": "%s.%s" % (block, key)}
+
+
+def _refused_reason(refusal: Mapping[str, Any], inputs: List[str]) -> Dict[str, Any]:
+    """The row reason for a figure the engine refused: its code as the
+    cause, its sentence in both languages (the page prints it)."""
+    return {"code": COMPANY_FIGURE_REFUSED, "cause": refusal.get("code"),
+            "inputs": list(inputs), "text": refusal.get("text_en"),
+            "text_en": refusal.get("text_en"), "text_ro": refusal.get("text_ro")}
 
 
 def _gateway(statements: Mapping[str, Any]):
@@ -166,6 +206,16 @@ def company_filed_basis(payload: Mapping[str, Any]) -> Dict[str, Dict[str, Any]]
         v = apl.get(key)
         return float(v) if _is_num(v) else None
 
+    # The NET RESULT refused (no account 121, net 711 refused) and TOTAL
+    # EQUITY short by that refused result (the sheet does not balance
+    # without it) are served as refusals beside their figures. Neither is
+    # restated here: the build-up without 711 is not the net result, and
+    # the equity rows' sum without the year's result is not book equity
+    # (critic round 3, 2026-09-28 — this seam built its gateway from
+    # `canonical_bs` alone, which cannot see the refusal, and graded an
+    # equity ratio of 49.25 % against its sector on the real developer).
+    ni_refusal = _served_refusal(statements, "assembled_pl", "net_income_refusal")
+    eq_refusal = _served_refusal(statements, "assembled_bs", "total_equity_refusal")
     ncl = _fact(gw, "section_subtotal", "non_current_liabilities")
     cl = _fact(gw, "section_subtotal", "current_liabilities")
     liabilities = None if ncl is None or cl is None else ncl + cl
@@ -173,9 +223,9 @@ def company_filed_basis(payload: Mapping[str, Any]) -> Dict[str, Dict[str, Any]]
     inventory, inv_ids = _row_sum(gw, statements, _INVENTORY_PREFIX)
     return {
         "net_result": _op("net_result", pl("net_income_statutory"),
-                          "assembled_pl.net_income_statutory"),
+                          "assembled_pl.net_income_statutory", ni_refusal),
         "net_turnover": _op("net_turnover", pl("revenue"), "assembled_pl.revenue"),
-        "equity": _op("equity", _fact(gw, "equity"), "canonical_bs.equity"),
+        "equity": _op("equity", _fact(gw, "equity"), "canonical_bs.equity", eq_refusal),
         "total_assets": _op("total_assets", _fact(gw, "total_assets"),
                             "canonical_bs.total_assets"),
         "current_assets": _op("current_assets", _fact(gw, "current_assets"),
@@ -218,6 +268,10 @@ def _card_states_its_filed_basis(row: Mapping[str, Any]) -> bool:
 
 def _div(num: Dict[str, Any], den: Dict[str, Any], scale: float = 1.0
          ) -> Tuple[Optional[float], Optional[Dict[str, Any]]]:
+    refused = [o for o in (num, den) if o.get("refusal")]
+    if refused:
+        return None, _refused_reason(refused[0]["refusal"],
+                                     [o["name"] for o in refused])
     if num["value"] is None or den["value"] is None:
         absent = [o["name"] for o in (num, den) if o["value"] is None]
         return None, {"code": "company_operand_absent", "inputs": absent}
@@ -263,6 +317,25 @@ def company_figures(payload: Mapping[str, Any],
             # card cannot disagree).
             put(key, None, {"code": "company_margin_not_meaningful",
                             "inputs": list(refusal.get("inputs") or [])},
+                "ratio_table.%s" % card_key, list(row.get("operands") or []))
+            continue
+        if row is not None and row.get("value") is None and refusal.get("code") \
+                and refusal.get("code") not in CARD_ABSENCE_CODES:
+            # The card REFUSED the figure (the engine said no — EBITDA or
+            # the net result refused, total equity short by a refused
+            # result, a non-positive denominator ...). The page refuses the
+            # same figure with the card's reason: a figure restated from
+            # the filed basis beside a card that declined it would be the
+            # engine's refusal overruled by a second computation. Only a
+            # card that merely LACKED an input (CARD_ABSENCE_CODES) is
+            # restated from what the filed basis carries.
+            put(key, None, {
+                "code": COMPANY_FIGURE_REFUSED,
+                "cause": refusal.get("cause") or refusal.get("code"),
+                "inputs": list(refusal.get("inputs") or []),
+                "text": refusal.get("text_en") or refusal.get("text"),
+                "text_en": refusal.get("text_en") or refusal.get("text"),
+                "text_ro": refusal.get("text_ro")},
                 "ratio_table.%s" % card_key, list(row.get("operands") or []))
             continue
         if (row is not None and _is_num(row.get("value"))
@@ -373,7 +446,10 @@ def _rows(found: Mapping[str, Any], company: Mapping[str, Dict[str, Any]]
                              "inputs": {"n": fig.get("n"),
                                         "min": found["min_peers"]}}
         elif comp["value"] is None:
-            row["status"] = "company_absent"
+            # A figure the engine REFUSED is not an absent one: its own
+            # status, and the engine's reason beside it.
+            refused = (comp.get("reason") or {}).get("code") == COMPANY_FIGURE_REFUSED
+            row["status"] = "company_refused" if refused else "company_absent"
             row["sector"] = _sector_figure(fig)
             row["reason"] = comp["reason"]
         else:

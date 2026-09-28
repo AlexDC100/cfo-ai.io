@@ -220,9 +220,16 @@ def test_a_cached_report_at_the_CURRENT_revision_is_still_served(monkeypatch):
 #
 # Fails on: either surface dropping back to the reconstruction when the period
 # carries the anchor; the two disagreeing with the headline tile; the
-# legacy (no-anchor) fallback losing the operating view; and the denominator
-# or the 722 operating-view adjustment being changed, which are deliberate and
-# are NOT what this gate is about.
+# legacy (no-anchor) fallback losing the operating view.
+#
+# THE ONE DEFINITION (owner ruling 2026-09-26) REWROTE THE DENOMINATOR LAW
+# this gate used to pin as "deliberate": every margin on this page divides
+# NET TURNOVER (the `revenue` row, class 70 − 709) — never total operating
+# revenue — and the ONE margin rule (engine.ratios.margin_meaning, over the
+# stored `revenue` / `total_operating_expense` rows) refuses both margins on
+# the developer, on the graded rows AND the "Compania ta" row. Rows stamped
+# before the one EBITDA (`credit_model_revision` < 3, or unstamped) refuse
+# every EBITDA figure and both margins as stale until reprocessed.
 
 FIRM_BOOKS = ("agras", "carniprod", "realestate", "retail")
 
@@ -256,38 +263,122 @@ def test_the_company_row_prints_the_profit_the_headline_prints(book):
     )
 
 
+#: The book the ONE margin rule refuses (turnover 0.6% of its activity).
+MARGIN_REFUSED = {"realestate"}
+
+
 @pytest.mark.parametrize("book", FIRM_BOOKS)
 def test_the_graded_net_margin_is_built_on_that_same_profit(book):
     rows, line_items, served = _firm_metrics(book)
     cm = be.compute_company_metrics(rows, line_items)
     head = cm[be.headline_metrics(cm)[-1]]
-    rev_denom = cm.get("total_operating_revenue") or cm.get("revenue")
-    assert cm["net_margin"] == pytest.approx(head / rev_denom * 100.0, rel=1e-9), (
-        "the margin the percentile bands grade is not the profit the page prints"
+    if book in MARGIN_REFUSED:
+        assert "net_margin" not in cm and cm["refusals"]["net_margin"]["code"] == "margin_not_meaningful"
+        return
+    # the denominator is TURNOVER (the stored `revenue` row), nothing else
+    assert cm["net_margin"] == pytest.approx(head / cm["revenue"] * 100.0, rel=1e-9), (
+        "the margin the percentile bands grade is not the profit the page prints over turnover"
     )
 
 
 @pytest.mark.parametrize("book", FIRM_BOOKS)
 def test_that_margin_is_the_one_every_other_surface_shows(book):
     """The engine already serves `net_margin` as a ratio for the dashboard and
-    the report. The benchmark's own recompute differs only by its operating
-    denominator, so on a book where the two denominators agree the two figures
-    must agree too — otherwise one screen grades a margin the next screen does
-    not print."""
+    the report — anchored profit over turnover. The benchmark's own recompute
+    divides the same two figures, so the two agree on EVERY book (before the
+    ruling this held only where total operating revenue happened to equal
+    turnover), and on the developer both refuse."""
     rows, line_items, served = _firm_metrics(book)
     cm = be.compute_company_metrics(rows, line_items)
-    if cm.get("total_operating_revenue") != cm.get("revenue"):
-        pytest.skip("operating revenue differs from turnover on this book")
+    if book in MARGIN_REFUSED:
+        assert "net_margin" not in cm
+        return
     # The served row is a ROUNDED ratio; compare at the precision it was
     # stored with, read off the row itself rather than asserted as a cutoff.
     decimals = len(repr(served["net_margin"]).partition(".")[2])
     assert round(cm["net_margin"] / 100.0, decimals) == pytest.approx(served["net_margin"])
 
 
+@pytest.mark.parametrize("book", FIRM_BOOKS)
+def test_the_ebitda_margin_is_the_one_ebitda_over_turnover(book):
+    """THE ONE EBITDA (net 711 and net 72x inside) over net turnover — the
+    figure the dashboard's ratio row stores — never an 'operating view' of
+    this page's own (cash EBITDA + 722 over total operating revenue)."""
+    rows, line_items, served = _firm_metrics(book)
+    cm = be.compute_company_metrics(rows, line_items)
+    if book in MARGIN_REFUSED:
+        assert "ebitda_margin" not in cm and cm["refusals"]["ebitda_margin"]["code"] == "margin_not_meaningful"
+        return
+    assert cm["ebitda_margin"] == pytest.approx(served["ebitda"] / served["revenue"] * 100.0, rel=1e-12)
+    decimals = len(repr(served["ebitda_margin"]).partition(".")[2])
+    assert round(cm["ebitda_margin"] / 100.0, decimals) == pytest.approx(served["ebitda_margin"])
+    for gone in ("ebitda_operating", "ebitda_margin_cash"):
+        assert gone not in cm, gone
+
+
+def test_the_developer_is_refused_on_the_graded_rows_and_its_own_peer_row():
+    rows, line_items, _ = _firm_metrics("realestate")
+    bench = {"ebitda_margin": {"p25": 50.0, "p50": 65.0, "p75": 80.0},
+             "net_margin": {"p25": 5.0, "p50": 10.0, "p75": 20.0}}
+    r = be.build_benchmark_report(
+        period_id="p1", caen_code="6810", caen_label="RE", industry_category="real_estate",
+        calculated_metrics=rows, line_items=line_items, benchmarks=bench, company_name="Dev",
+        peers=[{"company_name": "Peer", "tier": "leader", "net_margin_pct": 30.0, "ebitda_margin_pct": 50.0,
+                "source": "Ministerul Finanțelor 2024", "display_order": 1}])
+    for row in r["sections"]["profitability"]["comparisons"]:
+        assert row["company_value"] is None and row["verdict"] == "refused", row
+        assert row["refusal"]["code"] == "margin_not_meaningful" and row["refusal"]["display"]["en"], row
+        assert row["denominator"] == "net_turnover"
+    me = next(p for p in r["deep"]["peers"] if p.get("tier") == "self")
+    assert me["net_margin_pct"] is None and me["ebitda_margin_pct"] is None, me
+    assert set(me["refusals"]) == {"net_margin", "ebitda_margin"}
+    assert me["revenue_basis"] == be.SELF_BASIS
+    peer = next(p for p in r["deep"]["peers"] if p.get("tier") == "leader")
+    assert peer["revenue_basis"] == be.PEER_BASIS_FILED
+    assert not any(g["key"] in ("net_margin", "ebitda_margin") for g in r["deep"]["gap_vs_leader"])
+
+
+def test_rows_stamped_before_the_one_ebitda_refuse_every_ebitda_figure_and_both_margins():
+    """A period whose rows were persisted by credit-model revision 2 carries
+    the EBITDA WITHOUT 711 / 72x under the same names: until it is
+    reprocessed, no EBITDA figure and no margin is graded — the headline
+    EBITDA tile states why instead of printing the pre-ruling figure."""
+    rows, line_items, served = _firm_metrics("agras")
+    stale = [dict(r, value=2) if r["name"] == "credit_model_revision" else r for r in rows]
+    cm = be.compute_company_metrics(stale, line_items)
+    for k in ("ebitda", "ebitda_margin", "debt_to_ebitda", "net_margin"):
+        assert k not in cm, k
+        assert cm["refusals"][k]["code"] == "period_predates_ebitda_definition", k
+    r = be.build_benchmark_report(
+        period_id="p1", caen_code="1011", caen_label="Meat", industry_category="manufacturing_consumer",
+        calculated_metrics=stale, line_items=line_items, benchmarks={}, company_name="Agras")
+    head = r["sections"]["headline"]
+    assert head["company_values"]["ebitda"] is None
+    assert head["refusals"]["ebitda"]["code"] == "period_predates_ebitda_definition"
+
+
+def test_every_seeded_peer_records_the_basis_the_page_serves():
+    """benchmarks_deep_seed.json records each peer's revenue basis; the page
+    serves the basis the ONE classifier derives from the source (the DB rows
+    carry no column), so the two must agree row for row."""
+    import json, pathlib
+    seed = json.loads((pathlib.Path(be.__file__).resolve().parent / "benchmarks_deep_seed.json")
+                      .read_text(encoding="utf-8"))
+    peers = [p for ind in seed["industries"] for p in ind.get("peers", [])]
+    assert len(peers) >= 15
+    for p in peers:
+        assert p["revenue_basis"] == be.peer_revenue_basis(p), p["company_name"]
+        assert p["revenue_basis"] in be.PEER_BASIS_DISPLAY
+    transavia = next(p for p in peers if p["company_name"].startswith("Transavia"))
+    assert transavia["revenue_basis"] == be.PEER_BASIS_FILED
+
+
 def test_a_legacy_period_without_the_anchor_keeps_the_operating_view():
-    """No `net_income_statutory` row: both surfaces fall back to
-    `net_income + 722`, the documented EEI operating view — never to zero and
-    never to the bare cash figure."""
+    """No `net_income_statutory` row: the headline falls back to
+    `net_income + 722`, the documented operating view — never to zero and
+    never to the bare cash figure. Rows this old predate the one EBITDA, so
+    the margin is not graded (refused as stale), never divided by an
+    operating denominator."""
     rows = [{"name": "revenue", "value": 1_000.0, "unit": None},
             {"name": "net_income", "value": 100.0, "unit": None}]
     line_items = [{"statement": "PL", "bucket": "capitalizedOwnWork", "amount": 40.0},
@@ -295,11 +386,9 @@ def test_a_legacy_period_without_the_anchor_keeps_the_operating_view():
     cm = be.compute_company_metrics(rows, line_items)
     assert cm["net_income_operating"] == pytest.approx(140.0)
     assert be.headline_metrics(cm)[-1] == "net_income_operating"
-    # The denominator stays the operating one (1,000 turnover + 40 of 722) —
-    # this gate is about the NUMERATOR, and changing that denominator is a
-    # deliberate decision recorded in `compute_company_metrics`.
-    assert cm["total_operating_revenue"] == pytest.approx(1_040.0)
-    assert cm["net_margin"] == pytest.approx(140.0 / 1_040.0 * 100.0)
+    assert "net_margin" not in cm
+    assert cm["refusals"]["net_margin"]["code"] == "period_predates_ebitda_definition"
+    assert "total_operating_revenue" not in cm
 
 
 def test_a_period_with_no_profit_at_all_prints_no_row_rather_than_722():
@@ -361,6 +450,7 @@ def test_a_period_with_no_reported_profit_refuses_instead_of_printing_zero():
 def test_a_reported_zero_profit_is_still_a_figure():
     """A company that filed exactly zero filed a number. Only ABSENCE refuses."""
     metrics = be.compute_company_metrics([
+        {"name": "credit_model_revision", "value": 3, "unit": "revision"},
         {"name": "revenue", "value": 84_000_000.0, "unit": None},
         {"name": "net_income", "value": 0.0, "unit": None},
     ], [])

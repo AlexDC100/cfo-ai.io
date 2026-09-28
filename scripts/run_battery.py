@@ -419,7 +419,30 @@ def _engine_gates() -> List[Gate]:
                        # plan/2 B5
                        "test_agras_receivables_follow_the_unwind_formula_every_month",
                        "test_retail_month_one_cash_moves_by_at_most_a_month_of_the_flow_change",
-                       "test_the_calendar_is_monthly_months_then_one_period_per_plan_year")),
+                       "test_the_calendar_is_monthly_months_then_one_period_per_plan_year",
+                       # one-EBITDA ruling (stage G1): f6's CONSTRUCTED
+                       # misread witness — every committed book now misses
+                       # 121 only by its bridged 711 (gates.md
+                       # "net-income-anchor-witness")
+                       "test_f6_the_constructed_misread_opens_on_the_anchor_and_names_nothing",
+                       "test_f6_scope_has_a_miss_that_is_not_the_stock_variation")),
+        # ── owner ruling 2026-09-26, design A8 (stage G1): the anchor gates
+        # the account-121 bridge made vacuous. Every committed book that
+        # misses account 121 now misses it by its net 711, which the
+        # statement NAMES (derived from 121), so "the build-up + the bridged
+        # 711" would equal the anchor on all of them. The CONSTRUCTED
+        # witness `closed_no_activity` (net-711-rule: no 711 postings, 121
+        # above its accounts by 2,000.00) is served through the real write
+        # path; with no such witness these files are RED (TC-3). Measured 81
+        # tests. Plant log: gates.md "net-income-anchor-witness".
+        Gate("net-income-anchor-witness",
+             [PY, "-m", "pytest", "tests/engine/test_one_concept_one_value.py",
+              "tests/engine/test_rebuild_net_income_anchor.py", "-q"],
+             work_junit=True, floor=72, units="tests",
+             canaries=("test_every_book_carries_both_net_income_views_and_an_anchor",
+                       "test_a_constructed_no_711_misread_fires_the_override_through_every_seam",
+                       "test_the_firing_scope_carries_a_divergence_that_is_not_the_stock_variation",
+                       "test_enough_books_actually_fire_the_override")),
         Gate("forecast-serving-boundary",
              [PY, "-m", "pytest", "tests/engine/test_forecast_serving_boundary.py", "-q"],
              work_junit=True, floor=60, units="tests",
@@ -502,13 +525,184 @@ def _engine_gates() -> List[Gate]:
         # reduction it is under the convention its document decided.
         Gate("statements-anchor-gap",
              [PY, "-m", "pytest", "tests/engine/test_statements_anchor_gap.py", "-q"],
-             work_rx=r"GATE-WORK statements-anchor-gap units=(\d+)", floor=58,  # 45 -> 58: + the four decision-rule documents (B4 repair)
-             units="books judged, contra rows checked and metamorphic comparisons",
+             work_rx=r"GATE-WORK statements-anchor-gap units=(\d+)", floor=65,  # 45 -> 58: + the four decision-rule documents (B4 repair); 58 -> 65: + the folds and the two constructed witnesses (one-EBITDA ruling, measured 70)
+             units="books judged, contra rows checked, metamorphic comparisons, folds and constructed witnesses",
              canaries=("SCOPE statements-anchor-gap (plan/2 B4a, contract 5.1)",
                        "floor from packs/ro/statements_anchor.yaml#anchor_gap",
                        "convention per document",
-                       "mirrored contra rows checked")),
+                       "mirrored contra rows checked",
+                       # one-EBITDA ruling (2026-09-26): the step BEFORE the
+                       # fold is judged, the fold held, and two SYNTHETIC
+                       # misreads prove the judge still reds.
+                       "fold per book (ruling 2026-09-26)",
+                       "SYNTHETIC g5_residual")),
         # ── end plan/2 B4a ───────────────────────────────────────────────
+        # ── owner ruling 2026-09-26: net-711-rule ────────────────────────
+        # Net 711 ("Variația stocurilor de produse") is MEASURED off the
+        # trial balance (stock_variation.measure/decide), never the gross
+        # memo (Σ sume totale C — the production stocked on a closed book),
+        # never a 0.00 standing in for an absent account-121 anchor. Twelve
+        # constructed books (OPEN, CLOSED-no-activity, CLOSED-bridge, MIXED,
+        # unanchored, G4 unread, G4 total row, a distinct prefix-coded
+        # account, G5, G6, bridge+722, and G7 — rows read by an older
+        # trial-balance parser, design A10) through the offline
+        # composition; four through the real write path, GET /api/period
+        # and the briefing rebuild; a legacy envelope refuses; an envelope
+        # restamped by an older reader refuses reprocess_required; five
+        # in-file plants. Measured 139 units (159 with the unanchored_unbalanced
+        # witness, critic fixer round 1). Plant log: gates.md "net-711-rule".
+        Gate("net-711-rule",
+             [PY, "-m", "pytest", "tests/engine/test_net_711_rule.py", "-q", "-s"],
+             work_rx=r"GATE-WORK net-711-rule units=(\d+)", floor=90,
+             units="constructed books judged, served seams compared, refusals and plants",
+             canaries=("SCOPE net-711-rule (stock_variation.measure/decide, owner ruling 2026-09-26)",
+                       "NET711-BOOKS: bridge_with_722, closed_bridge, closed_no_activity, "
+                       "distinct_prefix_account, g4_double_read, g4_unread, g5_residual, "
+                       "g6_uncleared, g7_older_parser, mixed, open, unanchored, unanchored_unbalanced",
+                       "NET711-PLANTS: serve-the-gross-memo, absent-anchor-to-zero, drop-guard-g6, "
+                       "drop-guard-g7, rebuild-forgets-the-evidence")),
+        # ── design A8 (stage G1): the account-121 cross-check and its D6
+        # diagnosis close by construction on every corpus book since the
+        # 711 term is the bridge. Constructed witnesses (net-711-rule's
+        # misreads: closed_no_activity, g4_unread, g5_residual,
+        # g6_uncleared, g7_older_parser) through the real write path and
+        # GET /api/period keep them falsifiable; two in-file plants.
+        # Measured 30 units. Plant log: gates.md "p121-witness".
+        Gate("p121-witness",
+             [PY, "-m", "pytest", "tests/engine/test_p121_cross_check_witness.py", "-q", "-s"],
+             work_rx=r"GATE-WORK p121-witness units=(\d+)", floor=26,
+             units="cross-checks judged on constructed books, plants",
+             canaries=("SCOPE p121-witness (canonical_bs p121_cross_check + D6, design A8): "
+                       "2 folded books, 5 witnesses",
+                       "closed_no_activity (121 122000.0 vs class 7 - class 6 120000.0)")),
+        # ── owner ruling 2026-09-26, design A8 (stage G): the ENGINE halves
+        # of one-ebitda / turnover-denominator / refusal-carries. Every
+        # engine surface — the assembled P&L and its aliases, the served
+        # reconciliation line and bridge, GET /api/period's metrics block,
+        # the stored metric rows, the ratio table, the credit model, the
+        # methodology views, FactsGateway (Capsule get_facts / advisory /
+        # radar), the valuation, the Section 9 benchmark, the forecast's
+        # year 0, the briefing's citable ratios and the confidence roll-up —
+        # carries THE ONE EBITDA, divides net turnover, and carries a refused
+        # EBITDA as the 711 refusal. Four corpus books and six CONSTRUCTED
+        # books (net-711-rule) through the real write path and GET
+        # /api/period. Measured 208 / 168 / 146. Plant logs: gates.md
+        # "one-ebitda-engine", "turnover-denominator-engine",
+        # "refusal-carries-engine".
+        Gate("one-ebitda-engine",
+             [PY, "-m", "pytest", "tests/engine/test_one_ebitda_engine.py", "-q"],
+             work_rx=r"GATE-WORK one-ebitda-engine units=(\d+)", floor=190,
+             units="engine surfaces compared with the served EBITDA / EBIT",
+             canaries=("SCOPE one-ebitda-engine: 8 served books",
+                       "ONE-EBITDA-ENGINE surfaces: 20 EBITDA + 6 EBIT per book")),
+        Gate("turnover-denominator-engine",
+             [PY, "-m", "pytest", "tests/engine/test_turnover_denominator_engine.py", "-q"],
+             work_rx=r"GATE-WORK turnover-denominator-engine units=(\d+)", floor=150,
+             units="engine revenues and margins checked against net turnover",
+             canaries=("SCOPE turnover-denominator-engine: 8 served books",
+                       "refused by the one margin rule on every displayed surface: realestate")),
+        Gate("refusal-carries-engine",
+             [PY, "-m", "pytest", "tests/engine/test_refusal_carries_engine.py", "-q"],
+             # fixer round 2: floor raised from 160 with the Piotroski score, the
+             # balance sheet's current-year result and the briefing facts (192).
+             # critic fixer round 1 (third round): the unanchored_unbalanced
+             # witness and total equity short by the refused result (335).
+             # critic fixer round 2: the real developer with its 121 row
+             # deleted from the file (realestate_no121) and every other
+             # reader of total equity — briefing facts, methodology,
+             # FactsGateway / Capsule, insights, R4, findings (measured 521).
+             # critic round 3 fixer (2026-09-28): the sector benchmark (12k),
+             # the related-party order (12e both sides), the sub-scores worded
+             # on their own causes, and rows persisted before the refusal —
+             # GET metrics[] / the typed ratios / a stored valuations row / the
+             # narrator's rows (13) (measured 663).
+             work_rx=r"GATE-WORK refusal-carries-engine units=(\d+)", floor=600,
+             units="engine surfaces checked to refuse with the 711 reason",
+             canaries=("SCOPE refusal-carries-engine: refused books g6_uncleared "
+                       "(account_121_opening_not_cleared); realestate_no121 (account_121_anchor_absent); "
+                       "unanchored (account_121_anchor_absent)",
+                       # fixer round 1: the net result refuses with 711 when there is no 121
+                       "NET-RESULT refused (no account 121): unanchored, unanchored_unbalanced, "
+                       "realestate_no121",
+                       # critic fixer round 1: total equity short by the refused result
+                       "EQUITY short by the refused result: unanchored_unbalanced, realestate_no121; "
+                       "complete: g6_uncleared, unanchored",
+                       # critic fixer round 2: every other reader of total equity
+                       "EQUITY-READERS (briefing facts + Debt/Equity, methodology, FactsGateway.equity, "
+                       "Capsule, insights, R4, findings, sector benchmark): unanchored (served), "
+                       "g6_uncleared (served), unanchored_unbalanced (refused), realestate_no121 (refused)")),
+        # ── owner ruling 2026-09-26, design A6: valuation-one-ebitda ────
+        # EV/EBITDA multiplies the ONE EBITDA (never the revision-2 fallback
+        # that rebuilt a second one from the incomeStatement mirror on 0.0);
+        # a refused EBITDA refuses EV/EBITDA with its cause; the developer is
+        # routed by the ONE margin rule, not by its EBITDA sign, and its
+        # value is pinned to the base-commit measurement; NOI proxy = EBITDA
+        # − net 711; saved overrides stamped with the definition; a saved row
+        # whose EBITDA is null keeps the refusal. Measured 15 tests; 21 with
+        # the stored-valuations-row law (critic fixer round 1: a row on
+        # another EBITDA, or over a refused one, is never the EBITDA and never
+        # makes EV/EBITDA primary — GET /api/period and briefing regenerate).
+        # Plant log: gates.md "valuation-one-ebitda".
+        Gate("valuation-one-ebitda",
+             [PY, "-m", "pytest", "tests/engine/test_valuation_one_ebitda.py", "-q"],
+             # critic round 3 fixer (2026-09-28): one industry key for every
+             # served valuation (GET and the regenerate route) — 23 tests.
+             work_junit=True, floor=21, units="tests",
+             canaries=("test_the_developer_is_valued_on_its_assets_by_the_margin_rule_not_by_its_ebitda_sign",
+                       "test_one_valuation_choice_one_industry_key",
+                       "test_a_refused_ebitda_refuses_every_ev_ebitda_figure_with_its_cause",
+                       "test_saving_an_override_stamps_it_and_get_serves_it_current",
+                       "test_a_stored_row_on_the_previous_ebitda_is_refused_when_nothing_recomputes",
+                       "test_a_stored_row_never_stands_in_for_a_refused_ebitda",
+                       "test_the_briefing_regenerate_never_cites_a_stored_row_on_the_previous_ebitda")),
+        # ── owner ruling 2026-09-26, design A6: firm-covenant-one-ebitda ─
+        # An EBITDA covenant tests THE ONE EBITDA off the served assembled
+        # P&L (never the gateway's methodology `ebitda.reported`, net 711
+        # outside), cites net 711 / net 72x / EBITDA-before beside the
+        # headroom, and a refused EBITDA is a stated gap, never a test. The
+        # four tests live in test_firm_attention.py (which the `pytest`
+        # gate also runs); named here so a collapse of the selection reds.
+        # Plant log: gates.md "firm-covenant-one-ebitda".
+        Gate("firm-covenant-one-ebitda",
+             [PY, "-m", "pytest", "tests/engine/test_firm_attention.py", "-q",
+              "-k", "ebitda or cited_money_fact"],
+             work_junit=True, floor=3, units="tests",
+             canaries=("test_an_ebitda_covenant_tests_the_one_ebitda_and_cites_its_components_beside_the_headroom",
+                       "test_a_refused_ebitda_is_a_stated_gap_never_a_covenant_test")),
+        # ── owner ruling 2026-09-26, design A9: briefing-definition ──────
+        # Every stored briefing is stamped with the EBITDA definition it was
+        # written under (stage_persist_narrative + /briefing/regenerate) and
+        # GET /api/period serves `briefing.definition` — a pre-ruling
+        # (unstamped) briefing as written under the previous definition,
+        # with the note the page hides it behind. The column has its
+        # migration ending in the PostgREST NOTIFY. Real create_app and the
+        # real narrate write over the tenancy double. Measured 8 units.
+        # Plant log: gates.md "briefing-definition".
+        Gate("briefing-definition",
+             [PY, "-m", "pytest", "tests/engine/test_briefing_definition.py", "-q", "-s"],
+             work_rx=r"GATE-WORK briefing-definition units=(\d+)", floor=8,
+             units="stamps written, statuses served, migration checks",
+             canaries=("SCOPE briefing-definition: GET /api/period over the tenancy double",)),
+        # ── owner ruling 2026-09-26, design A9: reprocess-periods-definition
+        # The deploy's reprocessing tool (scripts/reprocess_periods_
+        # definition.py) re-runs a stored period through the pipeline's own
+        # stages with the model guarded out and no quota path: the dry run
+        # writes nothing and reports anchor / book state / net 711 / old vs
+        # new EBITDA / credit letter; the apply leaves the evidence + stamp +
+        # one-EBITDA metric rows, carries council alerts and never rewrites
+        # the briefing; a second apply is a no-op; a model-needing document,
+        # a moved month and an unruled turnover move are refused unwritten.
+        # Corpus agras through the workspace-v2 tenancy double. Measured 31;
+        # 53 with the valuations row (critic fixer round 1: old vs new
+        # ebitda_used in the dry run, never `current` on a row carrying
+        # another EBITDA, the user's override row left as the user's).
+        # Plant log: gates.md "reprocess-periods-definition".
+        Gate("reprocess-periods-definition",
+             [PY, "-m", "pytest", "tests/engine/test_reprocess_periods_definition.py", "-q", "-s"],
+             # critic round 3 fixer: the apply reads the valuations row back (56).
+             work_rx=r"GATE-WORK reprocess-periods-definition units=(\d+)", floor=50,
+             units="dry-run / apply / refusal facts checked",
+             canaries=("SCOPE reprocess-periods-definition: corpus/saga_10_col_agras analysed",)),
         # ── plan/2 B4b (plan_contract_v2 5.6 / 28.3 B4): forecast-pools ──
         # The cost pools of section 5 on the four books, no shocks: pools
         # plus unallocated equal the assembled operating cost to the cent;
@@ -838,6 +1032,134 @@ def _engine_gates() -> List[Gate]:
              units="page tests (every surface that prints a margin, RO and EN, the note, the acceptance rule)",
              canaries=("THE ACCEPTANCE RULE: no percent of a thousand or more anywhere in the developer's document",
                        "the bank export prints the refusal and the note, and no percent of a thousand or more")),
+        # ── owner ruling 2026-09-26, design A7 (stage F1): pl-one-ebitda-page ──
+        # The P&L tab prints THE ONE EBITDA the engine serves: both builders
+        # read every subtotal off the served block (refused = the typed
+        # reason, never 0 or a derivation), "Variația stocurilor de produse"
+        # (711) sits beside the cost block, signed, with the engine's
+        # provenance and the owner's name verbatim (English gloss in the
+        # English UI), 72x is its own row outside net turnover, the 121
+        # remainder is never folded into 711, the served reconciliation line
+        # stands under EBITDA, the EbitdaReconciliationPanel prints the served
+        # chain, and the retired "clean EBITDA" footnote / +722 bridge stay
+        # retired. Over the four firm books and six CONSTRUCTED books of
+        # net-711-rule captured through the real route (held live by
+        # tests/engine/test_one_ebitda_fe_books.py). Measured 58 tests, floor
+        # 50. Plant log: gates.md "pl-one-ebitda-page".
+        Gate("pl-one-ebitda-page",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/plOneEbitda.test.tsx", "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=50,
+             units="P&L-tab tests (served subtotals, the 711 row, refusals RO/EN, 72x, the 121 remainder, the reconciliation line, the panel, retired copy)",
+             canaries=("covers eleven books, three of them refused",
+                       "unanchored: every refused figure states the engine's reason, RO and EN",
+                       "closed_no_activity: no stock-variation row, the remainder labelled, then account 121",
+                       "renders the owner's name verbatim in Romanian, and with the engine's gloss in English")),
+        # ── owner ruling 2026-09-26, design A8 (stage F2): the three surface
+        # gates. Every other frontend surface — deriveTotals, computeRatios,
+        # canonicalMetrics, the dashboard headline / canon / configurable
+        # tiles, the learning snapshot, the recommendation facts, the printed
+        # report and the workbook (P&L sheet + cover), multi-year growth, the
+        # EBITDA bridge chart, the NAV cascade and the no-envelope credit
+        # model — prints THE ONE EBITDA the engine serves (one-ebitda), divides
+        # every margin and growth figure by net turnover (turnover-
+        # denominator), and carries a refused EBITDA as the engine's refusal
+        # (refusal-carries). Over the four firm books and the six CONSTRUCTED
+        # books of net-711-rule captured through the real route. Measured 25 /
+        # 8 / 10 tests. Plant log: gates.md "one-ebitda", "turnover-
+        # denominator", "refusal-carries".
+        Gate("one-ebitda",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/oneEbitdaSurfaces.test.tsx", "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=20,
+             units="surface tests (every browser surface prints the served EBITDA on eight served books)",
+             canaries=("covers eight served books, and on six of them the build-up before 711 / 72x differs from EBITDA",
+                       "agras: the printed report, the workbook and the charts",
+                       "realestate: Debt / EBITDA and the no-envelope credit model divide the served EBITDA")),
+        # ── design A8 (stage G1): exportRatioFormulas' DISCRIMINATING scope
+        # was made vacuous by the 121 bridge — on the four firm books the
+        # build-up + the served 711 IS account 121, so a net-income ratio
+        # re-pointed at it stayed green. The constructed closed_no_activity
+        # (a 2,000.00 misread no line names) is the witness. Measured 15
+        # tests. Plant log: gates.md "export-ratio-anchor".
+        Gate("export-ratio-anchor",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/exportRatioFormulas.test.ts", "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=13,
+             units="printed-ratio tests (formulas, values, net income on account 121)",
+             canaries=("constructed closed_no_activity: every net-income ratio consumes account 121, "
+                       "on a divergence no line names",
+                       "at least one book tells the filed account-121 figure from the reconstruction (TC-3)")),
+        Gate("turnover-denominator",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/turnoverDenominator.test.tsx", "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=6,
+             units="surface tests (margins and growth over net turnover, on books where total operating revenue differs)",
+             canaries=("four books carry total operating revenue ≠ net turnover (72x or other operating income), so a wrong denominator shows",
+                       "bridge_with_722: the first line, the margins, the facts, the report, the workbook and growth")),
+        Gate("refusal-carries",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/refusalCarries.test.tsx", "--reporter=verbose"],
+             # fixer round 2: floor raised from 12 with Graham, Piotroski, the
+             # report's balance sheet and a refused prior cash flow (20).
+             # critic fixer round 1 (third round): the unanchored_unbalanced
+             # witness, total equity short by the refused result, the refused
+             # Piotroski tile's checks and the refusal-only CF statement (30).
+             # critic fixer round 2: every other reader of total equity — the
+             # report's §1 equity ratio and §6 book equity, canonicalMetrics,
+             # the dashboard resolver and cards, periodFacts, the document's
+             # recommendation rules, the Capsule fact index and the chat
+             # context (38).
+             # critic round 3 fixer (2026-09-28): the chat's Headline metrics
+             # over stale rows, F1 / F5 witnesses, no NaN on the Valuation tab
+             # or in the workbook, no bare dash on the Risks tab / report /
+             # export (47).
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=44,
+             units="surface tests (a refused EBITDA stays refused, with the engine's reason, on every surface)",
+             canaries=("covers the three refused books, and on each the buckets would rebuild a number",
+                       "unanchored: growth, the credit model, the DCF and the NAV cascade refuse with it",
+                       "a payload the engine did not assemble, whose buckets show 711 activity, refuses the same way",
+                       "unanchored: the net result, ROE, ROA, the report and the cash flow refuse with the engine's reason",
+                       # fixer round 2 (2026-09-27)
+                       "unanchored: the NAV cascade has no Graham figure and no band built on it — the page prints the reason",
+                       "unanchored: no Piotroski score or band off nine uncertain checks — served, or a block stored before the engine refused it",
+                       "unanchored: the report's balance sheet prints the reason on the current-year row — served, or stored with the build-up",
+                       "a comparative cash flow whose PRIOR period is refused prints no prior figure and no delta — the reason instead",
+                       # critic fixer round 1 (third round, 2026-09-27)
+                       "unanchored_unbalanced: Book NAV, Layers 1-3, the sensitivity grid and the hero refuse — the page prints the reason",
+                       "unanchored_unbalanced: the engine Altman reader prints X2 refused, the equity sub-score refuses with the reason",
+                       # critic fixer round 2 (2026-09-27)
+                       "unanchored_unbalanced: the report's §1 Equity ratio and §6 Book equity print the reason — never 47.6 % or 200,000",
+                       "unanchored_unbalanced: periodFacts refuses total equity and every ratio on it — no `mOr` fallback, no stale row",
+                       "unanchored_unbalanced: the chat context states the refusal — never 'Total equity 200,000'",
+                       "unanchored_unbalanced: the document's recommendation rules grade no exposure against the short equity",
+                       "unanchored_unbalanced: the equity ratio and debt / equity refuse with the engine's reason; balanced, they compute",
+                       # critic round 3 fixer (2026-09-28)
+                       "the chat's 'Headline metrics' over rows persisted before the refusal: the build-up and the short-equity ratios are stated refused, never printed",
+                       "the workbook: no NaN or Infinity cell on any sheet of any fixture book; the refused books print the reason",
+                       "the Valuation tab: no NaN, no 'Cash burning' beside a refused FCF — the engine's reason on every refused tile",
+                       "the Risks tab's Altman table and the report's §7 card print the engine's reason on X2, X3 and X4")),
+        # ── fixer round 1 (2026-09-27): valuation-refused-override ────────
+        # The Valuation tab seeded a refused EBITDA as 0 and sent it on EVERY
+        # save (debt, cash, the multiple slider): the engine applied the 0 as
+        # a user override, routed on `ebitda_not_positive` and the page showed
+        # an editable "EBITDA RON 0" instead of the refusal. A save now sends
+        # only an EBITDA the user typed. Engine half: valuation-one-ebitda's
+        # test_an_override_of_debt_or_the_multiple_alone_keeps_the_ebitda_refused.
+        # Measured 5 tests; 7 with a refused book equity and a withheld
+        # stored row printing their reason (critic fixer round 1).
+        # Plant log: gates.md "valuation-refused-override".
+        Gate("valuation-refused-override",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/components/cfo/__tests__/valuationRefusedOverride.test.tsx", "--reporter=verbose"],
+             # critic round 3 fixer (2026-09-28): a withheld stored row on its
+             # own cause, no 0.0x slider or multiple save when none is served (10).
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=9,
+             units="interaction tests (a valuation save sends only an EBITDA the user typed)",
+             canaries=("editing Total debt sends no EBITDA",
+                       "moving the multiple slider sends no EBITDA",
+                       "editing Cash does not pin the served EBITDA as a user assumption",
+                       "no peer multiple served: no 0.0× slider and no editor whose save would pin a multiple of 0")),
         # RATIOS: the engine as the one authority for ratio values, bands,
         # deltas, band movements and credit composites (critic
         # authority_decision). Four gates, one per batch, named separately
@@ -1228,7 +1550,11 @@ def _engine_gates() -> List[Gate]:
              work_rx=r"GATE-WORK interest-coverage-one-operand units=(\d+)", floor=8,  # measured 9: 5 books + 4 with interest
              units="books served and coverages recomputed",
              canaries=("SCOPE interest-coverage-one-operand",
-                       "books where operating_ebit would print a different coverage: 1",
+                       # the test's TC-3 line since the one-EBITDA rewrite
+                       # (0e48c078): the discriminating operand is the
+                       # pre-ruling EBIT, not operating_ebit (now one figure)
+                       "books where the pre-ruling EBIT (without 711 / 72x) would print a "
+                       "different coverage: 2",
                        "retail             EBIT 786579.83",
                        "SCOPE coverage popover corpus fixture")),
         Gate("cron-auth",
@@ -1267,6 +1593,31 @@ def _engine_gates() -> List[Gate]:
              work_count_rx=r"^\[.+\] 5 runs — BYTE-IDENTICAL", floor=4,
              units="fixtures x5 runs",
              canaries=("prod_scandia_frozen", "anchor: SF extracted")),
+        # ── owner ruling 2026-09-26, design A8 (stage G1): the EEI audited
+        # canonical validator (CI tier1) was a law of the OLD rule —
+        # "operational view excluded 722". Rewritten: 722 (2,164,079.83) is
+        # inside EBITDA and outside turnover, counted ONCE on the no-anchor
+        # path (build-up + 722 = account 121), EBIT = EBITDA − D&A, 711 is
+        # 0.00 no_711_activity. Registered by name so a collapse of its
+        # assertion list is visible. Measured 31 PASS lines. Plant log:
+        # gates.md "eei-canonical".
+        Gate("eei-canonical", [PY, "scripts/validate_eei_canonical.py"],
+             work_count_rx=r"^  PASS  ", floor=28,
+             units="audited EEI assertions",
+             canaries=("PL  EBITDA = before stock variation + 722",
+                       "PL  build-up + 722 = account 121 (722 once)",
+                       "PASS — All audited EEI canonical assertions passed.")),
+        # ── F3.1-PARITY (stage G1, 2026-09-27): the byte-identical parity
+        # pair (eei_dec_2025, scandia_fy2025) re-captured under the one-
+        # EBITDA ruling with the stock-variation evidence the write seam
+        # measures threaded through; it was RED at the production base
+        # (stale since before the ruling) and unregistered. Plant log:
+        # gates.md "f31-parity".
+        Gate("f31-parity", [PY, "scripts/check_assembled_parity.py"],
+             work_count_rx=r"^\s+GREEN\s+\S+\s+byte-identical", floor=2,
+             units="parity fixtures byte-identical",
+             canaries=("GREEN  eei_dec_2025", "GREEN  scandia_fy2025",
+                       "Overall: GREEN — F3.1-PARITY gate passes")),
         Gate("bs-drift", [PY, "scripts/measure_bs_drift.py"],
              work_count_rx=r"^\s+\S+\s+difference\s", floor=7,
              units="fixtures",
@@ -1412,7 +1763,10 @@ def _engine_gates() -> List[Gate]:
              work_junit=True, floor=15, units="tests",
              canaries=("test_metrics_without_cost_lines_refuse_instead_of_suggesting_real_estate",
                        "test_detect_industry_for_period_reads_the_pl_line_items",
-                       "test_report_route_gates_a_no_line_items_period_with_the_refusal")),
+                       "test_report_route_gates_a_no_line_items_period_with_the_refusal",
+                       # one-EBITDA ruling (stage G1): shares over net turnover
+                       "test_every_share_divides_net_turnover_never_total_operating_revenue",
+                       "test_without_net_turnover_the_classification_refuses")),
     ]
 
 

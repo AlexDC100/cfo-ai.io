@@ -11,10 +11,11 @@
 // authority").
 //
 // Every expression below is the dashboard's, verbatim:
-//   · operating revenue — the P&L builder's first section subtotal, else the
-//     statement's revenue;
-//   · EBITDA — `assembled_pl.ebitda_statutory` (the legally reported EBITDA)
-//     first, the builder's operating view as the pre-v2.1 fallback;
+//   · operating revenue — the P&L builder's first section subtotal (net
+//     turnover since the one-EBITDA ruling), else the statement's revenue;
+//   · EBITDA — THE ONE EBITDA as served (`assembled_pl.ebitda`, through
+//     `plLevelsOf`); a refused EBITDA stays null with its reason
+//     (`tileEbitdaRefusal`);
 //   · net profit — `resolveHeadlineNetProfit`, the one seam that figure is
 //     decided at (account 121 first);
 //   · cash — the served balance sheet's cash.
@@ -26,6 +27,7 @@ import { pickPLBuilder } from "@/lib/buildPlStatement";
 import { resolveHeadlineNetProfit } from "@/lib/headlineFigures";
 import type { PeriodLineItem, PeriodMetric } from "@/lib/activePeriod";
 import type { Statements } from "@/lib/financialReport";
+import { plLevelsOf, readRefusal, type ServedRefusal } from "@/lib/servedOneEbitda";
 
 export interface CanonicalMargins {
   ebitdaMargin: number | null;
@@ -44,10 +46,20 @@ export function canonicalMarginsFrom(metrics: readonly PeriodMetric[]): Canonica
 }
 
 export interface DashboardHeadline {
-  totalOperatingRevenue: number;
-  tileEbitdaRon: number;
+  /** Net turnover (cifra de afaceri netă, 70x − 709) — the P&L's first
+   *  subtotal and every margin's denominator. (Was `totalOperatingRevenue`,
+   *  a name from the retired "turnover + 722" figure.) */
+  netTurnover: number;
+  /** THE ONE EBITDA as served; null when the engine REFUSED it (the stock
+   *  variation could not be measured) — then `tileEbitdaRefusal` says why.
+   *  Never a zero, never an EBITDA rebuilt without 711. */
+  tileEbitdaRon: number | null;
+  tileEbitdaRefusal: ServedRefusal | null;
   tileNetProfitRon: number;
-  /** The P&L builder's "Total operating expenses (cash)" subtotal; null when
+  /** The engine's reason when it REFUSED the net result (no account 121
+   *  and a refused net 711); `tileNetProfitRon` is then NaN (absent). */
+  tileNetProfitRefusal: ServedRefusal | null;
+  /** The P&L builder's "Total operating expenses" subtotal; null when
    *  the builder produced no such section (absent is not zero). */
   totalOperatingExpenses: number | null;
   /** The served balance sheet's cash, as the cash card prints it. */
@@ -73,21 +85,28 @@ export function computeDashboardHeadline(args: {
     },
     statements,
   );
-  const totalOperatingRevenue =
+  const netTurnover =
     pl.sections[0]?.subtotalAmount ?? statements.incomeStatement.revenue;
-  const tileEbitdaCanonical =
-    typeof statements.assembled_pl?.ebitda_statutory === "number"
-      ? statements.assembled_pl.ebitda_statutory
-      : null;
-  const tileEbitdaRon = tileEbitdaCanonical ?? pl.ebitda;
+  // THE ONE EBITDA: the engine's `assembled_pl.ebitda` (read through the
+  // one reader, `plLevelsOf`) on a period it assembled — never an alias
+  // name, never a rebuilt figure; null with the engine's reason when it
+  // refused it. A payload it did not assemble: the P&L statement's figure.
+  const levels = plLevelsOf(statements);
+  const tileEbitdaRon = levels.source === "served" ? levels.ebitda : pl.ebitda;
+  const tileEbitdaRefusal =
+    tileEbitdaRon === null ? (levels.source === "served" ? levels.refusal : pl.ebitdaRefusal ?? null) : null;
   const tileNetProfitRon = resolveHeadlineNetProfit(statements, metrics as PeriodMetric[], pl);
+  const tileNetProfitRefusal = readRefusal(
+    ((statements as { assembled_pl?: Record<string, unknown> }).assembled_pl ?? {})["net_income_refusal"]);
   const totalOperatingExpenses =
     pl.sections.find((s) => s.subtotalLabel?.startsWith("Total operating expenses"))
       ?.subtotalAmount ?? null;
   return {
-    totalOperatingRevenue,
+    netTurnover,
     tileEbitdaRon,
+    tileEbitdaRefusal,
     tileNetProfitRon,
+    tileNetProfitRefusal,
     totalOperatingExpenses,
     cash: statements.balanceSheet.cash,
     pl,

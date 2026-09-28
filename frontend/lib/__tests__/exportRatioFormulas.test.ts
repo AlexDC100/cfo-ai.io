@@ -67,6 +67,8 @@ import {
   statementsFor,
 } from "./exportBooks";
 import { periodDaysLabel } from "../financialReport";
+import { buildReportHtml } from "@/lib/financialExports";
+import { constructedBook } from "./oneEbitdaSurfaceBooks";
 import { MARGIN_CONCEPT_KEYS, marginRefusalOf } from "../marginMeaning";
 
 /** The book's served margin refusal (engine.ratios.margin_meaning), when the
@@ -150,7 +152,7 @@ const SPECS: Spec[] = [
   {
     key: "ebitda_margin",
     label: "EBITDA margin",
-    formula: "EBITDA (statutory) ÷ revenue",
+    formula: "EBITDA ÷ net turnover",
     unit: "%",
     recompute: (e) => {
       const v = div(e.pl.ebitda_statutory, e.pl.revenue);
@@ -215,7 +217,7 @@ const SPECS: Spec[] = [
   {
     key: "debt_to_ebitda",
     label: "Debt to EBITDA",
-    formula: "total debt ÷ EBITDA (statutory)",
+    formula: "total debt ÷ EBITDA",
     unit: "x",
     recompute: (e) => div(e.bs.total_debt, e.pl.ebitda_statutory),
   },
@@ -264,7 +266,7 @@ const SPECS: Spec[] = [
   {
     key: "dscr",
     label: "Debt service coverage",
-    formula: "EBITDA (statutory) ÷ (interest expense + short-term debt)",
+    formula: "EBITDA ÷ (interest expense + short-term debt)",
     unit: "x",
     recompute: (e) => div(e.pl.ebitda_statutory, e.pl.interest_expense + e.bs.short_term_debt),
   },
@@ -294,7 +296,7 @@ const SPECS: Spec[] = [
     key: "dscr_with_lt_principal",
     label: "Debt service coverage with long-term principal",
     formula:
-      "EBITDA (statutory) ÷ (interest expense + long-term debt ÷ 8, a ~10-year amortization proxy)",
+      "EBITDA ÷ (interest expense + long-term debt ÷ 8, a ~10-year amortization proxy)",
     unit: "x",
     recompute: (e) =>
       div(e.pl.ebitda_statutory, e.pl.interest_expense + e.bs.long_term_debt / 8),
@@ -400,7 +402,11 @@ function tolerance(unit: Spec["unit"], value: number): number {
  * nobody assumes coverage that is not here.
  */
 function envOf(book: Book): Env {
-  const s = statementsFor(book) as ReturnType<typeof statementsFor> & {
+  return envFrom(statementsFor(book));
+}
+
+function envFrom(statements: unknown): Env {
+  const s = statements as ReturnType<typeof statementsFor> & {
     canonical_bs?: { totals?: Record<string, number> };
   };
   const canonical: Record<string, number> = s.canonical_bs?.totals ?? {};
@@ -455,7 +461,9 @@ describe("G4 — every rendered ratio equals its stated formula", () => {
     // arithmetic is the credit model's and is spelled by its own ladder
     // block beneath them.
     const NOT_RATIOS = [
-      "Operating revenue",
+      // Net turnover (70x − 709), the one-EBITDA ruling's name for the
+      // first strip card (was "Operating revenue", which added 722).
+      "Net turnover",
       "EBITDA",
       "Net Income (account 121, as filed)",
       "Total Debt",
@@ -613,11 +621,63 @@ describe("G4 — every rendered ratio equals its stated formula", () => {
     });
   }
 
+  // THE CONSTRUCTED WITNESS (design A8, "anchor gates made vacuous by the
+  // bridge"). Since the owner's 711 ruling every firm book that misses
+  // account 121 misses it by its net 711, which the statement NAMES
+  // (derived from 121): a ratio re-pointed at "the build-up + the served
+  // 711" equals the anchor on all four, and the check above cannot see it.
+  // net-711-rule's `closed_no_activity` (SYNTHETIC: no 711 postings, 121
+  // above its accounts by 2,000.00 — a misread no line names), served
+  // through the real write path and GET /api/period, is the book where the
+  // build-up plus every named line still misses the anchor.
+  const WITNESS = "closed_no_activity";
+  it(`constructed ${WITNESS}: every net-income ratio consumes account 121, on a divergence no line names`, () => {
+    const statements = constructedBook(WITNESS).statements;
+    const env = envFrom(statements);
+    const pl = env.pl as Record<string, unknown>;
+    const inv = (pl.inventory_variation ?? {}) as { value?: number; provenance?: string };
+    // the witness: nothing named explains the step to 121
+    expect(inv.provenance).toBe("no_711_activity");
+    expect(inv.value).toBe(0);
+    expect(pl.net_income_unexplained_vs_121).toBe(2000);
+    const doc = new DOMParser().parseFromString(
+      buildReportHtml(statements, { metricsByName: {} }), "text/html");
+    const anchored: string[] = [];
+    const failures: string[] = [];
+    for (const sp of SPECS) {
+      if (sp.onReconstruction === undefined) continue;
+      const label = typeof sp.label === "function" ? sp.label(env) : sp.label;
+      const rendered = parsePrinted(cardNamed(doc, label).value);
+      const onFiled = sp.recompute(env);
+      const onRebuilt = sp.onReconstruction(env);
+      if (rendered === null || onFiled === null || onRebuilt === null) continue;
+      const tol = tolerance(sp.unit, onFiled);
+      if (Math.abs(onFiled - onRebuilt) <= tol * 4) continue;
+      anchored.push(label);
+      if (Math.abs(rendered - onFiled) > tol) {
+        failures.push(
+          `${WITNESS}: “${label}” prints ${show(rendered, sp.unit)}; on account 121 it is ` +
+            `${show(onFiled, sp.unit)} and on the build-up plus every named line ` +
+            `${show(onRebuilt, sp.unit)} — it is reading the reconstruction`,
+        );
+      }
+    }
+    DISCRIMINATING.set(`constructed:${WITNESS}`, anchored.length);
+    expect(failures).toEqual([]);
+    expect(anchored.length, `${WITNESS}: no net-income ratio tells 121 from the build-up`).toBeGreaterThan(0);
+  });
+
   it("at least one book tells the filed account-121 figure from the reconstruction (TC-3)", () => {
     const counts = Array.from(DISCRIMINATING.entries()).map(([b, n]) => `${b}: ${n} of 3`);
     expect(
       Math.max(0, ...DISCRIMINATING.values()),
       `no book discriminates the two bases — ${counts.join(", ")}`,
+    ).toBeGreaterThan(0);
+    // ...and at least one of them by a divergence that is NOT the stock
+    // variation the statement names (the constructed witness above).
+    expect(
+      DISCRIMINATING.get(`constructed:${WITNESS}`) ?? 0,
+      `no book discriminates on a misread the statement does not name — ${counts.join(", ")}`,
     ).toBeGreaterThan(0);
   });
 });

@@ -712,10 +712,21 @@ def _money_fact(tool: str, period: PeriodRef, gateway: FactsGateway,
     try:
         value = accessor()
     except MissingFactError as exc:
+        # A REFUSED fact (RefusedFactError — EBITDA on an unmeasurable 711,
+        # the net result or total equity short by it) states the ENGINE's
+        # sentence, not only its code: the Capsule must say why, as every
+        # page does.
+        refusal = getattr(exc, "refusal", None) or {}
+        reason = refusal.get("text_en") if isinstance(refusal, dict) else None
+        detail = ("%s refuses %s: %s (%s)."
+                  % (period.label or period.period_id, spec.metric, reason,
+                     refusal.get("code"))
+                  if reason else
+                  "%s does not carry %s (%s)."
+                  % (period.label or period.period_id, spec.metric, exc))
         return None, ToolGap(
             tool=tool, code=GAP_CONCEPT_ABSENT, missing=(spec.metric,),
-            detail="%s does not carry %s (%s)."
-                   % (period.label or period.period_id, spec.metric, exc),
+            detail=detail,
             fix="Upload the full trial balance for %s to serve this figure."
                 % (period.label or period.period_id))
     if isinstance(value, LockedRatio):
@@ -1042,8 +1053,42 @@ def get_account(ctx: CapsuleContext, code: Any = None,
     if children:
         notes = ("%d sub-accounts of %s are listed individually; no subtotal "
                  "is computed here." % (len(children), wanted),)
+    if any(r.code.startswith("711") for r in hits):
+        notes = notes + (_stock_variation_account_note(period_ref),)
     return ToolResult(tool=tool, values=tuple(values), rows=tuple(rows),
                       notes=notes)
+
+
+def _stock_variation_account_note(period_ref: "PeriodRef") -> str:
+    """What an account-711 balance IS, so the Capsule never quotes it as the
+    change in inventories (owner ruling 2026-09-26). On a CLOSED trial
+    balance every class-6/7 account is closed into 121, so a 711 row carries
+    the production stocked in the period (its credit turnover), not the
+    variation; the variation — "Variația stocurilor de produse" — is the
+    figure the statements serve, with its provenance, or its refusal. Read
+    from the served statements; nothing is computed here."""
+    pl = ((period_ref.statements or {}).get("assembled_pl")
+          if isinstance(period_ref.statements, dict) else None) or {}
+    block = pl.get("inventory_variation") if isinstance(pl, dict) else None
+    block = block if isinstance(block, dict) else {}
+    closed = block.get("book_state") == "closed"
+    head = ("On this closed trial balance the 711 rows hold the gross "
+            "production stocked in the period (the credit turnover), not the "
+            "change in inventories. " if closed else
+            "The 711 rows are account balances, not necessarily the change in "
+            "inventories. ")
+    if block.get("value") is not None:
+        return head + ("The change in inventories — Variația stocurilor de "
+                       "produse — is served on the profit and loss account as "
+                       "%s (%s)." % (format(float(block["value"]), ",.2f"),
+                                     block.get("label_en") or block.get("provenance")))
+    refusal = block.get("refusal") if isinstance(block.get("refusal"), dict) else {}
+    if refusal:
+        return head + ("The change in inventories — Variația stocurilor de "
+                       "produse — is refused for this period: %s."
+                       % (refusal.get("text_en") or refusal.get("code")))
+    return head + ("The statements for this period carry no measured change in "
+                   "inventories (Variația stocurilor de produse).")
 
 
 def list_findings(ctx: CapsuleContext, period: Any = None) -> ToolResult:

@@ -383,7 +383,7 @@ describe("F2 — the private path's numbers did not move", () => {
           .assembled_pl?.net_income_statutory === "number"
           ? ((fixture as { assembled_pl: Record<string, number> })
               .assembled_pl.net_income_statutory as number)
-          : t.netIncome;
+          : (t.netIncome as number);
       const days = fixture.supplementary.periodDays ?? 365;
       const totalOpEx =
         is.costOfGoodsSold + is.operatingExpenses + is.depreciationAmortization;
@@ -396,6 +396,12 @@ describe("F2 — the private path's numbers did not move", () => {
         expect(v, `${what} absent on a complete fixture`).not.toBeNull();
         return v as number;
       };
+      // The P&L levels are the served one-EBITDA figures (deriveTotals reads
+      // plLevelsOf) — present on this complete fixture, said at the read.
+      const EB = req(t.ebitda, "ebitda");
+      const EBIT = req(t.ebit, "ebit");
+      const GP = req(t.grossProfit, "grossProfit");
+      const NI = req(t.netIncome, "netIncome");
       const CA = req(sf.currentAssets(), "currentAssets");
       const CL = req(sf.currentLiabilities(), "currentLiabilities");
       const TA = req(sf.totalAssets(), "totalAssets");
@@ -407,9 +413,9 @@ describe("F2 — the private path's numbers did not move", () => {
         current_ratio: [safeDiv(CA, CL), CL],
         quick_ratio: [safeDiv(bs.cash + bs.accountsReceivable, CL), CL],
         cash_ratio: [safeDiv(bs.cash, CL), CL],
-        gross_margin: [pct(t.grossProfit, is.revenue), is.revenue],
-        ebitda_margin: [pct(t.ebitda, is.revenue), is.revenue],
-        net_margin: [pct(t.netIncome, is.revenue), is.revenue],
+        gross_margin: [pct(GP, is.revenue), is.revenue],
+        ebitda_margin: [pct(EB, is.revenue), is.revenue],
+        net_margin: [pct(NI, is.revenue), is.revenue],
         // ⚠ ROA AND ROE ARE PINNED TO THE ANCHOR, NOT TO `t.netIncome`.
         //
         // `t.netIncome` is `deriveTotals`' CLASS-6/7 RECONSTRUCTION, and
@@ -431,17 +437,17 @@ describe("F2 — the private path's numbers did not move", () => {
         roa: [pct(anchoredNetIncome, TA), TA],
         roe: [pct(anchoredNetIncome, TE), TE],
         roic: [
-          pct(t.ebit * (1 - 0.16), Math.max(t.totalDebt + TE, 1)),
+          pct(EBIT * (1 - 0.16), Math.max(t.totalDebt + TE, 1)),
           Math.max(t.totalDebt + TE, 1),
         ],
-        debt_to_ebitda: [safeDiv(t.totalDebt, t.ebitda), t.ebitda],
+        debt_to_ebitda: [safeDiv(t.totalDebt, EB), EB],
         debt_to_equity: [safeDiv(t.totalDebt, TE), TE],
         equity_ratio: [pct(TE, TA), TA],
         ltv: [pct(t.totalDebt, TA), TA],
-        interest_coverage: [safeDiv(t.ebit, is.interestExpense), is.interestExpense],
-        dscr: [safeDiv(t.ebitda, is.interestExpense + bs.shortTermDebt), is.interestExpense + bs.shortTermDebt],
+        interest_coverage: [safeDiv(EBIT, is.interestExpense), is.interestExpense],
+        dscr: [safeDiv(EB, is.interestExpense + bs.shortTermDebt), is.interestExpense + bs.shortTermDebt],
         dscr_with_lt_principal: [
-          safeDiv(t.ebitda, is.interestExpense + bs.longTermDebt / 8),
+          safeDiv(EB, is.interestExpense + bs.longTermDebt / 8),
           is.interestExpense + bs.longTermDebt / 8,
         ],
         dso: [safeDiv(bs.accountsReceivable, is.revenue) * days, is.revenue],

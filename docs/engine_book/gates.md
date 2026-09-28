@@ -1958,6 +1958,40 @@ files so the unexamined debt is visible and cannot grow quietly.
 
 **SELF-TEST, 2026-09-02.** `--probe-vacuity` was silently IGNORED — the gate ran its full 156-site census and printed PASS while claiming to probe itself. Now wired into discovery: exit **1**, `units=0 floor=20`. The gate always did red on empty discovery; it had never proved that about itself.
 
+### provenance-census — the four findings the one-EBITDA branch introduced (critic fixer round 1, 2026-09-27)
+
+The gate was already red at the production base (69fb9621) and the branch
+added four findings under that red: 11 -> 15. The four, resolved:
+
+- `canonicalMetrics.ts` declared 8, measured 9 — the lint read the
+  net-result line twice (its `: number | null` annotation), and the `?? 0`
+  it saw was real: `num(apl.net_income_statutory) ?? 0` turned a net result
+  the payload does not carry into 0 whenever the engine had not refused it.
+  Removed (absent -> null); re-stated 7.
+- `buildNavCascade.ts` 12 -> 10 (Graham's and Book NAV's `?? 0` gone —
+  progress); `ValuationSection.tsx` 4 -> 3 (`ebitda_used ?? 0` gone —
+  progress); re-stated.
+- `financialValuation.ts` 3 -> 4 — no new absent-to-zero: the lint now
+  parses the CFO fallback `pl.depreciation ?? s.incomeStatement.
+  depreciationAmortization` (standing unflagged at the base) behind the new
+  `? null :`, and the Piotroski row's boolean `read` gate; verdict re-stated.
+
+After: `FAIL — 11 finding(s)`, exactly the pre-existing ones (unregistered
+ComparativesPanel, RatiosTab, RiskBreakdownPanel, CompanyPage,
+WorkspaceHomeV2; count drift RatioDetailDrawer 5/6 and FinancialStatements
+80/78; stale UploadDialog entry and its settings-workspace roster; unsurfaced
+LeverSliders and PresentMode) — left as they were, listed for the owner.
+
+**PLANT** canonical-net-profit-or-0 (the removed `?? 0` restored) -> **RED**:
+```
+PLANT canonical-net-profit-or-0 (census): frontend/lib/canonicalMetrics.ts
+   FAIL — 12 finding(s):
+   · ABSENT-LEAF COUNT DRIFT: frontend/lib/canonicalMetrics.ts declares 7 substitution(s), measured 9. A new absent-to-zero needs a verdict before it ships; a removed one is progress and re-states the entry.
+RESTORED census: FAIL — 11 finding(s):
+```
+**REVERT** — `FAIL — 11 finding(s)` (the pre-existing eleven).
+
+
 ## provenance-contrast
 
 The provenance affordance's own colours, computed from the token sheet in
@@ -5384,6 +5418,41 @@ FAILED tests/engine/test_industry_classifier_absent_inputs.py::test_the_benchmar
 
 **REVERT** — restored; exit `0`, `18 passed`.
 
+### floor-industry-absent — the turnover denominator (stage G1, 2026-09-27; design A3/A8)
+
+**Why.** The owner's ruling of 2026-09-26: every margin and share divides NET
+TURNOVER (cifra de afaceri, class 70 − 709) — "nowhere by
+total_operating_revenue", the industry classifier named. `classify_cost_
+structure` took `total_operating_revenue` FIRST (turnover + 72x + other
+operating income) and `cost_structure_metrics` synthesised it from the line
+items (revenue + capitalizedOwnWork + otherIncome buckets); the fallback
+likewise. On EEI that is 4.91M against a turnover of 2.73M — every share 44 %
+low. The laws that pinned the old denominator are REWRITTEN: the services
+fallback keys on `revenue`; the EEI control prints 722 on its own row instead of
+folding it into a "706" of 4,911,000; the floor census row's law is 3 → 1 (the
+two bucket defaults went with the synthesis). New laws: a SYNTHETIC witness
+(turnover 1,000,000, total operating revenue 1,500,000, personnel 450,000 — 45 %
+of turnover, the 6201 rule; 30 % of the total, no rule) classifies 6201; the
+line-item flattening reads the revenue bucket alone; without turnover the
+classification refuses (`inputs == ["revenue"]`), never falling back to the
+total. Measured on the four corpus books through the write seam: the flattened
+revenue equals `assembled_pl.revenue` to the cent and no suggested CAEN moves
+(agras 1013 0.7, carniprod 1013 0.4, realestate 6820 0.7, retail 1013 0.4).
+
+**GREEN** — `21 passed` (+ `test_floor_census_gate.py`: 23 together).
+
+**PLANT total-operating-revenue-first** — `classify_cost_structure`:
+`revenue = _measured(metrics.get("total_operating_revenue", metrics.get("revenue")))`.
+
+**RED** — exit `1`:
+```
+FAILED tests/engine/test_industry_classifier_absent_inputs.py::test_every_share_divides_net_turnover_never_total_operating_revenue
+FAILED tests/engine/test_industry_classifier_absent_inputs.py::test_without_net_turnover_the_classification_refuses
+========================= 2 failed, 19 passed in 1.74s =========================
+```
+
+**REVERT** — restored byte-exact from a copy; `21 passed`.
+
 ## ratios wave three — second repair round (2026-09-20)
 
 Seven verifier findings on `wave/ratios-b8-milestone` (one medium, six low).
@@ -6810,6 +6879,63 @@ replay); the served statements of periods persisted before v6 (a stored
 period keeps its v5 line items until its document is re-parsed —
 `extraction.parser_version` tells them apart).
 
+### statements-anchor-gap — REWRITTEN for the one-EBITDA ruling (stage G, 2026-09-27)
+
+**INCIDENT** — the owner ruling of 2026-09-26 names net 711 ("Variația
+stocurilor de produse") on the statement, and on a closed book that line is
+the account-121 bridge, derived FROM the remainder this gate judged. The
+gate read the served `net_income_unexplained_vs_121`, which became 0.00 by
+construction on every closed manufacturer (frozen, agras, carniprod, the
+developer): measured on the branch before this rewrite, `|121 -
+reconstruction| = 0.00 … within` on all four — green on nothing, on exactly
+the books whose floor is widest.
+
+**LAW (rewritten, not re-captured)** — the gate judges the step BEFORE the
+fold, S = account 121 − (build-up + net 72x) (`net_income_reconciliation_
+to_121` − net 72x), against the same pack floor (cent + 711/712 turnover),
+which is the engine's own guard G5; and it holds the fold per book: bridge →
+net 711 = S to the cent, remainder 0.00, provenance flagged as an identity
+with 121; no 711 postings → 711 = 0.00 and the remainder = S (never
+folded); an own movement → remainder = S − 711; refused → remainder = S and
+EBITDA refused with the 711 reason. TC-3: the scope must exercise the
+bridge. CONSTRUCTED witnesses (SYNTHETIC books of `net-711-rule`, no client
+data): `closed_no_activity` (step 2,000.00 on a one-cent floor → BEYOND,
+engine `no_711_activity`) and `g5_residual` (step 50,000.00 on a 30,000.01
+floor → BEYOND, engine refused `residual_exceeds_711_activity`, G5 false).
+
+Measured on the rewritten gate: agras step 1,071,687.03 → net 711
+1,071,687.03 (bridge), remainder 0.00; carniprod 186,849.53; frozen
+231,203.19; the developer 29,589,814.24; retail 0.00 (`no_711_activity`);
+`GATE-WORK statements-anchor-gap units=70`, `10 passed`.
+
+Plants, each applied alone by `scratchpad/g_stage/plant.py` (byte-exact
+restore checked by sha256):
+```
+PLANT read-the-served-remainder (the vacuous law): tests/engine/test_statements_anchor_gap.py
+  exit=1 ========================= 1 failed, 9 passed in 4.75s ==========================
+    FAILED tests/engine/test_statements_anchor_gap.py::test_a_the_reconstruction_reaches_account_121_within_the_pack_floor
+  -> RED ; file restored byte-exact
+PLANT fold-a-no-711-remainder-into-711 (engine): src/engine/country_packs/ro_romania/stock_variation.py
+  exit=1 ========================= 1 failed, 9 passed in 4.78s ==========================
+    FAILED tests/engine/test_statements_anchor_gap.py::test_h_a_constructed_misread_is_beyond_its_floor_and_the_engine_agrees
+  -> RED ; file restored byte-exact
+PLANT drop-guard-g5 (engine): src/engine/country_packs/ro_romania/stock_variation.py
+  exit=1 ========================= 1 failed, 9 passed in 4.68s ==========================
+    FAILED tests/engine/test_statements_anchor_gap.py::test_h_a_constructed_misread_is_beyond_its_floor_and_the_engine_agrees
+  -> RED ; file restored byte-exact
+PLANT widen-the-witness-floor (judge): tests/engine/test_statements_anchor_gap.py
+  exit=1 ========================= 1 failed, 9 passed in 4.92s ==========================
+    FAILED tests/engine/test_statements_anchor_gap.py::test_h_a_constructed_misread_is_beyond_its_floor_and_the_engine_agrees
+  -> RED ; file restored byte-exact
+REVERT (clean tree):
+============================== 10 passed in 4.83s ==============================
+```
+
+**It now cannot see:** a wrong sign SMALLER than a closed book's 711
+turnover — the bridge absorbs it into the stock variation (it is inside G5
+by definition); the residual beyond the production-stock movement stays
+PRINTED, not judged, as before.
+
 ## interest-coverage-one-operand
 
 The 0.32 / 0.3257 seam (owner, 2026-09-21: "confirm the served metric
@@ -6859,7 +6985,7 @@ would print a different coverage.
 | | |
 |---|---|
 | work count | `GATE-WORK interest-coverage-one-operand units=(\d+)` (books served + coverages recomputed; measured 9), floor 8 |
-| canaries | `SCOPE interest-coverage-one-operand`, `books where operating_ebit would print a different coverage: 1`, `retail             EBIT 786579.83`, `SCOPE coverage popover corpus fixture` |
+| canaries | `SCOPE interest-coverage-one-operand`, `books where the pre-ruling EBIT (without 711 / 72x) would print a different coverage: 2` (was `books where operating_ebit would print a different coverage: 1` — see the stage G1 note below), `retail             EBIT 786579.83`, `SCOPE coverage popover corpus fixture` |
 
 **SCOPE** — printed: `SCOPE interest-coverage-one-operand: books 5
 (agras, carniprod, realestate, retail, scandia_baseline); interest
@@ -6884,6 +7010,23 @@ applied by string replacement, the gate run, the file restored byte-exact):
 **REVERT** — every planted file restored from its byte copy (sha1
 checked); the gate `1 passed`, `interestCoverageBasis` and
 `exportRatioFormulas` `26 passed` after.
+
+**Stage G1 (2026-09-27): the canary followed the rewritten law.** The
+one-EBITDA rewrite of the test (0e48c078) made `ebit`, `operating_result` and
+`operating_ebit` one figure, so the discriminating operand became the
+pre-ruling EBIT (without 711 / 72x) and the TC-3 line now prints `books where
+the pre-ruling EBIT (without 711 / 72x) would print a different coverage: 2`
+— the registered canary still named `operating_ebit … : 1`, so the battery
+failed the gate as DISCOVERY BROKEN on a green run:
+```
+FAIL interest-coverage-one-operand (exit 0, 6.6s)
+     ! DISCOVERY BROKEN — canary absent from the gate's own output: 'books where operating_ebit would print a different coverage: 1'
+```
+With the canary following the printed law: `PASS interest-coverage-one-operand
+(8 books served and coverages recomputed)`. The Scandia baseline row now reads
+`one EBITDA refused (period_predates_stock_variation_measurement): coverage
+refused as ebitda_refused` — `_served_books` serves the archived pre-ruling
+capture as the legacy witness (BASELINE_HISTORY 2026-09-27).
 
 **After the repair it reds on (TC-11):** any served, serve-time or
 fallback interest coverage whose printed digits are not quantize(ebit /
@@ -10199,6 +10342,30 @@ month; and the GateDouble models no `ON DELETE CASCADE`, so derivative rows
 of a removed staged row stay in the double (production's foreign keys take
 them).
 
+### workspace-v2 — G7 also holds the detection envelope and methodology pin (stage G1, 2026-09-27)
+
+**Found while re-capturing the e2e fixtures.** A fresh `WS_V2_WRITE_FIXTURE=1`
+run served `period.methodology_version: null` where the committed fixture says
+`ro_ras_2025_v1`. Cause, on this branch: commit 525e2b75 moved the valuation
+block of `_run_pipeline_stages` into `_compute_and_persist_valuation` (shared
+with the reprocessing tool), taking the local `effective_industry_key` with
+it; the F4.3 detection-envelope build further down still named it, raised
+`NameError`, and the "non-fatal" `except` swallowed it — so NO upload
+persisted its `detection_envelope` or `methodology_version`. Fixed:
+`_effective_industry(org, assembled)` computes (stored, classification,
+effective) once; the stages keep the effective key for the envelope and hand
+the triple to the valuation helper. G7 now asserts the persisted period row
+carries `methodology_version == "ro_ras_2025_v1"` and a detection envelope
+pinned to it, and `E2E_PINNED` pins `period.period.methodology_version`.
+
+**PLANT** — the original defect: the stages' `effective_industry_key` default
+and assignment removed (the NameError back).
+**RED** — `test_g7_drop_one_tap_five_stages_then_the_served_dashboard`:
+```
+E    +  where None = <built-in method get of dict object at 0x11e2a5c80>('methodology_version')
+```
+**REVERT** — restored byte-exact from a copy: `24 passed`.
+
 ## margin-meaning
 
 | | |
@@ -10313,6 +10480,52 @@ GATE-WORK margin-meaning units=187
 CANNOT SEE: what the pages paint (`margin-meaning-page`), a book outside the
 corpus, whether 10% is the right threshold (the pack states why it was
 chosen; the owner rules).
+
+### margin-meaning — the plan-year note no longer says the EBITDA above includes 711 (fixer round 1, 2026-09-27)
+
+**INCIDENT** — critic finding: `forecast/cockpit.py` served the developer's
+note under the FINAL PLAN year's EBITDA (FY2030, RON −32.9M) with the
+actual-year sentence plus a year: "…the EBITDA above includes them — RON
+29.6M in 2025." Plan years project net 711 at 0 (design A6), and the same
+card's `year0_step` says "the stock variation and own work capitalised are
+not projected: 0 in every plan year". `forecastBankExport.ts` printed that
+sentence into the lender PDF. `DEVELOPER_COCKPIT_NOTE` pinned it — the gate
+encoded the defect (TC-11).
+
+**REWRITTEN, not re-captured.** The pack now carries two sentences:
+`note.ro/en` (under the ACTUAL year's EBITDA — the dashboard, the report —
+"the EBITDA above includes them — {amount}.") and `note.plan_year` (under a
+plan year's: "the {year} EBITDA included them — {amount}; the plan years
+project the stock variation at 0, so the EBITDA above does not include
+them."). `note_block(year=…)` serves the second. The law: the cockpit and
+bank-export notes equal the plan-year sentence (engine
+`DEVELOPER_COCKPIT_NOTE`, FE `COCKPIT_NOTE` in marginMeaning.test.tsx), and
+independently of the pin, a plan-year note that says "above includes" /
+"de mai sus le include" is a failure, as is a developer card with no year-0
+stock-variation step beside its note. The fixtures were then re-captured
+through their own script (`scripts/gen_cockpit_fixtures.py --book realestate
+--requests base,export`, and the agras set, whose only move is
+`pins.margin_pack`).
+
+**PLANT actual-year-sentence-under-a-plan-year** —
+`src/engine/ratios/margin_meaning.py` `note_block`: `if year:` → `if False:`
+(the plan year gets the dashboard sentence).
+```
+RED (plant) — 3 failed, 29 passed
+E       cockpit developer en note says the plan-year EBITDA includes 711: 'For a property developer, … the EBITDA above includes them — RON 29.6M.'
+FAILED tests/engine/test_margin_meaning.py::test_no_cockpit_but_the_developers_moves_and_the_developer_shows_the_refusal
+FAILED tests/engine/test_margin_meaning.py::test_the_bank_export_carries_the_refusal_and_the_note
+FAILED tests/engine/test_margin_meaning.py::test_the_developers_committed_cockpit_fixtures_are_what_the_route_serves
+```
+**PLANT the-pre-fix-fixture (frontend half, margin-meaning-page)** —
+`tests/engine/fixtures/forecast/cockpit_realestate_base.json` restored to its
+51d4bb64 bytes:
+```
+RED (plant) — Tests 1 failed | 17 passed (18)
+   × the forecast cockpit and the bank export (the developer's real engine bytes) > the sentence carries no margin clause and the note names its year
+```
+**REVERT** — both files restored from their copies: `32 passed`; `Tests 18
+passed (18)`.
 
 ## margin-meaning-page
 
@@ -11904,3 +12117,2247 @@ bundle rebuilt. **RED**:
 - Green on 2989cb50's bundle: 2 passed.
 - Plant (the `pendingChar.current = e.key` line in CommandPalette.tsx removed, bundle rebuilt): 2 failed — `Expected: "stoc"`, `Received: "toc"` on both companies. Restored: 2 passed.
 - Why: on production (bundle index-BsSPDpfF.js) a Chrome automation tab reported `document.visibilityState === "hidden"`; Radix's exit animation never ran there, the closed overlay stayed with pointer-events on, and typed letters read as dropped. Not reproducible in a visible browser — this law is the proof.
+
+## net-711-rule
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_net_711_rule.py -q -s` |
+| canary | `SCOPE net-711-rule (stock_variation.measure/decide, owner ruling 2026-09-26)`, `NET711-BOOKS: bridge_with_722, closed_bridge, …`, `NET711-PLANTS: serve-the-gross-memo, absent-anchor-to-zero, drop-guard-g6, drop-guard-g7, rebuild-forgets-the-evidence` |
+| work count | `GATE-WORK net-711-rule units=(\d+)`, floor **90** (measured 123; 139 with G7) |
+
+**SCOPE** — the incident (specs-durable/ebitda711/measure.md, refereed against
+the Ministry of Finance filings): the engine served `inventory_variation_memo`
+= Σ sume totale C of account 711 and a view `ebitda_statutory_with_711` built on
+it. On a CLOSED trial balance (every class-6/7 leaf closed into 121 — all ten
+real books measured) that is the GROSS production stocked, not the variation:
+630,091,698.19 on Scandia Food FY2025 against a filed variation of about 1.08M,
+EBITDA margins of 98.9 %–191.0 % on every closed manufacturer. The direct net
+Σ(credit − debit) is 0.00 on every closed book. The owner's ruling puts 711 and
+72x inside EBITDA and the operating result, so the variation has to be
+MEASURED: `stock_variation.measure(tb_rows)` takes the evidence off the parsed
+leaves at persist time (book state, 711/72x turnovers, account 121's opening and
+its clearing, unread class-6/7 activity) and `stock_variation.decide` applies
+the rule — OPEN: the movement; no 711 activity: exactly 0.00 with any 121
+remainder left visible; CLOSED: the account-121 bridge under guards G2–G6;
+otherwise a typed refusal, which refuses EBITDA / EBIT / gross profit / PBT with
+the same reason. An absent anchor is a refusal, never 0.00. The gate holds the
+rule on eleven CONSTRUCTED books (no client data): OPEN, CLOSED-no-activity (a
+constructed 2,000.00 misread stays on `net_income_unexplained_vs_121`),
+CLOSED-bridge (net 711 50,000 from a gross 300,000; EBITDA 250,000, not
+500,000; the reconciliation chain closes to 121 and says it does by
+construction), MIXED (a monthly exporter with December not closed — only 121's
+closing entries tell it from an open book), unanchored (G2), an unread class-7
+leaf (G4), a synthetic total row printed beside its analytics and so read twice
+by the assembler (G4), a DISTINCT account whose code merely prefixes another
+(read, not skipped — `6028` beside `6028.9`), a remainder larger than 711's
+turnover (G5), an uncleared prior-year result in 121 (G6), and the bridge with
+72x; and the evidence block is a function of the book, not of its row order. Four books go through the REAL
+write path (`_deterministic_tb_parsed` measures, `stage_map` decides,
+`stage_persist` stores the block on the envelope) and back through
+`GET /api/period` and `_rebuild_assembled_for_briefing`; an envelope written
+before the measurement refuses with `period_predates_stock_variation_measurement`.
+Checked beside the rule: the retired gross-memo fields are not served, the legacy
+EBITDA names equal the one EBITDA, EBITDA = before + 711 + 72x, EBIT = EBITDA −
+D&A, 767 sits in the financial result, an OPEN book's 72x is its net.
+
+Measured beside it (not committed — client books, read in place): on the eight
+local real books the served net 711 equals measure.md T7 to the cent (Agras
+1,071,687.03 · Carniprod 186,849.53 · SRD 29,589,814.24 · frozen 231,203.19 ·
+Scandia Food FY2025 519,389.11 · FY2024 2,832,404.19 · retail 0.00
+no_711_activity · EEI 722 2,164,079.83).
+
+In-file plants (the checkers must fail on each; NET711-PLANTS): serve the gross
+memo on the bridge book; an absent anchor turned into 0.00; guard G6 dropped; a
+rebuild seam that stops threading the persisted evidence. Source-edit plants,
+each applied alone to `src/engine/country_packs/ro_romania/stock_variation.py`
+on a clean tree and reverted with `git checkout --`:
+
+**PLANT serve-the-gross-memo** — the bridge branch
+`_serve(float(residual), PROV_BRIDGE)` → `_serve(_f(a711.get("credit_turnover")), PROV_BRIDGE)`.
+```
+RED — 6 failed, 17 passed
+FAILED test_the_rule_on_each_constructed_book[bridge_with_722]
+FAILED test_the_rule_on_each_constructed_book[closed_bridge]
+FAILED test_the_gross_memo_is_never_the_variation_on_a_closed_book
+FAILED test_the_evidence_is_persisted_and_every_served_seam_reads_it[closed_bridge]
+FAILED test_the_evidence_is_persisted_and_every_served_seam_reads_it[bridge_with_722]
+E   AssertionError: closed_bridge: net 711 300000.0, expected 50000.0
+E     closed_bridge: ebitda 500000.0, expected 250000.0
+E   assert not [..., 'closed_bridge: the chain does not close to account 121 (not explained -250000.0)']
+```
+**PLANT absent-anchor-to-zero** — G2 `_refuse(REASON_UNANCHORED)` → `_serve(0.0, PROV_BRIDGE)`.
+```
+RED — 4 failed, 19 passed
+FAILED test_the_rule_on_each_constructed_book[unanchored]
+FAILED test_an_absent_anchor_is_a_refusal_never_zero
+FAILED test_the_evidence_is_persisted_and_every_served_seam_reads_it[unanchored]
+E   AssertionError: unanchored: 711 served 0.0 where the rule refuses (account_121_anchor_absent)
+E     unanchored: ebitda served 200000.0 while 711 is refused
+```
+**REVERT** — `git checkout -- src/engine/country_packs/ro_romania/stock_variation.py`:
+`23 passed`.
+
+**What building it found (2026-09-26/27).** The first cut of `measure` read
+the leaf rule literally and took the first 129/117 row whose movement matched
+the opening. The full suite caught both: `test_metamorphic` M6 (row
+permutation moved the persisted envelope on agras — the clearing account the
+block named depended on print order), and `test_comparatives_depth_parity` on
+carniprod's own 4-digit re-aggregation (EBITDA refused under G6: the condensed
+book prints `6028` beside an unmerged odd code, the leaf rule skipped `6028`,
+the assembler reads it, and the 121 ledger no longer matched). Fixed at the
+source — rows read in code order; a prefix row is skipped only when it IS the
+sum of its leaves, and such a total row on class 6/7 refuses under G4 because
+the assembler reads it too — and both cases are now constructed books here.
+
+CANNOT SEE: consumers of the one EBITDA outside `assemble_statements` (credit
+model, ratio table, benchmark, forecast, FE) — the `one-ebitda`,
+`turnover-denominator` and `refusal-carries` gates (stage E2/E3) own those; the
+FILED 711 (the Ministry referee is a measurement, not a gate).
+
+### net-711-rule — guard G7 added (stage G1, 2026-09-27; design A10)
+
+**Why.** The production survey (specs-durable/prod_711_survey_2026-09-26.jsonl)
+found Carniprod 7c29a71b serving turnover 99,424,740.16 against a filed
+94,509,940: its line items were persisted before parser v6. Its account-121
+residual (−4,407,915.45) is a PARSING difference, not stock variation — and it
+passes G2–G6. The coordinator's guard G7: the residual may be folded into 711
+only when the period's rows were read by the RUNNING trial-balance parser.
+
+**What changed.** `measure(tb_rows, parser_version=…)` records the reader on
+the block (`parser_version`); `RomaniaPack.measure_stock_variation` supplies the
+parse result's own `extraction.parser_version`, or the running
+`trial_balance_parser.PARSER_VERSION` for rows handed over in-process (rows are
+never persisted, so they were read in this process). `decide` adds
+`G7_parser_version` / `G7_running_parser_version` / `G7_current` to the guard
+block and, on a CLOSED anchored book with 711 activity, refuses
+`reprocess_required` (RO/EN text) before any residual-based guard when the
+stamp is not the running reader — an unstamped block included. The running
+reader is passed IN by the only caller (`chart_of_accounts.assemble_statements`
+reads `trial_balance_parser.PARSER_VERSION`): `stock_variation` stays pure
+(`test_credit_model_pure` holds it to `typing` alone — a first cut that imported
+the parser there reddened it and was moved), and a caller that does not state
+the version gets no fold (fail closed, asserted). OPEN books (their own net) and
+no-activity books (exactly 0.00) fold nothing and are untouched.
+
+**The witness** — constructed book `g7_older_parser`: the bridge book as an
+older reader returned it (701 read at 1,040,000 where the file says 1,000,000,
+the parse result stamped `tb_parser_v5`). Account 121 still says 170,000, so the
+residual is 10,000 — it passes G4, G5 (10,000 ≤ 300,000) and G6. Without G7 it
+prints as "Variația stocurilor de produse" 10,000. Through the real write path:
+a period persisted by the running reader bridges; the same stored envelope
+restamped `tb_parser_v5` — and unstamped — refuses `reprocess_required` on
+`GET /api/period`, EBITDA with it. In-file plant `drop-guard-g7` serves the
+residual on the witness → the checker reds.
+
+**PLANT drop-G7** — delete `elif not guards["G7_current"]: _refuse(REASON_REPROCESS)`
+from `decide`.
+```
+RED — 3 failed, 26 passed
+FAILED tests/engine/test_net_711_rule.py::test_the_rule_on_each_constructed_book[g7_older_parser]
+FAILED tests/engine/test_net_711_rule.py::test_g7_the_block_carries_its_reader_and_an_older_reader_never_bridges
+FAILED tests/engine/test_net_711_rule.py::test_zz_scope_and_work - AssertionE...
+```
+**PLANT stamp-the-running-reader-always** — `pack.measure_stock_variation`
+stamps the running `PARSER_VERSION` whatever the parse result says.
+```
+RED — 3 failed, 26 passed
+FAILED tests/engine/test_net_711_rule.py::test_the_rule_on_each_constructed_book[g7_older_parser]
+FAILED tests/engine/test_net_711_rule.py::test_g7_the_block_carries_its_reader_and_an_older_reader_never_bridges
+FAILED tests/engine/test_net_711_rule.py::test_zz_scope_and_work - AssertionE...
+```
+**REVERT** (each plant restored byte-exact from a copy): `29 passed`,
+`GATE-WORK net-711-rule units=139`.
+
+CANNOT SEE (G7): a parser change that does NOT bump `PARSER_VERSION` — the
+stamp is only as honest as the version constant.
+
+### net-711-rule — a filed statutory return's 72x row is own work capitalised (fixer round 1, 2026-09-27)
+
+**INCIDENT** — critic finding: `_statutory_parser._synth_accounts_from_extraction`
+synthesized "Venituri din producția de imobilizări" (722) under code 758
+(other operating income) so that the pre-ruling statutory EBITDA would
+include it. Under the one EBITDA the figure stayed right (net 72x is inside
+either way) but its PARTS did not: a filed return with 722 200,000 and net
+711 +50,000 served `capitalized_own_work` 0.00 "no postings in the period",
+a reconciliation bridge of 800,000 · 50,000 · 0 = 850,000 (the true
+EBITDA-before is 600,000), core / adjusted EBITDA 650,000 (722 stripped as a
+758 credit — a trial-balance period keeps it), and the cash-burn rule keyed
+to `ebitda_before_stock_variation` could not see a statutory developer.
+
+722 is now synthesized under code 722 (the capitalizedOwnWork bucket, as a
+trial balance's 72x), the statutory evidence carries the filed row
+(`statutory_72x`), and `decide` serves it with provenance
+`72x_statutory_return_row`; a statutory block stored before the row was
+recorded reads the assembler's 72x bucket. Witness:
+`test_a_filed_statutory_return_serves_its_72x_row_as_own_work_capitalised`
+(bridge 600,000 · 50,000 · 200,000 = 850,000; no 758 line; core = adjusted =
+850,000; the legacy block reads 200,000). Work 153 units.
+
+**PLANT 722-as-758** — `src/engine/api/_statutory_parser.py`: the 722 line
+synthesized under code 758 again.
+```
+RED (plant) — 1 failed, 29 passed
+E   assert not [{'amount': 200000.0, 'code': '758', 'name': 'Venituri din producția de imobilizări (722, included in EBITDA)'}]
+FAILED tests/engine/test_net_711_rule.py::test_a_filed_statutory_return_serves_its_72x_row_as_own_work_capitalised
+```
+**PLANT filed-row-ignored** — `stock_variation.decide`: the statutory 72x
+branch disabled (`elif False and basis == BASIS_STATUTORY …`).
+```
+RED (plant) — 1 failed, 29 passed
+E   assert (200000.0, '72x_engine_read') == (200000.0, '72x_statutory_return_row')
+FAILED tests/engine/test_net_711_rule.py::test_a_filed_statutory_return_serves_its_72x_row_as_own_work_capitalised
+```
+**REVERT** — both files restored from their copies: `30 passed`.
+
+CANNOT SEE: a statutory period through the served route (`one-ebitda-engine`
+has no statutory book — its harness persists trial balances only); statutory
+periods ALREADY stored with 722 under 758 keep it there until reprocessed.
+
+### net-711-rule — the `unanchored_unbalanced` witness (critic fixer round 1, 2026-09-27)
+
+A thirteenth constructed book: the closed-bridge book with its account-121
+row DROPPED (a real export without 121), so the sheet does not balance
+without the year's result (delta 170,000.00). The rule refuses 711 with
+`account_121_anchor_absent`, exactly as on `unanchored` (whose sheet was
+rebuilt to balance). It exists for `refusal-carries-engine` / `refusal-
+carries` (total equity short by the refused result); here it is one more
+book the rule is judged on. `GATE-WORK net-711-rule units=159` (floor 90);
+the NET711-BOOKS canary names it. The rule's `absent-anchor-to-zero`
+PLANT (`_with_plant`, measured on this book with `scratchpad/fx1/probe_plant711.py`):
+```
+PLANT absent-anchor-to-zero on unanchored_unbalanced -> RED
+   unanchored_unbalanced: 711 served 0.0 where the rule refuses (account_121_anchor_absent)
+   unanchored_unbalanced: 711 refusal None, expected 'account_121_anchor_absent'
+   unanchored_unbalanced: the refusal carries no RO/EN text
+```
+REVERT — the gate green at 159 units.
+
+
+## net-income-anchor-witness
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_one_concept_one_value.py tests/engine/test_rebuild_net_income_anchor.py -q` (+ the two f6 tests in `forecast-model`) |
+| work count | junit-xml, floor **72** tests (measured 80) |
+| canary | `test_every_book_carries_both_net_income_views_and_an_anchor`, `test_a_constructed_no_711_misread_fires_the_override_through_every_seam`, `test_the_firing_scope_carries_a_divergence_that_is_not_the_stock_variation`, `test_enough_books_actually_fire_the_override`; in `forecast-model`: `test_f6_the_constructed_misread_opens_on_the_anchor_and_names_nothing`, `test_f6_scope_has_a_miss_that_is_not_the_stock_variation` |
+
+**Why (design A8, "anchor gates made vacuous by the bridge").** Three gates
+certified that a served net income is account 121 and not the class-6/7
+reconstruction by finding books where the two DIFFER: the rebuild-anchor
+seam's `OVERRIDE_FIRING_FLOOR`, `test_one_concept_one_value` TC-3, and
+`test_forecast_model` f6. Since the ruling, every committed book that misses
+121 misses it by its net 711 — which the statement now NAMES, derived FROM
+121 by the bridge. A defect that served "the build-up + the bridged 711" as the
+result would equal 121 on every one of them, and the three gates would stay
+green on it. Each now also requires a book whose divergence is NOT the stock
+variation: the CONSTRUCTED `closed_no_activity` (net-711-rule's synthetic
+book: no 711 postings, account 121 above its accounts by 2,000.00 — a misread
+no line names), served through the real write path (`_deterministic_tb_parsed`
+→ `stage_map` → `stage_persist`) and `GET /api/period` / the briefing-rebuild
+seam. On it: the anchor fires through both seam shapes, the 2,000.00 stays
+VISIBLE on `net_income_unexplained_vs_121` (never folded into 711), every
+net-income ratio and the credit profitability subscore are built on the anchor,
+and the forecast opening closes on the anchor while serving the reconstruction
+instead is refused at period zero for exactly that 2,000.00. A scope with no
+such witness is RED.
+
+**GREEN** — `300 passed` over the three files (with `test_forecast_model.py`).
+
+**PLANT fold-the-121-remainder** — `stock_variation.decide`, the
+no-711-activity branch serves the residual instead of 0.00 (`_serve(residual
+if residual is not None else 0.0, PROV_NO_ACTIVITY)`): the remainder is folded,
+the statement names every divergence, and "build-up + 711 = 121" holds on every
+book in scope.
+```
+RED — 5 failed, 295 passed
+FAILED tests/engine/test_forecast_model.py::test_f6_the_constructed_misread_opens_on_the_anchor_and_names_nothing
+FAILED tests/engine/test_forecast_model.py::test_f6_scope_has_a_miss_that_is_not_the_stock_variation
+FAILED tests/engine/test_one_concept_one_value.py::test_every_book_carries_both_net_income_views_and_an_anchor
+FAILED tests/engine/test_rebuild_net_income_anchor.py::test_a_constructed_no_711_misread_fires_the_override_through_every_seam
+FAILED tests/engine/test_rebuild_net_income_anchor.py::test_the_firing_scope_carries_a_divergence_that_is_not_the_stock_variation
+```
+**REVERT** (restored byte-exact from a copy): `300 passed`.
+
+The in-file plant `test_f6_plant_the_reconstruction_on_the_constructed_misread_and_the_opening_refuses`
+serves the reconstruction on the witness and asserts the opening refuses with
+the 2,000.00 step in its message.
+
+CANNOT SEE: a misread that happens to equal the stock variation on a closed
+manufacturer (only the Ministry referee can — measure.md T7).
+
+### net-income-anchor-witness — the no-anchor seam law REWRITTEN (fixer round 1, 2026-09-27)
+
+`test_seam_without_envelope_or_121_line_item_says_absent` required, with no
+envelope and no 121 line item, that `net_income_statutory` be a NUMBER equal
+to the reconstruction — "kept, never nulled — the frontend reads it through
+`?? 0`". Under the one-EBITDA ruling five of the six corpus books post to
+711, so with 121 stripped their net 711 is refused (G2) and the build-up is
+short by the unmeasured variation (agras 1,071,687.03, the developer
+29,589,814.24): the law pinned exactly the figure the critic found on the
+dashboard. It now branches on the served 711: refused → the net result is
+refused with the 711 code (`net_income_refusal`), `net_income_statutory` and
+`net_income_reconstructed` None; measured (retail, no 711 activity) → the
+build-up is served, labelled `absent`, as before. New
+`test_the_no_anchor_seam_witnesses_both_branches` reds unless both branches
+occur (measured: refused on pdf_positional, saga_10_col, agras, carniprod,
+realestate; served on retail). 81 tests.
+
+**PLANT serve-the-build-up** — `chart_of_accounts.py`: `net_income_served =
+net_income_statutory` (the refusal ignored).
+```
+RED (plant) — 5 failed, 76 passed (test_rebuild_net_income_anchor + test_one_concept_one_value)
+FAILED tests/engine/test_rebuild_net_income_anchor.py::test_seam_without_envelope_or_121_line_item_says_absent[pdf_positional]
+FAILED …[saga_10_col]  FAILED …[saga_10_col_agras]  FAILED …[saga_10_col_carniprod]  FAILED …[saga_10_col_realestate]
+```
+**REVERT** — the file restored from its copy: `81 passed`.
+
+## eei-canonical
+
+| | |
+|---|---|
+| command | `python scripts/validate_eei_canonical.py` (also CI `.github/workflows/tier1-validation.yml`) |
+| work count | lines `^  PASS  `, floor **28** (measured 31) |
+| canary | `PL  EBITDA = before stock variation + 722`, `PL  build-up + 722 = account 121 (722 once)`, `PASS — All audited EEI canonical assertions passed.` |
+
+**Why (design A8).** The EEI Dec 2025 audited validator asserted the OLD
+rule as its law: `net_income_operational < 0` labelled "operational view
+excluded 722". Under the owner's ruling of 2026-09-26, 722 (own work
+capitalised, 2,164,079.83) is operational — inside EBITDA and the operating
+result, outside cifra de afaceri — so that label certified the retired
+definition. REWRITTEN, not re-captured (audit.json is unchanged): 72x served at
+2,164,079.83; 711 exactly 0.00 `no_711_activity` (EEI posts none); EBITDA
+served and equal to the build-up before the stock variation + 722; EBIT =
+EBITDA − D&A; the build-up + 722 equals account 121 to the leu — 722 counted
+ONCE on EEI's no-anchor path (design A8: "do not add 722 twice"); nothing
+unexplained vs 121; "722 NOT in revenue" kept (turnover).
+
+**GREEN** — 31 PASS lines, `PASS — All audited EEI canonical assertions passed.`
+
+**PLANT 722-outside-EBITDA** — `chart_of_accounts.assemble_statements`,
+`ebitda = ebitda_before_stock_variation + capitalized + net_711` →
+`ebitda = ebitda_before_stock_variation + net_711` (the retired rule).
+RED — exit 1:
+```
+  FAIL  PL  EBITDA = before stock variation + 722  actual=    -36,676.04  expected=  2,127,403.79  tol=±1.0
+FAIL — 1 audited-canonical assertion(s) failed:
+```
+**REVERT** (restored byte-exact from a copy): 31 PASS, exit 0.
+
+CANNOT SEE: the filed 722 (audit.json carries the trial balance's own figure).
+
+## export-ratio-anchor
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/lib/__tests__/exportRatioFormulas.test.ts --reporter=verbose` |
+| work count | `Tests … (\d+) passed`, floor **13** (measured 15) |
+| canary | `constructed closed_no_activity: every net-income ratio consumes account 121, on a divergence no line names`, `at least one book tells the filed account-121 figure from the reconstruction (TC-3)` |
+
+**Why (design A8, `exportRatioFormulas` DISCRIMINATING).** G4 proves every
+printed net-income ratio (net margin, ROA, ROE) reads account 121 by requiring
+the printed value to match the ratio on 121 and NOT on the reconstruction, on
+books where the two differ. Since the 711 ruling the four firm books differ only
+by their net 711, which the statement NAMES (derived from 121): a ratio built on
+"the build-up + the served 711 + 72x" equals the anchor on every one of them.
+The CONSTRUCTED witness — net-711-rule's `closed_no_activity` (SYNTHETIC: no 711
+postings, 121 at 122,000.00 against accounts that give 120,000.00), served
+through the real write path and `GET /api/period`
+(`constructed_books.json`) — carries a divergence no line names. Its ROE/ROA
+tell the two apart (37.9 % vs 37.3 %); the TC-3 check now also requires the
+witness to discriminate.
+
+**GREEN** — `15 passed`.
+
+**PLANT build-up-plus-named-lines** — `frontend/lib/financialReport.ts`
+`computeRatios`: `anchoredNetIncome` = `net_income_operational +
+inventory_variation.value + capitalized_own_work.value` (the reconstruction
+plus every named line).
+
+**RED** — the four firm books stay GREEN under the plant (the vacuity, shown);
+only the witness reds:
+```
+   ✓ … agras: every net-income ratio consumes the filed account-121 figure
+   ✓ … carniprod: every net-income ratio consumes the filed account-121 figure
+   ✓ … realestate: every net-income ratio consumes the filed account-121 figure
+   ✓ … retail: every net-income ratio consumes the filed account-121 figure
+   × … constructed closed_no_activity: every net-income ratio consumes account 121, on a divergence no line names
+      Tests  1 failed | 14 passed (15)
+```
+
+**REVERT** — restored byte-exact from a copy; `15 passed`.
+
+CANNOT SEE: a misread equal to the stock variation on a closed book.
+
+## p121-witness
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_p121_cross_check_witness.py -q -s` |
+| canary | `SCOPE p121-witness (canonical_bs p121_cross_check + D6, design A8): 2 folded books, 5 witnesses`, `closed_no_activity (121 122000.0 vs class 7 - class 6 120000.0)` |
+| work count | `GATE-WORK p121-witness units=(\d+)`, floor **26** (measured 30) |
+
+**Why (design A8: "p121_cross_check, D6_121_MISMATCH").** The cross-check
+compares account 121 with class 7 − class 6 as the statement reads it; the BS
+diagnosis emits `D6_121_MISMATCH` off its `ok: false`. Since golden-change
+527d5222 its 711 term is the MEASURED net 711 — on a closed book the bridge,
+derived FROM 121 — so it closes by construction on every corpus book and D6 no
+longer fires anywhere. With no book where it is open, an assembler that bridged
+ANY remainder would keep both green. The witnesses are net-711-rule's
+CONSTRUCTED misreads (synthetic), persisted through `_deterministic_tb_parsed` →
+`stage_map` → `stage_persist` and served by `GET /api/period`:
+`closed_no_activity` (a 2,000.00 misread no line names), `g4_unread`,
+`g5_residual`, `g6_uncleared`, `g7_older_parser` (the fold refused, so the
+refused 711 adds nothing) — on each `ok: false`, class 7 − class 6 equals the
+measured lines, and `run_bs_diagnosis` emits D6 naming 121. The legitimate folds
+(`closed_bridge`, `bridge_with_722`) close with class 7 − class 6 = 121 and no D6.
+
+**GREEN** — `10 passed`, `GATE-WORK p121-witness units=30`.
+
+**PLANT fold-every-remainder** — `chart_of_accounts.assemble_statements`,
+`cls7_minus_cls6` adds the guard block's `G5_residual` (the 121 remainder)
+whenever one was computed, refused or not.
+
+**RED**:
+```
+FAILED …::test_a_misread_the_statement_does_not_name_keeps_the_check_open_and_d6_fires[closed_no_activity]
+FAILED …::test_a_misread_the_statement_does_not_name_keeps_the_check_open_and_d6_fires[g4_unread]
+FAILED …::test_a_misread_the_statement_does_not_name_keeps_the_check_open_and_d6_fires[g5_residual]
+FAILED …::test_a_misread_the_statement_does_not_name_keeps_the_check_open_and_d6_fires[g6_uncleared]
+FAILED …::test_a_misread_the_statement_does_not_name_keeps_the_check_open_and_d6_fires[g7_older_parser]
+FAILED …::test_zz_scope_and_work
+========================= 6 failed, 4 passed in 1.68s ==========================
+```
+(the two folded books stay green under the plant — the vacuity, shown).
+In-file plants (NET: both caught on every run): the served block rewritten to
+fold every remainder; a refused 711 contributing its residual.
+
+**REVERT** — restored byte-exact from a copy; `10 passed`.
+
+CANNOT SEE: whether a legitimately closing check on a real book hides a
+misread equal to the stock variation (only the Ministry referee can).
+
+## f31-parity
+
+| | |
+|---|---|
+| command | `python scripts/check_assembled_parity.py` |
+| work count | lines `GREEN <fixture> byte-identical`, floor **2** (measured 2) |
+| canary | `GREEN  eei_dec_2025`, `GREEN  scandia_fy2025`, `Overall: GREEN — F3.1-PARITY gate passes` |
+
+**Why.** The F3.1-PARITY pair (`regression_baselines/eei_dec_2025.json`,
+`scandia_fy2025.json`) pins `assemble_statements` byte for byte. It was RED at
+the production base 69fb9621 (EEI 5 / Scandia 54 differing paths — the
+unconditional account-121 anchor, parser v6, `pack_provenance`) and ran in no
+battery. Re-captured under the owner's 711 ruling (design A8; BASELINE_HISTORY
+2026-09-27): the capture and the check now thread the stock-variation evidence
+the write seam measures off the same parsed rows (`evidence_for`), without which
+Scandia's 711 — and its EBITDA — refused. Scandia EBITDA 54,443,833.33 →
+54,963,222.44 (+ the bridged net 711 519,389.11), its false D6 gone; EEI EBITDA
+−36,676.13 → 2,127,403.70 (722 inside).
+
+**GREEN** — `GREEN eei_dec_2025 byte-identical (account_count=62)`, `GREEN
+scandia_fy2025 byte-identical (account_count=654)`, exit 0.
+
+**PLANT 722-outside-EBITDA** — `chart_of_accounts`: `ebitda =
+ebitda_before_stock_variation + net_711`.
+**RED** — exit 1:
+```
+  RED    eei_dec_2025          16 differing paths:
+  GREEN  scandia_fy2025        byte-identical (account_count=654)
+Overall: RED — F3.1-PARITY gate FAILS. Do not deploy.
+```
+**PLANT capture-without-evidence** — `check_assembled_parity.py` calls
+`_capture(name, accts, ro_coa)` (no evidence).
+**RED** — exit 1:
+```
+  GREEN  eei_dec_2025          byte-identical (account_count=62)
+  RED    scandia_fy2025        105 differing paths:
+Overall: RED — F3.1-PARITY gate FAILS. Do not deploy.
+```
+**REVERT** (both restored byte-exact from copies): GREEN on both, exit 0.
+
+CANNOT SEE: the six unasserted baselines (frozen findings inputs; not
+re-captured — see BASELINE_HISTORY 2026-09-27).
+
+## valuation-one-ebitda
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_valuation_one_ebitda.py -q` |
+| canary | `test_the_developer_is_valued_on_its_assets_by_the_margin_rule_not_by_its_ebitda_sign`, `test_a_refused_ebitda_refuses_every_ev_ebitda_figure_with_its_cause`, `test_saving_an_override_stamps_it_and_get_serves_it_current` |
+| work count | junit-xml tests, floor **12** (measured 15) |
+
+**SCOPE** — design A6 "Valuation" (owner ruling 2026-09-26: net 711
+"Variația stocurilor de produse" and net 72x inside EBITDA; 767 financial).
+`_valuation.compute_valuation` read `assembled_pl.ebitda_statutory` and, when
+it was 0.0, RECOMPUTED a second EBITDA from the incomeStatement mirror
+(revenue − cost of sales − opex + other income + 722, no 711): a refused
+EBITDA (None) or a real zero fell through to another definition. It also
+routed the developer to asset-based valuation BECAUSE its EBITDA was negative
+— a sign the ruling flipped (-29,038,838.12 -> +550,976.12). The gate holds:
+EV/EBITDA multiplies `credit_model.operating_figures` (the assembled one
+EBITDA) on agras / carniprod / retail through the real GET /api/period, the
+legacy names are aliases, agras's multiple differs from the pre-ruling figure
+by exactly net 711; a refused EBITDA refuses every EV/EBITDA figure with the
+stock-variation cause and routes to asset-based saying why; a served 0.00 is
+a zero; a user override stands over a refusal; the developer is routed by the
+ONE margin rule (`routing.basis = margin_not_meaningful`) and its primary
+value is pinned to the base-commit measurement 40,284,134.73; the NAV
+cap-rate NOI proxy is EBITDA − net 711 labelled "NOI (aproximare)" (the
+developer's equals its pre-ruling EBITDA, so the NAV figure does not move
+because of 711); PUT /valuation-assumptions stamps the override with
+`EBITDA_DEFINITION_REVISION` (engine-set — a body value is ignored) and GET
+serves a row saved before the stamp flagged "salvat sub definiția anterioară
+a EBITDA"; the stamp column has its migration ending in the PostgREST NOTIFY.
+
+Source-edit plants, each applied alone on a clean tree at 061b9ee7 and
+reverted with `git checkout --`:
+
+**PLANT second-ebitda-fallback** — `src/engine/api/_valuation.py`: after
+`ebitda_computed = figures["ebitda"]`, `if not ebitda_computed:` rebuild it
+from the incomeStatement mirror (the revision-2 fallback).
+```
+RED (plant) — 2 failed, 12 passed
+FAILED tests/engine/test_valuation_one_ebitda.py::test_a_refused_ebitda_refuses_every_ev_ebitda_figure_with_its_cause
+FAILED tests/engine/test_valuation_one_ebitda.py::test_a_zero_ebitda_is_a_zero_not_a_second_definition
+E   assert (10776378.24 is None)
+E   assert 10776378.24 == 0.0
+```
+**PLANT route-by-ebitda-sign** — `elif margin_refused:` → `elif False and margin_refused:`
+(the developer falls back to routing by its EBITDA, now positive).
+```
+RED (plant) — 1 failed, 13 passed
+FAILED tests/engine/test_valuation_one_ebitda.py::test_the_developer_is_valued_on_its_assets_by_the_margin_rule_not_by_its_ebitda_sign
+E     {'basis': 'ev_ebitda'} != {'basis': 'margin_not_meaningful'}
+```
+**PLANT unstamped-save** — `src/engine/api/pipeline.py` save route:
+`"ebitda_definition": _valuation.EBITDA_DEFINITION_REVISION` →
+`body.get("ebitda_definition")`.
+```
+RED (plant) — 1 failed, 13 passed
+FAILED tests/engine/test_valuation_one_ebitda.py::test_saving_an_override_stamps_it_and_get_serves_it_current
+E   AssertionError: assert 'forged' == 'ebitda/2026-...767-financial'
+```
+**REVERT** — `git checkout -- src/engine/api/_valuation.py src/engine/api/pipeline.py`:
+`14 passed`.
+
+Rewritten beside it (law, not re-capture): `scripts/check_cross_view_consistency.py`
+checks 5 / 8 / 20 held the retired "three EBITDA views" (statutory =
+operational + 722, operating_view = statutory + 767, valuation reads
+ebitda_statutory). They now hold NI statutory = operational + net 72x + net
+711 + not explained; every legacy name = the one EBITDA = before + net 711 +
+net 72x, 767 outside; valuation `ebitda_used` and the NOI proxy on the one
+EBITDA. Planted a second EBITDA under `ebitda_statutory` (RED: "ebitda_statutory
+(-35676.04) is not the one EBITDA (2,127,403.79)") and a valuation reading
+`ebitda_before_stock_variation` (RED on checks 20 and 20b). That script is not
+a battery gate and stays red at its base on an unrelated check (BS balance of
+the synthetic EEI stub, 2,827,483.85).
+
+CANNOT SEE: the persisted `valuations` row path (a GET whose fresh recompute
+fails serves the row, which carries no definition — served with
+`ebitda_definition: null`); the FE NAV cascade (`buildNavCascade.ts` still
+reads `pl.ebitda_statutory` — it must read `valuation.noi_approximation`, FE
+stage A7); whether production's `valuations.ebitda_used` accepts NULL (a
+refused EBITDA persists None; no DDL for that table is in the repo — check
+before the deploy).
+
+### valuation-one-ebitda — a saved row whose EBITDA is null keeps the refusal (fixer round 1, 2026-09-27)
+
+The Valuation tab sent `ebitda_used: 0` on every save of a refused period
+(see `valuation-refused-override` for the browser half). The engine half:
+`test_an_override_of_debt_or_the_multiple_alone_keeps_the_ebitda_refused` —
+a saved row `{ebitda_used: null, multiple_used: 9, debt_used: 5000}` over a
+refused agras EBITDA keeps `ebitda_used = None`, `routing.basis =
+ebitda_refused`, the stock-variation cause, no EV/EBITDA equity and no
+"EBITDA = 0" warning. Measured 15 tests (floor 12 unchanged).
+
+**PLANT null-override-read-as-zero** — `src/engine/api/_valuation.py`:
+`_first(ua.get("ebitda_used"), ebitda_computed)` →
+`_first(ua.get("ebitda_used") or 0.0, ebitda_computed)` when a row exists.
+```
+RED (plant) — 1 failed, 14 passed
+FAILED tests/engine/test_valuation_one_ebitda.py::test_an_override_of_debt_or_the_multiple_alone_keeps_the_ebitda_refused
+```
+**REVERT** — the file restored byte-for-byte: `15 passed`.
+
+### valuation-one-ebitda — a stored valuations row is never the EBITDA (critic fixer round 1, 2026-09-27)
+
+**INCIDENT** — production's `valuations` table held six rows the engine wrote
+under the PREVIOUS EBITDA definition (9507d2ee 54,534,488.97; ce72e080
+54,443,833.33; fc85d50d 220,162.84; b1aa4152 2,127,403.70; 06ffa6e8
+-29,038,838.12 asset-based; 267eefaa 10,207,627.66; `user_valuation_
+assumptions` held none — measured read-only by the coordinator). GET
+/api/period serves a FRESH recompute; when it failed (the benchmark table
+unreachable, any exception) `_serialize_valuation` served the stored row as
+it stood — its old `ebitda_used`, `primary_method: ev_ebitda`, its EV/EBITDA
+equity — beside a P&L serving the one EBITDA, or a REFUSED one; and the
+briefing regenerate route handed the row to the narrator, whose briefing is
+stamped with TODAY's definition. This is the "persisted valuations row
+path" the section above listed under CANNOT SEE.
+
+**THE FIX** — `pipeline._fresh_or_lawful_valuation`, the ONE choice of a
+served valuation (GET /api/period and `/briefing/regenerate`): the fresh
+recompute; else the SAME recompute over the peer multiples persisted beside
+the row (`_valuation.row_benchmarks` — benchmark data, never an EBITDA);
+else the row only as `_valuation.lawful_stored_row` allows it
+(`stored_row_refusal`): the served EBITDA refused → that refusal; the row's
+`ebitda_used` neither the served EBITDA nor the user's typed override →
+`valuation_row_other_ebitda` (both figures in the sentence); a row on the
+EBITDA the USER typed stands even over a refused EBITDA, as the user's
+override does in `compute_valuation`. A refused row
+serves no EBITDA, no EV/EBITDA / EV-Revenue / DCF figure, `primary_method:
+"refused"`, the reason as `ebitda_refusal`. A row the USER's override
+produced is the user's (served, flagged when typed under the previous
+definition). `scripts/reprocess_periods_definition.py` rewrites the row on
+apply (`reprocess-periods-definition`).
+
+**LAW** — six tests (21 in the file): recomputed on the served one EBITDA
+over the row's multiples when the table is down; refused with
+`valuation_row_other_ebitda` when nothing recomputes; refused with the 711
+cause over the refused `unanchored` book; the user's row stands, flagged
+(also over the refused book);
+`/briefing/regenerate` hands the narrator the recomputed valuation, or the
+withheld row — never the stored old EBITDA.
+
+**PLANTS** (each applied alone, byte-exact restore, `scratchpad/fx1/plant_val.py`):
+```
+PLANT raw-row-when-recompute-fails: src/engine/api/pipeline.py
+  exit=1
+  FAILED tests/engine/test_valuation_one_ebitda.py::test_a_stored_row_on_the_previous_ebitda_is_refused_when_nothing_recomputes
+  FAILED tests/engine/test_valuation_one_ebitda.py::test_a_stored_row_never_stands_in_for_a_refused_ebitda
+  FAILED tests/engine/test_valuation_one_ebitda.py::test_the_briefing_regenerate_never_cites_a_stored_row_on_the_previous_ebitda
+  ========================= 3 failed, 18 passed in 4.35s =========================
+  -> RED ; file restored byte-exact
+PLANT no-recompute-on-the-row-multiples: src/engine/api/pipeline.py
+  exit=1
+  FAILED tests/engine/test_valuation_one_ebitda.py::test_a_stored_row_on_the_previous_ebitda_is_recomputed_on_the_served_one
+  ========================= 1 failed, 20 passed in 4.34s =========================
+  -> RED ; file restored byte-exact
+PLANT regenerate-hands-the-stored-row: src/engine/api/pipeline.py
+  exit=1
+  FAILED tests/engine/test_valuation_one_ebitda.py::test_the_briefing_regenerate_never_cites_a_stored_row_on_the_previous_ebitda
+  ========================= 1 failed, 20 passed in 4.34s =========================
+  -> RED ; file restored byte-exact
+PLANT stored-row-over-a-refusal-not-the-refusal: src/engine/api/_valuation.py
+  exit=1
+  FAILED tests/engine/test_valuation_one_ebitda.py::test_a_stored_row_never_stands_in_for_a_refused_ebitda
+  ========================= 1 failed, 20 passed in 4.35s =========================
+  -> RED ; file restored byte-exact
+PLANT the-users-row-refused-over-a-refused-ebitda: src/engine/api/_valuation.py
+  exit=1
+  FAILED tests/engine/test_valuation_one_ebitda.py::test_a_stored_row_on_the_users_override_stands_over_a_refused_ebitda
+  ========================= 1 failed, 20 passed in 4.33s =========================
+  -> RED ; file restored byte-exact
+REVERT (clean tree):
+  ============================== 21 passed in 4.26s ==============================
+```
+**REVERT** — `21 passed`. CANNOT SEE: a production row the engine never
+recomputes because the period is never opened (the reprocess apply rewrites
+every stored period's row); pixels.
+
+
+## valuation-refused-override
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/components/cfo/__tests__/valuationRefusedOverride.test.tsx --reporter=verbose` |
+| canary | `editing Total debt sends no EBITDA`, `moving the multiple slider sends no EBITDA`, `editing Cash does not pin the served EBITDA as a user assumption` |
+| work count | `Tests N passed`, floor **5** (measured 5) |
+
+**INCIDENT** — critic finding (fixer round 1, 2026-09-27):
+`frontend/components/cfo/ValuationSection.tsx` seeded its EBITDA state with
+`valuation.inputs.ebitda_used ?? 0` and `persist()` always sent
+`ebitda_used: overrides.ebitda ?? ebitda`. On a refused period (EBITDA served
+as null with `ebitda_refusal`) only the EBITDA pill was hidden: editing Total
+debt PUT `{"ebitda_used":0,"multiple_used":8,"debt_used":5000,"cash_used":0}`
+and the multiple slider PUT `{"ebitda_used":0,"multiple_used":9,…}`. The
+route stores the body as sent, `compute_valuation` applies the override
+(`_first(0.0, None)` = 0.0), routes on `ebitda_not_positive` with the warning
+"EBITDA = 0 RON", and the page — no longer seeing a null EBITDA — showed an
+editable "EBITDA RON 0" and "Equity = EBITDA (RON 0) × Multiple" instead of
+the refusal. The saved row carries today's definition stamp, so no flag
+appeared either. The same save pinned a SERVED EBITDA as a user assumption
+whenever only debt, cash or the multiple moved.
+
+**SCOPE** — interaction tests on the rendered component with `fetch`
+stubbed: on a refused period, a debt edit and a slider move each PUT exactly
+once with `ebitda_used: null` and the refusal still on the page; on a served
+period, a cash edit sends `ebitda_used: null`, a typed EBITDA is sent and kept
+on the next save, and an override saved earlier is kept when only debt moves.
+
+**PLANT old-component** — `frontend/components/cfo/ValuationSection.tsx`
+restored to its HEAD (51d4bb64) content (the `?? 0` seed and the
+send-the-state save):
+```
+RED (plant) — Tests 3 failed | 2 passed (5)
+   × a refused EBITDA is never saved as a 0 override > editing Total debt sends no EBITDA
+     → expected +0 to be null
+   × a refused EBITDA is never saved as a 0 override > moving the multiple slider sends no EBITDA
+     → expected +0 to be null
+   × a served EBITDA is saved only when the user typed it > editing Cash does not pin the served EBITDA as a user assumption
+     → expected 11848065.27 to be null
+```
+**REVERT** — the fixed component restored: `Tests 5 passed (5)`.
+
+CANNOT SEE: the engine's handling of the saved row (`valuation-one-ebitda`
+holds it); a row ALREADY saved in production with `ebitda_used = 0` over a
+refused EBITDA (none can exist before this branch deploys: refused EBITDAs
+are served only from this branch); pixels.
+
+### valuation-refused-override — a refused book equity and a withheld stored row print their reason (critic fixer round 1, 2026-09-27)
+
+Two tests (7 in the file, floor 7): the Valuation tab states the engine's
+`asset_based_refusal` (book equity excludes a refused year's result) in a
+banner and prints "refused" where the primary value would be — never a bare
+"—"; a stored row the one-EBITDA law withheld (`primary_method: "refused"`)
+prints its reason through the EBITDA-refused banner.
+
+**PLANT** / **RED** / **REVERT**:
+```
+PLANT asset-based-refusal-not-printed (banner removed, primary value back to fmtMoney(null)): frontend/components/cfo/ValuationSection.tsx
+   × a refused asset-based value and a withheld stored row print their reason > book equity refused: the banner and the primary value say refused, with the engine's reason 8ms
+   → Unable to find an element by: [data-testid="valuation-asset-based-refused"]
+      Tests  1 failed | 6 passed (7)
+RESTORED: Tests  7 passed (7)
+```
+
+
+## firm-covenant-one-ebitda
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_firm_attention.py -q -k "ebitda or cited_money_fact"` |
+| canary | `test_an_ebitda_covenant_tests_the_one_ebitda_and_cites_its_components_beside_the_headroom`, `test_a_refused_ebitda_is_a_stated_gap_never_a_covenant_test` |
+| work count | junit-xml tests, floor **3** (measured 4; the same tests also run inside the `pytest` gate) |
+
+**SCOPE** — design A6 "Firm covenants" (owner ruling 2026-09-26). The
+COVENANT_RISK detector read `ebitda` through `FactsGateway.ebitda()` — the
+methodology's `ebitda.reported`, which excludes net 711: agras 10,776,378.24
+against the one EBITDA 11,848,065.27; the developer -29,038,838.12 against
++550,976.12, so an "EBITDA >= 500,000" covenant was a 29.5M breach on the
+retired figure and is thin headroom on the ruled one. `engine.firm.facts`
+now reads `ebitda`, `ebitda_before_stock_variation`, `inventory_variation`
+(net 711 "Variația stocurilor de produse") and `capitalized_own_work` (net
+72x) off the SERVED statements through `credit_model.operating_figures`; the
+pack's `ebitda` covenant metric declares them as `components`, cited after
+the headroom with the engine's labels and `assembled_pl` provenance. The gate
+holds: the agras covenant tests 11,848,065.27 and cites the three components
+in order, adding up to it; the developer's is not a breach; a refused EBITDA
+is a gap carrying "EBITDA refused: <text> (<cause>)" while an equity
+covenant on the same client still tests; every cited money name (components
+included) is declared money.
+
+Source-edit plants, each applied alone on a clean tree at 8d217f64 and
+reverted with `git checkout --`:
+
+**PLANT covenant-reads-the-gateway** — `src/engine/firm/facts.py`
+`("ebitda", "assembled_pl:ebitda")` → `("ebitda", "ebitda")`.
+```
+RED (plant) — 3 failed, 1 passed, 46 deselected
+FAILED tests/engine/test_firm_attention.py::test_an_ebitda_covenant_tests_the_one_ebitda_and_cites_its_components_beside_the_headroom
+FAILED tests/engine/test_firm_attention.py::test_the_developer_ebitda_covenant_reads_the_ruled_ebitda_not_the_retired_one
+FAILED tests/engine/test_firm_attention.py::test_a_refused_ebitda_is_a_stated_gap_never_a_covenant_test
+E   assert 10776378.24 == 11848065.27 ± 0.01
+```
+**PLANT refused-ebitda-to-zero** — `_read_operating`: a refused (None) figure
+read as `0.0`.
+```
+RED (plant) — 1 failed, 3 passed, 46 deselected
+FAILED tests/engine/test_firm_attention.py::test_a_refused_ebitda_is_a_stated_gap_never_a_covenant_test
+E   AssertionError: a refused EBITDA must not be tested
+```
+**PLANT components-dropped** — `packs/firm/attention.yaml`: the `components`
+line of the `ebitda` covenant metric removed.
+```
+RED (plant) — 3 failed, 1 passed, 46 deselected
+FAILED tests/engine/test_firm_attention.py::test_an_ebitda_covenant_tests_the_one_ebitda_and_cites_its_components_beside_the_headroom
+FAILED tests/engine/test_firm_attention.py::test_the_developer_ebitda_covenant_reads_the_ruled_ebitda_not_the_retired_one
+FAILED tests/engine/test_firm_attention.py::test_every_cited_money_fact_is_declared_money_in_the_unit_registry
+E   AssertionError: ['ebitda', 'covenant_limit', 'covenant_headroom_pct']
+```
+**REVERT** — `git checkout -- src/engine/firm/facts.py packs/firm/attention.yaml`:
+`4 passed, 46 deselected`.
+
+Rewritten beside it (law, not re-capture):
+`test_a1_a_served_reader_that_raises_is_a_gap_on_the_period_never_a_dead_board`
+asserted `money == {}` after a gateway raise — "every money fact comes from the
+gateway". The one EBITDA does not; the law is now "no gateway fact survives
+the raise, and whatever remains is `assembled_pl`-sourced".
+
+CANNOT SEE: `FactsGateway.ebitda()` itself — still methodology
+`ebitda.reported` (net 711 outside), read by the Capsule `get_facts("ebitda")`
+metric and the AI advisory context (design A6's methodology/FactsGateway
+item); the findings engine's CRITICAL_FINDING evidence still cites
+`ebitda_statutory` (a legacy alias, now equal to the one EBITDA).
+
+## briefing-definition
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_briefing_definition.py -q -s` |
+| canary | `SCOPE briefing-definition: GET /api/period over the tenancy double` |
+| work count | `GATE-WORK briefing-definition units=N`, floor **8** (measured 8) |
+
+**SCOPE** — design A9 (owner ruling 2026-09-26: net 711 and net 72x inside
+EBITDA, margins over turnover). A briefing is prose written once from the
+numbers of its day; one written before the ruling quotes an EBITDA the
+statements no longer serve. `stage_persist_narrative` and
+`POST /briefing/regenerate` stamp every `briefings` row with
+`EBITDA_DEFINITION_REVISION` (column added by
+`supabase/schema_phase_briefing_ebitda_definition.sql`, ending in the
+PostgREST NOTIFY); `GET /api/period/{id}` serves `briefing.definition`
+{written_under, current_definition, written_under_previous_definition, note
+RO/EN}. An unstamped (pre-ruling) row is served as written under the previous
+definition with the note the page hides it behind (FE stage). Real
+`create_app` over the tenancy double (which gained `upsert` with
+`on_conflict` merge semantics and the declared-column refusal); the real
+`stage_persist_narrative`; no model call.
+
+Source-edit plants, each applied alone on the working tree and restored from a
+copy:
+
+**PLANT unstamped-write** — `stage_persist_narrative`: the `ebitda_definition`
+key removed from the briefing upsert.
+```
+RED (plant) — 2 failed, 3 passed
+FAILED tests/engine/test_briefing_definition.py::test_the_narrate_write_stamps_the_definition_and_the_route_serves_it_current
+E   AssertionError: [{... 'body': 'EBITDA is 11.8M.', ... 'ebitda_definition': None}]
+FAILED tests/engine/test_briefing_definition.py::test_zz_scope - AssertionError
+```
+**PLANT unstamped-is-current** — `briefing_definition_status`:
+`current = stamped in (EBITDA_DEFINITION_REVISION, None)`.
+```
+RED (plant) — 3 failed, 2 passed
+FAILED tests/engine/test_briefing_definition.py::test_the_status_of_a_stored_briefing
+FAILED tests/engine/test_briefing_definition.py::test_a_briefing_written_before_the_ruling_is_served_as_such_through_the_real_route
+FAILED tests/engine/test_briefing_definition.py::test_zz_scope - AssertionError
+```
+**REVERT** — restored: `5 passed`.
+
+CANNOT SEE: the page hiding the stale briefing (FE stage A7); the regenerate
+route's write under a real Anthropic call (it is the same upsert payload; the
+route is not driven here because it calls the model).
+
+## e2b-rewritten-laws (owner ruling 2026-09-26, design A6/A8)
+
+Gates whose LAW was the pre-ruling definition, rewritten (not re-captured) in
+stage E2b, with the witness each keeps:
+
+- **F4.2-PARITY** (`scripts/check_methodology_parity.py`, not a battery gate):
+  it assembled without the stock-variation evidence and the 121 anchor, so
+  under the ruling both sides REFUSED and `float(x or 0)` compared 0.00 with
+  0.00 — green on nothing. It now passes the real write path's evidence and
+  anchor, reds on a one-sided refusal, on a both-sided refusal ("nothing
+  measured"), and when no fixture served an EBITDA through the 711 bridge
+  (`GATE-WORK methodology-parity served=8 bridge=6`).
+  PLANT pre-ruling formula (`+ measured.inventory_variation_net` → `+ 0` in
+  the YAML `reported`):
+  ```
+  Scandia     RED      reported gap -519,389.11 RON (yaml 54,443,833.33 vs in-code statutory 54,963,222.44) ...
+  Sibiu       RED      reported gap -35,537.06 RON ...
+  Frozen      RED      reported gap -231,203.19 RON ...
+  RealEstate  RED      reported gap -29,589,814.24 RON ...
+  Agras       RED      reported gap -1,071,687.03 RON ...
+  Carniprod   RED      reported gap -186,849.53 RON ...
+  Overall: RED — F4.2-PARITY fails.
+  ```
+  REVERT: 8/8 GREEN.
+- **test_facts_gateway I3**: "revenue includes a P&L-placed income delta" →
+  revenue() is turnover only; new: the gateway's stamp equals the assembly's,
+  an unstamped methodology block and a refused `reported` both raise
+  `RefusedFactError` with the code.
+- **forecast** (test_forecast_model, test_forecast_drivers): at 0 growth plan
+  year one reproduces the book's EBITDA / PBT BEFORE the stock variation and
+  the step is exactly net 711 + net 72x, stated in the projection notes
+  (vacuity guard prints agras 1,071,687.03, carniprod 186,849.53, realestate
+  29,589,814.24, retail 0.00); the tax-rate distance is the engine's
+  unexplained remainder + the served net 711; hg8 holds on two shapes
+  (unmeasured → 711 and EBITDA refused, statutory rate; a CLOSED book whose
+  bridge serves net 711 → still the statutory rate, the basis naming the
+  stock variation). The base-parity gate was the witness that the fold
+  flipped the tax rung (agras 16% → 18.5485%, 27,040.66 of plan-year-one
+  cash); it is green again with the rule keyed to the pre-fold build-up.
+- **insights reconstruction_gap**: the corpus no longer exercises it (every
+  closed manufacturer's step is its 121-derived stock variation). Constructed
+  witnesses: `closed_no_activity` (fires, 2,000.00), `g5_residual` (711
+  refused → fires on 50,000.00), `closed_bridge` (silent with the derivation
+  reason). test_insights_materiality's negative-EBITDA witness and
+  test_radar_explain r5's (sign flip through `|abs`) were the developer
+  (−29.04M, now +550,976.12): both run on a constructed loss-making book
+  through the real assembly.
+- **alerts**: test_ratio_units g19's R5 half → "R5 no longer fires on the book
+  that provoked it" (R5 retired).
+
+Plants on the rewritten forecast and insights laws, each alone, restored from
+a copy:
+
+**PLANT forecast-distance-on-pretax** — `PlHistory.unexplained_vs_filed` reads
+`self.pretax` (net 711 inside) instead of `pretax_before_stock_variation`.
+```
+RED (plant) — 15 failed, 353 passed (test_forecast_model + test_forecast_drivers)
+FAILED tests/engine/test_forecast_model.py::test_a_tax_rate_is_derived_only_when_it_reproduces_the_filed_profit[agras]
+FAILED tests/engine/test_forecast_model.py::test_the_demotion_states_the_gap_and_the_rate_it_displaces[agras]
+FAILED tests/engine/test_forecast_model.py::test_the_unreconciled_rate_would_have_charged_a_different_tax[carniprod]
+FAILED tests/engine/test_forecast_drivers.py::test_hg6_the_distance_is_the_engines_own_unexplained_step[realestate]
+FAILED tests/engine/test_forecast_drivers.py::test_hg8_an_inventory_variation_does_not_bridge_the_distance
+```
+**PLANT insights-whole-step** — `detect_reconstruction_gap` reads
+`net_income_reconciliation_to_121` again.
+```
+RED (plant) — 5 failed, 96 passed (test_insights_detectors + test_insights_wire)
+FAILED tests/engine/test_insights_detectors.py::test_reconstruction_gap_on_agras_is_silent_because_the_step_is_the_stock_variation
+FAILED tests/engine/test_insights_detectors.py::test_reconstruction_gap_is_silent_on_the_constructed_bridge_book
+FAILED tests/engine/test_insights_wire.py::test_agras_serves_the_reconstruction_gap_as_not_fired_with_its_reason
+```
+**REVERT** — `469 passed` on the four files.
+
+## reprocess-periods-definition
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_reprocess_periods_definition.py -q -s` |
+| canary | `SCOPE reprocess-periods-definition: corpus/saga_10_col_agras analysed` |
+| work count | `GATE-WORK reprocess-periods-definition units=N`, floor **31** (measured 40) |
+
+**SCOPE** — design A9 (deploy with reprocessing). Every stored period lacks
+the stock-variation evidence block and the one-EBITDA methodology stamp, so
+every served view refuses its EBITDA until it is re-run from its document.
+`scripts/reprocess_periods_definition.py` re-runs it through the pipeline's
+OWN stages (stage_extract → stage_map → stage_persist → stage_compute + the
+121 metric override → stage_validate → the alerts write → valuation; the
+three shared write helpers `_persist_period_alerts`,
+`_override_statutory_net_income_metric`, `_compute_and_persist_valuation`
+were extracted from the pipeline so the tool and the pipeline run one
+implementation). The Anthropic SDK is replaced by a counting guard for the
+whole run; no `_usage_gate` entry point is reachable. The test analyses the
+committed corpus Agras book through the real upload + pipeline over the
+workspace-v2 tenancy double, then shapes the row like a pre-ruling period.
+Holds: the dry run writes nothing and reports anchor `anchored`, book
+`closed`, net 711 1,071,687.03 `account_121_bridge`, EBITDA 10,776,378.24 ->
+11,848,065.27 and the credit composite/letter before and after; the apply
+leaves the evidence + stamp + `ebitda.reported` 11,848,065.27 + the metric
+rows, carries the council alert, never touches the briefing, and a second
+apply is `current` with no write; an image document is refused
+`needs_model` unwritten; a stored row whose document now resolves to another
+month is refused `period_end_moved`; a turnover move with no filed figure, or
+AWAY from the filed one, blocks the whole apply (exit 3, nothing written) and
+a move TOWARD it applies.
+
+Source-edit plants on `scripts/reprocess_periods_definition.py`, each alone,
+restored from a copy:
+
+**PLANT no-model-guard** — the SDK stub not installed (the key placeholder
+kept).
+```
+RED (plant) — 2 failed, 4 passed
+FAILED tests/engine/test_reprocess_periods_definition.py::test_a_document_that_needs_the_model_is_refused_and_nothing_is_written
+E   AssertionError: {... 'status': 'refused', 'reason': 'extract_failed', ... 'detail': 'RuntimeError: Claude extraction failed: ...'}
+FAILED tests/engine/test_reprocess_periods_definition.py::test_zz_scope
+```
+**PLANT dry-run-writes** — `stage_persist` called before the dry-run return.
+```
+RED (plant) — 3 failed, 3 passed
+FAILED tests/engine/test_reprocess_periods_definition.py::test_the_dry_run_reports_the_move_and_writes_nothing
+FAILED tests/engine/test_reprocess_periods_definition.py::test_a_turnover_move_blocks_the_apply_until_it_is_ruled
+FAILED tests/engine/test_reprocess_periods_definition.py::test_zz_scope
+```
+**PLANT not-idempotent** — the `current` short-circuit disabled.
+```
+RED (plant) — 2 failed, 4 passed
+FAILED tests/engine/test_reprocess_periods_definition.py::test_apply_rewrites_the_period_with_the_engines_stages_and_is_idempotent
+FAILED tests/engine/test_reprocess_periods_definition.py::test_zz_scope
+```
+**PLANT turnover-unblocked** — `blocking()` returns `[]`.
+```
+RED (plant) — 2 failed, 4 passed
+FAILED tests/engine/test_reprocess_periods_definition.py::test_a_turnover_move_blocks_the_apply_until_it_is_ruled
+FAILED tests/engine/test_reprocess_periods_definition.py::test_zz_scope
+```
+**REVERT** — `6 passed`.
+
+CANNOT SEE: production's storage and document mix (which periods are
+text-layer PDFs the deterministic reader accepts); the `valuations` upsert
+(the double declares three columns of that table, so the persist is caught as
+non-fatal — the same as in the pipeline gates); recommendations written by
+the model before the ruling (left in place; not re-generated without the
+model).
+
+### reprocess-periods-definition — a G7-stale stamp is never `current` (fixer round 1, 2026-09-27)
+
+**INCIDENT** — critic finding: `reprocess_period`'s `current` test compared
+the STORED methodology `ebitda.reported` / turnover / composite (written at
+persist time) with the fresh run and never looked at the stored evidence
+block's `parser_version`. Agras analysed by the real pipeline, then its
+`assembled_canonical_v1.stock_variation.parser_version` set to
+`tb_parser_v5`: `R.run(apply=False)` → `current`, `R.run(apply=True)` →
+`current`, the stamp stayed `tb_parser_v5` — while GET /api/period served
+EBITDA / EBIT / gross profit as `reprocess_required` (G7) and said "it is
+recomputed when the document is reprocessed". At the next parser bump the
+documented remedy would have skipped every stored 711-active period.
+
+Now `_stored_view` carries `parser_version`, `running_parser_version` and
+`parser_current`; `current` requires `parser_current`; the dry run prints
+`reader <stored> -> <running>` and `[G7: served as reprocess_required until
+rewritten]`. New test
+`test_a_period_read_by_an_older_parser_is_never_current_and_apply_restamps_it`:
+fresh → current; stale stamp → `would_reprocess`, nothing written, the reader
+line printed; `--apply` rewrites the block under the running reader, then
+current. Work count 40 (floor 31 unchanged).
+
+**PLANT stamp-blind-current** — `scripts/reprocess_periods_definition.py`:
+`and before["parser_current"]` → `and True`.
+```
+RED (plant) — 1 failed, 6 passed
+E   assert 'current' == 'would_reprocess'
+FAILED tests/engine/test_reprocess_periods_definition.py::test_a_period_read_by_an_older_parser_is_never_current_and_apply_restamps_it
+```
+**REVERT** — the file restored from its copy: `7 passed`.
+
+### reprocess-periods-definition — the valuations row (critic fixer round 1, 2026-09-27)
+
+The tool's apply already re-persisted the valuation through
+`_compute_and_persist_valuation`, but its `current` test read only the
+envelope, metric rows and parser stamp: a period current in all of them
+whose `valuations` row still carried the previous EBITDA was reported
+`current` and never rewritten, and the dry run printed nothing about the
+row. Now the dry run prints `valuation EBITDA <stored> (<primary method>) ->
+<the one EBITDA>` with `[STORED ROW ON ANOTHER EBITDA: rewritten on apply]`,
+a period whose row carries another EBITDA is never `current`, and a row the
+USER's saved override produced (`user_valuation_assumptions.ebitda_used`) is
+the user's — current, printed, not rewritten. The workspace-v2 double
+declares the two valuation tables' columns in this test (no DDL for either
+is in the repo; the columns are `persist_valuation`'s row and the save
+route's). Measured 53 units (floor 45).
+
+**PLANT** stale-valuations-row-reported-current (`_valuation_current` → always True):
+```
+PLANT stale-valuations-row-reported-current: scripts/reprocess_periods_definition.py
+  exit=1
+  E   assert True is False
+  E   assert 'current' == 'would_reprocess'
+  -> RED ; file restored byte-exact
+REVERT (clean tree):
+  ============================== 8 passed in 20.70s ==============================
+```
+
+
+## pl-one-ebitda-page
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/lib/__tests__/plOneEbitda.test.tsx --reporter=verbose` |
+| canary | `covers ten books, two of them refused`, `unanchored: every refused figure states the engine's reason, RO and EN`, `closed_no_activity: no stock-variation row, the remainder labelled, then account 121`, `renders the owner's name verbatim in Romanian, and with the engine's gloss in English` |
+| work count | `Tests N passed`, floor **50** (measured 58) |
+
+**INCIDENT** — the owner's ruling of 2026-09-26 (711 and 72x inside EBITDA
+and the operating result; 711 shown as "Variația stocurilor de produse" next
+to cost of sales, not as revenue; both outside cifra de afaceri; one
+definition with the reconciliation line shown). Before it the P&L tab's two
+builders DERIVED their own EBITDA (the aggregates one from
+`total_operating_revenue`, the line-item one from its exact-code table),
+folded 722 and 767 into the first subtotal, showed the stock variation
+nowhere, and a footnote stated a "clean EBITDA" without 722 as the operating
+truth.
+
+**SCOPE** — the P&L tab's half of design A7 (stage F1), over REAL ENGINE
+OUTPUT: the four firm books (captured `GET /api/period`) and six
+CONSTRUCTED books of `net-711-rule` sent through the real write seam and
+route (`frontend/lib/__tests__/fixtures/oneEbitda/constructed_books.json`,
+regenerated by `tests/engine/fixtures/one_ebitda/capture_constructed.py`,
+held live by `tests/engine/test_one_ebitda_fe_books.py`): the bridge, no 711
+postings with a 121 remainder, 72x beside a bridge, an open book, and the two
+refusals (account 121 absent; its opening not cleared). Holds: every
+subtotal the served figure and the rows above EBITDA adding up to it; the 711
+row beside the cost block, signed, served value and provenance, the owner's
+name verbatim in RO and with the engine's gloss in EN; a refused 711 refusing
+EBITDA / EBIT / PBT / the net result and their margins with the engine's
+reason in RO and EN (never a number, never a bare dash); the 121 remainder on
+its own line; 72x outside turnover; the served reconciliation line and notes
+under EBITDA; the EbitdaReconciliationPanel's chain, bridge and Core strip;
+the payload-only path on the same definition (or refused on unmeasured 711);
+the retired footnote / +722 bridge / copy; glossary and metric tooltips EN/RO;
+i18n key parity for `statements.pl` and `statements.ebitdaRecon`.
+
+Plants, each applied alone to `frontend/lib/buildPlStatement.ts` by
+`scratchpad/f1_plants.py` (restored byte-exact, asserted), five of five RED:
+```
+PLANT derive-ebitda (the aggregates builder rebuilds EBITDA from its lines instead of printing the served one) — 17 failed | 41 passed
+  × … on every book > agras: EBITDA, EBIT, profit before tax and net turnover
+  × … on every book > agras: the rows above EBITDA add up to the served EBITDA
+  × … on every book > carniprod: EBITDA, EBIT, profit before tax and net turnover
+  × … on every book > realestate: EBITDA, EBIT, profit before tax and net turnover
+  … and 13 more
+PLANT refused-as-zero (a refused EBITDA printed as 0) — 6 failed | 52 passed
+  × … on every book > g6_uncleared: EBITDA, EBIT, profit before tax and net turnover
+  × … on every book > unanchored: EBITDA, EBIT, profit before tax and net turnover
+  × … > unanchored: every refused figure states the engine's reason, RO and EN
+  × … > g6_uncleared: every refused figure states the engine's reason, RO and EN
+PLANT 72x-in-turnover (own work capitalised folded into the net-turnover subtotal) — 4 failed | 54 passed
+  × … on every book > bridge_with_722: EBITDA, EBIT, profit before tax and net turnover
+  × … > bridge_with_722: its own row, its own provenance, inside EBITDA
+  × … > no 711 activity: turnover + other + 72x − costs, 72x outside turnover
+PLANT fold-remainder (the 121 remainder folded away: the build printed as account 121) — 1 failed | 57 passed
+  × … > closed_no_activity: no stock-variation row, the remainder labelled, then account 121
+PLANT translate-the-name (the English gloss printed in place of the owner's Romanian name) — 10 failed | 48 passed
+  × 'Variația stocurilor de produse' — beside the cost block, signed, with its provenance > agras
+  × … > carniprod · realestate · bridge_with_722 · closed_bridge · g6_uncleared
+  … and 4 more
+```
+**REVERT** — the clean tree: `Tests 58 passed (58)`.
+
+CANNOT SEE: whether the engine's served figures are right (`net-711-rule`
+is that gate); the other surfaces that print EBITDA (dashboard tiles,
+exports, forecast, benchmark — later stages of A7 and the `one-ebitda` /
+`refusal-carries` gates of A8); pixels.
+
+### pl-one-ebitda-page — the unanchored net result law REWRITTEN (fixer round 1, 2026-09-27)
+
+`unanchored: the net result is refused too` asserted, as its precondition,
+`expect(served.netIncomeStatutory).not.toBeNull()` — the engine SERVING the
+build-up that lacks the refused 711 under the statutory name, which the
+dashboard tile, ROE and ROA then read. The law now holds the engine's
+refusal: `net_income_statutory` null with `net_income_refusal` carrying the
+711 code, and the statement's closing row refused with it.
+
+**PLANT the-pre-fix-fixture** — `frontend/lib/__tests__/fixtures/oneEbitda/
+constructed_books.json` restored to its 51d4bb64 bytes (the engine serving
+120,000.00):
+```
+RED (plant) — Tests 2 failed | 68 passed (70) (plOneEbitda + refusalCarries)
+   × … > unanchored: the net result is refused too — never the served build-up that lacks 711
+     → expected 120000 to be null
+   × … > unanchored: the net result, ROE, ROA, the report and the cash flow refuse with the engine's reason
+     → expected undefined to be 'account_121_anchor_absent'
+```
+**REVERT** — the re-captured fixture restored: `Tests 58 passed (58)` on
+plOneEbitda.
+
+## one-ebitda
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/lib/__tests__/oneEbitdaSurfaces.test.tsx --reporter=verbose` |
+| canary | `covers eight served books, and on six of them the build-up before 711 / 72x differs from EBITDA`, `agras: the printed report, the workbook and the charts`, `realestate: Debt / EBITDA and the no-envelope credit model divide the served EBITDA` |
+| work count | `Tests N passed`, floor **20** (measured 25) |
+
+**INCIDENT** — the owner's ruling of 2026-09-26 (711 and 72x inside EBITDA
+and the operating result, one definition everywhere). Before stage F2 the
+browser rebuilt EBITDA from the `incomeStatement` buckets in a dozen places
+(`deriveTotals`, `computeRatios`, the workbook, the printed P&L column and
+KPI tile, `multiPeriodGrowth`, the EBITDA bridge chart's prior bar, the NAV
+cascade, the no-envelope credit model, the recommendation facts) — the
+buckets carry neither the measured net 711 nor net 72x, so every rebuild was
+`ebitda_before_stock_variation` wearing the name EBITDA: agras 10,776,378.24
+beside the served 11,848,065.27; the developer −29,038,838.12 beside
++550,976.12; Debt / EBITDA 0.34× against the served 0.31× (`bsOr` let the
+browser's division win).
+
+**SCOPE** — every served book (the four firm books and the four served
+CONSTRUCTED books of `net-711-rule`, captured through the real route): each
+surface prints `assembled_pl.ebitda` — the served field is the expectation.
+Surfaces: `plLevelsOf`, `deriveTotals`, `canonicalMetrics` (report §1),
+the dashboard headline and canon (scenarios / budget), the learning
+snapshot and the configurable-dashboard resolver, the recommendation facts,
+the printed P&L row and KPI tile, the workbook's P&L sheet and cover,
+multi-year growth, the EBITDA bridge chart (both anchors), the NAV
+EV/EBITDA cross-check, `computeRatios`' Debt / EBITDA and the no-envelope
+credit model's Debt / EBITDA.
+
+Plants, each applied alone by `scratchpad/f2_plants.py` (restored
+byte-exact, asserted), four of four RED:
+```
+PLANT second-formula-in-the-reader (plLevelsOf serves the build-up before 711 / 72x as EBITDA) — 14 failed | 11 passed
+  × … > agras: the levels, the headline, the canon, the learning snapshot and the facts
+  × … > agras: the printed report, the workbook and the charts
+  × … > agras: Debt / EBITDA and the no-envelope credit model divide the served EBITDA
+  × … > carniprod: the levels, the headline, the canon, the learning snapshot and the facts
+  × … > carniprod: the printed report, the workbook and the charts
+  × … > realestate: the levels, the headline, the canon, the learning snapshot and the facts
+  … and 8 more
+PLANT bucket-rebuild-in-deriveTotals (deriveTotals rebuilds EBITDA from the incomeStatement buckets) — 6 failed | 19 passed
+  × … > agras: the levels, the headline, the canon, the learning snapshot and the facts
+  × … > carniprod: the levels, the headline, the canon, the learning snapshot and the facts
+  × … > realestate: the levels, the headline, the canon, the learning snapshot and the facts
+  × … > bridge_with_722: the levels, the headline, the canon, the learning snapshot and the facts
+  × … > closed_bridge: the levels, the headline, the canon, the learning snapshot and the facts
+  × … > open: the levels, the headline, the canon, the learning snapshot and the facts
+PLANT printed-row-reads-the-build-up (the report / workbook EBITDA row prints ebitda_before_stock_variation) — 6 failed | 19 passed
+  × … > agras: the printed report, the workbook and the charts
+  × … > carniprod: the printed report, the workbook and the charts
+  × … > realestate: the printed report, the workbook and the charts
+  × … > bridge_with_722: the printed report, the workbook and the charts
+  × … > closed_bridge: the printed report, the workbook and the charts
+  × … > open: the printed report, the workbook and the charts
+PLANT second-ebitda-in-computeRatios (Debt / EBITDA divides the build-up) — 2 failed | 23 passed
+  × … > agras: Debt / EBITDA and the no-envelope credit model divide the served EBITDA
+  × … > realestate: Debt / EBITDA and the no-envelope credit model divide the served EBITDA
+REVERT — the clean tree: Tests 25 passed
+```
+
+CANNOT SEE: whether the served figure is right (`net-711-rule`); a refused
+EBITDA (`refusal-carries`); a margin's denominator (`turnover-denominator`);
+the engine-side surfaces (credit model, valuation, briefing — their own
+gates); pixels.
+
+## turnover-denominator
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/lib/__tests__/turnoverDenominator.test.tsx --reporter=verbose` |
+| canary | `four books carry total operating revenue ≠ net turnover (72x or other operating income), so a wrong denominator shows`, `bridge_with_722: the first line, the margins, the facts, the report, the workbook and growth` |
+| work count | `Tests N passed`, floor **6** (measured 8) |
+
+**INCIDENT** — "margins and growth use net turnover (701–708 minus 709) as
+the denominator" (owner, 2026-09-26). Before stage F2 the report's §1 tile
+and `canonicalMetrics` divided EBITDA by `total_operating_revenue` (turnover
++ other operating income + 72x), the recommendation facts' `revenue` was
+that total, and the report / workbook / dashboard headed the first line
+"Revenue" / "Operating revenue" over it — two EBITDA margins on one page on
+any book with 72x or material other income.
+
+**SCOPE** — the seven served books the margin rule does not refuse; the
+WITNESSES are the four where total operating revenue differs from turnover
+(agras, carniprod, retail: other operating income; `bridge_with_722`: 72x),
+asserted so the gate cannot pass on books where the two coincide. Holds:
+the reader's turnover, the dashboard headline's `netTurnover`, the canon's
+revenue and reported margin, `computeRatios`' EBITDA and gross margins, the
+learning snapshot's revenue and the resolver's EBITDA margin, the "Compania
+ta" overlay margin, the recommendation facts' revenue and EBITDA margin, the
+printed report's "Net turnover" card, the workbook's cover and P&L first
+line, and the net-turnover growth row.
+
+Plants, each applied alone by `scratchpad/f2_plants.py`, three of three RED:
+```
+PLANT total-operating-revenue-as-turnover (the reader's turnover is total operating revenue) — 4 failed | 4 passed
+  × … > agras: the first line, the margins, the facts, the report, the workbook and growth
+  × … > carniprod: the first line, the margins, the facts, the report, the workbook and growth
+  × … > retail: the first line, the margins, the facts, the report, the workbook and growth
+  × … > bridge_with_722: the first line, the margins, the facts, the report, the workbook and growth
+PLANT canonical-margin-over-total (report §1 margin divides total operating revenue) — 4 failed | 4 passed
+  × … > agras: the first line, the margins, the facts, the report, the workbook and growth
+  × … > carniprod: the first line, the margins, the facts, the report, the workbook and growth
+  × … > retail: the first line, the margins, the facts, the report, the workbook and growth
+  × … > bridge_with_722: the first line, the margins, the facts, the report, the workbook and growth
+PLANT facts-revenue-total (the recommendation facts' revenue is total operating revenue) — 4 failed | 4 passed
+  × … > agras: the first line, the margins, the facts, the report, the workbook and growth
+  × … > carniprod: the first line, the margins, the facts, the report, the workbook and growth
+  × … > retail: the first line, the margins, the facts, the report, the workbook and growth
+  × … > bridge_with_722: the first line, the margins, the facts, the report, the workbook and growth
+REVERT — the clean tree: Tests 8 passed
+```
+
+CANNOT SEE: whether turnover itself is read right (engine); a margin the
+engine refuses (the developer — `margin-meaning`, `refusal-carries`); the
+benchmark's filed basis (sector, engine).
+
+## refusal-carries
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/lib/__tests__/refusalCarries.test.tsx --reporter=verbose` |
+| canary | `covers the two refused books, and on both the buckets would rebuild a number`, `unanchored: growth, the credit model, the DCF and the NAV cascade refuse with it`, `a payload the engine did not assemble, whose buckets show 711 activity, refuses the same way` |
+| work count | `Tests N passed`, floor **44** (measured 47 after the critic round 3 fixer; 20 at fixer round 2, 12 before) |
+
+**INCIDENT** — design A3: "if net 711 is refused on a book with 711 activity,
+EBITDA, EBIT, gross profit and every margin/ratio built on them REFUSE with
+the same typed reason. Remove every fallback chain first". Before stage F2:
+`canonicalMetrics` (`ebitda_statutory ?? ebitda ?? 0` — the report tile and
+the EBITDA-multiple card priced the company on 0), `deriveTotals` (the
+bucket build-up standing in for the refused figure on the workbook, the
+printed P&L, the popovers and the no-envelope credit model),
+`computeRatios`' `anchored()` falling through to the browser's EBITDA, the
+budget variance's `revenue − cogs`, the report valuation's `?? metrics.
+ebitda`, the NAV cascade's `ebitda_statutory ?? 0`, and the credit model's
+`safeDiv(x, null) = 0` read as "Below covenant".
+
+**SCOPE** — the two refused CONSTRUCTED books (account 121 absent; its
+opening not cleared), captured through the real route. Every surface states
+EBITDA / EBIT / gross profit / PBT as absent, and where it prints a reason,
+the engine's (`ebitda_refusal.code`, `text_en`, `text_ro`): the reader,
+`deriveTotals`, the canon, the headline, the dashboard canon and the budget
+actuals, the facts, `computeRatios` (absence kind `refused`, RO and EN
+sentence), the learning snapshot and resolver, the ratio drawer's formula
+input, the printed P&L rows and KPI tile (`refused — <reason>`), the
+workbook P&L and cover, multi-year growth, the no-envelope credit model
+(three components refused, no composite, no letter), the DCF's EV/EBITDA and
+the NAV cascade's EV/EBITDA and cap-rate; and a payload the engine did not
+assemble whose buckets show 711 activity.
+
+Plants, each applied alone by `scratchpad/f2_plants.py`, four of four RED:
+```
+PLANT refused-as-zero-in-the-reader (plLevelsOf reads a refused EBITDA as 0) — 8 failed | 2 passed
+  × … > g6_uncleared: the levels, deriveTotals, the headline, the canon, the variance and the facts
+  × … > g6_uncleared: the ratios, the learning resolver and the ratio drawer state the engine's reason
+  × … > g6_uncleared: the printed report and the workbook print "refused" with the engine's reason
+  × … > g6_uncleared: growth, the credit model, the DCF and the NAV cascade refuse with it
+  × … > unanchored: the levels, deriveTotals, the headline, the canon, the variance and the facts
+  × … > unanchored: the ratios, the learning resolver and the ratio drawer state the engine's reason
+  … and 2 more
+PLANT canonical-?? 0 (canonicalMetrics reports a refused EBITDA as 0) — 2 failed | 8 passed
+  × … > g6_uncleared: the levels, deriveTotals, the headline, the canon, the variance and the facts
+  × … > unanchored: the levels, deriveTotals, the headline, the canon, the variance and the facts
+PLANT credit-safeDiv-zero (the no-envelope credit model scores a refused EBITDA) — 2 failed | 8 passed
+  × … > g6_uncleared: growth, the credit model, the DCF and the NAV cascade refuse with it
+  × … > unanchored: growth, the credit model, the DCF and the NAV cascade refuse with it
+PLANT deriveTotals-bucket-fallback (a refused EBITDA falls back to the bucket build-up) — 7 failed | 3 passed
+  × … > g6_uncleared: the levels, deriveTotals, the headline, the canon, the variance and the facts
+  × … > g6_uncleared: the ratios, the learning resolver and the ratio drawer state the engine's reason
+  × … > g6_uncleared: growth, the credit model, the DCF and the NAV cascade refuse with it
+  × … > unanchored: the levels, deriveTotals, the headline, the canon, the variance and the facts
+  × … > unanchored: the ratios, the learning resolver and the ratio drawer state the engine's reason
+  × … > unanchored: growth, the credit model, the DCF and the NAV cascade refuse with it
+  … and 1 more
+REVERT — the clean tree: Tests 10 passed
+```
+
+CANNOT SEE: whether the engine was right to refuse (`net-711-rule`);
+surfaces that print no EBITDA; pixels.
+
+## one-ebitda-engine
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_one_ebitda_engine.py -q` |
+| canary | `SCOPE one-ebitda-engine: 8 served books`, `ONE-EBITDA-ENGINE surfaces: 20 EBITDA + 6 EBIT per book` |
+| work count | `GATE-WORK one-ebitda-engine units=N`, floor **190** (measured 208) |
+
+**INCIDENT** — before the owner ruling of 2026-09-26 the engine served
+several EBITDAs at once (`ebitda_statutory` incl. 722, `ebitda_operational`
+excl. 722, `ebitda_operating_view` incl. 767, `ebitda_statutory_with_711` on
+the gross 711 memo — 98.9 %-191.0 % margins on every closed manufacturer —
+the methodology YAML's `reported` with 711 outside behind FactsGateway, the
+Capsule and the firm covenants, and the valuation's revision-2 fallback that
+rebuilt a second EBITDA on 0.0). The frontend half of `one-ebitda` holds the
+browser; nothing held the ENGINE's own surfaces to one figure.
+
+**LAW** — on every book whose EBITDA is served (corpus agras, carniprod,
+realestate, retail through the real write path and GET /api/period; the
+CONSTRUCTED closed_bridge, bridge_with_722, open, closed_no_activity of
+`net-711-rule`, SYNTHETIC), 20 EBITDA surfaces and 6 EBIT surfaces carry
+`assembled_pl.ebitda` / `operating_result` to the cent: the five legacy
+aliases, the reconciliation line and its one-line bridge, GET /api/period's
+`assembled_metrics.pl`, the stored metric rows (`ebitda`, `ebitda_statutory`,
+`ebitda_cash`, `operating_profit`), the ratio table's Debt / EBITDA operand,
+`credit_model.operating_figures`, methodology `ebitda.reported` / `cash`,
+`FactsGateway.ebitda()`, the valuation's `ebitda_used`, the Section 9
+benchmark, the forecast's year 0 and the confidence roll-up
+(`reconciliation_checks` `ebitda_rollup`, REWRITTEN in this stage: turnover −
+cost of sales − opex + other operating income + net 72x + net 711 = EBITDA;
+it used to read `ebitda_statutory` without 711 and `float(None or 0)`). TC-3:
+on 6 of the 8 books the build-up before 711/72x differs from EBITDA.
+
+Plants, each applied alone by `scratchpad/g_stage/plant.py` (byte-exact
+restore checked by sha256):
+```
+PLANT credit-model-reads-the-build-up (second formula): src/engine/ratios/credit_model.py
+  exit=1 ========================= 6 failed, 4 passed in 2.36s ==========================
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[agras]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[carniprod]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[realestate]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[closed_bridge]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[bridge_with_722]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[open]
+  -> RED ; file restored byte-exact
+PLANT rollup-identity-without-711 (old law): src/engine/confidence/reconciliation_checks.py
+  exit=1 ========================= 6 failed, 4 passed in 2.37s ==========================
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[agras]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[carniprod]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[realestate]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[closed_bridge]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[bridge_with_722]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[open]
+  -> RED ; file restored byte-exact
+PLANT ebitda_cash-alias-is-the-build-up: src/engine/country_packs/ro_romania/chart_of_accounts.py
+  exit=1 ========================= 6 failed, 4 passed in 2.37s ==========================
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[agras]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[carniprod]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[realestate]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[closed_bridge]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[bridge_with_722]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[open]
+  -> RED ; file restored byte-exact
+REVERT (clean tree):
+============================== 10 passed in 2.34s ==============================
+PLANT methodology-reported-without-711 (pre-ruling YAML): methodology/ro_ras_2025_v1.yaml
+  exit=1 ========================= 6 failed, 4 passed in 2.35s ==========================
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[agras]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[carniprod]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[realestate]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[closed_bridge]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[bridge_with_722]
+    FAILED tests/engine/test_one_ebitda_engine.py::test_one_ebitda_every_engine_surface_serves_the_served_figure[open]
+  -> RED ; file restored byte-exact
+```
+
+**CANNOT SEE:** whether the served figure is right (`net-711-rule`); a
+refused EBITDA (`refusal-carries-engine`); denominators
+(`turnover-denominator-engine`); the browser (`one-ebitda`).
+
+## turnover-denominator-engine
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_turnover_denominator_engine.py -q` |
+| canary | `SCOPE turnover-denominator-engine: 8 served books`, `refused by the one margin rule on every displayed surface: realestate` |
+| work count | `GATE-WORK turnover-denominator-engine units=N`, floor **150** (measured 168) |
+
+**INCIDENT** — the ruling: "margins and growth use net turnover (701–708
+minus 709) as the denominator". Before it the briefing's citable ratios, the
+Section 9 benchmark, FactsGateway.revenue() (plus a P&L-placed delta) and
+the stored EBITDA margin divided total operating revenue. Found by this gate
+on its first run (2026-09-27): the briefing's citable ratios skipped the ONE
+margin rule — the model was handed the developer's EBITDA margin 339.34 %
+(−17,884.9 % before the ruling) while the ratio table, the benchmark and
+the cockpit refused it. Repaired in `pipeline._briefing_ratios` (the
+`margin_meaning` verdict on the same operands the table judges).
+
+**LAW** — every engine "revenue" IS turnover (metric row, FactsGateway /
+Capsule, valuation `revenue_used`, forecast year-0 revenue, methodology
+`revenue_net`, benchmark turnover); every margin = its served numerator /
+turnover (the five margin metric rows, the ratio table's four margin rows,
+the benchmark's EBITDA and net margins, the briefing's two citable margins,
+methodology EBITDA and gross margins); where the one margin rule refuses a
+book, every DISPLAYED margin refuses it. TC-3: total operating revenue ≠
+turnover on 5 of the 8 books (agras, carniprod, realestate, retail,
+bridge_with_722).
+
+Plants, each applied alone, byte-exact restore. The first attempt at the
+metric-row plant (`revenue + capitalized_own_work`) was INEFFECTIVE — the
+incomeStatement mirror the metric reads carries no 72x on these books, so
+the planted denominator equalled turnover and the gate correctly stayed
+GREEN; the plant was re-made on the metric's own `total_operating_revenue`:
+```
+PLANT metric-row-ebitda-margin-over-turnover+72x: src/engine/ratios/credit_model.py
+  exit=0 ============================== 10 passed in 2.46s ==============================
+  -> GREEN ; file restored byte-exact
+PLANT metric-row-ebitda-margin-over-total-operating-revenue: src/engine/ratios/credit_model.py
+  exit=1 ========================= 5 failed, 5 passed in 2.50s ==========================
+    FAILED tests/engine/test_turnover_denominator_engine.py::test_turnover_denominator_every_engine_revenue_and_margin[agras]
+    FAILED tests/engine/test_turnover_denominator_engine.py::test_turnover_denominator_every_engine_revenue_and_margin[carniprod]
+    FAILED tests/engine/test_turnover_denominator_engine.py::test_turnover_denominator_every_engine_revenue_and_margin[realestate]
+    FAILED tests/engine/test_turnover_denominator_engine.py::test_turnover_denominator_every_engine_revenue_and_margin[retail]
+    FAILED tests/engine/test_turnover_denominator_engine.py::test_turnover_denominator_every_engine_revenue_and_margin[bridge_with_722]
+  -> RED ; file restored byte-exact
+PLANT benchmark-ebitda-margin-over-total-operating-revenue: src/engine/api/_benchmark_engine.py
+  exit=1 ========================= 4 failed, 6 passed in 2.38s ==========================
+    FAILED tests/engine/test_turnover_denominator_engine.py::test_turnover_denominator_every_engine_revenue_and_margin[agras]
+    FAILED tests/engine/test_turnover_denominator_engine.py::test_turnover_denominator_every_engine_revenue_and_margin[carniprod]
+    FAILED tests/engine/test_turnover_denominator_engine.py::test_turnover_denominator_every_engine_revenue_and_margin[retail]
+    FAILED tests/engine/test_turnover_denominator_engine.py::test_turnover_denominator_every_engine_revenue_and_margin[bridge_with_722]
+  -> RED ; file restored byte-exact
+PLANT briefing-skips-the-one-margin-rule: src/engine/api/pipeline.py
+  exit=1 ========================= 1 failed, 9 passed in 2.50s ==========================
+    FAILED tests/engine/test_turnover_denominator_engine.py::test_turnover_denominator_every_engine_revenue_and_margin[realestate]
+  -> RED ; file restored byte-exact
+PLANT briefing-margins-over-total-operating-revenue: src/engine/api/pipeline.py
+  exit=1 ========================= 4 failed, 6 passed in 2.44s ==========================
+    FAILED tests/engine/test_turnover_denominator_engine.py::test_turnover_denominator_every_engine_revenue_and_margin[agras]
+    FAILED tests/engine/test_turnover_denominator_engine.py::test_turnover_denominator_every_engine_revenue_and_margin[carniprod]
+    FAILED tests/engine/test_turnover_denominator_engine.py::test_turnover_denominator_every_engine_revenue_and_margin[retail]
+    FAILED tests/engine/test_turnover_denominator_engine.py::test_turnover_denominator_every_engine_revenue_and_margin[bridge_with_722]
+  -> RED ; file restored byte-exact
+REVERT (clean tree):
+============================== 10 passed in 2.37s ==============================
+```
+
+**CANNOT SEE:** the numerators (`one-ebitda-engine`); the company-years
+route's growth (its own tests); the browser (`turnover-denominator`).
+Beside it, NOT judged here and reported to the coordinator: the methodology
+`ratios.net_margin` numerator (its own EBITDA − D&A − financial − tax, 781
+reversals netted in D&A) differs from account 121 (agras 0.067959 vs
+0.067995), and methodology `gross_margin` (canonical cost of sales) differs
+from the ratio table's (agras 36.48 % vs 37.29 %).
+
+## refusal-carries-engine
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_refusal_carries_engine.py -q` |
+| canary | `SCOPE refusal-carries-engine: refused books g6_uncleared (account_121_opening_not_cleared); unanchored (account_121_anchor_absent)`, `NET-RESULT refused (no account 121): unanchored` |
+| work count | `GATE-WORK refusal-carries-engine units=N`, floor **600** (measured 663 after the critic round 3 fixer; 192 at fixer round 2, 160 / 177 before) |
+
+**INCIDENT** — design A3: "if net 711 is refused on a book with 711
+activity, EBITDA, EBIT, gross profit and every margin/ratio built on them
+REFUSE with the same typed reason. Remove every fallback chain first." The
+engine's chains: `float(ebitda_statutory or 0)` in the alerts and the
+confidence roll-up, the valuation's recompute on 0.0, `float(apl_ebitda)`
+in the ratio table. Found by this gate on its first run (2026-09-27): the
+ratio table's metric-only rows built on EBITDA/EBIT (`operating_margin`,
+`core_ebitda_margin`, `net_debt_to_ebitda`, `ebitda_to_interest`) refused a
+refused EBITDA with the generic `engine_metric_absent` instead of
+`ebitda_refused` and the 711 cause — repaired in `ratios/table.py`
+(`_BUILT_ON_ONE_EBITDA`).
+
+**LAW** — on the two refused CONSTRUCTED books (unanchored: G2;
+g6_uncleared: G6; SYNTHETIC) every engine surface states EBITDA / EBIT and
+what is built on them as absent, never a number, and carries the 711 code
+where it carries one: the assembled P&L and aliases, the reconciliation,
+GET /api/period metrics, 15 stored metric rows, 9 ratio-table rows (reason
+`ebitda_refused`, cause = the 711 code), the credit model, the methodology
+refusals, FactsGateway (`RefusedFactError`), the valuation (EV/EBITDA
+refused, routed `ebitda_refused`), the benchmark (not graded; its own
+`ebitda_refused` + RO/EN sentence — its stored rows carry no cause), the
+forecast year 0, the briefing's citable ratios (the engine's sentence) and
+the confidence roll-up (not emitted).
+
+Plants, each applied alone, byte-exact restore:
+```
+PLANT credit-model-refused-ebitda-as-0: src/engine/ratios/credit_model.py
+  exit=1 ========================= 2 failed, 2 passed in 0.54s ==========================
+    FAILED tests/engine/test_refusal_carries_engine.py::test_refusal_carries_every_engine_surface_refuses_with_the_711_reason[unanchored]
+    FAILED tests/engine/test_refusal_carries_engine.py::test_refusal_carries_every_engine_surface_refuses_with_the_711_reason[g6_uncleared]
+  -> RED ; file restored byte-exact
+PLANT briefing-refused-ebitda-or-0: src/engine/api/pipeline.py
+  exit=1 ========================= 2 failed, 2 passed in 0.59s ==========================
+    FAILED tests/engine/test_refusal_carries_engine.py::test_refusal_carries_every_engine_surface_refuses_with_the_711_reason[unanchored]
+    FAILED tests/engine/test_refusal_carries_engine.py::test_refusal_carries_every_engine_surface_refuses_with_the_711_reason[g6_uncleared]
+  -> RED ; file restored byte-exact
+PLANT ratio-table-generic-metric-absent (the defect this gate found): src/engine/ratios/table.py
+  exit=1 ========================= 2 failed, 2 passed in 0.59s ==========================
+    FAILED tests/engine/test_refusal_carries_engine.py::test_refusal_carries_every_engine_surface_refuses_with_the_711_reason[unanchored]
+    FAILED tests/engine/test_refusal_carries_engine.py::test_refusal_carries_every_engine_surface_refuses_with_the_711_reason[g6_uncleared]
+  -> RED ; file restored byte-exact
+PLANT forecast-year0-ebitda-or-0: src/engine/forecast/history.py
+  exit=1 ========================= 2 failed, 2 passed in 0.55s ==========================
+    FAILED tests/engine/test_refusal_carries_engine.py::test_refusal_carries_every_engine_surface_refuses_with_the_711_reason[unanchored]
+    FAILED tests/engine/test_refusal_carries_engine.py::test_refusal_carries_every_engine_surface_refuses_with_the_711_reason[g6_uncleared]
+  -> RED ; file restored byte-exact
+REVERT (clean tree):
+============================== 4 passed in 0.50s ===============================
+```
+
+**CANNOT SEE:** whether the engine was right to refuse (`net-711-rule`);
+the browser (`refusal-carries`). The benchmark's refusal carries a generic
+sentence, not the typed cause (its `calculated_metrics` rows carry none) —
+reported to the coordinator.
+
+### refusal-carries / refusal-carries-engine — the NET RESULT on a book with no account 121 (fixer round 1, 2026-09-27)
+
+**INCIDENT** — two critic findings, one defect.
+`chart_of_accounts.assemble_statements` set `net_income_statutory =
+net_income_operational + capitalized + build_up_711`, and `build_up_711` is
+0.0 when 711 is refused. With account 121 present the anchor replaced it;
+WITHOUT 121 that build-up — short by exactly the unmeasured variation — was
+served under the statutory name while `pretax` two fields above was refused.
+Measured: the constructed `unanchored` book served net income 120,000.00,
+net margin 12 %, ROE 37.5 %, ROA 48 % (all graded), the benchmark graded
+the net margin; SRD (the developer) with its account-121 rows dropped served
+-30,391,418.38 against 121's -801,604.14 (the gap is the refused 29,589,814.24),
+ROE -75.44 %, ROA -36.43 %, a persisted net margin of -187.18 %, and the
+dashboard tile, the report and computeRatios printed them. Neither gate
+looked at net income (they checked EBITDA / EBIT / gross profit / PBT only).
+
+**THE FIX** — the engine refuses the NET RESULT with the same typed reason
+when 711 is refused and there is no account 121 (`assembled_pl.
+net_income_refusal`, emitted only then): `net_income_statutory`,
+`net_income_reconstructed`, `net_income_reconciliation_to_121`,
+`net_income_unexplained_vs_121` and `free_cash_flow_proxy` are None; the
+cash-flow totals built on it are None with the refusal beside them; the
+Piotroski checks 1-4 are `uncertain`; the metric rows `net_income_statutory`,
+`net_margin`, `roe`, `roa`, `free_cash_flow` and the profitability sub-score
+are None (`component_refusals` refuses profitability); the ratio table's
+net margin / ROE / ROA refuse `ebitda_refused` with the 711 cause (never a
+stored row standing in); the Section 9 benchmark refuses its headline
+profit, peer row and net margin (`net_income_refused`, report revision 5);
+the briefing's net margin carries the engine's reason; FactsGateway.
+net_result raises RefusedFactError (methodology refusal `totals.net_result`
+— the balance sheet still closes the build-up into equity so it balances,
+and says beside it that the figure is no net result). Browser: the dashboard
+tile is absent with `tileNetProfitRefusal` (a stale `net_income_statutory`
+metric row no longer stands in), `canonicalMetrics.netProfit` is null with
+its refusal (was `?? 0`), the report's net-profit tile and P&L foot print
+the reason, `printedPl`'s net income row carries it, and the cash-flow
+statement states the refusal instead of a column built on a net profit of 0.
+With account 121 (`g6_uncleared`) the filed figure stands, and both gates
+assert that too.
+
+**PLANT serve-the-build-up** (engine) — `chart_of_accounts.py`:
+`net_income_served = None if net_income_refusal is not None else
+net_income_statutory` → `net_income_served = net_income_statutory`.
+```
+RED (plant) — 1 failed, 3 passed
+E   AssertionError: unanchored: assembled_pl.net_income_statutory carries 120000.0 for a REFUSED figure (711 refused: account_121_anchor_absent)
+E     unanchored: assembled_pl.net_income_reconciliation_to_121 carries 0.0 for a REFUSED figure …
+E     unanchored: assembled_pl.free_cash_flow_proxy carries 170000.0 for a REFUSED figure …
+E     unanchored: briefing net_margin_pct = 12.0 (None) — expected the engine's reason
+E     unanchored: Piotroski ni_positive is 'pass' on a refused net result
+```
+**PLANT served-None-read-as-not-surfaced** (engine) — `credit_model.py`: the
+refusal branch disabled, so `_canonical` falls back to the build-up.
+```
+RED (plant) — 1 failed, 3 passed
+E   AssertionError: unanchored: metric row 'net_income_statutory' carries 120000.0 for a REFUSED figure …
+E     unanchored: metric row 'net_margin' carries 0.12 … 'roe' carries 0.375 … 'roa' carries 0.48 …
+E     unanchored: metric row 'credit_subscore_profitability' carries 52.5 …
+E     unanchored: benchmark net_margin = 12.0 (refusals ['debt_to_ebitda', 'ebitda', 'ebitda_margin'])
+```
+**PLANT stale-metric-row-on-the-tile** (browser) — `headlineFigures.ts`: the
+refusal check removed (rung 2, the stored row, answers).
+```
+RED (plant) — Tests 1 failed | 11 passed (12)
+   × … > unanchored: the net result, ROE, ROA, the report and the cash flow refuse with the engine's reason
+     → tile printed 120000: expected false to be true
+```
+**PLANT canonical-?? 0** (browser) — `canonicalMetrics.ts`:
+`statutoryNetProfit = num(apl.net_income_statutory) ?? 0` again.
+```
+RED (plant) — Tests 1 failed | 11 passed (12)
+     → expected [ +0, null, null ] to deeply equal [ null, null, null ]
+```
+**REVERT** — every file restored from its copy: engine `4 passed`
+(`GATE-WORK refusal-carries-engine units=177`); browser `Tests 12 passed (12)`.
+
+CANNOT SEE: a period stored before this change keeps its old metric rows and
+envelope until reprocessed (the reprocess tool rewrites them); the balance
+sheet's current-year result on such a book is still the build-up (so the
+sheet closes, with `bs_balance_delta` showing what it cannot explain);
+the prior column of a comparative cash-flow statement whose prior period is
+refused; pixels.
+
+### refusal-carries / refusal-carries-engine — what still turned the refused NET RESULT into a figure (fixer round 2, 2026-09-27)
+
+**INCIDENT** — the critic's round-2 findings, each measured on the real
+developer book (SRD) with its account-121 rows deleted and on the constructed
+`unanchored` book:
+- the NAV cascade read `net_income_statutory ?? 0` — NavValuationView printed
+  "Graham intrinsic value 0" and a convergence band `0.00M – 36.73M`
+  (`crossMethods {capRate:null, graham:0, convergenceBand:[0, 36733458.95]}`);
+- `assembled_piotroski` served `score: 0` with nine `uncertain` checks and
+  `piotroskiFromEngine` banded `score ?? passCount` — the Risks tab printed
+  "0 / 0 confirmed · Distressed (0–2) · 9 checks uncertain";
+- the assembler still closed the build-up into equity: `assembled_bs.
+  current_year_pnl` -30,391,418.38 (121 holds -801,604.14), `subAggregates.
+  current_year_pnl`, the canonical_v1 result leaf (the constructed book's
+  canonical_bs printed a "Current year profit 120,000" row and went
+  MATERIAL_IMBALANCE by exactly that build-up); the report's balance sheet
+  printed it as "Current-year P&L", and the briefing's facts carried it as a
+  citable `current_year_pnl` MoneyFact;
+- a comparative cash flow whose PRIOR statement is refused printed that
+  statement's net profit 0 and the CFO / CFF / net change built on it.
+
+**THE FIX** — engine: no Piotroski score (None beside a typed `refusal`: the
+net result's own reason; `piotroski_no_check_evaluated` when nothing was
+evaluated for another cause), the canonical validator accepting a None score
+only with its reason; a refused net result is not closed into equity
+(`current_year_pnl` None beside `current_year_pnl_refusal`, no canonical_v1
+result leaf, equity without a current-year result, `bs_balance_delta` stating
+what the trial balance leaves unexplained); the briefing's fact block is the
+pure `pipeline._briefing_facts_raw`, which drops `current_year_pnl` and
+carries `net_income_refusal` on a refused net result. Browser: Graham null
+with the reason and out of the band (the band only over methods that
+computed — none with NNNAV alone); no Piotroski score or band on a null
+engine score, an engine refusal or zero evaluated checks (also a block stored
+before the engine refused); the report's current-year row prints the reason
+(the balance sheet's refusal, or the P&L's on a stored period); a refused
+prior cash-flow column prints "refused" in its cells and delta with the
+reason. With account 121 (`g6_uncleared`) every one of them stands, and both
+gates assert that beside the refusal.
+
+**PLANTS** (engine, each applied alone to the committed tree, restored with
+`git checkout`):
+```
+PLANT A piotroski-score-0: chart_of_accounts.py `if refusal is not None: score = None` → `pass`
+  E     unanchored: GET /api/period assembled_metrics.piotroski.score carries 0 for a REFUSED figure (711 refused: account_121_anchor_absent)
+  FAILED tests/engine/test_refusal_carries_engine.py::test_refusal_carries_every_engine_surface_refuses_with_the_711_reason[unanchored]
+PLANT B build-up-closed-into-equity: chart_of_accounts.py sub_agg / assembled_bs current_year_pnl = round(net_income_statutory, 2)
+  E     unanchored: subAggregates.current_year_pnl carries 120000.0 for a REFUSED figure (711 refused: account_121_anchor_absent)
+  FAILED tests/engine/test_refusal_carries_engine.py::test_refusal_carries_every_engine_surface_refuses_with_the_711_reason[unanchored]
+PLANT C briefing-keeps-current_year_pnl: pipeline.py `briefing_facts_raw.pop("current_year_pnl", None)` → `pass`
+  E   AssertionError: unanchored: the briefing's facts carry current_year_pnl None for a REFUSED net result (a citable MoneyFact)
+  ========================= 1 failed, 3 passed in 0.82s ==========================
+PLANT D canonical-v1-result-leaf: chart_of_accounts.py `if net_income_refusal is None else 0.0` → `if True else 0.0`
+  E     unanchored: canonical_bs serves the result row [{'id': 'current_year_profit', … 'amount': 120000.0, …}] for a REFUSED net result
+  FAILED tests/engine/test_refusal_carries_engine.py::test_refusal_carries_every_engine_surface_refuses_with_the_711_reason[unanchored]
+RESTORED: ============================== 4 passed in 0.72s ===============================
+          GATE-WORK refusal-carries-engine units=192
+```
+**PLANTS** (browser, `frontend/lib/__tests__/refusalCarries.test.tsx`, each
+applied alone, restored with `git checkout`):
+```
+PLANT graham-or-0: buildNavCascade.ts `const ni = … : null` → `(pl.net_income_statutory as number | null) ?? 0`
+   → Graham on a refused net result: expected +0 to be null
+      Tests  1 failed | 19 passed (20)
+PLANT piotroski-score-or-passcount: financialValuation.ts piotroskiFromEngine `const refused = …` → `const refused = false`
+   → served: score: expected +0 to be null
+      Tests  1 failed | 19 passed (20)
+PLANT report-bs-build-up: ComprehensiveReport.tsx BsTable `const cyRefusal = …` → `null`
+   → expected '—' to be 'refused — the trial balance is closed…' // Object.is equality
+      Tests  1 failed | 19 passed (20)
+PLANT cf-prior-printed: CashFlowStatementView.tsx `const priorRefused = prior?.refusal …` → `false && prior?.refusal …`
+   → a prior figure printed: expected 7 to be +0 // Object.is equality
+      Tests  1 failed | 19 passed (20)
+RESTORED: Tests  20 passed (20)
+```
+
+**CANNOT SEE:** the Balance Sheet TAB's rows (canonical_bs): with no result
+leaf it prints no current-year row and states the imbalance, but no line
+names the refusal; the Graham row on the Valuation tab (`runGraham`) already
+refuses through `deriveTotals` (NaN → "—" without the reason); a period stored
+before this change keeps its stored Piotroski block and balance sheet until
+reprocessed — the browser refuses the stored Piotroski block (nothing
+evaluated) and the report row (the P&L's refusal) on it anyway; pixels.
+
+### refusal-carries / refusal-carries-engine — total equity short by the refused result; the refused Piotroski tile's checks; a refusal-only cash-flow statement (critic fixer round 1, third round, 2026-09-27)
+
+**INCIDENT** — the critic's blocking finding: with the net result refused
+(no account 121, net 711 refused) nothing is closed into equity (round 2),
+and on a sheet that does not balance without the result — the ordinary
+export with its 121 row dropped — total equity is short by exactly the
+missing result. Measured on the new CONSTRUCTED witness
+`unanchored_unbalanced` (the bridge book of `net-711-rule` with its 121 row
+dropped and a 50,000 supplier / receivable pair; SYNTHETIC): equity
+200,000.00 against assets 420,000.00, `bs_balance_delta` 170,000.00 —
+served: equity ratio 47.62 %, Altman X2 0.2381, equity sub-score 95.2,
+debt / equity 0.0, an asset-based valuation of 200,000.00 (primary), and in
+the browser Book NAV 200,000 with Layers 2-3 and the hero on it. The
+existing `unanchored` witness was rebuilt to balance WITHOUT 121, so its
+equity is complete: it could not see any of this. Two low findings beside
+it: the refused Piotroski tile dropped the per-check list its own comment
+promised; `buildCashFlowStatement` still returned a full column built on a
+net profit of 0 for a refused statement (only the two views guarded it).
+
+**THE FIX** — engine: `assembled_bs.total_equity_refusal` (the net
+result's code and sentence, `missing: current_year_result`, the delta)
+when the net result is refused and |delta| >= 1.00 RON; the figure stays
+beside it. `credit_model.equity_completeness_refusal` feeds the ONE
+predicate: Altman (X2 has no numerator) and the equity sub-score refuse
+`ebitda_refused` with the cause; X2 and the rows total_equity /
+equity_ratio / debt_to_equity / lt_debt_to_equity / credit_subscore_equity
+are None; the served credit block carries `altman_component_refusals.x2`;
+persisted X2 is withheld. Ratio table: equity ratio, debt / equity and LT
+debt / equity refuse (never a stored row). Valuation: `asset_based_refusal`,
+no primary value, `total_equity_used` None. Browser: `buildNavCascade`
+reads the served total equity or its refusal (never `?? 0`) and carries it
+onto Layers 1-3, the sensitivity grid, the convergence band and the hero
+(NavValuationView prints it); the engine Altman reader and the credit card
+print X2 refused; `computeRatios` refuses the equity ratio and debt /
+equity; the Valuation tab prints a refused book equity. The refused
+Piotroski tile renders the per-check list (one renderer with the scored
+tile). `CashFlowStatement` is `CashFlowStatementFigures |
+RefusedCashFlowStatement`: a refused statement carries no figure at all.
+
+**LAW** — engine (`GATE-WORK refusal-carries-engine units=335`, floor 300):
+section 11 on every refused book — short equity refuses every surface above
+with the 711 code; complete equity (`unanchored`, `g6_uncleared`) serves
+total equity, the equity ratio, X2 and the asset-based value
+(non-vacuity); TC-3 witnesses on each side. Browser (`Tests 30 passed`,
+floor 28): round 3 (six tests), the per-check list under the refused tile,
+and no `operating` / `investing` / `financing` / `reconciliation` on a
+refused statement.
+
+**PLANTS** (engine, each alone, byte-exact restore, `scratchpad/fx1/plant_eq.py`):
+```
+PLANT assembler-no-completeness-refusal: src/engine/country_packs/ro_romania/chart_of_accounts.py
+  exit=1
+  E   AssertionError: unanchored_unbalanced: total equity short by the refused result (delta 170000.0) serves total_equity 200000.0 with refusal None, expected the 711 code 'account_121_anchor_absent' beside it
+  E     unanchored_unbalanced: metric row 'total_equity' (equity short by the refused result) carries 200000.0 for a REFUSED figure (711 refused: account_121_anchor_absent)
+  E     unanchored_unbalanced: metric row 'equity_ratio' (equity short by the refused result) carries 0.4762 for a REFUSED figure (711 refused: account_121_anchor_absent)
+  E     unanchored_unbalanced: metric row 'debt_to_equity' (equity short by the refused result) carries 0.0 for a REFUSED figure (711 refused: account_121_anchor_absent)
+  E     unanchored_unbalanced: metric row 'lt_debt_to_equity' (equity short by the refused result) carries 0.0 for a REFUSED figure (711 refused: account_121_anchor_absent)
+  E     unanchored_unbalanced: metric row 'altman_x2' (equity short by the refused result) carries 0.2381 for a REFUSED figure (711 refused: account_121_anchor_absent)
+  -> RED ; file restored byte-exact
+PLANT credit-x2-on-the-short-equity: src/engine/ratios/credit_model.py
+  exit=1
+  E   AssertionError: unanchored_unbalanced: metric row 'altman_x2' (equity short by the refused result) carries 0.2381 for a REFUSED figure (711 refused: account_121_anchor_absent)
+  E   assert not ["unanchored_unbalanced: metric row 'altman_x2' (equity short by the refused result) carries 0.2381 for a REFUSED figure (711 refused: account_121_anchor_absent)"]
+  FAILED tests/engine/test_refusal_carries_engine.py::test_refusal_carries_every_engine_surface_refuses_with_the_711_reason[unanchored_unbalanced]
+  ========================= 1 failed, 4 passed in 0.97s ==========================
+  -> RED ; file restored byte-exact
+PLANT ratio-table-reads-the-short-equity: src/engine/ratios/table.py
+  exit=1
+  E   AssertionError: unanchored_unbalanced: ratio table equity_ratio = 47.61904761904761 refused None / cause None on equity short by the refused result, expected ebitda_refused / 'account_121_anchor_absent'
+  E     unanchored_unbalanced: ratio table debt_to_equity = 0.0 refused None / cause None on equity short by the refused result, expected ebitda_refused / 'account_121_anchor_absent'
+  E     unanchored_unbalanced: ratio table lt_debt_to_equity = None refused 'engine_metric_absent' / cause None on equity short by the refused result, expected ebitda_refused / 'account_121_anchor_absent'
+  E   assert not ["unanchored_unbalanced: ratio table equity_ratio = 47.61904761904761 refused None / cause None on equity short by the...ric_absent' / cause None on equity short by the refused result, expected ebitda_refused / 'account_121_anchor_absent'"]
+  FAILED tests/engine/test_refusal_carries_engine.py::test_refusal_carries_every_engine_surface_refuses_with_the_711_reason[unanchored_unbalanced]
+  ========================= 1 failed, 4 passed in 0.93s ==========================
+  -> RED ; file restored byte-exact
+PLANT valuation-book-equity-on-the-short-equity: src/engine/api/_valuation.py
+  exit=1
+  E   AssertionError: unanchored_unbalanced: valuation asset_based_equity (book equity short by the refused result) carries 200000.0 for a REFUSED figure (711 refused: account_121_anchor_absent)
+  E     unanchored_unbalanced: valuation primary_equity_value (book equity short by the refused result) carries 200000.0 for a REFUSED figure (711 refused: account_121_anchor_absent)
+  E     unanchored_unbalanced: valuation primary_equity_low (book equity short by the refused result) carries 170000.0 for a REFUSED figure (711 refused: account_121_anchor_absent)
+  E     unanchored_unbalanced: valuation primary_equity_high (book equity short by the refused result) carries 230000.0 for a REFUSED figure (711 refused: account_121_anchor_absent)
+  E   assert not ['unanchored_unbalanced: valuation asset_based_equity (book equity short by the refused result) carries 200000.0 for a...ok equity short by the refused result) carries 230000.0 for a REFUSED figure (711 refused: account_121_anchor_absent)']
+  FAILED tests/engine/test_refusal_carries_engine.py::test_refusal_carries_every_engine_surface_refuses_with_the_711_reason[unanchored_unbalanced]
+  -> RED ; file restored byte-exact
+REVERT (clean tree):
+  ============================== 5 passed in 0.87s ===============================
+```
+**PLANTS** (browser, each alone, byte-exact restore, `scratchpad/fx1/plant_fe.py`, `plant_fe2.py`):
+```
+PLANT nav-book-nav-or-0: frontend/lib/buildNavCascade.ts
+   × refusal-carries — round 3: total equity short by the refused result > unanchored_unbalanced: Book NAV, Layers 1-3, the sensitivity grid and the hero refuse — the page prints the reason 3ms
+   → layer 1: expected 200000 to be null
+      Tests  1 failed | 29 passed (30)
+  -> RED ; file restored byte-exact
+PLANT altman-reader-drops-the-x2-reason: frontend/lib/financialValuation.ts
+   × refusal-carries — round 3: total equity short by the refused result > unanchored_unbalanced: the engine Altman reader prints X2 refused, the equity sub-score refuses with the reason 4ms
+   → expected undefined to be 'account_121_anchor_absent' // Object.is equality
+      Tests  1 failed | 29 passed (30)
+  -> RED ; file restored byte-exact
+PLANT ratios-divide-the-short-equity: frontend/lib/financialReport.ts
+   × refusal-carries — round 3: total equity short by the refused result > unanchored_unbalanced: the equity ratio and debt / equity refuse with the engine's reason; balanced, they compute 4ms
+   → equity_ratio printed a number: expected 200000 to be null
+      Tests  1 failed | 29 passed (30)
+  -> RED ; file restored byte-exact
+PLANT card-prints-x2-without-its-reason: frontend/components/cfo/CreditScoreCard.tsx
+   × refusal-carries — round 3: total equity short by the refused result > unanchored_unbalanced: the engine Altman reader prints X2 refused, the equity sub-score refuses with the reason 8ms
+   → expected 'not reported' to contain 'the trial balance is closed and accou…'
+      Tests  1 failed | 29 passed (30)
+  -> RED ; file restored byte-exact
+RESTORED: Tests  30 passed (30)
+PLANT refused-piotroski-tile-drops-its-checks: frontend/pages/cfo/FinancialStatements.tsx
+   × refusal-carries — round 2: Graham, Piotroski, the report's balance sheet, a refused prior cash flow > unanchored: no Piotroski score or band off nine uncertain checks — served, or a block stored before the engine refused it 15ms
+   → Unable to find an element by: [data-testid="piotroski-refused-checks"]
+      Tests  1 failed | 29 passed (30)
+  -> RED ; file restored byte-exact
+PLANT cf-builder-returns-figures-beside-the-refusal: frontend/lib/buildCashFlowStatement.ts
+   × refusal-carries — a refused EBITDA stays refused on every surface > unanchored: the net result, ROE, ROA, the report and the cash flow refuse with the engine's reason 7ms
+   → expected [ { netProfit: +0, …(4) }, …(3) ] to deeply equal [ undefined, undefined, …(2) ]
+      Tests  1 failed | 29 passed (30)
+  -> RED ; file restored byte-exact
+RESTORED: Tests  30 passed (30)
+```
+**REVERT** — engine `5 passed`; browser `Tests 30 passed (30)`.
+
+**CANNOT SEE:** the other readers of total equity that are not built for
+this refusal and do not print it (reported to the coordinator, unchanged
+here): `FactsGateway.equity()` / the Capsule's `equity` fact and the
+canonical_bs totals (served with `status: MATERIAL_IMBALANCE`), the DCF's
+WACC equity weight (the DCF is refused on this book anyway: no net result),
+the browser's `canonicalMetrics.balance.equity`, `periodFacts`,
+`reportComparatives` and the no-envelope FE credit model's X4 (the engine
+envelope is always served on these books); the BS tab's rows (they print
+what the rows sum to and state the imbalance) and the export's executive-summary "Total equity" tile (the
+statement total; its Equity ratio tile refuses); pixels.
+
+### refusal-carries / refusal-carries-engine — every other reader of total equity; the real developer with account 121 deleted from the file (critic round 2, 2026-09-27)
+
+**INCIDENT** — two critic findings (high, blocking) and one (high) on
+round 1: `assembled_bs.total_equity_refusal` was authoritative only for the
+surfaces round 1 gated. Measured through the real write seam and GET
+/api/period on the constructed `unanchored_unbalanced` (equity 200,000.00,
+delta 170,000.00) and on the REAL developer — `corpus/saga_10_col_realestate`
+with row 9 (account 121101) deleted from the FILE (dropping rows in the
+parser is not enough: canonical_bs re-reads the bytes, still sees 121 and
+reports delta 0) — net result refused, `bs_balance_delta` -801,604.14, served
+`total_equity` 41,085,738.87. Still printing or judging the short figure:
+- engine: the briefing's facts (`total_equity` a citable MoneyFact; Debt /
+  Equity 0.45 — 0.0 on the constructed book); the methodology view grading
+  `equity_ratio` 0.492531 against [0.3, 0.6], `debt_to_equity` 0.4515,
+  `lt_debt_to_equity` 0.359108 (no key in `methodology.refusals`);
+  `FactsGateway.equity()` → the Capsule's `equity` and `equity_ratio`
+  (0.476); the insights related-party haircut ("the equity ratio moves from
+  49.3% to 49.2%" beside a ratio row that refuses the equity ratio);
+  stage_validate R4 (Art. 153^24 fired "Equity (RON 200,000) below half of
+  share capital (RON 500,000)" where the year's result makes it 370,000) and
+  the findings detector `equity_below_half_capital` ("net assets are above
+  the statutory floor").
+- browser: the report's §1 "Equity ratio 47.6 %" (`canonicalMetrics.
+  balance.equity = total_equity ?? 0`) and §6 "Book equity (NAV floor)
+  200,000" under "book equity (NAV floor) stands alone" — on the page whose
+  §5 refuses the equity ratio; the dashboard resolver (equity ratio 0.4925,
+  debt / equity 0.4515); periodFacts' `mOr` falling back to the rows' sum
+  once the engine rows were refused (0.476 / 0) — the covenant card's
+  "equity ratio 47.6% vs typical 30% floor"; the Capsule fact index deriving
+  the equity ratio; the chat context's "Total equity".
+
+**CORRECTION** — the round-1 CANNOT SEE above said `canonicalMetrics.
+balance.equity` and `periodFacts` "do not print it". They printed it (the
+report's §1 tile, the covenant card), and FactsGateway / the Capsule were
+listed as out of scope while the finding named them.
+
+**THE FIX** — engine: `methodology.evaluate(refused_totals=...)` (the
+assembler hands it `total_equity_refusal`): `totals.total_equity` None and
+`ratios.equity_ratio` / `debt_to_equity` / `lt_debt_to_equity` refused into
+`methodology.refusals` with the net result's code. `FactsGateway.equity()`
+raises RefusedFactError on `refusals["totals.total_equity"]` (the Capsule's
+gap now carries the engine's sentence; the advisory and radar skip it);
+`statement_equity()` is the statement's own total for the readers that land
+or partition the served statement (the serve-path landing, the rebuild's
+bucket completion — whose legacy branch would otherwise close the refused
+build-up into retained earnings — the forecast opening, the briefing grand
+totals). Briefing facts: `total_equity` None + `total_equity_refusal`; Debt /
+Equity refuses with the reason; the narrate prompt says so. Insights:
+related-party exposure NotFired with the reason. stage_validate: R4 and R6
+skipped, alert `equity_refused_net_result` states why. Findings:
+`equity_below_half_capital` and the revaluation-share detector skipped with
+the reason. Browser: `equityRefusalOf` (servedOneEbitda) is the one reader;
+canonicalMetrics `balance.equity` null + `equity_refusal` (census 7 -> 6);
+the report's §1 tile and §6 row/banner print "refused — <reason>";
+`buildReportingMetrics` leaves `shareholdersEquity` absent and
+`metricCardRefusal` (extracted pure from MetricCard) prints "Total equity
+refused: <reason>" on equity cards; periodFacts `bs.total_equity` null with
+`total_equity_refusal`, the three ratios null (no `mOr`, no stale row); the
+Capsule fact index drops `equity` and the equity ratio; the chat context
+states the refusal.
+
+**LAW** — engine (`GATE-WORK refusal-carries-engine units=537`, floor 480):
+the derived witness `realestate_no121` joins the refused books (its margins
+refuse first by the one margin rule, with that code — still refused); section
+12 holds every reader above to the refusal on short equity and to the figure
+on complete equity (R4 and the floor detector on a share capital set so the
+floor WOULD fire; the related-party insight, R6 and the revaluation detector
+fire on the corpus developer WITH 121), the served legacy view's bucket
+equity to the statement's total, the forecast opening to an
+opening-does-not-balance refusal, and the serve-path landing to no error.
+Browser (`Tests 38 passed`, floor 35): round 4 (eight tests) on
+`unanchored_unbalanced`, figures kept on `unanchored` — including the
+document's recommendation rules (`generateRecommendations`, the
+`detectConditions` path): the intercompany-recall rule grades its exposure
+against total equity, so a 150,000 receivable fires on the balanced book
+and is not graded on the short one.
+
+**PLANTS** (engine, each alone, byte-exact restore, `scratchpad/rr2/plant_engine.py`):
+```
+PLANT briefing-facts-cite-the-short-equity: src/engine/api/pipeline.py
+  exit=1
+  E   AssertionError: unanchored_unbalanced: the briefing's facts carry total_equity 200000.0 (refusal None) on equity short by the refused result — a citable MoneyFact
+  E   AssertionError: realestate_no121: the briefing's facts carry total_equity 41085738.87 (refusal None) on equity short by the refused result — a citable MoneyFact
+  -> RED ; file restored byte-exact
+PLANT briefing-debt-to-equity-on-the-short-equity: src/engine/api/pipeline.py
+  exit=1
+  E   AssertionError: unanchored_unbalanced: the briefing's debt_to_equity = 0.0 (None), expected the engine's reason
+  E   AssertionError: realestate_no121: the briefing's debt_to_equity = 0.45 (None), expected the engine's reason
+  -> RED ; file restored byte-exact
+PLANT methodology-grades-the-short-equity: src/engine/methodology/evaluator.py
+  exit=1
+  E   AssertionError: unanchored_unbalanced: methodology totals.total_equity 200000.0 refused None
+  E     unanchored_unbalanced: methodology ratios.equity_ratio = 0.47619 (band [0.3, 0.6]) refused None — graded on equity short by the refused result
+  E     unanchored_unbalanced: methodology ratios.debt_to_equity = 0.0 (band [0.0, 1.0]) refused None — graded on equity short by the refused result
+  E     unanchored_unbalanced: methodology ratios.lt_debt_to_equity = 0.0 (band None) refused None — graded on equity short by the refused result
+  E     unanchored_unbalanced: FactsGateway.equity serves 20000000 on short equity
+  -> RED ; file restored byte-exact
+PLANT gateway-serves-the-short-equity: src/engine/serving/facts.py
+  exit=1
+  E   AssertionError: unanchored_unbalanced: FactsGateway.equity serves 20000000 on short equity
+  E     unanchored_unbalanced: Capsule get_facts equity serves ToolMoney(fact='total_equity', metric='equity', amount_minor=20000000, currency='RON', provenance={'period_id': 'p-unanchored_unbalanced', 'period_
+  E     unanchored_unbalanced: Capsule get_facts equity_ratio serves ToolRatio(fact='equity_share', metric='equity_ratio', unit='percent', value=0.47619047619047616, numerator_minor=20000000, denominator_minor=
+  E   AssertionError: realestate_no121: FactsGateway.equity serves 4108573887 on short equity
+  -> RED ; file restored byte-exact
+PLANT insights-haircut-on-the-short-equity: src/engine/insights/detectors.py
+  exit=1
+  E   AssertionError: unanchored_unbalanced: the related-party insight [] / [{'id': 'related_party_exposure', 'title': 'Related-party and other-debtor balances sit inside the assets', 'reason': 'No intercompany
+  E   AssertionError: realestate_no121: the related-party insight ['RON 38,640.75 of related-party and other-debtor receivables is 0.05% of total assets and 0.1% of equity; written off in full, the equity ratio
+  -> RED ; file restored byte-exact
+PLANT r4-judges-the-short-equity: src/engine/api/pipeline.py
+  exit=1
+  E   AssertionError: unanchored_unbalanced: stage_validate judged equity short by the refused result: ['data_quality_bs_imbalance', 'equity_below_half_capital', 'ebitda_refused_stock_variation']
+  E   AssertionError: realestate_no121: stage_validate judged equity short by the refused result: ['equity_below_half_capital', 'ebitda_refused_stock_variation', 'risk_inventory_cash_tight', 'risk_inventory_fx_
+  -> RED ; file restored byte-exact
+PLANT findings-floor-on-the-short-equity: src/engine/api/findings/s_solvency.py
+  exit=1
+  E   AssertionError: unanchored_unbalanced: findings equity_below_half_capital judged equity short by the refused result: fired ['data_quality_bs_imbalance', 'equity_below_half_capital'], check [{'rule_id': 'e
+  E   AssertionError: realestate_no121: findings equity_below_half_capital judged equity short by the refused result: fired ['equity_below_half_capital', 'liquidity_cash_tight', 'fx_exposure'], check [{'rule_id
+  -> RED ; file restored byte-exact
+PLANT findings-reval-share-of-the-short-equity: src/engine/api/findings/s_structure.py
+  exit=1
+  E   AssertionError: realestate_no121: findings equity_quality_revaluation_reserves judged equity short by the refused result: fired ['liquidity_cash_tight', 'equity_quality_revaluation_reserves', 'fx_exposure
+  ========================= 1 failed, 6 passed in 1.71s ==========================
+  -> RED ; file restored byte-exact
+PLANT r6-reval-share-of-the-short-equity: src/engine/api/pipeline.py
+  exit=1
+  E   AssertionError: realestate_no121: stage_validate judged equity short by the refused result: ['equity_refused_net_result', 'ebitda_refused_stock_variation', 'risk_inventory_cash_tight', 'risk_inventory_fx_
+  ========================= 1 failed, 6 passed in 1.75s ==========================
+  -> RED ; file restored byte-exact
+PLANT completion-reads-the-refused-equity: src/engine/api/pipeline.py
+  exit=1
+  E   AssertionError: unanchored_unbalanced: the served legacy view's bucket equity 320000.0 is not the statement's equity 200000.0
+  E   AssertionError: realestate_no121: the served legacy view's bucket equity 10694320.49 is not the statement's equity 41085738.87
+  -> RED ; file restored byte-exact
+PLANT forecast-opening-reads-the-refused-equity: src/engine/forecast/opening.py
+  exit=1
+  E   AssertionError: unanchored_unbalanced: the forecast opening raised RefusedFactError "'total equity refused: account_121_anchor_absent'"
+  E   AssertionError: realestate_no121: the forecast opening raised RefusedFactError "'total equity refused: account_121_anchor_absent'"
+  -> RED ; file restored byte-exact
+PLANT serve-landing-reads-the-refused-equity: src/engine/api/pipeline.py
+  exit=1
+  E   AssertionError: unanchored_unbalanced: the serve path's envelope landing failed: ['[envelope-truth] persisted-envelope override failed (non-fatal)']
+  E   AssertionError: realestate_no121: the serve path's envelope landing failed: ['[envelope-truth] persisted-envelope override failed (non-fatal)']
+  -> RED ; file restored byte-exact
+PLANT capsule-gap-drops-the-reason: src/engine/api/_capsule_tools.py
+  exit=1
+  E   AssertionError: unanchored_unbalanced: Capsule get_facts equity serves None (gap "FY2025 does not carry equity ('total equity refused: account_121_anchor_absent')."), expected the refusal with its reason
+  E     unanchored_unbalanced: Capsule get_facts equity_ratio serves None (gap "FY2025 does not carry equity ('total equity refused: account_121_anchor_absent')."), expected the refusal with its reason
+  E   AssertionError: realestate_no121: Capsule get_facts equity serves None (gap "FY2025 does not carry equity ('total equity refused: account_121_anchor_absent')."), expected the refusal with its reason
+  E     realestate_no121: Capsule get_facts equity_ratio serves None (gap "FY2025 does not carry equity ('total equity refused: account_121_anchor_absent')."), expected the refusal with its reason
+  -> RED ; file restored byte-exact
+REVERT (clean tree):
+  ============================== 7 passed in 1.65s ===============================
+```
+A fourteenth plant stayed GREEN and its code was removed instead:
+`insights/book.py` `bs("total_equity") -> None` on a refused equity — the
+related-party detector reads `equity_refusal()` first, so the branch was
+unobservable (the one-authority rule: a guard no gate can see is deleted,
+not kept).
+
+**PLANTS** (browser, each alone, byte-exact restore, `scratchpad/rr2/plant_fe.py`):
+```
+PLANT canonical-equity-or-0: frontend/lib/canonicalMetrics.ts
+   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: canonicalMetrics carries no total equity — the engine's refusal instead 4ms
+   → canonical total equity: expected 200000 to be null
+   Tests  1 failed | 37 passed (38)
+  -> RED ; file restored byte-exact
+PLANT report-kpi-drops-the-equity-reason: frontend/pages/cfo/ComprehensiveReport.tsx
+   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: the report's §1 Equity ratio and §6 Book equity print the reason — never 47.6 % or 200,000 39ms
+   → Unable to find an element by: [data-testid="report-kpi-equity-ratio-refused"]
+   Tests  1 failed | 37 passed (38)
+  -> RED ; file restored byte-exact
+PLANT report-book-equity-reads-the-rows: frontend/pages/cfo/ComprehensiveReport.tsx
+   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: the report's §1 Equity ratio and §6 Book equity print the reason — never 47.6 % or 200,000 44ms
+   → Unable to find an element by: [data-testid="report-valuation-book-equity-refused"]
+   Tests  1 failed | 37 passed (38)
+  -> RED ; file restored byte-exact
+PLANT periodfacts-equity-from-the-rows: frontend/lib/periodFacts.ts
+   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: periodFacts refuses total equity and every ratio on it — no `mOr` fallback, no stale row 4ms
+   → periodFacts total equity: expected 200000 to be null
+   Tests  1 failed | 37 passed (38)
+  -> RED ; file restored byte-exact
+PLANT periodfacts-stale-row-stands-in: frontend/lib/periodFacts.ts
+   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: periodFacts refuses total equity and every ratio on it — no `mOr` fallback, no stale row 15ms
+   → expected [ 0.4762, null, null ] to deeply equal [ null, null, null ]
+   Tests  1 failed | 37 passed (38)
+  -> RED ; file restored byte-exact
+PLANT reporting-metrics-equity-from-the-rows: frontend/lib/learning/buildReportingMetrics.ts
+   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: the dashboard resolver forms no equity ratio / debt to equity, and the card prints the reason 6ms
+   → expected 200000 to be undefined
+   Tests  1 failed | 37 passed (38)
+  -> RED ; file restored byte-exact
+PLANT metric-card-drops-the-equity-reason: frontend/components/dashboard/MetricCard.tsx
+   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: the dashboard resolver forms no equity ratio / debt to equity, and the card prints the reason 10ms
+   → card total_equity: expected '(the card printed no refusal)' to contain 'total equity excludes the year\'s res…'
+   Tests  1 failed | 37 passed (38)
+  -> RED ; file restored byte-exact
+PLANT capsule-index-equity-from-the-rows: frontend/lib/capsuleFactIndex.ts
+   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: the Capsule fact index carries no equity and derives no equity ratio 20ms
+   → expected [ 'total_assets', …(23) ] to not include 'equity'
+   Tests  1 failed | 37 passed (38)
+  -> RED ; file restored byte-exact
+PLANT capsule-index-stale-equity-ratio-row: frontend/lib/capsuleFactIndex.ts
+   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: the Capsule fact index carries no equity and derives no equity ratio 9ms
+   → a stale engine row: expected [ 'total_assets', …(23) ] to not include 'equity_ratio'
+   Tests  1 failed | 37 passed (38)
+  -> RED ; file restored byte-exact
+PLANT document-rules-grade-the-short-equity: frontend/lib/financialReport.ts
+   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: the document's recommendation rules grade no exposure against the short equity 5ms
+   → expected [ 'intercompany_receivable_recall' ] to not include 'intercompany_receivable_recall'
+   Tests  1 failed | 37 passed (38)
+  -> RED ; file restored byte-exact
+PLANT chat-hands-the-short-equity: frontend/pages/cfo/Chat.tsx
+   × refusal-carries — round 4: every reader of total equity > unanchored_unbalanced: the chat context states the refusal — never 'Total equity 200,000' 9ms
+   → expected 'Period: FY2025\nCompany: Net 711 cons…' to contain 'Total equity: REFUSED — total equity …'
+   Tests  1 failed | 37 passed (38)
+  -> RED ; file restored byte-exact
+RESTORED: Tests  38 passed (38)
+```
+**REVERT** — engine `7 passed`; browser `Tests 38 passed (38)`.
+
+**CANNOT SEE:** whether the engine was right to refuse (net-711-rule);
+`reportComparatives` / `comparatives.ts`' total-equity line and delta (a
+comparison of two periods' statements, printed as the statement total); the
+benchmark engine's equity ratio (it reads the stored `total_equity` row,
+None on these books, and states no reason of its own); the multi-period
+findings series (`m_series` basis total equity — Radar parked); the exports'
+and BS tab's statement rows (they print what the rows sum to and state the
+imbalance) and the export's executive-summary "Total equity" tile (the
+statement total; its Equity ratio tile refuses); pixels.
+
+### refusal-carries / refusal-carries-engine — the sector benchmark, the build-up under `net_income`, NaN on a refused net result, rows persisted before the refusal, never a bare dash (critic round 3 fixer, 2026-09-28)
+
+**INCIDENT** — the round-3 critic, measured on the served bodies:
+`GET /api/period/{id}/sector-benchmark` graded the equity ratio 0.4925
+against the sector median 0.2996 on `realestate_no121` (0.4762 on
+`unanchored_unbalanced`) — `sector._gateway` read `canonical_bs` alone and
+restated any card not refused by the margin rule; stage_compute wrote the
+class 6/7 build-up without the refused 711 under `net_income` /
+`net_income_operational` (120,000.00; −30,391,418.38 where 121 closes at
+−801,604.14), served in `metrics[]` to the Ask-CFO chat's "Headline
+metrics" and handed to the briefing narrator; `deriveCashFlow` / `runGraham`
+fell back to `Number.NaN` ("EV / Revenue NaN×", "= FCF — Cash burning", twenty
+NaN workbook cells on both refused books); the WACC weighed the short equity
+("Weight equity 100.0 %"); the Risks tab printed Altman X2-X4 as bare dashes,
+the report "X3 not reported", "ROE | —", "~ Net profit | —", the export
+"Equity ratio not reported" and "EBITDA refused: total equity excludes …";
+the related-party insight named the equity refusal on a book with no
+related-party row.
+
+**LAW** — engine (`GATE-WORK refusal-carries-engine units=663`, floor 600):
+12k the sector document refuses the equity ratio (`company_refused`,
+`company_figure_refused`, cause = the 711 code, the engine's sentence) on both
+short-equity books and ROE / ROA on the three net-result-refused books, the
+filed-basis operand and the carried card refusal each witnessed alone; the
+equity ratio is compared on `unanchored` and ROE / ROA on `g6_uncleared`.
+12e the related-party insight: equity refusal on the developer (it carries a
+related-party balance), "No intercompany …" on the constructed book. 11 the
+equity and profitability sub-scores are worded on their own causes. 13
+(`test_refusal_carries_rows_persisted_before_the_refusal`, every refused
+book): stage_compute refuses `net_income` / `net_income_operational` on a
+refused net result; GET `/api/period` over STALE seeded rows serves every
+`NET_RESULT_REFUSED_METRICS` / `EQUITY_INCOMPLETE_METRICS` row refused where
+the statements refuse it (and the typed ratios block), and the stale figure
+where nothing refuses it; the narrator's rows (`enforce_metric_rows`) the
+same, a filed X2 0.2381 included (E2); GET over a stored valuations row
+carries `asset_based_refusal` on short equity (E7).
+Browser (`Tests 47 passed`, floor 44): the chat's Headline metrics over
+stale rows (net_income 120,000 → "REFUSED — <reason>"); round 5 — the
+builders null with the engine's reason, the WACC, a NaN/Infinity scan of
+every sheet of every fixture book (> 1,000 cells), the Valuation panel on
+both refused books and on `g6_uncleared`; round 6 — the Risks tab's Altman
+rows and the §7 card, the report's §4 / §5 rows, the export's headline
+tiles and equity rows; F1 (a stale `altman_x2` row under a refused X2) and
+F5 (the rendered NAV sensitivity cells). `sectorBenchmark.test.tsx`: a
+refused company figure prints the engine's sentence in EN and RO.
+
+**PLANTS** (each alone, byte-exact restore, `scratchpad/fx711r1/plant.py`):
+```
+PLANT S1 sector: equity operand not refused
+  E   AssertionError: unanchored_unbalanced: the sector benchmark's filed-basis equity operand {'name': 'equity', 'value': 200000.0, 'source': 'canonical_bs.equity'} on equity short by the refused result
+  1 failed, 3 passed -> RED ; restored
+PLANT S2 sector: card refusal not carried
+  E   AssertionError: unanchored_unbalanced: the sector benchmark restated the equity ratio beside a card that refused it: {'value': 0.47619047619047616, 'reason': None, 'basis': 'restated_on_filed_basis', ...}
+  1 failed, 3 passed -> RED ; restored
+PLANT S3 sector: both (the pre-fix seam)
+  E   AssertionError: unanchored_unbalanced: the sector benchmark graded the equity ratio on equity short by the refused result: 'sourced' / 0.47619047619047616 / {}
+  1 failed, 3 passed -> RED ; restored
+PLANT S4 sector: net result operand not refused (+ no card carry)
+  E   AssertionError: unanchored: the sector benchmark's roe on a refused net result: 'company_absent' / {'code': 'company_operand_absent', 'inputs': ['net_result']}
+  1 failed, 1 passed -> RED ; restored
+PLANT S5 sector page drops the engine's sentence (FE)
+  AssertionError: expected 'Not compared — refused: company_figur…' to be 'Not compared — refused: total equity …'
+  Tests 1 failed | 21 passed (22) -> RED ; restored
+PLANT N1 stage_compute serves the build-up under net_income
+  E   AssertionError: unanchored: stage_compute net_income = 120000.0 on a refused net result
+  1 failed, 5 passed -> RED ; restored
+PLANT N2 GET does not withhold persisted refused rows
+  E   AssertionError: unanchored: GET /api/period metrics[] serves net_income = 123456.78 beside a refused net result
+  1 failed, 5 passed -> RED ; restored
+PLANT N3 the narrator's rows are not withheld
+  E   AssertionError: unanchored: the narrator's metrics serves net_income = 123456.78 beside a refused net result
+  1 failed, 5 passed -> RED ; restored
+PLANT E2 withhold_persisted keeps a filed X2 over short equity
+  E   AssertionError: unanchored_unbalanced: the narrator's metrics serve a persisted X2 0.2381 over equity short by the refused result
+  1 failed, 7 passed -> RED ; restored
+PLANT E7 GET valuation drops asset_based_refusal
+  E   AssertionError: unanchored_unbalanced: GET valuation over a stored row serves primary None, asset_based_refusal {} on equity short by the refused result
+  1 failed, 7 passed -> RED ; restored
+PLANT C1 chat prints a refused row's persisted figure
+  Tests 1 failed | 38 skipped (39) -> RED ; restored
+PLANT V1 deriveCashFlow falls back to NaN (the pre-fix line)
+  × round 5 > the builders … ; × round 5 > the workbook: no NaN or Infinity cell …
+  Tests 3 failed | 1 passed -> RED ; restored
+PLANT V2 runDcf forms figures on a refused CFO
+  Tests 3 failed | 1 passed -> RED ; restored
+PLANT V3 runGraham capitalises a refused result
+  Tests 3 failed | 1 passed -> RED ; restored
+PLANT V4 the WACC weighs the short equity
+  × round 5 > the WACC weighs no equity short by the refused result … ; × the Valuation tab …
+  Tests 2 failed | 2 passed -> RED ; restored
+PLANT V5 the FCF verdict prints beside a refused FCF
+  × round 5 > the Valuation tab: no NaN, no 'Cash burning' beside a refused FCF …
+  Tests 1 failed | 3 passed -> RED ; restored
+PLANT V6 the workbook prints the refused cells raw
+  × round 5 > the workbook: no NaN or Infinity cell on any sheet of any fixture book …
+  Tests 1 failed | 3 passed -> RED ; restored
+PLANT V7 the tab drops the EV/Revenue refusal
+  Tests 1 failed | 3 passed -> RED ; restored
+PLANT I1 the equity refusal asked before the exposure (the pre-fix order)
+  E   AssertionError: unanchored_unbalanced: the related-party insight on a book with no related-party row names "Total equity is refused — total equity excludes the year's result …"
+  1 failed, 3 passed -> RED ; restored
+PLANT F1 a stale X2 metric row stands in for the refused component
+  AssertionError: a stale X2 row printed: expected 0.2381 to be null
+  Tests 1 failed | 6 passed -> RED ; restored
+PLANT F5 the rendered sensitivity cell prints 0 for a refused NNNAV
+  AssertionError: expected '—' to be 'refused'
+  Tests 1 failed | 6 passed -> RED ; restored
+PLANT M1 the Risks tab's Altman rows print a bare dash
+  × round 6 > the Risks tab's Altman table and the report's §7 card print the engine's reason on X2, X3 and X4
+  Tests 1 failed | 2 passed -> RED ; restored
+PLANT M2 the report's §7 card prints X3 'not reported'
+  AssertionError: expected 'not reported' to contain 'The altman component is not scored: E…'
+  Tests 1 failed | 2 passed -> RED ; restored
+PLANT M3 the report's §5 prints a bare dash on a refused ratio
+  × round 6 > the report's §4 and §5 print the engine's reason on every refused row
+  Tests 1 failed | 2 passed -> RED ; restored
+PLANT M4 the report's §4 prints a bare dash on a refused cash-flow row
+  Tests 1 failed | 2 passed -> RED ; restored
+PLANT M5 the export's headline prints 'not reported' over a refused figure
+  AssertionError: expected 'not reported' to be 'refused — total equity excludes the y…'
+  Tests 1 failed | 2 passed -> RED ; restored
+PLANT M6 the export names total equity's refusal 'EBITDA refused'
+  AssertionError: expected '…' not to contain 'EBITDA refused: total equity'
+  -> RED ; restored
+PLANT M7 the equity sub-score worded on EBITDA's cause
+  E   AssertionError: unanchored_unbalanced: the equity sub-score's refusal names another cause: "The equity component is not scored: EBITDA and the operating result are refused …"
+  1 failed, 3 passed -> RED ; restored
+PLANT M8 the profitability sub-score worded on EBITDA's cause
+  E   AssertionError: unanchored: the profitability sub-score's refusal names another cause: "The profitability component is not scored: EBITDA and the operating result are refused …"
+  1 failed, 1 passed -> RED ; restored
+```
+**REVERT** — engine `11 passed`; browser `Tests 47 passed (47)`; sector
+`Tests 22 passed (22)`.
+
+**GOLDEN-CHANGE** — `constructed_books.json` re-captured twice (3449a64d:
+the related-party insight's reason on `unanchored_unbalanced`; 9e329263: the
+equity and profitability sub-score sentences). No figure moved.
+
+**CANNOT SEE:** whether the engine was right to refuse (net-711-rule); the
+engine-served code on the equity rows, X2 and the equity sub-score is still
+`ebitda_refused` (cause = the net result's code) — the browser names total
+equity's refusal by its SUBJECT (the served figure's name), not by a new
+code; a stored row this file does not seed; pixels.
+
+### valuation-one-ebitda — one industry key for every served valuation (critic round 3 fixer, 2026-09-28)
+
+**INCIDENT** — `_serialize_valuation` (GET /api/period) passed no key and
+read `statements["industry"]` (the org's display name); the briefing
+regenerate route passed the raw stored key. **LAW**
+(`test_one_valuation_choice_one_industry_key`, agras with a stored key and
+the developer stored as "generic"): both routes compute on the persist
+path's `_effective_industry(org, {statements, lineItems})[2]`
+(`_valuation_industry_key`; the save and recompute routes too). 23 tests.
+```
+PLANT K1 GET reads statements['industry'] (the display name)
+  E     Extra items in the left set: 'Denumirea afișată a sectorului'
+  E     Extra items in the right set: 'real_estate_commercial'
+  2 failed, 21 deselected -> RED ; restored
+PLANT K2 the regenerate route passes the raw stored key
+  E   assert (['generic'] and {'generic'} == {'real_estate_commercial'}
+  1 failed, 1 passed -> RED ; restored
+```
+
+### valuation-refused-override — a withheld stored row on its own cause, no 0.0× multiple (critic round 3 fixer, 2026-09-28)
+
+**LAW** (10 tests): a stored row withheld for another EBITDA prints
+"Stored valuation withheld — <reason>" (no "EBITDA refused", no
+"asset-based") and "withheld — <reason>" where the value sits; the EBITDA
+banner claims "asset-based" only when book equity is served; a refused book
+equity prints "refused — <reason>" as the value; with no multiple served no
+slider and no debt / cash editor is offered and a typed EBITDA saves
+`multiple_used: null`.
+```
+PLANT L1a a withheld stored row worded as a refused EBITDA
+  × … > a stored row on the previous EBITDA: no EBITDA, the stored row's reason, no EV/EBITDA value -> RED ; restored
+PLANT L1b 'the valuation is asset-based' beside a refused book equity
+  Tests 1 failed | 9 passed (10) -> RED ; restored
+PLANT L1c the slider and editors shown with no multiple served
+  Tests 2 failed | 8 passed (10) -> RED ; restored
+PLANT L1d a save pins the unserved multiple as 0
+  × … > a served EBITDA with no peer multiple: a typed EBITDA saves no multiple (never multiple_used 0)
+  Tests 1 failed | 9 passed (10) -> RED ; restored
+PLANT L1e a bare 'refused' where the primary value sits
+  Tests 1 failed | 9 passed (10) -> RED ; restored
+```
+
+### reprocess-periods-definition — the apply reads the valuations row back (critic round 3 fixer, 2026-09-28)
+
+**LAW** (`GATE-WORK reprocess-periods-definition units=56`, floor 50): an
+apply whose valuation write failed (`_compute_and_persist_valuation`
+swallows it) is refused `valuation_not_rewritten` with the value read back,
+and the period stays `would_reprocess`.
+```
+PLANT R1 the apply reports REPROCESSED without reading back the valuations row
+  E   assert ('reprocessed' == 'refused'
+  -> RED ; restored
+```

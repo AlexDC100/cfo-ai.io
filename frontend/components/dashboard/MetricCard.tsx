@@ -77,6 +77,13 @@ interface Props {
    *  (engine.ratios.margin_meaning via `statements.margin_meaning`). A margin
    *  card prints it in place of the percent the resolver would divide. */
   marginRefusal?: { readonly ro: string; readonly en: string } | null;
+  /** The ENGINE's refusal of EBITDA for this period (one-EBITDA ruling). A
+   *  card built on EBITDA / EBIT whose value is absent prints it. */
+  ebitdaRefusal?: { readonly code: string; readonly text: { readonly ro: string; readonly en: string } } | null;
+  /** The ENGINE's refusal of total equity as the company's equity (it
+   *  excludes a refused year's result — `assembled_bs.total_equity_refusal`).
+   *  A card on total equity or a ratio dividing it prints it. */
+  equityRefusal?: { readonly code: string; readonly text: { readonly ro: string; readonly en: string } } | null;
   /** F6.1 — multi-year series for the active period (built once at the page
    *  from statements.historicalPeriods). Drives the Trend-view sparkline. */
   series?: MultiYearSeries;
@@ -94,6 +101,53 @@ interface TrendBadge {
    *  the up/down arrow only. Purely directional — not a good/bad verdict,
    *  which is exactly why the badge stays a NEUTRAL chip. */
   positive: boolean;
+}
+
+/** Concepts whose value is EBITDA / EBIT or built on them — refused with
+ *  EBITDA when the engine refused it. */
+const EBITDA_BUILT_CONCEPTS: ReadonlySet<string> = new Set([
+  "ebitda", "ebit", "gross_profit", "ebitda_margin", "ebit_margin", "operating_margin",
+  "gross_margin", "gross_margin_ratio", "core_ebitda_margin", "net_debt_ebitda",
+  "debt_to_ebitda", "interest_coverage", "dscr", "pretax_profit",
+]);
+
+/** Concepts whose value is total equity or divides it — refused with total
+ *  equity when the engine refused it (critic round 2, 2026-09-27). */
+const EQUITY_BUILT_CONCEPTS: ReadonlySet<string> = new Set([
+  "total_equity", "shareholders_equity", "equity_ratio", "debt_to_equity", "lt_debt_to_equity", "roe",
+]);
+
+type CardRefusal = { readonly code: string; readonly text: { readonly ro: string; readonly en: string } };
+
+/** What a card prints INSTEAD of a figure, or null (pure — the gate reads
+ *  it). A margin the engine ruled not meaningful states that; a figure
+ *  built on a refused EBITDA states the EBITDA refusal (the resolver
+ *  answers null for it); a card on TOTAL EQUITY or a ratio dividing it
+ *  states the engine's equity refusal whenever there is one — the refusal
+ *  is authoritative, whatever the resolver was handed (critic round 2,
+ *  2026-09-27: the resolver divided the rows' short sum into an equity
+ *  ratio of 0.4925 on the real developer without account 121). */
+export function metricCardRefusal(
+  conceptKey: string,
+  resolvedValue: number | null,
+  refusals: {
+    marginRefusal?: { readonly ro: string; readonly en: string } | null;
+    ebitdaRefusal?: CardRefusal | null;
+    equityRefusal?: CardRefusal | null;
+  },
+): { readonly ro: string; readonly en: string } | null {
+  const { marginRefusal = null, ebitdaRefusal = null, equityRefusal = null } = refusals;
+  if (marginRefusal && MARGIN_CONCEPT_KEYS.has(conceptKey)) return marginRefusal;
+  if (ebitdaRefusal && resolvedValue === null && EBITDA_BUILT_CONCEPTS.has(conceptKey)) {
+    return { ro: `EBITDA refuzată: ${ebitdaRefusal.text.ro}`, en: `EBITDA refused: ${ebitdaRefusal.text.en}` };
+  }
+  if (equityRefusal && EQUITY_BUILT_CONCEPTS.has(conceptKey)) {
+    return {
+      ro: `Capitaluri proprii refuzate: ${equityRefusal.text.ro}`,
+      en: `Total equity refused: ${equityRefusal.text.en}`,
+    };
+  }
+  return null;
 }
 
 // Narrow no-break space — the instrument's joint between figure and unit.
@@ -128,6 +182,8 @@ export function MetricCard({
   editMode,
   overrides,
   marginRefusal = null,
+  ebitdaRefusal = null,
+  equityRefusal = null,
   series,
   view = "snapshot",
   onRearrange,
@@ -173,8 +229,13 @@ export function MetricCard({
   // A MARGIN THE ENGINE REFUSED (turnover negligible against operating
   // activity): the card states the refusal, never the resolver's division —
   // on the corpus developer that division printed −17,884.9%.
-  const refusal =
-    marginRefusal && MARGIN_CONCEPT_KEYS.has(card.conceptKey) ? marginRefusal : null;
+  // A FIGURE BUILT ON A REFUSED EBITDA (one-EBITDA ruling, 2026-09-26):
+  // the engine's reason, never a dash — the resolver answers null for
+  // EBITDA, EBIT, their margins and the EBITDA leverage once the served
+  // figure is refused.
+  const refusal = metricCardRefusal(card.conceptKey, resolved.value, {
+    marginRefusal, ebitdaRefusal, equityRefusal,
+  });
 
   // PROVENANCE — by concept, from the page, verified to the cent. The
   // resolver's output carries none; the page that routed the headline

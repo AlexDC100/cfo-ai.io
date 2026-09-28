@@ -60,6 +60,93 @@ Background, blob identity and the accepted residuals:
 
 ---
 
+## 2026-09-27 — THE ONE EBITDA: owner ruling on 711 / 722 (re-baseline of the parity pair)
+
+**Authorization.** Owner ruling, 2026-09-26 (verbatim in
+`specs-durable/owner_specs_2026-09-26_evening.md` §1): account 711 inside
+EBITDA and the operating result, with its sign, presented as "Variația
+stocurilor de produse" next to cost of sales, outside cifra de afaceri; 722
+(own work capitalised) the same way. Coordinator design A8 lists this pair for
+re-capture ("regression baselines … with a BASELINE_HISTORY entry").
+
+**Toward reality (rule 1).** Net 711 is MEASURED: on Scandia Food FY2025 (a
+closed trial balance) the account-121 bridge, 519,389.11 — the value
+`specs-durable/ebitda711/measure.md` T7 refereed against the Ministry of
+Finance filing — where the engine used to carry the GROSS 711 credit turnover
+(the production stocked) in `inventory_variation_memo` and in
+`p121_cross_check.cls7_minus_cls6` (666,359,661.83 against account 121's
+36,787,352.75 → a false `D6_121_MISMATCH`).
+
+**What moved.**
+
+| fixture | field | before | after |
+|---|---|---:|---:|
+| scandia_fy2025 | `assembled_pl.ebitda` | 54,443,833.33 | 54,963,222.44 (+ net 711 519,389.11) |
+| scandia_fy2025 | `assembled_pl.ebit` | 40,794,188.82 | 41,313,577.93 |
+| scandia_fy2025 | `inventory_variation` | — (gross memo) | 519,389.11 `account_121_bridge` |
+| scandia_fy2025 | `p121_cross_check` | ok false, cls 666,359,661.83 | ok true, cls 36,787,352.75 |
+| scandia_fy2025 | diagnosis `D6_121_MISMATCH` | present | gone |
+| eei_dec_2025 | `assembled_pl.ebitda` | −36,676.13 | 2,127,403.70 (722 2,164,079.83 inside) |
+| eei_dec_2025 | `assembled_pl.ebit` | −392,282.63 | 1,771,797.20 |
+| eei_dec_2025 | `inventory_variation` | — | 0.00 `no_711_activity` (EEI posts no 711) |
+
+Plus, on both, the methodology block's EBITDA views and ratios on the one
+definition, `ebitda_before_stock_variation`, the reconciliation line, the
+stock-variation evidence block (Scandia) and the retired served fields
+(`inventory_variation_memo`, `ebitda_statutory_with_711`,
+`total_operating_revenue_statutory`) gone. Revenue (cifra de afaceri) does not
+move on either book.
+
+**Capture change.** `scripts/capture_assembled_baseline.py` now threads the
+stock-variation evidence the production write seam measures off the SAME
+parsed rows (`RomaniaPack.measure_stock_variation`) into `assemble_statements`
+for Scandia (`evidence_for`); `check_assembled_parity.py` does the same. Without
+it the capture path assembled Scandia with NO evidence, so its 711 — and its
+EBITDA — refused (`stock_variation_evidence_absent`), which is not what the
+product serves for a trial balance it parsed. EEI's fixture is one amount per
+account (no trial-balance columns) and posts no 711: the engine's own
+no-evidence path, unchanged.
+
+**Pre-existing drift absorbed (disclosed, not caused by this change).** The
+parity gate was already RED at the production base 69fb9621, measured in a
+clean worktree: EEI 5 differing paths, Scandia 54 — the account-121 anchor made
+unconditional (2026-09-09: `current_year_profit` 36,267,963.64 → 36,787,352.75),
+parser v6's inventory reading (`inventory_finished_goods`,
+`inventory_merchandise_resale`), `pack_provenance` and the bands. On this branch
+before the re-capture: EEI 33, Scandia 121. Both are absorbed here; after it
+the gate is GREEN, byte-identical on both.
+
+**Archived pre-state:** `archive/eei_dec_2025_pre_one_ebitda.json`,
+`archive/scandia_fy2025_pre_one_ebitda.json`.
+
+**Consumers.** Three engine gates used the Scandia baseline as a LEGACY
+period — an envelope persisted before the stock variation was measured, whose
+one EBITDA refuses `period_predates_stock_variation_measurement` (the credit
+model's refused-composite law, the ratio-compare as-filed disclosure, the
+served-range scoring books) and the stage_compute golden was captured from it.
+They now read the archived pre-state (`tests/engine/_served_books.py`
+`SCANDIA_BASELINE`; the golden case's `source`), which IS those bytes — the
+legacy witness keeps its role and its law. The frontend interest-coverage
+popover gate reads the re-captured baseline in place and its served literal
+moves 13.27 → 13.43 (EBIT 41,313,577.93 ÷ interest 3,075,221.80, printed by the
+engine gate on the re-captured baseline). Every other consumer (37 engine test
+files, 1,364 passed; finding-specificity OK) is unchanged.
+
+**Not re-captured:** the six unasserted baselines (sibiu / frozen / realestate
+/ agras / carniprod / retail). They have no capture script (registered by the
+F3.7-F3.8 ceremonies) and are frozen INPUTS to the findings suites, which do
+not compare them with today's engine; a re-capture would import every engine
+change since F3.8 into those inputs, not only the ruling. Their retired
+`inventory_variation_memo` is read by no numeric path (credit model and
+benchmark list it as retired). Left for a separate decision.
+
+**Gates after:** `check_assembled_parity.py` GREEN (byte-identical on both);
+F-A3.1 `measure_bs_drift.py` GREEN and unchanged from the production base
+(EEI 0.0000 %, Scandia 0.1445 % — the 0.3698 % in CLAUDE.md §14 predates the
+closing-identity / parser-v6 work; the base prints 0.1445 % too).
+
+---
+
 ## 2026-08-15 — CLOSING-IDENTITY MODE: canonical_bs exact-zero difference for balanced sources (re-baseline of the parity pair)
 
 **Scope:** `canonical_adapter.build_canonical_bs_v2` rewritten as a TOTAL
@@ -147,6 +234,7 @@ section; validate_eei_canonical PASS; check_canonical_roundtrip GREEN.
 The methodology `reported` formula matches in-code `ebitda_statutory` exactly (within 0.00 RON) across all 8 fixtures after one calibration pass:
 
 - Initial formula misclassified 711 (inventory_variation_memo) as included; removed because 711 is memo-only in Romanian convention (already netted into COGS aggregate).
+  **[SUPERSEDED 2026-09-26 by the owner's 711 ruling — see the 2026-09-27 entry: net 711 is inside EBITDA and the operating result, measured from the trial balance (the account-121 bridge on a closed book), never the gross memo.]**
 - Initial formula omitted 781 (provision_reversals); added back because 781 lives in canonical `dap` aggregate with EXPENSE_NEGATIVE sign_meaning, but EBITDA convention treats it as income (credit operating adjustment).
 
 ### Baseline impact (EEI + Scandia)

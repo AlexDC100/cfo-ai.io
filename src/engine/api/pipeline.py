@@ -873,6 +873,11 @@ def _deterministic_tb_parsed(
         "parser_unmapped": list(getattr(shaped, "unmapped", None) or []),
         "parser_excluded": list(getattr(shaped, "excluded", None) or []),
         "source_account_census": _ro_pack().deterministic_source_census(shaped),
+        # Net 711 / net 72x evidence (owner ruling 2026-09-26), measured
+        # HERE because this is the last seam that holds the parsed rows:
+        # stage_map decides the one EBITDA from it and stage_persist stores
+        # it on the envelope for every later rebuild.
+        "stock_variation_evidence": _ro_pack().measure_stock_variation(tb_rows),
     }
 
 
@@ -1537,6 +1542,9 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
                             "method": "deterministic",
                             "source_format": "statutory_f30_f10",
                         },
+                        # The filed return prints the stock variation NET
+                        # (rows sold C / sold D) — the measurement itself.
+                        "stock_variation_evidence": _sp.stock_variation_evidence(extraction),
                         "statutory": {
                             "pl_data": extraction.pl_data,
                             "bs_data": extraction.bs_data,
@@ -1803,6 +1811,13 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
     # the NO_ANCHOR default applies: there is no file totals row to
     # reconcile against on this path.
     data["extraction"] = {"method": "llm", "source_format": "llm_freeform"}
+    # No trial-balance columns reach this path (one amount per account), so
+    # net 711 cannot be measured: it refuses — with this reason — on a book
+    # that posts to 711, and the one EBITDA with it.
+    from engine.country_packs.ro_romania import stock_variation as _stock_variation
+    data["stock_variation_evidence"] = _stock_variation.absent_evidence(
+        _stock_variation.REASON_NO_TB_COLUMNS
+    )
 
     return data
 
@@ -1849,6 +1864,10 @@ def stage_map(doc: Dict[str, Any], parsed: Dict[str, Any], industry: Optional[st
         extraction_meta=parsed.get("extraction"),
         source_account_census=parsed.get("source_account_census"),
         extra_unmapped=parsed.get("parser_unmapped"),
+        # Net 711 / net 72x (owner ruling 2026-09-26): measured off the
+        # rows in stage_extract; absent on a path that holds no rows (the
+        # LLM extraction) → 711 refuses on a book that posts to it.
+        stock_variation_evidence=parsed.get("stock_variation_evidence"),
     )
     # Parser-level exclusions (class 8 incl. 891/892, 581 transit) are
     # dropped BEFORE assembly, so the assembler can't record them itself
@@ -2686,6 +2705,38 @@ def stage_compute(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: str
     return metrics
 
 
+#: The EBITDA definition every stored briefing is stamped with.
+_EBITDA_DEFINITION_REVISION = _ro_chart_of_accounts.EBITDA_DEFINITION_REVISION
+
+#: The one-line note a briefing written under an earlier EBITDA definition is
+#: served with (and hidden behind) — never shown beside corrected numbers.
+BRIEFING_PREVIOUS_DEFINITION_NOTE = {
+    "ro": "Comentariul a fost scris sub definiția anterioară a EBITDA "
+          "(fără variația stocurilor de produse și producția imobilizată) și "
+          "este ascuns; reanalizați perioada pentru un comentariu nou.",
+    "en": "This briefing was written under the previous EBITDA definition "
+          "(without the stock variation and own work capitalised) and is "
+          "hidden; re-analyse the period for a new one.",
+}
+
+
+def briefing_definition_status(briefing: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """For a stored briefing row: the EBITDA definition it was written under
+    and, when that is not today's (or unknown — every row written before the
+    stamp existed), `written_under_previous_definition` and the note. None
+    when there is no briefing."""
+    if not briefing:
+        return None
+    stamped = briefing.get("ebitda_definition")
+    current = stamped == _EBITDA_DEFINITION_REVISION
+    return {
+        "written_under": stamped,
+        "current_definition": _EBITDA_DEFINITION_REVISION,
+        "written_under_previous_definition": not current,
+        "note": None if current else dict(BRIEFING_PREVIOUS_DEFINITION_NOTE),
+    }
+
+
 def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: str) -> List[Dict[str, Any]]:
     """Generate deterministic alerts from the canonical `period_facts`-shaped
     views (`assembled_pl`, `assembled_bs`, `assembled_cf`). Every rule has a
@@ -2715,8 +2766,17 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
     # the legacy assembled shape for the rare case where canonical views
     # aren't populated. Every rule below reads from these locals — no rule
     # re-derives a metric from the raw `bs` / `pl` blobs.
-    ebitda_statutory = float(pl_canonical.get("ebitda_statutory") or 0)
-    ebitda_operational = float(pl_canonical.get("ebitda_operational") or 0)
+    # THE ONE EBITDA (owner ruling 2026-09-26): net 711 and net 72x inside.
+    # A REFUSED EBITDA (net 711 unmeasurable on a book that posts to it) is
+    # None here and every EBITDA rule stays silent on it — it used to read
+    # `or 0`, which turned a refusal into "EBITDA RON 0 — earnings-based
+    # valuation not applicable". The refusal is its own alert (R10b).
+    _ebitda_raw = pl_canonical.get("ebitda")
+    ebitda_refusal = pl_canonical.get("ebitda_refusal") if _ebitda_raw is None else None
+    ebitda_known = isinstance(_ebitda_raw, (int, float)) and not isinstance(_ebitda_raw, bool)
+    # Kept under its historical local name (the fact key the persisted
+    # alerts cite); it IS the one EBITDA — `ebitda_statutory` is its alias.
+    ebitda_statutory = float(_ebitda_raw) if ebitda_known else 0.0
     capitalized = float(
         pl_canonical.get("capitalized_own_work_memo", pl.get("capitalizedOwnWork", 0)) or 0
     )
@@ -2725,6 +2785,12 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
     total_assets = float(bs_canonical.get("total_assets") or 0)
     total_liabilities = float(bs_canonical.get("total_liabilities") or 0)
     total_equity = float(bs_canonical.get("total_equity") or 0)
+    # Total equity short by a REFUSED year's result (no account 121, net
+    # 711 refused, a sheet that does not balance without it — critic round
+    # 2, 2026-09-27): no rule judges it. On the constructed witness the
+    # Art. 153^24 floor fired on 200,000 where the year's result makes it
+    # 370,000; a missing LOSS would instead hide a real breach.
+    equity_refusal = _equity_refusal_of(bs_canonical)
     share_capital = float(bs_canonical.get("share_capital", bs.get("shareCapital", 0)) or 0)
     revaluation_reserves = float(bs_canonical.get("revaluation_reserves") or 0)
     bank_debt_total = float(bs_canonical.get("total_debt") or 0)
@@ -2855,14 +2921,14 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
         )
 
     # ── R3. Leverage — Debt/EBITDA above threshold ───────────────────────
-    if ebitda_statutory > 0 and bank_debt_total > 0:
+    if ebitda_known and ebitda_statutory > 0 and bank_debt_total > 0:
         dte = _ratio_units.ratio(_q(bank_debt_total, "bank_debt_total"),
                                  _q(ebitda_statutory, "ebitda_statutory"))
         if dte > dte_critical:
             _add(
                 "leverage_debt_to_ebitda_high", "critical", "leverage",
                 f"Debt/EBITDA at {dte:.2f}× exceeds {dte_critical:.1f}× critical threshold for {industry_key}",
-                f"Bank debt RON {bank_debt_total:,.0f} divided by statutory EBITDA "
+                f"Bank debt RON {bank_debt_total:,.0f} divided by EBITDA "
                 f"RON {ebitda_statutory:,.0f} = {dte:.2f}×, above the {dte_critical:.1f}× "
                 f"critical threshold typical for this industry. Covenant breach risk.",
                 {"debt_to_ebitda": dte, "bank_debt_total": bank_debt_total,
@@ -2872,7 +2938,7 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
             _add(
                 "leverage_debt_to_ebitda_high", "high", "leverage",
                 f"Debt/EBITDA at {dte:.2f}× above {dte_high:.1f}× comfort zone for {industry_key}",
-                f"Bank debt RON {bank_debt_total:,.0f} on statutory EBITDA "
+                f"Bank debt RON {bank_debt_total:,.0f} on EBITDA "
                 f"RON {ebitda_statutory:,.0f} = {dte:.2f}×, above typical comfort but "
                 f"below covenant alarm for {industry_key}.",
                 {"debt_to_ebitda": dte, "bank_debt_total": bank_debt_total,
@@ -2884,7 +2950,20 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
     # convention) is actually below half of share_capital. Previously the
     # platform inverted the sign and tripped this rule on a positive-equity
     # company.
-    if share_capital > 0 and total_equity < share_capital / 2:
+    if equity_refusal is not None:
+        _add(
+            "equity_refused_net_result", "high", "data_quality",
+            "Equity cannot be judged for this period — it excludes the year's "
+            "result, which is refused",
+            "Total equity is refused rather than read without the year's result: "
+            + str(equity_refusal.get("text_en") or equity_refusal.get("code") or "")
+            + ". The equity-below-half-of-share-capital test (Romanian Company Law "
+            "Art. 153^24), the equity ratio and the equity-quality checks are not "
+            "performed on it. Re-analyse the period from a trial balance that "
+            "carries account 121.",
+            {},
+        )
+    elif share_capital > 0 and total_equity < share_capital / 2:
         sev = "critical" if total_equity < 0 else "high"
         title = (
             f"Negative book equity RON {total_equity:,.0f} — Romanian Company Law requires review"
@@ -2902,29 +2981,18 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
                                          _q(max(share_capital, 1), "share_capital"))},
         )
 
-    # ── R5. Capitalized own-work earnings-quality observation ────────────
-    # Info-level only — the operating-view P&L already accounts for 722.
-    # This card explains the 722/628 wash to the analyst.
-    if capitalized > 100_000 and rental_revenue > 0:
-        pct = _ratio_units.ratio(_q(capitalized, "capitalized_own_work_memo"),
-                                 _q(rental_revenue, "rental_revenue"))
-        if pct > 0.5:
-            _add(
-                "earnings_quality_capitalized_own_work", "info", "data_quality",
-                f"Capitalized own-work RON {capitalized:,.0f} = {pct*100:.0f}% of rental revenue",
-                f"Account 722 (Producția imobilizări corporale) carries RON {capitalized:,.0f} of "
-                f"capitalized own-work, mirrored by a roughly equal cost on 628 — net P&L "
-                f"effect is approximately zero. Statutory EBITDA RON {ebitda_statutory:,.0f} "
-                f"(with 722) vs operational view RON {ebitda_operational:,.0f} (without). "
-                f"Bank covenants typically use the statutory view.",
-                {"capitalized_own_work_memo": capitalized,
-                 "ebitda_statutory": ebitda_statutory,
-                 "ebitda_operational": ebitda_operational,
-                 "pct_of_rental_revenue": pct},
-            )
+    # ── R5. RETIRED 2026-09-26 (owner ruling) ───────────────────────────
+    # "Capitalized own-work … Statutory EBITDA (with 722) vs operational
+    # view (without)". The ruling puts 72x INSIDE the one EBITDA and allows
+    # no served second EBITDA beside it, so the "dual view" this card sized
+    # no longer exists (both names are aliases of one figure; the card
+    # would have printed the same number twice). The own work capitalised
+    # is shown on its own line of the EBITDA reconciliation
+    # (assembled_pl.ebitda_reconciliation), with its provenance.
 
     # ── R6. Revaluation reserves — equity quality ────────────────────────
-    if total_equity > 0 and abs(revaluation_reserves) > total_equity * 0.25:
+    if equity_refusal is None and total_equity > 0 \
+            and abs(revaluation_reserves) > total_equity * 0.25:
         share_pct = _ratio_units.ratio(
             _q(abs(revaluation_reserves), "revaluation_reserves"),
             _q(total_equity, "total_equity")) * 100
@@ -2998,14 +3066,30 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
 
     # ── R10. Valuation — EBITDA non-positive ─────────────────────────────
     # Single alert covers it (no longer 6 variations from the LLM).
-    if ebitda_statutory <= 0:
+    if ebitda_known and ebitda_statutory <= 0:
         _add(
             "valuation_ebitda_negative", "high", "data_quality",
-            f"Statutory EBITDA RON {ebitda_statutory:,.0f} — earnings-based valuation not applicable",
+            f"EBITDA RON {ebitda_statutory:,.0f} — earnings-based valuation not applicable",
             f"With EBITDA at or below zero, EV/EBITDA multiples produce meaningless values. "
             f"The platform uses asset-based and revenue-multiple methods for valuation; see "
             f"the Valuation tab.",
             {"ebitda_statutory": ebitda_statutory},
+        )
+
+    # ── R10b. EBITDA refused (owner ruling 2026-09-26) ─────────────────
+    # Net 711 could not be measured on a book that posts to it, so EBITDA,
+    # the operating result and every margin on them are refused — stated,
+    # with the engine's reason, never shown as 0.
+    if not ebitda_known and isinstance(ebitda_refusal, dict):
+        _add(
+            "ebitda_refused_stock_variation", "high", "data_quality",
+            "EBITDA cannot be stated for this period — the stock variation "
+            "(711) is not measurable",
+            "EBITDA, the operating result and the margins built on them are "
+            "refused rather than shown without the stock variation: "
+            + str(ebitda_refusal.get("text_en") or ebitda_refusal.get("code") or "")
+            + ". Re-analyse the period from its trial balance to measure it.",
+            {},
         )
 
     # ── RISK INVENTORY — 5-8 named risks per analysis ───────────────────
@@ -3017,7 +3101,14 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
     # FE can group them into a distinct section (Section 7 in the
     # comprehensive report) without interleaving with data-quality alerts.
     revenue_local = float(pl_canonical.get("revenue", pl.get("revenue", 0)) or 0)
-    net_income_local = float(pl_canonical.get("net_income_statutory") or pl_canonical.get("net_income_operational") or 0)
+    if isinstance(pl_canonical.get("net_income_refusal"), dict):
+        # The net result is REFUSED with 711 (no account 121): the
+        # operational build-up below is short by the unmeasured variation
+        # and must not stand in for it. 0.0 here means "not stated" — every
+        # risk that reads it runs only on a positive net income.
+        net_income_local = 0.0
+    else:
+        net_income_local = float(pl_canonical.get("net_income_statutory") or pl_canonical.get("net_income_operational") or 0)
     trade_rec_local = float(bs_canonical.get("ar_net") or 0)
     rec_provisions_local = float(bs_canonical.get("ar_provisions") or 0)
     inventory_local = float(bs.get("inventory", 0) or 0)
@@ -3050,7 +3141,7 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
     net_debt_local = bank_debt_total - cash_val
     nde_local = (
         _ratio_units.ratio(_q(net_debt_local, "net_debt"), _q(ebitda_statutory, "ebitda_statutory"))
-        if ebitda_statutory > 0 else 0
+        if ebitda_known and ebitda_statutory > 0 else 0
     )
 
     # R-RI-1 — Receivables allowance elevated. Historical credit issues
@@ -3117,7 +3208,7 @@ def stage_validate(doc: Dict[str, Any], assembled: Dict[str, Any], period_id: st
         )
 
     # R-RI-6 — Elevated leverage (Net Debt/EBITDA >4).
-    if nde_local > 4 and ebitda_statutory > 0:
+    if nde_local > 4 and ebitda_known and ebitda_statutory > 0:
         _add(
             "risk_inventory_leverage", "high", "leverage",
             f"Elevated leverage — Net Debt/EBITDA {nde_local:.1f}×",
@@ -3271,12 +3362,23 @@ def _briefing_grand_totals(assembled: Dict[str, Any],
         _gw = _FactsGateway.from_envelope(assembled.get("assembled_canonical_v1") or {})
         if _gw is not None:
             out["total_assets"] = round(_gw.total_assets().to_float(), 2)
-            out["total_equity"] = round(_gw.equity().to_float(), 2)
+            # The statement's equity total (the briefing facts refuse it
+            # beside `total_equity_refusal` — `_briefing_facts_raw`).
+            out["total_equity"] = round(_gw.statement_equity().to_float(), 2)
             out["total_liabilities"] = round(_gw.total_liabilities().to_float(), 2)
             out["bs_balance_delta"] = round(_gw.difference().to_float(), 2)
     except Exception:  # noqa: BLE001 — narration must never break on facts
         logger.exception("[stage_narrate] served grand-totals read failed (non-fatal)")
     return out
+
+
+def _equity_refusal_of(bs_canonical: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """The assembler's completeness refusal beside total equity
+    (`assembled_bs.total_equity_refusal`), or None — the ONE predicate the
+    credit model, the ratio table and the valuation read
+    (`credit_model.equity_completeness_refusal`)."""
+    from engine.ratios.credit_model import equity_completeness_refusal
+    return equity_completeness_refusal({"assembled_bs": bs_canonical or {}})
 
 
 def _briefing_ratios(
@@ -3299,8 +3401,14 @@ def _briefing_ratios(
             return None
         return float(v)
 
-    ebitda = num(pl_canonical.get("operating_ebitda"))
-    revenue = num(pl_canonical.get("total_operating_revenue"))
+    # THE ONE EBITDA over TURNOVER (owner ruling 2026-09-26): net 711 and net
+    # 72x inside EBITDA; every margin divides by cifra de afaceri netă
+    # (70x − 709) — never by total operating revenue, which it used to.
+    ebitda = num(pl_canonical.get("ebitda"))
+    ebitda_refusal = pl_canonical.get("ebitda_refusal") if ebitda is None else None
+    revenue = num(pl_canonical.get("turnover"))
+    if revenue is None:
+        revenue = num(pl_canonical.get("revenue"))
     net_income = num(pl_canonical.get("net_income_statutory"))
     # Absent debt or cash is absent — it used to be read as 0.0, which
     # served a citable Debt/EBITDA 0.0, Debt/Equity 0.0 and net debt 0.0
@@ -3308,37 +3416,76 @@ def _briefing_ratios(
     total_debt = num(bs_canonical.get("total_debt"))
     cash_val = num(bs_canonical.get("cash"))
     refusals: Dict[str, str] = {}
+    # Total equity short by a REFUSED year's result (critic round 2,
+    # 2026-09-27): Debt / Equity divides it, so it refuses with the net
+    # result's reason — the ratio table refuses the same row.
+    _equity_refusal = _equity_refusal_of(bs_canonical)
+
+    refused_text = None
+    if isinstance(ebitda_refusal, dict):
+        refused_text = ("EBITDA refused: %s"
+                        % (ebitda_refusal.get("text_en") or ebitda_refusal.get("code")))
+
+    # THE ONE MARGIN RULE (engine.ratios.margin_meaning), on the operands
+    # the ratio table, the benchmark and the cockpit judge: a book whose
+    # turnover is negligible against its operating activity (the developer)
+    # has NO meaningful margin. The briefing's citable ratios used to skip
+    # it — the model was handed the developer's EBITDA margin (339.34 %
+    # under the ruling, -17,884.9 % before it) while every page refused it.
+    from engine.ratios import margin_meaning as _margin_meaning
+    _verdict = _margin_meaning.judge(revenue, num(pl_canonical.get("total_operating_expense")))
+    _not_meaningful = None
+    if _verdict.refused:
+        _not_meaningful = "margin not meaningful: %s" % (
+            (_margin_meaning.refusal_display(_verdict, None) or {}).get("en")
+            or _margin_meaning.MARGIN_NOT_MEANINGFUL)
 
     def margin(key: str, numerator: Optional[float], what: str) -> Optional[float]:
         if revenue is None:
-            refusals[key] = "margin not computable: operating revenue not reported"
+            refusals[key] = "margin not computable: net turnover not reported"
             return None
         if revenue <= 0:
-            refusals[key] = "margin not computable: no operating revenue in this period"
+            refusals[key] = "margin not computable: no net turnover in this period"
+            return None
+        if _not_meaningful is not None:
+            refusals[key] = _not_meaningful
             return None
         if numerator is None:
-            refusals[key] = "margin not computable: %s not reported" % what
+            # The net result refused with 711 (no account 121) carries the
+            # same stock-variation reason as EBITDA — not "not reported".
+            _same_cause = what == "EBITDA" or (
+                what == "net income" and isinstance(pl_canonical.get("net_income_refusal"), dict))
+            refusals[key] = ("margin not computable: " + refused_text
+                             if (_same_cause and refused_text)
+                             else "margin not computable: %s not reported" % what)
             return None
         return round(100 * numerator / revenue, 2)
 
     ratios: Dict[str, Optional[float]] = {
-        "ebitda_margin_pct": margin("ebitda_margin_pct", ebitda, "operating EBITDA"),
+        "ebitda_margin_pct": margin("ebitda_margin_pct", ebitda, "EBITDA"),
         "net_margin_pct": margin("net_margin_pct", net_income, "net income"),
     }
-    if ebitda is None or ebitda == 0:
+    if ebitda is None and refused_text:
+        refusals["debt_to_ebitda"] = "Debt/EBITDA unavailable: " + refused_text
+        ratios["debt_to_ebitda"] = None
+    elif ebitda is None or ebitda == 0:
         refusals["debt_to_ebitda"] = (
-            "Debt/EBITDA unavailable: operating EBITDA is zero or not reported for this period")
+            "Debt/EBITDA unavailable: EBITDA is zero or not reported for this period")
         ratios["debt_to_ebitda"] = None
     elif ebitda < 0:
         refusals["debt_to_ebitda"] = (
-            "Debt/EBITDA unavailable: operating EBITDA is negative, so the multiple is not meaningful")
+            "Debt/EBITDA unavailable: EBITDA is negative, so the multiple is not meaningful")
         ratios["debt_to_ebitda"] = None
     elif total_debt is None:
         refusals["debt_to_ebitda"] = "Debt/EBITDA unavailable: total debt not reported for this period"
         ratios["debt_to_ebitda"] = None
     else:
         ratios["debt_to_ebitda"] = round(total_debt / ebitda, 2)
-    if total_debt is None:
+    if _equity_refusal is not None:
+        refusals["debt_to_equity"] = ("Debt/Equity unavailable: %s"
+                                      % (_equity_refusal.get("text_en") or _equity_refusal.get("code")))
+        ratios["debt_to_equity"] = None
+    elif total_debt is None:
         refusals["debt_to_equity"] = "Debt/Equity unavailable: total debt not reported for this period"
         ratios["debt_to_equity"] = None
     elif not total_equity:
@@ -3354,6 +3501,99 @@ def _briefing_ratios(
     else:
         ratios["net_debt"] = round(total_debt - cash_val, 2)
     return ratios, refusals
+
+
+def _briefing_facts_raw(pl_canonical: Dict[str, Any], bs_canonical: Dict[str, Any],
+                        grand_totals: Dict[str, Any]) -> Dict[str, Any]:
+    """The briefing's fact block BEFORE FX conversion — the figures the
+    model may cite (numerals.facts_from_briefing types every money field as
+    a citable MoneyFact). Pure: `stage_narrate` calls it, and the
+    refusal-carries gate reads it on the refused books."""
+    # ABSENT != ZERO: a missing or REFUSED EBITDA or turnover stays None
+    # here (it used to default to 0.0, the same value as a measured zero).
+    # THE ONE EBITDA over TURNOVER (owner ruling 2026-09-26).
+    ebitda_one = pl_canonical.get("ebitda")
+    turnover = pl_canonical.get("turnover", pl_canonical.get("revenue"))
+    _inv = pl_canonical.get("inventory_variation")
+    _cap = pl_canonical.get("capitalized_own_work")
+    total_debt = bs_canonical.get("total_debt", 0.0)
+    total_equity = grand_totals["total_equity"]
+    cash_val = bs_canonical.get("cash", 0.0)
+    briefing_ratios, briefing_ratio_refusals = _briefing_ratios(
+        pl_canonical, bs_canonical, total_equity)
+
+    briefing_facts_raw = {
+        # P&L — the ONE definition (matches the P&L tab, KPI tiles, report,
+        # benchmark and forecast). A refused EBITDA / operating result is
+        # None with `ebitda_refusal` beside it — never 0.0.
+        "turnover": turnover,
+        "ebitda": ebitda_one,
+        "operating_result": pl_canonical.get("operating_result"),
+        "inventory_variation": (_inv.get("value") if isinstance(_inv, dict) else None),
+        "capitalized_own_work": (_cap.get("value") if isinstance(_cap, dict) else None),
+        "depreciation": pl_canonical.get("depreciation", 0.0),
+        "interest_expense": pl_canonical.get("interest_expense", 0.0),
+        "tax": pl_canonical.get("tax", 0.0),
+        "net_income_statutory": pl_canonical.get("net_income_statutory", 0.0),
+        # BS — closing balances (Solduri finale year-end convention);
+        # grand totals are the SERVED, reconciliation-adjusted figures
+        # (sv1 gateway — see _briefing_grand_totals).
+        "total_assets": grand_totals["total_assets"],
+        "total_equity": total_equity,
+        "total_liabilities": grand_totals["total_liabilities"],
+        "total_debt": total_debt,
+        "lt_debt": bs_canonical.get("lt_debt", 0.0),
+        "st_debt": bs_canonical.get("st_debt", 0.0),
+        "cash": cash_val,
+        "ar_net": bs_canonical.get("ar_net", 0.0),
+        "ap_trade": bs_canonical.get("ap_trade", 0.0),
+        "ap_dividends": bs_canonical.get("ap_dividends", 0.0),
+        "intercompany_loans": bs_canonical.get("intercompany_loans", 0.0),
+        "ppe_net": bs_canonical.get("ppe_net", 0.0),
+        "ppe_under_construction": bs_canonical.get("ppe_under_construction", 0.0),
+        "current_year_pnl": bs_canonical.get("current_year_pnl", 0.0),
+        "bs_balance_delta": grand_totals["bs_balance_delta"],
+        # Key derived ratios — operating-view based, so the briefing's
+        # leverage / coverage commentary stays consistent with the tab.
+        # A ratio that cannot be computed is None (numerals.facts_from_
+        # briefing types it RatioFact(None), so it can never be cited).
+        "ratios": briefing_ratios,
+    }
+    if ebitda_one is None and isinstance(pl_canonical.get("ebitda_refusal"), dict):
+        _r = pl_canonical["ebitda_refusal"]
+        briefing_facts_raw["ebitda_refusal"] = {
+            "code": _r.get("code"), "text_en": _r.get("text_en"), "text_ro": _r.get("text_ro")}
+    briefing_facts_raw["ebitda_definition"] = pl_canonical.get("ebitda_definition")
+    if briefing_ratio_refusals:
+        # Why each None ratio is None — the model reads the reason instead
+        # of inventing a figure. Present only when something refused, so a
+        # book whose ratios all compute sends the same payload as before.
+        briefing_facts_raw["ratio_refusals"] = briefing_ratio_refusals
+    # A REFUSED NET RESULT (no account 121, net 711 refused — fixer round 2,
+    # 2026-09-27): the net result is None above, its reason rides beside it,
+    # and the balance sheet's `current_year_pnl` is DROPPED — it used to carry
+    # the class-6/7 build-up (the developer without 121: -30,391,418.38 where
+    # 121 holds -801,604.14), which numerals.facts_from_briefing typed as a
+    # citable MoneyFact the model could narrate as the year's result.
+    _ni_refusal = pl_canonical.get("net_income_refusal")
+    if isinstance(_ni_refusal, dict) and _ni_refusal.get("code"):
+        briefing_facts_raw["net_income_statutory"] = None
+        briefing_facts_raw.pop("current_year_pnl", None)
+        briefing_facts_raw["net_income_refusal"] = {
+            "code": _ni_refusal.get("code"), "text_en": _ni_refusal.get("text_en"),
+            "text_ro": _ni_refusal.get("text_ro")}
+    # TOTAL EQUITY SHORT BY THE REFUSED RESULT (critic round 2, 2026-09-27):
+    # the sheet does not balance without the year's result, so the equity
+    # rows sum to a figure short by it. It is not citable as the company's
+    # equity (numerals.facts_from_briefing types every number here as a
+    # MoneyFact): None, with the engine's reason beside it.
+    _eq_refusal = _equity_refusal_of(bs_canonical)
+    if _eq_refusal is not None:
+        briefing_facts_raw["total_equity"] = None
+        briefing_facts_raw["total_equity_refusal"] = {
+            "code": _eq_refusal.get("code"), "text_en": _eq_refusal.get("text_en"),
+            "text_ro": _eq_refusal.get("text_ro")}
+    return briefing_facts_raw
 
 
 def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[Dict[str, Any]],
@@ -3448,13 +3688,21 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
             "sheet all read the operating-view numbers; the briefing must\n"
             "match them or the dashboard contradicts itself.\n\n"
             "Specifically, when citing P&L numbers:\n"
-            " - Revenue → `briefing_facts.total_operating_revenue`\n"
-            " - EBITDA → `briefing_facts.operating_ebitda` (NOT `metrics.ebitda`,\n"
-            "   which is the older operational view that excludes 722)\n"
-            " - Net profit → `briefing_facts.net_income_statutory` (NOT\n"
-            "   `net_income_operational`)\n"
+            " - Revenue → `briefing_facts.turnover` (cifra de afaceri netă,\n"
+            "   70x − 709; every margin is over this)\n"
+            " - EBITDA → `briefing_facts.ebitda`. It INCLUDES the stock\n"
+            "   variation (`briefing_facts.inventory_variation`, 711,\n"
+            "   \"Variația stocurilor de produse\") and own work capitalised\n"
+            "   (`briefing_facts.capitalized_own_work`, 72x). If\n"
+            "   `briefing_facts.ebitda` is null, EBITDA is REFUSED —\n"
+            "   `briefing_facts.ebitda_refusal` says why; say so, never\n"
+            "   estimate one.\n"
+            " - Net profit → `briefing_facts.net_income_statutory`\n"
             " - Total debt → `briefing_facts.total_debt`\n"
-            " - Equity → `briefing_facts.total_equity`\n"
+            " - Equity → `briefing_facts.total_equity`. If it is null with\n"
+            "   `briefing_facts.total_equity_refusal`, equity is REFUSED (it\n"
+            "   excludes the year's result, which is refused): say so, never\n"
+            "   estimate it or a ratio on it.\n"
             " - Cash → `briefing_facts.cash`\n\n"
             # ── F3.16-3b.6 EBITDA RULE — binding constraint on prose ─────
             # Closes the Carniprod −6.87M briefing-prose problem (the LLM
@@ -3463,22 +3711,16 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
             # docs/F3.16-3b6-f42-hardening-plan.md §4 — the engine is the
             # source of truth; LLM prose may reference canonical fields
             # by name but MUST NOT compute new values.
-            "EBITDA RULE — EBITDA values referenced in the briefing MUST come\n"
-            "from the canonical fields in the input dict. Specifically: use\n"
-            "`briefing_facts.operating_ebitda` (equivalent to\n"
-            "`methodology.ebitda.reported`) for headline statements;\n"
-            "reference `methodology.ebitda.strict` / `cash` / `adjusted` by\n"
-            "name when comparing methodologies. DO NOT compute new EBITDA\n"
-            "values in prose. Do NOT sum or transform PL line items to\n"
-            "produce a different EBITDA. If a methodology variant you want\n"
-            "to reference is missing from the input, say so explicitly\n"
-            "(\"cash-view EBITDA was not computed for this period\") rather\n"
-            "than approximating one.\n\n"
-            "If `briefing_facts.operating_ebitda > 0` you MUST NOT describe\n"
-            "the company as posting an operating loss. The operational-view\n"
-            "EBITDA (excluding 722) can be negative even when the\n"
-            "operating-view EBITDA is positive — explain the 628↔722 wash\n"
-            "if relevant, but lead with the operating-view headline.\n\n"
+            "EBITDA RULE — there is ONE EBITDA: `briefing_facts.ebitda`\n"
+            "(equivalent to `methodology.ebitda.reported`). It includes the\n"
+            "stock variation (711) and own work capitalised (72x); do NOT\n"
+            "describe an EBITDA \"with\" or \"without\" either as a second\n"
+            "view. DO NOT compute new EBITDA values in prose. Do NOT sum or\n"
+            "transform PL line items to produce a different EBITDA. If EBITDA\n"
+            "is refused (null, with `briefing_facts.ebitda_refusal`), state\n"
+            "the refusal and its reason rather than approximating one.\n\n"
+            "If `briefing_facts.ebitda > 0` you MUST NOT describe the\n"
+            "company as posting an operating loss.\n\n"
             "CRITICAL: Apply industry-appropriate thresholds.\n"
             " - Real estate: 4-8× Debt/EBITDA is normal; do NOT recommend deleveraging below 8×.\n"
             " - SaaS: focus on rule-of-40, ARR growth, gross margin >70%.\n"
@@ -3511,7 +3753,7 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
             "  • DO NOT recommend \"covenant waiver\" unless DSCR < 1.0.\n"
             "  • DO NOT recommend \"13-week cash forecast\" unless cash <\n"
             "    3 months of debt service.\n"
-            "  • The platform reads `briefing_facts.operating_ebitda` and\n"
+            "  • The platform reads `briefing_facts.ebitda` and\n"
             "    `briefing_facts.net_income_statutory` — both POSITIVE for a\n"
             "    healthy company. Don't claim \"negative EBITDA\" or \"operating\n"
             "    loss\" when those values are positive. Always cite the\n"
@@ -3576,56 +3818,7 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
     # write-time briefings now cite the same figures /api/period serves.
     grand_totals = _briefing_grand_totals(assembled, bs_canonical)
 
-    # ABSENT != ZERO: a missing operating EBITDA or revenue stays None here
-    # (it used to default to 0.0, the same value as a measured zero).
-    operating_ebitda = pl_canonical.get("operating_ebitda")
-    total_operating_revenue = pl_canonical.get("total_operating_revenue")
-    total_debt = bs_canonical.get("total_debt", 0.0)
-    total_equity = grand_totals["total_equity"]
-    cash_val = bs_canonical.get("cash", 0.0)
-    briefing_ratios, briefing_ratio_refusals = _briefing_ratios(
-        pl_canonical, bs_canonical, total_equity)
-
-    briefing_facts_raw = {
-        # P&L — operating view (matches the frontend P&L tab + KPI tiles).
-        "total_operating_revenue": total_operating_revenue,
-        "operating_ebitda": operating_ebitda,
-        "operating_ebit": pl_canonical.get("operating_ebit", 0.0),
-        "depreciation": pl_canonical.get("depreciation", 0.0),
-        "interest_expense": pl_canonical.get("interest_expense", 0.0),
-        "tax": pl_canonical.get("tax", 0.0),
-        "net_income_statutory": pl_canonical.get("net_income_statutory", 0.0),
-        "net_income_operational": pl_canonical.get("net_income_operational", 0.0),
-        "capitalized_own_work_memo": pl_canonical.get("capitalized_own_work_memo", 0.0),
-        # BS — closing balances (Solduri finale year-end convention);
-        # grand totals are the SERVED, reconciliation-adjusted figures
-        # (sv1 gateway — see _briefing_grand_totals).
-        "total_assets": grand_totals["total_assets"],
-        "total_equity": total_equity,
-        "total_liabilities": grand_totals["total_liabilities"],
-        "total_debt": total_debt,
-        "lt_debt": bs_canonical.get("lt_debt", 0.0),
-        "st_debt": bs_canonical.get("st_debt", 0.0),
-        "cash": cash_val,
-        "ar_net": bs_canonical.get("ar_net", 0.0),
-        "ap_trade": bs_canonical.get("ap_trade", 0.0),
-        "ap_dividends": bs_canonical.get("ap_dividends", 0.0),
-        "intercompany_loans": bs_canonical.get("intercompany_loans", 0.0),
-        "ppe_net": bs_canonical.get("ppe_net", 0.0),
-        "ppe_under_construction": bs_canonical.get("ppe_under_construction", 0.0),
-        "current_year_pnl": bs_canonical.get("current_year_pnl", 0.0),
-        "bs_balance_delta": grand_totals["bs_balance_delta"],
-        # Key derived ratios — operating-view based, so the briefing's
-        # leverage / coverage commentary stays consistent with the tab.
-        # A ratio that cannot be computed is None (numerals.facts_from_
-        # briefing types it RatioFact(None), so it can never be cited).
-        "ratios": briefing_ratios,
-    }
-    if briefing_ratio_refusals:
-        # Why each None ratio is None — the model reads the reason instead
-        # of inventing a figure. Present only when something refused, so a
-        # book whose ratios all compute sends the same payload as before.
-        briefing_facts_raw["ratio_refusals"] = briefing_ratio_refusals
+    briefing_facts_raw = _briefing_facts_raw(pl_canonical, bs_canonical, grand_totals)
     # ── FX conversion ─────────────────────────────────────────────────
     # Convert every monetary value in briefing_facts from the source
     # currency (the trial balance's native currency, almost always RON)
@@ -3788,6 +3981,71 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
     return narrated
 
 
+def _persist_period_alerts(admin_client: Any, org_id: str, document_id: Any,
+                           period_id: str,
+                           validation_alerts: List[Dict[str, Any]]) -> None:
+    """Replace THIS period's alerts with `validation_alerts` (deduped on
+    `alert_key`, severity / category normalised, the typed payload carried).
+    One implementation for the pipeline (`stage_persist_narrative`) and the
+    deterministic reprocessing tool (scripts/reprocess_periods_definition.py).
+    """
+    admin_client.delete("alerts", filters={"period_id": f"eq.{period_id}"})
+
+    rows: List[Dict[str, Any]] = []
+    seen_keys: set[str] = set()
+    # validation_alerts already came from stage_validate deduped — but
+    # double-check at the persist boundary in case a callsite added more.
+    for a in validation_alerts:
+        key = a.get("alert_key")
+        if not key or key in seen_keys:
+            continue
+        seen_keys.add(key)
+        severity = (a.get("severity") or "medium").lower()
+        if severity not in ("critical", "high", "medium", "low", "info"):
+            severity = "medium"
+        category = (a.get("category") or "data_quality").lower()
+        # `risk_inventory` is the Section-7 category — 5-8 named structural
+        # risks the deterministic engine identifies (receivables quality,
+        # liquidity tightness, raw-material exposure, etc.). Added to the
+        # allowlist alongside the existing categories so the FE can filter
+        # to it for the Comprehensive Report's risk inventory section.
+        if category not in ("liquidity", "leverage", "margin", "inventory", "compliance",
+                             "data_quality", "working_capital", "customer", "supplier",
+                             "opportunity", "risk_inventory"):
+            category = "data_quality"
+        # Carry facts_cited + industry on the payload column for the
+        # FE's "Facts backing this alert" expander.
+        rows.append({
+            "org_id": org_id,
+            "period_id": period_id,
+            "alert_key": key,
+            "severity": severity,
+            "category": category,
+            "title": a.get("title", "Untitled alert"),
+            "body": a.get("body", ""),
+            "document_id": document_id,
+            "payload": {
+                "rule_key": a.get("rule_key"),
+                "facts_cited": a.get("facts_cited"),
+                "industry": a.get("industry"),
+                # Typed placeholders (2026-08-30). `*_template` carry
+                # `{{money:<fact>}}` in place of every cited money
+                # figure AND its currency label, so the renderer puts
+                # every figure in one claim through one money path.
+                # `fact_units` ends the guessing ("≥1000 is money",
+                # "|v|>1 is money") that renders a leverage multiple
+                # as a currency amount. All four keys are optional —
+                # a row without them falls back to `title` / `body`.
+                "title_template": a.get("title_template"),
+                "body_template": a.get("body_template"),
+                "fact_units": a.get("fact_units"),
+                "source_currency": a.get("source_currency"),
+            },
+        })
+    if rows:
+        admin_client.upsert("alerts", rows, on_conflict="period_id,alert_key", returning=False)
+
+
 def stage_persist_narrative(
     doc: Dict[str, Any],
     period_id: str,
@@ -3825,6 +4083,12 @@ def stage_persist_narrative(
                 "body": narrate["briefing"],
                 "language": "en",
                 "model": _narrative_model(),
+                # The EBITDA definition the prose was written under (owner
+                # ruling 2026-09-26). Served beside the body so a briefing
+                # written under an earlier definition is recognised and
+                # hidden, never shown beside corrected numbers. Column added
+                # by supabase/schema_phase_briefing_ebitda_definition.sql.
+                "ebitda_definition": _EBITDA_DEFINITION_REVISION,
             },
             on_conflict="period_id",
             returning=False,
@@ -3885,61 +4149,8 @@ def stage_persist_narrative(
         # The schema migration that adds `period_id` + the new unique
         # is at supabase/schema_phase_notes_period_scope.sql — both
         # must ship together.
-        admin_client.delete("alerts", filters={"period_id": f"eq.{period_id}"})
-
-        rows: List[Dict[str, Any]] = []
-        seen_keys: set[str] = set()
-        # validation_alerts already came from stage_validate deduped — but
-        # double-check at the persist boundary in case a callsite added more.
-        for a in validation_alerts:
-            key = a.get("alert_key")
-            if not key or key in seen_keys:
-                continue
-            seen_keys.add(key)
-            severity = (a.get("severity") or "medium").lower()
-            if severity not in ("critical", "high", "medium", "low", "info"):
-                severity = "medium"
-            category = (a.get("category") or "data_quality").lower()
-            # `risk_inventory` is the Section-7 category — 5-8 named structural
-            # risks the deterministic engine identifies (receivables quality,
-            # liquidity tightness, raw-material exposure, etc.). Added to the
-            # allowlist alongside the existing categories so the FE can filter
-            # to it for the Comprehensive Report's risk inventory section.
-            if category not in ("liquidity", "leverage", "margin", "inventory", "compliance",
-                                 "data_quality", "working_capital", "customer", "supplier",
-                                 "opportunity", "risk_inventory"):
-                category = "data_quality"
-            # Carry facts_cited + industry on the payload column for the
-            # FE's "Facts backing this alert" expander.
-            rows.append({
-                "org_id": org_id,
-                "period_id": period_id,
-                "alert_key": key,
-                "severity": severity,
-                "category": category,
-                "title": a.get("title", "Untitled alert"),
-                "body": a.get("body", ""),
-                "document_id": document_id,
-                "payload": {
-                    "rule_key": a.get("rule_key"),
-                    "facts_cited": a.get("facts_cited"),
-                    "industry": a.get("industry"),
-                    # Typed placeholders (2026-08-30). `*_template` carry
-                    # `{{money:<fact>}}` in place of every cited money
-                    # figure AND its currency label, so the renderer puts
-                    # every figure in one claim through one money path.
-                    # `fact_units` ends the guessing ("≥1000 is money",
-                    # "|v|>1 is money") that renders a leverage multiple
-                    # as a currency amount. All four keys are optional —
-                    # a row without them falls back to `title` / `body`.
-                    "title_template": a.get("title_template"),
-                    "body_template": a.get("body_template"),
-                    "fact_units": a.get("fact_units"),
-                    "source_currency": a.get("source_currency"),
-                },
-            })
-        if rows:
-            admin_client.upsert("alerts", rows, on_conflict="period_id,alert_key", returning=False)
+        _persist_period_alerts(admin_client, org_id, document_id, period_id,
+                               validation_alerts)
 
 
 # ─── Orchestrator ───────────────────────────────────────────────────────────
@@ -5065,6 +5276,99 @@ def _run_pipeline_sync(document_id: str) -> None:
             _doc_dedupe.clear_in_flight(document_id)
 
 
+def _effective_industry(org: Dict[str, Any], assembled: Dict[str, Any]
+                        ) -> Tuple[Optional[str], Dict[str, Any], Optional[str]]:
+    """(stored industry key, the classification, the EFFECTIVE industry key).
+
+    Industry classification fallback. When the org's industry_key is unset
+    or "generic", run the auto-classifier on the assembled statements — for
+    EEI this detects real_estate_commercial from account 215 (investment
+    property) and account 706 (rental income) dominance, which gates the
+    valuation method choice. The effective key also pins the detection
+    envelope `_run_pipeline_stages` persists."""
+    stored_industry_key = (org.get("industry_key") or "").lower().strip() or None
+    classification = _ro_pack().classify_industry({"assembled": assembled})
+    detected_industry_key = classification.get("industry_key") if classification.get("confidence", 0) >= 0.5 else None
+    effective_industry_key = stored_industry_key if stored_industry_key and stored_industry_key != "generic" else (detected_industry_key or stored_industry_key)
+    return stored_industry_key, classification, effective_industry_key
+
+
+def _compute_and_persist_valuation(doc: Dict[str, Any], org: Dict[str, Any],
+                                   assembled: Dict[str, Any],
+                                   period_id: str,
+                                   industry: Optional[Tuple[Optional[str], Dict[str, Any],
+                                                            Optional[str]]] = None,
+                                   ) -> Optional[Dict[str, Any]]:
+    """Industry classification + the valuation envelope, persisted. One
+    implementation for the pipeline and the deterministic reprocessing tool
+    (scripts/reprocess_periods_definition.py). Non-fatal: None on failure.
+    ``industry`` — `_effective_industry(org, assembled)` when the caller
+    already holds it (the pipeline needs the effective key afterwards)."""
+    valuation_payload: Optional[Dict[str, Any]] = None
+    stored_industry_key, classification, effective_industry_key = (
+        industry if industry is not None else _effective_industry(org, assembled))
+    if classification.get("confidence", 0) >= 0.5:
+        logger.info(
+            "[pipeline] industry classified as %s (confidence=%s, stored=%s, effective=%s)",
+            classification.get("industry_key"),
+            classification.get("confidence"),
+            stored_industry_key,
+            effective_industry_key,
+        )
+
+    # EBITDA-multiple valuation (primary) + DCF + EV/Revenue cross-checks.
+    # For CRE / negative-EBITDA cases, _valuation.compute_valuation
+    # demotes EV/EBITDA and uses asset-based as primary (Step 5 guard).
+    # Pure math — never blocks the rest of the pipeline if it errors.
+    try:
+        valuation_payload = _valuation.compute_valuation(
+            industry_key=effective_industry_key,
+            statements=assembled["statements"],
+        )
+        # Surface the detection result on the valuation payload so the
+        # frontend can display "Industry: Commercial Real Estate ·
+        # auto-classified · confidence 0.85 · [Change]" badge.
+        if valuation_payload is not None:
+            valuation_payload["industry_classification"] = classification
+            valuation_payload["industry_key_effective"] = effective_industry_key
+            valuation_payload["industry_key_stored"] = stored_industry_key
+        _valuation.persist_valuation(period_id, doc["org_id"], valuation_payload)
+    except Exception:  # noqa: BLE001
+        logger.exception("[pipeline] valuation compute failed (non-fatal)")
+    return valuation_payload
+
+
+def _override_statutory_net_income_metric(doc: Dict[str, Any], period_id: str,
+                                          parsed: Optional[Dict[str, Any]]) -> None:
+    """Patch the `net_income_statutory` metric row to account 121's closing
+    balance (the legally filed net profit) when the parse captured it. One
+    implementation for the pipeline and the deterministic reprocessing tool.
+    Non-fatal."""
+    anchor = (parsed or {}).get("statutory_net_profit_anchor")
+    if not anchor or abs(anchor) <= 0.01:
+        return
+    try:
+        with _supabase.admin() as ac:
+            ac.delete(
+                "calculated_metrics",
+                filters={"period_id": f"eq.{period_id}", "name": "eq.net_income_statutory"},
+            )
+            ac.insert("calculated_metrics", [{
+                "period_id": period_id,
+                "org_id": doc["org_id"],
+                "name": "net_income_statutory",
+                "value": round(float(anchor), 2),
+                "unit": "RON",
+                "direction": "higher",
+            }], returning=False)
+        logger.info(
+            "[pipeline] net_income_statutory overridden with ct 121 anchor: %s",
+            f"{float(anchor):,.0f}",
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception("[pipeline] statutory anchor override failed (non-fatal)")
+
+
 def _run_pipeline_stages(document_id: str) -> str:
     """Every pipeline stage for one document. Returns the outcome —
     "analyzed", "failed" (the failure is persisted on the row) or
@@ -5338,6 +5642,12 @@ def _run_pipeline_stages(document_id: str) -> str:
 
         _admin_set_status(document_id, "computing")
         valuation_payload: Optional[Dict[str, Any]] = None
+        # The effective industry key pins the detection envelope persisted
+        # below. It used to be a local of the valuation block; when that block
+        # moved into `_compute_and_persist_valuation` the envelope build lost
+        # it (NameError, swallowed as "non-fatal") and no upload persisted its
+        # detection envelope or methodology_version.
+        effective_industry_key: Optional[str] = None
         if accounts_count > 0:
             metrics = stage_compute(doc, assembled, period_id)
             # Statutory anchor override — the TB parser captures account
@@ -5352,28 +5662,7 @@ def _run_pipeline_stages(document_id: str) -> str:
             # The 121 closing balance is the authoritative number — patch
             # `net_income_statutory` to that when available so the FE +
             # briefing cite the same figure the user sees on their filings.
-            anchor = (parsed or {}).get("statutory_net_profit_anchor")
-            if anchor and abs(anchor) > 0.01:
-                try:
-                    with _supabase.admin() as ac:
-                        ac.delete(
-                            "calculated_metrics",
-                            filters={"period_id": f"eq.{period_id}", "name": "eq.net_income_statutory"},
-                        )
-                        ac.insert("calculated_metrics", [{
-                            "period_id": period_id,
-                            "org_id": doc["org_id"],
-                            "name": "net_income_statutory",
-                            "value": round(float(anchor), 2),
-                            "unit": "RON",
-                            "direction": "higher",
-                        }], returning=False)
-                    logger.info(
-                        "[pipeline] net_income_statutory overridden with ct 121 anchor: %s",
-                        f"{float(anchor):,.0f}",
-                    )
-                except Exception:  # noqa: BLE001
-                    logger.exception("[pipeline] statutory anchor override failed (non-fatal)")
+            _override_statutory_net_income_metric(doc, period_id, parsed)
             validation_alerts = stage_validate(doc, assembled, period_id)
             # AI Council — advisory extraction-integrity review (2026-07-20).
             # A panel of independent Claude personas scans the extraction and a
@@ -5417,43 +5706,10 @@ def _run_pipeline_stages(document_id: str) -> str:
                     )
             except Exception:  # noqa: BLE001 — advisory: never breaks a run
                 logger.exception("[pipeline] unit-sanity sweep failed (non-fatal)")
-            # Industry classification fallback. When the org's industry_key is
-            # unset or "generic", run the auto-classifier on the assembled
-            # statements — for EEI this detects real_estate_commercial from
-            # account 215 (investment property) and account 706 (rental income)
-            # dominance, which gates the valuation method choice below.
-            stored_industry_key = (org.get("industry_key") or "").lower().strip() or None
-            classification = _ro_pack().classify_industry({"assembled": assembled})
-            detected_industry_key = classification.get("industry_key") if classification.get("confidence", 0) >= 0.5 else None
-            effective_industry_key = stored_industry_key if stored_industry_key and stored_industry_key != "generic" else (detected_industry_key or stored_industry_key)
-            if classification.get("confidence", 0) >= 0.5:
-                logger.info(
-                    "[pipeline] industry classified as %s (confidence=%s, stored=%s, effective=%s)",
-                    classification.get("industry_key"),
-                    classification.get("confidence"),
-                    stored_industry_key,
-                    effective_industry_key,
-                )
-
-            # EBITDA-multiple valuation (primary) + DCF + EV/Revenue cross-checks.
-            # For CRE / negative-EBITDA cases, _valuation.compute_valuation
-            # demotes EV/EBITDA and uses asset-based as primary (Step 5 guard).
-            # Pure math — never blocks the rest of the pipeline if it errors.
-            try:
-                valuation_payload = _valuation.compute_valuation(
-                    industry_key=effective_industry_key,
-                    statements=assembled["statements"],
-                )
-                # Surface the detection result on the valuation payload so the
-                # frontend can display "Industry: Commercial Real Estate ·
-                # auto-classified · confidence 0.85 · [Change]" badge.
-                if valuation_payload is not None:
-                    valuation_payload["industry_classification"] = classification
-                    valuation_payload["industry_key_effective"] = effective_industry_key
-                    valuation_payload["industry_key_stored"] = stored_industry_key
-                _valuation.persist_valuation(period_id, doc["org_id"], valuation_payload)
-            except Exception:  # noqa: BLE001
-                logger.exception("[pipeline] valuation compute failed (non-fatal)")
+            _industry = _effective_industry(org, assembled)
+            effective_industry_key = _industry[2]
+            valuation_payload = _compute_and_persist_valuation(
+                doc, org, assembled, period_id, industry=_industry)
         else:
             metrics = []
             validation_alerts = []
@@ -5732,6 +5988,56 @@ def _anchor_kwargs(assembler: Any, anchor: Optional[float]) -> Dict[str, Any]:
     return {"account_121_anchor_override": float(anchor)}
 
 
+def _stock_variation_evidence_for(
+    period_row: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """The `stock_variation/1` evidence a period was persisted with — read
+    back for a REBUILD (owner ruling 2026-09-26: net 711 / net 72x are
+    measured off the trial balance at persist time; the rows are never
+    stored, so the envelope block is the only witness a rebuild has).
+
+    Sources: ``period.assembled_canonical_v1.stock_variation`` (the full
+    envelope), or a flat ``stock_variation`` alias a light projection may
+    select (``stock_variation:assembled_canonical_v1->stock_variation``).
+
+    Absent → an absence marker whose reason says which absence it is:
+    the envelope was read and carries no block (a period written before
+    the measurement existed — it is reprocessed at deploy), or the row
+    handed here never selected the envelope at all. Either way net 711
+    REFUSES on a book that posts to 711; it is never read off the line
+    amount (the gross production stocked) and never 0.00.
+    """
+    from engine.country_packs.ro_romania import stock_variation as _stock_variation
+
+    row = period_row or {}
+    flat = row.get("stock_variation")
+    if _stock_variation.is_measured(flat):
+        return dict(flat)
+    env = row.get("assembled_canonical_v1")
+    if isinstance(env, dict):
+        block = env.get("stock_variation")
+        if _stock_variation.is_measured(block):
+            return dict(block)
+        return _stock_variation.absent_evidence(_stock_variation.REASON_PREDATES)
+    return _stock_variation.absent_evidence(_stock_variation.REASON_ENVELOPE_NOT_READ)
+
+
+def _evidence_kwargs(assembler: Any, evidence: Dict[str, Any]) -> Dict[str, Any]:
+    """`{"stock_variation_evidence": evidence}` when `assembler` accepts it
+    — the same capability probe as `_anchor_kwargs`, for the same reason
+    (the review/reanalyze route may assemble through the HU pack)."""
+    try:
+        import inspect
+        params = inspect.signature(assembler).parameters
+    except (TypeError, ValueError):  # pragma: no cover — builtins/C funcs
+        return {}
+    if "stock_variation_evidence" not in params and not any(
+        p.kind is p.VAR_KEYWORD for p in params.values()
+    ):
+        return {}
+    return {"stock_variation_evidence": evidence}
+
+
 def _assemble_with_statutory_anchor(
     assembler: Any,
     accounts: List[Dict[str, Any]],
@@ -5750,10 +6056,20 @@ def _assemble_with_statutory_anchor(
     means a new rebuild seam either goes through here and is correct, or
     does not and is visible to `test_every_rebuild_call_site_threads_
     the_anchor`.
+
+    The stock-variation evidence (net 711 / net 72x, the ONE EBITDA) is
+    threaded by the same call for the same reason: a rebuild seam that
+    re-assembled without it would serve a refused 711 on every
+    manufacturer — or, worse, a seam that forgot it once read the line
+    amount. `_stock_variation_evidence_for` is the only reader.
     """
     anchor, source = _statutory_anchor_for(period_row, line_items)
     anchor_kwargs = _anchor_kwargs(assembler, anchor)
-    assembled = assembler(accounts, **assemble_kwargs, **anchor_kwargs)
+    evidence_kwargs = _evidence_kwargs(
+        assembler, _stock_variation_evidence_for(period_row)
+    )
+    assembled = assembler(accounts, **assemble_kwargs, **anchor_kwargs,
+                          **evidence_kwargs)
     _annotate_net_income_anchor(
         assembled, anchor, source,
         applied=_anchor_reached_the_assembler(assembled, anchor, anchor_kwargs),
@@ -5918,7 +6234,10 @@ def _apply_envelope_truth_to_statements(
             # round-trip artifact; never serve it as an authority.
             _served_env.pop("canonical_bs", None)
         _ta = _gateway.total_assets().to_float()
-        _te = _gateway.equity().to_float()
+        # The STATEMENT's equity total (what its rows sum to) lands here —
+        # `equity()` refuses on equity short by a refused year's result, and
+        # `assembled_bs.total_equity_refusal` rides beside this figure.
+        _te = _gateway.statement_equity().to_float()
         _tl = _gateway.total_liabilities().to_float()
         _delta = _gateway.difference().to_float()
         try:
@@ -6116,7 +6435,13 @@ def _complete_bucket_equity(
         _gw = _FactsGateway.from_envelope(period.get("assembled_canonical_v1") or {})
         if _gw is not None:
             try:
-                _env_te = _gw.equity().to_float()
+                # The statement's equity total, whatever its completeness:
+                # on equity short by a REFUSED year's result, `equity()`
+                # refuses — and the legacy branch below would then close
+                # the build-up that lacks the stock variation into
+                # retainedEarnings. The buckets must reproduce the served
+                # statement; the refusal rides beside it.
+                _env_te = _gw.statement_equity().to_float()
             except _MissingFact:
                 _env_te = None
     _bucket_equity = bs["shareCapital"] + bs["retainedEarnings"] + bs["otherEquity"]
@@ -6482,9 +6807,91 @@ def _rebuild_assembled_for_briefing(
     return payload
 
 
+def _valuation_industry_key(org: Optional[Dict[str, Any]],
+                            statements: Optional[Dict[str, Any]],
+                            line_items: Optional[List[Dict[str, Any]]] = None) -> Optional[str]:
+    """THE industry key a SERVED valuation is computed on: the persist
+    path's effective key (`_effective_industry` — the org's stored key,
+    else the classifier's reading of these statements), so GET /api/period,
+    the briefing regenerate route and the pipeline's own valuation choose
+    one method on one key. GET passed nothing and read
+    `statements["industry"]` — the org's DISPLAY NAME, which no multiples
+    table knows — while the regenerate route passed the raw stored key
+    (critic round 3, 2026-09-28). Without an org (a caller holding only
+    statements) the legacy read stands. ``line_items`` are the period's
+    account lines (the classifier reads account 706 off them, as the
+    persist path's stage_map output carries them under ``lineItems``)."""
+    if org:
+        try:
+            return _effective_industry(
+                org, {"statements": statements or {}, "lineItems": list(line_items or [])})[2]
+        except Exception:  # noqa: BLE001 — a classifier failure never costs the valuation
+            logger.exception("[valuation] industry classification failed (non-fatal)")
+            return (org.get("industry_key") or "").lower().strip() or None
+    if statements and isinstance(statements.get("industry"), str):
+        return statements["industry"]
+    return None
+
+
+def _fresh_or_lawful_valuation(valuation: Optional[Dict[str, Any]],
+                                user_assumptions: Optional[Dict[str, Any]],
+                                statements: Optional[Dict[str, Any]],
+                                industry_key: Optional[str] = None,
+                                org: Optional[Dict[str, Any]] = None,
+                                line_items: Optional[List[Dict[str, Any]]] = None,
+                                ) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+    """`(fresh, src)` — THE ONE place a served valuation is chosen, for GET
+    /api/period (`_serialize_valuation`) and the briefing regenerate route.
+
+    `fresh` is `_valuation.compute_valuation` on the served statements with
+    the user's saved overrides on top; when the benchmark table cannot be
+    read, the SAME recompute over the peer multiples persisted beside the
+    stored row (`_valuation.row_benchmarks` — benchmark data, never an
+    EBITDA). `src` is `fresh`, else the stored row only as far as the one
+    EBITDA law allows it (`_valuation.lawful_stored_row`: a row computed on
+    another EBITDA than the served one, or any row over a REFUSED EBITDA,
+    is never used as EBITDA and never makes EV/EBITDA primary — its
+    figures are withheld with the reason). Production held six rows the
+    engine wrote under the previous definition (critic, 2026-09-27): when
+    the recompute failed they were served as they stood, EV/EBITDA primary
+    over an old EBITDA, beside a P&L that served the one EBITDA or refused
+    it; the briefing regenerate route handed them to the narrator."""
+    fresh: Optional[Dict[str, Any]] = None
+    if statements and statements.get("assembled_pl"):
+        if industry_key is None:
+            industry_key = _valuation_industry_key(org, statements, line_items)
+        ua_dict = None
+        if user_assumptions:
+            ua_dict = {
+                k: user_assumptions.get(k)
+                for k in ("ebitda_used", "multiple_used", "debt_used", "cash_used",
+                          "ebitda_definition")
+                if user_assumptions.get(k) is not None
+            }
+        try:
+            fresh = _valuation.compute_valuation(
+                industry_key=industry_key, statements=statements, user_assumptions=ua_dict)
+        except Exception:  # noqa: BLE001
+            logger.exception("[valuation] fresh recompute failed (non-fatal)")
+            row_bm = _valuation.row_benchmarks(valuation)
+            if row_bm is not None:
+                try:
+                    fresh = _valuation.compute_valuation(
+                        industry_key=industry_key, statements=statements,
+                        user_assumptions=ua_dict, benchmarks=row_bm)
+                except Exception:  # noqa: BLE001
+                    logger.exception("[valuation] recompute on the stored multiples failed (non-fatal)")
+                    fresh = None
+    src = fresh if fresh is not None else _valuation.lawful_stored_row(
+        valuation, statements or {}, user_assumptions)
+    return fresh, src
+
+
 def _serialize_valuation(valuation: Optional[Dict[str, Any]],
                           user_assumptions: Optional[Dict[str, Any]],
-                          statements: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+                          statements: Optional[Dict[str, Any]] = None,
+                          org: Optional[Dict[str, Any]] = None,
+                          line_items: Optional[List[Dict[str, Any]]] = None) -> Optional[Dict[str, Any]]:
     """Shape the raw valuations row for the dashboard. Returns None when the
     pipeline never produced a valuation (non-financial doc, or failure).
 
@@ -6499,35 +6906,8 @@ def _serialize_valuation(valuation: Optional[Dict[str, Any]],
     if not valuation:
         return None
 
-    # ── Recompute the full valuation against canonical statements ────────
-    # When statements (with assembled_*) are available, prefer the fresh
-    # recomputation over the row — the row loses the asset-based card,
-    # FCF breakdown, and method warnings on round-trip. Reapply user
-    # assumptions on top so manual overrides still take effect.
-    fresh: Optional[Dict[str, Any]] = None
-    if statements and statements.get("assembled_pl"):
-        try:
-            industry_key = None
-            if isinstance(statements.get("industry"), str):
-                industry_key = statements["industry"]
-            ua_dict = None
-            if user_assumptions:
-                ua_dict = {
-                    k: user_assumptions.get(k)
-                    for k in ("ebitda_used", "multiple_used", "debt_used", "cash_used")
-                    if user_assumptions.get(k) is not None
-                }
-            fresh = _valuation.compute_valuation(
-                industry_key=industry_key,
-                statements=statements,
-                user_assumptions=ua_dict,
-            )
-        except Exception:  # noqa: BLE001
-            logger.exception("[/api/period] valuation fresh recompute failed (non-fatal)")
-            fresh = None
-
-    # Choose the source of truth: fresh recomputation if available, else the row.
-    src = fresh if fresh is not None else valuation
+    fresh, src = _fresh_or_lawful_valuation(valuation, user_assumptions, statements, org=org,
+                                            line_items=line_items)
 
     def f(key: str) -> Optional[float]:
         v = src.get(key)
@@ -6551,7 +6931,10 @@ def _serialize_valuation(valuation: Optional[Dict[str, Any]],
             return f"{sign}{a/1_000:.0f}K"
         return f"{sign}{a:.0f}"
 
-    if is_asset_based_primary:
+    if primary_method == "refused":
+        # A stored row the one-EBITDA law withheld: its own sentence.
+        formula_text = src.get("formula_text") or "Valuation refused."
+    elif is_asset_based_primary:
         formula_text = (
             src.get("formula_text")
             or f"Equity = Book equity ({_fmt(src.get('total_equity_used'))}) "
@@ -6620,10 +7003,27 @@ def _serialize_valuation(valuation: Optional[Dict[str, Any]],
         # CapEx, statutory net income. Only available when fresh recompute
         # ran (canonical statements present).
         "fcf_breakdown": (fresh or {}).get("fcf_breakdown"),
-        # Three EBITDA views so the FE can show which one EV/EBITDA used.
+        # THE ONE EBITDA (owner ruling 2026-09-26: net 711 and net 72x
+        # inside), its definition revision and its typed refusal. The three
+        # legacy view names are aliases of it. A valuation served from the
+        # persisted row alone (no fresh recompute) states no definition: the
+        # row does not carry one.
+        "ebitda": f("ebitda"),
+        "ebitda_definition": (fresh or {}).get("ebitda_definition"),
+        # The one EBITDA's refusal (fresh), or why a stored row cannot
+        # stand in for it (`lawful_stored_row`).
+        "ebitda_refusal": src.get("ebitda_refusal"),
+        # Why the asset-based figure is absent: book equity excludes a
+        # refused year's result (`total_equity_incomplete`), else None.
+        "asset_based_refusal": src.get("asset_based_refusal"),
         "ebitda_statutory": f("ebitda_statutory"),
         "ebitda_operational": f("ebitda_operational"),
         "ebitda_operating_view": f("ebitda_operating_view"),
+        # Why the primary method is what it is (sector / the margin rule /
+        # the EBITDA's refusal or sign) and the NAV cap-rate NOI proxy
+        # (EBITDA − net 711, "NOI (aproximare)") the NAV cascade reads.
+        "routing": (fresh or {}).get("routing"),
+        "noi_approximation": (fresh or {}).get("noi_approximation"),
         "confidence": src.get("confidence"),
         "multiples_source": src.get("multiples_source"),
         "multiples_as_of_date": str(src.get("multiples_as_of_date")) if src.get("multiples_as_of_date") else None,
@@ -6673,6 +7073,10 @@ def _serialize_valuation(valuation: Optional[Dict[str, Any]],
             "multiple_used": user_assumptions.get("multiple_used"),
             "debt_used": user_assumptions.get("debt_used"),
             "cash_used": user_assumptions.get("cash_used"),
+            # Which EBITDA definition the override was typed under, and the
+            # flag "salvat sub definiția anterioară a EBITDA" when it is not
+            # today's (a row saved before the stamp existed reads NULL).
+            "definition": _valuation.override_definition_status(user_assumptions),
         },
     }
 
@@ -9036,6 +9440,15 @@ def build_router() -> APIRouter:
         # chains the canonical-conformance audit catalogued. Composed
         # here at read time from data already on the response (no new
         # math, no new persistence).
+        # The rows the model REFUSES on these statements (the net result
+        # refused, total equity short by it) are served refused whatever a
+        # persisted row holds: a period written before the refusal still
+        # carries the build-up under `net_income` / `net_income_operational`
+        # and the equity ratios on the short equity, and `metrics[]` is what
+        # the Ask-CFO chat prints as its "Headline metrics" (critic round 3,
+        # 2026-09-28). Every reader below — the typed ratios, the ratio
+        # table's stored-row path, the served rows — sees the refusal.
+        metrics = _credit_model.withhold_refused_result_rows(metrics, statements)
         _m_by_name = {m["name"]: m for m in (metrics or [])}
         # THE CREDIT CONTENT IS COMPOSED AND CHECKED AT THE SERVING BOUNDARY
         # (engine.ratios.credit_boundary, owner 2026-09-20). This route hands
@@ -9318,6 +9731,10 @@ def build_router() -> APIRouter:
                 "body": briefing["body"],
                 "language": briefing.get("language", "en"),
                 "model": briefing.get("model"),
+                # Which EBITDA definition the prose was written under; the
+                # page hides one written under an earlier definition with
+                # the note (owner ruling 2026-09-26, design A9).
+                "definition": briefing_definition_status(briefing),
             },
             "recommendations": [
                 {
@@ -9362,7 +9779,8 @@ def build_router() -> APIRouter:
                 }
                 for a in alerts
             ],
-            "valuation": _serialize_valuation(valuation, user_assumptions, statements),
+            "valuation": _serialize_valuation(valuation, user_assumptions, statements, org=org,
+                                              line_items=line_items),
             # F4.6 — list of legacy fields slated for removal at the 2Q
             # deprecation horizon (~Nov 2026 per F3.15 §3e). Consumers
             # should switch to the canonical replacements before sunset.
@@ -9598,6 +10016,13 @@ def build_router() -> APIRouter:
                 "debt_used": body.get("debt_used"),
                 "cash_used": body.get("cash_used"),
                 "notes": body.get("notes"),
+                # The EBITDA definition this override was typed under (owner
+                # ruling 2026-09-26: 711 and 72x inside). Stamped by the
+                # engine, never taken from the body; a row saved before the
+                # stamp existed reads NULL and is served flagged
+                # (`_valuation.override_definition_status`). Column added by
+                # supabase/schema_phase_valuation_ebitda_definition.sql.
+                "ebitda_definition": _valuation.EBITDA_DEFINITION_REVISION,
                 "updated_at": _now_iso(),
             }
             client.upsert(
@@ -9635,7 +10060,7 @@ def build_router() -> APIRouter:
                     # period whose GET computes a DCF (the §21 sibling miss).
                     assembled = _rebuild_assembled_for_briefing(line_items, period, org)["statements"]
                     result = _valuation.compute_valuation(
-                        industry_key=org.get("industry_key"),
+                        industry_key=_valuation_industry_key(org, assembled, line_items),
                         statements=assembled,
                         user_assumptions={
                             "ebitda_used": payload["ebitda_used"],
@@ -9695,7 +10120,7 @@ def build_router() -> APIRouter:
                     # period whose GET computes a DCF (the §21 sibling miss).
                     assembled = _rebuild_assembled_for_briefing(line_items, period, org)["statements"]
                     result = _valuation.compute_valuation(
-                        industry_key=org.get("industry_key"),
+                        industry_key=_valuation_industry_key(org, assembled, line_items),
                         statements=assembled,
                     )
                     _valuation.persist_valuation(period_id, period["org_id"], result)
@@ -9822,11 +10247,12 @@ def build_router() -> APIRouter:
                     "multiple_used": ua.get("multiple_used"),
                     "debt_used":     ua.get("debt_used"),
                     "cash_used":     ua.get("cash_used"),
+                    "ebitda_definition": ua.get("ebitda_definition"),
                 }
 
             try:
                 result = _valuation.compute_valuation(
-                    industry_key=org.get("industry_key"),
+                    industry_key=_valuation_industry_key(org, assembled, line_items),
                     statements=assembled,
                     user_assumptions=user_assumptions,
                     dcf_overrides=overrides,
@@ -9944,6 +10370,26 @@ def build_router() -> APIRouter:
             # operating-view EBITDA, statutory net income, and the
             # rest of the briefing_facts envelope.
             assembled = _rebuild_assembled_for_briefing(line_items, period, org)
+            # THE STORED valuations ROW IS NOT THE VALUATION the narrator
+            # cites (the one-EBITDA law, critic 2026-09-27): the same
+            # choice GET /api/period makes — a fresh recompute on these
+            # statements with the user's saved overrides, else the row
+            # only as far as `lawful_stored_row` allows it. The row the
+            # engine wrote under the previous definition carried an
+            # EV/EBITDA equity on the old EBITDA, which a regenerated
+            # briefing (stamped with TODAY's definition) would cite.
+            if valuation:
+                try:
+                    ua_rows = admin_client.select(
+                        "user_valuation_assumptions",
+                        filters={"period_id": f"eq.{period_id}"},
+                    ) or []
+                except Exception:  # noqa: BLE001
+                    ua_rows = []
+                _fresh_val, valuation = _fresh_or_lawful_valuation(
+                    valuation, ua_rows[0] if ua_rows else None,
+                    assembled.get("statements"), org=org,
+                    line_items=assembled.get("lineItems") or line_items)
 
             # FX rates for currency conversion. Skip the fetch when the
             # caller wants the period's native currency (the no-op case).
@@ -9996,6 +10442,8 @@ def build_router() -> APIRouter:
                         "body": narrative.get("briefing", ""),
                         "language": "en",
                         "model": _narrative_model(),
+                        # see stage_persist_narrative (ruling 2026-09-26)
+                        "ebitda_definition": _EBITDA_DEFINITION_REVISION,
                     },
                     on_conflict="period_id",
                     returning=False,

@@ -616,8 +616,8 @@ describe("§6 the deleted arithmetic, planted, is caught", () => {
     const wc = sf.workingCapital()!;
     const z =
       6.56 * (wc / ta) +
-      3.26 * ((s.balanceSheet.retainedEarnings + t.netIncome) / ta) +
-      6.72 * (t.ebit / ta) +
+      3.26 * ((s.balanceSheet.retainedEarnings + (t.netIncome as number)) / ta) +
+      6.72 * ((t.ebit as number) / ta) +
       1.05 * (te / tl);
     return {
       key: "altman_z",

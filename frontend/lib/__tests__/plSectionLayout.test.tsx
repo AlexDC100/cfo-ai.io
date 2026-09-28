@@ -11,14 +11,22 @@
 // compare cells with it. The footnote read `sections[1]` as the operating
 // expenses and so printed the 758 subtotal's arithmetic as "opex".
 //
+// THE ONE EBITDA (owner ruling 2026-09-26) rewrote the order this file
+// holds: net turnover (cifra de afaceri netă — no 722, no 767) → other
+// operating income → own work capitalised (72x) → operating expenses → the
+// stock variation (711, "Variația stocurilor de produse") beside them →
+// EBITDA → D&A to EBIT → financial items → profit before tax → the net
+// result, ending on account 121. The closing line is account 121 as filed
+// (`pl.net_income`), no longer the operational build-up excluding 722; the
+// "clean EBITDA" footnote this file used to hold to the operating-expenses
+// section is RETIRED (it stated EBITDA without 72x as the operating truth).
+//
 // WHAT THESE RED ON, with the view correct (TC-11):
-//   · profit before tax, income tax or net profit missing from a P&L that
-//     carries a 758 section, or their compare cells missing;
-//   · any section, or the EBITDA box, out of the reference order —
-//     revenue, other operating income, operating expenses, EBITDA, D&A to
-//     EBIT, financial items, profit before tax to net profit;
-//   · the footnote's "clean" operating expenses computed off any section
-//     but the operating expenses.
+//   · profit before tax, income tax or the net result missing from a P&L
+//     that carries a 758 section, or their compare cells missing;
+//   · any section, the stock-variation row or the EBITDA box out of the
+//     reference order above;
+//   · the retired footnote rendering again.
 //
 // THE FIXTURES: the committed comparatives pair (see ratioTableByteMatch
 // .test.tsx) and synthetic books. No client figure, name or code enters
@@ -44,22 +52,28 @@ const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
 /** The reference order, as the label each landmark row starts with. */
 const ORDER = [
-  "OPERATING REVENUE",
-  "Total operating revenue",
+  "NET TURNOVER",
+  "Total net turnover",
   "OTHER OPERATING INCOME",
   "Total other operating income",
   "OPERATING EXPENSES",
-  "Total operating expenses (cash)",
+  "Total operating expenses",
+  "Variația stocurilor de produse",
   "EBITDA",
   "EBIT",
   "FINANCIAL ITEMS",
   "Net financial result",
   "Profit before tax",
-  "Net profit — operational (excl. 722)",
+  "Rezultatul net din contul 121",
 ];
+/** The line-item book below: no 711 postings, no account 121 served — the
+ *  closing line is "Net profit". */
+const LEAF_ORDER = ORDER.filter((l) => l !== "Variația stocurilor de produse").map((l) =>
+  l === "Rezultatul net din contul 121" ? "Net profit" : l,
+);
 
-function renderPl(statement: PLStatement, doc?: ComparativesResponse, showFootnote = false) {
-  const view = <PLStatementView statement={statement} hideGuide showFootnote={showFootnote} />;
+function renderPl(statement: PLStatement, doc?: ComparativesResponse) {
+  const view = <PLStatementView statement={statement} hideGuide />;
   return renderWithProviders(
     doc
       ? <ComparativeProvider doc={doc} columns={{ prior: true, delta: true, deltaPct: true, share: true }} statement="PL" currency="RON">{view}</ComparativeProvider>
@@ -106,11 +120,11 @@ describe("a P&L with an OTHER OPERATING INCOME section (the aggregates builder, 
     expectReferenceOrder(container, ORDER);
   });
 
-  it("profit before tax, income tax and net profit carry their compare cells", () => {
+  it("profit before tax, income tax and the net result carry their compare cells", () => {
     const { current_body, comparatives: doc } = load();
     const statement = pickPLBuilder({ lineItems: [] }, current_body.statements);
     const { container } = renderPl(statement, doc);
-    for (const key of ["pl.pretax", "pl.tax", "pl.net_income_operational"]) {
+    for (const key of ["pl.pretax", "pl.tax", "pl.net_income"]) {
       const cells = container.querySelector(`[data-cmp-key="${key}"]`);
       expect(cells, key).not.toBeNull();
       expect(cells!.getAttribute("data-cmp"), key).toBe("compared");
@@ -119,11 +133,23 @@ describe("a P&L with an OTHER OPERATING INCOME section (the aggregates builder, 
 
   it("without a 758 section the order is unchanged", () => {
     const { current_body } = load();
+    // The served line the builder reads first, and the mirror behind it.
     current_body.statements.incomeStatement.otherIncome = 0;
+    (current_body.statements.assembled_pl as Record<string, number>).other_operating_income = 0;
     const statement = pickPLBuilder({ lineItems: [] }, current_body.statements);
     expect(statement.sections.map((s) => s.header)).not.toContain("OTHER OPERATING INCOME");
     const { container } = renderPl(statement);
     expectReferenceOrder(container, ORDER.filter((l) => !/other operating income/i.test(l)));
+  });
+
+  it("without a stock variation the order is unchanged", () => {
+    const { current_body } = load();
+    const apl = current_body.statements.assembled_pl as unknown as Record<string, Record<string, unknown>>;
+    apl.inventory_variation = { ...apl.inventory_variation, value: 0, provenance: "no_711_activity" };
+    const statement = pickPLBuilder({ lineItems: [] }, current_body.statements);
+    expect(statement.sections.map((s) => s.role)).not.toContain("stockVariation");
+    const { container } = renderPl(statement);
+    expectReferenceOrder(container, ORDER.filter((l) => l !== "Variația stocurilor de produse"));
   });
 });
 
@@ -153,34 +179,28 @@ describe("a P&L with an OTHER OPERATING INCOME section (the line-item builder)",
     const statement = pickPLBuilder({ lineItems: LEAF_BOOK }, LEAF_STATEMENTS);
     expect(statement.sections[0].lines.map((l) => l.accountCode)).toEqual(["706"]);
     const { container } = renderPl(statement);
-    expectReferenceOrder(container, ORDER);
+    expectReferenceOrder(container, LEAF_ORDER);
   });
 });
 
-// ── The footnote's operating expenses ────────────────────────────────
-describe("the 722 footnote reads the operating-expenses section, not the section after revenue", () => {
-  it("prints the clean operating expenses off the operating-expenses subtotal", () => {
-    // Aggregates path: the footnote's 628 proxy is the whole operating-
-    // expense bucket, so its "clean" opex is the cost of goods sold.
-    const COGS = 700_000.0;
+// ── The retired footnote ─────────────────────────────────────────────
+describe("the 'clean EBITDA' footnote is retired", () => {
+  it("a book carrying own work capitalised renders no footnote and no 'clean' EBITDA", () => {
+    // The book the footnote used to fire on: 72x of 200,000. Under the
+    // ruling 72x is INSIDE EBITDA — there is no "clean" EBITDA beside it.
     const statements = {
       companyName: "Synthetic SRL", currency: "RON", periodLabel: "2025-12-31",
       balanceSheet: {}, supplementary: {},
       incomeStatement: {
-        revenue: 3_000_000.0, costOfGoodsSold: COGS, operatingExpenses: 900_000.0,
+        revenue: 3_000_000.0, costOfGoodsSold: 700_000.0, operatingExpenses: 900_000.0,
         depreciationAmortization: 50_000.0, interestExpense: 0, otherIncome: 123_456.78,
         financialIncome: 0, financialExpense: 0, taxExpense: 0, capitalizedOwnWork: 200_000.0,
       },
-      assembled_pl: { capitalized_own_work_memo: 200_000.0 },
     } as unknown as Statements;
     const statement = pickPLBuilder({ lineItems: [] }, statements);
-    expect(statement.sections.map((s) => s.header)).toContain("OTHER OPERATING INCOME");
-    const { container } = renderPl(statement, undefined, true);
-    const footnote = container.querySelector('[data-testid="pl-footnote"]');
-    expect(footnote).not.toBeNull();
-    const text = footnote!.textContent ?? "";
-    const opex = text.split("opex drops to ~")[1]?.split(", clean EBITDA")[0];
-    expect(opex, text).toBeDefined();
-    expect(opex!.replace(/\D/g, "")).toBe(COGS.toFixed(2).replace(/\D/g, ""));
+    expect(statement.sections.map((s) => s.role)).toContain("capitalizedOwnWork");
+    const { container } = renderPl(statement);
+    expect(container.querySelector('[data-testid="pl-footnote"]')).toBeNull();
+    expect(container.textContent ?? "").not.toMatch(/clean EBITDA|opex drops to/i);
   });
 });

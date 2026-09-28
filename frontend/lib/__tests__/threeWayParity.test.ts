@@ -392,6 +392,9 @@ function rowLabelled(rows: string[][], label: string): string[] {
 
 interface Concept {
   readonly id: string;
+  /** Present only on a book that carries the line (711 / 72x activity);
+   *  checked wherever the document prints it. */
+  readonly optional?: boolean;
   /** The row label in the printed document's P&L table. */
   readonly doc: string;
   /** The row label on the workbook's "P&L" sheet. */
@@ -405,8 +408,24 @@ interface Concept {
 const NET_INCOME_LABEL = "Net income (account 121, as filed)";
 
 const PL_CONCEPTS: readonly Concept[] = [
-  { id: "revenue", doc: "Revenue", sheet: "Revenue", gateway: "revenue" },
+  // One-EBITDA ruling (2026-09-26): the first line is NET TURNOVER
+  // (70x − 709), 711 prints beside cost of sales under the owner's
+  // Romanian name, 72x is its own operating line — every one of them one
+  // concept across the three formats.
+  { id: "turnover", doc: "Net turnover (70x − 709)", sheet: "Net turnover (70x − 709)", gateway: "revenue" },
   { id: "cogs", doc: "Cost of goods sold", sheet: "Cost of goods sold" },
+  {
+    id: "inventory_variation",
+    doc: "Variația stocurilor de produse (711)",
+    sheet: "Variația stocurilor de produse (711)",
+    optional: true,
+  },
+  {
+    id: "capitalized_own_work",
+    doc: "Producția realizată pentru scopuri proprii și capitalizată (72x)",
+    sheet: "Producția realizată pentru scopuri proprii și capitalizată (72x)",
+    optional: true,
+  },
   { id: "gross_profit", doc: "Gross Profit", sheet: "Gross profit" },
   { id: "opex", doc: "Operating expenses", sheet: "Operating expenses" },
   { id: "other_operating_income", doc: "Other income", sheet: "Other operating income" },
@@ -756,10 +775,12 @@ describe("G-P1 — a refusal is a refusal in every format", () => {
     for (const c of PL_CONCEPTS) {
       const row = docRows.find((r) => r.label.toLowerCase() === c.doc.toLowerCase());
       if (!row) {
-        missing.push(c.id);
+        if (!c.optional) missing.push(c.id);
         continue;
       }
-      const refusedInDoc = new RegExp(UNREPORTED_WORD, "i").test(row.printed);
+      // A refusal is "not reported" or the engine's "refused — <reason>".
+      const refusedInDoc =
+        new RegExp(UNREPORTED_WORD, "i").test(row.printed) || /^refused\b/i.test(row.printed);
       if (!refusedInDoc) continue;
       subjects.push(c.id);
       const wbCell = (sheet.find((r) => (r[0] ?? "").toLowerCase() === c.sheet.toLowerCase()) ?? [])[1] ?? "";
@@ -841,6 +862,7 @@ describe("G-P4 — one concept, one value, in all three and in the gateway", () 
     for (const c of PL_CONCEPTS) {
       const row = docRows.find((r) => r.label.toLowerCase() === c.doc.toLowerCase());
       if (!row) {
+        if (c.optional) continue; // the book carries no such line
         divergences.push(`${c.id}: the printed document has no row labelled "${c.doc}"`);
         continue;
       }

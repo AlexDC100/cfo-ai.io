@@ -36,6 +36,9 @@ const FIXED_CODES = new Set([
   "avg_personnel_cost",
   "segment_growth",
   "policy_rate_shift",
+  // owner ruling 2026-09-26: 711 / 72x are inside the actual year's EBITDA
+  // and nil in every plan year
+  "stock_variation",
 ]);
 
 /** Strip formulas the wire serves as bare strings, by their served text. */

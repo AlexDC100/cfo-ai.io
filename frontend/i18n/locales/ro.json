@@ -547,14 +547,12 @@
       "title": "P&L",
       "ebitda": "EBITDA",
       "keyMargins": "Marje cheie",
-      "recon": {
-        "heading": "Reconciliere cu statutarul ct 121",
-        "capitalizedOwnWork": "+ Lucrări capitalizate proprii",
-        "statutoryTotal": "= Profit net — statutar (ct 121)"
+      "refused": "refuzat",
+      "stock": {
+        "increase": "+ creștere de stoc",
+        "decrease": "− scădere de stoc"
       },
-      "footnote": {
-        "flag": "Două aspecte de semnalat dată fiind structura:"
-      }
+      "refusedWithEbitda": "refuzat odată cu EBITDA"
     },
     "bs": {
       "title": "BILANȚ",
@@ -609,7 +607,8 @@
       "refusedSame": "O perioadă nu poate fi comparată cu ea însăși.",
       "refusedNotInWorkspace": "Perioada de comparație aparține altei companii.",
       "refusedNotServable": "Perioada de comparație nu are cifre analizate de comparat.",
-      "refusedGeneric": "Aceste două perioade nu pot fi comparate."
+      "refusedGeneric": "Aceste două perioade nu pot fi comparate.",
+      "refused": "refuzat"
     },
     "ratioCmp": {
       "unit": {
@@ -678,7 +677,10 @@
         "debtServiceLease": "dobânzile plus datoriile pe termen scurt plus chiria",
         "debtServiceLtPrincipal": "dobânzile plus aproximarea ratelor pe termen lung",
         "totalOperatingExpense": "totalul cheltuielilor de exploatare",
-        "capitalizedOwnWork": "producția imobilizată"
+        "capitalizedOwnWork": "producția imobilizată",
+        "operatingResult": "rezultatul din exploatare",
+        "grossProfit": "profitul brut",
+        "inventoryVariation": "variația stocurilor de produse"
       },
       "reason": {
         "operand_absent": "Neraportat: această raportare nu conține {{inputs}}.",
@@ -711,7 +713,8 @@
         "unstated": "Nicio valoare și niciun motiv servit pentru lipsa ei.",
         "unlisted": "Nicio valoare: codul de motiv {{code}} nu are încă o propoziție.",
         "malformed_value": "Neafișat: valoarea servită nu poate fi citită pentru unitatea ei.",
-        "unrecognised": "Neafișat: câmpul servit {{field}} are valoarea {{value}}, pe care acest cititor nu o recunoaște."
+        "unrecognised": "Neafișat: câmpul servit {{field}} are valoarea {{value}}, pe care acest cititor nu o recunoaște.",
+        "ebitda_refused": "Necalculat: EBITDA și rezultatul din exploatare sunt refuzate pentru această perioadă, deoarece variația stocurilor de produse nu a putut fi măsurată."
       },
       "label": {
         "current_ratio": "Lichiditate curentă",
@@ -839,6 +842,18 @@
         "drift": "Discrepanță reconciliere"
       },
       "notes": "NOTE"
+    },
+    "ebitdaRecon": {
+      "eyebrow": "Reconcilierea EBITDA · o singură definiție",
+      "title": "Cum se construiește EBITDA — de la cifra de afaceri netă la contul 121",
+      "lead": "O singură EBITDA: variația stocurilor de produse (711) și producția imobilizată (72x) sunt incluse, lângă costuri; reducerile comerciale primite (767) sunt financiare. Cifra de afaceri netă — baza fiecărei marje — nu include niciuna dintre ele.",
+      "coreHeading": "EBITDA → EBITDA de bază (baza evaluării)",
+      "less758": "Minus alte venituri din exploatare",
+      "less781": "Minus venituri din reluarea provizioanelor",
+      "coreTotal": "EBITDA de bază",
+      "notServed": "Motorul nu a servit reconcilierea EBITDA pentru această perioadă.",
+      "notAnchored": "contul 121 nu apare în balanță",
+      "footer": "Fiecare cifră este reconcilierea servită de motor — nimic nu se recalculează pe această pagină."
     }
   },
   "peerReport": {
@@ -969,6 +984,7 @@
         "company_operand_absent": "Necomparat: perioada ta nu conține {{inputs}}.",
         "company_nonpositive_denominator": "Necomparat: {{inputs}} nu este pozitiv în perioada ta.",
         "company_margin_not_meaningful": "Necomparat: cifra de afaceri este neglijabilă față de activitatea ta, deci marja nu este semnificativă.",
+        "company_figure_refused": "Necomparat — refuzat: {{text}}",
         "prior_period_absent": "Are nevoie de perioada de acum un an din acest spațiu de lucru.",
         "prior_period_not_servable": "Perioada de acum un an nu a putut fi citită.",
         "period_end_absent": "Perioada nu are dată de sfârșit.",
@@ -1710,6 +1726,9 @@
     "thePeriod": "perioada",
     "uploadedDocument": "Document încărcat",
     "freeCashFlow": "Flux de numerar liber",
+    "evEbitdaNotMeaningful": "nesemnificativ — EBITDA nu este pozitivă",
+    "evRevenueNotMeaningful": "nesemnificativ — cifra de afaceri nu este pozitivă",
+    "notServed": "neservit",
     "netIncome": "Profit net",
     "plusDa": "+ Amortizare",
     "minusWc": "− Δ capital de lucru",
@@ -2700,10 +2719,10 @@
     "verdictCritical": "Situație critică — cifrele arată presiune financiară serioasă. Acționează acum pe recomandările critice.",
     "verdictPending": "Analiză în curs — scorul de sănătate apare după procesarea datelor acestei perioade.",
     "ratingLabel": "Rating",
-    "metricRevenue": "Venituri",
-    "metricRevenueDesc": "Veniturile generate de activitatea de bază în această perioadă.",
+    "metricRevenue": "Cifra de afaceri",
+    "metricRevenueDesc": "Cifra de afaceri netă (70x − 709): vânzările de bunuri și servicii, după reducerile acordate — baza fiecărei marje.",
     "metricEbitda": "EBITDA",
-    "metricEbitdaDesc": "Banii generați de activitatea de bază, înainte de dobânzi, taxe și amortizare.",
+    "metricEbitdaDesc": "Rezultatul din exploatare înainte de dobânzi, impozit și amortizare — inclusiv variația stocurilor de produse (711) și producția imobilizată (72x).",
     "metricCash": "Numerar",
     "metricCashDesc": "Banii disponibili acum în conturi bancare și în casierie.",
     "metricNetDebt": "Datorie netă",
@@ -2792,14 +2811,14 @@
     },
     "concepts": {
       "revenue": "Tot ce ai facturat clienților în această perioadă, înainte de costuri.",
-      "operating_revenue": "Toate veniturile din activitatea de zi cu zi, inclusiv alte venituri din exploatare.",
+      "operating_revenue": "Cifra de afaceri netă: vânzările de bunuri și servicii, după reducerile acordate — baza fiecărei marje.",
       "net_turnover": "Vânzările de bunuri și servicii, după reducerile acordate.",
       "cogs": "Cât te-au costat bunurile pe care le-ai vândut.",
-      "gross_profit": "Vânzările minus costul direct al celor vândute.",
+      "gross_profit": "Vânzările minus costul direct al celor vândute, ajustat cu variația stocurilor de produse (711).",
       "operating_expenses": "Tot ce te costă funcționarea afacerii — salarii, chirie, servicii, materiale.",
       "opex": "Tot ce te costă funcționarea afacerii — salarii, chirie, servicii, materiale.",
       "ebit": "Profitul din operațiuni, înainte de dobânzi și impozite.",
-      "ebitda": "Profitul operațional înainte de dobânzi, impozite și amortizare — aproximează numerarul generat.",
+      "ebitda": "Profitul operațional înainte de dobânzi, impozite și amortizare. Include variația stocurilor de produse (711) și producția imobilizată (72x), care nu mișcă numerar.",
       "depreciation_amortization": "Costul anual al uzurii echipamentelor și celorlalte active pe termen lung.",
       "depreciation": "Costul anual al uzurii echipamentelor și celorlalte active pe termen lung.",
       "net_financial_result": "Veniturile financiare minus costurile financiare — dobânzi, diferențe de curs.",
@@ -2824,7 +2843,7 @@
       "free_cash_flow": "Numerarul rămas după operațiuni și investiții — liber pentru datorii sau dividende.",
       "enterprise_value": "Cât valorează întreaga afacere, incluzând datoriile.",
       "equity_value": "Cât valorează partea acționarilor din afacere.",
-      "ebitda_margin": "EBITDA ca procent din vânzări — cât de profitabile sunt operațiunile.",
+      "ebitda_margin": "EBITDA ca procent din cifra de afaceri netă — cât de profitabile sunt operațiunile.",
       "ebit_margin": "Profitul operațional ca procent din vânzări.",
       "net_margin": "Cât din fiecare vânzare ajunge profit final.",
       "gross_margin": "Ce rămâne din vânzări după costurile directe, ca procent.",
@@ -2845,16 +2864,6 @@
   },
   "tablesV2": {
     "sourceCurrencyTooltip": "Moneda sursă a cifrelor din această situație",
-    "pl": {
-      "reconNote": "Profitul net operațional ({{amount}} {{currency}}) este cifra de referință în tot acest raport. Contul 722 este un credit non-cash care capitalizează costurile interne în imobilizări în curs (contul 231); costul compensator se află în contul 628 (servicii prestate de terți). Efectul net în P&L al perechii 722/628 este ~zero; ct 121 statutar apare mai sus ca total reconciliat — nu ca o cifră concurentă.",
-      "footnote": {
-        "flagOne": "De semnalat, dată fiind structura:",
-        "ownWorkTitle": "Contul 722 (Producție capitalizată) — {{amount}} {{currency}} nu este venit extern.",
-        "ownWorkBody": "Este contrapartida pe credit care capitalizează costurile interne de construcție în imobilizări în curs (contul 231 — rulajul YTD corespunde exact cu 722). Costul aferent se află în 628 Alte servicii prestate de terți ({{ext}}). Efect net în P&L: ~zero. Pentru o imagine operațională „curată”, scoate-le pe amândouă: veniturile scad la ~{{revenue}}, cheltuielile operaționale la ~{{opex}}, EBITDA curat ≈ {{ebitda}}.",
-        "rentalTitle": "Venitul operațional real, generator de numerar, este în esență doar venitul din chirii (706): {{amount}} {{currency}}.",
-        "rentalBody": "Raportat la această bază, EBITDA din administrarea proprietăților este cifra mai relevantă."
-      }
-    },
     "cf": {
       "ytdCredit": "rulaj creditor YTD",
       "ytdDebit": "rulaj debitor YTD"
@@ -3432,7 +3441,7 @@
     "year0": {
       "title": "Anul 0 · real",
       "lead": "Cifrele pe care le arată panoul. Fiecare an proiectat de mai jos se sprijină pe ele.",
-      "revenue": "Venituri din exploatare",
+      "revenue": "Cifra de afaceri netă",
       "ebitda": "EBITDA",
       "netProfit": "Profit net",
       "cash": "Numerar"
@@ -3445,7 +3454,8 @@
       "headcount": "numărul de angajați nu este servit: balanța are costul cu personalul, nu numărul de oameni",
       "avg_personnel_cost": "costul mediu pe angajat nu este servit: are nevoie de un număr de angajați pe care balanța nu îl are",
       "segment_growth": "creșterea pe segmente nu este servită: veniturile nu sunt împărțite pe segmente în balanță",
-      "policy_rate_shift": "o schimbare a dobânzii de politică monetară nu este servită: balanța nu spune care datorii se reevaluează cu ea"
+      "policy_rate_shift": "o schimbare a dobânzii de politică monetară nu este servită: balanța nu spune care datorii se reevaluează cu ea",
+      "stock_variation": "variația stocurilor de produse și producția capitalizată nu se proiectează: sunt zero în anii de plan, așa că primul an de plan pornește de la EBITDA anului de bază fără ele"
     },
     "formula": {
       "cumulativeFcf": "suma numerarului din exploatare și din investiții pe perioadele servite",

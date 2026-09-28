@@ -445,6 +445,9 @@ export const RATIO_REASON_CODES = [
   "engine_metric_absent",
   "user_input_absent",
   "source_declares_absence",
+  // the one EBITDA / operating result is refused on this period (the stock
+  // variation, account 711, could not be measured) — owner ruling 2026-09-26
+  "ebitda_refused",
   // a margin over a turnover negligible against operating activity
   "margin_not_meaningful",
   // band withheld (value kept)
@@ -477,6 +480,7 @@ export const RATIO_COMPARE_REASON_CODES = [
   "revenue_not_positive",
   "interest_expense_not_positive",
   "credit_out_of_range",
+  "ebitda_refused",
   "credit_component_undefined",
 ] as const;
 
@@ -548,6 +552,16 @@ export const RATIO_OPERAND_WORD: Readonly<Record<string, string>> = {
   "assembled_bs.total_equity": "totalEquity",
   "assembled_bs.total_assets": "totalAssets",
   "assembled_pl.ebitda_statutory": "ebitdaStatutory",
+  // THE ONE EBITDA (owner ruling 2026-09-26): the assembled figures the
+  // engine's ratio table reads, and their pre-ruling incomeStatement build.
+  "assembled_pl.ebitda": "ebitda",
+  "assembled_pl.operating_result": "operatingResult",
+  "assembled_pl.gross_profit": "grossProfit",
+  "assembled_pl.inventory_variation": "inventoryVariation",
+  "incomeStatement.inventoryVariationMemo": "inventoryVariation",
+  "incomeStatement.ebitda": "ebitda",
+  "incomeStatement.ebit": "operatingResult",
+  "incomeStatement.gross_profit": "grossProfit",
   "assembled_pl.net_income_statutory": "netIncomeStatutory",
   "assembled_pl.revenue": "revenue",
   "supplementary.annualLeaseExpense": "annualLeaseExpense",

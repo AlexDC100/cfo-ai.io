@@ -702,12 +702,13 @@ _GENERAL_SME_BAND_DEFINITIONS: Dict[str, Dict[str, object]] = {
 
 def _piotroski_checks(
     *,
-    net_income_statutory: float,
+    net_income_statutory: Optional[float],
     total_assets: float,
-    cash_from_operating: float,
+    cash_from_operating: Optional[float],
     prior: Optional[Dict[str, float]],
     currency: str,
     current: Optional[Dict[str, float]] = None,
+    net_income_refusal: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, object]:
     """F1.g — emit the Piotroski 9-check bundle.
 
@@ -732,6 +733,16 @@ def _piotroski_checks(
     margin (operating EBIT / revenue) higher; asset turnover (revenue /
     total assets) higher. A check whose operand is absent on either side,
     or whose base is not positive, is `uncertain`, never a pass or a fail.
+
+    2026-09-27 (fixer round 2): a screen with NO evaluated check has no
+    score. With the net result refused (`net_income_refusal`: no account
+    121 and a refused net 711) checks 1-4 are all `uncertain`, and without
+    a prior checks 5-9 are too — the block served `score: 0`, which the
+    Risks tab banded "Distressed (0-2)": a distress verdict read off zero
+    evaluated checks. The score is None beside a typed `refusal` — the net
+    result's own reason when that is why, else
+    `piotroski_no_check_evaluated` — whenever the net result is refused or
+    no check was evaluated at all.
     """
     checks: List[Dict[str, object]] = []
     has_prior = prior is not None
@@ -740,44 +751,50 @@ def _piotroski_checks(
         checks.append({"key": key, "label": label, "result": result, "detail": detail})
 
     # ── Checks 1-4 (no prior period needed) ──────────────────────
-    ni_pass = net_income_statutory > 0
+    # A REFUSED net result (None: no account 121 and a refused net 711)
+    # makes every check that reads it `uncertain` — out of the score, never
+    # a pass or a fail on a figure the statement does not state.
+    _refused_ni = "Net income refused for this period: the stock variation (account 711) could not be measured and there is no account 121."
+    ni_known = net_income_statutory is not None
+    ni_pass = ni_known and net_income_statutory > 0
     _add(
         "ni_positive", "Net income positive",
-        "pass" if ni_pass else "fail",
-        f"{net_income_statutory:,.0f} {currency}",
+        ("pass" if ni_pass else "fail") if ni_known else "uncertain",
+        f"{net_income_statutory:,.0f} {currency}" if ni_known else _refused_ni,
     )
     # ROA is undefined on a non-positive asset base. It is `uncertain` and
     # left out of the score — the same treatment `_ratio` / `_yoy` give the
     # prior-period checks below — never a `fail` at an invented 0.00%.
     roa_defined = total_assets > 0
-    roa_pass = roa_defined and (net_income_statutory / total_assets) > 0
+    roa_pass = roa_defined and ni_known and (net_income_statutory / total_assets) > 0
     _add(
         "roa_positive", "ROA positive",
-        ("pass" if roa_pass else "fail") if roa_defined else "uncertain",
+        ("pass" if roa_pass else "fail") if (roa_defined and ni_known) else "uncertain",
         (
             f"{net_income_statutory / total_assets * 100:.2f}% on "
             f"{total_assets:,.0f} {currency} total assets"
-        ) if roa_defined else (
+        ) if (roa_defined and ni_known) else (
             f"ROA not computable: total assets are not positive "
             f"({total_assets:,.0f} {currency})."
-        ),
+        ) if ni_known else _refused_ni,
     )
-    cfo_pass = cash_from_operating > 0
+    cfo_known = cash_from_operating is not None
+    cfo_pass = cfo_known and cash_from_operating > 0
     _add(
         "cfo_positive", "Cash from operating positive",
-        "pass" if cfo_pass else "fail",
-        f"{cash_from_operating:,.0f} {currency}",
+        ("pass" if cfo_pass else "fail") if cfo_known else "uncertain",
+        f"{cash_from_operating:,.0f} {currency}" if cfo_known else _refused_ni,
     )
-    cfo_gt_ni_pass = cash_from_operating > net_income_statutory
+    cfo_gt_ni_pass = cfo_known and ni_known and cash_from_operating > net_income_statutory
     _add(
         "cfo_gt_ni", "CFO greater than net income (earnings quality)",
-        "pass" if cfo_gt_ni_pass else "fail",
+        ("pass" if cfo_gt_ni_pass else "fail") if (cfo_known and ni_known) else "uncertain",
         (
             f"CFO {cash_from_operating:,.0f} > NI {net_income_statutory:,.0f}"
             if cfo_gt_ni_pass else
             f"NI {net_income_statutory:,.0f} > CFO {cash_from_operating:,.0f} "
             "— possible accrual inflation"
-        ),
+        ) if (cfo_known and ni_known) else _refused_ni,
     )
     base_pass_count = sum(1 for r in (ni_pass, roa_pass, cfo_pass, cfo_gt_ni_pass) if r)
 
@@ -853,9 +870,33 @@ def _piotroski_checks(
             _add(key, prior_labels[key], "uncertain",
                  "Prior-period data unavailable for YoY comparison.")
 
-    score = base_pass_count + yoy_pass_count  # caps at 4 when has_prior is False
+    score: Optional[int] = base_pass_count + yoy_pass_count  # caps at 4 when has_prior is False
 
-    return {
+    # No score without an evaluated check (and none on a refused net
+    # result): a count of passes over nothing evaluated is not a 0 / 9.
+    evaluated_count = sum(1 for c in checks if c.get("result") in ("pass", "fail"))
+    refusal: Optional[Dict[str, Any]] = None
+    if net_income_statutory is None and isinstance(net_income_refusal, dict) \
+            and net_income_refusal.get("code"):
+        refusal = {
+            "code": net_income_refusal.get("code"),
+            "text_ro": net_income_refusal.get("text_ro"),
+            "text_en": net_income_refusal.get("text_en"),
+            "source": "net_income_refusal",
+        }
+    elif evaluated_count == 0:
+        refusal = {
+            "code": "piotroski_no_check_evaluated",
+            "text_ro": "Niciuna dintre cele 9 verificări Piotroski nu a putut fi evaluată "
+                       "pentru această perioadă — nu există un scor.",
+            "text_en": "None of the 9 Piotroski checks could be evaluated for this "
+                       "period — there is no score.",
+            "source": "piotroski",
+        }
+    if refusal is not None:
+        score = None
+
+    out: Dict[str, object] = {
         "score": score,
         "score_max": 9,
         "has_prior_period": has_prior,
@@ -866,6 +907,11 @@ def _piotroski_checks(
             "ROA positive, CFO positive, CFO > NI) evaluate normally."
         ) if not has_prior else None,
     }
+    if refusal is not None:
+        # Only on a screen with no score: every other book's block is
+        # byte-identical to what it was.
+        out["refusal"] = refusal
+    return out
 
 
 def _band_definitions(industry: Optional[str] = None) -> Dict[str, object]:
@@ -896,6 +942,146 @@ def _band_definitions(industry: Optional[str] = None) -> Dict[str, object]:
     }
 
 
+#: The EBITDA definition every served figure is built on. Consumers that
+#: store an EBITDA-derived value (credit-model metric rows, a saved
+#: valuation override, a briefing) stamp it, so a figure written under an
+#: earlier definition can be recognised and re-served or flagged.
+#: 2026-09-26 (owner ruling): net 711 and net 72x inside EBITDA and the
+#: operating result, with their sign; 767 financial; margins over turnover.
+EBITDA_DEFINITION_REVISION = "ebitda/2026-09-26:711-72x-inside,767-financial"
+
+_RECON_LABELS = {
+    "turnover": ("Cifra de afaceri netă", "Net turnover", "70x − 709"),
+    "other_operating_income": ("Alte venituri din exploatare", "Other operating income",
+                               "74x, 75x, 77x, 78x"),
+    "cost_of_sales": ("Costul mărfurilor și al materiilor prime", "Cost of sales",
+                      "601, 602, 607"),
+    "operating_expenses": ("Alte cheltuieli de exploatare", "Other operating expenses",
+                           "603-606, 608-65x"),
+    "ebitda": ("EBITDA", "EBITDA", None),
+    "depreciation": ("Amortizări, provizioane și ajustări (681x)",
+                     "Depreciation, provisions and impairment (681x)", "681x"),
+    "operating_result": ("Rezultatul din exploatare", "Operating result", None),
+    "financial_result": ("Rezultatul financiar", "Financial result", "76x − 66x"),
+    "tax": ("Impozitul pe profit", "Income tax", "69x"),
+    "net_result": ("Rezultatul net (din rulajele conturilor)",
+                   "Net result (built from the accounts)", None),
+    "account_121": ("Rezultatul net din contul 121", "Net result in account 121", "121"),
+    "not_explained": ("Neexplicat de conturile de venituri și cheltuieli",
+                      "Not explained by the revenue and expense accounts", None),
+}
+_BRIDGE_LABELS = {
+    "ebitda_before_stock_variation": (
+        "EBITDA înainte de variația stocurilor și producția imobilizată",
+        "EBITDA before stock variation and own work capitalised"),
+    "inventory_variation": ("Variația stocurilor de produse",
+                            "Change in inventories of finished goods and WIP"),
+    "capitalized_own_work": ("Producția imobilizată", "Own work capitalised"),
+    "ebitda": ("EBITDA", "EBITDA"),
+}
+
+
+def _ebitda_reconciliation(
+    *,
+    turnover: float,
+    other_operating_income: float,
+    capitalized_block: Dict[str, object],
+    cost_of_sales: float,
+    inventory_variation_block: Dict[str, object],
+    operating_expenses: float,
+    ebitda_before: float,
+    ebitda: Optional[float],
+    depreciation: float,
+    ebit: Optional[float],
+    financial_result: float,
+    pretax: Optional[float],
+    tax: float,
+    net_result: Optional[float],
+    account_121: Optional[float],
+    refusal: Optional[Dict[str, object]],
+) -> Dict[str, object]:
+    """The reconciliation line (design A5), served wherever EBITDA is
+    explained: turnover → other operating income → own work capitalised →
+    cost of sales, with "Variația stocurilor de produse" (711) beside it,
+    signed, with its provenance → other operating expenses → EBITDA → D&A →
+    operating result → financial result → tax → net result = account 121
+    (or "not anchored"). Every value is SIGNED as its effect on the result
+    and read from the one assembly — the renderer adds nothing. A refused
+    figure is None with the refusal beside it, never 0.00.
+    """
+    def _r(v: Optional[float]) -> Optional[float]:
+        return None if v is None else round(float(v), 2)
+
+    def line(key: str, value: Optional[float], **extra: object) -> Dict[str, object]:
+        ro, en, accounts = _RECON_LABELS[key]
+        out: Dict[str, object] = {"key": key, "label_ro": ro, "label_en": en,
+                                  "accounts": accounts, "value": _r(value)}
+        out.update(extra)
+        return out
+
+    inv = inventory_variation_block
+    cap = capitalized_block
+    lines: List[Dict[str, object]] = [
+        line("turnover", turnover),
+        line("other_operating_income", other_operating_income),
+        {"key": "capitalized_own_work", "label_ro": cap.get("line_name_ro"),
+         "label_en": _BRIDGE_LABELS["capitalized_own_work"][1],
+         "provenance_label_ro": cap.get("label_ro"), "provenance_label_en": cap.get("label_en"),
+         "accounts": "72x", "value": _r(cap.get("value")), "provenance": cap.get("provenance")},
+        line("cost_of_sales", -cost_of_sales),
+        # 711 — beside cost of sales, signed: + a stock increase (cost
+        # taken out of the period), − a decrease.
+        {"key": "inventory_variation", "label_ro": inv.get("line_name_ro"),
+         "label_en": _BRIDGE_LABELS["inventory_variation"][1],
+         "provenance_label_ro": inv.get("label_ro"), "provenance_label_en": inv.get("label_en"),
+         "accounts": "711", "value": _r(inv.get("value")), "provenance": inv.get("provenance"),
+         "refusal": inv.get("refusal"), "beside": "cost_of_sales"},
+        line("operating_expenses", -operating_expenses),
+        line("ebitda", ebitda, subtotal=True, refusal=refusal),
+        line("depreciation", -depreciation),
+        line("operating_result", ebit, subtotal=True, refusal=refusal),
+        line("financial_result", financial_result),
+        line("tax", -tax),
+        line("net_result", net_result, subtotal=True, refusal=refusal),
+    ]
+    anchored = account_121 is not None
+    lines.append(line("account_121", account_121,
+                      status="anchored" if anchored else "not_anchored"))
+    not_explained = (
+        account_121 - net_result if (anchored and net_result is not None) else None
+    )
+    lines.append(line("not_explained", not_explained))
+
+    v711 = inv.get("value")
+    bridge = {
+        "parts": [
+            {"key": k, "label_ro": _BRIDGE_LABELS[k][0], "label_en": _BRIDGE_LABELS[k][1],
+             "value": _r(v)}
+            for k, v in (("ebitda_before_stock_variation", ebitda_before),
+                         ("inventory_variation", v711),
+                         ("capitalized_own_work", cap.get("value")),
+                         ("ebitda", ebitda))
+        ],
+        "refusal": refusal,
+    }
+    out: Dict[str, object] = {
+        "schema": "ebitda_reconciliation/1",
+        "definition": EBITDA_DEFINITION_REVISION,
+        "lines": lines,
+        "bridge": bridge,
+        # On a closed book the 711 line is derived FROM account 121, so the
+        # chain closes by construction — said, never implied.
+        "identity_with_121": bool(inv.get("identity_with_121")),
+    }
+    if inv.get("identity_with_121"):
+        out["identity_note_ro"] = inv.get("identity_note_ro")
+        out["identity_note_en"] = inv.get("identity_note_en")
+    if cap.get("split_assumption_ro"):
+        out["split_assumption_ro"] = cap.get("split_assumption_ro")
+        out["split_assumption_en"] = cap.get("split_assumption_en")
+    return out
+
+
 def assemble_statements(
     accounts: List[Dict[str, object]],
     *,
@@ -912,6 +1098,7 @@ def assemble_statements(
     period_end: Optional[str] = None,
     period_start: Optional[str] = None,
     period_signal: Optional[str] = None,
+    stock_variation_evidence: Optional[Dict[str, object]] = None,
 ) -> Dict[str, object]:
     """Roll account-level amounts into BS + PL totals.
 
@@ -946,6 +1133,18 @@ def assemble_statements(
     assembles before `stage_persist` resolves one) gets `periodDays: None`
     — the assembler cannot read a period length off account rows, so it
     does not claim one.
+
+    `stock_variation_evidence` (owner ruling 2026-09-26, the ONE EBITDA):
+    the `stock_variation/1` block `stock_variation.measure(tb_rows)` took
+    off the trial balance at persist time — or, on a rebuild, the same
+    block read back from the period envelope. Net 711 and net 72x are
+    DECIDED here from it (`stock_variation.decide`), never read off the
+    collapsed line amounts: on a closed book the 711 line amount is the
+    gross production stocked. Absent evidence → 711 is refused whenever
+    the book posts to 711 (and EBITDA / EBIT / gross profit with it);
+    `None` is treated as absent (reason `stock_variation_evidence_absent`).
+    A measured block is stored on the envelope
+    (`assembled_canonical_v1.stock_variation`) so every rebuild reads it.
     """
     bs = _empty_bs()
     pl = _empty_pl()
@@ -967,6 +1166,12 @@ def assemble_statements(
     # separately so `assembled_pl_canonical` can surface the operating
     # view without disturbing the financial_income aggregate.
     discounts_received_767 = 0.0
+    # Σ|amount| over the lines routed to the 711 stock-variation bucket.
+    # An EXISTENCE signal only (does this book post to 711 at all?) for
+    # `stock_variation.decide` when no trial-balance evidence exists —
+    # the amount itself is the gross production stocked on a closed book
+    # and feeds no number.
+    read_711_abs = 0.0
 
     # F3.7d: account 121 (PROFIT SI PIERDERE) closing balance is the
     # STATUTORY NET-INCOME ANCHOR. Captured during account iteration
@@ -1090,6 +1295,8 @@ def assemble_statements(
         # receives it, so nothing in the legacy path changes.
         if code.startswith("767"):
             discounts_received_767 += signed
+        if rule.bucket == "inventoryVariationMemo":
+            read_711_abs += abs(signed)
 
         # Track sub-aggregates BEFORE rolling into the top-level field so
         # the same amount appears both on the line total (e.g.,
@@ -1257,9 +1464,18 @@ def assemble_statements(
         ),
     }
 
-    # ── Canonical "assembled_pl" view — both net income views surfaced.
-    # Operational excludes capitalized own-work; statutory includes it (to
-    # match account 121 PROFIT SI PIERDERE on the Romanian books). ──
+    # ── Canonical "assembled_pl" view — THE ONE DEFINITION (owner ruling,
+    # 2026-09-26). Turnover (cifra de afaceri netă) = class 70 − 709.
+    # EBITDA = turnover − cost of sales + net 711 (Variația stocurilor de
+    # produse, beside cost of sales, signed) − operating expenses + other
+    # operating income + net 72x (own work capitalised). 767 (discounts
+    # received) is FINANCIAL — outside EBITDA and EBIT. Operating result
+    # (EBIT) = EBITDA − D&A. Net 711 and net 72x are DECIDED by
+    # `stock_variation.decide` from the trial-balance evidence; a refused
+    # 711 on a book that posts to it refuses EBITDA, EBIT, gross profit and
+    # PBT with the same typed reason (never 0, never another definition).
+    # The figures BEFORE the stock variation and the own work are the
+    # class-6/7 build-up the 121 bridge is measured against. ──
     revenue = pl["revenue"]
     cogs = pl["costOfGoodsSold"]
     opex = pl["operatingExpenses"]
@@ -1269,19 +1485,15 @@ def assemble_statements(
     fin_inc = pl["financialIncome"]
     fin_exp = pl["financialExpense"]
     tax = pl["taxExpense"]
-    capitalized = pl.get("capitalizedOwnWork", 0.0)
-    inventory_variation_memo = pl.get("inventoryVariationMemo", 0.0)
+    capitalized_bucket = pl.get("capitalizedOwnWork", 0.0)
 
-    gross_profit = revenue - cogs
-    # `other_inc` now excludes 711 (routed to inventoryVariationMemo); this is
-    # the CASH-view EBITDA — the number a buyer or lender cares about.
-    ebitda = revenue - cogs - opex + other_inc  # operational (722 + 711 excluded)
-    ebit = ebitda - depreciation
-    pretax = ebit + fin_inc - fin_exp - interest
-    net_income_operational = pretax - tax
-    # Statutory: Romanian books include 722's credit. account 121 will close
-    # to (operational + capitalized_own_work).
-    net_income_statutory = net_income_operational + capitalized
+    # `other_inc` excludes 711 (routed to its own bucket) and 72x (own
+    # bucket); 767 sits in financial income. These four are the build-up
+    # BEFORE the stock variation and the own work capitalised.
+    ebitda_before_stock_variation = revenue - cogs - opex + other_inc
+    ebit_before_stock_variation = ebitda_before_stock_variation - depreciation
+    pretax_before_stock_variation = ebit_before_stock_variation + fin_inc - fin_exp - interest
+    net_income_operational = pretax_before_stock_variation - tax
 
     # F3.7d: ANCHOR to account 121 closing when the reconstruction diverges
     # materially. Per CLAUDE.md Appendix B (Section 4 / Step 11), the
@@ -1320,6 +1532,70 @@ def assemble_statements(
     if account_121_anchor_override is not None:
         account_121_anchor = float(account_121_anchor_override)
 
+    # ── Net 711 and net 72x — measured, never the collapsed line amount ──
+    # (`stock_variation` module docstring; measure.md "The rule"). The
+    # anchor handed to `decide` is the one this assembly APPLIES below;
+    # with none the bridge refuses (G2) — it never returns 0.00.
+    from . import stock_variation as _stock_variation
+    # G7 (design A10): the reader this process runs — a block stamped by
+    # another folds no residual (`stock_variation.decide`).
+    from .trial_balance_parser import PARSER_VERSION as _RUNNING_TB_PARSER
+
+    inventory_variation_block, capitalized_block = _stock_variation.decide(
+        stock_variation_evidence,
+        account_121=account_121_anchor,
+        net_income_operational=net_income_operational,
+        read_711_lines=read_711_abs,
+        read_72x_lines=capitalized_bucket,
+        running_parser_version=_RUNNING_TB_PARSER,
+    )
+    capitalized = capitalized_block["value"]
+    net_711 = inventory_variation_block["value"]  # None when refused
+    definition_refused = net_711 is None
+
+    # The class-6/7 BUILD-UP of the result: the lines this statement can
+    # measure without account 121. Net 711 joins it only when it was
+    # measured independently of 121 (its own movement on an open book,
+    # an exact zero, a filed statutory row) — the bridge is DERIVED from
+    # 121, so a build-up containing it would equal 121 by construction.
+    # A refused 711 is not in the build-up either: the build-up then
+    # simply lacks that line, and the anchor status says it is a
+    # reconstruction.
+    build_up_711 = (
+        net_711 if inventory_variation_block["measured_without_121"] else 0.0
+    )
+    # Statutory: Romanian books close account 121 to the full class-6/7
+    # result (72x and 711 included). Overridden by the anchor below.
+    net_income_statutory = net_income_operational + capitalized + build_up_711
+
+    # EBITDA / EBIT / gross profit / PBT on the one definition — or the
+    # refusal, carried by every one of them.
+    if definition_refused:
+        ebitda = None
+        ebit = None
+        gross_profit = None
+        pretax = None
+    else:
+        ebitda = ebitda_before_stock_variation + capitalized + net_711
+        ebit = ebitda - depreciation
+        # 711 sits in the cost-of-sales block ("next to cost of sales");
+        # 72x is an operating line OUTSIDE gross profit.
+        gross_profit = revenue - cogs + net_711
+        pretax = ebit + fin_inc - fin_exp - interest
+    ebitda_refusal = None
+    if definition_refused:
+        _ref = dict(inventory_variation_block["refusal"] or {})
+        ebitda_refusal = {
+            **_ref,
+            "source": "inventory_variation",
+            "fields": [
+                "ebitda", "ebit", "operating_result", "gross_profit", "pretax",
+                "core_ebitda", "adjusted_ebitda", "ebitda_statutory",
+                "ebitda_operational", "ebitda_operating_view", "ebitda_cash",
+                "operating_ebitda", "operating_ebit",
+            ],
+        }
+
     # ALWAYS ANCHOR (2026-09-09). The 5% band above is gone. Account 121's
     # closing balance IS the statutory net profit the company filed; the
     # class-6/7 run-down is a build-up, not the result. The field is
@@ -1342,6 +1618,36 @@ def assemble_statements(
     if account_121_anchor is not None:
         anchor_override_applied = True
         net_income_statutory = account_121_anchor
+
+    # ── The net result REFUSES with 711 when there is no anchor ─────────
+    # (owner ruling 2026-09-26, design A3: a refused net 711 refuses EBITDA,
+    # EBIT and everything built on them.) With account 121 present the
+    # filed figure stands whatever 711 is. Without it the net result is the
+    # class-6/7 build-up — and a refused 711 is not in the build-up (0.00
+    # above), so the build-up is short by exactly the unmeasured variation:
+    # the developer's book with its 121 rows dropped served -30,391,418.38
+    # where 121 holds -801,604.14 — the refused 29,589,814.24. That figure
+    # was served under the statutory name (the dashboard tile, ROE, ROA and
+    # the net margin all read it) while `pretax` two fields above was
+    # refused. It is refused with the same typed reason.
+    #
+    # `net_income_statutory` below stays the build-up INTERNALLY, only for
+    # the balance sheet's current-year result (the equity section needs a
+    # number to close into; its `bs_balance_delta` then shows what the
+    # build-up could not explain) — it is never SERVED as a net result.
+    net_income_refusal = None
+    if definition_refused and account_121_anchor is None:
+        net_income_refusal = {
+            **dict(inventory_variation_block["refusal"] or {}),
+            "source": "inventory_variation",
+            "fields": [
+                "net_income_statutory", "net_income_reconstructed",
+                "net_income_reconciliation_to_121", "net_income_unexplained_vs_121",
+                "free_cash_flow_proxy", "net_margin", "roe", "roa", "free_cash_flow",
+                "assembled_cf.net_profit", "assembled_cf.cash_from_operating",
+            ],
+        }
+    net_income_served = None if net_income_refusal is not None else net_income_statutory
 
     # ── The bridge from the reconstruction to the filed figure ──────────
     # After the override above, `net_income_statutory` and
@@ -1368,7 +1674,9 @@ def assemble_statements(
     #     absorb it would make the build-up foot on a fiction, which is
     #     worse than an honest gap: see the `p121_cross_check` block
     #     below, whose `ok=false` is the same fact stated for diagnosis.
-    net_income_reconciliation_to_121 = net_income_statutory - net_income_operational
+    net_income_reconciliation_to_121 = (
+        None if net_income_served is None else net_income_statutory - net_income_operational
+    )
     # WHAT THIS FIELD MEANS, and what it used to mean (2026-09-09).
     # It is the part of the step from the reconstruction to the filed
     # figure that this data CANNOT attribute — the reconciliation less the
@@ -1385,8 +1693,23 @@ def assemble_statements(
     # one. The 0.0 branch survives only for a book with no account 121 at
     # all (a BS-only extract), where there is no filed figure to bridge to
     # and the reconstruction is all there is.
+    #
+    # 2026-09-26 (the ONE EBITDA). The nameable components are now 72x AND
+    # a measured net 711. On a closed book whose 711 came off the bridge
+    # this is 0.00 by construction — the bridge IS this remainder, taken
+    # under guards G2-G6 that refuse whenever it could be anything else
+    # (an unread class-6/7 leaf, a remainder larger than 711's turnover,
+    # an uncleared prior-year result). With no 711 activity nothing is
+    # folded: the remainder stays here, visible. With 711 REFUSED the
+    # remainder still holds whatever 711 is — it is what the served lines
+    # cannot explain, which is exactly this field's name.
+    _named_711 = net_711 if net_711 is not None else 0.0
+    # Refused with the net result (no anchor, 711 refused): nothing is
+    # "explained" or "unexplained" against a figure that is not there —
+    # never a 0.00 that reads as "the build-up ties".
     net_income_unexplained_vs_121 = (
-        net_income_reconciliation_to_121 - capitalized
+        None if net_income_served is None
+        else net_income_reconciliation_to_121 - capitalized - _named_711
         if account_121_anchor is not None else 0.0
     )
 
@@ -1400,44 +1723,48 @@ def assemble_statements(
     # into canonical_bs.invariants.p121_cross_check for diagnosis (D6) —
     # it never auto-corrects anything; the 5% anchor override above is a
     # separate, pre-existing behavior on the P&L reconstruction side.
+    #
+    # 2026-09-26: the 711 term is the MEASURED net 711, never the line
+    # amount (the gross production stocked on a closed book, which made
+    # this check fail by 82.7M-757.6M on every closed manufacturer). A
+    # refused 711 contributes nothing: the comparison is then between 121
+    # and the lines this statement does measure, and its `ok` says whether
+    # they explain it. Never None while 121 exists — `p121_cross_check.
+    # p121` is the rebuild's authoritative anchor source
+    # (`pipeline._statutory_anchor_for`).
     _pl_activity_present = any(
         li.get("statement") == "PL" for li in line_items
     )
     cls7_minus_cls6: Optional[float] = (
-        round(net_income_operational + capitalized + inventory_variation_memo, 2)
+        round(net_income_operational + capitalized + _named_711, 2)
         if _pl_activity_present else None
     )
 
-    # ── THREE EBITDA VIEWS — explicit, never re-derived downstream ───────
-    # The same Romanian books produce three legitimate EBITDA numbers,
-    # depending on how 722 (capitalized own-work) and 767 (discounts
-    # received) are treated. All three must be surfaced so the Valuation
-    # tab, briefing, and recommendations all pick the same one and stop
-    # disagreeing.
-    #
-    #   ebitda_operational      — excludes 722; the "cash view" of
-    #                             EBITDA. Negative for EEI (−37K).
-    #   ebitda_statutory        — includes 722 (matches Romanian P&L
-    #                             where 722 closes into 121). PRIMARY
-    #                             for valuation. Positive for EEI (+2.13M).
-    #   ebitda_operating_view   — includes 722 + 767 (the FE P&L tab view).
-    #                             Marginally higher than statutory by the
-    #                             discounts-received amount.
-    ebitda_operational = ebitda                                                  # -36,676 for EEI
-    ebitda_statutory   = ebitda + capitalized                                    # 2,127,404 for EEI
-    ebitda_operating_view = ebitda + capitalized + discounts_received_767        # 2,149,571 for real EEI
-    # Cash view (alias) — primary for valuation and lender DSCR. Excludes
-    # both 722 (capitalized own-work) and 711 (inventory variation).
-    ebitda_cash = ebitda_operational
-    # Statutory-with-711 — IFRS-style "total production" view that includes
-    # the inventory accrual. Useful for matching Romanian account 121.
-    ebitda_statutory_with_711 = ebitda_cash + capitalized + inventory_variation_memo
-    # Keep `operating_ebitda` / `total_operating_revenue` as aliases for
-    # the FE which already consumes the operating-view field names.
-    total_operating_revenue = revenue + capitalized + discounts_received_767
-    total_operating_revenue_statutory = total_operating_revenue + inventory_variation_memo
-    operating_ebitda = ebitda_operating_view
-    operating_ebit = operating_ebitda - depreciation
+    # ── ONE EBITDA (owner ruling 2026-09-26) ─────────────────────────────
+    # There used to be THREE EBITDA views here (operational = excl. 722,
+    # statutory = incl. 722, operating view = incl. 722 + 767) plus a
+    # "statutory with 711" that added the GROSS 711 credit turnover
+    # (98.9 %-191.0 % margins on every closed manufacturer), and every
+    # consumer picked one. The ruling is one definition: 711 and 72x
+    # inside, 767 financial. The legacy names are kept ONLY as aliases of
+    # that one figure, so no served field carries a different EBITDA —
+    # except `ebitda_before_stock_variation` (= EBITDA − net 711 − net
+    # 72x), which exists for the reconciliation line and the cash-burn
+    # finding, under a name that says what it leaves out.
+    # `ebitda_statutory_with_711` and `inventory_variation_memo` (both the
+    # gross 711 credit turnover) are retired; the gross figure survives
+    # only as `inventory_variation.stock_production_credit_turnover`.
+    ebitda_operational = ebitda
+    ebitda_statutory = ebitda
+    ebitda_operating_view = ebitda
+    ebitda_cash = ebitda
+    operating_ebitda = ebitda
+    operating_ebit = ebit
+    # Venituri din exploatare WITHOUT 711 (the ruling places 711 beside
+    # cost of sales, not among revenues): turnover + other operating
+    # income + own work capitalised. 767 is financial and left out. Not a
+    # margin denominator anywhere — margins and growth divide by turnover.
+    total_operating_revenue = revenue + other_inc + capitalized
 
     # ── F1.a additions — fields the FE needs so it can be a pure renderer
     # (SPEC_F1_ENGINE_CANONICAL_CONTRACT.md §4). Each is derived from
@@ -1486,7 +1813,11 @@ def assemble_statements(
     )
     # Core EBITDA — statutory minus non-core operating credits. This is
     # the valuation basis the EBITDA multiple bridges to.
-    core_ebitda = ebitda_statutory - other_income_758 - other_income_781_reversals
+    # Computed on the ONE EBITDA (711 and 72x stay inside); refused with it.
+    core_ebitda = (
+        None if ebitda is None
+        else ebitda - other_income_758 - other_income_781_reversals
+    )
     # F3.16-3b.6 Phase 2 (2026-05-26) — Adjusted EBITDA harmonized with
     # YAML methodology.ebitda.strict so the F4.2-PARITY gate locks
     # strict to HARD ±1 RON on all 8 fixtures.
@@ -1506,7 +1837,11 @@ def assemble_statements(
     # ±0.00 RON on all 8 fixtures after this edit lands; locked
     # per ADR Lock #8 (predict-from-empirical) in
     # docs/F3.16-3b6-variant-analysis.md §8.
-    adjusted_ebitda = ebitda_statutory - other_op_income_lump - other_income_781_reversals
+    # 2026-09-26: on the ONE EBITDA (711 and 72x inside); refused with it.
+    adjusted_ebitda = (
+        None if ebitda is None
+        else ebitda - other_op_income_lump - other_income_781_reversals
+    )
     # Total operating expense — denominator for DIO/DPO (per the
     # B1 closure: total opex, not narrow COGS).
     total_operating_expense = cogs + opex + depreciation
@@ -1521,38 +1856,57 @@ def assemble_statements(
     financial_expense_total = fin_exp + interest
     # FCF proxy — net income + D&A. Marked `_proxy` to distinguish from
     # the proper CFO − Capex computed later (F1.c). Per §13.3.
-    free_cash_flow_proxy = net_income_statutory + depreciation
+    free_cash_flow_proxy = (None if net_income_served is None
+                            else net_income_statutory + depreciation)
+
+    def _r(value: Optional[float]) -> Optional[float]:
+        # A refused figure stays None — never rounded into a 0.00.
+        return None if value is None else round(value, 2)
+
+    net_result_build = None if pretax is None else pretax - tax
 
     assembled_pl_canonical = {
+        # Cifra de afaceri netă (class 70 − 709). Every margin and every
+        # growth figure divides by THIS — never by total operating revenue.
         "revenue": round(revenue, 2),
+        "turnover": round(revenue, 2),
         "cogs": round(cogs, 2),
-        "gross_profit": round(gross_profit, 2),
+        # Turnover − cost of sales + net 711 (the stock variation sits in
+        # the cost-of-sales block). Refused with 711.
+        "gross_profit": _r(gross_profit),
         "opex_total": round(opex, 2),
         "opex_third_party": round(sub_agg.get("opex_third_party", 0), 2),
         "depreciation": round(depreciation, 2),
-        # Legacy `ebitda` kept as `ebitda_operational` for backward compat
-        # (the operational view that excludes 722). New consumers should use
-        # the explicit *_statutory / *_operational / *_operating_view fields.
-        "ebitda": round(ebitda_operational, 2),
-        "ebit": round(ebit, 2),
-        # Three explicit EBITDA views — Valuation tab, briefing, ratios
-        # all pick the same one (statutory is the primary).
-        "ebitda_operational":     round(ebitda_operational, 2),
-        "ebitda_statutory":       round(ebitda_statutory, 2),
-        "ebitda_operating_view":  round(ebitda_operating_view, 2),
-        "ebitda_adjusted":        round(ebitda_statutory + sub_agg.get("financial_income", 0), 2),
+        # ── THE ONE EBITDA and the operating result ─────────────────────
+        "ebitda": _r(ebitda),
+        "ebit": _r(ebit),
+        "operating_result": _r(ebit),
+        # The build-up BEFORE net 711 and net 72x — the reconciliation
+        # line's first term and the cash-burn finding's basis; the ONLY
+        # served figure allowed to differ from `ebitda`.
+        "ebitda_before_stock_variation": round(ebitda_before_stock_variation, 2),
+        # Legacy names — aliases of the ONE EBITDA (see above), refused
+        # with it. No served field carries a second EBITDA.
+        "ebitda_operational":     _r(ebitda_operational),
+        "ebitda_statutory":       _r(ebitda_statutory),
+        "ebitda_operating_view":  _r(ebitda_operating_view),
+        "ebitda_cash":            _r(ebitda_cash),
+        "operating_ebitda":       _r(operating_ebitda),
+        "operating_ebit":         _r(operating_ebit),
+        # The typed reason every refused figure above carries (None when
+        # the definition is served).
+        "ebitda_refusal": ebitda_refusal,
+        "ebitda_definition": EBITDA_DEFINITION_REVISION,
+        # Net 711 — "Variația stocurilor de produse" — {value | refusal,
+        # provenance, labels, guards, the gross credit turnover under its
+        # audit name}; and net 72x.
+        "inventory_variation": inventory_variation_block,
+        "capitalized_own_work": capitalized_block,
+        # 767 — FINANCIAL (inside `financial_income` and the financial
+        # result; outside EBITDA and EBIT). Kept as a named amount.
         "discounts_received":     round(discounts_received_767, 2),
-        # Operating-view variants — what the frontend P&L tab + KPI tiles
-        # render, and what the CFO briefing must cite.
+        # Venituri din exploatare without 711 — never a margin denominator.
         "total_operating_revenue": round(total_operating_revenue, 2),
-        "total_operating_revenue_statutory": round(total_operating_revenue_statutory, 2),
-        "operating_ebitda": round(operating_ebitda, 2),
-        "operating_ebit": round(operating_ebit, 2),
-        # Cash + 711-inclusive views. Cash is primary; statutory_with_711 is
-        # the alternative IFRS-style number for benchmarking.
-        "ebitda_cash": round(ebitda_cash, 2),
-        "ebitda_statutory_with_711": round(ebitda_statutory_with_711, 2),
-        "inventory_variation_memo": round(inventory_variation_memo, 2),
         "interest_expense": round(interest, 2),
         "interest_income": round(sub_agg.get("interest_income", 0), 2),
         "fx_gain": round(sub_agg.get("fx_gain", 0), 2),
@@ -1560,12 +1914,20 @@ def assemble_statements(
         "financial_income_other": round(sub_agg.get("financial_income", 0), 2),
         "financial_income": round(fin_inc, 2),
         "financial_expense": round(fin_exp, 2),
-        "pretax": round(pretax, 2),
+        # PBT on the one definition (operating result + financial result);
+        # refused with 711. The pre-stock-variation PBT is kept for the
+        # rules that are keyed to it (the forecast's tax-rate rung).
+        "pretax": _r(pretax),
+        "pretax_before_stock_variation": round(pretax_before_stock_variation, 2),
         "tax": round(tax, 2),
         # Both net income views — neither hidden, neither default.
+        # `net_income_operational` is the build-up BEFORE 72x and 711.
         "net_income_operational": round(net_income_operational, 2),
-        "net_income_statutory": round(net_income_statutory, 2),
-        # 722 memo line — proof that the pipeline is excluding it.
+        # Refused (None) when the net result cannot be stated: no account
+        # 121 and a refused net 711 — `net_income_refusal` (emitted below,
+        # only then) says why.
+        "net_income_statutory": _r(net_income_served),
+        # Net 72x as a scalar (= capitalized_own_work.value).
         "capitalized_own_work_memo": round(capitalized, 2),
 
         # ── F1.a additions (SPEC §4) ──
@@ -1580,15 +1942,13 @@ def assemble_statements(
         # matching canonical other_op_income.net coverage.
         "other_op_income_lump": round(other_op_income_lump, 2),
         "other_income_781_reversals": round(other_income_781_reversals, 2),
-        "core_ebitda": round(core_ebitda, 2),
-        # F3.14 (3b) — Adjusted EBITDA = operating_ebitda − 758 − 781.
-        # Lender / PE-diligence reference view. Side-by-side with operating_ebitda
-        # on the EBITDA card; does NOT replace it. See ADR_F3_14_DEFERRED_ITEMS.md
-        # for the dual-EBITDA design decision.
-        "adjusted_ebitda": round(adjusted_ebitda, 2),
+        "core_ebitda": _r(core_ebitda),
+        # Adjusted EBITDA = EBITDA − other operating income lump − 781 —
+        # the lender / PE-diligence strip, on the ONE EBITDA.
+        "adjusted_ebitda": _r(adjusted_ebitda),
         "net_financial_result": round(net_financial_result, 2),
         "financial_expense_total": round(financial_expense_total, 2),
-        "free_cash_flow_proxy": round(free_cash_flow_proxy, 2),
+        "free_cash_flow_proxy": _r(free_cash_flow_proxy),
 
         # ── The other-operating-income line the build-up needs ──────────
         # `other_inc` is the addend this assembly ACTUALLY used to form
@@ -1603,12 +1963,34 @@ def assemble_statements(
         # ── Reconstruction → filed (account 121) ────────────────────────
         # See the derivation above. `..._reconciliation_to_121` is the
         # whole step; `..._unexplained_vs_121` is the part of it that no
-        # bucket on this statement accounts for (0.00 whenever the 5%
-        # anchor override did not fire, because then the step IS the 722
-        # memo and nothing is unexplained).
-        "net_income_reconciliation_to_121": round(net_income_reconciliation_to_121, 2),
-        "net_income_unexplained_vs_121": round(net_income_unexplained_vs_121, 2),
+        # line on this statement accounts for (72x and a MEASURED net 711
+        # are the nameable parts).
+        "net_income_reconciliation_to_121": _r(net_income_reconciliation_to_121),
+        "net_income_unexplained_vs_121": _r(net_income_unexplained_vs_121),
     }
+    if net_income_refusal is not None:
+        # Only on a refused net result: every other book's P&L is
+        # byte-identical to what it was.
+        assembled_pl_canonical["net_income_refusal"] = net_income_refusal
+    # ── The reconciliation line (design A5), served beside EBITDA ────────
+    assembled_pl_canonical["ebitda_reconciliation"] = _ebitda_reconciliation(
+        turnover=revenue,
+        other_operating_income=other_inc,
+        capitalized_block=capitalized_block,
+        cost_of_sales=cogs,
+        inventory_variation_block=inventory_variation_block,
+        operating_expenses=opex,
+        ebitda_before=ebitda_before_stock_variation,
+        ebitda=ebitda,
+        depreciation=depreciation,
+        ebit=ebit,
+        financial_result=net_financial_result,
+        pretax=pretax,
+        tax=tax,
+        net_result=net_result_build,
+        account_121=account_121_anchor,
+        refusal=ebitda_refusal,
+    )
 
     # ── Close current-year P&L into equity so the BS balances ────────────
     # Romanian accounting carries the current year's P&L in account 121
@@ -1620,11 +2002,30 @@ def assemble_statements(
     # current_year_pnl, and total_assets = total_liabilities + total_equity
     # within rounding. Without this step, BS is off by exactly the
     # statutory net income (~RON 1.42M for EEI).
-    bs["retainedEarnings"] = round(bs["retainedEarnings"] + net_income_statutory, 2)
-    sub_agg["current_year_pnl"] = round(net_income_statutory, 2)
-
-    # Now fill the cross-references on the BS canonical view.
-    assembled_bs_canonical["current_year_pnl"] = round(net_income_statutory, 2)
+    #
+    # A REFUSED net result (no account 121, net 711 refused) is NOT closed
+    # into equity (fixer round 2, 2026-09-27). The build-up lacks the
+    # unmeasured variation, so it does not close the sheet either — the
+    # developer with its 121 rows dropped served current_year_pnl
+    # -30,391,418.38 on the report's balance sheet beside a P&L whose net
+    # result said "refused", and the briefing could cite it as the year's
+    # result. The row is None beside the net result's own refusal; equity
+    # carries no current-year result, and `bs_balance_delta` states what
+    # the trial balance leaves unexplained (the absent 121).
+    if net_income_refusal is None:
+        bs["retainedEarnings"] = round(bs["retainedEarnings"] + net_income_statutory, 2)
+        sub_agg["current_year_pnl"] = round(net_income_statutory, 2)
+        # Now fill the cross-references on the BS canonical view.
+        assembled_bs_canonical["current_year_pnl"] = round(net_income_statutory, 2)
+    else:
+        sub_agg["current_year_pnl"] = None
+        assembled_bs_canonical["current_year_pnl"] = None
+        assembled_bs_canonical["current_year_pnl_refusal"] = {
+            "code": net_income_refusal.get("code"),
+            "text_ro": net_income_refusal.get("text_ro"),
+            "text_en": net_income_refusal.get("text_en"),
+            "source": "net_income_refusal",
+        }
     # retained_earnings stays as the carry-forward (year-start) value;
     # current_year_pnl is the THIS-period contribution, surfaced separately.
     total_assets = (
@@ -1645,6 +2046,37 @@ def assemble_statements(
     assembled_bs_canonical["total_equity"] = round(total_equity, 2)
     assembled_bs_canonical["total_liabilities"] = round(total_liabilities, 2)
     assembled_bs_canonical["bs_balance_delta"] = round(bs_balance_delta, 2)
+    # ── A REFUSED net result the sheet does not already carry ───────────
+    # (critic, fixer round 1 of the refusal carries, 2026-09-27.) With the
+    # net result refused (no account 121, net 711 refused) nothing is
+    # closed into equity above. When the sheet still balances, the year's
+    # result is already inside the equity rows (moved to 117, or never
+    # posted) and total equity is complete. When it does NOT balance, the
+    # difference is the missing result: total equity is short by it, and
+    # every figure that divides or scores total equity — Altman X2 (the
+    # cumulative book, retained earnings + the year's result), the equity
+    # ratio and its sub-score, debt / equity, book-equity valuation — would
+    # read the missing result as 0. Measured on the constructed
+    # `unanchored_unbalanced` book (the bridge book with its 121 row
+    # dropped): equity 200,000.00 against assets 420,000.00, delta
+    # 170,000.00 — equity ratio 47.62 %, X2 0.2381, equity sub-score 95.2
+    # and an asset-based valuation of 200,000.00, all graded or served.
+    # The figure stays (it is what the equity rows sum to) with this
+    # completeness refusal BESIDE it, carrying the net result's own typed
+    # reason; every consumer that would use it as total equity refuses.
+    # 1.00 RON: the trial-balance validator's own tolerance.
+    if net_income_refusal is not None and abs(bs_balance_delta) >= 1.0:
+        assembled_bs_canonical["total_equity_refusal"] = {
+            "code": net_income_refusal.get("code"),
+            "kind": "incomplete",
+            "missing": "current_year_result",
+            "bs_balance_delta": round(bs_balance_delta, 2),
+            "text_ro": ("capitalurile proprii nu includ rezultatul exercițiului, refuzat: %s"
+                        % (net_income_refusal.get("text_ro") or net_income_refusal.get("code"))),
+            "text_en": ("total equity excludes the year's result, which is refused: %s"
+                        % (net_income_refusal.get("text_en") or net_income_refusal.get("code"))),
+            "source": "net_income_refusal",
+        }
 
     # ── ASSEMBLED CASH FLOW — REAL CapEx, not D&A ────────────────────────
     # The Valuation tab's FCF / DCF math has been reading `capex = D&A`
@@ -1808,6 +2240,15 @@ def assemble_statements(
         # names); spec uses `working_capital_change`.
         "working_capital_change": round(net_wc_change_approx, 2),
     }
+    if net_income_refusal is not None:
+        # The indirect method STARTS from the net result: with it refused,
+        # every total built on it is refused too (never computed on the
+        # build-up that lacks the unmeasured 711).
+        for _k in ("net_profit", "cf_before_wc", "cash_from_operating", "dividends_paid",
+                   "cash_used_in_financing", "cash_from_financing", "net_change_in_cash",
+                   "free_cash_flow"):
+            assembled_cf_canonical[_k] = None
+        assembled_cf_canonical["net_income_refusal"] = net_income_refusal
 
     statements = {
         "companyName": company_name,
@@ -1839,14 +2280,15 @@ def assemble_statements(
         # case (per SPEC §9 — "honest cap"). The FE's `runPiotroski`
         # becomes a pure renderer.
         "assembled_piotroski": _piotroski_checks(
-            net_income_statutory=net_income_statutory,
+            net_income_statutory=net_income_served,
             total_assets=total_assets,
-            cash_from_operating=cash_from_operating,
+            cash_from_operating=assembled_cf_canonical["cash_from_operating"],
             # Prior-period data plumbing is scheduled for a small
             # follow-up; `prior` is None for now, which triggers the
             # 5 "uncertain" results + cap-at-4 score per the spec.
             prior=None,
             currency=currency,
+            net_income_refusal=net_income_refusal,
         ),
         # Required by the TS Statements interface — computeRatios() reads
         # supplementary.periodDays. The day count is established from the
@@ -1943,7 +2385,10 @@ def assemble_statements(
         result["assembled_canonical_v1"] = assemble_canonical(
             line_items,
             source_data_quality=source_data_quality,
-            current_year_pnl=float(net_income_statutory or 0.0),
+            # A refused net result has NO result row (0.0 writes no
+            # current_year_profit / _loss leaf) — never the build-up.
+            current_year_pnl=(float(net_income_statutory or 0.0)
+                              if net_income_refusal is None else 0.0),
             profit_distribution_129=profit_dist_129,
         )
     except Exception:  # noqa: BLE001
@@ -1960,6 +2405,15 @@ def assemble_statements(
     # piggy-backs on the F4.1e DB persistence and read-path plucks.
     canonical_env = result.get("assembled_canonical_v1")
     if isinstance(canonical_env, dict):
+        # ── The stock-variation EVIDENCE (schema stock_variation/1) ──────
+        # Persisted with the envelope (stage_persist writes this object),
+        # because the rows it was measured from are not: every rebuild
+        # (`pipeline._assemble_with_statutory_anchor`) reads it back and
+        # decides net 711 / net 72x from it. Only a MEASURED block is
+        # stored — an absence marker never is, so a rebuild of a period
+        # written without one keeps saying so.
+        if _stock_variation.is_measured(stock_variation_evidence):
+            canonical_env["stock_variation"] = dict(stock_variation_evidence)
         # ── Pack provenance (Phase 3 cutover — contract addendum) ────────
         # Pin the envelope to the EXACT pack content that classified it:
         # resolved id@version plus the content-addressed pack_hash.
@@ -1984,9 +2438,52 @@ def assemble_statements(
             from engine.methodology import evaluate as methodology_evaluate  # type: ignore
             methodology = load_methodology("ro_ras_2025_v1")
             industry_key = industry if isinstance(industry, str) else None
+            # The ONE EBITDA (ruling 2026-09-26): net 711 and net 72x are
+            # MEASURED here, not read off a canonical bucket (the 711 memo
+            # leaf is the gross credit turnover on a closed book). A
+            # refused 711 refuses `ebitda.reported` and every view on it.
             canonical_env["methodology"] = methodology_evaluate(
                 methodology, canonical_env, industry_key=industry_key,
+                measured={
+                    "inventory_variation_net": {
+                        "value": inventory_variation_block.get("value"),
+                        "refusal": inventory_variation_block.get("refusal"),
+                        "provenance": inventory_variation_block.get("provenance"),
+                    },
+                    "capitalized_own_work_net": {
+                        "value": capitalized_block.get("value"),
+                        "refusal": capitalized_block.get("refusal"),
+                        "provenance": capitalized_block.get("provenance"),
+                    },
+                },
+                # Total equity short by a REFUSED year's result (critic
+                # round 2, 2026-09-27): the methodology refuses it, and the
+                # equity ratio / debt / equity / LT debt / equity on it,
+                # with the net result's reason — FactsGateway.equity reads
+                # `refusals["totals.total_equity"]` and refuses too.
+                refused_totals=(
+                    {"total_equity": assembled_bs_canonical["total_equity_refusal"]}
+                    if isinstance(assembled_bs_canonical.get("total_equity_refusal"), dict)
+                    else None),
             )
+            # Only a file that implements the ruling may be stamped with
+            # it; a mismatch leaves the block unstamped, and an unstamped
+            # block serves no EBITDA (FactsGateway.ebitda refuses it).
+            if methodology.ebitda_definition == EBITDA_DEFINITION_REVISION:
+                canonical_env["methodology"]["ebitda_definition"] = EBITDA_DEFINITION_REVISION
+            # The NET RESULT refused with 711 (no account 121): the canonical
+            # balance sheet still closes the build-up into equity (it needs
+            # a number to balance on), so the envelope says, beside it, that
+            # this figure is NOT a net result a reader may be given —
+            # FactsGateway.net_result refuses on it (Capsule get_facts, the
+            # advisory, radar).
+            if net_income_refusal is not None:
+                canonical_env["methodology"].setdefault("refusals", {})["totals.net_result"] = {
+                    "code": net_income_refusal.get("code"),
+                    "text_ro": net_income_refusal.get("text_ro"),
+                    "text_en": net_income_refusal.get("text_en"),
+                    "source": "inventory_variation",
+                }
         except Exception:  # noqa: BLE001
             # PyYAML missing, file missing, formula error — surface as
             # absent `methodology` key, not a pipeline break.

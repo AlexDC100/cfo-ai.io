@@ -1397,14 +1397,27 @@ def derive_assumptions(opening: Any, history: Any, *,
     # book rung is absent for that stated reason and the ladder takes the
     # jurisdiction's STATUTORY rate; with no packed statutory record the
     # plan is refused (NoStatutoryTaxRate) — no rate is assumed.
-    pretax = history.pretax
+    # KEYED TO THE PRE-TAX RESULT BEFORE THE STOCK VARIATION (owner ruling
+    # 2026-09-26, design A6). `assembled_pl.pretax` now carries net 711,
+    # and on a closed book net 711 is DERIVED from account 121 — so
+    # "spending the rate on the pre-tax result reproduces 121" would hold
+    # by construction on every closed manufacturer and flip it onto a
+    # measured rate read across a figure derived from the one it is
+    # checked against. The rule reads the build-up before the fold, as it
+    # did before the ruling; the distance it finds is named below.
+    pretax = history.pretax_before_stock_variation
+    pretax_field = "assembled_pl.pretax_before_stock_variation"
+    if pretax is None:
+        pretax = history.pretax
+        pretax_field = "assembled_pl.pretax"
     tax = history.income_tax
     filed = history.net_income
     reconstructed = None if (pretax is None or tax is None) else pretax - tax
-    #: The part of the distance to account 121 that nothing on this
-    #: statement explains — the bridge less its one nameable component,
-    #: capitalised own work.
+    #: The distance to account 121 from the build-up before net 711, less
+    #: capitalised own work. On a closed book whose net 711 is the 121
+    #: bridge, all of it is that stock variation (`derived_711`).
     gap = history.unexplained_vs_filed()
+    derived_711 = history.stock_variation_in_distance() or 0
     #: ABSENT != ZERO (plan/2 B4 repair, B4V-6; owner ruling "absent inputs
     #: refuse"): a nil charge is a MEASURED nil only when the book files a
     #: profit-tax row that closes at 0.00. With no such row the charge is
@@ -1429,11 +1442,11 @@ def derive_assumptions(opening: Any, history: Any, *,
                "" if tax else ", and the charge it measures is nil: no "
                "profit tax is projected, and loss carry-forward is not "
                "modelled either way"),
-            ("assembled_pl.income_tax", "assembled_pl.pretax",
+            ("assembled_pl.income_tax", pretax_field,
              "assembled_pl.net_income_statutory"),
             tier="book", rule_id="forecast.effective_tax_rate",
             evidence=book(("assembled_pl.income_tax", tax, "value_minor"),
-                          ("assembled_pl.pretax", pretax, "value_minor"),
+                          (pretax_field, pretax, "value_minor"),
                           ("assembled_pl.net_income_statutory", filed,
                            "value_minor")))
     else:
@@ -1451,6 +1464,21 @@ def derive_assumptions(opening: Any, history: Any, *,
                       if tax_rows is not None else
                       "its statement rows were not supplied, so no "
                       "profit-tax row can be shown"))
+        elif (pretax is not None and pretax > 0 and gap is not None
+              and derived_711 and gap == derived_711):
+            # A closed book: the whole distance is the stock variation
+            # (711) the statement derives FROM account 121 — named, but
+            # not measured beside the figure the rate is checked against.
+            why = ("this book's result before the stock variation, %s "
+                   "(pre-tax %s less tax %s), does not reach the %s it filed "
+                   "in account 121; the %s between them is the stock "
+                   "variation (711, Variația stocurilor de produse), which "
+                   "this closed trial balance states only as account 121 "
+                   "less every other line. An effective rate of %s read "
+                   "off the build-up before it would be measured ACROSS "
+                   "that derived figure rather than from the company"
+                   % (fmt(reconstructed), fmt(pretax), fmt(tax), fmt(filed),
+                      fmt(gap), _pct_text(ratio(tax, pretax))))
         elif pretax is not None and pretax > 0 and gap is not None:
             why = ("this book's reconstructed result of %s (pre-tax %s less "
                    "tax %s) does not reach the %s it filed in account 121, "
@@ -1459,7 +1487,7 @@ def derive_assumptions(opening: Any, history: Any, *,
                    "figures inside that build-up would be measured ACROSS "
                    "the gap rather than from the company"
                    % (fmt(reconstructed), fmt(pretax), fmt(tax), fmt(filed),
-                      fmt(gap), _pct_text(ratio(tax, pretax))))
+                      fmt(gap - derived_711), _pct_text(ratio(tax, pretax))))
         elif pretax is not None and pretax > 0:
             why = ("this book reports a positive pre-tax result of %s but "
                    "does not carry both an income-tax charge and the net "

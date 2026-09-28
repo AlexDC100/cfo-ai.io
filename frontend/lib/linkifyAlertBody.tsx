@@ -48,14 +48,17 @@ export const FACT_TO_SOURCE: Record<string, TraceableSource> = {
 
   // P&L (Phase C — PLStatementView wires data-traceable-target on
   // the EBITDA boxed line + section subtotals)
-  revenue:                    { statement: "pl", bucket: "revenue",                hint: "Total operating revenue — P&L subtotal" },
-  operating_revenue:          { statement: "pl", bucket: "revenue",                hint: "Total operating revenue — P&L subtotal" },
+  revenue:                    { statement: "pl", bucket: "revenue",                hint: "Total net turnover — P&L subtotal" },
+  operating_revenue:          { statement: "pl", bucket: "revenue",                hint: "Total net turnover — P&L subtotal" },
   ebitda:                     { statement: "pl", bucket: "ebitda",                 hint: "EBITDA — P&L (boxed)" },
   statutory_ebitda:           { statement: "pl", bucket: "ebitda",                 hint: "EBITDA — P&L (boxed)" },
   core_ebitda:                { statement: "pl", bucket: "ebitda",                 hint: "EBITDA — P&L (boxed)" },
   ebit:                       { statement: "pl", bucket: "ebit",                   hint: "EBIT — P&L subtotal" },
-  net_income:                 { statement: "pl", bucket: "netIncomeOperational",   hint: "Net profit — operational" },
-  net_profit:                 { statement: "pl", bucket: "netIncomeOperational",   hint: "Net profit — operational" },
+  // The P&L tab's closing line (one-EBITDA ruling, 2026-09-26): the net
+  // result, account 121 where anchored. The operational build-up it used to
+  // point at is no longer a row of the tab.
+  net_income:                 { statement: "pl", bucket: "netIncomeStatutory",     hint: "Net profit — account 121" },
+  net_profit:                 { statement: "pl", bucket: "netIncomeStatutory",     hint: "Net profit — account 121" },
   depreciation:               { statement: "pl", bucket: "depreciationAmortization", hint: "Depreciation & amortization (6811/6812)" },
   interest_expense:           { statement: "pl", bucket: "interestExpense",        hint: "Interest expense (666)" },
 

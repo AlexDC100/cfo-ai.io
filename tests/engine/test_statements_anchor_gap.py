@@ -65,6 +65,34 @@ by the net; no corpus book is shaped that way); non-mirrored rows (the
 one-side SAGA path is unchanged and covered by the corpus replay); the served
 statements of periods persisted before this repair (they need re-processing;
 the owner's count is asked for in forecast_blast_radius.md under 609).
+
+REWRITTEN FOR THE ONE-EBITDA RULING (owner, 2026-09-26) — not re-captured
+=======================================================================
+The law used to judge the SERVED `net_income_unexplained_vs_121`. Since the
+ruling the engine NAMES net 711 on the statement and, on a closed book, it
+is the account-121 bridge — derived FROM that very remainder — so the
+served remainder is 0.00 on every closed manufacturer BY CONSTRUCTION
+(agras, carniprod, frozen, the developer): the gate had gone vacuous on
+exactly the books whose floor is widest. It now judges the STEP BEFORE THE
+FOLD, S = account 121 − (the class-6/7 build-up + net 72x), which is what
+the old field measured and what the engine's own guard G5 bounds (|S| ≤
+711 activity), and it holds the fold itself:
+
+  · bridge (account_121_bridge): served net 711 = S to the cent, the served
+    remainder 0.00, and the provenance says the line is derived from 121;
+  · no 711 postings (no_711_activity): net 711 exactly 0.00 and the served
+    remainder = S — NEVER folded into 711;
+  · 711 measured on its own (711_net_movement): remainder = S − net 711;
+  · 711 refused: the remainder holds S whole and EBITDA is refused with the
+    711 reason.
+
+A CONSTRUCTED witness (SYNTHETIC books of the net-711-rule gate, no client
+data) proves the judge still reds on a real misread: the no-711 book whose
+121 exceeds the accounts by 2,000.00 is BEYOND its one-cent floor, and the
+book whose remainder exceeds its 711 turnover is BEYOND its floor AND
+refused by the engine (G5) — the pack's floor and the engine's guard are
+the same law, checked here against each other. A scope with no such
+witness is red (TC-3).
 """
 
 from __future__ import annotations
@@ -195,22 +223,77 @@ def _production_stock_movement(rows, prefixes) -> Optional[Decimal]:
     return total.quantize(Decimal("0.01")) if seen else None
 
 
+def _step_before_the_fold(pl) -> Decimal:
+    """S = account 121 − (build-up + net 72x): the step BEFORE net 711 is
+    named. `net_income_reconciliation_to_121` is the whole step from the
+    build-up (which excludes 711 and 72x) to 121; the 72x the statement
+    names is taken off. It is NOT the served remainder, which is taken
+    after the fold and is 0.00 on a bridge book by construction."""
+    cap = (pl.get("capitalized_own_work") or {}).get("value")
+    if cap is None:
+        cap = pl.get("capitalized_own_work_memo") or 0
+    return (Decimal(str(pl["net_income_reconciliation_to_121"]))
+            - Decimal(str(cap))).quantize(Decimal("0.01"))
+
+
 def _gap_and_floor_live(rows, pl, pack) -> Tuple[Optional[Decimal], Decimal, Decimal]:
-    """(gap, floor, hidden turnover) for a parsed book. gap None: no 121."""
+    """(step before the fold, floor, hidden turnover) for a parsed book.
+    step None: no 121."""
     anchor = tbp.compute_statutory_net_profit_anchor(rows)
     if anchor is None:
         return None, pack["cent_tolerance"], Decimal("0")
-    gap = Decimal(str(pl["net_income_unexplained_vs_121"])).quantize(Decimal("0.01"))
+    gap = _step_before_the_fold(pl)
     hidden = _hidden_turnover(rows, pack["hidden_net_prefixes"])
     return gap, pack["cent_tolerance"] + hidden, hidden
 
 
+def fold_problems(name: str, step: Decimal, pl: Dict[str, Any]) -> List[str]:
+    """How the served statement FOLDS the step S into its lines (the ruling
+    2026-09-26): bridge → net 711 = S, remainder 0; no 711 postings → 711
+    0.00, remainder S (never folded); an own movement → remainder S − 711;
+    refused → remainder S and EBITDA refused with the 711 reason."""
+    out = []  # type: List[str]
+    inv = pl.get("inventory_variation") or {}
+    rem = Decimal(str(pl.get("net_income_unexplained_vs_121") or 0)).quantize(Decimal("0.01"))
+    prov = inv.get("provenance")
+    val = inv.get("value")
+    cent = Decimal("0.01")
+    if not inv:
+        return ["%s: the statement serves no inventory_variation block" % name]
+    if inv.get("refusal"):
+        if abs(rem - step) > cent:
+            out.append("%s: 711 refused, yet the remainder %s is not the whole step %s"
+                       % (name, rem, step))
+        if pl.get("ebitda") is not None or (pl.get("ebitda_refusal") or {}).get("code") \
+                != inv["refusal"].get("code"):
+            out.append("%s: 711 refused (%s) but EBITDA %r / its refusal %r"
+                       % (name, inv["refusal"].get("code"), pl.get("ebitda"),
+                          (pl.get("ebitda_refusal") or {}).get("code")))
+        return out
+    v = Decimal(str(val)).quantize(Decimal("0.01"))
+    if prov == "account_121_bridge":
+        if abs(v - step) > cent or abs(rem) > cent or not inv.get("identity_with_121"):
+            out.append("%s: bridge 711 %s, step %s, remainder %s, identity flag %r"
+                       % (name, v, step, rem, inv.get("identity_with_121")))
+    elif prov == "no_711_activity":
+        if v != 0 or abs(rem - step) > cent:
+            out.append("%s: no 711 postings, yet 711 %s / remainder %s vs step %s — "
+                       "a remainder was folded" % (name, v, rem, step))
+    else:
+        if abs(rem - (step - v)) > cent:
+            out.append("%s: %s 711 %s, remainder %s, step %s" % (name, prov, v, rem, step))
+    return out
+
+
 def _gap_and_floor_baseline(pack) -> Tuple[Decimal, Decimal, Decimal, Dict[str, Any]]:
     """The committed Scandia FY2025 regression baseline carries aggregates
-    only (no rows): 121 from its p121 block, the reconstruction as
-    net_income_operational + capitalized own work, the hidden turnover as
-    its inventory_variation_memo (the memo IS the 711 turnover on a
-    mirrored book)."""
+    only (no rows): 121 from its p121 block, the build-up as
+    net_income_operational + capitalized own work (the step BEFORE the
+    fold, as on the live books), the hidden turnover as the 711 gross
+    credit turnover the statement serves under its audit name
+    (`inventory_variation.stock_production_credit_turnover` — the retired
+    `inventory_variation_memo` on a baseline captured before the ruling;
+    either IS the 711 turnover on a mirrored book)."""
     data = json.loads(BASELINE.read_text(encoding="utf-8"))
     pl = data["assembled"]["statements"]["assembled_pl"]
     inv = data["assembled"]["assembled_canonical_v1"]["canonical_bs"]["invariants"]["p121_cross_check"]
@@ -218,10 +301,14 @@ def _gap_and_floor_baseline(pack) -> Tuple[Decimal, Decimal, Decimal, Dict[str, 
     reconstruction = (Decimal(str(pl["net_income_operational"]))
                       + Decimal(str(pl.get("capitalized_own_work_memo") or 0)))
     gap = (p121 - reconstruction).quantize(Decimal("0.01"))
-    hidden = Decimal(str(pl["inventory_variation_memo"])).quantize(Decimal("0.01"))
+    block = pl.get("inventory_variation") or {}
+    turnover = block.get("stock_production_credit_turnover")
+    if turnover is None:
+        turnover = pl["inventory_variation_memo"]
+    hidden = Decimal(str(turnover)).quantize(Decimal("0.01"))
     return gap, pack["cent_tolerance"] + hidden, hidden, {
         "company": data["_meta"].get("company"), "p121": p121,
-        "reconstruction": reconstruction}
+        "reconstruction": reconstruction, "pl": pl}
 
 
 def test_a_the_reconstruction_reaches_account_121_within_the_pack_floor(capsys):
@@ -232,6 +319,17 @@ def test_a_the_reconstruction_reaches_account_121_within_the_pack_floor(capsys):
     with_121 = 0
     conventions = {}  # type: Dict[str, str]
     residuals = {}  # type: Dict[str, Decimal]
+    folds = {}  # type: Dict[str, str]
+
+    def fold(name: str, step: Decimal, pl: Dict[str, Any]) -> None:
+        """The ruling's half: how the statement names the step (above)."""
+        inv = pl.get("inventory_variation") or {}
+        folds[name] = (inv.get("provenance")
+                       or "refused:%s" % ((inv.get("refusal") or {}).get("code")))
+        lines.append("  %-40s   fold: step before the fold %s -> net 711 %s (%s), "
+                     "remainder served %s" % ("", step, inv.get("value"), folds[name],
+                                               pl.get("net_income_unexplained_vs_121")))
+        reds.extend(fold_problems(name, step, pl))
 
     def judge(name: str, gap: Optional[Decimal], floor: Decimal,
               hidden: Decimal, convention: str) -> None:
@@ -261,6 +359,8 @@ def test_a_the_reconstruction_reaches_account_121_within_the_pack_floor(capsys):
         shaped, pl = _assemble(rows)
         gap, floor, hidden = _gap_and_floor_live(rows, pl, pack)
         judge("corpus " + case, gap, floor, hidden, _convention(shaped)["convention"])
+        if gap is not None:
+            fold(("corpus " + case), gap, pl)
         if gap is not None and hidden > 0:
             # B4V-7a: what the hidden net can actually be, and what is left
             movement = _production_stock_movement(rows, pack["production_stock_prefixes"])
@@ -274,8 +374,13 @@ def test_a_the_reconstruction_reaches_account_121_within_the_pack_floor(capsys):
                                 movement, residual))
 
     gap, floor, hidden, meta = _gap_and_floor_baseline(pack)
-    judge("regression baseline scandia_fy2025 (%s)" % meta["company"], gap, floor,
-          hidden, "aggregates only (no rows to decide from)")
+    base_name = "regression baseline scandia_fy2025 (%s)" % meta["company"]
+    judge(base_name, gap, floor, hidden, "aggregates only (no rows to decide from)")
+    if "inventory_variation" in meta["pl"]:
+        fold(base_name, gap, meta["pl"])
+    else:
+        lines.append("  %-40s   fold: baseline captured before the ruling "
+                     "(no inventory_variation block) — the fold is not judged" % "")
 
     for name, path in _local_books().items():
         rows = _parse_bytes(name, path.read_bytes(), path.name)
@@ -285,13 +390,21 @@ def test_a_the_reconstruction_reaches_account_121_within_the_pack_floor(capsys):
         shaped, pl = _assemble(rows)
         gap, floor, hidden = _gap_and_floor_live(rows, pl, pack)
         judge(name, gap, floor, hidden, _convention(shaped)["convention"])
+        if gap is not None:
+            fold(name, gap, pl)
 
     with capsys.disabled():
         print("\nSCOPE statements-anchor-gap (plan/2 B4a, contract 5.1): books examined %d "
               "(%d carry account 121), floor from %s#anchor_gap"
               % (examined, with_121, PACK.relative_to(REPO)))
         print("\n".join(lines))
+        print("fold per book (ruling 2026-09-26): %s"
+              % "; ".join("%s %s" % (k, v) for k, v in sorted(folds.items())))
+    _WORK["folds"] = len(folds)
     assert examined > 0 and with_121 > 0, "no book with account 121 examined (TC-3)"
+    # TC-3 for the fold: the bridge must be exercised, or "S is folded
+    # into 711 exactly" is asserted on nothing.
+    assert "account_121_bridge" in folds.values(), folds
     assert not reds, "\n".join(reds)
 
 
@@ -419,7 +532,7 @@ def test_d_every_mirrored_contra_row_enters_as_a_reduction_and_both_conventions_
     assert not reds, "\n".join(reds)
 
 
-_WORK = {"rows_checked": 0, "metamorphic": 0}  # type: Dict[str, int]
+_WORK = {"rows_checked": 0, "metamorphic": 0, "folds": 0, "witnesses": 0}  # type: Dict[str, int]
 
 
 # ── the decision RULE itself (plan/2 B4 repair, B4V-7b/c) ───────────────
@@ -535,9 +648,55 @@ def test_g_the_net_decides_never_the_row_count(capsys):
                  fam["convention"]))
 
 
+# ── CONSTRUCTED witnesses (the ruling 2026-09-26) ───────────────────────
+# SYNTHETIC books of the net-711-rule gate (tests/engine/test_net_711_rule.py,
+# no client data), through the same offline composition as the corpus. Each
+# is a real misread the judge above must call BEYOND its floor.
+
+WITNESSES = {
+    # (book, what is misread, expected fold)
+    "closed_no_activity": ("no 711 postings; account 121 exceeds the accounts by "
+                           "2,000.00 (a misread row)", "no_711_activity"),
+    "g5_residual": ("711 turned over 30,000.00 each side; the remainder is "
+                    "larger than that turnover", "refused:residual_exceeds_711_activity"),
+}
+
+
+def test_h_a_constructed_misread_is_beyond_its_floor_and_the_engine_agrees(capsys):
+    import test_net_711_rule as N
+
+    pack = _pack()
+    printed = []
+    for name, (what, want_fold) in sorted(WITNESSES.items()):
+        rows = N.BOOKS[name]()
+        _shaped, pl = _assemble(rows)
+        step, floor, hidden = _gap_and_floor_live(rows, pl, pack)
+        assert step is not None, "%s: the witness lost its account 121" % name
+        beyond = abs(step) > floor
+        inv = pl["inventory_variation"]
+        got_fold = inv.get("provenance") or "refused:%s" % (inv.get("refusal") or {}).get("code")
+        printed.append("SYNTHETIC %s (%s): step %s, floor %s (hidden %s) -> %s; engine %s"
+                       % (name, what, step, floor, hidden,
+                          "BEYOND" if beyond else "within", got_fold))
+        assert beyond, ("%s: a real misread sits within the floor — the judge would stay "
+                        "green on it" % name)
+        assert got_fold == want_fold, (name, got_fold)
+        # the pack's floor and the engine's G5 are one law
+        guards = inv.get("guards") or {}
+        if hidden > 0:
+            assert guards.get("G5_within_activity") is False, (name, guards)
+        # and the fold law holds on the witness too (nothing is folded)
+        assert not fold_problems(name, step, pl), fold_problems(name, step, pl)
+        _WORK["witnesses"] += 1
+    with capsys.disabled():
+        print("\n" + "\n".join(printed))
+    assert _WORK["witnesses"] == len(WITNESSES)
+
+
 def test_zz_scope_and_work(capsys):
     books = len([c for c in _xlsx_cases() if _parse(c) is not None]) + 1 + len(_local_books())
-    units = books + _WORK["rows_checked"] + _WORK["metamorphic"] + _WORK_RULE["checks"]
+    units = (books + _WORK["rows_checked"] + _WORK["metamorphic"] + _WORK_RULE["checks"]
+             + _WORK["folds"] + _WORK["witnesses"])
     with capsys.disabled():
         print("SYNTHETIC decision-rule documents (test-built from the retail corpus rows): %s"
               % "; ".join(sorted(_WORK_RULE["documents"])))

@@ -340,15 +340,25 @@ def test_one_ron_of_liabilities_is_not_a_capital_structure():
     assert credit["subscores"]["liquidity"] is not None and 0 <= credit["subscores"]["liquidity"] <= 100
 
 
+#: The served book whose envelope predates the stock-variation measurement
+#: (the Scandia FY2025 regression baseline): its one EBITDA refuses, so its
+#: composite refuses — by ruling, until the period is reprocessed.
+EBITDA_REFUSED_BOOKS = ("scandia_baseline",)
+
+
 def test_the_scoring_books_serve_a_composite_inside_the_range_with_every_component():
     scored = 0
     for name in SB.ALL_BOOKS:
         credit = _credit(body_of(name))
+        if name in EBITDA_REFUSED_BOOKS:
+            assert credit["composite"] is None and credit["letter"] is None, name
+            assert set(v["code"] for v in credit["refused_subscores"].values()) == {"ebitda_refused"}, name
+            continue
         assert credit["composite"] is not None and 0 <= credit["composite"] <= 100, (name, credit["composite"])
         assert credit["letter"] in LAW.LETTERS, name
         assert credit["refused_subscores"] == {}, name
         scored += 1
-    assert scored == 5
+    assert scored == 4
 
 
 def test_the_law_is_independent_of_the_product():

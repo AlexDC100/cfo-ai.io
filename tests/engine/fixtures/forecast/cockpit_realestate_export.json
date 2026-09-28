@@ -491,6 +491,10 @@
    {
     "id": "policy_rate_shift",
     "sentence": "a policy-rate shift is not served: the book does not say which of its debt reprices with the policy rate"
+   },
+   {
+    "id": "stock_variation",
+    "sentence": "the stock variation (Variația stocurilor de produse) and own work capitalised are not projected: they are nil in every plan year, so plan year one starts from the actual year's EBITDA before them"
    }
   ],
   "sources": [
@@ -584,7 +588,7 @@
      "kind": "actual"
     },
     "ebitda": {
-     "amount_minor": -2903883812,
+     "amount_minor": 55097612,
      "kind": "actual"
     },
     "ebitda_margin_ppm": null,
@@ -1105,7 +1109,7 @@
    ],
    "ebitda": [
     {
-     "amount_minor": -2903883812,
+     "amount_minor": 55097612,
      "kind": "actual",
      "period": "FY2025"
     },
@@ -2012,6 +2016,10 @@
    {
     "id": "policy_rate_shift",
     "sentence": "a policy-rate shift is not served: the book does not say which of its debt reprices with the policy rate"
+   },
+   {
+    "id": "stock_variation",
+    "sentence": "the stock variation (Variația stocurilor de produse) and own work capitalised are not projected: they are nil in every plan year, so plan year one starts from the actual year's EBITDA before them"
    }
   ],
   "numbers": {
@@ -2096,7 +2104,7 @@
       "margin_refused": "margin not meaningful: turnover is 0.5% of activity",
       "margin_year0": null,
       "margin_year0_refused": "margin not meaningful: turnover is 0.6% of activity",
-      "note": "For a property developer, construction costs are capitalised into inventory (account 711): the EBITDA above does not include them. EBITDA including 711: RON 0.6M in 2025."
+      "note": "For a property developer, construction costs capitalised into inventory run through account 711 (Variația stocurilor de produse): the 2025 EBITDA included them — RON 29.6M; the plan years project the stock variation at 0, so the EBITDA above does not include them."
      },
      "ro": {
       "amount": "−34,6 mil. lei",
@@ -2104,7 +2112,7 @@
       "margin_refused": "marjă nesemnificativă: cifra de afaceri este 0,5% din activitate",
       "margin_year0": null,
       "margin_year0_refused": "marjă nesemnificativă: cifra de afaceri este 0,6% din activitate",
-      "note": "Pentru un dezvoltator imobiliar, costurile de construcție sunt capitalizate în stocuri (contul 711): EBITDA de mai sus nu le include. EBITDA inclusiv 711: 0,6 mil. lei în 2025."
+      "note": "Pentru un dezvoltator imobiliar, costurile de construcție capitalizate în stocuri trec prin contul 711 (Variația stocurilor de produse): EBITDA din 2025 le-a inclus — 29,6 mil. lei; anii de plan proiectează variația stocurilor la 0, deci EBITDA de mai sus nu le include."
      }
     },
     "figure": {
@@ -2180,32 +2188,66 @@
     "margin_year0_ppm": null,
     "note": {
      "display": {
-      "en": "For a property developer, construction costs are capitalised into inventory (account 711): the EBITDA above does not include them. EBITDA including 711: RON 0.6M in 2025.",
-      "ro": "Pentru un dezvoltator imobiliar, costurile de construcție sunt capitalizate în stocuri (contul 711): EBITDA de mai sus nu le include. EBITDA inclusiv 711: 0,6 mil. lei în 2025."
+      "en": "For a property developer, construction costs capitalised into inventory run through account 711 (Variația stocurilor de produse): the 2025 EBITDA included them — RON 29.6M; the plan years project the stock variation at 0, so the EBITDA above does not include them.",
+      "ro": "Pentru un dezvoltator imobiliar, costurile de construcție capitalizate în stocuri trec prin contul 711 (Variația stocurilor de produse): EBITDA din 2025 le-a inclus — 29,6 mil. lei; anii de plan proiectează variația stocurilor la 0, deci EBITDA de mai sus nu le include."
      },
      "figure": {
-      "source": "assembled_pl.ebitda_statutory_with_711",
-      "value": 550976.12,
+      "source": "assembled_pl.inventory_variation.value",
+      "value": 29589814.24,
       "year": "2025"
      },
      "id": "capitalized_construction_711",
      "requires": {
       "industry_family": "real_estate",
-      "inventory_variation_memo": "positive",
+      "inventory_variation": "positive",
       "margin": "not_meaningful"
      },
      "source": "packs/ratios/margin_meaning.yaml"
     },
-    "period": "FY2030"
+    "period": "FY2030",
+    "year0_step": {
+     "capitalized_own_work": {
+      "amount_minor": 0,
+      "kind": "actual"
+     },
+     "code": "stock_variation_not_projected",
+     "display": {
+      "en": {
+       "ebitda_year0": "RON 551.0k",
+       "ebitda_year0_before_stock_variation": "RON −29.0M",
+       "step": "RON 29.6M",
+       "text": "the stock variation and own work capitalised are not projected: 0 in every plan year"
+      },
+      "ro": {
+       "ebitda_year0": "551,0 mii lei",
+       "ebitda_year0_before_stock_variation": "−29,0 mil. lei",
+       "step": "29,6 mil. lei",
+       "text": "variația stocurilor de produse și producția capitalizată nu se proiectează: 0 în anii de plan"
+      }
+     },
+     "ebitda_year0": {
+      "amount_minor": 55097612,
+      "kind": "actual"
+     },
+     "ebitda_year0_before_stock_variation": {
+      "amount_minor": -2903883812,
+      "kind": "actual"
+     },
+     "inventory_variation": {
+      "amount_minor": 2958981424,
+      "kind": "actual"
+     },
+     "margin_year0_before_stock_variation_ppm": null
+    }
    }
   },
   "period_id": "c-cur",
   "pins": {
-   "body_hash": "sha256:4df45ac77f64ef1151d402bba7caf0eabd808146b6a485a4ff0daed8b94a4ddd",
-   "cockpit_pack": "sha256:80afa3ff2921cb9c6fa060ac1a4dbf9fd8af95979ee86e291c83127fcb2e6435",
+   "body_hash": "sha256:aa4031f03f798205da6487d6682dbef7875be31dbfc44b80e22bacaf0b3be2d2",
+   "cockpit_pack": "sha256:cc5ae7474d11755319867b91ab73d7a6cb8f284c0e88ff8da29c6d5f14133870",
    "engine_version": "0.1.0",
    "macro_pack": "sha256:786eec084a31392dca0f4be9c16faff90fcf6532c94bc8ed5823d5a05ff548b3",
-   "margin_pack": "sha256:78236be708ab1584075f779c79ab331d0f67a5f2f6e928af1a2d828798d71354",
+   "margin_pack": "sha256:bae7e9db9e98f58815b343b4695eb79b8f896679341604ac2abe05b874aa37f6",
    "pack_id": "forecast-cockpit"
   },
   "sentence": {
@@ -3824,6 +3866,98 @@
     },
     {
      "label": {
+      "en": "Change in inventories of finished goods and WIP (711)",
+      "ro": "Variația stocurilor de produse"
+     },
+     "line": "pl.inventory_variation",
+     "not_projected": {
+      "code": "stock_variation_not_projected",
+      "text": {
+       "en": "the stock variation and own work capitalised are not projected: 0 in every plan year",
+       "ro": "variația stocurilor de produse și producția capitalizată nu se proiectează: 0 în anii de plan"
+      }
+     },
+     "values": [
+      {
+       "amount_minor": 0,
+       "kind": "projected",
+       "period": "FY2026"
+      },
+      {
+       "amount_minor": 0,
+       "kind": "projected",
+       "period": "FY2027"
+      },
+      {
+       "amount_minor": 0,
+       "kind": "projected",
+       "period": "FY2028"
+      },
+      {
+       "amount_minor": 0,
+       "kind": "projected",
+       "period": "FY2029"
+      },
+      {
+       "amount_minor": 0,
+       "kind": "projected",
+       "period": "FY2030"
+      }
+     ],
+     "year0": {
+      "amount_minor": 2958981424,
+      "kind": "actual",
+      "period": "FY2025"
+     }
+    },
+    {
+     "label": {
+      "en": "Own work capitalised (72x)",
+      "ro": "Producția realizată pentru scopuri proprii și capitalizată"
+     },
+     "line": "pl.capitalized_own_work",
+     "not_projected": {
+      "code": "stock_variation_not_projected",
+      "text": {
+       "en": "the stock variation and own work capitalised are not projected: 0 in every plan year",
+       "ro": "variația stocurilor de produse și producția capitalizată nu se proiectează: 0 în anii de plan"
+      }
+     },
+     "values": [
+      {
+       "amount_minor": 0,
+       "kind": "projected",
+       "period": "FY2026"
+      },
+      {
+       "amount_minor": 0,
+       "kind": "projected",
+       "period": "FY2027"
+      },
+      {
+       "amount_minor": 0,
+       "kind": "projected",
+       "period": "FY2028"
+      },
+      {
+       "amount_minor": 0,
+       "kind": "projected",
+       "period": "FY2029"
+      },
+      {
+       "amount_minor": 0,
+       "kind": "projected",
+       "period": "FY2030"
+      }
+     ],
+     "year0": {
+      "amount_minor": 0,
+      "kind": "actual",
+      "period": "FY2025"
+     }
+    },
+    {
+     "label": {
       "en": "EBITDA",
       "ro": "EBITDA"
      },
@@ -3856,7 +3990,7 @@
       }
      ],
      "year0": {
-      "amount_minor": -2903883812,
+      "amount_minor": 55097612,
       "kind": "actual",
       "period": "FY2025"
      }
@@ -4249,7 +4383,7 @@
       }
      ],
      "year0": {
-      "amount_minor": -3039141838,
+      "amount_minor": -80160414,
       "kind": "actual",
       "period": "FY2025"
      }
@@ -4351,7 +4485,7 @@
      "kind": "actual"
     },
     "ebitda": {
-     "amount_minor": -2903883812,
+     "amount_minor": 55097612,
      "kind": "actual"
     },
     "ebitda_margin_ppm": null,
@@ -4400,11 +4534,11 @@
   "kind": "bank_forecast",
   "period_id": "c-cur",
   "pins": {
-   "body_hash": "sha256:4df45ac77f64ef1151d402bba7caf0eabd808146b6a485a4ff0daed8b94a4ddd",
-   "cockpit_pack": "sha256:80afa3ff2921cb9c6fa060ac1a4dbf9fd8af95979ee86e291c83127fcb2e6435",
+   "body_hash": "sha256:aa4031f03f798205da6487d6682dbef7875be31dbfc44b80e22bacaf0b3be2d2",
+   "cockpit_pack": "sha256:cc5ae7474d11755319867b91ab73d7a6cb8f284c0e88ff8da29c6d5f14133870",
    "engine_version": "0.1.0",
    "macro_pack": "sha256:786eec084a31392dca0f4be9c16faff90fcf6532c94bc8ed5823d5a05ff548b3",
-   "margin_pack": "sha256:78236be708ab1584075f779c79ab331d0f67a5f2f6e928af1a2d828798d71354",
+   "margin_pack": "sha256:bae7e9db9e98f58815b343b4695eb79b8f896679341604ac2abe05b874aa37f6",
    "pack_id": "forecast-cockpit"
   },
   "projected_note": {

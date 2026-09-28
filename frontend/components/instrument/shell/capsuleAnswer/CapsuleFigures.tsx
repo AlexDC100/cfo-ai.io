@@ -55,7 +55,8 @@ const METRIC_SOURCE: Readonly<Record<string, TraceableSource>> = Object.freeze({
   current_assets: { statement: "bs", bucket: "totalCurrentAssets" },
   current_liabilities: { statement: "bs", bucket: "totalCurrentLiabilities" },
   working_capital: { statement: "bs", bucket: "workingCapital" },
-  net_result: { statement: "pl", bucket: "netIncomeOperational" },
+  // The P&L tab's closing line — account 121 where anchored.
+  net_result: { statement: "pl", bucket: "netIncomeStatutory" },
   revenue: { statement: "pl", bucket: "revenue" },
   expenses: { statement: "pl", bucket: "operatingExpenses" },
   ebitda: { statement: "pl", bucket: "ebitda" },

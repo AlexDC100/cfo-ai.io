@@ -7,6 +7,7 @@
 
 import { buildReportingMetricsSnapshot } from "@/lib/learning/buildReportingMetrics";
 import { resolveConceptValue } from "@/lib/dashboard/resolveConceptValue";
+import { plLevelsOf } from "@/lib/servedOneEbitda";
 import type { Statements, PriorPeriod } from "@/lib/financialReport";
 import type { ReportingMetrics } from "@/lib/learning/concepts/_schema";
 
@@ -25,6 +26,16 @@ export interface MultiYearSeries {
 /** Lift a PriorPeriod into a minimal Statements so the same snapshot builder
  *  + deriveTotals run on it exactly like the head period. */
 function priorToStatements(p: PriorPeriod, base: Statements): Statements {
+  // THE ONE EBITDA, PERIOD BY PERIOD (owner ruling 2026-09-26): a year
+  // carries its OWN served P&L when it is on the head period's EBITDA
+  // definition, so its EBITDA is the engine's (711 and 72x inside). A year
+  // served under another definition, or none, reads its buckets — which
+  // refuse EBITDA when they show 711 activity they cannot measure; the
+  // trend then drops that year rather than plot a second definition.
+  const sameDefinition =
+    p.assembled_pl !== undefined &&
+    plLevelsOf({ assembled_pl: p.assembled_pl, incomeStatement: p.incomeStatement }).definition ===
+      plLevelsOf(base).definition;
   return {
     companyName: base.companyName,
     industry: base.industry,
@@ -32,6 +43,7 @@ function priorToStatements(p: PriorPeriod, base: Statements): Statements {
     periodLabel: p.periodLabel,
     balanceSheet: p.balanceSheet,
     incomeStatement: p.incomeStatement,
+    ...(sameDefinition ? { assembled_pl: p.assembled_pl } : {}),
     supplementary: {},
   };
 }

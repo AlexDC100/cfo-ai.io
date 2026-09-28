@@ -93,16 +93,23 @@ const SCANDIA_BASELINE = resolve(
 );
 
 // The served card digits, re-read from the served GET /api/period
-// (test_interest_coverage_one_operand prints them: "agras 28.14,
-// realestate -25.13, retail 0.32, Scandia 13.27"); carniprod has no
-// interest and is refused (zero_denominator). Literals, never recomputed
-// here from the same statements the popover reads.
+// (tests/engine/fixtures/firm/served_metrics.json `interest_coverage`,
+// re-captured under the one-EBITDA ruling 2026-09-26: the EBIT the card
+// divides now carries the measured net 711 — agras 31.9962, realestate
+// 0.4221, retail 0.3249; before the ruling agras 28.14 and realestate
+// -25.13); carniprod has no interest and is refused (zero_denominator).
+// The Scandia regression baseline was re-captured under the ruling on
+// 2026-09-27 (BASELINE_HISTORY): its EBIT carries the bridged net 711
+// (41,313,577.93 ÷ interest 3,075,221.80) and the engine gate, served that
+// baseline through GET /api/period, printed 13.43 (13.27 before the ruling).
+// Literals, never recomputed here from the same statements the popover
+// reads.
 const SERVED_DIGITS: Record<string, string | null> = {
-  agras: "28.14",
+  agras: "32.00",
   carniprod: null,
-  realestate: "-25.13",
+  realestate: "0.42",
   retail: "0.32",
-  scandia_baseline: "13.27",
+  scandia_baseline: "13.43",
 };
 
 function cases(): Array<{ name: string; s: Served; metrics?: Record<string, number | null> }> {
@@ -119,7 +126,11 @@ function cases(): Array<{ name: string; s: Served; metrics?: Record<string, numb
 function specFor(metrics: ReportingMetrics, value: number, locale: "en" | "ro" = "en"): FormulaSpec {
   const concept = lookupConcept("interest_coverage");
   expect(concept?.computation, "interest_coverage has no computation").toBeTruthy();
-  return concept!.computation!({ metrics, currency: "RON", locale } as never, value);
+  const spec = concept!.computation!({ metrics, currency: "RON", locale } as never, value);
+  // A refused EBIT has no formula (null); every book this helper is called
+  // on carries a measured card, so a null here is a failure, not a skip.
+  if (spec === null) throw new Error("interest_coverage served no formula on a book with a measured card");
+  return spec;
 }
 
 function renderedText(spec: FormulaSpec, metrics: ReportingMetrics, locale: "en" | "ro" = "en"): string {

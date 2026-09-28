@@ -32,6 +32,19 @@ _RON_TOLERANCE = 1.0
 _PCT_TOLERANCE = 0.00001   # 0.001%
 # MINOR_DRIFT ceiling per the same contract: 0.5% of assets.
 _MINOR_DRIFT_PCT = 0.005
+# The EBITDA roll-up tolerance, as the packs declare it
+# (checks.yaml `ebitda_rollup_tolerance_pct`).
+_EBITDA_ROLLUP_PCT = 0.01
+
+
+def _num(value: Any) -> Optional[float]:
+    """A served figure as a float — None stays None (never a 0)."""
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 @dataclass
@@ -112,25 +125,46 @@ def run_reconciliation_checks(assembled: Dict[str, Any]) -> List[ReconciliationC
             metric="equity", severity="critical",
         ))
 
-    # ── Check 3: P&L roll-up ── Revenue - COGS - OpEx = EBITDA + D&A ───
-    revenue = float(pl.get("revenue") or 0)
-    cogs = float(pl.get("cogs") or 0)
-    opex_total = float(pl.get("opex_total") or 0)
-    depreciation = float(pl.get("depreciation") or 0)
-    ebitda_statutory = float(pl.get("ebitda_statutory") or 0)
-    if revenue > 0:
-        # EBITDA = Revenue - COGS - OpEx (other_op_income + capitalized added at engine);
-        # we check the looser identity that engine-emitted EBITDA reconciles
-        # to its components within tolerance.
-        computed = revenue - cogs - opex_total + float(pl.get("other_income_758") or 0) + float(pl.get("other_income_781_reversals") or 0)
-        delta = computed - ebitda_statutory
+    # ── Check 3: P&L roll-up — THE ONE EBITDA (owner ruling 2026-09-26) ──
+    # Net turnover (70x − 709) − cost of sales − operating expenses + other
+    # operating income + net 72x (own work capitalised) + net 711
+    # ("Variația stocurilor de produse", signed) = EBITDA. 767 is financial
+    # and outside it. The components are the ones the assembler SERVES
+    # (`capitalized_own_work.value`, `inventory_variation.value`), never
+    # the gross 711 memo.
+    #
+    # Until the ruling this identity read `ebitda_statutory` WITHOUT 711
+    # and turned an absent EBITDA into 0 (`float(... or 0)`), so on a
+    # refused book it reported a bogus delta of the whole build-up. A
+    # refused EBITDA (`ebitda_refusal`) has no roll-up to check — the
+    # refusal is carried by the P&L itself — and a block assembled before
+    # the ruling (no `ebitda_definition`) is not on this definition, so
+    # neither emits the check. Tolerance: 1% of turnover (the pack's
+    # declared `ebitda_rollup_tolerance_pct`).
+    revenue = _num(pl.get("turnover", pl.get("revenue")))
+    cogs = _num(pl.get("cogs"))
+    opex_total = _num(pl.get("opex_total"))
+    other_operating = _num(pl.get("other_operating_income"))
+    ebitda = _num(pl.get("ebitda"))
+    net_72x = _num((pl.get("capitalized_own_work") or {}).get("value")
+                   if isinstance(pl.get("capitalized_own_work"), dict)
+                   else pl.get("capitalized_own_work_memo"))
+    net_711 = _num((pl.get("inventory_variation") or {}).get("value")
+                   if isinstance(pl.get("inventory_variation"), dict) else None)
+    on_definition = "ebitda_definition" in pl and not pl.get("ebitda_refusal")
+    operands = (revenue, cogs, opex_total, other_operating, ebitda, net_72x, net_711)
+    if on_definition and revenue is not None and revenue > 0 and \
+            all(v is not None for v in operands):
+        computed = revenue - cogs - opex_total + other_operating + net_72x + net_711
+        delta = computed - ebitda
         delta_pct = abs(delta) / max(abs(revenue), 1.0)
         checks.append(ReconciliationCheck(
             id="ebitda_rollup",
-            label="Revenue - COGS - OpEx + other = EBITDA",
-            expected=ebitda_statutory, computed=computed,
+            label=("Turnover - cost of sales - OpEx + other operating income "
+                   "+ net 72x + net 711 = EBITDA"),
+            expected=ebitda, computed=computed,
             delta=delta, delta_pct=delta_pct,
-            passed=delta_pct < 0.01,   # 1% — looser than BS because of memo items
+            passed=abs(delta) < _RON_TOLERANCE or delta_pct < _EBITDA_ROLLUP_PCT,
             metric="ebitda", severity="warn",
         ))
 

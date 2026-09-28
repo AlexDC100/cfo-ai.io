@@ -70,7 +70,21 @@ type Verdict =
   | "above_median"
   | "below_median"
   | "bottom_quartile"
-  | "not_available";
+  | "not_available"
+  /** The engine refused to grade the row (the one EBITDA refused, a period
+   *  on the previous EBITDA definition, or a margin the one rule refuses —
+   *  the developer). `refusal` carries its own RO/EN text. */
+  | "refused";
+
+/** A served refusal of a company figure (_benchmark_engine._refusal). */
+interface ServedBenchRefusal {
+  code: string;
+  display: { ro: string; en: string };
+}
+
+/** The refusal's text in the reader's language. */
+const refusalIn = (r: ServedBenchRefusal | null | undefined, locale: string): string | null =>
+  r?.display ? (locale.toLowerCase().startsWith("ro") ? r.display.ro : r.display.en) : null;
 
 interface Display {
   ro: string;
@@ -106,6 +120,8 @@ interface Comparison {
   verdict: Verdict;
   gap_pp: number | null;
   lower_is_better: boolean;
+  /** Served with verdict "refused": why the company figure is not graded. */
+  refusal?: ServedBenchRefusal | null;
 }
 
 interface HeadlineSection {
@@ -114,6 +130,8 @@ interface HeadlineSection {
   metrics: string[];
   company_values: Record<string, number | null>;
   display: Record<string, Display>;
+  /** Why a headline figure is not printed (the one EBITDA refused …). */
+  refusals?: Record<string, ServedBenchRefusal> | null;
 }
 
 interface ComparisonSection {
@@ -138,6 +156,8 @@ interface DeepPeer {
   specialization: string | null;
   tier: "leader" | "strong" | "median" | "thin_margin" | "distressed" | "self";
   source: string | null;
+  /** On the "Compania ta" row: a margin the engine refused, with why. */
+  refusals?: Record<string, ServedBenchRefusal> | null;
   display_order: number | null;
 }
 
@@ -881,7 +901,9 @@ function DisclosureBox({ text }: { text: string }) {
   );
 }
 
-function HeadlineGrid({ section }: { section: HeadlineSection }) {
+/** Exported for the refusal tests (lib/__tests__/oneEbitdaSurfaceComponents). */
+export function HeadlineGrid({ section }: { section: HeadlineSection }) {
+  const locale = useActiveLocale();
   // ONE AmountGroup for the whole KPI row — the four cards share a scale
   // by construction, so "295,1 M" can never sit beside "41.944,6".
   const groupValues = section.metrics.map((m) => section.company_values[m] ?? null);
@@ -896,9 +918,15 @@ function HeadlineGrid({ section }: { section: HeadlineSection }) {
             const value = section.company_values[m] ?? 0;
             const label = section.display[m]?.en ?? m;
             const conceptKey = benchmarkMetricToConcept(m);
+            const refused = refusalIn(section.refusals?.[m], locale);
             const figure =
               section.company_values[m] != null ? (
                 <MoneyAmount value={value} fromCurrency="RON" />
+              ) : refused ? (
+                // The engine's reason — never a dash without one.
+                <span className="text-[12px] font-normal leading-snug text-ink-soft" data-testid={`benchmark-headline-refused-${m}`}>
+                  {refused}
+                </span>
               ) : (
                 <span className="text-ink-mute">—</span>
               );
@@ -947,7 +975,8 @@ function plainValueText(
   return formatExact(value, { locale, currency: "RON" });
 }
 
-function ComparisonSection({ section, testId, periodId }: { section: ComparisonSection; testId: string; periodId: string }) {
+/** Exported for the refusal tests (lib/__tests__/oneEbitdaSurfaceComponents). */
+export function ComparisonSection({ section, testId, periodId }: { section: ComparisonSection; testId: string; periodId: string }) {
   const locale = useActiveLocale();
   if (section.comparisons.length === 0) {
     return null;
@@ -1038,7 +1067,13 @@ function ComparisonSection({ section, testId, periodId }: { section: ComparisonS
                     )}
                   </td>
                   <td className="px-3 py-1 text-right font-medium">
-                    {formatValue(c.company_value, c.benchmark.unit)}
+                    {c.verdict === "refused" && c.refusal ? (
+                      <span className="text-[11.5px] font-normal text-ink-soft" data-testid={`benchmark-row-refused-${c.metric_name}`}>
+                        {refusalIn(c.refusal, locale)}
+                      </span>
+                    ) : (
+                      formatValue(c.company_value, c.benchmark.unit)
+                    )}
                   </td>
                   <td className="px-3 py-1 text-right text-ink-mute">
                     {formatValue(c.benchmark.p25, c.benchmark.unit)}
@@ -1118,7 +1153,8 @@ function SourceChip({
   );
 }
 
-function VerdictBadge({ verdict }: { verdict: Verdict }) {
+/** Exported for the refusal tests (lib/__tests__/oneEbitdaSurfaceComponents). */
+export function VerdictBadge({ verdict }: { verdict: Verdict }) {
   // Semantic ladder: accent for the top quartile, quiet success above the
   // median, caution below it, alert for the bottom quartile — the one
   // danger verdict this table can issue (matching the red the pre-
@@ -1129,6 +1165,8 @@ function VerdictBadge({ verdict }: { verdict: Verdict }) {
     below_median: { label: "Sub median", tone: "caution" },
     bottom_quartile: { label: "Sub 25%", tone: "alert" },
     not_available: { label: "N/A", tone: "neutral" },
+    // Not graded by the engine — the row prints the reason beside it.
+    refused: { label: "Refuzat", tone: "neutral" },
   };
   const m = meta[verdict];
   return (
@@ -1161,7 +1199,7 @@ const TIER_META: Record<DeepPeer["tier"], { tone: ChipTone }> = {
 };
 
 function DeepPeerSection({ deep }: { deep: DeepReport }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   // Backend ships `revenue_mlei` + `net_profit_mlei` in millions of RON.
   // Convert to raw RON (×1e6) so <MoneyAmount fromCurrency="RON" /> can
@@ -1268,7 +1306,13 @@ function DeepPeerSection({ deep }: { deep: DeepReport }) {
                       <MoneyAmount value={moneyFromMlei(p.net_profit_mlei)} fromCurrency="RON" unit={false} signed provenance={peerOrigin(p)} />
                     </td>
                     <td className={`px-3 py-1 text-right font-medium ${profitColor}`}>
-                      <PercentLevel value={p.net_margin_pct} />
+                      {isSelf && p.refusals?.net_margin ? (
+                        <span className="text-[11px] font-normal text-ink-soft" data-testid="peer-self-net-margin-refused">
+                          {refusalIn(p.refusals.net_margin, i18n.language ?? "en")}
+                        </span>
+                      ) : (
+                        <PercentLevel value={p.net_margin_pct} />
+                      )}
                     </td>
                     <td className="px-3 py-1 text-ink-soft">{specCell}</td>
                     <td className="px-3 py-1 text-center">

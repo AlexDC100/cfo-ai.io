@@ -155,7 +155,7 @@ describe("Home — /workspace", () => {
     const scandia = await screen.findByTestId("company-card-scandia");
     expect(within(scandia).getByTestId("company-card-name")).toHaveTextContent("Scandia Food SRL");
     await waitFor(() => expect(within(scandia).getByTestId("company-card-cui")).toHaveTextContent("CUI RO1234567"));
-    await waitFor(() => expect(within(scandia).getByTestId("company-card-revenue")).toHaveTextContent("Revenue 2025"));
+    await waitFor(() => expect(within(scandia).getByTestId("company-card-revenue")).toHaveTextContent("Net turnover 2025"));
     expect(within(scandia).getByTestId("company-card-revenue").textContent).toMatch(/413/);
 
     const agras = screen.getByTestId("company-card-agras");

@@ -74,7 +74,7 @@ export interface StoryOverviewProps {
   /** Statement currency — conversion to display currency happens here,
    *  through the same hook as Pro's key-metric row. */
   currency: string;
-  /** headline.totalOperatingRevenue — same accessor as Pro. */
+  /** headline.netTurnover — same accessor as Pro. */
   revenue: number;
   /** headline.tileNetProfitRon — same accessor as Pro. */
   profit: number;
@@ -86,7 +86,7 @@ export interface StoryOverviewProps {
   totalDebt: number;
   /** headline.tileEbitdaRon — sentence input only (debt coverage). */
   ebitda: number | null;
-  /** The P&L builder's "Total operating expenses (cash)" subtotal — the
+  /** The P&L builder's "Total operating expenses" subtotal — the
    *  same served figure the Pro P&L tab renders. Null -> no runway line. */
   annualOperatingCosts: number | null;
   /** trendFor("operating_revenue") — same series as Pro's trend chip. */

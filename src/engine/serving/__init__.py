@@ -41,6 +41,7 @@ from .facts import (
     MarketRatio,
     MarketRefusal,
     MissingFactError,
+    RefusedFactError,
     additive_serve_violations,
     assert_additive_serve,
 )
@@ -65,6 +66,7 @@ __all__ = [
     "MarketRatio",
     "MarketRefusal",
     "MissingFactError",
+    "RefusedFactError",
     "MACHINE_STATUSES",
     "PUBLIC_MARKET_STATUS",
     "PUBLIC_MARKET_VERSION",

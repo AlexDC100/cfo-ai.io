@@ -980,6 +980,13 @@
   "text": "the pool is a net credit"
  },
  {
+  "code": "stock_variation",
+  "kinds": [
+   "unserved"
+  ],
+  "text": "the stock variation (Variația stocurilor de produse) and own work capitalised are not projected: they are nil in every plan year, so plan year one starts from the actual year's EBITDA before them"
+ },
+ {
   "code": "packs/forecast/cost_behaviour.yaml#classification",
   "kinds": [
    "driver.basis"
@@ -1099,7 +1106,7 @@
   "kinds": [
    "driver.ladder"
   ],
-  "text": "this book's reconstructed result of 1,248,684.06 (pre-tax 1,536,370.06 less tax 287,686.00) does not reach the 1,435,533.59 it filed in account 121, and 186,849.53 of that distance is not attributable to any line on this statement. An effective rate of 18.7250% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company"
+  "text": "this book's result before the stock variation, 1,248,684.06 (pre-tax 1,536,370.06 less tax 287,686.00), does not reach the 1,435,533.59 it filed in account 121; the 186,849.53 between them is the stock variation (711, Variația stocurilor de produse), which this closed trial balance states only as account 121 less every other line. An effective rate of 18.7250% read off the build-up before it would be measured ACROSS that derived figure rather than from the company"
  },
  {
   "code": "packs/forecast/ro_macro.yaml#statutory.profit_tax_rate",
@@ -1107,14 +1114,14 @@
    "driver.alternative",
    "driver.basis"
   ],
-  "text": "this book's reconstructed result of 1,248,684.06 (pre-tax 1,536,370.06 less tax 287,686.00) does not reach the 1,435,533.59 it filed in account 121, and 186,849.53 of that distance is not attributable to any line on this statement. An effective rate of 18.7250% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead"
+  "text": "this book's result before the stock variation, 1,248,684.06 (pre-tax 1,536,370.06 less tax 287,686.00), does not reach the 1,435,533.59 it filed in account 121; the 186,849.53 between them is the stock variation (711, Variația stocurilor de produse), which this closed trial balance states only as account 121 less every other line. An effective rate of 18.7250% read off the build-up before it would be measured ACROSS that derived figure rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead"
  },
  {
   "code": "book_absent",
   "kinds": [
    "driver.ladder"
   ],
-  "text": "this book's reconstructed result of 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and 1,071,687.03 of that distance is not attributable to any line on this statement. An effective rate of 18.5485% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company"
+  "text": "this book's result before the stock variation, 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00), does not reach the 7,533,676.02 it filed in account 121; the 1,071,687.03 between them is the stock variation (711, Variația stocurilor de produse), which this closed trial balance states only as account 121 less every other line. An effective rate of 18.5485% read off the build-up before it would be measured ACROSS that derived figure rather than from the company"
  },
  {
   "code": "packs/forecast/ro_macro.yaml#statutory.profit_tax_rate",
@@ -1122,7 +1129,7 @@
    "driver.alternative",
    "driver.basis"
   ],
-  "text": "this book's reconstructed result of 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00) does not reach the 7,533,676.02 it filed in account 121, and 1,071,687.03 of that distance is not attributable to any line on this statement. An effective rate of 18.5485% read off two figures inside that build-up would be measured ACROSS the gap rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead"
+  "text": "this book's result before the stock variation, 6,461,988.99 (pre-tax 7,933,538.99 less tax 1,471,550.00), does not reach the 7,533,676.02 it filed in account 121; the 1,071,687.03 between them is the stock variation (711, Variația stocurilor de produse), which this closed trial balance states only as account 121 less every other line. An effective rate of 18.5485% read off the build-up before it would be measured ACROSS that derived figure rather than from the company, so the statutory profit-tax rate of 16.0000% for jurisdiction RO (Codul fiscal, Legea 227/2015, art. 17) is used instead"
  },
  {
   "code": "not_served_in_this_build",

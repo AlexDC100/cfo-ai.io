@@ -1,26 +1,26 @@
-// THE P&L FOOTNOTE'S RENTAL-DOMINANCE TEST READS THE 706 FAMILY OFF THE
-// BOOK'S OWN REVENUE FAMILIES — never off a line whose account code
-// happens to equal "706".
+// THE REVENUE FAMILIES ARE READ OFF THE BOOK'S OWN LEAVES — never off a
+// line whose account code happens to equal "706".
 //
-// The footnote frames the 722/628 wash as a landlord's when rental income
-// (706, plus 767) is at least 60% of revenue ex own-work. It used to find
-// that rent as `lines.find((l) => l.accountCode === "706")`. On the
-// aggregates path the revenue row's `accountCode` is the CHIP — the
-// families the book holds ("701/704/706/707/709" on a goods seller,
-// "704/706" on a landlord with a little service income) — so the test read
-// a landlord with any second family as no landlord at all, and a chip
-// reading exactly "706" as the whole turnover; on a sub-account ledger
-// (7061, 7062, …) `=== "706"` matched nothing (verifier P2, 2026-09-26).
-// The 706 family is now `revenueFamilyAmounts` — the same reading of the
-// leaves the chip is built from, carried on the statement.
+// This file used to hold the P&L footnote's rental-dominance test: the
+// footnote framed the 722/628 wash as a landlord's when rental income (706,
+// plus 767) was at least 60% of revenue ex own-work, and stated a "clean"
+// EBITDA without 722. The owner's ruling of 2026-09-26 put 72x INSIDE
+// EBITDA and 767 in the financial result: there is no "clean" EBITDA beside
+// the one EBITDA, so the footnote — and its "property-management EBITDA"
+// framing — is RETIRED, and this file now holds that it stays retired.
+//
+// The family reading it relied on survives: `revenueFamilyAmounts` is the
+// one reading of the revenue leaves (the aggregates row's chip, and the
+// line-item view's one-row-per-family net turnover). It once found rent as
+// `lines.find((l) => l.accountCode === "706")`, which on the aggregates path
+// read the CHIP (a label) and on a sub-account ledger matched nothing
+// (verifier P2, 2026-09-26).
 //
 // WHAT THESE RED ON, with the module correct (TC-11):
-//   · a landlord whose revenue leaves are 706 sub-accounts beside a small
-//     704 family read as not rental-dominated (the pre-repair chip test);
-//   · a goods seller with a token 706 leaf read as rental-dominated;
 //   · `revenueFamilyAmounts` folding "706.01" / "7061" / "706" into more
 //     than one family, or counting a balance-sheet row or another bucket;
-//   · the statement not carrying the families the chip was read from.
+//   · the aggregates chip not listing the families the leaves hold;
+//   · the retired footnote rendering again, on a landlord or anywhere.
 //
 // Every book here is SYNTHETIC (four-digit codes, invented figures). No
 // client figure, name or code enters this file.
@@ -84,7 +84,7 @@ function statementsFor(revenue: number): Statements {
       revenue, costOfGoodsSold: COGS, operatingExpenses: OPEX,
       depreciationAmortization: DNA, interestExpense: 0, otherIncome: 0,
       financialIncome: 0, financialExpense: 0, taxExpense: 0,
-      // Some capitalized own work, so the footnote renders at all.
+      // Some capitalized own work — the case the retired footnote fired on.
       capitalizedOwnWork: OWN_WORK,
     },
     assembled_pl: {
@@ -101,14 +101,10 @@ function build(leaves: ApiLineItem[]) {
   );
 }
 
-/** The footnote's lead sentence for a book. */
-function footnoteLead(leaves: ApiLineItem[]): string {
-  renderWithProviders(<PLStatementView statement={build(leaves)} hideGuide showFootnote />);
-  return screen.getByTestId("pl-footnote").querySelector("strong")?.textContent ?? "";
+/** Render a book's P&L; the retired footnote must not be in it. */
+function renderBook(leaves: ApiLineItem[]) {
+  return renderWithProviders(<PLStatementView statement={build(leaves)} hideGuide />);
 }
-
-const RENTAL_LEAD = "Two things worth flagging";
-const GENERIC_LEAD = "Worth flagging given the structure";
 
 beforeEach(() => {
   localStorage.setItem("cfo-view-mode-v1", "pro");
@@ -144,30 +140,30 @@ describe("revenueFamilyAmounts — one reading of the revenue leaves", () => {
   });
 });
 
-describe("the statement carries the families", () => {
-  it("the aggregates path stamps them beside the chip", () => {
-    const st = build(LANDLORD_SUBACCOUNTS);
-    expect(st.sections[0]?.lines[0]?.accountCode).toBe("704/706");
-    expect(st.revenueFamilyAmounts).toEqual({ "706": 9_500_000.0, "704": 500_000.0 });
+describe("the aggregates chip reads the families", () => {
+  it("lists the families the leaves hold, whatever their depth", () => {
+    expect(build(LANDLORD_SUBACCOUNTS).sections[0]?.lines[0]?.accountCode).toBe("704/706");
+    expect(build(LANDLORD_EXACT).sections[0]?.lines[0]?.accountCode).toBe("706");
+    expect(build(GOODS_SELLER).sections[0]?.lines[0]?.accountCode).toBe("701/704/706/707/709");
   });
 
-  it("a statement built without leaves carries none", () => {
+  it("a statement built without leaves names the bucket itself", () => {
     const st = pickPLBuilder({ lineItems: [], entity: "Synthetic SRL", period: "2024-12-31", currency: "RON" }, statementsFor(1));
-    expect(st.revenueFamilyAmounts).toBeUndefined();
+    expect(st.sections[0]?.lines[0]?.accountCode).toBe("70x");
   });
 });
 
-describe("the footnote's rental-dominance test", () => {
-  it("a landlord keeping rent in 706 sub-accounts beside a little service income IS a landlord", () => {
-    // The pre-repair test read the chip "704/706" as no rent at all.
-    expect(footnoteLead(LANDLORD_SUBACCOUNTS)).toContain(RENTAL_LEAD);
-  });
-
-  it("a goods seller with a token 706 leaf is NOT a landlord", () => {
-    expect(footnoteLead(GOODS_SELLER)).toContain(GENERIC_LEAD);
-  });
-
-  it("a landlord on exact three-digit codes is still a landlord", () => {
-    expect(footnoteLead(LANDLORD_EXACT)).toContain(RENTAL_LEAD);
-  });
+describe("the footnote is retired (owner ruling 2026-09-26)", () => {
+  for (const [name, leaves] of [
+    ["a landlord keeping rent in 706 sub-accounts", LANDLORD_SUBACCOUNTS],
+    ["a landlord on exact three-digit codes", LANDLORD_EXACT],
+    ["a goods seller", GOODS_SELLER],
+  ] as const) {
+    it(`${name}: no footnote, no 'clean' EBITDA, no property-management framing`, () => {
+      renderBook(leaves as ApiLineItem[]);
+      expect(screen.queryByTestId("pl-footnote")).toBeNull();
+      const text = document.body.textContent ?? "";
+      expect(text).not.toMatch(/clean EBITDA|property-management EBITDA|worth flagging/i);
+    });
+  }
 });

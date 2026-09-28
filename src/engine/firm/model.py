@@ -258,12 +258,16 @@ class AttentionItem:
 
 def money_evidence(fact: str, label: str, value: float, currency: str,
                    period_id: str, snapshot_id: Optional[str],
-                   line_id: Optional[str] = None) -> EvidenceFact:
+                   line_id: Optional[str] = None,
+                   source: Optional[str] = None) -> EvidenceFact:
+    """``source`` names where the figure was served from: the persisted
+    envelope (the default) or ``assembled_pl`` for the one EBITDA and its
+    components, read off the served statements."""
     return EvidenceFact(
         fact=fact, label=label, unit=UNIT_MONEY, value=float(value),
         currency=(currency or "RON").upper(),
         provenance={"period_id": period_id, "snapshot_id": snapshot_id,
-                    "line_id": line_id, "source": SOURCE_ENVELOPE})
+                    "line_id": line_id, "source": source or SOURCE_ENVELOPE})
 
 
 def number_evidence(fact: str, label: str, unit: str, value: float,

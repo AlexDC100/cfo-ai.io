@@ -133,8 +133,8 @@
         "absence": null
       },
       "roic": {
-        "value": -41.55,
-        "printed": "-41.5",
+        "value": 0.7000000000000001,
+        "printed": "0.7",
         "unit": "%",
         "verdict": "critical",
         "higher_is_better": true,
@@ -146,12 +146,16 @@
         "absence": null
       },
       "debt_to_ebitda": {
-        "value": -0.6388069788929972,
-        "printed": "-0.64",
+        "value": 33.66790642396625,
+        "printed": "33.67",
         "unit": "x",
-        "verdict": "ungraded",
-        "higher_is_better": null,
-        "ladder": null,
+        "verdict": "critical",
+        "higher_is_better": false,
+        "ladder": {
+          "strong": 2,
+          "healthy": 3,
+          "watch": 4.5
+        },
         "absence": null
       },
       "debt_to_equity": {
@@ -194,8 +198,8 @@
         "absence": null
       },
       "interest_coverage": {
-        "value": -25.1332,
-        "printed": "-25.13",
+        "value": 0.4221,
+        "printed": "0.42",
         "unit": "x",
         "verdict": "critical",
         "higher_is_better": true,
@@ -207,8 +211,8 @@
         "absence": null
       },
       "dscr": {
-        "value": -5.8618,
-        "printed": "-5.86",
+        "value": 0.1112,
+        "printed": "0.11",
         "unit": "x",
         "verdict": "critical",
         "higher_is_better": true,
@@ -234,8 +238,8 @@
         }
       },
       "dscr_with_lt_principal": {
-        "value": -9.6727,
-        "printed": "-9.67",
+        "value": 0.1835,
+        "printed": "0.18",
         "unit": "x",
         "verdict": "critical",
         "higher_is_better": true,
@@ -435,8 +439,8 @@
         "absence": null
       },
       "roic": {
-        "value": -41.55,
-        "printed": "-41.5",
+        "value": 0.7000000000000001,
+        "printed": "0.7",
         "unit": "%",
         "verdict": "critical",
         "higher_is_better": true,
@@ -448,12 +452,16 @@
         "absence": null
       },
       "debt_to_ebitda": {
-        "value": -0.6388069788929972,
-        "printed": "-0.64",
+        "value": 33.66790642396625,
+        "printed": "33.67",
         "unit": "x",
-        "verdict": "ungraded",
-        "higher_is_better": null,
-        "ladder": null,
+        "verdict": "critical",
+        "higher_is_better": false,
+        "ladder": {
+          "strong": 2,
+          "healthy": 3,
+          "watch": 4.5
+        },
         "absence": null
       },
       "debt_to_equity": {
@@ -496,8 +504,8 @@
         "absence": null
       },
       "interest_coverage": {
-        "value": -25.1332,
-        "printed": "-25.13",
+        "value": 0.4221,
+        "printed": "0.42",
         "unit": "x",
         "verdict": "critical",
         "higher_is_better": true,
@@ -509,8 +517,8 @@
         "absence": null
       },
       "dscr": {
-        "value": -5.8618,
-        "printed": "-5.86",
+        "value": 0.1112,
+        "printed": "0.11",
         "unit": "x",
         "verdict": "critical",
         "higher_is_better": true,
@@ -536,8 +544,8 @@
         }
       },
       "dscr_with_lt_principal": {
-        "value": -9.6727,
-        "printed": "-9.67",
+        "value": 0.1835,
+        "printed": "0.18",
         "unit": "x",
         "verdict": "critical",
         "higher_is_better": true,
@@ -725,8 +733,8 @@
         "absence": null
       },
       "roic": {
-        "value": -56.923500000000004,
-        "printed": "-56.9",
+        "value": 0.9590000000000001,
+        "printed": "1.0",
         "unit": "%",
         "verdict": "critical",
         "higher_is_better": true,
@@ -738,12 +746,16 @@
         "absence": null
       },
       "debt_to_ebitda": {
-        "value": -0.6388069788929972,
-        "printed": "-0.64",
+        "value": 33.66790642396625,
+        "printed": "33.67",
         "unit": "x",
-        "verdict": "ungraded",
-        "higher_is_better": null,
-        "ladder": null,
+        "verdict": "critical",
+        "higher_is_better": false,
+        "ladder": {
+          "strong": 2,
+          "healthy": 3,
+          "watch": 4.5
+        },
         "absence": null
       },
       "debt_to_equity": {
@@ -786,8 +798,8 @@
         "absence": null
       },
       "interest_coverage": {
-        "value": -34.432484,
-        "printed": "-34.43",
+        "value": 0.578277,
+        "printed": "0.58",
         "unit": "x",
         "verdict": "critical",
         "higher_is_better": true,
@@ -799,8 +811,8 @@
         "absence": null
       },
       "dscr": {
-        "value": -8.030666,
-        "printed": "-8.03",
+        "value": 0.152344,
+        "printed": "0.15",
         "unit": "x",
         "verdict": "critical",
         "higher_is_better": true,
@@ -826,8 +838,8 @@
         }
       },
       "dscr_with_lt_principal": {
-        "value": -13.251599000000002,
-        "printed": "-13.25",
+        "value": 0.25139500000000004,
+        "printed": "0.25",
         "unit": "x",
         "verdict": "critical",
         "higher_is_better": true,

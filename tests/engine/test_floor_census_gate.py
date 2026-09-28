@@ -29,5 +29,9 @@ def test_the_floor_census_passes_on_this_tree():
 def test_every_ratchet_row_that_arrived_by_merge_carries_its_measured_review():
     doc = json.loads((REPO / "scripts" / "floor_census_baseline.json").read_text(encoding="utf-8"))
     row = "src/engine/api/_industry_classifier.py [OR_ZERO]"
-    assert doc["counts"]["src/engine/api/_industry_classifier.py"]["OR_ZERO"] == 3
+    # 3 -> 1 by the one-EBITDA ruling (2026-09-26): the two bucket defaults
+    # that added 72x / other operating income to turnover were removed with
+    # the total-operating-revenue denominator; the review re-states it.
+    assert doc["counts"]["src/engine/api/_industry_classifier.py"]["OR_ZERO"] == 1
+    assert "REMOVED by the one-EBITDA ruling" in doc["reviewed"][row]
     assert row in doc["reviewed"] and "Measured on the four corpus books" in doc["reviewed"][row]

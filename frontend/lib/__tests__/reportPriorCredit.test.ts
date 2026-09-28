@@ -357,7 +357,12 @@ describe("§4 a card never prints one figure, verdict or ladder in its headline 
       }
     }
     expect(disagreements).toContain("retail|agras debt_to_assets");
-    expect(disagreements.length).toBeGreaterThan(3);
+    // Three since the one-EBITDA reading (2026-09-26): `computeRatios` now
+    // divides the SERVED EBITDA, so the EBITDA-built rows it used to grade
+    // off its own rebuilt figure no longer disagree with the served band.
+    // The overlay this gate exists for still has real subjects.
+    console.log(`[§4 non-vacuity] ${disagreements.length}: ${disagreements.join(", ")}`);
+    expect(disagreements.length).toBeGreaterThanOrEqual(3);
   });
 });
 

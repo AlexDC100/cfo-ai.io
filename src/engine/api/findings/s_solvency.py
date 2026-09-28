@@ -265,6 +265,12 @@ def detect_equity_below_half_capital(ctx: _base.Ctx) -> _base.Outcome:
 
     statute = RO_STATUTES["equity_floor"]
     r = ctx.reader
+    # Equity short by a REFUSED year's result is not judged against the
+    # statutory floor: a missing profit fires a breach that is not there,
+    # a missing loss hides one that is.
+    refused = r.equity_refusal_note()
+    if refused is not None:
+        return _base.quiet(ctx.skipped(did, refused))
     total_equity = r.view("bs", "total_equity")
     share_capital = r.view("bs", "share_capital")
     total_assets = r.view("bs", "total_assets")

@@ -819,27 +819,25 @@ def _synth_accounts_from_extraction(
     # Row 3 is the wholesale subset of row 1. It's already in cifra above,
     # so DON'T re-emit it as 707 — that would double-count revenue.
 
-    # Capitalized own work (account 722) — IMPORTANT semantic choice.
-    # In the trial-balance pipeline, 722 maps to `capitalizedOwnWork`
-    # (a memo bucket excluded from cash EBITDA — the CFO-AI convention
-    # that a non-cash internal-construction credit shouldn't inflate
-    # operating profit).
-    #
-    # For the STATUTORY pipeline, however, the user explicitly expects
-    # the F30's reported EBITDA (which DOES include 722 because OMFP
-    # treats it as part of venituri din exploatare). Per the spec's
-    # "ONE HONEST CAUTION": the two pipelines produce slightly
-    # different metrics; the statutory pipeline mirrors what F30 row
-    # 43 + amortization says. So we route 722's value through code 758
-    # (otherIncome) here — that makes statutory EBITDA = F30 EBITDA.
+    # Capitalized own work (account 722) — synthesized under its OWN code,
+    # so it lands in the `capitalizedOwnWork` bucket exactly as a trial
+    # balance's 72x does. Under the ONE EBITDA (owner ruling 2026-09-26)
+    # net 72x is inside EBITDA on both pipelines, so the two agree on the
+    # figure AND on its parts. Until 2026-09-27 it was routed through code
+    # 758 (other operating income) to make the statutory EBITDA include it:
+    # the EBITDA was right, but the served 72x line read 0.00 "no postings
+    # in the period", the reconciliation line's EBITDA-before still held
+    # 722, core / adjusted EBITDA stripped it as a 758 credit (they keep 72x
+    # on a trial-balance period), and the cash-burn rule keyed to the
+    # EBITDA before the stock variation could not see a statutory developer.
     cap_own = float(pl.get("venituri_imobilizari", 0) or 0)
     if cap_own:
-        add("758", "Venituri din producția de imobilizări (722, included in EBITDA)", cap_own)
+        add("722", "Venituri din producția de imobilizări (722)", cap_own)
 
-    # Inventory variation memo (711) — the F30 nets it on rows 7-8. The
-    # downstream cash-EBITDA computation excludes 711 by design, so we
-    # surface the net value under code 711 for visibility but the mapper
-    # routes it to inventoryVariationMemo (excluded from cash EBITDA).
+    # Inventory variation (711) — the F30 nets it on rows 7-8. The net
+    # value is synthesized under code 711; the served net 711 (inside the
+    # ONE EBITDA) is read from `stock_variation_evidence` below, the filed
+    # figure itself.
     var_credit = float(pl.get("variatie_stocuri_credit", 0) or 0)
     var_debit = float(pl.get("variatie_stocuri_debit", 0) or 0)
     var_net = var_credit - var_debit
@@ -1072,6 +1070,26 @@ def _synth_accounts_from_extraction(
         add("1171", "Rezultatul reportat (F10, accumulated profit)", reportat)
 
     return rows
+
+
+def stock_variation_evidence(extraction: StatutoryExtractionResult) -> Dict[str, Any]:
+    """The `stock_variation/1` evidence of a statutory return: the filed
+    variation is printed NET on the stock-variation rows (sold C − sold D),
+    so it IS the measurement — the same net value the synthesized 711 line
+    carries (`_synth_accounts_from_extraction`); and the filed 72x row, the
+    same value the synthesized 722 line carries."""
+    from engine.country_packs.ro_romania import stock_variation as _stock_variation
+
+    pl = extraction.pl_data or {}
+    var_net = (float(pl.get("variatie_stocuri_credit", 0) or 0)
+               - float(pl.get("variatie_stocuri_debit", 0) or 0))
+    cap_own = float(pl.get("venituri_imobilizari", 0) or 0)
+    # The synthesized lines drop |x| < 1 (711: <= 1) as template rounding;
+    # the evidence follows them so a line and its measurement never disagree.
+    return _stock_variation.evidence_from_statutory_return(
+        var_net if abs(var_net) > 1 else 0.0,
+        cap_own if abs(cap_own) >= 1 else 0.0,
+    )
 
 
 def accounts_to_assemble_shape(extraction: StatutoryExtractionResult) -> List[Dict[str, Any]]:

@@ -28,10 +28,21 @@ export type AdjustmentMethod =
   | "haircut"         // partial recovery (prepayments, intangibles)
   | "mark_to_market"; // explicit MtM (loans at current rate)
 
+/** Why a NAV figure is not computed — the engine's typed reason. */
+export interface NavRefusal {
+  code: string;
+  text: { en: string; ro: string };
+}
+
 export interface NavLayer {
   layer: NavLayerId;
   name: "Book NAV" | "Adjusted NAV" | "EPRA NNNAV" | "Liquidation NAV";
-  value: number;
+  /** null — with `refusal` — when book equity is refused: the balance
+   *  sheet's total equity excludes a refused year's result
+   *  (`assembled_bs.total_equity_refusal`) or is not served. Layers 2 and 3
+   *  are built on Layer 1, so they refuse with it. Never 0. */
+  value: number | null;
+  refusal?: NavRefusal | null;
   description: string;
   useCases: string[];
 }
@@ -76,15 +87,26 @@ export interface NavKeyAssumptions {
 export interface NavSensitivityCell {
   capRate: number;
   affiliateYield: number;
-  nnnav: number;
+  /** null when book equity is refused (see NavLayer.value). */
+  nnnav: number | null;
 }
 
+export type NavConvergentMethod = "nnnav" | "cap_rate" | "graham";
+
 export interface NavCrossMethods {
-  capRate: number;
-  graham: number;
-  evEbitda: number;
-  convergenceBand: [number, number]; // low, high (across NNNAV + cap_rate + Graham)
-  convergenceConfidence: "high" | "medium" | "low";
+  /** null when the NOI proxy is refused (with EBITDA). */
+  capRate: number | null;
+  /** null when the net result is refused (no account 121 and a refused
+   *  net 711) or not served — `grahamRefusal` says why. */
+  graham: number | null;
+  grahamRefusal: NavRefusal | null;
+  /** On the one EBITDA; null when the engine refused EBITDA. */
+  evEbitda: number | null;
+  /** low, high — over the methods in `convergentMethods` only (NNNAV and
+   *  whichever of cap rate / Graham computed). null with NNNAV alone. */
+  convergenceBand: [number, number] | null;
+  convergenceConfidence: "high" | "medium" | "low" | null;
+  convergentMethods: NavConvergentMethod[];
 }
 
 export interface NavUseCaseMapping {
@@ -96,6 +118,9 @@ export interface NavUseCaseMapping {
 
 export interface NavCascade {
   layers: NavLayer[];
+  /** Why Book NAV (and every layer and the hero built on it) is not
+   *  computed; null beside a figure. */
+  bookNavRefusal: NavRefusal | null;
   assetAdjustments: AssetAdjustment[];
   totalAssetUpliftGoingConcern: number;
   liabilityAdjustments: LiabilityAdjustment[];

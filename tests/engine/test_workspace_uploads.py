@@ -1104,6 +1104,11 @@ def _envelopes():
             SB.book(SB.SCANDIA).period["assembled_canonical_v1"])
 
 
+def agras_env_turnover(env: Dict[str, Any]) -> float:
+    """Turnover as the methodology block states it (70x − 709)."""
+    return round(float(env["methodology"]["totals"]["revenue_net"]), 2)
+
+
 def _served(env: Dict[str, Any]) -> float:
     from engine.serving.facts import FactsGateway
     return FactsGateway.from_envelope(copy.deepcopy(env), currency="RON").revenue().to_float()
@@ -1138,22 +1143,37 @@ def test_years_read_the_served_revenue_and_list_only_analysed_periods(app, world
     rows = r.json()
     rev24, rev25 = _served(agras_env), _served(scandia_env)
     assert rev24 and rev25 and rev24 != rev25
+    # TURNOVER and its growth only (owner ruling 2026-09-26, design A6: the
+    # company cards). `revenue` / `revenue_change_pct` are the page's names
+    # for the same two figures.
+    basis = {"ro": "cifra de afaceri netă (70x − 709)", "en": "net turnover (70x − 709)"}
+
+    def tile(p, year, end, turnover, change):
+        return {"period_id": p["id"], "year": year, "period_end": end,
+                "turnover": turnover, "turnover_change_pct": change,
+                "revenue": turnover, "revenue_change_pct": change,
+                "basis": basis, "currency": "RON"}
+
     assert rows == [
-        {"period_id": p24["id"], "year": 2024, "period_end": "2024-12-31", "revenue": rev24,
-         "revenue_change_pct": None, "currency": "RON"},
-        {"period_id": p25["id"], "year": 2025, "period_end": "2025-12-31", "revenue": rev25,
-         "revenue_change_pct": round((rev25 - rev24) / abs(rev24) * 100.0, 1), "currency": "RON"},
+        tile(p24, 2024, "2024-12-31", rev24, None),
+        tile(p25, 2025, "2025-12-31", rev25, round((rev25 - rev24) / abs(rev24) * 100.0, 1)),
         # August year-to-date has no August a year earlier: no change, not a fake one against December.
-        {"period_id": p26["id"], "year": 2026, "period_end": "2026-08-31", "revenue": rev25,
-         "revenue_change_pct": None, "currency": "RON"},
+        tile(p26, 2026, "2026-08-31", rev25, None),
     ], json.dumps(rows, indent=1)
+    # The figure IS the statement's turnover (70x − 709) — never total
+    # operating revenue.
+    assert rev24 == agras_env_turnover(agras_env)
 
 
 def test_a_period_without_an_envelope_has_no_revenue_not_zero(app, world):
     p = _period(world, ORG_AGRAS, "2025-12-31", None)
     rows = _client(app).get("/api/companies/%s/years" % ORG_AGRAS, headers=_headers(USER)).json()
-    assert rows == [{"period_id": p["id"], "year": 2025, "period_end": "2025-12-31", "revenue": None,
-                     "revenue_change_pct": None, "currency": "RON"}], rows
+    assert rows == [{"period_id": p["id"], "year": 2025, "period_end": "2025-12-31",
+                     "turnover": None, "turnover_change_pct": None,
+                     "revenue": None, "revenue_change_pct": None,
+                     "basis": {"ro": "cifra de afaceri netă (70x − 709)",
+                               "en": "net turnover (70x − 709)"},
+                     "currency": "RON"}], rows
 
 
 def test_years_refuse_a_company_the_caller_is_not_a_member_of(app, world):

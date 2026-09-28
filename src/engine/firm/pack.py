@@ -247,6 +247,12 @@ class AttentionPack(object):
                         raise AttentionPackError(
                             "%s: kind %r covenant metric %r names no accessor"
                             % (origin, kid, mid))
+                    comps = mspec.get("components")
+                    if comps is not None and (not isinstance(comps, list) or not all(
+                            isinstance(c, str) and c for c in comps)):
+                        raise AttentionPackError(
+                            "%s: kind %r covenant metric %r components must be a list "
+                            "of served fact names" % (origin, kid, mid))
             kinds[kid] = KindSpec(
                 kind=kid, order=int(entry.get("order") or 0), base_severity=base,
                 materiality_basis=(None if basis is None else str(basis)),

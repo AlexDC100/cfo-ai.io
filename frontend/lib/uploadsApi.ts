@@ -159,6 +159,10 @@ export interface CompanyYear {
   revenue_change_pct: number | null;
   /** Source currency of `revenue` when the engine sends it; RON otherwise. */
   currency?: string | null;
+  /** What `revenue` is, as the engine labels it: NET TURNOVER (70x − 709)
+   *  — the one-EBITDA ruling's denominator for every margin and growth.
+   *  Null when the route serves no label (an older engine). */
+  basis?: { ro: string; en: string } | null;
 }
 
 export class UploadApiError extends Error {
@@ -378,6 +382,18 @@ export async function commitUpload(input: CommitInput): Promise<CommitResult> {
   throw new UploadApiError(errorMessageFrom(body, res.status), res.status);
 }
 
+/** The first finite number of two served spellings of one figure. */
+function finiteOr(a: unknown, b: unknown): number | null {
+  if (typeof a === "number" && Number.isFinite(a)) return a;
+  if (typeof b === "number" && Number.isFinite(b)) return b;
+  return null;
+}
+
+function basisOf(v: unknown): { ro: string; en: string } | null {
+  const r = asRecord(v);
+  return r && typeof r.ro === "string" && typeof r.en === "string" ? { ro: r.ro, en: r.en } : null;
+}
+
 export async function fetchCompanyYears(orgId: string): Promise<CompanyYear[]> {
   const headers = await headersFor(orgId);
   const res = await fetch(`${API_URL}/api/companies/${encodeURIComponent(orgId)}/years`, {
@@ -393,12 +409,13 @@ export async function fetchCompanyYears(orgId: string): Promise<CompanyYear[]> {
       period_id: r.period_id as string,
       year: Number(r.year),
       period_end: typeof r.period_end === "string" ? r.period_end : "",
-      revenue: typeof r.revenue === "number" && Number.isFinite(r.revenue) ? r.revenue : null,
-      revenue_change_pct:
-        typeof r.revenue_change_pct === "number" && Number.isFinite(r.revenue_change_pct)
-          ? r.revenue_change_pct
-          : null,
+      // Net turnover and its growth — the served `turnover` fields first
+      // (the `revenue` names are the same two figures, kept for older
+      // engines).
+      revenue: finiteOr(r.turnover, r.revenue),
+      revenue_change_pct: finiteOr(r.turnover_change_pct, r.revenue_change_pct),
       currency: typeof r.currency === "string" ? r.currency : null,
+      basis: basisOf(r.basis),
     }))
     .filter((r) => Number.isFinite(r.year))
     .sort((a, b) => a.year - b.year);

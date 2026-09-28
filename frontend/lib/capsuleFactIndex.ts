@@ -67,6 +67,7 @@
 
 import type { Statements, CanonicalBsRow, CanonicalBsStatus } from "./financialReport";
 import { factsFrom } from "./servedFacts";
+import { equityRefusalOf } from "./servedOneEbitda";
 import { foldQuery } from "./capsuleRouter";
 
 // ══════════════════════════════════════════════════════════════════════
@@ -306,6 +307,11 @@ export const ENGINE_MONEY_FACTS: readonly string[] = Object.freeze([
   "bank_debt_total",
   "capex_real",
   "capitalized_construction",
+  // ── The one-EBITDA ruling (2026-09-26) ─────────────────────────────
+  // The firm covenant detector cites EBITDA with its components beside the
+  // headroom: net 72x, the build-up before 711 / 72x, and net 711
+  // ("Variația stocurilor de produse"); the net result is account 121.
+  "capitalized_own_work",
   "capitalized_own_work_memo",
   "cash",
   "cash_from_operating",
@@ -317,6 +323,7 @@ export const ENGINE_MONEY_FACTS: readonly string[] = Object.freeze([
   "dividends_payable",
   "drift",
   "ebitda",
+  "ebitda_before_stock_variation",
   "ebitda_cash",
   "ebitda_operating",
   "ebitda_operational",
@@ -328,6 +335,7 @@ export const ENGINE_MONEY_FACTS: readonly string[] = Object.freeze([
   "free_cash_flow",
   "fx_cash",
   "intercompany_loans",
+  "inventory_variation",
   // ── Radar detector families (2026-09-08) ───────────────────────────
   // The AMOUNT AT STAKE each family publishes. `serve.amount_at_stake`
   // ranks on the largest declared money figure a finding cites, and
@@ -339,6 +347,7 @@ export const ENGINE_MONEY_FACTS: readonly string[] = Object.freeze([
   "net_debt",
   "net_income",
   "net_income_operating",
+  "net_income_statutory",
   "net_result",
   "price",
   "rec_provisions",
@@ -570,7 +579,11 @@ function buildPeriodFactsInto(
   // this module never branches on `statements.canonical_bs` itself.
   money(ctx, "total_assets", served.totalAssets());
   money(ctx, "total_liabilities", served.totalLiabilities());
-  money(ctx, "equity", served.totalEquity());
+  // Total equity the engine REFUSED as the company's equity (it excludes a
+  // refused year's result — critic round 2, 2026-09-27) is not a fact:
+  // absent, so the equity ratio below has no operand either (F1) — it was
+  // derived as equity / total assets when the engine's own row was null.
+  money(ctx, "equity", equityRefusalOf(statements) ? null : served.totalEquity());
   money(ctx, "equity_plus_liabilities", served.equityPlusLiabilities());
   money(ctx, "current_assets", served.currentAssets());
   money(ctx, "current_liabilities", served.currentLiabilities());
@@ -695,7 +708,11 @@ function buildPeriodFactsInto(
   const metrics = input.metrics ?? null;
   ratio(ctx, metrics, "current_ratio", "ratio", "current_assets", "current_liabilities");
   ratio(ctx, metrics, "cash_ratio", "ratio", "cash", "current_liabilities");
-  ratio(ctx, metrics, "equity_ratio", "share", "equity", "total_assets");
+  if (!equityRefusalOf(statements)) {
+    // A stored equity-ratio row written before the refusal does not stand
+    // in for it either.
+    ratio(ctx, metrics, "equity_ratio", "share", "equity", "total_assets");
+  }
   ratio(ctx, metrics, "net_margin", "share", "net_result", "revenue");
   ratio(ctx, metrics, "ebitda_margin", "share", "ebitda", "revenue");
   ratio(ctx, metrics, "net_debt_ebitda", "ratio", "net_debt", "ebitda");

@@ -21,6 +21,9 @@ import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
 import { CFOChatShell, type CFOChatShellHandle } from "@/components/cfo/chat/CFOChatShell";
 import { setChatShellRef } from "@/components/cfo/chat/sharedShellRef";
 import { buildCanonicalMetrics } from "@/lib/canonicalMetrics";
+import {
+  EQUITY_INCOMPLETE_METRICS, NET_RESULT_REFUSED_METRICS, equityRefusalOf, netIncomeRefusalOf,
+} from "@/lib/servedOneEbitda";
 // servedFacts gateway — the snapshot's BS totals are the SERVED
 // (reconciliation-adjusted) figures, so the assistant quotes the same
 // book the dashboard, exports and BS tab show.
@@ -104,7 +107,7 @@ export default function Chat() {
 // Read-only: this function does NOT recompute, derive, or transform
 // any engine value; it formats values the engine already emitted.
 
-function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): string | undefined {
+export function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): string | undefined {
   if (!p.id) return undefined;
 
   const lines: string[] = [];
@@ -113,9 +116,24 @@ function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): string |
   if (p.industry) lines.push(`Industry: ${p.industry}`);
 
   if (p.metrics && p.metrics.length > 0) {
+    // A row the engine REFUSES on these statements is never handed to the
+    // assistant as a figure, whatever the row holds (a period persisted
+    // before the refusal still carries the build-up under `net_income` and
+    // the equity ratios on the short equity — critic round 3, 2026-09-28):
+    // it is stated refused, with the engine's reason.
+    const niRefusal = netIncomeRefusalOf(p.statements);
+    const eqRefusal = equityRefusalOf(p.statements);
+    const refusalOfRow = (name: string) =>
+      (niRefusal && NET_RESULT_REFUSED_METRICS.includes(name) ? niRefusal : null)
+      ?? (eqRefusal && EQUITY_INCOMPLETE_METRICS.includes(name) ? eqRefusal : null);
     lines.push("");
     lines.push("Headline metrics (server-computed):");
     for (const m of p.metrics as PeriodMetric[]) {
+      const refused = refusalOfRow(m.name);
+      if (refused) {
+        lines.push(`  · ${m.name}: REFUSED — ${refused.text.en}`);
+        continue;
+      }
       if (m.value === null || m.value === undefined) continue;
       const unit = m.unit ? ` ${m.unit}` : "";
       lines.push(`  · ${m.name}: ${fmtNum(m.value)}${unit}`);
@@ -134,9 +152,20 @@ function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): string |
   if (canonical) {
     lines.push("");
     lines.push("Canonical metrics (single source of truth):");
-    pushIf(lines, "Revenue",                                   canonical.headline.revenue);
-    pushIf(lines, "Total operating revenue",                   canonical.headline.total_operating_revenue);
-    pushIf(lines, "EBITDA — reported (legal view, ties to acct 121)", canonical.ebitda.reported);
+    // THE ONE EBITDA (owner ruling 2026-09-26): the stock variation (711)
+    // and own work capitalised (72x) are inside it; turnover is 70x − 709.
+    // A refused EBITDA is stated with the engine's reason — the assistant
+    // must never be handed a number where the dashboard prints a refusal.
+    pushIf(lines, "Net turnover (cifra de afaceri netă, 70x − 709)", canonical.headline.revenue);
+    if (canonical.ebitda.reported === null) {
+      lines.push(
+        `  · EBITDA: REFUSED — ${canonical.ebitda.refusal?.text.en ?? "the engine served no EBITDA for this period"} ` +
+          `(EBIT, EBITDA margins and EBITDA-based ratios are refused with it)`,
+      );
+    }
+    pushIf(lines, "EBITDA (711 and 72x inside)",               canonical.ebitda.reported);
+    pushIf(lines, "Variația stocurilor de produse (net 711, inside EBITDA)", canonical.ebitda.inventory_variation);
+    pushIf(lines, "Own work capitalised (net 72x, inside EBITDA)", canonical.ebitda.capitalized_own_work);
     pushIf(lines, "EBITDA — core (basis for valuation)",       canonical.ebitda.core);
     if (canonical.ebitda.adjustments.length > 0) {
       lines.push("  EBITDA Reported→Core bridge (canonical):");
@@ -147,13 +176,18 @@ function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): string |
       lines.push("  (no 758/781 movements on file — Reported = Core for this period)");
     }
     pushIf(lines, "EBIT",                                      canonical.headline.ebit);
+    if (canonical.netProfit.refusal) {
+      lines.push(
+        `  · Net profit: REFUSED — ${canonical.netProfit.refusal.text.en} ` +
+          `(net margin, ROE and ROA are refused with it)`,
+      );
+    }
     pushIf(lines, "Net profit — statutory (acct 121)",         canonical.netProfit.statutory_account_121);
-    pushIf(lines, "Net profit — reconstructed (bottom-up)",    canonical.netProfit.reconstructed);
-    pushIf(lines, "Reconciliation gap (RON)",                  canonical.netProfit.reconciliation_gap);
+    pushIf(lines, "Net result built from the accounts",        canonical.netProfit.reconstructed);
+    pushIf(lines, "Not explained by the accounts (RON)",       canonical.netProfit.reconciliation_gap);
     if (canonical.netProfit.gap_pct !== null) {
       lines.push(`  · Gap %: ${canonical.netProfit.gap_pct.toFixed(2)}%`);
     }
-    pushIf(lines, "Capitalized own work (722, memo)",          canonical.headline.capitalized_own_work_memo);
     pushIf(lines, "Interest expense",                          canonical.headline.interest_expense);
     pushIf(lines, "Depreciation",                              canonical.headline.depreciation);
     pushIf(lines, "Tax",                                       canonical.headline.tax);
@@ -174,7 +208,18 @@ function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): string |
     lines.push("");
     lines.push("Balance sheet highlights:");
     pushIf(lines, "Total assets", served.totalAssets());
-    pushIf(lines, "Total equity", served.totalEquity());
+    // Total equity the engine REFUSED as the company's equity (it excludes a
+    // refused year's result — critic round 2, 2026-09-27): stated with the
+    // reason, never handed to the assistant as a figure it could divide.
+    const equityRefusal = canonical?.balance.equity_refusal ?? null;
+    if (equityRefusal) {
+      lines.push(
+        `  · Total equity: REFUSED — ${equityRefusal.text.en} ` +
+          `(the equity ratio, debt / equity, ROE and a book-equity value are refused with it)`,
+      );
+    } else {
+      pushIf(lines, "Total equity", served.totalEquity());
+    }
     pushIf(lines, "Total liabilities", served.totalLiabilities());
     const status = served.status();
     if (status) {

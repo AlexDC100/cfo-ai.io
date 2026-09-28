@@ -183,13 +183,22 @@ kinds:
       headroom_warn_share: "warn when headroom / |limit| falls below this share (0..1)"
       test_date: "ISO date of the next testing date, optional"
       source: "the document the covenant comes from"
-    # Metric ids a covenant may name -> the FactsGateway accessor that
-    # serves it. Every money id here is declared in _ratio_units.
+    # Metric ids a covenant may name -> the served fact that answers it
+    # (engine.firm.facts.SERVED_MONEY_FACTS). Every money id here is
+    # declared in _ratio_units. `ebitda` is THE ONE EBITDA (owner ruling
+    # 2026-09-26: net 711 "Variația stocurilor de produse" and net 72x
+    # inside, 767 financial), read off the served assembled P&L; its
+    # `components` are cited beside the headroom so the certificate shows
+    # how much of the tested figure the stock variation and own work
+    # capitalised carry. A refused EBITDA is a stated gap, never a test.
     covenant_metrics:
       equity: {accessor: equity, unit: money}
       total_assets: {accessor: total_assets, unit: money}
       net_result: {accessor: net_result, unit: money}
-      ebitda: {accessor: ebitda, unit: money}
+      ebitda:
+        accessor: ebitda
+        unit: money
+        components: [ebitda_before_stock_variation, inventory_variation, capitalized_own_work]
       revenue: {accessor: revenue, unit: money}
       working_capital: {accessor: working_capital, unit: money}
       current_liabilities: {accessor: current_liabilities, unit: money}

@@ -9,6 +9,13 @@ The formula evaluator is a restricted AST walker — supports:
   - + - * / and unary minus
   - Parentheses
   - `.net` suffix on aggregate names
+  - `measured.<name>` — a figure the ASSEMBLY measured and handed in
+    (net 711 and net 72x since the 2026-09-26 ruling). It is not a
+    canonical bucket: the canonical `inventory_variation_memo` leaf holds
+    the gross credit turnover of 711 on a closed book, never the
+    variation. A measured input the assembly REFUSED makes every view
+    built on it refused too — value None plus the typed refusal, never
+    0.00 (see `_Refused`).
 
 NO function calls, NO attribute access beyond the whitelisted `.net`,
 NO indexing, NO comprehensions. The YAML files are trusted (versioned in
@@ -27,6 +34,20 @@ from .loader import MethodologyDoc, EbitdaVariantSpec, NamedFormula, Methodology
 logger = logging.getLogger(__name__)
 
 
+class _Refused(Exception):
+    """A formula reached an input that is REFUSED, not absent: a measured
+    figure the assembly refused (net 711 on a book that posts to 711 but
+    cannot be measured) or a view built on one. The view is served as
+    None with the refusal beside it — PS1: refuse rather than approximate.
+    An absent optional bucket still resolves to 0.00; a refusal never
+    does."""
+
+    def __init__(self, name: str, refusal: Optional[Dict[str, Any]]) -> None:
+        super().__init__(name)
+        self.name = name
+        self.refusal = dict(refusal or {"code": "refused", "input": name})
+
+
 # ──────────────────────────────────────────────────────────────────────
 # Public entry point
 # ──────────────────────────────────────────────────────────────────────
@@ -35,7 +56,9 @@ logger = logging.getLogger(__name__)
 def evaluate(methodology: MethodologyDoc,
              canonical_envelope: Dict[str, Any],
              industry_key: Optional[str] = None,
-             operator_addbacks: Optional[float] = None) -> Dict[str, Any]:
+             operator_addbacks: Optional[float] = None,
+             measured: Optional[Dict[str, Dict[str, Any]]] = None,
+             refused_totals: Optional[Dict[str, Dict[str, Any]]] = None) -> Dict[str, Any]:
     """Compute all named views for one period.
 
     Args:
@@ -46,6 +69,21 @@ def evaluate(methodology: MethodologyDoc,
             sign_meaning so callers see signed-by-convention values.
         industry_key: optional industry override (e.g. "real_estate_developer")
         operator_addbacks: optional sum of per-period adjusted-EBITDA addbacks
+        measured: the figures the assembly measured, by name, each
+            ``{"value": float | None, "refusal": dict | None}`` —
+            ``inventory_variation_net`` (net 711, "Variația stocurilor de
+            produse") and ``capitalized_own_work_net`` (net 72x). A name
+            the caller did not supply is REFUSED (``not_measured``), never
+            0.00: the methodology cannot state the one EBITDA without them.
+        refused_totals: totals the ASSEMBLY refused, by name, each the
+            typed refusal (``{code, text_en, text_ro, ...}``). Today:
+            ``total_equity`` when it excludes a refused year's result (no
+            account 121, net 711 refused, a sheet that does not balance
+            without it — ``assembled_bs.total_equity_refusal``). The total
+            is served as None with the refusal in ``refusals``, and every
+            ratio that divides it (equity ratio, debt / equity, LT debt /
+            equity) refuses with the same reason — never graded against a
+            band on equity short by the missing result.
 
     Returns:
         {
@@ -73,26 +111,44 @@ def evaluate(methodology: MethodologyDoc,
 
     # ── Bind canonical leaves + aggregates to a resolver ───────────
     resolver = _Resolver(canonical_envelope, operator_addbacks=operator_addbacks)
+    resolver.bind_measured(measured)
 
     # ── Compute EBITDA variants in dependency order ───────────────
-    ebitda_values: Dict[str, float] = {}
+    ebitda_values: Dict[str, Optional[float]] = {}
+    refusals: Dict[str, Dict[str, Any]] = {}
+    # One dict: a refused view's reason is what a formula built on it
+    # carries (`ebitda.reported` refused → `totals.operating_profit_reported`
+    # refused with the same cause).
+    resolver._view_refusals = refusals
     errors: List[Dict[str, str]] = []
     for name in _topo_sort_variants(eff_variants):
         spec = eff_variants[name]
         try:
             value = _compute_variant(spec, eff_variants, ebitda_values, resolver)
             ebitda_values[name] = round(value, 4)
+        except _Refused as r:
+            ebitda_values[name] = None
+            refusals[f"ebitda.{name}"] = r.refusal
         except Exception as e:  # noqa: BLE001
             errors.append({"scope": f"ebitda.{name}", "error": f"{type(e).__name__}: {e}"})
             ebitda_values[name] = 0.0
     resolver.bind_view_namespace("ebitda", ebitda_values)
 
     # ── Compute totals ────────────────────────────────────────────
-    totals_values: Dict[str, float] = {}
+    totals_values: Dict[str, Optional[float]] = {}
+    _refused_totals = dict((str(k), dict(v)) for k, v in (refused_totals or {}).items()
+                           if isinstance(v, dict) and v.get("code"))
     for name, formula in methodology.totals.items():
+        if name in _refused_totals:
+            totals_values[name] = None
+            refusals[f"totals.{name}"] = _refused_totals[name]
+            continue
         try:
             value = resolver.evaluate(formula.formula)
             totals_values[name] = round(value, 4)
+        except _Refused as r:
+            totals_values[name] = None
+            refusals[f"totals.{name}"] = r.refusal
         except Exception as e:  # noqa: BLE001
             errors.append({"scope": f"totals.{name}", "error": f"{type(e).__name__}: {e}"})
             totals_values[name] = 0.0
@@ -125,6 +181,14 @@ def evaluate(methodology: MethodologyDoc,
                 "band": ratio.band_default,
                 "note": ratio.note,
             }
+        except _Refused as r:
+            refusals[f"ratios.{name}"] = r.refusal
+            ratio_results[name] = {"value": None, "unit": ratio.unit,
+                                   "direction": ratio.direction,
+                                   "band": ratio.band_default,
+                                   "note": ratio.note,
+                                   "reason": "refused",
+                                   "refusal": r.refusal}
         except Exception as e:  # noqa: BLE001
             errors.append({"scope": f"ratios.{name}", "error": f"{type(e).__name__}: {e}"})
             ratio_results[name] = {"value": None, "unit": ratio.unit,
@@ -141,6 +205,12 @@ def evaluate(methodology: MethodologyDoc,
         "ebitda": ebitda_values,
         "totals": totals_values,
         "ratios": ratio_results,
+        # The measured inputs the views were built on, as handed in, so a
+        # reader can see the 711 / 72x figures inside `ebitda.reported`.
+        "measured": resolver.measured_snapshot(),
+        # Every view that is None because an input was refused, with the
+        # refusal it carries (absent when nothing was refused).
+        "refusals": refusals,
         "missing_buckets": sorted(resolver.missing_buckets_seen),
         "errors": errors,
     }
@@ -189,6 +259,10 @@ def _compute_variant(spec: EbitdaVariantSpec,
         raise MethodologyError(f"variant {spec.name}: neither formula nor base")
     if spec.base not in computed:
         raise MethodologyError(f"variant {spec.name}: base '{spec.base}' not yet computed (topo bug)")
+    if computed[spec.base] is None:
+        # The base view was refused: every variant composed on it is too.
+        raise _Refused("ebitda." + spec.base,
+                       resolver.refusal_of("ebitda." + spec.base))
     total = float(computed[spec.base])
     for token in spec.add:
         total += resolver.resolve_token(token)
@@ -261,6 +335,29 @@ class _Resolver:
         # current formula — populated by evaluate() before _eval_node runs.
         # Suppresses missing-bucket warnings for these.
         self._current_optional: Set[str] = set()
+        # The assembly's measured inputs (`measured.<name>`), and the
+        # refusal each refused view carries, for views built on them.
+        self._measured: Dict[str, Dict[str, Any]] = {}
+        self._measured_supplied = False
+        self._view_refusals: Dict[str, Dict[str, Any]] = {}
+
+    def bind_measured(self, measured: Optional[Dict[str, Dict[str, Any]]]) -> None:
+        self._measured_supplied = measured is not None
+        self._measured = {}
+        for name, block in (measured or {}).items():
+            block = block if isinstance(block, dict) else {"value": block}
+            value = block.get("value")
+            self._measured[str(name)] = {
+                "value": None if value is None else float(value),
+                "refusal": block.get("refusal"),
+                "provenance": block.get("provenance"),
+            }
+
+    def measured_snapshot(self) -> Dict[str, Dict[str, Any]]:
+        return {name: dict(block) for name, block in sorted(self._measured.items())}
+
+    def refusal_of(self, name: str) -> Dict[str, Any]:
+        return dict(self._view_refusals.get(name) or {"code": "refused", "input": name})
 
     def bind_view_namespace(self, namespace: str, values: Dict[str, float]) -> None:
         """Bind a computed view namespace (e.g. 'ebitda', 'totals') so
@@ -370,6 +467,24 @@ class _Resolver:
         if name == "operator_addbacks":
             return self.operator_addbacks
 
+        # A figure the assembly measured (net 711, net 72x). A refused one
+        # refuses the formula; one the caller never supplied refuses too —
+        # it is not an optional bucket that may read as 0.00.
+        if name.startswith("measured."):
+            key = name.split(".", 1)[1]
+            block = self._measured.get(key)
+            if block is None:
+                raise _Refused(name, {
+                    "code": "not_measured", "input": name,
+                    "text_en": "%s was not measured by the assembly that "
+                               "evaluated this methodology" % key,
+                    "text_ro": "%s nu a fost măsurat de asamblarea care a "
+                               "evaluat această metodologie" % key})
+            if block.get("value") is None:
+                raise _Refused(name, block.get("refusal") or {
+                    "code": "refused", "input": name})
+            return float(block["value"])
+
         # Namespaced view reference (ebitda.reported, totals.foo, ratios.bar)
         if "." in name:
             head, tail = name.split(".", 1)
@@ -382,7 +497,14 @@ class _Resolver:
                 value = ns[tail]
                 # ratios namespace stores dicts; extract `.value`
                 if isinstance(value, dict):
+                    if value.get("value") is None and value.get("reason") == "refused":
+                        raise _Refused(name, value.get("refusal"))
                     return float(value.get("value") or 0.0)
+                if value is None:
+                    # A view refused upstream (e.g. `ebitda.reported` when
+                    # net 711 is refused): the dependent formula refuses
+                    # with the same reason.
+                    raise _Refused(name, self._view_refusals.get(name))
                 return float(value)
             # Otherwise treat as `aggregate.net` (canonical aggregate field)
             if tail == "net":

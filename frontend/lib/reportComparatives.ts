@@ -64,6 +64,7 @@
 //    prior without them keeps the `deriveTotals` reading, unchanged.
 
 import { comparisonRefusalEnglishInline } from "@/lib/comparisonRefusal";
+import { plLevelsOf } from "./servedOneEbitda";
 import {
   deriveTotals,
   type PriorPeriod,
@@ -335,8 +336,21 @@ function incomparableBecause(s: Statements, spec: LineSpec): string | null {
 /** `deriveTotals` wants a whole `Statements`; a `PriorPeriod` carries
  *  only the two statements. The shell supplies the rest and deliberately
  *  strips every CURRENT-period block, so the prior side can never quote
- *  this period's assembled or canonical figures. */
+ *  this period's assembled or canonical figures.
+ *
+ *  THE PRIOR'S OWN SERVED P&L, ON THE SAME DEFINITION (one-EBITDA ruling,
+ *  2026-09-26). `deriveTotals` reads the P&L levels off `assembled_pl`
+ *  (`plLevelsOf`); the shell hands it the PRIOR's served block when that
+ *  block is on the current period's EBITDA definition. A prior served
+ *  under another definition, or none, falls to its buckets — which refuse
+ *  EBITDA (and so EBIT and the result) when they show 711 activity the
+ *  buckets cannot measure. Never the current period's block. */
 function shellFor(s: Statements, p: PriorPeriod): Statements {
+  const current = plLevelsOf(s);
+  const priorPl = p.assembled_pl;
+  const priorOnSameDefinition =
+    priorPl !== undefined &&
+    plLevelsOf({ assembled_pl: priorPl, incomeStatement: p.incomeStatement }).definition === current.definition;
   return {
     ...s,
     periodLabel: p.periodLabel,
@@ -344,7 +358,7 @@ function shellFor(s: Statements, p: PriorPeriod): Statements {
     incomeStatement: p.incomeStatement,
     prior: undefined,
     historicalPeriods: undefined,
-    assembled_pl: undefined,
+    assembled_pl: priorOnSameDefinition ? priorPl : undefined,
     assembled_bs: undefined,
     assembled_cf: undefined,
     canonical_bs: undefined,

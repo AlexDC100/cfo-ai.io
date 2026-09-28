@@ -261,11 +261,16 @@ def test_i3_pnl_income_placed_adjusted_vs_raw(reconciled_pnl_income_env):
     # pnl placement reaches equity THROUGH the result row…
     assert gw.equity().amount_minor == raw_equity_cents + 57777
     assert gw.net_result().amount_minor == 20000 + 57777
-    # …and the revenue side (pl_other_income) + EBITDA include the delta.
-    assert gw.revenue().amount_minor == raw_revenue_cents + 57777
+    # …EBITDA includes the delta (its placement vocabulary is other
+    # OPERATING income)…
     assert gw.ebitda().amount_minor == raw_ebitda_cents + 57777
-    # expenses = revenue − net_result: unchanged by an income-side delta.
-    assert gw.expenses().amount_minor == (raw_revenue_cents + 57777) - (20000 + 57777)
+    # …and revenue does NOT: revenue() is net turnover only (owner ruling
+    # 2026-09-26 — every margin and growth rate divides by cifra de afaceri
+    # netă, 70x − 709). A reconciliation delta is not sales, even when the
+    # proposal names a class-70 account. It used to be added here.
+    assert gw.revenue().amount_minor == raw_revenue_cents
+    # expenses = revenue − net_result: the income-side delta now lowers it.
+    assert gw.expenses().amount_minor == raw_revenue_cents - (20000 + 57777)
     # Assets untouched; statement closes exactly.
     assert gw.total_assets().amount_minor == _cents(raw_cbs["totals"]["assets"])
     assert gw.difference().amount_minor == 0
@@ -609,3 +614,49 @@ def test_serving_stays_byte_identical_with_stamps(reconciled_pnl_income_env):
         for _ in range(3)
     ]
     assert dumps[0] == dumps[1] == dumps[2]
+
+
+
+# ── THE ONE EBITDA (owner ruling 2026-09-26) ──────────────────────────
+# What this reds on AFTER the repair (TC-11): the gateway serving a
+# methodology EBITDA that is not the statements' one — a block written
+# before the ruling (no stamp: its `reported` is the pre-ruling figure
+# without net 711), or a refused block read as a number.
+
+
+def test_the_gateway_stamp_is_the_assemblys_definition():
+    from engine.country_packs.ro_romania.chart_of_accounts import (
+        EBITDA_DEFINITION_REVISION)
+    from engine.serving import facts
+    assert facts.EBITDA_DEFINITION_REVISION == EBITDA_DEFINITION_REVISION
+
+
+def test_ebitda_refuses_a_block_written_before_the_ruling(balanced_env):
+    from engine.serving import RefusedFactError
+    env = dict(balanced_env)
+    methodology = dict(env["methodology"])
+    methodology.pop("ebitda_definition", None)
+    env["methodology"] = methodology
+    gw = FactsGateway.from_envelope(env)
+    with pytest.raises(RefusedFactError) as err:
+        gw.ebitda()
+    assert err.value.refusal["code"] == "period_predates_ebitda_definition"
+    # Everything else the block carries is still served.
+    assert gw.revenue().amount_minor == _cents(methodology["totals"]["revenue_net"])
+
+
+def test_ebitda_refuses_with_the_blocks_own_refusal(balanced_env):
+    from engine.serving import RefusedFactError
+    env = dict(balanced_env)
+    methodology = dict(env["methodology"])
+    assert methodology.get("ebitda_definition"), "the real assembly stamps its block"
+    ebitda = dict(methodology["ebitda"])
+    ebitda["reported"] = None
+    methodology["ebitda"] = ebitda
+    methodology["refusals"] = {"ebitda.reported": {
+        "code": "stock_variation_guard_g5", "text_en": "planted"}}
+    env["methodology"] = methodology
+    gw = FactsGateway.from_envelope(env)
+    with pytest.raises(RefusedFactError) as err:
+        gw.ebitda()
+    assert err.value.refusal["code"] == "stock_variation_guard_g5"

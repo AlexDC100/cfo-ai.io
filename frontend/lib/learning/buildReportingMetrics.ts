@@ -33,6 +33,7 @@
 // inputs.
 
 import { deriveTotals, type Statements } from "@/lib/financialReport";
+import { equityRefusalOf, plLevelsOf } from "@/lib/servedOneEbitda";
 import type { ReportingMetrics } from "@/lib/learning/concepts/_schema";
 
 /** Build a ReportingMetrics snapshot from a Statements blob. Returns
@@ -90,21 +91,33 @@ export function buildReportingMetricsSnapshot(
   const interestExpense = interestDeclaredAbsent
     ? undefined
     : (finite(statements.assembled_pl?.interest_expense) ?? finite(is.interestExpense));
+  // THE ONE EBITDA. Gross profit, EBITDA, EBIT and the result are the
+  // ENGINE's levels (711 and 72x inside, `deriveTotals` → `plLevelsOf`);
+  // a level the engine refused stays ABSENT here (undefined), so a popover
+  // can never show a rebuilt figure under a refused one — and "revenue" is
+  // net turnover (70x − 709), every margin's denominator.
   const t = deriveTotals(statements);
+  const levels = plLevelsOf(statements);
+  const present = (v: number | null): number | undefined => (v === null ? undefined : v);
+  // Total equity the engine REFUSED as the company's equity (it excludes a
+  // refused year's result — critic round 2, 2026-09-27) stays ABSENT: the
+  // dashboard resolver divided the rows' short sum into an equity ratio
+  // (0.4925) and debt / equity (0.4515) on the real developer without 121.
+  const equityRefused = equityRefusalOf(statements) !== null;
   return {
     // ── Income statement ──────────────────────────────────────
-    revenue: is.revenue,
-    grossProfit: t.grossProfit,
+    revenue: levels.turnover,
+    grossProfit: present(t.grossProfit),
     cogs: is.costOfGoodsSold,
     opex: is.operatingExpenses,
     depreciation: is.depreciationAmortization,
     amortization: 0,
-    ebitda: t.ebitda,
-    ebit: t.ebit,
+    ebitda: present(t.ebitda),
+    ebit: present(t.ebit),
     netFinancialResult: t.netFinancialResult,
     interestExpense,
     incomeTax: is.taxExpense,
-    netProfit: t.netIncome,
+    netProfit: present(t.netIncome),
     // ── Balance sheet ────────────────────────────────────────
     totalAssets: t.totalAssets,
     currentAssets: t.totalCurrentAssets,
@@ -118,7 +131,7 @@ export function buildReportingMetricsSnapshot(
     shortTermDebt: bs.shortTermDebt,
     longTermDebt: bs.longTermDebt,
     totalDebt: t.totalDebt,
-    shareholdersEquity: t.totalEquity,
+    shareholdersEquity: equityRefused ? undefined : t.totalEquity,
     // ── Cash flow ────────────────────────────────────────────
     operatingCashFlow: cfNum("cash_from_operating"),
     capex: capexTotal === undefined ? undefined : Math.abs(capexTotal),

@@ -26,14 +26,17 @@
 // asset-yielding business — captures operating cash flow but not asset value).
 
 import type { ApiLineItem } from "./plStructure";
+import { plLevelsOf, readRefusal } from "./servedOneEbitda";
 import type {
   AdjustmentMethod,
   AssetAdjustment,
   HiddenItem,
   LiabilityAdjustment,
   NavCascade,
+  NavConvergentMethod,
   NavCrossMethods,
   NavLayer,
+  NavRefusal,
   NavSensitivityCell,
 } from "./navStructure";
 
@@ -127,6 +130,11 @@ interface BuildArgs {
   affiliateYield?: number;
   /** Romanian corporate income tax rate (default 0.16). */
   citRate?: number;
+  /** The SERVED NOI proxy (`valuation.noi_approximation.value`, "NOI
+   *  (aproximare)"): EBITDA − net 711 — the stock variation is not rental
+   *  income (owner ruling 2026-09-26, design A6). null = the engine refused
+   *  it (with EBITDA); undefined = not handed in, read off `pl` instead. */
+  noiApproximation?: number | null;
 }
 
 export function buildNavCascade(args: BuildArgs): NavCascade {
@@ -143,12 +151,27 @@ export function buildNavCascade(args: BuildArgs): NavCascade {
   // Where the canonical view exposes opex_property_management we use it;
   // else fall back to operating-view EBITDA as a NOI proxy (correct when
   // the entity's only opex IS property opex, which is typical for SPVs).
+  //
+  // THE NOI PROXY IS EBITDA − NET 711 (owner ruling 2026-09-26, design A6):
+  // the one EBITDA now carries the stock variation, and capitalised
+  // construction cost is not rental income. The engine serves the proxy
+  // (`valuation.noi_approximation`); off `pl` it is the same subtraction of
+  // two served figures. The retired chain (`ebitda_statutory ??
+  // operating_ebitda ?? revenue`) would have valued the developer's
+  // property on +550,976 (the one EBITDA) instead of −29,038,838 — a NAV
+  // moved by a definition. A refused EBITDA refuses the proxy (null): the
+  // property is then not marked to market, never marked on a stand-in.
   const rentalRevenue = pl.revenue ?? 0;
   const propertyMgmtOpex =
     (args.subAgg?.opex_property_management as number | undefined) ?? 0;
-  const noi = propertyMgmtOpex > 0
-    ? rentalRevenue - propertyMgmtOpex
-    : (pl.ebitda_statutory ?? pl.operating_ebitda ?? rentalRevenue);
+  const levels = plLevelsOf({ assembled_pl: pl, incomeStatement: null });
+  const noiProxy: number | null =
+    args.noiApproximation !== undefined
+      ? args.noiApproximation
+      : levels.ebitda === null || levels.inventoryVariation === null
+        ? null
+        : levels.ebitda - levels.inventoryVariation;
+  const noi: number | null = propertyMgmtOpex > 0 ? rentalRevenue - propertyMgmtOpex : noiProxy;
 
   // Annual dividend stream for affiliate capitalization.
   const dividendIncome = pl.dividend_income ?? pl.financial_income_other ?? 0;
@@ -189,7 +212,22 @@ export function buildNavCascade(args: BuildArgs): NavCascade {
     let fair = bookValue;
     let notes = "No fair-value adjustment";
 
-    if (rule.method === "cap_rate" && code === "215") {
+    if (rule.method === "cap_rate" && code === "215" && noi === null) {
+      // No NOI (EBITDA refused): the property stays at book — stated, not
+      // marked on a stand-in figure.
+      const netBook = bookValue - accumDep215;
+      return {
+        accountCode: "215",
+        accountName: RO_ACCOUNT_NAMES["215"] ?? "Investment property",
+        bookValue: netBook,
+        goingConcernFairValue: netBook,
+        goingConcernUplift: 0,
+        adjustmentMethod: "face_value",
+        assumptions,
+        notes: `Not marked to market: the NOI proxy is refused with EBITDA — ${levels.refusal?.text.en ?? "not served"}`,
+      };
+    }
+    if (rule.method === "cap_rate" && code === "215" && noi !== null) {
       // Net of accumulated depreciation on the book side
       const netBook = bookValue - accumDep215;
       const propertyValue = noi / capRate;
@@ -254,10 +292,27 @@ export function buildNavCascade(args: BuildArgs): NavCascade {
   const totalUplift = centralAdjustments.reduce((s, a) => s + a.goingConcernUplift, 0);
 
   // ── Layer 1: Book NAV ────────────────────────────────────────────────
-  const bookNav = bs.total_equity ?? 0;
+  // THE SERVED TOTAL EQUITY, or its refusal (critic, fixer round 1,
+  // 2026-09-27). `bs.total_equity ?? 0` valued a book whose equity the
+  // engine said excludes a REFUSED year's result (no account 121, net 711
+  // refused, the sheet short by the missing result —
+  // `assembled_bs.total_equity_refusal`) at the rows' sum, and a book
+  // with no equity served at 0 — Layer 1, Layers 2-3 built on it and the
+  // hero. A refused Book NAV refuses all three, with the engine's reason.
+  const bsRec = bs as Record<string, unknown>;
+  const equityRaw: unknown = bsRec.total_equity;
+  const bookNavRefusal: NavRefusal | null =
+    readRefusal(bsRec.total_equity_refusal)
+    ?? (typeof equityRaw === "number" && Number.isFinite(equityRaw)
+      ? null
+      : {
+        code: "total_equity_not_served",
+        text: { en: "total equity is not served for this period", ro: "capitalurile proprii nu sunt furnizate pentru această perioadă" },
+      });
+  const bookNav: number | null = bookNavRefusal === null ? (equityRaw as number) : null;
 
   // ── Layer 2: Adjusted NAV (gross of deferred tax) ────────────────────
-  const adjustedNav = bookNav + totalUplift;
+  const adjustedNav: number | null = bookNav === null ? null : bookNav + totalUplift;
 
   // ── Layer 3: NNNAV (less deferred tax on revaluations) ───────────────
   // Deferred tax = (existing revaluation reserve + new uplift) × CIT rate.
@@ -265,7 +320,7 @@ export function buildNavCascade(args: BuildArgs): NavCascade {
   // canonical BS view if extracted, else 0.
   const revaluationReserve = bs.revaluation_reserves ?? 0;
   const deferredTax = (revaluationReserve + totalUplift) * citRate;
-  const nnnav = adjustedNav - deferredTax;
+  const nnnav: number | null = adjustedNav === null ? null : adjustedNav - deferredTax;
 
   // ── Liability adjustments (face value for fixed-rate RON/EUR bank debt) ─
   const liabilityAdjustments: LiabilityAdjustment[] = [];
@@ -293,44 +348,71 @@ export function buildNavCascade(args: BuildArgs): NavCascade {
     for (const ay of yieldScenarios) {
       const adjs = buildAdjustments(cr, ay);
       const uplift = adjs.reduce((s, a) => s + a.goingConcernUplift, 0);
-      const adjusted = bookNav + uplift;
       const dt = (revaluationReserve + uplift) * citRate;
-      sensitivityNnnav.push({ capRate: cr, affiliateYield: ay, nnnav: adjusted - dt });
+      sensitivityNnnav.push({
+        capRate: cr, affiliateYield: ay, nnnav: bookNav === null ? null : bookNav + uplift - dt,
+      });
     }
   }
 
   // ── Cross-method convergence ─────────────────────────────────────────
   // Cap rate equity = property at market + other assets − bank debt.
-  const propertyValueAtMarket = noi / capRateCentral;
+  const propertyValueAtMarket = noi === null ? null : noi / capRateCentral;
   const cashVal = bs.cash ?? 0;
   // Other assets = all non-property assets (current assets + non-current except 215)
   const otherAssets =
     (bs.total_assets ?? 0)
     - (bs.ppe_net ?? bs.investment_property_net ?? 0); // strip out book property
-  const capRateEquity = propertyValueAtMarket + otherAssets - (bs.total_debt ?? 0);
+  const capRateEquity =
+    propertyValueAtMarket === null ? null : propertyValueAtMarket + otherAssets - (bs.total_debt ?? 0);
 
-  // Graham — use statutory NI
-  const ni = pl.net_income_statutory ?? 0;
+  // Graham — on the statutory net result. REFUSED (no account 121 and a
+  // refused net 711) or not served → no Graham figure, with the engine's
+  // reason (fixer round 2, 2026-09-27): `?? 0` here printed "Graham
+  // intrinsic value 0" and a convergence band starting at 0 on the
+  // developer whose net result the engine refused.
+  const niRaw: unknown = (pl as Record<string, unknown>).net_income_statutory;
+  const grahamRefusal = readRefusal((pl as Record<string, unknown>).net_income_refusal);
+  const ni: number | null =
+    grahamRefusal === null && typeof niRaw === "number" && Number.isFinite(niRaw) ? niRaw : null;
   // V = NI × (8.5 + 2g_pct) × 4.4 / Y_pct ; g=3, Y=4.5
-  const grahamValue = ni * (8.5 + 2 * 3) * 4.4 / 4.5;
+  const grahamValue: number | null = ni === null ? null : ni * (8.5 + 2 * 3) * 4.4 / 4.5;
 
   // EV/EBITDA — 10.5× mid for CRE-anchored
-  const evEbitda = (pl.ebitda_statutory ?? 0) * 10.5 - ((bs.total_debt ?? 0) - cashVal);
+  // On THE ONE EBITDA; refused → no EV/EBITDA figure (never 0 × 10.5).
+  const evEbitda =
+    levels.ebitda === null ? null : levels.ebitda * 10.5 - ((bs.total_debt ?? 0) - cashVal);
 
-  // Convergence band: NNNAV / cap rate / Graham (NOT EV/EBITDA — known undervaluer).
-  const convergent = [nnnav, capRateEquity, grahamValue];
+  // Convergence band: NNNAV / cap rate / Graham (NOT EV/EBITDA — known
+  // undervaluer), over the methods that COMPUTED only. A refused method is
+  // not a bound of the band; with NNNAV alone there is nothing to converge
+  // and no band (never a one-point band read as "high" convergence).
+  const convergentMethods: NavConvergentMethod[] = [];
+  const convergent: number[] = [];
+  if (nnnav !== null) { convergentMethods.push("nnnav"); convergent.push(nnnav); }
+  if (capRateEquity !== null) { convergentMethods.push("cap_rate"); convergent.push(capRateEquity); }
+  if (grahamValue !== null) { convergentMethods.push("graham"); convergent.push(grahamValue); }
+  const hasBand = convergent.length >= 2;
   const cLow = Math.min(...convergent);
   const cHigh = Math.max(...convergent);
-  const spread = (cHigh - cLow) / Math.max(Math.abs(nnnav), 1);
-  const convergenceConfidence: "high" | "medium" | "low" =
-    spread < 0.20 ? "high" : spread < 0.40 ? "medium" : "low";
+  const spread = (cHigh - cLow) / Math.max(Math.abs(nnnav ?? cHigh), 1);
+  const convergenceConfidence: "high" | "medium" | "low" | null = !hasBand
+    ? null
+    : spread < 0.20 ? "high" : spread < 0.40 ? "medium" : "low";
 
   const crossMethods: NavCrossMethods = {
     capRate: capRateEquity,
     graham: grahamValue,
+    grahamRefusal: grahamValue === null
+      ? grahamRefusal ?? {
+        code: "net_income_not_served",
+        text: { en: "the net result is not served for this period", ro: "rezultatul net nu este furnizat pentru această perioadă" },
+      }
+      : null,
     evEbitda,
-    convergenceBand: [cLow, cHigh],
+    convergenceBand: hasBand ? [cLow, cHigh] : null,
     convergenceConfidence,
+    convergentMethods,
   };
 
   // ── Layer descriptions ───────────────────────────────────────────────
@@ -339,6 +421,7 @@ export function buildNavCascade(args: BuildArgs): NavCascade {
       layer: 1,
       name: "Book NAV",
       value: bookNav,
+      refusal: bookNavRefusal,
       description:
         "Statutory equity per balance sheet. The legal minimum claim and deepest defensible floor.",
       useCases: ["Statutory reporting", "Tax disputes", "Minimum negotiating floor"],
@@ -347,6 +430,7 @@ export function buildNavCascade(args: BuildArgs): NavCascade {
       layer: 2,
       name: "Adjusted NAV",
       value: adjustedNav,
+      refusal: bookNavRefusal,
       description:
         "Book NAV plus fair-value uplift on identifiable assets (property marked to market, affiliates capitalized at yield). Gross of deferred tax — the upper bound for a trade sale.",
       useCases: ["Refinancing LTV", "Trade sale ceiling", "Insurance valuation"],
@@ -355,6 +439,7 @@ export function buildNavCascade(args: BuildArgs): NavCascade {
       layer: 3,
       name: "EPRA NNNAV",
       value: nnnav,
+      refusal: bookNavRefusal,
       description:
         "Triple-net NAV with deferred tax on revaluations deducted. IFRS-aligned; the single most defensible number for negotiation with a banker or counterparty.",
       useCases: [
@@ -367,6 +452,7 @@ export function buildNavCascade(args: BuildArgs): NavCascade {
 
   return {
     layers,
+    bookNavRefusal,
     assetAdjustments: centralAdjustments.sort(
       (a, b) => Math.abs(b.goingConcernUplift) - Math.abs(a.goingConcernUplift),
     ),

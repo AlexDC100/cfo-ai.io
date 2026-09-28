@@ -78,7 +78,15 @@ interface BenchmarkComparison {
   verdict: string;
   gap_pp: number | null;
   lower_is_better: boolean;
+  /** Served when the page must not grade this row (verdict "refused"): the
+   *  one EBITDA refused, a period on the previous definition, or a margin
+   *  the engine's one rule refuses (the developer) — its own RO/EN text. */
+  refusal?: { code: string; display: { ro: string; en: string } } | null;
 }
+
+/** A served refusal's English text (this report is English-only). */
+const refusalText = (r: { display?: { en?: string } } | null | undefined): string | null =>
+  r?.display?.en ?? null;
 
 interface DeepPayload {
   leader_company: string | null;
@@ -105,6 +113,11 @@ interface DeepPayload {
     specialization: string | null;
     tier: "leader" | "strong" | "median" | "thin_margin" | "distressed" | "self" | string;
     source: string | null;
+    /** What the revenue and margins are measured on — filed net turnover,
+     *  an annual report, the trial balance ("Compania ta"). */
+    revenue_basis_display?: { ro: string; en: string } | null;
+    /** On the "Compania ta" row: a margin the engine refused, with why. */
+    refusals?: Record<string, { code: string; display: { ro: string; en: string } }> | null;
   }>;
   target_tiers: {
     aspirational?: { net_margin_pct: number; ebitda_margin_pct: number; label: string; comment: string };
@@ -348,7 +361,7 @@ function HeadlineVerdict({ report, revenue, companyName, currency }: {
   };
 
   const overallVerdict = (() => {
-    if (!ebitdaGap || ebitdaGap.gap_pp == null) return "neutral";
+    if (!ebitdaGap || ebitdaGap.gap_pp == null || ebitdaGap.refusal) return "neutral";
     if (ebitdaGap.gap_pp >= 2) return "ahead";
     if (ebitdaGap.gap_pp <= -2) return "behind";
     return "near_median";
@@ -357,7 +370,9 @@ function HeadlineVerdict({ report, revenue, companyName, currency }: {
     ahead:        `${companyName} runs AHEAD of industry median on profitability.`,
     near_median:  `${companyName} runs NEAR industry median on profitability.`,
     behind:       `${companyName} runs BEHIND industry median on profitability.`,
-    neutral:      `${companyName} — profitability comparison pending.`,
+    neutral:      refusalText(ebitdaGap?.refusal)
+      ? `${companyName} — the EBITDA margin is not compared: ${refusalText(ebitdaGap?.refusal)}`
+      : `${companyName} — profitability comparison pending.`,
   }[overallVerdict];
 
   return (
@@ -369,16 +384,18 @@ function HeadlineVerdict({ report, revenue, companyName, currency }: {
         {verdictText}
       </p>
       <div className="mt-4 grid sm:grid-cols-2 lg:grid-cols-4 gap-3 text-[12.5px]">
+        {/* A row the engine REFUSED (a refused EBITDA, the margin rule on a
+            developer) prints its reason — never a percent or a gap. */}
         <KpiBox
           label="EBITDA margin vs P50"
-          value={<PpDelta value={(ebitdaGap?.gap_pp ?? null) != null ? (ebitdaGap!.gap_pp as number) / 100 : null} />}
-          sub={<>Yours <PercentLevel value={ebitdaGap?.company_value ?? null} /> · P50 <PercentLevel value={ebitdaGap?.benchmark.p50 ?? null} /></>}
+          value={refusalText(ebitdaGap?.refusal) ? <span data-testid="peer-headline-ebitda-refused" className="text-[12px] font-normal text-ink-soft">{refusalText(ebitdaGap?.refusal)}</span> : <PpDelta value={(ebitdaGap?.gap_pp ?? null) != null ? (ebitdaGap!.gap_pp as number) / 100 : null} />}
+          sub={refusalText(ebitdaGap?.refusal) ? <>P50 <PercentLevel value={ebitdaGap?.benchmark.p50 ?? null} /></> : <>Yours <PercentLevel value={ebitdaGap?.company_value ?? null} /> · P50 <PercentLevel value={ebitdaGap?.benchmark.p50 ?? null} /></>}
           favorable={ebitdaGap?.gap_pp != null && ebitdaGap.gap_pp >= 0}
         />
         <KpiBox
           label="Net margin vs P50"
-          value={<PpDelta value={(netGap?.gap_pp ?? null) != null ? (netGap!.gap_pp as number) / 100 : null} />}
-          sub={<>Yours <PercentLevel value={netGap?.company_value ?? null} /> · P50 <PercentLevel value={netGap?.benchmark.p50 ?? null} /></>}
+          value={refusalText(netGap?.refusal) ? <span className="text-[12px] font-normal text-ink-soft">{refusalText(netGap?.refusal)}</span> : <PpDelta value={(netGap?.gap_pp ?? null) != null ? (netGap!.gap_pp as number) / 100 : null} />}
+          sub={refusalText(netGap?.refusal) ? <>P50 <PercentLevel value={netGap?.benchmark.p50 ?? null} /></> : <>Yours <PercentLevel value={netGap?.company_value ?? null} /> · P50 <PercentLevel value={netGap?.benchmark.p50 ?? null} /></>}
           favorable={netGap?.gap_pp != null && netGap.gap_pp >= 0}
         />
         {worstCost[0] && (
@@ -514,6 +531,21 @@ function PnlGapTable({ report, revenue, companyName, currency }: {
           </thead>
           <tbody>
             {rows.map((row) => {
+              const refused = refusalText(row.refusal);
+              if (refused) {
+                // Not graded: the engine's reason in place of the company
+                // figure, gap, impact and severity.
+                return (
+                  <tr key={row.metric_name} data-testid={`peer-gap-refused-${row.metric_name}`} className="border-t border-rule-soft first:border-t-0 h-8">
+                    <td className="px-4 py-1 text-ink font-medium">{row.display.en ?? row.metric_name}</td>
+                    <td className="px-3 py-1 text-right text-ink-soft text-[11.5px]" colSpan={1}>refused</td>
+                    <td className="px-3 py-1 text-right text-ink-mute"><PercentLevel value={row.benchmark.p25} /></td>
+                    <td className="px-3 py-1 text-right font-semibold"><PercentLevel value={row.benchmark.p50} /></td>
+                    <td className="px-3 py-1 text-right text-ink-mute"><PercentLevel value={row.benchmark.p75} /></td>
+                    <td className="px-3 py-1 text-ink-soft text-[11.5px]" colSpan={3}>{refused}</td>
+                  </tr>
+                );
+              }
               const sev = severity(row);
               return (
                 <tr key={row.metric_name} className={`border-t border-rule-soft first:border-t-0 h-8 ${sevRow[sev]}`}>
@@ -578,12 +610,29 @@ function PeerLandscape({ deep, companyName }: { deep: DeepPayload; companyName: 
               return (
                 <tr key={`${p.company_name}-${p.fiscal_year}`}
                     className={`border-t border-rule-soft first:border-t-0 h-8 ${isSelf ? "bg-bg-2/60 font-semibold" : ""}`}>
-                  <td className="px-4 py-1 text-ink">{isSelf ? companyName : p.company_name}</td>
+                  <td className="px-4 py-1 text-ink">
+                    {isSelf ? companyName : p.company_name}
+                    {p.revenue_basis_display?.en && (
+                      <div className="text-[10.5px] font-normal text-ink-mute" data-testid="peer-basis">{p.revenue_basis_display.en}</div>
+                    )}
+                  </td>
                   <td className="px-3 py-1 text-ink-soft">{p.specialization ?? "—"}</td>
                   <td className="px-3 py-1 text-right font-mono tabular-nums text-ink-mute">{p.fiscal_year ?? "—"}</td>
                   <td className="px-3 py-1 text-right font-mono tabular-nums">{p.revenue_mlei != null ? p.revenue_mlei.toFixed(1) : "—"}</td>
-                  <td className="px-3 py-1 text-right"><PercentLevel value={p.net_margin_pct} /></td>
-                  <td className="px-3 py-1 text-right"><PercentLevel value={p.ebitda_margin_pct} /></td>
+                  <td className="px-3 py-1 text-right">
+                    {isSelf && refusalText(p.refusals?.net_margin) ? (
+                      <span className="text-[11px] font-normal text-ink-soft">{refusalText(p.refusals?.net_margin)}</span>
+                    ) : (
+                      <PercentLevel value={p.net_margin_pct} />
+                    )}
+                  </td>
+                  <td className="px-3 py-1 text-right">
+                    {isSelf && refusalText(p.refusals?.ebitda_margin) ? (
+                      <span data-testid="peer-self-ebitda-refused" className="text-[11px] font-normal text-ink-soft">{refusalText(p.refusals?.ebitda_margin)}</span>
+                    ) : (
+                      <PercentLevel value={p.ebitda_margin_pct} />
+                    )}
+                  </td>
                   <td className="px-3 py-1 text-right"><PercentLevel value={p.equity_ratio_pct} /></td>
                   <td className="px-3 py-1">
                     <Chip tone={tierTone[p.tier] ?? "neutral"} className="uppercase tracking-[0.06em]">

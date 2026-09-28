@@ -47,7 +47,17 @@ SERVED_MONEY_FACTS = (
     ("net_result", "net_result"),
     ("revenue", "revenue"),
     ("expenses", "expenses"),
-    ("ebitda", "ebitda"),
+    # THE ONE EBITDA (owner ruling 2026-09-26: net 711 "Variația stocurilor
+    # de produse" and net 72x inside, 767 financial) and the components the
+    # ruling puts inside it — read from the SERVED statements' assembled P&L
+    # through `credit_model.operating_figures`, the one reader every EBITDA
+    # consumer uses. The gateway's `ebitda()` serves the methodology's
+    # `ebitda.reported`, which still excludes net 711 (a second EBITDA), so
+    # it is not read here. A refused EBITDA is a gap carrying its reason.
+    ("ebitda", "assembled_pl:ebitda"),
+    ("ebitda_before_stock_variation", "assembled_pl:ebitda_before_stock_variation"),
+    ("inventory_variation", "assembled_pl:inventory_variation"),
+    ("capitalized_own_work", "assembled_pl:capitalized_own_work"),
     ("share_capital", "statement_line:share_capital"),
     ("cash", "statement_line:<cash_row_ids>"),
 )
@@ -57,15 +67,28 @@ SERVED_MONEY_FACTS = (
 DECLARED_MONEY_FACTS = ("covenant_limit",)
 
 
+#: The accessor prefix of a money fact read from the served statements'
+#: assembled P&L (not from the gateway).
+ASSEMBLED_PL_PREFIX = "assembled_pl:"
+
+#: Provenance source of a fact read from the served assembled P&L.
+SOURCE_ASSEMBLED_PL = "assembled_pl"
+
+
 @dataclass(frozen=True)
 class MoneyFact:
-    """A gateway Fact, carried as the native float plus its provenance."""
+    """A gateway Fact, carried as the native float plus its provenance.
+    ``source`` is None for a gateway fact (the envelope) and
+    ``assembled_pl`` for one read from the served statements; ``label``
+    is the engine's own label for it, when it serves one."""
 
     name: str
     value: float
     currency: str
     snapshot_id: Optional[str]
     line_id: Optional[str]
+    source: Optional[str] = None
+    label: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -87,6 +110,9 @@ class PeriodFacts:
     profile_gap: Optional[str]
     critical_findings: Tuple[Dict[str, Any], ...]
     findings_gap: Optional[str]
+    #: The EBITDA definition revision the served statements were assembled
+    #: under (`assembled_pl.ebitda_definition`), None when not read.
+    ebitda_definition: Optional[str] = None
 
     def fact(self, name: str) -> Optional[MoneyFact]:
         return self.money.get(name)
@@ -165,6 +191,71 @@ def _read(gw: FactsGateway, name: str, accessor: Callable[[], Any],
     money[name] = MoneyFact(
         name=name, value=fact.to_float(), currency=str(fact.currency or "RON").upper(),
         snapshot_id=prov.get("snapshot_id"), line_id=prov.get("line_id"))
+
+
+def _dict(value: Any) -> Dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _component_label(block: Dict[str, Any], fallback: str) -> str:
+    """The engine's label for a component line: the Romanian line name
+    kept, with its accounts and the English gloss (CLAUDE.md §11)."""
+    name = str(block.get("line_name_ro") or "").strip()
+    if not name:
+        return fallback
+    accounts = str(block.get("accounts") or "").strip()
+    gloss = str(block.get("gloss_en") or "").strip()
+    out = "%s (%s)" % (name, accounts) if accounts else name
+    return "%s — %s, inside EBITDA" % (out, gloss) if gloss else out + ", inside EBITDA"
+
+
+def _read_operating(statements: Dict[str, Any], currency: str, snapshot_id: Optional[str],
+                    money: Dict[str, MoneyFact], gaps: Dict[str, str]) -> Optional[str]:
+    """THE ONE EBITDA and its components off the served statements
+    (`credit_model.operating_figures` — nothing recomputed here). Returns
+    the definition revision read. A refused EBITDA leaves every EBITDA-
+    family name a gap carrying the typed reason — never a 0.0, never the
+    EBITDA without 711."""
+    from engine.ratios.credit_model import operating_figures
+
+    names = [n for n, acc in SERVED_MONEY_FACTS if acc.startswith(ASSEMBLED_PL_PREFIX)]
+    try:
+        figs = operating_figures(statements)
+    except (KeyError, TypeError) as exc:
+        for name in names:
+            gaps[name] = ("the served statements carry no assembled P&L the EBITDA can be "
+                          "read from (%s: %s)" % (type(exc).__name__, exc))
+        return None
+    apl = _dict(statements.get("assembled_pl"))
+    refusal = figs.get("refusal") if isinstance(figs.get("refusal"), dict) else None
+    labels = {
+        "ebitda": "EBITDA (net 711 and 72x inside, 767 financial)",
+        "ebitda_before_stock_variation":
+            "EBITDA before the stock variation and own work capitalised",
+        "inventory_variation": _component_label(
+            _dict(apl.get("inventory_variation")),
+            "Variația stocurilor de produse (711) — change in inventories, inside EBITDA"),
+        "capitalized_own_work": _component_label(
+            _dict(apl.get("capitalized_own_work")),
+            "own work capitalised (72x), inside EBITDA"),
+    }
+    for name in names:
+        key = name  # the fact names ARE operating_figures' keys
+        value = figs.get(key)
+        if value is None:
+            if refusal is not None:
+                gaps[name] = ("EBITDA refused: %s (%s)"
+                              % (refusal.get("text_en") or "the stock variation could not be "
+                                 "measured", refusal.get("cause") or refusal.get("code")))
+            else:
+                gaps[name] = "the served assembled P&L carries no %s" % key
+            continue
+        money[name] = MoneyFact(
+            name=name, value=float(value), currency=currency, snapshot_id=snapshot_id,
+            line_id="assembled_pl.%s" % key, source=SOURCE_ASSEMBLED_PL,
+            label=labels.get(name))
+    definition = figs.get("definition")
+    return str(definition) if definition else None
 
 
 def _read_cash(gw: FactsGateway, row_ids: Tuple[str, ...],
@@ -254,6 +345,8 @@ def build_period_facts(period: PeriodRecord, cash_row_ids: Tuple[str, ...],
                 served_status = str(served.get("status") or "") or None
                 needs_review = bool(served.get("needs_review"))
             for name, accessor in SERVED_MONEY_FACTS:
+                if accessor.startswith(ASSEMBLED_PL_PREFIX):
+                    continue  # read off the served statements below
                 if name == "cash":
                     _read_cash(gw, cash_row_ids, money, gaps)
                 elif accessor.startswith("statement_line:"):
@@ -263,6 +356,7 @@ def build_period_facts(period: PeriodRecord, cash_row_ids: Tuple[str, ...],
                     _read(gw, name, getattr(gw, accessor), money, gaps)
 
     statements = None  # type: Optional[Dict[str, Any]]
+    ebitda_definition = None  # type: Optional[str]
     profile = None  # type: Optional[CP.CompanyProfile]
     profile_gap = None  # type: Optional[str]
     criticals = ()  # type: Tuple[Dict[str, Any], ...]
@@ -285,7 +379,13 @@ def build_period_facts(period: PeriodRecord, cash_row_ids: Tuple[str, ...],
         if not isinstance(statements, dict) or not statements:
             profile_gap = profile_gap or "no assembled statements available for this period"
             findings_gap = findings_gap or profile_gap
+            for name, accessor in SERVED_MONEY_FACTS:
+                if accessor.startswith(ASSEMBLED_PL_PREFIX):
+                    gaps.setdefault(name, profile_gap)
         else:
+            ebitda_definition = _read_operating(
+                statements, str(statements.get("currency") or period.currency or "RON").upper(),
+                snapshot_id, money, gaps)
             try:
                 profile = CP.build_company_profile(
                     statements, period_id=period.period_id, caen=period.caen,
@@ -306,7 +406,8 @@ def build_period_facts(period: PeriodRecord, cash_row_ids: Tuple[str, ...],
         period_days=_period_days(period, statements),
         period_detection=detection, money=money, gaps=gaps,
         profile=profile, profile_gap=profile_gap,
-        critical_findings=criticals, findings_gap=findings_gap)
+        critical_findings=criticals, findings_gap=findings_gap,
+        ebitda_definition=ebitda_definition)
 
 
 def _critical_findings(statements: Dict[str, Any], period: PeriodRecord,
@@ -406,7 +507,7 @@ class AttentionCache(object):
 
 
 __all__ = [
-    "AttentionCache", "ClientFacts", "DECLARED_MONEY_FACTS", "MoneyFact",
+    "ASSEMBLED_PL_PREFIX", "AttentionCache", "ClientFacts", "DECLARED_MONEY_FACTS", "MoneyFact",
     "PeriodFacts", "SERVED_MONEY_FACTS", "build_client_facts",
-    "build_period_facts", "snapshot_key",
+    "SOURCE_ASSEMBLED_PL", "build_period_facts", "snapshot_key",
 ]

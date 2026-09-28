@@ -394,10 +394,11 @@ describe("§2 the document prints the rank it computed", () => {
 describe("§3 refinance_opportunity", () => {
   it("stays silent on agras, and the two reasons are both measurable", () => {
     const { conditions, facts } = run("agras");
-    const belowLine = facts.pl.profit_before_tax - facts.pl.ebit;
+    // agras serves every one of these (the book is not refused): read as such.
+    const belowLine = facts.pl.profit_before_tax! - facts.pl.ebit!;
     const debt = facts.bs.bank_debt_total;
     const prize = debt * 0.005;
-    const share = prize / facts.pl.net_profit;
+    const share = prize / facts.pl.net_profit!;
     const floor = BANDS_FOR_TEST.annualMoney.filter((b) => b.at_least !== null).pop()!
       .at_least as number;
     expect(
@@ -405,7 +406,7 @@ describe("§3 refinance_opportunity", () => {
       `refinance_opportunity fired on agras. The book takes ${belowLine.toFixed(2)} ` +
         `below the operating line (positive = it earns more there than it pays), ` +
         `and 50bps on ${debt.toFixed(2)} of debt is ${prize.toFixed(2)}/year = ` +
-        `${(share * 100).toFixed(4)}% of a ${facts.pl.net_profit.toFixed(2)} net ` +
+        `${(share * 100).toFixed(4)}% of a ${facts.pl.net_profit!.toFixed(2)} net ` +
         `profit, under the ladder's lowest graded rung of ${(floor * 100).toFixed(2)}%.`,
     ).not.toContain("refinance_opportunity");
     expect(belowLine).toBeGreaterThan(0);
@@ -418,8 +419,8 @@ describe("§3 refinance_opportunity", () => {
     // If this stops firing the rule has become unreachable rather than
     // well-scoped.
     const scaled = variantOf("agras", (f) => {
-      f.pl.net_profit = f.pl.net_profit / 100;
-      f.pl.profit_before_tax = f.pl.ebit - 1;
+      f.pl.net_profit = f.pl.net_profit! / 100;
+      f.pl.profit_before_tax = f.pl.ebit! - 1;
     });
     const ids = detectConditions(scaled).map((c) => c.ruleKey);
     expect(ids).toContain("refinance_opportunity");
@@ -723,14 +724,15 @@ describe("§7 the same amount grades differently on books of different size", ()
 // rule reads either fact today, which is why nothing reddened: latent.
 // REDS ON, after the repair: either fact carrying the other's figure, or
 // the EBIT fact unplumbed. Literals are the engine's served rows (D14),
-// re-read from the tb_parser_v6 capture (served_metrics.json: agras
-// interest_coverage 28.1403, ebitda_to_interest 38.7737) after the 609/709
-// contra-convention repair; before it they were 55.644 and 66.2774.
+// re-read from the capture under the one-EBITDA ruling (served_metrics.json:
+// agras interest_coverage 31.9962, ebitda_to_interest 42.6296 — both now
+// carry the measured net 711); before the ruling 28.1403 / 38.7737, and
+// before the 609/709 contra-convention repair 55.644 / 66.2774.
 describe("§8 the coverage facts the rules are handed", () => {
-  it("agras: EBIT / interest 28.14 and EBITDA / interest 38.77, each under its own name", () => {
+  it("agras: EBIT / interest 32.00 and EBITDA / interest 42.63, each under its own name", () => {
     const { facts } = run("agras");
     expect(facts.ratios.interest_coverage_ebit).not.toBeNull();
-    expect((facts.ratios.interest_coverage_ebit as number).toFixed(2)).toBe("28.14");
-    expect((facts.ratios.ebitda_to_interest as number).toFixed(2)).toBe("38.77");
+    expect((facts.ratios.interest_coverage_ebit as number).toFixed(2)).toBe("32.00");
+    expect((facts.ratios.ebitda_to_interest as number).toFixed(2)).toBe("42.63");
   });
 });
