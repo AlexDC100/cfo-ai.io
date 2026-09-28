@@ -16127,9 +16127,17 @@ PLANT D8 — EvidenceDrawer.AccountBlockView: a closed book's 711 amount labelle
     Tests  6 passed | 34 skipped (40)
 ```
 
-**GREEN (through `run_battery.main`, gate list narrowed):** see the fixer's
-report for the run. Floors raised to the measured work: cmdbar-surface 190 → 201,
-cmdbar-evidence 39 → 45; canaries added for each new law.
+**GREEN (through `run_battery.main`, gate list narrowed):**
+`PASS cmdbar-fixtures (6 documents)`, `PASS cmdbar-surface (201 command-bar
+tests)`, `PASS evidence-lines (14)`, `PASS cmdbar-evidence (45)`,
+`PASS one-ebitda (25)`, `PASS refusal-carries (47)`, `PASS pl-one-ebitda-page
+(63)`, `PASS inventory-days-surfaces (172)`, `PASS capsule-craft`,
+`PASS no-plants`, `PASS stale-gates`, `PASS engine-book`; provenance-census
+FAIL on its 11 pre-existing findings, none new. Full vitest 259 files / 4271
+passed / 1 skipped; hermetic Playwright (cmdbar, cmdbar-typeopen,
+workspace-v2) 50 passed / 8 skipped. Floors raised to the measured work:
+cmdbar-surface 190 → 201, cmdbar-evidence 39 → 45; canaries added for each
+new law.
 
 **NOT FIXED — owner ruling required (finding 3).** The printed report shows the
 cash conversion cycle as two numbers: the card / table / band track "108 days"
