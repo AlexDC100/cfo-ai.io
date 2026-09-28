@@ -31,7 +31,8 @@ import {
   getInitialRates,
   fetchRates,
 } from "@/lib/rates";
-import { formatAmountFrom } from "@/lib/money";
+import { formatAmountFrom, moneyLocaleFor } from "@/lib/money";
+import { useActiveLocale } from "@/lib/locale";
 import { setPref, usePrefSync } from "@/lib/prefs";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -149,10 +150,14 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
  *    {fmt(value, {sign: "positive"})}   → forced + prefix
  *    {fmt(value, {paren: true})}        → (1,234.56) for negatives (cash-flow convention)
  *
- *  The returned function is memoized on (display, rates, fromCurrency)
- *  so passing it to memoized child rows doesn't bust memo caches. */
+ *  The returned function is memoized on (display, rates, fromCurrency,
+ *  language) so passing it to memoized child rows doesn't bust memo
+ *  caches. The digits follow the READER'S LANGUAGE ("1,234,567.89" in
+ *  English, "1.234.567,89" in Romanian — lib/money moneyLocaleFor), and a
+ *  language switch hands out a new printer. */
 export function useAmountFormatter(fromCurrency: Currency | string) {
   const { display, rates } = useCurrency();
+  const locale = moneyLocaleFor(useActiveLocale());
   const isMobile = useIsMobile();
   return useMemo(() => {
     const src = (fromCurrency as Currency) || "RON";
@@ -160,7 +165,7 @@ export function useAmountFormatter(fromCurrency: Currency | string) {
       value: number | null | undefined,
       opts: { signed?: boolean; sign?: "positive" | "negative"; paren?: boolean; compact?: boolean } = {},
     ) =>
-      // Auto-compact on mobile <768px so long Romanian amounts like
+      // Auto-compact on mobile <768px so long amounts like
       // "10.922.666,19" become "10,9 mil." and fit in 160px BS/PL/CF
       // grid cells without overflow. Caller-explicit `compact` still
       // wins. Added 2026-06-02 alongside the BS/PL/CF CSS mobile grid
@@ -168,8 +173,9 @@ export function useAmountFormatter(fromCurrency: Currency | string) {
       formatAmountFrom(value, src, display, rates.rates, {
         ...opts,
         compact: opts.compact ?? isMobile,
+        locale,
       });
-  }, [fromCurrency, display, rates, isMobile]);
+  }, [fromCurrency, display, rates, isMobile, locale]);
 }
 
 /** Read the currency context. Throws (in dev) when used outside provider —

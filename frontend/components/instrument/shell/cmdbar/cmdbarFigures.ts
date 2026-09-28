@@ -5,13 +5,15 @@
 // so "the bar's figure equals the served figure" holds by construction:
 //
 //   money            lib/money formatMoneyFrom, in the currency the engine
-//                    SERVED the figure in, with that currency's code — never
-//                    converted in the browser (`servedMoney`). The header's
-//                    display toggle converts the dashboard's tables, which
-//                    carry a currency chip; a converted figure here printed
-//                    "81.060,2 from account 121" for a 402,869.16 RON result,
-//                    with no currency, beside "RON 753,070.01" in the same
-//                    panel. One panel, one currency: the served one;
+//                    SERVED the figure in, with that currency's code, in the
+//                    READER'S LANGUAGE ("413.7M RON" / "413,7 mil. RON") —
+//                    never converted in the browser (`servedMoney`). The
+//                    header's display toggle converts the dashboard's
+//                    tables, which carry a currency chip; a converted figure
+//                    here printed "81.060,2 from account 121" for a
+//                    402,869.16 RON result, with no currency, beside
+//                    "RON 753,070.01" in the same panel. One panel, one
+//                    currency: the served one;
 //   a Δ of a line    the comparatives column's own `change_kind` and
 //                    `delta_pct` through lib/changeKind + formatDeltaPct —
 //                    the exact rule ComparativeCells prints (a move across
@@ -21,7 +23,9 @@
 //                    separator is localised);
 //   a sector row     lib/sectorBenchmark lawfulFigure (the law's door) and
 //                    sectorValueText, and the page's own position words;
-//   a finding        lib/insights formatMeasure.
+//   a finding        lib/insights formatMeasure in the reader's numbering;
+//                    its money through `servedMoney`, its days through the
+//                    ratio table's printer (`printMeasure`).
 //
 // An absent figure prints the REASON (cmdbar.absent.*), never 0 and never
 // a bare dash.
@@ -34,6 +38,7 @@ import {
 } from "@/lib/changeKind";
 import { formatDeltaPct, type ComparativeColumnDto } from "@/lib/comparatives";
 import { formatMeasure, type InsightMeasure } from "@/lib/insights";
+import { printDaysQ } from "@/lib/inventoryDays";
 import {
   formatRatioDelta,
   formatRatioSide,
@@ -49,7 +54,7 @@ import {
   sectorValueText,
   type SectorRow,
 } from "@/lib/sectorBenchmark";
-import { formatMoneyFrom } from "@/lib/money";
+import { formatMoneyFrom, moneyLocaleFor } from "@/lib/money";
 import type { Currency, Rates } from "@/lib/rates";
 
 import "./cmdbarI18n";
@@ -63,28 +68,35 @@ export function langOf(language: string | null | undefined): Lang {
 
 export interface Printer {
   lang: Lang;
-  /** The money printer: `servedMoney(<the period's served currency>)`. */
+  /** The money printer: `servedMoney(<the period's served currency>,
+   *  { lang })` — bound to THIS printer's `lang`. */
   money: (value: number) => string;
 }
 
 /** A served amount printed in the currency it was SERVED in, with that
- *  currency's code ("402,9 K RON", "−2.577.640,82 RON") — lib/money's
- *  formatMoneyFrom with source = display, so no rate is ever applied. The
- *  locale follows the currency, as everywhere money is printed. */
+ *  currency's code, in the reader's language — "402.9K RON" /
+ *  "-2,577,640.82 RON" in English, "402,9 K RON" / "-2.577.640,82 RON" in
+ *  Romanian: lib/money's formatMoneyFrom with source = display, so no rate
+ *  is ever applied, and the locale is `moneyLocaleFor(lang)` — the
+ *  LANGUAGE's, never the currency's (owner ticket 2026-09-28: the English
+ *  bar printed "413,7 mil. RON"). Bind it with the printer's own `lang`, so
+ *  a Printer's words and its figures are always one language; without a
+ *  `lang` it prints in the active UI language at call time. */
 export function servedMoney(
   currency: string | null | undefined,
-  opts: { compact?: boolean } = {},
+  opts: { compact?: boolean; lang?: Lang } = {},
 ): (value: number | null | undefined) => string {
   const code = (currency || "RON").toUpperCase() as Currency;
-  const key = `${code}|${opts.compact ? "c" : "f"}`;
+  const key = `${code}|${opts.compact ? "c" : "f"}|${opts.lang ?? "active"}`;
   const cached = SERVED_MONEY.get(key);
   if (cached) return cached;
+  const locale = opts.lang ? moneyLocaleFor(opts.lang) : undefined;
   const print = (value: number | null | undefined): string => {
     // The bar never reaches this with no value (printMoney says why
     // instead); the account view's table cell keeps its dash.
     if (typeof value !== "number" || !Number.isFinite(value)) return "—";
     try {
-      return formatMoneyFrom(value, code, code, {} as Rates, { compact: opts.compact });
+      return formatMoneyFrom(value, code, code, {} as Rates, { compact: opts.compact, locale });
     } catch {
       // Not an ISO code Intl knows: the number and the code as served.
       return `${value.toFixed(2)} ${code}`;
@@ -94,9 +106,9 @@ export function servedMoney(
   return print;
 }
 
-/** One printer per (currency, compactness): a stable identity, so a
- *  component can bind it (`const fmt = servedMoney(currency)`) without a
- *  memo and the provenance census counts that binding's calls. */
+/** One printer per (currency, compactness, language): a stable identity,
+ *  so a component can bind it (`const fmt = servedMoney(currency, { lang })`)
+ *  without a memo and the provenance census counts that binding's calls. */
 const SERVED_MONEY = new Map<string, (value: number | null | undefined) => string>();
 
 function t(lang: Lang) {
@@ -186,7 +198,19 @@ export function printSectorRow(
   return { company, position: tt(`benchmarkPage.sector.position.${row.position}`), verdict };
 }
 
-/** A finding's headline measure. */
-export function printMeasure(measure: InsightMeasure, currency: string | null): string {
-  return formatMeasure(measure, currency ?? "");
+/** A finding's headline measure, in the printer's language: money through
+ *  the served-money printer at full precision ("-2,577,640.82 RON" /
+ *  "-2.577.640,82 RON"), a served days figure through the ratio table's
+ *  printer (its count form, its decimal), every other unit through
+ *  lib/insights formatMeasure in the language's numbering ("70.4%" /
+ *  "70,4%", "1.50×" / "1,50×"). The evidence drawer heads the finding with
+ *  this same printer, so an item and its landing print one string (owner
+ *  ticket 2026-09-28: the Romanian bar printed "RON -2,577,640.82"). */
+export function printMeasure(p: Printer, measure: InsightMeasure, currency: string | null): string {
+  const value = measure.value;
+  if (typeof value === "number" && Number.isFinite(value)) {
+    if (measure.unit === "money") return servedMoney(currency, { lang: p.lang })(value);
+    if (measure.unit === "days" && typeof measure.value_q === "string") return printDaysQ(measure.value_q, p.lang);
+  }
+  return formatMeasure(measure, currency ?? "", { locale: moneyLocaleFor(p.lang) });
 }

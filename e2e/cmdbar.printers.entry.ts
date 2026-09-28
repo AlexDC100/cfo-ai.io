@@ -19,7 +19,11 @@
  *
  * Not part of the product bundle: nothing under frontend/ imports it.
  */
-import { formatAmountFrom, formatMoneyFrom } from "@/lib/money";
+import { formatAmountFrom, formatMoneyFrom, moneyLocaleFor } from "@/lib/money";
 import { formatRatioSide } from "@/lib/ratioTable";
 
-(globalThis as unknown as Record<string, unknown>).__cmdbarPrinters = { formatAmountFrom, formatMoneyFrom, formatRatioSide };
+// `moneyLocaleFor` — the ONE language → locale mapping: the gate states the
+// bar's language explicitly, so a figure painted in the other language's
+// format ("413,7 mil. RON" on an English bar, owner ticket 2026-09-28) is a
+// mismatch, never an agreement with a blank page's own default language.
+(globalThis as unknown as Record<string, unknown>).__cmdbarPrinters = { formatAmountFrom, formatMoneyFrom, formatRatioSide, moneyLocaleFor };

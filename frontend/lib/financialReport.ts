@@ -2999,7 +2999,10 @@ export function formatRatio(r: Ratio): string {
     case "%":
       return `${r.value.toFixed(1)}%`;
     case "days":
-      return `${r.value.toFixed(0)} days`;
+      // The noun agrees with the PRINTED count — the ratio table's own count
+      // forms ("1 day", "-1 day", "12 days"), never "1 days" (owner ticket
+      // 2026-09-28): the same printer the served rows use.
+      return servedRungFigure(r.value.toFixed(0), "days");
     case "ratio":
       return r.value.toFixed(2);
   }

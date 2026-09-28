@@ -27,7 +27,12 @@
  *       row, EVERY leaf account of both books — character-equals the value
  *       in the body the double served, printed by the app's own printers
  *       (e2e/cmdbar.printers.entry.ts, bundled from the same source and run
- *       in the same browser), in RO and EN; and nothing is fetched meanwhile.
+ *       in the same browser), in RO and EN — each printed in the BAR'S
+ *       language, stated to the printer, and every painted figure (and every
+ *       resting one) free of the other language's number format
+ *       (frontend/test/numberLanguage.ts; owner ticket 2026-09-28: the
+ *       English bar painted "413,7 mil. RON"); and nothing is fetched
+ *       meanwhile.
  *   G7  LATENCY, live: every keystroke of the typed queries re-renders the
  *       groups in < 100 ms, measured in the page from the input event to the
  *       list naming the query, with ZERO requests; the keyboard flow
@@ -93,6 +98,7 @@ import {
   WorkspaceDouble,
   installHeaderWatch,
 } from "../workspace-v2.double";
+import { foreignNumber } from "../../frontend/test/numberLanguage";
 
 test.skip(
   () => process.env.E2E_HERMETIC !== "1",
@@ -422,7 +428,7 @@ function printersBundle(): Promise<string> {
 }
 
 type PrintJob =
-  | { kind: "money"; value: number }
+  | { kind: "money"; value: number; lang: "en" | "ro" }
   | { kind: "ratio"; row: Record<string, unknown>; lang: "en" | "ro" };
 
 /** Print every job with the app's printers, in a blank page of the SAME
@@ -436,9 +442,11 @@ async function printServed(browser: Browser, jobs: PrintJob[]): Promise<string[]
     const P = (globalThis as unknown as { __cmdbarPrinters: Record<string, (...a: unknown[]) => string> }).__cmdbarPrinters;
     // The bar's money printer: the SERVED currency with its code, compact,
     // never converted by the display toggle (lib/money formatMoneyFrom,
-    // source = display = the period's currency, RON here).
+    // source = display = the period's currency, RON here), in the BAR'S
+    // language — its locale stated through the one mapping, never the blank
+    // page's default (owner ticket 2026-09-28: "413,7 mil. RON" in English).
     return js.map((j) => j.kind === "money"
-      ? P.formatMoneyFrom(j.value, "RON", "RON", { RON: 1, EUR: 1, USD: 1 }, { compact: true })
+      ? P.formatMoneyFrom(j.value, "RON", "RON", { RON: 1, EUR: 1, USD: 1 }, { compact: true, locale: P.moneyLocaleFor(j.lang) })
       : P.formatRatioSide(j.row, j.row.display_unit, j.lang));
   }, jobs);
   await ctx.close();
@@ -522,6 +530,17 @@ test.describe("G6 — every Răspuns and Cont figure the real bundle paints IS t
         await settle(page, double);
         const before = double.requests.length;
 
+        // THE READER'S LANGUAGE (owner ticket 2026-09-28: the English bar
+        // painted "413,7 mil. RON"). Independent of the printers — a defect
+        // the bar and the expected string shared would agree below — no
+        // figure at rest (the engine's items, their chips) is a number in
+        // the other language's format.
+        const resting = await page
+          .locator('[data-testid="cmdbar"] [data-figure], [data-testid="cmdbar"] [data-chip-state]')
+          .allTextContents();
+        expect(resting.filter((f) => /\d/.test(f)).length, `${c.key}/${lang}: VACUITY — resting figures`).toBeGreaterThanOrEqual(2);
+        expect(resting.filter((f) => foreignNumber(f, lang) !== null), `${c.key}/${lang}: resting figures in the other language's format`).toEqual([]);
+
         type Check = { what: string; painted: string | null; job: PrintJob };
         const checks: Check[] = [];
 
@@ -530,7 +549,7 @@ test.describe("G6 — every Răspuns and Cont figure the real bundle paints IS t
           const { rows } = await typeInPage(page, q);
           const row = rows.find((r) => r.id === `answer:${id}`);
           expect(row, `${c.key}/${lang}: "${q}" answers ${id}`).toBeTruthy();
-          checks.push({ what: `answer:${id}`, painted: row!.figure, job: { kind: "money", value: servedStatement(body, id) } });
+          checks.push({ what: `answer:${id}`, painted: row!.figure, job: { kind: "money", value: servedStatement(body, id), lang } });
         }
         // Răspuns — every ratio_table row (inventory days ride the statement
         // answer through their one adapter; held in jsdom).
@@ -552,7 +571,7 @@ test.describe("G6 — every Răspuns and Cont figure the real bundle paints IS t
           const { rows } = await typeInPage(page, li.ro_account_code);
           const row = rows.find((x) => x.id === `account:${li.ro_account_code}:${li.bucket}`);
           expect(row, `${c.key}/${lang}: "${li.ro_account_code}" finds its own leaf`).toBeTruthy();
-          checks.push({ what: `account:${li.ro_account_code}`, painted: row!.figure, job: { kind: "money", value: li.amount } });
+          checks.push({ what: `account:${li.ro_account_code}`, painted: row!.figure, job: { kind: "money", value: li.amount, lang } });
           accounts++;
         }
 
@@ -561,6 +580,8 @@ test.describe("G6 — every Răspuns and Cont figure the real bundle paints IS t
           .map((k, i) => ({ what: k.what, painted: k.painted, served: expected[i] }))
           .filter((m) => m.painted !== m.served);
         expect(mismatches, `${c.key}/${lang}: painted ≠ served`).toEqual([]);
+        const foreign = checks.filter((k) => foreignNumber(k.painted ?? "", lang) !== null).map((k) => `${k.what}: ${k.painted}`);
+        expect(foreign, `${c.key}/${lang}: painted figures in the other language's format`).toEqual([]);
 
         await settle(page, double, DEBOUNCE_HORIZON_MS);
         const during = heldAgainstTheBar(double.requests.slice(before));

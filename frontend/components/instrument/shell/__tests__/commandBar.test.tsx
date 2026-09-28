@@ -55,11 +55,12 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import i18n from "@/i18n";
-import { formatMoneyFrom } from "@/lib/money";
+import { formatMoneyFrom, moneyLocaleFor } from "@/lib/money";
 import { formatRatioSide, localiseDecimal, ratioLabelForKey, type RatioTableRow } from "@/lib/ratioTable";
 import { formatDeltaPct } from "@/lib/comparatives";
 import { changeKindWordKey, isWordKind, type ChangeKind } from "@/lib/changeKind";
 import { lawfulFigure, sectorValueText } from "@/lib/sectorBenchmark";
+import { foreignNumber, plainSpaces } from "@/test/numberLanguage";
 
 const REPO = resolve(__dirname, "../../../../..");
 const read = (p: string) => JSON.parse(readFileSync(resolve(REPO, p), "utf-8"));
@@ -84,8 +85,15 @@ const ONE_EBITDA_BOOKS = read("frontend/lib/__tests__/fixtures/oneEbitda/constru
 
 const RATES = { RON: 1, EUR: 5, USD: 4.6 };
 /** The bar's money: the SERVED currency with its code, never converted
- *  (lib/money formatMoneyFrom, source = display). */
-const money = (v: number) => formatMoneyFrom(v, "RON", "RON", RATES as never, { compact: true });
+ *  (lib/money formatMoneyFrom, source = display), in the language the test
+ *  READS — its locale stated here through the one mapping
+ *  (moneyLocaleFor), never taken from the global i18n state. So an English
+ *  row painted in Romanian format ("413,7 mil. RON") is a mismatch, and a
+ *  Romanian row painted in English format too (owner ticket 2026-09-28:
+ *  the English bar printed "413,7 mil. RON" and this helper, following the
+ *  currency's locale, printed the same wrong string and agreed). */
+const money = (v: number, lang: Lang) =>
+  formatMoneyFrom(v, "RON", "RON", RATES as never, { compact: true, locale: moneyLocaleFor(lang) });
 
 // ── host context (provided) ─────────────────────────────────────────────
 
@@ -430,7 +438,7 @@ describe("the groups, in order, answer first, Întreabă last", () => {
     expect(headings[headings.length - 1]).toBe("cmdbar-heading-ask");
     const answer = rowsOf("answer")[0];
     const pl = PAIR.current_body.statements.assembled_pl;
-    expect(answer.querySelector('[data-figure="answer"]')?.textContent).toBe(money(pl.net_income_statutory));
+    expect(answer.querySelector('[data-figure="answer"]')?.textContent).toBe(money(pl.net_income_statutory, "en"));
     expect(answer.textContent).toContain("from account 121");
     const col = PAIR.comparatives.columns.find((c: { key: string }) => c.key === "pl.net_income");
     expect(answer.textContent).toContain(`${formatDeltaPct(col.delta_pct)} vs ${PAIR.comparatives.prior.label}`);
@@ -525,7 +533,7 @@ describe("cmdbar-figures — every figure is the served figure", () => {
       expect(row, `${id} answers "${q}"`).toBeTruthy();
       const served = servedPath(w.body, id);
       expect(served, id).not.toBeNull();
-      expect(row!.querySelector('[data-figure="answer"]')?.textContent, id).toBe(money(served as number));
+      expect(row!.querySelector('[data-figure="answer"]')?.textContent, id).toBe(money(served as number, "en"));
       checked++;
     }
     expect(checked).toBe(Object.keys(QUERIES).length);
@@ -645,7 +653,7 @@ describe("cmdbar-figures — every figure is the served figure", () => {
     type("411101");
     const row = rowsOf("account")[0];
     const item = w.body.line_items.find((li: { ro_account_code: string }) => li.ro_account_code === "411101");
-    expect(row.querySelector('[data-figure="account"]')?.textContent).toBe(money(item.amount));
+    expect(row.querySelector('[data-figure="account"]')?.textContent).toBe(money(item.amount, "en"));
     const dso = w.body.assembled_metrics.ratio_table.rows.find((r: { key: string }) => r.key === "dso");
     expect(row.textContent).toContain(formatRatioSide(dso, dso.display_unit, "en"));
     fireEvent.click(row);
@@ -796,12 +804,12 @@ describe("cmdbar-one-currency — the SERVED currency, with its code, whatever t
     type("profit");
     const net = answerRowById("answer:net_result")!;
     const served = w.body.statements.assembled_pl.net_income_statutory as number;
-    expect(net.querySelector('[data-figure="answer"]')?.textContent).toBe(money(served));
+    expect(net.querySelector('[data-figure="answer"]')?.textContent).toBe(money(served, "en"));
     expect(net.querySelector('[data-figure="answer"]')?.textContent).toMatch(/RON$/);
     expect(net.textContent).toContain("from account 121");
     type("cifra de afaceri");
     const turnover = answerRowById("answer:turnover")!;
-    expect(turnover.querySelector('[data-figure="answer"]')?.textContent).toBe(money(w.body.statements.assembled_pl.revenue));
+    expect(turnover.querySelector('[data-figure="answer"]')?.textContent).toBe(money(w.body.statements.assembled_pl.revenue, "en"));
     type("4111");
     for (const el of rowsOf("account")) expect(el.querySelector('[data-figure="account"]')?.textContent).toMatch(/RON$/);
     // Nothing anywhere in the panel is in the display currency.
@@ -914,7 +922,7 @@ describe("cmdbar-latency — warm cache, cold open", () => {
     type("profit");
     const row = rowsOf("answer")[0];
     expect(row.querySelector('[data-figure="answer"]')?.textContent).toBe(
-      money(PAIR.current_body.statements.assembled_pl.net_income_statutory));
+      money(PAIR.current_body.statements.assembled_pl.net_income_statutory, "en"));
     const pending = row.querySelectorAll('[data-chip-state="pending"]');
     expect(pending.length).toBeGreaterThanOrEqual(1);
     for (const el of Array.from(pending)) expect(el.textContent).toBe("loading");
@@ -1062,7 +1070,7 @@ describe("cmdbar-figures — EVERY Cont leaf of both books, in both languages", 
           const row = rowsOf("account").find(
             (el) => el.getAttribute("data-row-id") === `account:${li.ro_account_code}:${li.bucket}`);
           expect(row, `"${li.ro_account_code}" finds its own leaf`).toBeTruthy();
-          expect(row!.querySelector('[data-figure="account"]')?.textContent, li.ro_account_code).toBe(money(li.amount));
+          expect(row!.querySelector('[data-figure="account"]')?.textContent, li.ro_account_code).toBe(money(li.amount, lang));
           amounts++;
           if (li.amount < 0) negatives++;
           const key = designKeyMetric(li.ro_account_code);
@@ -1096,7 +1104,7 @@ describe("cmdbar-figures — every Răspuns in Romanian too", () => {
       type(q);
       const row = answerRow(`answer:${id}`);
       expect(row, `${id} answers "${q}"`).toBeTruthy();
-      expect(row!.querySelector('[data-figure="answer"]')?.textContent, id).toBe(money(servedPath(w.body, id) as number));
+      expect(row!.querySelector('[data-figure="answer"]')?.textContent, id).toBe(money(servedPath(w.body, id) as number, "ro"));
     }
     let ratios = 0;
     for (const r of w.body.assembled_metrics.ratio_table.rows as RatioTableRow[]) {
@@ -1113,6 +1121,53 @@ describe("cmdbar-figures — every Răspuns in Romanian too", () => {
     expect(ratios, "every ratio_table row but dio").toBe(rows.filter((r) => r.key !== "dio").length);
     expect(ratios).toBeGreaterThanOrEqual(20);
   }, HEAVY);
+});
+
+// cmdbar-ui-language (owner ticket 2026-09-28): the English bar printed
+// "413,7 mil. RON" / "36,8 mil. RON" — lib/money chose the locale from the
+// currency, and this suite's own `money` helper, following the same rule,
+// printed the same wrong string and agreed. Every figure the bar paints is in
+// the READER'S language: the turnover answer is the owner's string for that
+// language, and no figure at rest or typed — answers, Δ chips, ratios,
+// accounts, notes — is a number in the other language's format
+// (frontend/test/numberLanguage.ts).
+describe("cmdbar-ui-language — every figure the bar paints is in the reader's language", () => {
+  const books: [string, () => World, Record<Lang, string>][] = [
+    ["scandia", () => scandiaWorld(), { en: "48.3M RON", ro: "48,3 mil. RON" }],
+    ["agras", () => agrasWorld(), { en: "110.8M RON", ro: "110,8 mil. RON" }],
+    ["pair", () => pairWorld(), { en: "", ro: "" }],
+  ];
+  for (const [name, world, turnover] of books) {
+    for (const lang of LANGS) {
+      it(`${name} (${lang}): no figure at rest or typed is in the other language's format${turnover[lang] ? `; turnover reads ${turnover[lang]}` : ""}`, async () => {
+        await useLang(lang);
+        const w = world();
+        mount(w);
+        const seen: string[] = [];
+        const collect = (where: string) => {
+          for (const el of Array.from(document.querySelectorAll('[data-testid="cmdbar"] [data-figure], [data-testid="cmdbar"] [data-chip-state]'))) {
+            const text = el.textContent ?? "";
+            if (/\d/.test(text)) seen.push(`${where}: ${text}`);
+          }
+        };
+        collect("rest");
+        for (const q of [...Object.values(QUERIES), "profit", "4111", "401", "711", "stoc", "dso", "marja neta"]) {
+          type(q);
+          collect(q);
+        }
+        const foreign = seen.filter((f) => foreignNumber(f.slice(f.indexOf(": ") + 2), lang) !== null);
+        expect(foreign, `${name}/${lang}: figures in the other language's format`).toEqual([]);
+        const moneyFigures = seen.filter((f) => /RON/.test(f));
+        expect(moneyFigures.length, "VACUITY: money figures painted").toBeGreaterThanOrEqual(10);
+        if (turnover[lang]) {
+          type(QUERIES.turnover);
+          expect(plainSpaces(answerRow("answer:turnover")!.querySelector('[data-figure="answer"]')?.textContent)).toBe(turnover[lang]);
+          expect(turnover[lang]).toBe(plainSpaces(money(servedPath(w.body, "turnover") as number, lang)));
+        }
+        console.log(`GATE-WORK cmdbar-ui-language ${name}/${lang} figures=${seen.length} money=${moneyFigures.length}`);
+      }, HEAVY);
+    }
+  }
 });
 
 describe("cmdbar-figures — every Δ IS its comparatives column, every vs-sector IS its sector row", () => {
@@ -1227,7 +1282,7 @@ describe("cmdbar-latency — the cold open, timed", () => {
       walls.push(wallNow() - w0);
       const row = answerRow(`answer:${id}`);
       expect(row, id).toBeTruthy();
-      expect(row!.querySelector('[data-figure="answer"]')?.textContent, id).toBe(money(servedPath(w.body, id) as number));
+      expect(row!.querySelector('[data-figure="answer"]')?.textContent, id).toBe(money(servedPath(w.body, id) as number, "en"));
       for (const c of chipTexts(row!)) {
         expect(c.text.trim(), `${id}: no blank chip`).not.toBe("");
         expect(c.text.trim(), `${id}: no 0 chip`).not.toMatch(/^[−-]?0([.,]0+)?\s*%?$/);
@@ -1531,7 +1586,7 @@ describe("absent is never 0 — a REFUSED line prints the engine's words (fixer 
       expect(row, `${lang}: the equity answer`).toBeTruthy();
       expect(row!.querySelector('[data-figure="answer"]'), `${lang}: no figure`).toBeNull();
       expect(row!.querySelector("[data-absent]")?.textContent).toBe(lang === "ro" ? served.text_ro : served.text_en);
-      expect(row!.textContent).not.toContain(money(200000));
+      expect(row!.textContent).not.toContain(money(200000, lang));
       expect(row!.textContent).not.toContain(served.code);
       expect(row!.textContent).not.toContain(NOT_IN_BOOK[lang]);
       expect(row!.textContent).not.toMatch(/(^|\s)0(\s|$)/);
@@ -1543,7 +1598,7 @@ describe("absent is never 0 — a REFUSED line prints the engine's words (fixer 
     mount(scandiaWorld({ body: constructedBody("unanchored_unbalanced"), sector: NO_SECTOR_ROWS }));
     type("total assets");
     expect(answerRow("answer:total_assets")?.querySelector('[data-figure="answer"]')?.textContent)
-      .toBe(money(book.statements.assembled_bs.total_assets));
+      .toBe(money(book.statements.assembled_bs.total_assets, "en"));
   });
 
   // CRITIC ROUND 2 (2026-09-28): the prior's refusal printed BARE beside the
@@ -1633,7 +1688,7 @@ describe("absent is never 0 — a REFUSED line prints the engine's words (fixer 
     type("operating result");
     const ebit = SCANDIA.period.statements.assembled_pl.ebit;
     expect(typeof ebit).toBe("number");
-    expect(answerRow("answer:operating_result")!.querySelector('[data-figure="answer"]')?.textContent).toBe(money(ebit));
+    expect(answerRow("answer:operating_result")!.querySelector('[data-figure="answer"]')?.textContent).toBe(money(ebit, "en"));
   });
 });
 
@@ -1668,8 +1723,8 @@ describe("cmdbar-711 — an account-711 row never prints without what it IS (fix
         expect(Math.abs(leaves711.reduce((s, li) => s + li.amount, 0) - iv.stock_production_credit_turnover)).toBeLessThan(0.01);
         expect(iv.value).not.toBe(iv.stock_production_credit_turnover);
         mount(w);
-        const want = expectedNote(w.body, lang, money);
-        expect(want).toContain(money(iv.value));
+        const want = expectedNote(w.body, lang, (v) => money(v, lang));
+        expect(want).toContain(money(iv.value, lang));
         expect(want).toContain(lang === "ro" ? iv.label_ro : iv.label_en);
         let with711 = 0;
         for (const q of ["711", "stoc", ...leaves711.map((li) => li.ro_account_code)]) {
@@ -1697,14 +1752,14 @@ describe("cmdbar-711 — an account-711 row never prints without what it IS (fix
     for (const [, world] of books) {
       const w = world();
       const ctx: ViewContext = {
-        printer: { lang: "en", money },
+        printer: { lang: "en", money: (v: number) => money(v, "en") },
         body: w.body as never,
         comparatives: { state: "none", reason: "no_prior" },
         sector: { state: "none", reason: "off" },
         periodId: w.periodId,
         orgId: w.org.id,
       };
-      const want = expectedNote(w.body, "en", money);
+      const want = expectedNote(w.body, "en", (v) => money(v, "en"));
       for (const li of w.body.line_items as PeriodLineItemLite[]) {
         if (li.statement === "IGNORED") continue;
         const v = accountView(ctx, li as never);
@@ -1727,7 +1782,7 @@ describe("cmdbar-711 — an account-711 row never prints without what it IS (fix
       const row = rowsOf("account").find((el) => (el.getAttribute("data-row-id") ?? "").startsWith("account:711:"));
       expect(row, lang).toBeTruthy();
       const note = row!.querySelector("[data-stock-note]")?.textContent ?? "";
-      expect(note).toBe(expectedNote(body, lang, money));
+      expect(note).toBe(expectedNote(body, lang, (v) => money(v, lang)));
       expect(note).toContain(lang === "ro" ? iv.refusal.text_ro : iv.refusal.text_en);
       cleanup();
     }

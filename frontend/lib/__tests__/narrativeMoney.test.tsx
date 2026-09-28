@@ -134,7 +134,10 @@ describe("N2 — one money path, with its provenance stated", () => {
     const d = resolveMoneyDisplay(7692202.74, "RON", "EUR", RATES_EUR, "2026-05-22");
     expect(d.convertible).toBe(true);
     expect(d.text).toMatch(/€|EUR/);
-    expect(plain(d.provenance)).toContain("7.692.202,74 RON");
+    // The suite reads in English: the native figure in English numbering
+    // (lib/money follows the UI language, never the currency's locale).
+    expect(plain(d.provenance)).toContain("7,692,202.74 RON");
+    expect(plain(d.provenance)).not.toContain("7.692.202,74");
     expect(plain(d.provenance)).toContain("1 EUR = 5.2489 RON");
   });
 
@@ -238,7 +241,8 @@ describe("N3 — the 461 claim renders in ONE currency", () => {
     const first = container.querySelector("[data-narrative-money]");
     const title = plain(first?.getAttribute("title") ?? "");
     expect(title).toContain("1 EUR = 5.2489 RON");
-    expect(title).toContain("7.692.202,74 RON");
+    expect(title).toContain("7,692,202.74 RON");
+    expect(title).not.toContain("7.692.202,74");
   });
 
   it("a legacy row with NO template still renders — the fallback is intact", () => {

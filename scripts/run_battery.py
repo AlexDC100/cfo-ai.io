@@ -1595,8 +1595,11 @@ def _engine_gates() -> List[Gate]:
              # release r-rulings (2026-09-28): the served inventory-days block,
              # no sector chip beside the split, a refusal in the engine's words
              # (measured 190); fixer round 1: refused total equity / operating
-             # result in the engine's words, the 711 note (measured 201).
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=201,
+             # result in the engine's words, the 711 note (measured 201);
+             # owner ticket 2026-09-28 (every figure in the reader's
+             # language): cmdbar-ui-language, three worlds x EN/RO (measured
+             # 207).
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=207,
              units="command-bar tests",
              canaries=("the rows ARE the served items, in the served rank, each with its figure",
                        "inventory days are the served block — its figure, its basis label, no filed-basis row beside it",
@@ -1656,7 +1659,44 @@ def _engine_gates() -> List[Gate]:
                        "GATE-WORK cmdbar-711-note scandia/ro rows=",
                        "GATE-WORK cmdbar-711-note agras/en rows=",
                        "a note on each 711 leaf and on nothing else",
-                       "a 711 row on a book whose variation the engine REFUSED says so in the engine's words")),
+                       "a 711 row on a book whose variation the engine REFUSED says so in the engine's words",
+                       # owner ticket 2026-09-28: every figure in the reader's language
+                       "GATE-WORK cmdbar-ui-language scandia/en figures=",
+                       "GATE-WORK cmdbar-ui-language agras/ro figures=",
+                       "scandia (en): no figure at rest or typed is in the other language's format; turnover reads 48.3M RON",
+                       "agras (ro): no figure at rest or typed is in the other language's format; turnover reads 110,8 mil. RON")),
+        # EVERY FIGURE IN THE READER'S LANGUAGE (owner ticket 2026-09-28: the
+        # ENGLISH interface printed "413,7 mil. RON" on the command bar, the
+        # workspace cards and the company page, and the report's days
+        # fallback "1 days" — lib/money chose the locale from the currency):
+        #   ui-language-figures  lib/money's one mapping (moneyLocaleFor) and
+        #                    its printers, <Money> across a live language
+        #                    switch, the table formatter, the workspace home
+        #                    card and the company page's year tiles, the bar's
+        #                    served-money and finding-measure printers — each
+        #                    the owner's string in EN ("413.7M RON") and RO
+        #                    ("413,7 mil. RON") with no number in the other
+        #                    language's format on the surface
+        #                    (frontend/test/numberLanguage.ts); the report's
+        #                    days fallback agreeing with its count. The
+        #                    rendered bar is cmdbar-surface's
+        #                    cmdbar-ui-language; live, cmdbar.spec.ts G6.
+        #                    Plant log: docs/engine_book/gates.md.
+        Gate("ui-language-figures",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/pages/cfo/__tests__/figuresFollowUiLanguage.test.tsx",
+              "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=20,
+             units="reader's-language figure tests",
+             canaries=("GATE-WORK ui-language-figures figures=",
+                       "every string from the ticket reads as Romanian on an English surface; the English strings do not",
+                       "en: the served value in the owner's format, every currency with its code after the figure",
+                       "one mounted <Money> and one table cell re-print on a language switch — no remount",
+                       "en: Scandia 413.7M RON, Agras 110.8M RON; no number in the other language's format",
+                       "en: 2025 413.7M RON, 2024 380M RON, 2023 350M RON; no number in the other language's format",
+                       "bound to a language, it prints that language whatever the global state; unbound, the active one",
+                       "a finding's measure (the resting items, the evidence drawer's headline) in the printer's language",
+                       "1 → 1 day")),
         # THE EVIDENCE RECEIVERS, frontend stage CB-F2 (design C4):
         #   evidence-lines   the account view's statement lines ARE the
         #                    engine's comparatives lines: the served path,

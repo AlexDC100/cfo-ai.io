@@ -22,13 +22,19 @@
 //     <Money valueInEur={1234.56} />
 //
 // For compact rendering ("1.2M RON") use compact=true. For forced sign
-// ("+€1,234"), use signed=true.
+// ("+1,234.00 EUR"), use signed=true.
+//
+// The figure prints in the READER'S LANGUAGE (lib/money moneyLocaleFor):
+// "413.7M RON" in English, "413,7 mil. RON" in Romanian — never the
+// currency's own locale (owner ticket 2026-09-28). The component reads the
+// language through useActiveLocale, so a language switch re-renders it.
 //
 // 2026-05-24 — added `fromCurrency` prop. Backwards-compatible with the
 // legacy `valueInEur` shape; new call sites should always pass `value` +
 // `fromCurrency`. See CUR-FIX-A in the task list.
 
-import { formatMoney, formatMoneyFrom, MONEY_MISSING } from "@/lib/money";
+import { formatMoney, formatMoneyFrom, moneyLocaleFor, MONEY_MISSING } from "@/lib/money";
+import { useActiveLocale } from "@/lib/locale";
 import { useCurrency } from "@/stores/currency";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
@@ -47,7 +53,7 @@ export interface MoneyProps {
   /** Legacy: amount pre-converted to canonical EUR by the derive layer.
    *  Kept for backward compat; new code should use `value` + `fromCurrency`. */
   valueInEur?: number | null | undefined;
-  /** Render as "1.2M RON" / "€485k".
+  /** Render as "1.2M RON" / "485K EUR" (English) — "1,2 mil. RON" in Romanian.
    *  Tri-state (mobile-consolidation, 2026-06-02):
    *    - `undefined` (default) → AUTO: compact on mobile (<768px), full on desktop
    *    - `true`  → force compact at every breakpoint
@@ -56,7 +62,7 @@ export interface MoneyProps {
    *  overflowing iPhone-SE card edges. Existing call sites that explicitly
    *  passed `compact={true}` or `compact={false}` are unaffected. */
   compact?: boolean;
-  /** Force leading sign on positives ("+€1,234"). */
+  /** Force leading sign on positives ("+1,234.00 EUR"). */
   signed?: boolean;
   /** Decimal places. Default 2 for normal, 1 for compact. */
   fractionDigits?: number;
@@ -105,6 +111,7 @@ export function Money({
   comparison,
 }: MoneyProps) {
   const { display, rates } = useCurrency();
+  const locale = moneyLocaleFor(useActiveLocale());
   const isMobile = useIsMobile();
   // Tri-state resolution: caller-explicit wins; otherwise auto-by-screen.
   const effectiveCompact = compact ?? isMobile;
@@ -136,6 +143,7 @@ export function Money({
       compact: effectiveCompact,
       signed,
       fractionDigits,
+      locale,
     });
     // When compact is active, also compute the full-precision string for
     // the native browser tooltip — gives hover/long-press users the exact
@@ -145,6 +153,7 @@ export function Money({
         compact: false,
         signed,
         fractionDigits,
+        locale,
       });
     }
   } else {
@@ -153,12 +162,14 @@ export function Money({
       compact: effectiveCompact,
       signed,
       fractionDigits,
+      locale,
     });
     if (effectiveCompact) {
       fullFormatted = formatMoney(numericValue as number, display, rates.rates, {
         compact: false,
         signed,
         fractionDigits,
+        locale,
       });
     }
   }

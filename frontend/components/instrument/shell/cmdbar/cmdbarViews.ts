@@ -546,7 +546,7 @@ export function nowItemView(ctx: ViewContext, item: AttentionItem, doc: Attentio
       prior: printRatioSide(ctx.printer, f.row.prior, f.row.display_unit),
     });
   } else if (f.kind === "insight_measure") {
-    figure = printMeasure(f.measure, f.currency ?? doc.period.currency);
+    figure = printMeasure(ctx.printer, f.measure, f.currency ?? doc.period.currency);
   }
   return {
     key: item.key,

@@ -80,14 +80,30 @@ const METRIC_PERTURBATION = 1.37;
 /** The unit suffix `formatRatio` appends, removed to leave the digits. */
 const SUFFIX: Record<Ratio["unit"], string> = { x: "×", "%": "%", days: " days", ratio: "" };
 
+/** A days figure's noun agrees with its printed count (owner ticket
+ *  2026-09-28, the ratio table's count forms): "1 day" / "-1 day", every
+ *  other count "N days" — never "1 days", never "12 day". */
+const DAY_ONE = " day";
+
 function printedDigits(row: Ratio): string | null {
   if (row.value === null) return null;
   const text = formatRatio(row);
+  if (row.unit === "days" && text.endsWith(DAY_ONE)) {
+    const digits = text.slice(0, -DAY_ONE.length);
+    if (!/^-?1$/.test(digits)) {
+      throw new Error(`formatRatio(${row.key}) printed ${JSON.stringify(text)}: the singular is for a count of one only`);
+    }
+    return digits;
+  }
   const suffix = SUFFIX[row.unit];
   if (!text.endsWith(suffix)) {
     throw new Error(`formatRatio(${row.key}) printed ${JSON.stringify(text)}, expected a ${JSON.stringify(suffix)} suffix`);
   }
-  return suffix === "" ? text : text.slice(0, -suffix.length);
+  const digits = suffix === "" ? text : text.slice(0, -suffix.length);
+  if (row.unit === "days" && /^-?1$/.test(digits)) {
+    throw new Error(`formatRatio(${row.key}) printed ${JSON.stringify(text)}: a count of one reads "${digits} day"`);
+  }
+  return digits;
 }
 
 function perturbed(metrics: Record<string, number | null>): Record<string, number | null> {

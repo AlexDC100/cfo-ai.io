@@ -46,10 +46,9 @@ import {
   realStatementTab,
 } from "@/lib/evidence/evidenceLink";
 import { HIGHLIGHT_PARAM, TAB_PARAM } from "@/lib/traceableSource";
-import { absentText, langOf, servedMoney, type Printer } from "@/components/instrument/shell/cmdbar/cmdbarFigures";
+import { absentText, langOf, printMeasure, servedMoney, type Printer } from "@/components/instrument/shell/cmdbar/cmdbarFigures";
 import { isStockVariationAccount } from "@/components/instrument/shell/cmdbar/cmdbarSources";
 import { stockVariationNote, type StockVariationNote } from "@/components/instrument/shell/cmdbar/cmdbarViews";
-import { formatMeasure } from "@/lib/insights";
 
 import "./evidenceI18n";
 import {
@@ -96,7 +95,7 @@ export function EvidenceDrawer({ body, periodLabel, documentName, currency }: Ev
   const lang = langOf(i18n.language);
   // The served currency, with its code — the bar's own rule: the evidence a
   // "… RON" figure opens is printed in RON, never converted unlabelled.
-  const fmt: Fmt = servedMoney(currency);
+  const fmt: Fmt = servedMoney(currency, { lang });
   const printer = useMemo<Printer>(() => ({ lang, money: fmt }), [lang, fmt]);
 
   const request = useMemo(() => readEvidenceRequest(params), [params]);
@@ -204,9 +203,10 @@ export function EvidenceDrawer({ body, periodLabel, documentName, currency }: Ev
           {finding ? (
             // THE HEADLINE IS THE ITEM'S OWN NUMBER: a finding opens under
             // its served measure, printed by the SAME printer the bar item
-            // used (formatMeasure) — never under a statement line that heads
-            // with another figure (review 2026-09-27: 753,070.01 opened
-            // "Other operating income" 448,406.27).
+            // used (printMeasure, in the reader's language) — never under a
+            // statement line that heads with another figure (review
+            // 2026-09-27: 753,070.01 opened "Other operating income"
+            // 448,406.27).
             <section
               className={`rounded-md border border-rule px-4 py-3 space-y-1 ${HIGHLIGHT_CLASS}`}
               data-evidence-target={`finding:${finding.id}`}
@@ -223,7 +223,7 @@ export function EvidenceDrawer({ body, periodLabel, documentName, currency }: Ev
                     data-evidence-headline="true"
                     data-served-value={finding.measure.value ?? ""}
                   >
-                    {formatMeasure(finding.measure, finding.currency || currency)}
+                    {printMeasure(printer, finding.measure, finding.currency || currency)}
                   </div>
                   <div className="text-[11.5px] text-ink-soft" data-testid="evidence-finding-source" data-source={finding.source}>
                     {t("evidence.servedFrom", { source: t(`evidence.source.${sourceLabelKey(finding.source)}`) })}

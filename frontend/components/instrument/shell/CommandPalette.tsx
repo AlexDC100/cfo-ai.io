@@ -152,11 +152,13 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     ((data.body?.statements as { currency?: string } | undefined)?.currency)
     ?? data.body?.period?.currency ?? "RON";
   // ONE currency in the panel: the one the engine served the period in,
-  // printed with its code. The header's display toggle is not applied here
-  // (a browser conversion is not a served figure, and "din contul 121" on a
-  // converted number would be false).
+  // printed with its code, in the panel's language — its words and its
+  // figures are one language ("413.7M RON" in English, "413,7 mil. RON" in
+  // Romanian). The header's display toggle is not applied here (a browser
+  // conversion is not a served figure, and "din contul 121" on a converted
+  // number would be false).
   const printer = useMemo<Printer>(
-    () => ({ lang, money: servedMoney(currency, { compact: true }) }),
+    () => ({ lang, money: servedMoney(currency, { compact: true, lang }) }),
     [lang, currency],
   );
   const servedRules = data.attention.state === "ok"

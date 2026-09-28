@@ -338,53 +338,66 @@ function readFact(raw: unknown): InsightFact | null {
 
 // ── formatting: the only thing this module does to a number ────────────
 
-function group(value: number, decimals: number): string {
-  return value.toLocaleString("en-US", {
+/** The engine's numbering (`format_measure` prints en-US). */
+const ENGINE_LOCALE = "en-US";
+
+function group(value: number, decimals: number, locale: string = ENGINE_LOCALE): string {
+  return value.toLocaleString(locale, {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   });
 }
 
-/** Mirrors `engine.insights.measures._percent` exactly. */
-function percent(pct: number): string {
-  if (pct === 0) return "0.0%";
+/** Mirrors `engine.insights.measures._percent` exactly. The precision is
+ *  decided on the engine's own (en-US) spelling, then printed in `locale`,
+ *  so a reader in another language sees the same digits, only their
+ *  separators changed. */
+function percent(pct: number, locale: string = ENGINE_LOCALE): string {
+  if (pct === 0) return `${group(0, 1, locale)}%`;
   for (const decimals of [1, 2, 3, 4]) {
     const text = group(pct, decimals);
-    if (Number(text.replace(/,/g, "")) !== 0) return `${text}%`;
+    if (Number(text.replace(/,/g, "")) !== 0) return `${group(pct, decimals, locale)}%`;
   }
-  return pct > 0 ? "<0.0001%" : ">-0.0001%";
+  return pct > 0 ? `<${group(0.0001, 4, locale)}%` : `>-${group(0.0001, 4, locale)}%`;
 }
 
 /**
  * The ONE formatter. `null` is `"not reported"` — an absent input is a
  * stated gap, never a plausible figure.
+ *
+ * `opts.locale` prints the digits in a reader's numbering (the command bar
+ * and the evidence drawer pass the UI language's — owner ticket 2026-09-28:
+ * a Romanian bar printed "70.4%"); without it the string is the engine's
+ * `format_measure`, byte for byte, as the English-by-contract report needs.
  */
 export function formatMeasure(
   measure: Pick<InsightMeasure, "value" | "unit" | "noun" | "value_q">,
   currency: string,
+  opts: { locale?: string } = {},
 ): string {
   if (measure.value === null) return "not reported";
   const value = measure.value;
+  const locale = opts.locale ?? ENGINE_LOCALE;
   switch (measure.unit) {
     case "money":
-      return `${(currency || "").toUpperCase()} ${group(value, 2)}`;
+      return `${(currency || "").toUpperCase()} ${group(value, 2, locale)}`;
     case "ratio":
-      return percent(value * 100);
+      return percent(value * 100, locale);
     case "pct":
-      return percent(value);
+      return percent(value, locale);
     case "multiple":
-      return `${group(value, 2)}×`;
+      return `${group(value, 2, locale)}×`;
     case "days":
       // The Ratios table's printed digits, verbatim, with its count form —
       // the engine's format_measure, byte for byte.
       if (typeof measure.value_q === "string") {
         return `${measure.value_q} ${measure.value_q.replace(/^[+-]/, "") === "1" ? "day" : "days"}`;
       }
-      return `${group(value, 1)} days`;
+      return `${group(value, 1, locale)} days`;
     case "years":
-      return `${group(value, 1)} years`;
+      return `${group(value, 1, locale)} years`;
     default: {
-      const text = group(value, 0);
+      const text = group(value, 0, locale);
       if (!measure.noun) return text;
       const noun =
         Math.abs(value) !== 1 && !measure.noun.endsWith("s")
