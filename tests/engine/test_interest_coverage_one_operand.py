@@ -150,7 +150,15 @@ def test_every_printed_interest_coverage_divides_the_printed_ebit(books, capsys)
             continue
         measured += 1
         want = _q(ebit / interest)
-        pre_ruling_ebit = pl["ebitda_before_stock_variation"] - pl["depreciation"]
+        # The operating result WITHOUT 711 / 72x, on today's lines: since
+        # ruling R2 (2026-09-28) the served `depreciation` is D&A without the
+        # 6812 / 6814 charges and `ebitda_before_stock_variation` is without
+        # the 7812 / 7814 reversals, so the net-provisions line sits between
+        # them — without it retail (net provisions 272,427.11, no 711, no
+        # 72x) printed a "pre-ruling" EBIT 1,059,006.94 that is no EBIT at all.
+        _np = pl.get("net_provisions")
+        net_provisions = float(_np.get("value") or 0.0) if isinstance(_np, dict) else 0.0
+        pre_ruling_ebit = pl["ebitda_before_stock_variation"] - pl["depreciation"] - net_provisions
         other = _q(pre_ruling_ebit / interest)
         if want != other:
             discriminating += 1
