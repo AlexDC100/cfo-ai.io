@@ -1585,6 +1585,39 @@ without it raises) and ONE function, `credit_model.stock_build_regime`:
   regime, its trigger shares, the cash status, the refused components and the
   finding. Gates: `credit-stock-build`, `credit-regime-surfaces`.
 
+**Ruling of 2026-09-28 (R4) — the bank report is the CFO Report PDF —
+candidate `feat/rulings-2`.** "Exportă raportul pentru bancă" / "Export the
+bank report" opens the CFO Report PDF — the dashboard's export tab, whose PDF
+card posts the report (`buildReportHtml` with the credit envelopes) to
+`/api/report/pdf` — and NEVER the Forecast page, whatever the Forecast
+feature's status. This retires design C1's default ("the Forecast cockpit's
+bank export when forecast is active"). attention/1 serves ONE export action,
+`bank_export`, target `report_pdf`. `compose_attention` takes no feature
+statuses and the attention route reads no feature registry. The pack
+(`packs/serving/attention.yaml`) holds an action as its label only.
+`attention/pack.py` refuses a feature gate, a target, or an action name the
+composer does not use (the retired "Exportă raportul CFO (PDF)" row
+included). The command bar prints the engine's actions as served, with no
+per-reader feature fallback. Typing offers ONE export row, "Exportă raportul
+CFO (PDF)", with the bank label as one of its search terms. A recent pick
+saved as `action:bank-export` before the ruling opens the export tab. The
+Forecast cockpit's own "Exportă pentru bancă" stays reachable from the
+Forecast page only. Gates: `attention-rules`, `attention-route`,
+`cmdbar-fixtures`, `cmdbar-surface`.
+
+**Ruling of 2026-09-28 (R5) — Supabase read timeouts, logged and retried
+once.** Two `httpx.ReadTimeout`s hit production that day (ops log). The same
+selects answer in 0.07–0.4 s. In `engine/api/_supabase.py`, `select` (the
+client's one GET) goes through `_get`. On `httpx.ReadTimeout` ONLY, `_get`
+logs one WARNING and sends the same GET once more (`READ_TIMEOUT_RETRIES` =
+1). The WARNING carries the table and the parameter NAMES, never a value and
+never the headers that carry the service key. A second timeout raises. A
+connect error or an HTTP error status is never retried. Writes are never
+retried, because a timed-out write may have landed: insert, upsert, update,
+delete, rpc, signed_url, upload_object and delete_object. Gate
+`supabase-read-retry`. Out of scope: `_billing._user_email`'s auth-admin GET,
+which reaches into `client._client` directly and swallows its own failures.
+
 **DEPLOY REQUIREMENT.** Every stored period predates the definition: its
 EBITDA refuses (`period_predates_*`) until it is REPROCESSED from its stored
 document with `scripts/reprocess_periods_definition.py` (dry run → review
