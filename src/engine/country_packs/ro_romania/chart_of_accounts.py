@@ -1593,8 +1593,8 @@ def assemble_statements(
         if li_code not in target:
             target[li_code] = 0.0
         target[li_code] += float(li["amount"])
-    provision_charges = round(sum(provision_charges_by_account.values()), 2)
-    provision_reversals = round(sum(provision_reversals_by_account.values()), 2)
+    provision_charges = round(float(sum(provision_charges_by_account.values())), 2)
+    provision_reversals = round(float(sum(provision_reversals_by_account.values())), 2)
     # Signed as a CHARGE: positive reduces the result, negative (a net
     # release) raises it.
     net_provisions = round(provision_charges - provision_reversals, 2)
@@ -2030,9 +2030,9 @@ def assemble_statements(
         "outside_ebitda": True,
     }
     # ── R3: what net turnover holds, as served ──────────────────────────
-    _turnover_placed = round(sum(
+    _turnover_placed = round(float(sum(
         float(li["amount"]) for li in line_items
-        if li.get("placement") == "turnover"), 2)
+        if li.get("placement") == "turnover")), 2)
     turnover_definition_block: Dict[str, object] = {
         "accounts": _pl_definition.turnover_accounts_label(),
         "extra_prefixes": list(_pl_definition.turnover_prefixes()),
