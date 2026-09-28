@@ -16966,6 +16966,16 @@ composite the engine refuses as `REFUSED (no composite, no letter)` — never
 "— —", which read as a re-grade to nothing — and a withheld finding as
 `finding withheld (the served figures contradict it): <keys>`.
 
+**Measured green at 3d94a282 (fixer round 1):** the full engine suite 9287
+passed, 39 skipped, 2 xfailed (22:12); full vitest 260 files, 4315 passed, 1
+skipped; tsc — the 10 known capsuleAskGuard errors only; root tests 6 failed,
+127 passed, 21 errors (the known environmental set); the narrowed battery
+(credit-stock-build 164, credit-regime-surfaces 14, reprocess-periods-definition
+99, ratio-credit-model, refusal-carries(-engine), briefing-definition,
+attention-rules / -served-only / -route, cmdbar-fixtures, cmdbar-surface 206,
+served-range, credit-boundary, no-plants) 15/16 green — provenance-census red
+on its 11 pre-existing findings, none new.
+
 **FINDING 3 (confirmed, NOT fixed — the owner's call).** Because the served
 cash flow is approximated on every book (`assemble_statements` hard-codes
 `is_approximated = True`), the regime's cash scoring never runs on a real book:
