@@ -17052,3 +17052,163 @@ revision 5), every run in the worktree, nothing deployed:
   since R2 on its own canary and is repaired in 7db8ff7d;
 - F-A3.1 (`scripts/measure_bs_drift.py`): GREEN on every registered fixture;
   F3.1-PARITY byte-identical on both fixtures.
+
+### attention-rules / attention-route / cmdbar-surface — ruling R4: the bank report is the CFO Report PDF (2026-09-28)
+
+**INCIDENT** — the owner's ruling R4 (2026-09-28): "«Exportă raportul pentru
+bancă» → the CFO Report PDF, not the Forecast page (Forecast is still
+closed)." attention/1 served `bank_export` with target
+`forecast_bank_export` (`/dashboard/forecast`) whenever the served registry
+had Forecast `active` (design C1's default), and a second action,
+`cfo_report_pdf`, otherwise; the command bar also typed a "bank-export" row
+to the Forecast. The laws pinned that: `test_actions_follow_the_companys_state`
+asserted `["compare_prior", "cfo_report_pdf"]` with Forecast off, and
+commandBar.test.tsx asserted the bank report was NOT offered. Both are
+REWRITTEN (TC-11), not skipped.
+
+**LAW** — attention-rules: in every action state (a prior one year back, two
+years back, the comparison switched off, no prior, the sector refused for want
+of a CAEN code) there is exactly ONE export action, `bank_export`, labelled
+with the owner's words (a literal in the test, and the raw pack YAML), whose
+target is `report_pdf` / `/dashboard` / tab `export` / this period; no action
+target names the Forecast; `compose_attention(features=…)` is a TypeError; the
+pack refuses a `feature` gate, a `target`, and a `cfo_report_pdf` action.
+attention-route: the same through `create_app()` with Forecast `active` and
+`coming_soon` in the SERVED registry. attention-served-only: the route hands
+the composer four documents and reads no registry. cmdbar-surface: the rest
+rows are the engine's actions in its order; the bank report opens the export
+tab with Forecast OFF and ON in the reader's registry; "banca", "bank",
+"export the bank report", "raportul pentru bancă", "exporta" each find ONE
+export row, the CFO Report PDF; a recent pick saved as `action:bank-export`
+before the ruling opens the export tab. The attention-rules bilingual-string
+floor is re-measured 60 -> 59 (the retired label); cmdbar-fixtures' four
+documents re-captured by `capture_attention.py` (only the action moved).
+
+Source-edit plants, each in a COPY TREE (`git archive` of 94fd82eb), reverted
+byte-exact before the next (runner `scratchpad/plantsA/run_plants.py`):
+```
+PLANT bank-export-to-the-forecast (the pre-ruling target): src/engine/attention/now.py
+    FAILED tests/engine/test_attention_rules.py::test_the_bank_report_is_the_cfo_report_pdf_never_the_forecast
+    FAILED tests/engine/test_attention_route_real_app.py::test_the_bank_report_is_the_cfo_report_pdf_whatever_the_forecast_registry_says[active]
+    FAILED tests/engine/test_attention_route_real_app.py::test_the_bank_report_is_the_cfo_report_pdf_whatever_the_forecast_registry_says[coming_soon]
+    ======================== 3 failed, 42 passed in 13.00s =========================
+  exit=1 -> RED ; file restored byte-exact
+PLANT second-export-action (the retired CFO-report row beside the bank report): src/engine/attention/now.py
+    FAILED tests/engine/test_attention_rules.py::test_actions_follow_the_companys_state
+    FAILED tests/engine/test_attention_rules.py::test_the_bank_report_is_the_cfo_report_pdf_never_the_forecast
+    ======================== 2 failed, 43 passed in 12.55s =========================
+  exit=1 -> RED ; file restored byte-exact
+PLANT composer-takes-features (a registry seam reopened): src/engine/attention/now.py
+    FAILED tests/engine/test_attention_rules.py::test_the_actions_cannot_read_the_feature_registry
+    ======================== 1 failed, 44 passed in 12.60s =========================
+  exit=1 -> RED ; file restored byte-exact
+PLANT pack-accepts-a-feature-gate (the label-only check dropped): src/engine/attention/pack.py
+    FAILED tests/engine/test_attention_rules.py::test_the_actions_cannot_read_the_feature_registry
+    ======================== 1 failed, 44 passed in 12.48s =========================
+  exit=1 -> RED ; file restored byte-exact
+PLANT pack-label-renamed (the owner's words replaced): packs/serving/attention.yaml
+    FAILED tests/engine/test_attention_rules.py::test_the_bank_report_is_the_cfo_report_pdf_never_the_forecast
+    FAILED tests/engine/test_attention_route_real_app.py::test_the_bank_report_is_the_cfo_report_pdf_whatever_the_forecast_registry_says[active]
+    FAILED tests/engine/test_attention_route_real_app.py::test_the_bank_report_is_the_cfo_report_pdf_whatever_the_forecast_registry_says[coming_soon]
+    ======================== 3 failed, 42 passed in 12.58s =========================
+  exit=1 -> RED ; file restored byte-exact
+REVERT (clean tree) test_attention_rules.py + test_attention_route_real_app.py + test_attention_served_only.py: exit=0 45 passed in 12.51s
+PLANT runner-sends-the-pdf-to-the-forecast: frontend/components/instrument/shell/CommandPalette.tsx
+    × ruling R4 — the bank report is the CFO Report PDF > at rest: "Exportă raportul pentru bancă" opens the export tab (Forecast coming_soon)
+    × ruling R4 — the bank report is the CFO Report PDF > at rest: "Exportă raportul pentru bancă" opens the export tab (Forecast active)
+    Tests  2 failed | 4 passed | 76 skipped (82)
+  exit=1 -> RED ; file restored byte-exact
+PLANT typed-bank-row-restored (a second export row): frontend/components/instrument/shell/CommandPalette.tsx
+    × ruling R4 — … > typed: every bank word finds ONE export row, the CFO Report PDF (Forecast coming_soon)
+    × ruling R4 — … > typed: every bank word finds ONE export row, the CFO Report PDF (Forecast active)
+    Tests  2 failed | 4 passed | 76 skipped (82)
+  exit=1 -> RED ; file restored byte-exact
+PLANT pre-ruling-recent-opens-the-forecast: frontend/components/instrument/shell/CommandPalette.tsx
+    × ruling R4 — … > a recent pick saved before the ruling (it opened the Forecast) opens the CFO Report PDF
+    Tests  1 failed | 5 passed | 76 skipped (82)
+  exit=1 -> RED ; file restored byte-exact
+PLANT reader-hides-the-bank-report-with-forecast-off: frontend/components/instrument/shell/CommandPalette.tsx
+    × cmdbar-swap — the empty state is THIS company's > the actions are the engine's, for this company's state
+    × ruling R4 — … > at rest: "Exportă raportul pentru bancă" opens the export tab (Forecast coming_soon)
+    Tests  2 failed | 4 passed | 76 skipped (82)
+  exit=1 -> RED ; file restored byte-exact
+REVERT (clean tree) commandBar.test.tsx -t "ruling R4|the actions are the engine": exit=0 Tests  6 passed | 76 skipped (82)
+```
+
+**CANNOT SEE:** whether the export tab's PDF card renders the PDF (the
+report-pdf gates and the renderer sidecar); the Forecast page's own "Exportă
+pentru bancă" (forecast-cockpit gates — it stays there, untouched).
+
+## supabase-read-retry
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_supabase_read_retry.py -q -s` |
+| canary | `test_a_read_that_times_out_once_is_retried_once_and_logged`, `test_a_write_that_times_out_is_never_retried`, `test_the_clients_one_get_is_the_retrying_helper_and_no_write_reaches_it`, `GATE-WORK supabase-read-retry scenario=read_once_then_ok requests=2 warnings=1`, `GATE-WORK supabase-read-retry scenario=write_insert requests=1 warnings=0` |
+| work count | junit tests, floor **16** (measured 16) |
+
+**INCIDENT** — two transient `httpx.ReadTimeout`s on production, 2026-09-28
+(specs-durable `ops_log.md`): 12:52Z the rulings deploy pre-flight's
+`reprocess_periods_definition.py` dry run died on `client.select("documents",
+id=eq.…)` (30 s client timeout); 13:03Z a period answered 500 on the running
+container and 200 seconds later. The same selects answer in 0.07–0.4 s
+between them. The owner's ruling R5: log them, and retry a READ once — never a
+write (a timed-out write may have landed).
+
+**LAW** — through the REAL `SupabaseClient` over an `httpx.MockTransport`: a
+select whose first GET times out answers on the second (two GETs, the same
+URL) with ONE WARNING line naming the table and the parameter NAMES — never a
+filter value, never the service key; a single-object read the same; two
+timeouts raise after exactly two GETs; each of insert, upsert, update, delete,
+rpc, signed_url, upload_object, delete_object that times out raises after ONE
+request with no WARNING (and that list IS the client's public write surface);
+a connect timeout, a connect error and an HTTP 500 on a read are not retried;
+the AST census holds the client's one raw `self._client.get` inside `_get`,
+reached only from `select`.
+
+Source-edit plants in the same copy tree:
+```
+PLANT no-retry: src/engine/api/_supabase.py
+    FAILED tests/engine/test_supabase_read_retry.py::test_a_read_that_times_out_once_is_retried_once_and_logged
+    FAILED tests/engine/test_supabase_read_retry.py::test_a_single_object_read_is_retried_the_same_way
+    FAILED tests/engine/test_supabase_read_retry.py::test_a_read_that_times_out_twice_raises_after_exactly_one_retry
+    ========================= 3 failed, 13 passed in 0.54s =========================
+  exit=1 -> RED ; file restored byte-exact
+PLANT retries-twice: src/engine/api/_supabase.py
+    FAILED tests/engine/test_supabase_read_retry.py::test_a_read_that_times_out_twice_raises_after_exactly_one_retry
+    ========================= 1 failed, 15 passed in 0.43s =========================
+  exit=1 -> RED ; file restored byte-exact
+PLANT retries-any-timeout (connect timeouts too): src/engine/api/_supabase.py
+    FAILED tests/engine/test_supabase_read_retry.py::test_a_read_failing_otherwise_is_not_retried[connect_timeout]
+    FAILED tests/engine/test_supabase_read_retry.py::test_the_clients_one_get_is_the_retrying_helper_and_no_write_reaches_it
+    ========================= 2 failed, 14 passed in 0.44s =========================
+  exit=1 -> RED ; file restored byte-exact
+PLANT silent-retry (no WARNING): src/engine/api/_supabase.py
+    FAILED tests/engine/test_supabase_read_retry.py::test_a_read_that_times_out_once_is_retried_once_and_logged
+    FAILED tests/engine/test_supabase_read_retry.py::test_a_single_object_read_is_retried_the_same_way
+    FAILED tests/engine/test_supabase_read_retry.py::test_a_read_that_times_out_twice_raises_after_exactly_one_retry
+    FAILED tests/engine/test_supabase_read_retry.py::test_the_clients_one_get_is_the_retrying_helper_and_no_write_reaches_it
+    ========================= 4 failed, 12 passed in 0.44s =========================
+  exit=1 -> RED ; file restored byte-exact
+PLANT log-carries-the-values: src/engine/api/_supabase.py
+    FAILED tests/engine/test_supabase_read_retry.py::test_a_read_that_times_out_once_is_retried_once_and_logged
+    ========================= 1 failed, 15 passed in 0.43s =========================
+  exit=1 -> RED ; file restored byte-exact
+PLANT a-write-retried (insert through the helper's loop): src/engine/api/_supabase.py
+    FAILED tests/engine/test_supabase_read_retry.py::test_a_write_that_times_out_is_never_retried[insert]
+    ========================= 1 failed, 15 passed in 0.43s =========================
+  exit=1 -> RED ; file restored byte-exact
+PLANT raw-get-bypasses-the-helper: src/engine/api/_supabase.py
+    FAILED tests/engine/test_supabase_read_retry.py::test_a_read_that_times_out_once_is_retried_once_and_logged
+    FAILED tests/engine/test_supabase_read_retry.py::test_a_single_object_read_is_retried_the_same_way
+    FAILED tests/engine/test_supabase_read_retry.py::test_a_read_that_times_out_twice_raises_after_exactly_one_retry
+    FAILED tests/engine/test_supabase_read_retry.py::test_the_clients_one_get_is_the_retrying_helper_and_no_write_reaches_it
+    ========================= 4 failed, 12 passed in 0.52s =========================
+  exit=1 -> RED ; file restored byte-exact
+REVERT (clean tree) tests/engine/test_supabase_read_retry.py: exit=0 16 passed in 0.38s
+```
+
+**CANNOT SEE:** whether a real PostgREST stall clears inside one retry (ops,
+not code); `_billing._user_email`'s auth-admin GET, which reaches into
+`client._client` directly and swallows its own failures (not the PostgREST
+read path the ruling names).

@@ -930,6 +930,28 @@ def _engine_gates() -> List[Gate]:
                        "STOCK-BUILD-PLANTS: approximated-cash-read-as-measured, cash-components-on-ebit, "
                        "finding-paraphrased, model-weights-under-the-regime, refusal-falls-back-to-ebitda, "
                        "trigger-threshold-in-code, x3-keeps-the-stock-build")),
+        # ── owner ruling R5 (2026-09-28): supabase-read-retry. The engine's
+        # Supabase client logs a WARNING and retries ONCE on a read timeout
+        # for its one GET (select), and never retries a write: through the
+        # REAL SupabaseClient over a stubbed transport — a read that times out
+        # once answers on the second GET with one WARNING line (the table and
+        # the parameter NAMES, never a value or the key); twice raises after
+        # exactly two; every write method (insert, upsert, update, delete,
+        # rpc, signed_url, upload_object, delete_object) that times out raises
+        # after ONE request; a connect timeout / connect error / HTTP 500 on a
+        # read is not retried; the AST census holds the client's one raw GET
+        # inside the retrying helper and no write reaching it. Measured 16.
+        # Plant log: gates.md "supabase-read-retry".
+        Gate("supabase-read-retry",
+             [PY, "-m", "pytest", "tests/engine/test_supabase_read_retry.py", "-q", "-s"],
+             work_junit=True, floor=16, units="tests",
+             canaries=("test_a_read_that_times_out_once_is_retried_once_and_logged",
+                       "test_a_read_that_times_out_twice_raises_after_exactly_one_retry",
+                       "test_a_write_that_times_out_is_never_retried",
+                       "test_a_read_failing_otherwise_is_not_retried",
+                       "test_the_clients_one_get_is_the_retrying_helper_and_no_write_reaches_it",
+                       "GATE-WORK supabase-read-retry scenario=read_once_then_ok requests=2 warnings=1",
+                       "GATE-WORK supabase-read-retry scenario=write_insert requests=1 warnings=0")),
         # ── plan/2 B4b (plan_contract_v2 5.6 / 28.3 B4): forecast-pools ──
         # The cost pools of section 5 on the four books, no shocks: pools
         # plus unallocated equal the assembled operating cost to the cent;
@@ -1586,8 +1608,15 @@ def _engine_gates() -> List[Gate]:
              [PY, "-m", "pytest", "tests/engine/test_attention_rules.py", "-q"],
              # release r-rulings (2026-09-28): the served inventory-days block
              # read with its label and policy, no fallback formula (measured 29).
-             work_junit=True, floor=29, units="tests",
+             # Owner ruling R4 (2026-09-28): "Exportă raportul pentru bancă" is
+             # the CFO Report PDF in every action state, never the Forecast;
+             # the composer takes no feature statuses and the pack refuses an
+             # action carrying a feature gate / a target / an unknown name
+             # (measured 31).
+             work_junit=True, floor=31, units="tests",
              canaries=("test_other_equity_is_never_the_biggest_movement_on_the_served_pair",
+                       "test_the_bank_report_is_the_cfo_report_pdf_never_the_forecast",
+                       "test_the_actions_cannot_read_the_feature_registry",
                        "test_no_served_block_is_no_claim_and_no_fallback_formula",
                        "test_the_served_block_is_read_with_its_basis_label_and_its_policy",
                        "test_the_composite_letter_is_never_the_biggest_movement",
@@ -1604,8 +1633,12 @@ def _engine_gates() -> List[Gate]:
                        "GATE-WORK attention-served-only items=")),
         Gate("attention-route",
              [PY, "-m", "pytest", "tests/engine/test_attention_route_real_app.py", "-q"],
-             work_junit=True, floor=8, units="tests",
+             # owner ruling R4 (2026-09-28): the bank report served as the CFO
+             # Report PDF with the Forecast feature ON and OFF in the served
+             # registry (measured 10).
+             work_junit=True, floor=10, units="tests",
              canaries=("test_the_route_serves_the_company_against_its_same_length_prior",
+                       "test_the_bank_report_is_the_cfo_report_pdf_whatever_the_forecast_registry_says",
                        "test_the_route_composes_exactly_what_the_same_app_serves",
                        "test_an_explicit_prior_is_read_inside_the_workspace_only",
                        "test_a_current_period_from_another_workspace_is_not_found")),
@@ -1740,7 +1773,13 @@ def _engine_gates() -> List[Gate]:
                        "GATE-WORK cmdbar-711-note scandia/ro rows=",
                        "GATE-WORK cmdbar-711-note agras/en rows=",
                        "a note on each 711 leaf and on nothing else",
-                       "a 711 row on a book whose variation the engine REFUSED says so in the engine's words")),
+                       "a 711 row on a book whose variation the engine REFUSED says so in the engine's words",
+                       # owner ruling R4 (2026-09-28): "Exportă raportul pentru
+                       # bancă" opens the CFO Report PDF — at rest, typed and
+                       # from a pre-ruling recent pick, Forecast OFF and ON
+                       "at rest: \"Exportă raportul pentru bancă\" opens the export tab (Forecast active)",
+                       "typed: every bank word finds ONE export row, the CFO Report PDF (Forecast active)",
+                       "a recent pick saved before the ruling (it opened the Forecast) opens the CFO Report PDF")),
         # THE EVIDENCE RECEIVERS, frontend stage CB-F2 (design C4):
         #   evidence-lines   the account view's statement lines ARE the
         #                    engine's comparatives lines: the served path,
