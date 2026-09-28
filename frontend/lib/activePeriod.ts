@@ -127,7 +127,10 @@ export interface PeriodValuation {
   ebitda_operating_view?: number | null;
   /** The one EBITDA and its refusal, as the valuation serves them. */
   ebitda?: number | null;
-  ebitda_refusal?: { code: string; text_ro?: string; text_en?: string } | null;
+  /** `cause` "valuation_row_other_ebitda": the STORED row was withheld (it
+   *  was computed on another EBITDA than the one served) — the EBITDA
+   *  itself is not refused. */
+  ebitda_refusal?: { code: string; cause?: string | null; text_ro?: string; text_en?: string } | null;
   /** Why the asset-based (book equity) figure is absent: total equity
    *  excludes a refused year's result (`total_equity_incomplete`, the
    *  net result's code as `cause`). null beside a figure. */

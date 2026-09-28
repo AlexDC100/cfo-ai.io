@@ -117,6 +117,16 @@ export function ValuationSection({ valuation, periodId, currency }: Props) {
   // No served EBITDA is never an editable 0 — refused (with its typed
   // reason) or, on a legacy body, simply not served.
   const ebitdaRefused = valuation.inputs.ebitda_used === null;
+  // A STORED ROW WITHHELD (computed on another EBITDA than the one served,
+  // `lawful_stored_row`) is not a refused EBITDA and not an asset-based
+  // valuation: it says so on its own cause (critic round 3, 2026-09-28 —
+  // the tab printed "EBITDA refused … the valuation is asset-based" over a
+  // served EBITDA of 250K).
+  const rowWithheld = valuation.primary_method === "refused"
+    || ebitdaRefusal?.cause === "valuation_row_other_ebitda";
+  // No peer multiple served (a withheld row, a missing benchmark): no
+  // slider at 0.0× and no editor whose save would pin `multiple_used: 0`.
+  const multipleServed = valuation.primary.multiple_p50 != null;
   const initialEbitda: number | null = valuation.inputs.ebitda_used;
   // The EBITDA the USER typed — this session, or saved earlier (the
   // override the engine already applied). Only this is ever sent as
@@ -159,7 +169,8 @@ export function ValuationSection({ valuation, periodId, currency }: Props) {
       const body = {
         // Only a typed EBITDA — null leaves the engine's own (or its refusal).
         ebitda_used: overrides.ebitda ?? typedEbitda,
-        multiple_used: overrides.multiple ?? multiple,
+        // Never a multiple the page does not serve (a 0.0× override).
+        multiple_used: multipleServed ? (overrides.multiple ?? multiple) : null,
         debt_used: overrides.debt ?? debt,
         cash_used: overrides.cash ?? cash,
       };
@@ -169,15 +180,16 @@ export function ValuationSection({ valuation, periodId, currency }: Props) {
         qc.invalidateQueries({ queryKey: periodQueryKey(periodId) });
       }
     },
-    [typedEbitda, multiple, debt, cash, periodId, qc],
+    [typedEbitda, multiple, multipleServed, debt, cash, periodId, qc],
   );
 
   // Debounced slider commit
   useEffect(() => {
+    if (!multipleServed) return;
     if (multiple === (valuation.primary.multiple_p50 ?? 0)) return;
     const t = setTimeout(() => { void persist({ multiple }); }, 350);
     return () => clearTimeout(t);
-  }, [multiple, valuation.primary.multiple_p50, persist]);
+  }, [multiple, multipleServed, valuation.primary.multiple_p50, persist]);
 
   const handleReset = useCallback(async () => {
     setSaving(true);
@@ -246,13 +258,21 @@ export function ValuationSection({ valuation, periodId, currency }: Props) {
       </div>
 
       {/* ── EBITDA REFUSED — the multiple method cannot run ─────────────── */}
-      {ebitdaRefused && (
+      {rowWithheld ? (
+        <div
+          data-testid="valuation-stored-row-withheld"
+          className="rounded-xl border border-caution/40 bg-caution-tint/40 px-4 py-3 text-[13px] text-ink leading-relaxed"
+        >
+          Stored valuation withheld — {ebitdaRefusal?.text_en ?? "the stored valuation cannot be served on this period"}.
+          No value is formed from it.
+        </div>
+      ) : ebitdaRefused && (
         <div
           data-testid="valuation-ebitda-refused"
           className="rounded-xl border border-caution/40 bg-caution-tint/40 px-4 py-3 text-[13px] text-ink leading-relaxed"
         >
           EBITDA refused — {ebitdaRefusal?.text_en ?? "the engine served no EBITDA for this period"}. No EBITDA
-          multiple is formed; the valuation is asset-based.
+          multiple is formed{valuation.asset_based_refusal ? "." : "; the valuation is asset-based."}
         </div>
       )}
 
@@ -310,10 +330,17 @@ export function ValuationSection({ valuation, periodId, currency }: Props) {
                 : "EV / EBITDA (peer multiple)"))}
             </div>
             <div className="font-mono tabular-nums text-[30px] text-ink leading-tight mt-1" data-testid="valuation-equity-p50">
-              {valuation.primary_method === "asset_based" && valuation.primary_equity_value == null
-                && valuation.asset_based_refusal
-                ? "refused"
-                : fmtMoney(
+              {rowWithheld ? (
+                // The reason where the value would sit — never a bare dash.
+                <span className="font-sans text-[13px] text-ink-soft" data-testid="valuation-equity-withheld">
+                  withheld — {ebitdaRefusal?.text_en ?? "the stored valuation cannot be served"}
+                </span>
+              ) : valuation.primary_method === "asset_based" && valuation.primary_equity_value == null
+                && valuation.asset_based_refusal ? (
+                <span className="font-sans text-[13px] text-ink-soft" data-testid="valuation-equity-refused">
+                  refused — {valuation.asset_based_refusal.text_en ?? "total equity is incomplete for this period"}
+                </span>
+              ) : fmtMoney(
                   valuation.primary_method === "asset_based"
                     ? (valuation.primary_equity_value ?? null)
                     : livePreviewEquity,
@@ -357,7 +384,9 @@ export function ValuationSection({ valuation, periodId, currency }: Props) {
           data-testid="valuation-formula"
           className="mt-5 rounded-lg bg-bg/60 border border-rule px-4 py-3 font-mono text-[12.5px] text-ink-soft"
         >
-          {ebitdaRefused ? (
+          {rowWithheld ? (
+            <>No value is formed from the withheld stored valuation.</>
+          ) : ebitdaRefused ? (
             // Never "EBITDA (0) × multiple": the figure is refused, so the
             // product of it is not stated.
             <>Equity = EBITDA (refused) × Multiple — no EBITDA multiple is formed on a refused figure.</>
@@ -376,7 +405,7 @@ export function ValuationSection({ valuation, periodId, currency }: Props) {
           {ebitdaRefused || ebitda === null ? (
             <div data-testid="valuation-input-ebitda-refused" className="text-[12px] text-ink-soft">
               <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">EBITDA</div>
-              refused — {ebitdaRefusal?.text_en ?? "not served"}
+              {rowWithheld ? "withheld" : "refused"} — {ebitdaRefusal?.text_en ?? "not served"}
             </div>
           ) : (
             <EditablePill
@@ -387,6 +416,14 @@ export function ValuationSection({ valuation, periodId, currency }: Props) {
               onCommit={(v) => { setEbitda(v); setTypedEbitda(v); void persist({ ebitda: v }); }}
             />
           )}
+          {!multipleServed ? (
+            <div className="md:col-span-3 text-[12px] text-ink-soft" data-testid="valuation-multiple-not-served">
+              <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">Multiple</div>
+              not served — {rowWithheld || ebitdaRefused
+                ? (ebitdaRefusal?.text_en ?? "no EBITDA multiple is formed for this period")
+                : "no peer multiple is served for this period"}
+            </div>
+          ) : (<>
           <div className="md:col-span-2">
             <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">
               Multiple · {fmtMultiple(minMultiple)} – {fmtMultiple(maxMultiple)}
@@ -425,6 +462,7 @@ export function ValuationSection({ valuation, periodId, currency }: Props) {
             value={cash}
             onCommit={(v) => { setCash(v); void persist({ cash: v }); }}
           />
+          </>)}
         </div>
       </div>
 

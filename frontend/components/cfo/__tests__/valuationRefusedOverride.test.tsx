@@ -173,7 +173,19 @@ describe("a refused asset-based value and a withheld stored row print their reas
     })} periodId="p1" currency="RON" />);
     expect(screen.getByTestId("valuation-asset-based-refused").textContent)
       .toContain("total equity excludes the year's result, which is refused: account 121 is absent");
-    expect(screen.getByTestId("valuation-equity-p50").textContent).toBe("refused");
+    // The reason where the value sits (critic round 3: a bare "refused").
+    expect(screen.getByTestId("valuation-equity-p50").textContent)
+      .toBe("refused — total equity excludes the year's result, which is refused: account 121 is absent");
+    // No banner claims the valuation is asset-based when book equity is refused.
+    expect(screen.getByTestId("valuation-ebitda-refused").textContent).not.toContain("asset-based");
+  });
+
+  it("EBITDA refused, book equity served: the banner says the valuation is asset-based", () => {
+    renderWithProviders(<ValuationSection valuation={valuationOf({
+      ebitda_refusal: { code: "ebitda_refused", text_en: "account 121 is absent" },
+      primary_equity_value: 200_000,
+    })} periodId="p1" currency="RON" />);
+    expect(screen.getByTestId("valuation-ebitda-refused").textContent).toContain("the valuation is asset-based");
   });
 
   it("a stored row on the previous EBITDA: no EBITDA, the stored row's reason, no EV/EBITDA value", () => {
@@ -185,8 +197,55 @@ describe("a refused asset-based value and a withheld stored row print their reas
         text_en: "the stored valuation was computed on another EBITDA (10.78M RON) than the one served (11.85M RON)",
       },
     })} periodId="p1" currency="RON" />);
-    expect(screen.getByTestId("valuation-ebitda-refused").textContent)
-      .toContain("the stored valuation was computed on another EBITDA (10.78M RON)");
-    expect(screen.getByTestId("valuation-equity-p50").textContent).toBe("—");
+    // Its OWN cause (critic round 3, 2026-09-28): a withheld stored row is
+    // not a refused EBITDA and not an asset-based valuation.
+    const banner = screen.getByTestId("valuation-stored-row-withheld").textContent ?? "";
+    expect(banner).toContain("the stored valuation was computed on another EBITDA (10.78M RON)");
+    expect(banner).not.toContain("EBITDA refused");
+    expect(banner).not.toContain("asset-based");
+    expect(screen.queryByTestId("valuation-ebitda-refused")).toBeNull();
+    // The reason where the value sits — never a bare dash.
+    expect(screen.getByTestId("valuation-equity-p50").textContent)
+      .toBe("withheld — the stored valuation was computed on another EBITDA (10.78M RON) than the one served (11.85M RON)");
+  });
+
+  it("no peer multiple served: no 0.0× slider and no editor whose save would pin a multiple of 0", async () => {
+    renderWithProviders(<ValuationSection valuation={valuationOf({
+      primary_method: "refused",
+      ebitda_refusal: {
+        code: "ebitda_refused", cause: "valuation_row_other_ebitda",
+        text_en: "the stored valuation was computed on another EBITDA (127K RON) than the one served (250K RON)",
+      },
+      primary: {
+        method: "refused", multiple_p25: null, multiple_p50: null, multiple_p75: null,
+        ev_p25: null, ev_p50: null, ev_p75: null, equity_p25: null, equity_p50: null, equity_p75: null,
+      },
+    } as Partial<PeriodValuation>)} periodId="p1" currency="RON" />);
+    expect(screen.queryByTestId("valuation-input-multiple")).toBeNull();
+    expect(screen.queryByTestId("valuation-input-debt")).toBeNull();
+    expect(screen.queryByTestId("valuation-input-cash")).toBeNull();
+    expect(screen.getByTestId("valuation-multiple-not-served").textContent)
+      .toContain("computed on another EBITDA (127K RON)");
+    await flush();
+    expect(puts).toHaveLength(0);
+  });
+
+  it("a served EBITDA with no peer multiple: a typed EBITDA saves no multiple (never multiple_used 0)", async () => {
+    renderWithProviders(<ValuationSection valuation={valuationOf({
+      primary_method: "ev_ebitda",
+      inputs: { ebitda_used: 250_000, revenue_used: 1_000_000, total_debt_used: 0, cash_used: 0 },
+      primary: {
+        method: "ev_ebitda", multiple_p25: null, multiple_p50: null, multiple_p75: null,
+        ev_p25: null, ev_p50: null, ev_p75: null, equity_p25: null, equity_p50: null, equity_p75: null,
+      },
+    } as Partial<PeriodValuation>)} periodId="p1" currency="RON" />);
+    expect(screen.queryByTestId("valuation-input-multiple")).toBeNull();
+    const e = screen.getByTestId("valuation-input-ebitda");
+    fireEvent.change(e, { target: { value: "300000" } });
+    fireEvent.blur(e);
+    await flush();
+    expect(puts).toHaveLength(1);
+    expect(puts[0].body.ebitda_used).toBe(300_000);
+    expect(puts[0].body.multiple_used).toBeNull();
   });
 });
