@@ -254,7 +254,7 @@ export const NET_RESULT_REFUSED_METRICS: readonly string[] = [
 /** Metric rows the engine refuses when TOTAL EQUITY excludes that refused
  *  result (`credit_model.EQUITY_INCOMPLETE_METRICS`, the same names). */
 export const EQUITY_INCOMPLETE_METRICS: readonly string[] = [
-  "total_equity", "equity_ratio", "debt_to_equity", "lt_debt_to_equity", "roic",
+  "total_equity", "equity_ratio", "debt_to_equity", "lt_debt_to_equity",
 ];
 
 export function readServedOneEbitda(assembledPl: unknown): ServedOneEbitda | null {

@@ -1409,9 +1409,11 @@ NET_RESULT_REFUSED_METRICS: Tuple[str, ...] = (
 )
 #: Rows it refuses when TOTAL EQUITY excludes that refused result
 #: (`assembled_bs.total_equity_refusal`). The credit family's X2 and equity
-#: sub-score are withheld by `withhold_persisted`.
+#: sub-score are withheld by `withhold_persisted`; `roic` (on the refused
+#: EBIT too) is a definition-revised row the serve-time model replaces, and
+#: is left out here so `credit_metrics_as_filed` stays verbatim.
 EQUITY_INCOMPLETE_METRICS: Tuple[str, ...] = (
-    "total_equity", "equity_ratio", "debt_to_equity", "lt_debt_to_equity", "roic",
+    "total_equity", "equity_ratio", "debt_to_equity", "lt_debt_to_equity",
 )
 
 
