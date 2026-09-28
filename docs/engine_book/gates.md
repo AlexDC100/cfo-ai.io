@@ -16338,7 +16338,14 @@ evidence-landing tests)`, `PASS evidence-lines (14)`, `PASS sign-flip (348)`,
 pre-existing findings, none new (none names a file this round touched).
 Floors raised to the measured work: cmdbar-evidence 45 → 47 (cmdbar-surface
 stays 201: one law replaced by one); canaries added for each new law and the
-rewritten prior-refusal law's name.
+rewritten prior-refusal law's name. Full engine suite (`tests/engine`): 9203
+passed, 39 skipped, 2 xfailed, 0 failed. Root `tests/` outside the engine:
+127 passed, 6 failed + 21 errors — the known set (test_api, test_briefing,
+test_powerbi, test_storage, pricing_v3 g7 ×2, statutory_104 strand_a2,
+validation_fixture ×2). Full vitest: 259 files, 4273 passed, 1 skipped (round
+1: 4271 — the two new cmdbar-evidence laws). tsc (`tsconfig.app.json`): the 10
+known capsuleAskGuard errors, none other. Hermetic Playwright (cmdbar,
+cmdbar-typeopen, workspace-v2) on a rebuilt bundle: 50 passed, 8 skipped.
 
 **OPEN (not fixed here, flagged).** Comparatives COVERAGE for
 `pl.other_operating_income` still reads the otherIncome bucket: a book with
@@ -16347,5 +16354,5 @@ disclosed 0.00 for the line, where "no 758 leaf" is absent. Narrowing coverage
 to `source_accounts` changes served comparatives columns and their captures
 (re-captured only by their own writers) — its own change, not this round's.
 
-**CANNOT SEE:** pixels (the hermetic Playwright specs on a rebuilt bundle);
-production periods.
+**CANNOT SEE:** pixels beyond what the hermetic specs assert (none of them
+opens a mixed 711 table or a refused prior); production periods.
