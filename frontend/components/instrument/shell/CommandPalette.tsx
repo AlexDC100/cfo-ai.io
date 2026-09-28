@@ -76,6 +76,7 @@ import { capsuleFrame, CAPSULE_BORDER } from "./capsuleGeometry";
 import "./cmdbar/cmdbarI18n";
 import { CmdbarList } from "./cmdbar/CmdbarList";
 import { langOf, servedMoney, type Printer } from "./cmdbar/cmdbarFigures";
+import { readCreditRegime, regimeLine } from "@/lib/creditRegime";
 import {
   buildCmdbarIndex,
   searchCmdbar,
@@ -383,6 +384,17 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     if (typing || !attentionDoc || attentionDoc.items.length === 0) return null;
     const texts = attentionDoc.caveats.map((c) => c.text[lang]).filter(Boolean);
     return texts.length ? texts.join(" ") : null;
+  }, [typing, attentionDoc, lang]);
+
+  // THE CREDIT REGIME, ONCE (credit model revision 5, owner ruling R1):
+  // the served regime's label and finding, with the finding's first two
+  // served figures (net 711 and net turnover) printed in the currency they
+  // were served in — never recomputed, never per item.
+  const regimeText = useMemo<string | null>(() => {
+    if (typing || !attentionDoc) return null;
+    const regime = readCreditRegime(attentionDoc.credit_regime);
+    if (!regime) return null;
+    return regimeLine(regime, lang, servedMoney(attentionDoc.period.currency));
   }, [typing, attentionDoc, lang]);
 
   // ── open / close ───────────────────────────────────────────────────
@@ -756,6 +768,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
                   onActivate={setActiveIdx}
                   onRun={runRow}
                   caveat={caveat}
+                  regime={regimeText}
                   status={status}
                   mode={typing ? "typing" : "rest"}
                 />

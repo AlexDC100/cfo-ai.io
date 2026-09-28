@@ -1378,6 +1378,26 @@ def _engine_gates() -> List[Gate]:
         # Measured 5 tests; 7 with a refused book equity and a withheld
         # stored row printing their reason (critic fixer round 1).
         # Plant log: gates.md "valuation-refused-override".
+        # ── owner ruling R1 (2026-09-28): credit-regime-surfaces. Every
+        # surface that prints the grade prints the stock-build regime ONCE —
+        # the Risks tab, the dashboard hero (which states the engine's
+        # refusal, never "analysis pending"), /report's CreditScoreCard and
+        # the command bar's rest-state line — with the owner's sentence
+        # verbatim (RO + EN), the cash bases on the three cash components and
+        # the regime's served weights; nothing on a standard book. Over the
+        # route's own bytes (served_credit_regime.json, kept by
+        # test_credit_regime_fe_fixture.py); the exported HTML report and
+        # the workbook state it too. Measured 11 tests, floor 11.
+        # Plant log: gates.md "credit-regime-surfaces".
+        Gate("credit-regime-surfaces",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx", "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=11,
+             units="surface tests (the regime once, the owner's sentence, the cash bases)",
+             canaries=("developer (EN): one regime block, the finding, the refused composite, the cash bases",
+                       "the hero states the refusal, not 'analysis pending', and the regime once",
+                       "/report's credit card prints the regime once, and none for a manufacturer",
+                       "CmdbarList renders it once at rest and not while typing")),
         Gate("valuation-refused-override",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/components/cfo/__tests__/valuationRefusedOverride.test.tsx", "--reporter=verbose"],
@@ -1409,6 +1429,9 @@ def _engine_gates() -> List[Gate]:
               "tests/engine/test_credit_model_refusals.py",
               "tests/engine/test_credit_model_rungs_and_ranges.py",
               "tests/engine/test_credit_refusal_fe_fixture.py",
+              # credit model revision 5 (owner ruling R1): the FE regime
+              # fixture is the route's own bytes
+              "tests/engine/test_credit_regime_fe_fixture.py",
               "tests/engine/test_period_route_revised_rows.py", "-q"],
              work_junit=True, floor=60, units="tests",
              canaries=("test_pure_rows_are_the_pre_extraction_rows_byte_for_byte",

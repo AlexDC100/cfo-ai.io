@@ -31,6 +31,7 @@ import {
   equityRefusalOf, netIncomeRefusalOf, plLevelsOf, readNetProvisions, readRefusal, type ServedRefusal,
 } from "./servedOneEbitda";
 import { ratioLabelForKey } from "./ratioTable";
+import { readCreditRegime, type CreditRegime } from "./creditRegime";
 
 /** The Altman row's name: the one label authority ("Altman Z″", what the
  *  Ratios tab, the report cards and the workbook Ratios sheet print) for
@@ -1396,6 +1397,14 @@ export interface CreditScoreResult {
    *  `RATING_BANDS`, so a printed document always shows WHICH ladder
    *  produced the letter beside it. NULL when the authority shipped none. */
   letterBands: Array<{ min: number; grade: string }> | null;
+  /** THE CREDIT REGIME the engine composed this grade under (credit model
+   *  revision 5, owner ruling R1): the stock-build regime — leverage,
+   *  coverage and DSCR on cash from operations, X3 before the stock
+   *  variation, the regime's weights — with its trigger figures and the
+   *  finding, as served (`assembled_metrics.credit.regime`). NULL under the
+   *  standard model and on the client fallback. Every surface that prints
+   *  the grade prints this ONCE (`CreditRegimeNote`). */
+  regime?: CreditRegime | null;
   components: {
     label: string;
     /** NULL when the envelope carried no sub-score for this component. */
@@ -1476,6 +1485,11 @@ export interface CreditSubscoreRefusal {
 }
 
 export interface CreditEnvelope {
+  /** Credit model revision 5: the stock-build regime block, or null
+   *  (the standard model). Read by `readCreditRegime`, never here. */
+  regime?: unknown;
+  /** Revision 5: what Altman X3 was computed on under the regime. */
+  altman_x3_basis?: { ro?: string | null; en?: string | null } | null;
   composite_score?: number | null;
   letter_grade?: string | null;
   letter_grade_bands?: Array<{ min: number; grade: string }> | null;
@@ -2302,6 +2316,8 @@ export function engineCreditResult(
     // documented `calculated_metrics` → envelope order.
     const altmanValue = altman.score;
     const altmanZone = altman.zone;
+    // Revision 5: the regime this grade was composed under, as served.
+    const regime = readCreditRegime(e.regime);
     const components: CreditScoreResult["components"] = [
       {
         label: altmanLabelOf(altman.variant),
@@ -2334,9 +2350,11 @@ export function engineCreditResult(
       // are 66.28× against 55.64× on agras) — but the name is now the
       // sub-score's, so no name carries two arithmetics.
       subscoreRow("Profitability sub-score 0–100 (ROE + net margin)", e, "profitability", weightBasis, metricsByName),
-      subscoreRow("Leverage sub-score 0–100 (net debt ÷ EBITDA)", e, "leverage", weightBasis, metricsByName),
-      subscoreRow("Interest-coverage sub-score 0–100 (EBIT ÷ interest)", e, "coverage", weightBasis, metricsByName),
-      subscoreRow("DSCR sub-score 0–100 (EBITDA ÷ debt service)", e, "dscr", weightBasis, metricsByName),
+      // Under the stock-build regime (revision 5) the three cash components
+      // divide cash from operations: the label prints the SERVED basis.
+      subscoreRow(`Leverage sub-score 0–100 (${regime?.componentBases.leverage?.en ?? "net debt ÷ EBITDA"})`, e, "leverage", weightBasis, metricsByName),
+      subscoreRow(`Interest-coverage sub-score 0–100 (${regime?.componentBases.coverage?.en ?? "EBIT ÷ interest"})`, e, "coverage", weightBasis, metricsByName),
+      subscoreRow(`DSCR sub-score 0–100 (${regime?.componentBases.dscr?.en ?? "EBITDA ÷ debt service"})`, e, "dscr", weightBasis, metricsByName),
       subscoreRow("Liquidity sub-score 0–100 (current + quick + cash)", e, "liquidity", weightBasis, metricsByName),
       subscoreRow("Equity-ratio sub-score 0–100", e, "equity", weightBasis, metricsByName),
     ];
@@ -2375,6 +2393,7 @@ export function engineCreditResult(
       // included — to treat "—" as a real grade.
       grade: engineLetter,
       letterBands: engineBands,
+      regime,
       components,
       altman,
       piotroski,

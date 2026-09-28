@@ -69,6 +69,12 @@
       "affordances": 0,
       "why": "OPENED 2026-09-15 (plan/2 B1; unregistered since before B0, plan_as_built B0-12). The prior, delta, delta-percent and share cells of the engine's comparatives document: derivations over two periods keyed by line and period label, with no source cell behind a delta or a share. A change across zero renders the one classifier's words. Same law as DeltaBadge: a delta over two figures never wears the affordance."
     },
+    "frontend/components/cfo/CreditRegimeNote.tsx": {
+      "bucket": "LACKS_SILENT",
+      "sites": 2,
+      "affordances": 0,
+      "why": "OPENED 2026-09-28 (credit model revision 5, owner ruling R1). Two formatter sites: the finding's served figures and the cash figure, each printed in the currency the engine served it in (lib/creditRegime printRegimeAmount, formatMoneyFrom with source = display, no rate). The served `regime` block carries no provenance object — its figures are copies of assembled_pl / assembled_cf figures under the credit model's regime — so nothing is claimed here; an unmeasured figure prints its status, never 0."
+    },
     "frontend/components/cfo/CreditScoreCard.tsx": {
       "bucket": "HAS_MISSING",
       "sites": 8,
@@ -365,9 +371,9 @@
     },
     "frontend/components/instrument/shell/CommandPalette.tsx": {
       "bucket": "HAS_MISSING",
-      "sites": 1,
+      "sites": 2,
       "affordances": 0,
-      "why": "OPENED 2026-09-27 with the command bar rebuild. One formatter site: the money printer (servedMoney, compact — the SERVED currency with its code, never the display toggle; stage CB-H) the bar's figures go through; the rows themselves are painted by cmdbar/CmdbarList.tsx from view strings. Every figure carries its served source path (cmdbarViews `served.source`: assembled_pl.* / assembled_bs.* / ratio_table.* / the comparatives column / the sector row) and every row OPENS its evidence (the statement tab, the ratio, the benchmark row, the account) — but no hover affordance is worn on the bar yet. Remaining work, named: wear {source: <period label> · <served path>, accounts} on Răspuns and Cont figures."
+      "why": "OPENED 2026-09-27 with the command bar rebuild. One formatter site: the money printer (servedMoney, compact — the SERVED currency with its code, never the display toggle; stage CB-H) the bar's figures go through; the rows themselves are painted by cmdbar/CmdbarList.tsx from view strings. Every figure carries its served source path (cmdbarViews `served.source`: assembled_pl.* / assembled_bs.* / ratio_table.* / the comparatives column / the sector row) and every row OPENS its evidence (the statement tab, the ratio, the benchmark row, the account) — but no hover affordance is worn on the bar yet. Remaining work, named: wear {source: <period label> · <served path>, accounts} on Răspuns and Cont figures. RE-MEASURED 2026-09-28 (owner ruling R1): 1 -> 2 — the second site is the credit regime line (`regimeLine` over the attention document's served `credit_regime`, printed ONCE in the rest state, in the SERVED currency through servedMoney). The regime block carries no provenance of its own (its figures are copies of assembled_pl figures), so the line wears none — the Risks tab's regime note is where it opens."
     },
     "frontend/components/instrument/shell/TrustChip.tsx": {
       "bucket": "HAS_SHOWS",

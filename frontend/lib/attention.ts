@@ -100,6 +100,11 @@ export interface AttentionDoc {
     currency: string | null;
   };
   mode: "with_prior" | "single_period";
+  /** The credit model's regime for this period (revision 5, owner ruling
+   *  R1): the served envelope's `regime` block verbatim, or null under the
+   *  standard model. Read with `lib/creditRegime.readCreditRegime`; the bar
+   *  prints it ONCE. Absent on a document served before the ruling. */
+  credit_regime?: unknown;
   prior: {
     status: "found" | "absent" | "off" | string;
     period_id: string | null;

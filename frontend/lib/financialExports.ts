@@ -48,6 +48,7 @@ import { ratioCompareHeadingsFor, type RatioCompareRow } from "./ratioTable";
 // status cell calls the SAME presentStatus the BS chip and the HTML export
 // footer use; this file carries no status wording of its own.
 import { factsFrom } from "./servedFacts";
+import { regimeDocumentText } from "./creditRegime";
 import { inventoryDaysSheetRows, printInventoryDays, readInventoryDaysSplit } from "./inventoryDays";
 import { plLevelsOf } from "./servedOneEbitda";
 import { printedPl, printedRow, type PrintedPlRow } from "./printedPl";
@@ -667,6 +668,9 @@ export function buildExcelWorkbook(
         ? [["Composite and rating refused", credit.compositeRefusal.sentence]]
         : [[EXPORT_UNAVAILABLE_NOTE]]
       : []),
+    // THE CREDIT REGIME, ONCE (credit model revision 5, owner ruling R1):
+    // a forwarded workbook says the grade was composed on cash, and why.
+    ...(credit.regime ? [["Credit regime", regimeDocumentText(credit.regime)]] : []),
     [],
     // ── THE VERDICT WORDS BELONG BESIDE THE AUTHORITY'S NUMBER ──────
     // This table shipped value / weight / contribution and dropped

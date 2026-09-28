@@ -65,6 +65,7 @@ import {
 import { SectorBenchmarkCtx, useSectorBenchmark } from "@/components/cfo/benchmark/SectorBenchmarkSection";
 import { RatiosTabContent } from "@/components/cfo/ratios/RatiosTab";
 import { CreditComparison } from "@/components/cfo/ratios/CreditComparison";
+import { CreditRegimeNote } from "@/components/cfo/CreditRegimeNote";
 import { useRatioSurfaces } from "@/lib/useRatioSurfaces";
 import { notesJumpTarget } from "@/lib/notesJumpTarget";
 import { MONEY_MISSING } from "@/lib/money";
@@ -5528,10 +5529,18 @@ export function HeroVerdictCard({
         </div>
         <div className="mt-2 flex items-center gap-3">
           <Shield size={28} strokeWidth={1.5} className="text-ink-mute" />
-          <p className="text-[13.5px] text-ink-soft leading-relaxed max-w-[560px]">
-            {t("dashV2.verdictPending")}
+          <p className="text-[13.5px] text-ink-soft leading-relaxed max-w-[560px]" data-testid="hero-verdict-pending">
+            {/* A REFUSED composite is not a pending one: the engine said
+                why there is no score (R-COMPOSITE), so the hero says it
+                too — "analysis pending" beside a finished analysis was a
+                false statement. */}
+            {credit?.compositeRefusal?.stated ? credit.compositeRefusal.sentence : t("dashV2.verdictPending")}
           </p>
         </div>
+        {/* THE CREDIT REGIME, ONCE (credit model revision 5, owner ruling
+            R1): why the stock-build book is graded on cash, with the
+            finding. */}
+        {credit?.regime ? <CreditRegimeNote regime={credit.regime} testid="hero-credit-regime" /> : null}
         {footer}
       </section>
     );
@@ -5624,6 +5633,8 @@ export function HeroVerdictCard({
           </p>
         </div>
       </div>
+      {/* The regime the score was composed under, ONCE (revision 5). */}
+      {credit.regime ? <CreditRegimeNote regime={credit.regime} testid="hero-credit-regime" /> : null}
       {footer}
     </section>
   );
@@ -6306,6 +6317,11 @@ export function RisksPanel({
           </div>
           <Shield className="opacity-30 shrink-0 h-12 w-12 sm:h-16 sm:w-16" strokeWidth={1.25} />
         </div>
+        {/* THE CREDIT REGIME, ONCE (credit model revision 5, owner ruling
+            R1): the stock-build regime the grade above was composed under,
+            with its finding and served figures. Absent under the standard
+            model. */}
+        {credit.regime ? <CreditRegimeNote regime={credit.regime} /> : null}
         {creditComparison}
         <div className="mt-3 rounded-2xl border border-rule bg-surface overflow-hidden">
           <div className="overflow-x-auto">

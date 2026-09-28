@@ -567,6 +567,9 @@ const SURFACES = {
     files: [
       "frontend/pages/cfo/ComprehensiveReport.tsx",
       "frontend/components/cfo/CreditScoreCard.tsx",
+      // credit model revision 5 (owner ruling R1): the regime note, printed
+      // once beside the grade on the report card, the Risks tab and the hero
+      "frontend/components/cfo/CreditRegimeNote.tsx",
       "frontend/components/cfo/EbitdaMultiplePrimaryCard.tsx",
       "frontend/components/cfo/EbitdaReconciliationPanel.tsx",
       "frontend/components/cfo/NavValuationView.tsx",

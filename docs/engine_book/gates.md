@@ -16884,6 +16884,104 @@ ruling); a real book with a MEASURED cash flow (none exists — the engine
 threads no prior-period trial balance, `is_approximated` is always true); the
 browser surfaces (vitest `creditRegimeSurfaces.test.tsx`).
 
+## credit-regime-surfaces
+
+| | |
+|---|---|
+| command | `npx vitest run frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx` |
+| canary | `developer (EN): one regime block, …`, `the hero states the refusal, not 'analysis pending', …`, `/report's credit card prints the regime once, …`, `CmdbarList renders it once at rest and not while typing` |
+| work count | vitest `Tests N passed`, floor **11** (measured 11) |
+
+**LAW** — owner ruling R1: every surface that prints the grade prints the
+stock-build regime ONCE (`components/cfo/CreditRegimeNote.tsx`, a projection
+of `lib/creditRegime.readCreditRegime` over the served block): the Risks tab,
+the dashboard hero (which now states the engine's own refusal sentence for a
+refused composite — it said "Analysis pending — the health score will appear
+once this period's data is processed" beside a finished, refused analysis),
+/report's CreditScoreCard (`creditCardData` carries `regime`), the exported
+HTML report and the Excel workbook (`regimeDocumentText`, English like the
+documents), and the command bar's rest-state line (`regimeLine`, the
+finding's net 711 and turnover in the currency the engine served them in; not
+while typing). The owner's sentence is a literal in the test, in both
+languages. Under the regime the three cash components print the SERVED cash
+basis ("net debt ÷ cash from operations", …) and the rows the regime's served
+weights (liquidity 20%, profitability 10%); an approximated cash figure is
+stated ("not measured (approximated)"), never printed; a standard book prints
+no regime and the EBITDA / EBIT bases. Over the route's own bytes
+(`frontend/lib/__tests__/fixtures/served_credit_regime.json`, kept by
+`tests/engine/test_credit_regime_fe_fixture.py`,
+`CREDIT_REGIME_FE_FIXTURE_WRITE=1`).
+
+Source-edit plants, each applied alone in the worktree by
+`specs-durable/rulings2_r1/plant_fe.py` (vitest needs the worktree's
+node_modules; every file restored byte-exact, sha256 checked, in a finally):
+```
+PLANT risks-tab-prints-the-regime-twice: frontend/pages/cfo/FinancialStatements.tsx
+    × the Risks tab prints the regime once > developer (EN): one regime block, the finding, the refused composite, the cash bases 43ms
+    × the Risks tab prints the regime once > developer (RO): the owner's sentence verbatim 8ms
+    × the Risks tab prints the regime once > measured cash: the bottom rung, a composite on the regime's weights, the letter, the regime once 7ms
+    Tests  3 failed | 8 passed (11)
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+    FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > the Risks tab prints the regime once > developer (EN): one regime block, the finding, the refused composite, the cash bases
+  -> RED ; file restored byte-exact
+PLANT risks-tab-drops-the-regime: frontend/pages/cfo/FinancialStatements.tsx
+    × the Risks tab prints the regime once > developer (EN): one regime block, the finding, the refused composite, the cash bases 30ms
+    × the Risks tab prints the regime once > developer (RO): the owner's sentence verbatim 7ms
+    × the Risks tab prints the regime once > measured cash: the bottom rung, a composite on the regime's weights, the letter, the regime once 7ms
+    Tests  3 failed | 8 passed (11)
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+    FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > the Risks tab prints the regime once > developer (EN): one regime block, the finding, the refused composite, the cash bases
+  -> RED ; file restored byte-exact
+PLANT hero-says-analysis-pending: frontend/pages/cfo/FinancialStatements.tsx
+    × the hero and /report's card print the regime once > the hero states the refusal, not 'analysis pending', and the regime once 9ms
+    Tests  1 failed | 10 passed (11)
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > the hero and /report's card print the regime once > the hero states the refusal, not 'analysis pending', and the regime once
+  -> RED ; file restored byte-exact
+PLANT cash-components-labelled-on-ebitda: frontend/lib/financialValuation.ts
+    × the Risks tab prints the regime once > developer (EN): one regime block, the finding, the refused composite, the cash bases 43ms
+    Tests  1 failed | 10 passed (11)
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > the Risks tab prints the regime once > developer (EN): one regime block, the finding, the refused composite, the cash bases
+  -> RED ; file restored byte-exact
+PLANT note-prints-the-label-for-the-finding: frontend/components/cfo/CreditRegimeNote.tsx
+    × the Risks tab prints the regime once > developer (EN): one regime block, the finding, the refused composite, the cash bases 43ms
+    × the Risks tab prints the regime once > developer (RO): the owner's sentence verbatim 8ms
+    × the hero and /report's card print the regime once > /report's credit card prints the regime once, and none for a manufacturer 5ms
+    Tests  3 failed | 8 passed (11)
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+    FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > the Risks tab prints the regime once > developer (EN): one regime block, the finding, the refused composite, the cash bases
+  -> RED ; file restored byte-exact
+PLANT report-card-drops-the-regime: frontend/components/cfo/CreditScoreCard.tsx
+    × the hero and /report's card print the regime once > /report's credit card prints the regime once, and none for a manufacturer 4ms
+    Tests  1 failed | 10 passed (11)
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > the hero and /report's card print the regime once > /report's credit card prints the regime once, and none for a manufacturer
+  -> RED ; file restored byte-exact
+PLANT exported-report-drops-the-regime: frontend/lib/financialReport.ts
+    × the printed documents state the regime once > the exported report and the workbook: the regime and the finding for the developer, nothing for agras 96ms
+    Tests  1 failed | 10 passed (11)
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > the printed documents state the regime once > the exported report and the workbook: the regime and the finding for the developer, nothing for agras
+  -> RED ; file restored byte-exact
+PLANT workbook-drops-the-regime: frontend/lib/financialExports.ts
+    × the printed documents state the regime once > the exported report and the workbook: the regime and the finding for the developer, nothing for agras 105ms
+    Tests  1 failed | 10 passed (11)
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > the printed documents state the regime once > the exported report and the workbook: the regime and the finding for the developer, nothing for agras
+  -> RED ; file restored byte-exact
+PLANT cmdbar-prints-the-regime-while-typing: frontend/components/instrument/shell/cmdbar/CmdbarList.tsx
+    × the command bar prints the regime once, in the rest state > CmdbarList renders it once at rest and not while typing 6ms
+    Tests  1 failed | 10 passed (11)
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > the command bar prints the regime once, in the rest state > CmdbarList renders it once at rest and not while typing
+  -> RED ; file restored byte-exact
+REVERT (clean tree) frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx: exit=0 Tests  11 passed (11)
+```
+
+**CANNOT SEE:** the Ask CFO AI chat (the briefing facts carry the regime; the
+chat snapshot does not yet); the Forecast bank export (closed).
+
 ### reprocess-periods-definition — the 2026-09-28 revision (owner rulings R2, R3)
 
 `EBITDA_DEFINITION_REVISION` moved to

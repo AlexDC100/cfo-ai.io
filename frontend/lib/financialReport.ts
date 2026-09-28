@@ -45,6 +45,7 @@ export type { FigureAbsence } from "./absentAware";
 // the point: this module holds no scoring model of its own any more, so it
 // cannot answer a credit question without being handed the one answer.
 import type { CreditScoreResult } from "./financialValuation";
+import { regimeDocumentText } from "./creditRegime";
 // VALUE import, and safe: `creditModel.ts` is a leaf that imports nothing,
 // which is why the composer was moved there. This document must spell the
 // ladder with the SAME function the screens do — it had its own inline
@@ -5228,6 +5229,12 @@ export function renderReportHtml(
           ? `<div class="risk" data-report-credit-composite-refusal><strong>Composite and letter grade: refused.</strong> ${escapeHtml(credit.compositeRefusal.sentence)} <span class="meta">${escapeHtml(credit.model)} &mdash; ${escapeHtml(credit.modelLabel)}</span></div>`
           : `<div class="risk"><strong>Letter grade: ${escapeHtml(UNREPORTED_WORD)}.</strong> ${escapeHtml(VERDICT_UNAVAILABLE_NOTE)}</div>`
         : `<div class="commentary"><strong>Scoring model:</strong> ${escapeHtml(credit.model)} &mdash; ${escapeHtml(credit.modelLabel)}</div>`;
+    // THE CREDIT REGIME, ONCE (credit model revision 5, owner ruling R1):
+    // the stock-build regime the grade was composed under, with the finding
+    // and its served figures — off the reader's `regime`, never recomputed.
+    const regimeBlock = credit.regime
+      ? `<div class="risk" data-report-credit-regime data-regime="${escapeHtml(credit.regime.code)}">${escapeHtml(regimeDocumentText(credit.regime))}</div>`
+      : "";
     // THE LADDER, SPELLED — so a re-band is visible on the page and not
     // only inside the letter. It comes off the reader's `letterBands`, so
     // this document never reaches past the reader into a raw envelope.
@@ -5263,6 +5270,7 @@ export function renderReportHtml(
       ${ratioCard(altman)}
     </div>
     ${letterBlock}
+    ${regimeBlock}
     ${creditMovementBlock()}
     ${ladderBlock}
     <div class="${altman.verdict === "critical" ? "risk" : "commentary"}" data-report-altman-verdict data-zone="${escapeHtml(credit.altman.zone ?? "none")}">
