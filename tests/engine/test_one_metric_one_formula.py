@@ -342,6 +342,36 @@ def test_the_trade_float_prints_dso_and_dpo_as_the_ratios_table_prints_them(serv
     WORK["units"] += 1
 
 
+def test_the_trade_float_gap_is_the_difference_of_the_printed_figures_where_rounding_parts_them():
+    """The witness the corpus books cannot give: on every one of them the
+    rounded exact gap happens to equal the difference of the printed DSO and
+    DPO. The Scandia G7 capture (e2e/fixtures/workspace_v2, the served body
+    the hermetic dashboard reads) is the book where they part: the detector,
+    re-run over its served statements, must print the gap as the printed
+    DSO minus the printed DPO — the sentence a reader adds up — and
+    reproduce the served claim byte for byte."""
+    from decimal import Decimal
+
+    from engine.insights import build_insights
+    from engine.ratios.table import quantize_display
+
+    body = json.loads((REPO / "e2e" / "fixtures" / "workspace_v2" / "scandia_fy2025.json")
+                      .read_text("utf-8"))["period"]
+    st = body["statements"]
+    block = build_insights({"statements": st, "envelope": {"canonical_bs": st.get("canonical_bs")},
+                            "line_items": body.get("line_items")})
+    trade = [i for i in block["insights"] if i["id"] == "trade_float"][0]
+    ms = dict((x["key"], x) for x in trade["measures"])
+    printed_gap = Decimal(ms["dso"]["value_q"]) - Decimal(ms["dpo"]["value_q"])
+    # POSITIVE CONTROL: rounding the exact gap gives ANOTHER figure here.
+    assert Decimal(quantize_display(ms["float_days"]["value"], "days")) != printed_gap, ms
+    assert Decimal(ms["float_days"]["value_q"]) == printed_gap, ms
+    assert trade["claim"].endswith("a gap of %s days." % ms["float_days"]["value_q"]), trade["claim"]
+    served = [i for i in st["insights"]["insights"] if i["id"] == "trade_float"][0]
+    assert trade["claim"] == served["claim"], (trade["claim"], served["claim"])
+    WORK["units"] += 1
+
+
 @pytest.mark.parametrize("book", ("agras", "carniprod", "retail"))
 def test_the_forecast_driver_is_the_split_on_the_period_end_balance(book):
     from engine.forecast.money import MICRO_DAY

@@ -1145,7 +1145,7 @@ describe("cmdbar-figures — every Δ IS its comparatives column, every vs-secto
       expect(words).toBeGreaterThanOrEqual(1);
     }, HEAVY);
 
-    it(`scandia (${lang}): each vs-sector position is the served sector row — the filed-basis stock row a position only`, async () => {
+    it(`scandia (${lang}): each vs-sector position is the served sector row — the split's cards carry none`, async () => {
       await useLang(lang);
       const w = scandiaWorld();
       mount(w);
