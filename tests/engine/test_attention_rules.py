@@ -366,6 +366,9 @@ def test_the_served_block_is_read_with_its_basis_label_and_its_policy():
     assert read["source"] == "statements.inventory_days"
     doc = _compose(cur, comparatives=_with_dio_crossing(cmp), sector=_sector())
     assert [i["key"] for i in doc["items"] if i["slot"] == "improvement"] == ["dio"]
+    # The item the bar prints carries the served basis LABEL beside the figure.
+    dio = next(i for i in doc["items"] if i["key"] == "dio")
+    assert dio["basis_label"] == block["basis_label"], dio["basis_label"]
 
 
 def test_the_filed_basis_inventory_row_is_a_position_never_a_verdict():

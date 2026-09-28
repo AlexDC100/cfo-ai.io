@@ -360,12 +360,25 @@ def _sector_item(slot: str, cand: Mapping[str, Any], pack: Mapping[str, Any],
     return item
 
 
-def _ratio_item(slot: str, cand: Mapping[str, Any], pack: Mapping[str, Any]) -> Dict[str, Any]:
+#: Ratio rows whose figure is the served inventory-days block on its SERVED
+#: basis (the average where the book carries the opening): the item carries
+#: that basis's label. The cycle adds the period-end term instead, so it
+#: carries none rather than the average's words.
+_INVENTORY_BASIS_KEYS = ("dio", "inventory_turnover")
+
+
+def _ratio_item(slot: str, cand: Mapping[str, Any], pack: Mapping[str, Any],
+                current_payload: Mapping[str, Any]) -> Dict[str, Any]:
     key = cand["key"]
+    basis_label = None
+    if key in _INVENTORY_BASIS_KEYS:
+        # The served block's basis LABEL — never its code (merge contract
+        # 2026-09-28), read through the one adapter.
+        basis_label = S.inventory_days(current_payload)["basis_label"]
     item = {
         "slot": slot, "family": "ratio_band", "key": key, "identity": cand["identity"],
         "subject": dict(pack["ratio_band"]["subjects"][key]),
-        "basis_label": None,
+        "basis_label": copy.deepcopy(basis_label),
         "figure": {"kind": "ratio_compare_row", "row": copy.deepcopy(cand["row"])},
         "verdict": "improved",
         "materiality": copy.deepcopy(cand["materiality"]),
@@ -581,7 +594,8 @@ def compose_attention(current_payload: Mapping[str, Any], *,
                 cand = take(pool)
                 if cand:
                     items.append(_statement_item(slot, cand, comparatives, prior)
-                                 if family == "statement_line" else _ratio_item(slot, cand, pack))
+                                 if family == "statement_line"
+                                 else _ratio_item(slot, cand, pack, current_payload))
                     break
             if not cand:
                 why = _reason("no_improvement")
