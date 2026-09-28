@@ -3554,6 +3554,11 @@ def _briefing_facts_raw(pl_canonical: Dict[str, Any], bs_canonical: Dict[str, An
         "inventory_variation": (_inv.get("value") if isinstance(_inv, dict) else None),
         "capitalized_own_work": (_cap.get("value") if isinstance(_cap, dict) else None),
         "depreciation": pl_canonical.get("depreciation", 0.0),
+        # R2 (owner ruling 2026-09-28): charges (6812, 6814) − reversals
+        # (7812, 7814), OUTSIDE EBITDA, between EBITDA and the operating
+        # result — absent (None) on a block assembled before the ruling.
+        "net_provisions": ((pl_canonical.get("net_provisions") or {}).get("value")
+                           if isinstance(pl_canonical.get("net_provisions"), dict) else None),
         "interest_expense": pl_canonical.get("interest_expense", 0.0),
         "tax": pl_canonical.get("tax", 0.0),
         "net_income_statutory": pl_canonical.get("net_income_statutory", 0.0),

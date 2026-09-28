@@ -103,7 +103,9 @@ def test_the_measured_net_711_is_inside_the_multiple(monkeypatch):
     apl = st["assembled_pl"]
     net_711 = apl["inventory_variation"]["value"]
     assert net_711 == pytest.approx(1_071_687.03, abs=0.01)
-    assert apl["ebitda"] == pytest.approx(11_848_065.27, abs=0.01)
+    # R2 (2026-09-28): the 7814.01 reversal (3,988.70) is outside EBITDA —
+    # 11,848,065.27 under the 2026-09-26 definition.
+    assert apl["ebitda"] == pytest.approx(11_844_076.57, abs=0.01)
     out = _value(st)
     before = apl["ebitda_before_stock_variation"] + apl["capitalized_own_work"]["value"]
     assert out["ebitda_used"] - before == pytest.approx(net_711, abs=0.01)

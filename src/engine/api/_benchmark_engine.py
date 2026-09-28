@@ -131,8 +131,10 @@ def _verdict(value: float, p25: Optional[float], p50: Optional[float], p75: Opti
 #: here so this module reads rows only. A period whose rows are stamped
 #: below it (or not at all) stored the EBITDA WITHOUT 711 / 72x under the
 #: same names: its EBITDA figures and its margins are REFUSED here until the
-#: period is reprocessed, never graded against the sector.
-ONE_EBITDA_REVISION = 3
+#: period is reprocessed, never graded against the sector. 4 since the
+#: 2026-09-28 rulings (R2 provisions outside EBITDA, R3 7411 in turnover):
+#: rows stamped 3 carry the previous EBITDA and turnover.
+ONE_EBITDA_REVISION = 4
 
 #: Stored rows that carry EBITDA or a figure built on it. On a stale period
 #: they are dropped from the company metrics (a pre-ruling figure is never
@@ -486,7 +488,10 @@ NET_INCOME_SLOT = ("net_income_statutory", "net_income_operating")
 #: refusal on the company side and the "Compania ta" row, peer basis served.
 #: 5 (2026-09-27): a net result refused with 711 (no account 121) refuses the
 #: headline profit, the peer row and the net margin — never the build-up.
-REPORT_REVISION = 5
+#: 6 (2026-09-28, owner rulings R2 / R3): EBITDA without the 6812 / 6814
+#: charges and the 7812 / 7814 reversals, margins over a turnover that
+#: holds 7411 — a report cached under 5 graded the previous EBITDA.
+REPORT_REVISION = 6
 
 
 def headline_net_income_key(company_metrics: Dict[str, Any]) -> str:

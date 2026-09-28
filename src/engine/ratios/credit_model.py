@@ -90,14 +90,20 @@ logger = logging.getLogger(__name__)
 #: ladder rung, a ratio's numerator or denominator.
 #: 3 (2026-09-26): the ONE EBITDA — every EBITDA / EBIT row reads
 #: `operating_figures` (net 711 and net 72x inside, 767 financial).
-CREDIT_MODEL_REVISION = 3
+#: 4 (2026-09-28, owner rulings R2 / R3): the one EBITDA leaves the 6812 /
+#: 6814 charges AND the 7812 / 7814 reversals outside (net provisions, its
+#: own line; EBIT unchanged) and net turnover holds 7411 — the EBITDA-built
+#: rows, the margins and every turnover denominator move with it.
+CREDIT_MODEL_REVISION = 4
 
-#: The first revision whose EBITDA-family rows carry the one definition.
-#: A persisted set of rows stamped below it (or unstamped) carries the
-#: definition WITHOUT 711 / 72x under the same names — a reader of stored
-#: rows (the Section 9 benchmark) refuses those figures rather than grade
-#: them.
-ONE_EBITDA_REVISION = 3
+#: The first revision whose EBITDA-family rows carry the CURRENT one
+#: definition (chart_of_accounts.EBITDA_DEFINITION_REVISION). A persisted
+#: set of rows stamped below it (or unstamped) carries an earlier
+#: definition under the same names — without 711 / 72x (below 3), or with
+#: the 7812 / 7814 reversals inside and 7411 outside turnover (3) — and a
+#: reader of stored rows (the Section 9 benchmark) refuses those figures
+#: rather than grade them.
+ONE_EBITDA_REVISION = 4
 
 #: The calculated_metrics row name that carries `CREDIT_MODEL_REVISION`.
 CREDIT_MODEL_REVISION_METRIC = "credit_model_revision"

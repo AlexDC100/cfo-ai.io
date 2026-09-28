@@ -460,6 +460,14 @@ def build(evidence: Optional[Mapping[str, Any]], *,
     # total; read as its parts so no served total is re-read off the raw
     # assembly — the import boundary's E-ASSEMBLED-TOTAL rule).
     _parts = [_num(assembled_pl.get(k)) for k in ("cogs", "opex_total", "depreciation")]
+    # The ruled provision charges (6812, 6814) left D&A for their own
+    # net-provisions line (owner ruling R2, 2026-09-28) but are still
+    # operating costs of the period: they stay in the flow, so the days
+    # are the ones they were before the ruling. A block assembled before
+    # the ruling serves no such line — its D&A still held them.
+    _np = assembled_pl.get("net_provisions") if isinstance(assembled_pl.get("net_provisions"), Mapping) else {}
+    _charges = _np.get("charges") if isinstance(_np.get("charges"), Mapping) else {}
+    _parts.append(_num(_charges.get("value")) if _np else 0.0)
     toe = None if any(p is None for p in _parts) else round(sum(_parts), 2) + 0.0
     iv = assembled_pl.get("inventory_variation") if isinstance(assembled_pl.get("inventory_variation"), Mapping) else {}
     net_711 = _num(iv.get("value"))
@@ -652,7 +660,8 @@ def build(evidence: Optional[Mapping[str, Any]], *,
             "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)"
                      if opening_state.get("source") else "statement_line_items class 3 (closing)",
             "flows": "statement_line_items (601, 602, 603, 607, 701-703)",
-            "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation",
+            "total_operating_expense": ("assembled_pl.cogs + opex_total + depreciation"
+                                        " + net_provisions.charges"),
             "net_711": "assembled_pl.inventory_variation",
             "period_days": "supplementary.periodDays",
             "pack": PACK_FILE,

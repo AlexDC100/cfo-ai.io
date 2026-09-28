@@ -149,10 +149,13 @@ def test_a_line_only_one_period_carries_is_a_named_new_step():
     pl["ebitda_before_stock_variation"] = round(
         pl["revenue"] + pl["other_operating_income"] - pl["cogs"] - pl["opex_total"], 2)
     pl["ebitda"] = round(pl["ebitda_before_stock_variation"] + net_72x + net_711, 2)
-    pl["ebit"] = round(pl["ebitda"] - pl["depreciation"], 2)
+    # R2 (2026-09-28): EBIT = EBITDA − D&A − net provisions.
+    net_prov = pl["net_provisions"]["value"]
+    pl["ebit"] = round(pl["ebitda"] - pl["depreciation"] - net_prov, 2)
     pl["pretax"] = round(pl["ebit"] + pl["net_financial_result"], 2)
     pl["net_income_operational"] = round(
-        pl["ebitda_before_stock_variation"] - pl["depreciation"] + pl["net_financial_result"] - pl["tax"], 2)
+        pl["ebitda_before_stock_variation"] - pl["depreciation"] - net_prov
+        + pl["net_financial_result"] - pl["tax"], 2)
     pl["net_income_statutory"] = round(pl["pretax"] - pl["tax"], 2)
     t = _table(ANALYTIC, pri)
     assert t.by_key("pl.cogs").status == "absent_prior"

@@ -20,8 +20,11 @@ from engine.api import _benchmark_engine as be
 #: Since the one-EBITDA ruling (2026-09-26) the page RECOMPUTES the EBITDA
 #: margin from the one EBITDA over turnover and refuses every EBITDA figure
 #: on rows stamped before it, so the unit law is held on the stored row the
-#: page passes through as stored: net margin, on rows stamped revision 3.
-_STAMP = {"name": "credit_model_revision", "value": 3, "unit": "revision"}
+#: page passes through as stored: net margin, on rows stamped with the
+#: first revision on the CURRENT definition (4 since the owner's rulings of
+#: 2026-09-28 — rows stamped 3 carry the previous EBITDA and turnover and
+#: are refused like any pre-ruling row).
+_STAMP = {"name": "credit_model_revision", "value": be.ONE_EBITDA_REVISION, "unit": "revision"}
 
 
 def _margin(rows):

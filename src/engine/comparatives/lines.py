@@ -158,8 +158,16 @@ LINE_SPECS: Tuple[LineSpec, ...] = (
     # Own work capitalised (72x): operating, inside EBITDA, outside turnover.
     _pl_path("capitalized_own_work", "Own work capitalised (72x)",
              ("capitalized_own_work", "value")),
+    # D&A on the P&L chain: the depreciation bucket WITHOUT the ruled
+    # provision charges (owner ruling R2, 2026-09-28) — they and their
+    # reversals are the net-provisions line below.
     _pl("depreciation", "Depreciation & amortisation", "depreciation",
         ("depreciation",)),
+    # R2: charges (6812, 6814) − reversals (7812, 7814), outside EBITDA,
+    # between EBITDA and the operating result. A derived line: the
+    # assembler serves it on every period it assembles under the ruling.
+    _pl_path("net_provisions", "Net provisions (outside EBITDA)",
+             ("net_provisions", "value")),
     _pl("ebitda", "EBITDA", "ebitda", ()),
     _pl("ebit", "EBIT", "ebit", ()),
     _pl("interest_expense", "Interest expense", "interest_expense",

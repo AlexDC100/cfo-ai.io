@@ -121,7 +121,9 @@ class RefusedFactError(MissingFactError):
 #: the gateway serves its EBITDA (literal, so the gateway never imports the
 #: country pack at import time; locked equal to chart_of_accounts.
 #: EBITDA_DEFINITION_REVISION by tests/engine/test_facts_gateway.py).
-EBITDA_DEFINITION_REVISION = "ebitda/2026-09-26:711-72x-inside,767-financial"
+EBITDA_DEFINITION_REVISION = (
+    "ebitda/2026-09-28:711-72x-inside,767-financial,"
+    "provisions-6812-6814-7812-7814-outside,7411-turnover")
 
 
 class AdditiveServeViolation(AssertionError):
