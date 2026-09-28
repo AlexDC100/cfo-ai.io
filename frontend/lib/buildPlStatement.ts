@@ -379,23 +379,24 @@ function stockVariationSection(served: ServedOneEbitda | null): PLSection | null
 /** NET PROVISIONS (owner ruling R2, 2026-09-28): the ruled charges (6812,
  *  6814) less the ruled reversals (7812, 7814), OUTSIDE EBITDA, printed
  *  between EBITDA and the operating result beside D&A — the engine's name,
- *  its accounts in the chip, and the amount SIGNED as its effect on the
- *  result (a net release "+", a net charge "−"). Null on a payload the
- *  engine did not assemble under the ruling (its D&A still holds the
- *  charges, its EBITDA the reversals) and on a period that posted to none
- *  of the four accounts. */
+ *  its accounts in the chip. The amount is the served figure as the engine
+ *  signs it (a charge, like D&A beside it — the comparatives cell for
+ *  `pl.net_provisions` carries the same number), and the printed sign says
+ *  its effect on the result: a net charge "−", a net release "+". Null on a
+ *  payload the engine did not assemble under the ruling (its D&A still
+ *  holds the charges, its EBITDA the reversals) and on a period that
+ *  posted to none of the four accounts. */
 export function netProvisionsLine(served: ServedOneEbitda | null): PLLine | null {
   const np = served?.netProvisions;
   if (!np) return null;
   if (Math.abs(np.charges) < HALF_CENT && Math.abs(np.reversals) < HALF_CENT) return null;
-  const effect = 0 - np.value;
   return {
     accountCode: np.accounts,
     label: np.name.en,
     roName: roNameOf(np.name),
-    amount: effect,
+    amount: np.value,
     style: "item",
-    sign: effect >= 0 ? "positive" : "negative",
+    sign: np.value > 0 ? "negative" : "positive",
     bucket: "netProvisions",
   };
 }

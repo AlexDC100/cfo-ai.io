@@ -613,13 +613,14 @@ export const PL_ROW_ONE_EBITDA_KEYS: ReadonlySet<string> = new Set([
   "pl.gross_profit",
   "pl.inventory_variation",
   "pl.capitalized_own_work",
-  // The owner's rulings of 2026-09-28 moved these too: 7411 into net
-  // turnover (R3); the 6812 / 6814 charges out of D&A, onto their own
-  // net-provisions line with the 7812 / 7814 reversals (R2). A prior
-  // stamped with the previous definition carries them under the same
-  // names, built another way. (`pl.other_operating_income` is the 758
-  // leaves alone — the rulings did not move it.)
-  "pl.revenue",
+  // The owner's R2 ruling of 2026-09-28 moved these too: the 6812 / 6814
+  // charges out of D&A, onto their own net-provisions line with the 7812 /
+  // 7814 reversals. A prior stamped with the previous definition carries
+  // them under the same names, built another way. (`pl.other_operating_
+  // income` is the 758 leaves alone — the ruling did not move it. Net
+  // turnover moved by R3 only on a book that posts 7411 — none is known —
+  // and a prior's stamp cannot say whether it did, so it is not held: see
+  // the comparatives law "net turnover … never held to it".)
   "pl.depreciation",
   "pl.net_provisions",
 ]);

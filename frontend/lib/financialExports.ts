@@ -170,7 +170,9 @@ export function buildExcelWorkbook(
     ["Headline KPIs"],
     // Net turnover (70x − 709) and THE ONE EBITDA / EBIT (711 and 72x
     // inside) — the printed P&L's own rows; a refused figure says so.
-    ["Net turnover (70x − 709)", printedCell(printedRow(ppl, "turnover"))],
+    // The row's own label: the engine names what turnover holds (70x − 709
+    // + 7411 since the owner's R3 ruling, 2026-09-28).
+    [printedRow(ppl, "turnover")?.label ?? "Net turnover (70x − 709)", printedCell(printedRow(ppl, "turnover"))],
     ["EBITDA", printedCell(printedRow(ppl, "ebitda"))],
     ["EBIT", printedCell(printedRow(ppl, "ebit"))],
     // The COVER quotes the same figure the KPI card and the printed P&L's
@@ -250,12 +252,13 @@ export function buildExcelWorkbook(
   const sameDefinition =
     priorShell !== null &&
     plLevelsOf(priorShell).definition === plLevelsOf(s).definition;
-  // The owner's rulings of 2026-09-28 moved four more rows: net turnover
-  // (7411 inside, R3), other operating income and D&A (the ruled reversals
-  // and charges out, R2) and the net-provisions row itself.
+  // The owner's R2 ruling of 2026-09-28 moved three more rows: other
+  // operating income and D&A (the ruled reversals and charges out) and the
+  // net-provisions row itself. (Net turnover moved by R3 only on a book
+  // that posts 7411 — none is known; it is not held, as on the P&L tab.)
   const DEFINITION_KEYS = new Set([
     "inventory_variation", "capitalized_own_work", "gross_profit", "ebitda", "ebit", "pretax", "net_result_built",
-    "turnover", "other_operating_income", "da", "net_provisions",
+    "other_operating_income", "da", "net_provisions",
   ]);
   const priorValueOf = (key: string): number | null | undefined => {
     if (!priorPpl) return undefined;

@@ -257,7 +257,10 @@ describe("the owner's own findings survive into the reader", () => {
   it("carries 70.4% depreciated and about four years of book life", () => {
     const insight = insightById(blockFor("agras"), "asset_age") as Insight;
     expect(insight.claim).toContain("70.4%");
-    expect(insight.claim).toContain("4.0 years");
+    // Owner ruling R2 (2026-09-28): the annual D&A no longer holds the 6812 /
+    // 6814 provision charges (their net is its own line), so the remaining
+    // book life reads 4.2 years where it read 4.0 — still about four.
+    expect(insight.claim).toContain("4.2 years");
   });
 
   // 2.11 -> 1.51 was read off the WRITE-PATH book. What the engine SERVES,

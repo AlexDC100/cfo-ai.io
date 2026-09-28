@@ -728,11 +728,14 @@ describe("§7 the same amount grades differently on books of different size", ()
 // agras interest_coverage 31.9962, ebitda_to_interest 42.6296 — both now
 // carry the measured net 711); before the ruling 28.1403 / 38.7737, and
 // before the 609/709 contra-convention repair 55.644 / 66.2774.
+// Owner ruling R2 (2026-09-28): the 7814.01 reversal (3,988.70) left EBITDA,
+// so EBITDA / interest reads 42.62 (it read 42.63); EBIT, and so EBIT /
+// interest, did not move.
 describe("§8 the coverage facts the rules are handed", () => {
-  it("agras: EBIT / interest 32.00 and EBITDA / interest 42.63, each under its own name", () => {
+  it("agras: EBIT / interest 32.00 and EBITDA / interest 42.62, each under its own name", () => {
     const { facts } = run("agras");
     expect(facts.ratios.interest_coverage_ebit).not.toBeNull();
     expect((facts.ratios.interest_coverage_ebit as number).toFixed(2)).toBe("32.00");
-    expect((facts.ratios.ebitda_to_interest as number).toFixed(2)).toBe("42.63");
+    expect((facts.ratios.ebitda_to_interest as number).toFixed(2)).toBe("42.62");
   });
 });
