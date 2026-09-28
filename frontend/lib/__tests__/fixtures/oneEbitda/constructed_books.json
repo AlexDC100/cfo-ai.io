@@ -14679,7 +14679,7 @@
      },
      {
       "id": "related_party_exposure",
-      "reason": "Total equity is refused — total equity excludes the year's result, which is refused: the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived — and this exposure is graded against equity and restates the equity ratio, so it is not measured.",
+      "reason": "No intercompany or related-party receivable row is present in the classified balance sheet.",
       "title": "Related-party and other-debtor balances sit inside the assets"
      },
      {
