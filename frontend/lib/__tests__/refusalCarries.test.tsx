@@ -529,6 +529,22 @@ describe("refusal-carries — round 3: total equity short by the refused result"
     }
     expect(screen.getByTestId("nav-convergence-nnnav").textContent).toContain(er.text_en);
     expect(screen.getByTestId("nav-hero-refused-reason").textContent).toContain(er.text_en);
+    // The RENDERED sensitivity grid (critic round 3: a cell printing
+    // `fmt(cell.nnnav ?? 0)` stayed green on the builder alone): nine
+    // cells, none a figure, and the reason beside them.
+    const cells = screen.getAllByTestId("nav-sensitivity-cell").map((c) => (c.textContent ?? "").trim());
+    expect(cells).toHaveLength(9);
+    for (const c of cells) expect(c).toBe("refused");
+    expect(screen.getByTestId("nav-sensitivity-refused").textContent).toContain(er.text_en);
+  });
+
+  it("unanchored (sheet balances): the rendered sensitivity grid carries nine figures", () => {
+    renderWithProviders(<NavValuationView cascade={navOf(U())} entity="E" period="P" currency="RON" />);
+    const cells = screen.getAllByTestId("nav-sensitivity-cell").map((c) => (c.textContent ?? "").trim());
+    expect(cells).toHaveLength(9);
+    for (const c of cells) expect(c).toMatch(/\d/);
+    expect(screen.queryByTestId("nav-sensitivity-refused")).toBeNull();
+    cleanup();
   });
 
   it("unanchored (sheet balances): Book NAV is the served total equity", () => {
@@ -554,6 +570,12 @@ describe("refusal-carries — round 3: total equity short by the refused result"
     expect(data.altmanX2Refusal).toContain(r.text_en);
     renderWithProviders(<CreditScoreCard data={data} />);
     expect(screen.getByTestId("report-altman-x2").textContent).toContain(r.text_en);
+    // A metric row written before the refusal (X2 0.2381, graded on the
+    // short equity) never stands in for the refused component (critic
+    // round 3: the clause was unwitnessed).
+    const stale = computeCreditScore(b.statements, credit, undefined, { altman_x2: 0.2381 });
+    expect(stale.altman.components.x2_re_to_assets, "a stale X2 row printed").toBeNull();
+    expect(stale.altman.componentRefusals?.x2?.text.en).toContain(r.text_en);
   });
 
   it("unanchored (sheet balances): X2 is served by the engine reader", () => {
@@ -561,6 +583,10 @@ describe("refusal-carries — round 3: total equity short by the refused result"
     const result = computeCreditScore(b.statements, constructedCredit(b.name) as CreditEnvelope);
     expect(typeof result.altman.components.x2_re_to_assets).toBe("number");
     expect(result.altman.componentRefusals?.x2 ?? null).toBeNull();
+    // Non-vacuity of the stale-row case above: with no refusal the metric
+    // row IS what the reader takes.
+    const withRow = computeCreditScore(b.statements, constructedCredit(b.name) as CreditEnvelope, undefined, { altman_x2: 0.2381 });
+    expect(withRow.altman.components.x2_re_to_assets).toBe(0.2381);
   });
 
   it("unanchored_unbalanced: the equity ratio and debt / equity refuse with the engine's reason; balanced, they compute", () => {

@@ -255,6 +255,7 @@ export function NavValuationView({ cascade, entity, period, currency }: Props) {
                       <td
                         key={ay}
                         className={`num ${isCentral ? "central" : ""}`}
+                        data-testid="nav-sensitivity-cell"
                       >
                         {cell ? (cell.nnnav === null ? "refused" : fmt(cell.nnnav)) : "—"}
                       </td>
@@ -265,6 +266,12 @@ export function NavValuationView({ cascade, entity, period, currency }: Props) {
             </tbody>
           </table>
         </div>
+        {cascade.bookNavRefusal && (
+          // A grid of "refused" cells says why, once, beside them.
+          <p className="nav-caption" data-testid="nav-sensitivity-refused">
+            Every cell refused — {cascade.bookNavRefusal.text.en}
+          </p>
+        )}
         <p className="nav-caption">
           Central case ({(cascade.keyAssumptions.capRateCentral * 100).toFixed(1)}% cap rate,{" "}
           {(cascade.keyAssumptions.affiliateYieldCentral * 100).toFixed(0)}% affiliate yield)
