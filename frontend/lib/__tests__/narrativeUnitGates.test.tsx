@@ -285,8 +285,11 @@ describe("U4 — the same fact reads identically wherever it is rendered", () =>
     DISPLAY = "EUR";
     const text = renderClaim(BODY, FACTS);
     // Two converted figures on screen, and no RON label orphaned behind
-    // them — the exact shape of the original defect, inverted.
-    expect((text.match(/€/g) ?? []).length).toBe(2);
+    // them — the exact shape of the original defect, inverted. Each carries
+    // the display currency's ISO code (lib/money prints the code after the
+    // figure in every language — owner ticket 2026-09-28 — never "€").
+    expect((text.match(/\bEUR\b/g) ?? []).length).toBe(2);
+    expect(text).not.toMatch(/€/);
     expect(currenciesIn(text)).toEqual(["EUR"]);
   });
 });

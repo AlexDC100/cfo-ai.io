@@ -1497,6 +1497,33 @@ no model, no quota). A turnover change that does not move toward the filed
 figure blocks the deploy (exit 3). Run it inside the new backend per §14,
 then the data gates (§14 step 5).
 
+## 26. Every figure in the reader's language (owner ticket 2026-09-28)
+
+Branch `fix/en-number-locale` (frontend only; no engine, no schema). The
+English interface printed "413,7 mil. RON" on the command bar, the workspace
+cards and the company page: `lib/money` chose the locale from the CURRENCY
+(RON → ro-RO, EUR → de-DE, USD → en-US). **The rule now: the locale is the UI
+language's, through ONE mapping, `lib/money` `moneyLocaleFor(<language>)`**
+— ro → ro-RO, anything else → en-US numbering — and every currency prints as
+its ISO code after the figure: EN "413.7M RON", RO "413,7 mil. RON" (EUR /
+USD likewise: "1,234.56 EUR", no "€" / "$" from lib/money). The served value
+never changes. `<Money>` / `useAmountFormatter` follow a language switch
+live; the bar's `servedMoney` is bound to its Printer's `lang`; the bar's
+finding items and the evidence drawer's finding headline share
+`printMeasure` (the Romanian bar used to print "RON -2,577,640.82",
+"70.4%"); `lib/insights formatMeasure` keeps the engine's en-US bytes by
+default (the report is English by contract). The report's `formatRatio`
+days fallback prints "1 day", never "1 days".
+
+**Never compare a printed figure only against the same printer.** The bar's
+served-equality gates used `formatMoneyFrom` for their expected string, so
+the defect printed the same wrong string on both sides and agreed. The gates
+now state the language (`money(v, lang)`, live G6 via `moneyLocaleFor`) AND
+run an independent number-shape detector (`frontend/test/numberLanguage.ts`):
+gates `ui-language-figures` (new) and `cmdbar-surface`'s `cmdbar-ui-language`
+(floor 201 → 207). Plant log: `docs/engine_book/gates.md`,
+"ui-language-figures".
+
 ---
 
 # 📘 Appendix A — Full Financial Analysis Methodology

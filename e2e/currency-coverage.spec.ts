@@ -34,10 +34,11 @@ import { test, expect, type Page } from "@playwright/test";
 type Currency = "ron" | "eur" | "usd";
 
 const CURRENCY_SYMBOL: Record<Currency, RegExp> = {
-  // Each regex matches the SYMBOL or 3-letter CODE the formatter emits for
-  // that currency. Intl.NumberFormat output varies by locale — RON in
-  // ro-RO is "RON" (suffix), EUR in de-DE is "€" (prefix), USD in en-US
-  // is "$" (prefix). We tolerate either symbol or code.
+  // Each regex matches the SYMBOL or 3-letter CODE a formatter emits for
+  // that currency. lib/money prints the ISO code after the figure in the
+  // reader's language ("413.7M RON", "1,234.56 EUR" — owner ticket
+  // 2026-09-28); the Instrument's <Amount> surfaces print "€" / "$" glyphs.
+  // We tolerate either symbol or code.
   ron: /\bRON\b|\bLEI\b/i,
   eur: /€|\bEUR\b/i,
   usd: /\$|\bUSD\b/i,

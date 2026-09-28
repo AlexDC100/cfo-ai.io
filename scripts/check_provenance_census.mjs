@@ -220,6 +220,11 @@ const FORMATTERS = {
   // its own contract says so, and that it returns the literal
   // "not reported" rather than substituting a zero.
   formatMeasure: "frontend/lib/insights.ts",
+  // `printMeasure` — the same finding measure in the READER'S language
+  // (owner ticket 2026-09-28): the command bar's "Ce contează acum" items and
+  // the evidence drawer's finding headline print through it, never through
+  // the English-only formatMeasure.
+  printMeasure: "frontend/components/instrument/shell/cmdbar/cmdbarFigures.ts",
   // `formatVariance` spells the period-over-period move on every
   // comparative line. It also renders the REFUSAL — a line whose two sides
   // were not built the same way prints a sentence, never a dash or a 0.

@@ -159,8 +159,8 @@ function renderAt(route: string) {
 
 describe("the detector sees the defect the owner saw, and nothing else", () => {
   it("every string from the ticket reads as Romanian on an English surface; the English strings do not", () => {
-    for (const seen of ["413,7 mil. RON", "36,8 mil. RON", "32,4 mil. RON", "110,8 mil. RON", "-2.577.640,82 RON", "1.234,56 EUR", "402,9 K RON"]) {
-      expect(foreignNumber(seen.replace(/ /g, " "), "en"), seen).not.toBeNull();
+    for (const seen of ["413,7 mil. RON", "36,8 mil. RON", "32,4 mil. RON", "110,8 mil. RON", "-2.577.640,82 RON", "1.234,56 EUR", "402,9 K RON", "-61,6 mii RON", "552 mii RON"]) {
+      expect(foreignNumber(seen.replace(/ /g, "\u00a0"), "en"), seen).not.toBeNull();
       expect(foreignNumber(seen, "en"), seen).not.toBeNull();
     }
     for (const right of ["413.7M RON", "110.8M RON", "-2,577,640.82 RON", "1,234.56 EUR", "402.9K RON", "+8.9 % vs 2024", "Net turnover 2025", "CUI RO1234567", "1 day", "12 days"]) {

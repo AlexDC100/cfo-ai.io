@@ -10,7 +10,8 @@
 //   Romanian  a comma decimal of one or two digits ("413,7", "…,82"); two or
 //             more dot thousands groups ("2.577.640"); a dot group before a
 //             comma decimal ("1.234,56"); a Romanian magnitude word after a
-//             figure ("413,7 mil.", "1,2 mld.").
+//             figure ("413,7 mil.", "1,2 mld.", and Chromium's "61,6 mii"
+//             where Node's ICU prints "61,6 K").
 //   English   a dot decimal of one or two digits ("413.7", "…,640.82"); two
 //             or more comma thousands groups ("2,577,640"); a comma group
 //             before a dot decimal ("1,234.56"); an English magnitude letter
@@ -21,10 +22,10 @@
 // Romanian date ("31.12.2025": the dot is followed by more digits or a dot).
 
 export const ROMANIAN_NUMBER =
-  /\d,\d{1,2}(?![\d,])|\d\.\d{3}(?:\.\d{3})+(?!\d)|\d\.\d{3},\d|\d[\s ](?:mil|mld|tril)\./;
+  /\d,\d{1,2}(?![\d,])|\d\.\d{3}(?:\.\d{3})+(?!\d)|\d\.\d{3},\d|\d[\s\u00a0](?:mii\b|mil\.|mld\.|tril\.)/;
 
 export const ENGLISH_NUMBER =
-  /\d\.\d{1,2}(?![\d.])|\d,\d{3}(?:,\d{3})+(?!\d)|\d,\d{3}\.\d|\d[KMBT][\s ](?:RON|EUR|USD)\b/;
+  /\d\.\d{1,2}(?![\d.])|\d,\d{3}(?:,\d{3})+(?!\d)|\d,\d{3}\.\d|\d[KMBT][\s\u00a0](?:RON|EUR|USD)\b/;
 
 /** The first figure in `text` printed in the OTHER language's format — a
  *  Romanian number on an English surface, or the reverse — or null. */
@@ -36,5 +37,5 @@ export function foreignNumber(text: string, lang: "en" | "ro"): string | null {
 /** Non-breaking spaces (Intl joins "413,7 mil. RON" and "413.7M RON" with
  *  U+00A0) read as plain spaces, so a law can state the owner's strings. */
 export function plainSpaces(text: string | null | undefined): string {
-  return (text ?? "").replace(/[  ]/g, " ");
+  return (text ?? "").replace(/[\u00a0\u202f]/g, " ");
 }

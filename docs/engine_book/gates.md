@@ -16562,3 +16562,176 @@ same bytes, so the one-figure law holds; the wording is a separate fix.
 **CANNOT SEE:** what the chat MODEL does with the rule line (the law holds
 the snapshot, not the answer — the edge function is unchanged); pixels;
 production periods.
+
+## ui-language-figures
+
+**The ticket (owner, 2026-09-28).** In the ENGLISH interface of cfo-ai.io,
+money printed in Romanian format — the command bar ("413,7 mil. RON",
+"36,8 mil. RON", "32,4 mil. RON"), the workspace home's company cards and
+the company page's year tiles ("413,7 mil. RON", "110,8 mil. RON") — and the
+report's `formatRatio` fallback printed "1 days" (fixer round 3's OPEN item,
+above). Root cause: `lib/money` chose the locale from the CURRENCY (RON →
+ro-RO, EUR → de-DE, USD → en-US), whatever the reader's language; `<Money>`,
+`useAmountFormatter` and the bar's `servedMoney` all inherited it. And the
+bar's served-equality gates could not see it: their expected printer was the
+same `formatMoneyFrom`, so it printed the same wrong string and agreed.
+
+**The rule now.** Every figure prints in the UI language (`lib/locale`
+`activeLocale()`, CLAUDE.md §19) through ONE mapping, `lib/money`
+`moneyLocaleFor(<language>)`: ro → ro-RO, anything else → en-US numbering
+(the English numbering `lib/amountFormat` and `lib/sectorBenchmark` already
+print — "413.7M", not en-GB's "413.7m"). Every currency prints as its ISO
+code after the figure, in both languages: EN "413.7M RON", "-2,577,640.82
+RON", "1,234.56 EUR"; RO "413,7 mil. RON", "-2.577.640,82 RON", "1.234,56
+EUR" (one shape per currency, so capsule gate C6 — an answer identical in RON
+and EUR except for presentation — holds unchanged). The served value never
+moves; only the locale of the printing changes. `<Money>` and
+`useAmountFormatter` read the language through `useActiveLocale` (a language
+switch re-prints with no remount); the bar's `servedMoney` is bound to its
+Printer's `lang`; the bar's and the evidence drawer's finding headline print
+through one `printMeasure` in the reader's numbering (money through
+`servedMoney`, days through the ratio table's count forms, the rest through
+`formatMeasure(…, { locale })` — whose default stays the engine's en-US
+bytes for the English-by-contract report). `formatRatio`'s days fallback
+prints through the ratio table's count forms ("1 day", "-1 day", "12 days").
+
+**Found by the law itself, fixed in the same change:** the inverse defect on
+the same bar — the Romanian "Ce contează acum" finding items printed
+"RON -2,577,640.82", "753,070.01", "70.4%", "1.50×" (lib/insights
+`formatMeasure` is English-only), and the evidence drawer headlined the
+finding with the same English string.
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/pages/cfo/__tests__/figuresFollowUiLanguage.test.tsx --reporter=verbose` |
+| work count | `Tests … (\d+) passed`, floor **20** (measured 20) |
+| canary | `GATE-WORK ui-language-figures figures=` and eight titles named in `scripts/run_battery.py` |
+
+The laws, per surface, in EN AND RO — the figure is the owner's string for
+that language, and nothing on the surface is a number in the OTHER
+language's format (`frontend/test/numberLanguage.ts`: a Romanian comma
+decimal, two dot thousands groups, a dot group before a comma decimal, a
+Romanian magnitude word "mil." / "mld." / "mii"; the English mirror — each
+a shape the other language cannot produce):
+
+| gate | law |
+|---|---|
+| ui-language-figures | the detector sees every string from the ticket as Romanian on an English surface, and passes the English strings and a Romanian date (not vacuous) |
+| ui-language-figures | lib/money: `formatMoneyFrom` / `formatAmountFrom` in EN and RO, RON / EUR / USD, compact / full / signed / zero; an explicit locale wins through the one mapping; the digits never move between languages |
+| ui-language-figures | one mounted `<Money>` (and its full-precision title) and one `useAmountFormatter` table cell re-print on a language switch, no remount |
+| ui-language-figures | workspace home: Scandia "413.7M RON" / "413,7 mil. RON", Agras "110.8M RON" / "110,8 mil. RON"; the whole page free of the other language's numbers |
+| ui-language-figures | company page: the 2025 / 2024 / 2023 tiles "413.7M / 380M / 350M RON" / "413,7 / 380 / 350 mil. RON", the change "+8.9 %" / "+8,9 %"; the whole page free of the other language's numbers |
+| ui-language-figures | the bar's `servedMoney` bound to a language prints it whatever the global language; `printMeasure` money / % / × / days in both languages; `formatMeasure`'s default keeps the engine's bytes |
+| ui-language-figures | the report's days fallback: 1 → "1 day", 0.6 → "1 day", -1 → "-1 day", 0 → "0 days", 12 → "12 days", 101 → "101 days" |
+| cmdbar-surface | NEW `cmdbar-ui-language`: the REAL `CommandPalette` on Scandia, Agras and the pair, EN and RO — every `[data-figure]` and chip at rest and for 18 typed queries free of the other language's numbers (VACUITY ≥ 10 money figures), the turnover answer the owner's string (Scandia "48.3M RON" / "48,3 mil. RON", Agras "110.8M RON" / "110,8 mil. RON") |
+| cmdbar-surface | REWRITTEN: the served-equality helper `money(v, lang)` states the bar's language (`moneyLocaleFor(lang)`) at every call instead of inheriting the global i18n state |
+| G6 (live) | REWRITTEN: the expected money string is printed with the bar's language stated (`moneyLocaleFor` exposed by `e2e/cmdbar.printers.entry.ts`); NEW: every resting and every painted figure free of the other language's numbers — independent of the printers |
+
+**Reds on, after the repair (TC-11):** a figure on an English surface in
+Romanian format, or on a Romanian surface in English format, whether the
+defect sits in the one mapping, the formatter's default, a component that
+drops the language, the bar's binding, or the finding printer; a `<Money>`
+that does not re-print on a language switch; "1 days". **Cannot see:** the
+surfaces this file does not render (the rest of the app is held only through
+`lib/money`'s own law and the full vitest suite); words that stay English in
+the Romanian bar ("not reported", a `years` / count noun in `formatMeasure`)
+— they are not numbers; the Forecast cockpit's own `compactMoney` (it takes
+the UI locale, but en-GB's "RON 54.4m" shape — Forecast is closed); pixels.
+
+**PLANT (through the battery, `run_battery.main` narrowed to
+ui-language-figures, cmdbar-surface, cmdbar-evidence; each alone on the
+committed tree 9dbd2b86, restored with `git checkout --`, asserted equal to
+HEAD, the battery re-run):**
+
+```
+### PLANT A — frontend/lib/money.ts: the locale follows the CURRENCY again (the pre-fix rule: RON -> ro-RO, EUR -> de-DE, USD -> en-US), whatever the language
+FAIL cmdbar-surface (exit 1, 16.6s)
+FAIL ui-language-figures (exit 1, 2.3s)
+PASS cmdbar-evidence (7.6s, 47 evidence-landing tests)
+failing tests (11): cmdbar-ui-language scandia/agras/pair (en); <Money> + table cell on a switch;
+  company page (en); workspace home (en); lib/money en, ro (EUR de-DE, USD en-US in RO), explicit
+  locale; servedMoney bound; printMeasure
+  (NOTE: none of cmdbar-surface's served-EQUALITY tests red — the expected printer shares the
+  defect; only the independent number-shape law sees it)
+### REVERT A — PASS cmdbar-surface (16.9s, 207) · PASS ui-language-figures (2.4s, 20) · PASS cmdbar-evidence (7.6s, 47)
+### PLANT B — frontend/lib/money.ts moneyLocaleFor: every language maps to ro-RO (a defect COMMON to the bar and the gate's expected printer)
+FAIL cmdbar-surface (exit 1, 16.6s)
+FAIL ui-language-figures (exit 1, 2.3s)
+PASS cmdbar-evidence (7.6s, 47 evidence-landing tests)
+failing tests (10): cmdbar-ui-language scandia/agras/pair (en); <Money> + table cell; company page (en);
+  workspace home (en); lib/money en; explicit locale; servedMoney bound; printMeasure
+### REVERT B — PASS cmdbar-surface (16.3s, 207) · PASS ui-language-figures (2.3s, 20) · PASS cmdbar-evidence (7.6s, 47)
+### PLANT C — CommandPalette.tsx: the bar's money printer bound to Romanian whatever the reader's language
+FAIL cmdbar-surface (exit 1, 13.4s)
+PASS ui-language-figures (2.4s, 20 reader's-language figure tests)
+PASS cmdbar-evidence (7.7s, 47 evidence-landing tests)
+failing tests (18): every EN served-equality law (statement answers, every Cont leaf scandia/agras (en),
+  the account row, 'profit', cold/warm latency value, cmdbar-one-currency RON/EUR/USD, the 711 note (en),
+  refused-line figures) + cmdbar-ui-language scandia/agras/pair (en)
+### REVERT C — PASS cmdbar-surface (16.5s, 207) · PASS ui-language-figures (2.4s, 20) · PASS cmdbar-evidence (7.7s, 47)
+### PLANT D — financialReport.ts formatRatio: the days fallback back to `${n} days` ("1 days")
+PASS cmdbar-surface (16.8s, 207 command-bar tests)
+FAIL ui-language-figures (exit 1, 2.3s)
+PASS cmdbar-evidence (7.6s, 47 evidence-landing tests)
+failing tests (4): 1 → 1 day · 0.6 → 1 day · 1.4 → 1 day · -1 → -1 day
+### REVERT D — PASS cmdbar-surface (16.7s, 207) · PASS ui-language-figures (2.3s, 20) · PASS cmdbar-evidence (7.6s, 47)
+### PLANT E — cmdbarFigures.ts printMeasure: the pre-fix English-only formatMeasure
+FAIL cmdbar-surface (exit 1, 16.8s)
+FAIL ui-language-figures (exit 1, 2.3s)
+PASS cmdbar-evidence (7.6s, 47 evidence-landing tests)   (the drawer shares the printer: bar = landing either way)
+failing tests (3): cmdbar-ui-language scandia (ro), agras (ro); printMeasure in the printer's language
+### REVERT E — PASS cmdbar-surface (16.8s, 207) · PASS ui-language-figures (2.3s, 20) · PASS cmdbar-evidence (7.7s, 47)
+```
+
+**PLANT (live, the real bundle).** Plant A built into a separate hermetic
+bundle AND left in source while the spec ran, so G6's expected printer
+(bundled from source) shares the defect — common mode:
+
+```
+E2E_HERMETIC=1 E2E_BASE_URL=http://127.0.0.1:4418 npx playwright test e2e/design/cmdbar.spec.ts --project=chromium -g G6
+  ✓ scandia (ro) · ✘ scandia (en) · ✓ agras (ro) · ✘ agras (en)
+  Error: scandia/en: resting figures in the other language's format
+    + "-2.577.640,82 RON", "753.070,01 RON", …
+  Error: agras/en: painted figures in the other language's format
+    + "answer:turnover: 110,8 mil. RON", "answer:ebitda: 11,8 mil. RON", … "account:1171.01: -61,6 mii RON", … (277)
+  (painted ≠ served: EMPTY — the equality agreed with the defect; the new check is what reds)
+REVERT (git checkout -- frontend/lib/money.ts, == HEAD); the unplanted bundle: 37 passed
+```
+
+(Chromium's ICU writes Romanian thousands "mii" where Node's writes "K";
+the detector knows both.)
+
+**Registered** (scripts/run_battery.py): `ui-language-figures` (new, floor
+20); `cmdbar-surface` floor 201 → **207** (+6 cmdbar-ui-language) with four
+new canaries. `scripts/check_provenance_census.mjs` counts `printMeasure`
+as a figure formatter (the evidence drawer's finding headline moved to it —
+its site count stays 9).
+
+**Other laws that pinned the old behaviour, rewritten to the rule:**
+`narrativeMoney.test.tsx` N2 / N3 (the provenance's native figure in English
+numbering on the English suite, and never the Romanian one);
+`narrativeUnitGates.test.tsx` U4 (two converted figures carry "EUR", never
+"€"); `ratioParityCapture.test.ts` (a days count of one reads "1 day", the
+singular for one only).
+
+**GREEN (measured on fix/en-number-locale).** Narrowed battery through
+`run_battery.main`: `PASS ui-language-figures (20)`, `PASS cmdbar-surface
+(207)`, `PASS cmdbar-evidence (47)`, `PASS cmdbar-fixtures (6)`,
+`PASS ratio-byte-match (144)`, `PASS inventory-days-surfaces (191)`,
+`PASS export-ratio-anchor (15)`, `PASS margin-meaning-page (18)`,
+`PASS pl-one-ebitda-page (63)`, `PASS one-ebitda (25)`,
+`PASS turnover-denominator (8)`, `PASS refusal-carries (47)`,
+`PASS valuation-refused-override (10)`, `PASS benchmark-basis-separation
+(7)`, `PASS forecast-f-page (73)`, `PASS forecast-cockpit-page (96)`,
+`PASS tsc (1016)`, `PASS hermetic`, `PASS capsule-craft`, `PASS capsule-ask`,
+`PASS narrative-units`, `PASS provenance-contrast`, `PASS global-positioning`,
+`PASS no-plants`, `PASS stale-gates`, `PASS engine-book`. Red, and red
+identically on the untouched 80c2e8b5 in a separate worktree:
+provenance-census (the same 11 findings, byte for byte), vitest (4318
+passed, 0 failed, 1 skipped — its one problem is the canary file
+`forecastPage.test.tsx`, absent from the tree; baseline 4292 passed, same
+problem), test-env-isolation (no dotenv file in a worktree). Full vitest:
+260 files, 4318 passed, 1 skipped, 0 failed (baseline 259 / 4292: +20
+ui-language-figures, +6 cmdbar-ui-language). tsc: the 10 known errors, none
+new. Hermetic Playwright `e2e/design/cmdbar.spec.ts` (chromium, the
+production bundle built per the spec's header): 37 passed.
