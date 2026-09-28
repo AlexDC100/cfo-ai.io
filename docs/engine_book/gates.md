@@ -16530,6 +16530,23 @@ canaries for the rewritten cycle law, its positive control and the two new
 chat laws (the retired "DSO + DIO − DPO = CCC, EXACTLY as printed" canary
 removed); one-metric-one-formula — measured 121 units (floor 110 kept).
 
+**GREEN (measured at b6276729).** Narrowed battery through
+`run_battery.main`: `PASS workspace-v2 (29)`, `PASS radar (190)`,
+`PASS one-metric-one-formula (121)`, `PASS inventory-days-surfaces (191)`,
+`PASS export-ratio-anchor (15)`, `PASS refusal-carries (47)`,
+`PASS attention-rules (29)`, `PASS attention-served-only (17)`,
+`PASS cmdbar-surface (201)`, `PASS cmdbar-evidence (47)`,
+`PASS interest-coverage-one-operand (8)`, `PASS engine-book`,
+`PASS no-plants`, `PASS stale-gates`; provenance-census FAIL on its 11
+pre-existing findings, none new (none names a file this round touched).
+Full engine suite (`tests/engine`): 9204 passed, 39 skipped, 2 xfailed, 0
+failed. Root `tests/` outside the engine: 127 passed, 6 failed + 21 errors —
+the known set (test_api, test_briefing, test_powerbi, test_storage,
+pricing_v3 g7 ×2, statutory_104 strand_a2, validation_fixture ×2). Full
+vitest: 259 files, 4292 passed, 1 skipped (round 2: 4273 — +1 cycle-note
+law, +18 chat-snapshot laws). tsc (`tsconfig.app.json`): the 10 known
+capsuleAskGuard errors, none other. `vite build` (dist removed first): built.
+
 **Re-captured by their own writers** (becc580c): the four captures where the
 printed DSO − DPO parts from the gap (radar/saga_10_col, radar/explain/
 saga_10_col, the coverage popover corpus's saga_10_col book, the Scandia G7
