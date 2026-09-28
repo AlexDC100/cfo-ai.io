@@ -984,6 +984,7 @@
         "company_operand_absent": "Necomparat: perioada ta nu conține {{inputs}}.",
         "company_nonpositive_denominator": "Necomparat: {{inputs}} nu este pozitiv în perioada ta.",
         "company_margin_not_meaningful": "Necomparat: cifra de afaceri este neglijabilă față de activitatea ta, deci marja nu este semnificativă.",
+        "company_figure_refused": "Necomparat — refuzat: {{text}}",
         "prior_period_absent": "Are nevoie de perioada de acum un an din acest spațiu de lucru.",
         "prior_period_not_servable": "Perioada de acum un an nu a putut fi citită.",
         "period_end_absent": "Perioada nu are dată de sfârșit.",

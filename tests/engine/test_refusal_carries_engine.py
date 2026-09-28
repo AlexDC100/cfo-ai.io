@@ -89,7 +89,13 @@ from _one_definition_served import (
     EBIT_SURFACES, EBITDA_SURFACES, REFUSED_BOOKS, Refused, served)
 
 WORK: Dict[str, Any] = {"checks": 0, "books": [], "codes": {}, "net_result_refused": [],
-                        "equity_incomplete": [], "equity_complete": [], "equity_readers": []}
+                        "equity_incomplete": [], "equity_complete": [], "equity_readers": [],
+                        "sector_equity_refused": []}
+
+#: A CAEN the committed sector dataset serves every size band of the
+#: refused books at (asserted: the document is `ok` and lawful), so the
+#: sector checks of section 12k never pass on a refused document.
+SECTOR_CAEN = "1013"
 
 #: Every stored metric row that divides or reports TOTAL EQUITY (or, for
 #: X2, the cumulative book it holds).
@@ -659,6 +665,71 @@ def _equity_readers(name: str, b: Any, abs_: Dict[str, Any], bfacts: Dict[str, A
         plog.removeHandler(handler)
     check(not handler.messages,
           "the serve path's envelope landing failed: %r" % (handler.messages,))
+
+    # k. The sector benchmark (GET /api/period/{id}/sector-benchmark,
+    #    critic round 3, 2026-09-28): its company side is read off the
+    #    served body. On equity short by the refused result the equity
+    #    ratio refuses with the engine's reason (it graded 0.4925 against
+    #    the sector median on the real developer, 0.4762 on the
+    #    constructed book), and on a refused net result ROE and ROA refuse
+    #    with the net result's reason — never "your period does not carry
+    #    net_result". On complete equity the equity ratio is compared.
+    from engine.benchmarks_ro import sector as SB
+
+    doc = SB.build_sector_benchmark(b.body, caen=SECTOR_CAEN)
+    check(doc.get("status") == "ok" and not SB.check_document_law(doc),
+          "the sector benchmark did not serve a lawful document on CAEN %s: %r / %r"
+          % (SECTOR_CAEN, doc.get("status"), doc.get("reason")))
+    srows = dict((r["key"], r) for r in doc.get("rows") or [])
+    er = srows.get("equity_ratio") or {}
+    if incomplete:
+        reason = er.get("reason") or {}
+        check(er.get("status") == "company_refused" and (er.get("company") or {}).get("value") is None
+              and er.get("position") is None and reason.get("code") == SB.COMPANY_FIGURE_REFUSED
+              and reason.get("cause") == code and text and text in (reason.get("text_en") or ""),
+              "the sector benchmark graded the equity ratio on equity short by the refused result: "
+              "%r / %r / %r" % (er.get("status"), (er.get("company") or {}).get("value"), reason))
+        card = (doc.get("ratio_cards") or {}).get("equity_ratio") or {}
+        check(card.get("band_source") == "general"
+              and (card.get("reason") or {}).get("code") == SB.COMPANY_FIGURE_REFUSED,
+              "the sector benchmark's equity-ratio card %r on equity short by the refused result" % (card,))
+        # The two clauses, each on its own: (1) the filed-basis operand
+        # itself refuses (the prior period's rows and a body without a
+        # ratio table read nothing else) ...
+        basis = SB.company_filed_basis(b.body)
+        check(basis["equity"]["value"] is None
+              and (basis["equity"].get("refusal") or {}).get("code") == code,
+              "the sector benchmark's filed-basis equity operand %r on equity short by the "
+              "refused result" % (basis["equity"],))
+        # ... and (2) a ratio card that refused the figure refuses the
+        # page's figure even where the operand carries no refusal (the
+        # body with the served refusal blocks removed; the card keeps its).
+        bare = copy.deepcopy(b.body)
+        bare["statements"]["assembled_bs"].pop("total_equity_refusal", None)
+        bare["statements"]["assembled_pl"].pop("net_income_refusal", None)
+        er2 = SB.company_figures(bare)["equity_ratio"]
+        check(er2["value"] is None and (er2["reason"] or {}).get("code") == SB.COMPANY_FIGURE_REFUSED
+              and (er2["reason"] or {}).get("cause") == code,
+              "the sector benchmark restated the equity ratio beside a card that refused it: %r" % (er2,))
+        WORK["sector_equity_refused"].append(name)
+    else:
+        check(er.get("status") == "sourced" and isinstance((er.get("company") or {}).get("value"), (int, float)),
+              "the sector benchmark's equity ratio on COMPLETE equity: %r / %r"
+              % (er.get("status"), er.get("reason")))
+    ni_ref = (b.apl.get("net_income_refusal") or {})
+    for key in ("roe", "roa"):
+        row = srows.get(key) or {}
+        reason = row.get("reason") or {}
+        if ni_ref:
+            check(row.get("status") == "company_refused" and (row.get("company") or {}).get("value") is None
+                  and reason.get("code") == SB.COMPANY_FIGURE_REFUSED and reason.get("cause") == code
+                  and (ni_ref.get("text_en") or "") in (reason.get("text_en") or ""),
+                  "the sector benchmark's %s on a refused net result: %r / %r"
+                  % (key, row.get("status"), reason))
+        else:
+            check(row.get("status") == "sourced",
+                  "the sector benchmark's %s on a served net result: %r / %r"
+                  % (key, row.get("status"), reason))
     WORK["equity_readers"].append("%s (%s)" % (name, "refused" if incomplete else "served"))
 
 
@@ -695,7 +766,7 @@ def test_refusal_carries_zz_work(capsys):
         print("EQUITY short by the refused result: %s; complete: %s"
               % (", ".join(WORK["equity_incomplete"]), ", ".join(sorted(WORK["equity_complete"]))))
         print("EQUITY-READERS (briefing facts + Debt/Equity, methodology, FactsGateway.equity, "
-              "Capsule, insights, R4, findings): %s" % ", ".join(WORK["equity_readers"]))
+              "Capsule, insights, R4, findings, sector benchmark): %s" % ", ".join(WORK["equity_readers"]))
         print("GATE-WORK refusal-carries-engine units=%d" % WORK["checks"])
     assert sorted(WORK["books"]) == sorted(REFUSED_BOOKS), WORK["books"]
     # TC-3: the net-result law has a witness (a refused 711 with no 121).
@@ -704,6 +775,9 @@ def test_refusal_carries_zz_work(capsys):
     # TC-3: the equity law has a witness on each side — a CONSTRUCTED one
     # and the real developer with its 121 row deleted from the file.
     assert WORK["equity_incomplete"] == ["unanchored_unbalanced", "realestate_no121"], WORK["equity_incomplete"]
+    # 12k: the sector benchmark refused the equity ratio on both.
+    assert WORK["sector_equity_refused"] == ["unanchored_unbalanced", "realestate_no121"], \
+        WORK["sector_equity_refused"]
     # 12e-g non-vacuity: the insight, R6 and the findings detector judge
     # complete equity on the real developer.
     assert WORK.get("related_party_complete"), WORK.get("related_party_complete")

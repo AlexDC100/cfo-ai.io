@@ -984,6 +984,7 @@
         "company_operand_absent": "Not compared: your period does not carry {{inputs}}.",
         "company_nonpositive_denominator": "Not compared: {{inputs}} is not positive in your period.",
         "company_margin_not_meaningful": "Not compared: your turnover is negligible against your operating activity, so the margin is not meaningful.",
+        "company_figure_refused": "Not compared — refused: {{text}}",
         "prior_period_absent": "Needs the period one year earlier in this workspace.",
         "prior_period_not_servable": "The period one year earlier could not be read.",
         "period_end_absent": "The period has no end date.",

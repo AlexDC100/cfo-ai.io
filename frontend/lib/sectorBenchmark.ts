@@ -28,6 +28,12 @@ export interface ServedReason {
   code: string;
   inputs?: unknown;
   text?: string | null;
+  /** The engine's own sentence, per language, on a figure it REFUSED
+   *  (`company_figure_refused`: a refused net result, total equity short
+   *  by a refused result, a ratio card that refused the same figure). */
+  text_en?: string | null;
+  text_ro?: string | null;
+  cause?: string | null;
 }
 
 export interface SectorFigure {
@@ -49,7 +55,7 @@ export interface SectorRow {
   key: string;
   unit: SectorUnit;
   direction: "higher" | "lower" | null;
-  status: "sourced" | "insufficient_peers" | "company_absent" | "sector_absent";
+  status: "sourced" | "insufficient_peers" | "company_absent" | "company_refused" | "sector_absent";
   definition: { formula?: string | null; company_basis?: string | null; card_key: string | null; differs_from_card: boolean };
   company: { value: number | null; basis: string | null; operands: unknown[] };
   sector: SectorFigure | null;
@@ -200,12 +206,16 @@ export function sizeBandText(band: SizeBand | undefined, locale?: string | null)
     : t("benchmarkPage.sector.sizeBandRange", { min: whole(band.min_ron, loc), max: whole(band.max_ron, loc) });
 }
 
-function reasonSentence(reason: ServedReason | null, t: T): string {
+function reasonSentence(reason: ServedReason | null, t: T, loc?: string): string {
   const code = reason?.code ?? "unknown";
   const inputs = reason?.inputs;
   const vars: Record<string, unknown> = {};
   if (isObj(inputs)) Object.assign(vars, inputs);
   else if (Array.isArray(inputs)) vars.inputs = inputs.join(", ");
+  // A REFUSED figure prints the engine's own sentence in the page's
+  // language — never a bare "not compared".
+  const engineText = loc === "ro" ? (reason?.text_ro ?? reason?.text_en) : (reason?.text_en ?? reason?.text_ro);
+  vars.text = engineText ?? reason?.text ?? code;
   const key = `benchmarkPage.sector.reason.${code}`;
   const out = t(key, vars);
   return out === key ? t("benchmarkPage.sector.reason.unknown", { code }) : out;
@@ -250,7 +260,7 @@ export function printSectorRows(doc: SectorBenchmarkDoc, locale?: string | null)
       // A sourced row whose figure fails the law is withheld, and says so.
       const reason = row.status === "sourced"
         ? t("benchmarkPage.sector.reason.figure_withheld")
-        : reasonSentence(row.reason, t);
+        : reasonSentence(row.reason, t, loc);
       // The peer count of a thin cell is a fact about the source, and is
       // printed only with that source and year beside it.
       const s = row.sector;
@@ -294,7 +304,7 @@ export function sectorRefText(fig: SectorFigure | undefined | null, fallbackCaen
 export function sectorContextText(doc: SectorBenchmarkDoc, locale?: string | null): string {
   const loc = localeOf(locale);
   const t = tFor(loc);
-  if (doc.status !== "ok") return reasonSentence(doc.reason, t);
+  if (doc.status !== "ok") return reasonSentence(doc.reason, t, loc);
   return t("benchmarkPage.sector.context", {
     caen: doc.caen, sector: doc.sector_label ?? "", sizeBand: sizeBandText(doc.size_band, loc), year: doc.year });
 }
@@ -320,7 +330,7 @@ export function printSectorMovements(doc: SectorBenchmarkDoc, locale?: string | 
   });
   return {
     status: m.status,
-    reason: m.status === "refused" ? reasonSentence(m.reason, t) : "",
+    reason: m.status === "refused" ? reasonSentence(m.reason, t, loc) : "",
     improved: print(m.improved),
     deteriorated: print(m.deteriorated),
     counts: t("benchmarkPage.sector.comparedCount", { compared: m.compared, of: m.of }),
@@ -354,7 +364,7 @@ export function bandSourceText(doc: SectorBenchmarkDoc | null, censusKey: string
     });
   }
   if (card.band_source === "sector") return t("benchmarkPage.sector.bandGeneral");
-  return t("benchmarkPage.sector.bandGeneralBecause", { reason: reasonSentence(card.reason, t) });
+  return t("benchmarkPage.sector.bandGeneralBecause", { reason: reasonSentence(card.reason, t, loc) });
 }
 
 // ─── the report twin ────────────────────────────────────────────────────
