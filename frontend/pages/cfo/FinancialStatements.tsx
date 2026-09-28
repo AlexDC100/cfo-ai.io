@@ -233,7 +233,7 @@ import { StatementNotes } from "@/components/cfo/StatementNotes";
 import { ValuationSection } from "@/components/cfo/ValuationSection";
 import { buildCanonicalMetricsFromInputs } from "@/lib/canonicalMetrics";
 import { EbitdaReconciliationPanel } from "@/components/cfo/EbitdaReconciliationPanel";
-import { equityRefusalOf, pickLang, plLevelsOf } from "@/lib/servedOneEbitda";
+import { equityRefusalOf, pickLang, plLevelsOf, type ServedRefusal } from "@/lib/servedOneEbitda";
 import { SourceQualityBanner } from "@/components/cfo/SourceQualityBanner";
 import { DocsToggle, useDocsCount } from "@/components/cfo/DocsPanel";
 import { PublicRecordsQuickCard } from "@/components/cfo/PublicRecordsQuickCard";
@@ -5740,7 +5740,7 @@ function useFmtMoney() {
 
 // ─── VALUATION PANEL ──────────────────────────────────────────────────────
 
-function ValuationPanel({
+export function ValuationPanel({
   statements,
   valuation,
 }: {
@@ -5774,9 +5774,19 @@ function ValuationPanel({
   const capexView = fb?.capex_real ?? -cfClient.capex;       // negative = cash out
   const fcfView = fb?.free_cash_flow ?? cfClient.fcf;
   const capexAbs = Math.abs(capexView);
-  const fcfNegativeDev = fb?.is_development_phase && fcfView < 0;
+  const fcfNegativeDev = fb?.is_development_phase && fcfView !== null && fcfView < 0;
 
   const pct = (x: number, d = 1) => `${(x * 100).toFixed(d)}%`;
+  // A REFUSED figure (the net result, the walk from it, a WACC on refused
+  // equity, the DCF and Graham on them) prints the engine's reason — never
+  // NaN, never a bare dash, never a verdict (critic round 3, 2026-09-28:
+  // "EV / Revenue NaN×", "= FCF — Cash burning" on a refused FCF).
+  const refusedNode = (r: ServedRefusal | null, testId: string) => (
+    <span className="font-sans text-[12px] text-ink-soft leading-snug" data-testid={testId}>
+      {`${t("statements.pl.refused", "refused")} — ${r ? pickLang(r.text, i18n.language) : t("dash.notServed", "not served")}`}
+    </span>
+  );
+  const cfRefusal = cfClient.refusal;
 
   return (
     <>
@@ -5784,10 +5794,10 @@ function ValuationPanel({
       <div>
         <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft mb-3">{t("dash.freeCashFlow")}</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          <KpiTile label={t("dash.netIncome")} value={<LearnableNumber conceptKey="net_profit" value={netIncomeView}>{fmtMoney(netIncomeView, cur)}</LearnableNumber>} sub={t("dash.statutoryView")} />
+          <KpiTile label={t("dash.netIncome")} value={netIncomeView === null ? refusedNode(cfRefusal, "valuation-net-income-refused") : <LearnableNumber conceptKey="net_profit" value={netIncomeView}>{fmtMoney(netIncomeView, cur)}</LearnableNumber>} sub={t("dash.statutoryView")} />
           <KpiTile label={t("dash.plusDa")} value={<LearnableNumber conceptKey="depreciation_amortization" value={depView}>{fmtMoney(depView, cur)}</LearnableNumber>} />
           <KpiTile label={t("dash.minusWc")} value={<LearnableNumber conceptKey="working_capital_changes" value={wcView}>{fmtMoney(wcView, cur)}</LearnableNumber>} />
-          <KpiTile label={t("dash.eqCfo")} value={<LearnableNumber conceptKey="operating_cash_flow" value={cfoView}>{fmtMoney(cfoView, cur)}</LearnableNumber>} />
+          <KpiTile label={t("dash.eqCfo")} value={cfoView === null ? refusedNode(cfRefusal, "valuation-cfo-refused") : <LearnableNumber conceptKey="operating_cash_flow" value={cfoView}>{fmtMoney(cfoView, cur)}</LearnableNumber>} />
           <KpiTile
             label={t("dash.minusCapex")}
             value={<LearnableNumber conceptKey="capex" value={capexAbs}>{fmtMoney(capexAbs, cur)}</LearnableNumber>}
@@ -5795,13 +5805,18 @@ function ValuationPanel({
           />
           <KpiTile
             label={t("dash.eqFcf")}
-            value={<LearnableNumber conceptKey="free_cash_flow" value={fcfView}>{fmtMoney(fcfView, cur)}</LearnableNumber>}
+            value={fcfView === null
+              ? refusedNode(cfRefusal, "valuation-fcf-refused")
+              : <LearnableNumber conceptKey="free_cash_flow" value={fcfView}>{fmtMoney(fcfView, cur)}</LearnableNumber>}
             sub={
-              fcfNegativeDev
-                ? t("dash.devPhaseCashDrag")
-                : fcfView > 0
-                  ? t("dash.positiveCashGen")
-                  : t("dash.cashBurning")
+              // No verdict beside a refused FCF.
+              fcfView === null
+                ? undefined
+                : fcfNegativeDev
+                  ? t("dash.devPhaseCashDrag")
+                  : fcfView > 0
+                    ? t("dash.positiveCashGen")
+                    : t("dash.cashBurning")
             }
           />
         </div>
@@ -5811,11 +5826,11 @@ function ValuationPanel({
       <div>
         <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft mb-3">{t("dash.costOfCapital")}</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          <KpiTile label="WACC" value={<LearnableNumber conceptKey="wacc" value={wacc.wacc}>{pct(wacc.wacc, 2)}</LearnableNumber>} sub={t("dash.costOfEquitySub", { pct: pct(wacc.costOfEquity, 2) })} />
+          <KpiTile label="WACC" value={wacc.wacc === null ? refusedNode(wacc.refusal, "valuation-wacc-refused") : <LearnableNumber conceptKey="wacc" value={wacc.wacc}>{pct(wacc.wacc, 2)}</LearnableNumber>} sub={t("dash.costOfEquitySub", { pct: pct(wacc.costOfEquity, 2) })} />
           <KpiTile label={t("dash.costOfEquity")} value={<LearnableNumber conceptKey="cost_of_equity" value={wacc.costOfEquity}>{pct(wacc.costOfEquity, 2)}</LearnableNumber>} sub={`Rf ${pct(wacc.riskFreeRate, 1)} + β${wacc.beta.toFixed(2)} × ERP ${pct(wacc.equityRiskPremium, 1)}`} />
           <KpiTile label={t("dash.costOfDebtAfterTax")} value={<LearnableNumber conceptKey="cost_of_debt" value={wacc.costOfDebtAfterTax}>{pct(wacc.costOfDebtAfterTax, 2)}</LearnableNumber>} sub={t("dash.preTaxSub", { pretax: pct(wacc.costOfDebtPreTax, 2), tax: pct(wacc.taxRate, 1) })} />
-          <KpiTile label={t("dash.weightEquity")} value={pct(wacc.weightOfEquity, 1)} />
-          <KpiTile label={t("dash.weightDebt")} value={pct(wacc.weightOfDebt, 1)} />
+          <KpiTile label={t("dash.weightEquity")} value={wacc.weightOfEquity === null ? refusedNode(wacc.refusal, "valuation-weight-equity-refused") : pct(wacc.weightOfEquity, 1)} />
+          <KpiTile label={t("dash.weightDebt")} value={wacc.weightOfDebt === null ? refusedNode(wacc.refusal, "valuation-weight-debt-refused") : pct(wacc.weightOfDebt, 1)} />
         </div>
       </div>
 
@@ -5841,8 +5856,11 @@ function ValuationPanel({
               <div className="text-[13px] font-semibold text-ink">{t("dash.dcfForecastTitle")}</div>
               <div className="text-[12px] text-ink-soft break-words">
                 {t("dash.baseFcf")}{" "}
-                <span className="text-ink font-medium tabular-nums">{fmtMoney(dcf.baseFcf, cur)}</span>
-                {" · "}{t("dash.forecastGrowth")} {pct(dcf.forecastGrowthRate, 1)} · {t("dash.terminalGrowth")} {pct(dcf.terminalGrowthRate, 1)} · WACC {pct(dcf.wacc, 2)}
+                {dcf.baseFcf === null
+                  ? refusedNode(dcf.refusal, "dcf-base-fcf-refused")
+                  : <span className="text-ink font-medium tabular-nums">{fmtMoney(dcf.baseFcf, cur)}</span>}
+                {" · "}{t("dash.forecastGrowth")} {pct(dcf.forecastGrowthRate, 1)} · {t("dash.terminalGrowth")} {pct(dcf.terminalGrowthRate, 1)}
+                {dcf.wacc !== null ? ` · WACC ${pct(dcf.wacc, 2)}` : ""}
               </div>
               <div className="text-[11px] text-ink-mute mt-1 leading-snug">
                 {t("dash.stabilizedFcfNote")}
@@ -5862,6 +5880,8 @@ function ValuationPanel({
                 >
                   {engineDcfRefusals[0].text}
                 </div>
+              ) : dcf.refusal && valuation?.cross_checks?.dcf?.equity_value == null ? (
+                <div className="md:max-w-[26rem] md:ml-auto">{refusedNode(dcf.refusal, "dcf-equity-refused-client")}</div>
               ) : (
                 <div className="font-mono text-[clamp(18px,2.6vw,26px)] font-medium text-ink leading-tight tabular-nums break-words">
                   <LearnableNumber
@@ -5888,6 +5908,11 @@ function ValuationPanel({
               </tr>
             </thead>
             <tbody>
+              {dcf.refusal && (
+                <tr className="border-t border-rule">
+                  <td className="py-2 px-4" colSpan={4}>{refusedNode(dcf.refusal, "dcf-table-refused")}</td>
+                </tr>
+              )}
               {dcf.yearByYear.map((y) => (
                 <tr key={y.year} className="border-t border-rule">
                   <td className="py-2 px-4 text-ink">{t("dash.yearN", { n: y.year })}</td>
@@ -5896,6 +5921,7 @@ function ValuationPanel({
                   <td className="py-2 px-4 text-right font-mono tabular-nums text-ink">{fmtMoney(y.presentValue, cur)}</td>
                 </tr>
               ))}
+              {!dcf.refusal && (<>
               <tr className="border-t border-rule bg-bg-2/30">
                 <td className="py-2 px-4 text-ink font-medium" colSpan={3}>{t("dash.terminalValuePv")}</td>
                 <td className="py-2 px-4 text-right font-mono tabular-nums text-ink font-medium">
@@ -5924,6 +5950,7 @@ function ValuationPanel({
                   </LearnableNumber>
                 </td>
               </tr>
+              </>)}
             </tbody>
           </table>
           </div>
@@ -6008,7 +6035,13 @@ function ValuationPanel({
             </div>
             <div className="min-w-0">
               <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-soft font-medium truncate">EV / Revenue</div>
-              <div className="font-mono text-[16px] font-medium text-ink tabular-nums break-words">{dcf.evToRevenue.toFixed(2)}×</div>
+              <div className="font-mono text-[16px] font-medium text-ink tabular-nums break-words">
+                {dcf.evToRevenue !== null
+                  ? `${dcf.evToRevenue.toFixed(2)}×`
+                  : dcf.refusal
+                    ? refusedNode(dcf.refusal, "dcf-ev-revenue-refused")
+                    : <span className="font-sans text-[12px] text-ink-soft">{t("dash.evRevenueNotMeaningful", "not meaningful — no positive turnover")}</span>}
+              </div>
             </div>
           </div>
         </div>
@@ -6027,13 +6060,19 @@ function ValuationPanel({
             <div className="min-w-0">
               <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-soft font-medium truncate">{t("dash.netIncomeTtm")}</div>
               <div className="font-mono text-[clamp(15px,1.8vw,20px)] font-medium text-ink tabular-nums break-words">
-                {fmtMoney(graham.eps * (statements.supplementary.sharesOutstanding ?? 1), cur)}
+                {graham.eps === null
+                  ? refusedNode(graham.refusal, "graham-net-income-refused")
+                  : fmtMoney(graham.eps * (statements.supplementary.sharesOutstanding ?? 1), cur)}
               </div>
               <div className="text-[10.5px] text-ink-mute mt-0.5">{t("dash.statutoryView")}</div>
             </div>
             <div className="min-w-0">
               <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-soft font-medium truncate">{t("dash.grahamFairValue")}</div>
-              <div className="font-mono text-[clamp(15px,1.8vw,20px)] font-medium text-ink tabular-nums break-words">{fmtMoney(graham.intrinsicEquityValue, cur)}</div>
+              <div className="font-mono text-[clamp(15px,1.8vw,20px)] font-medium text-ink tabular-nums break-words">
+                {graham.intrinsicEquityValue === null
+                  ? refusedNode(graham.refusal, "graham-value-refused")
+                  : fmtMoney(graham.intrinsicEquityValue, cur)}
+              </div>
             </div>
           </div>
           {/* 2026-07-25 — honesty note: g and Y are standing defaults (no

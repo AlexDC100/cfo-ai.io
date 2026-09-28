@@ -92,7 +92,7 @@ import { NavValuationView } from "@/components/cfo/NavValuationView";
 import { CreditScoreCard, creditCardData } from "@/components/cfo/CreditScoreCard";
 import { CashFlowStatementView } from "@/components/cfo/CashFlowStatementView";
 import { ComparativeProvider } from "@/components/cfo/ComparativeCells";
-import { RisksPanel } from "@/pages/cfo/FinancialStatements";
+import { RisksPanel, ValuationPanel } from "@/pages/cfo/FinancialStatements";
 import ComprehensiveReport from "@/pages/cfo/ComprehensiveReport";
 import { buildWorkspaceSnapshot } from "@/pages/cfo/Chat";
 import { metricCardRefusal } from "@/components/dashboard/MetricCard";
@@ -101,8 +101,11 @@ import pairJson from "./fixtures/comparatives/pair_served.json";
 
 import { cardNamed, plRows } from "./exportBooks";
 import {
-  constructedBook, constructedCredit, pairedWithItself, refusedBooks, servedRefusal, type SurfaceBook,
+  allBooks, constructedBook, constructedCredit, pairedWithItself, refusedBooks, servedRefusal, type SurfaceBook,
 } from "./oneEbitdaSurfaceBooks";
+import {
+  computeCostOfCapital, deriveCashFlow, runGraham,
+} from "@/lib/financialValuation";
 
 const BOOKS = refusedBooks();
 
@@ -772,3 +775,116 @@ describe("refusal-carries — round 4: every reader of total equity", () => {
     expect(g6).toMatch(/net_income: 120,000 RON/);
   });
 });
+
+describe("refusal-carries — round 5: a refused net result prints no NaN, and no verdict beside a refused figure", () => {
+  // critic round 3 (2026-09-28): deriveCashFlow / runDcf / runGraham fell
+  // back to Number.NaN on a refused net result — "EV / Revenue NaN×" and
+  // "= FCF — Cash burning" on the Valuation tab, twenty NaN cells in the
+  // workbook's Cash Flow and Valuation sheets on both refused books — and
+  // the WACC weighed the equity short by the refused result ("Weight
+  // equity 100.0 %").
+  afterEach(() => { cleanup(); });
+  const book = (name: string) => BOOKS.find((x) => x.name === name)!;
+  const niText = (b: SurfaceBook) => (b.apl.net_income_refusal as { text_en: string }).text_en;
+  const isNaNCell = (v: unknown) => (typeof v === "number" && !Number.isFinite(v)) || /NaN|Infinity/.test(String(v ?? ""));
+
+  it("the builders: a refused net result is null with the engine's reason — CFO, FCF, the DCF and Graham with it", () => {
+    for (const name of ["unanchored", "unanchored_unbalanced"]) {
+      const b = book(name);
+      const cf = deriveCashFlow(b.statements);
+      expect(cf.netIncome, name).toBeNull();
+      expect(cf.cfo, name).toBeNull();
+      expect(cf.fcf, name).toBeNull();
+      expect(cf.refusal?.text.en, name).toBe(niText(b));
+      const dcf = runDcf(b.statements);
+      expect(dcf.refusal?.text.en, name).toBe(niText(b));
+      for (const v of [dcf.baseFcf, dcf.enterpriseValue, dcf.equityValue, dcf.evToRevenue,
+        dcf.terminalValuePresent, dcf.terminalValueUndiscounted]) expect(v, name).toBeNull();
+      expect(dcf.yearByYear, name).toEqual([]);
+      const g = runGraham(b.statements);
+      expect(g.eps, name).toBeNull();
+      expect(g.intrinsicEquityValue, name).toBeNull();
+      expect(g.refusal?.text.en, name).toBe(niText(b));
+    }
+    // WITH account 121 the filed result stands: every figure is a number.
+    const g6 = book("g6_uncleared");
+    const cf = deriveCashFlow(g6.statements);
+    expect(typeof cf.netIncome).toBe("number");
+    expect(cf.refusal).toBeNull();
+    const dcf = runDcf(g6.statements);
+    expect(dcf.refusal).toBeNull();
+    expect(Number.isFinite(dcf.enterpriseValue as number)).toBe(true);
+    expect(Number.isFinite(runGraham(g6.statements).intrinsicEquityValue as number)).toBe(true);
+  });
+
+  it("the WACC weighs no equity short by the refused result; on complete equity it weighs the served equity", () => {
+    const ub = book("unanchored_unbalanced");
+    const k = computeCostOfCapital(ub.statements);
+    const er = (ub.statements.assembled_bs as Record<string, unknown>).total_equity_refusal as { text_en: string };
+    expect(k.weightOfEquity).toBeNull();
+    expect(k.weightOfDebt).toBeNull();
+    expect(k.wacc).toBeNull();
+    expect(k.refusal?.text.en).toBe(er.text_en);
+    const u = computeCostOfCapital(book("unanchored").statements);
+    expect(typeof u.weightOfEquity).toBe("number");
+    expect(typeof u.wacc).toBe("number");
+    expect(u.refusal).toBeNull();
+  });
+
+  it("the workbook: no NaN or Infinity cell on any sheet of any fixture book; the refused books print the reason", () => {
+    let scanned = 0;
+    for (const b of allBooks()) {
+      const wb = buildExcelWorkbook(b.statements);
+      for (const name of wb.SheetNames) {
+        const rows = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[name], { header: 1 });
+        for (const r of rows) for (const c of r as unknown[]) {
+          scanned += 1;
+          expect(isNaNCell(c), `${b.name} / ${name}: ${JSON.stringify(r)}`).toBe(false);
+        }
+      }
+    }
+    expect(scanned).toBeGreaterThan(1000);
+    for (const name of ["unanchored", "unanchored_unbalanced"]) {
+      const b = book(name);
+      const wb = buildExcelWorkbook(b.statements);
+      const refused = `refused — ${niText(b)}`;
+      expect(sheetCell(wb, "Cash Flow", "= Free cash flow (FCF)"), name).toBe(refused);
+      expect(sheetCell(wb, "Cash Flow", "= Cash flow from operations (CFO)"), name).toBe(refused);
+      expect(sheetCell(wb, "Valuation", "EV / Revenue"), name).toBe(refused);
+      expect(sheetCell(wb, "Valuation", "Intrinsic equity value"), name).toBe(refused);
+    }
+  });
+
+  it("the Valuation tab: no NaN, no 'Cash burning' beside a refused FCF — the engine's reason on every refused tile", () => {
+    const fb = { net_income: null, depreciation: 50000, net_wc_change: -12500, cash_from_operating: null,
+      capex_real: -0, free_cash_flow: null, is_development_phase: false, stabilized_fcf: null };
+    for (const [name, valuation] of [["unanchored_unbalanced", null], ["unanchored", { fcf_breakdown: fb }]] as const) {
+      const b = book(name);
+      const { container } = renderWithProviders(
+        <ValuationPanel statements={b.statements} valuation={valuation as never} />);
+      const text = container.textContent ?? "";
+      expect(text, name).not.toMatch(/NaN|Infinity/);
+      expect(text, name).not.toContain("Cash burning");
+      for (const id of ["valuation-net-income-refused", "valuation-cfo-refused", "valuation-fcf-refused",
+        "dcf-ev-revenue-refused", "dcf-table-refused", "graham-net-income-refused", "graham-value-refused"]) {
+        expect(screen.getByTestId(id).textContent, `${name} / ${id}`).toContain(niText(b));
+      }
+      cleanup();
+    }
+    // Equity short by the refused result: the WACC and its weights say why.
+    const ub = book("unanchored_unbalanced");
+    renderWithProviders(<ValuationPanel statements={ub.statements} valuation={null} />);
+    const er = (ub.statements.assembled_bs as Record<string, unknown>).total_equity_refusal as { text_en: string };
+    for (const id of ["valuation-wacc-refused", "valuation-weight-equity-refused", "valuation-weight-debt-refused"]) {
+      expect(screen.getByTestId(id).textContent, id).toContain(er.text_en);
+    }
+    cleanup();
+    // WITH account 121 the tab prints figures and the FCF verdict.
+    const { container } = renderWithProviders(
+      <ValuationPanel statements={book("g6_uncleared").statements} valuation={null} />);
+    expect(container.textContent).not.toMatch(/NaN/);
+    expect(screen.queryByTestId("valuation-fcf-refused")).toBeNull();
+    expect(container.textContent).toMatch(/EV \/ Revenue\s*-?[\d.,]+×/);
+  });
+});
+

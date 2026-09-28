@@ -27,7 +27,9 @@ import {
 // exports. deriveTotals survives for P&L concepts and the debt/cash
 // decomposition, which canonical_bs does not carry.
 import { factsFrom } from "./servedFacts";
-import { plLevelsOf, readRefusal } from "./servedOneEbitda";
+import {
+  equityRefusalOf, netIncomeRefusalOf, plLevelsOf, readRefusal, type ServedRefusal,
+} from "./servedOneEbitda";
 import { ratioLabelForKey } from "./ratioTable";
 
 /** The Altman row's name: the one label authority ("Altman Z″", what the
@@ -45,14 +47,27 @@ function altmanLabelOf(variant: string): string {
 export interface CashFlowSnapshot {
   /** The result built from the accounts (pretax − tax, the one definition);
    *  on a period whose EBITDA the engine refused, the served net income
-   *  (account 121, or the engine's own build-up when unanchored). */
-  netIncome: number;
+   *  (account 121). `null` — never NaN, never 0 — when the engine REFUSED
+   *  the net result (no account 121, net 711 refused): `refusal` says why,
+   *  and CFO and FCF, which walk from it, are refused with it. */
+  netIncome: number | null;
   depreciationAmortization: number;
   workingCapitalChange: number;
-  cfo: number;
+  cfo: number | null;
   capex: number;
-  fcf: number;
+  fcf: number | null;
+  refusal: ServedRefusal | null;
 }
+
+/** A payload carrying no net result and no refusal of it (no engine period
+ *  and no adapter is — stated, never NaN). */
+export const NET_RESULT_NOT_SERVED: ServedRefusal = {
+  code: "net_income_not_served",
+  text: {
+    ro: "motorul nu a servit rezultatul net pentru această perioadă",
+    en: "the engine served no net result for this period",
+  },
+};
 
 export function deriveCashFlow(s: Statements): CashFlowSnapshot {
   const t = deriveTotals(s);
@@ -63,16 +78,22 @@ export function deriveCashFlow(s: Statements): CashFlowSnapshot {
   // payload carrying neither — which no engine period and no adapter is.
   const servedNi = s.assembled_pl?.net_income_statutory;
   const netIncome =
-    t.netIncome ?? (typeof servedNi === "number" && Number.isFinite(servedNi) ? servedNi : Number.NaN);
-  const cfo = netIncome + s.incomeStatement.depreciationAmortization - wcChange;
+    t.netIncome ?? (typeof servedNi === "number" && Number.isFinite(servedNi) ? servedNi : null);
   const capex = s.supplementary.capex ?? s.incomeStatement.depreciationAmortization;
+  // A REFUSED net result (critic round 3, 2026-09-28) printed NaN down the
+  // walk — "CFO NaN", "FCF NaN" in the workbook, a "Cash burning" verdict
+  // on the tab. It is refused, with the engine's reason, and so is
+  // everything walked from it.
+  const refusal = netIncome === null ? (netIncomeRefusalOf(s) ?? NET_RESULT_NOT_SERVED) : null;
+  const cfo = netIncome === null ? null : netIncome + s.incomeStatement.depreciationAmortization - wcChange;
   return {
     netIncome,
     depreciationAmortization: s.incomeStatement.depreciationAmortization,
     workingCapitalChange: wcChange,
     cfo,
     capex,
-    fcf: cfo - capex,
+    fcf: cfo === null ? null : cfo - capex,
+    refusal,
   };
 }
 
@@ -103,9 +124,14 @@ export interface CostOfCapital {
   costOfDebtPreTax: number;
   costOfDebtAfterTax: number;
   taxRate: number;
-  weightOfDebt: number;
-  weightOfEquity: number;
-  wacc: number;
+  /** `null` with `refusal` when the engine refused total equity as the
+   *  company's book equity (it excludes a refused year's result): the
+   *  capital structure — and the WACC weighted on it — is not formed on
+   *  the short figure (critic round 3: "Weight equity 100.0 %"). */
+  weightOfDebt: number | null;
+  weightOfEquity: number | null;
+  wacc: number | null;
+  refusal: ServedRefusal | null;
 }
 
 export function computeCostOfCapital(s: Statements): CostOfCapital {
@@ -141,10 +167,11 @@ export function computeCostOfCapital(s: Statements): CostOfCapital {
   // WACC the cost of debt alone. When the envelope carried no equity
   // total, fall back to the aggregated book value rather than to a
   // one-currency-unit company.
+  const equityRefusal = equityRefusalOf(s);
   const servedEquity = factsFrom(s).totalEquity();
   const equity = Math.max(servedEquity ?? t.totalEquity, 1);
-  const wd = debt / (debt + equity);
-  const we = 1 - wd;
+  const wd = equityRefusal ? null : debt / (debt + equity);
+  const we = wd === null ? null : 1 - wd;
   return {
     riskFreeRate: rf,
     equityRiskPremium: erp,
@@ -155,7 +182,8 @@ export function computeCostOfCapital(s: Statements): CostOfCapital {
     taxRate,
     weightOfDebt: wd,
     weightOfEquity: we,
-    wacc: we * costOfEquity + wd * kdAfter,
+    wacc: we === null || wd === null ? null : we * costOfEquity + wd * kdAfter,
+    refusal: equityRefusal,
   };
 }
 
@@ -169,23 +197,28 @@ export interface DcfYear {
 }
 
 export interface DcfResult {
-  baseFcf: number;
+  /** Every figure below is `null` (never NaN) when the DCF is REFUSED —
+   *  `refusal` then carries the engine's reason: the net result it walks
+   *  from, or the equity its WACC weighs, was refused. */
+  refusal: ServedRefusal | null;
+  baseFcf: number | null;
   forecastYears: number;
   forecastGrowthRate: number;
   terminalGrowthRate: number;
-  wacc: number;
+  wacc: number | null;
   yearByYear: DcfYear[];
-  terminalValueUndiscounted: number;
-  terminalValuePresent: number;
-  enterpriseValue: number;
+  terminalValueUndiscounted: number | null;
+  terminalValuePresent: number | null;
+  enterpriseValue: number | null;
   netDebt: number;
-  equityValue: number;
+  equityValue: number | null;
   intrinsicValuePerShare?: number;
   marketPricePerShare?: number;
   upside?: number;
   /** null: EBITDA refused by the engine, or not positive — no multiple. */
   evToEbitda: number | null;
-  evToRevenue: number;
+  /** null: the DCF is refused (no enterprise value), or no positive turnover. */
+  evToRevenue: number | null;
   /** 3-scenario sensitivity table — Optimistic (−100 bps), Central
    *  (computed), Conservative (+150 bps). Each entry carries its WACC,
    *  enterprise value, and equity value so the Valuation tab can render
@@ -233,10 +266,33 @@ export function runDcf(s: Statements): DcfResult {
   // only when canonical isn't available (sample mode).
   const canonicalCfo = s.assembled_cf?.cash_from_operating;
   const canonicalDep = s.assembled_pl?.depreciation;
-  const cfo = typeof canonicalCfo === "number" ? canonicalCfo : cf.cfo;
+  const cfo = typeof canonicalCfo === "number" && Number.isFinite(canonicalCfo) ? canonicalCfo : cf.cfo;
   const dep = typeof canonicalDep === "number"
     ? canonicalDep
     : s.incomeStatement.depreciationAmortization;
+  // Net debt — prefer canonical view, else legacy derivation.
+  const canonicalDebt = s.assembled_bs?.total_debt;
+  const canonicalCash = s.assembled_bs?.cash;
+  const netDebtCanonical =
+    typeof canonicalDebt === "number" && typeof canonicalCash === "number"
+      ? canonicalDebt - canonicalCash
+      : t.netDebt;
+  // REFUSED (critic round 3, 2026-09-28): no CFO to stabilise (the net
+  // result it walks from is refused) or no WACC (the equity it weighs is
+  // refused). Every figure is null with the reason — the tab printed
+  // "EV / Revenue NaN×" and the workbook twenty NaN cells.
+  const dcfRefusal = cfo === null ? (cf.refusal ?? NET_RESULT_NOT_SERVED)
+    : k.wacc === null ? k.refusal : null;
+  if (dcfRefusal !== null || cfo === null || k.wacc === null) {
+    return {
+      refusal: dcfRefusal ?? NET_RESULT_NOT_SERVED,
+      baseFcf: null, forecastYears: horizon, forecastGrowthRate: g, terminalGrowthRate: gT,
+      wacc: k.wacc, yearByYear: [], terminalValueUndiscounted: null, terminalValuePresent: null,
+      enterpriseValue: null, netDebt: netDebtCanonical, equityValue: null,
+      marketPricePerShare: sup.marketPricePerShare, evToEbitda: null, evToRevenue: null, scenarios: [],
+    };
+  }
+  const waccCentral = k.wacc;
   const stabilizedFcf = cfo - dep;
   // Use stabilized FCF when positive; else floor at zero (DCF on a
   // genuinely loss-making company is undefined and falls to net debt).
@@ -246,7 +302,7 @@ export function runDcf(s: Statements): DcfResult {
   let totalPv = 0;
   for (let y = 1; y <= horizon; y++) {
     const fcf = baseFcf * Math.pow(1 + g, y);
-    const df = 1 / Math.pow(1 + k.wacc, y);
+    const df = 1 / Math.pow(1 + waccCentral, y);
     const pv = fcf * df;
     years.push({ year: y, fcf, discountFactor: df, presentValue: pv });
     totalPv += pv;
@@ -256,25 +312,19 @@ export function runDcf(s: Statements): DcfResult {
   // exit multiple when WACC ≤ g_T (degenerate).
   const finalYearFcf = years[years.length - 1]?.fcf ?? baseFcf;
   const tvUndisc =
-    k.wacc > gT
-      ? (finalYearFcf * (1 + gT)) / (k.wacc - gT)
+    waccCentral > gT
+      ? (finalYearFcf * (1 + gT)) / (waccCentral - gT)
       : finalYearFcf * 12;
-  const tvDf = 1 / Math.pow(1 + k.wacc, horizon);
+  const tvDf = 1 / Math.pow(1 + waccCentral, horizon);
   const tvPv = tvUndisc * tvDf;
 
   const ev = totalPv + tvPv;
-  // Net debt — prefer canonical view, else legacy derivation.
-  const canonicalDebt = s.assembled_bs?.total_debt;
-  const canonicalCash = s.assembled_bs?.cash;
-  const netDebtCanonical =
-    typeof canonicalDebt === "number" && typeof canonicalCash === "number"
-      ? canonicalDebt - canonicalCash
-      : t.netDebt;
   const equityValue = ev - netDebtCanonical;
   // EV / EBITDA over the ONE EBITDA; null — printed with its reason, never
   // as 0.00× — when the engine refused EBITDA or it is not positive.
   const evToEbitda = t.ebitda !== null && t.ebitda > 0 ? ev / t.ebitda : null;
-  const evToRevenue = s.incomeStatement.revenue > 0 ? ev / s.incomeStatement.revenue : 0;
+  // null (never 0.00×) without a positive turnover to divide.
+  const evToRevenue = s.incomeStatement.revenue > 0 ? ev / s.incomeStatement.revenue : null;
 
   let intrinsicPerShare: number | undefined;
   let upside: number | undefined;
@@ -309,17 +359,18 @@ export function runDcf(s: Statements): DcfResult {
     };
   };
   const scenarios: DcfResult["scenarios"] = [
-    { label: "Optimistic", ...dcfAt(Math.max(k.wacc - 0.01, gT + 0.005)) },
-    { label: "Central", ...dcfAt(k.wacc) },
-    { label: "Conservative", ...dcfAt(k.wacc + 0.015) },
+    { label: "Optimistic", ...dcfAt(Math.max(waccCentral - 0.01, gT + 0.005)) },
+    { label: "Central", ...dcfAt(waccCentral) },
+    { label: "Conservative", ...dcfAt(waccCentral + 0.015) },
   ];
 
   return {
+    refusal: null,
     baseFcf,
     forecastYears: horizon,
     forecastGrowthRate: g,
     terminalGrowthRate: gT,
-    wacc: k.wacc,
+    wacc: waccCentral,
     yearByYear: years,
     terminalValueUndiscounted: tvUndisc,
     terminalValuePresent: tvPv,
@@ -338,11 +389,14 @@ export function runDcf(s: Statements): DcfResult {
 // ─── Graham intrinsic ──────────────────────────────────────────────────────
 
 export interface GrahamResult {
-  eps: number;
+  /** `null` with `refusal` (never NaN) when the engine refused the net
+   *  result Graham capitalises. */
+  refusal: ServedRefusal | null;
+  eps: number | null;
   growthRate: number;
   bondYield: number;
   intrinsicValuePerShare?: number;
-  intrinsicEquityValue: number;
+  intrinsicEquityValue: number | null;
   marketCap?: number;
   upside?: number;
   formula: string;
@@ -366,11 +420,19 @@ export function runGraham(s: Statements): GrahamResult {
   // canonical isn't present (sample mode).
   const canonicalNi = s.assembled_pl?.net_income_statutory;
   const netIncome =
-    typeof canonicalNi === "number" ? canonicalNi : t.netIncome ?? Number.NaN;
+    typeof canonicalNi === "number" && Number.isFinite(canonicalNi) ? canonicalNi : t.netIncome;
   const shares = s.supplementary.sharesOutstanding;
-  const eps = shares && shares > 0 ? netIncome / shares : netIncome;
   const g = (s.supplementary.forecastGrowthRate ?? 0.05) * 100; // pct units
   const yPct = (s.supplementary.riskFreeRate ?? 0.045) * 100;
+  if (netIncome === null) {
+    // The net result is REFUSED (critic round 3): no NaN capitalised.
+    return {
+      refusal: netIncomeRefusalOf(s) ?? NET_RESULT_NOT_SERVED,
+      eps: null, growthRate: g / 100, bondYield: yPct / 100, intrinsicEquityValue: null,
+      formula: "V = (NI × (8.5 + 2g) × 4.4) / Y",
+    };
+  }
+  const eps = shares && shares > 0 ? netIncome / shares : netIncome;
   const fairAggregate = (netIncome * (8.5 + 2 * g) * 4.4) / yPct;
   let perShare: number | undefined;
   let upside: number | undefined;
@@ -383,6 +445,7 @@ export function runGraham(s: Statements): GrahamResult {
     }
   }
   return {
+    refusal: null,
     eps,
     growthRate: g / 100,
     bondYield: yPct / 100,

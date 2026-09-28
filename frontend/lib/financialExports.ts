@@ -536,6 +536,14 @@ export function buildExcelWorkbook(
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ratioRows), "Ratios");
 
   // ─ Cash flow ─────────────────────────────────────────────────────────────
+  // A REFUSED figure (the net result, the walk from it, a WACC on refused
+  // equity, the DCF and Graham on them) is a sentence carrying the
+  // engine's reason — never NaN (critic round 3, 2026-09-28: twenty NaN
+  // cells on the two refused books).
+  const refusedCell = (r: { text: { en: string } } | null): string =>
+    `refused — ${r?.text.en ?? "not served"}`;
+  const cfCell = (v: number | null): string | number => (v === null ? refusedCell(cf.refusal) : v);
+  const dcfCell = (v: number | null): string | number => (v === null ? refusedCell(dcf.refusal) : v);
   const cfRows: (string | number)[][] = [
     ["Cash Flow Snapshot", s.periodLabel],
     // NAMED FOR WHAT IT IS. `deriveCashFlow` starts its walk from
@@ -546,12 +554,12 @@ export function buildExcelWorkbook(
     // `deriveCashFlow` starts from the reconstruction at all is a
     // question for `financialValuation.ts`, recorded rather than silently
     // patched from this file.
-    ["Net income — reconstructed (class 6/7 movements)", cf.netIncome],
+    ["Net income — reconstructed (class 6/7 movements)", cfCell(cf.netIncome)],
     ["+ Depreciation & amortization", cf.depreciationAmortization],
     ["- Δ Working capital", cf.workingCapitalChange],
-    ["= Cash flow from operations (CFO)", cf.cfo],
+    ["= Cash flow from operations (CFO)", cfCell(cf.cfo)],
     ["- Capex", cf.capex],
-    ["= Free cash flow (FCF)", cf.fcf],
+    ["= Free cash flow (FCF)", cfCell(cf.fcf)],
   ];
   if (growth.length) {
     cfRows.push([], ["Multi-period growth"], ["Metric", ...growth[0].values.map((v) => v.period), "CAGR"]);
@@ -581,24 +589,27 @@ export function buildExcelWorkbook(
     ["Cost of debt (pre-tax)", `${(wacc.costOfDebtPreTax * 100).toFixed(2)}%`],
     ["Tax rate", `${(wacc.taxRate * 100).toFixed(2)}%`],
     ["Cost of debt (after tax)", `${(wacc.costOfDebtAfterTax * 100).toFixed(2)}%`],
-    ["Weight of equity", `${(wacc.weightOfEquity * 100).toFixed(1)}%`],
-    ["Weight of debt", `${(wacc.weightOfDebt * 100).toFixed(1)}%`],
-    ["WACC", `${(wacc.wacc * 100).toFixed(2)}%`],
+    ["Weight of equity", wacc.weightOfEquity === null ? refusedCell(wacc.refusal) : `${(wacc.weightOfEquity * 100).toFixed(1)}%`],
+    ["Weight of debt", wacc.weightOfDebt === null ? refusedCell(wacc.refusal) : `${(wacc.weightOfDebt * 100).toFixed(1)}%`],
+    ["WACC", wacc.wacc === null ? refusedCell(wacc.refusal) : `${(wacc.wacc * 100).toFixed(2)}%`],
     [],
     ["DCF Forecast (5-year explicit + Gordon terminal)"],
     ["Year", "FCF", "Discount factor", "Present value"],
+    ...(dcf.refusal ? [[refusedCell(dcf.refusal)]] : []),
     ...dcf.yearByYear.map((y) => [y.year, y.fcf, y.discountFactor.toFixed(4), y.presentValue]),
-    ["Terminal value (undiscounted)", "", "", dcf.terminalValueUndiscounted],
-    ["Terminal value (PV)", "", "", dcf.terminalValuePresent],
-    ["Enterprise value", "", "", dcf.enterpriseValue],
+    ["Terminal value (undiscounted)", "", "", dcfCell(dcf.terminalValueUndiscounted)],
+    ["Terminal value (PV)", "", "", dcfCell(dcf.terminalValuePresent)],
+    ["Enterprise value", "", "", dcfCell(dcf.enterpriseValue)],
     ["Less: net debt", "", "", -dcf.netDebt],
-    ["Equity value", "", "", dcf.equityValue],
+    ["Equity value", "", "", dcfCell(dcf.equityValue)],
     [],
     ["Multiples"],
     ["EV / EBITDA", dcf.evToEbitda === null
       ? (t.ebitda === null ? `refused — EBITDA refused: ${t.plRefusal?.text.en ?? "not served"}` : "not meaningful — EBITDA is not positive")
       : dcf.evToEbitda.toFixed(2) + "×"],
-    ["EV / Revenue", dcf.evToRevenue.toFixed(2) + "×"],
+    ["EV / Revenue", dcf.evToRevenue !== null
+      ? dcf.evToRevenue.toFixed(2) + "×"
+      : dcf.refusal ? refusedCell(dcf.refusal) : "not meaningful — no positive turnover"],
     [],
     ["Graham Intrinsic Value"],
     ["Formula", graham.formula],
@@ -606,10 +617,12 @@ export function buildExcelWorkbook(
     // comment says so); the label now says which one it is, so no sheet
     // in this workbook prints a bare "Net income" whose meaning the
     // reader has to guess.
-    [NET_INCOME_LABEL, graham.eps * (s.supplementary.sharesOutstanding ?? 1)],
+    [NET_INCOME_LABEL, graham.eps === null
+      ? refusedCell(graham.refusal) : graham.eps * (s.supplementary.sharesOutstanding ?? 1)],
     ["Growth rate (g)", `${(graham.growthRate * 100).toFixed(1)}%`],
     ["AAA bond yield (Y)", `${(graham.bondYield * 100).toFixed(2)}%`],
-    ["Intrinsic equity value", graham.intrinsicEquityValue],
+    ["Intrinsic equity value", graham.intrinsicEquityValue === null
+      ? refusedCell(graham.refusal) : graham.intrinsicEquityValue],
   ];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(valRows), "Valuation");
 
