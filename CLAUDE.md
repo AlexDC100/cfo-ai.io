@@ -403,7 +403,7 @@ If you do this right, the user can hand you any Romanian SME trial balance and g
 
 2. **`docker compose build backend && docker compose up -d backend`.** The image is built from host source; the running container is replaced.
 3. **Verify the change is visible in the running container.** Probe the relevant function or endpoint — e.g., `docker exec cfo-ai-backend python3 -c "from engine.api import _ro_coa; print(hasattr(_ro_coa, '_new_helper'))"` or hit the affected API path.
-4. **Run F-A3.1** to confirm BS-correctness has not regressed: `docker exec cfo-ai-backend python3 /app/scripts/measure_bs_drift.py`. Both fixtures must stay GREEN (EEI 0.0000%, Scandia 0.3698%).
+4. **Run F-A3.1** to confirm BS-correctness has not regressed: `docker exec cfo-ai-backend python3 /app/scripts/measure_bs_drift.py`. Both fixtures must stay GREEN (EEI 0.0000%, Scandia 0.1445% — re-measured 2026-09-27; it read 0.3698% before parser v6 and the unconditional anchor).
 5. **Run the two DATA gates — before the switch, and again after.** F-A3.1 and
    `check_deploy_drift.py` prove the FILES; these prove the DATA:
    - `scripts/check_fresh_upload.py` — a real trial balance through all five
@@ -1399,6 +1399,73 @@ the Pages copy never advertises a sitemap on its own origin.)
 
 ---
 
+## 25. Rulings of 2026-09-26: EBITDA incl. 711/722, inventory days, command bar
+
+Release `release/r-rulings` (2026-09-28): feat/cmdbar + feat/ebitda-711 +
+the squash of feat/inventory-days. Design: `specs-durable/design_2026-09-26_711_dio_cmdbar.md`.
+
+**The one EBITDA.** 711 ("Variația stocurilor de produse") and 72x (own work
+capitalised) are INSIDE EBITDA and the operating result, with their sign,
+printed next to cost of sales, OUTSIDE cifra de afaceri; 767 is financial.
+Every margin and growth divides by net turnover (70x − 709). Net 711 cannot
+be read off a closed TB (SAGA closes class 6/7 into 121 monthly: every 711
+leaf has D = C), so `country_packs/ro_romania/stock_variation.py` measures
+it: open book → Σ(C − D) over 711; closed, no 711 activity → exactly 0;
+closed with activity → the account-121 bridge (121 − every other P&L line −
+72x) under G1 closed · G2 121 anchored · G3 711 activity · G4 no unread
+class-6/7 leaf · G5 |residual| ≤ 711 activity · G6 121's opening cleared ·
+G7 the rows were read by the RUNNING parser. Refereed against the MF
+filings (the bridge equals the filed 711 to under 1 leu wherever the TB is
+the filed P&L; `specs-durable/ebitda711/measure.md`). Anything else is
+REFUSED — `assembled_pl.ebitda_refusal` {code, text_ro, text_en}, and
+EBITDA, EBIT, margins, the credit rows, valuation, covenants and (with no
+121) the net result and equity refuse with it. **A refusal is never 0** and
+is printed in the engine's words on every surface (gates net-711-rule,
+one-ebitda, turnover-denominator, refusal-carries, reprocess-periods-definition).
+
+**Inventory days — one served block** (`engine.ratios.inventory_days`,
+schema `inventory_days/1`, pack `packs/ratios/inventory_days.yaml`, served as
+`statements.inventory_days` and the same object under `assembled_metrics`).
+Legs: materials 301–303/308 ÷ 601–603; finished goods + WIP 331/341/345/348 ÷
+cost of production sold (total operating expense − 607 − net 711; a refused
+711 refuses the leg and the total); merchandise 371/378 ÷ 607; "alte stocuri"
+listed inside the total; 39x against its group; Σ = the balance sheet's stock
+to the cent or `not_reconciled`. Basis, in order: `average_monthly` →
+`average_two_year_ends` ((1 Jan + 31 Dec) ÷ 2, only when the SI column is
+the fiscal-year opening) → `year_end_snapshot` ("stoc la 31 decembrie — o
+singură zi"); food/FMCG seasonality flagged on both year-end bases. The
+sector row stays on its FILED basis (`inventory_days_on_turnover`, stock ÷
+net turnover, labelled "bază depusă … — nu aceeași cu zilele de stoc din
+analiză") and is NEVER printed beside the split. `claim_policy`: "slow"
+only on the split AND an average. One DPO (the ratio table's `dpo_days`) and
+one day count for DSO / DPO / CCC; the CCC adds the split on the PERIOD-END
+basis (`ccc_dio_term`). Every consumer (ratio table, credit rows, forecast
+DIO driver, findings, narrator, chat, tile, report, workbook, bank export,
+command bar) reads the block — no browser division, no fallback formula.
+
+**Command bar (⌘K).** "Ce contează acum" is `attention/1`, composed by the
+engine (`engine.attention`) and served by `GET /api/period/{id}/attention`
+(org-scoped, engine-owned same-length prior, no model or narrated text).
+Typing answers from cached served documents, < 100 ms, zero fetches per
+keystroke. Its ONE adapters (`attention/sources.py`, `cmdbarSources.ts`) read
+the one EBITDA (and its refusal's words) and the inventory-days block (its
+basis label, never the code; no filed-basis row beside the split).
+
+**Merge contract (2026-09-28)** also made the report's cycle chart add up AS
+PRINTED (the CCC bar prints the sum of the printed terms, the exact served
+cycle in its tooltip and caption) and the trade-float insight print DSO/DPO
+on the Ratios table's days rule (one printed string per figure).
+
+**DEPLOY REQUIREMENT.** Every stored period predates the definition: its
+EBITDA refuses (`period_predates_*`) until it is REPROCESSED from its stored
+document with `scripts/reprocess_periods_definition.py` (dry run → review
+turnover / EBITDA / DIO / composite moves and the valuations rows → `--apply`;
+no model, no quota). A turnover change that does not move toward the filed
+figure blocks the deploy (exit 3). Run it inside the new backend per §14,
+then the data gates (§14 step 5).
+
+---
+
 # 📘 Appendix A — Full Financial Analysis Methodology
 
 > *The complete methodology document is embedded below for self-contained reference.*
@@ -1583,7 +1650,7 @@ This is the universal mapping. Every Romanian trial balance follows this structu
 1. **Trial balance must balance**: Sum of all `sume_totale_D` must equal Sum of all `sume_totale_C`. If not, the data feed is broken — stop and re-extract.
 2. **Net profit anchor**: The closing C balance of account 121 IS the statutory net profit. Reconstruct from class 6/7 and check within ±2%; if larger gap, find the missing accounts.
 3. **709 is contra-revenue**: Class 70 sum already nets 709. Don't subtract it twice.
-4. **711 nets to ~0**: Production variation movements offset between debit (production consumed) and credit (production stored). Net is the change in WIP/finished inventory.
+4. **711 is inside EBITDA and the operating result (owner ruling 2026-09-26)**, with its sign, shown as "Variația stocurilor de produse" next to cost of sales, OUTSIDE cifra de afaceri (margins and growth divide by net turnover, class 70 − 709). 72x (own work capitalised) the same: operating, inside EBITDA, outside turnover. **Net 711 cannot be read from 711 on a closed trial balance**: SAGA closes class 6/7 into 121 monthly, so every 711 leaf has sume totale D = C (Scandia FY2025: 630,091,698.19 both sides — the gross production stocked, NOT the variation). The engine measures it (`engine/country_packs/ro_romania/stock_variation.py`): open book → Σ(C − D) over 711; closed book with no 711 activity → exactly 0 (any 121 residual stays visible); closed book with 711 activity → the account-121 bridge (121 − every other P&L line − 72x) under guards G1–G7 (closed state, anchored, no unread class-6/7 leaf, |residual| ≤ 711 activity, 121's opening cleared, current parser); otherwise REFUSED — and EBITDA/EBIT/margins refuse with it, never 0. Refereed against the Ministry of Finance filings: the bridge equals the filed 711 to under 1 leu wherever the TB is the filed P&L (specs: specs-durable/ebitda711/measure.md). 767 is financial (outside EBITDA).
 5. **Class 44 is mixed**: VAT receivable (442x debit) is an asset; income tax payable (441 credit) is a liability. Don't sum them as one.
 
 ---
@@ -2084,9 +2151,9 @@ The framework was calibrated on Scandia Food SRL FY2025. Reference values:
 | Trial balance total | 460,963,810 RON (balanced ✓) |
 | Accounts active | 809 |
 | Net turnover | 413,727,560 |
-| EBITDA | 54,443,834 (13.2% margin) |
+| EBITDA | 54,963,222 (13.3% margin) under the 2026-09-26 ruling (54,443,834 / 13.2% before: 711 excluded) |
 | Net profit (121 closing) | 36,787,353 |
-| Reconstructed net profit | 36,267,964 (gap 1.4%, acceptable) |
+| Reconstructed net profit | 36,267,964 before 711; the 519,389.11 difference to account 121 IS the net 711 (derived by the 121 bridge on this closed, preliminary-close TB — the filed FY2025 accounts imply 1,075,068.64 because they carry post-TB entries) |
 | Total assets | 293,050,085 (reconciled within 0.5%) |
 | Total equity | 150,151,551 (51.2% equity ratio) |
 | Altman Z″ | 3.09 (safe zone) |
@@ -2312,7 +2379,8 @@ def build_pnl(df: pd.DataFrame) -> Dict:
     sales_708 = _sum_prefix(df, "708", "sume_tot_C")
     reductions_709 = _sum_prefix(df, "709", "sume_tot_C")
 
-    # Production variation (711) — nets D vs C
+    # Production variation (711) — SUPERSEDED 2026-09-26: on a closed TB sume_tot C − D is 0 by
+    # construction; the engine derives net 711 via the account-121 bridge (stock_variation.py).
     prod_var_net = (_sum_prefix(df, "711", "sume_tot_C")
                     - _sum_prefix(df, "711", "sume_tot_D"))
 
