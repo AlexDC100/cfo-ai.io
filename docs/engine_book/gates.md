@@ -16656,7 +16656,9 @@ exactly the ruled reversals — Scandia Food FY2025 54,963,222.44 →
 5,180,829.12 → 4,720,511.64, saga_10_col 5,487,501.33 → 5,433,196.35, retail
 2,263,417.48 → 2,185,482.87, agras 11,848,065.27 → 11,844,076.57; the
 developer and EEI post none. No credit letter or composite moves on any of
-them (every sub-score sits on the same rung).
+them: the ratios on EBITDA move (Scandia debt / EBITDA 0.90 → 1.06, DSCR 2.98
+→ 2.52), and one sub-score moves off its value (retail DSCR 19.2 → 18.5) without
+moving its composite (20.6).
 
 **CANNOT SEE:** the browser surfaces (the P&L tab, the report, the printed
 P&L — `one-ebitda` / `pl-one-ebitda-page` hold those on the served fixtures);

@@ -1447,9 +1447,21 @@ INVENTORY_DAYS_REVISED_METRICS: Tuple[str, ...] = ("dio", "ccc", "inventory_turn
 #: year-to-date month it is replaced by the serve-time row, so `metrics[]`,
 #: `assembled_metrics.ratios` and the ratio table carry one DPO.
 DAY_COUNT_REVISED_METRICS: Tuple[str, ...] = ("dso", "dpo")
+#: The rows the owner's rulings of 2026-09-28 revised beyond the EBITDA
+#: family above (revision 4): `other_income_781_reversals` is the 781 still
+#: INSIDE EBITDA (R2 — the 7812 / 7814 reversals are on the net-provisions
+#: line), and net turnover holds 7411 (R3), so `revenue` and the rows that
+#: divide it outside the EBITDA family (`net_margin`, `asset_turnover`) are
+#: read another way. A period persisted under revision 3 carries the
+#: previous figures under these names: each is served from the serve-time
+#: model.
+RULINGS_2_REVISED_METRICS: Tuple[str, ...] = (
+    "other_income_781_reversals", "revenue", "net_margin", "asset_turnover",
+)
 DEFINITION_REVISED_METRICS: Tuple[str, ...] = (
     ("interest_coverage",) + ONE_EBITDA_REVISED_METRICS + RETIRED_METRICS
-    + INVENTORY_DAYS_REVISED_METRICS + DAY_COUNT_REVISED_METRICS)
+    + INVENTORY_DAYS_REVISED_METRICS + DAY_COUNT_REVISED_METRICS
+    + RULINGS_2_REVISED_METRICS)
 
 #: Every persisted row a serve-basis response replaces.
 SERVE_REPLACED_METRICS: Tuple[str, ...] = CREDIT_FAMILY_METRICS + DEFINITION_REVISED_METRICS

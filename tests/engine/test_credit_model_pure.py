@@ -196,7 +196,10 @@ def test_pure_rows_are_the_pre_extraction_rows_byte_for_byte(name, case, io_forb
     rows = CM.compute_period_metrics(statements, source_data_quality=sq)
 
     assert rows[-1] == _revision_row(), rows[-1]
-    assert CM.CREDIT_MODEL_REVISION == 3
+    # Revision 4 (owner rulings R2 / R3, 2026-09-28): the rows the rulings
+    # moved are declared in CM.RULINGS_2_REVISED_METRICS (inside
+    # DEFINITION_REVISED_METRICS, so `_untouched` leaves them out).
+    assert CM.CREDIT_MODEL_REVISION == 4
     names = {r["name"] for r in rows}
     gone = sorted(r["name"] for r in case["rows"] if r["name"] not in names)
     assert gone == sorted(CM.RETIRED_METRICS), (name, gone)
@@ -484,15 +487,27 @@ def test_a_refused_ebitda_refuses_the_composite_with_the_stock_variation_cause(i
 #: gatemap_credit_ruling.py on the corpus books, with net 711 = the 121
 #: bridge and 722 inside EBIT / EBITDA — before this module was changed.
 #: Ratios as the rows store them (4 dp; the margin as a fraction).
+#:
+#: REVISED FOR R2 (owner ruling 2026-09-28, provisions symmetric), measured
+#: the same way and just as independently: the PRE-R2 engine (main
+#: 80c2e8b5, a separate worktree) routed each corpus book, a scratch script
+#: (scratchpad/r2p/ruled_credit.py) took the book's own 7812 / 7814
+#: reversals out of the served EBITDA family and ran the pre-R2 ratio table
+#: on the result — the R2 engine was not imported. Moved: agras dscr
+#: 4.7819 → 4.7802, debt / EBITDA 0.3072 → 0.3073 (7814.01 3,988.70);
+#: carniprod EBITDA margin 0.0548 → 0.0499 (7814 460,317.48); retail margin
+#: 0.0286 → 0.0277, dscr 0.9349 → 0.9027, debt / EBITDA 12.3084 → 12.7473
+#: (77,934.61). Composite, Altman Z'' and interest coverage (EBIT) do not
+#: move on any book; the developer posts no provisions.
 RULED = {
     "saga_10_col_agras": {"credit_composite": 81.0, "altman_z_score": 6.19, "ebitda_margin": 0.1069,
-                          "interest_coverage": 31.9962, "dscr": 4.7819, "debt_to_ebitda": 0.3072},
-    "saga_10_col_carniprod": {"credit_composite": 79.3, "altman_z_score": 6.39, "ebitda_margin": 0.0548,
+                          "interest_coverage": 31.9962, "dscr": 4.7802, "debt_to_ebitda": 0.3073},
+    "saga_10_col_carniprod": {"credit_composite": 79.3, "altman_z_score": 6.39, "ebitda_margin": 0.0499,
                               "interest_coverage": None, "dscr": None, "debt_to_ebitda": 0.0},
     "saga_10_col_realestate": {"credit_composite": 41.5, "altman_z_score": 4.81,
                                "interest_coverage": 0.4221, "dscr": 0.1112, "debt_to_ebitda": 33.6679},
-    "saga_10_col_retail": {"credit_composite": 20.6, "altman_z_score": 0.79, "ebitda_margin": 0.0286,
-                           "interest_coverage": 0.3249, "dscr": 0.9349, "debt_to_ebitda": 12.3084},
+    "saga_10_col_retail": {"credit_composite": 20.6, "altman_z_score": 0.79, "ebitda_margin": 0.0277,
+                           "interest_coverage": 0.3249, "dscr": 0.9027, "debt_to_ebitda": 12.7473},
 }
 
 
@@ -529,4 +544,17 @@ def test_with_no_711_and_no_72x_the_ruling_moves_nothing(io_forbidden):
     # and inventory_turnover on EVERY book — a different ruling, held by the
     # inventory-days gate — so they are named here, not hidden.
     inventory_ruling = sorted(CM.INVENTORY_DAYS_REVISED_METRICS)
-    assert moved == sorted(["total_operating_revenue"] + inventory_ruling), moved
+    # PROVISIONS SYMMETRIC (owner ruling R2, 2026-09-28) — another ruling,
+    # held by the provisions-symmetric gate: retail posts the ruled
+    # reversals 7812.04 (50,000.00) and 7814.01 (27,934.61), so EBITDA and
+    # every row dividing it move by exactly 77,934.61 (the ratios are the
+    # independent measurement in RULED), `other_income_781_reversals` is the
+    # 781 still inside EBITDA (none), and the DSCR sub-score follows its row
+    # (the composite and the letter do not move). Named, not hidden; the
+    # ONE-EBITDA ruling itself still adds nothing on this book.
+    provisions_ruling = sorted([
+        "ebitda", "ebitda_cash", "ebitda_statutory", "ebitda_margin", "debt_to_ebitda",
+        "net_debt_to_ebitda", "ebitda_to_interest", "dscr", "dscr_with_lt_principal",
+        "other_income_781_reversals", "credit_subscore_dscr"])
+    assert moved == sorted(["total_operating_revenue"] + inventory_ruling + provisions_ruling), moved
+    assert rows["ebitda"]["value"] == pytest.approx(golden["ebitda"]["value"] - 77_934.61, abs=0.005)

@@ -242,9 +242,14 @@ def test_every_net_income_ratio_is_built_on_the_anchor(served):
                     f"{name}.{ratio}: served {got} — from the anchor "
                     f"{anchor:,.2f} it is {expected}"
                 )
-        # `free_cash_flow` is net income + D&A; D&A is read back off the
-        # canonical assembly so the check does not re-derive it.
-        expected_fcf = round(anchor + float(apl["depreciation"]), 2)
+        # `free_cash_flow` is net income + the NON-CASH operating charge,
+        # read back off the canonical assembly so the check does not
+        # re-derive it: D&A plus the provision charges, which sit on their
+        # own net-provisions line since the owner's R2 ruling (2026-09-28)
+        # but are still added back (the ruling moved EBITDA, not the cash
+        # proxy). On a block assembled before the ruling D&A held them.
+        charges = float(((apl.get("net_provisions") or {}).get("charges") or {}).get("value") or 0.0)
+        expected_fcf = round(anchor + float(apl["depreciation"]) + charges, 2)
         if abs(float(metrics["free_cash_flow"]) - expected_fcf) > 0.005:
             wrong.append(
                 f"{name}.free_cash_flow: served {float(metrics['free_cash_flow']):,.2f} "
