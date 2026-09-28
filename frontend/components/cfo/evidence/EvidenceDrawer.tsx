@@ -18,8 +18,10 @@
 // ACCOUNT 711 (owner ruling 2026-09-26, design A1 / A6): a 711 row never
 // prints without what its amount IS — on a closed trial balance the
 // production stocked in the period (its credit turnover, so never labelled
-// a balance), not the change in inventories, which is the served net 711
-// ("Variația stocurilor de produse") with its provenance, or its refusal.
+// a balance: the column says so when every row is 711, the row itself says
+// so beside a balance), not the change in inventories, which is the served
+// net 711 ("Variația stocurilor de produse") with its provenance, or its
+// refusal. No statement line lists a 711 leaf among its feeds.
 
 import { useEffect, useMemo, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
@@ -320,12 +322,35 @@ type T = (key: string, vars?: Record<string, unknown>) => string;
 
 const has711 = (leaves: readonly EvidenceLeaf[]) => leaves.some((l) => isStockVariationAccount(l.code));
 
+/** Every row of the table is an account-711 row on a CLOSED book: the
+ *  whole amount column is credit turnover. */
+function allTurnover(leaves: readonly EvidenceLeaf[], note: StockVariationNote): boolean {
+  return note.turnover && leaves.length > 0 && leaves.every((l) => isStockVariationAccount(l.code));
+}
+
 /** The amount column's name: "Balance", except over account-711 rows only
  *  on a CLOSED book, where the amount is the credit turnover. */
 function amountHeading(leaves: readonly EvidenceLeaf[], note: StockVariationNote, t: T): string {
-  return note.turnover && leaves.length > 0 && leaves.every((l) => isStockVariationAccount(l.code))
-    ? t("evidence.colTurnover711")
-    : t("evidence.colAmount");
+  return allTurnover(leaves, note) ? t("evidence.colTurnover711") : t("evidence.colAmount");
+}
+
+/** A 711 row in a MIXED table on a closed book (critic round 2: a prefix,
+ *  several accounts, a finding's citations): the column says "Balance" for
+ *  its other rows, so the row names its own amount — the credit turnover
+ *  (the production stocked) — and the heading never covers it. Null for
+ *  every other row, and where the heading already says it. */
+function rowAmountTag(code: string, leaves: readonly EvidenceLeaf[], note: StockVariationNote, t: T): string | null {
+  return note.turnover && isStockVariationAccount(code) && !allTurnover(leaves, note)
+    ? t("evidence.rowTurnover711")
+    : null;
+}
+
+function AmountTag({ text }: { text: string | null }) {
+  return text ? (
+    <span className="mr-1.5 text-[10.5px] uppercase tracking-[0.06em] text-ink-soft" data-testid="evidence-amount-tag">
+      {text}
+    </span>
+  ) : null;
 }
 
 function StockNote({ note }: { note: StockVariationNote }) {
@@ -378,6 +403,7 @@ function LeafTable({ leaves, fmt, provenance, t, highlight, stockNote, withNote 
               <td className="py-1 pr-2 font-mono tabular-nums text-ink">{l.code}</td>
               <td className="py-1 px-2 text-ink-2">{l.name}</td>
               <td className="py-1 pl-2 text-right font-mono tabular-nums text-ink" data-cell="amount">
+                <AmountTag text={rowAmountTag(l.code, leaves, stockNote, t)} />
                 <ProvenanceAffordance provenance={provenance(l.code)} value={l.amount}>
                   {fmt(l.amount)}
                 </ProvenanceAffordance>
@@ -557,6 +583,7 @@ function AccountsTable({ blocks, fmt, provenance, t, stockNote }: {
                 <td className="py-1 pr-2 font-mono tabular-nums text-ink">{l.code}</td>
                 <td className="py-1 px-2 text-ink-2">{l.name}</td>
                 <td className="py-1 pl-2 text-right font-mono tabular-nums text-ink" data-cell="amount">
+                  <AmountTag text={rowAmountTag(l.code, leaves, stockNote, t)} />
                   <ProvenanceAffordance provenance={provenance(l.code)} value={l.amount}>
                     {fmt(l.amount)}
                   </ProvenanceAffordance>

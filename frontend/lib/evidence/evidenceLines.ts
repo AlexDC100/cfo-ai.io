@@ -24,6 +24,10 @@ export interface EvidenceLineSpec {
   buckets: readonly string[];
   /** Lines this one is the engine's sum of (their buckets are `buckets`). */
   fromLines: readonly string[];
+  /** Account-code prefixes the served field sums, where it is narrower than
+   *  its buckets (the registry's `source_accounts`): the line's feeds are
+   *  the buckets' leaves under these prefixes. Empty: every leaf feeds it. */
+  sourceAccounts: readonly string[];
   /** A line that IS an account (the net result → 121). */
   accounts: readonly string[];
   /** The statement row that renders a derived line. */
@@ -37,6 +41,7 @@ type Raw = {
   field: string;
   buckets: string[];
   from_lines?: string[];
+  source_accounts?: string[];
   accounts?: string[];
   highlight?: string;
   name: Bilingual;
@@ -55,6 +60,7 @@ export const EVIDENCE_LINES: Readonly<Record<string, EvidenceLineSpec>> = Object
         field: r.field,
         buckets: r.buckets ?? [],
         fromLines: r.from_lines ?? [],
+        sourceAccounts: r.source_accounts ?? [],
         accounts: r.accounts ?? [],
         highlight: r.highlight ?? null,
         name: r.name,

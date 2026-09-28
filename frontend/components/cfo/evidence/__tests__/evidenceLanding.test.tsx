@@ -713,10 +713,13 @@ describe("cmdbar-evidence — strings and slugs", () => {
 // figure as its served figure.
 //
 // WHAT IT REDS ON, AFTER THE REPAIR (TC-11): a 711 leaf in the account view
-// — alone, under its prefix, in a line's feeds, among a finding's accounts —
-// without the note, or labelled "Balance" / "Sold" on a closed book; a note
-// on a view with no 711 leaf; a refused operating result or total equity
-// printed as a figure or as "not in this book".
+// — alone, under its prefix, among several accounts or a finding's — without
+// the note, or labelled "Balance" / "Sold" on a closed book (by the column
+// where every row is 711, by the row's own tag beside a balance); a note on
+// a view with no 711 leaf; a statement line whose listed feeds do not sum to
+// its served figure, or that lists a 711 leaf at all (critic round 2); a
+// refused operating result or total equity printed as a figure or as "not in
+// this book".
 describe("cmdbar-evidence — account 711 and the refused lines (fixer round 1)", () => {
   const scandia = WORLDS[0];
   const IV = SCANDIA.statements.assembled_pl.inventory_variation;
@@ -753,21 +756,32 @@ describe("cmdbar-evidence — account 711 and the refused lines (fixer round 1)"
       cleanup();
     });
 
-    it(`${lang}: every view that lists a 711 leaf carries the note once — the prefix, a line's feeds, several accounts; a view without one carries none`, async () => {
+    // CRITIC ROUND 2 (2026-09-28): round 1 switched the heading only where
+    // EVERY row is 711, and this law then PINNED "Balance" / "Sold" over the
+    // 711 rows of a line's feeds and of a mixed view — "Alte venituri din
+    // exploatare" listed ten 711 leaves (the gross production stocked) under
+    // "Sold", beside a served 758 figure they are not part of. Now: no line
+    // lists a 711 leaf among its feeds (the stock variation is its own
+    // measured line), and in a mixed table each 711 row names its own amount.
+    it(`${lang}: every view that lists a 711 leaf carries the note once and labels each 711 amount as its credit turnover — by the column where every row is 711, by the row beside a balance; no line lists one among its feeds`, async () => {
       await act(async () => { await i18n.changeLanguage(lang); });
       const tt = i18n.getFixedT(lang);
-      const cases: { href: string; note: boolean; heading?: string }[] = [
-        { href: "/dashboard?tab=pl&account=711", note: true, heading: tt("evidence.colTurnover711") },
-        { href: "/dashboard?tab=pl&line=pl.other_operating_income", note: true, heading: tt("evidence.colAmount") },
-        { href: "/dashboard?tab=pl&account=711104&account=758", note: true, heading: tt("evidence.colAmount") },
+      const cases: { href: string; note: boolean; heading?: string; tagged: boolean }[] = [
+        { href: "/dashboard?tab=pl&account=711", note: true, heading: tt("evidence.colTurnover711"), tagged: false },
+        { href: "/dashboard?tab=pl&account=711104&account=758", note: true, heading: tt("evidence.colAmount"), tagged: true },
+        { href: "/dashboard?tab=pl&account=7", note: true, heading: tt("evidence.colAmount"), tagged: true },
+        // The line's feeds: the 758 leaves the served figure IS — no 711
+        // leaf, no note, the balance heading.
+        { href: "/dashboard?tab=pl&line=pl.other_operating_income", note: false, heading: tt("evidence.colAmount"), tagged: false },
         // POSITIVE CONTROLS: no 711 leaf, no note, the balance heading.
-        { href: "/dashboard?tab=balance_sheet&account=4111", note: false, heading: tt("evidence.colAmount") },
-        { href: "/dashboard?tab=pl&account=758", note: false },
+        { href: "/dashboard?tab=balance_sheet&account=4111", note: false, heading: tt("evidence.colAmount"), tagged: false },
+        { href: "/dashboard?tab=pl&account=758", note: false, tagged: false },
       ];
       for (const c of cases) {
         drawer(scandia, c.href);
         const d = await screen.findByTestId("evidence-drawer");
-        const leaves711 = [...d.querySelectorAll<HTMLElement>('[data-testid="evidence-leaf"]')].filter((r) => (r.dataset.accountCode ?? "").startsWith("711"));
+        const rows = [...d.querySelectorAll<HTMLElement>('[data-testid="evidence-leaf"]')];
+        const leaves711 = rows.filter((r) => (r.dataset.accountCode ?? "").startsWith("711"));
         expect(leaves711.length > 0, `${c.href}: lists a 711 leaf`).toBe(c.note);
         const notes = [...d.querySelectorAll('[data-testid="evidence-stock-note"]')].map((n) => n.textContent);
         expect(notes, c.href).toEqual(c.note ? [expectedNote(lang)] : []);
@@ -775,10 +789,94 @@ describe("cmdbar-evidence — account 711 and the refused lines (fixer round 1)"
           const heads = [...d.querySelectorAll("thead th")].map((th) => th.textContent);
           expect(heads[heads.length - 1], c.href).toBe(c.heading);
         }
+        // POSITIVE CONTROL for the mixed views: a balance row sits beside
+        // the 711 rows, so the heading cannot speak for them.
+        if (c.tagged) expect(rows.some((r) => !(r.dataset.accountCode ?? "").startsWith("711")), c.href).toBe(true);
+        for (const r of rows) {
+          const tag = r.querySelector('[data-testid="evidence-amount-tag"]')?.textContent ?? null;
+          const is711 = (r.dataset.accountCode ?? "").startsWith("711");
+          expect(tag, `${c.href} ${r.dataset.accountCode}`).toBe(is711 && c.tagged ? tt("evidence.rowTurnover711") : null);
+        }
         cleanup();
       }
     });
   }
+
+  it("THE FEEDS ARE THE FIGURE: every statement line's listed feeds (both books, as the view lists them) sum to its served figure, and none is a 711 leaf", async () => {
+    let judged = 0;
+    let narrowed = 0;
+    for (const w of WORLDS.slice(0, 2)) {
+      const body = evidenceBody(w);
+      const items = (w.body.line_items as PeriodLineItem[]).filter((li) => li.statement !== "IGNORED");
+      for (const spec of Object.values(EVIDENCE_LINES)) {
+        if (spec.buckets.length === 0) continue;
+        const model = buildEvidenceModel(body, { accounts: [], line: spec.key, finding: null });
+        const served = model.line!.figure.value;
+        expect(typeof served, `${w.name}/${spec.key}: a served figure`).toBe("number");
+        const listed = model.line!.leaves;
+        expect(listed.length, `${w.name}/${spec.key}: lists feeds`).toBeGreaterThan(0);
+        const total = listed.reduce((a, l) => a + (l.amount ?? 0), 0);
+        expect(Math.abs(total - (served as number)), `${w.name}/${spec.key}: the listed feeds sum to ${total}, served ${served}`).toBeLessThan(0.005);
+        expect(listed.filter((l) => l.code.startsWith("711")).map((l) => l.code), `${w.name}/${spec.key}`).toEqual([]);
+        // POSITIVE CONTROL: the bucket ALONE would list the 711 memo — the
+        // narrowing is what keeps it out.
+        const wide = items.filter((li) => spec.buckets.includes(li.bucket));
+        if (wide.length !== listed.length) {
+          narrowed++;
+          expect(wide.some((li) => li.ro_account_code.startsWith("711")), `${w.name}/${spec.key}`).toBe(true);
+        }
+        judged++;
+      }
+      // Rendered: the "Other operating income" view shows exactly those feeds.
+      drawer(w, "/dashboard?tab=pl&line=pl.other_operating_income");
+      const d = await screen.findByTestId("evidence-drawer");
+      const codes = [...d.querySelectorAll<HTMLElement>('[data-testid="evidence-feeds"] [data-testid="evidence-leaf"]')].map((r) => r.dataset.accountCode ?? "");
+      expect(codes.length, w.name).toBeGreaterThan(0);
+      expect(codes.filter((c) => !c.startsWith("758")), w.name).toEqual([]);
+      cleanup();
+    }
+    expect(narrowed, "both books carry the 711 memo in the bucket").toBe(2);
+    console.log(`GATE-WORK cmdbar-evidence-feeds lines=${judged} narrowed=${narrowed}`);
+  });
+
+  it("EVERY 711 row, in every account view that lists one (each leaf, the 7 / 71 / 711 prefixes, beside each other P&L leaf), is labelled as its credit turnover on the closed books — never under 'Balance' alone", async () => {
+    let rowsJudged = 0;
+    let views = 0;
+    for (const lang of ["en", "ro"] as const) {
+    await act(async () => { await i18n.changeLanguage(lang); });
+    const tt = i18n.getFixedT(lang);
+    for (const w of WORLDS.slice(0, 2)) {
+      expect(w.body.statements.assembled_pl.inventory_variation.book_state, w.name).toBe("closed");
+      const items = (w.body.line_items as PeriodLineItem[]).filter((li) => li.statement !== "IGNORED");
+      const c711 = [...new Set(items.filter((li) => li.ro_account_code.startsWith("711")).map((li) => li.ro_account_code))];
+      // One other P&L account family per two-digit group (60 … 78).
+      const others = [...new Set(items.filter((li) => li.statement === "PL" && !li.ro_account_code.startsWith("711")).map((li) => li.ro_account_code.slice(0, 2)))];
+      expect(c711.length, w.name).toBeGreaterThan(0);
+      const hrefs = [
+        ...c711.map((c) => `/dashboard?tab=pl&account=${c}`),
+        "/dashboard?tab=pl&account=7", "/dashboard?tab=pl&account=71", "/dashboard?tab=pl&account=711",
+        ...others.map((o) => `/dashboard?tab=pl&account=${c711[0]}&account=${o}`),
+      ];
+      for (const href of hrefs) {
+        drawer(w, href);
+        const d = await screen.findByTestId("evidence-drawer");
+        const heads = [...d.querySelectorAll("thead th")].map((th) => th.textContent);
+        const heading = heads.length ? heads[heads.length - 1] : null;
+        for (const r of d.querySelectorAll<HTMLElement>('[data-testid="evidence-leaf"]')) {
+          if (!(r.dataset.accountCode ?? "").startsWith("711")) continue;
+          const label = r.querySelector('[data-testid="evidence-amount-label"]')?.textContent?.trim()
+            ?? r.querySelector('[data-testid="evidence-amount-tag"]')?.textContent
+            ?? heading;
+          expect([tt("evidence.turnover711"), tt("evidence.rowTurnover711"), tt("evidence.colTurnover711")], `${w.name} ${href} ${r.dataset.accountCode}: "${label}"`).toContain(label);
+          rowsJudged++;
+        }
+        views++;
+        cleanup();
+      }
+    }
+    }
+    console.log(`GATE-WORK cmdbar-evidence-711-label views=${views} rows=${rowsJudged}`);
+  });
 
   it("a 711 leaf on a book whose variation the engine REFUSED carries that refusal in the engine's words", async () => {
     const book = read("frontend/lib/__tests__/fixtures/oneEbitda/constructed_books.json").unanchored;

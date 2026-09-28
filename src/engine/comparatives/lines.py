@@ -84,12 +84,24 @@ class LineSpec:
     #: The detail level a period must reach for this line to mean
     #: anything. SYNTHETIC for everything a rolled-up chart can express.
     requires: str = SYNTHETIC
+    #: Account-code PREFIXES the served field sums, declared only where
+    #: the field is NARROWER than its buckets. `other_income_758` sums the
+    #: 758 leaves alone (chart_of_accounts.py), while the otherIncome bucket
+    #: also holds the 781 reversals, the 74x / 75x / 77x catch-alls and —
+    #: under the persisted names a served period carries — the account-711
+    #: memo. The leaves that FEED the line (the account view lists them,
+    #: frontend/lib/evidence/evidenceLines.json mirrors this) are the
+    #: buckets' leaves under these prefixes, and they sum to the served
+    #: figure (tests/engine/test_evidence_lines.py). Coverage still reads
+    #: the buckets. EMPTY: every leaf of the buckets feeds the line.
+    source_accounts: Tuple[str, ...] = ()
 
 
-def _pl(key, label, field, buckets, requires=SYNTHETIC):
+def _pl(key, label, field, buckets, requires=SYNTHETIC, accounts=()):
     return LineSpec(key="pl." + key, statement="PL", label=label,
                     path=("assembled_pl", field), unit=UNIT_MONEY,
-                    source_buckets=tuple(buckets), requires=requires)
+                    source_buckets=tuple(buckets), requires=requires,
+                    source_accounts=tuple(accounts))
 
 
 def _bs(key, label, field, buckets, requires=SYNTHETIC):
@@ -138,8 +150,11 @@ LINE_SPECS: Tuple[LineSpec, ...] = (
     _pl("gross_profit", "Gross profit", "gross_profit", ()),
     _pl("opex_total", "Operating expenses", "opex_total",
         ("operatingExpenses", "opex_third_party")),
+    # The served field is the 758 leaves ALONE: never the 711 memo (the
+    # stock variation is its own line above, measured, not the gross), nor
+    # the 781 reversals or the other catch-alls that share the bucket.
     _pl("other_operating_income", "Other operating income",
-        "other_income_758", ("otherIncome",)),
+        "other_income_758", ("otherIncome",), accounts=("758",)),
     # Own work capitalised (72x): operating, inside EBITDA, outside turnover.
     _pl_path("capitalized_own_work", "Own work capitalised (72x)",
              ("capitalized_own_work", "value")),

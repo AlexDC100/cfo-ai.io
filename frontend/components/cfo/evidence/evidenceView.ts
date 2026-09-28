@@ -20,8 +20,12 @@
 // served figure through the SAME reader the command bar prints it with
 // (servedLine / servedEbitda / servedNetResult — one reader per moving
 // figure), then the leaves that feed it: the line items of the buckets the
-// engine's line registry declares for it (evidenceLines.json, held to
-// src/engine/comparatives/lines.py). A finding that cited accounts for the
+// engine's line registry declares for it, under the account prefixes it
+// declares where the served field is narrower than its buckets
+// (evidenceLines.json, held to src/engine/comparatives/lines.py) — so the
+// listed feeds sum to the served figure, and "Other operating income" (the
+// 758 leaves) never lists the 711 memo or the 781 reversals that share its
+// bucket. A finding that cited accounts for the
 // line lists THOSE accounts instead. A derived line (EBITDA, the operating
 // result) has no accounts of its own and says so.
 
@@ -280,6 +284,8 @@ export function buildEvidenceModel(body: EvidenceBody, request: EvidenceRequest)
       ? []
       : lineItems(body)
           .filter((li) => spec.buckets.includes(li.bucket))
+          .filter((li) => spec.sourceAccounts.length === 0
+            || spec.sourceAccounts.some((p) => li.ro_account_code.startsWith(p)))
           .map((li) => toLeaf(li, false))
           .sort(byCode);
     if (!cited && spec.accounts.length > 0) codes = [...spec.accounts];

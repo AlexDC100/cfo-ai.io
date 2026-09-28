@@ -4,6 +4,7 @@
     "statement/field: the SERVED path the figure is read from (assembled_<statement>.<field>) — equal to src/engine/comparatives/lines.py, held by tests/engine/test_evidence_lines.py.",
     "reader: which ONE reader prints it — 'line' (servedLine), 'ebitda' (servedEbitda, the 711/722 lane's one door), 'net_result' (servedNetResult: account 121 only when anchored).",
     "buckets: the classification buckets whose leaves FEED the line — the registry's own source_buckets (its coverage mechanism). A derived line has none; 'from_lines' names the lines it is the sum of in the engine (bs.total_debt = short-term + long-term debt, chart_of_accounts.py), and its buckets are theirs.",
+    "source_accounts: the account-code prefixes the served field sums, where it is narrower than its buckets — the registry's own source_accounts (pl.other_operating_income is the 758 leaves ALONE; the otherIncome bucket also holds 781, the 74x/75x/77x catch-alls and, as a period serves it, the 711 memo). The feeds the view lists are the buckets' leaves under these prefixes; they sum to the served figure (tests/engine/test_evidence_lines.py).",
     "accounts: a line that IS an account (the net result is account 121 — the pack's requires_anchor).",
     "highlight: the statement row (data-traceable-target) that renders a derived line, for the 'see it in the statement' link.",
     "name: the line's name — the attention pack's subject where the pack names it, else the command bar's answer name, else the registry label (EN). One metric, one name."
@@ -30,7 +31,7 @@
       "name": {"ro": "Rezultatul financiar net", "en": "Net financial result"}
     },
     "pl.other_operating_income": {
-      "statement": "pl", "reader": "line", "field": "other_income_758", "buckets": ["otherIncome"],
+      "statement": "pl", "reader": "line", "field": "other_income_758", "buckets": ["otherIncome"], "source_accounts": ["758"],
       "name": {"ro": "Alte venituri din exploatare", "en": "Other operating income"}
     },
     "bs.cash": {
