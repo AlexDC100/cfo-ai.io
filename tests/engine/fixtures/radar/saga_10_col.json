@@ -12372,8 +12372,8 @@
        "role": "trade_payable"
       }
      ],
-     "claim": "The net trade float is RON 3,238,499.42: RON 11,870,177.85 owed by customers against RON 8,631,678.43 owed to suppliers — 90 days of sales outstanding against 79 days of payables (RON 10,009,744.02 of balance-sheet payables over RON 46,141,587.81 of total operating expense, on 365 days), a gap of 11 days.",
-     "claim_template": "The net trade float is {money:float}: {money:trade_receivables} owed by customers against {money:trade_payables} owed to suppliers — {measure:dso} of sales outstanding against {measure:dpo} of payables ({money:dpo_payables} of balance-sheet payables over {money:total_operating_expense} of total operating expense, on {measure:period_days}), a gap of {measure:float_days}.",
+     "claim": "The net trade float is RON 3,238,499.42: RON 11,870,177.85 owed by customers against RON 8,631,678.43 owed to suppliers — 90 days of sales outstanding against 79 days of payables (RON 10,009,744.02 of balance-sheet payables over RON 46,141,587.81 of total operating expense, on 365 days), a gap of 10 days (rounded days — the rounded terms can differ from the total by a day).",
+     "claim_template": "The net trade float is {money:float}: {money:trade_receivables} owed by customers against {money:trade_payables} owed to suppliers — {measure:dso} of sales outstanding against {measure:dpo} of payables ({money:dpo_payables} of balance-sheet payables over {money:total_operating_expense} of total operating expense, on {measure:period_days}), a gap of {measure:float_days} (rounded days — the rounded terms can differ from the total by a day).",
      "facts": [
       {
        "label": "Trade receivables net of provisions",
@@ -12423,7 +12423,7 @@
        "label": "Collection gap (DSO − DPO)",
        "unit": "days",
        "value": 10.429688286089,
-       "value_q": "11"
+       "value_q": "10"
       },
       {
        "key": "float",
@@ -12464,7 +12464,7 @@
       }
      ],
      "narrative": {
-      "explanation": "The net trade float is RON 3,238,499.42: RON 11,870,177.85 owed by customers against RON 8,631,678.43 owed to suppliers — 90 days of sales outstanding against 79 days of payables (RON 10,009,744.02 of balance-sheet payables over RON 46,141,587.81 of total operating expense, on 365 days), a gap of 11 days. Graded medium: the amount at stake is 6.7% of revenue, against the ladder printed beside this finding. Trade float is a claim on a year of trading, so it is graded as a share of that year's revenue — the same base both day counts already annualise against.",
+      "explanation": "The net trade float is RON 3,238,499.42: RON 11,870,177.85 owed by customers against RON 8,631,678.43 owed to suppliers — 90 days of sales outstanding against 79 days of payables (RON 10,009,744.02 of balance-sheet payables over RON 46,141,587.81 of total operating expense, on 365 days), a gap of 10 days (rounded days — the rounded terms can differ from the total by a day). Graded medium: the amount at stake is 6.7% of revenue, against the ladder printed beside this finding. Trade float is a claim on a year of trading, so it is graded as a share of that year's revenue — the same base both day counts already annualise against.",
       "reason": "the advisory lane was not invoked for this build",
       "so_what": "Compare the collection gap with the credit terms actually granted. Where suppliers fund the cycle, that funding is a payables line that can be withdrawn, not a permanent source.",
       "source": "deterministic"
