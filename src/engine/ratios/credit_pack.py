@@ -191,6 +191,14 @@ STOCK_BUILD_CASH_COMPONENTS = ("leverage", "coverage", "dscr")
 STOCK_BUILD_FINDING_FIGURES = ("net_711", "net_turnover", "ebitda", "ebitda_before_stock_variation",
                                "cash_from_operations")
 
+#: The finding sentence's premise, in its order (fixer round 1, 2026-09-28):
+#: the three facts the owner's sentence states, each a SIGN of a served
+#: figure — the served EBITDA > 0, the served EBITDA before the stock
+#: variation and own work capitalised <= 0, and no measured cash from
+#: operations > 0. The finding is served only when all three hold.
+STOCK_BUILD_FINDING_PREMISE = ("ebitda_positive", "ebitda_before_stock_variation_not_positive",
+                               "cash_not_measured_positive")
+
 _SEVERITIES = ("critical", "high", "medium", "low", "info")
 
 
@@ -311,10 +319,16 @@ def _stock_build_regime(raw: Any, path: str) -> Dict[str, Any]:
     if not isinstance(fig_raw, dict) or list(fig_raw) != list(STOCK_BUILD_FINDING_FIGURES):
         raise CreditPackError("%s.figures: exactly %s, in that order, are required"
                               % (w, ", ".join(STOCK_BUILD_FINDING_FIGURES)))
+    prem_raw = f_raw.get("premise")
+    if not isinstance(prem_raw, dict) or list(prem_raw) != list(STOCK_BUILD_FINDING_PREMISE):
+        raise CreditPackError("%s.premise: exactly %s, in that order, are required"
+                              % (w, ", ".join(STOCK_BUILD_FINDING_PREMISE)))
     finding = {"code": _text(f_raw, "code", w), "severity": severity,
                "text": _bilingual(f_raw.get("text"), w + ".text"),
                "figure_labels": dict((k, _bilingual(fig_raw[k], "%s.figures.%s" % (w, k)))
                                      for k in STOCK_BUILD_FINDING_FIGURES),
+               "premise_labels": dict((k, _bilingual(prem_raw[k], "%s.premise.%s" % (w, k)))
+                                      for k in STOCK_BUILD_FINDING_PREMISE),
                "source": _text(f_raw, "source", w), "file": CREDIT_PACK_FILE}
 
     return {

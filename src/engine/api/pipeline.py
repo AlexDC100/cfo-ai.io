@@ -3546,12 +3546,17 @@ def _briefing_credit_regime(statements: Optional[Mapping[str, Any]]) -> Optional
     if regime is None:
         return None
     cash = regime.get("cash") or {}
-    finding = regime.get("finding") or {}
+    finding = regime.get("finding")
     return {
         "code": regime.get("code"),
         "label": dict(regime.get("label") or {}),
-        "finding": {"code": finding.get("code"), "severity": finding.get("severity"),
-                    "text": dict(finding.get("text") or {})},
+        # None when the served figures contradict the sentence (EBITDA not
+        # positive, positive before the stock build, or cash measured
+        # positive — `credit_model._finding_premise`): the narrator then
+        # states the regime and NO finding, never the sentence.
+        "finding": ({"code": finding.get("code"), "severity": finding.get("severity"),
+                     "text": dict(finding.get("text") or {})}
+                    if isinstance(finding, Mapping) else None),
         "altman_x3_basis": dict((regime.get("altman_x3") or {}).get("label") or {}),
         "cash_status": cash.get("status"),
         "cash_refusal": dict(cash["refusal"]) if isinstance(cash.get("refusal"), Mapping) else None,
@@ -3811,11 +3816,13 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
             "food / FMCG business is seasonal.\n\n"
             "CREDIT REGIME — STOCK BUILD: when `briefing_facts.credit_regime` is\n"
             "present, the credit model grades this book on CASH, not EBITDA (the\n"
-            "stock variation 711 is a build of stock, not earnings). State its\n"
-            "`finding.text` in the reply language ONCE, verbatim, citing the net\n"
-            "stock variation (`briefing_facts.inventory_variation`) and net\n"
-            "turnover (`briefing_facts.turnover`). Never call the positive EBITDA\n"
-            "a sign of operating strength. When `cash_refusal` is present, the\n"
+            "stock variation 711 is a build of stock, not earnings). When its\n"
+            "`finding` is present, state `finding.text` in the reply language\n"
+            "ONCE, verbatim, citing the net stock variation\n"
+            "(`briefing_facts.inventory_variation`) and net turnover\n"
+            "(`briefing_facts.turnover`); when `finding` is null, state NO\n"
+            "finding sentence of your own. Never call EBITDA a sign of\n"
+            "operating strength. When `cash_refusal` is present, the\n"
             "cash components and the letter are refused: say so with its text,\n"
             "never estimate a grade.\n\n"
             "═══════════════════════════════════════════════════════════════\n"

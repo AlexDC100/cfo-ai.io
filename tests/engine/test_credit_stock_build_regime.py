@@ -18,6 +18,15 @@ refused CFO refuses those components (never 0, never back to EBITDA); a CFO
 <= 0 grades them at the worst rung; the finding, RO verbatim + EN, severity
 high, with the served figures; every surface prints the regime once.
 
+THE SENTENCE'S PREMISE (fixer round 1, 2026-09-28): the owner's sentence
+states three facts — a POSITIVE EBITDA, made positive BY the capitalised stock
+(EBITDA before the stock variation and own work <= 0), while the cash was
+consumed (no MEASURED cash from operations > 0). The finding is served only
+when the served figures say all three; otherwise the regime stands and the
+finding is withheld (`finding` null, `finding_withheld` naming the failed
+tests with the served figure each read) — a sentence contradicted by the
+figures printed under it is the defect this law exists for.
+
 HOW THIS FILE KNOWS (independent of the model): `check()` reads the ruling
 off the SERVED statements (`assembled_pl`, `assembled_cf`) and the RAW pack
 YAML — never `credit_model.stock_build_regime` — and computes the cash
@@ -34,11 +43,18 @@ WITNESSES
     stock_build_approximated, stock_build_cash_refused, stock_build_cash_positive,
     stock_build_cash_negative, stock_build_debt_free, manufacturer,
     at_turnover_threshold, below_turnover_threshold, below_opex_threshold,
-    refused_711, zero_turnover.
+    refused_711, zero_turnover, and the premise witnesses (the finding
+    WITHHELD): stock_build_negative_ebitda (EBITDA -4.85M, turnover 0),
+    stock_build_negative_ebitda_cash_negative (EBITDA -8.85M, CFO -8M
+    measured — the bottom rung AND no sentence),
+    stock_build_profitable_before_build (EBITDA 12M, 2M before the build);
+    stock_build_cash_positive and stock_build_debt_free withhold it too (cash
+    measured positive).
 
 SEAMS (realestate): the served `assembled_metrics.credit`, the ratio table's
 `credit`, the attention document's `credit_regime`, the briefing facts'
-`credit_regime` (text only — no nested money figure) — one regime.
+`credit_regime` (text only — no nested money figure) — one regime; on a
+withheld book the briefing facts carry the regime with NO finding.
 
 WHAT THIS REDS ON, after the repair (TC-11): a regime on a book the raw pack
 does not trigger, or none on one it does; a threshold that does not move with
@@ -47,7 +63,11 @@ with EBITDA; a measured CFO <= 0 scored anything but the declared bottom rung;
 a measured CFO > 0 banded off anything but CFO; X3 carrying the stock build;
 the composite on any weights but the regime's; the finding paraphrased, not
 "high", or citing a figure that is not the served one (or an approximated CFO
-as a figure); a seam carrying a second regime. Seven in-file plants.
+as a figure); the finding served while a served figure contradicts it (EBITDA
+<= 0, EBITDA before the build > 0, cash measured > 0), or withheld while all
+three hold, or withheld without naming the failed test; a seam carrying a
+second regime, or the sentence handed to the narrator on a withheld book.
+Eleven in-file plants.
 
 CANNOT SEE (TC-13): whether the thresholds are the RIGHT ones (the owner's
 ruling and the coordinator's decision); the frontend surfaces (vitest
@@ -56,6 +76,7 @@ creditRegimeSurfaces.test.tsx holds those).
 from __future__ import annotations
 
 import copy
+import json
 import math
 from decimal import Decimal
 from pathlib import Path
@@ -76,6 +97,10 @@ PACK = REPO / "packs" / "credit" / "model.yaml"
 #: The owner's sentence, VERBATIM (ruling R1), and the coordinator's English.
 OWNER_RO = "EBITDA pozitivă din stocuri capitalizate — numerarul a fost consumat de construcție."
 OWNER_EN = "Positive EBITDA from capitalised stock — the cash was consumed by construction."
+
+#: The sentence's premise, stated here (fixer round 1): the three facts the
+#: owner's sentence asserts, in the pack's order.
+PREMISE = ("ebitda_positive", "ebitda_before_stock_variation_not_positive", "cash_not_measured_positive")
 
 MODEL_WEIGHTS = {"altman": 0.30, "profitability": 0.20, "leverage": 0.15, "coverage": 0.10,
                  "dscr": 0.10, "liquidity": 0.10, "equity": 0.05}
@@ -117,6 +142,17 @@ def expected_regime(statements: Dict[str, Any], pack: Dict[str, Any]) -> Optiona
             "cap": _f((apl.get("capitalized_own_work") or {}).get("value")) or 0.0,
             "ebitda": _f(apl.get("ebitda")), "before": _f(apl.get("ebitda_before_stock_variation")),
             "cash_status": status, "cash": cash}
+
+
+def expected_premise(want: Dict[str, Any]) -> Dict[str, bool]:
+    """The sentence's premise on the SERVED figures, by this file's own
+    reading: EBITDA > 0, EBITDA before the stock variation <= 0 (both as the
+    finding prints them, 2 dp), no MEASURED cash from operations > 0."""
+    e = None if want["ebitda"] is None else round(want["ebitda"], 2)
+    b = None if want["before"] is None else round(want["before"], 2)
+    return {"ebitda_positive": e is not None and e > 0,
+            "ebitda_before_stock_variation_not_positive": b is not None and b <= 0,
+            "cash_not_measured_positive": not (want["cash_status"] == "measured" and want["cash"] > 0)}
 
 
 def _lev(nd: float, cash: float) -> float:
@@ -215,7 +251,37 @@ def check(name: str, statements: Dict[str, Any], block: Dict[str, Any], rows: Di
             if block.get("composite") is None or abs(block["composite"] - comp) > 0.15:
                 out.append("%s: composite %r, the regime's weights x the sub-scores give %.2f"
                            % (name, block.get("composite"), comp))
-    # the finding
+    # the finding — ONLY when the served figures say what the sentence states
+    prem = expected_premise(want)
+    failed = [k for k in PREMISE if not prem[k]]
+    labels = pack["finding"].get("premise") or {}
+    if list(labels) != list(PREMISE) or not all((labels[k] or {}).get("ro") and (labels[k] or {}).get("en")
+                                                for k in PREMISE):
+        out.append("%s: the pack's premise is %r, the sentence states %r" % (name, list(labels), list(PREMISE)))
+        return out
+    wh = reg.get("finding_withheld")
+    if failed:
+        if reg.get("finding") is not None:
+            out.append("%s: the finding is served although the served figures contradict it (%s): %r"
+                       % (name, ", ".join(failed), ((reg.get("finding") or {}).get("text") or {}).get("en")))
+        dumped = json.dumps(reg, ensure_ascii=False)
+        if OWNER_RO in dumped or OWNER_EN in dumped:
+            out.append("%s: the owner's sentence rides the block although its premise failed" % name)
+        if not isinstance(wh, dict) or wh.get("code") != pack["finding"]["code"] or wh.get("failed") != failed:
+            out.append("%s: finding_withheld %r, the premise failed on %r" % (name, wh, failed))
+        else:
+            served = {"ebitda_positive": want["ebitda"], "ebitda_before_stock_variation_not_positive": want["before"],
+                      "cash_not_measured_positive": want["cash"] if want["cash_status"] == "measured" else None}
+            got = [(t.get("key"), t.get("met"), t.get("value"), (t.get("label") or {}).get("ro"))
+                   for t in wh.get("premise") or []]
+            exp = [(k, prem[k], None if served[k] is None else round(served[k], 2), labels[k]["ro"])
+                   for k in PREMISE]
+            if got != exp:
+                out.append("%s: the withheld premise %r, the served figures give %r" % (name, got, exp))
+        return out
+    if wh is not None:
+        out.append("%s: the finding is withheld (%r) although the served figures say all three facts"
+                   % (name, wh.get("failed")))
     f = reg.get("finding") or {}
     if (f.get("text") or {}).get("ro") != OWNER_RO or (f.get("text") or {}).get("en") != OWNER_EN:
         out.append("%s: the finding is not the owner's sentence: %r" % (name, f.get("text")))
@@ -290,13 +356,31 @@ CONSTRUCTED: Dict[str, Dict[str, Any]] = {
     "below_opex_threshold": _block(net711=900_000.0, turnover=500_000.0, toe=10_000_000.0, ebit=100_000.0),
     "refused_711": _block(**_DEV, ebitda_refused=True),
     "zero_turnover": _block(net711=5_000_000.0, turnover=0.0, toe=5_200_000.0, ebit=-100_000.0),
+    # the premise witnesses (fixer round 1): the regime applies, the sentence
+    # would be false — a pre-sales developer whose overhead exceeds turnover,
+    # the same with its cash measured negative, a build on top of a positive
+    # result.
+    "stock_build_negative_ebitda": _block(net711=5_000_000.0, turnover=0.0, toe=10_000_000.0, ebit=-5_000_000.0),
+    "stock_build_negative_ebitda_cash_negative": _block(net711=12_000_000.0, turnover=200_000.0, toe=30_000_000.0,
+                                                        ebit=-9_000_000.0, cfo=-8_000_000.0, approximated=False),
+    "stock_build_profitable_before_build": _block(net711=10_000_000.0, turnover=5_000_000.0, toe=60_000_000.0,
+                                                  ebit=11_850_000.0),
 }
 #: What the ruling says of each constructed book, stated by hand.
 TRIGGERS = {"stock_build_approximated": True, "stock_build_cash_refused": True,
             "stock_build_cash_positive": True, "stock_build_cash_negative": True,
             "stock_build_debt_free": True, "manufacturer": False, "at_turnover_threshold": True,
             "below_turnover_threshold": False, "below_opex_threshold": False, "refused_711": False,
-            "zero_turnover": True}
+            "zero_turnover": True, "stock_build_negative_ebitda": True,
+            "stock_build_negative_ebitda_cash_negative": True, "stock_build_profitable_before_build": True}
+#: Whether the owner's sentence is STATED on each triggering book, by hand:
+#: withheld where EBITDA <= 0, where EBITDA is positive before the build, and
+#: where cash from operations is measured positive.
+STATES_FINDING = {"stock_build_approximated": True, "stock_build_cash_refused": True,
+                  "stock_build_cash_positive": False, "stock_build_cash_negative": True,
+                  "stock_build_debt_free": False, "at_turnover_threshold": True, "zero_turnover": True,
+                  "stock_build_negative_ebitda": False, "stock_build_negative_ebitda_cash_negative": False,
+                  "stock_build_profitable_before_build": False}
 
 REAL_BOOKS = ("realestate", "agras", "carniprod", "retail")
 
@@ -310,8 +394,12 @@ def _built(statements: Dict[str, Any]):
 @pytest.mark.parametrize("name", sorted(CONSTRUCTED))
 def test_the_ruling_on_each_constructed_book(name):
     st = CONSTRUCTED[name]
-    assert (expected_regime(st, _raw_regime()) is not None) == TRIGGERS[name], (
+    want = expected_regime(st, _raw_regime())
+    assert (want is not None) == TRIGGERS[name], (
         "%s: this file's reading of the trigger disagrees with the hand statement" % name)
+    if want is not None:
+        assert all(expected_premise(want).values()) == STATES_FINDING[name], (
+            "%s: this file's reading of the premise disagrees with the hand statement" % name)
     block, rows = _built(st)
     problems = check(name, st, block, rows)
     assert not problems, "\n  ".join(problems)
@@ -372,7 +460,14 @@ def test_every_seam_carries_one_regime():
                                                   "total_liabilities": 1.0, "bs_balance_delta": 0.0},
         statements=ag)
     WORK["seams"].append("briefing_facts")
-    WORK["units"] += 4
+    # a withheld book: the regime reaches the narrator, the sentence does not
+    for wname in ("stock_build_negative_ebitda", "stock_build_cash_positive"):
+        wb = P._briefing_credit_regime(CONSTRUCTED[wname])
+        assert wb is not None and wb["code"] == reg["code"], (wname, wb)
+        assert wb["finding"] is None, "%s: the narrator is handed the sentence its figures contradict" % wname
+        assert OWNER_RO not in repr(wb) and OWNER_EN not in repr(wb), wname
+    WORK["seams"].append("briefing_withheld")
+    WORK["units"] += 6
 
 
 def test_the_thresholds_and_the_weights_are_read_from_the_pack(tmp_path, monkeypatch):
@@ -464,6 +559,26 @@ def _plant(plant: str, monkeypatch) -> None:
                 out["finding"]["text"]["ro"] = "EBITDA pozitivă din stocuri — numerarul a scăzut."
             return out
         monkeypatch.setattr(CM, "stock_build_regime", para)
+    elif plant in _PREMISE_PLANTS:
+        orig = CM._finding_premise
+        key = _PREMISE_PLANTS[plant]
+
+        def unchecked(ebitda, before, cash):
+            out = orig(ebitda, before, cash)
+            for t in out:
+                if t["key"] == key:
+                    t["met"] = True
+            return out
+        monkeypatch.setattr(CM, "_finding_premise", unchecked)
+    elif plant == "withheld-names-nothing":
+        orig = CM.stock_build_regime
+
+        def silent(statements):
+            out = orig(statements)
+            if out is not None:
+                out.pop("finding_withheld", None)
+            return out
+        monkeypatch.setattr(CM, "stock_build_regime", silent)
     elif plant == "trigger-threshold-in-code":
         orig = CM.stock_build_regime
 
@@ -483,8 +598,17 @@ def _plant(plant: str, monkeypatch) -> None:
         raise AssertionError(plant)
 
 
+#: The premise plants: one fact of the sentence left unchecked.
+_PREMISE_PLANTS = {"finding-sign-unchecked": "ebitda_positive",
+                   "finding-before-build-unchecked": "ebitda_before_stock_variation_not_positive",
+                   "finding-on-measured-positive-cash": "cash_not_measured_positive"}
+
 PLANTS = {
     "approximated-cash-read-as-measured": "stock_build_approximated",
+    "finding-sign-unchecked": "stock_build_negative_ebitda",
+    "finding-before-build-unchecked": "stock_build_profitable_before_build",
+    "finding-on-measured-positive-cash": "stock_build_cash_positive",
+    "withheld-names-nothing": "stock_build_negative_ebitda_cash_negative",
     "refusal-falls-back-to-ebitda": "stock_build_approximated",
     "x3-keeps-the-stock-build": "stock_build_cash_positive",
     "cash-components-on-ebit": "stock_build_cash_positive",
@@ -517,4 +641,4 @@ def test_zz_scope_and_work(capsys):
         print("GATE-WORK credit-stock-build units=%d" % WORK["units"])
     assert len(WORK["books"]) == len(CONSTRUCTED) + len(REAL_BOOKS)
     assert len(WORK["plants"]) == len(PLANTS)
-    assert sorted(WORK["seams"]) == ["attention", "briefing_facts"]
+    assert sorted(WORK["seams"]) == ["attention", "briefing_facts", "briefing_withheld"]

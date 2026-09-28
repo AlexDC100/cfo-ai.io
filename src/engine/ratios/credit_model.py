@@ -89,7 +89,11 @@ working-capital movements) or REFUSED refuses the three components with its
 own code — never 0, never back to EBITDA — and the composite with them; a
 MEASURED cash figure at or below zero takes the regime's declared bottom
 rung. The served block names the regime, its trigger figures, its cash basis
-and the finding (`regime`). Every other book is revision 4, byte for byte.
+and the finding (`regime`) — the owner's sentence ONLY when the served figures
+say what it states (EBITDA > 0, EBITDA before the stock variation and own work
+<= 0, no measured cash from operations > 0; fixer round 1), else `finding` is
+None and `finding_withheld` names the failed premise. Every other book is
+revision 4, byte for byte.
 """
 
 from __future__ import annotations
@@ -451,6 +455,37 @@ def _share_met(value: float, share: Decimal, base: float) -> bool:
     return Decimal(repr(float(value))) >= share * Decimal(repr(float(base)))
 
 
+def _finding_premise(ebitda: Optional[float], before: Optional[float],
+                     cash: Mapping[str, Any]) -> List[Dict[str, Any]]:
+    """The owner's sentence's premise on the SERVED figures (fixer round 1,
+    2026-09-28), in the pack's order (`STOCK_BUILD_FINDING_PREMISE`):
+
+      ebitda_positive                             EBITDA (as the finding
+                                                  prints it, 2 dp) > 0;
+      ebitda_before_stock_variation_not_positive  EBITDA before the stock
+                                                  variation and own work
+                                                  capitalised (2 dp) <= 0 —
+                                                  the positive EBITDA comes
+                                                  FROM the capitalised stock;
+      cash_not_measured_positive                  no MEASURED cash from
+                                                  operations > 0.
+
+    A figure that is not served cannot establish its fact: the test is not
+    met (the sentence is withheld rather than asserted). Each test carries
+    the served figure it read and that figure's status."""
+    measured_cash = cash.get("value") if cash.get("status") == "measured" else None
+    return [
+        {"key": "ebitda_positive", "value": ebitda, "status": "measured" if ebitda is not None else "absent",
+         "met": ebitda is not None and ebitda > 0},
+        {"key": "ebitda_before_stock_variation_not_positive", "value": before,
+         "status": "measured" if before is not None else "absent",
+         "met": before is not None and before <= 0},
+        {"key": "cash_not_measured_positive",
+         "value": None if measured_cash is None else round(measured_cash, 2), "status": cash.get("status"),
+         "met": not (measured_cash is not None and measured_cash > 0)},
+    ]
+
+
 def stock_build_regime(statements: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
     """The stock-build regime on these statements, or None (the standard
     model applies).
@@ -469,7 +504,9 @@ def stock_build_regime(statements: Mapping[str, Any]) -> Optional[Dict[str, Any]
     operating result before the stock variation and own work capitalised,
     the regime's weight table. The served block carries the regime's label,
     its cash basis with its status, its X3 basis and the finding (the
-    owner's sentence, RO verbatim, with its served figures)."""
+    owner's sentence, RO verbatim, with its served figures) — ONLY when the
+    served figures say what the sentence states (`_finding_premise`); else
+    `finding` is None and `finding_withheld` names the failed premise."""
     if not isinstance(statements, Mapping):
         return None
     try:
@@ -525,7 +562,29 @@ def stock_build_regime(statements: Mapping[str, Any]) -> Optional[Dict[str, Any]
     )
     finding_figures = [{"key": k, "value": v, "unit": currency, "status": status,
                         "label": dict(labels[k])} for k, v, status in fig_values]
-    return {
+    # THE SENTENCE'S PREMISE (fixer round 1): the owner's sentence states a
+    # positive EBITDA, made positive by the capitalised stock, while cash
+    # was consumed. It is served only when the served figures say all
+    # three; otherwise the regime stands (the grade is on cash either way)
+    # and the finding is withheld, naming the test that failed — never a
+    # sentence contradicted by the figures printed under it.
+    by_key = dict((k, v) for k, v, _st in fig_values)
+    premise = _finding_premise(by_key["ebitda"], by_key["ebitda_before_stock_variation"], cash)
+    plabels = pack["finding"]["premise_labels"]
+    for t in premise:
+        t["unit"] = currency
+        t["label"] = dict(plabels[t["key"]])
+    finding: Optional[Dict[str, Any]] = None
+    withheld: Optional[Dict[str, Any]] = None
+    if all(t["met"] for t in premise):
+        finding = {"code": pack["finding"]["code"], "severity": pack["finding"]["severity"],
+                   "text": dict(pack["finding"]["text"]), "figures": finding_figures,
+                   "source": pack["finding"]["source"], "file": pack["finding"]["file"]}
+    else:
+        withheld = {"code": pack["finding"]["code"], "premise": premise,
+                    "failed": [t["key"] for t in premise if not t["met"]],
+                    "file": pack["finding"]["file"]}
+    out: Dict[str, Any] = {
         "code": pack["code"],
         "label": dict(pack["label"]),
         "trigger": {"net_711": round(net_711, 2), "tests": tests,
@@ -545,11 +604,14 @@ def stock_build_regime(statements: Mapping[str, Any]) -> Optional[Dict[str, Any]
                       "net_711": round(net_711, 2),
                       "capitalized_own_work": None if cap is None else round(cap, 2),
                       "numerator": numerator},
-        "finding": {"code": pack["finding"]["code"], "severity": pack["finding"]["severity"],
-                    "text": dict(pack["finding"]["text"]), "figures": finding_figures,
-                    "source": pack["finding"]["source"], "file": pack["finding"]["file"]},
+        "finding": finding,
         "file": pack["file"],
     }
+    if withheld is not None:
+        # Present ONLY when the premise fails, so a book whose finding is
+        # stated serves the block it served before.
+        out["finding_withheld"] = withheld
+    return out
 
 
 def composite_weights_for(regime: Optional[Mapping[str, Any]]) -> Dict[str, float]:

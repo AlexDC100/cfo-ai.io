@@ -476,14 +476,22 @@ def test_the_dry_run_names_the_stock_build_regime():
            "before": {"composite": 41.5, "letter": "B", "altman_z": 4.81, "credit_model_revision": 4},
            "after": dev}
     text = R.render([row])
-    for needle in ("credit 41.50 B z 4.81 -> — — z 2.43 (model revision 4 -> 5)",
+    assert reg["finding_withheld"] is None, reg
+    for needle in ("credit 41.50 B z 4.81 -> REFUSED (no composite, no letter) z 2.43 (model revision 4 -> 5)",
                    "credit regime stock_build: net_711_to_turnover 182.24 >= 1.0, "
                    "net_711_to_operating_expense 1.01 >= 0.10 · cash approximated · "
                    "refused: coverage, dscr, leverage",
                    "finding: EBITDA pozitivă din stocuri capitalizate"):
         assert needle in text, (needle, text)
     assert "credit regime" not in R.render([dict(row, after=ag)])
-    WORK["units"] += 12
+    # fixer round 1: a regime whose sentence the served figures contradict
+    # prints the withheld premise by name, never the sentence.
+    withheld = dict(dev, credit_regime=dict(reg, finding=None,
+                                            finding_withheld=["ebitda_positive"]))
+    wtext = R.render([dict(row, after=withheld)])
+    assert "finding withheld (the served figures contradict it): ebitda_positive" in wtext, wtext
+    assert "EBITDA pozitivă din stocuri capitalizate" not in wtext, wtext
+    WORK["units"] += 14
 
 
 def test_zz_scope(capsys):

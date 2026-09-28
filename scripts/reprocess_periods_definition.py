@@ -287,6 +287,9 @@ def _fresh_view(assembled: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[st
             "refused": sorted(k for k in ("leverage", "coverage", "dscr")
                               if by_name.get("credit_subscore_%s" % k) is None),
             "finding": (regime.get("finding") or {}).get("text"),
+            # fixer round 1: the sentence withheld where the served figures
+            # contradict it — the failed premise, by name.
+            "finding_withheld": list((regime.get("finding_withheld") or {}).get("failed") or []) or None,
             "tests": [(t["key"], t["share"], t["at_least"]) for t in regime["trigger"]["tests"]],
         },
     }, metrics
@@ -547,9 +550,13 @@ def render(rows: Sequence[Dict[str, Any]]) -> str:
                          % (_fmt(b.get("dio")), _fmt(a.get("dio")), a.get("inventory_days_basis") or "—",
                             (", refused: %s" % a["inventory_days_refusal"])
                             if a.get("inventory_days_refusal") else ""))
-            lines.append("  credit %s %s z %s -> %s %s z %s (model revision %s -> %s)"
+            # A fresh run with no composite is a REFUSAL, printed as one —
+            # never "—", which reads as a re-grade to nothing.
+            after_grade = ("%s %s" % (_fmt(a.get("composite")), a.get("letter") or "—")
+                           if a.get("composite") is not None else "REFUSED (no composite, no letter)")
+            lines.append("  credit %s %s z %s -> %s z %s (model revision %s -> %s)"
                          % (_fmt(b.get("composite")), b.get("letter") or "—", _fmt(b.get("altman_z")),
-                            _fmt(a.get("composite")), a.get("letter") or "—", _fmt(a.get("altman_z")),
+                            after_grade, _fmt(a.get("altman_z")),
                             _fmt_rev(b.get("credit_model_revision")), _fmt_rev(a.get("credit_model_revision"))))
             reg = a.get("credit_regime")
             if reg:
@@ -562,7 +569,11 @@ def render(rows: Sequence[Dict[str, Any]]) -> str:
                               for k, v, t in reg.get("tests") or []),
                     reg.get("cash_status") or "—",
                     (" · refused: %s" % ", ".join(reg["refused"])) if reg.get("refused") else ""))
-                lines.append("  finding: %s" % ((reg.get("finding") or {}).get("ro") or "—"))
+                if reg.get("finding"):
+                    lines.append("  finding: %s" % (reg["finding"].get("ro") or "—"))
+                else:
+                    lines.append("  finding withheld (the served figures contradict it): %s"
+                                 % ", ".join(reg.get("finding_withheld") or ["—"]))
             v = r.get("valuation") or {}
             if v.get("has_row"):
                 lines.append("  valuation EBITDA %s (%s) -> %s%s%s" % (
