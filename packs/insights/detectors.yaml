@@ -184,6 +184,21 @@ detectors:
       ({money:dpo_payables} of balance-sheet payables over
       {money:total_operating_expense} of total operating expense, on
       {measure:period_days}), a gap of {measure:float_days}.
+    # Each day figure prints its OWN served figure on the Ratios table's
+    # precision (whole days), so the printed DSO − DPO can miss the printed
+    # gap by a day. Then — and only then — the detector picks `rounded`:
+    # the same sentence with the one rounding note (the words of the
+    # frontend's `roundedDays.note`, en.json; held equal by
+    # tests/engine/test_one_metric_one_formula.py). Never a second gap.
+    claim_variants:
+      rounded: >-
+        The net trade float is {money:float}: {money:trade_receivables} owed
+        by customers against {money:trade_payables} owed to suppliers —
+        {measure:dso} of sales outstanding against {measure:dpo} of payables
+        ({money:dpo_payables} of balance-sheet payables over
+        {money:total_operating_expense} of total operating expense, on
+        {measure:period_days}), a gap of {measure:float_days} (rounded days —
+        the rounded terms can differ from the total by a day).
     rows:
       trade_receivables: [ar_trade_gross, ar_doubtful_gross, ar_provisions]
       trade_payables: [ap_trade]

@@ -450,17 +450,22 @@ def detect_trade_float(book: Book, spec: DetectorSpec):
     # ONE PRINTED STRING PER FIGURE (merge contract 2026-09-28): DSO and DPO
     # print on the Ratios table's precision (its days rule, whole days) —
     # the claim printed "89.6 days … 79.2 days" beside the table's "90 days"
-    # and "79 days". The gap prints as the difference of the two PRINTED
-    # figures, so the sentence adds up as a reader reads it (90 − 79 = 11,
-    # never "10.4"); its exact value stays the measure's `value`.
+    # and "79 days". The GAP prints ITS OWN served figure on the same
+    # precision (coordinator's ruling 2026-09-28, one figure per report —
+    # replacing "the difference of the printed figures", which printed a
+    # gap of 11 days for an exact 10.43 on the Scandia G7 capture). Where
+    # the printed DSO − DPO is not the printed gap (rounding), the claim
+    # takes the pack's `rounded` variant: the same sentence with the one
+    # rounding note — never a second gap.
     from decimal import Decimal
 
     from engine.ratios.table import quantize_display
 
     dso_q = quantize_display(dso, "days")
     dpo_q = quantize_display(dpo, "days")
-    float_q = (str(Decimal(dso_q) - Decimal(dpo_q))
-               if dso_q is not None and dpo_q is not None and float_days is not None else None)
+    float_q = quantize_display(float_days, "days")
+    rounded = (dso_q is not None and dpo_q is not None and float_q is not None
+               and Decimal(dso_q) - Decimal(dpo_q) != Decimal(float_q))
 
     # The DPO is printed WITH the operands it divides — the balance sheet's
     # payables (not the trade-payables row the float nets, which is a
@@ -495,7 +500,7 @@ def detect_trade_float(book: Book, spec: DetectorSpec):
     accounts = (book.accounts_for(ar_rows, "trade_receivable")
                 + book.accounts_for(ap_rows, "trade_payable"))
     magnitude = None if float_money is None else abs(float_money)
-    return Detection(magnitude, measures, accounts, facts)
+    return Detection(magnitude, measures, accounts, facts, "rounded" if rounded else "")
 
 
 # ══ 6. FINANCIAL POSITION ═════════════════════════════════════════════

@@ -307,16 +307,52 @@ def test_the_trade_float_prints_the_operands_its_days_divide(served, book):
     WORK["units"] += 1
 
 
+#: THE ROUNDING NOTE — the frontend's `roundedDays.note` (en.json), the one
+#: authority for its words; the trade float's `rounded` claim variant must
+#: carry exactly this sentence.
+def _rounded_note_en():
+    bundle = json.loads((REPO / "frontend" / "i18n" / "locales" / "en.json").read_text("utf-8"))
+    return bundle["roundedDays"]["note"]
+
+
+def _check_trade_float_gap(trade, where):
+    """THE GAP IS ITS OWN SERVED FIGURE (coordinator's ruling 2026-09-28,
+    one figure per report): printed on the Ratios table's precision
+    (`quantize_display(value, "days")`), never the difference of the printed
+    DSO and DPO; where that difference is not the printed gap, the claim
+    carries the one rounding note — and only then. Returns True when the
+    printed figures part (the note is due)."""
+    from decimal import Decimal
+
+    from engine.ratios.table import quantize_display
+
+    ms = dict((x["key"], x) for x in trade["measures"])
+    gap = ms["float_days"]
+    assert gap["value_q"] == quantize_display(gap["value"], "days"), (where, gap)
+    claim = trade["claim"]
+    unit = "day" if gap["value_q"].lstrip("+-") == "1" else "days"
+    parts = Decimal(ms["dso"]["value_q"]) - Decimal(ms["dpo"]["value_q"]) != Decimal(gap["value_q"])
+    note = _rounded_note_en()
+    if parts:
+        assert claim.endswith("a gap of %s %s (%s)." % (gap["value_q"], unit, note)), (where, claim)
+    else:
+        assert claim.endswith("a gap of %s %s." % (gap["value_q"], unit)), (where, claim)
+        assert note not in claim, (where, claim)
+    # The claim prints ONE gap: no second day figure after "a gap of".
+    import re
+    assert len(re.findall(r"a gap of", claim)) == 1, (where, claim)
+    return parts
+
+
 @pytest.mark.parametrize("book", ALL_SERVED)
 def test_the_trade_float_prints_dso_and_dpo_as_the_ratios_table_prints_them(served, book):
     """ONE PRINTED STRING PER FIGURE (merge contract 2026-09-28): the
     trade-float insight printed "89.6 days of sales outstanding against 79.2
     days of payables" beside the Ratios table's "90 days" and "79 days". Its
-    DSO and DPO now carry the table's printed digits (`value_q`, the days
-    rule) and the claim prints them verbatim; the gap is the difference of
-    the two PRINTED figures, so the sentence adds up as read."""
-    from decimal import Decimal
-
+    DSO and DPO carry the table's printed digits (`value_q`, the days rule)
+    and the claim prints them verbatim; the GAP prints its own served figure
+    on the same precision, with the rounding note only where the printed
+    DSO − DPO parts from it (coordinator's ruling 2026-09-28)."""
     from engine.insights.measures import Measure, format_measure
 
     st = served[book]["statements"]
@@ -333,22 +369,21 @@ def test_the_trade_float_prints_dso_and_dpo_as_the_ratios_table_prints_them(serv
                                      "day" if table[key]["value_q"].lstrip("+-") == "1" else "days")
         assert printed in claim, (book, key, printed, claim)
         WORK["units"] += 1
-    gap = ms["float_days"]["value_q"]
-    assert Decimal(gap) == Decimal(ms["dso"]["value_q"]) - Decimal(ms["dpo"]["value_q"]), (book, gap)
-    assert "a gap of %s %s" % (gap, "day" if gap.lstrip("+-") == "1" else "days") in claim, (book, claim)
+    _check_trade_float_gap(trade, book)
     # No one-decimal day figure survives in the sentence.
     import re
     assert not re.search(r"\b\d+\.\d days?\b", claim), (book, claim)
     WORK["units"] += 1
 
 
-def test_the_trade_float_gap_is_the_difference_of_the_printed_figures_where_rounding_parts_them():
+def test_the_trade_float_gap_is_its_own_served_figure_with_the_rounding_note_where_the_printed_terms_part():
     """The witness the corpus books cannot give: on every one of them the
     rounded exact gap happens to equal the difference of the printed DSO and
     DPO. The Scandia G7 capture (e2e/fixtures/workspace_v2, the served body
     the hermetic dashboard reads) is the book where they part: the detector,
-    re-run over its served statements, must print the gap as the printed
-    DSO minus the printed DPO — the sentence a reader adds up — and
+    re-run over its served statements, must print the gap as ITS OWN served
+    figure on the table's precision (never the printed DSO minus the printed
+    DPO — a second figure for one gap) and carry the rounding note; and
     reproduce the served claim byte for byte."""
     from decimal import Decimal
 
@@ -362,13 +397,30 @@ def test_the_trade_float_gap_is_the_difference_of_the_printed_figures_where_roun
                             "line_items": body.get("line_items")})
     trade = [i for i in block["insights"] if i["id"] == "trade_float"][0]
     ms = dict((x["key"], x) for x in trade["measures"])
-    printed_gap = Decimal(ms["dso"]["value_q"]) - Decimal(ms["dpo"]["value_q"])
+    printed_difference = Decimal(ms["dso"]["value_q"]) - Decimal(ms["dpo"]["value_q"])
     # POSITIVE CONTROL: rounding the exact gap gives ANOTHER figure here.
-    assert Decimal(quantize_display(ms["float_days"]["value"], "days")) != printed_gap, ms
-    assert Decimal(ms["float_days"]["value_q"]) == printed_gap, ms
-    assert trade["claim"].endswith("a gap of %s days." % ms["float_days"]["value_q"]), trade["claim"]
+    assert Decimal(quantize_display(ms["float_days"]["value"], "days")) != printed_difference, ms
+    assert _check_trade_float_gap(trade, "scandia G7") is True
+    assert Decimal(ms["float_days"]["value_q"]) != printed_difference, ms
     served = [i for i in st["insights"]["insights"] if i["id"] == "trade_float"][0]
     assert trade["claim"] == served["claim"], (trade["claim"], served["claim"])
+    assert _check_trade_float_gap(served, "scandia G7 (served)") is True
+    WORK["units"] += 1
+
+
+def test_the_trade_float_rounding_note_is_the_frontends_words():
+    """ONE SPELLING of the note across the two runtimes: the pack's
+    `rounded` variant is the default claim plus exactly the frontend's
+    `roundedDays.note` (en.json) in parentheses — and the RO bundle carries
+    the owner's Romanian sentence."""
+    from engine.insights.packdata import load_pack
+
+    spec = [d for d in load_pack().detectors if d.id == "trade_float"][0]
+    assert spec.claim_variants["rounded"] == spec.claim[:-1] + " (%s)." % _rounded_note_en(), (
+        spec.claim_variants["rounded"], spec.claim)
+    ro = json.loads((REPO / "frontend" / "i18n" / "locales" / "ro.json").read_text("utf-8"))
+    assert ro["roundedDays"]["note"] == "zile rotunjite — termenii rotunjiți pot diferi de total cu o zi"
+    assert _rounded_note_en() == "rounded days — the rounded terms can differ from the total by a day"
     WORK["units"] += 1
 
 
