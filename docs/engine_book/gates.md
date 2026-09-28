@@ -16150,3 +16150,202 @@ Both laws cannot hold with today's strings; the choice is the owner's.
 
 **CANNOT SEE:** pixels (the hermetic Playwright specs on a rebuilt bundle), and
 production periods (the reprocess dry run is the deploy's).
+
+### Release r-rulings — fixer round 2: the prior's refusal named as the prior's; a line's feeds are its figure (2026-09-28)
+
+**Findings (critic round 2).** (A) **Finding 3 of round 1 — NOT FIXED,
+owner ruling still required.** Verified again: the cycle chart prints the sum
+of the printed terms (its caption and tooltip name the exact served cycle and
+the card's rounding), the card / table / band track print the served `ccc`
+value_q, and G-C1b requires a book where the two differ. The critic's three
+options — (a) keep the merge contract, (b) the engine serves `ccc` value_q as
+the sum of the printed terms, (c) the chart prints its terms at a precision
+that foots to the card — each change what a reader is told the cycle IS; the
+choice is the owner's, and the deploy waits on it. Nothing was changed here.
+(B) A REFUSED PRIOR's reason printed bare in the change slot beside the served
+CURRENT figure (`columnChip` returned `absentText(prior.refusal)`), where it
+read as a statement about the current book — on all four guarded answers
+(EBITDA, operating result, net result, total equity); round 1's law pinned the
+bare sentence. (C) Round 1 fixed the single-leaf and all-711 views only: the
+line view `?line=pl.other_operating_income` listed every otherIncome leaf —
+the 711 memo (on a closed book the gross production stocked) and the 781
+reversals — under "Sold" / "Balance" as feeding a served figure that is the
+758 leaves alone, and a mixed table (`?account=711104&account=758`, a prefix
+such as `?account=7`) printed 711 rows under the table's "Sold"; round 1's law
+pinned that heading over exactly those views. Root cause: the line registry
+declared the otherIncome BUCKET as the line's feeds, and the served field
+(`other_income_758`, chart_of_accounts.py) sums only the 758 leaves of it.
+
+**The repair.** (B) `columnChip` prints the prior's refusal as
+`cmdbar.figure.priorRefused` "{{prior}}: {{reason}}" with the comparatives
+prior label — the engine column's own side-naming (columns.py "<prior>:
+<text>"). (C) `LineSpec.source_accounts` (src/engine/comparatives/lines.py):
+account-code prefixes the served field sums where it is narrower than its
+buckets — `pl.other_operating_income` → `("758",)`; mirrored as
+`source_accounts` in frontend/lib/evidence/evidenceLines.json; the account view
+lists the buckets' leaves under those prefixes. Coverage still reads the
+buckets (see OPEN below). In a mixed table on a closed book each 711 row
+carries its own "credit turnover" / "rulaj creditor" tag
+(`evidence.rowTurnover711`); the column heading switches only where every row
+is 711.
+
+**The laws** (commandBar.test.tsx → cmdbar-surface; test_evidence_lines.py →
+evidence-lines; evidenceLanding.test.tsx → cmdbar-evidence):
+
+| gate | law | plant |
+|---|---|---|
+| cmdbar-surface | REWRITTEN: a prior the engine refused on a line carries no Δ and its chip NAMES THE PRIOR — `"<prior label>: <reason>"` — on all four guarded answers, EN and RO; the bare reason never stands beside a served current figure; no "vs <prior>" chip (POSITIVE CONTROL: each column is "compared", the current figure is served). Work: `GATE-WORK cmdbar-prior-refused answers=8` | E1, E2 |
+| evidence-lines | the mirror's `source_accounts` equal the registry's; every line whose view lists feeds — its buckets' served leaves under its prefixes — sums to its served figure within the zero floor on both committed bodies, and lists no 711 leaf (POSITIVE CONTROL: the bucket alone lists the 711 memo and does not foot). Work: `GATE-WORK evidence-lines feeds=16 narrowed=2` | E4, E5, E6 |
+| cmdbar-evidence | the same feeds law over the view's own model and the rendered "Other operating income" view (only 758 leaves). Work: `GATE-WORK cmdbar-evidence-feeds lines=16 narrowed=2` | E3, E4, E6 |
+| cmdbar-evidence | REWRITTEN: every view that lists a 711 leaf carries the note once and labels each 711 amount as its credit turnover — by the column where every row is 711, by the row's own tag beside a balance; the line's feeds list none; a non-711 row carries no tag | E3, E6, E7, E8 |
+| cmdbar-evidence | every 711 row of every account view that lists one (each 711 leaf, the 7 / 71 / 711 prefixes, a 711 leaf beside each other P&L family), both books, EN and RO, is labelled as its credit turnover — never under "Balance" / "Sold" alone. Work: `GATE-WORK cmdbar-evidence-711-label views=86 rows=140` | E7 |
+
+Each plant applied ALONE to the committed tree (55e502ff / db35c00e), the laws
+run, the files restored with `git checkout --` (byte-exact, asserted), the laws
+re-run GREEN. Figures and book names in the failure messages are redacted
+here (`<figure>`, `<book>`).
+
+```
+PLANT E1 — cmdbarViews.columnChip: the prior's refusal printed BARE again (no prior label)
+  cmd: vitest frontend/components/instrument/shell/__tests__/commandBar.test.tsx -t 'fixer round 1'
+  exit 1 -> RED
+    × absent is never 0 — a REFUSED line prints the engine's words (fixer round 1) > a prior the engine refused on a line carries no Δ — its refusal NAMED AS THE PRIOR'S on every guarded answer (EBITDA, o
+    Test Files  1 failed (1)
+    Tests  1 failed | 10 passed | 66 skipped (77)
+    AssertionError: en/ebitda: expected { state: 'none', …(1) } to deeply equal { state: 'none', …(1) }
+  REVERT (git checkout -- frontend/components/instrument/shell/cmdbar/cmdbarViews.ts, byte-exact) exit 0
+  re-run vitest: exit 0 -> GREEN
+    Test Files  1 passed (1)
+    Tests  11 passed | 66 skipped (77)
+PLANT E2 — cmdbarViews.columnChip: the refusal attributed to the CURRENT period's label
+  cmd: vitest frontend/components/instrument/shell/__tests__/commandBar.test.tsx -t 'fixer round 1'
+  exit 1 -> RED
+    × absent is never 0 — a REFUSED line prints the engine's words (fixer round 1) > a prior the engine refused on a line carries no Δ — its refusal NAMED AS THE PRIOR'S on every guarded answer (EBITDA, o
+    Test Files  1 failed (1)
+    Tests  1 failed | 10 passed | 66 skipped (77)
+    AssertionError: en/ebitda: expected { state: 'none', …(1) } to deeply equal { state: 'none', …(1) }
+  REVERT (git checkout -- frontend/components/instrument/shell/cmdbar/cmdbarViews.ts, byte-exact) exit 0
+  re-run vitest: exit 0 -> GREEN
+    Test Files  1 passed (1)
+    Tests  11 passed | 66 skipped (77)
+PLANT E3 — evidenceView.buildEvidenceModel: the source_accounts narrowing dropped (every leaf of the bucket listed as a feed again)
+  cmd: vitest frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx -t 'fixer round 1'
+  exit 1 -> RED
+    × cmdbar-evidence — account 711 and the refused lines (fixer round 1) > en: every view that lists a 711 leaf carries the note once and labels each 711 amount as its credit turnover — by the column whe
+    × cmdbar-evidence — account 711 and the refused lines (fixer round 1) > ro: every view that lists a 711 leaf carries the note once and labels each 711 amount as its credit turnover — by the column whe
+    × cmdbar-evidence — account 711 and the refused lines (fixer round 1) > THE FEEDS ARE THE FIGURE: every statement line's listed feeds (both books, as the view lists them) sum to its served figure, and
+    Test Files  1 failed (1)
+    Tests  3 failed | 5 passed | 34 skipped (42)
+    AssertionError: /dashboard?tab=pl&line=pl.other_operating_income: lists a 711 leaf: expected true to be false // Object.is equality
+    AssertionError: <book>/pl.other_operating_income: the listed feeds sum to <figure>, served <figure>: expected <figure> to be less than 0.005
+  REVERT (git checkout -- frontend/components/cfo/evidence/evidenceView.ts, byte-exact) exit 0
+  re-run vitest: exit 0 -> GREEN
+    Test Files  1 passed (1)
+    Tests  8 passed | 34 skipped (42)
+PLANT E4 — evidenceLines.json: pl.other_operating_income's source_accounts dropped from the mirror only
+  cmd: pytest tests/engine/test_evidence_lines.py -q
+  exit 1 -> RED
+    FAILED tests/engine/test_evidence_lines.py::test_every_entry_reads_the_registry_path_and_its_buckets
+    FAILED tests/engine/test_evidence_lines.py::test_a_lines_listed_feeds_sum_to_its_served_figure_and_are_never_711
+    E   AssertionError: ('pl.other_operating_income', None, ('758',))
+    E   assert [] == ['758']
+    E   AssertionError: <book>/pl.other_operating_income: the listed feeds sum to <figure>, the served figure is <figure>
+    E   assert <figure> < 0.005
+    2 failed, 4 passed in 0.33s
+  cmd: vitest frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx -t 'fixer round 1'
+  exit 1 -> RED
+    × cmdbar-evidence — account 711 and the refused lines (fixer round 1) > en: every view that lists a 711 leaf carries the note once and labels each 711 amount as its credit turnover — by the column whe
+    × cmdbar-evidence — account 711 and the refused lines (fixer round 1) > ro: every view that lists a 711 leaf carries the note once and labels each 711 amount as its credit turnover — by the column whe
+    × cmdbar-evidence — account 711 and the refused lines (fixer round 1) > THE FEEDS ARE THE FIGURE: every statement line's listed feeds (both books, as the view lists them) sum to its served figure, and
+    Test Files  1 failed (1)
+    Tests  3 failed | 5 passed | 34 skipped (42)
+    AssertionError: /dashboard?tab=pl&line=pl.other_operating_income: lists a 711 leaf: expected true to be false // Object.is equality
+    AssertionError: <book>/pl.other_operating_income: the listed feeds sum to <figure>, served <figure>: expected <figure> to be less than 0.005
+  REVERT (git checkout -- frontend/lib/evidence/evidenceLines.json, byte-exact) exit 0
+  re-run pytest: exit 0 -> GREEN
+    6 passed in 0.29s
+  re-run vitest: exit 0 -> GREEN
+    Test Files  1 passed (1)
+    Tests  8 passed | 34 skipped (42)
+PLANT E5 — lines.py: the registry's source_accounts for other_operating_income dropped (the mirror keeps it)
+  cmd: pytest tests/engine/test_evidence_lines.py -q
+  exit 1 -> RED
+    FAILED tests/engine/test_evidence_lines.py::test_every_entry_reads_the_registry_path_and_its_buckets
+    E   AssertionError: ('pl.other_operating_income', ['758'], ())
+    E   assert ['758'] == []
+    1 failed, 5 passed in 0.33s
+  REVERT (git checkout -- src/engine/comparatives/lines.py, byte-exact) exit 0
+  re-run pytest: exit 0 -> GREEN
+    6 passed in 0.29s
+PLANT E6 — lines.py + evidenceLines.json, CONSISTENT: the 711 memo declared a feed of other operating income (758 + 711)
+  cmd: pytest tests/engine/test_evidence_lines.py -q
+  exit 1 -> RED
+    FAILED tests/engine/test_evidence_lines.py::test_a_lines_listed_feeds_sum_to_its_served_figure_and_are_never_711
+    E   AssertionError: <book>/pl.other_operating_income: the listed feeds sum to <figure>, the served figure is <figure>
+    E   assert <figure> < 0.005
+    1 failed, 5 passed in 0.32s
+  cmd: vitest frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx -t 'fixer round 1'
+  exit 1 -> RED
+    × cmdbar-evidence — account 711 and the refused lines (fixer round 1) > en: every view that lists a 711 leaf carries the note once and labels each 711 amount as its credit turnover — by the column whe
+    × cmdbar-evidence — account 711 and the refused lines (fixer round 1) > ro: every view that lists a 711 leaf carries the note once and labels each 711 amount as its credit turnover — by the column whe
+    × cmdbar-evidence — account 711 and the refused lines (fixer round 1) > THE FEEDS ARE THE FIGURE: every statement line's listed feeds (both books, as the view lists them) sum to its served figure, and
+    Test Files  1 failed (1)
+    Tests  3 failed | 5 passed | 34 skipped (42)
+    AssertionError: /dashboard?tab=pl&line=pl.other_operating_income: lists a 711 leaf: expected true to be false // Object.is equality
+    AssertionError: <book>/pl.other_operating_income: the listed feeds sum to <figure>, served <figure>: expected <figure> to be less than 0.005
+  REVERT (git checkout -- frontend/lib/evidence/evidenceLines.json src/engine/comparatives/lines.py, byte-exact) exit 0
+  re-run pytest: exit 0 -> GREEN
+    6 passed in 0.29s
+  re-run vitest: exit 0 -> GREEN
+    Test Files  1 passed (1)
+    Tests  8 passed | 34 skipped (42)
+PLANT E7 — EvidenceDrawer.rowAmountTag: never tags (a mixed table's 711 rows under 'Balance' / 'Sold' alone)
+  cmd: vitest frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx -t 'fixer round 1'
+  exit 1 -> RED
+    × cmdbar-evidence — account 711 and the refused lines (fixer round 1) > en: every view that lists a 711 leaf carries the note once and labels each 711 amount as its credit turnover — by the column whe
+    × cmdbar-evidence — account 711 and the refused lines (fixer round 1) > ro: every view that lists a 711 leaf carries the note once and labels each 711 amount as its credit turnover — by the column whe
+    × cmdbar-evidence — account 711 and the refused lines (fixer round 1) > EVERY 711 row, in every account view that lists one (each leaf, the 7 / 71 / 711 prefixes, beside each other P&L leaf), is label
+    Test Files  1 failed (1)
+    Tests  3 failed | 5 passed | 34 skipped (42)
+    AssertionError: /dashboard?tab=pl&account=711104&account=758 711104: expected null to be 'credit turnover' // Object.is equality
+    AssertionError: /dashboard?tab=pl&account=711104&account=758 711104: expected null to be 'rulaj creditor' // Object.is equality
+    AssertionError: <book> /dashboard?tab=pl&account=7 711101: "Balance": expected [ …(3) ] to include 'Balance'
+  REVERT (git checkout -- frontend/components/cfo/evidence/EvidenceDrawer.tsx, byte-exact) exit 0
+  re-run vitest: exit 0 -> GREEN
+    Test Files  1 passed (1)
+    Tests  8 passed | 34 skipped (42)
+PLANT E8 — EvidenceDrawer.rowAmountTag: tags every row of a mixed table (a balance labelled a credit turnover)
+  cmd: vitest frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx -t 'fixer round 1'
+  exit 1 -> RED
+    × cmdbar-evidence — account 711 and the refused lines (fixer round 1) > en: every view that lists a 711 leaf carries the note once and labels each 711 amount as its credit turnover — by the column whe
+    × cmdbar-evidence — account 711 and the refused lines (fixer round 1) > ro: every view that lists a 711 leaf carries the note once and labels each 711 amount as its credit turnover — by the column whe
+    Test Files  1 failed (1)
+    Tests  2 failed | 6 passed | 34 skipped (42)
+    AssertionError: /dashboard?tab=pl&account=711104&account=758 758101: expected 'credit turnover' to be null // Object.is equality
+    AssertionError: /dashboard?tab=pl&account=711104&account=758 758101: expected 'rulaj creditor' to be null // Object.is equality
+  REVERT (git checkout -- frontend/components/cfo/evidence/EvidenceDrawer.tsx, byte-exact) exit 0
+  re-run vitest: exit 0 -> GREEN
+    Test Files  1 passed (1)
+    Tests  8 passed | 34 skipped (42)
+```
+
+**GREEN (through `run_battery.main`, gate list narrowed):**
+`PASS cmdbar-surface (201 command-bar tests)`, `PASS cmdbar-evidence (47
+evidence-landing tests)`, `PASS evidence-lines (14)`, `PASS sign-flip (348)`,
+`PASS comparatives-route (7)`, `PASS comparatives-depth-parity (225)`,
+`PASS cmdbar-fixtures (6)`, `PASS capsule-craft`, `PASS no-plants`,
+`PASS stale-gates`, `PASS engine-book`; provenance-census FAIL on its 11
+pre-existing findings, none new (none names a file this round touched).
+Floors raised to the measured work: cmdbar-evidence 45 → 47 (cmdbar-surface
+stays 201: one law replaced by one); canaries added for each new law and the
+rewritten prior-refusal law's name.
+
+**OPEN (not fixed here, flagged).** Comparatives COVERAGE for
+`pl.other_operating_income` still reads the otherIncome bucket: a book with
+781 reversals or a 74x / 75x / 77x catch-all and no 758 account reads a
+disclosed 0.00 for the line, where "no 758 leaf" is absent. Narrowing coverage
+to `source_accounts` changes served comparatives columns and their captures
+(re-captured only by their own writers) — its own change, not this round's.
+
+**CANNOT SEE:** pixels (the hermetic Playwright specs on a rebuilt bundle);
+production periods.

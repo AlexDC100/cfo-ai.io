@@ -1635,7 +1635,11 @@ def _engine_gates() -> List[Gate]:
                        "GATE-WORK cmdbar-selection-frames queries=",
                        # release r-rulings, fixer round 1 (2026-09-28)
                        "total equity the engine refuses AS total equity prints the engine's words",
-                       "a prior whose total equity the engine refuses carries no Δ",
+                       # fixer round 2: the prior's refusal NAMED AS THE PRIOR'S on
+                       # all four guarded answers (replaces the law that pinned the
+                       # bare sentence)
+                       "a prior the engine refused on a line carries no Δ — its refusal NAMED AS THE PRIOR'S",
+                       "GATE-WORK cmdbar-prior-refused answers=",
                        "g6_uncleared: a refused operating result prints the one-EBITDA refusal in the engine's words",
                        "GATE-WORK cmdbar-711-note scandia/ro rows=",
                        "GATE-WORK cmdbar-711-note agras/en rows=",
@@ -1660,7 +1664,10 @@ def _engine_gates() -> List[Gate]:
              [PY, "-m", "pytest", "tests/engine/test_evidence_lines.py", "-q", "-s"],
              work_rx=r"GATE-WORK evidence-lines lines=(\d+)", floor=12,
              units="evidence lines held to the engine's line registry",
-             canaries=("GATE-WORK evidence-lines lines=",)),
+             # fixer round 2 (2026-09-28): every line's listed feeds sum to
+             # its served figure on both committed bodies, none a 711 leaf.
+             canaries=("GATE-WORK evidence-lines lines=",
+                       "GATE-WORK evidence-lines feeds=")),
         Gate("cmdbar-evidence",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/components/cfo/evidence/__tests__/evidenceLanding.test.tsx",
@@ -1668,8 +1675,9 @@ def _engine_gates() -> List[Gate]:
               "--reporter=verbose"],
              # release r-rulings, fixer round 1 (2026-09-28): the 711 note
              # and label in the account view, refused lines in the engine's
-             # words (measured 45).
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=45,
+             # words (measured 45); fixer round 2: the feeds law and the 711
+             # label over every account view (measured 47).
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=47,
              units="evidence-landing tests",
              canaries=("scandia: each served item opens a rendered, highlighted target that IS the item",
                        "pair: each served item opens a rendered, highlighted target that IS the item",
@@ -1692,7 +1700,13 @@ def _engine_gates() -> List[Gate]:
                        "ro: a 711 leaf opens labelled as its credit turnover (never a balance)",
                        "every view that lists a 711 leaf carries the note once",
                        "a 711 leaf on a book whose variation the engine REFUSED carries that refusal",
-                       "a refused operating result and a refused total equity open on the engine's words")),
+                       "a refused operating result and a refused total equity open on the engine's words",
+                       # release r-rulings, fixer round 2 (2026-09-28): a line's
+                       # feeds are the leaves its figure sums, never a 711 leaf;
+                       # a 711 row in a mixed table names its own amount
+                       "THE FEEDS ARE THE FIGURE",
+                       "GATE-WORK cmdbar-evidence-feeds lines=",
+                       "GATE-WORK cmdbar-evidence-711-label views=")),
         # FLOOR SUBSTITUTES, batch C3 (owner rulings R-D5 / R-D6 / R-OTHER,
         # 2026-09-15): the valuation DCF, the AI briefing's citable
         # ratios, the RO pack's ROA check and the served period day count.
