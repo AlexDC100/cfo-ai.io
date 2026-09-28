@@ -664,7 +664,11 @@ def _engine_gates() -> List[Gate]:
         # 98. Plant log: gates.md "one-metric-one-formula".
         Gate("one-metric-one-formula",
              [PY, "-m", "pytest", "tests/engine/test_one_metric_one_formula.py", "-q", "-s"],
-             work_rx=r"GATE-WORK one-metric-one-formula units=(\d+)", floor=85,
+             # release r-rulings (2026-09-28): the trade float prints DSO / DPO
+             # as the Ratios table does, the gap as their printed difference,
+             # with the Scandia G7 witness where rounding parts them
+             # (measured 120).
+             work_rx=r"GATE-WORK one-metric-one-formula units=(\d+)", floor=110,
              units="surfaces compared with the one authority",
              canaries=("SCOPE one-metric-one-formula: corpus books agras, carniprod, realestate, retail",)),
         # INVENTORY DAYS ON EVERY SURFACE (owner spec 2026-09-26 P1, design
@@ -684,10 +688,11 @@ def _engine_gates() -> List[Gate]:
         # closing_value_q; the bank export's DIO lever prints the split's
         # period-end figure character for character (EN, RO); a snapshot
         # period's DIO reading never says "on average" (the workbook row);
-        # the cycle chart's printed terms foot to the printed CCC within
-        # whole-day rounding and, unrounded, to the served cycle
-        # (reportCharts G-C1b). Rendered over served bytes (vitest).
-        # Measured 170 tests, floor 150.
+        # the cycle chart adds up EXACTLY as printed — the CCC bar prints the
+        # sum of the printed terms, the exact served cycle in its tooltip and
+        # caption (reportCharts G-C1b, chartsAgreeWithCards; merge contract
+        # 2026-09-28) — and, unrounded, the terms foot to the served cycle.
+        # Rendered over served bytes (vitest). Measured 172 tests, floor 160.
         # Plant log: gates.md "inventory-days-surfaces".
         Gate("inventory-days-surfaces",
              ["npx", "vitest", "run", "--root", ".",
@@ -703,9 +708,10 @@ def _engine_gates() -> List[Gate]:
               "frontend/lib/__tests__/chartsAgreeWithCards.test.ts",
               "frontend/lib/__tests__/reportCharts.test.ts",
               "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=150,
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=160,
              units="surface tests (tile, drawer, report, workbook, bank export, products, public, chat, benchmark, cycle chart)",
              canaries=("the tile prints every leg with its accounts, alte stocuri and the basis",
+                       "DSO + DIO − DPO = CCC, EXACTLY as printed",
                        "the bank export (EN) prints the report's block byte for byte",
                        "labels the SKU figure as SKU turnover days and takes CCC from the trial balance",
                        "replaces the company dio with the reported-basis row under its own key",
@@ -1482,8 +1488,12 @@ def _engine_gates() -> List[Gate]:
         #                          network off. Plant log: gates.md.
         Gate("attention-rules",
              [PY, "-m", "pytest", "tests/engine/test_attention_rules.py", "-q"],
-             work_junit=True, floor=28, units="tests",
+             # release r-rulings (2026-09-28): the served inventory-days block
+             # read with its label and policy, no fallback formula (measured 29).
+             work_junit=True, floor=29, units="tests",
              canaries=("test_other_equity_is_never_the_biggest_movement_on_the_served_pair",
+                       "test_no_served_block_is_no_claim_and_no_fallback_formula",
+                       "test_the_served_block_is_read_with_its_basis_label_and_its_policy",
                        "test_the_composite_letter_is_never_the_biggest_movement",
                        "test_a_single_period_company_fills_the_slots_from_its_findings",
                        "test_the_empty_state_differs_between_two_companies",
@@ -1570,9 +1580,15 @@ def _engine_gates() -> List[Gate]:
               "frontend/components/instrument/shell/__tests__/cmdbarSwitchAction.test.tsx",
               "frontend/pages/cfo/__tests__/dashboardCompanyHold.test.tsx",
               "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=187,
+             # release r-rulings (2026-09-28): the served inventory-days block,
+             # no sector chip beside the split, a refusal in the engine's words
+             # (measured 190).
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=190,
              units="command-bar tests",
              canaries=("the rows ARE the served items, in the served rank, each with its figure",
+                       "inventory days are the served block — its figure, its basis label, no filed-basis row beside it",
+                       "a period that serves NO block prints that reason",
+                       "a refused EBITDA prints the engine's own words",
                        "two companies, one fixture shape: different figures (S1) and different words (S2)",
                        "every ratio answer is its ratio_table row, never metrics[]",
                        "warm: every keystroke renders under 100 ms and fetches NOTHING",

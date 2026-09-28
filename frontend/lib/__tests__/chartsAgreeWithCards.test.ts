@@ -202,6 +202,24 @@ describe("§A the arithmetic is spelled once per document", () => {
         ).toBe(printDaysQ(block.total.closing_value_q, "en"));
         continue;
       }
+      // THE TOTAL ADDS UP AS PRINTED (merge contract 2026-09-28): the CCC
+      // bar prints the SUM OF THE PRINTED TERMS (retail printed 1 + 39 − 30
+      // under the card's "11 days"). Where that is the card's figure it is
+      // the card's string; where the card rounds the exact cycle apart, the
+      // caption names the card's figure beside the sum — the card's string
+      // is still on the page, once, attributed to the card.
+      if (row.label === "equals CCC") {
+        const terms = blk.rows.filter((r) => r.label !== "equals CCC").map((r) => Number(r.printed.replace(/[^\d.-]/g, "")));
+        const sum = terms.reduce((a, x) => a + x, 0);
+        expect(Number(row.printed.replace(/[^\d.-]/g, "")), `${b}: the CCC bar is not the sum of the printed terms`).toBe(sum);
+        if (row.printed !== card!.value) {
+          expect(blk.caption, `${b}: the CCC card's ${card!.value} is not named beside the printed sum`).toContain(
+            `the CCC card rounds it to ${card!.value}`,
+          );
+        }
+        expect(row.source, `${b}: the CCC row's formula`).toBe(card!.formula);
+        continue;
+      }
       // Every other term prints the string its card prints (the CCC card
       // said 33 days while the chart's CCC bar said 33.2).
       const cardPrinted = row.label === "less DPO" ? `-${card!.value}` : card!.value;

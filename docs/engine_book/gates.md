@@ -15658,3 +15658,257 @@ FAILED tests/engine/test_benchmark_basis_separation_engine.py::test_zz_scope
 ```
 
 **CANNOT SEE:** the browser (the other half).
+
+## Release r-rulings — the merge contract (2026-09-28)
+
+**INCIDENT.** feat/cmdbar was built from 69fb9621 in parallel with the one-EBITDA
+ruling (feat/ebitda-711) and the inventory-days block (feat/inventory-days), and
+its ONE adapters read the retired shapes: `attention/sources.py inventory_days()`
+fell back to the ratio table's `dio` with the retired text "inventory / total
+operating cost x period days, period-end balance" and handed over the raw basis
+code; the browser's `inventoryDays()` did the same and printed the code as the
+basis; the inventory answer joined the filed-basis sector row
+(`inventory_days_on_turnover`, stock ÷ net turnover) and printed it beside the
+split; a refused one-EBITDA printed "not in this book (account_121_anchor_absent)"
+— a code where the engine served words. On the merged tree the report's cycle
+chart printed 1 + 39 − 30 under "11 days" (retail: every term on its card's
+whole days, the exact cycle 10.5772 rounded on its own), and the trade-float
+insight printed "89.6 days … 79.2 days" beside the Ratios table's "90 days" /
+"79 days". The merge also left the G7 e2e captures (the hermetic dashboard's and
+the command bar's served bodies) without the block: they were captured on the
+711 lane.
+
+**The laws, by gate** (each written to red on the defect it names; transcripts
+below, one plant per law, each restored with `git checkout -- <file>`,
+byte-exact, and re-run GREEN):
+
+| gate | law | plant |
+|---|---|---|
+| attention-rules | no block → no figure, no claim (`split_refused`), no fallback formula | A1 |
+| attention-rules | the served block is read with its basis LABEL and its own policy | A2 |
+| attention-rules, cmdbar-fixtures | the filed-basis row carries the owner's label ONCE, no second note | A3 |
+| cmdbar-fixtures | an answer that prints the split never joins the filed-basis row | A4 |
+| cmdbar-surface | the inventory line prints the block's value_q (the tile's string) with the served basis label; snapshot label; refused block's words | A5, A8 |
+| cmdbar-surface | no sector chip beside the split — the inventory answer, dio, inventory turnover, the cycle | A6, A7 |
+| cmdbar-surface | a refused one-EBITDA prints the engine's words, never its code, never 0 | A8 |
+| cmdbar-surface | a period serving no block prints that reason, never the ratio table's days | A9 |
+| attention-route | every candidate read of THE REQUEST carries the organization (the log starts at the request: the fixture's other-workspace seeding GET, whose inventory-days monthly lookup is scoped to its own org, is not the route's read) | A10 |
+| inventory-days-surfaces | the cycle adds up EXACTLY as printed; the exact cycle in the tooltip and caption; POSITIVE CONTROL retail (reportCharts G-C1b) | B1, B2 |
+| inventory-days-surfaces | the CCC row is the sum of the printed terms and, where the card rounds apart, the caption names the card's figure (chartsAgreeWithCards §A — its old law required the card's string) | B3 |
+| one-metric-one-formula | the trade float prints DSO / DPO as the table does; the gap is the printed difference (Scandia G7 witness: the rounded exact gap differs there) | C1, C2 |
+| (insightsReader, vitest) | the browser's reader keeps `value_q` and rebuilds every claim byte for byte | C3 |
+
+(The A6 / A7 transcripts carry the cmdbar vs-sector law under its name before d1a646b9 renamed it "… — the split's cards carry none", which is what it asserts.)
+
+C2 first STAYED GREEN: on every corpus book the rounded exact gap equals the
+printed DSO − DPO. The witness was added (the detector re-run over the Scandia
+G7 capture's served statements, with a positive control that the two readings
+differ there) and the plant re-run RED.
+
+```
+PLANT A1 — attention sources.inventory_days: the retired ratio-table fallback restored when no block is served
+  cmd: pytest tests/engine/test_attention_rules.py
+  exit 1 -> RED
+    tests/engine/test_attention_rules.py:345: AssertionError: {'basis': 'ratio_table.dio: inventory / total operating cost x perio
+    FAILED tests/engine/test_attention_rules.py::test_no_served_block_is_no_claim_and_no_fallback_formula
+    1 failed, 28 passed in 3.12s
+  REVERT (git checkout -- src/engine/attention/sources.py, byte-exact) exit 0
+    29 passed in 3.16s
+PLANT A2 — attention sources.inventory_days: hands over the basis CODE as the label
+  cmd: pytest tests/engine/test_attention_rules.py
+  exit 1 -> RED
+    tests/engine/test_attention_rules.py:364: AssertionError: {'basis': 'average_two_year_ends', 'basis_label': {'en': 'average_tw
+    FAILED tests/engine/test_attention_rules.py::test_the_served_block_is_read_with_its_basis_label_and_its_policy
+    1 failed, 28 passed in 3.13s
+  REVERT (git checkout -- src/engine/attention/sources.py, byte-exact) exit 0
+    29 passed in 3.13s
+PLANT A3 — attention.yaml: a second basis note served beside the filed-basis row
+  cmd: pytest tests/engine/test_attention_rules.py tests/engine/test_cmdbar_fixtures.py
+  exit 1 -> RED
+    tests/engine/test_attention_rules.py:395: AssertionError: {'en': 'filed basis (stock ÷ net turnover) — not the same as the inv
+    tests/engine/test_cmdbar_fixtures.py:57: AssertionError: scandia.attention.json is not the engine's composition — re-run captu
+    tests/engine/test_cmdbar_fixtures.py:116: AssertionError: a second note beside the owner's label
+    FAILED tests/engine/test_attention_rules.py::test_the_filed_basis_inventory_row_is_a_position_never_a_verdict
+    FAILED tests/engine/test_cmdbar_fixtures.py::test_every_fixture_is_a_fresh_engine_composition
+    FAILED tests/engine/test_cmdbar_fixtures.py::test_one_metric_one_name_between_the_bar_and_the_attention_pack
+    3 failed, 30 passed in 3.27s
+  REVERT (git checkout -- packs/serving/attention.yaml, byte-exact) exit 0
+    33 passed in 3.20s
+PLANT A4 — cmdbarTerms.json: the inventory answer joined to the filed-basis sector row again
+  cmd: pytest tests/engine/test_cmdbar_fixtures.py
+  exit 1 -> RED
+    tests/engine/test_cmdbar_fixtures.py:142: AssertionError: inventory
+    FAILED tests/engine/test_cmdbar_fixtures.py::test_the_synonym_table_joins_only_to_served_lines_and_ratios
+    1 failed, 3 passed in 0.41s
+  REVERT (git checkout -- frontend/components/instrument/shell/cmdbar/cmdbarTerms.json, byte-exact) exit 0
+    4 passed in 0.41s
+PLANT A5 — cmdbarViews.inventoryDaysLine: prints the served basis CODE, not its label
+  cmd: vitest frontend/components/instrument/shell/__tests__/commandBar.test.tsx
+  exit 1 -> RED
+       × cmdbar-figures — every figure is the served figure > scandia: inventory days are the served block — its figure, its basis label, no filed-basis row beside it, never slow 3
+       × cmdbar-figures — every figure is the served figure > agras: inventory days are the served block — its figure, its basis label, no filed-basis row beside it, never slow 32m
+       × cmdbar-figures — every figure is the served figure > a period on the single-day snapshot prints ITS basis label; a refused block prints the engine's reason, never a figure
+     Test Files  1 failed (1)
+          Tests  3 failed | 63 passed (66)
+    AssertionError: expected 'average_two_year_ends' to be 'average of the balances at 1 January …' // Object.is equality
+    AssertionError: expected 'year_end_snapshot' to be 'stock at 31 December — a single day' // Object.is equality
+  REVERT (git checkout -- frontend/components/instrument/shell/cmdbar/cmdbarViews.ts, byte-exact) exit 0
+     Test Files  1 passed (1)
+          Tests  66 passed (66)
+PLANT A6 — cmdbarViews.statementView: the filed-basis sector row placed beside the split on the inventory answer
+  cmd: vitest frontend/components/instrument/shell/__tests__/commandBar.test.tsx
+  exit 1 -> RED
+       × cmdbar-figures — every figure is the served figure > scandia: inventory days are the served block — its figure, its basis label, no filed-basis row beside it, never slow 4
+       × cmdbar-figures — every figure is the served figure > agras: inventory days are the served block — its figure, its basis label, no filed-basis row beside it, never slow 32m
+       × cmdbar-figures — every Δ IS its comparatives column, every vs-sector IS its sector row > scandia (en): each vs-sector position is the served sector row — the filed-basis s
+       × cmdbar-figures — every Δ IS its comparatives column, every vs-sector IS its sector row > scandia (ro): each vs-sector position is the served sector row — the filed-basis s
+     Test Files  1 failed (1)
+          Tests  4 failed | 62 passed (66)
+    AssertionError: expected 'Inventory12,3 mil. RONno comparable p…' not to contain 'Inventory days — filed basis (stock ÷…'
+    AssertionError: expected 'Inventory8,9 mil. RONno comparable pr…' not to contain 'Inventory days — filed basis (stock ÷…'
+    AssertionError: inventory: expected [ { state: 'ok', …(1) } ] to deeply equal []
+  REVERT (git checkout -- frontend/components/instrument/shell/cmdbar/cmdbarViews.ts, byte-exact) exit 0
+     Test Files  1 passed (1)
+          Tests  66 passed (66)
+PLANT A7 — cmdbarViews.ratioView: dio / inventory turnover / the cycle carry a sector chip (dio the filed-basis row's) again
+  cmd: vitest frontend/components/instrument/shell/__tests__/commandBar.test.tsx
+  exit 1 -> RED
+       × cmdbar-figures — every Δ IS its comparatives column, every vs-sector IS its sector row > scandia (en): each vs-sector position is the served sector row — the filed-basis s
+       × cmdbar-figures — every Δ IS its comparatives column, every vs-sector IS its sector row > scandia (ro): each vs-sector position is the served sector row — the filed-basis s
+     Test Files  1 failed (1)
+          Tests  2 failed | 64 passed (66)
+    AssertionError: dio: expected [ { state: 'ok', …(1) } ] to deeply equal []
+  REVERT (git checkout -- frontend/components/instrument/shell/cmdbar/cmdbarViews.ts, byte-exact) exit 0
+     Test Files  1 passed (1)
+          Tests  66 passed (66)
+PLANT A8 — cmdbarFigures.absentText: a worded refusal printed by its code again
+  cmd: vitest frontend/components/instrument/shell/__tests__/commandBar.test.tsx
+  exit 1 -> RED
+       × cmdbar-figures — every figure is the served figure > a period on the single-day snapshot prints ITS basis label; a refused block prints the engine's reason, never a figure
+       × absent is never 0 > a refused EBITDA prints the engine's own words — the refusal the one-EBITDA ruling serves, never its code, never 0 29ms
+     Test Files  1 failed (1)
+          Tests  2 failed | 64 passed (66)
+    AssertionError: expected 'Inventory12,3 mil. RONno comparable p…' to contain 'the change in inventories of products…'
+    AssertionError: expected 'EBITDAnot in this book (account_121_a…' to contain 'the trial balance is closed and accou…'
+  REVERT (git checkout -- frontend/components/instrument/shell/cmdbar/cmdbarFigures.ts, byte-exact) exit 0
+     Test Files  1 passed (1)
+          Tests  66 passed (66)
+PLANT A9 — cmdbarSources.inventoryDays: the ratio table's dio read when no block is served
+  cmd: vitest frontend/components/instrument/shell/__tests__/commandBar.test.tsx
+  exit 1 -> RED
+       × cmdbar-figures — every figure is the served figure > a period that serves NO block prints that reason — never the ratio table's days, never a retired formula 37ms
+     Test Files  1 failed (1)
+          Tests  1 failed | 65 passed (66)
+    AssertionError: expected 'Inventory12,3 mil. RONno comparable p…' to contain 'inventory days are not served for thi…'
+  REVERT (git checkout -- frontend/components/instrument/shell/cmdbar/cmdbarSources.ts, byte-exact) exit 0
+     Test Files  1 passed (1)
+          Tests  66 passed (66)
+PLANT A10 — _attention.listable_periods: the candidate periods read without the organization
+  cmd: pytest tests/engine/test_attention_route_real_app.py
+  exit 1 -> RED
+    tests/engine/test_attention_route_real_app.py:141: AssertionError: ('financial_periods', {'period_end': 'lt.2025-12-31'})
+    FAILED tests/engine/test_attention_route_real_app.py::test_the_route_serves_the_company_against_its_same_length_prior
+    1 failed, 7 passed in 8.85s
+  REVERT (git checkout -- src/engine/api/_attention.py, byte-exact) exit 0
+    8 passed in 8.86s
+PLANT B1 — reportCharts.workingCapitalCycle: the CCC bar prints the card's rounding of the exact cycle again
+  cmd: vitest frontend/lib/__tests__/reportCharts.test.ts
+  exit 1 -> RED
+       × G-C1b — the arithmetic each chart draws > retail: DSO + DIO − DPO = CCC, EXACTLY as printed 40ms
+       × G-C1b — the arithmetic each chart draws > POSITIVE CONTROL: the books include one whose exact cycle rounds apart from its printed terms (retail) 0ms
+     Test Files  1 failed (1)
+          Tests  2 failed | 67 passed (69)
+    AssertionError: retail: 1 days | 39 days | -30 days | 11 days: expected 1 to be less than 1e-9
+    AssertionError: cycle charts drawn: expected 2 to be greater than or equal to 3
+  REVERT (git checkout -- frontend/lib/charts/reportCharts.ts, byte-exact) exit 0
+     Test Files  1 passed (1)
+          Tests  69 passed (69)
+PLANT B2 — reportCharts.workingCapitalCycle: the exact served cycle dropped from the CCC bar's tooltip
+  cmd: vitest frontend/lib/__tests__/reportCharts.test.ts
+  exit 1 -> RED
+       × G-C1b — the arithmetic each chart draws > retail: DSO + DIO − DPO = CCC, EXACTLY as printed 45ms
+       × G-C1b — the arithmetic each chart draws > POSITIVE CONTROL: the books include one whose exact cycle rounds apart from its printed terms (retail) 0ms
+     Test Files  1 failed (1)
+          Tests  2 failed | 67 passed (69)
+    AssertionError: expected [] to deeply equal [ Array(1) ]
+    AssertionError: cycle charts drawn: expected 2 to be greater than or equal to 3
+  REVERT (git checkout -- frontend/lib/charts/reportCharts.ts, byte-exact) exit 0
+     Test Files  1 passed (1)
+          Tests  69 passed (69)
+PLANT B3 — reportCharts.workingCapitalCycle: the CCC bar prints the exact cycle at one decimal (neither the sum of the printed terms nor the card)
+  cmd: vitest frontend/lib/__tests__/chartsAgreeWithCards.test.ts
+  exit 1 -> RED
+       × §A the arithmetic is spelled once per document > agras: every working-capital row cites its own card's formula 117ms
+       × §A the arithmetic is spelled once per document > retail: every working-capital row cites its own card's formula 44ms
+     Test Files  1 failed (1)
+          Tests  2 failed | 26 passed (28)
+    AssertionError: agras: the CCC bar is not the sum of the printed terms: expected 33.2 to be 33 // Object.is equality
+    AssertionError: retail: the CCC bar is not the sum of the printed terms: expected 10.6 to be 10 // Object.is equality
+  REVERT (git checkout -- frontend/lib/charts/reportCharts.ts, byte-exact) exit 0
+     Test Files  1 passed (1)
+          Tests  28 passed (28)
+PLANT C1 — detect_trade_float: DSO printed at one decimal again (no value_q)
+  cmd: pytest tests/engine/test_one_metric_one_formula.py -k trade_float
+  exit 1 -> RED
+    tests/engine/test_one_metric_one_formula.py:328: KeyError: 'value_q'
+    tests/engine/test_one_metric_one_formula.py:328: KeyError: 'value_q'
+    tests/engine/test_one_metric_one_formula.py:328: KeyError: 'value_q'
+    tests/engine/test_one_metric_one_formula.py:328: KeyError: 'value_q'
+    tests/engine/test_one_metric_one_formula.py:328: KeyError: 'value_q'
+    tests/engine/test_one_metric_one_formula.py:328: KeyError: 'value_q'
+    tests/engine/test_one_metric_one_formula.py:328: KeyError: 'value_q'
+    FAILED tests/engine/test_one_metric_one_formula.py::test_the_trade_float_prints_dso_and_dpo_as_the_ratios_table_prints_them[agras]
+    FAILED tests/engine/test_one_metric_one_formula.py::test_the_trade_float_prints_dso_and_dpo_as_the_ratios_table_prints_them[carniprod]
+    FAILED tests/engine/test_one_metric_one_formula.py::test_the_trade_float_prints_dso_and_dpo_as_the_ratios_table_prints_them[realestate]
+    FAILED tests/engine/test_one_metric_one_formula.py::test_the_trade_float_prints_dso_and_dpo_as_the_ratios_table_prints_them[retail]
+    FAILED tests/engine/test_one_metric_one_formula.py::test_the_trade_float_prints_dso_and_dpo_as_the_ratios_table_prints_them[agras-366]
+    FAILED tests/engine/test_one_metric_one_formula.py::test_the_trade_float_prints_dso_and_dpo_as_the_ratios_table_prints_them[agras-181]
+    FAILED tests/engine/test_one_metric_one_formula.py::test_the_trade_float_prints_dso_and_dpo_as_the_ratios_table_prints_them[retail-181]
+  REVERT (git checkout -- src/engine/insights/detectors.py, byte-exact) exit 0
+    21 passed, 29 deselected in 5.19s
+PLANT C2 — detect_trade_float: the gap printed as the rounded exact gap, not the difference of the printed figures
+  cmd: pytest tests/engine/test_one_metric_one_formula.py -k 'trade_float'
+  exit 1 -> RED
+    tests/engine/test_one_metric_one_formula.py:368: AssertionError: {'dpo': {'key': 'dpo', 'label': 'Days payables outstanding (o
+    FAILED tests/engine/test_one_metric_one_formula.py::test_the_trade_float_gap_is_the_difference_of_the_printed_figures_where_rounding_parts_them
+    1 failed, 21 passed, 29 deselected in 5.19s
+  REVERT (git checkout -- src/engine/insights/detectors.py, byte-exact) exit 0
+    22 passed, 29 deselected in 5.18s
+PLANT C3 — frontend insights.readMeasure: the served value_q dropped
+  cmd: vitest frontend/lib/__tests__/insightsReader.test.ts
+  exit 1 -> RED
+       × the reader formats; it does not compute > rebuilds every agras claim byte-for-byte from the serialized measures 17ms
+       × the reader formats; it does not compute > rebuilds every carniprod claim byte-for-byte from the serialized measures 1ms
+       × the reader formats; it does not compute > rebuilds every realestate claim byte-for-byte from the serialized measures 0ms
+       × the reader formats; it does not compute > rebuilds every retail claim byte-for-byte from the serialized measures 1ms
+     Test Files  1 failed (1)
+          Tests  4 failed | 31 passed (35)
+    AssertionError: expected 'The net trade float is RON 1,327,011.…' to be 'The net trade float is RON 1,327,011.…' // Object.is equality
+    AssertionError: expected 'The net trade float is RON -2,192,704…' to be 'The net trade float is RON -2,192,704…' // Object.is equality
+    AssertionError: expected 'The net trade float is RON -2,633,068…' to be 'The net trade float is RON -2,633,068…' // Object.is equality
+    AssertionError: expected 'The net trade float is RON -6,212,428…' to be 'The net trade float is RON -6,212,428…' // Object.is equality
+  REVERT (git checkout -- frontend/lib/insights.ts, byte-exact) exit 0
+     Test Files  1 passed (1)
+          Tests  35 passed (35)
+```
+
+**GREEN (through `run_battery.main`, gate list narrowed):**
+`PASS attention-rules (29 tests)`, `PASS attention-served-only (17 item figures)`,
+`PASS attention-route (8 tests)`, `PASS cmdbar-fixtures (6 documents)`,
+`PASS cmdbar-surface (190 command-bar tests)`, `PASS cmdbar-evidence (39)`,
+`PASS inventory-days-surfaces (172 surface tests)`,
+`PASS one-metric-one-formula (120 surfaces)`. Floors raised to the measured
+work: attention-rules 28 → 29, cmdbar-surface 187 → 190,
+inventory-days-surfaces 150 → 160, one-metric-one-formula 85 → 110; canaries
+added for the new laws.
+
+**f31-parity** went RED in the merge on exactly the four methodology views the
+inventory-days lane retired (the gate was registered on the 711 lane after the
+inventory-days fork). Re-captured by its writer, `capture_assembled_baseline.py
+--rebaseline`, with a BASELINE_HISTORY entry (2026-09-28); GREEN byte-identical
+on both; F-A3.1 unchanged (EEI 0.0000 %, Scandia 0.1445 %).
+
+**CANNOT SEE:** pixels and live wall-clock latency (the hermetic Playwright
+specs `e2e/design/cmdbar.spec.ts`, `cmdbar-typeopen.spec.ts`,
+`workspace-v2.spec.ts` on a rebuilt bundle); production data (the reprocess
+dry run is the deploy's).

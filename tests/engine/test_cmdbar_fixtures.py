@@ -101,8 +101,8 @@ def test_one_metric_one_name_between_the_bar_and_the_attention_pack():
     net = by_identity["net_result"]["subject"]
     for lang in ("ro", "en"):
         assert net[lang].startswith(strings[lang]["cmdbar"]["answer"]["net_result"]), lang
-    # THE FILED-BASIS LABEL, ONCE (merge contract 2026-09-28, owner spec
-    # 2026-09-26 P1.3): the sector row's subject IS the owner's label from
+    # THE FILED-BASIS LABEL, ONCE (merge contract 2026-09-28; the owner's
+    # inventory-days spec of 2026-09-26, point 3): the sector row's subject IS the owner's label from
     # packs/ratios/inventory_days.yaml `filed_basis.label`, verbatim; no second
     # basis note is served beside it, and the bar keeps no copy of its own
     # (it never places the filed-basis row beside the split).
