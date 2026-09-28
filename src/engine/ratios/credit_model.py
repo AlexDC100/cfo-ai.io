@@ -810,6 +810,8 @@ def compute_period_metrics(
     # `_canonical` reads a served None as "not surfaced" and would put the
     # build-up WITHOUT 711 back under the statutory name; it must not.
     net_income_statutory: Optional[float]
+    net_income_buildup: Optional[float] = (
+        None if figures.get("net_income_refusal") is not None else round(net_income, 2))
     if figures.get("net_income_refusal") is not None:
         net_income_statutory = None
     else:
@@ -865,8 +867,15 @@ def compute_period_metrics(
         # same number they always did. NEW callers should prefer the
         # explicit `net_income_statutory` (matches account 121 / oracle) or
         # `net_income_operational` (alias of net_income).
-        {"name": "net_income",         "value": round(net_income, 2),      "unit": "RON",   "direction": "higher"},
-        {"name": "net_income_operational", "value": round(net_income, 2),  "unit": "RON",   "direction": "higher"},
+        # REFUSED (None) when the assembly refused the net result (no
+        # account 121, net 711 refused): the build-up here lacks the
+        # refused 711, so it is short by exactly the unmeasured variation
+        # (the developer with no 121: -30,391,418.38 where 121 closes at
+        # -801,604.14). Served under these names it reached the briefing
+        # narrator and the Ask-CFO chat beside the refused net result
+        # (critic round 3, 2026-09-28).
+        {"name": "net_income",         "value": net_income_buildup,        "unit": "RON",   "direction": "higher"},
+        {"name": "net_income_operational", "value": net_income_buildup,    "unit": "RON",   "direction": "higher"},
         {"name": "net_income_statutory",   "value": money(net_income_statutory), "unit": "RON", "direction": "higher"},
         {"name": "ebitda_statutory",       "value": money(ebitda_statutory),        "unit": "RON", "direction": "higher"},
         {"name": "total_operating_revenue","value": round(total_operating_revenue, 2),"unit": "RON","direction": "higher"},
@@ -1376,6 +1385,46 @@ DEFINITION_REVISED_METRICS: Tuple[str, ...] = (
 SERVE_REPLACED_METRICS: Tuple[str, ...] = CREDIT_FAMILY_METRICS + DEFINITION_REVISED_METRICS
 
 
+#: Rows `compute_period_metrics` REFUSES (value None) when the assembly
+#: refused the NET RESULT (`assembled_pl.net_income_refusal`: no account
+#: 121, net 711 refused) — the build-up without the refused 711 under its
+#: own names, and every ratio on the net result.
+NET_RESULT_REFUSED_METRICS: Tuple[str, ...] = (
+    "net_income", "net_income_operational", "net_income_statutory",
+    "net_margin", "roa", "roe", "free_cash_flow",
+)
+#: Rows it refuses when TOTAL EQUITY excludes that refused result
+#: (`assembled_bs.total_equity_refusal`). The credit family's X2 and equity
+#: sub-score are withheld by `withhold_persisted`.
+EQUITY_INCOMPLETE_METRICS: Tuple[str, ...] = (
+    "total_equity", "equity_ratio", "debt_to_equity", "lt_debt_to_equity", "roic",
+)
+
+
+def withhold_refused_result_rows(rows: Any, statements: Mapping[str, Any]
+                                 ) -> List[Dict[str, Any]]:
+    """PERSISTED metric rows with every row the model now refuses on these
+    statements carried as refused (value None): the net-result rows when
+    the net result is refused, the equity rows when total equity excludes
+    it. A period persisted before the refusal existed still holds the
+    numbers under these names, and `GET /api/period` (`metrics[]`, which
+    the Ask-CFO chat prints as "Headline metrics") and the briefing
+    narrator (`enforce_metric_rows`) would otherwise hand them on beside
+    the refusal. New rows; the input is not mutated."""
+    out = [dict(r) for r in (rows or []) if isinstance(r, dict)]
+    withheld = set()
+    apl = statements.get("assembled_pl") if isinstance(statements, Mapping) else None
+    if isinstance(apl, Mapping) and isinstance(apl.get("net_income_refusal"), Mapping):
+        withheld.update(NET_RESULT_REFUSED_METRICS)
+    if equity_completeness_refusal(statements) is not None:
+        withheld.update(EQUITY_INCOMPLETE_METRICS)
+    if withheld:
+        for r in out:
+            if r.get("name") in withheld:
+                r["value"] = None
+    return out
+
+
 def serve_credit_rows(
     persisted_rows: Optional[List[Dict[str, Any]]],
     serve_rows: List[Dict[str, Any]],
@@ -1603,7 +1652,10 @@ def lawful_persisted_rows(rows: Any, statements: Mapping[str, Any]) -> List[Dict
     Z'' 1584.89 to write prose from."""
     from engine.ratios.credit_pack import CreditPackError
 
-    out = [dict(r) for r in (rows or []) if isinstance(r, dict)]
+    # The net-result and equity rows the model refuses on these statements
+    # are refused here too (a period persisted before the refusal holds
+    # the numbers).
+    out = withhold_refused_result_rows(rows, statements)
     by_name = _rows_by_name(out)
     try:
         checked, _refused, _withdrawn = withhold_persisted(by_name, statements)

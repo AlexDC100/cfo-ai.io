@@ -9409,6 +9409,15 @@ def build_router() -> APIRouter:
         # chains the canonical-conformance audit catalogued. Composed
         # here at read time from data already on the response (no new
         # math, no new persistence).
+        # The rows the model REFUSES on these statements (the net result
+        # refused, total equity short by it) are served refused whatever a
+        # persisted row holds: a period written before the refusal still
+        # carries the build-up under `net_income` / `net_income_operational`
+        # and the equity ratios on the short equity, and `metrics[]` is what
+        # the Ask-CFO chat prints as its "Headline metrics" (critic round 3,
+        # 2026-09-28). Every reader below — the typed ratios, the ratio
+        # table's stored-row path, the served rows — sees the refusal.
+        metrics = _credit_model.withhold_refused_result_rows(metrics, statements)
         _m_by_name = {m["name"]: m for m in (metrics or [])}
         # THE CREDIT CONTENT IS COMPOSED AND CHECKED AT THE SERVING BOUNDARY
         # (engine.ratios.credit_boundary, owner 2026-09-20). This route hands

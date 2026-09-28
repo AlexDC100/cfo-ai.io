@@ -233,6 +233,30 @@ export function equityRefusalOf(statementsOrBs: unknown): ServedRefusal | null {
   return readRefusal(bs.total_equity_refusal);
 }
 
+/**
+ * THE NET RESULT REFUSED — no account 121 and a refused net 711
+ * (`assembled_pl.net_income_refusal`): the build-up lacks the unmeasured
+ * variation, so no net result is served and nothing built on it (the cash
+ * flow walk from it, FCF, the DCF, Graham, net margin, ROE, ROA).
+ */
+export function netIncomeRefusalOf(statements: unknown): ServedRefusal | null {
+  if (!isRec(statements) || !isRec(statements.assembled_pl)) return null;
+  return readRefusal(statements.assembled_pl.net_income_refusal);
+}
+
+/** Metric rows the engine refuses when the NET RESULT is refused
+ *  (`credit_model.NET_RESULT_REFUSED_METRICS`, the same names). */
+export const NET_RESULT_REFUSED_METRICS: readonly string[] = [
+  "net_income", "net_income_operational", "net_income_statutory",
+  "net_margin", "roa", "roe", "free_cash_flow",
+];
+
+/** Metric rows the engine refuses when TOTAL EQUITY excludes that refused
+ *  result (`credit_model.EQUITY_INCOMPLETE_METRICS`, the same names). */
+export const EQUITY_INCOMPLETE_METRICS: readonly string[] = [
+  "total_equity", "equity_ratio", "debt_to_equity", "lt_debt_to_equity", "roic",
+];
+
 export function readServedOneEbitda(assembledPl: unknown): ServedOneEbitda | null {
   if (!isRec(assembledPl)) return null;
   const apl = assembledPl;

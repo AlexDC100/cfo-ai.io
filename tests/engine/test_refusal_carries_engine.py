@@ -733,6 +733,122 @@ def _equity_readers(name: str, b: Any, abs_: Dict[str, Any], bfacts: Dict[str, A
     WORK["equity_readers"].append("%s (%s)" % (name, "refused" if incomplete else "served"))
 
 
+#: What a period persisted BEFORE the refusal holds under these names (a
+#: stale figure). Served where nothing refuses it, withheld where the
+#: statements refuse it — the stale value is the non-vacuity (TC-3).
+STALE = 123456.78
+STALE_X2 = 0.2381  # the X2 the constructed book graded on its short equity
+
+
+@pytest.mark.parametrize("name", REFUSED_BOOKS)
+def test_refusal_carries_rows_persisted_before_the_refusal(name):
+    """13. ROWS PERSISTED BEFORE THE REFUSAL (critic round 3, 2026-09-28).
+
+    stage_compute wrote `net_income` / `net_income_operational` as the
+    class 6/7 build-up WITHOUT the refused 711 (120,000.00 on the
+    constructed book, -30,391,418.38 on the developer whose 121 closes at
+    -801,604.14) beside a refused net result, and neither name was served
+    refused: GET /api/period's `metrics[]` (the Ask-CFO chat's "Headline
+    metrics") and the briefing narrator's `metrics` carried them. A period
+    persisted before the refusal also holds the equity rows and X2 on the
+    short equity, and a stored valuations row.
+
+    Here: (a) stage_compute refuses the build-up where the net result is
+    refused; (b) GET /api/period over stale persisted rows serves every
+    net-result row refused on a refused net result and every equity row
+    refused on equity short by it — the typed ratios block too — and
+    serves the stale figure where nothing refuses it; (c) the narrator's
+    rows (`enforce_metric_rows`) the same, X2 included; (d) GET over a
+    stored valuations row carries the book-equity refusal (`asset_based_
+    refusal`, no primary value) on short equity and a value on complete."""
+    from engine.ratios import credit_boundary as CB
+    from engine.ratios import credit_model as CM
+    from _one_definition_served import get_seeded
+
+    b = served(name)
+    code = b.apl["inventory_variation"]["refusal"]["code"]
+    ni_refused = isinstance(b.apl.get("net_income_refusal"), dict)
+    eq_incomplete = isinstance((b.statements.get("assembled_bs") or {}).get("total_equity_refusal"), dict)
+    problems: List[str] = []
+
+    def check(ok: bool, message: str) -> None:
+        WORK["checks"] += 1
+        if not ok:
+            problems.append("%s: %s" % (name, message))
+
+    # (a) the source
+    for key in ("net_income", "net_income_operational"):
+        v = b.metrics.get(key)
+        check((v is None) if ni_refused else isinstance(v, (int, float)),
+              "stage_compute %s = %r on a %s net result" % (key, v, "refused" if ni_refused else "served"))
+
+    watched = set(CM.NET_RESULT_REFUSED_METRICS) | set(CM.EQUITY_INCOMPLETE_METRICS)
+    stale = []
+    for r in b.rows:
+        r = dict(r)
+        if r["name"] in watched:
+            r["value"] = STALE
+        elif r["name"] == "altman_x2":
+            r["value"] = STALE_X2
+        stale.append(r)
+
+    def judge(where: str, got: Dict[str, Any]) -> None:
+        for key in CM.NET_RESULT_REFUSED_METRICS:
+            if ni_refused:
+                check(got.get(key) is None,
+                      "%s serves %s = %r beside a refused net result" % (where, key, got.get(key)))
+        for key in CM.EQUITY_INCOMPLETE_METRICS:
+            if eq_incomplete:
+                check(got.get(key) is None,
+                      "%s serves %s = %r on equity short by the refused result" % (where, key, got.get(key)))
+        if not ni_refused:
+            check(got.get("net_income") == STALE,
+                  "%s withheld net_income %r on a served net result" % (where, got.get("net_income")))
+        if not eq_incomplete:
+            check(got.get("total_equity") == STALE,
+                  "%s withheld total_equity %r on complete equity" % (where, got.get("total_equity")))
+
+    # (b) GET /api/period over the stale rows, and (d) a stored valuations row
+    val_row = {"ebitda_used": 250000.0, "multiple_ebitda_p50": 8.0, "total_debt_used": 0.0,
+               "cash_used": 0.0, "primary_method": "ev_ebitda", "primary_equity_value": 2000000.0,
+               "total_equity_used": 200000.0}
+    body = get_seeded(name, {"calculated_metrics": stale, "valuations": [val_row]})
+    got = dict((m["name"], m["value"]) for m in body.get("metrics") or [])
+    check(set(watched) <= set(got), "GET metrics[] lacks the seeded rows: %r" % sorted(set(watched) - set(got)))
+    judge("GET /api/period metrics[]", got)
+    typed = {}
+    for group in ((body.get("assembled_metrics") or {}).get("ratios") or {}).values():
+        typed.update(group or {})
+    for key in ("roe", "roa", "net_margin") if ni_refused else ():
+        check(typed.get(key) is None, "the typed ratios block serves %s = %r" % (key, typed.get(key)))
+    for key in ("equity_ratio", "debt_to_equity", "lt_debt_to_equity") if eq_incomplete else ():
+        check(typed.get(key) is None, "the typed ratios block serves %s = %r" % (key, typed.get(key)))
+    val = body.get("valuation") or {}
+    abr = val.get("asset_based_refusal") or {}
+    if eq_incomplete:
+        check(val.get("primary_equity_value") is None and abr.get("cause") == code
+              and abr.get("text_en") and "total equity" in abr.get("text_en"),
+              "GET valuation over a stored row serves primary %r, asset_based_refusal %r on equity "
+              "short by the refused result" % (val.get("primary_equity_value"), abr))
+    else:
+        check(isinstance(val.get("primary_equity_value"), (int, float)) and not abr,
+              "GET valuation over a stored row on COMPLETE equity: primary %r, refusal %r"
+              % (val.get("primary_equity_value"), abr))
+
+    # (c) the briefing narrator's rows
+    narr = dict((r["name"], r["value"]) for r in CB.enforce_metric_rows(stale, b.statements))
+    judge("the narrator's metrics", narr)
+    if eq_incomplete:
+        check(narr.get("altman_x2") is None,
+              "the narrator's metrics serve a persisted X2 %r over equity short by the refused result"
+              % (narr.get("altman_x2"),))
+    else:
+        check(narr.get("altman_x2") == STALE_X2,
+              "the narrator's metrics withheld X2 %r on complete equity" % (narr.get("altman_x2"),))
+    WORK.setdefault("persisted_rows", []).append(name)
+    assert not problems, "\n".join(problems)
+
+
 def test_refusal_carries_the_equity_readers_judge_complete_equity():
     """Non-vacuity of 12e-g on the REAL developer: WITH account 121 (corpus
     `realestate`, complete equity) the related-party insight fires and
@@ -778,6 +894,8 @@ def test_refusal_carries_zz_work(capsys):
     # 12k: the sector benchmark refused the equity ratio on both.
     assert WORK["sector_equity_refused"] == ["unanchored_unbalanced", "realestate_no121"], \
         WORK["sector_equity_refused"]
+    # 13: the rows persisted before the refusal, on every refused book.
+    assert sorted(WORK.get("persisted_rows") or []) == sorted(REFUSED_BOOKS), WORK.get("persisted_rows")
     # 12e-g non-vacuity: the insight, R6 and the findings detector judge
     # complete equity on the real developer.
     assert WORK.get("related_party_complete"), WORK.get("related_party_complete")

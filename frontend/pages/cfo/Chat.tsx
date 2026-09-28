@@ -21,6 +21,9 @@ import { useActivePeriodFallback } from "@/hooks/useActivePeriodFallback";
 import { CFOChatShell, type CFOChatShellHandle } from "@/components/cfo/chat/CFOChatShell";
 import { setChatShellRef } from "@/components/cfo/chat/sharedShellRef";
 import { buildCanonicalMetrics } from "@/lib/canonicalMetrics";
+import {
+  EQUITY_INCOMPLETE_METRICS, NET_RESULT_REFUSED_METRICS, equityRefusalOf, netIncomeRefusalOf,
+} from "@/lib/servedOneEbitda";
 // servedFacts gateway — the snapshot's BS totals are the SERVED
 // (reconciliation-adjusted) figures, so the assistant quotes the same
 // book the dashboard, exports and BS tab show.
@@ -113,9 +116,24 @@ export function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): s
   if (p.industry) lines.push(`Industry: ${p.industry}`);
 
   if (p.metrics && p.metrics.length > 0) {
+    // A row the engine REFUSES on these statements is never handed to the
+    // assistant as a figure, whatever the row holds (a period persisted
+    // before the refusal still carries the build-up under `net_income` and
+    // the equity ratios on the short equity — critic round 3, 2026-09-28):
+    // it is stated refused, with the engine's reason.
+    const niRefusal = netIncomeRefusalOf(p.statements);
+    const eqRefusal = equityRefusalOf(p.statements);
+    const refusalOfRow = (name: string) =>
+      (niRefusal && NET_RESULT_REFUSED_METRICS.includes(name) ? niRefusal : null)
+      ?? (eqRefusal && EQUITY_INCOMPLETE_METRICS.includes(name) ? eqRefusal : null);
     lines.push("");
     lines.push("Headline metrics (server-computed):");
     for (const m of p.metrics as PeriodMetric[]) {
+      const refused = refusalOfRow(m.name);
+      if (refused) {
+        lines.push(`  · ${m.name}: REFUSED — ${refused.text.en}`);
+        continue;
+      }
       if (m.value === null || m.value === undefined) continue;
       const unit = m.unit ? ` ${m.unit}` : "";
       lines.push(`  · ${m.name}: ${fmtNum(m.value)}${unit}`);

@@ -737,4 +737,38 @@ describe("refusal-carries — round 4: every reader of total equity", () => {
     expect(text).not.toMatch(/Total equity: 200/);
     expect(snap(U())).toMatch(/Total equity: 200/);
   });
+
+  it("the chat's 'Headline metrics' over rows persisted before the refusal: the build-up and the short-equity ratios are stated refused, never printed", () => {
+    // critic round 3, 2026-09-28: the engine now serves these rows refused
+    // (refusal-carries-engine section 13); a body with the persisted
+    // numbers (an older backend, a cached response) must not hand the
+    // assistant "net_income: 120,000 RON" two lines above "Net profit:
+    // REFUSED". Rows carry the stage_compute build-up the critic measured.
+    const stale = [
+      { name: "net_income", value: 120000, unit: "RON" },
+      { name: "net_income_operational", value: 120000, unit: "RON" },
+      { name: "total_equity", value: 200000, unit: "RON" },
+      { name: "equity_ratio", value: 0.4762, unit: "ratio" },
+      { name: "revenue", value: 1000000, unit: "RON" },
+    ];
+    const snap = (b: SurfaceBook) => buildWorkspaceSnapshot({
+      id: `p-${b.name}`, label: "FY2025", statements: b.statements, lineItems: b.lineItems,
+      metrics: stale, industry: null, briefing: null, recommendations: [], alerts: [], source: "upload",
+    } as unknown as Parameters<typeof buildWorkspaceSnapshot>[0]) ?? "";
+    const ni = (UB().apl.net_income_refusal as { text_en: string }).text_en;
+    const text = snap(UB());
+    expect(text).toContain(`· net_income: REFUSED — ${ni}`);
+    expect(text).toContain(`· net_income_operational: REFUSED — ${ni}`);
+    expect(text).toContain(`· total_equity: REFUSED — ${erOf(UB())!.text_en}`);
+    expect(text).toContain(`· equity_ratio: REFUSED — ${erOf(UB())!.text_en}`);
+    expect(text).not.toMatch(/net_income(_operational)?: 120/);
+    expect(text).toMatch(/revenue: 1,000,000 RON/);
+    // unanchored: the net result is refused, equity is complete.
+    const u = snap(U());
+    expect(u).toContain("· net_income: REFUSED — ");
+    expect(u).toMatch(/total_equity: 200,000 RON/);
+    // g6_uncleared: account 121 stands — nothing refused, the rows print.
+    const g6 = snap(BOOKS.find((x) => x.name === "g6_uncleared")!);
+    expect(g6).toMatch(/net_income: 120,000 RON/);
+  });
 });

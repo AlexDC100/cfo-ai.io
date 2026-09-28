@@ -106,6 +106,29 @@ def _get(book: Any) -> Dict[str, Any]:
     return resp.json()
 
 
+def get_seeded(name: str, tables: Dict[str, List[Dict[str, Any]]]) -> Dict[str, Any]:
+    """GET /api/period for one book with STORED rows seeded into the
+    double (`calculated_metrics`, `valuations`, ...): what the route serves
+    over rows a period persisted before a refusal existed. Each row is
+    stamped with the book's period and org. The valuation multiples are
+    the stub table (no benchmark I/O)."""
+    from engine.api import _valuation as V
+
+    book = _persisted(name)
+    mp = MonkeyPatch()
+    try:
+        mp.setattr(V, "load_valuation_benchmarks", _stub_benchmarks)
+        with ANCHOR._routed(book, mp) as (client, db):
+            for table, rows in tables.items():
+                db.tables[table] = [dict(r, period_id=book.period_id, org_id=book.org["id"])
+                                    for r in rows]
+            resp = client.get("/api/period/%s" % book.period_id, headers=AUTH)
+    finally:
+        mp.undo()
+    assert resp.status_code == 200, resp.text[:400]
+    return resp.json()
+
+
 #: A derived book: (the corpus case it is copied from, the account prefix
 #: whose rows are deleted from the copied FILE).
 _DERIVED = {"realestate_no121": ("saga_10_col_realestate", "121")}
