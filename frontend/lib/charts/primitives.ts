@@ -132,10 +132,7 @@ export function waterfall(o: WaterfallOpts): string {
           ? STEP_UP
           : STEP_DOWN;
     const extra = r.approximated ? ` stroke="${INK_MUTE}" stroke-width="0.8"` : "";
-    const bar = rect(x, yTop, barW, h, r.approximated ? `url(#${HATCH_ID})` : fill, extra.trim());
-    // A bar whose printed figure is not the served figure's own rounding
-    // carries the exact one as its tooltip.
-    body += r.exact ? `<g><title>${esc(`${r.label}: ${r.printed} — exact ${r.exact}`)}</title>${bar}</g>` : bar;
+    body += rect(x, yTop, barW, h, r.approximated ? `url(#${HATCH_ID})` : fill, extra.trim());
     if (r.approximated) body += rect(x, yTop, barW, h, "none", `stroke="${fill}" stroke-width="1.4"`);
 
     // The printed figure, above the bar — the SAME string the table prints.
@@ -541,6 +538,7 @@ export function chartCss(): string {
     svg.chart .c-seg { font-size: 9px; font-weight: 500; }
     svg.chart .c-seg-out { font-size: 8.5px; fill: ${INK_SOFT}; }
     svg.chart .c-zone { font-size: 8px; fill: ${INK_SOFT}; text-transform: uppercase; letter-spacing: 0.06em; }
+    .chart-figure .chart-note { font-size: 8.75pt; color: ${INK_SOFT}; margin: 4px 0 0; line-height: 1.5; }
     .chart-figure figcaption { font-size: 8.75pt; color: ${INK_MUTE}; line-height: 1.5; margin-top: 6px; border-top: 1px solid ${RULE_SOFT}; padding-top: 6px; }
     table.chart-table { font-size: 9pt; margin: 10px 0 6px; }
     table.chart-table td.src, table.chart-table th:last-child { font-size: 8pt; color: ${INK_MUTE}; }

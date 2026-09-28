@@ -27,7 +27,14 @@
 import type { CreditScoreResult } from "../financialValuation";
 import { formatRatio, type RatioBundle, type Ratio, type Statements } from "../financialReport";
 import { factsFrom } from "../servedFacts";
-import { inventoryDaysFig, periodEndInventoryFormula, printDaysQ, readInventoryDaysSplit } from "../inventoryDays";
+import {
+  inventoryDaysFig,
+  periodEndInventoryFormula,
+  printDaysQ,
+  printedDaysFoot,
+  readInventoryDaysSplit,
+  roundedDaysNote,
+} from "../inventoryDays";
 import { plLevelsOf } from "../servedOneEbitda";
 import { printedPl, printedRow } from "../printedPl";
 import {
@@ -487,41 +494,27 @@ export function workingCapitalCycle(i: ChartInputs): ChartBlock {
   // `Ratio.formula` is required, is what `exportRatioFormulas.test.ts`
   // recomputes, and is the string the card prints; taking it from there
   // means the document holds one spelling per concept by construction.
-  // ── THE CYCLE ADDS UP AS PRINTED (merge contract 2026-09-28) ────────
+  // ── ONE CCC FIGURE PER REPORT (coordinator's ruling 2026-09-28) ─────
   //
-  // Each term prints its card's string on the ratio table's days rule
-  // (whole days), so the exact served cycle can sit a day away from the
-  // sum of the printed terms: retail printed 1 + 39 − 30 under "11 days".
-  // A reader adding the four figures on the page must reach the fourth.
-  // The CCC bar therefore prints THE SUM OF THE PRINTED TERMS — read back
-  // from the three printed strings and printed on the same days rule — and
-  // carries the exact served cycle in its tooltip and in the caption. A
-  // term whose printed string cannot be read back as a figure prints no
-  // total at all: the chart refuses rather than prints a sum it did not do.
+  // Every surface prints the cycle as ONE string: the served figure on the
+  // ratio card's precision (`formatRatio(ccc)` — the card's, the table's,
+  // the band track's). Each term prints ITS OWN served figure on the same
+  // precision (the cards' strings, the split's `closing_value_q`), so the
+  // printed terms can miss the printed total by a day (retail: 1 + 39 − 30
+  // under the card's 11 days). Where they do, the
+  // chart carries ONE rounding note — never a second total (the merge
+  // contract's CCC bar printed the sum of the printed terms, 10, beside
+  // the card's 11: two figures for one cycle in one report), never a
+  // tooltip with another figure, never a caption claiming they add up.
   const dsoPrinted = formatRatio(dso);
   const dpoPrinted = negated(formatRatio(dpo));
-  const termStrings = [dsoPrinted, dioPrinted, dpoPrinted];
-  const printedTotal = sumOfPrintedDays(termStrings);
-  // The served cycle as served (the engine carries four decimals), not a
-  // rounding of it.
-  const exactCcc = `${Number((ccc.value as number).toFixed(4))} days`;
-  const cardCcc = formatRatio(ccc);
-  const cccPrinted = printedTotal ?? cardCcc;
-  const cccIsTheSum = printedTotal !== null;
+  const cccPrinted = formatRatio(ccc);
+  const note = printedDaysFoot([dsoPrinted, dioPrinted, dpoPrinted], cccPrinted) ? undefined : roundedDaysNote("en");
   const rows: ChartRow[] = [
     { key: "dso", label: "DSO", value: dso.value, printed: dsoPrinted, source: dso.formula, kind: "anchor" },
     { key: "dio", label: dioLabel, value: dio.value, printed: dioPrinted, source: dio.formula, kind: "delta" },
     { key: "dpo", label: "less DPO", value: -(dpo.value as number), printed: dpoPrinted, source: dpo.formula, kind: "delta" },
-    {
-      key: "ccc",
-      label: "equals CCC",
-      value: ccc.value,
-      printed: cccPrinted,
-      source: ccc.formula,
-      kind: "anchor",
-      breach: ccc.verdict === "critical",
-      ...(cccIsTheSum && cccPrinted !== cardCcc ? { exact: exactCcc } : {}),
-    },
+    { key: "ccc", label: "equals CCC", value: ccc.value, printed: cccPrinted, source: ccc.formula, kind: "anchor", breach: ccc.verdict === "critical" },
   ];
   // What the DRAWING carries under each bar. The table above is where the
   // formula lives — a 78-character sentence set at 8 px under a 149 px
@@ -534,14 +527,6 @@ export function workingCapitalCycle(i: ChartInputs): ChartBlock {
   const drawn = rows.map((r) => ({ ...r, source: "formula in the table below" }));
   const stepped = (dso.value as number) + (dio.value as number) - (dpo.value as number);
   const drift = (ccc.value as number) - stepped;
-  // What the CCC bar printed, said once: the sum of the printed terms, and
-  // — where the card's rounding of the exact cycle differs from it — the
-  // exact served cycle and the card's figure.
-  const totalSentence = !cccIsTheSum
-    ? `The printed terms cannot be read back as day figures, so no sum of them is printed; the CCC bar prints the served cycle of ${cardCcc}.`
-    : cccPrinted === cardCcc
-      ? `the printed terms sum to ${cccPrinted}, the served cycle.`
-      : `the CCC bar prints the sum of the printed terms, ${cccPrinted}; the served cycle, unrounded, is ${exactCcc} (the CCC card rounds it to ${cardCcc}).`;
   return {
     id: "chart-wc-cycle",
     title,
@@ -551,34 +536,13 @@ export function workingCapitalCycle(i: ChartInputs): ChartBlock {
     table: rowsTable(rows, "days"),
     caption:
       Math.abs(drift) > 0.05
-        ? // A DIAGNOSTIC of a sub-day mismatch: both sides at one decimal, so
-          // the stated difference is the difference of the two printed
-          // numbers (whole days would read "33.3 vs 33 — a -0.1 difference").
-          `The three terms sum to ${days(stepped)}; the served cycle is ${days(ccc.value as number)} — a ${days(drift)} difference, which means the four figures were not all computed off the same day count. As printed, ${totalSentence}`
-        : `Each bar is one term of the identity above, printed as its card prints it; ${totalSentence}`,
+        ? // A DIAGNOSTIC of a sub-day mismatch between the UNROUNDED terms
+          // and the served cycle — stated as the difference, never as a
+          // second total (one decimal: whole days would read "a 0 day").
+          `Each bar is one term of the identity above, printed as its card prints it. The unrounded terms differ from the served cycle by ${days(drift)}, which means the four figures were not all computed off the same day count.`
+        : "Each bar is one term of the identity above, printed as its card prints it.",
+    ...(note ? { note } : {}),
   };
-}
-
-/** The sum of printed day figures ("39 days", "1 day", "-30 days"), read
- *  back from the strings exactly as printed and printed on the same rule
- *  (the ratio table's days formatter), or null when any string is not a
- *  printed day figure. Decimal-exact: the terms are summed as integers at
- *  their widest printed precision. */
-export function sumOfPrintedDays(printed: readonly string[]): string | null {
-  const parts: { int: bigint; places: number }[] = [];
-  for (const p of printed) {
-    const m = /^([+-]?)(\d+)(?:\.(\d+))? days?$/.exec(p);
-    if (!m) return null;
-    const places = m[3]?.length ?? 0;
-    parts.push({ int: BigInt(`${m[1] === "-" ? "-" : ""}${m[2]}${m[3] ?? ""}`), places });
-  }
-  const places = Math.max(0, ...parts.map((x) => x.places));
-  let total = 0n;
-  for (const x of parts) total += x.int * 10n ** BigInt(places - x.places);
-  const neg = total < 0n;
-  const abs = (neg ? -total : total).toString().padStart(places + 1, "0");
-  const q = places === 0 ? abs : `${abs.slice(0, abs.length - places)}.${abs.slice(abs.length - places)}`;
-  return printDaysQ(`${neg ? "-" : ""}${q}`, "en");
 }
 
 // ── 6. CREDIT SCORE CONTRIBUTIONS ──────────────────────────────────────

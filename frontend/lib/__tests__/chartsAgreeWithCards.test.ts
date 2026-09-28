@@ -51,7 +51,11 @@
 //      card's served (average) basis, and must print the block's
 //      `closing_value` (the old law — source === card formula — required a
 //      31 December figure to be described as an average)
-// §A2  any drawn chart naming a denominator ("cost of sales", "COGS")
+// §A1b the cycle's CCC bar printing anything but the CCC card's string (one
+//      cycle figure per report — coordinator's ruling 2026-09-28), a
+//      rounding note missing where the printed terms do not foot to it or
+//      present where they do, or a second cycle figure in the caption
+// §A2 any drawn chart naming a denominator ("cost of sales", "COGS")
 //      that no ratio card in the document names
 // §A3  a formula drawn INSIDE an SVG — the drawing carries a pointer to
 //      the table, and PLANT 9 (a 195-character label past the viewBox) is
@@ -78,7 +82,7 @@ import { describe, expect, it } from "vitest";
 
 import { BOOKS, type Book, exportDoc, metricsFor, statementsFor } from "./exportBooks";
 import { computeRatios, type Statements } from "@/lib/financialReport";
-import { printDaysQ } from "@/lib/inventoryDays";
+import { printDaysQ, roundedDaysNote, sumOfPrintedDays } from "@/lib/inventoryDays";
 
 // ── the printed document, in the two shapes this file needs ──────────
 
@@ -202,21 +206,21 @@ describe("§A the arithmetic is spelled once per document", () => {
         ).toBe(printDaysQ(block.total.closing_value_q, "en"));
         continue;
       }
-      // THE TOTAL ADDS UP AS PRINTED (merge contract 2026-09-28): the CCC
-      // bar prints the SUM OF THE PRINTED TERMS (retail printed 1 + 39 − 30
-      // under the card's "11 days"). Where that is the card's figure it is
-      // the card's string; where the card rounds the exact cycle apart, the
-      // caption names the card's figure beside the sum — the card's string
-      // is still on the page, once, attributed to the card.
+      // ONE CCC FIGURE PER REPORT (coordinator's ruling 2026-09-28, which
+      // replaced the merge contract's "sum of the printed terms"): the CCC
+      // bar prints the CCC CARD's string — one figure for the cycle in the
+      // whole document. Where the printed terms do not foot to it
+      // (rounding), the figure carries ONE rounding note and nothing else:
+      // no second total in the caption, no "the CCC card rounds it to".
       if (row.label === "equals CCC") {
-        const terms = blk.rows.filter((r) => r.label !== "equals CCC").map((r) => Number(r.printed.replace(/[^\d.-]/g, "")));
-        const sum = terms.reduce((a, x) => a + x, 0);
-        expect(Number(row.printed.replace(/[^\d.-]/g, "")), `${b}: the CCC bar is not the sum of the printed terms`).toBe(sum);
-        if (row.printed !== card!.value) {
-          expect(blk.caption, `${b}: the CCC card's ${card!.value} is not named beside the printed sum`).toContain(
-            `the CCC card rounds it to ${card!.value}`,
-          );
-        }
+        expect(row.printed, `${b}: the CCC bar prints "${row.printed}", the CCC card "${card!.value}"`).toBe(card!.value);
+        const terms = blk.rows.filter((r) => r.label !== "equals CCC").map((r) => r.printed);
+        const foots = sumOfPrintedDays(terms) === row.printed;
+        const notes = Array.from(doc.querySelectorAll('[data-chart-block="chart-wc-cycle"] [data-chart-note="rounding"]'))
+          .map((n) => (n.textContent ?? "").trim());
+        expect(notes, `${b}: printed terms ${terms.join(" | ")} ${foots ? "foot to" : "do not foot to"} ${row.printed}`)
+          .toEqual(foots ? [] : [roundedDaysNote("en")]);
+        expect(blk.caption, `${b}: the caption prints a second cycle figure`).not.toMatch(/\d+(\.\d+)? days?\b/);
         expect(row.source, `${b}: the CCC row's formula`).toBe(card!.formula);
         continue;
       }

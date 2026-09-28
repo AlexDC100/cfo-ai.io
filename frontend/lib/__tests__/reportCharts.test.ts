@@ -34,6 +34,7 @@ import { describe, expect, it } from "vitest";
 
 import { BOOKS, type Book, exportDoc, exportHtml, metricsFor, statementsFor } from "./exportBooks";
 import { computeRatios, formatRatio, type Statements } from "@/lib/financialReport";
+import { roundedDaysNote } from "@/lib/inventoryDays";
 
 interface Block {
   id: string;
@@ -298,45 +299,62 @@ describe("G-C1b — the arithmetic each chart draws", () => {
     expect(Math.abs(stepped - closing), `walk ${stepped} vs anchor ${closing}`).toBeLessThanOrEqual(v.length / 2 + 0.5);
   });
 
-  // THE CYCLE ADDS UP AS PRINTED (merge contract 2026-09-28). The four
-  // figures a reader sees on the page must foot EXACTLY: retail printed
-  // 1 + 39 − 30 under "11 days" (the terms print their cards' whole days,
-  // the exact cycle rounded on its own). The CCC bar prints the sum of the
-  // printed terms, and where that is not the card's rounding the exact
-  // served cycle is in the bar's tooltip and in the caption.
-  it.each(BOOKS)("%s: DSO + DIO − DPO = CCC, EXACTLY as printed", (b: Book) => {
+  // ONE CCC FIGURE PER REPORT (coordinator's ruling 2026-09-28, replacing
+  // the merge contract's "sum of the printed terms"). The cycle is printed
+  // as ONE string on every surface of the document: the CCC card's (the
+  // served figure on the card's precision) — the chart's CCC bar, its
+  // table row and the card print the same bytes. Each term prints its own
+  // served figure on the same precision; where the printed terms do not
+  // foot to the printed total (retail: 1 + 39 − 30 under the card's 11
+  // days), the chart carries ONE rounding note — no second total, no
+  // tooltip with another figure, no caption claiming the terms add up.
+  it.each(BOOKS)("%s: the cycle prints ONE CCC — the card's string; the rounding note iff the printed terms do not foot", (b: Book) => {
     const doc = exportDoc(b);
     const blk = byId(blocks(doc), "chart-wc-cycle");
     if (blk.status !== "drawn") return;
-    const [dso, dio, dpo, ccc] = blk.tableRows.map((r) => parseDays(r.printed));
-    // Zero tolerance: whole days sum exactly (float noise only).
-    expect(Math.abs(dso + dio + dpo - ccc), `${b}: ${blk.tableRows.map((r) => r.printed).join(" | ")}`).toBeLessThan(1e-9);
+    const card = computeRatios(statementsFor(b), undefined, metricsFor(b)).efficiency.find((r) => r.key === "ccc");
+    const cardPrinted = formatRatio(card!);
+    const cccRow = blk.tableRows[3];
+    expect(cccRow.label).toBe("equals CCC");
+    // The chart's CCC is the card's string, byte for byte — in the table,
+    // in the drawing, and on the printed card itself.
+    expect(cccRow.printed, `${b}: the chart's CCC is not the card's figure`).toBe(cardPrinted);
+    const printedCard = Array.from(doc.querySelectorAll(".ratio-card"))
+      .find((c) => (c.querySelector(".label")?.textContent ?? "").trim() === "Cash conversion cycle");
+    expect((printedCard?.querySelector(".value")?.textContent ?? "").replace(/\s+/g, " ").trim()).toBe(cardPrinted);
     // The drawing prints the same four strings above its bars.
     for (const r of blk.tableRows) expect(blk.svgTexts.some((t) => t.endsWith(r.printed)), `${b}: ${r.printed} drawn`).toBe(true);
+    // NO SECOND TOTAL: no tooltip carries another cycle; the caption prints
+    // no day figure and never says the terms sum / add up to anything.
+    const svg = doc.querySelector('[data-chart-block="chart-wc-cycle"] svg.chart');
+    expect(Array.from(svg?.querySelectorAll("title") ?? []).map((t) => t.textContent ?? "").filter((t) => t.startsWith("equals CCC"))).toEqual([]);
+    expect(blk.caption, `${b}: ${blk.caption}`).not.toMatch(/\d+(\.\d+)? days?\b/);
+    expect(blk.caption).not.toMatch(/\bsum|add(s)? up|foot/i);
     // …and UNROUNDED the terms foot to the served cycle (no day-count drift).
     expect(blk.caption).not.toMatch(/not all computed off the same day count/);
-    const card = computeRatios(statementsFor(b), undefined, metricsFor(b)).efficiency.find((r) => r.key === "ccc");
-    const svg = doc.querySelector('[data-chart-block="chart-wc-cycle"] svg.chart');
-    const tips = Array.from(svg?.querySelectorAll("title") ?? []).map((t) => t.textContent ?? "").filter((t) => t.startsWith("equals CCC"));
-    const cardPrinted = formatRatio(card!);
-    if (cardPrinted === blk.tableRows[3].printed) {
-      expect(blk.caption, `${b}: ${blk.caption}`).toMatch(/the printed terms sum to .*, the served cycle\./);
-      expect(tips, "no tooltip where the sum IS the card's figure").toEqual([]);
+    // THE NOTE, iff the printed terms do not foot to the printed total.
+    const [dso, dio, dpo, ccc] = blk.tableRows.map((r) => parseDays(r.printed));
+    const foots = Math.abs(dso + dio + dpo - ccc) < 1e-9;
+    const notes = Array.from(doc.querySelectorAll('[data-chart-block="chart-wc-cycle"] [data-chart-note="rounding"]'))
+      .map((n) => (n.textContent ?? "").trim());
+    if (foots) {
+      expect(notes, `${b}: a rounding note where the printed terms foot`).toEqual([]);
     } else {
-      // The exact served cycle, stated where the reader can find it.
-      const exact = `${Number((card!.value as number).toFixed(4))} days`;
-      expect(blk.caption).toContain(`the CCC bar prints the sum of the printed terms, ${blk.tableRows[3].printed}`);
-      expect(blk.caption).toContain(`the served cycle, unrounded, is ${exact}`);
-      expect(blk.caption).toContain(`the CCC card rounds it to ${cardPrinted}`);
-      expect(tips).toEqual([`equals CCC: ${blk.tableRows[3].printed} — exact ${exact}`]);
+      expect(notes, `${b}: ${blk.tableRows.map((r) => r.printed).join(" | ")} — no rounding note`).toEqual([roundedDaysNote("en")]);
       footedApart.push(b);
     }
     cycles.push(b);
   });
 
-  it("POSITIVE CONTROL: the books include one whose exact cycle rounds apart from its printed terms (retail)", () => {
+  it("POSITIVE CONTROL: retail's printed terms miss the card's cycle (the note is printed); another book foots (none is)", () => {
     expect(cycles.length, "cycle charts drawn").toBeGreaterThanOrEqual(3);
-    expect(footedApart, "a book where the card's rounding and the printed sum differ").toContain("retail");
+    expect(footedApart, "a book where the printed terms do not foot to the card's cycle").toContain("retail");
+    expect(cycles.filter((b) => !footedApart.includes(b)).length, "a book whose printed terms foot").toBeGreaterThan(0);
+  });
+
+  it("the rounding note is the owner's sentence, EN and RO", () => {
+    expect(roundedDaysNote("en")).toBe("rounded days — the rounded terms can differ from the total by a day");
+    expect(roundedDaysNote("ro")).toBe("zile rotunjite — termenii rotunjiți pot diferi de total cu o zi");
   });
 
   // The chart decomposes a number the document also prints as a headline.

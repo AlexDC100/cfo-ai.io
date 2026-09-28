@@ -42,10 +42,6 @@ export interface ChartRow {
   approximated?: boolean;
   /** Waterfall only: an `anchor` is an absolute level, a `delta` a step. */
   kind?: "anchor" | "delta";
-  /** The exact figure behind a printed one that is not the served figure's
-   *  own rounding (a total printed as the sum of its printed terms): the
-   *  bar's tooltip (`<title>`) carries it, and the caption states it. */
-  exact?: string;
 }
 
 export interface ChartAbsence {
@@ -67,6 +63,12 @@ export interface ChartBlock {
   /** The chart's own table, printed from the same rows. */
   table: string;
   caption: string;
+  /** ONE line printed under a drawn chart's table, apart from the caption:
+   *  the rounding note where the printed terms of an identity do not foot
+   *  to its printed total (the cycle: DSO + DIO − DPO = CCC). Never a
+   *  second figure — the note says the rounded terms can differ, it does
+   *  not print another total. */
+  note?: string;
   absence?: ChartAbsence;
 }
 
@@ -241,10 +243,12 @@ export function gapCard(title: string, a: ChartAbsence): string {
 /** Compose the two halves. Both, or neither — that is R5. */
 export function renderChartBlock(b: ChartBlock): string {
   const table = b.status === "drawn" ? b.table : "";
+  const note = b.status === "drawn" && b.note ? `<p class="chart-note" data-chart-note="rounding">${esc(b.note)}</p>` : "";
   return (
     `<figure class="chart-figure" data-chart-block="${esc(b.id)}" data-chart-status="${b.status}">` +
     b.svg +
     table +
+    note +
     `<figcaption>${esc(b.caption)}</figcaption>` +
     `</figure>`
   );

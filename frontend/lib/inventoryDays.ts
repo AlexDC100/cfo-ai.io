@@ -308,6 +308,51 @@ export function printDaysQ(q: string, lang: string | null | undefined): string {
   );
 }
 
+/** THE ROUNDING NOTE (coordinator's ruling 2026-09-28, one CCC figure per
+ *  report): where day figures printed as an identity (DSO + DIO − DPO =
+ *  CCC; the trade float's DSO − DPO = gap) each print their OWN served
+ *  figure on the ratio table's precision, the printed terms can miss the
+ *  printed total by a day. The page then says so in this one line — never
+ *  a second total, never a caption claiming they add up. The engine's
+ *  trade-float claim carries the same EN words (packs/insights/
+ *  detectors.yaml `claim_variants.rounded`, held to this key by
+ *  tests/engine/test_one_metric_one_formula.py). */
+export function roundedDaysNote(lang: string | null | undefined): string {
+  return i18n.getFixedT(langOf(lang))("roundedDays.note");
+}
+
+/** Do the printed day figures foot to the printed total? Read back from the
+ *  strings exactly as printed, never from the unrounded values: the note
+ *  is about what the reader adds up. A term that is not a printed day
+ *  figure cannot be shown to foot — false. */
+export function printedDaysFoot(terms: readonly string[], total: string): boolean {
+  const sum = sumOfPrintedDays(terms);
+  return sum !== null && sum === total;
+}
+
+/** The sum of printed day figures ("39 days", "1 day", "-30 days"), read
+ *  back from the strings exactly as printed and printed on the same rule
+ *  (the ratio table's days formatter, EN), or null when any string is not
+ *  a printed EN day figure. Decimal-exact: the terms are summed as integers
+ *  at their widest printed precision. Used ONLY to decide whether the
+ *  rounding note is due — never printed as a total. */
+export function sumOfPrintedDays(printed: readonly string[]): string | null {
+  const parts: { int: bigint; places: number }[] = [];
+  for (const p of printed) {
+    const m = /^([+-]?)(\d+)(?:\.(\d+))? days?$/.exec(p);
+    if (!m) return null;
+    const places = m[3]?.length ?? 0;
+    parts.push({ int: BigInt(`${m[1] === "-" ? "-" : ""}${m[2]}${m[3] ?? ""}`), places });
+  }
+  const places = Math.max(0, ...parts.map((x) => x.places));
+  let total = 0n;
+  for (const x of parts) total += x.int * 10n ** BigInt(places - x.places);
+  const neg = total < 0n;
+  const abs = (neg ? -total : total).toString().padStart(places + 1, "0");
+  const q = places === 0 ? abs : `${abs.slice(0, abs.length - places)}.${abs.slice(abs.length - places)}`;
+  return printDaysQ(`${neg ? "-" : ""}${q}`, "en");
+}
+
 /** The split as printed text in one language. Pure over the served block. */
 export function printInventoryDays(split: InventoryDaysSplitView, lang: string | null | undefined): InventoryDaysPrinted {
   const l = langOf(lang);

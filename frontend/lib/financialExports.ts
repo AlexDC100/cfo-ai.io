@@ -743,6 +743,8 @@ export function buildExcelWorkbook(
     if (blk.status === "drawn") {
       chartRows.push(["Series", "Value", "Source", ""]);
       for (const row of blk.rows) chartRows.push([row.label, row.printed, row.source, ""]);
+      // The document's one-line rounding note travels with its rows.
+      if (blk.note) chartRows.push(["Rounding", blk.note, "", ""]);
     } else if (blk.absence) {
       chartRows.push(["Missing", blk.absence.missing.join("; "), "", ""]);
       chartRows.push(["Why", blk.absence.because, "", ""]);

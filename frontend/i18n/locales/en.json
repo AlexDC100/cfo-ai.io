@@ -4036,5 +4036,8 @@
   },
   "ratioAbsence": {
     "inventoryDaysRefused": "Inventory days refused: {{reason}}"
+  },
+  "roundedDays": {
+    "note": "rounded days — the rounded terms can differ from the total by a day"
   }
 }

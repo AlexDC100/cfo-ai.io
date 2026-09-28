@@ -4064,5 +4064,8 @@
   },
   "ratioAbsence": {
     "inventoryDaysRefused": "Zile de stoc refuzate: {{reason}}"
+  },
+  "roundedDays": {
+    "note": "zile rotunjite — termenii rotunjiți pot diferi de total cu o zi"
   }
 }
