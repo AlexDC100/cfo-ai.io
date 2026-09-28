@@ -22,12 +22,13 @@ import { CFOChatShell, type CFOChatShellHandle } from "@/components/cfo/chat/CFO
 import { setChatShellRef } from "@/components/cfo/chat/sharedShellRef";
 import { buildCanonicalMetrics } from "@/lib/canonicalMetrics";
 import {
-  EQUITY_INCOMPLETE_METRICS, NET_RESULT_REFUSED_METRICS, equityRefusalOf, netIncomeRefusalOf,
+  EQUITY_INCOMPLETE_METRICS, NET_RESULT_REFUSED_METRICS, assembledPlOf, equityRefusalOf, netIncomeRefusalOf,
+  readServedOneEbitda,
 } from "@/lib/servedOneEbitda";
 // servedFacts gateway — the snapshot's BS totals are the SERVED
 // (reconciliation-adjusted) figures, so the assistant quotes the same
 // book the dashboard, exports and BS tab show.
-import { printInventoryDays, readInventoryDaysSplit } from "@/lib/inventoryDays";
+import { STOCK_SLOW_CLAIM_RULE, printInventoryDays, readInventoryDaysSplit } from "@/lib/inventoryDays";
 import { factsFrom } from "@/lib/servedFacts";
 import type { Statements } from "@/lib/financialReport";
 
@@ -165,8 +166,18 @@ export function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): s
       );
     }
     pushIf(lines, "EBITDA (711 and 72x inside)",               canonical.ebitda.reported);
-    pushIf(lines, "Variația stocurilor de produse (net 711, inside EBITDA)", canonical.ebitda.inventory_variation);
-    pushIf(lines, "Own work capitalised (net 72x, inside EBITDA)", canonical.ebitda.capitalized_own_work);
+    // Its two components as the engine served them — the figure, or the
+    // engine's own refusal words (a refused 711 is never handed over as a
+    // zero, and never silently dropped: the assistant must be able to say
+    // WHY the EBITDA above is refused).
+    const oneEbitda = readServedOneEbitda(assembledPlOf(p.statements));
+    for (const [label, served, figure] of [
+      ["Variația stocurilor de produse (net 711, inside EBITDA)", oneEbitda?.inventoryVariation ?? null, canonical.ebitda.inventory_variation],
+      ["Own work capitalised (net 72x, inside EBITDA)", oneEbitda?.capitalizedOwnWork ?? null, canonical.ebitda.capitalized_own_work],
+    ] as const) {
+      if (served && served.value === null && served.refusal) lines.push(`  · ${label}: REFUSED — ${served.refusal.text.en}`);
+      else pushIf(lines, label, figure);
+    }
     pushIf(lines, "EBITDA — core (basis for valuation)",       canonical.ebitda.core);
     if (canonical.ebitda.adjustments.length > 0) {
       lines.push("  EBITDA Reported→Core bridge (canonical):");
@@ -244,21 +255,34 @@ export function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): s
   // printed as every surface prints it, and its CLAIM POLICY (owner spec
   // 2026-09-26 P1.5, design B5): the assistant may call stock slow or high
   // only when the policy allows it, and must cite the split and the average.
+  //
+  // The TOTAL is printed WITH its basis label on its own line ("… 49 days …
+  // — Basis: stock at 31 December — a single day"): a figure handed over
+  // without its basis is the one a model calls "slow". Where the policy
+  // does NOT allow a slow claim, the snapshot carries ONE plain rule line
+  // (STOCK_SLOW_CLAIM_RULE, the owner's Romanian with the English): the
+  // Ask CFO AI edge function (supabase/functions/chat-llm) cannot be
+  // redeployed in this release, so the rule rides here, in the
+  // `dataset_summary` it already puts into its system prompt.
   const inventorySplit = p.statements ? readInventoryDaysSplit(p.statements) : null;
   if (inventorySplit) {
     const printed = printInventoryDays(inventorySplit, "en");
     lines.push("");
     lines.push(`${printed.title} (served; the dio / ccc / inventory_turnover metrics above read it):`);
-    for (const r of [...printed.legs, ...(printed.other ? [printed.other] : []), printed.total]) {
-      lines.push(`  · ${r.label}${r.accounts ? ` (${r.accounts})` : ""}: ${r.days}${r.flow ? ` ${r.flow}` : ""}`);
-    }
-    for (const note of [printed.basis, printed.closing ?? "", ...printed.notes]) {
+    const row = (r: { label: string; accounts: string; days: string; flow: string }): string =>
+      `  · ${r.label}${r.accounts ? ` (${r.accounts})` : ""}: ${r.days}${r.flow ? ` ${r.flow}` : ""}`;
+    for (const r of [...printed.legs, ...(printed.other ? [printed.other] : [])]) lines.push(row(r));
+    lines.push(`${row(printed.total)}${printed.basis ? ` — ${printed.basis}` : ""}`);
+    for (const note of [printed.closing ?? "", ...printed.notes]) {
       if (note) lines.push(`  · ${note}`);
     }
     lines.push(
       `  · Claim policy: stock ${inventorySplit.maySlowClaim ? "MAY" : "may NOT"} be called slow or high` +
         `${inventorySplit.claimText ? ` — ${inventorySplit.claimText.en}` : ""}.`,
     );
+    if (!inventorySplit.maySlowClaim) {
+      lines.push(`  · Rule: ${STOCK_SLOW_CLAIM_RULE.en} (RO: ${STOCK_SLOW_CLAIM_RULE.ro})`);
+    }
   }
 
   if (acf) {

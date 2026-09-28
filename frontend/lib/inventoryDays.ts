@@ -308,6 +308,19 @@ export function printDaysQ(q: string, lang: string | null | undefined): string {
   );
 }
 
+/** THE STOCK-CLAIM RULE the grounded chat is handed (design B5; release
+ *  r-rulings, 2026-09-28). The Ask CFO AI edge function (supabase/functions/
+ *  chat-llm) puts the workspace snapshot into its system prompt as
+ *  `dataset_summary`; until that function is redeployed with the rule in
+ *  its own prompt, the rule rides in the snapshot — one plain line, printed
+ *  where the served block's `claim_policy.may_call_slow` is false (a single
+ *  period-end balance, or the split refused). The owner's Romanian words,
+ *  with the English beside them. */
+export const STOCK_SLOW_CLAIM_RULE: Bilingual = {
+  ro: "Nu descrie stocurile ca lente sau mari pe baza soldului de la o singură dată; citează împărțirea pe tipuri de stoc și media.",
+  en: "Do not describe the stock as slow or high on the strength of a balance at a single date; cite the split by stock type and the average.",
+};
+
 /** THE ROUNDING NOTE (coordinator's ruling 2026-09-28, one CCC figure per
  *  report): where day figures printed as an identity (DSO + DIO − DPO =
  *  CCC; the trade float's DSO − DPO = gap) each print their OWN served
