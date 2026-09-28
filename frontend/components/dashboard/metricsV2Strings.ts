@@ -63,7 +63,7 @@ export const metricsV2En = {
     opex: "Everything running the business costs — salaries, rent, services, materials.",
     ebit: "Profit from operations, before interest and tax.",
     ebitda:
-      "Operating profit before interest, tax and depreciation. It includes the change in stocks of products you made (711) and work capitalised into your own assets (72x), which move no cash.",
+      "Operating profit before interest, tax and depreciation. It includes the change in stocks of products you made (711) and work capitalised into your own assets (72x), which move no cash; provisions and impairment adjustments, charges and reversals alike, sit outside it.",
     depreciation_amortization:
       "The yearly wear-and-tear cost of equipment and other long-lived assets.",
     depreciation:
@@ -191,7 +191,7 @@ export const metricsV2Ro = {
     opex: "Tot ce te costă funcționarea afacerii — salarii, chirie, servicii, materiale.",
     ebit: "Profitul din operațiuni, înainte de dobânzi și impozite.",
     ebitda:
-      "Profitul operațional înainte de dobânzi, impozite și amortizare. Include variația stocurilor de produse (711) și producția imobilizată (72x), care nu mișcă numerar.",
+      "Profitul operațional înainte de dobânzi, impozite și amortizare. Include variația stocurilor de produse (711) și producția imobilizată (72x), care nu mișcă numerar; provizioanele și ajustările, atât constituirile, cât și reluările, sunt în afara ei.",
     depreciation_amortization:
       "Costul anual al uzurii echipamentelor și celorlalte active pe termen lung.",
     depreciation:

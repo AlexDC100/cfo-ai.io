@@ -250,8 +250,12 @@ export function buildExcelWorkbook(
   const sameDefinition =
     priorShell !== null &&
     plLevelsOf(priorShell).definition === plLevelsOf(s).definition;
+  // The owner's rulings of 2026-09-28 moved four more rows: net turnover
+  // (7411 inside, R3), other operating income and D&A (the ruled reversals
+  // and charges out, R2) and the net-provisions row itself.
   const DEFINITION_KEYS = new Set([
     "inventory_variation", "capitalized_own_work", "gross_profit", "ebitda", "ebit", "pretax", "net_result_built",
+    "turnover", "other_operating_income", "da", "net_provisions",
   ]);
   const priorValueOf = (key: string): number | null | undefined => {
     if (!priorPpl) return undefined;

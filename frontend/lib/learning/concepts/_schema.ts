@@ -117,6 +117,15 @@ export interface ReportingMetrics {
   ebitda?: number;
   depreciation?: number;
   amortization?: number;
+  /** D&A on the P&L chain as the engine serves it — since the owner's R2
+   *  ruling (2026-09-28) WITHOUT the 6812 / 6814 provision charges.
+   *  `depreciation` above stays the income statement's whole 68x (the
+   *  non-cash add-back the cash-flow formulas read). */
+  plDepreciation?: number;
+  /** Net provisions (R2): 6812 + 6814 − 7812 − 7814, signed as a charge,
+   *  OUTSIDE EBITDA — EBITDA = EBIT + plDepreciation + netProvisions.
+   *  Absent on a period assembled before the ruling. */
+  netProvisions?: number;
   netFinancialResult?: number;
   interestExpense?: number;
   pretaxProfit?: number;

@@ -52,7 +52,7 @@
 
 import type { ActivePeriod, PeriodLineItem } from "./activePeriod";
 import { F36_CUTOVER_METRICS_HUB } from "@/config/features";
-import { equityRefusalOf, plLevelsOf, readRefusal, type ServedRefusal } from "./servedOneEbitda";
+import { equityRefusalOf, plLevelsOf, readNetProvisions, readRefusal, type ServedRefusal } from "./servedOneEbitda";
 
 /**
  * F3.16-3b.6 cutover helper — resolves the Reported EBITDA value
@@ -181,12 +181,17 @@ export interface CanonicalMetrics {
   /** Auxiliary headline numbers needed by some surfaces. Sourced
    *  directly from `assembled_pl` — no recompute. */
   headline: {
-    /** NET TURNOVER (70x − 709) — every margin's denominator. The
-     *  retired `total_operating_revenue` added 72x to it. */
+    /** NET TURNOVER (70x − 709 + 7411 since the owner's R3 ruling,
+     *  2026-09-28) — every margin's denominator. The retired
+     *  `total_operating_revenue` added 72x to it. */
     revenue: number;
     /** The operating result on the one definition; null when refused. */
     ebit: number | null;
+    /** D&A on the P&L chain — without the 6812 / 6814 charges since R2. */
     depreciation: number;
+    /** Net provisions (R2, 2026-09-28): the served charges − reversals,
+     *  OUTSIDE EBITDA, with the engine's label; null before the ruling. */
+    netProvisions: { value: number; label: { ro: string; en: string } } | null;
     tax: number;
     interest_expense: number;
   };
@@ -317,7 +322,11 @@ function assemble(args: {
   // already aggregated into `other_inc` in `_ro_coa.py`; we don't
   // change that math, we just SURFACE them as separate entries so
   // the bridge is auditable.
-  const adjustments = extractAdjustments(args.lineItems);
+  // The reversals the engine placed OUTSIDE EBITDA (owner ruling R2,
+  // 2026-09-28: 7812, 7814 — named by the served net-provisions block) are
+  // not in the reported figure, so they are not stripped from it again.
+  const adjustments = extractAdjustments(
+    args.lineItems, readNetProvisions(args.apl)?.reversalPrefixes ?? []);
   const adjustmentSum = adjustments.reduce((acc, a) => acc + a.amount, 0);
   const core = reported === null ? null : reported - adjustmentSum;
 
@@ -370,6 +379,10 @@ function assemble(args: {
       revenue,
       ebit,
       depreciation,
+      netProvisions: (() => {
+        const np = readNetProvisions(args.apl);
+        return np ? { value: np.value, label: np.label } : null;
+      })(),
       tax,
       interest_expense: interestExpense,
     },
@@ -384,7 +397,10 @@ function num(v: unknown): number | null {
   return v;
 }
 
-function extractAdjustments(lineItems: PeriodLineItem[]): CanonicalEbitdaAdjustment[] {
+function extractAdjustments(
+  lineItems: PeriodLineItem[],
+  outsideEbitda: readonly string[] = [],
+): CanonicalEbitdaAdjustment[] {
   const out: CanonicalEbitdaAdjustment[] = [];
   for (const rule of CORE_EBITDA_ADJUSTMENTS) {
     let sum = 0;
@@ -392,6 +408,7 @@ function extractAdjustments(lineItems: PeriodLineItem[]): CanonicalEbitdaAdjustm
     for (const li of lineItems) {
       if (li.statement !== "PL") continue;
       if (!li.ro_account_code) continue;
+      if (outsideEbitda.some((p) => li.ro_account_code.startsWith(p))) continue;
       // `startsWith` captures 758/7581/7588/etc and 781/7811/7814/etc.
       // Same convention `_ro_coa.py` uses for its own prefix sums.
       if (li.ro_account_code.startsWith(rule.prefix)) {

@@ -851,10 +851,10 @@
     "ebitdaRecon": {
       "eyebrow": "Reconcilierea EBITDA · o singură definiție",
       "title": "Cum se construiește EBITDA — de la cifra de afaceri netă la contul 121",
-      "lead": "O singură EBITDA: variația stocurilor de produse (711) și producția imobilizată (72x) sunt incluse, lângă costuri; reducerile comerciale primite (767) sunt financiare. Cifra de afaceri netă — baza fiecărei marje — nu include niciuna dintre ele.",
+      "lead": "O singură EBITDA: variația stocurilor de produse (711) și producția imobilizată (72x) sunt incluse, lângă costuri; provizioanele și ajustările — atât constituirile, cât și reluările — sunt în afara ei, pe o linie proprie înainte de rezultatul din exploatare; reducerile comerciale primite (767) sunt financiare. Cifra de afaceri netă — baza fiecărei marje — include subvențiile de exploatare aferente cifrei de afaceri și niciuna dintre celelalte.",
       "coreHeading": "EBITDA → EBITDA de bază (baza evaluării)",
       "less758": "Minus alte venituri din exploatare",
-      "less781": "Minus venituri din reluarea provizioanelor",
+      "less781": "Minus reluările de provizioane rămase în EBITDA",
       "coreTotal": "EBITDA de bază",
       "notServed": "Motorul nu a servit reconcilierea EBITDA pentru această perioadă.",
       "notAnchored": "contul 121 nu apare în balanță",

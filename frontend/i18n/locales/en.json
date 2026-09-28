@@ -851,10 +851,10 @@
     "ebitdaRecon": {
       "eyebrow": "EBITDA reconciliation · one definition",
       "title": "How EBITDA is built — from net turnover to account 121",
-      "lead": "One EBITDA: the stock variation (711) and own work capitalised (72x) sit inside it, beside the costs; discounts received (767) are financial. Net turnover — the base of every margin — includes none of the three.",
+      "lead": "One EBITDA: the stock variation (711) and own work capitalised (72x) sit inside it, beside the costs; provisions and impairment adjustments — charges and reversals alike — sit outside it, on their own line before the operating result; discounts received (767) are financial. Net turnover — the base of every margin — includes the operating subsidies related to turnover and none of the others.",
       "coreHeading": "EBITDA → Core EBITDA (valuation basis)",
       "less758": "Less other operating income",
-      "less781": "Less provision reversals",
+      "less781": "Less provision reversals still inside EBITDA",
       "coreTotal": "Core EBITDA",
       "notServed": "The engine served no EBITDA reconciliation for this period.",
       "notAnchored": "account 121 is not in the trial balance",

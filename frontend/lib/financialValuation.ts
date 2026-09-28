@@ -28,7 +28,7 @@ import {
 // decomposition, which canonical_bs does not carry.
 import { factsFrom } from "./servedFacts";
 import {
-  equityRefusalOf, netIncomeRefusalOf, plLevelsOf, readRefusal, type ServedRefusal,
+  equityRefusalOf, netIncomeRefusalOf, plLevelsOf, readNetProvisions, readRefusal, type ServedRefusal,
 } from "./servedOneEbitda";
 import { ratioLabelForKey } from "./ratioTable";
 
@@ -644,18 +644,25 @@ function canonical(s: Statements): {
     typeof pl.net_income_statutory === "number"
       ? pl.net_income_statutory
       : reportedLevel("netIncome") ?? t.netIncome;
+  // Net provisions (owner ruling R2, 2026-09-28): outside EBITDA, between it
+  // and the operating result; its charges are non-cash like D&A. 0 on a
+  // block assembled before the ruling (its D&A still held the charges).
+  const servedProvisions = readNetProvisions(s.assembled_pl);
+  const netProvisions = servedProvisions?.value ?? 0;
+  const provisionCharges = servedProvisions?.charges ?? 0;
   const ebitStatutory =
     typeof pl.operating_ebit === "number"
       ? pl.operating_ebit
       : typeof pl.ebitda_statutory === "number"
-        ? pl.ebitda_statutory - (pl.depreciation ?? s.incomeStatement.depreciationAmortization)
+        ? pl.ebitda_statutory - (pl.depreciation ?? s.incomeStatement.depreciationAmortization) - netProvisions
         : reportedLevel("ebit") ?? t.ebit;
   const ebitdaStatutory =
     typeof pl.ebitda_statutory === "number"
       ? pl.ebitda_statutory
       : reportedLevel("ebitda") ?? t.ebitda;
   // The engine's own EBIT; else the engine's own arithmetic for it
-  // (`ebit = ebitda − depreciation`, chart_of_accounts) when both served
+  // (`ebit = ebitda − depreciation − net provisions`, chart_of_accounts)
+  // when the served
   // operands are on the wire; else — a P&L block that carries neither, so
   // the engine's operand is simply not on this payload — the same ladder
   // `ebitStatutory` walks. That last rung never reaches a real engine
@@ -667,14 +674,14 @@ function canonical(s: Statements): {
     typeof pl.ebit === "number"
       ? pl.ebit
       : typeof pl.ebitda === "number" && typeof pl.depreciation === "number"
-        ? pl.ebitda - pl.depreciation
+        ? pl.ebitda - pl.depreciation - netProvisions
         : ebitStatutory;
   const cfo =
     typeof cf.cash_from_operating === "number"
       ? cf.cash_from_operating
       : netIncomeStatutory === null
         ? null
-        : netIncomeStatutory + (pl.depreciation ?? s.incomeStatement.depreciationAmortization);
+        : netIncomeStatutory + (pl.depreciation ?? s.incomeStatement.depreciationAmortization) + provisionCharges;
   return {
     plRefusal: t.plRefusal,
     netIncomeStatutory,

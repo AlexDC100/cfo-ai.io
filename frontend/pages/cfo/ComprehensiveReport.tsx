@@ -870,6 +870,10 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
   // "Variația stocurilor de produse") sits beside cost of sales, signed as
   // its effect on the result; own work capitalised (72x) is an operating
   // line outside net turnover; both are inside EBITDA. 767 is financial.
+  // PROVISIONS SYMMETRIC (owner ruling R2, 2026-09-28): the ruled charges
+  // (6812, 6814) and reversals (7812, 7814) are OUTSIDE EBITDA; their net is
+  // its own step between D&A and EBIT, under the engine's name, signed as
+  // its effect on the result — so EBITDA − D&A − net provisions = EBIT foots.
   // The retired rows went with the old definitions: the "+ Capitalized own
   // work (722)" step after net profit (72x is above EBITDA now), the
   // "EBITDA (statutory, incl. 722)" memo (there is one EBITDA) and the
@@ -946,6 +950,12 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
     { label: "Operating expenses", val: negated(pl.opex_total), style: "indent", origin: neg("opex_total"), role: "step" },
     { label: "EBITDA", val: num(served?.ebitda), style: "highlight", origin: f("ebitda"), role: "subtotal", note: served?.ebitda == null ? refusalEn : null },
     { label: "Depreciation & amortization", val: negated(pl.depreciation), style: "indent", origin: neg("depreciation"), role: "step" },
+  );
+  const np = served?.netProvisions ?? null;
+  if (np && (Math.abs(np.charges) >= 0.005 || Math.abs(np.reversals) >= 0.005)) {
+    rows.push({ label: np.label.en, val: 0 - np.value, style: "indent", origin: neg("net_provisions.value"), role: "step" });
+  }
+  rows.push(
     { label: "EBIT", val: num(served?.ebit), style: "highlight", origin: f("ebit"), role: "subtotal", note: served?.ebit == null ? refusalEn : null },
     { label: "Net financial result", val: pl.net_financial_result, style: "indent", origin: f("net_financial_result"), role: "step" },
     { label: "Pre-tax profit", val: num(served?.pretax), style: "subtotal", origin: f("pretax"), role: "subtotal", note: served?.pretax == null ? refusalEn : null },
