@@ -10226,7 +10226,7 @@
        "assembled_pl.operating_result",
        "assembled_pl.inventory_variation"
       ],
-      "text": "The profitability component is not scored: EBITDA and the operating result are refused for this period, so the component's operand is not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived."
+      "text": "The profitability component is not scored: the net result is refused for this period, so ROE and the net margin are not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived."
      },
      {
       "cause": "ebitda_refused",
@@ -10284,7 +10284,7 @@
      "credit_model.coverage",
      "credit_model.dscr"
     ],
-    "text": "No composite and no letter: the model's weights are not redistributed over the components that scored, and altman and profitability and leverage and coverage and dscr did not score. The altman component is not scored: EBITDA and the operating result are refused for this period, so X3 (operating result / total assets) is not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived. The profitability component is not scored: EBITDA and the operating result are refused for this period, so the component's operand is not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived. The leverage component is not scored: EBITDA and the operating result are refused for this period, so net debt / EBITDA is not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived. The interest-coverage component is not scored: EBITDA and the operating result are refused for this period, so EBIT / interest is not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived. The DSCR component is not scored: EBITDA and the operating result are refused for this period, so EBITDA / debt service is not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived."
+    "text": "No composite and no letter: the model's weights are not redistributed over the components that scored, and altman and profitability and leverage and coverage and dscr did not score. The altman component is not scored: EBITDA and the operating result are refused for this period, so X3 (operating result / total assets) is not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived. The profitability component is not scored: the net result is refused for this period, so ROE and the net margin are not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived. The leverage component is not scored: EBITDA and the operating result are refused for this period, so net debt / EBITDA is not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived. The interest-coverage component is not scored: EBITDA and the operating result are refused for this period, so EBIT / interest is not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived. The DSCR component is not scored: EBITDA and the operating result are refused for this period, so EBITDA / debt service is not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived."
    },
    "refused_subscores": {
     "altman": {
@@ -10360,7 +10360,7 @@
       "assembled_pl.operating_result",
       "assembled_pl.inventory_variation"
      ],
-     "text": "The profitability component is not scored: EBITDA and the operating result are refused for this period, so the component's operand is not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived."
+     "text": "The profitability component is not scored: the net result is refused for this period, so ROE and the net margin are not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived."
     }
    },
    "subscores": {
@@ -12400,7 +12400,7 @@
        "assembled_pl.operating_result",
        "assembled_pl.inventory_variation"
       ],
-      "text": "The profitability component is not scored: EBITDA and the operating result are refused for this period, so the component's operand is not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived."
+      "text": "The profitability component is not scored: the net result is refused for this period, so ROE and the net margin are not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived."
      },
      {
       "cause": "ebitda_refused",
@@ -12448,7 +12448,7 @@
        "assembled_pl.operating_result",
        "assembled_pl.inventory_variation"
       ],
-      "text": "The equity component is not scored: EBITDA and the operating result are refused for this period, so the equity ratio (total equity excludes the year's result, refused with them) is not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived."
+      "text": "The equity component is not scored: total equity excludes the year's result, which is refused for this period, so the equity ratio is not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived."
      }
     ],
     "inputs": [
@@ -12458,7 +12458,7 @@
      "credit_model.dscr",
      "credit_model.equity"
     ],
-    "text": "No composite and no letter: the model's weights are not redistributed over the components that scored, and altman and profitability and coverage and dscr and equity did not score. The altman component is not scored: EBITDA and the operating result are refused for this period, so X3 (operating result / total assets) is not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived. The profitability component is not scored: EBITDA and the operating result are refused for this period, so the component's operand is not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived. The interest-coverage component is not scored: EBITDA and the operating result are refused for this period, so EBIT / interest is not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived. The DSCR component is not scored: EBITDA and the operating result are refused for this period, so EBITDA / debt service is not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived. The equity component is not scored: EBITDA and the operating result are refused for this period, so the equity ratio (total equity excludes the year's result, refused with them) is not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived."
+    "text": "No composite and no letter: the model's weights are not redistributed over the components that scored, and altman and profitability and coverage and dscr and equity did not score. The altman component is not scored: EBITDA and the operating result are refused for this period, so X3 (operating result / total assets) is not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived. The profitability component is not scored: the net result is refused for this period, so ROE and the net margin are not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived. The interest-coverage component is not scored: EBITDA and the operating result are refused for this period, so EBIT / interest is not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived. The DSCR component is not scored: EBITDA and the operating result are refused for this period, so EBITDA / debt service is not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived. The equity component is not scored: total equity excludes the year's result, which is refused for this period, so the equity ratio is not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived."
    },
    "refused_subscores": {
     "altman": {
@@ -12519,7 +12519,7 @@
       "assembled_pl.operating_result",
       "assembled_pl.inventory_variation"
      ],
-     "text": "The equity component is not scored: EBITDA and the operating result are refused for this period, so the equity ratio (total equity excludes the year's result, refused with them) is not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived."
+     "text": "The equity component is not scored: total equity excludes the year's result, which is refused for this period, so the equity ratio is not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived."
     },
     "profitability": {
      "code": "ebitda_refused",
@@ -12534,7 +12534,7 @@
       "assembled_pl.operating_result",
       "assembled_pl.inventory_variation"
      ],
-     "text": "The profitability component is not scored: EBITDA and the operating result are refused for this period, so the component's operand is not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived."
+     "text": "The profitability component is not scored: the net result is refused for this period, so ROE and the net margin are not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived."
     }
    },
    "subscores": {
