@@ -1489,6 +1489,57 @@ is the only carrier of the rule, and the snapshot law
 (`chatSnapshotInventoryDays.test.ts`, gate inventory-days-surfaces) is what
 keeps it there.
 
+**Rulings of 2026-09-28 (R2, R3) — candidate `feat/rulings-2`, NOT shipped
+until the owner has seen the per-period diff.** Design:
+`specs-durable/design_2026-09-28_rulings2.md`. Both are PLACEMENTS of accounts
+the frozen classification pack has already classified, held as data in
+`packs/ro/pl_definition.yaml` (loader `country_packs/ro_romania/pl_definition.py`)
+and applied once, in `assemble_statements`; every account list and line name
+below is rendered from that pack (TC-10).
+- **R2 — provisions symmetric.** The 6812 / 6814 charges AND the 7812 / 7814
+  reversals are OUTSIDE EBITDA; `assembled_pl.net_provisions` {value = charges
+  − reversals (signed as a charge), per-account charges / reversals, the
+  pack's name "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814)"} is
+  its own line between EBITDA and the operating result — on the
+  reconciliation chain, after EBITDA on the one-line bridge
+  (`bridge.after_ebitda`), on the P&L tab, the report, the printed P&L / Excel
+  workbook, the chat snapshot and the EBITDA popover. `depreciation` is D&A
+  WITHOUT the ruled charges; `other_operating_income` is without the ruled
+  reversals. **EBIT does not move** (computed on the pre-ruling terms, to the
+  cent): EBIT = EBITDA − D&A − net provisions. What the ruling does NOT move:
+  core / adjusted EBITDA (`other_income_781_reversals` is now the 781 still
+  inside EBITDA, so no reversal is stripped twice), the cash-flow add-back
+  (`assembled_cf.depreciation` stays all of 68x, and the DCF reads it), the
+  operating-cost total and the inventory-days flow (the charges are still
+  operating costs), the liquidity finding's cash cost (the charges are
+  still non-cash). Unruled 68x / 78x (6811, 6813, 6817, 7813, 7815…) stay
+  where they were. The forecast (closed) follows: plan-year D&A and the
+  maintenance-capex proxy read D&A without the charges, net provisions are
+  not projected, year-0 EBITDA and other operating income are the served
+  ones. The methodology's operating result used to be `reported −
+  dap.net`, which subtracted every 78x reversal `reported` had just added
+  (the served EBIT less the reversals); it is now EBITDA − D&A − net
+  provisions and equals the in-code EBIT (gate provisions-symmetric).
+- **R3 — 7411 in turnover.** Cifra de afaceri netă = 70x − 709 + 7411 (F20
+  rd. 05 of rd. 01). The 7411 leaves are placed in the turnover bucket at
+  assembly (persisted as `revenue`, with `classified_bucket` beside them in
+  memory; a rebuild recognises the stored placement); the canonical adapter
+  places them in `revenue_gross`. 7418 (other operating subsidies) stays other
+  operating income. `assembled_pl.turnover_definition` says what turnover
+  holds. No real, corpus or fixture book posts 7411 — the witness is
+  constructed (gate turnover-7411).
+- **Stamps.** `EBITDA_DEFINITION_REVISION` = `ebitda/2026-09-28:…,provisions-
+  6812-6814-7812-7814-outside,7411-turnover` (the previous one in
+  `EBITDA_DEFINITION_PREVIOUS_REVISIONS`); credit-model revision 4
+  (`ONE_EBITDA_REVISION` 4 — stored rows stamped 3 are refused by the Section
+  9 benchmark until reprocessed; `RULINGS_2_REVISED_METRICS` —
+  other_income_781_reversals, revenue, net_margin, asset_turnover — are
+  served from the serve-time model like the EBITDA family); benchmark `REPORT_REVISION` 6; methodology
+  1.2.0. The reprocess script reports the stamp a period was written under,
+  the net provisions and the 7411 inside turnover; a turnover move of exactly
+  the placed 7411 on an earlier-definition period is the ruling
+  (`definition_7411`) and does not block.
+
 **DEPLOY REQUIREMENT.** Every stored period predates the definition: its
 EBITDA refuses (`period_predates_*`) until it is REPROCESSED from its stored
 document with `scripts/reprocess_periods_definition.py` (dry run → review
