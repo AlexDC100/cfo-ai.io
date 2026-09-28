@@ -69,7 +69,7 @@
   "period_id": "route-period-agras",
   "snapshot_id": "sha256-10b9c390378a05d332cf2e3b24323576f47ab333939f1c5836e41dbccaf4fa3d"
  },
- "body_hash": "sha256:fb53dd86b28e98241ad33eae15e1f36f89686775fb194bc9106c8f0b48905ac2",
+ "body_hash": "sha256:3e7b34516555a00374c4768aad45632d973c78199bbbd53c3002b94aa293ec8a",
  "client": {
   "analysis_debounce_ms": 600,
   "debounce_ms": 150,
@@ -28910,6 +28910,10 @@
   {
    "code": "note",
    "text": "the stock variation (711, Variația stocurilor de produse) and own work capitalised (72x) are not projected: 0 in every plan year. The actual year's EBITDA of 11,844,076.57 includes 1,071,687.03 of them (net 711 1,071,687.03, net 72x 0.00), so plan year one starts from the recurring EBITDA of 10,772,389.54."
+  },
+  {
+   "code": "note",
+   "text": "net provisions and impairment adjustments (charges less reversals, outside EBITDA) are not projected: 0 in every plan year. The actual year's operating result carries a net charge of 131,394.66."
   },
   {
    "code": "note.prior_periods_are_not_read_in_this_build",
