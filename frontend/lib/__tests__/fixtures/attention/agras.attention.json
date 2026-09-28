@@ -18,11 +18,11 @@
     "en": "Export the bank report",
     "ro": "Exportă raportul pentru bancă"
    },
-   "requires_feature": "forecast",
    "target": {
-    "kind": "forecast_bank_export",
+    "kind": "report_pdf",
     "period_id": "5ea50000-0000-4000-8000-00000000a925",
-    "route": "/dashboard/forecast"
+    "route": "/dashboard",
+    "tab": "export"
    }
   }
  ],
