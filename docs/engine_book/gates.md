@@ -16733,6 +16733,157 @@ REVERT (clean tree) tests/engine/test_turnover_7411.py: exit=0 9 passed in 1.70s
 browser (the P&L tab lists the 741 family under turnover off the served
 bucket).
 
+## credit-stock-build
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_credit_stock_build_regime.py -q -s` |
+| canary | `SCOPE credit-stock-build (owner ruling R1 2026-09-28, packs/credit/model.yaml stock_build_regime)`, `STOCK-BUILD-BOOKS: agras, at_turnover_threshold, …, zero_turnover`, `STOCK-BUILD-PLANTS: approximated-cash-read-as-measured, …, x3-keeps-the-stock-build` |
+| work count | `GATE-WORK credit-stock-build units=(\d+)`, floor **120** (measured 134) |
+
+**INCIDENT** — the owner's ruling R1 (2026-09-28): "Scandia Română
+Development went CCC → B because 29.6M of construction now flows through 711.
+Accounting correct, credit signal wrong — cash went out, revenue was 162k.
+When 711 stock build exceeds turnover materially, the credit model must weight
+cash flow and liquidity, not EBITDA, and a finding must state: "EBITDA
+pozitivă din stocuri capitalizate — numerarul a fost consumat de
+construcție."" Under the one EBITDA (711 inside, 2026-09-26) the corpus
+developer's EBIT is +488,756.68 (net 711 +29,589,814.24 against turnover
+162,365.46): Altman X3 0.0059, Z'' 4.81 (sub-score 100), composite 41.5 B —
+a grade built on stock the company paid to build.
+
+**LAW** — credit model revision 5. The trigger is pack data
+(`packs/credit/model.yaml` `stock_build_regime.trigger`, loaded and validated
+by `credit_pack`; a pack without the block raises): a MEASURED net 711 > 0
+reaching net_711 / turnover >= 1.0 AND net_711 >= 0.10 x total operating
+expense (by multiplication — a zero turnover never divides). On a triggered
+book the three components that read EBITDA / EBIT are computed on the served
+cash from operations (`assembled_cf.cash_from_operating`): leverage = net
+debt / CFO, coverage = CFO / interest, DSCR = CFO / debt service. An
+APPROXIMATED CFO (`is_approximated` not exactly false) or a REFUSED one
+refuses them (`cash_from_operations_approximated` / `_refused`, RO + EN pack
+sentences) — never 0, never EBITDA — and the composite with them; a MEASURED
+CFO <= 0 takes the regime's declared bottom rung; debt-free with CFO > 0 takes
+R-D1 on cash. Altman X3 = (EBIT − net 711 − net 72x) / total assets, labelled
+from the pack. The composite is multiplied by the regime's weight table
+(liquidity 0.20, profitability 0.10, the rest unchanged; never renormalised).
+The served block (`credit.regime`, the envelope's `regime`) names the regime
+with its trigger tests (the share reached, the pack share), its cash basis and
+status, the component bases, the X3 basis and the finding: the owner's
+sentence verbatim (a literal in the gate), its English equivalent, severity
+high, the served net 711 / turnover / EBITDA / EBITDA before the stock
+variation, and CFO only when measured.
+
+`check()` reads all of it from the SERVED statements and the RAW pack YAML —
+never the model's `stock_build_regime` — and bands the cash components by
+hand (CLAUDE.md Appendix A §7). Witnesses: 11 CONSTRUCTED books (SYNTHETIC —
+a triggering developer with its cash flow approximated / refused / measured
+positive / measured negative / debt-free, a manufacturer, the turnover share
+AT and one cent BELOW its threshold, below the operating-cost share, a refused
+711, zero turnover) through the route's own builder; the 4 committed corpus
+books through the production write path + GET /api/period (realestate
+triggers; agras, carniprod, retail do not). Seams: the served envelope, the
+ratio table, the attention document's `credit_regime` and the briefing facts'
+`credit_regime` (text only — no nested money figure the FX conversion never
+sees) carry one regime. TC-10: a planted pack share (200) removes the regime
+from the developer; a planted weight table moves the composite.
+
+In-file plants (STOCK-BUILD-PLANTS): the approximated flag read as measured,
+the refusal answered with EBITDA, X3 keeping the stock build, the cash
+components on EBIT, the model weights under the regime, the finding
+paraphrased, the trigger decided on a constant. Source-edit plants, each
+applied alone in a COPY of the tree by `scratchpad/r1/plant_r1.py` (kept at
+specs-durable/rulings2_r1/plant_r1.py with its log; restore
+byte-exact, sha256 checked):
+```
+PLANT approximated-cash-read-as-measured (the is_approximated flag ignored): src/engine/ratios/credit_model.py
+  exit=1 6 failed, 20 passed in 3.72s
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[at_turnover_threshold]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_approximated]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[zero_turnover]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_the_real_books_through_the_route[realestate]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_every_seam_carries_one_regime
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_zz_scope_and_work
+  -> RED ; file restored byte-exact
+PLANT refusal-falls-back-to-ebitda (an unmeasured cash answered with EBITDA): src/engine/ratios/credit_model.py
+  exit=1 6 failed, 20 passed in 3.53s
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[at_turnover_threshold]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_approximated]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_cash_refused]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[zero_turnover]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_the_real_books_through_the_route[realestate]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_zz_scope_and_work
+  -> RED ; file restored byte-exact
+PLANT unmeasured-cash-read-as-zero (never 0: an approximated cash scored at the rung): src/engine/ratios/credit_model.py
+  exit=1 6 failed, 20 passed in 3.52s
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[at_turnover_threshold]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_approximated]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_cash_refused]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[zero_turnover]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_the_real_books_through_the_route[realestate]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_zz_scope_and_work
+  -> RED ; file restored byte-exact
+PLANT x3-keeps-the-stock-build (X3 on the one EBIT under the regime): src/engine/ratios/credit_model.py
+  exit=1 9 failed, 17 passed in 3.54s
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[at_turnover_threshold]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_approximated]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_cash_negative]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_cash_positive]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_cash_refused]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_debt_free]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[zero_turnover]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_thresholds_and_the_weights_are_read_from_the_pack
+  -> RED ; file restored byte-exact
+PLANT coverage-on-ebit (the regime's coverage divides EBIT): src/engine/ratios/credit_model.py
+  exit=1 3 failed, 23 passed in 3.55s
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_cash_positive]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_thresholds_and_the_weights_are_read_from_the_pack
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_zz_scope_and_work
+  -> RED ; file restored byte-exact
+PLANT model-weights-under-the-regime (the composite on the model table): src/engine/ratios/credit_model.py
+  exit=1 4 failed, 22 passed in 3.54s
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_cash_positive]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_debt_free]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_thresholds_and_the_weights_are_read_from_the_pack
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_zz_scope_and_work
+  -> RED ; file restored byte-exact
+PLANT threshold-hard-coded (the trigger reads a constant, not the pack share): src/engine/ratios/credit_model.py
+  exit=1 4 failed, 22 passed in 3.47s
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[at_turnover_threshold]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[zero_turnover]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_thresholds_and_the_weights_are_read_from_the_pack
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_zz_scope_and_work
+  -> RED ; file restored byte-exact
+PLANT finding-paraphrased (the pack's Romanian sentence reworded): packs/credit/model.yaml
+  exit=1 10 failed, 16 passed in 3.55s
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[at_turnover_threshold]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_approximated]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_cash_negative]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_cash_positive]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_cash_refused]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_debt_free]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[zero_turnover]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_the_real_books_through_the_route[realestate]
+  -> RED ; file restored byte-exact
+REVERT (clean tree) tests/engine/test_credit_stock_build_regime.py: exit=0 26 passed in 3.50s
+```
+
+**Measured beside it** (independent referee
+`specs-durable/rulings2_r1/referee_r1.py` on the PRE-R1 engine, 386048ce):
+the developer triggers (182.24x turnover, 101.1% of operating cost), X3
+0.0059 → −0.3489, Z'' 4.81 → 2.43 (grey; sub-score 100 → 66.5), composite
+41.5 B → REFUSED (the served cash flow is approximated on every book today,
+so the three cash components refuse). Read as if measured, the same
+approximated CFO (−3,945,493.79) would take the bottom rung and give 33.9 CCC
+on the regime's weights — the FE fixture's `developer_measured_cash` case
+carries exactly that (not served). agras, carniprod, retail: no regime,
+nothing moves.
+
+**CANNOT SEE:** whether the thresholds are the right ones (the owner's
+ruling); a real book with a MEASURED cash flow (none exists — the engine
+threads no prior-period trial balance, `is_approximated` is always true); the
+browser surfaces (vitest `creditRegimeSurfaces.test.tsx`).
+
 ### reprocess-periods-definition — the 2026-09-28 revision (owner rulings R2, R3)
 
 `EBITDA_DEFINITION_REVISION` moved to

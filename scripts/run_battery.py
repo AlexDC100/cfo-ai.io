@@ -904,6 +904,32 @@ def _engine_gates() -> List[Gate]:
                        "TURNOVER7411-BOOKS: only_7418, subsidy_7411, subsidy_7411_analytic",
                        "TURNOVER7411-PLANTS: 7411-left-in-other-income, 7418-pulled-into-turnover, "
                        "rebuild-drops-the-placement")),
+        # ── owner ruling R1 (2026-09-28): credit-stock-build. On a book whose
+        # MEASURED net 711 build reaches the pack's shares of net turnover and
+        # of total operating expense (packs/credit/model.yaml
+        # stock_build_regime), leverage / coverage / DSCR are graded on the
+        # served cash from operations (approximated or refused -> refused,
+        # never 0, never EBITDA; measured <= 0 -> the declared bottom rung),
+        # Altman X3 on EBIT − net 711 − net 72x, the composite on the
+        # regime's weights, and the finding (the owner's sentence, RO
+        # verbatim + EN, high, the served figures) rides the served block,
+        # the attention document and the briefing facts. 11 constructed
+        # books, the 4 corpus books through GET /api/period, 2 seams, the
+        # pack plant (thresholds and weights move with it), 7 in-file plants.
+        # Measured 134. Plant log: gates.md "credit-stock-build".
+        Gate("credit-stock-build",
+             [PY, "-m", "pytest", "tests/engine/test_credit_stock_build_regime.py", "-q", "-s"],
+             work_rx=r"GATE-WORK credit-stock-build units=(\d+)", floor=120,
+             units="constructed and real books judged, seams compared, plants",
+             canaries=("SCOPE credit-stock-build (owner ruling R1 2026-09-28, packs/credit/model.yaml "
+                       "stock_build_regime)",
+                       "STOCK-BUILD-BOOKS: agras, at_turnover_threshold, below_opex_threshold, "
+                       "below_turnover_threshold, carniprod, manufacturer, realestate, refused_711, retail, "
+                       "stock_build_approximated, stock_build_cash_negative, stock_build_cash_positive, "
+                       "stock_build_cash_refused, stock_build_debt_free, zero_turnover",
+                       "STOCK-BUILD-PLANTS: approximated-cash-read-as-measured, cash-components-on-ebit, "
+                       "finding-paraphrased, model-weights-under-the-regime, refusal-falls-back-to-ebitda, "
+                       "trigger-threshold-in-code, x3-keeps-the-stock-build")),
         # ── plan/2 B4b (plan_contract_v2 5.6 / 28.3 B4): forecast-pools ──
         # The cost pools of section 5 on the four books, no shocks: pools
         # plus unallocated equal the assembled operating cost to the cent;
