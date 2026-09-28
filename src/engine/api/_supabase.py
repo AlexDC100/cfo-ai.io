@@ -7,6 +7,10 @@ Two clients:
 
 Surface is intentionally narrow — only the methods the pipeline needs.
 PostgREST URL pattern: <SUPABASE_URL>/rest/v1/<table>?select=*&col=eq.value
+
+A read (`select`, the client's one GET, through `_get`) that times out is
+logged at WARNING and retried ONCE (ruling R5, 2026-09-28); a write is never
+retried (gate supabase-read-retry).
 """
 
 from __future__ import annotations
@@ -74,6 +78,14 @@ def assert_tenant_path(bucket: str, path: str, org_id: Optional[str],
         "refused to %s %s/%s: the object's first path segment (%r) is not "
         "the declared owning organization (%r)" % (op, bucket, path, first, owner)
     )
+
+
+#: Ruling R5 (owner, 2026-09-28; ops log 2026-09-28, two incidents): a READ
+#: that times out is logged at WARNING and retried exactly ONCE. Reads only —
+#: `select` is the client's one GET. A write (insert / upsert / update /
+#: delete / rpc / storage) is never retried: a timed-out write may have
+#: landed, and replaying it could apply it twice.
+READ_TIMEOUT_RETRIES = 1
 
 
 def _env(name: str) -> str:
@@ -159,12 +171,37 @@ class SupabaseClient:
         headers = dict(self._headers)
         if single:
             headers["Accept"] = "application/vnd.pgrst.object+json"
-        r = self._client.get(f"{self.url}/rest/v1/{table}", params=params, headers=headers)
+        r = self._get(f"{self.url}/rest/v1/{table}", table=table, params=params, headers=headers)
         if r.status_code == 406 and single:
             return []
         r.raise_for_status()
         data = r.json()
         return [data] if single and isinstance(data, dict) else data
+
+    def _get(self, url: str, *, table: str, params: Dict[str, str],
+             headers: Dict[str, str]) -> httpx.Response:
+        """A PostgREST read, retried ONCE on a read timeout (ruling R5).
+
+        Two transient `httpx.ReadTimeout`s hit production on 2026-09-28 (the
+        same selects answer in 0.07-0.4 s between them): a stalled read is
+        logged at WARNING — the table and the query's parameter NAMES, never
+        their values or the headers (the service key rides in them) — and
+        sent again once. A second timeout raises, as before. Only a read
+        timeout is retried: a connect error, an HTTP error status or any
+        other exception propagates on the first attempt."""
+        attempt = 0
+        while True:
+            try:
+                return self._client.get(url, params=params, headers=headers)
+            except httpx.ReadTimeout:
+                if attempt >= READ_TIMEOUT_RETRIES:
+                    raise
+                attempt += 1
+                logger.warning(
+                    "[supabase] read timeout on GET %s (params: %s) — retrying once "
+                    "(attempt %d of %d)",
+                    table, ",".join(sorted(params)), attempt + 1, READ_TIMEOUT_RETRIES + 1,
+                )
 
     def insert(self, table: str, rows: List[Dict[str, Any]] | Dict[str, Any], *,
                returning: bool = True) -> List[Dict[str, Any]]:
