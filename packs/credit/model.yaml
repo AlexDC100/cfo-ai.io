@@ -104,3 +104,135 @@ ranges:
   altman_z:
     bound_is: "6.56 x altman_x1.max + 3.26 x X2 + 6.72 x X3 + 1.05 x altman_x4.max"
     source: "derived from the component bounds above with the book's own measured X2 and X3; X2 and X3 have no structural bound and are required finite"
+
+# STOCK-BUILD REGIME (owner ruling R1, 2026-09-28; coordinator design
+# specs-durable/design_2026-09-28_rulings2.md)
+# --------------------------------------------------------------------
+# A developer that capitalises its construction into stock posts it through
+# 711 ("Variația stocurilor de produse"), which the one EBITDA carries inside
+# (ruling of 2026-09-26). The accounting is right; as a CREDIT signal it is
+# wrong: the cash went out, the revenue did not come in. When the measured
+# net 711 is a stock BUILD that reaches the year's net turnover AND is
+# material to the year's operating costs, every credit component that reads
+# EBITDA or the operating result is computed on CASH instead:
+#
+#   leverage   net debt / cash from operations         (was net debt / EBITDA)
+#   coverage   cash from operations / interest         (was EBIT / interest)
+#   DSCR       cash from operations / debt service     (was EBITDA / debt service)
+#   Altman X3  operating result before the stock variation and own work
+#              capitalised (EBIT − net 711 − net 72x) / total assets
+#
+# Cash from operations is the engine's served cash-flow figure
+# (`assembled_cf.cash_from_operating`). An APPROXIMATED or REFUSED figure
+# refuses those components with its reason — never 0, never back to EBITDA —
+# and with them the composite and the letter (R-COMPOSITE, never
+# renormalised). A measured figure at or below zero grades them at the
+# bottom rung, declared (not measured).
+#
+# Both trigger thresholds are shares, compared by multiplication
+# (net 711 >= share x base), so a year with no turnover and a measured
+# stock build triggers without a division by zero. A refused net 711 never
+# triggers: the regime reads only a measured build.
+stock_build_regime:
+  code: stock_build
+  label:
+    ro: "Regim de credit: construcție pe stoc — componentele bazate pe EBITDA sunt calculate pe numerar"
+    en: "Credit regime: stock build — the EBITDA-based components are computed on cash"
+  trigger:
+    net_711_to_turnover:
+      at_least: "1.0"
+      basis: net_turnover
+      label:
+        ro: "variația stocurilor de produse (711, netă) raportată la cifra de afaceri netă"
+        en: "the net change in inventories (711) against net turnover"
+    net_711_to_operating_expense:
+      at_least: "0.10"
+      basis: total_operating_expense
+      label:
+        ro: "variația stocurilor de produse (711, netă) raportată la cheltuielile totale de exploatare"
+        en: "the net change in inventories (711) against total operating expense"
+    source: "owner ruling R1 (2026-09-28): when the 711 stock build exceeds turnover materially, the credit model weights cash flow and liquidity, not EBITDA; coordinator decision (design_2026-09-28_rulings2.md): both shares above, measured net 711 only"
+  # THE REGIME WEIGHTS — the seven components, summing to one, never
+  # renormalised. Liquidity rises from 0.10 to 0.20; the ten points come out
+  # of profitability (0.20 -> 0.10), whose net result carries the same
+  # capitalised stock the ruling turns away from (on a closed book the year's
+  # result is account 121, net 711 included). Leverage, coverage and DSCR
+  # keep their weights — they are the cash components now; Altman keeps its
+  # weight with X3 stripped of the stock build; equity is unchanged.
+  weights:
+    altman: 0.30
+    profitability: 0.10
+    leverage: 0.15
+    coverage: 0.10
+    dscr: 0.10
+    liquidity: 0.20
+    equity: 0.05
+  weights_why:
+    ro: "Lichiditatea primește ponderea luată de la profitabilitate, al cărei rezultat net conține același stoc capitalizat; componentele pe numerar își păstrează ponderile."
+    en: "Liquidity takes the weight moved out of profitability, whose net result carries the same capitalised stock; the cash components keep their weights."
+  cash_basis:
+    figure: assembled_cf.cash_from_operating
+    label:
+      ro: "Fluxul de numerar din exploatare"
+      en: "Cash from operations"
+  altman_x3:
+    label:
+      ro: "X3 pe rezultatul din exploatare înainte de variația stocurilor și producția imobilizată (EBIT − 711 net − 72x net) / active totale"
+      en: "X3 on the operating result before the stock variation and own work capitalised (EBIT − net 711 − net 72x) / total assets"
+  # The components the regime computes on cash, named as the refusal
+  # sentences below print them ({component}).
+  component_names:
+    leverage: {ro: "Îndatorarea", en: "The leverage component"}
+    coverage: {ro: "Acoperirea dobânzilor", en: "The interest-coverage component"}
+    dscr: {ro: "Acoperirea serviciului datoriei (DSCR)", en: "The DSCR component"}
+  # What each cash component divides under the regime — printed beside the
+  # sub-score in place of the standard basis (net debt ÷ EBITDA, EBIT ÷
+  # interest, EBITDA ÷ debt service).
+  component_bases:
+    leverage: {ro: "datorie netă ÷ fluxul de numerar din exploatare", en: "net debt ÷ cash from operations"}
+    coverage: {ro: "fluxul de numerar din exploatare ÷ dobânzi", en: "cash from operations ÷ interest"}
+    dscr: {ro: "fluxul de numerar din exploatare ÷ serviciul datoriei", en: "cash from operations ÷ debt service"}
+  refusals:
+    cash_from_operations_approximated:
+      ro: "{component} nu este notată: fluxul de numerar din exploatare este aproximat (fără balanța anului anterior), iar regimul construcției pe stoc notează doar pe numerar măsurat."
+      en: "{component} is not scored: cash from operations is approximated (no prior-year trial balance), and the stock-build regime grades only on measured cash."
+    cash_from_operations_refused:
+      ro: "{component} nu este notată: fluxul de numerar din exploatare este refuzat pentru această perioadă, iar regimul construcției pe stoc notează pe numerar."
+      en: "{component} is not scored: cash from operations is refused for this period, and the stock-build regime grades on cash."
+  # The regime's own statement of its cash basis, when the figure is not
+  # measured (served on `regime.cash.refusal`).
+  cash_status:
+    cash_from_operations_approximated:
+      ro: "Fluxul de numerar din exploatare este aproximat (fără balanța anului anterior): îndatorarea, acoperirea dobânzilor și DSCR nu sunt notate, deci nici scorul compozit și nici ratingul."
+      en: "Cash from operations is approximated (no prior-year trial balance): leverage, interest coverage and DSCR are not scored, so neither is the composite or the letter."
+    cash_from_operations_refused:
+      ro: "Fluxul de numerar din exploatare este refuzat pentru această perioadă: îndatorarea, acoperirea dobânzilor și DSCR nu sunt notate, deci nici scorul compozit și nici ratingul."
+      en: "Cash from operations is refused for this period: leverage, interest coverage and DSCR are not scored, so neither is the composite or the letter."
+  declared_rungs:
+    cash_from_operations_not_positive:
+      score: 0
+      when: "the stock-build regime applies and cash from operations <= 0, measured"
+      label: "stock-build regime: cash from operations not positive; the component takes the bottom rung by declared rule, not measured"
+      source: "owner ruling R1 (2026-09-28); coordinator decision: a CFO <= 0 grades the cash components at the worst rung"
+    no_interest_bearing_debt:
+      coverage_score: 95
+      dscr_score: 90
+      when: "the stock-build regime applies, total debt == 0 and interest expense == 0 and cash from operations > 0, all three measured"
+      label: "stock-build regime, no interest-bearing debt: scored at the top rung by declared rule, not measured"
+      source: "floor_rulings R-D1 (2026-09-15) with cash from operations in place of EBIT (owner ruling R1, 2026-09-28)"
+  finding:
+    code: stock_build_ebitda
+    severity: high
+    text:
+      ro: "EBITDA pozitivă din stocuri capitalizate — numerarul a fost consumat de construcție."
+      en: "Positive EBITDA from capitalised stock — the cash was consumed by construction."
+    source: "owner ruling R1 (2026-09-28), the Romanian sentence verbatim"
+    # The served figures the finding carries, in this order, each with its
+    # name. `cash_from_operations` prints only when MEASURED; approximated or
+    # refused, it carries its status and the reason instead of a figure.
+    figures:
+      net_711: {ro: "Variația stocurilor de produse (711, netă)", en: "Change in inventories of finished goods and WIP (711, net)"}
+      net_turnover: {ro: "Cifra de afaceri netă", en: "Net turnover"}
+      ebitda: {ro: "EBITDA", en: "EBITDA"}
+      ebitda_before_stock_variation: {ro: "EBITDA înainte de variația stocurilor și producția imobilizată", en: "EBITDA before the stock variation and own work capitalised"}
+      cash_from_operations: {ro: "Fluxul de numerar din exploatare", en: "Cash from operations"}

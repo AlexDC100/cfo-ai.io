@@ -34,7 +34,7 @@ import time
 import traceback
 import uuid
 from datetime import date, datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 import httpx
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
@@ -3525,12 +3525,49 @@ def _briefing_ratios(
     return ratios, refusals
 
 
+def _briefing_credit_regime(statements: Optional[Mapping[str, Any]]) -> Optional[Dict[str, Any]]:
+    """The credit model's regime, as the narrator reads it: its code, its
+    label, the finding (the owner's sentence — RO verbatim — and its EN
+    equivalent), what X3 was computed on and the status of the cash figure
+    the cash components read. TEXT ONLY: every money figure the finding
+    cites is already a top-level briefing fact (`inventory_variation` is the
+    net 711, `turnover` the net turnover), where the FX conversion and the
+    numeral guard type it — a nested money figure here would be neither
+    converted nor citable (`numerals.facts_from_briefing` skips nested
+    dicts). None on a book under the standard model (owner ruling R1,
+    2026-09-28; `credit_model.stock_build_regime`)."""
+    if not isinstance(statements, Mapping):
+        return None
+    try:
+        regime = _credit_model.stock_build_regime(statements)
+    except Exception:  # noqa: BLE001 — a pack that cannot be read states nothing
+        logger.exception("[stage_narrate] credit regime unreadable (non-fatal)")
+        return None
+    if regime is None:
+        return None
+    cash = regime.get("cash") or {}
+    finding = regime.get("finding") or {}
+    return {
+        "code": regime.get("code"),
+        "label": dict(regime.get("label") or {}),
+        "finding": {"code": finding.get("code"), "severity": finding.get("severity"),
+                    "text": dict(finding.get("text") or {})},
+        "altman_x3_basis": dict((regime.get("altman_x3") or {}).get("label") or {}),
+        "cash_status": cash.get("status"),
+        "cash_refusal": dict(cash["refusal"]) if isinstance(cash.get("refusal"), Mapping) else None,
+        "cash_components": list(regime.get("cash_components") or []),
+    }
+
+
 def _briefing_facts_raw(pl_canonical: Dict[str, Any], bs_canonical: Dict[str, Any],
-                        grand_totals: Dict[str, Any]) -> Dict[str, Any]:
+                        grand_totals: Dict[str, Any],
+                        statements: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
     """The briefing's fact block BEFORE FX conversion — the figures the
     model may cite (numerals.facts_from_briefing types every money field as
     a citable MoneyFact). Pure: `stage_narrate` calls it, and the
-    refusal-carries gate reads it on the refused books."""
+    refusal-carries gate reads it on the refused books. `statements` (the
+    assembled block) carries the credit model's regime into the facts
+    (`credit_regime`, owner ruling R1) — once, as text."""
     # ABSENT != ZERO: a missing or REFUSED EBITDA or turnover stays None
     # here (it used to default to 0.0, the same value as a measured zero).
     # THE ONE EBITDA over TURNOVER (owner ruling 2026-09-26).
@@ -3591,6 +3628,12 @@ def _briefing_facts_raw(pl_canonical: Dict[str, Any], bs_canonical: Dict[str, An
         briefing_facts_raw["ebitda_refusal"] = {
             "code": _r.get("code"), "text_en": _r.get("text_en"), "text_ro": _r.get("text_ro")}
     briefing_facts_raw["ebitda_definition"] = pl_canonical.get("ebitda_definition")
+    _regime = _briefing_credit_regime(statements)
+    if _regime is not None:
+        # The credit grade is on cash for this book (owner ruling R1): the
+        # narrator states the regime and its finding ONCE, never the grade
+        # as an EBITDA verdict.
+        briefing_facts_raw["credit_regime"] = _regime
     if briefing_ratio_refusals:
         # Why each None ratio is None — the model reads the reason instead
         # of inventing a figure. Present only when something refused, so a
@@ -3766,6 +3809,15 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
             "figure and its basis and make no slow/high claim. When\n"
             "`inventory_days.seasonal` is true, say that a year-end balance of a\n"
             "food / FMCG business is seasonal.\n\n"
+            "CREDIT REGIME — STOCK BUILD: when `briefing_facts.credit_regime` is\n"
+            "present, the credit model grades this book on CASH, not EBITDA (the\n"
+            "stock variation 711 is a build of stock, not earnings). State its\n"
+            "`finding.text` in the reply language ONCE, verbatim, citing the net\n"
+            "stock variation (`briefing_facts.inventory_variation`) and net\n"
+            "turnover (`briefing_facts.turnover`). Never call the positive EBITDA\n"
+            "a sign of operating strength. When `cash_refusal` is present, the\n"
+            "cash components and the letter are refused: say so with its text,\n"
+            "never estimate a grade.\n\n"
             "═══════════════════════════════════════════════════════════════\n"
             "INDUSTRY-APPROPRIATE LANGUAGE — STRICTLY ENFORCED\n"
             "═══════════════════════════════════════════════════════════════\n"
@@ -3858,7 +3910,8 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
     # write-time briefings now cite the same figures /api/period serves.
     grand_totals = _briefing_grand_totals(assembled, bs_canonical)
 
-    briefing_facts_raw = _briefing_facts_raw(pl_canonical, bs_canonical, grand_totals)
+    briefing_facts_raw = _briefing_facts_raw(pl_canonical, bs_canonical, grand_totals,
+                                             statements=assembled["statements"])
     # ── FX conversion ─────────────────────────────────────────────────
     # Convert every monetary value in briefing_facts from the source
     # currency (the trial balance's native currency, almost always RON)

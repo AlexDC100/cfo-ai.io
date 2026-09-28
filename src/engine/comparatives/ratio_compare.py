@@ -176,6 +176,10 @@ COMPOSITE_REASON_CODES: Tuple[str, ...] = (
     "credit_out_of_range",
     # revision 3: the one EBITDA / operating result refused (711 unmeasured)
     "ebitda_refused",
+    # revision 5: the stock-build regime's cash components on a cash from
+    # operations that is approximated or refused
+    "cash_from_operations_approximated",
+    "cash_from_operations_refused",
     "credit_component_undefined",
 )
 

@@ -718,6 +718,8 @@
         "malformed_value": "Not printed: the served figure is not a readable value for its unit.",
         "unrecognised": "Not printed: the served {{field}} is {{value}}, a value this reader does not recognise.",
         "ebitda_refused": "Not computed: EBITDA and the operating result are refused for this period, because the stock variation (Variația stocurilor de produse) could not be measured.",
+        "cash_from_operations_approximated": "Not scored: under the stock-build credit regime this component is graded on cash from operations, which is approximated for this period (no prior-year trial balance); there is no composite and no letter.",
+        "cash_from_operations_refused": "Not scored: under the stock-build credit regime this component is graded on cash from operations, which is refused for this period; there is no composite and no letter.",
         "inventory_days_refused": "Not computed: inventory days split by stock type are refused for this period — the reason is shown with the figure.",
         "basis_differs": "Not compared: the two periods' inventory days are measured on different stock bases, so neither a change nor a band movement is printed — it would be the change of basis, not of the stock."
       },

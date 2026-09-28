@@ -199,7 +199,10 @@ def test_pure_rows_are_the_pre_extraction_rows_byte_for_byte(name, case, io_forb
     # Revision 4 (owner rulings R2 / R3, 2026-09-28): the rows the rulings
     # moved are declared in CM.RULINGS_2_REVISED_METRICS (inside
     # DEFINITION_REVISED_METRICS, so `_untouched` leaves them out).
-    assert CM.CREDIT_MODEL_REVISION == 4
+    # Revision 5 (owner ruling R1, 2026-09-28): the stock-build regime moves
+    # only credit-family rows (X3, Z'', the sub-scores, the composite) on the
+    # book it applies to — all inside `_revised()` — so this law is unchanged.
+    assert CM.CREDIT_MODEL_REVISION == 5
     names = {r["name"] for r in rows}
     gone = sorted(r["name"] for r in case["rows"] if r["name"] not in names)
     assert gone == sorted(CM.RETIRED_METRICS), (name, gone)
@@ -499,12 +502,27 @@ def test_a_refused_ebitda_refuses_the_composite_with_the_stock_variation_cause(i
 #: 0.0286 → 0.0277, dscr 0.9349 → 0.9027, debt / EBITDA 12.3084 → 12.7473
 #: (77,934.61). Composite, Altman Z'' and interest coverage (EBIT) do not
 #: move on any book; the developer posts no provisions.
+#:
+#: REVISED FOR R1 (owner ruling 2026-09-28, the stock-build regime), measured
+#: the same way: the PRE-R1 engine (386048ce, a `git archive` copy) routed
+#: each corpus book and a scratch referee (specs-durable/rulings2_r1/
+#: referee_r1.py, its output beside it) applied the ruling by hand — the R1
+#: engine was not imported. Only the developer triggers (net 711 29,589,814.24
+#: against turnover 162,365.46 and total operating expense 29,280,043.30):
+#: X3 on EBIT − net 711 − net 72x = −0.3489, Z'' 4.81 → 2.43 (Altman
+#: sub-score 100 → 66.5), and the cash components refuse on the APPROXIMATED
+#: cash flow, so there is no composite (41.5 B → refused). The three
+#: manufacturers do not trigger and do not move. The EBIT / EBITDA RATIO
+#: rows (coverage, DSCR, debt / EBITDA) are ratios, not the regime's
+#: components, and do not move.
 RULED = {
     "saga_10_col_agras": {"credit_composite": 81.0, "altman_z_score": 6.19, "ebitda_margin": 0.1069,
                           "interest_coverage": 31.9962, "dscr": 4.7802, "debt_to_ebitda": 0.3073},
     "saga_10_col_carniprod": {"credit_composite": 79.3, "altman_z_score": 6.39, "ebitda_margin": 0.0499,
                               "interest_coverage": None, "dscr": None, "debt_to_ebitda": 0.0},
-    "saga_10_col_realestate": {"credit_composite": 41.5, "altman_z_score": 4.81,
+    "saga_10_col_realestate": {"credit_composite": None, "altman_z_score": 2.43, "altman_x3": -0.3489,
+                               "credit_subscore_altman": 66.5, "credit_subscore_leverage": None,
+                               "credit_subscore_coverage": None, "credit_subscore_dscr": None,
                                "interest_coverage": 0.4221, "dscr": 0.1112, "debt_to_ebitda": 33.6679},
     "saga_10_col_retail": {"credit_composite": 20.6, "altman_z_score": 0.79, "ebitda_margin": 0.0277,
                            "interest_coverage": 0.3249, "dscr": 0.9027, "debt_to_ebitda": 12.7473},

@@ -71,6 +71,25 @@ aliases of the one figure. When the assembled P&L REFUSES the one EBITDA
 every one of those rows is None and the components that need it refuse
 with `ebitda_refused`, naming the stock-variation cause — never a fallback
 to the definition without 711, never 0.
+
+THE STOCK-BUILD REGIME (revision 5, 2026-09-28, owner ruling R1). The one
+EBITDA carries net 711 inside; on a developer that capitalises 29.6M of
+construction into stock against 0.16M of turnover it turns a cash-burning
+year into a positive EBITDA — the accounting is right, the credit signal is
+wrong. `stock_build_regime` names the books this applies to (a MEASURED net
+711 build reaching the pack's shares of net turnover and of total operating
+expense, `packs/credit/model.yaml` `stock_build_regime.trigger`). On them:
+leverage, coverage and DSCR divide the served cash from operations
+(`assembled_cf.cash_from_operating`) instead of EBITDA / EBIT; Altman X3 is
+the operating result before the stock variation and own work capitalised
+(EBIT − net 711 − net 72x); the composite is multiplied by the regime's
+weight table (liquidity up, profitability down, never renormalised). A cash
+figure that is APPROXIMATED (the single-period cash flow estimates its
+working-capital movements) or REFUSED refuses the three components with its
+own code — never 0, never back to EBITDA — and the composite with them; a
+MEASURED cash figure at or below zero takes the regime's declared bottom
+rung. The served block names the regime, its trigger figures, its cash basis
+and the finding (`regime`). Every other book is revision 4, byte for byte.
 """
 
 from __future__ import annotations
@@ -81,7 +100,8 @@ from decimal import Decimal
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 from engine.country_packs.ro_romania import stock_variation as _stock_variation
-from engine.ratios.credit_pack import CREDIT_PACK_FILE, credit_pack, share_percent, x4_materiality_share
+from engine.ratios.credit_pack import (CREDIT_PACK_FILE, STOCK_BUILD_CASH_COMPONENTS, credit_pack,
+                                       share_percent, x4_materiality_share)
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +114,14 @@ logger = logging.getLogger(__name__)
 #: 6814 charges AND the 7812 / 7814 reversals outside (net provisions, its
 #: own line; EBIT unchanged) and net turnover holds 7411 — the EBITDA-built
 #: rows, the margins and every turnover denominator move with it.
-CREDIT_MODEL_REVISION = 4
+#: 5 (2026-09-28, owner ruling R1): the STOCK-BUILD REGIME — on a book whose
+#: measured net 711 build reaches the pack's shares of turnover and of total
+#: operating expense, leverage, coverage and DSCR are computed on the served
+#: cash from operations, Altman X3 on the operating result before the stock
+#: variation and own work capitalised, and the composite on the regime's
+#: weight table (`stock_build_regime`). Every other book: revision 4's rows,
+#: byte for byte, under the new stamp.
+CREDIT_MODEL_REVISION = 5
 
 #: The first revision whose EBITDA-family rows carry the CURRENT one
 #: definition (chart_of_accounts.EBITDA_DEFINITION_REVISION). A persisted
@@ -174,6 +201,13 @@ CREDIT_OUT_OF_RANGE = "credit_out_of_range"
 #: to it): Altman X3, coverage, DSCR and — with net debt — leverage have no
 #: operand. The refusal carries the stock-variation cause beside the code.
 EBITDA_REFUSED = "ebitda_refused"
+#: The stock-build regime (revision 5) grades leverage, coverage and DSCR on
+#: the served cash from operations. An APPROXIMATED figure (the single-period
+#: cash flow's estimated working-capital movements) or a REFUSED one (no net
+#: result to start from) refuses those components — never 0, never back to
+#: EBITDA.
+CASH_FROM_OPERATIONS_APPROXIMATED = "cash_from_operations_approximated"
+CASH_FROM_OPERATIONS_REFUSED = "cash_from_operations_refused"
 CREDIT_SUBSCORE_REFUSAL_CODES: Tuple[str, ...] = (
     CURRENT_LIABILITIES_NOT_POSITIVE,
     TOTAL_LIABILITIES_BELOW_MATERIALITY,
@@ -181,7 +215,12 @@ CREDIT_SUBSCORE_REFUSAL_CODES: Tuple[str, ...] = (
     INTEREST_EXPENSE_NOT_POSITIVE,
     CREDIT_OUT_OF_RANGE,
     EBITDA_REFUSED,
+    CASH_FROM_OPERATIONS_APPROXIMATED,
+    CASH_FROM_OPERATIONS_REFUSED,
 )
+
+#: The regime a credit block names when the stock-build trigger is not met.
+CREDIT_REGIME_STANDARD = "standard"
 
 #: Why the composite and the letter refuse when a component is undefined.
 CREDIT_COMPONENT_UNDEFINED = "credit_component_undefined"
@@ -213,6 +252,8 @@ _REFUSAL_INPUTS: Dict[str, List[str]] = {
     INTEREST_EXPENSE_NOT_POSITIVE: ["incomeStatement.interestExpense"] + list(_DEBT_INPUTS)
     + ["incomeStatement.operating_profit"],
     EBITDA_REFUSED: list(_EBITDA_INPUTS),
+    CASH_FROM_OPERATIONS_APPROXIMATED: ["assembled_cf.cash_from_operating", "assembled_cf.is_approximated"],
+    CASH_FROM_OPERATIONS_REFUSED: ["assembled_cf.cash_from_operating", "assembled_cf.net_income_refusal"],
 }
 
 
@@ -344,6 +385,193 @@ def operating_figures(statements: Mapping[str, Any]) -> Dict[str, Any]:
     return out
 
 
+# ── THE STOCK-BUILD REGIME (revision 5, owner ruling R1, 2026-09-28) ────────
+
+
+def cash_from_operations(statements: Mapping[str, Any]) -> Dict[str, Any]:
+    """The engine's SERVED cash from operations
+    (`assembled_cf.cash_from_operating`) with its status — read, never
+    re-derived:
+
+      measured      the cash flow says it is not approximated
+                    (`is_approximated` is exactly False) and serves a figure;
+      approximated  any other flag beside a figure — the single-period cash
+                    flow estimates working-capital movements at a share of
+                    the closing balances (`approximation_notes`), which is an
+                    estimate, not a measurement;
+      refused       no figure (the net result it starts from is refused, or
+                    the block is absent).
+
+    `{value, status, refusal_code, approximation_notes, net_income_refusal}`."""
+    cf = statements.get("assembled_cf") if isinstance(statements, Mapping) else None
+    cf = cf if isinstance(cf, Mapping) else {}
+    value = _fnum(cf.get("cash_from_operating"))
+    out: Dict[str, Any] = {"value": value, "status": None, "refusal_code": None,
+                           "approximation_notes": None, "net_income_refusal": None}
+    if value is None:
+        out["status"] = "refused"
+        out["refusal_code"] = CASH_FROM_OPERATIONS_REFUSED
+        ni = cf.get("net_income_refusal")
+        if isinstance(ni, Mapping):
+            out["net_income_refusal"] = {"code": ni.get("code"), "text_ro": ni.get("text_ro"),
+                                         "text_en": ni.get("text_en")}
+        return out
+    if cf.get("is_approximated") is False:
+        out["status"] = "measured"
+        return out
+    out["status"] = "approximated"
+    out["refusal_code"] = CASH_FROM_OPERATIONS_APPROXIMATED
+    notes = cf.get("approximation_notes")
+    out["approximation_notes"] = [str(n) for n in notes] if isinstance(notes, list) else None
+    return out
+
+
+def _regime_turnover_and_costs(statements: Mapping[str, Any]) -> Tuple[Optional[float], Optional[float]]:
+    """(net turnover, total operating expense) as the statements SERVE them:
+    `assembled_pl.turnover` / `total_operating_expense` on an assembled
+    block, else the `incomeStatement` leaves the model's own rows read
+    (`revenue`; cost of sales + operating expenses + depreciation)."""
+    apl = statements.get("assembled_pl") if isinstance(statements, Mapping) else None
+    apl = apl if isinstance(apl, Mapping) else {}
+    pl = statements.get("incomeStatement") if isinstance(statements, Mapping) else None
+    pl = pl if isinstance(pl, Mapping) else {}
+    turnover = _fnum(apl.get("turnover"))
+    if turnover is None:
+        turnover = _fnum(pl.get("revenue"))
+    toe = _fnum(apl.get("total_operating_expense"))
+    if toe is None:
+        parts = [_fnum(pl.get(k)) for k in ("costOfGoodsSold", "operatingExpenses", "depreciationAmortization")]
+        toe = None if any(p is None for p in parts) else sum(parts)  # type: ignore[arg-type]
+    return turnover, toe
+
+
+def _share_met(value: float, share: Decimal, base: float) -> bool:
+    """value >= share x base, exact (Decimal over the float's repr) — a
+    multiplication, so a zero or negative base never divides."""
+    return Decimal(repr(float(value))) >= share * Decimal(repr(float(base)))
+
+
+def stock_build_regime(statements: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
+    """The stock-build regime on these statements, or None (the standard
+    model applies).
+
+    TRIGGER (pack data, `packs/credit/model.yaml` `stock_build_regime.
+    trigger`): a MEASURED net 711 (`operating_figures` — never a refused
+    one) that is a stock build (> 0) and reaches BOTH shares — of net
+    turnover and of total operating expense. Each test is served with the
+    figure, its base, the share the book reached (None over a base that is
+    not positive) and the pack share it was read against, so a surface can
+    print why the regime applies without stating a threshold of its own.
+
+    EFFECT (read by `component_refusals`, `declared_rungs` and
+    `compute_period_metrics`): leverage, coverage and DSCR on the served
+    cash from operations (`cash_from_operations`), Altman X3 on the
+    operating result before the stock variation and own work capitalised,
+    the regime's weight table. The served block carries the regime's label,
+    its cash basis with its status, its X3 basis and the finding (the
+    owner's sentence, RO verbatim, with its served figures)."""
+    if not isinstance(statements, Mapping):
+        return None
+    try:
+        figures = operating_figures(statements)
+    except (KeyError, TypeError):
+        return None
+    net_711 = figures.get("inventory_variation")
+    if figures.get("refusal") is not None or net_711 is None or not net_711 > 0:
+        return None
+    turnover, toe = _regime_turnover_and_costs(statements)
+    if turnover is None or toe is None:
+        return None
+    pack = credit_pack()["stock_build_regime"]
+    trig = pack["trigger"]
+    bases = {"net_711_to_turnover": turnover, "net_711_to_operating_expense": toe}
+    tests: List[Dict[str, Any]] = []
+    for key, base in bases.items():
+        t = trig[key]
+        tests.append({
+            "key": key,
+            "basis": t["basis"],
+            "basis_value": round(base, 2),
+            "share": (round(net_711 / base, 4) if base > 0 else None),
+            "at_least": format(t["at_least"], "f"),
+            "met": _share_met(net_711, t["at_least"], base),
+            "label": dict(t["label"]),
+        })
+    if not all(t["met"] for t in tests):
+        return None
+
+    cash = cash_from_operations(statements)
+    ebit = figures.get("ebit")
+    cap = figures.get("capitalized_own_work")
+    numerator = (None if ebit is None or cap is None
+                 else round(ebit - net_711 - cap, 2))
+    currency = statements.get("currency") if isinstance(statements.get("currency"), str) else None
+    cash_refusal = None
+    if cash["refusal_code"] is not None:
+        st = pack["cash_status"][cash["refusal_code"]]
+        cash_refusal = {"code": cash["refusal_code"], "text_ro": st["ro"], "text_en": st["en"]}
+    labels = pack["finding"]["figure_labels"]
+    fig_values = (
+        ("net_711", round(net_711, 2), "measured"),
+        ("net_turnover", round(turnover, 2), "measured"),
+        ("ebitda", None if figures.get("ebitda") is None else round(figures["ebitda"], 2), "measured"),
+        ("ebitda_before_stock_variation",
+         None if figures.get("ebitda_before_stock_variation") is None
+         else round(figures["ebitda_before_stock_variation"], 2), "measured"),
+        # Printed ONLY when measured: an approximated cash flow is an
+        # estimate, and the finding cites nothing it did not measure.
+        ("cash_from_operations",
+         round(cash["value"], 2) if cash["status"] == "measured" else None, cash["status"]),
+    )
+    finding_figures = [{"key": k, "value": v, "unit": currency, "status": status,
+                        "label": dict(labels[k])} for k, v, status in fig_values]
+    return {
+        "code": pack["code"],
+        "label": dict(pack["label"]),
+        "trigger": {"net_711": round(net_711, 2), "tests": tests,
+                    "source": pack["trigger_source"], "file": pack["file"]},
+        "weights": dict(pack["weights"]),
+        "weights_why": dict(pack["weights_why"]),
+        "cash": {"figure": pack["cash_basis"]["figure"], "label": dict(pack["cash_basis"]["label"]),
+                 "value": cash["value"], "status": cash["status"],
+                 "refusal": cash_refusal,
+                 "approximation_notes": cash["approximation_notes"],
+                 "net_income_refusal": cash["net_income_refusal"]},
+        "cash_components": list(STOCK_BUILD_CASH_COMPONENTS),
+        # What each cash component divides under the regime, {ro, en}.
+        "component_bases": dict((k, dict(v)) for k, v in pack["component_bases"].items()),
+        "altman_x3": {"label": dict(pack["altman_x3_label"]),
+                      "operating_result": None if ebit is None else round(ebit, 2),
+                      "net_711": round(net_711, 2),
+                      "capitalized_own_work": None if cap is None else round(cap, 2),
+                      "numerator": numerator},
+        "finding": {"code": pack["finding"]["code"], "severity": pack["finding"]["severity"],
+                    "text": dict(pack["finding"]["text"]), "figures": finding_figures,
+                    "source": pack["finding"]["source"], "file": pack["finding"]["file"]},
+        "file": pack["file"],
+    }
+
+
+def composite_weights_for(regime: Optional[Mapping[str, Any]]) -> Dict[str, float]:
+    """The weight table the composite is multiplied by: the model table, or
+    the stock-build regime's (pack data) — never renormalised."""
+    if isinstance(regime, Mapping) and isinstance(regime.get("weights"), Mapping):
+        return dict(regime["weights"])
+    return dict(CREDIT_COMPOSITE_WEIGHTS)
+
+
+def _regime_cash(ops: Mapping[str, Any]) -> Tuple[Optional[Dict[str, Any]], Optional[str], Optional[float]]:
+    """(regime, cash refusal code or None, measured cash value or None)."""
+    regime = ops.get("credit_regime")
+    if not isinstance(regime, Mapping):
+        return None, None, None
+    cash = regime.get("cash") or {}
+    if cash.get("status") == "measured" and _fnum(cash.get("value")) is not None:
+        return dict(regime), None, _fnum(cash.get("value"))
+    code = CASH_FROM_OPERATIONS_REFUSED if cash.get("status") == "refused" else CASH_FROM_OPERATIONS_APPROXIMATED
+    return dict(regime), code, None
+
+
 def _operands(bs: Dict[str, Any], interest: float, ebit: Optional[float], ebitda: Optional[float],
               revenue: float) -> Dict[str, Any]:
     """The primitives every predicate below reads, from the statements'
@@ -402,6 +630,8 @@ def statement_operands(statements: Mapping[str, Any]) -> Optional[Dict[str, Any]
     ops["ebitda_refusal"] = figures["refusal"]
     ops["net_income_refused"] = figures.get("net_income_refusal") is not None
     ops["equity_incomplete"] = equity_completeness_refusal(statements)
+    # Revision 5: the stock-build regime (None on every other book).
+    ops["credit_regime"] = stock_build_regime(statements)
     return ops
 
 
@@ -424,15 +654,27 @@ def component_refusals(ops: Dict[str, Any]) -> Dict[str, str]:
                     (`equity_completeness_refusal`); Altman too,
                     X2 having no numerator                       (rev. 3)
 
+    THE STOCK-BUILD REGIME (revision 5, `ops["credit_regime"]`): coverage
+    and DSCR — and leverage with net debt > 0 — read the served cash from
+    operations instead of EBIT / EBITDA, so an APPROXIMATED or REFUSED cash
+    figure refuses them (`cash_from_operations_approximated` /
+    `_refused`), never 0 and never back to EBITDA; a measured cash figure
+    at or below zero takes the regime's declared bottom rung
+    (`declared_rungs`). Altman's X3 is the operating result before the stock
+    variation and own work: refused only when that numerator is.
+
     A refusal after composition (`credit_out_of_range`) is not a predicate;
     the block finds it on the rows."""
     out: Dict[str, str] = {}
     ebit_refused = ops.get("ebit") is None
+    regime, cash_refusal, _cash = _regime_cash(ops)
     if not ops["current_liab_positive"]:
         out["liquidity"] = CURRENT_LIABILITIES_NOT_POSITIVE
+    x3_refused = (ebit_refused if regime is None
+                  else _fnum((regime.get("altman_x3") or {}).get("numerator")) is None)
     if not ops["tl_material"]:
         out["altman"] = TOTAL_LIABILITIES_BELOW_MATERIALITY
-    elif ebit_refused or ops.get("equity_incomplete"):
+    elif x3_refused or ops.get("equity_incomplete"):
         # X3 has no operand; or X2 has none — total equity excludes the
         # refused year's result (`equity_completeness_refusal`).
         out["altman"] = EBITDA_REFUSED
@@ -443,14 +685,27 @@ def component_refusals(ops: Dict[str, Any]) -> Dict[str, str]:
         # there is no account 121 (the build-up lacks the unmeasured
         # variation). The cause beside the code is the stock variation's.
         out["profitability"] = EBITDA_REFUSED
-    if ebit_refused or ops.get("ebitda") is None:
-        out["coverage"] = EBITDA_REFUSED
-        out["dscr"] = EBITDA_REFUSED
-    elif not ops["interest_positive"] and "coverage" not in declared_rungs(ops):
-        out["coverage"] = INTEREST_EXPENSE_NOT_POSITIVE
-        out["dscr"] = INTEREST_EXPENSE_NOT_POSITIVE
-    if ops.get("ebitda") is None and ops["net_debt"] > 0:
-        out["leverage"] = EBITDA_REFUSED
+    if regime is not None:
+        # Revision 5: the cash components. A cash figure that is not
+        # measured refuses them; the regime's rungs (declared_rungs) cover
+        # a measured figure at or below zero and the debt-free book.
+        if cash_refusal is not None:
+            out["coverage"] = cash_refusal
+            out["dscr"] = cash_refusal
+            if ops["net_debt"] > 0:
+                out["leverage"] = cash_refusal
+        elif not ops["interest_positive"] and "coverage" not in declared_rungs(ops):
+            out["coverage"] = INTEREST_EXPENSE_NOT_POSITIVE
+            out["dscr"] = INTEREST_EXPENSE_NOT_POSITIVE
+    else:
+        if ebit_refused or ops.get("ebitda") is None:
+            out["coverage"] = EBITDA_REFUSED
+            out["dscr"] = EBITDA_REFUSED
+        elif not ops["interest_positive"] and "coverage" not in declared_rungs(ops):
+            out["coverage"] = INTEREST_EXPENSE_NOT_POSITIVE
+            out["dscr"] = INTEREST_EXPENSE_NOT_POSITIVE
+        if ops.get("ebitda") is None and ops["net_debt"] > 0:
+            out["leverage"] = EBITDA_REFUSED
     if ops.get("equity_incomplete"):
         # Total equity excludes the year's result, refused with 711 (no
         # account 121; the sheet does not balance without it): the equity
@@ -468,9 +723,32 @@ def declared_rungs(ops: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
                       and EBIT > 0, all measured                   (R-D1)
       leverage        EBITDA <= 0 with net debt > 0, both measured (R-D3)
       equity          equity ratio <= 0, measured                  (R-D2)
+
+    Under the STOCK-BUILD REGIME (revision 5) the three cash components
+    take the regime's rungs instead, on MEASURED cash from operations only
+    (an approximated or refused figure declares nothing — the component
+    refuses): cash <= 0 -> the bottom rung for coverage, DSCR and (net debt
+    > 0) leverage; cash > 0 with debt == 0 and interest == 0 -> R-D1's top
+    rungs with cash in place of EBIT. R-D1 on EBIT and R-D3 on EBITDA do not
+    apply: the regime exists because those figures carry the stock build.
     """
     pack = credit_pack()["declared_rungs"]
     out: Dict[str, Dict[str, Any]] = {}
+    regime, _cash_refusal, cash = _regime_cash(ops)
+    if regime is not None:
+        rpack = credit_pack()["stock_build_regime"]
+        if cash is not None and not cash > 0:
+            out["coverage"] = dict(rpack["rung_cfo_not_positive"])
+            out["dscr"] = dict(rpack["rung_cfo_not_positive"])
+            if ops["net_debt"] > 0:
+                out["leverage"] = dict(rpack["rung_cfo_not_positive"])
+        elif cash is not None and ops["total_debt"] == 0 and ops["interest_zero"]:
+            out["coverage"] = dict(rpack["rung_no_interest_bearing_debt"]["coverage"])
+            out["dscr"] = dict(rpack["rung_no_interest_bearing_debt"]["dscr"])
+        if ops["equity_ratio"] is not None and ops["equity_ratio"] <= 0 \
+                and not ops.get("equity_incomplete"):
+            out["equity"] = dict(pack["equity"])
+        return out
     # A refused EBIT / EBITDA (None) is not measured: no rung is declared
     # over it (`component_refusals` refuses those components instead).
     ebit, ebitda = ops.get("ebit"), ops.get("ebitda")
@@ -609,6 +887,17 @@ def subscore_refusal(key: str, code: Optional[str] = None,
                 "this period, so %s is not defined%s." % (
                     "interest-coverage" if key == "coverage" else ("DSCR" if key == "dscr" else key),
                     _EBITDA_REFUSED_OPERAND.get(key, "the component's operand"), tail))
+    elif code in (CASH_FROM_OPERATIONS_APPROXIMATED, CASH_FROM_OPERATIONS_REFUSED):
+        # Revision 5, the stock-build regime: the component reads the served
+        # cash from operations, which is not measured. The sentence is the
+        # pack's, in both languages, naming the component (TC-10).
+        rpack = credit_pack()["stock_build_regime"]
+        tmpl = rpack["refusals"][code]
+        name = rpack["component_names"].get(key) or {"ro": key, "en": "The %s component" % key}
+        out["text_ro"] = tmpl["ro"].replace("{component}", name["ro"])
+        out["text_en"] = tmpl["en"].replace("{component}", name["en"])
+        out["text"] = out["text_en"]
+        out["regime"] = rpack["code"]
     elif code == TOTAL_LIABILITIES_BELOW_MATERIALITY:
         pack = credit_pack()
         out["materiality"] = {"share": format(pack["share"], "f"), "basis": pack["basis"],
@@ -1156,6 +1445,12 @@ def compute_period_metrics(
         ops["ebitda_refusal"] = ebitda_refusal
         ops["net_income_refused"] = net_income_statutory is None
         ops["equity_incomplete"] = equity_incomplete
+        # Revision 5 — THE STOCK-BUILD REGIME (owner ruling R1): None on a
+        # book whose measured net 711 build does not reach the pack's shares
+        # (then every expression below is revision 4's, byte for byte).
+        regime = stock_build_regime(s)
+        ops["credit_regime"] = regime
+        _regime, _cash_refusal, cash_ops = _regime_cash(ops)
         refusals = component_refusals(ops)
         rungs = declared_rungs(ops)
 
@@ -1166,9 +1461,17 @@ def compute_period_metrics(
         x2: Optional[float] = (None if equity_incomplete is not None
                                else bs["retainedEarnings"] / total_assets)
         # X3 on the ONE operating result; refused with it (Altman then
-        # refuses as `ebitda_refused`).
-        x3: Optional[float] = (None if operating_profit is None
-                               else operating_profit / total_assets)
+        # refuses as `ebitda_refused`). Under the stock-build regime, on the
+        # operating result BEFORE the stock variation and own work
+        # capitalised (EBIT − net 711 − net 72x): the build is not earnings
+        # a lender is repaid from.
+        x3: Optional[float]
+        if regime is not None:
+            _x3_num = _fnum((regime.get("altman_x3") or {}).get("numerator"))
+            x3 = None if _x3_num is None else _x3_num / total_assets
+        else:
+            x3 = (None if operating_profit is None
+                  else operating_profit / total_assets)
         # X4 = book equity / total liabilities — DEFINED only when total
         # liabilities reach the pack's materiality share of total assets
         # (R-D4, `packs/credit/model.yaml`). Revision 1 divided by
@@ -1238,7 +1541,10 @@ def compute_period_metrics(
         elif net_debt <= 0:
             lev_subscore = 100
         else:
-            nde = net_debt / ebitda
+            # Revision 5: net debt / MEASURED cash from operations under the
+            # stock-build regime (a cash figure that is not measured refused
+            # the component above; one at or below zero took its rung).
+            nde = net_debt / (cash_ops if regime is not None else ebitda)
             if nde <= 1.5:
                 lev_subscore = 90
             elif nde <= 3.0:
@@ -1258,7 +1564,8 @@ def compute_period_metrics(
         if "coverage" in rungs:
             ic_subscore = rungs["coverage"]["score"]
         elif "coverage" not in refusals:
-            ic = operating_profit / interest
+            # Revision 5: cash from operations / interest under the regime.
+            ic = (cash_ops if regime is not None else operating_profit) / interest
             if ic >= 8:
                 ic_subscore = 95
             elif ic >= 4:
@@ -1276,7 +1583,8 @@ def compute_period_metrics(
         if "dscr" in rungs:
             dscr_subscore = rungs["dscr"]["score"]
         elif "dscr" not in refusals:
-            dscr = ebitda / (interest + bs["longTermDebt"] / 8)
+            # Revision 5: cash from operations / debt service under the regime.
+            dscr = (cash_ops if regime is not None else ebitda) / (interest + bs["longTermDebt"] / 8)
             if dscr >= 2:
                 dscr_subscore = 90
             elif dscr >= 1.25:
@@ -1333,7 +1641,9 @@ def compute_period_metrics(
         # A composite outside its range is withheld too, and mints no letter.
         if all(subscore_values[k] is not None for k in CREDIT_COMPOSITE_WEIGHTS):
             composite = 0
-            for key, weight in CREDIT_COMPOSITE_WEIGHTS.items():
+            # The model table, or the stock-build regime's (pack data) —
+            # the seven weights in either case, never renormalised.
+            for key, weight in composite_weights_for(regime).items():
                 composite = composite + weight * subscore_values[key]
             if score_out_of_range(composite, "composite"):
                 composite = None
@@ -1826,8 +2136,13 @@ def credit_block(
     x2_refusal = _x2_refusal(ops)
     if x2_refusal is not None:
         m["altman_x2"] = None
+    # Revision 5: the regime these rows were composed under, named with the
+    # trigger figures (None -> the standard model). The SAME function the
+    # model ran, over the same statements.
+    regime = ops.get("credit_regime") if ops is not None else None
     block: Dict[str, Any] = {
         "revision": CREDIT_MODEL_REVISION,
+        "regime": regime,
         "altman": {
             "z": z,
             "x1": _num(m.get("altman_x1")),
@@ -1836,6 +2151,10 @@ def credit_block(
             "x4": _num(m.get("altman_x4")),
             "zone": altman_zone(z),
             "thresholds": {"grey_from": ALTMAN_GREY_FROM, "safe_from": ALTMAN_SAFE_FROM},
+            # What X3 was computed on: the one operating result, or — under
+            # the stock-build regime — the result before the stock variation
+            # and own work capitalised, labelled from the pack.
+            "x3_basis": ((regime.get("altman_x3") or {}).get("label") if regime is not None else None),
         },
         "subscores": subscores,
         "refused_subscores": refused_subscores,
@@ -1843,7 +2162,7 @@ def credit_block(
         "profitability_disclosure": (profitability_disclosure(ops)
                                      if ops is not None and subscores.get("profitability") is not None
                                      else None),
-        "weights": dict(CREDIT_COMPOSITE_WEIGHTS),
+        "weights": composite_weights_for(regime),
         "ranges": credit_ranges(_num(m.get("altman_x2")), _num(m.get("altman_x3"))),
         "composite": composite,
         "letter": letter,
@@ -1931,6 +2250,10 @@ def serve_credit_envelope(block: Dict[str, Any]) -> Dict[str, Any]:
         "altman_z_score": alt.get("z"),
         "altman_variant": "Z\"",
         "altman_components": {x: alt.get(x) for x in ("x1", "x2", "x3", "x4")},
+        # Revision 5: the stock-build regime (None -> the standard model),
+        # and what X3 was computed on under it.
+        "regime": block.get("regime"),
+        "altman_x3_basis": alt.get("x3_basis"),
         **({"altman_component_refusals": alt["component_refusals"]}
            if alt.get("component_refusals") else {}),
         "altman_zone": alt.get("zone"),

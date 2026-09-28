@@ -493,14 +493,19 @@ def as_filed_envelope(metric_rows: List[Mapping[str, Any]], statements: Mapping[
         return checked.get(name) if name in filed else None
 
     composite = m("credit_composite")
+    # Revision 5: the regime the model's own predicate reads on these
+    # statements (the persisted rows are held to it above, in
+    # `withhold_persisted`), and its weight table.
+    regime = CM.stock_build_regime(statements) if isinstance(statements, Mapping) else None
     env: Dict[str, Any] = {
         "altman_z_score": m("altman_z_score"),
         "altman_variant": "Z\"",
         "altman_components": {x: m("altman_%s" % x) for x in _COMPONENTS},
+        "regime": regime,
         "composite_score": composite,
         "letter_grade": None if composite is None else CM.composite_to_letter_grade(float(composite)),
         "letter_grade_bands": CM.letter_grade_bands(),
-        "composite_weights": dict(CM.CREDIT_COMPOSITE_WEIGHTS),
+        "composite_weights": CM.composite_weights_for(regime),
         "refused_subscores": refused,
         "reason": CM.credit_reason(checked, refused, composite) if metric_rows else None,
         "ranges": CM.credit_ranges(CM._num(checked.get("altman_x2")), CM._num(checked.get("altman_x3"))),

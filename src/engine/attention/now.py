@@ -10,7 +10,8 @@ WHAT IT READS — AND NOTHING ELSE
   * the served period body (`GET /api/period/{id}`): period facts, the
     account-121 anchor status, `statements.insights` (the deterministic
     findings; their model-authored `narrative` is never read), and — through
-    `sources` only — EBITDA and inventory days;
+    `sources` only — EBITDA, inventory days and the credit envelope's regime
+    (`assembled_metrics.credit.regime`, served verbatim as `credit_regime`);
   * the served comparatives document (`GET /api/period/{id}/comparatives`)
     with the same company's previous period of the same length;
   * the served sector-benchmark document
@@ -631,6 +632,10 @@ def compose_attention(current_payload: Mapping[str, Any], *,
         "period": facts,
         "mode": mode,
         "prior": prior,
+        # The credit model's regime for this period (revision 5, owner
+        # ruling R1), the served envelope's block verbatim — the command bar
+        # prints it ONCE, with its finding. None under the standard model.
+        "credit_regime": S.credit_regime(current_payload),
         "items": items,
         "unfilled": unfilled,
         "deduped": deduped,

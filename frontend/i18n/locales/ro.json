@@ -718,6 +718,8 @@
         "malformed_value": "Neafișat: valoarea servită nu poate fi citită pentru unitatea ei.",
         "unrecognised": "Neafișat: câmpul servit {{field}} are valoarea {{value}}, pe care acest cititor nu o recunoaște.",
         "ebitda_refused": "Necalculat: EBITDA și rezultatul din exploatare sunt refuzate pentru această perioadă, deoarece variația stocurilor de produse nu a putut fi măsurată.",
+        "cash_from_operations_approximated": "Nenotat: în regimul de credit construcție pe stoc, componenta se notează pe fluxul de numerar din exploatare, care este aproximat pentru această perioadă (fără balanța anului anterior); nu există scor compozit și nici rating.",
+        "cash_from_operations_refused": "Nenotat: în regimul de credit construcție pe stoc, componenta se notează pe fluxul de numerar din exploatare, care este refuzat pentru această perioadă; nu există scor compozit și nici rating.",
         "inventory_days_refused": "Necalculat: zilele de stoc pe tipuri de stoc sunt refuzate pentru această perioadă — motivul este afișat lângă cifră.",
         "basis_differs": "Necomparat: zilele de stoc ale celor două perioade sunt măsurate pe baze de stoc diferite, deci nu se afișează nici o variație, nici o mișcare de bandă — ar fi schimbarea bazei, nu a stocului."
       },
