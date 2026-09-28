@@ -475,3 +475,55 @@ def test_the_briefing_regenerate_never_cites_a_stored_row_on_the_previous_ebitda
     assert recomputed["ebitda_used"] != pytest.approx(PRE_RULING_AGRAS_EBITDA, abs=1.0)
     assert withheld["ebitda_used"] is None and withheld["equity_ebitda_p50"] is None
     assert withheld["primary_method"] == "refused"
+
+
+@pytest.mark.parametrize("book,stored_key", [("agras", "food_manufacturing"), ("realestate", "generic")])
+def test_one_valuation_choice_one_industry_key(book, stored_key, monkeypatch):
+    """GET /api/period and the briefing regenerate route choose the served
+    valuation on ONE industry key — the persist path's effective key
+    (`_effective_industry`: the org's stored key, else the classifier's
+    reading of the period). GET read `statements["industry"]`, the org's
+    DISPLAY NAME, which no multiples table knows; the regenerate route
+    passed the raw stored key (critic round 3, 2026-09-28): two keys, and
+    for a sector the router reads (real estate) two valuation methods for
+    one period. Reds on the two routes disagreeing, or on either missing
+    the persist path's key. Non-vacuity: the display name differs from the
+    key; on the developer stored as "generic" the effective key is the
+    classifier's (the regenerate route's raw "generic" would differ)."""
+    from engine.api import pipeline as P
+
+    bk = _book(book)
+    seen = []
+    real = V.compute_valuation
+
+    def spy(**kw):
+        seen.append(kw.get("industry_key"))
+        return real(**kw)
+
+    monkeypatch.setattr(V, "compute_valuation", spy)
+    monkeypatch.setattr(P, "stage_narrate", lambda *a, **k: {"briefing": "stub"})  # noqa: ARG005
+    ctx = ANCHOR._routed(bk, monkeypatch)
+    client, db = ctx.__enter__()
+    try:
+        org = db.tables["organizations"][0]
+        org.update(industry_key=stored_key,
+                   industry_display_name="Denumirea afișată a sectorului")
+        db.upsert = lambda table, row, on_conflict=None, **_kw: db.insert(table, row)
+        db.tables.setdefault("user_valuation_assumptions", [])
+        db.tables["valuations"].append(_stored_row(bk, 1_000_000.0))
+        resp = client.get("/api/period/%s" % bk.period_id, headers=AUTH)
+        assert resp.status_code == 200, resp.text[:400]
+        served_statements = resp.json()["statements"]
+        get_keys = list(seen)
+        del seen[:]
+        resp = client.post("/api/period/%s/briefing/regenerate" % bk.period_id,
+                           headers=ANCHOR._member_bearer())
+        assert resp.status_code == 200, resp.text[:400]
+        regen_keys = list(seen)
+    finally:
+        ctx.__exit__(None, None, None)
+    expected = P._effective_industry(org, {"statements": served_statements,
+                                           "lineItems": bk.line_items})[2]
+    assert expected not in (None, "generic", org["industry_display_name"]), expected
+    assert get_keys and set(get_keys) == {expected}, get_keys
+    assert regen_keys and set(regen_keys) == {expected}, regen_keys

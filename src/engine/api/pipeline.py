@@ -6807,10 +6807,38 @@ def _rebuild_assembled_for_briefing(
     return payload
 
 
+def _valuation_industry_key(org: Optional[Dict[str, Any]],
+                            statements: Optional[Dict[str, Any]],
+                            line_items: Optional[List[Dict[str, Any]]] = None) -> Optional[str]:
+    """THE industry key a SERVED valuation is computed on: the persist
+    path's effective key (`_effective_industry` — the org's stored key,
+    else the classifier's reading of these statements), so GET /api/period,
+    the briefing regenerate route and the pipeline's own valuation choose
+    one method on one key. GET passed nothing and read
+    `statements["industry"]` — the org's DISPLAY NAME, which no multiples
+    table knows — while the regenerate route passed the raw stored key
+    (critic round 3, 2026-09-28). Without an org (a caller holding only
+    statements) the legacy read stands. ``line_items`` are the period's
+    account lines (the classifier reads account 706 off them, as the
+    persist path's stage_map output carries them under ``lineItems``)."""
+    if org:
+        try:
+            return _effective_industry(
+                org, {"statements": statements or {}, "lineItems": list(line_items or [])})[2]
+        except Exception:  # noqa: BLE001 — a classifier failure never costs the valuation
+            logger.exception("[valuation] industry classification failed (non-fatal)")
+            return (org.get("industry_key") or "").lower().strip() or None
+    if statements and isinstance(statements.get("industry"), str):
+        return statements["industry"]
+    return None
+
+
 def _fresh_or_lawful_valuation(valuation: Optional[Dict[str, Any]],
                                 user_assumptions: Optional[Dict[str, Any]],
                                 statements: Optional[Dict[str, Any]],
                                 industry_key: Optional[str] = None,
+                                org: Optional[Dict[str, Any]] = None,
+                                line_items: Optional[List[Dict[str, Any]]] = None,
                                 ) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
     """`(fresh, src)` — THE ONE place a served valuation is chosen, for GET
     /api/period (`_serialize_valuation`) and the briefing regenerate route.
@@ -6830,8 +6858,8 @@ def _fresh_or_lawful_valuation(valuation: Optional[Dict[str, Any]],
     it; the briefing regenerate route handed them to the narrator."""
     fresh: Optional[Dict[str, Any]] = None
     if statements and statements.get("assembled_pl"):
-        if industry_key is None and isinstance(statements.get("industry"), str):
-            industry_key = statements["industry"]
+        if industry_key is None:
+            industry_key = _valuation_industry_key(org, statements, line_items)
         ua_dict = None
         if user_assumptions:
             ua_dict = {
@@ -6861,7 +6889,9 @@ def _fresh_or_lawful_valuation(valuation: Optional[Dict[str, Any]],
 
 def _serialize_valuation(valuation: Optional[Dict[str, Any]],
                           user_assumptions: Optional[Dict[str, Any]],
-                          statements: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+                          statements: Optional[Dict[str, Any]] = None,
+                          org: Optional[Dict[str, Any]] = None,
+                          line_items: Optional[List[Dict[str, Any]]] = None) -> Optional[Dict[str, Any]]:
     """Shape the raw valuations row for the dashboard. Returns None when the
     pipeline never produced a valuation (non-financial doc, or failure).
 
@@ -6876,7 +6906,8 @@ def _serialize_valuation(valuation: Optional[Dict[str, Any]],
     if not valuation:
         return None
 
-    fresh, src = _fresh_or_lawful_valuation(valuation, user_assumptions, statements)
+    fresh, src = _fresh_or_lawful_valuation(valuation, user_assumptions, statements, org=org,
+                                            line_items=line_items)
 
     def f(key: str) -> Optional[float]:
         v = src.get(key)
@@ -9748,7 +9779,8 @@ def build_router() -> APIRouter:
                 }
                 for a in alerts
             ],
-            "valuation": _serialize_valuation(valuation, user_assumptions, statements),
+            "valuation": _serialize_valuation(valuation, user_assumptions, statements, org=org,
+                                              line_items=line_items),
             # F4.6 — list of legacy fields slated for removal at the 2Q
             # deprecation horizon (~Nov 2026 per F3.15 §3e). Consumers
             # should switch to the canonical replacements before sunset.
@@ -9934,7 +9966,7 @@ def build_router() -> APIRouter:
                     # period whose GET computes a DCF (the §21 sibling miss).
                     assembled = _rebuild_assembled_for_briefing(line_items, period, org)["statements"]
                     result = _valuation.compute_valuation(
-                        industry_key=org.get("industry_key"),
+                        industry_key=_valuation_industry_key(org, assembled, line_items),
                         statements=assembled,
                         user_assumptions={
                             "ebitda_used": payload["ebitda_used"],
@@ -9994,7 +10026,7 @@ def build_router() -> APIRouter:
                     # period whose GET computes a DCF (the §21 sibling miss).
                     assembled = _rebuild_assembled_for_briefing(line_items, period, org)["statements"]
                     result = _valuation.compute_valuation(
-                        industry_key=org.get("industry_key"),
+                        industry_key=_valuation_industry_key(org, assembled, line_items),
                         statements=assembled,
                     )
                     _valuation.persist_valuation(period_id, period["org_id"], result)
@@ -10126,7 +10158,7 @@ def build_router() -> APIRouter:
 
             try:
                 result = _valuation.compute_valuation(
-                    industry_key=org.get("industry_key"),
+                    industry_key=_valuation_industry_key(org, assembled, line_items),
                     statements=assembled,
                     user_assumptions=user_assumptions,
                     dcf_overrides=overrides,
@@ -10262,7 +10294,8 @@ def build_router() -> APIRouter:
                     ua_rows = []
                 _fresh_val, valuation = _fresh_or_lawful_valuation(
                     valuation, ua_rows[0] if ua_rows else None,
-                    assembled.get("statements"), industry_key=org.get("industry_key"))
+                    assembled.get("statements"), org=org,
+                    line_items=assembled.get("lineItems") or line_items)
 
             # FX rates for currency conversion. Skip the fetch when the
             # caller wants the period's native currency (the no-op case).
