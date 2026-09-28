@@ -48,12 +48,6 @@ PRIOR_ABSENT = dict(PRIOR_FOUND, status="absent", period_id=None, period_start=N
                     period_end=None, reason={"code": "no_same_length_prior", "inputs": []})
 
 
-def features() -> Dict[str, Any]:
-    doc = json.loads((E2E / "features_status.json").read_text(encoding="utf-8"))
-    feats = doc.get("features") if isinstance(doc.get("features"), dict) else doc
-    return {k: (v or {}).get("status") for k, v in feats.items() if isinstance(v, dict)}
-
-
 def worlds() -> Dict[str, Dict[str, Any]]:
     pair = json.loads((FIX / "comparatives" / "pair_served.json").read_text(encoding="utf-8"))
     sector_pair = json.loads((FIX / "sectorBenchmark" / "served_pair.json").read_text(encoding="utf-8"))
@@ -80,8 +74,10 @@ def worlds() -> Dict[str, Dict[str, Any]]:
 
 
 def compose(world: Dict[str, Any]) -> Dict[str, Any]:
+    # No feature status is read (ruling R4): the bank report is the CFO
+    # Report PDF whether or not the Forecast feature is on.
     return compose_attention(world["period"], prior=world["prior"], comparatives=world["comparatives"],
-                             sector=world["sector"], features=features())
+                             sector=world["sector"])
 
 
 def render(doc: Any) -> str:

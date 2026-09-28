@@ -221,6 +221,15 @@ insights:
       subject: {ro: "O parte din EBITDA nu vine din activitatea comercială", en: "Part of EBITDA is not trading income"}
 
 # ── Actions (two or three), chosen by state, in this order.
+#
+# Ruling R4 (owner, 2026-09-28): "Exportă raportul pentru bancă" is the CFO
+# Report PDF — the dashboard's export tab, where the report is paginated by the
+# PDF renderer (POST /api/report/pdf) — and NEVER the Forecast page. It no
+# longer depends on the Forecast feature's status; the Forecast cockpit's own
+# bank export stays reachable from the Forecast page only. An action carries
+# its label and nothing else: pack.py refuses any other key and any action it
+# does not name, so a feature gate (or a second export action) cannot come back
+# as data.
 actions:
   compare_prior:
     label: {ro: "Compară cu anul trecut", en: "Compare with last year"}
@@ -230,9 +239,6 @@ actions:
     label: {ro: "Adaugă anul anterior", en: "Add the previous year"}
   bank_export:
     label: {ro: "Exportă raportul pentru bancă", en: "Export the bank report"}
-    feature: forecast
-  cfo_report_pdf:
-    label: {ro: "Exportă raportul CFO (PDF)", en: "Export the CFO report (PDF)"}
   set_industry:
     label: {ro: "Alege codul CAEN al firmei", en: "Choose the company's CAEN code"}
 

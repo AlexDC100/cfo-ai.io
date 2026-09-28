@@ -10250,7 +10250,6 @@ def build_router() -> APIRouter:
 
         from . import _attention as _att
         from . import _comparatives as _cmp
-        from . import _features as _feat
         from engine.attention import compose_attention
 
         jwt = _require_jwt(authorization)
@@ -10290,10 +10289,11 @@ def build_router() -> APIRouter:
             except HTTPException as exc:
                 comparatives_reason = {"code": "prior_period_not_servable",
                                        "inputs": [str(pri_row["id"]), exc.status_code]}
-        features = {k: (v or {}).get("status") for k, v in _feat.served_registry().items()}
+        # No action reads the feature registry (ruling R4, 2026-09-28): the
+        # bank report is the CFO Report PDF whether or not Forecast is on.
         doc = compose_attention(
             payload_of(period_id), prior=prior_desc, comparatives=comparatives,
-            comparatives_reason=comparatives_reason, sector=sector_doc, features=features)
+            comparatives_reason=comparatives_reason, sector=sector_doc)
         return _credit_boundary.enforce_credit_boundary(doc, surface="attention")
 
     @router.put("/api/period/{period_id}/valuation-assumptions")

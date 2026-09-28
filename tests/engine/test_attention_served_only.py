@@ -104,7 +104,7 @@ def worlds() -> List[Dict[str, Any]]:
 
 def _compose(w: Dict[str, Any]) -> Dict[str, Any]:
     return compose_attention(w["period"], prior=w["prior"], comparatives=w["comparatives"],
-                             sector=w["sector"], features={"forecast": "active"})
+                             sector=w["sector"])
 
 
 # ── 1. source equality ───────────────────────────────────────────────────
@@ -263,13 +263,15 @@ def test_the_route_hands_the_composer_only_the_served_documents():
     assert len(calls) == 1, len(calls)
     call = calls[0]
     assert len(call.args) == 1 and ast.unparse(call.args[0]) == "payload_of(period_id)"
+    # Ruling R4 (2026-09-28): no feature statuses — the bank report is the
+    # CFO Report PDF whatever the Forecast registry says.
     assert sorted(k.arg for k in call.keywords) == [
-        "comparatives", "comparatives_reason", "features", "prior", "sector"]
+        "comparatives", "comparatives_reason", "prior", "sector"]
     body = route.body
     if body and isinstance(body[0], ast.Expr) and isinstance(getattr(body[0], "value", None), ast.Constant):
         body = body[1:]  # the docstring names what is excluded; the code must not read it
     code = "\n".join(ast.unparse(n) for n in body)
     for forbidden in ("recommendation", "briefing", "narrat", "alerts", "chat", "anthropic",
-                      "advisory", "model_registry", "capsule"):
+                      "advisory", "model_registry", "capsule", "served_registry", "_features"):
         assert forbidden not in code.lower(), forbidden
     assert "surface='attention'" in code or 'surface="attention"' in code
