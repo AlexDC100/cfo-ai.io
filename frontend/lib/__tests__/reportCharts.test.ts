@@ -315,7 +315,7 @@ describe("G-C1b — the arithmetic each chart draws", () => {
     for (const r of blk.tableRows) expect(blk.svgTexts.some((t) => t.endsWith(r.printed)), `${b}: ${r.printed} drawn`).toBe(true);
     // …and UNROUNDED the terms foot to the served cycle (no day-count drift).
     expect(blk.caption).not.toMatch(/not all computed off the same day count/);
-    const card = computeRatios(statementsFor(b), metricsFor(b)).efficiency.find((r) => r.key === "ccc");
+    const card = computeRatios(statementsFor(b), undefined, metricsFor(b)).efficiency.find((r) => r.key === "ccc");
     const svg = doc.querySelector('[data-chart-block="chart-wc-cycle"] svg.chart');
     const tips = Array.from(svg?.querySelectorAll("title") ?? []).map((t) => t.textContent ?? "").filter((t) => t.startsWith("equals CCC"));
     const cardPrinted = formatRatio(card!);
