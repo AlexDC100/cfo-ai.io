@@ -866,9 +866,44 @@ def _engine_gates() -> List[Gate]:
         Gate("reprocess-periods-definition",
              [PY, "-m", "pytest", "tests/engine/test_reprocess_periods_definition.py", "-q", "-s"],
              # critic round 3 fixer: the apply reads the valuations row back (56).
-             work_rx=r"GATE-WORK reprocess-periods-definition units=(\d+)", floor=50,
+             # owner rulings R2 / R3 (2026-09-28): a period on the PREVIOUS
+             # definition stamp is reprocessed, the dry run prints the stamp,
+             # net provisions and the 7411 inside turnover, and a turnover move
+             # of exactly the placed 7411 is the ruling (measured 85).
+             work_rx=r"GATE-WORK reprocess-periods-definition units=(\d+)", floor=80,
              units="dry-run / apply / refusal facts checked",
              canaries=("SCOPE reprocess-periods-definition: corpus/saga_10_col_agras analysed",)),
+        # ── owner rulings 2026-09-28 (R2, R3): provisions-symmetric and
+        # turnover-7411. R2: the 6812 / 6814 charges AND the 7812 / 7814
+        # reversals are OUTSIDE EBITDA, their net its own line between EBITDA
+        # and the operating result, EBIT unchanged to the cent — five
+        # constructed books (both sides, one side each, the analytic / 6-digit
+        # code forms, none) through the offline composition, the real write
+        # path, GET /api/period and the briefing rebuild; the methodology's
+        # reported / strict / operating result and the credit model's rows
+        # beside them; five in-file plants. R3: 7411 inside cifra de afaceri
+        # netă (F20 rd. 05), 7418 outside, EBITDA unmoved, the margin and
+        # FactsGateway on the turnover that holds it — constructed witnesses
+        # (no real, corpus or fixture book posts 7411); three plants.
+        # Measured 117 / 65. Plant logs: gates.md "provisions-symmetric",
+        # "turnover-7411".
+        Gate("provisions-symmetric",
+             [PY, "-m", "pytest", "tests/engine/test_provisions_symmetric.py", "-q", "-s"],
+             work_rx=r"GATE-WORK provisions-symmetric units=(\d+)", floor=100,
+             units="constructed books judged, served seams compared, plants",
+             canaries=("SCOPE provisions-symmetric (owner ruling R2 2026-09-28, packs/ro/pl_definition.yaml)",
+                       "PROVISIONS-BOOKS: no_provisions, prov_both, prov_charges_only, prov_code_forms, "
+                       "prov_reversals_only",
+                       "PROVISIONS-PLANTS: reversals-back-inside-ebitda, charges-back-inside-da, "
+                       "ebit-forgets-net-provisions, methodology-subtracts-reversals, rebuild-loses-the-ruling")),
+        Gate("turnover-7411",
+             [PY, "-m", "pytest", "tests/engine/test_turnover_7411.py", "-q", "-s"],
+             work_rx=r"GATE-WORK turnover-7411 units=(\d+)", floor=55,
+             units="constructed witnesses judged, served seams compared, plants",
+             canaries=("SCOPE turnover-7411 (owner ruling R3 2026-09-28, F20 rd. 05, packs/ro/pl_definition.yaml)",
+                       "TURNOVER7411-BOOKS: only_7418, subsidy_7411, subsidy_7411_analytic",
+                       "TURNOVER7411-PLANTS: 7411-left-in-other-income, 7418-pulled-into-turnover, "
+                       "rebuild-drops-the-placement")),
         # ── plan/2 B4b (plan_contract_v2 5.6 / 28.3 B4): forecast-pools ──
         # The cost pools of section 5 on the four books, no shocks: pools
         # plus unallocated equal the assembled operating cost to the cent;

@@ -16562,3 +16562,194 @@ same bytes, so the one-figure law holds; the wording is a separate fix.
 **CANNOT SEE:** what the chat MODEL does with the rule line (the law holds
 the snapshot, not the answer — the edge function is unchanged); pixels;
 production periods.
+
+## provisions-symmetric
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_provisions_symmetric.py -q -s` |
+| canary | `SCOPE provisions-symmetric (owner ruling R2 2026-09-28, packs/ro/pl_definition.yaml)`, `PROVISIONS-BOOKS: no_provisions, prov_both, …`, `PROVISIONS-PLANTS: reversals-back-inside-ebitda, …, rebuild-loses-the-ruling` |
+| work count | `GATE-WORK provisions-symmetric units=(\d+)`, floor **100** (measured 117) |
+
+**INCIDENT** — the owner's ruling R2 (2026-09-28): "exclude both charges
+(6812/6814) and reversals (7812/7814) from EBITDA; show net provisions as its
+own reconciliation line." Before it the engine added the charges back with D&A
+(the depreciation bucket held all of 68x) while the reversals sat INSIDE EBITDA
+as other operating income: Scandia Food FY2025 carried 8,415,275.41 of 7814
+reversals inside its EBITDA while 2,042,470.24 of 6814 charges were outside it
+(specs-durable/ebitda711/measure.md, "Observed in passing"). And the
+methodology's operating result was `ebitda.reported − dap.net`, where the
+canonical dap aggregate holds every 78x reversal that `reported` had just added
+— the served EBIT less the reversals (Scandia 32,378,913.41 against the served
+40,794,188.82 on the regression baseline), a second EBIT nobody gated.
+
+**LAW** — the placement is data (`packs/ro/pl_definition.yaml`), applied once
+in `assemble_statements`. On five CONSTRUCTED books (SYNTHETIC — the net-711
+manufacturer with provision rows: both sides with the unruled 6813 / 7813
+beside them, charges only, reversals only, the analytic `6812.01` / `7812.04`
+and 6-digit `681401` / `781401` code forms, none), through the offline
+composition AND the real write path, GET /api/period and the briefing
+rebuild, against figures computed by hand from the rows: EBITDA holds neither
+side (the pre-ruling figure less the ruled reversals; other operating income
+without them); D&A is the depreciation bucket without the ruled charges; net
+provisions = charges − reversals per account, signed as a charge, named by the
+pack; EBIT is the PRE-RULING operating result to the cent and EBITDA − D&A −
+net provisions = EBIT on the served figures; the reconciliation chain carries
+the line between D&A and the operating result and foots, the one-line bridge
+carries it after EBITDA (`bridge.after_ebitda`); core and adjusted EBITDA are
+the pre-ruling figures (no reversal stripped twice); the methodology's
+`reported` / `strict` / operating result equal the in-code EBITDA / adjusted /
+EBIT; the credit model's `ebitda` and `operating_profit` rows read the same
+figures. The persisted leaves keep their classification (a charge is a
+depreciation leaf, a reversal an other-income leaf).
+
+In-file plants (PROVISIONS-PLANTS): the pack's reversals or charges replaced
+(the placement lost), EBIT recomputed as EBITDA − D&A, the methodology's
+operating result as `reported − dap.net`, and the served route rebuilt with the
+reversals back inside. Source-edit plants, each applied alone in a COPY of the
+tree by `scratchpad/r2p/plant.py` (restore byte-exact, sha256 checked):
+```
+PLANT reversals-back-inside-ebitda (the assembly reads other_inc whole): src/engine/country_packs/ro_romania/chart_of_accounts.py
+  exit=1 6 failed, 10 passed in 2.70s
+    FAILED tests/engine/test_provisions_symmetric.py::test_the_ruling_on_each_constructed_book[prov_both]
+    FAILED tests/engine/test_provisions_symmetric.py::test_the_ruling_on_each_constructed_book[prov_code_forms]
+    FAILED tests/engine/test_provisions_symmetric.py::test_the_ruling_on_each_constructed_book[prov_reversals_only]
+    FAILED tests/engine/test_provisions_symmetric.py::test_every_served_seam_carries_the_ruling[prov_both]
+    FAILED tests/engine/test_provisions_symmetric.py::test_every_served_seam_carries_the_ruling[prov_code_forms]
+    FAILED tests/engine/test_provisions_symmetric.py::test_zz_scope_and_work - As...
+  -> RED ; file restored byte-exact
+PLANT charges-back-inside-da (served D&A = all of 68x): src/engine/country_packs/ro_romania/chart_of_accounts.py
+  exit=1 7 failed, 9 passed in 2.24s
+    FAILED tests/engine/test_provisions_symmetric.py::test_the_ruling_on_each_constructed_book[prov_both]
+    FAILED tests/engine/test_provisions_symmetric.py::test_the_ruling_on_each_constructed_book[prov_charges_only]
+    FAILED tests/engine/test_provisions_symmetric.py::test_the_ruling_on_each_constructed_book[prov_code_forms]
+    FAILED tests/engine/test_provisions_symmetric.py::test_the_unruled_accounts_stay_where_they_were
+    FAILED tests/engine/test_provisions_symmetric.py::test_every_served_seam_carries_the_ruling[prov_both]
+    FAILED tests/engine/test_provisions_symmetric.py::test_every_served_seam_carries_the_ruling[prov_code_forms]
+    FAILED tests/engine/test_provisions_symmetric.py::test_zz_scope_and_work - As...
+  -> RED ; file restored byte-exact
+PLANT ebit-forgets-net-provisions (EBIT = EBITDA - D&A): src/engine/country_packs/ro_romania/chart_of_accounts.py
+  exit=1 7 failed, 9 passed in 2.41s
+    FAILED tests/engine/test_provisions_symmetric.py::test_the_ruling_on_each_constructed_book[prov_both]
+    FAILED tests/engine/test_provisions_symmetric.py::test_the_ruling_on_each_constructed_book[prov_charges_only]
+    FAILED tests/engine/test_provisions_symmetric.py::test_the_ruling_on_each_constructed_book[prov_code_forms]
+    FAILED tests/engine/test_provisions_symmetric.py::test_the_ruling_on_each_constructed_book[prov_reversals_only]
+    FAILED tests/engine/test_provisions_symmetric.py::test_every_served_seam_carries_the_ruling[prov_both]
+    FAILED tests/engine/test_provisions_symmetric.py::test_every_served_seam_carries_the_ruling[prov_code_forms]
+    FAILED tests/engine/test_provisions_symmetric.py::test_zz_scope_and_work - As...
+  -> RED ; file restored byte-exact
+PLANT methodology-operating-result = reported - dap.net (the pre-R2 formula): methodology/ro_ras_2025_v1.yaml
+  exit=1 4 failed, 12 passed in 2.42s
+    FAILED tests/engine/test_provisions_symmetric.py::test_the_ruling_on_each_constructed_book[prov_both]
+    FAILED tests/engine/test_provisions_symmetric.py::test_the_ruling_on_each_constructed_book[prov_code_forms]
+    FAILED tests/engine/test_provisions_symmetric.py::test_the_ruling_on_each_constructed_book[prov_reversals_only]
+    FAILED tests/engine/test_provisions_symmetric.py::test_zz_scope_and_work - As...
+  -> RED ; file restored byte-exact
+REVERT (clean tree) tests/engine/test_provisions_symmetric.py: exit=0 16 passed in 2.49s
+```
+
+**Measured beside it** (the committed corpus books and the Scandia FY2025
+regression baseline's book, through the real write path and GET
+/api/period): EBIT unchanged to the cent on every book; EBITDA moves by
+exactly the ruled reversals — Scandia Food FY2025 54,963,222.44 →
+46,547,947.03 (7814 8,415,275.41; net provisions −6,372,805.17), carniprod
+5,180,829.12 → 4,720,511.64, saga_10_col 5,487,501.33 → 5,433,196.35, retail
+2,263,417.48 → 2,185,482.87, agras 11,848,065.27 → 11,844,076.57; the
+developer and EEI post none. No credit letter or composite moves on any of
+them (every sub-score sits on the same rung).
+
+**CANNOT SEE:** the browser surfaces (the P&L tab, the report, the printed
+P&L — `one-ebitda` / `pl-one-ebitda-page` hold those on the served fixtures);
+whether 6813 / 7813 belong outside too (not ruled).
+
+## turnover-7411
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_turnover_7411.py -q -s` |
+| canary | `SCOPE turnover-7411 (owner ruling R3 2026-09-28, F20 rd. 05, packs/ro/pl_definition.yaml)`, `TURNOVER7411-BOOKS: only_7418, subsidy_7411, subsidy_7411_analytic`, `TURNOVER7411-PLANTS: …` |
+| work count | `GATE-WORK turnover-7411 units=(\d+)`, floor **55** (measured 65) |
+
+**INCIDENT** — the owner's ruling R3 (2026-09-28): "the statutory F20 includes
+operating subsidies related to turnover in cifra de afaceri netă. Include it;
+verify filed-turnover matching on any book with 7411." F20 rd. 01 = rd. 02 …
+rd. 05, rd. 05 = ct. 7411. The engine served turnover = 70x − 709 and routed
+7411 to other operating income (the classification pack's 74 catch-all).
+
+**NO REAL BOOK POSTS 7411.** Searched 2026-09-28 with the production parser:
+every corpus input, every tests/engine fixture workbook, the local client books
+(12 parseable). Two post 7418 (other operating subsidies — retail 403,020.86,
+Scandia Food FY2024 326,903.15), and 7418 STAYS outside turnover: their served
+turnover already equals the filed I13 to under 1 leu (measure.md T3), so R3
+moves neither. The witnesses are CONSTRUCTED.
+
+**LAW** — on the constructed witnesses (7411 as one leaf; as the analytics
+`7411.01` / `7411.02`; 7418 alone), through the offline composition and the
+real write path, GET /api/period and the briefing rebuild: served turnover =
+70x − 709 + 7411 = the witness's F20 rd. 01; the 7411 leaf is persisted in the
+turnover line (bucket `revenue`) and a rebuild from the stored rows reads the
+same turnover; 7418 stays other operating income; EBITDA does not move with the
+placement; adjusted EBITDA no longer strips 7411; the EBITDA margin, the
+methodology's `totals.revenue_net` and `FactsGateway.revenue()` are that
+turnover; the turnover line's leaves sum to it; the turnover accounts are the
+pack's ("70x − 709 + 7411").
+
+In-file plants (TURNOVER7411-PLANTS): the pack's prefix replaced (7411 left in
+other income), widened to 741 (7418 pulled in), and a rebuild that drops the
+placement. Source-edit plants (same runner):
+```
+PLANT 7411-left-in-other-income (placement dropped): src/engine/country_packs/ro_romania/chart_of_accounts.py
+  exit=1 6 failed, 3 passed in 1.19s
+    FAILED tests/engine/test_turnover_7411.py::test_the_ruling_on_each_constructed_book[subsidy_7411]
+    FAILED tests/engine/test_turnover_7411.py::test_the_ruling_on_each_constructed_book[subsidy_7411_analytic]
+    FAILED tests/engine/test_turnover_7411.py::test_the_real_write_path_and_every_served_seam[subsidy_7411]
+    FAILED tests/engine/test_turnover_7411.py::test_the_real_write_path_and_every_served_seam[subsidy_7411_analytic]
+    FAILED tests/engine/test_turnover_7411.py::test_plant_is_caught[7418-pulled-into-turnover-only_7418]
+    FAILED tests/engine/test_turnover_7411.py::test_zz_scope_and_work - Assertion...
+  -> RED ; file restored byte-exact
+PLANT 7418-pulled-into-turnover (the pack's prefix widened to 741): packs/ro/pl_definition.yaml
+  exit=1 6 failed, 3 passed in 1.23s
+    FAILED tests/engine/test_turnover_7411.py::test_the_ruling_on_each_constructed_book[only_7418]
+    FAILED tests/engine/test_turnover_7411.py::test_the_ruling_on_each_constructed_book[subsidy_7411]
+    FAILED tests/engine/test_turnover_7411.py::test_the_ruling_on_each_constructed_book[subsidy_7411_analytic]
+    FAILED tests/engine/test_turnover_7411.py::test_the_real_write_path_and_every_served_seam[subsidy_7411]
+    FAILED tests/engine/test_turnover_7411.py::test_the_real_write_path_and_every_served_seam[subsidy_7411_analytic]
+    FAILED tests/engine/test_turnover_7411.py::test_zz_scope_and_work - Assertion...
+  -> RED ; file restored byte-exact
+PLANT canonical-adapter-ignores-the-placement (methodology revenue_net without 7411): src/engine/country_packs/ro_romania/canonical_adapter.py
+  exit=1 5 failed, 4 passed in 1.24s
+    FAILED tests/engine/test_turnover_7411.py::test_the_ruling_on_each_constructed_book[subsidy_7411]
+    FAILED tests/engine/test_turnover_7411.py::test_the_ruling_on_each_constructed_book[subsidy_7411_analytic]
+    FAILED tests/engine/test_turnover_7411.py::test_the_real_write_path_and_every_served_seam[subsidy_7411]
+    FAILED tests/engine/test_turnover_7411.py::test_the_real_write_path_and_every_served_seam[subsidy_7411_analytic]
+    FAILED tests/engine/test_turnover_7411.py::test_zz_scope_and_work - Assertion...
+  -> RED ; file restored byte-exact
+REVERT (clean tree) tests/engine/test_turnover_7411.py: exit=0 9 passed in 1.70s
+```
+
+**CANNOT SEE:** a real filing with 7411 (none in any source we hold); the
+browser (the P&L tab lists the 741 family under turnover off the served
+bucket).
+
+### reprocess-periods-definition — the 2026-09-28 revision (owner rulings R2, R3)
+
+`EBITDA_DEFINITION_REVISION` moved to
+`ebitda/2026-09-28:…,provisions-6812-6814-7812-7814-outside,7411-turnover`. A
+period stamped with the 2026-09-26 revision carries the evidence blocks, the
+running parser's stamp and figures a fresh run reproduces except EBITDA — and
+is NOT current: `test_a_period_stamped_with_the_previous_definition_is_reprocessed`
+(the dry run prints "definition <previous> -> <current>", "EBITDA
+11,848,065.27 -> 11,844,076.57", the net provisions and EBIT; the apply
+restamps it and rewrites its metric rows and valuations row; a second run is
+current). A turnover move of EXACTLY the 7411 the fresh run placed inside
+turnover, on an earlier-definition period with no filed figure named, is the
+ruling (`definition_7411`) and does not block; any other move, a move on a
+current-definition period, and a move away from a named filed figure still
+block (`test_a_turnover_move_of_exactly_the_placed_7411_is_the_ruling_not_a_block`).
+Rewritten laws: the pinned Agras after-EBITDA 11,848,065.27 → 11,844,076.57
+(the 7814.01 reversal 3,988.70 outside). Measured 85 units; floor 50 → 80.
+
+**PLANT** — `_turnover_verdict`'s `definition_7411` branch removed (the
+7411 move reported `no_filed_figure`): RED — `1 failed, 10 passed`
+(`test_a_turnover_move_of_exactly_the_placed_7411_is_the_ruling_not_a_block`:
+`assert 'no_filed_figure' == 'definition_7411'`). **REVERT** — `11 passed`.
