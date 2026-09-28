@@ -74,7 +74,9 @@ export type FigureAbsence =
       /** WHAT the engine refused (the served figure's name: "EBITDA",
        *  "EBIT", "total equity" ...), so the sentence names its own cause —
        *  total equity short by a refused result is not "EBITDA refused"
-       *  (critic round 3, 2026-09-28). Absent: EBITDA. */
+       *  (critic round 3, 2026-09-28); "inventory_days" for the
+       *  inventory-days block (engine.ratios.inventory_days). Absent: EBITDA,
+       *  which is what every older reader assumes. */
       subject?: string;
     };
 

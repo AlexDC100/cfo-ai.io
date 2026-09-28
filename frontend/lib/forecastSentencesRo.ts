@@ -138,6 +138,60 @@ const FIXED: Record<string, string> = {
   "a nearer comparable period is held": "este încărcată o perioadă comparabilă mai apropiată",
 };
 
+/** The inventory-days refusals the forecast's DIO driver cites, by served
+ *  reason code: the pack's own words (packs/ratios/inventory_days.yaml#
+ *  refusals — the engine reads the pack, the browser cannot). A MIRROR, held
+ *  word for word to the pack by frontend/lib/__tests__/forecastSentencesRo.
+ *  test.ts, which parses the pack and reds on any drift. The English is
+ *  matched against the served sentence before the Romanian is printed: a
+ *  reason the mirror does not word the same way prints the served English. */
+export const INVENTORY_DAYS_REFUSALS: Readonly<Record<string, { readonly en: string; readonly ro: string }>> = {
+  no_stock: {
+    en: "there is no stock of this kind at either date",
+    ro: "nu există stocuri de acest tip la niciuna dintre date",
+  },
+  no_own_production_sold: {
+    en: "no own products were sold (accounts 701–703 are zero), so product stock has no sales flow",
+    ro: "nu s-au vândut produse proprii (conturile 701–703 sunt zero), deci stocul de produse nu are un flux de vânzare",
+  },
+  cost_of_production_sold_not_positive: {
+    en: "the cost of production sold is not positive (the stock variation exceeds the costs), so inventory days have no meaning",
+    ro: "costul producției vândute nu este pozitiv (variația stocurilor depășește costurile), deci zilele de stoc nu au sens",
+  },
+  no_goods_resold: {
+    en: "there is merchandise stock but no cost of goods resold (607)",
+    ro: "există stoc de mărfuri, dar nu există cost al mărfurilor vândute (607)",
+  },
+  no_flow: {
+    en: "the flow that moves this stock is zero",
+    ro: "fluxul care mișcă acest stoc este zero",
+  },
+  stock_variation_refused: {
+    en: "the change in inventories of products (711) could not be measured, so the cost of production sold is not known",
+    ro: "variația stocurilor de produse (711) nu a putut fi măsurată, deci costul producției vândute nu este cunoscut",
+  },
+  a_leg_refused: {
+    en: "a component that holds stock is refused, so the total cannot be computed",
+    ro: "o componentă cu stoc este refuzată, deci totalul nu poate fi calculat",
+  },
+  not_reconciled: {
+    en: "the stock by type does not add up to the balance-sheet stock, so the split is not served",
+    ro: "stocurile pe tipuri nu se adună la stocul din bilanț, deci împărțirea nu se servește",
+  },
+  period_days_unknown: {
+    en: "the length of the period is not established",
+    ro: "durata perioadei nu este stabilită",
+  },
+  no_stock_lines: {
+    en: "the trial balance carries no stock accounts (class 3) that were read",
+    ro: "balanța nu are conturi de stocuri (clasa 3) citite",
+  },
+  inventory_days_absent: {
+    en: "the period serves no inventory-days block",
+    ro: "perioada nu servește zilele de stoc",
+  },
+};
+
 /** The ratio table's denominator parts, as the engine names them. */
 const OPERAND_RO: Record<string, string> = {
   "cost of goods sold": "costul bunurilor vândute",
@@ -272,16 +326,43 @@ const RULES: readonly Rule[] = [
       `zile de încasare a creanțelor = ${c.n(m[1])} zile = creanțe comerciale nete ${c.n(m[2])} / venituri ${c.n(m[3])} x ${m[4]} zile (forecast.dso)`,
   ),
   rule(
-    "days.dio",
-    `days inventory outstanding, in days of cost of sales = (${N}) days = inventory net (${N}) / cost of sales (${N}) x (\\d+) days \\(forecast\\.dio_cogs\\)(\\. .+)?`,
+    "days.dio_split",
+    `days inventory outstanding, split by stock type on the period-end balance = (${N}) days = inventory net (${N}) / cost of production sold \\+ cost of goods resold \\(607\\) (${N}) x (\\d+) days \\(forecast\\.dio_split\\)(\\. .+)?`,
     (m, c) =>
-      `zile de stoc, în zile de cost al vânzărilor = ${c.n(m[1])} zile = stocuri nete ${c.n(m[2])} / costul vânzărilor ${c.n(m[3])} x ${m[4]} zile (forecast.dio_cogs)${m[5] ? `. ${c.sub(m[5].slice(2))}` : ""}`,
+      `zile de stoc, pe tipuri de stoc, la soldul de la sfârșitul perioadei = ${c.n(m[1])} zile = stocuri nete ${c.n(m[2])} / costul producției vândute + costul mărfurilor vândute (607) ${c.n(m[3])} x ${m[4]} zile (forecast.dio_split)${m[5] ? `. ${c.sub(m[5].slice(2))}` : ""}`,
+  ),
+  rule(
+    "days.dio_ratio_table_quote",
+    `Beside it, the ratio table's dio \\(engine\\.ratios\\.table\\) reads (${N}) days: the same split by stock type on the table's own basis; the plan projects period-end balances, so this driver is the split on the period-end balance(?:; the period counts (${N}) days and the analysis's period-end split is stock / flow x (${N}) days, so this driver is that split restated on the plan's (\\d+)-day year)?`,
+    (m, c) =>
+      `Alături, tabelul de indicatori citește DIO (engine.ratios.table) = ${c.n(m[1])} zile: aceeași împărțire pe tipuri de stoc, pe baza proprie a tabelului; planul proiectează solduri la sfârșitul perioadei, deci acest factor este împărțirea pe soldul de la sfârșitul perioadei` +
+      // A leap year or a year-to-date book: the analysis counts the
+      // period's own days, the plan a 365-day year (engine.forecast.
+      // assumptions, the dio driver's restatement).
+      (m[2]
+        ? `; perioada numără ${c.n(m[2])} zile, iar împărțirea analizei pe soldul de la sfârșitul perioadei este stoc / flux x ${c.n(m[3])} zile, deci acest factor este aceeași împărțire exprimată pe anul de ${m[4]} de zile al planului`
+        : ""),
+  ),
+  rule(
+    "days.dio_refused",
+    // The refusal's own words, then its code (engine.forecast.assumptions):
+    // the Romanian prints the pack's Romanian words for that code — never
+    // the bare code in their place.
+    `inventory days are refused for this book: (.+) \\(reason code ([a-z_0-9]+)\\); no driver is measured, so inventory is HELD at its closing balance of (${N})`,
+    (m, c) => {
+      const words = INVENTORY_DAYS_REFUSALS[m[2]];
+      if (!words || words.en !== m[1]) throw new NoRule(m[0]);
+      return `zilele de stoc sunt refuzate pentru această balanță: ${words.ro} (codul motivului ${m[2]}); nu se măsoară niciun factor, deci stocurile sunt MENȚINUTE la soldul de închidere de ${c.n(m[3])}`;
+    },
   ),
   rule(
     "days.dpo",
-    `days payables outstanding, in days of cost of sales = (${N}) days = trade payables (${N}) / cost of sales (${N}) x (\\d+) days \\(forecast\\.dpo_cogs\\)(\\. .+)?`,
+    // Not "DPO" (owner spec 2026-09-26 P1: one metric name, one formula):
+    // the ratio table's DPO divides by total operating expense and is
+    // quoted beside this driver under its own name.
+    `trade payables in days of cost of sales = (${N}) days = trade payables (${N}) / cost of sales (${N}) x (\\d+) days \\(forecast\\.dpo_cogs\\)(\\. .+)?`,
     (m, c) =>
-      `zile de plată a furnizorilor, în zile de cost al vânzărilor = ${c.n(m[1])} zile = datorii comerciale ${c.n(m[2])} / costul vânzărilor ${c.n(m[3])} x ${m[4]} zile (forecast.dpo_cogs)${m[5] ? `. ${c.sub(m[5].slice(2))}` : ""}`,
+      `datorii comerciale în zile de cost al vânzărilor = ${c.n(m[1])} zile = datorii comerciale ${c.n(m[2])} / costul vânzărilor ${c.n(m[3])} x ${m[4]} zile (forecast.dpo_cogs)${m[5] ? `. ${c.sub(m[5].slice(2))}` : ""}`,
   ),
   rule(
     "days.ratio_table_quote",
@@ -296,15 +377,20 @@ const RULES: readonly Rule[] = [
   ),
   rule(
     "days.not_measurable",
-    `this book reports no (revenue|cost of sales), so (days sales outstanding|days inventory outstanding, in days of cost of sales|days payables outstanding, in days of cost of sales) cannot be measured; (trade receivables are|inventory is|trade payables are) HELD at (?:their|its) closing balance of (${N})`,
+    `this book reports no (revenue|cost of sales|cost of production sold \\+ cost of goods resold \\(607\\)), so (days sales outstanding|days inventory outstanding, split by stock type on the period-end balance|trade payables in days of cost of sales) cannot be measured; (trade receivables are|inventory is|trade payables are) HELD at (?:their|its) closing balance of (${N})`,
     (m, c) => {
-      const flow = m[1] === "revenue" ? "venituri" : "cost al vânzărilor";
+      const flow =
+        m[1] === "revenue"
+          ? "venituri"
+          : m[1] === "cost of sales"
+            ? "cost al vânzărilor"
+            : "cost al producției vândute + cost al mărfurilor vândute (607)";
       const what =
         m[2] === "days sales outstanding"
           ? "zilele de încasare a creanțelor"
           : m[2].startsWith("days inventory")
-            ? "zilele de stoc, în zile de cost al vânzărilor,"
-            : "zilele de plată a furnizorilor, în zile de cost al vânzărilor,";
+            ? "zilele de stoc (DIO), împărțite pe tipuri de stoc pe soldul de la sfârșitul perioadei,"
+            : "datoriile comerciale în zile de cost al vânzărilor";
       const held =
         m[3] === "trade receivables are"
           ? "creanțele comerciale sunt MENȚINUTE"

@@ -878,6 +878,11 @@ def _deterministic_tb_parsed(
         # stage_map decides the one EBITDA from it and stage_persist stores
         # it on the envelope for every later rebuild.
         "stock_variation_evidence": _ro_pack().measure_stock_variation(tb_rows),
+        # The class-3 balances at the fiscal-year opening and the period end
+        # (inventory days, owner spec 2026-09-26 P1): the opening lives only
+        # in the rows' `si` columns, so it is measured HERE and stored on the
+        # envelope (`assembled_canonical_v1.inventory_stock`) by stage_map.
+        "inventory_stock_evidence": _ro_pack().measure_inventory_stock(tb_rows),
     }
 
 
@@ -1869,6 +1874,11 @@ def stage_map(doc: Dict[str, Any], parsed: Dict[str, Any], industry: Optional[st
         # LLM extraction) → 711 refuses on a book that posts to it.
         stock_variation_evidence=parsed.get("stock_variation_evidence"),
     )
+    # The stock evidence (inventory days) travels with the envelope the way
+    # the stock-variation evidence does: only a MEASURED block is stored, so
+    # a period written without one keeps saying so on every rebuild.
+    _attach_inventory_stock_evidence(assembled, parsed.get("inventory_stock_evidence"),
+                                     parsed.get("extraction"))
     # Parser-level exclusions (class 8 incl. 891/892, 581 transit) are
     # dropped BEFORE assembly, so the assembler can't record them itself
     # — completed into canonical_bs.excluded at this seam (same helper
@@ -2567,6 +2577,18 @@ def stage_persist(doc: Dict[str, Any], parsed: Dict[str, Any], assembled: Dict[s
             # didn't write. Additive; readers that don't know the key
             # are unaffected.
             canonical["period_detection"] = period_detection
+            # INVENTORY DAYS (owner spec 2026-09-26 P1) — built here, the
+            # first seam that holds the period end (the day count) beside the
+            # stock evidence stage_map stored, so stage_compute's metric rows
+            # read the ONE block. The block written is the as-built record;
+            # every serving path recomputes it from the same evidence.
+            # The workspace's organization row (industry, CAEN) rides along:
+            # the seasonality flag is the org's, and stage_narrate reads THIS
+            # block — without it the upload-time briefing never said
+            # "seasonal" for a food / FMCG company (only a regenerate did).
+            _attach_inventory_days_at_persist(
+                assembled, canonical, period_end,
+                org=_period_org(admin_client, {"org_id": doc.get("org_id")}))
             # AUTO-RECONCILE (contract addendum, 2026-08-19) — between the
             # canonical build and the SINGLE envelope write below:
             #   1. Same-file carry-forward: a re-scan of the SAME file
@@ -3726,6 +3748,19 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
             " - SaaS: focus on rule-of-40, ARR growth, gross margin >70%.\n"
             " - FMCG: working-capital efficiency, inventory turn, thin margins are normal.\n"
             " - Manufacturing: capex intensity, fixed-cost leverage are normal.\n\n"
+            "INVENTORY DAYS — ONE MEASURE, AND A CLAIM POLICY:\n"
+            "Inventory days are served ONCE, in `inventory_days`: split by stock\n"
+            "type (materials, finished goods + WIP, merchandise), each over the\n"
+            "flow that moves it, with the total and its `basis`. Cite ONLY those\n"
+            "figures; never divide an inventory balance yourself and never use the\n"
+            "`metrics` row named dio for a claim. You MAY call stock slow, high or\n"
+            "excessive ONLY when `inventory_days.claim_policy.may_call_slow` is\n"
+            "true, and then the sentence MUST cite the split (the group that is\n"
+            "slow, with its days) AND the average basis (`basis_label`). When it is\n"
+            "false (a single year-end balance, or the split refused), state the\n"
+            "figure and its basis and make no slow/high claim. When\n"
+            "`inventory_days.seasonal` is true, say that a year-end balance of a\n"
+            "food / FMCG business is seasonal.\n\n"
             "═══════════════════════════════════════════════════════════════\n"
             "INDUSTRY-APPROPRIATE LANGUAGE — STRICTLY ENFORCED\n"
             "═══════════════════════════════════════════════════════════════\n"
@@ -3852,6 +3887,10 @@ def stage_narrate(doc: Dict[str, Any], assembled: Dict[str, Any], metrics: List[
         },
         # CANONICAL — cite from here. Read the system prompt first.
         "briefing_facts": briefing_facts,
+        # INVENTORY DAYS — the ONE served block, compact (owner spec
+        # 2026-09-26 P1): the split by stock type, the total, the basis and
+        # the claim policy the INVENTORY DAYS rule of the system prompt reads.
+        "inventory_days": _narrate_inventory_days(assembled["statements"]),
         "balance_sheet": assembled["statements"]["balanceSheet"],
         "income_statement": assembled["statements"]["incomeStatement"],
         # The narrator is a SURFACE (R-RANGE, absolute): persisted credit
@@ -6276,6 +6315,187 @@ def _apply_envelope_truth_to_statements(
         )
 
 
+def _narrate_inventory_days(statements: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """The compact block the narrator reads (the INVENTORY DAYS rule of the
+    briefing system prompt): figures, basis, refusals and the claim policy
+    — no operand the model could divide into a second measure. The figures
+    are the block's QUANTIZED strings (`value_q`), the digits every surface
+    prints — never the 4-decimal value the model would round its own way."""
+    from engine.ratios import inventory_days as _inventory_days
+
+    block = _inventory_days.served_block(statements)
+    if block is None:
+        return None
+    total = block.get("total") or {}
+    policy = block.get("claim_policy") or {}
+    return {
+        "basis": block.get("basis"),
+        "basis_label": (block.get("basis_label") or {}).get("en"),
+        "seasonal": bool((block.get("seasonality") or {}).get("flagged")),
+        "total_days": total.get("value_q"),
+        "total_days_period_end": total.get("closing_value_q"),
+        "total_refused": (total.get("reason") or {}).get("text_en") if total.get("reason") else None,
+        "groups": [
+            {"group": g.get("label_en"), "days": g.get("value_q"),
+             "days_period_end": g.get("closing_value_q"),
+             "refused": (g.get("reason") or {}).get("text_en") if g.get("reason") else None}
+            for g in block.get("groups") or []
+        ],
+        "claim_policy": {"may_call_slow": policy.get("may_call_slow") is True,
+                         "requires": list(policy.get("requires") or []),
+                         "reason": (policy.get("reason_text") or {}).get("en")},
+    }
+
+
+# ── INVENTORY DAYS (owner spec 2026-09-26 P1; engine.ratios.inventory_days) ──
+#
+# ONE served block, `statements.inventory_days` (schema inventory_days/1),
+# built by one code object on every path a served statements dict leaves
+# through: the write path (stage_persist, before stage_compute's metric
+# rows), GET /api/period, and the shared served rebuild (Capsule, Radar,
+# Forecast, the firm lane, briefing regenerate). Every consumer — the ratio
+# table's dio / inventory_turnover / ccc rows, the credit model's metric
+# rows, the forecast driver, the command bar — reads it; nobody divides an
+# inventory figure again.
+
+
+def _attach_inventory_stock_evidence(assembled: Dict[str, Any], evidence: Any,
+                                     extraction: Any = None) -> None:
+    """Store a MEASURED `inventory_stock/1` block on the write-time envelope.
+    A path that holds no trial-balance columns (the model's extraction, a
+    filed statutory return — `extraction` names it) stores the no-rows
+    marker instead, so its snapshot says "the trial balance was not
+    available", never "recomputed when reprocessed" (a reprocess of that
+    source never measures an opening). Any other absence stores nothing."""
+    from engine.country_packs.ro_romania import inventory_stock as _inventory_stock
+
+    if evidence is None and _inventory_stock.holds_no_rows(extraction):
+        evidence = _inventory_stock.absent_evidence(_inventory_stock.REASON_NO_ROWS)
+    _inventory_stock.attach_to_envelope(assembled, evidence)
+
+
+def _attach_inventory_days_at_persist(assembled: Dict[str, Any], canonical: Dict[str, Any],
+                                      period_end: Any,
+                                      org: Optional[Dict[str, Any]] = None) -> None:
+    """The write path's block: the period end resolved by stage_persist sets
+    the day count (`_served_supplementary`, the serving rule), the stock
+    evidence is the one stage_map stored, `org` (the workspace's
+    organizations row) sets the seasonality flag exactly as the serving
+    seams do. Non-fatal: a failure stores no block, and every metric row
+    built on it refuses (never a fallback)."""
+    try:
+        from engine.ratios import inventory_days as _inventory_days
+
+        statements = assembled.get("statements") if isinstance(assembled, dict) else None
+        if not isinstance(statements, dict):
+            return
+        row = {"period_end": period_end, "assembled_canonical_v1": canonical}
+        view = dict(statements)
+        view["supplementary"] = dict(statements.get("supplementary") or {},
+                                     **_served_supplementary(row))
+        block = _inventory_days.build_for_statements(
+            view, period_row=row, line_items=list(assembled.get("lineItems") or []), org=org)
+        statements["inventory_days"] = block
+        canonical["inventory_days"] = block
+    except Exception:  # noqa: BLE001
+        logger.exception("[stage_persist] inventory days failed (non-fatal)")
+
+
+def _monthly_inventory_points(client: Any, period: Dict[str, Any]) -> Optional[Dict[str, List[float]]]:
+    """The 13 balances of a monthly average (design B2 `average_monthly`):
+    the persisted blocks of the SAME workspace's 12 month-end periods of this
+    fiscal year (January's with its measured opening). None unless every one
+    is there — the basis is then the two year-ends or the snapshot."""
+    from engine.ratios import inventory_days as _inventory_days
+    import calendar
+    import datetime as _dt
+
+    try:
+        end = _dt.date.fromisoformat(str(period.get("period_end") or "")[:10])
+    except ValueError:
+        return None
+    if (end.month, end.day) != (12, 31) or not period.get("org_id"):
+        return None
+    month_ends = ["%d-%02d-%02d" % (end.year, m, calendar.monthrange(end.year, m)[1])
+                  for m in range(1, 13)]
+    try:
+        rows = client.select(
+            "financial_periods",
+            filters={"org_id": "eq.%s" % period["org_id"],
+                     "period_end": "in.(%s)" % ",".join(month_ends)},
+            columns="id,period_end,inventory_days:assembled_canonical_v1->inventory_days",
+        ) or []
+    except Exception:  # noqa: BLE001 — a lookup failure is "no monthly basis"
+        logger.exception("[inventory days] monthly periods lookup failed (non-fatal)")
+        return None
+    by_month: Dict[int, Dict[str, Any]] = {}
+    for r in rows:
+        try:
+            d = _dt.date.fromisoformat(str(r.get("period_end") or "")[:10])
+        except ValueError:
+            continue
+        if d.year != end.year or d.day != calendar.monthrange(d.year, d.month)[1]:
+            continue
+        block = r.get("inventory_days")
+        if isinstance(block, dict) and block.get("schema") == _inventory_days.SCHEMA:
+            if d.month in by_month:
+                return None  # two periods for one month: ambiguous, never picked
+            by_month[d.month] = block
+    if sorted(by_month) != list(range(1, 13)):
+        return None
+    return _inventory_days.monthly_points_from_periods([by_month[m] for m in range(1, 13)])
+
+
+def _period_org(client: Any, period: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """The organizations row of ``period``'s org through the caller's client
+    — None without a client, an org id, or a readable row (never raised)."""
+    org_id = (period or {}).get("org_id")
+    if client is None or not org_id:
+        return None
+    try:
+        rows = client.select("organizations", filters={"id": "eq.%s" % org_id},
+                             single=True) or []
+    except Exception:  # noqa: BLE001 — a lookup failure is "no org in hand"
+        logger.exception("[inventory days] org lookup failed (non-fatal)")
+        return None
+    return rows[0] if rows else None
+
+
+def _attach_inventory_days_block(
+    statements: Dict[str, Any],
+    period: Optional[Dict[str, Any]],
+    line_items: Optional[List[Dict[str, Any]]],
+    org: Optional[Dict[str, Any]],
+    client: Any = None,
+    monthly: Optional[Dict[str, List[float]]] = None,
+) -> None:
+    """Attach `statements["inventory_days"]` in place (the served block).
+    Called on BOTH serving seams right after
+    `_apply_envelope_truth_to_statements`, so the reconciliation reads the
+    served `canonical_bs`. With a `client`, the workspace's monthly periods
+    are looked up for the monthly basis. Non-fatal: a failure leaves the
+    key absent and every reader refuses with `inventory_days_absent`."""
+    try:
+        from engine.ratios import inventory_days as _inventory_days
+
+        if monthly is None and client is not None:
+            monthly = _monthly_inventory_points(client, period or {})
+        block = _inventory_days.build_for_statements(
+            statements, period_row=period, line_items=list(line_items or []),
+            org=org, monthly=monthly)
+        statements["inventory_days"] = block
+        # The served envelope carries the SAME block, so a FactsGateway built
+        # on it (Capsule tools, the firm lane) reads the figure the page
+        # prints (`FactsGateway.inventory_days`).
+        env = statements.get("assembled_canonical_v1")
+        if isinstance(env, dict):
+            env["inventory_days"] = block
+    except Exception:  # noqa: BLE001
+        statements.pop("inventory_days", None)
+        logger.exception("[inventory days] block failed for period %s (non-fatal)",
+                         (period or {}).get("id"))
+
+
 # ── The insight block (engine.insights) on the served statements ─────
 #
 # `engine.insights.build_insights` reads a FINISHED book and says what a
@@ -6599,7 +6819,7 @@ def load_period_rows(client: Any, period_id: str, org_id: Optional[str] = None,
     if rebuild:
         try:
             statements = _rebuild_assembled_for_briefing(
-                line_items, row, org).get("statements")
+                line_items, row, org, client=client).get("statements")
             if not isinstance(statements, dict):
                 raise ValueError("the rebuild returned no statements")
             # B5V-6: _rebuild_assembled_for_briefing SWALLOWS its canonical
@@ -6623,6 +6843,7 @@ def _rebuild_assembled_for_briefing(
     line_items: List[Dict[str, Any]],
     period: Dict[str, Any],
     org: Optional[Dict[str, Any]],
+    client: Any = None,
 ) -> Dict[str, Any]:
     """Rebuild the FULL canonical-shaped `assembled` envelope the way
     /api/period/{period_id} does — i.e. with `statements.assembled_pl`,
@@ -6635,6 +6856,15 @@ def _rebuild_assembled_for_briefing(
     (search "canonical re-assembly" in this file). Used by the F2.8
     `POST /api/period/{period_id}/briefing/regenerate` endpoint so the
     regenerated briefing cites the same numbers the dashboard renders.
+
+    ``client`` is the CALLER'S client (RLS-scoped). The inventory-days block
+    needs it for exactly what /api/period uses it for: the workspace's
+    twelve month-end periods (the monthly basis) and, when the caller has
+    no organizations row in hand, that period's org (the seasonality flag
+    reads its CAEN). Without it the block falls back to the two year-ends or
+    the snapshot — so every consumer of this seam (Capsule tools, radar,
+    the firm lane, briefing regenerate) passes its client, and serves the
+    figure the page prints.
     """
     # F3.1c: dispatch via the Romania country pack rather than direct
     # `_ro_coa` import. `_coa_mod` alias preserved so the call sites
@@ -6789,6 +7019,13 @@ def _rebuild_assembled_for_briefing(
     # persisted canonical_bs verbatim and overrides the assembled_bs
     # grand/current totals from the write-time envelope.
     _apply_envelope_truth_to_statements(statements, period)
+
+    # The inventory-days block on the shared served-rebuild seam, with the
+    # caller's client: the monthly basis reads the workspace's periods and
+    # the seasonality flag the org's CAEN — the block GET /api/period serves.
+    _attach_inventory_days_block(statements, period, line_items,
+                                 org if org is not None else _period_org(client, period),
+                                 client=client)
 
     # SEAM 2 of 2 — the insight block on the shared served-rebuild seam,
     # so the Capsule, Radar, the firm attention lane and a regenerated
@@ -9155,6 +9392,9 @@ def build_router() -> APIRouter:
             )
 
             org = loaded["org"]
+            # The monthly average's 13 balances, when this workspace holds the
+            # fiscal year's 12 month-end periods (design B2); None otherwise.
+            _inventory_monthly = _monthly_inventory_points(client, period)
 
             # Valuation row (one per period). Returned at the top level so the
             # dashboard can render the EBITDA-multiple primary card.
@@ -9362,6 +9602,12 @@ def build_router() -> APIRouter:
         # first (correctness-by-aliasing noted in the audit).
         _apply_envelope_truth_to_statements(statements, period)
 
+        # The inventory-days block (engine.ratios.inventory_days), on the
+        # served book; the monthly basis was looked up inside the RLS
+        # client block above.
+        _attach_inventory_days_block(statements, period, line_items, org,
+                                     monthly=_inventory_monthly)
+
         # SEAM 1 of 2 — the insight block. Immediately after the
         # envelope-truth override so the detectors read the SERVED book
         # (the reconciliation-adjusted `canonical_bs` the FE renders),
@@ -9508,6 +9754,11 @@ def build_router() -> APIRouter:
                 },
             },
             "bands": statements.get("assembled_bands"),
+            # INVENTORY DAYS — the ONE served metric (schema inventory_days/1,
+            # engine.ratios.inventory_days): the split by stock type, the
+            # basis, the claim policy. The ratio table's dio /
+            # inventory_turnover / ccc rows and the metric rows read it.
+            "inventory_days": statements.get("inventory_days"),
             # A stub: `credit_boundary.enforce_credit_boundary` composes the
             # as-filed envelope from `metrics` + `statements` on the way out
             # (or the serve-time model replaces this block below).
@@ -10058,7 +10309,7 @@ def build_router() -> APIRouter:
                     # no working-capital change, so on that shape every save /
                     # reset persisted a `dcf_fcf_input_absent` refusal over a
                     # period whose GET computes a DCF (the §21 sibling miss).
-                    assembled = _rebuild_assembled_for_briefing(line_items, period, org)["statements"]
+                    assembled = _rebuild_assembled_for_briefing(line_items, period, org, client=admin_client)["statements"]
                     result = _valuation.compute_valuation(
                         industry_key=_valuation_industry_key(org, assembled, line_items),
                         statements=assembled,
@@ -10118,7 +10369,7 @@ def build_router() -> APIRouter:
                     # no working-capital change, so on that shape every save /
                     # reset persisted a `dcf_fcf_input_absent` refusal over a
                     # period whose GET computes a DCF (the §21 sibling miss).
-                    assembled = _rebuild_assembled_for_briefing(line_items, period, org)["statements"]
+                    assembled = _rebuild_assembled_for_briefing(line_items, period, org, client=admin_client)["statements"]
                     result = _valuation.compute_valuation(
                         industry_key=_valuation_industry_key(org, assembled, line_items),
                         statements=assembled,
@@ -10229,7 +10480,7 @@ def build_router() -> APIRouter:
             # DCF no longer reads an absent ΔWC as 0 — on that shape every
             # recompute would refuse, and before this it computed a DCF the
             # GET path never served.
-            assembled = _rebuild_assembled_for_briefing(line_items, period, org)["statements"]
+            assembled = _rebuild_assembled_for_briefing(line_items, period, org, client=admin_client)["statements"]
 
             # Layer the user's saved EBITDA/multiple/debt/cash overrides
             # underneath the recompute's DCF overrides — same precedence
@@ -10369,7 +10620,7 @@ def build_router() -> APIRouter:
             # rebuilder so the regenerated briefing cites
             # operating-view EBITDA, statutory net income, and the
             # rest of the briefing_facts envelope.
-            assembled = _rebuild_assembled_for_briefing(line_items, period, org)
+            assembled = _rebuild_assembled_for_briefing(line_items, period, org, client=admin_client)
             # THE STORED valuations ROW IS NOT THE VALUATION the narrator
             # cites (the one-EBITDA law, critic 2026-09-27): the same
             # choice GET /api/period makes — a fresh recompute on these

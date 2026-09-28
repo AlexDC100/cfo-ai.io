@@ -32,7 +32,12 @@ import type { TFunction } from "i18next";
 
 import i18n from "@/i18n";
 import { servedDriverLabel, servedSentence } from "@/lib/forecastSentences";
-import { digitRuns, driverLabelRo, translateServedRo } from "@/lib/forecastSentencesRo";
+import {
+  INVENTORY_DAYS_REFUSALS,
+  digitRuns,
+  driverLabelRo,
+  translateServedRo,
+} from "@/lib/forecastSentencesRo";
 
 const REPO = resolve(__dirname, "../../..");
 const FIXTURE = "tests/engine/fixtures/forecast/served_sentences.json";
@@ -71,6 +76,63 @@ describe("the served sentence inventory", () => {
     ]) {
       expect(kinds.has(kind), kind).toBe(true);
     }
+  });
+});
+
+describe("Romanian: the DIO driver on a period that is not 365 days", () => {
+  it("translates the plan-year restatement, digits exactly the served ones", () => {
+    // engine.forecast.assumptions appends the restatement when the period's
+    // day count is not the plan's 365-day year (a leap year, a year-to-date
+    // book); the served-sentence fixture holds only 365-day books.
+    const text =
+      "days inventory outstanding, split by stock type on the period-end balance = 31.787827 days = inventory net 8,933,332.42 / cost of production sold + cost of goods resold (607) 102,295,680.81 x 365 days (forecast.dio_split). Beside it, the ratio table's dio (engine.ratios.table) reads 30.2945 days: the same split by stock type on the table's own basis; the plan projects period-end balances, so this driver is the split on the period-end balance; the period counts 366.0 days and the analysis's period-end split is stock / flow x 366.0 days, so this driver is that split restated on the plan's 365-day year";
+    const out = servedSentence(ro, "ro", "forecast.dio_split", text);
+    expect(out).not.toBe(text);
+    expect(digitRuns(out).join(" ")).toBe(digitRuns(text).join(" "));
+    expect(out).toContain("anul de 365 de zile al planului");
+    expect(ENGLISH.test(out.replace(/[a-z_]+(?:\.[a-z_]+)+/g, ""))).toBe(false);
+  });
+});
+
+/** The pack's refusals (`packs/ratios/inventory_days.yaml#refusals`), read
+ *  from the file the engine words them from — never a hand-typed copy. */
+const PACK_REFUSALS = ((): Record<string, { en: string; ro: string }> => {
+  const pack = readFileSync(resolve(REPO, "packs/ratios/inventory_days.yaml"), "utf-8");
+  const section = /\nrefusals:\n([\s\S]*?)\n(?=[a-z_]+:)/.exec(pack);
+  if (!section) throw new Error("packs/ratios/inventory_days.yaml carries no refusals section");
+  const out: Record<string, { en: string; ro: string }> = {};
+  const entry = /\n  ([a-z_]+):\n    \{ro: "([^"]+)",\s*en: "([^"]+)"\}/g;
+  for (let m = entry.exec("\n" + section[1]); m; m = entry.exec("\n" + section[1])) {
+    out[m[1]] = { en: m[3], ro: m[2] };
+  }
+  return out;
+})();
+
+describe("Romanian: the DIO driver refused (the refusal's own words, never a bare code)", () => {
+  // engine.forecast.assumptions cites the block's reason — its words and its
+  // code. The Romanian page printed "(codul motivului a_leg_refused)" with no
+  // words: a code where a reason belongs.
+  it("the mirror is the pack's refusals, word for word, every code", () => {
+    expect(Object.keys(PACK_REFUSALS).length, "no refusal parsed from the pack").toBeGreaterThan(5);
+    expect(INVENTORY_DAYS_REFUSALS).toEqual(PACK_REFUSALS);
+  });
+
+  it("prints the pack's Romanian reason for every code, digits exactly the served ones", () => {
+    for (const [code, words] of Object.entries(PACK_REFUSALS)) {
+      const text = `inventory days are refused for this book: ${words.en} (reason code ${code}); no driver is measured, so inventory is HELD at its closing balance of 67,821,213.71`;
+      const out = servedSentence(ro, "ro", "forecast.dio_split", text);
+      expect(out, code).not.toBe(text);
+      expect(out, code).toContain(`: ${words.ro} (codul motivului ${code})`);
+      expect(out, code).toContain("67.821.213,71");
+      expect(digitRuns(out).join(" "), code).toBe(digitRuns(text).join(" "));
+    }
+  });
+
+  it("a reason worded otherwise than the pack prints the served English, never a guessed Romanian", () => {
+    const text =
+      "inventory days are refused for this book: some other words (reason code a_leg_refused); no driver is measured, so inventory is HELD at its closing balance of 1,000.00";
+    expect(translateServedRo(ro, text)).toBeNull();
+    expect(servedSentence(ro, "ro", null, text)).toBe(text);
   });
 });
 
@@ -140,6 +202,6 @@ describe("English: the served text, byte for byte", () => {
     expect(servedDriverLabel(en, "pool_fixed_share.cost_of_sales", "pool fixed share.cost of sales")).toBe(
       "Fixed share · Cost of sales",
     );
-    expect(servedDriverLabel(en, "dio_cogs_days", "dio cogs days")).toBe("Days inventory on hand");
+    expect(servedDriverLabel(en, "dio_cogs_days", "dio cogs days")).toBe("Inventory days (DIO) — period-end balance, plan year");
   });
 });

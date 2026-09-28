@@ -47,7 +47,9 @@ import { absenceSentence } from "@/components/cfo/ratioAbsenceI18n";
 import { getRatioKnowledge, type RatioKnowledge, type FormulaPart } from "@/lib/ratioKnowledge";
 import { formulaInputRefusal, resolveFormulaInput } from "@/lib/resolveFormulaInput";
 import { pickLang } from "@/lib/servedOneEbitda";
+import { readInventoryDaysSplit } from "@/lib/inventoryDays";
 import { TraceableNumber } from "./TraceableNumber";
+import { InventoryDaysSplit } from "./ratios/InventoryDaysSplit";
 import { STATEMENT_TAB, HIGHLIGHT_PARAM, TAB_PARAM } from "@/lib/traceableSource";
 import { LearnableNumber } from "@/components/learning/LearnableNumber";
 import { useRatioCompareView } from "@/components/cfo/ComparativesPanel";
@@ -109,6 +111,9 @@ function servedDrawerRow(view: RatioCompareView | null, feKey: string, locale: s
 
 /** A hand-typed range that states a cutoff (any digit) is a second copy of
  *  a ladder; beside a served ladder it is withheld. */
+/** The rows whose figure is (or contains) the inventory-days split. */
+const INVENTORY_SPLIT_KEYS: ReadonlySet<string> = new Set(["dio", "ccc", "inventory_turnover"]);
+
 const statesCutoff = (text: string | null | undefined): boolean => typeof text === "string" && /\d/.test(text);
 
 interface Props {
@@ -389,6 +394,15 @@ function DrawerBody({
             </p>
           )}
         </Section>
+
+        {/* INVENTORY DAYS — the split the figure is made of (the ONE served
+         *  block): every leg with its accounts and flow, "alte stocuri",
+         *  the basis, the period-end figure the cycle adds, seasonality. */}
+        {INVENTORY_SPLIT_KEYS.has(ratio.key) && readInventoryDaysSplit(statements) ? (
+          <Section icon={Layers} title={t("inventoryDays.title")}>
+            <InventoryDaysSplit statements={statements} variant="full" />
+          </Section>
+        ) : null}
 
         {/* "What this value means" — the load-bearing line for the
          *  reader who's only going to scan one thing */}

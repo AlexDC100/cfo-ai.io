@@ -200,10 +200,35 @@ describe("the ratio card's band-source line", () => {
     for (const piece of [`n=${card.n}`, `FY${card.year}`, card.source, `CAEN ${card.sector_caen}`, "general SME ladder"]) {
       expect(sector).toContain(piece);
     }
-    expect(bandSourceText(doc, "dio", "en")).toBe(
+    // THE FILED BASIS IS A DIFFERENT MEASURE, NEVER COMPARED (owner spec
+    // 2026-09-26 P1.3). The DIO card prints the analysis's split; its band
+    // line says there is no sector figure on that basis and does NOT send
+    // the reader to the filed-basis row as its sector band.
+    expect(bandSourceText(doc, "dio", "en")).toBe(en.benchmarkPage.sector.bandNeverCompared);
+    expect(bandSourceText(doc, "dio", "en")).not.toContain(en.benchmarkPage.sector.reason.definition_differs);
+    expect(bandSourceText(doc, "dio", "ro")).toBe(ro.benchmarkPage.sector.bandNeverCompared);
+    // a card whose filed counterpart is the SAME quantity on a wider base
+    // keeps the pointer
+    expect(bandSourceText(doc, "dso", "en")).toBe(
       `General SME band. No sector band: ${en.benchmarkPage.sector.reason.definition_differs}`);
     expect(bandSourceText(doc, "gross_margin", "en")).toContain(en.benchmarkPage.sector.reason.not_in_filed_summary);
     expect(bandSourceText(null, "net_margin", "en")).toBe(en.benchmarkPage.sector.bandGeneral);
+  });
+
+  it("the filed-basis inventory row wears the owner's label, no second note, and never sits beside the split", () => {
+    const doc = DOC();
+    const row = printSectorRows(doc, "ro").find((r) => r.key === "inventory_days_on_turnover")!;
+    expect(row.label).toContain("bază depusă (stoc ÷ cifra de afaceri) — nu aceeași cu zilele de stoc din analiză");
+    expect(row.note).toBe("");
+    // In the printed report the split sits in Liquidity & Working Capital,
+    // the filed row in the sector section — never one inside the other.
+    const html = buildReportHtml({ ...statementsFor("agras"), sectorBenchmark: doc }, { metricsByName: metricsFor("agras") });
+    const dom = new DOMParser().parseFromString(html, "text/html");
+    const sectorSection = dom.querySelector("#sec-sector")!;
+    expect(sectorSection.querySelector('[data-inventory-days="split"]')).toBeNull();
+    const split = dom.querySelector('[data-inventory-days="split"]')!;
+    expect(split).not.toBeNull();
+    expect(split.closest("section")!.querySelector('[data-sector-row="inventory_days_on_turnover"]')).toBeNull();
   });
 
   it("a sector card without n falls back to the general sentence", () => {

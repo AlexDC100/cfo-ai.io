@@ -98,7 +98,7 @@ export function respond(input: string, ctx: DataCtx): AnswerBlocks {
         },
         {
           list: sortedByCapital.map(
-            (i) => `**${i.id}** — ${(Math.abs(i.capitalMRon)).toFixed(2)}M ${CURRENCY} · ${i.dioDays}d DIO · real margin ${i.realMargin.toFixed(1)}%`,
+            (i) => `**${i.id}** — ${(Math.abs(i.capitalMRon)).toFixed(2)}M ${CURRENCY} · ${i.dioDays} SKU days · real margin ${i.realMargin.toFixed(1)}%`,
           ),
         },
         {
@@ -135,7 +135,7 @@ export function respond(input: string, ctx: DataCtx): AnswerBlocks {
         },
         {
           list: liq.map(
-            (i) => `**${i.id}** — real margin ${i.realMargin.toFixed(1)}%, ${i.dioDays}d DIO. Reason: ${i.reason ?? "weak unit economics"}.`,
+            (i) => `**${i.id}** — real margin ${i.realMargin.toFixed(1)}%, ${i.dioDays} SKU days. Reason: ${i.reason ?? "weak unit economics"}.`,
           ),
         },
       ],
@@ -197,7 +197,7 @@ export function respond(input: string, ctx: DataCtx): AnswerBlocks {
           stats: [
             { label: "Real margin",       value: fmt.pct(named.realMargin) },
             { label: "Absolute profit",   value: fmt.euAuto(named.absoluteProfit) },
-            { label: "DIO",               value: `${named.dioDays}d` },
+            { label: "SKU days",          value: `${named.dioDays}d` },
             { label: "Capital trapped",   value: `${(Math.abs(named.capitalMRon)).toFixed(2)}M ${CURRENCY}` },
           ],
         },

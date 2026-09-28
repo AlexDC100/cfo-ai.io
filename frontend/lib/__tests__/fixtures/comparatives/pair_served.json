@@ -2763,7 +2763,7 @@
     "direction": "lower",
     "name": "dio",
     "unit": "days",
-    "value": 37.7894
+    "value": 34.2676
    },
    {
     "direction": "higher",
@@ -2775,13 +2775,13 @@
     "direction": "lower",
     "name": "ccc",
     "unit": "days",
-    "value": 27.9499
+    "value": 28.0246
    },
    {
     "direction": "higher",
     "name": "inventory_turnover",
     "unit": "ratio",
-    "value": 9.6588
+    "value": 10.6515
    },
    {
     "direction": "higher",
@@ -4264,6 +4264,285 @@
       }
      ]
     },
+    "inventory_days": {
+     "basis": "average_two_year_ends",
+     "basis_label": {
+      "en": "average of the balances at 1 January and 31 December",
+      "ro": "media soldurilor la 1 ianuarie și 31 decembrie"
+     },
+     "ccc_dio_term": {
+      "basis": "year_end_snapshot",
+      "basis_label": {
+       "en": "stock at 31 December — a single day",
+       "ro": "stoc la 31 decembrie — o singură zi"
+      },
+      "reason": null,
+      "value": 37.8642
+     },
+     "claim_policy": {
+      "may_call_slow": true,
+      "reason": "split_and_average",
+      "reason_text": {
+       "en": "a claim must cite the split by stock type and the average balance",
+       "ro": "afirmația trebuie să citeze împărțirea pe tipuri de stoc și media soldurilor"
+      },
+      "requires": [
+       "split_by_stock_type",
+       "average_balance"
+      ]
+     },
+     "cost_of_production_sold": {
+      "basis": "total_operating_expense_less_607_less_net_711",
+      "formula": "total_operating_expense - 607 - net_711",
+      "label_en": "total operating cost excluding merchandise, adjusted for the change in inventories (no class-9 management accounts)",
+      "label_ro": "cost total de exploatare fără mărfuri, ajustat cu variația stocurilor (fără contabilitate de gestiune clasa 9)",
+      "operands": {
+       "cost_of_goods_resold_607": 6574253.94,
+       "net_711": 186849.53,
+       "net_711_provenance": "account_121_bridge",
+       "total_operating_expense": 94617707.03
+      },
+      "refusal": null,
+      "value": 87856603.56
+     },
+     "filed_basis_pointer": {
+      "label_en": "filed basis (stock ÷ net turnover) — not the same as the inventory days of this analysis",
+      "label_ro": "bază depusă (stoc ÷ cifra de afaceri) — nu aceeași cu zilele de stoc din analiză",
+      "never_compare": true,
+      "sector_row_key": "inventory_days_on_turnover"
+     },
+     "groups": [
+      {
+       "accounts": [
+        "301.01",
+        "301.08",
+        "3021.02",
+        "3021.1",
+        "3021.4",
+        "3021.5",
+        "3022.1",
+        "3022.6",
+        "3022.7",
+        "3022.9",
+        "3023.01",
+        "3023.02",
+        "3023.03",
+        "3024.1",
+        "3024.2",
+        "3024.3",
+        "3024.4",
+        "3024.5",
+        "3024.6",
+        "3026",
+        "3027",
+        "3028.1",
+        "3028.2",
+        "3028.4",
+        "3028.5",
+        "3028.6",
+        "3028.7",
+        "3028.8",
+        "303"
+       ],
+       "closing_value": 39.8908,
+       "closing_value_q": "40",
+       "flow": {
+        "accounts": [
+         "601",
+         "602",
+         "603"
+        ],
+        "key": "materials_consumed",
+        "label_en": "Materials consumed (601 + 602 + 603)",
+        "label_ro": "Consum de materii prime și materiale (601 + 602 + 603)",
+        "value": 51489190.21
+       },
+       "key": "materials",
+       "label_en": "Raw materials and consumables",
+       "label_ro": "Materii prime și materiale",
+       "provision_accounts": [
+        "391",
+        "392"
+       ],
+       "provision_accounts_present": [
+        "3920.01",
+        "3921.01",
+        "3921.02",
+        "3921.04",
+        "3922.01"
+       ],
+       "reason": null,
+       "stock": {
+        "average": 4867288.77,
+        "closing": 5627240.41,
+        "opening": 4107337.13
+       },
+       "stock_accounts": [
+        "301",
+        "302",
+        "303",
+        "308"
+       ],
+       "value": 34.5036,
+       "value_q": "35"
+      },
+      {
+       "accounts": [
+        "341.01",
+        "341.02",
+        "345.01",
+        "345.03",
+        "348"
+       ],
+       "closing_value": 13.2153,
+       "closing_value_q": "13",
+       "flow": {
+        "accounts": [],
+        "key": "cost_of_production_sold",
+        "label_en": "Cost of production sold",
+        "label_ro": "Costul producției vândute",
+        "value": 87856603.56
+       },
+       "key": "finished_goods_wip",
+       "label_en": "Finished goods and work in progress",
+       "label_ro": "Produse finite și producție în curs",
+       "provision_accounts": [
+        "393",
+        "394"
+       ],
+       "provision_accounts_present": [],
+       "reason": null,
+       "stock": {
+        "average": 3180192.06,
+        "closing": 3180958.18,
+        "opening": 3179425.94
+       },
+       "stock_accounts": [
+        "331",
+        "341",
+        "345",
+        "348"
+       ],
+       "value": 13.2121,
+       "value_q": "13"
+      },
+      {
+       "accounts": [
+        "371.1",
+        "371.4",
+        "371.7"
+       ],
+       "closing_value": 40.6974,
+       "closing_value_q": "41",
+       "flow": {
+        "accounts": [
+         "607"
+        ],
+        "key": "cost_of_goods_resold",
+        "label_en": "Cost of goods resold (607)",
+        "label_ro": "Costul mărfurilor vândute (607)",
+        "value": 6574253.94
+       },
+       "key": "merchandise",
+       "label_en": "Merchandise",
+       "label_ro": "Mărfuri",
+       "provision_accounts": [
+        "397"
+       ],
+       "provision_accounts_present": [],
+       "reason": null,
+       "stock": {
+        "average": 535948.34,
+        "closing": 733026.88,
+        "opening": 338869.8
+       },
+       "stock_accounts": [
+        "371",
+        "378"
+       ],
+       "value": 29.7556,
+       "value_q": "30"
+      }
+     ],
+     "inventory_turnover": {
+      "formula": "period_days / total.value",
+      "reason": null,
+      "value": 10.6515,
+      "value_q": "10.65"
+     },
+     "opening": {
+      "convention": "B",
+      "reason": null,
+      "source": "tb_si_column",
+      "status": "available"
+     },
+     "other": {
+      "accounts": [
+       "351.101",
+       "381.01",
+       "381.02",
+       "381.11",
+       "381.14"
+      ],
+      "key": "other_stock",
+      "label_en": "Other stock",
+      "label_ro": "Alte stocuri",
+      "provision_accounts_present": [
+       "3981.01"
+      ],
+      "stock": {
+       "average": 282103.3,
+       "closing": 254801.33,
+       "opening": 309405.28
+      }
+     },
+     "period_days": 365.0,
+     "provenance": {
+      "flows": "statement_line_items (601, 602, 603, 607, 701-703)",
+      "net_711": "assembled_pl.inventory_variation",
+      "pack": "packs/ratios/inventory_days.yaml",
+      "period_days": "supplementary.periodDays",
+      "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
+      "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+     },
+     "reconciliation": {
+      "difference": 0.0,
+      "served_inventory_net": 9796026.8,
+      "status": "reconciled",
+      "sum_of_groups_closing": 9796026.8
+     },
+     "schema": "inventory_days/1",
+     "seasonality": {
+      "flagged": false,
+      "note_en": null,
+      "note_ro": null
+     },
+     "status": "served",
+     "total": {
+      "closing_value": 37.8642,
+      "closing_value_q": "38",
+      "flow": {
+       "components": {
+        "cost_of_goods_resold_607": 6574253.94,
+        "cost_of_production_sold": 87856603.56
+       },
+       "label_en": "cost of production sold + cost of goods resold (607)",
+       "label_ro": "costul producției vândute + costul mărfurilor vândute (607)",
+       "value": 94430857.5
+      },
+      "label_en": "Inventory days (total, flow-weighted)",
+      "label_ro": "Zile de stoc (total, ponderat cu fluxurile)",
+      "reason": null,
+      "stock": {
+       "average": 8865532.47,
+       "closing": 9796026.8,
+       "opening": 7935038.15
+      },
+      "value": 34.2676,
+      "value_q": "34",
+      "weighting": "flow"
+     }
+    },
     "leaves": {
      "accrued_expenses": {
       "magnitude": 1070092.84,
@@ -4781,13 +5060,6 @@
        "unit": "ratio",
        "value": 0.043973
       },
-      "cash_conversion_cycle": {
-       "band": null,
-       "direction": "lower_is_better",
-       "note": "",
-       "unit": "days",
-       "value": 21.470733
-      },
       "cash_ratio": {
        "band": [
         0.1,
@@ -4807,26 +5079,6 @@
        "note": "",
        "unit": "ratio",
        "value": 1.835279
-      },
-      "days_inventory_outstanding": {
-       "band": [
-        30,
-        70
-       ],
-       "direction": "lower_is_better",
-       "note": "",
-       "unit": "days",
-       "value": 61.798882
-      },
-      "days_payable_outstanding": {
-       "band": [
-        30,
-        60
-       ],
-       "direction": "higher_is_better",
-       "note": "",
-       "unit": "days",
-       "value": 82.152831
       },
       "days_sales_outstanding": {
        "band": [
@@ -4915,13 +5167,6 @@
        "note": "",
        "unit": "ratio",
        "value": 8.358522
-      },
-      "inventory_turnover": {
-       "band": null,
-       "direction": "higher_is_better",
-       "note": "",
-       "unit": "ratio",
-       "value": 5.906256
       },
       "lt_debt_to_equity": {
        "band": null,
@@ -7125,8 +7370,8 @@
         "role": "trade_payable"
        }
       ],
-      "claim": "The net trade float is RON -2,192,704.48: RON 10,829,721.07 owed by customers against RON 13,022,425.55 owed to suppliers — 41.8 days of sales outstanding against 82.8 days of payables, a gap of -40.9 days.",
-      "claim_template": "The net trade float is {money:float}: {money:trade_receivables} owed by customers against {money:trade_payables} owed to suppliers — {measure:dso} of sales outstanding against {measure:dpo} of payables, a gap of {measure:float_days}.",
+      "claim": "The net trade float is RON -2,192,704.48: RON 10,829,721.07 owed by customers against RON 13,022,425.55 owed to suppliers — 41.8 days of sales outstanding against 51.7 days of payables (RON 13,392,746.23 of balance-sheet payables over RON 94,617,707.03 of total operating expense, on 365 days), a gap of -9.8 days.",
+      "claim_template": "The net trade float is {money:float}: {money:trade_receivables} owed by customers against {money:trade_payables} owed to suppliers — {measure:dso} of sales outstanding against {measure:dpo} of payables ({money:dpo_payables} of balance-sheet payables over {money:total_operating_expense} of total operating expense, on {measure:period_days}), a gap of {measure:float_days}.",
       "facts": [
        {
         "label": "Trade receivables net of provisions",
@@ -7147,13 +7392,13 @@
         "value": 94509939.96
        },
        {
-        "label": "Cost of goods sold",
-        "name": "assembled_pl.cogs",
+        "label": "Total operating expense",
+        "name": "assembled_pl.total_operating_expense",
         "unit": "money",
-        "value": 57429796.23
+        "value": 94617707.03
        }
       ],
-      "formula": "DSO = trade receivables net ÷ revenue × 365; DPO = trade payables ÷ cost of goods sold × 365; float = trade receivables net − trade payables",
+      "formula": "DSO = trade receivables net ÷ revenue × the period's days; DPO = balance-sheet payables ÷ total operating expense × the period's days (the ratio table's one DPO, engine.ratios.table.dpo_days); float = trade receivables net − trade payables",
       "id": "trade_float",
       "in_summary": true,
       "measures": [
@@ -7165,15 +7410,15 @@
        },
        {
         "key": "dpo",
-        "label": "Days payables outstanding",
+        "label": "Days payables outstanding (on total operating cost)",
         "unit": "days",
-        "value": 82.765143493005
+        "value": 51.664244752835
        },
        {
         "key": "float_days",
         "label": "Collection gap (DSO − DPO)",
         "unit": "days",
-        "value": -40.940461430748
+        "value": -9.839562690578
        },
        {
         "key": "float",
@@ -7194,14 +7439,27 @@
         "value": 13022425.55
        },
        {
-        "key": "cogs",
-        "label": "Cost of goods sold",
+        "key": "dpo_payables",
+        "label": "Balance-sheet payables (the DPO's numerator)",
         "unit": "money",
-        "value": 57429796.23
+        "value": 13392746.23
+       },
+       {
+        "key": "total_operating_expense",
+        "label": "Total operating expense",
+        "unit": "money",
+        "value": 94617707.03
+       },
+       {
+        "key": "period_days",
+        "label": "The period's day count",
+        "noun": "day",
+        "unit": "count",
+        "value": 365.0
        }
       ],
       "narrative": {
-       "explanation": "The net trade float is RON -2,192,704.48: RON 10,829,721.07 owed by customers against RON 13,022,425.55 owed to suppliers — 41.8 days of sales outstanding against 82.8 days of payables, a gap of -40.9 days. Graded low: the amount at stake is 2.3% of revenue, against the ladder printed beside this finding. Trade float is a claim on a year of trading, so it is graded as a share of that year's revenue — the same base both day counts already annualise against.",
+       "explanation": "The net trade float is RON -2,192,704.48: RON 10,829,721.07 owed by customers against RON 13,022,425.55 owed to suppliers — 41.8 days of sales outstanding against 51.7 days of payables (RON 13,392,746.23 of balance-sheet payables over RON 94,617,707.03 of total operating expense, on 365 days), a gap of -9.8 days. Graded low: the amount at stake is 2.3% of revenue, against the ladder printed beside this finding. Trade float is a claim on a year of trading, so it is graded as a share of that year's revenue — the same base both day counts already annualise against.",
        "reason": "the advisory lane was not invoked for this build",
        "so_what": "Compare the collection gap with the credit terms actually granted. Where suppliers fund the cycle, that funding is a payables line that can be withdrawn, not a permanent source.",
        "source": "deterministic"
@@ -7705,6 +7963,285 @@
      "trade_float",
      "unclassified_balances"
     ]
+   },
+   "inventory_days": {
+    "basis": "average_two_year_ends",
+    "basis_label": {
+     "en": "average of the balances at 1 January and 31 December",
+     "ro": "media soldurilor la 1 ianuarie și 31 decembrie"
+    },
+    "ccc_dio_term": {
+     "basis": "year_end_snapshot",
+     "basis_label": {
+      "en": "stock at 31 December — a single day",
+      "ro": "stoc la 31 decembrie — o singură zi"
+     },
+     "reason": null,
+     "value": 37.8642
+    },
+    "claim_policy": {
+     "may_call_slow": true,
+     "reason": "split_and_average",
+     "reason_text": {
+      "en": "a claim must cite the split by stock type and the average balance",
+      "ro": "afirmația trebuie să citeze împărțirea pe tipuri de stoc și media soldurilor"
+     },
+     "requires": [
+      "split_by_stock_type",
+      "average_balance"
+     ]
+    },
+    "cost_of_production_sold": {
+     "basis": "total_operating_expense_less_607_less_net_711",
+     "formula": "total_operating_expense - 607 - net_711",
+     "label_en": "total operating cost excluding merchandise, adjusted for the change in inventories (no class-9 management accounts)",
+     "label_ro": "cost total de exploatare fără mărfuri, ajustat cu variația stocurilor (fără contabilitate de gestiune clasa 9)",
+     "operands": {
+      "cost_of_goods_resold_607": 6574253.94,
+      "net_711": 186849.53,
+      "net_711_provenance": "account_121_bridge",
+      "total_operating_expense": 94617707.03
+     },
+     "refusal": null,
+     "value": 87856603.56
+    },
+    "filed_basis_pointer": {
+     "label_en": "filed basis (stock ÷ net turnover) — not the same as the inventory days of this analysis",
+     "label_ro": "bază depusă (stoc ÷ cifra de afaceri) — nu aceeași cu zilele de stoc din analiză",
+     "never_compare": true,
+     "sector_row_key": "inventory_days_on_turnover"
+    },
+    "groups": [
+     {
+      "accounts": [
+       "301.01",
+       "301.08",
+       "3021.02",
+       "3021.1",
+       "3021.4",
+       "3021.5",
+       "3022.1",
+       "3022.6",
+       "3022.7",
+       "3022.9",
+       "3023.01",
+       "3023.02",
+       "3023.03",
+       "3024.1",
+       "3024.2",
+       "3024.3",
+       "3024.4",
+       "3024.5",
+       "3024.6",
+       "3026",
+       "3027",
+       "3028.1",
+       "3028.2",
+       "3028.4",
+       "3028.5",
+       "3028.6",
+       "3028.7",
+       "3028.8",
+       "303"
+      ],
+      "closing_value": 39.8908,
+      "closing_value_q": "40",
+      "flow": {
+       "accounts": [
+        "601",
+        "602",
+        "603"
+       ],
+       "key": "materials_consumed",
+       "label_en": "Materials consumed (601 + 602 + 603)",
+       "label_ro": "Consum de materii prime și materiale (601 + 602 + 603)",
+       "value": 51489190.21
+      },
+      "key": "materials",
+      "label_en": "Raw materials and consumables",
+      "label_ro": "Materii prime și materiale",
+      "provision_accounts": [
+       "391",
+       "392"
+      ],
+      "provision_accounts_present": [
+       "3920.01",
+       "3921.01",
+       "3921.02",
+       "3921.04",
+       "3922.01"
+      ],
+      "reason": null,
+      "stock": {
+       "average": 4867288.77,
+       "closing": 5627240.41,
+       "opening": 4107337.13
+      },
+      "stock_accounts": [
+       "301",
+       "302",
+       "303",
+       "308"
+      ],
+      "value": 34.5036,
+      "value_q": "35"
+     },
+     {
+      "accounts": [
+       "341.01",
+       "341.02",
+       "345.01",
+       "345.03",
+       "348"
+      ],
+      "closing_value": 13.2153,
+      "closing_value_q": "13",
+      "flow": {
+       "accounts": [],
+       "key": "cost_of_production_sold",
+       "label_en": "Cost of production sold",
+       "label_ro": "Costul producției vândute",
+       "value": 87856603.56
+      },
+      "key": "finished_goods_wip",
+      "label_en": "Finished goods and work in progress",
+      "label_ro": "Produse finite și producție în curs",
+      "provision_accounts": [
+       "393",
+       "394"
+      ],
+      "provision_accounts_present": [],
+      "reason": null,
+      "stock": {
+       "average": 3180192.06,
+       "closing": 3180958.18,
+       "opening": 3179425.94
+      },
+      "stock_accounts": [
+       "331",
+       "341",
+       "345",
+       "348"
+      ],
+      "value": 13.2121,
+      "value_q": "13"
+     },
+     {
+      "accounts": [
+       "371.1",
+       "371.4",
+       "371.7"
+      ],
+      "closing_value": 40.6974,
+      "closing_value_q": "41",
+      "flow": {
+       "accounts": [
+        "607"
+       ],
+       "key": "cost_of_goods_resold",
+       "label_en": "Cost of goods resold (607)",
+       "label_ro": "Costul mărfurilor vândute (607)",
+       "value": 6574253.94
+      },
+      "key": "merchandise",
+      "label_en": "Merchandise",
+      "label_ro": "Mărfuri",
+      "provision_accounts": [
+       "397"
+      ],
+      "provision_accounts_present": [],
+      "reason": null,
+      "stock": {
+       "average": 535948.34,
+       "closing": 733026.88,
+       "opening": 338869.8
+      },
+      "stock_accounts": [
+       "371",
+       "378"
+      ],
+      "value": 29.7556,
+      "value_q": "30"
+     }
+    ],
+    "inventory_turnover": {
+     "formula": "period_days / total.value",
+     "reason": null,
+     "value": 10.6515,
+     "value_q": "10.65"
+    },
+    "opening": {
+     "convention": "B",
+     "reason": null,
+     "source": "tb_si_column",
+     "status": "available"
+    },
+    "other": {
+     "accounts": [
+      "351.101",
+      "381.01",
+      "381.02",
+      "381.11",
+      "381.14"
+     ],
+     "key": "other_stock",
+     "label_en": "Other stock",
+     "label_ro": "Alte stocuri",
+     "provision_accounts_present": [
+      "3981.01"
+     ],
+     "stock": {
+      "average": 282103.3,
+      "closing": 254801.33,
+      "opening": 309405.28
+     }
+    },
+    "period_days": 365.0,
+    "provenance": {
+     "flows": "statement_line_items (601, 602, 603, 607, 701-703)",
+     "net_711": "assembled_pl.inventory_variation",
+     "pack": "packs/ratios/inventory_days.yaml",
+     "period_days": "supplementary.periodDays",
+     "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
+     "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+    },
+    "reconciliation": {
+     "difference": 0.0,
+     "served_inventory_net": 9796026.8,
+     "status": "reconciled",
+     "sum_of_groups_closing": 9796026.8
+    },
+    "schema": "inventory_days/1",
+    "seasonality": {
+     "flagged": false,
+     "note_en": null,
+     "note_ro": null
+    },
+    "status": "served",
+    "total": {
+     "closing_value": 37.8642,
+     "closing_value_q": "38",
+     "flow": {
+      "components": {
+       "cost_of_goods_resold_607": 6574253.94,
+       "cost_of_production_sold": 87856603.56
+      },
+      "label_en": "cost of production sold + cost of goods resold (607)",
+      "label_ro": "costul producției vândute + costul mărfurilor vândute (607)",
+      "value": 94430857.5
+     },
+     "label_en": "Inventory days (total, flow-weighted)",
+     "label_ro": "Zile de stoc (total, ponderat cu fluxurile)",
+     "reason": null,
+     "stock": {
+      "average": 8865532.47,
+      "closing": 9796026.8,
+      "opening": 7935038.15
+     },
+     "value": 34.2676,
+     "value_q": "34",
+     "weighting": "flow"
+    }
    },
    "periodLabel": "Dec 2024",
    "subAggregates": {
@@ -8625,7 +9162,7 @@
       "title_template": "Asset turnover on 7015.01 / 707.093 / 2131.01 at 2.82× — at or above the 1.50× strong rung of asset turnover for mid-size inventory-heavy operator"
      },
      {
-      "body": "401.01 (Zchgynjhy ygbohgy - 940.40 940.40), 401.110 (Ypurclfuc BVN 976.667), 601.201 (Xr.kvy.dxmka kaiag.zvxba 258.658): days payables outstanding in Dec 2024 — 52 days; days payables outstanding in Dec 2025 — 27 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 401.01, 401.110, 601.201; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_dpo fires when healthy rung of days payables outstanding is below 45 days; observed 27 days. Impact: the numerator of days payables outstanding at the healthy rung, versus as held moves from RON 12,743,922 to RON 7,554,852. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; days payables outstanding on 401.01 / 401.110 / 601.201 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the days payables outstanding movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 401.01, 401.110, 601.201, from the financial controller (before the next board pack). 2) Quantify what returns days payables outstanding to the healthy rung — headroom schedule for the numerator and the denominator of days payables outstanding, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body": "401.01 (Zchgynjhy ygbohgy - 940.40 940.40), 401.110 (Ypurclfuc BVN 976.667), 601.201 (Xr.kvy.dxmka kaiag.zvxba 258.658): days payables outstanding in Dec 2024 — 52 days; days payables outstanding in Dec 2025 — 27 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 401.01, 401.110, 601.201; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_dpo fires when healthy rung of days payables outstanding is below 45 days; observed 27 days. Impact: the numerator of days payables outstanding at the healthy rung, versus as held moves from RON 12,743,922 to RON 7,554,847. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; days payables outstanding on 401.01 / 401.110 / 601.201 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the days payables outstanding movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 401.01, 401.110, 601.201, from the financial controller (before the next board pack). 2) Quantify what returns days payables outstanding to the healthy rung — headroom schedule for the numerator and the denominator of days payables outstanding, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
       "body_template": "401.01 (Zchgynjhy ygbohgy - 940.40 940.40), 401.110 (Ypurclfuc BVN 976.667), 601.201 (Xr.kvy.dxmka kaiag.zvxba 258.658): days payables outstanding in Dec 2024 — 52 days; days payables outstanding in Dec 2025 — 27 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 401.01, 401.110, 601.201; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_dpo fires when healthy rung of days payables outstanding is below 45 days; observed 27 days. Impact: the numerator of days payables outstanding at the healthy rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; days payables outstanding on 401.01 / 401.110 / 601.201 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the days payables outstanding movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 401.01, 401.110, 601.201, from the financial controller (before the next board pack). 2) Quantify what returns days payables outstanding to the healthy rung — headroom schedule for the numerator and the denominator of days payables outstanding, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
       "category": "working_capital",
       "contract_elements": {
@@ -8655,7 +9192,7 @@
        "evidence": {
         "comparison_basis": {
          "basis_unit": "days",
-         "basis_value": 51.6642,
+         "basis_value": 51.66424475283546,
          "description": "the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision",
          "kind": "prior_period"
         },
@@ -8664,13 +9201,13 @@
           "fact": "dpo__prior",
           "label": "days payables outstanding in Dec 2024",
           "unit": "days",
-          "value": 51.6642
+          "value": 51.66424475283546
          },
          {
           "fact": "dpo__current",
           "label": "days payables outstanding in Dec 2025",
           "unit": "days",
-          "value": 26.6769
+          "value": 26.67688366137272
          }
         ],
         "provenance": {
@@ -8686,12 +9223,12 @@
         }
        },
        "impact": {
-        "adjusted": 7554851.8770709485,
+        "adjusted": 7554847.25,
         "adjusted_fact": "band_numerator_held",
         "baseline": 12743922.062465753,
         "baseline_fact": "band_numerator_at_rung",
         "currency": "RON",
-        "delta": -5189070.185394805,
+        "delta": -5189074.812465753,
         "kind": "headroom",
         "metric": "band_dpo",
         "metric_label": "the numerator of days payables outstanding at the healthy rung, versus as held",
@@ -8723,7 +9260,7 @@
        "threshold": {
         "comparator": "<",
         "limit": 45.0,
-        "observed": 26.6769,
+        "observed": 26.67688366137272,
         "parameter": "healthy",
         "parameter_label": "healthy rung of days payables outstanding",
         "rule_id": "band_dpo",
@@ -8764,9 +9301,9 @@
       },
       "facts_cited": {
        "band_numerator_at_rung": 12743922.062465753,
-       "band_numerator_held": 7554851.8770709485,
-       "dpo__current": 26.6769,
-       "dpo__prior": 51.6642
+       "band_numerator_held": 7554847.25,
+       "dpo__current": 26.67688366137272,
+       "dpo__prior": 51.66424475283546
       },
       "finding_id": "band_dpo:healthy->watch",
       "lane": "c_bands",
@@ -8787,7 +9324,7 @@
         "delta": "-25",
         "delta_unit": "days",
         "from": "healthy",
-        "headroom_money": "5189070.19",
+        "headroom_money": "5189074.81",
         "label_key": "ratioTable.dpo.label",
         "prior_label": "Dec 2024",
         "prior_value": "52",
@@ -10041,6 +10578,183 @@
       "title_template": "Days sales outstanding on 4111.01 / 4111.10 / 7015.01 at 28 days — at or below the 30 days strong rung of days sales outstanding for mid-size inventory-heavy operator"
      },
      {
+      "body": "4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 301.201 (Uxsyann zanpy - fxaby 467.067), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): cash conversion cycle in Dec 2024 — 28 days; cash conversion cycle in Dec 2025 — 33 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 4111.01, 301.201, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_ccc fires when strong rung of cash conversion cycle is above 30 days; observed 33 days. Impact: the working capital cash conversion cycle ties up at the strong rung, versus as held moves from RON 9,106,710 to RON 10,091,279. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; cash conversion cycle on 4111.01 / 301.201 / 401.01 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the cash conversion cycle movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4111.01, 301.201, 401.01, from the financial controller (before the next board pack). 2) Quantify what returns cash conversion cycle to the strong rung — headroom schedule for the numerator and the denominator of cash conversion cycle, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body_template": "4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 301.201 (Uxsyann zanpy - fxaby 467.067), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): cash conversion cycle in Dec 2024 — 28 days; cash conversion cycle in Dec 2025 — 33 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 4111.01, 301.201, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_ccc fires when strong rung of cash conversion cycle is above 30 days; observed 33 days. Impact: the working capital cash conversion cycle ties up at the strong rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; cash conversion cycle on 4111.01 / 301.201 / 401.01 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the cash conversion cycle movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4111.01, 301.201, 401.01, from the financial controller (before the next board pack). 2) Quantify what returns cash conversion cycle to the strong rung — headroom schedule for the numerator and the denominator of cash conversion cycle, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "category": "working_capital",
+      "contract_elements": {
+       "action": {
+        "steps": [
+         {
+          "artefact": "two-period balance listing for accounts 4111.01, 301.201, 401.01",
+          "horizon": "before the next board pack",
+          "imperative": "Reconcile the cash conversion cycle movement from Dec 2024 to Dec 2025 to the ledger",
+          "lang": "en",
+          "provider": "the financial controller"
+         },
+         {
+          "artefact": "headroom schedule for the numerator and the denominator of cash conversion cycle",
+          "horizon": null,
+          "imperative": "Quantify what returns cash conversion cycle to the strong rung",
+          "lang": "en",
+          "provider": "the FP&A team"
+         }
+        ]
+       },
+       "confidence": {
+        "basis": "profile inventory_operator/band_mid/fin_related_party_funded resolved from structure",
+        "caveat": "Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
+        "level": "medium"
+       },
+       "evidence": {
+        "comparison_basis": {
+         "basis_unit": "days",
+         "basis_value": 28.024637309421564,
+         "description": "the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision",
+         "kind": "prior_period"
+        },
+        "figures": [
+         {
+          "fact": "ccc__prior",
+          "label": "cash conversion cycle in Dec 2024",
+          "unit": "days",
+          "value": 28.024637309421564
+         },
+         {
+          "fact": "ccc__current",
+          "label": "cash conversion cycle in Dec 2025",
+          "unit": "days",
+          "value": 33.24343990618048
+         }
+        ],
+        "provenance": {
+         "line_refs": [
+          "4111.01",
+          "301.201",
+          "401.01"
+         ],
+         "period_id": "period-agras-fy2025",
+         "prior_period_id": "period-carniprod-fy2024",
+         "snapshot_id": null,
+         "source": "assembled_canonical_v1"
+        }
+       },
+       "impact": {
+        "adjusted": 10091279.264663005,
+        "adjusted_fact": "band_numerator_held",
+        "baseline": 9106710.340273973,
+        "baseline_fact": "band_numerator_at_rung",
+        "currency": "RON",
+        "delta": 984568.9243890326,
+        "kind": "headroom",
+        "metric": "band_ccc",
+        "metric_label": "the working capital cash conversion cycle ties up at the strong rung, versus as held",
+        "unit": "money"
+       },
+       "subject": {
+        "accounts": [
+         {
+          "bucket": "ar",
+          "code": "4111.01",
+          "name": "Kukipmk Tuoc - 5444.84 5444.84",
+          "statement": "BS"
+         },
+         {
+          "bucket": "inventory",
+          "code": "301.201",
+          "name": "Uxsyann zanpy - fxaby 467.067",
+          "statement": "BS"
+         },
+         {
+          "bucket": "ap",
+          "code": "401.01",
+          "name": "Zchgynjhy ygbohgy - 940.40 940.40",
+          "statement": "BS"
+         }
+        ],
+        "scope": "Cash conversion cycle on 4111.01 / 301.201 / 401.01"
+       },
+       "threshold": {
+        "comparator": ">",
+        "limit": 30.0,
+        "observed": 33.24343990618048,
+        "parameter": "strong",
+        "parameter_label": "strong rung of cash conversion cycle",
+        "rule_id": "band_ccc",
+        "source": "general_sme_fallback#ccc.strong",
+        "unit": "days"
+       },
+       "why_here": {
+        "anchors": [
+         "mid-size inventory-heavy operator",
+         "inventory-heavy operator",
+         "mid-size company",
+         "inventory-heavy operator",
+         "related-party funded",
+         "bank debt outstanding",
+         "foreign-currency exposure",
+         "related-party balances on the books",
+         "revaluation reserve in equity"
+        ],
+        "profile_id": "inventory_operator",
+        "profile_label": "mid-size inventory-heavy operator",
+        "rationale": "Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; cash conversion cycle on 4111.01 / 301.201 / 401.01 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor.",
+        "signals": [
+         "bank_debt",
+         "fx_exposure",
+         "related_party",
+         "revaluation_reserve"
+        ]
+       }
+      },
+      "demoted": false,
+      "demotion_reasons": [],
+      "direction": "deteriorated",
+      "fact_units": {
+       "band_numerator_at_rung": "money",
+       "band_numerator_held": "money",
+       "ccc__current": "unknown",
+       "ccc__prior": "unknown"
+      },
+      "facts_cited": {
+       "band_numerator_at_rung": 9106710.340273973,
+       "band_numerator_held": 10091279.264663005,
+       "ccc__current": 33.24343990618048,
+       "ccc__prior": 28.024637309421564
+      },
+      "finding_id": "band_ccc:strong->healthy",
+      "lane": "c_bands",
+      "missing_elements": [],
+      "narrative_source": "deterministic",
+      "profile_fingerprint": "d251df531749c7e2",
+      "profile_id": "inventory_operator",
+      "rank": 14,
+      "ratio_key": "ccc",
+      "rule_key": "band_ccc",
+      "rungs_crossed": -1,
+      "severity": "medium",
+      "so_what": {
+       "key": "statements.ratioCmp.bandFinding.deteriorated",
+       "placeholders": {
+        "current_label": "Dec 2025",
+        "current_value": "33",
+        "delta": "+5",
+        "delta_unit": "days",
+        "from": "strong",
+        "headroom_money": "984568.92",
+        "label_key": "ratioTable.ccc.label",
+        "prior_label": "Dec 2024",
+        "prior_value": "28",
+        "rung": "strong",
+        "rung_value": "30",
+        "to": "healthy"
+       }
+      },
+      "source_currency": "RON",
+      "surfaced": true,
+      "title": "Cash conversion cycle on 4111.01 / 301.201 / 401.01 at 33 days — above the 30 days strong rung of cash conversion cycle for mid-size inventory-heavy operator",
+      "title_template": "Cash conversion cycle on 4111.01 / 301.201 / 401.01 at 33 days — above the 30 days strong rung of cash conversion cycle for mid-size inventory-heavy operator"
+     },
+     {
       "body": "4511.01 (Ndqe te cnifmfy NLC 3299.59), 4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): credit composite in Dec 2024 — 79.3; credit composite in Dec 2025 — 81.0. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the credit model's letter ladder (CREDIT_LETTER_LADDER) under credit model revision 3. Source: period period-agras-fy2025; accounts 4511.01, 4111.01, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_letter_grade fires when AA rung of credit composite is at or above 80.0; observed 81.0. Impact: the credit composite against the AA rung, in notches of the 10.0-point band moves from 0.00 notches to 0.10 notches (+0.10 notches). The letter is how a mid-size inventory-heavy operator is graded in one word by the group treasury and the statutory auditor; credit letter grade on 4511.01 / 4111.01 / 401.01 moving a notch changes that grade. Do this: 1) Reconcile the credit letter grade movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4511.01, 4111.01, 401.01, from the financial controller (before the next board pack). 2) Confirm the move past the AA rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4511.01, 4111.01, 401.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
       "body_template": "4511.01 (Ndqe te cnifmfy NLC 3299.59), 4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): credit composite in Dec 2024 — 79.3; credit composite in Dec 2025 — 81.0. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the credit model's letter ladder (CREDIT_LETTER_LADDER) under credit model revision 3. Source: period period-agras-fy2025; accounts 4511.01, 4111.01, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_letter_grade fires when AA rung of credit composite is at or above 80.0; observed 81.0. Impact: the credit composite against the AA rung, in notches of the 10.0-point band moves from 0.00 notches to 0.10 notches (+0.10 notches). The letter is how a mid-size inventory-heavy operator is graded in one word by the group treasury and the statutory auditor; credit letter grade on 4511.01 / 4111.01 / 401.01 moving a notch changes that grade. Do this: 1) Reconcile the credit letter grade movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4511.01, 4111.01, 401.01, from the financial controller (before the next board pack). 2) Confirm the move past the AA rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4511.01, 4111.01, 401.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
       "category": "leverage",
@@ -10186,7 +10900,7 @@
       "narrative_source": "deterministic",
       "profile_fingerprint": "d251df531749c7e2",
       "profile_id": "inventory_operator",
-      "rank": 14,
+      "rank": 15,
       "ratio_key": "letter_grade",
       "rule_key": "band_letter_grade",
       "rungs_crossed": 1,
@@ -10214,25 +10928,25 @@
       "title_template": "Credit letter grade on 4511.01 / 4111.01 / 401.01 at 81.0 — at or above the 80.0 AA rung of credit composite for mid-size inventory-heavy operator"
      },
      {
-      "body": "4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 301.201 (Uxsyann zanpy - fxaby 467.067), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): cash conversion cycle in Dec 2024 — 28 days; cash conversion cycle in Dec 2025 — 33 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 4111.01, 301.201, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_ccc fires when strong rung of cash conversion cycle is above 30 days; observed 33 days. Impact: the working capital cash conversion cycle ties up at the strong rung, versus as held moves from RON 9,106,710 to RON 9,990,972. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; cash conversion cycle on 4111.01 / 301.201 / 401.01 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the cash conversion cycle movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4111.01, 301.201, 401.01, from the financial controller (before the next board pack). 2) Quantify what returns cash conversion cycle to the strong rung — headroom schedule for the numerator and the denominator of cash conversion cycle, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-      "body_template": "4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 301.201 (Uxsyann zanpy - fxaby 467.067), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): cash conversion cycle in Dec 2024 — 28 days; cash conversion cycle in Dec 2025 — 33 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 4111.01, 301.201, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_ccc fires when strong rung of cash conversion cycle is above 30 days; observed 33 days. Impact: the working capital cash conversion cycle ties up at the strong rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; cash conversion cycle on 4111.01 / 301.201 / 401.01 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the cash conversion cycle movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4111.01, 301.201, 401.01, from the financial controller (before the next board pack). 2) Quantify what returns cash conversion cycle to the strong rung — headroom schedule for the numerator and the denominator of cash conversion cycle, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body": "601.201 (Xr.kvy.dxmka kaiag.zvxba 258.658), 641.001 (Sa.hjpocjhktrr vjhzucke 654.004), 301.201 (Uxsyann zanpy - fxaby 467.067): inventory turnover in Dec 2024 — 10.65×; inventory turnover in Dec 2025 — 12.08×. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 601.201, 641.001, 301.201; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_inventory_turnover fires when strong rung of inventory turnover is at or above 12.00×; observed 12.08×. Impact: the numerator of inventory turnover at the strong rung, versus as held moves from RON 101,606,218 to RON 102,295,447. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; inventory turnover on 601.201 / 641.001 / 301.201 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the inventory turnover movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 601.201, 641.001, 301.201, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 601.201, 641.001, 301.201 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body_template": "601.201 (Xr.kvy.dxmka kaiag.zvxba 258.658), 641.001 (Sa.hjpocjhktrr vjhzucke 654.004), 301.201 (Uxsyann zanpy - fxaby 467.067): inventory turnover in Dec 2024 — 10.65×; inventory turnover in Dec 2025 — 12.08×. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 601.201, 641.001, 301.201; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_inventory_turnover fires when strong rung of inventory turnover is at or above 12.00×; observed 12.08×. Impact: the numerator of inventory turnover at the strong rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; inventory turnover on 601.201 / 641.001 / 301.201 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the inventory turnover movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 601.201, 641.001, 301.201, from the financial controller (before the next board pack). 2) Confirm the move past the strong rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 601.201, 641.001, 301.201 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
       "category": "working_capital",
       "contract_elements": {
        "action": {
         "steps": [
          {
-          "artefact": "two-period balance listing for accounts 4111.01, 301.201, 401.01",
+          "artefact": "two-period balance listing for accounts 601.201, 641.001, 301.201",
           "horizon": "before the next board pack",
-          "imperative": "Reconcile the cash conversion cycle movement from Dec 2024 to Dec 2025 to the ledger",
+          "imperative": "Reconcile the inventory turnover movement from Dec 2024 to Dec 2025 to the ledger",
           "lang": "en",
           "provider": "the financial controller"
          },
          {
-          "artefact": "headroom schedule for the numerator and the denominator of cash conversion cycle",
+          "artefact": "list of non-recurring entries on accounts 601.201, 641.001, 301.201 in Dec 2025",
           "horizon": null,
-          "imperative": "Quantify what returns cash conversion cycle to the strong rung",
+          "imperative": "Confirm the move past the strong rung comes from recurring trading, not a single posting",
           "lang": "en",
-          "provider": "the FP&A team"
+          "provider": "the financial controller"
          }
         ]
        },
@@ -10243,30 +10957,30 @@
        },
        "evidence": {
         "comparison_basis": {
-         "basis_unit": "days",
-         "basis_value": 27.9499,
+         "basis_unit": "ratio",
+         "basis_value": 10.6515,
          "description": "the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision",
          "kind": "prior_period"
         },
         "figures": [
          {
-          "fact": "ccc__prior",
-          "label": "cash conversion cycle in Dec 2024",
-          "unit": "days",
-          "value": 27.9499
+          "fact": "inventory_turnover__prior",
+          "label": "inventory turnover in Dec 2024",
+          "unit": "ratio",
+          "value": 10.6515
          },
          {
-          "fact": "ccc__current",
-          "label": "cash conversion cycle in Dec 2025",
-          "unit": "days",
-          "value": 32.913
+          "fact": "inventory_turnover__current",
+          "label": "inventory turnover in Dec 2025",
+          "unit": "ratio",
+          "value": 12.0814
          }
         ],
         "provenance": {
          "line_refs": [
-          "4111.01",
-          "301.201",
-          "401.01"
+          "601.201",
+          "641.001",
+          "301.201"
          ],
          "period_id": "period-agras-fy2025",
          "prior_period_id": "period-carniprod-fy2024",
@@ -10275,49 +10989,49 @@
         }
        },
        "impact": {
-        "adjusted": 9990971.914314574,
+        "adjusted": 102295447.167604,
         "adjusted_fact": "band_numerator_held",
-        "baseline": 9106710.340273973,
+        "baseline": 101606218.32,
         "baseline_fact": "band_numerator_at_rung",
         "currency": "RON",
-        "delta": 884261.574040601,
+        "delta": 689228.8476040065,
         "kind": "headroom",
-        "metric": "band_ccc",
-        "metric_label": "the working capital cash conversion cycle ties up at the strong rung, versus as held",
+        "metric": "band_inventory_turnover",
+        "metric_label": "the numerator of inventory turnover at the strong rung, versus as held",
         "unit": "money"
        },
        "subject": {
         "accounts": [
          {
-          "bucket": "ar",
-          "code": "4111.01",
-          "name": "Kukipmk Tuoc - 5444.84 5444.84",
-          "statement": "BS"
+          "bucket": "cogs",
+          "code": "601.201",
+          "name": "Xr.kvy.dxmka kaiag.zvxba 258.658",
+          "statement": "PL"
+         },
+         {
+          "bucket": "operatingExpenses",
+          "code": "641.001",
+          "name": "Sa.hjpocjhktrr vjhzucke 654.004",
+          "statement": "PL"
          },
          {
           "bucket": "inventory",
           "code": "301.201",
           "name": "Uxsyann zanpy - fxaby 467.067",
           "statement": "BS"
-         },
-         {
-          "bucket": "ap",
-          "code": "401.01",
-          "name": "Zchgynjhy ygbohgy - 940.40 940.40",
-          "statement": "BS"
          }
         ],
-        "scope": "Cash conversion cycle on 4111.01 / 301.201 / 401.01"
+        "scope": "Inventory turnover on 601.201 / 641.001 / 301.201"
        },
        "threshold": {
-        "comparator": ">",
-        "limit": 30.0,
-        "observed": 32.913,
+        "comparator": ">=",
+        "limit": 12.0,
+        "observed": 12.0814,
         "parameter": "strong",
-        "parameter_label": "strong rung of cash conversion cycle",
-        "rule_id": "band_ccc",
-        "source": "general_sme_fallback#ccc.strong",
-        "unit": "days"
+        "parameter_label": "strong rung of inventory turnover",
+        "rule_id": "band_inventory_turnover",
+        "source": "general_sme_fallback#inventory_turnover.strong",
+        "unit": "ratio"
        },
        "why_here": {
         "anchors": [
@@ -10333,7 +11047,7 @@
         ],
         "profile_id": "inventory_operator",
         "profile_label": "mid-size inventory-heavy operator",
-        "rationale": "Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; cash conversion cycle on 4111.01 / 301.201 / 401.01 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor.",
+        "rationale": "Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; inventory turnover on 601.201 / 641.001 / 301.201 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor.",
         "signals": [
          "bank_debt",
          "fx_exposure",
@@ -10344,51 +11058,51 @@
       },
       "demoted": false,
       "demotion_reasons": [],
-      "direction": "deteriorated",
+      "direction": "improved",
       "fact_units": {
        "band_numerator_at_rung": "money",
        "band_numerator_held": "money",
-       "ccc__current": "unknown",
-       "ccc__prior": "unknown"
+       "inventory_turnover__current": "unknown",
+       "inventory_turnover__prior": "unknown"
       },
       "facts_cited": {
-       "band_numerator_at_rung": 9106710.340273973,
-       "band_numerator_held": 9990971.914314574,
-       "ccc__current": 32.913,
-       "ccc__prior": 27.9499
+       "band_numerator_at_rung": 101606218.32,
+       "band_numerator_held": 102295447.167604,
+       "inventory_turnover__current": 12.0814,
+       "inventory_turnover__prior": 10.6515
       },
-      "finding_id": "band_ccc:strong->healthy",
+      "finding_id": "band_inventory_turnover:healthy->strong",
       "lane": "c_bands",
       "missing_elements": [],
       "narrative_source": "deterministic",
       "profile_fingerprint": "d251df531749c7e2",
       "profile_id": "inventory_operator",
-      "rank": 15,
-      "ratio_key": "ccc",
-      "rule_key": "band_ccc",
-      "rungs_crossed": -1,
-      "severity": "medium",
+      "rank": 16,
+      "ratio_key": "inventory_turnover",
+      "rule_key": "band_inventory_turnover",
+      "rungs_crossed": 1,
+      "severity": "low",
       "so_what": {
-       "key": "statements.ratioCmp.bandFinding.deteriorated",
+       "key": "statements.ratioCmp.bandFinding.improved",
        "placeholders": {
         "current_label": "Dec 2025",
-        "current_value": "33",
-        "delta": "+5",
-        "delta_unit": "days",
-        "from": "strong",
-        "headroom_money": "884261.57",
-        "label_key": "ratioTable.ccc.label",
+        "current_value": "12.08",
+        "delta": "+1.43",
+        "delta_unit": "turns",
+        "from": "healthy",
+        "headroom_money": "689228.85",
+        "label_key": "ratioTable.inventory_turnover.label",
         "prior_label": "Dec 2024",
-        "prior_value": "28",
+        "prior_value": "10.65",
         "rung": "strong",
-        "rung_value": "30",
-        "to": "healthy"
+        "rung_value": "12",
+        "to": "strong"
        }
       },
       "source_currency": "RON",
       "surfaced": true,
-      "title": "Cash conversion cycle on 4111.01 / 301.201 / 401.01 at 33 days — above the 30 days strong rung of cash conversion cycle for mid-size inventory-heavy operator",
-      "title_template": "Cash conversion cycle on 4111.01 / 301.201 / 401.01 at 33 days — above the 30 days strong rung of cash conversion cycle for mid-size inventory-heavy operator"
+      "title": "Inventory turnover on 601.201 / 641.001 / 301.201 at 12.08× — at or above the 12.00× strong rung of inventory turnover for mid-size inventory-heavy operator",
+      "title_template": "Inventory turnover on 601.201 / 641.001 / 301.201 at 12.08× — at or above the 12.00× strong rung of inventory turnover for mid-size inventory-heavy operator"
      }
     ],
     "improved": [
@@ -10402,7 +11116,8 @@
      "core_ebitda_margin",
      "current_ratio",
      "dso",
-     "letter_grade"
+     "letter_grade",
+     "inventory_turnover"
     ],
     "not_comparable": [
      {
@@ -10580,10 +11295,6 @@
      {
       "band": "healthy",
       "key": "gross_margin"
-     },
-     {
-      "band": "healthy",
-      "key": "inventory_turnover"
      },
      {
       "band": "strong",
@@ -12807,6 +13518,10 @@
      }
     },
     {
+     "basis": {
+      "current": "average_two_year_ends",
+      "prior": "average_two_year_ends"
+     },
      "current": {
       "band": "healthy",
       "band_status": "graded",
@@ -12818,21 +13533,36 @@
       "ladder_floor": "critical",
       "operands": [
        {
-        "name": "dio",
-        "source": "metrics.dio",
-        "value": 31.5444
+        "name": "inventory_days",
+        "source": "inventory_days.total.value",
+        "value": 30.2117
+       },
+       {
+        "name": "inventory_average",
+        "source": "inventory_days.total.stock.average",
+        "value": 8467184.86
+       },
+       {
+        "name": "cost_of_sales_flow",
+        "source": "inventory_days.total.flow.value",
+        "value": 102295680.81
+       },
+       {
+        "name": "period_days",
+        "source": "inventory_days.period_days",
+        "value": 365.0
        }
       ],
       "reason": null,
-      "value": 31.5444,
-      "value_q": "32"
+      "value": 30.2117,
+      "value_q": "30"
      },
      "delta": {
       "favourable": "improved",
       "pct_change": null,
       "reason_code": null,
       "unit": "days",
-      "value": "-6"
+      "value": "-4"
      },
      "display_unit": "days",
      "finding_id": null,
@@ -12865,14 +13595,29 @@
       "ladder_floor": "critical",
       "operands": [
        {
-        "name": "dio",
-        "source": "metrics.dio",
-        "value": 37.7894
+        "name": "inventory_days",
+        "source": "inventory_days.total.value",
+        "value": 34.2676
+       },
+       {
+        "name": "inventory_average",
+        "source": "inventory_days.total.stock.average",
+        "value": 8865532.47
+       },
+       {
+        "name": "cost_of_sales_flow",
+        "source": "inventory_days.total.flow.value",
+        "value": 94430857.5
+       },
+       {
+        "name": "period_days",
+        "source": "inventory_days.period_days",
+        "value": 365.0
        }
       ],
       "reason": null,
-      "value": 37.7894,
-      "value_q": "38"
+      "value": 34.2676,
+      "value_q": "34"
      }
     },
     {
@@ -12887,13 +13632,33 @@
       "ladder_floor": "watch",
       "operands": [
        {
-        "name": "dpo",
-        "source": "metrics.dpo",
-        "value": 26.6769
+        "name": "accountsPayable",
+        "source": "balanceSheet.accountsPayable",
+        "value": 7554847.25
+       },
+       {
+        "name": "costOfGoodsSold",
+        "source": "incomeStatement.costOfGoodsSold",
+        "value": 70557114.68
+       },
+       {
+        "name": "operatingExpenses",
+        "source": "incomeStatement.operatingExpenses",
+        "value": 29854906.77
+       },
+       {
+        "name": "depreciationAmortization",
+        "source": "incomeStatement.depreciationAmortization",
+        "value": 2955346.39
+       },
+       {
+        "name": "period_days",
+        "source": "supplementary.periodDays",
+        "value": 365.0
        }
       ],
       "reason": null,
-      "value": 26.6769,
+      "value": 26.67688366137272,
       "value_q": "27"
      },
      "delta": {
@@ -12919,7 +13684,7 @@
       "materiality": {
        "basis_key": "total_assets",
        "basis_value": "39319114.09",
-       "headroom_money": "5189070.19",
+       "headroom_money": "5189074.81",
        "share": "0.1320"
       },
       "reason_code": null,
@@ -12942,13 +13707,33 @@
       "ladder_floor": "watch",
       "operands": [
        {
-        "name": "dpo",
-        "source": "metrics.dpo",
-        "value": 51.6642
+        "name": "accountsPayable",
+        "source": "balanceSheet.accountsPayable",
+        "value": 13392746.23
+       },
+       {
+        "name": "costOfGoodsSold",
+        "source": "incomeStatement.costOfGoodsSold",
+        "value": 57429796.23
+       },
+       {
+        "name": "operatingExpenses",
+        "source": "incomeStatement.operatingExpenses",
+        "value": 33492385.21
+       },
+       {
+        "name": "depreciationAmortization",
+        "source": "incomeStatement.depreciationAmortization",
+        "value": 3695525.59
+       },
+       {
+        "name": "period_days",
+        "source": "supplementary.periodDays",
+        "value": 365.0
        }
       ],
       "reason": null,
-      "value": 51.6642,
+      "value": 51.66424475283546,
       "value_q": "52"
      }
     },
@@ -12964,13 +13749,63 @@
       "ladder_floor": "critical",
       "operands": [
        {
-        "name": "ccc",
-        "source": "metrics.ccc",
-        "value": 32.913
+        "name": "accountsReceivable",
+        "source": "balanceSheet.accountsReceivable",
+        "value": 8513384.96
+       },
+       {
+        "name": "revenue",
+        "source": "incomeStatement.revenue",
+        "value": 110798309.14
+       },
+       {
+        "name": "period_days",
+        "source": "supplementary.periodDays",
+        "value": 365.0
+       },
+       {
+        "name": "inventory_days",
+        "source": "inventory_days.total.closing_value",
+        "value": 31.8749
+       },
+       {
+        "name": "inventory_closing",
+        "source": "inventory_days.total.stock.closing",
+        "value": 8933332.42
+       },
+       {
+        "name": "cost_of_sales_flow",
+        "source": "inventory_days.total.flow.value",
+        "value": 102295680.81
+       },
+       {
+        "name": "period_days",
+        "source": "inventory_days.period_days",
+        "value": 365.0
+       },
+       {
+        "name": "accountsPayable",
+        "source": "balanceSheet.accountsPayable",
+        "value": 7554847.25
+       },
+       {
+        "name": "costOfGoodsSold",
+        "source": "incomeStatement.costOfGoodsSold",
+        "value": 70557114.68
+       },
+       {
+        "name": "operatingExpenses",
+        "source": "incomeStatement.operatingExpenses",
+        "value": 29854906.77
+       },
+       {
+        "name": "depreciationAmortization",
+        "source": "incomeStatement.depreciationAmortization",
+        "value": 2955346.39
        }
       ],
       "reason": null,
-      "value": 32.913,
+      "value": 33.24343990618048,
       "value_q": "33"
      },
      "delta": {
@@ -12990,14 +13825,14 @@
      "movement": {
       "band_width": "30",
       "band_width_basis": "closed",
-      "distance_fraction": "0.097",
+      "distance_fraction": "0.108",
       "distance_past_rung": "3",
       "from": "strong",
       "materiality": {
        "basis_key": "total_assets",
        "basis_value": "39319114.09",
-       "headroom_money": "884261.57",
-       "share": "0.0225"
+       "headroom_money": "984568.92",
+       "share": "0.0250"
       },
       "reason_code": null,
       "rung_crossed": {
@@ -13019,13 +13854,63 @@
       "ladder_floor": "critical",
       "operands": [
        {
-        "name": "ccc",
-        "source": "metrics.ccc",
-        "value": 27.9499
+        "name": "accountsReceivable",
+        "source": "balanceSheet.accountsReceivable",
+        "value": 10829721.07
+       },
+       {
+        "name": "revenue",
+        "source": "incomeStatement.revenue",
+        "value": 94509939.96
+       },
+       {
+        "name": "period_days",
+        "source": "supplementary.periodDays",
+        "value": 365.0
+       },
+       {
+        "name": "inventory_days",
+        "source": "inventory_days.total.closing_value",
+        "value": 37.8642
+       },
+       {
+        "name": "inventory_closing",
+        "source": "inventory_days.total.stock.closing",
+        "value": 9796026.8
+       },
+       {
+        "name": "cost_of_sales_flow",
+        "source": "inventory_days.total.flow.value",
+        "value": 94430857.5
+       },
+       {
+        "name": "period_days",
+        "source": "inventory_days.period_days",
+        "value": 365.0
+       },
+       {
+        "name": "accountsPayable",
+        "source": "balanceSheet.accountsPayable",
+        "value": 13392746.23
+       },
+       {
+        "name": "costOfGoodsSold",
+        "source": "incomeStatement.costOfGoodsSold",
+        "value": 57429796.23
+       },
+       {
+        "name": "operatingExpenses",
+        "source": "incomeStatement.operatingExpenses",
+        "value": 33492385.21
+       },
+       {
+        "name": "depreciationAmortization",
+        "source": "incomeStatement.depreciationAmortization",
+        "value": 3695525.59
        }
       ],
       "reason": null,
-      "value": 27.9499,
+      "value": 28.024637309421564,
       "value_q": "28"
      }
     },
@@ -13479,8 +14364,12 @@
      }
     },
     {
+     "basis": {
+      "current": "average_two_year_ends",
+      "prior": "average_two_year_ends"
+     },
      "current": {
-      "band": "healthy",
+      "band": "strong",
       "band_status": "graded",
       "ladder": {
        "healthy": "6",
@@ -13491,40 +14380,48 @@
       "operands": [
        {
         "name": "inventory_turnover",
-        "source": "metrics.inventory_turnover",
-        "value": 11.571
+        "source": "inventory_days.inventory_turnover.value",
+        "value": 12.0814
        }
       ],
       "reason": null,
-      "value": 11.571,
-      "value_q": "11.57"
+      "value": 12.0814,
+      "value_q": "12.08"
      },
      "delta": {
       "favourable": "improved",
-      "pct_change": "+19.8",
+      "pct_change": "+13.4",
       "reason_code": null,
       "unit": "turns",
-      "value": "+1.91"
+      "value": "+1.43"
      },
      "display_unit": "x",
-     "finding_id": null,
+     "finding_id": "band_inventory_turnover:healthy->strong",
      "formula_key": "ratioTable.inventory_turnover.formula",
      "group": "efficiency",
      "higher_is_better": true,
      "key": "inventory_turnover",
      "label_key": "ratioTable.inventory_turnover.label",
      "movement": {
-      "band_width": null,
-      "band_width_basis": null,
-      "distance_fraction": null,
-      "distance_past_rung": null,
+      "band_width": "6.00",
+      "band_width_basis": "adjacent",
+      "distance_fraction": "0.014",
+      "distance_past_rung": "0.08",
       "from": "healthy",
-      "materiality": null,
+      "materiality": {
+       "basis_key": "revenue",
+       "basis_value": "110798309.14",
+       "headroom_money": "689228.85",
+       "share": "0.0062"
+      },
       "reason_code": null,
-      "rung_crossed": null,
-      "rungs_crossed": 0,
-      "status": "same_band",
-      "to": "healthy"
+      "rung_crossed": {
+       "name": "strong",
+       "value": "12"
+      },
+      "rungs_crossed": 1,
+      "status": "crossed_up",
+      "to": "strong"
      },
      "prior": {
       "band": "healthy",
@@ -13538,13 +14435,13 @@
       "operands": [
        {
         "name": "inventory_turnover",
-        "source": "metrics.inventory_turnover",
-        "value": 9.6588
+        "source": "inventory_days.inventory_turnover.value",
+        "value": 10.6515
        }
       ],
       "reason": null,
-      "value": 9.6588,
-      "value_q": "9.66"
+      "value": 10.6515,
+      "value_q": "10.65"
      }
     }
    ],
@@ -14463,6 +15360,262 @@
      "leverage": 90.0,
      "liquidity": 74.1,
      "profitability": 33.2
+    }
+   },
+   "inventory_days": {
+    "basis": "average_two_year_ends",
+    "basis_label": {
+     "en": "average of the balances at 1 January and 31 December",
+     "ro": "media soldurilor la 1 ianuarie și 31 decembrie"
+    },
+    "ccc_dio_term": {
+     "basis": "year_end_snapshot",
+     "basis_label": {
+      "en": "stock at 31 December — a single day",
+      "ro": "stoc la 31 decembrie — o singură zi"
+     },
+     "reason": null,
+     "value": 31.8749
+    },
+    "claim_policy": {
+     "may_call_slow": true,
+     "reason": "split_and_average",
+     "reason_text": {
+      "en": "a claim must cite the split by stock type and the average balance",
+      "ro": "afirmația trebuie să citeze împărțirea pe tipuri de stoc și media soldurilor"
+     },
+     "requires": [
+      "split_by_stock_type",
+      "average_balance"
+     ]
+    },
+    "cost_of_production_sold": {
+     "basis": "total_operating_expense_less_607_less_net_711",
+     "formula": "total_operating_expense - 607 - net_711",
+     "label_en": "total operating cost excluding merchandise, adjusted for the change in inventories (no class-9 management accounts)",
+     "label_ro": "cost total de exploatare fără mărfuri, ajustat cu variația stocurilor (fără contabilitate de gestiune clasa 9)",
+     "operands": {
+      "cost_of_goods_resold_607": 26488094.73,
+      "net_711": 1071687.03,
+      "net_711_provenance": "account_121_bridge",
+      "total_operating_expense": 103367367.84
+     },
+     "refusal": null,
+     "value": 75807586.08
+    },
+    "filed_basis_pointer": {
+     "label_en": "filed basis (stock ÷ net turnover) — not the same as the inventory days of this analysis",
+     "label_ro": "bază depusă (stoc ÷ cifra de afaceri) — nu aceeași cu zilele de stoc din analiză",
+     "never_compare": true,
+     "sector_row_key": "inventory_days_on_turnover"
+    },
+    "groups": [
+     {
+      "accounts": [
+       "301.201",
+       "301.202",
+       "301.203",
+       "3021.01",
+       "3023.21",
+       "3023.22",
+       "3024.01",
+       "3028.01",
+       "3028.02",
+       "3028.03",
+       "3028.04",
+       "3031.01",
+       "3031.02"
+      ],
+      "closing_value": 35.3692,
+      "closing_value_q": "35",
+      "flow": {
+       "accounts": [
+        "601",
+        "602",
+        "603"
+       ],
+       "key": "materials_consumed",
+       "label_en": "Materials consumed (601 + 602 + 603)",
+       "label_ro": "Consum de materii prime și materiale (601 + 602 + 603)",
+       "value": 45090499.65
+      },
+      "key": "materials",
+      "label_en": "Raw materials and consumables",
+      "label_ro": "Materii prime și materiale",
+      "provision_accounts": [
+       "391",
+       "392"
+      ],
+      "provision_accounts_present": [],
+      "reason": null,
+      "stock": {
+       "average": 4610540.19,
+       "closing": 4369350.92,
+       "opening": 4851729.45
+      },
+      "stock_accounts": [
+       "301",
+       "302",
+       "303",
+       "308"
+      ],
+      "value": 37.3215,
+      "value_q": "37"
+     },
+     {
+      "accounts": [
+       "341.010",
+       "345.010",
+       "348.102"
+      ],
+      "closing_value": 11.8115,
+      "closing_value_q": "12",
+      "flow": {
+       "accounts": [],
+       "key": "cost_of_production_sold",
+       "label_en": "Cost of production sold",
+       "label_ro": "Costul producției vândute",
+       "value": 75807586.08
+      },
+      "key": "finished_goods_wip",
+      "label_en": "Finished goods and work in progress",
+      "label_ro": "Produse finite și producție în curs",
+      "provision_accounts": [
+       "393",
+       "394"
+      ],
+      "provision_accounts_present": [],
+      "reason": null,
+      "stock": {
+       "average": 2479655.6,
+       "closing": 2453147.66,
+       "opening": 2506163.54
+      },
+      "stock_accounts": [
+       "331",
+       "341",
+       "345",
+       "348"
+      ],
+      "value": 11.9391,
+      "value_q": "12"
+     },
+     {
+      "accounts": [
+       "371.001",
+       "371.010",
+       "371.050",
+       "371.081",
+       "371.093",
+       "371.095",
+       "378.078",
+       "378.080"
+      ],
+      "closing_value": 28.445,
+      "closing_value_q": "28",
+      "flow": {
+       "accounts": [
+        "607"
+       ],
+       "key": "cost_of_goods_resold",
+       "label_en": "Cost of goods resold (607)",
+       "label_ro": "Costul mărfurilor vândute (607)",
+       "value": 26488094.73
+      },
+      "key": "merchandise",
+      "label_en": "Merchandise",
+      "label_ro": "Mărfuri",
+      "provision_accounts": [
+       "397"
+      ],
+      "provision_accounts_present": [],
+      "reason": null,
+      "stock": {
+       "average": 1337794.7,
+       "closing": 2064260.65,
+       "opening": 611328.75
+      },
+      "stock_accounts": [
+       "371",
+       "378"
+      ],
+      "value": 18.4345,
+      "value_q": "18"
+     }
+    ],
+    "inventory_turnover": {
+     "formula": "period_days / total.value",
+     "reason": null,
+     "value": 12.0814,
+     "value_q": "12.08"
+    },
+    "opening": {
+     "convention": "C",
+     "reason": null,
+     "source": "tb_si_column",
+     "status": "available"
+    },
+    "other": {
+     "accounts": [
+      "381.001"
+     ],
+     "key": "other_stock",
+     "label_en": "Other stock",
+     "label_ro": "Alte stocuri",
+     "provision_accounts_present": [
+      "398"
+     ],
+     "stock": {
+      "average": 39194.37,
+      "closing": 46573.19,
+      "opening": 31815.54
+     }
+    },
+    "period_days": 365.0,
+    "provenance": {
+     "flows": "statement_line_items (601, 602, 603, 607, 701-703)",
+     "net_711": "assembled_pl.inventory_variation",
+     "pack": "packs/ratios/inventory_days.yaml",
+     "period_days": "supplementary.periodDays",
+     "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
+     "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+    },
+    "reconciliation": {
+     "difference": 0.0,
+     "served_inventory_net": 8933332.42,
+     "status": "reconciled",
+     "sum_of_groups_closing": 8933332.42
+    },
+    "schema": "inventory_days/1",
+    "seasonality": {
+     "flagged": false,
+     "note_en": null,
+     "note_ro": null
+    },
+    "status": "served",
+    "total": {
+     "closing_value": 31.8749,
+     "closing_value_q": "32",
+     "flow": {
+      "components": {
+       "cost_of_goods_resold_607": 26488094.73,
+       "cost_of_production_sold": 75807586.08
+      },
+      "label_en": "cost of production sold + cost of goods resold (607)",
+      "label_ro": "costul producției vândute + costul mărfurilor vândute (607)",
+      "value": 102295680.81
+     },
+     "label_en": "Inventory days (total, flow-weighted)",
+     "label_ro": "Zile de stoc (total, ponderat cu fluxurile)",
+     "reason": null,
+     "stock": {
+      "average": 8467184.86,
+      "closing": 8933332.42,
+      "opening": 8001037.28
+     },
+     "value": 30.2117,
+     "value_q": "30",
+     "weighting": "flow"
     }
    },
    "piotroski": {
@@ -15484,14 +16637,29 @@
       "ladder_floor": "critical",
       "operands": [
        {
-        "name": "dio",
-        "source": "metrics.dio",
-        "value": 31.5444
+        "name": "inventory_days",
+        "source": "inventory_days.total.value",
+        "value": 30.2117
+       },
+       {
+        "name": "inventory_average",
+        "source": "inventory_days.total.stock.average",
+        "value": 8467184.86
+       },
+       {
+        "name": "cost_of_sales_flow",
+        "source": "inventory_days.total.flow.value",
+        "value": 102295680.81
+       },
+       {
+        "name": "period_days",
+        "source": "inventory_days.period_days",
+        "value": 365.0
        }
       ],
       "reason": null,
-      "value": 31.5444,
-      "value_q": "32"
+      "value": 30.2117,
+      "value_q": "30"
      },
      {
       "band": "watch",
@@ -15510,13 +16678,33 @@
       "ladder_floor": "watch",
       "operands": [
        {
-        "name": "dpo",
-        "source": "metrics.dpo",
-        "value": 26.6769
+        "name": "accountsPayable",
+        "source": "balanceSheet.accountsPayable",
+        "value": 7554847.25
+       },
+       {
+        "name": "costOfGoodsSold",
+        "source": "incomeStatement.costOfGoodsSold",
+        "value": 70557114.68
+       },
+       {
+        "name": "operatingExpenses",
+        "source": "incomeStatement.operatingExpenses",
+        "value": 29854906.77
+       },
+       {
+        "name": "depreciationAmortization",
+        "source": "incomeStatement.depreciationAmortization",
+        "value": 2955346.39
+       },
+       {
+        "name": "period_days",
+        "source": "supplementary.periodDays",
+        "value": 365.0
        }
       ],
       "reason": null,
-      "value": 26.6769,
+      "value": 26.67688366137272,
       "value_q": "27"
      },
      {
@@ -15536,13 +16724,63 @@
       "ladder_floor": "critical",
       "operands": [
        {
-        "name": "ccc",
-        "source": "metrics.ccc",
-        "value": 32.913
+        "name": "accountsReceivable",
+        "source": "balanceSheet.accountsReceivable",
+        "value": 8513384.96
+       },
+       {
+        "name": "revenue",
+        "source": "incomeStatement.revenue",
+        "value": 110798309.14
+       },
+       {
+        "name": "period_days",
+        "source": "supplementary.periodDays",
+        "value": 365.0
+       },
+       {
+        "name": "inventory_days",
+        "source": "inventory_days.total.closing_value",
+        "value": 31.8749
+       },
+       {
+        "name": "inventory_closing",
+        "source": "inventory_days.total.stock.closing",
+        "value": 8933332.42
+       },
+       {
+        "name": "cost_of_sales_flow",
+        "source": "inventory_days.total.flow.value",
+        "value": 102295680.81
+       },
+       {
+        "name": "period_days",
+        "source": "inventory_days.period_days",
+        "value": 365.0
+       },
+       {
+        "name": "accountsPayable",
+        "source": "balanceSheet.accountsPayable",
+        "value": 7554847.25
+       },
+       {
+        "name": "costOfGoodsSold",
+        "source": "incomeStatement.costOfGoodsSold",
+        "value": 70557114.68
+       },
+       {
+        "name": "operatingExpenses",
+        "source": "incomeStatement.operatingExpenses",
+        "value": 29854906.77
+       },
+       {
+        "name": "depreciationAmortization",
+        "source": "incomeStatement.depreciationAmortization",
+        "value": 2955346.39
        }
       ],
       "reason": null,
-      "value": 32.913,
+      "value": 33.24343990618048,
       "value_q": "33"
      },
      {
@@ -15707,7 +16945,7 @@
       "value_q": "10.3"
      },
      {
-      "band": "healthy",
+      "band": "strong",
       "band_status": "graded",
       "display_unit": "x",
       "formula_key": "ratioTable.inventory_turnover.formula",
@@ -15724,13 +16962,13 @@
       "operands": [
        {
         "name": "inventory_turnover",
-        "source": "metrics.inventory_turnover",
-        "value": 11.571
+        "source": "inventory_days.inventory_turnover.value",
+        "value": 12.0814
        }
       ],
       "reason": null,
-      "value": 11.571,
-      "value_q": "11.57"
+      "value": 12.0814,
+      "value_q": "12.08"
      }
     ],
     "stamps": {
@@ -15765,11 +17003,11 @@
     },
     "efficiency": {
      "asset_turnover": 2.8213,
-     "ccc": 32.913,
-     "dio": 31.5444,
+     "ccc": 33.2434,
+     "dio": 30.2117,
      "dpo": 26.6769,
      "dso": 28.0454,
-     "inventory_turnover": 11.571
+     "inventory_turnover": 12.0814
     },
     "leverage": {
      "debt_to_assets": 0.0927,
@@ -15937,6 +17175,36 @@
     "name": "dscr_with_lt_principal",
     "unit": "ratio",
     "value": 25.8701
+   },
+   {
+    "direction": "lower",
+    "name": "dso",
+    "unit": "days",
+    "value": 28.0454
+   },
+   {
+    "direction": "lower",
+    "name": "dio",
+    "unit": "days",
+    "value": 30.2117
+   },
+   {
+    "direction": "higher",
+    "name": "dpo",
+    "unit": "days",
+    "value": 26.6769
+   },
+   {
+    "direction": "lower",
+    "name": "ccc",
+    "unit": "days",
+    "value": 33.2434
+   },
+   {
+    "direction": "higher",
+    "name": "inventory_turnover",
+    "unit": "ratio",
+    "value": 12.0814
    },
    {
     "direction": "higher",
@@ -16873,7 +18141,7 @@
     "direction": "lower",
     "name": "dio",
     "unit": "days",
-    "value": 31.5444
+    "value": 30.2117
    },
    {
     "direction": "higher",
@@ -16885,13 +18153,13 @@
     "direction": "lower",
     "name": "ccc",
     "unit": "days",
-    "value": 32.913
+    "value": 33.2434
    },
    {
     "direction": "higher",
     "name": "inventory_turnover",
     "unit": "ratio",
-    "value": 11.571
+    "value": 12.0814
    },
    {
     "direction": "higher",
@@ -18372,6 +19640,262 @@
       }
      ]
     },
+    "inventory_days": {
+     "basis": "average_two_year_ends",
+     "basis_label": {
+      "en": "average of the balances at 1 January and 31 December",
+      "ro": "media soldurilor la 1 ianuarie și 31 decembrie"
+     },
+     "ccc_dio_term": {
+      "basis": "year_end_snapshot",
+      "basis_label": {
+       "en": "stock at 31 December — a single day",
+       "ro": "stoc la 31 decembrie — o singură zi"
+      },
+      "reason": null,
+      "value": 31.8749
+     },
+     "claim_policy": {
+      "may_call_slow": true,
+      "reason": "split_and_average",
+      "reason_text": {
+       "en": "a claim must cite the split by stock type and the average balance",
+       "ro": "afirmația trebuie să citeze împărțirea pe tipuri de stoc și media soldurilor"
+      },
+      "requires": [
+       "split_by_stock_type",
+       "average_balance"
+      ]
+     },
+     "cost_of_production_sold": {
+      "basis": "total_operating_expense_less_607_less_net_711",
+      "formula": "total_operating_expense - 607 - net_711",
+      "label_en": "total operating cost excluding merchandise, adjusted for the change in inventories (no class-9 management accounts)",
+      "label_ro": "cost total de exploatare fără mărfuri, ajustat cu variația stocurilor (fără contabilitate de gestiune clasa 9)",
+      "operands": {
+       "cost_of_goods_resold_607": 26488094.73,
+       "net_711": 1071687.03,
+       "net_711_provenance": "account_121_bridge",
+       "total_operating_expense": 103367367.84
+      },
+      "refusal": null,
+      "value": 75807586.08
+     },
+     "filed_basis_pointer": {
+      "label_en": "filed basis (stock ÷ net turnover) — not the same as the inventory days of this analysis",
+      "label_ro": "bază depusă (stoc ÷ cifra de afaceri) — nu aceeași cu zilele de stoc din analiză",
+      "never_compare": true,
+      "sector_row_key": "inventory_days_on_turnover"
+     },
+     "groups": [
+      {
+       "accounts": [
+        "301.201",
+        "301.202",
+        "301.203",
+        "3021.01",
+        "3023.21",
+        "3023.22",
+        "3024.01",
+        "3028.01",
+        "3028.02",
+        "3028.03",
+        "3028.04",
+        "3031.01",
+        "3031.02"
+       ],
+       "closing_value": 35.3692,
+       "closing_value_q": "35",
+       "flow": {
+        "accounts": [
+         "601",
+         "602",
+         "603"
+        ],
+        "key": "materials_consumed",
+        "label_en": "Materials consumed (601 + 602 + 603)",
+        "label_ro": "Consum de materii prime și materiale (601 + 602 + 603)",
+        "value": 45090499.65
+       },
+       "key": "materials",
+       "label_en": "Raw materials and consumables",
+       "label_ro": "Materii prime și materiale",
+       "provision_accounts": [
+        "391",
+        "392"
+       ],
+       "provision_accounts_present": [],
+       "reason": null,
+       "stock": {
+        "average": 4610540.19,
+        "closing": 4369350.92,
+        "opening": 4851729.45
+       },
+       "stock_accounts": [
+        "301",
+        "302",
+        "303",
+        "308"
+       ],
+       "value": 37.3215,
+       "value_q": "37"
+      },
+      {
+       "accounts": [
+        "341.010",
+        "345.010",
+        "348.102"
+       ],
+       "closing_value": 11.8115,
+       "closing_value_q": "12",
+       "flow": {
+        "accounts": [],
+        "key": "cost_of_production_sold",
+        "label_en": "Cost of production sold",
+        "label_ro": "Costul producției vândute",
+        "value": 75807586.08
+       },
+       "key": "finished_goods_wip",
+       "label_en": "Finished goods and work in progress",
+       "label_ro": "Produse finite și producție în curs",
+       "provision_accounts": [
+        "393",
+        "394"
+       ],
+       "provision_accounts_present": [],
+       "reason": null,
+       "stock": {
+        "average": 2479655.6,
+        "closing": 2453147.66,
+        "opening": 2506163.54
+       },
+       "stock_accounts": [
+        "331",
+        "341",
+        "345",
+        "348"
+       ],
+       "value": 11.9391,
+       "value_q": "12"
+      },
+      {
+       "accounts": [
+        "371.001",
+        "371.010",
+        "371.050",
+        "371.081",
+        "371.093",
+        "371.095",
+        "378.078",
+        "378.080"
+       ],
+       "closing_value": 28.445,
+       "closing_value_q": "28",
+       "flow": {
+        "accounts": [
+         "607"
+        ],
+        "key": "cost_of_goods_resold",
+        "label_en": "Cost of goods resold (607)",
+        "label_ro": "Costul mărfurilor vândute (607)",
+        "value": 26488094.73
+       },
+       "key": "merchandise",
+       "label_en": "Merchandise",
+       "label_ro": "Mărfuri",
+       "provision_accounts": [
+        "397"
+       ],
+       "provision_accounts_present": [],
+       "reason": null,
+       "stock": {
+        "average": 1337794.7,
+        "closing": 2064260.65,
+        "opening": 611328.75
+       },
+       "stock_accounts": [
+        "371",
+        "378"
+       ],
+       "value": 18.4345,
+       "value_q": "18"
+      }
+     ],
+     "inventory_turnover": {
+      "formula": "period_days / total.value",
+      "reason": null,
+      "value": 12.0814,
+      "value_q": "12.08"
+     },
+     "opening": {
+      "convention": "C",
+      "reason": null,
+      "source": "tb_si_column",
+      "status": "available"
+     },
+     "other": {
+      "accounts": [
+       "381.001"
+      ],
+      "key": "other_stock",
+      "label_en": "Other stock",
+      "label_ro": "Alte stocuri",
+      "provision_accounts_present": [
+       "398"
+      ],
+      "stock": {
+       "average": 39194.37,
+       "closing": 46573.19,
+       "opening": 31815.54
+      }
+     },
+     "period_days": 365.0,
+     "provenance": {
+      "flows": "statement_line_items (601, 602, 603, 607, 701-703)",
+      "net_711": "assembled_pl.inventory_variation",
+      "pack": "packs/ratios/inventory_days.yaml",
+      "period_days": "supplementary.periodDays",
+      "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
+      "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+     },
+     "reconciliation": {
+      "difference": 0.0,
+      "served_inventory_net": 8933332.42,
+      "status": "reconciled",
+      "sum_of_groups_closing": 8933332.42
+     },
+     "schema": "inventory_days/1",
+     "seasonality": {
+      "flagged": false,
+      "note_en": null,
+      "note_ro": null
+     },
+     "status": "served",
+     "total": {
+      "closing_value": 31.8749,
+      "closing_value_q": "32",
+      "flow": {
+       "components": {
+        "cost_of_goods_resold_607": 26488094.73,
+        "cost_of_production_sold": 75807586.08
+       },
+       "label_en": "cost of production sold + cost of goods resold (607)",
+       "label_ro": "costul producției vândute + costul mărfurilor vândute (607)",
+       "value": 102295680.81
+      },
+      "label_en": "Inventory days (total, flow-weighted)",
+      "label_ro": "Zile de stoc (total, ponderat cu fluxurile)",
+      "reason": null,
+      "stock": {
+       "average": 8467184.86,
+       "closing": 8933332.42,
+       "opening": 8001037.28
+      },
+      "value": 30.2117,
+      "value_q": "30",
+      "weighting": "flow"
+     }
+    },
     "leaves": {
      "accrued_expenses": {
       "magnitude": 368473.48,
@@ -18892,13 +20416,6 @@
        "unit": "ratio",
        "value": 0.026709
       },
-      "cash_conversion_cycle": {
-       "band": null,
-       "direction": "lower_is_better",
-       "note": "",
-       "unit": "days",
-       "value": 36.969396
-      },
       "cash_ratio": {
        "band": [
         0.1,
@@ -18918,26 +20435,6 @@
        "note": "",
        "unit": "ratio",
        "value": 2.111435
-      },
-      "days_inventory_outstanding": {
-       "band": [
-        30,
-        70
-       ],
-       "direction": "lower_is_better",
-       "note": "",
-       "unit": "days",
-       "value": 45.634053
-      },
-      "days_payable_outstanding": {
-       "band": [
-        30,
-        60
-       ],
-       "direction": "higher_is_better",
-       "note": "",
-       "unit": "days",
-       "value": 36.710081
       },
       "days_sales_outstanding": {
        "band": [
@@ -19026,13 +20523,6 @@
        "note": "",
        "unit": "ratio",
        "value": 25.848574
-      },
-      "inventory_turnover": {
-       "band": null,
-       "direction": "higher_is_better",
-       "note": "",
-       "unit": "ratio",
-       "value": 7.998413
       },
       "lt_debt_to_equity": {
        "band": null,
@@ -21495,8 +22985,8 @@
         "role": "trade_payable"
        }
       ],
-      "claim": "The net trade float is RON 1,327,011.19: RON 8,513,384.96 owed by customers against RON 7,186,373.77 owed to suppliers — 28.0 days of sales outstanding against 37.2 days of payables, a gap of -9.1 days.",
-      "claim_template": "The net trade float is {money:float}: {money:trade_receivables} owed by customers against {money:trade_payables} owed to suppliers — {measure:dso} of sales outstanding against {measure:dpo} of payables, a gap of {measure:float_days}.",
+      "claim": "The net trade float is RON 1,327,011.19: RON 8,513,384.96 owed by customers against RON 7,186,373.77 owed to suppliers — 28.0 days of sales outstanding against 26.7 days of payables (RON 7,554,847.25 of balance-sheet payables over RON 103,367,367.84 of total operating expense, on 365 days), a gap of 1.4 days.",
+      "claim_template": "The net trade float is {money:float}: {money:trade_receivables} owed by customers against {money:trade_payables} owed to suppliers — {measure:dso} of sales outstanding against {measure:dpo} of payables ({money:dpo_payables} of balance-sheet payables over {money:total_operating_expense} of total operating expense, on {measure:period_days}), a gap of {measure:float_days}.",
       "facts": [
        {
         "label": "Trade receivables net of provisions",
@@ -21517,13 +23007,13 @@
         "value": 110798309.14
        },
        {
-        "label": "Cost of goods sold",
-        "name": "assembled_pl.cogs",
+        "label": "Total operating expense",
+        "name": "assembled_pl.total_operating_expense",
         "unit": "money",
-        "value": 70557114.68
+        "value": 103367367.84
        }
       ],
-      "formula": "DSO = trade receivables net ÷ revenue × 365; DPO = trade payables ÷ cost of goods sold × 365; float = trade receivables net − trade payables",
+      "formula": "DSO = trade receivables net ÷ revenue × the period's days; DPO = balance-sheet payables ÷ total operating expense × the period's days (the ratio table's one DPO, engine.ratios.table.dpo_days); float = trade receivables net − trade payables",
       "id": "trade_float",
       "in_summary": false,
       "measures": [
@@ -21535,15 +23025,15 @@
        },
        {
         "key": "dpo",
-        "label": "Days payables outstanding",
+        "label": "Days payables outstanding (on total operating cost)",
         "unit": "days",
-        "value": 37.175930987914
+        "value": 26.676883661373
        },
        {
         "key": "float_days",
         "label": "Collection gap (DSO − DPO)",
         "unit": "days",
-        "value": -9.130507420361
+        "value": 1.36853990618
        },
        {
         "key": "float",
@@ -21564,14 +23054,27 @@
         "value": 7186373.77
        },
        {
-        "key": "cogs",
-        "label": "Cost of goods sold",
+        "key": "dpo_payables",
+        "label": "Balance-sheet payables (the DPO's numerator)",
         "unit": "money",
-        "value": 70557114.68
+        "value": 7554847.25
+       },
+       {
+        "key": "total_operating_expense",
+        "label": "Total operating expense",
+        "unit": "money",
+        "value": 103367367.84
+       },
+       {
+        "key": "period_days",
+        "label": "The period's day count",
+        "noun": "day",
+        "unit": "count",
+        "value": 365.0
        }
       ],
       "narrative": {
-       "explanation": "The net trade float is RON 1,327,011.19: RON 8,513,384.96 owed by customers against RON 7,186,373.77 owed to suppliers — 28.0 days of sales outstanding against 37.2 days of payables, a gap of -9.1 days. Graded low: the amount at stake is 1.2% of revenue, against the ladder printed beside this finding. Trade float is a claim on a year of trading, so it is graded as a share of that year's revenue — the same base both day counts already annualise against.",
+       "explanation": "The net trade float is RON 1,327,011.19: RON 8,513,384.96 owed by customers against RON 7,186,373.77 owed to suppliers — 28.0 days of sales outstanding against 26.7 days of payables (RON 7,554,847.25 of balance-sheet payables over RON 103,367,367.84 of total operating expense, on 365 days), a gap of 1.4 days. Graded low: the amount at stake is 1.2% of revenue, against the ladder printed beside this finding. Trade float is a claim on a year of trading, so it is graded as a share of that year's revenue — the same base both day counts already annualise against.",
        "reason": "the advisory lane was not invoked for this build",
        "so_what": "Compare the collection gap with the credit terms actually granted. Where suppliers fund the cycle, that funding is a payables line that can be withdrawn, not a permanent source.",
        "source": "deterministic"
@@ -21794,6 +23297,262 @@
      "unclassified_balances",
      "earnings_quality"
     ]
+   },
+   "inventory_days": {
+    "basis": "average_two_year_ends",
+    "basis_label": {
+     "en": "average of the balances at 1 January and 31 December",
+     "ro": "media soldurilor la 1 ianuarie și 31 decembrie"
+    },
+    "ccc_dio_term": {
+     "basis": "year_end_snapshot",
+     "basis_label": {
+      "en": "stock at 31 December — a single day",
+      "ro": "stoc la 31 decembrie — o singură zi"
+     },
+     "reason": null,
+     "value": 31.8749
+    },
+    "claim_policy": {
+     "may_call_slow": true,
+     "reason": "split_and_average",
+     "reason_text": {
+      "en": "a claim must cite the split by stock type and the average balance",
+      "ro": "afirmația trebuie să citeze împărțirea pe tipuri de stoc și media soldurilor"
+     },
+     "requires": [
+      "split_by_stock_type",
+      "average_balance"
+     ]
+    },
+    "cost_of_production_sold": {
+     "basis": "total_operating_expense_less_607_less_net_711",
+     "formula": "total_operating_expense - 607 - net_711",
+     "label_en": "total operating cost excluding merchandise, adjusted for the change in inventories (no class-9 management accounts)",
+     "label_ro": "cost total de exploatare fără mărfuri, ajustat cu variația stocurilor (fără contabilitate de gestiune clasa 9)",
+     "operands": {
+      "cost_of_goods_resold_607": 26488094.73,
+      "net_711": 1071687.03,
+      "net_711_provenance": "account_121_bridge",
+      "total_operating_expense": 103367367.84
+     },
+     "refusal": null,
+     "value": 75807586.08
+    },
+    "filed_basis_pointer": {
+     "label_en": "filed basis (stock ÷ net turnover) — not the same as the inventory days of this analysis",
+     "label_ro": "bază depusă (stoc ÷ cifra de afaceri) — nu aceeași cu zilele de stoc din analiză",
+     "never_compare": true,
+     "sector_row_key": "inventory_days_on_turnover"
+    },
+    "groups": [
+     {
+      "accounts": [
+       "301.201",
+       "301.202",
+       "301.203",
+       "3021.01",
+       "3023.21",
+       "3023.22",
+       "3024.01",
+       "3028.01",
+       "3028.02",
+       "3028.03",
+       "3028.04",
+       "3031.01",
+       "3031.02"
+      ],
+      "closing_value": 35.3692,
+      "closing_value_q": "35",
+      "flow": {
+       "accounts": [
+        "601",
+        "602",
+        "603"
+       ],
+       "key": "materials_consumed",
+       "label_en": "Materials consumed (601 + 602 + 603)",
+       "label_ro": "Consum de materii prime și materiale (601 + 602 + 603)",
+       "value": 45090499.65
+      },
+      "key": "materials",
+      "label_en": "Raw materials and consumables",
+      "label_ro": "Materii prime și materiale",
+      "provision_accounts": [
+       "391",
+       "392"
+      ],
+      "provision_accounts_present": [],
+      "reason": null,
+      "stock": {
+       "average": 4610540.19,
+       "closing": 4369350.92,
+       "opening": 4851729.45
+      },
+      "stock_accounts": [
+       "301",
+       "302",
+       "303",
+       "308"
+      ],
+      "value": 37.3215,
+      "value_q": "37"
+     },
+     {
+      "accounts": [
+       "341.010",
+       "345.010",
+       "348.102"
+      ],
+      "closing_value": 11.8115,
+      "closing_value_q": "12",
+      "flow": {
+       "accounts": [],
+       "key": "cost_of_production_sold",
+       "label_en": "Cost of production sold",
+       "label_ro": "Costul producției vândute",
+       "value": 75807586.08
+      },
+      "key": "finished_goods_wip",
+      "label_en": "Finished goods and work in progress",
+      "label_ro": "Produse finite și producție în curs",
+      "provision_accounts": [
+       "393",
+       "394"
+      ],
+      "provision_accounts_present": [],
+      "reason": null,
+      "stock": {
+       "average": 2479655.6,
+       "closing": 2453147.66,
+       "opening": 2506163.54
+      },
+      "stock_accounts": [
+       "331",
+       "341",
+       "345",
+       "348"
+      ],
+      "value": 11.9391,
+      "value_q": "12"
+     },
+     {
+      "accounts": [
+       "371.001",
+       "371.010",
+       "371.050",
+       "371.081",
+       "371.093",
+       "371.095",
+       "378.078",
+       "378.080"
+      ],
+      "closing_value": 28.445,
+      "closing_value_q": "28",
+      "flow": {
+       "accounts": [
+        "607"
+       ],
+       "key": "cost_of_goods_resold",
+       "label_en": "Cost of goods resold (607)",
+       "label_ro": "Costul mărfurilor vândute (607)",
+       "value": 26488094.73
+      },
+      "key": "merchandise",
+      "label_en": "Merchandise",
+      "label_ro": "Mărfuri",
+      "provision_accounts": [
+       "397"
+      ],
+      "provision_accounts_present": [],
+      "reason": null,
+      "stock": {
+       "average": 1337794.7,
+       "closing": 2064260.65,
+       "opening": 611328.75
+      },
+      "stock_accounts": [
+       "371",
+       "378"
+      ],
+      "value": 18.4345,
+      "value_q": "18"
+     }
+    ],
+    "inventory_turnover": {
+     "formula": "period_days / total.value",
+     "reason": null,
+     "value": 12.0814,
+     "value_q": "12.08"
+    },
+    "opening": {
+     "convention": "C",
+     "reason": null,
+     "source": "tb_si_column",
+     "status": "available"
+    },
+    "other": {
+     "accounts": [
+      "381.001"
+     ],
+     "key": "other_stock",
+     "label_en": "Other stock",
+     "label_ro": "Alte stocuri",
+     "provision_accounts_present": [
+      "398"
+     ],
+     "stock": {
+      "average": 39194.37,
+      "closing": 46573.19,
+      "opening": 31815.54
+     }
+    },
+    "period_days": 365.0,
+    "provenance": {
+     "flows": "statement_line_items (601, 602, 603, 607, 701-703)",
+     "net_711": "assembled_pl.inventory_variation",
+     "pack": "packs/ratios/inventory_days.yaml",
+     "period_days": "supplementary.periodDays",
+     "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
+     "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+    },
+    "reconciliation": {
+     "difference": 0.0,
+     "served_inventory_net": 8933332.42,
+     "status": "reconciled",
+     "sum_of_groups_closing": 8933332.42
+    },
+    "schema": "inventory_days/1",
+    "seasonality": {
+     "flagged": false,
+     "note_en": null,
+     "note_ro": null
+    },
+    "status": "served",
+    "total": {
+     "closing_value": 31.8749,
+     "closing_value_q": "32",
+     "flow": {
+      "components": {
+       "cost_of_goods_resold_607": 26488094.73,
+       "cost_of_production_sold": 75807586.08
+      },
+      "label_en": "cost of production sold + cost of goods resold (607)",
+      "label_ro": "costul producției vândute + costul mărfurilor vândute (607)",
+      "value": 102295680.81
+     },
+     "label_en": "Inventory days (total, flow-weighted)",
+     "label_ro": "Zile de stoc (total, ponderat cu fluxurile)",
+     "reason": null,
+     "stock": {
+      "average": 8467184.86,
+      "closing": 8933332.42,
+      "opening": 8001037.28
+     },
+     "value": 30.2117,
+     "value_q": "30",
+     "weighting": "flow"
+    }
    },
    "periodLabel": "Dec 2025",
    "subAggregates": {

@@ -44,7 +44,13 @@
 // ── WHAT THIS REDS ON, AFTER THE REPAIR (TC-11) ──────────────────────
 //
 // §A1  a working-capital chart row whose stated arithmetic is not, byte
-//      for byte, the arithmetic the ratio card for that same row states
+//      for byte, the arithmetic the ratio card for that same row states —
+//      EXCEPT the cycle's period-end DIO term, whose line must be the card's
+//      arithmetic with the period-end term's own basis
+//      (`inventory_days.ccc_dio_term.basis_label`), must not carry the
+//      card's served (average) basis, and must print the block's
+//      `closing_value` (the old law — source === card formula — required a
+//      31 December figure to be described as an average)
 // §A2  any drawn chart naming a denominator ("cost of sales", "COGS")
 //      that no ratio card in the document names
 // §A3  a formula drawn INSIDE an SVG — the drawing carries a pointer to
@@ -72,6 +78,7 @@ import { describe, expect, it } from "vitest";
 
 import { BOOKS, type Book, exportDoc, metricsFor, statementsFor } from "./exportBooks";
 import { computeRatios, type Statements } from "@/lib/financialReport";
+import { printDaysQ } from "@/lib/inventoryDays";
 
 // ── the printed document, in the two shapes this file needs ──────────
 
@@ -130,7 +137,13 @@ function cards(doc: Document): CardDom[] {
  *  "plus DIO"), the rail carries the ratio's full label. */
 const WC_ROW_TO_CARD: Record<string, string> = {
   DSO: "Days sales outstanding",
-  "plus DIO": "Days inventory outstanding",
+  "plus DIO": "Inventory days (DIO)",
+  // The cycle adds the served inventory-days split on the PERIOD-END
+  // balance (DSO and DPO are period-end), while the card prints it on its
+  // served basis (the average where the book carries the opening). Same
+  // arithmetic — but the row describes the term it adds (see §A1's
+  // period-end law below), never the card's average.
+  "plus DIO (period-end balance)": "Inventory days (DIO)",
   "less DPO": "Days payables outstanding (on total operating cost)",
   "equals CCC": "Cash conversion cycle",
 };
@@ -156,6 +169,46 @@ describe("§A the arithmetic is spelled once per document", () => {
       ).toBeTruthy();
       const card = byLabel.get(cardLabel);
       expect(card, `${b}: no ratio card labelled "${cardLabel}" in the document`).toBeTruthy();
+      if (row.label === "plus DIO (period-end balance)") {
+        // THE TERM THE CYCLE ADDS, DESCRIBED AS ITSELF. The row's figure is
+        // the split on the 31 December balance (`closing_value`); its line
+        // must be the card's arithmetic with the PERIOD-END term's basis
+        // (`ccc_dio_term.basis_label`) — never the card's served basis. The
+        // law is built here from the served block, not from the renderer:
+        // the agras export printed 31.9 days under "… — average of the
+        // balances at 1 January and 31 December", which recomputes to the
+        // card's 30.2, and the old law (source === card formula) required it.
+        const block = (statementsFor(b) as unknown as { inventory_days: {
+          basis_label: { en: string }; ccc_dio_term: { basis_label: { en: string } };
+          total: { closing_value: number; closing_value_q: string } } }).inventory_days;
+        const served = ` — ${block.basis_label.en}`;
+        expect(card!.formula.endsWith(served), `${b}: the DIO card's line no longer ends with its served basis`).toBe(true);
+        const want = `${card!.formula.slice(0, -served.length)} — ${block.ccc_dio_term.basis_label.en}`;
+        expect(
+          row.source,
+          `${b}: the cycle's DIO row prints the period-end figure ${row.printed} under\n` +
+            `      "${row.source}"\n` +
+            `  — its line must state the period-end term's basis:\n      "${want}"`,
+        ).toBe(want);
+        expect(row.source.includes(block.basis_label.en), `${b}: the period-end row carries the average's words`).toBe(false);
+        // ONE QUANTIZATION: the period-end term prints the block's own
+        // `closing_value_q` — the string the split prints ("The same split
+        // on the period-end balance: 32 days") — never a one-decimal rule
+        // of the chart's (agras printed 31.9 beside the split's 32).
+        expect(
+          row.printed,
+          `${b}: the cycle's period-end DIO row prints "${row.printed}"; the split prints the same figure as ` +
+            `"${printDaysQ(block.total.closing_value_q, "en")}"`,
+        ).toBe(printDaysQ(block.total.closing_value_q, "en"));
+        continue;
+      }
+      // Every other term prints the string its card prints (the CCC card
+      // said 33 days while the chart's CCC bar said 33.2).
+      const cardPrinted = row.label === "less DPO" ? `-${card!.value}` : card!.value;
+      expect(
+        row.printed,
+        `${b}: the cycle's ${row.label} row prints "${row.printed}" while its card prints "${card!.value}"`,
+      ).toBe(cardPrinted);
       expect(
         row.source,
         `${b}: the ${row.label} row of the cycle chart states\n` +

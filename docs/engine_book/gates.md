@@ -2697,6 +2697,25 @@ RECORD ratio-table {'state': 'FAIL', 'exit_code': 1, 'work_units': 56}
 **REVERT** — exit `0`: `PASS ratio-table (4.3s, 56 tests)`. Verdict: proven
 RED.
 
+**The ONE DPO moved to `bsOr` (feat/inventory-days, fixer round 1,
+2026-09-28).** `5c4a174b` made `computeRatios` and the engine table compute
+DPO first on the period's day count (exactly as DSO) but left
+`_PRECEDENCE["dpo"] = "mOr"` — the precedence law went RED on all four
+books and nobody re-ran it. The declaration now says `bsOr`; the observed
+floor follows the reclassification (measured 22 mOr / 48 bsOr / 8
+served_block, floor `mOr >= 22`, `bsOr >= 48`).
+
+```
+=== PLANT dpo-declared-mOr  (src/engine/ratios/table.py _PRECEDENCE)
+E       agras dpo declared mOr, FE perturbed 26.67688366137272 != metric×1.37 36.547353
+E       agras dpo declared mOr, engine read ['balanceSheet.accountsPayable', 'incomeStatement.costOfGoodsSold', 'incomeStatement.operatingExpenses', 'incomeStatement.depreciationAmortization', 'constant.period_days_default']
+========================= 1 failed, 56 passed in 3.93s =========================
+-> RED
+=== REVERT (byte-exact copy of the file restored)
+============================== 57 passed in 3.85s ==============================
+-> GREEN
+```
+
 ## ratio-compare
 
 The two-period ratio block (`engine.comparatives.ratio_compare`, batch B4):
@@ -3468,7 +3487,7 @@ helper).
 | | |
 |---|---|
 | command | `python scripts/check_floor_census.py` |
-| work count | `GATE-WORK floor-census units=(\d+)`, floor **100** candidate sites (measured 131 over 14 files) |
+| work count | `GATE-WORK floor-census units=(\d+)`, floor **75** candidate sites (measured 79 over 18 files after the credit model's S8 tightening; 131 over 14 files when first built, floor 100, then 80 on 88) |
 | canary | `self-test S1 DIVISOR_FLOOR`, `self-test S8 CONSTANT_PERIOD`, `credit   src/engine/ratios/credit_model.py`, `credit tier clean` |
 
 Two tiers, printed on every run. The CREDIT TIER (credit_model.py,
@@ -3527,6 +3546,63 @@ FAIL floor-census — 1 problem(s):
 **REVERT** — exit `0`:
 `PASS floor-census — 131 candidate site(s) over 14 files; credit tier clean; ratchet held.`
 Verdict: proven RED.
+
+**Tightened 2026-09-28 (feat/inventory-days, fixer round 1):**
+`src/engine/ratios/credit_model.py [S8 CONSTANT_PERIOD]` 4 -> 0. `5c4a174b`
+took the four literal `* 365` day-count products out of the credit model's
+dso / dpo / ccc metric rows but left the baseline at 4, so the ratchet went
+RED ("fell 4 -> 0 — tighten the baseline") and was never re-run. The model
+keeps the table's day-count rule restated (periodDays, else the named
+365-day default: it is held to a pure import set and may not import the
+table; one-metric-one-formula holds the two to one figure on 366- and
+181-day periods); the baseline was rewritten with `--write-baseline` in its
+own named commit.
+
+```
+=== PLANT a literal 365 back in the credit model's dso row  (src/engine/ratios/credit_model.py)
+FAIL floor-census — 1 problem(s):
+  ratchet: src/engine/ratios/credit_model.py [S8 CONSTANT_PERIOD] has 1 site(s) and no baseline row
+-> RED
+=== REVERT (byte-exact copy of the file restored)
+PASS floor-census — 79 candidate site(s) over 18 files; credit tier clean; ratchet held.
+-> GREEN
+```
+
+**Floor lowered 2026-09-28 (feat/inventory-days, fixer round 2).** The
+tightening above took the census from 86 (base `9f400ebf`) to 79, below the
+battery's floor of 80, and round 1 reported "PASS, 79 sites" from the script
+run alone — the script's own verdict holds (ratchet held), but the battery
+reds the gate on WORK BELOW FLOOR, and the engine suite's
+`test_floor_census_gate.py` asserts only the script's PASS text, so nothing
+else saw it. The floor in `scripts/run_battery.py` is now **75**: measured
+79, rounded down, the comment names the measurement. Proven through the
+battery, not the script (`run_battery` narrowed to this one gate):
+
+```
+=== PLANT the floor back at 80  (scripts/run_battery.py, floor-census)
+FAIL floor-census (exit 0, 1.2s)
+     ! WORK BELOW FLOOR — examined 79 candidate sites, floor 80. A census that finds (almost) nothing is a broken gate, not a passing one.
+BATTERY: FAIL — 0/1 gates green
+-> RED
+=== REVERT (byte-exact copy of run_battery.py restored, floor 75)
+PASS floor-census (1.2s, 79 candidate sites)
+BATTERY: PASS — 1/1 gates green
+-> GREEN
+```
+
+The engine-suite wrapper (`tests/engine/test_floor_census_gate.py`) now
+holds the script's `GATE-WORK` count to the floor read from the battery's
+own register, so the suite reds where the battery would:
+
+```
+=== PLANT the floor back at 80 (scripts/run_battery.py)
+E   AssertionError: floor-census examined 79 candidate sites, below the battery's floor 80: run_battery reds this gate (WORK BELOW FLOOR) even though the script prints PASS. ...
+1 failed, 1 passed
+-> RED
+=== REVERT (byte-exact)
+2 passed
+-> GREEN
+```
 
 ## ratio-byte-match
 
@@ -9364,6 +9440,49 @@ signed-out one) opened by a cached opt-in; a cached list surviving a bag that
 says otherwise. **It cannot see** the very first visit on a browser (no copy
 exists yet, so the rows wait for the bag once).
 
+**The DIO driver's refusal, in its own words (2026-09-28, feat/inventory-days,
+fixer round 2).** The engine cited a refused inventory-days block as "(reason
+code a_leg_refused)" and the Romanian rule printed "(codul motivului
+a_leg_refused)" — a code where a reason belongs, on the corpus developer's
+Forecast page. The engine sentence now carries the block reason's own English
+words and the code (`engine.forecast.assumptions`; the no-block absence is
+worded by the pack, `refusals.inventory_days_absent`, read by
+`engine.forecast.history` instead of typed there), and the Romanian rule prints
+the pack's Romanian words for that code from `INVENTORY_DAYS_REFUSALS` — the
+one mirror of `packs/ratios/inventory_days.yaml#refusals`, because a browser
+cannot read the pack. `forecastSentencesRo.test.ts` parses the pack and holds
+the mirror to it word for word; a reason whose English is not the pack's prints
+the served English, never a guessed Romanian.
+
+**PLANT ro-bare-code** — the Romanian rule prints `(codul motivului <code>)`
+without the words (the defect).
+**PLANT mirror-drift** — `a_leg_refused`'s Romanian in the mirror reworded.
+
+```
+=== PLANT A: the Romanian rule prints the bare code in place of the words
+   × Romanian: the DIO driver refused (the refusal's own words, never a bare code) > prints the pack's Romanian reason for every code, digits exactly the served ones
+-> RED (1 failed)
+restored byte-exact
+=== PLANT B: the mirror drifts from the pack (a_leg_refused's Romanian reworded)
+   × ... > the mirror is the pack's refusals, word for word, every code
+   × ... > prints the pack's Romanian reason for every code, digits exactly the served ones
+-> RED (2 failed)
+restored byte-exact
+=== RESTORED
+      Tests  11 passed (11)
+-> GREEN
+```
+
+The served inventory (served_sentences.json) and the developer's cockpit
+captures were re-captured by their own writers (scripts/gen_fp1_2_fixtures.py;
+scripts/gen_cockpit_fixtures.py --book realestate --requests base,export): the
+one sentence and the two body hashes move, no figure moves.
+
+**After the repair it also reds on:** the pack's refusal wording changed without
+the mirror; a new refusal code in the pack with no Romanian mirror entry; the
+Romanian rendering dropping the reason's words for its code. **It cannot see**
+whether the pack's Romanian reads well.
+
 ## forecast-served-sentences
 
 | | |
@@ -14361,3 +14480,1181 @@ PLANT R1 the apply reports REPROCESSED without reading back the valuations row
   E   assert ('reprocessed' == 'refused'
   -> RED ; restored
 ```
+
+## inventory-days
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_inventory_days.py -q -s` |
+| canary | `SCOPE inventory-days: corpus books agras, carniprod, realestate, retail` |
+| work count | `GATE-WORK inventory-days units=(\d+)`, floor **140** (measured 152; `groups_recomputed` 8, `refusals` 5) |
+
+**INCIDENT** — owner spec 2026-09-26 P1: Scandia Food FY2025 printed 48.8
+(Benchmark, stock ÷ net turnover), 52.5 (Ratios card, stock ÷ total operating
+expense) and 95.3 (Forecast, stock ÷ 601+602+607) inventory days for ONE stock
+of 55,341,817.75, on one day (31 December). `engine.ratios.inventory_days`
+serves ONE block (schema `inventory_days/1`): materials 301/302/303/308 over
+601+602+603, finished goods + WIP 331/341/345/348 over the cost of production
+sold (total operating expense − 607 − net 711; 0 on a book with no own
+production), merchandise 371/378 over 607, "alte stocuri" inside the total;
+39x netted per group; total = all stock ÷ (cost of production sold + 607). The
+fiscal-year opening comes from the stored `inventory_stock/1` evidence (the
+`si` columns, measured at the parse seam when the movement convention says the
+`si` block is the fiscal-year opening). Basis: monthly (12 month-end periods
+in the workspace) → the two year-ends → the snapshot, labelled.
+
+**LAW** — on the four corpus books (committed firm fixtures, the real write
+path) and constructed plants: Σ groups + alte stocuri = the served
+inventory_net to the cent, every evidence account in exactly one group; a
+missing stock account refuses (`not_reconciled`); every group's days and the
+total recomputed here from the evidence and the served line items; an average
+has an opening for every group and is (opening + closing) ÷ 2, a snapshot
+equals the closing and reads "stoc la 31 decembrie — o singură zi"; a refused
+net 711 refuses finished goods and the total with its reason; the developer
+serves no inventory days (no own product sold, merchandise with no 607); a
+leg with no stock refuses (`no_stock`), never 0 days; `may_call_slow` only on
+the split AND an average; seasonality for CAEN 10/11/463/471/472 and the fmcg
+key on year-end bases, never on the monthly basis; GET /api/period serves the
+block once (`assembled_metrics`, `statements`, the served envelope).
+
+Source-edit plants on `src/engine/ratios/inventory_days.py`, each alone, the
+file restored byte-exact after each:
+```
+=== PLANT snapshot-labelled-as-average  (`elif opening_available:` -> `elif True:`)
+FAILED test_an_average_is_an_average_and_a_snapshot_says_so[agras]
+FAILED test_an_average_is_an_average_and_a_snapshot_says_so[carniprod]
+FAILED test_an_average_is_an_average_and_a_snapshot_says_so[realestate]
+FAILED test_an_average_is_an_average_and_a_snapshot_says_so[retail]
+FAILED test_no_evidence_serves_the_period_end_snapshot_from_the_line_items
+FAILED test_the_claim_policy_allows_slow_only_on_the_split_and_an_average[agras]
+FAILED test_the_claim_policy_allows_slow_only_on_the_split_and_an_average[carniprod]
+FAILED test_the_claim_policy_allows_slow_only_on_the_split_and_an_average[retail]
+========================= 8 failed, 18 passed in 2.67s =========================
+-> RED
+=== REVERT
+============================== 26 passed in 4.21s ==============================
+=== PLANT second-denominator-total-operating-expense  (total flow = TOE, not CPS + 607)
+FAILED test_every_days_figure_is_its_stock_over_its_flow[agras]
+FAILED test_every_days_figure_is_its_stock_over_its_flow[carniprod]
+FAILED test_every_days_figure_is_its_stock_over_its_flow[retail]
+========================= 3 failed, 23 passed in 4.66s =========================
+-> RED
+=== REVERT
+============================== 26 passed in 4.85s ==============================
+=== PLANT zero-stock-serves-zero-days  (`if not has_stock:` -> `if False:`)
+E   AssertionError: {'finished_goods_wip': 'no_own_production_sold', 'materials': None, 'merchandise': 'no_goods_resold'}
+FAILED test_the_developer_serves_no_inventory_days_at_all
+FAILED test_a_leg_with_no_stock_refuses_rather_than_serving_zero_days
+FAILED test_the_claim_policy_allows_slow_only_on_the_split_and_an_average[retail]
+FAILED test_zz_scope
+========================= 4 failed, 22 passed in 4.93s =========================
+-> RED
+=== REVERT
+============================== 26 passed in 2.35s ==============================
+```
+
+**CANNOT SEE:** the owner's open rulings (the account extensions 357/346/347/354
+/332/381, the direct production-cost basis, retail stock at selling price —
+dio_measure.md §10); the monthly basis on a real workspace (constructed 13
+points only); the browser surfaces (`one-metric-one-formula` holds the engine
+consumers; the FE reads the block through `lib/inventoryDays`).
+
+## one-metric-one-formula
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_one_metric_one_formula.py -q -s` |
+| canary | `SCOPE one-metric-one-formula: corpus books agras, carniprod, realestate, retail` |
+| work count | `GATE-WORK one-metric-one-formula units=(\d+)`, floor **32** (measured 32: 28 engine + 4 frontend) |
+
+**INCIDENT** — design B4: one metric name, one formula. Inventory days had
+five engine formulas (credit model ÷ total operating expense, the forecast
+driver ÷ 601+602+607, the methodology view ÷ cogs.net, the sector row ÷ net
+turnover, the parked radar ÷ class 60) and DPO two (the Ratios card ÷ total
+operating expense, the trade-float insight ÷ cost of goods sold: agras 26.7 vs
+37.2 d, both "DPO").
+
+**LAW** — on the four corpus books served by the real app (create_app over the
+tenancy double, the pipeline's metric rows seeded): the ratio table's dio /
+inventory_turnover are the block's; its ccc is DSO + the block's period-end
+total − DPO; the served metric rows and `assembled_metrics.ratios.efficiency`
+carry the same figures; the forecast driver is the block's period-end total
+(to the micro-day, `forecast.dio_split`); the ratio table's DPO and the
+trade-float DPO are `ratio_table.dpo_days`; the served methodology carries no
+DIO / DPO / CCC / turnover view; the radar names no dio / dpo cycle; the
+sector row is `inventory_days_on_turnover` with the owner's filed-basis label
+(RO/EN); and no Python source under `src/engine` multiplies an inventory
+figure by 365 or divides it by a flow outside the declared authorities
+(`engine/ratios/inventory_days.py`; the FILED basis in `benchmarks_ro/` and
+`public_ro/`; the SKU layer's per-SKU days) — the scan reads CODE tokens
+(comments, prose and schema ids dropped; one-word keys such as
+`bs["inventory"]` kept) and is itself plant-checked on a planted line.
+
+Plants, each alone, file restored byte-exact:
+```
+=== PLANT second-denominator-in-the-credit-model  (dio row = inventory x 365 / total operating expense)
+E       engine/ratios/credit_model.py:1004: { name : dio , value : safe(bs . get(inventory , 0.0)* 365 , total_operating_expense), ...
+FAILED test_every_inventory_days_surface_is_the_served_block[agras]
+FAILED test_every_inventory_days_surface_is_the_served_block[carniprod]
+FAILED test_every_inventory_days_surface_is_the_served_block[realestate]
+FAILED test_every_inventory_days_surface_is_the_served_block[retail]
+FAILED test_no_engine_source_divides_an_inventory_figure_outside_the_authorities
+FAILED test_zz_scope
+========================= 6 failed, 9 passed in 7.17s ==========================
+-> RED
+=== REVERT
+============================== 15 passed in 5.75s ==============================
+=== PLANT trade-float-dpo-on-cogs  (detector DPO = payables / cogs x 365)
+E   AssertionError: ('agras', 37.175930987914, 26.67688366137272)
+E   AssertionError: ('carniprod', 82.765143493005, 51.66424475283546)
+E   AssertionError: ('realestate', None, 33.16237949006038)
+E   AssertionError: ('retail', 37.247128858271, 29.839926985692205)
+FAILED test_one_dpo_on_the_ratio_table_and_the_trade_float[agras|carniprod|realestate|retail]
+-> RED (4 failed, 11 passed)
+=== REVERT
+============================== 15 passed ==============================
+=== PLANT methodology-dio-view-restored  (days_inventory_outstanding = inventory_net / cogs x 365)
+E   AssertionError: ('agras', ['days_inventory_outstanding'])
+FAILED test_no_second_formula_is_served_or_declared
+FAILED test_zz_scope
+========================= 2 failed, 13 passed in 4.48s =========================
+-> RED
+=== REVERT
+============================== 15 passed in 4.49s ==============================
+```
+
+**What building it found (2026-09-27).** The first scan read raw lines and
+flagged `inventory_days/1` (a schema id) and docstring prose; the second
+dropped every string and so missed the plant `bs.get("inventory") * 365` —
+the credit-model plant went red on values only. The scan now tokenizes and
+keeps one-word string keys; the plant is caught by both halves.
+
+**THE FRONTEND HALF (stage D2, 2026-09-27).** The same scan now reads every
+TypeScript source under `frontend/{lib,components,pages,data,hooks,stores}`
+(tests excluded) — comments dropped, one-word strings kept as words
+(`div(B("inventory"), …)` reads `div(B(inventory), …)`), templates dropped —
+and reds on `div(<stock>…`, `<stock> / <flow>` or `<stock> … × 365`, where a
+stock identifier contains "inventory" or ends in "Inv" (`sumInv`, `inv`;
+never `invoice` / `invested`). Two namespaced exemptions, each under its own
+key and label and asserted so: `lib/publicInventoryDays.ts` (a listed
+company's reported basis, "Zile stoc — bază raportată: stoc ÷ costul
+vânzărilor", key `inventory_days_reported`) and `pages/cfo/Products.tsx`
+(the sales file's "Zile de rotație SKU"). The scan's own plant test reds on
+the three shapes and passes the quick ratio's subtraction.
+```
+=== PLANT browser-dio-on-total-operating-expense  (financialReport.ts computeRatios:
+    const dio = dayRatio("dio", mul(div(B("inventory"), totalOperatingExpense, "total operating expense"), dayCount), false);)
+E   AssertionError: a second inventory-days formula in the browser:
+E       frontend/lib/financialReport.ts:1741: const dio = dayRatio(dio, mul(div(B(inventory), totalOperatingExpense,  ), dayCount), false);
+================== 1 failed, 2 passed, 15 deselected in 1.23s ==================
+-> RED
+=== REVERT (file restored byte-exact)
+======================= 3 passed, 15 deselected in 1.17s =======================
+```
+
+**CANNOT SEE:** the browser surfaces' rendering (that is
+`inventory-days-surfaces`, below); the SKU layer's per-SKU days keep their
+served key (`days_inventory_on_hand`) — renamed at the label only.
+
+### one-metric-one-formula — the bank documents, the labels, the methodology file (2026-09-27)
+
+The gate now also reads the cockpit's BANK EXPORT (POST
+/api/forecast/{id}/cockpit/export through create_app, the four corpus books):
+`document.inventory_days` is the base period's served block byte for byte,
+the DIO lever is the block's period-end total, and no text names a DPO
+without the one DPO's denominator (total operating expense) or states
+inventory days with a formula off the split. It found one: the forecast's
+payables lever printed "Days payables outstanding (DPO)" / "Zile plată
+furnizori (DPO)" over COST OF SALES beside the CFO report's DPO over total
+operating expense (Agras 37.2 vs 26.7 d) — two DPO formulas across the two
+documents a bank receives. Fixed in `dec1d293` (the driver keeps its formula
+and its keys, no projected figure or saved plan moves, and takes its own name
+"Trade payables in days of cost of sales" / "Datorii comerciale în zile de
+cost al vânzărilor", quoting the table's DPO beside it); fixtures re-captured
+in `d77bbdc7`. Also held: the three i18n labels + the two pack labels of that
+driver never say DPO; the methodology FILE declares no view dividing the stock
+or the trade payables by a flow. Floor 32 → **46** (measured 46).
+
+```
+=== PLANT forecast-payables-lever-named-DPO-again  (packs/forecast/cockpit.yaml)
+FAILED tests/engine/test_one_metric_one_formula.py::test_the_bank_export_prints_the_one_block_and_no_second_dpo[agras]
+FAILED tests/engine/test_one_metric_one_formula.py::test_the_bank_export_prints_the_one_block_and_no_second_dpo[carniprod]
+FAILED tests/engine/test_one_metric_one_formula.py::test_the_bank_export_prints_the_one_block_and_no_second_dpo[realestate]
+FAILED tests/engine/test_one_metric_one_formula.py::test_the_bank_export_prints_the_one_block_and_no_second_dpo[retail]
+FAILED tests/engine/test_one_metric_one_formula.py::test_no_forecast_label_names_a_second_dpo
+FAILED tests/engine/test_one_metric_one_formula.py::test_zz_scope - Assertion...
+======================== 6 failed, 18 passed in 10.43s =========================
+-> RED
+=== REVERT (git checkout -- packs/forecast/cockpit.yaml, byte-exact)
+============================= 24 passed in 10.48s ==============================
+-> GREEN
+
+=== PLANT bank-export-without-the-base-period-block  (src/engine/api/_forecast_routes.py)
+FAILED tests/engine/test_one_metric_one_formula.py::test_the_bank_export_prints_the_one_block_and_no_second_dpo[agras]
+FAILED tests/engine/test_one_metric_one_formula.py::test_the_bank_export_prints_the_one_block_and_no_second_dpo[carniprod]
+FAILED tests/engine/test_one_metric_one_formula.py::test_the_bank_export_prints_the_one_block_and_no_second_dpo[realestate]
+FAILED tests/engine/test_one_metric_one_formula.py::test_the_bank_export_prints_the_one_block_and_no_second_dpo[retail]
+FAILED tests/engine/test_one_metric_one_formula.py::test_zz_scope - Assertion...
+======================== 5 failed, 19 passed in 10.41s =========================
+-> RED
+=== REVERT (git checkout -- src/engine/api/_forecast_routes.py, byte-exact)
+============================= 24 passed in 11.28s ==============================
+-> GREEN
+
+=== PLANT methodology-DPO-view-restored  (methodology/ro_ras_2025_v1.yaml)
+FAILED tests/engine/test_one_metric_one_formula.py::test_no_second_formula_is_served_or_declared
+FAILED tests/engine/test_one_metric_one_formula.py::test_the_methodology_file_declares_no_inventory_or_payables_days_view
+FAILED tests/engine/test_one_metric_one_formula.py::test_zz_scope - Assertion...
+======================== 3 failed, 21 passed in 10.42s =========================
+-> RED
+=== REVERT (git checkout -- methodology/ro_ras_2025_v1.yaml, byte-exact)
+============================= 24 passed in 10.31s ==============================
+-> GREEN
+```
+
+**CANNOT SEE:** whether the forecast's payables driver SHOULD divide by total
+operating expense (the owner's ruling — it moves every projected payables
+figure); the driver still reads the ratio table's DPO ladder (`band_key: dpo`)
+to set its case rungs, a ladder calibrated on the other denominator.
+
+### one-metric-one-formula — one day count, the trade float's operands, the lever on a non-365 period (2026-09-27, fixer round 1)
+
+The critic found the law green by construction: every book the gate served
+was 1 January – 31 December 2025, 365 days. Off that, the ratio table's `dpo`
+row read the credit-model metric first (accounts payable × **365** ÷ TOE)
+while DSO, the split and `dpo_days` used `supplementary.periodDays`: on the
+agras world at 181 days the Ratios DPO read 26.68 against the trade float's
+13.23, and the cycle added DSO and DIO on 181 days to a DPO on 365 (the real
+FY2024 book, 366 days: DPO 55.05 vs 55.20, CCC 13.47 vs 13.40). The trade
+float also printed its trade-payables row "owed to suppliers" beside a DPO
+on the owner's own FY2025 book — a DPO that divides the balance sheet's
+larger payables, not the amount it printed (the client's amounts are not
+committed). And the forecast's DIO lever (stock ÷ flow × 365, the
+plan's year) sat under the name "DIO — period-end balance" beside the
+split's period-end figure (× the period's days) in one bank document: 42,3
+and 42,5 on FY2024 Scandia, 31,9 and 18,7 on a 214-day Agras.
+
+Fixed in `5c4a174b`. The gate now serves three non-365 periods through the
+same app (agras 2024, agras and retail 1 January – 30 June), each seeded
+with the metric rows `stage_compute` PERSISTS (write-time statements, no
+`supplementary`, so × 365 — the rows a served response must replace), and
+recomputes DSO / DPO / CCC from the statements' operands on the served day
+count — never from the table's own rows. The trade float's printed
+operands (balance-sheet payables, total operating expense, the day count)
+must reproduce its DPO in the measures AND in the claim's printed words.
+The bank export is read on a 366- and a 181-day period: the lever is the
+block's period-end total × 365 ÷ period days, its label names the 365-day
+year, its sentence prints `closing_value_q` and the day count (EN + RO).
+Floor 46 → **85** (measured 91; 95 with the quantization law below).
+
+```
+== P1 credit model dpo x 365
+FAILED tests/engine/test_one_metric_one_formula.py::test_dso_dpo_and_the_cycle_share_one_day_count[agras-366]
+FAILED tests/engine/test_one_metric_one_formula.py::test_dso_dpo_and_the_cycle_share_one_day_count[agras-181]
+FAILED tests/engine/test_one_metric_one_formula.py::test_dso_dpo_and_the_cycle_share_one_day_count[retail-181]
+======================== 3 failed, 40 passed in 12.60s =========================
+PLANT EXIT 1 restored byte-exact: True
+== P2 day-count rows not replaced at serve
+FAILED tests/engine/test_one_metric_one_formula.py::test_dso_dpo_and_the_cycle_share_one_day_count[agras-366]
+FAILED tests/engine/test_one_metric_one_formula.py::test_dso_dpo_and_the_cycle_share_one_day_count[agras-181]
+FAILED tests/engine/test_one_metric_one_formula.py::test_dso_dpo_and_the_cycle_share_one_day_count[retail-181]
+======================== 3 failed, 40 passed in 12.56s =========================
+PLANT EXIT 1 restored byte-exact: True
+== P3 trade-float DSO x 365
+FAILED tests/engine/test_one_metric_one_formula.py::test_dso_dpo_and_the_cycle_share_one_day_count[agras-366]
+FAILED tests/engine/test_one_metric_one_formula.py::test_dso_dpo_and_the_cycle_share_one_day_count[agras-181]
+FAILED tests/engine/test_one_metric_one_formula.py::test_dso_dpo_and_the_cycle_share_one_day_count[retail-181]
+======================== 3 failed, 40 passed in 12.57s =========================
+PLANT EXIT 1 restored byte-exact: True
+== P4 ratio table dpo on a 365 constant
+FAILED tests/engine/test_one_metric_one_formula.py::test_one_dpo_on_the_ratio_table_and_the_trade_float[agras-366]
+FAILED tests/engine/test_one_metric_one_formula.py::test_one_dpo_on_the_ratio_table_and_the_trade_float[agras-181]
+FAILED tests/engine/test_one_metric_one_formula.py::test_one_dpo_on_the_ratio_table_and_the_trade_float[retail-181]
+FAILED tests/engine/test_one_metric_one_formula.py::test_dso_dpo_and_the_cycle_share_one_day_count[agras-366]
+FAILED tests/engine/test_one_metric_one_formula.py::test_dso_dpo_and_the_cycle_share_one_day_count[agras-181]
+FAILED tests/engine/test_one_metric_one_formula.py::test_dso_dpo_and_the_cycle_share_one_day_count[retail-181]
+FAILED tests/engine/test_one_metric_one_formula.py::test_the_bank_export_prints_the_one_block_and_no_second_dpo[agras]
+FAILED tests/engine/test_one_metric_one_formula.py::test_the_bank_export_prints_the_one_block_and_no_second_dpo[carniprod]
+FAILED tests/engine/test_one_metric_one_formula.py::test_the_bank_export_prints_the_one_block_and_no_second_dpo[retail]
+======================== 9 failed, 34 passed in 12.74s =========================
+PLANT EXIT 1 restored byte-exact: True
+== P5 the trade float claim drops the DPO operands
+FAILED tests/engine/test_one_metric_one_formula.py::test_the_trade_float_prints_the_operands_its_days_divide[agras]
+FAILED tests/engine/test_one_metric_one_formula.py::test_the_trade_float_prints_the_operands_its_days_divide[carniprod]
+FAILED tests/engine/test_one_metric_one_formula.py::test_the_trade_float_prints_the_operands_its_days_divide[realestate]
+FAILED tests/engine/test_one_metric_one_formula.py::test_the_trade_float_prints_the_operands_its_days_divide[retail]
+FAILED tests/engine/test_one_metric_one_formula.py::test_the_trade_float_prints_the_operands_its_days_divide[agras-366]
+FAILED tests/engine/test_one_metric_one_formula.py::test_the_trade_float_prints_the_operands_its_days_divide[agras-181]
+FAILED tests/engine/test_one_metric_one_formula.py::test_the_trade_float_prints_the_operands_its_days_divide[retail-181]
+======================== 7 failed, 36 passed in 12.65s =========================
+PLANT EXIT 1 restored byte-exact: True
+== P6 the lever sentence without the restatement
+FAILED tests/engine/test_one_metric_one_formula.py::test_the_bank_export_restates_the_lever_on_a_period_that_is_not_365_days[leap-366]
+FAILED tests/engine/test_one_metric_one_formula.py::test_the_bank_export_restates_the_lever_on_a_period_that_is_not_365_days[ytd-181]
+======================== 2 failed, 41 passed in 12.58s =========================
+PLANT EXIT 1 restored byte-exact: True
+```
+
+ONE QUANTIZATION (same round). The block quantized its days at one decimal
+(`_q1`, whose docstring claimed the ratio table's rule) while the table's
+days print at 0: the tile headline "30" sat over a split total of "30,2", and
+the command bar and the bank export printed the block's string. The block now
+quantizes with `table.quantize_display(value, "days")`; the gate asserts every
+leg's and the total's `value_q` / `closing_value_q` against that rule and the
+dio row's printed figure against the block's. Measured 95.
+
+```
+== P10 the block back on one decimal
+FAILED tests/engine/test_one_metric_one_formula.py::test_every_inventory_days_surface_is_the_served_block[agras]
+FAILED tests/engine/test_one_metric_one_formula.py::test_every_inventory_days_surface_is_the_served_block[carniprod]
+FAILED tests/engine/test_one_metric_one_formula.py::test_every_inventory_days_surface_is_the_served_block[retail]
+======================== 3 failed, 40 passed in 12.69s =========================
+PLANT EXIT 1 restored byte-exact: True
+```
+
+ONE QUANTIZATION, THE BANK DOCUMENT (fixer round 1, 2026-09-28). The block
+moved to the table's days rule but the cockpit's `fmt_days` kept a
+one-decimal rule of its own: on a 365-day book the DIO lever's default IS the
+split's period-end figure, and the bank export printed it as "31,9" in the
+lever row and its sentence beside the split's "32 de zile". `fmt_days` now
+reads `table.DISPLAY_DIGITS["days"]` (every day lever: DSO, DIO, payables in
+days of cost of sales). The gate asserts, on every 365-day corpus book with a
+period-end split, that the lever's `display` and the head of its `basis`
+sentence are the block's `closing_value_q` (EN; RO with a comma). Measured 98.
+
+```
+=== PLANT cockpit days back at one decimal  (src/engine/forecast/cockpit.py fmt_days)
+E   AssertionError: ('agras', 'en', {'en': '31.9', 'ro': '31,9'}, '32')
+E   AssertionError: ('carniprod', 'en', {'en': '37.9', 'ro': '37,9'}, '38')
+E   AssertionError: ('retail', 'en', {'en': '39.2', 'ro': '39,2'}, '39')
+FAILED tests/engine/test_one_metric_one_formula.py::test_the_bank_export_prints_the_one_block_and_no_second_dpo[agras]
+FAILED tests/engine/test_one_metric_one_formula.py::test_the_bank_export_prints_the_one_block_and_no_second_dpo[carniprod]
+FAILED tests/engine/test_one_metric_one_formula.py::test_the_bank_export_prints_the_one_block_and_no_second_dpo[retail]
+-> RED
+=== REVERT (byte-exact copy restored; cmp clean) -> 43 passed, GATE-WORK units=98
+-> GREEN
+```
+
+**CANNOT SEE:** whether the plan SHOULD project on the period's own day count
+(a partial-year base is projected as if it were a year — the forecast's own
+question, not this metric's); the frontend's copy of the rule is held by the
+vitest gates (computeRatios' dpo computed first), not here.
+
+## inventory-days-surfaces
+
+| | |
+|---|---|
+| command | `npx vitest run --root . <9 files> --reporter=verbose` (run_battery.py) |
+| canary | `the tile prints every leg with its accounts, alte stocuri and the basis` · `the bank export (EN) prints the report's block byte for byte` · `labels the SKU figure as SKU turnover days and takes CCC from the trial balance` · `replaces the company dio with the reported-basis row under its own key` · `the filed-basis inventory row wears the owner's label, no second note` |
+| work count | `Tests N passed`, floor **60** (measured 69; 66 when the plants below were run, before the /report page and refusal-wording tests joined) |
+
+**INCIDENT** — owner spec 2026-09-26 P1 ("one company, three numbers") and
+design B4: after the engine served ONE inventory-days block, the browser
+still printed one number with no split, the Products panel called the sales
+file's SKU days "DIO companie" and ADDED them to the trial balance's DSO and
+DPO as the company's CCC (a second CCC formula), the DIO card's band line
+sent the reader to the filed-basis sector row as its band, a listed
+company's DIO refused under the company name, and the chat was not told the
+claim policy.
+
+**LAW** — over served bytes (the corpus books, the comparatives pair, the
+engine's committed bank-export fixtures, the AAPL envelope):
+the DIO tile prints the served row (the block's total) and under it the
+three legs with their accounts and days, "alte stocuri" inside the total,
+the block's basis sentence and the seasonality flag; the drawer prints the
+full split with each flow and the period-end figure; RO takes the decimal
+comma and the engine's Romanian; the CFO report and the cockpit's bank export
+print ONE block (`inventoryDaysDocHtml`), byte-identical for the same period,
+and the workbook the same lines; a refused block prints the engine's reasons,
+no block prints nothing; the Products SKU figure is "Zile de rotație SKU" and
+the panel's CCC is the trial balance's (a planted 200 SKU days would move a
+hybrid); a listed company prints `inventory_days_reported` under the owner's
+label, never `dio`; the chat snapshot says MAY / may NOT with the policy's
+reason; the DIO card's band line never points at the filed row, which wears
+the owner's label and no second note; glossary carries two entries; the
+/report page prints the split under section 5.
+
+Plants, each alone, file restored byte-exact:
+```
+=== PLANT report-prints-a-second-split  (financialReport.ts: printInventoryDays({ ...split, totalQ: split.totalClosingQ }))
+GATE inventory-days-surfaces exit=1 work=62 floor=60 missing_canaries=[] -> RED
+    × frontend/lib/__tests__/inventoryDaysDocuments.test.ts > the CFO report prints the ONE served split > agras: the report carries the block as printInventoryDays prints it 31ms
+    × frontend/lib/__tests__/inventoryDaysDocuments.test.ts > the CFO report prints the ONE served split > carniprod: the report carries the block as printInventoryDays prints it 6ms
+    × frontend/lib/__tests__/inventoryDaysDocuments.test.ts > the CFO report prints the ONE served split > retail: the report carries the block as printInventoryDays prints it 5ms
+    × frontend/lib/__tests__/inventoryDaysDocuments.test.ts > the bank export and the CFO report carry one split > agras: the bank export (EN) prints the report's block byte for byte 9ms
+    AssertionError: expected '<div class="inventory-days-split" dat…' to be '<div class="inventory-days-split" dat…' // Object.is equality
+    AssertionError: expected '<div class="inventory-days-split" dat…' to be '<div class="inventory-days-split" dat…' // Object.is equality
+-> RED
+=== REVERT
+GATE inventory-days-surfaces exit=0 work=66 floor=60 missing_canaries=[] -> GREEN
+=== PLANT products-hybrid-ccc  (Products.tsx: ccc = companyDio + dso − dpo — SKU days into the company cycle)
+GATE inventory-days-surfaces exit=1 work=65 floor=60 missing_canaries=[] -> RED
+    × productsSkuDaysNotDio.test.tsx > labels the SKU figure as SKU turnover days and takes CCC from the trial balance
+    AssertionError: expected '201daysCCCfrom the trial balance: DSO…' to contain '33'
+=== PLANT dio-card-points-at-the-filed-row  (sectorBenchmark.ts: the never-compared branch disabled)
+GATE inventory-days-surfaces exit=1 work=65 floor=60 missing_canaries=[] -> RED
+    × sectorBenchmark.test.tsx > names the sector band with caen, size band, n, FY and source — or says general, and why
+    AssertionError: expected 'General SME band. No sector band: the…' to be 'General SME band. No sector band: fil…'
+=== REVERT (both)
+GATE inventory-days-surfaces exit=0 work=66 floor=60 missing_canaries=[] -> GREEN
+```
+
+**CANNOT SEE:** the chat-llm edge function's own prompt rule (the owner's
+Supabase deploy); the Capsule `get_facts` answer kinds (no days unit yet);
+the command bar (merged later, reads the same block through its adapter);
+the legacy estimated-benchmark catalogue on the Benchmark page (blurred,
+"coming soon"); the PDF bytes themselves (the renderer posts this HTML).
+
+### inventory-days-surfaces — one string, the refused delta, the cycle chart's period-end term (2026-09-27, fixer round 1)
+
+Three browser laws, each found by the critic:
+
+- **One string for one figure.** The tile's headline and the drawer's split
+  total must print the same characters (`printDaysQ` of the one `value_q`),
+  and the /report page's DIO row the same digits as its split's total. Plant
+  P11 (the split's total formatted at one decimal) RED.
+- **No figure across two bases.** A comparison row whose delta the engine
+  refused with `basis_differs` prints the refusal's sentence, no digit, a
+  neutral tone, EN and RO. Plant (a browser-computed delta from the two
+  printed sides) RED: `× … a comparison across two bases prints the basis
+  sentence — no change, no colour — in EN and RO`.
+- **The cycle's inventory term described as itself** (`chartsAgreeWithCards`,
+  now in this gate). The working-capital chart adds the split on the 31
+  December balance but printed the DIO card's formula, whose basis words are
+  the average's — agras printed 31.9 days under a line that recomputes to
+  the card's 30.2, and the old law (`row.source === card.formula`) required
+  it. The row's line must be the card's arithmetic with the period-end
+  term's basis (`ccc_dio_term.basis_label`), must not carry the average's
+  words, and must print the block's `closing_value` (fixed in `fbb2030d`).
+
+Measured 99 tests (was 69), floor 90.
+
+```
+== P11 (browser) the split's total printed at one decimal
+   × /report — section 5 prints the served inventory-days split > ONE quantization: the DIO row and the split's total print the same digits — the block's value_q 46ms
+   × the Ratios tab prints the ONE inventory-days block > the DIO tile's figure is the served row, and the served row is the block's total 159ms
+   × the Ratios tab prints the ONE inventory-days block > the drawer prints the full split, the total's flow and the period-end figure 53ms
+      Tests  3 failed | 8 passed (11)
+PLANT EXIT 1 restored byte-exact: True
+
+=== PLANT the cycle chart's period-end row keeps the card's formula  (frontend/lib/charts/reportCharts.ts)
+× §A the arithmetic is spelled once per document > agras: every working-capital row cites its own card's formula 114ms
+      "split by stock type — materials ÷ 601+602+603, finished goods + WIP ÷ cost of production sold, merchandise ÷ 607; total = all stock ÷ (cost of production sold + 607) × 365 days — average of the balances at 1 January and 31 December"
+      "split by stock type — materials ÷ 601+602+603, finished goods + WIP ÷ cost of production sold, merchandise ÷ 607; total = all stock ÷ (cost of production sold + 607) × 365 days — stock at 31 December — a single day": expected 'split by stock type — materials ÷ 601…' to be 'split by stock type — materials ÷ 601…' // Object.is equality
+   × §A the arithmetic is spelled once per document > carniprod: every working-capital row cites its own card's formula 50ms
+      "split by stock type — materials ÷ 601+602+603, finished goods + WIP ÷ cost of production sold, merchandise ÷ 607; total = all stock ÷ (cost of production sold + 607) × 365 days — average of the balances at 1 January and 31 December"
+      "split by stock type — materials ÷ 601+602+603, finished goods + WIP ÷ cost of production sold, merchandise ÷ 607; total = all stock ÷ (cost of production sold + 607) × 365 days — stock at 31 December — a single day": expected 'split by stock type — materials ÷ 601…' to be 'split by stock type — materials ÷ 601…' // Object.is equality
+   × §A the arithmetic is spelled once per document > retail: every working-capital row cites its own card's formula 46ms
+      "split by stock type — materials ÷ 601+602+603, finished goods + WIP ÷ cost of production sold, merchandise ÷ 607; total = all stock ÷ (cost of production sold + 607) × 365 days — average of the balances at 1 January and 31 December"
+-> RED (agras, carniprod, retail; realestate draws no period-end row: its split refuses)
+=== REVERT (byte-exact) -> 28/28 GREEN
+```
+
+**ONE QUANTIZATION ON THE CHART AND THE LEVER (fixer round 1, 2026-09-28).**
+The block moved to the table's days rule (`2b99a4b2`) but two surfaces kept
+one decimal of their own: the cycle chart printed "plus DIO (period-end
+balance) | 31.9 days" under the split's "32 days" and a CCC bar of "33.2
+days" under the card's "33 days"; the bank export's DIO lever printed "31,9"
+beside the split's "32 de zile". §A1 of `chartsAgreeWithCards` no longer
+requires `closing_value.toFixed(1)` (it had enforced the defect): the
+period-end row must print `printDaysQ(closing_value_q)` — the split's own
+string — and every other term the string its card prints.
+`inventoryDaysDocuments` gained the bank-export law (EN and RO): the DIO
+lever row's value cell and the head of its sentence are the split's
+`closing_value_q`, and the split in the same document prints it. Measured
+101 tests (was 99), floor 90.
+
+```
+=== PLANT the whole chart back on its one-decimal rule  (frontend/lib/charts/reportCharts.ts at HEAD)
+AssertionError: agras: the cycle's DSO row prints "28.0 days" while its card prints "28 days"
+AssertionError: carniprod: the cycle's DSO row prints "41.8 days" while its card prints "42 days"
+AssertionError: retail: the cycle's DSO row prints "1.2 days" while its card prints "1 days"
+      Tests  3 failed | 25 passed (28)
+-> RED
+=== PLANT only the period-end DIO row at one decimal  (printed: days(dio.value))
+AssertionError: agras: the cycle's period-end DIO row prints "31.9 days"; the split prints the same figure as "32 days"
+AssertionError: carniprod: the cycle's period-end DIO row prints "37.9 days"; the split prints the same figure as "38 days"
+AssertionError: retail: the cycle's period-end DIO row prints "39.2 days"; the split prints the same figure as "39 days"
+      Tests  3 failed | 25 passed (28)
+-> RED
+=== REVERT (byte-exact, cmp clean) -> 28/28 GREEN
+
+=== PLANT the bank export's bytes as captured before fmt_days moved  (tests/engine/fixtures/forecast/cockpit_agras_export.json at HEAD)
+AssertionError: en: the DIO lever row prints 31.9; the split prints 32
+AssertionError: ro: the DIO lever row prints 31,9; the split prints 32
+      Tests  2 failed | 13 passed (15)
+-> RED
+=== REVERT (byte-exact, cmp clean) -> 15/15 GREEN
+```
+
+**"ON AVERAGE" ONLY ON AN AVERAGE (fixer round 1, 2026-09-28).** The DIO
+card's reading was hard-coded "Stock is held N days on average across
+materials, products and merchandise." for every basis; every stored period
+serves the single-day snapshot until reprocessed, and the workbook's Ratios
+sheet printed that sentence for it. `computeRatios` now words the reading
+from the served basis (`inventoryCommentary`): "on average" only when the
+split is an average; the snapshot states its basis label and "not an average
+over the period". `inventoryDaysDocuments` builds the agras block re-served
+as `year_end_snapshot` and reads the workbook's DIO row. Measured 102 tests.
+
+```
+=== PLANT the reading back to the hard-coded average  (frontend/lib/financialReport.ts)
+AssertionError: the snapshot's DIO row reads an average: Efficiency | Inventory days (DIO) | 32 days | no prior period | … | Stock is held 32 days on average …
+      Tests  1 failed | 15 passed (16)
+-> RED
+=== REVERT (byte-exact, cmp clean) -> 16/16 GREEN
+```
+
+**`basis_differs` names no pair (fixer round 1, 2026-09-28).** The engine
+refuses the delta for ANY two different bases (monthly against two
+year-ends too), but the sentence said "an average of two balances against a
+single year-end balance" for every pair. It now says the two periods are
+measured on different stock bases; the tab test forbids the pair-specific
+words in EN and RO.
+
+```
+=== PLANT en.json back on the pair-specific sentence
+   × the Ratios tab prints the ONE inventory-days block > a comparison across two bases prints the basis sentence — no change, no colour — in EN and RO
+AssertionError: expected 'Not compared: the two periods' inven…' not to match /single year-end|singur sold|two balan…/
+-> RED
+=== REVERT (byte-exact, cmp clean) -> 8/8 GREEN
+```
+
+**THE CYCLE FOOTS, AS PRINTED AND UNROUNDED (fixer round 1, 2026-09-28).**
+`reportCharts.test.ts` G-C1b ("DSO + DIO − DPO = CCC, as printed") allowed
+0.2 — four one-decimal roundings. With every term on its card's whole-day
+string the printed terms can differ from the printed cycle by up to half a
+day per row (retail went RED at 1), so the bound is now half a display step
+per printed row, as the cash walk's; the unrounded identity is held by the
+chart's own caption, which must say the terms "sum to the served cycle" and
+never report a drift between day counts. The drift diagnostic prints both
+sides at one decimal (a sub-day difference between whole days read "33.3 vs
+33 — a -0.1 difference"). The file joins this gate: measured 170 tests, floor
+90 -> 150.
+
+```
+=== PLANT the cycle's DPO term on another day count  (frontend/lib/charts/reportCharts.ts: dpo × 365/366 in the step sum)
+   × G-C1b — the arithmetic each chart draws > agras: DSO + DIO − DPO = CCC, as printed
+   × G-C1b — the arithmetic each chart draws > carniprod: DSO + DIO − DPO = CCC, as printed
+   × G-C1b — the arithmetic each chart draws > retail: DSO + DIO − DPO = CCC, as printed
+AssertionError: agras: The three terms sum to 33.3 days; the served cycle is 33 days — a -0.1 days difference, which means the four figures were not all computed off the same day count.
+-> RED
+=== REVERT (byte-exact, cmp clean) -> 68/68 GREEN (the diagnostic then moved to one decimal on both sides; 96/96 with chartsAgreeWithCards)
+```
+
+## inventory-split-reconciles
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_inventory_split_reconciles.py -q -s` |
+| canary | `SCOPE inventory-split-reconciles: corpus books saga_10_col, saga_10_col_agras` |
+| work count | `GATE-WORK inventory-split-reconciles units=(\d+)`, floor **230** (measured 245: 11 books, 219 stock accounts, 8 openings, 7 refusals) |
+
+**INCIDENT** — owner spec 2026-09-26 P1.1, design B1 ("Σ groups + other =
+served inventory_net to the cent (gate it; refuse if not)"). The block prints
+three legs and "alte stocuri" beside ONE balance-sheet stock; an account that
+falls out of the split (a provision, a packaging line, a price difference)
+leaves every day figure precise and wrong. The `inventory-days` gate checks
+the block against its OWN stored evidence; a defect in the evidence
+measurement (`inventory_stock.measure`) was invisible to it. Found on the way:
+the corpus `dup_totals_row` book printed account 371 twice in its split
+("371, 371") — fixed in `f70a014b`.
+
+**LAW** — ten corpus books that carry stock (`saga_10_col` — the frozen
+Scandia golden with 391/392/394 provisions and four alte-stocuri accounts —,
+`saga_10_col_{agras,carniprod,realestate,retail}`, `pdf_positional`,
+`saga_compact_6_col`, `csv`, `generic_4_col`, `dup_totals_row`) through the
+REAL write path and GET /api/period, read against the gate's OWN parse of each
+file (the pack parser + the assembler's leaf reading — never the stored
+evidence): served inventory_net = Σ (sf_d − sf_c) of the file's class-3
+accounts; Σ legs + alte stocuri = that stock to the cent, the block
+`reconciled` with difference 0; at the opening Σ = Σ (si_d − si_c); every
+non-zero class-3 account in exactly one part, the part the owner's literal
+groups give it (restated in the test, not read from the pack: 39x against its
+own group); each part = the file's balances of the accounts it lists. Scandia
+FY2025 as its committed capture stores it reconciles its 55,341,817.75.
+Constructed (in-test): drop a stored provision, then a stock line → the block
+refuses `not_reconciled` with the difference = the dropped amount; the five
+books without stock lines serve no days.
+
+Source-edit plants, each alone, restored byte-exact with `git checkout --`
+(runner `scratchpad/d3/plants.py`):
+```
+=== PLANT evidence-drops-the-provisions  (src/engine/country_packs/ro_romania/inventory_stock.py)
+FAILED tests/engine/test_inventory_split_reconciles.py::test_the_split_adds_up_to_the_balance_sheet_stock_to_the_cent[saga_10_col]
+FAILED tests/engine/test_inventory_split_reconciles.py::test_the_split_adds_up_to_the_balance_sheet_stock_to_the_cent[saga_10_col_agras]
+FAILED tests/engine/test_inventory_split_reconciles.py::test_the_split_adds_up_to_the_balance_sheet_stock_to_the_cent[saga_10_col_carniprod]
+FAILED tests/engine/test_inventory_split_reconciles.py::test_the_split_adds_up_to_the_balance_sheet_stock_to_the_cent[saga_10_col_retail]
+FAILED tests/engine/test_inventory_split_reconciles.py::test_every_stock_account_sits_in_exactly_one_part_the_ruling_gives_it[saga_10_col]
+FAILED tests/engine/test_inventory_split_reconciles.py::test_every_stock_account_sits_in_exactly_one_part_the_ruling_gives_it[saga_10_col_agras]
+FAILED tests/engine/test_inventory_split_reconciles.py::test_every_stock_account_sits_in_exactly_one_part_the_ruling_gives_it[saga_10_col_carniprod]
+FAILED tests/engine/test_inventory_split_reconciles.py::test_every_stock_account_sits_in_exactly_one_part_the_ruling_gives_it[saga_10_col_retail]
+FAILED tests/engine/test_inventory_split_reconciles.py::test_a_split_that_does_not_reconcile_refuses_rather_than_serving_days
+FAILED tests/engine/test_inventory_split_reconciles.py::test_zz_scope - Asser...
+================== 10 failed, 18 passed, 5 warnings in 7.79s ===================
+-> RED
+=== REVERT (git checkout -- src/engine/country_packs/ro_romania/inventory_stock.py, byte-exact)
+======================== 28 passed, 5 warnings in 7.87s ========================
+-> GREEN
+
+=== PLANT provision-392-booked-to-alte-stocuri  (packs/ratios/inventory_days.yaml)
+FAILED tests/engine/test_inventory_split_reconciles.py::test_every_stock_account_sits_in_exactly_one_part_the_ruling_gives_it[saga_10_col]
+FAILED tests/engine/test_inventory_split_reconciles.py::test_every_stock_account_sits_in_exactly_one_part_the_ruling_gives_it[saga_10_col_carniprod]
+FAILED tests/engine/test_inventory_split_reconciles.py::test_the_owners_own_book_reconciles_to_its_stock_to_the_cent
+FAILED tests/engine/test_inventory_split_reconciles.py::test_zz_scope - Asser...
+=================== 4 failed, 24 passed, 5 warnings in 8.02s ===================
+-> RED
+=== REVERT (git checkout -- packs/ratios/inventory_days.yaml, byte-exact)
+======================== 28 passed, 5 warnings in 8.09s ========================
+-> GREEN
+
+=== PLANT builder-drops-the-381-packaging-line  (src/engine/ratios/inventory_days.py)
+FAILED tests/engine/test_inventory_split_reconciles.py::test_the_split_adds_up_to_the_balance_sheet_stock_to_the_cent[saga_10_col]
+FAILED tests/engine/test_inventory_split_reconciles.py::test_the_split_adds_up_to_the_balance_sheet_stock_to_the_cent[saga_10_col_agras]
+FAILED tests/engine/test_inventory_split_reconciles.py::test_the_split_adds_up_to_the_balance_sheet_stock_to_the_cent[saga_10_col_carniprod]
+FAILED tests/engine/test_inventory_split_reconciles.py::test_the_split_adds_up_to_the_balance_sheet_stock_to_the_cent[saga_10_col_retail]
+FAILED tests/engine/test_inventory_split_reconciles.py::test_every_stock_account_sits_in_exactly_one_part_the_ruling_gives_it[saga_10_col]
+FAILED tests/engine/test_inventory_split_reconciles.py::test_every_stock_account_sits_in_exactly_one_part_the_ruling_gives_it[saga_10_col_agras]
+FAILED tests/engine/test_inventory_split_reconciles.py::test_every_stock_account_sits_in_exactly_one_part_the_ruling_gives_it[saga_10_col_carniprod]
+FAILED tests/engine/test_inventory_split_reconciles.py::test_every_stock_account_sits_in_exactly_one_part_the_ruling_gives_it[saga_10_col_retail]
+FAILED tests/engine/test_inventory_split_reconciles.py::test_the_owners_own_book_reconciles_to_its_stock_to_the_cent
+FAILED tests/engine/test_inventory_split_reconciles.py::test_a_split_that_does_not_reconcile_refuses_rather_than_serving_days
+FAILED tests/engine/test_inventory_split_reconciles.py::test_zz_scope - Asser...
+================== 11 failed, 17 passed, 5 warnings in 7.95s ===================
+-> RED
+=== REVERT (git checkout -- src/engine/ratios/inventory_days.py, byte-exact)
+======================== 28 passed, 5 warnings in 7.82s ========================
+-> GREEN
+```
+
+**CANNOT SEE:** the owner's open rulings on where 357 / 346 / 347 / 354 / 332
+/ 381 belong (today: alte stocuri, inside the total — the gate holds the
+literal ruling); a real workspace's monthly points (inventory-basis-label).
+
+## inventory-basis-label
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_inventory_basis_label.py -q -s` |
+| canary | `SCOPE inventory-basis-label: corpus books saga_10_col` |
+| work count | `GATE-WORK inventory-basis-label units=(\d+)`, floor **80** (measured 88: 9 averages, 11 snapshots, 26 seasonality flags, 38 surfaces, 4 monthly legs) |
+
+**INCIDENT** — owner spec P1.2, design B2: Scandia's 52.5 rested on one
+balance, 31 December, and nothing said so. An average must be an average;
+"stoc la 31 decembrie — o singură zi" must say it.
+
+**LAW** — through the real write path and GET /api/period (and create_app for
+the monthly basis): the eight corpus books whose file carries the fiscal-year
+opening serve `average_two_year_ends`, label "media soldurilor la 1 ianuarie și
+31 decembrie" / "average of the balances at 1 January and 31 December", every
+part with an opening, average = (opening + closing) ÷ 2; the 4-column file
+(`si_column_absent`), the undated opening (`si_convention_undecided`), the SAME
+eight books served as periods written before the evidence
+(`period_predates_inventory_measurement` — production today) and Scandia FY2025
+as stored: `year_end_snapshot`, label "stoc la 31 decembrie — o singură zi",
+average = closing, the worded reason, total = its period-end total,
+`may_call_slow` false, the same period-end figures as the evidence-backed
+period; the cycle's inventory term on the snapshot label; the narrator's
+compact block and FactsGateway state the block's basis and label; twelve
+month-end periods of one workspace (create_app, the tenancy double) serve
+`average_monthly` = the mean of 13 balances, not flagged seasonal; eleven fall
+back to the two year-ends, labelled; CAEN 1013/1107/4631/4711/4729 and the
+fmcg key flagged on BOTH year-end bases, 2511/4120/6201 never.
+
+```
+=== PLANT snapshot-labelled-as-average  (src/engine/ratios/inventory_days.py)
+FAILED tests/engine/test_inventory_basis_label.py::test_a_file_without_a_dated_opening_is_the_one_day_snapshot[dup_totals_row-si_convention_undecided]
+FAILED tests/engine/test_inventory_basis_label.py::test_a_file_without_a_dated_opening_is_the_one_day_snapshot[generic_4_col-si_column_absent]
+FAILED tests/engine/test_inventory_basis_label.py::test_a_period_written_before_the_evidence_is_the_labelled_snapshot[saga_10_col]
+FAILED tests/engine/test_inventory_basis_label.py::test_a_period_written_before_the_evidence_is_the_labelled_snapshot[saga_10_col_agras]
+FAILED tests/engine/test_inventory_basis_label.py::test_a_period_written_before_the_evidence_is_the_labelled_snapshot[saga_10_col_carniprod]
+FAILED tests/engine/test_inventory_basis_label.py::test_a_period_written_before_the_evidence_is_the_labelled_snapshot[saga_10_col_realestate]
+FAILED tests/engine/test_inventory_basis_label.py::test_a_period_written_before_the_evidence_is_the_labelled_snapshot[saga_10_col_retail]
+FAILED tests/engine/test_inventory_basis_label.py::test_a_period_written_before_the_evidence_is_the_labelled_snapshot[pdf_positional]
+FAILED tests/engine/test_inventory_basis_label.py::test_a_period_written_before_the_evidence_is_the_labelled_snapshot[saga_compact_6_col]
+FAILED tests/engine/test_inventory_basis_label.py::test_a_period_written_before_the_evidence_is_the_labelled_snapshot[csv]
+FAILED tests/engine/test_inventory_basis_label.py::test_the_owners_own_book_as_stored_today_says_it_is_one_day
+FAILED tests/engine/test_inventory_basis_label.py::test_food_and_fmcg_stay_flagged_seasonal_on_both_year_end_bases[saga_10_col_agras]
+... (2 more)
+=================== 14 failed, 9 passed, 5 warnings in 7.31s ===================
+-> RED
+=== REVERT (git checkout -- src/engine/ratios/inventory_days.py, byte-exact)
+======================= 23 passed, 5 warnings in 11.14s ========================
+-> GREEN
+
+=== PLANT seasonality-dropped-on-the-two-year-end-average  (src/engine/ratios/inventory_days.py)
+FAILED tests/engine/test_inventory_basis_label.py::test_food_and_fmcg_stay_flagged_seasonal_on_both_year_end_bases[saga_10_col_agras]
+FAILED tests/engine/test_inventory_basis_label.py::test_food_and_fmcg_stay_flagged_seasonal_on_both_year_end_bases[saga_10_col_carniprod]
+FAILED tests/engine/test_inventory_basis_label.py::test_twelve_month_ends_serve_the_monthly_average_and_lift_the_seasonal_flag
+FAILED tests/engine/test_inventory_basis_label.py::test_zz_scope - AssertionE...
+=================== 4 failed, 19 passed, 5 warnings in 6.89s ===================
+-> RED
+=== REVERT (git checkout -- src/engine/ratios/inventory_days.py, byte-exact)
+======================= 23 passed, 5 warnings in 11.25s ========================
+-> GREEN
+
+=== PLANT snapshot-label-reads-as-the-average (pack, RO)  (packs/ratios/inventory_days.yaml)
+FAILED tests/engine/test_inventory_basis_label.py::test_a_file_with_the_fiscal_year_opening_serves_the_two_year_end_average[saga_10_col]
+FAILED tests/engine/test_inventory_basis_label.py::test_a_file_with_the_fiscal_year_opening_serves_the_two_year_end_average[saga_10_col_agras]
+FAILED tests/engine/test_inventory_basis_label.py::test_a_file_with_the_fiscal_year_opening_serves_the_two_year_end_average[saga_10_col_carniprod]
+FAILED tests/engine/test_inventory_basis_label.py::test_a_file_with_the_fiscal_year_opening_serves_the_two_year_end_average[saga_10_col_realestate]
+FAILED tests/engine/test_inventory_basis_label.py::test_a_file_with_the_fiscal_year_opening_serves_the_two_year_end_average[saga_10_col_retail]
+FAILED tests/engine/test_inventory_basis_label.py::test_a_file_with_the_fiscal_year_opening_serves_the_two_year_end_average[pdf_positional]
+FAILED tests/engine/test_inventory_basis_label.py::test_a_file_with_the_fiscal_year_opening_serves_the_two_year_end_average[saga_compact_6_col]
+FAILED tests/engine/test_inventory_basis_label.py::test_a_file_with_the_fiscal_year_opening_serves_the_two_year_end_average[csv]
+FAILED tests/engine/test_inventory_basis_label.py::test_a_file_without_a_dated_opening_is_the_one_day_snapshot[dup_totals_row-si_convention_undecided]
+FAILED tests/engine/test_inventory_basis_label.py::test_a_file_without_a_dated_opening_is_the_one_day_snapshot[generic_4_col-si_column_absent]
+FAILED tests/engine/test_inventory_basis_label.py::test_a_period_written_before_the_evidence_is_the_labelled_snapshot[saga_10_col]
+FAILED tests/engine/test_inventory_basis_label.py::test_a_period_written_before_the_evidence_is_the_labelled_snapshot[saga_10_col_agras]
+... (8 more)
+================== 20 failed, 3 passed, 5 warnings in 11.52s ===================
+-> RED
+=== REVERT (git checkout -- packs/ratios/inventory_days.yaml, byte-exact)
+======================= 23 passed, 5 warnings in 11.35s ========================
+-> GREEN
+
+=== PLANT monthly-lookup-ignored-on-GET  (src/engine/api/pipeline.py)
+FAILED tests/engine/test_inventory_basis_label.py::test_twelve_month_ends_serve_the_monthly_average_and_lift_the_seasonal_flag
+FAILED tests/engine/test_inventory_basis_label.py::test_zz_scope - AssertionE...
+================== 2 failed, 21 passed, 5 warnings in 11.35s ===================
+-> RED
+=== REVERT (git checkout -- src/engine/api/pipeline.py, byte-exact)
+======================= 23 passed, 5 warnings in 11.35s ========================
+-> GREEN
+```
+
+**CANNOT SEE:** a real monthly workspace (none exists; the twelve periods are
+the corpus book's envelope with a constructed seasonal profile); convention
+`A` on a real file (`si_date_undetermined` is a unit case of `inventory-days`).
+
+### inventory-basis-label — every served-rebuild seam, and convention A (2026-09-27, fixer round 1)
+
+`_rebuild_assembled_for_briefing` built the block without the caller's
+client, so only GET /api/period and `load_period_rows` looked up the
+workspace's month-end periods: on the gate's own twelve-month agras world
+(CAEN 1013) the page served `average_monthly` 32.2 unflagged while the seam
+the Capsule tools, the radar, the firm lane and briefing regenerate read (and
+a FactsGateway on its envelope) served `average_two_year_ends` 30.2 flagged
+seasonal. Fixed in `2e0ff57b` (the seam takes `client=`; with org None it
+reads the period's org for the CAEN). The monthly world now asserts page ==
+seam (org None) == FactsGateway on the rebuilt envelope == `load_period_rows`
+== the radar's `load_statements`, on the 12- and the 11-month worlds.
+
+Convention A (si + rl = sf — a monthly file whose `si` is the MONTH opening)
+had no book anywhere: the critic's plant `("A", "B", "C")` stayed green on all
+six inventory gates. The corpus agras is now rewritten so (si = sf − rl per
+account) in the test's tmp directory and carried through the real write path:
+it must be the snapshot with `si_date_undetermined`, no slow claim, and the
+evidence must record convention A. Floor 80 → **95** (measured 99).
+
+```
+== P8 the rebuild seam builds the block without the caller's client
+FAILED tests/engine/test_inventory_basis_label.py::test_twelve_month_ends_serve_the_monthly_average_and_lift_the_seasonal_flag
+FAILED tests/engine/test_inventory_basis_label.py::test_zz_scope - AssertionE...
+================== 2 failed, 22 passed, 5 warnings in 12.32s ===================
+PLANT EXIT 1 restored byte-exact: True
+== P9 convention A read as the fiscal-year opening
+FAILED tests/engine/test_inventory_basis_label.py::test_a_monthly_file_whose_opening_is_the_month_opening_is_the_one_day_snapshot
+================== 1 failed, 23 passed, 5 warnings in 12.68s ===================
+PLANT EXIT 1 restored byte-exact: True
+== P8b the seam's org None never looked up (seasonality off the CAEN)
+FAILED tests/engine/test_inventory_basis_label.py::test_twelve_month_ends_serve_the_monthly_average_and_lift_the_seasonal_flag
+======================= 1 failed, 23 deselected in 2.30s =======================
+PLANT EXIT 1 restored byte-exact: True
+```
+
+**THE WRITE PATH READS THE ORG TOO (fixer round 1, 2026-09-28).**
+`stage_persist` built the stored block without the organization row, and
+`stage_narrate` (the upload-time briefing and recommendations) reads THAT
+block: a CAEN 1013 company served `seasonality.flagged: true` on
+GET /api/period and false at upload, so the narrator's "say … seasonal" rule
+never fired. `stage_persist` now hands `_attach_inventory_days_at_persist`
+the workspace's organizations row (`_period_org(admin_client, …)`). The new
+test runs the production write seam (stage_map -> stage_persist) with an
+organizations row answerable (CAEN 1013 flagged, 6201 not) and checks the
+stored block, the narrator's `seasonal` and GET /api/period agree. Measured
+105.
+
+```
+=== PLANT the write-time block built without the org  (src/engine/api/pipeline.py)
+E   AssertionError: ('1013', {'flagged': False, 'note_en': None, 'note_ro': None})
+FAILED tests/engine/test_inventory_basis_label.py::test_the_upload_time_block_and_the_narrator_carry_the_orgs_seasonality[1013-True]
+================== 1 failed, 1 passed, 24 deselected in 1.33s ==================
+-> RED
+=== REVERT (byte-exact, cmp clean)
+GATE-WORK inventory-basis-label units=105 averages=9 snapshots=12 seasonality=28 surfaces=52 monthly=4
+======================= 26 passed, 5 warnings in 13.31s ========================
+-> GREEN
+```
+
+**B BY A TIE WITH A IS NOT A DATED OPENING (fixer round 1, 2026-09-28).**
+On every 4-pair export (Solduri initiale / Rulaje / Sume totale / Solduri
+finale, Sume totale = si + Rulaje) identities A and B hold on every row and
+tie; the probe reports B by its fixed preference, and `inventory_stock`
+read B as "si is 1 January". A single-month export whose si is the month
+opening was therefore served "the average of the balances at 1 January and
+31 December" with `may_call_slow` true. The 2e0ff57b convention-A gate
+covered only a file where A wins outright. Now a B/C winner tied with A is
+the fiscal-year opening only when the file proves it — every class 6/7 `si`
+zero (profit-and-loss accounts open the fiscal year at zero; a month
+opening carries the year to date); otherwise `si_date_undetermined`. The
+test builds the agras book as a 4-pair December export (si = 1 December:
+snapshot) and as the annual 4-pair export of the same book (si = 1 January,
+class 6/7 si zero: the average). The corpus `csv` book (6 balance-sheet
+accounts, no profit-and-loss row, A/B tied) has nothing that dates its si:
+it moves from OPENING_BOOKS to SNAPSHOT_BOOKS (`si_date_undetermined`) —
+measured, not assumed: pdf_positional and saga_compact_6_col tie too and
+keep their average on a zero class 6/7 opening. Measured 106;
+inventory-split-reconciles 244 (openings 7, was 8).
+
+```
+=== PLANT the tie refusal disabled  (src/engine/country_packs/ro_romania/inventory_stock.py)
+E   AssertionError: ('csv', 'average_two_year_ends')
+E   AssertionError: ('agras-4pair-month', 'average_two_year_ends')
+FAILED tests/engine/test_inventory_basis_label.py::test_a_file_without_a_dated_opening_is_the_one_day_snapshot[csv-si_date_undetermined]
+FAILED tests/engine/test_inventory_basis_label.py::test_a_four_pair_export_whose_opening_ties_a_and_b_needs_a_zero_pl_opening
+================== 2 failed, 24 passed, 5 warnings in 13.98s ===================
+-> RED
+=== PLANT every tie refused, the class 6/7 proof never read  (same file)
+FAILED tests/engine/test_inventory_basis_label.py::test_a_file_with_the_fiscal_year_opening_serves_the_two_year_end_average[pdf_positional]
+FAILED tests/engine/test_inventory_basis_label.py::test_a_four_pair_export_whose_opening_ties_a_and_b_needs_a_zero_pl_opening
+================== 2 failed, 24 passed, 5 warnings in 14.28s ===================
+-> RED
+=== REVERT (byte-exact, cmp clean)
+GATE-WORK inventory-basis-label units=106 averages=9 snapshots=13 seasonality=28 surfaces=52 monthly=4
+======================= 26 passed, 5 warnings in 15.83s ========================
+-> GREEN
+```
+
+**NO "RECOMPUTED WHEN REPROCESSED" WHERE NOTHING CAN BE (fixer round 1,
+2026-09-28).** The model's extraction and a filed statutory return hold no
+trial-balance columns; the write path stored no `inventory_stock` block for
+them, so every such period served the snapshot with "the period was analysed
+before opening stock balances were kept; it is recomputed when reprocessed"
+— a reprocess of that source never measures an opening — while the pack's
+`trial_balance_rows_unavailable` sentence had no caller. `stage_map` now
+stores the no-rows marker when the extraction provenance names such a path
+(`inventory_stock.holds_no_rows`; `attach_to_envelope` stores that marker and
+still no other absence), and a period stored before this repair whose
+`canonical_bs.extraction` names such a path is served the same reason. A
+trial-balance period written before the evidence keeps "predates" (the
+control). Measured 114.
+
+```
+=== PLANT the no-rows marker not stored  (inventory_stock.attach_to_envelope: measured only)
+E   AssertionError: None
+FAILED ...::test_a_source_without_trial_balance_rows_never_says_recomputed_when_reprocessed[extraction0]
+FAILED ...::test_a_source_without_trial_balance_rows_never_says_recomputed_when_reprocessed[extraction1]
+-> RED
+=== PLANT the serve-time mapping of a pre-repair period disabled  (inventory_days.build_for_statements)
+E   AssertionError: ('agras llm_freeform stored before the repair', {'code': 'period_predates_inventory_measurement', … 'se recalculează la reprocesare'})
+E   AssertionError: ('agras statutory_f30_f10 stored before the repair', {'code': 'period_predates_inventory_measurement', …})
+-> RED
+=== REVERT (byte-exact, cmp clean, both files)
+GATE-WORK inventory-basis-label units=114 averages=9 snapshots=17 seasonality=28 surfaces=56 monthly=4
+======================= 28 passed, 5 warnings in 15.28s ========================
+-> GREEN
+```
+
+**AN UNRECONCILED MONTH NEVER ENTERS THE 13 POINTS (fixer round 1,
+2026-09-28; latent — no monthly workspace exists yet).** The monthly lookup
+read each month's stock points without asking whether that month's split
+reconciled to its balance sheet. `monthly_points_from_periods` now refuses
+the monthly basis when any month's `reconciliation.status` is not
+`reconciled` (the block falls back to the two year-ends, labelled). The
+twelve-month world gained a case with May unreconciled. Not done: filtering
+the months by `period_start` — the monthly world is year-to-date periods
+(1 January to each month end), so a month-length filter would refuse the
+design itself; two periods for one month stay "ambiguous, never picked".
+Measured 119.
+
+```
+=== PLANT the reconciliation guard removed  (src/engine/ratios/inventory_days.py)
+E   AssertionError: ([1, 2, 3, 4, 5, 6, ...], 'average_monthly')
+FAILED tests/engine/test_inventory_basis_label.py::test_twelve_month_ends_serve_the_monthly_average_and_lift_the_seasonal_flag
+-> RED
+=== REVERT (byte-exact, cmp clean)
+GATE-WORK inventory-basis-label units=119 averages=10 snapshots=17 seasonality=28 surfaces=60 monthly=4
+======================= 28 passed, 5 warnings in 15.47s ========================
+-> GREEN
+```
+
+## stock-claim-policy
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_stock_claim_policy.py -q -s` |
+| canary | `SCOPE stock-claim-policy: corpus agras + tmp variants` |
+| work count | `GATE-WORK stock-claim-policy units=(\d+)`, floor **24** (measured 26: 6 claims withheld, 4 cited, 12 policy surfaces, 4 served bodies — 12,291 strings — scanned) |
+
+**INCIDENT** — owner spec P1.5, design B5: "Findings and the command bar never
+call stock 'slow' on the snapshot alone; the claim cites the split and the
+average." The band finding on a worse DIO was withheld on the snapshot, but
+where it WAS written it cited neither the split nor the basis (its title said
+"Days inventory outstanding … at 66 days — above the 60 days healthy rung").
+Fixed in `d606ad5a`: the comparison basis (and so the body and the evidence
+line) cites every served leg with its days, the total and the basis label;
+`inventory_claim` carries the same structured, RO + EN.
+
+**LAW** — corpus Agras and the same workbook with 20,000,000 / 60,000,000 of
+materials bought on credit and still in stock (tmp variants: the trial balance
+balances, the convention holds, the P&L does not move), through the real
+write path, GET /api/period and the served comparatives
+(`_comparatives.compare_payloads`): on the snapshot pair the dio /
+inventory-turnover bands move (the table serves the move) and NO finding
+claims it; on the average pair every such move is a finding whose basis cites
+each leg ("raw materials and consumables 118.3 days; …; total 65.9 days") and
+"average of the balances at 1 January and 31 December", and whose
+`inventory_claim` is the block's legs, total and basis; average vs snapshot is
+`basis_differs`, no finding; an improvement on the snapshot is kept (it calls
+nothing slow); the block, FactsGateway and the narrator's compact block agree
+on `may_call_slow`; the narrator's system prompt carries the rule; no served
+string of a snapshot period (its GET body and its comparatives, the block's
+own policy sentence excluded) calls the stock slow / excessive / "lent".
+
+```
+=== PLANT c_bands-writes-every-inventory-finding  (src/engine/api/findings/c_bands.py)
+FAILED tests/engine/test_stock_claim_policy.py::test_the_snapshot_never_calls_the_stock_slow[plus_20]
+FAILED tests/engine/test_stock_claim_policy.py::test_the_snapshot_never_calls_the_stock_slow[plus_60]
+FAILED tests/engine/test_stock_claim_policy.py::test_zz_scope - AssertionErro...
+========================= 3 failed, 9 passed in 6.60s ==========================
+-> RED
+=== REVERT (git checkout -- src/engine/api/findings/c_bands.py, byte-exact)
+============================== 12 passed in 6.03s ==============================
+-> GREEN
+
+=== PLANT policy-allows-slow-on-the-snapshot  (src/engine/ratios/inventory_days.py)
+FAILED tests/engine/test_stock_claim_policy.py::test_the_snapshot_never_calls_the_stock_slow[plus_20]
+FAILED tests/engine/test_stock_claim_policy.py::test_the_snapshot_never_calls_the_stock_slow[plus_60]
+FAILED tests/engine/test_stock_claim_policy.py::test_every_policy_surface_agrees_with_the_block[base]
+FAILED tests/engine/test_stock_claim_policy.py::test_every_policy_surface_agrees_with_the_block[plus_60]
+FAILED tests/engine/test_stock_claim_policy.py::test_zz_scope - AssertionErro...
+========================= 5 failed, 7 passed in 6.13s ==========================
+-> RED
+=== REVERT (git checkout -- src/engine/ratios/inventory_days.py, byte-exact)
+============================== 12 passed in 6.06s ==============================
+-> GREEN
+
+=== PLANT slow-claim-without-the-citation  (src/engine/api/findings/c_bands.py)
+FAILED tests/engine/test_stock_claim_policy.py::test_the_snapshot_never_calls_the_stock_slow[plus_20]
+FAILED tests/engine/test_stock_claim_policy.py::test_the_snapshot_never_calls_the_stock_slow[plus_60]
+FAILED tests/engine/test_stock_claim_policy.py::test_on_the_average_the_claim_cites_every_leg_and_the_basis[plus_20]
+FAILED tests/engine/test_stock_claim_policy.py::test_on_the_average_the_claim_cites_every_leg_and_the_basis[plus_60]
+FAILED tests/engine/test_stock_claim_policy.py::test_a_move_between_two_bases_is_not_a_movement
+FAILED tests/engine/test_stock_claim_policy.py::test_an_improvement_on_the_snapshot_is_not_withheld
+FAILED tests/engine/test_stock_claim_policy.py::test_no_served_text_of_a_snapshot_period_calls_the_stock_slow[plus_20]
+FAILED tests/engine/test_stock_claim_policy.py::test_no_served_text_of_a_snapshot_period_calls_the_stock_slow[plus_60]
+FAILED tests/engine/test_stock_claim_policy.py::test_zz_scope - AssertionErro...
+========================= 9 failed, 3 passed in 6.33s ==========================
+-> RED
+=== REVERT (git checkout -- src/engine/api/findings/c_bands.py, byte-exact)
+============================== 12 passed in 6.08s ==============================
+-> GREEN
+```
+
+**CANNOT SEE:** the chat-llm edge function (the browser sends the policy —
+`inventory-days-surfaces` holds that; the prompt rule is the owner's Supabase
+deploy); the narrator's generated prose (an LLM, instructed, not verified —
+no deterministic guard reads the briefing text for a slow claim); the
+comparatives table's band-movement LIST, which still lists a deteriorated DIO
+on a snapshot pair as a band move (a grade, not a finding — owner ruling
+needed); the command bar (feat/cmdbar reads `claim_policy` through its
+adapter).
+
+### stock-claim-policy — no delta across two bases (2026-09-27, fixer round 1)
+
+`ratio_compare` refused the band MOVE between an average and a snapshot but
+still served the delta and its direction, and the Ratios comparison printed
+Scandia FY2025 (average) against its stored FY2024 (snapshot) as "dio +6
+days, deteriorated" and "inventory turnover −11.9%, deteriorated" — beside a
+movement sentence calling it the change of basis. After the deploy that is
+the default pair (every stored prior year is a snapshot until reprocessed).
+Fixed in `4c71c2b7`: `basis_differs` joins DELTA_REASON_CODES and the delta's
+value, percentage and direction are None. The mixed-basis test asserts the
+refused delta, the cycle's kept delta (period-end split on both sides) and a
+same-basis control that keeps its delta. Floor 24 → **28** (measured 30).
+The browser half (`inventoryDaysRatiosTab`, gate inventory-days-surfaces)
+prints the sentence with no digit and a neutral tone, EN and RO; its plant (a
+browser-computed delta) went RED.
+
+```
+== P7 the delta served across two bases
+FAILED tests/engine/test_stock_claim_policy.py::test_a_move_between_two_bases_is_not_a_movement
+========================= 1 failed, 11 passed in 6.30s =========================
+PLANT EXIT 1 restored byte-exact: True
+```
+
+**The rule's place in the prompt (fixer round 1, 2026-09-28).** The
+INVENTORY DAYS paragraph had been inserted between the FMCG and
+Manufacturing bullets of "CRITICAL: Apply industry-appropriate thresholds",
+so the Manufacturing threshold read as part of the inventory rule. It now
+follows the list; the policy-surface test asserts thresholds < Manufacturing
+< the rule in the source.
+
+```
+=== PLANT the rule back between the FMCG and Manufacturing bullets  (src/engine/api/pipeline.py)
+E   AssertionError: the INVENTORY DAYS rule sits inside the industry-threshold list
+========================= 2 failed, 10 passed in 6.52s =========================
+-> RED
+=== REVERT (byte-exact, cmp clean) -> 12 passed, GATE-WORK units=30
+-> GREEN
+```
+
+## benchmark-basis-separation
+
+| | |
+|---|---|
+| command (browser) | `npx vitest run --root . frontend/lib/__tests__/benchmarkBasisSeparation.test.tsx --reporter=verbose` |
+| command (engine) | `python -m pytest tests/engine/test_benchmark_basis_separation_engine.py -q -s` (gate `benchmark-basis-separation-engine`) |
+| canary | browser: `the DIO, inventory-turnover and cycle tiles — even when a document serves one`; engine: `SCOPE benchmark-basis-separation-engine:` |
+| work count | browser `Tests (\d+) passed`, floor **7** (measured 7); engine `GATE-WORK benchmark-basis-separation-engine units=(\d+)`, floor **30** (measured 30: 15 split cards, 5 filed rows, 5 documents, 5 pointers) |
+
+**INCIDENT** — owner spec P1.3, design B3: "Never compare the split measure to
+the filed one." The browser trusted the document: `bandSourceOf` answered
+"sector" for any card the document banded, and the DIO card's never-compared
+sentence applied only while the engine served it general — an engine
+regression hanging the filed row's quartiles on the DIO card would have
+printed them beside the split. Fixed in `723aa721` (`SPLIT_BASIS_CARDS`: dio,
+inventory turnover, the cycle never take a sector band).
+
+**LAW** — engine: five periods (the four corpus books and the frozen Scandia
+golden) through create_app, CAEN 1011, GET /api/period/{id}/sector-benchmark
+and GET /api/period/{id}: the dio / inventory_turnover / ccc cards `general`
+with no quartile field, dio's reason `definition_differs` →
+`inventory_days_on_turnover`; the filed row's company figure = the served
+canonical_bs stock ÷ net turnover × 365 recomputed here, basis
+`restated_on_filed_basis`, declared as differing from the dio card (the
+developer refused `company_turnover_negligible`); nothing of the split (its
+schema, legs, bases, claim policy) in the sector document; the block's pointer
+`never_compare` under the owner's label; the document law holds. Browser, on
+the served Agras document and statements, as served AND against a document
+that hangs the filed quartiles on the split's cards: the Benchmark page's
+filed row prints the filed company figure under the owner's label and nothing
+of the split sits in the sector section; the DIO and cycle tiles carry
+`data-band-source="general"` and none of the filed row's median / middle half,
+the DIO line is the never-compared sentence EN + RO; the CFO report's sector
+section holds no split and the split's section no sector row.
+
+Browser plants (the engine half's are under `benchmark-basis-separation-engine`).
+The FIRST run of the third plant stayed GREEN: the report check read only the
+printer's inner `[data-sector-benchmark]` table and the first split, so a split
+appended to the numbered section (#sec-sector) passed. The check now reads the
+whole section and every split the report prints (below: the re-run on the tightened test, 4f3dd883):
+```
+=== PLANT a-served-sector-band-printed-on-the-split-cards  (frontend/lib/sectorBenchmark.ts)
+ × the cards built on the split carry no sector band > the DIO, inventory-turnover and cycle tiles — even when a document serves one 33ms
+ × the cards built on the split carry no sector band > the band line is the never-compared sentence in both languages, for every document 7ms
+ × the CFO report keeps the split and the filed quartiles apart > sector section without the split, the split without a sector row — even whe
+ FAIL  the cards built on the split carry no sector band > the DIO, inventory-turnover and cycle tiles — even when a document serves one
+ FAIL  the cards built on the split carry no sector band > the band line is the never-compared sentence in both languages, for every document
+ FAIL  the CFO report keeps the split and the filed quartiles apart > sector section without the split, the split without a sector row — even
+Test Files  1 failed (1)
+Tests  3 failed | 4 passed (7)
+-> RED
+=== REVERT (git checkout -- frontend/lib/sectorBenchmark.ts, byte-exact)
+Test Files  1 passed (1)
+Tests  7 passed (7)
+-> GREEN
+
+=== PLANT dio-card-never-compared-only-while-served-general  (frontend/lib/sectorBenchmark.ts)
+ × the cards built on the split carry no sector band > the DIO, inventory-turnover and cycle tiles — even when a document serves one 30ms
+ × the cards built on the split carry no sector band > the band line is the never-compared sentence in both languages, for every document 7ms
+ × the CFO report keeps the split and the filed quartiles apart > sector section without the split, the split without a sector row — even whe
+ FAIL  the cards built on the split carry no sector band > the DIO, inventory-turnover and cycle tiles — even when a document serves one
+ FAIL  the cards built on the split carry no sector band > the band line is the never-compared sentence in both languages, for every document
+ FAIL  the CFO report keeps the split and the filed quartiles apart > sector section without the split, the split without a sector row — even
+Test Files  1 failed (1)
+Tests  3 failed | 4 passed (7)
+-> RED
+=== REVERT (git checkout -- frontend/lib/sectorBenchmark.ts, byte-exact)
+Test Files  1 passed (1)
+Tests  7 passed (7)
+-> GREEN
+
+=== PLANT report-prints-the-split-in-its-sector-section  (frontend/lib/financialReport.ts)
+ × the CFO report keeps the split and the filed quartiles apart > sector section without the split, the split without a sector row — as serve
+ × the CFO report keeps the split and the filed quartiles apart > sector section without the split, the split without a sector row — even whe
+ FAIL  the CFO report keeps the split and the filed quartiles apart > sector section without the split, the split without a sector row — as s
+ FAIL  the CFO report keeps the split and the filed quartiles apart > sector section without the split, the split without a sector row — even
+Test Files  1 failed (1)
+Tests  2 failed | 5 passed (7)
+-> RED
+=== REVERT (git checkout -- frontend/lib/financialReport.ts, byte-exact)
+Test Files  1 passed (1)
+Tests  7 passed (7)
+-> GREEN
+```
+
+**CANNOT SEE:** whether the filed quartiles are right (`benchmarks_ro`
+gates); the legacy blurred benchmark catalogue on the Benchmark page (not
+examined).
+
+**ONE EN LABEL FOR THE FILED ROW (fixer round 1, 2026-09-28).** The pack
+served "filed basis (stock ÷ net turnover) — not the same as the inventory
+days of this analysis" on every block's `filed_basis_pointer`, the page
+printed "… — not the inventory days of this analysis" from `en.json`, and
+this gate's own `OWNER_LABEL` was a hand-typed copy of the page's string.
+`en.json` now carries the pack's words; the gate reads the label from
+`packs/ratios/inventory_days.yaml#filed_basis.label` (RO and EN).
+
+```
+=== PLANT en.json back on the drifted label
+   × the Benchmark page's filed-basis row > prints the filed company figure under the owner's label, never the split (en)
+AssertionError: expected 'Inventory days — filed basis (stock ÷…' to contain 'filed basis (stock ÷ net turnover) — …'
+-> RED
+=== REVERT (byte-exact, cmp clean) -> 7/7 GREEN
+```
+
+The engine half (`one-metric-one-formula`,
+`test_no_second_formula_is_served_or_declared`) had its own hand-typed copy
+of the page's drifted EN label and went RED on the unified one; it now reads
+the pack too.
+
+```
+=== PLANT en.json back on the drifted label, against the engine gate
+FAILED tests/engine/test_one_metric_one_formula.py::test_no_second_formula_is_served_or_declared
+-> RED
+=== REVERT (byte-exact, cmp clean) -> 43 passed, GATE-WORK one-metric-one-formula units=98
+-> GREEN
+```
+
+## benchmark-basis-separation-engine
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_benchmark_basis_separation_engine.py -q -s` |
+| canary | `SCOPE benchmark-basis-separation-engine:` |
+| work count | `GATE-WORK benchmark-basis-separation-engine units=(\d+)`, floor **30** (measured 30) |
+
+The engine half of `benchmark-basis-separation` (incident and law above: the
+sector document itself, five books through create_app, CAEN 1011).
+
+```
+=== PLANT filed-quartiles-hung-on-the-dio-card  (src/engine/benchmarks_ro/sector.py)
+FAILED tests/engine/test_benchmark_basis_separation_engine.py::test_no_card_built_on_the_split_carries_a_sector_band[p-agras]
+FAILED tests/engine/test_benchmark_basis_separation_engine.py::test_no_card_built_on_the_split_carries_a_sector_band[p-carniprod]
+FAILED tests/engine/test_benchmark_basis_separation_engine.py::test_no_card_built_on_the_split_carries_a_sector_band[p-frozen]
+FAILED tests/engine/test_benchmark_basis_separation_engine.py::test_no_card_built_on_the_split_carries_a_sector_band[p-realestate]
+FAILED tests/engine/test_benchmark_basis_separation_engine.py::test_no_card_built_on_the_split_carries_a_sector_band[p-retail]
+FAILED tests/engine/test_benchmark_basis_separation_engine.py::test_zz_scope
+========================= 6 failed, 11 passed in 3.94s =========================
+-> RED
+=== REVERT (git checkout -- src/engine/benchmarks_ro/sector.py, byte-exact)
+============================== 17 passed in 3.84s ==============================
+-> GREEN
+
+=== PLANT filed-row-on-a-second-denominator  (src/engine/benchmarks_ro/sector.py)
+FAILED tests/engine/test_benchmark_basis_separation_engine.py::test_the_filed_row_is_filed_stock_over_net_turnover[p-agras]
+FAILED tests/engine/test_benchmark_basis_separation_engine.py::test_the_filed_row_is_filed_stock_over_net_turnover[p-carniprod]
+FAILED tests/engine/test_benchmark_basis_separation_engine.py::test_the_filed_row_is_filed_stock_over_net_turnover[p-frozen]
+FAILED tests/engine/test_benchmark_basis_separation_engine.py::test_the_filed_row_is_filed_stock_over_net_turnover[p-realestate]
+FAILED tests/engine/test_benchmark_basis_separation_engine.py::test_the_filed_row_is_filed_stock_over_net_turnover[p-retail]
+FAILED tests/engine/test_benchmark_basis_separation_engine.py::test_zz_scope
+========================= 6 failed, 11 passed in 3.90s =========================
+-> RED
+=== REVERT (git checkout -- src/engine/benchmarks_ro/sector.py, byte-exact)
+============================== 17 passed in 3.82s ==============================
+-> GREEN
+```
+
+**CANNOT SEE:** the browser (the other half).

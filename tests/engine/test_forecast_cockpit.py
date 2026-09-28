@@ -1097,7 +1097,13 @@ def test_c_routes_bind_bodies_refuse_by_name_and_serve_the_export():
         status, out = world.cockpit({}, org="0c0f0000-0000-4000-8000-0000000000ff")
         assert status == 403, (status, out)
         export = world.ok({"case_id": "pesimist"}, route="cockpit/export")
+        served_period = world.get("/api/period/%s" % CUR)
     doc, page = export["document"], export["assumptions_page"]
+    # INVENTORY DAYS (owner spec 2026-09-26, inventory days): the bank document carries
+    # the base period's ONE served block, byte for byte the one GET
+    # /api/period serves — so it prints the split the CFO report prints.
+    assert doc["inventory_days"]["schema"] == "inventory_days/1", doc.get("inventory_days")
+    assert doc["inventory_days"] == served_period["statements"]["inventory_days"]
     assert doc["kind"] == "bank_forecast" and export["cockpit"]["case"]["id"] == "pesimist"
     assert doc["sentence"] == export["cockpit"]["sentence"]
     assert [l["id"] for l in page["levers"]] == [s.id for s in _pack().levers]
@@ -1109,7 +1115,7 @@ def test_c_routes_bind_bodies_refuse_by_name_and_serve_the_export():
     for source in page["sources"]:
         if source.get("kind") != "sector dataset":
             assert source.get("published") and source.get("source"), source
-    WORK["units"] += 14
+    WORK["units"] += 16
 
 
 # ── latency ──────────────────────────────────────────────────────────────

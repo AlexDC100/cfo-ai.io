@@ -57,6 +57,14 @@ import { spellLadder } from "./creditModel";
 // `src/engine/industry/structural_signal.py`.
 import { blocksSectorContent, readIndustrySignal } from "./industrySignal";
 import { marginNoteOf, readMarginMeaning } from "./marginMeaning";
+import {
+  INVENTORY_DAYS_DOC_CSS,
+  inventoryDaysDocHtml,
+  inventoryDaysFig,
+  printInventoryDays,
+  readInventoryDays,
+  readInventoryDaysSplit,
+} from "./inventoryDays";
 // CHARTS + THE DOCUMENT SHELL — `frontend/lib/charts/`. Server-generated
 // SVG, no chart library, no runtime dependency: every figure in every
 // chart is drawn into the bytes this function returns, so a gate can
@@ -625,6 +633,11 @@ export interface Statements {
    *  here. Absent on older payloads and on non-engine sources, which
    *  refuses nothing. */
   margin_meaning?: unknown;
+  /** INVENTORY DAYS — the engine's ONE served block (schema
+   *  `inventory_days/1`, `engine.ratios.inventory_days`): the split by
+   *  stock type on the average balance. Read through `lib/inventoryDays`;
+   *  absent → every inventory-days row refuses (never a browser division). */
+  inventory_days?: unknown;
   currency: string;
   periodLabel: string; // e.g. "FY 2025"
   balanceSheet: BalanceSheet;
@@ -1177,8 +1190,12 @@ export function describeAbsence(a: FigureAbsence): string {
   // so the commentary under it explains the rule rather than repeating it).
   if (a.kind === "not_meaningful") return a.basis?.en ?? a.display.en;
   // The engine refused EBITDA (and what is built on it): its own reason.
-  // Total equity's refusal names itself ("total equity excludes the year's
+  // The inventory-days block's refusal is worded as inventory days; total
+  // equity's refusal names itself ("total equity excludes the year's
   // result, which is refused: …"); every other one is EBITDA's.
+  if (a.kind === "refused" && a.subject === "inventory_days") {
+    return `Refused — inventory days: ${a.display.en}.`;
+  }
   if (a.kind === "refused") {
     return a.subject === "total equity"
       ? `Refused — ${a.display.en}.`
@@ -1227,6 +1244,28 @@ function verdictFromBands(
   if (bands.healthy !== undefined && value <= bands.healthy) return "healthy";
   if (bands.watch !== undefined && value <= bands.watch) return "watch";
   return floor;
+}
+
+/** The served inventory-days basis, appended to the DIO row's formula line
+ *  ("; average of the balances at 1 January and 31 December") — the
+ *  engine's own words, never re-worded here. */
+function inventoryBasisSuffix(s: Statements): string {
+  const view = readInventoryDays(s);
+  return view?.basisLabel ? ` — ${view.basisLabel.en}` : "";
+}
+
+/** The DIO card's reading, worded from the SERVED basis: "on average" only
+ *  where the figure IS an average (of two year-ends, or of the month-ends).
+ *  On the single-day snapshot every stored period serves until it is
+ *  reprocessed, the stock is one balance — "on average" there claimed a
+ *  measurement nobody made (the workbook printed it beside a formula ending
+ *  "— stock at 31 December — a single day"). */
+function inventoryCommentary(v: number, s: Statements): string {
+  const readSplit = readInventoryDaysSplit(s);
+  const days = v.toFixed(0);
+  if (readSplit?.isAverage) return `Stock is held ${days} days on average across materials, products and merchandise.`;
+  const basis = readInventoryDays(s)?.basisLabel?.en;
+  return `The stock on the balance sheet equals ${days} days of consumption across materials, products and merchandise${basis ? ` — ${basis}` : ""}, not an average over the period.`;
 }
 
 export function computeRatios(
@@ -1730,22 +1769,27 @@ export function computeRatios(
   const dayRatio = (key: string, computed: Fig, viaBs: boolean): Fig =>
     dayCount.value === null ? computed : viaBs ? bsOr(key, computed) : mOr(key, computed);
   const dso = dayRatio("dso", mul(div(B("accountsReceivable"), revenue, "revenue"), dayCount), true);
-  const dio = dayRatio(
-    "dio",
-    mul(div(B("inventory"), totalOperatingExpense, "total operating expense"), dayCount),
-    false,
-  );
+  // INVENTORY DAYS — the engine's ONE served block (`lib/inventoryDays`),
+  // never inventory ÷ total operating expense here (owner spec 2026-09-26,
+  // P1: one stock had printed 48.8 / 52.5 / 95.3 days under one name). A
+  // payload without the block refuses with the engine's reason.
+  const dio = inventoryDaysFig(s, "value");
+  // THE ONE DPO, computed first on the period's day count exactly as DSO —
+  // never the engine's metric row first (it was × 365 while DSO and the
+  // split were × the period's days, so the cycle mixed two day counts).
   const dpo = dayRatio(
     "dpo",
     mul(div(B("accountsPayable"), totalOperatingExpense, "total operating expense"), dayCount),
-    false,
+    true,
   );
   // NO SIGN GUARD, DELIBERATELY. `ccc` is a difference, not a quotient —
   // a negative cash conversion cycle means the company is paid before it
   // pays, which is the best thing this scale can say, and a refusal here
   // would delete a real strength. It inherits the refusals of its three
   // terms through `sub`/`add`, which is the correct propagation.
-  const ccc = dayRatio("ccc", sub(add(dso, dio), dpo), false);
+  // The inventory term is the served split on the PERIOD-END basis, so the
+  // three terms of the cycle sit on one basis (DSO and DPO are period-end).
+  const ccc = sub(add(dso, inventoryDaysFig(s, "closing_value")), dpo);
   const assetTurnover = bsOr("asset_turnover", div(revenue, totalAssets, "total assets"));
 
   // ── THE THIRD ALTMAN LIVED HERE AND IS DELETED ──────────────────────
@@ -1844,7 +1888,8 @@ export function computeRatios(
     { keys: ["roe", "debt_to_equity"], fig: totalEquity, name: "total equity" },
     { keys: ["roic"], fig: investedCapital, name: "invested capital" },
     { keys: ["debt_to_ebitda"], fig: ebitda, name: "EBITDA" },
-    { keys: ["dio", "dpo"], fig: totalOperatingExpense, name: "total operating expense" },
+    // `dio` is not here: the served split refuses a non-positive flow itself.
+    { keys: ["dpo"], fig: totalOperatingExpense, name: "total operating expense" },
   ];
   /** The reason this row's ladder may not be applied, or null. Rendered
    *  from the denominator the verdict would have been decided against —
@@ -2198,11 +2243,11 @@ export function computeRatios(
         "≤ 45 days healthy",
         `trade receivables ÷ revenue × ${daysLabel}`,
         (v) => `Average ${v.toFixed(0)}-day collection cycle on receivables.`),
-      row("dio", "Days Inventory Outstanding", "days", dio,
+      row("dio", "Inventory days (DIO)", "days", dio,
         { strong: 30, healthy: 60, watch: 100 }, false,
         "≤ 60 days for FMCG · varies by industry",
-        `inventory ÷ TOTAL operating expense (COGS + opex + D&A) × ${daysLabel} — not narrow COGS`,
-        (v) => `Inventory turns every ${v.toFixed(0)} days.`),
+        `split by stock type — materials ÷ 601+602+603, finished goods + WIP ÷ cost of production sold, merchandise ÷ 607; total = all stock ÷ (cost of production sold + 607) × ${daysLabel}${inventoryBasisSuffix(s)}`,
+        (v) => inventoryCommentary(v, s)),
       // ── N2: A DISTRESS VERDICT ON A SCALE THAT HAS NO DISTRESS END ──
       //
       // Measured on the agras export before this repair:
@@ -2260,7 +2305,7 @@ export function computeRatios(
       row("ccc", "Cash Conversion Cycle", "days", ccc,
         { strong: 30, healthy: 60, watch: 100 }, false,
         "Lower is better — cash speed",
-        "DSO + DIO − DPO",
+        "DSO + DIO (split, period-end balance) − DPO",
         (v) => `${v.toFixed(0)}-day gap between cash out and cash in.`),
       row("asset_turnover", "Asset Turnover", "x", assetTurnover,
         { strong: 1.5, healthy: 0.8, watch: 0.4 }, true,
@@ -3501,6 +3546,12 @@ export function renderReportHtml(
   // footer read the served envelope; this renderer never branches on
   // `s.canonical_bs` presence itself (the module knows).
   const sf = factsFrom(s);
+  // INVENTORY DAYS — the ONE served block's split (three legs with their
+  // accounts, alte stocuri, the basis and its notes), printed by the same
+  // function as the cockpit's bank export. The report is English. No
+  // block, no section (the DIO row above states the refusal).
+  const inventorySplit = readInventoryDaysSplit(s);
+  const inventoryDaysSection = inventorySplit ? inventoryDaysDocHtml(printInventoryDays(inventorySplit, "en")) : "";
   // PROVENANCE NOTE — the served envelope's own words, only when it
   // carries them (HTML can hold a note; a CSV cannot). Names the sheet the
   // balance sheet was read from, the extraction method and the mapping
@@ -3654,6 +3705,10 @@ export function renderReportHtml(
       font-variant-numeric: tabular-nums lining-nums;
       font-feature-settings: "tnum" 1, "lnum" 1, "kern" 1;
     }
+
+    /* The inventory-days split (lib/inventoryDays.ts), the same block the
+       cockpit's bank export prints. */
+    ${INVENTORY_DAYS_DOC_CSS}
 
     /* Running header — one quiet line on top */
     .running-header {
@@ -5647,6 +5702,7 @@ export function renderReportHtml(
     `
   ${ratioGroup("Liquidity", r.liquidity)}
   ${ratioGroup("Working Capital Cycle", r.efficiency)}
+  ${inventoryDaysSection}
   ${servedOnlyRatioTable(["liquidity", "efficiency"])}
   ${chartById("chart-wc-cycle")}
   `,

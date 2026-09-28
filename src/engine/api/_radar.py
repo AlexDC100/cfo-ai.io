@@ -446,8 +446,10 @@ def load_statements(client: Any, row: Dict[str, Any],
         return None, ()
     from .pipeline import _rebuild_assembled_for_briefing  # lazy: heavy module
     try:
+        # The caller's client: the inventory-days block's monthly basis and
+        # the org's CAEN (seasonality), as GET /api/period reads them.
         statements = _rebuild_assembled_for_briefing(
-            line_items, full_row(row, envelope), None).get("statements")
+            line_items, full_row(row, envelope), None, client=client).get("statements")
     except Exception:  # noqa: BLE001
         logger.exception("[radar] statements rebuild failed for %s", row.get("id"))
         statements = None

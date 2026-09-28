@@ -284,10 +284,25 @@ def served_payload(env: Dict[str, Any], period_id: str, period_end: str, *,
     persisted rows (a prior persisted before the metrics existed)."""
     from engine.ratios.credit_model import compute_period_metrics
 
+    # The served route attaches THE inventory-days block to every period it
+    # serves (pipeline._attach_inventory_days_block, owner spec 2026-09-26
+    # P1): built here by the same code object over the same evidence, on a
+    # year that runs from 1 January to `period_end`, so the payload is the
+    # route's. Every metric row and ratio-table row on inventory days reads it.
+    from engine.api import pipeline as P
+    from engine.ratios import inventory_days as ID
+
+    statements = dict(env["statements"])
+    row = {"period_end": period_end, "period_start": period_end[:4] + "-01-01",
+           "assembled_canonical_v1": statements.get("assembled_canonical_v1")}
+    view = dict(statements, supplementary=dict(statements.get("supplementary") or {},
+                                               **P._served_supplementary(row)))
+    statements["inventory_days"] = ID.build_for_statements(
+        view, period_row=row, line_items=list(env["lineItems"]))
     if metrics is None:
-        metrics = compute_period_metrics(copy.deepcopy(env["statements"]))
+        metrics = compute_period_metrics(copy.deepcopy(statements))
     payload = {
-        "statements": env["statements"],
+        "statements": statements,
         "line_items": env["lineItems"],
         "metrics": metrics,
         "period": {"id": period_id, "period_end": period_end, "currency": "RON"},

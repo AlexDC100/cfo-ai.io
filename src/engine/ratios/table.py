@@ -195,6 +195,9 @@ REASON_CODES: Tuple[str, ...] = (
     # a margin over a turnover negligible against operating activity
     # (engine.ratios.margin_meaning, packs/ratios/margin_meaning.yaml)
     "margin_not_meaningful",
+    # the ONE inventory-days block (engine.ratios.inventory_days) refuses
+    # its total, or no block is served — never a fallback formula
+    "inventory_days_refused",
     # band withheld (value kept)
     "sector_unconfirmed",
     "negative_denominator",
@@ -299,7 +302,10 @@ FE_KEY_OF: Dict[str, str] = {s.key: s.fe_key for s in _SPECS if s.fe_key is not 
 #: Keys whose value the FE takes from the served metric FIRST (`mOr`) or
 #: from the division of the printed balance sheet first (`bsOr`), or that
 #: exist only as an engine metric (`metric_only`) or only on a user input
-#: (`user_input`). Read by the precedence gate, not by the arithmetic.
+#: (`user_input`), or that BOTH sides read from one served block
+#: (`served_block`: the inventory-days split, `engine.ratios.inventory_days`
+#: — no metric row and no statement division is read for them). Read by the
+#: precedence gate, not by the arithmetic.
 _PRECEDENCE: Dict[str, str] = {
     "current_ratio": "bsOr", "quick_ratio": "bsOr", "cash_ratio": "bsOr",
     "roa": "bsOr", "roe": "bsOr", "equity_ratio": "bsOr", "debt_to_ebitda": "bsOr",
@@ -307,11 +313,11 @@ _PRECEDENCE: Dict[str, str] = {
     "asset_turnover": "bsOr",
     "gross_margin": "mOr", "ebitda_margin": "mOr", "net_margin": "mOr", "roic": "mOr",
     "interest_coverage": "mOr", "dscr": "mOr", "dscr_with_lt_principal": "mOr",
-    "dio": "mOr", "dpo": "mOr", "ccc": "mOr",
+    "dio": "served_block", "dpo": "bsOr", "ccc": "served_block",
     "adjusted_dscr": "user_input",
     "net_debt_to_ebitda": "metric_only", "lt_debt_to_equity": "metric_only",
     "ebitda_to_interest": "metric_only", "operating_margin": "metric_only",
-    "core_ebitda_margin": "metric_only", "inventory_turnover": "metric_only",
+    "core_ebitda_margin": "metric_only", "inventory_turnover": "served_block",
 }
 PRECEDENCE: Mapping[str, str] = dict(_PRECEDENCE)
 
@@ -612,6 +618,12 @@ def _reason_of(absence: Tuple[Any, ...]) -> Dict[str, Any]:
         return {"code": "nonpositive_denominator", "inputs": [absence[1]]}
     if kind == "metric":
         return {"code": "engine_metric_absent", "inputs": [absence[1]]}
+    if kind == "inventory_days":
+        refusal = dict(absence[1] or {})
+        return {"code": "inventory_days_refused",
+                "inputs": list(refusal.get("inputs") or ["assembled_metrics.inventory_days"]),
+                "cause": refusal.get("code"), "text_ro": refusal.get("text_ro"),
+                "text_en": refusal.get("text_en")}
     if kind == "ebitda_refused":
         refusal = dict(absence[1] or {})
         return {"code": "ebitda_refused", "inputs": list(refusal.get("inputs") or []),
@@ -710,11 +722,8 @@ def _compute_figs(payload: Mapping[str, Any], statements: Mapping[str, Any]
     def bsPctOr(name: str, computed: _Fig) -> _Fig:
         return computed if computed.value is not None else mPctOr(name, computed)
 
-    raw_days = sup.get("periodDays")
-    days = float(raw_days) if _is_num(raw_days) else 365.0
-    day_count = _Fig(days, None, (("period_days", days,
-                                   "supplementary.periodDays" if _is_num(raw_days)
-                                   else "constant.period_days_default"),))
+    days, days_source = _day_count(sup)
+    day_count = _Fig(days, None, (("period_days", days, days_source),))
 
     current_assets = G("current_assets")
     current_liabilities = G("current_liabilities")
@@ -850,11 +859,26 @@ def _compute_figs(payload: Mapping[str, Any], statements: Mapping[str, Any]
     total_operating_expense = _add(I("costOfGoodsSold"), I("operatingExpenses"),
                                    I("depreciationAmortization"))
     figs["dso"] = bsOr("dso", _mul(_div(B("accountsReceivable"), revenue, "revenue"), day_count))
-    figs["dio"] = mOr("dio", _mul(_div(B("inventory"), total_operating_expense,
-                                       "total operating expense"), day_count))
-    figs["dpo"] = mOr("dpo", _mul(_div(B("accountsPayable"), total_operating_expense,
-                                       "total operating expense"), day_count))
-    figs["ccc"] = mOr("ccc", _sub(_add(figs["dso"], figs["dio"]), figs["dpo"]))
+    # INVENTORY DAYS — READ from the ONE block (engine.ratios.inventory_days,
+    # owner spec 2026-09-26 P1): the split total on its served basis (the
+    # average where the book carries the opening). Never inventory / total
+    # operating expense and never the metric row's stored copy: a refused
+    # or absent block refuses the row with its reason. The CCC adds the
+    # split total on the PERIOD-END basis to the period-end DSO and DPO.
+    from engine.ratios import inventory_days as _inventory_days
+
+    inv_block = _inventory_days.served_block(statements)
+    figs["dio"] = _inventory_fig(inv_block, "value")
+    dio_closing = _inventory_fig(inv_block, "closing_value")
+    # THE ONE DPO (`dpo_days`): computed first on the period's day count,
+    # exactly as DSO above — never the metric row first. The metric row was
+    # multiplied by a hard-coded 365 while DSO, the split and `dpo_days` used
+    # `supplementary.periodDays`, so on a leap year or a year-to-date month
+    # this row and the trade-float insight printed two DPOs, and the cycle
+    # added terms counted on two day counts.
+    figs["dpo"] = bsOr("dpo", _mul(_div(B("accountsPayable"), total_operating_expense,
+                                        "total operating expense"), day_count))
+    figs["ccc"] = _sub(_add(figs["dso"], dio_closing), figs["dpo"])
     figs["asset_turnover"] = bsOr("asset_turnover", _div(revenue, total_assets, "total assets"))
 
     # The metric-only rows built ON the one EBITDA / EBIT: when it is
@@ -864,8 +888,9 @@ def _compute_figs(payload: Mapping[str, Any], statements: Mapping[str, Any]
     # (found by the refusal-carries-engine gate, 2026-09-27).
     one_ebitda_refusal = (ebitda.absence if ebitda.absence is not None
                           and ebitda.absence[0] == "ebitda_refused" else None)
+    figs["inventory_turnover"] = _inventory_turnover_fig(inv_block)
     for key in ("net_debt_to_ebitda", "lt_debt_to_equity", "ebitda_to_interest",
-                "operating_margin", "core_ebitda_margin", "inventory_turnover"):
+                "operating_margin", "core_ebitda_margin"):
         v = m(key)
         pct = _SPEC_BY_KEY[key].display_unit == "pct"
         if key == "lt_debt_to_equity" and equity_refusal is not None:
@@ -890,10 +915,13 @@ def _compute_figs(payload: Mapping[str, Any], statements: Mapping[str, Any]
         (("roe", "debt_to_equity", "lt_debt_to_equity"), total_equity),
         (("roic",), invested_capital),
         (("debt_to_ebitda",), ebitda),
-        (("dio", "dpo"), total_operating_expense),
+        (("dpo",), total_operating_expense),
+        # The split's ONE money denominator (cost of production sold + 607)
+        # and its average stock — the block's own operands.
+        (("dio",), _inventory_operand(inv_block, "flow")),
         (("net_debt_to_ebitda",), ebitda_statutory),
         (("operating_margin", "core_ebitda_margin"), apl_revenue),
-        (("inventory_turnover",), B("inventory")),
+        (("inventory_turnover",), _inventory_operand(inv_block, "stock")),
     ):
         for k in keys:
             sign[k] = fig
@@ -911,6 +939,89 @@ def _compute_figs(payload: Mapping[str, Any], statements: Mapping[str, Any]
     denominators["dscr_with_lt_principal"] = _add(
         interest, _div(B("longTermDebt"), _known(8.0), "8"))
     return figs, sign, has_cost_base, denominators
+
+
+def _inventory_refusal(block: Optional[Mapping[str, Any]]) -> Tuple[Any, ...]:
+    if block is None:
+        return ("inventory_days", {"code": "inventory_days_absent",
+                                   "inputs": ["assembled_metrics.inventory_days"]})
+    reason = (block.get("total") or {}).get("reason")
+    return ("inventory_days", dict(reason) if isinstance(reason, Mapping)
+            else {"code": "inventory_days_absent", "inputs": ["assembled_metrics.inventory_days.total"]})
+
+
+def _inventory_fig(block: Optional[Mapping[str, Any]], field: str) -> _Fig:
+    """The block's total days (``value``: its served basis; ``closing_value``:
+    the period-end basis) with its operands — or its refusal."""
+    source = "inventory_days.total.%s" % field
+    total = (block or {}).get("total") if isinstance(block, Mapping) else None
+    value = (total or {}).get(field) if isinstance(total, Mapping) else None
+    if not _is_num(value):
+        return _Fig(None, _inventory_refusal(block), (("inventory_days", None, source),))
+    stock_key = "average" if field == "value" else "closing"
+    ops = [("inventory_days", float(value), source)]
+    stock = ((total.get("stock") or {}).get(stock_key)) if isinstance(total.get("stock"), Mapping) else None
+    flow = ((total.get("flow") or {}).get("value")) if isinstance(total.get("flow"), Mapping) else None
+    if _is_num(stock):
+        ops.append(("inventory_%s" % stock_key, float(stock), "inventory_days.total.stock.%s" % stock_key))
+    if _is_num(flow):
+        ops.append(("cost_of_sales_flow", float(flow), "inventory_days.total.flow.value"))
+    if _is_num(block.get("period_days")):
+        ops.append(("period_days", float(block["period_days"]), "inventory_days.period_days"))
+    return _Fig(float(value), None, tuple(ops))
+
+
+def _inventory_turnover_fig(block: Optional[Mapping[str, Any]]) -> _Fig:
+    it = (block or {}).get("inventory_turnover") if isinstance(block, Mapping) else None
+    value = (it or {}).get("value") if isinstance(it, Mapping) else None
+    source = "inventory_days.inventory_turnover.value"
+    if not _is_num(value):
+        return _Fig(None, _inventory_refusal(block), (("inventory_turnover", None, source),))
+    return _Fig(float(value), None, (("inventory_turnover", float(value), source),))
+
+
+def _inventory_operand(block: Optional[Mapping[str, Any]], which: str) -> _Fig:
+    """The block's total flow (``flow``) or average stock (``stock``) as the
+    sign / materiality denominator of its rows."""
+    total = (block or {}).get("total") if isinstance(block, Mapping) else None
+    if which == "flow":
+        raw = ((total or {}).get("flow") or {}).get("value") if isinstance(total, Mapping) else None
+        return _leaf("cost_of_sales_flow", "inventory_days.total.flow.value", raw)
+    raw = ((total or {}).get("stock") or {}).get("average") if isinstance(total, Mapping) else None
+    return _leaf("inventory_average", "inventory_days.total.stock.average", raw)
+
+
+def _day_count(sup: Mapping[str, Any]) -> Tuple[float, str]:
+    """The period's day count and its provenance — ONE rule for the table's
+    day-count rows and `dpo_days`: the served `supplementary.periodDays`, or
+    the 365-day default named as a default."""
+    raw_days = sup.get("periodDays")
+    if _is_num(raw_days):
+        return float(raw_days), "supplementary.periodDays"
+    return 365.0, "constant.period_days_default"
+
+
+def dpo_days(statements: Mapping[str, Any]) -> Dict[str, Any]:
+    """THE one DPO (design B4): trade payables (``balanceSheet.
+    accountsPayable``) ÷ total operating expense (cost of sales + operating
+    expenses + D&A) × the period's day count — the ratio table's formula
+    (and the credit model's ``dpo`` metric on a 365-day year). Every other
+    reader of "days payables outstanding" (the insights trade-float
+    detector) reads it here: ``{"value", "payables", "total_operating_expense",
+    "days"}``, value None when an operand is absent or the base is not
+    positive."""
+    bs = _dict(statements.get("balanceSheet")) if isinstance(statements, Mapping) else {}
+    inc = _dict(statements.get("incomeStatement")) if isinstance(statements, Mapping) else {}
+    sup = _dict(statements.get("supplementary")) if isinstance(statements, Mapping) else {}
+    days = _day_count(sup)[0]
+    ap = bs.get("accountsPayable")
+    parts = [inc.get(k) for k in ("costOfGoodsSold", "operatingExpenses", "depreciationAmortization")]
+    toe = sum(float(v) for v in parts) if all(_is_num(v) for v in parts) else None
+    value = None
+    if _is_num(ap) and toe is not None and toe > 0:
+        value = float(ap) / toe * days
+    return {"value": value, "payables": float(ap) if _is_num(ap) else None,
+            "total_operating_expense": toe, "days": days}
 
 
 def _operands(fig: _Fig) -> List[Dict[str, Any]]:

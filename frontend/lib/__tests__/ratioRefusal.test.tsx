@@ -327,11 +327,41 @@ describe("F2 — a trial balance is complete, so its zeroes stay measured", () =
     expect(carniprod.reportedTotals).toBeUndefined();
     const all = rowsOf(carniprod);
     const computed = all.filter((r) => r.value !== null);
+    // 17, not 19: inventory days and the cash-conversion cycle read the
+    // engine's ONE served inventory-days block (owner spec 2026-09-26 P1),
+    // and this capture predates it — both refuse with the engine's reason
+    // (asserted below), never a browser division.
     expect(
       computed.length,
       "the private path lost ratios it used to compute — the absence " +
         "machinery is leaking into a source that declares none.",
-    ).toBeGreaterThanOrEqual(19);
+    ).toBeGreaterThanOrEqual(17);
+  });
+
+  it("inventory days read the served block — refused without one, the block's figure with it", () => {
+    const without = rowsOf(carniprod);
+    for (const key of ["dio", "ccc"]) {
+      const r = byKey(without, key);
+      expect(r.value, `${key} computed without a served inventory-days block`).toBeNull();
+      expect(r.unavailable?.kind).toBe("refused");
+    }
+    // A constructed block (the engine's shape, schema inventory_days/1):
+    // the row prints the block's total, whatever the statements divide to.
+    const block = {
+      schema: "inventory_days/1",
+      basis: "average_two_year_ends",
+      basis_label: { ro: "media soldurilor la 1 ianuarie și 31 decembrie",
+                     en: "average of the balances at 1 January and 31 December" },
+      period_days: 365,
+      total: { value: 34.2676, closing_value: 37.8642, reason: null,
+               stock: { average: 1.0, closing: 1.0 }, flow: { value: 1.0 } },
+      inventory_turnover: { value: 10.6515 },
+      seasonality: { flagged: false },
+      claim_policy: { may_call_slow: true, requires: [], reason: "split_and_average" },
+    };
+    const withBlock = rowsOf({ ...carniprod, inventory_days: block } as Statements);
+    expect(byKey(withBlock, "dio").value).toBe(34.2676);
+    expect(byKey(withBlock, "ccc").value).not.toBeNull();
   });
 
   it("a MEASURED zero denominator is undefined, not `0.00x critical`", () => {
@@ -451,7 +481,9 @@ describe("F2 — the private path's numbers did not move", () => {
           is.interestExpense + bs.longTermDebt / 8,
         ],
         dso: [safeDiv(bs.accountsReceivable, is.revenue) * days, is.revenue],
-        dio: [safeDiv(bs.inventory, totalOpEx) * days, totalOpEx],
+        // `dio` left this pin with the inventory-days ruling (2026-09-26):
+        // it reads the engine's served block, never inventory ÷ total
+        // operating expense — asserted in its own test above.
         dpo: [safeDiv(bs.accountsPayable, totalOpEx) * days, totalOpEx],
         asset_turnover: [safeDiv(is.revenue, TA), TA],
       };

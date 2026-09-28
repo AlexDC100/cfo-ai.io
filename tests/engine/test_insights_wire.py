@@ -445,6 +445,21 @@ def test_a_measure_the_book_does_not_carry_is_null_not_zero():
                 assert m["value"] is None or isinstance(m["value"], (int, float)), m
                 if m["value"] is None:
                     seen_null.append((case_id, ins["id"], m["key"]))
+    # CONSTRUCTED witness, through the same seam helper: a served book that
+    # does not carry its trade payables (the one DPO divides by total
+    # operating expense, so no corpus book leaves a measure absent any more).
+    for case_id, case_dir, _p121 in CASES:
+        if not case_id.endswith("realestate"):
+            continue
+        statements = _served_via_seam(_book(case_id, case_dir))
+        del statements["balanceSheet"]["accountsPayable"]
+        statements.pop("insights", None)
+        P._attach_insights_block(statements, _book(case_id, case_dir).line_items)
+        for ins in (_block_of(statements) or {}).get("insights") or []:
+            for m in ins["measures"]:
+                assert m["value"] is None or isinstance(m["value"], (int, float)), m
+                if m["value"] is None:
+                    seen_null.append((case_id + "+no_payables", ins["id"], m["key"]))
     assert seen_null, (
         "no served measure on any corpus book is null, so this gate never "
         "exercises the absent branch — it would stay green if the wire "

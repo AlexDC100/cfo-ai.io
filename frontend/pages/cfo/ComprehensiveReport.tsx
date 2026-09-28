@@ -101,7 +101,10 @@ function sumOf(...parts: Array<number | null | undefined>): number | undefined {
   return total;
 }
 import { CreditScoreCard, readCreditFromMetrics } from "@/components/cfo/CreditScoreCard";
+import { useTranslation } from "react-i18next";
 import { ratioLabelForKey } from "@/lib/ratioTable";
+import { readInventoryDaysSplit } from "@/lib/inventoryDays";
+import { InventoryDaysSplit } from "@/components/cfo/ratios/InventoryDaysSplit";
 import { IndustryConfirmBanner } from "@/components/cfo/IndustryConfirmBanner";
 import { blocksSectorContent, readIndustrySignal } from "@/lib/industrySignal";
 import { RiskInventory, type RiskInventoryItem } from "@/components/cfo/RiskInventory";
@@ -182,6 +185,9 @@ interface PeriodResponse {
     /** The engine's verdict on whether a margin over turnover is meaningful
      *  (engine.ratios.margin_meaning), read through lib/marginMeaning. */
     margin_meaning?: unknown;
+    /** The ONE inventory-days block (engine.ratios.inventory_days), read
+     *  through lib/inventoryDays. */
+    inventory_days?: unknown;
     assembled_pl?: Record<string, number>;
     assembled_bs?: Record<string, number>;
     assembled_cf?: Record<string, number | boolean | string[] | undefined>;
@@ -236,6 +242,7 @@ export default function ComprehensiveReport() {
   // sidebar navigation doesn't show empty state when the user has docs.
   const { periodId } = useActivePeriodFallback();
   const { toast } = useToast();
+  const { t } = useTranslation();
   const [report, setReport] = useState<PeriodResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [pdfBusy, setPdfBusy] = useState(false);
@@ -556,6 +563,17 @@ export default function ComprehensiveReport() {
                 })(),
               }}
             />
+            {/* INVENTORY DAYS — what the DIO row above is made of: the ONE
+                served block's split (legs with their accounts, alte stocuri,
+                the basis, the period-end figure, seasonality). */}
+            {readInventoryDaysSplit(report.statements) ? (
+              <Panel className="mt-4" data-testid="report-inventory-days">
+                <PanelHeader title={t("inventoryDays.title")} />
+                <div className="px-4 pb-4">
+                  <InventoryDaysSplit statements={report.statements} variant="full" />
+                </div>
+              </Panel>
+            ) : null}
           </section>
 
           {/* ── 6. VALUATION ────────────────────────────────────────── */}
@@ -1371,7 +1389,9 @@ function RatiosTables({
     {
       title: "Efficiency",
       rows: [
-        ["DIO (days inventory)",  days(m("dio"))],
+        // The ONE name (ratioTable's label authority): the served metric is
+        // the inventory-days block's total (engine.ratios.inventory_days).
+        [ratioLabelForKey("dio") ?? "Inventory days (DIO)", days(m("dio"))],
         ["DSO (days receivables)", days(m("dso"))],
         ["DPO (days payables)",   days(m("dpo"))],
       ],

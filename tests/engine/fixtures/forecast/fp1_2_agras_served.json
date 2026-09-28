@@ -69,7 +69,7 @@
   "period_id": "route-period-agras",
   "snapshot_id": "sha256-10b9c390378a05d332cf2e3b24323576f47ab333939f1c5836e41dbccaf4fa3d"
  },
- "body_hash": "sha256:e46a794f32be5f093909072911c43323646a91ec6b1293e1c7f7c58ece132078",
+ "body_hash": "sha256:4adf9bb4802a2b672774c89379d3405964d1d933b5150ac8ff842ed341c713c9",
  "client": {
   "analysis_debounce_ms": 600,
   "debounce_ms": 150,
@@ -471,16 +471,16 @@
          "value_minor": 893333242
         },
         {
-         "authority": "assembled_pl",
-         "fact": "assembled_pl.cogs",
+         "authority": "inventory_days",
+         "fact": "inventory_days.total.flow",
          "period_end": "2025-12-31",
-         "value_minor": 7055711468
+         "value_minor": 10229568081
         },
         {
          "authority": "ratio_table",
          "fact": "ratio_table.dio",
          "period_end": "2025-12-31",
-         "value_micro_days": 31544446
+         "value_micro_days": 30211700
         }
        ],
        "method": "level",
@@ -494,16 +494,16 @@
       "original": null,
       "sector": null,
       "sentence": {
-       "code": "forecast.dio_cogs",
-       "text": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.544446 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name"
+       "code": "forecast.dio_split",
+       "text": "days inventory outstanding, split by stock type on the period-end balance = 31.874917 days = inventory net 8,933,332.42 / cost of production sold + cost of goods resold (607) 102,295,680.81 x 365 days (forecast.dio_split). Beside it, the ratio table's dio (engine.ratios.table) reads 30.2117 days: the same split by stock type on the table's own basis; the plan projects period-end balances, so this driver is the split on the period-end balance"
       },
       "source": null,
       "tier": "book"
      },
      "values": [
-      46213147,
-      46213147,
-      46213147
+      31874917,
+      31874917,
+      31874917
      ]
     },
     "macro": null,
@@ -520,16 +520,16 @@
        "value_minor": 893333242
       },
       {
-       "authority": "assembled_pl",
-       "fact": "assembled_pl.cogs",
+       "authority": "inventory_days",
+       "fact": "inventory_days.total.flow",
        "period_end": "2025-12-31",
-       "value_minor": 7055711468
+       "value_minor": 10229568081
       },
       {
        "authority": "ratio_table",
        "fact": "ratio_table.dio",
        "period_end": "2025-12-31",
-       "value_micro_days": 31544446
+       "value_micro_days": 30211700
       }
      ],
      "method": "level",
@@ -543,8 +543,8 @@
     "original": null,
     "sector": null,
     "sentence": {
-     "code": "forecast.dio_cogs",
-     "text": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.544446 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name"
+     "code": "forecast.dio_split",
+     "text": "days inventory outstanding, split by stock type on the period-end balance = 31.874917 days = inventory net 8,933,332.42 / cost of production sold + cost of goods resold (607) 102,295,680.81 x 365 days (forecast.dio_split). Beside it, the ratio table's dio (engine.ratios.table) reads 30.2117 days: the same split by stock type on the table's own basis; the plan projects period-end balances, so this driver is the split on the period-end balance"
     },
     "source": null,
     "tier": "book"
@@ -587,7 +587,7 @@
     "bs_totals.equity_plus_liabilities"
    ],
    "favourable_direction": "down",
-   "formula_id": "forecast.dio_cogs",
+   "formula_id": "forecast.dio_split",
    "granularity": "monthly",
    "inert_in_this_plan": null,
    "key": "dio_cogs_days",
@@ -606,9 +606,9 @@
    "solve_step": "0.000001",
    "unit": "micro_days",
    "values": [
-    46213147,
-    46213147,
-    46213147
+    31874917,
+    31874917,
+    31874917
    ]
   },
   "dividend_payout_pct": {
@@ -744,7 +744,7 @@
       "sector": null,
       "sentence": {
        "code": "forecast.dpo_cogs",
-       "text": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.676884 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name"
+       "text": "trade payables in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.676884 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name"
       },
       "source": null,
       "tier": "book"
@@ -793,7 +793,7 @@
     "sector": null,
     "sentence": {
      "code": "forecast.dpo_cogs",
-     "text": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.676884 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name"
+     "text": "trade payables in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.676884 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name"
     },
     "source": null,
     "tier": "book"
@@ -11343,7 +11343,7 @@
    "period": "FY2028"
   },
   {
-   "amount_minor": 148978821,
+   "amount_minor": 148978815,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11392,7 +11392,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 201209777,
+   "amount_minor": 201209771,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11441,7 +11441,7 @@
    "period": "2026-02"
   },
   {
-   "amount_minor": 259038809,
+   "amount_minor": 259038803,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11490,7 +11490,7 @@
    "period": "2026-03"
   },
   {
-   "amount_minor": 315004379,
+   "amount_minor": 315004373,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11539,7 +11539,7 @@
    "period": "2026-04"
   },
   {
-   "amount_minor": 372837423,
+   "amount_minor": 372837417,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11588,7 +11588,7 @@
    "period": "2026-05"
   },
   {
-   "amount_minor": 428806796,
+   "amount_minor": 428806790,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11637,7 +11637,7 @@
    "period": "2026-06"
   },
   {
-   "amount_minor": 486643685,
+   "amount_minor": 486643679,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11686,7 +11686,7 @@
    "period": "2026-07"
   },
   {
-   "amount_minor": 544482468,
+   "amount_minor": 544482462,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11735,7 +11735,7 @@
    "period": "2026-08"
   },
   {
-   "amount_minor": 600457275,
+   "amount_minor": 600457269,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11784,7 +11784,7 @@
    "period": "2026-09"
   },
   {
-   "amount_minor": 658299666,
+   "amount_minor": 658299660,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11833,7 +11833,7 @@
    "period": "2026-10"
   },
   {
-   "amount_minor": 714277891,
+   "amount_minor": 714277885,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11882,7 +11882,7 @@
    "period": "2026-11"
   },
   {
-   "amount_minor": 772123738,
+   "amount_minor": 772123732,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11931,7 +11931,7 @@
    "period": "2026-12"
   },
   {
-   "amount_minor": 772123738,
+   "amount_minor": 772123732,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11980,7 +11980,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 1441723310,
+   "amount_minor": 1441723303,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -12029,7 +12029,7 @@
    "period": "FY2027"
   },
   {
-   "amount_minor": 2129441495,
+   "amount_minor": 2129441488,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -12318,7 +12318,7 @@
    "period": "FY2028"
   },
   {
-   "amount_minor": 915666567,
+   "amount_minor": 915666573,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -12336,7 +12336,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 915666567,
+   "amount_minor": 915666573,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -12354,7 +12354,7 @@
    "period": "2026-02"
   },
   {
-   "amount_minor": 915666567,
+   "amount_minor": 915666573,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -12372,7 +12372,7 @@
    "period": "2026-03"
   },
   {
-   "amount_minor": 915666568,
+   "amount_minor": 915666574,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -12390,7 +12390,7 @@
    "period": "2026-04"
   },
   {
-   "amount_minor": 915666567,
+   "amount_minor": 915666573,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -12408,7 +12408,7 @@
    "period": "2026-05"
   },
   {
-   "amount_minor": 915666568,
+   "amount_minor": 915666574,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -12426,7 +12426,7 @@
    "period": "2026-06"
   },
   {
-   "amount_minor": 915666567,
+   "amount_minor": 915666573,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -12444,7 +12444,7 @@
    "period": "2026-07"
   },
   {
-   "amount_minor": 915666567,
+   "amount_minor": 915666573,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -12462,7 +12462,7 @@
    "period": "2026-08"
   },
   {
-   "amount_minor": 915666568,
+   "amount_minor": 915666574,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -12480,7 +12480,7 @@
    "period": "2026-09"
   },
   {
-   "amount_minor": 915666567,
+   "amount_minor": 915666573,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -12498,7 +12498,7 @@
    "period": "2026-10"
   },
   {
-   "amount_minor": 915666568,
+   "amount_minor": 915666574,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -12516,7 +12516,7 @@
    "period": "2026-11"
   },
   {
-   "amount_minor": 915666567,
+   "amount_minor": 915666573,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -12534,7 +12534,7 @@
    "period": "2026-12"
   },
   {
-   "amount_minor": 915666567,
+   "amount_minor": 915666573,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -12552,7 +12552,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 938558231,
+   "amount_minor": 938558238,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -12570,7 +12570,7 @@
    "period": "FY2027"
   },
   {
-   "amount_minor": 959393711,
+   "amount_minor": 959393718,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21933,7 +21933,7 @@
    "period": "FY2028"
   },
   {
-   "amount_minor": -22333325,
+   "amount_minor": -22333331,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -22149,7 +22149,7 @@
    "period": "2026-12"
   },
   {
-   "amount_minor": -22333325,
+   "amount_minor": -22333331,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -22167,7 +22167,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": -22891664,
+   "amount_minor": -22891665,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -22473,7 +22473,7 @@
    "period": "FY2028"
   },
   {
-   "amount_minor": 57901623,
+   "amount_minor": 57901617,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23061,7 +23061,7 @@
    "period": "2026-12"
   },
   {
-   "amount_minor": 958239672,
+   "amount_minor": 958239666,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23110,7 +23110,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 980093226,
+   "amount_minor": 980093225,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -26523,7 +26523,7 @@
    "period": "FY2028"
   },
   {
-   "amount_minor": 32174117,
+   "amount_minor": 32174111,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27111,7 +27111,7 @@
    "period": "2026-12"
   },
   {
-   "amount_minor": 655319034,
+   "amount_minor": 655319028,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27160,7 +27160,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 669599572,
+   "amount_minor": 669599571,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27307,7 +27307,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 148978821,
+   "amount_minor": 148978815,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27356,7 +27356,7 @@
    "period": "2026-02"
   },
   {
-   "amount_minor": 201209777,
+   "amount_minor": 201209771,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27405,7 +27405,7 @@
    "period": "2026-03"
   },
   {
-   "amount_minor": 259038809,
+   "amount_minor": 259038803,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27454,7 +27454,7 @@
    "period": "2026-04"
   },
   {
-   "amount_minor": 315004379,
+   "amount_minor": 315004373,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27503,7 +27503,7 @@
    "period": "2026-05"
   },
   {
-   "amount_minor": 372837423,
+   "amount_minor": 372837417,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27552,7 +27552,7 @@
    "period": "2026-06"
   },
   {
-   "amount_minor": 428806796,
+   "amount_minor": 428806790,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27601,7 +27601,7 @@
    "period": "2026-07"
   },
   {
-   "amount_minor": 486643685,
+   "amount_minor": 486643679,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27650,7 +27650,7 @@
    "period": "2026-08"
   },
   {
-   "amount_minor": 544482468,
+   "amount_minor": 544482462,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27699,7 +27699,7 @@
    "period": "2026-09"
   },
   {
-   "amount_minor": 600457275,
+   "amount_minor": 600457269,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27748,7 +27748,7 @@
    "period": "2026-10"
   },
   {
-   "amount_minor": 658299666,
+   "amount_minor": 658299660,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27797,7 +27797,7 @@
    "period": "2026-11"
   },
   {
-   "amount_minor": 714277891,
+   "amount_minor": 714277885,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27895,7 +27895,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 772123738,
+   "amount_minor": 772123732,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27944,7 +27944,7 @@
    "period": "FY2027"
   },
   {
-   "amount_minor": 1441723310,
+   "amount_minor": 1441723303,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27993,7 +27993,7 @@
    "period": "FY2028"
   },
   {
-   "amount_minor": 148978821,
+   "amount_minor": 148978815,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -28042,7 +28042,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 201209777,
+   "amount_minor": 201209771,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -28091,7 +28091,7 @@
    "period": "2026-02"
   },
   {
-   "amount_minor": 259038809,
+   "amount_minor": 259038803,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -28140,7 +28140,7 @@
    "period": "2026-03"
   },
   {
-   "amount_minor": 315004379,
+   "amount_minor": 315004373,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -28189,7 +28189,7 @@
    "period": "2026-04"
   },
   {
-   "amount_minor": 372837423,
+   "amount_minor": 372837417,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -28238,7 +28238,7 @@
    "period": "2026-05"
   },
   {
-   "amount_minor": 428806796,
+   "amount_minor": 428806790,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -28287,7 +28287,7 @@
    "period": "2026-06"
   },
   {
-   "amount_minor": 486643685,
+   "amount_minor": 486643679,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -28336,7 +28336,7 @@
    "period": "2026-07"
   },
   {
-   "amount_minor": 544482468,
+   "amount_minor": 544482462,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -28385,7 +28385,7 @@
    "period": "2026-08"
   },
   {
-   "amount_minor": 600457275,
+   "amount_minor": 600457269,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -28434,7 +28434,7 @@
    "period": "2026-09"
   },
   {
-   "amount_minor": 658299666,
+   "amount_minor": 658299660,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -28483,7 +28483,7 @@
    "period": "2026-10"
   },
   {
-   "amount_minor": 714277891,
+   "amount_minor": 714277885,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -28532,7 +28532,7 @@
    "period": "2026-11"
   },
   {
-   "amount_minor": 772123738,
+   "amount_minor": 772123732,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -28581,7 +28581,7 @@
    "period": "2026-12"
   },
   {
-   "amount_minor": 772123738,
+   "amount_minor": 772123732,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -28630,7 +28630,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 1441723310,
+   "amount_minor": 1441723303,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -28679,7 +28679,7 @@
    "period": "FY2027"
   },
   {
-   "amount_minor": 2129441495,
+   "amount_minor": 2129441488,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -28928,7 +28928,7 @@
   "engine_version": "0.1.0",
   "history_hash": "sha256:868153d2ad4c4dde97d47e65cc43344e839f85407885e54a2b65ae9664fadb7a",
   "macro_snapshot_id": null,
-  "pack_hash": "sha256:a561997c0592fa571d510da5c17590bdf94f7290cec70942e155233b352eb03d",
+  "pack_hash": "sha256:cdd427efa1c5e26adf3d416272513dcfcc55082d1279a543f51f0c0978bd3bc7",
   "sector_snapshot_id": null
  },
  "pins_changed": [],
@@ -29106,7 +29106,7 @@
   ],
   "cash_before_funding": [
    {
-    "amount_minor": 148978821,
+    "amount_minor": 148978815,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29152,7 +29152,7 @@
     "period": "2026-01"
    },
    {
-    "amount_minor": 201209777,
+    "amount_minor": 201209771,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29198,7 +29198,7 @@
     "period": "2026-02"
    },
    {
-    "amount_minor": 259038809,
+    "amount_minor": 259038803,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29244,7 +29244,7 @@
     "period": "2026-03"
    },
    {
-    "amount_minor": 315004379,
+    "amount_minor": 315004373,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29290,7 +29290,7 @@
     "period": "2026-04"
    },
    {
-    "amount_minor": 372837423,
+    "amount_minor": 372837417,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29336,7 +29336,7 @@
     "period": "2026-05"
    },
    {
-    "amount_minor": 428806796,
+    "amount_minor": 428806790,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29382,7 +29382,7 @@
     "period": "2026-06"
    },
    {
-    "amount_minor": 486643685,
+    "amount_minor": 486643679,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29428,7 +29428,7 @@
     "period": "2026-07"
    },
    {
-    "amount_minor": 544482468,
+    "amount_minor": 544482462,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29474,7 +29474,7 @@
     "period": "2026-08"
    },
    {
-    "amount_minor": 600457275,
+    "amount_minor": 600457269,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29520,7 +29520,7 @@
     "period": "2026-09"
    },
    {
-    "amount_minor": 658299666,
+    "amount_minor": 658299660,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29566,7 +29566,7 @@
     "period": "2026-10"
    },
    {
-    "amount_minor": 714277891,
+    "amount_minor": 714277885,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29612,7 +29612,7 @@
     "period": "2026-11"
    },
    {
-    "amount_minor": 772123738,
+    "amount_minor": 772123732,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29658,7 +29658,7 @@
     "period": "2026-12"
    },
    {
-    "amount_minor": 1441723310,
+    "amount_minor": 1441723303,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29704,7 +29704,7 @@
     "period": "FY2027"
    },
    {
-    "amount_minor": 2129441495,
+    "amount_minor": 2129441488,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29752,7 +29752,7 @@
   ],
   "closing_cash": [
    {
-    "amount_minor": 148978821,
+    "amount_minor": 148978815,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29798,7 +29798,7 @@
     "period": "2026-01"
    },
    {
-    "amount_minor": 201209777,
+    "amount_minor": 201209771,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29844,7 +29844,7 @@
     "period": "2026-02"
    },
    {
-    "amount_minor": 259038809,
+    "amount_minor": 259038803,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29890,7 +29890,7 @@
     "period": "2026-03"
    },
    {
-    "amount_minor": 315004379,
+    "amount_minor": 315004373,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29936,7 +29936,7 @@
     "period": "2026-04"
    },
    {
-    "amount_minor": 372837423,
+    "amount_minor": 372837417,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29982,7 +29982,7 @@
     "period": "2026-05"
    },
    {
-    "amount_minor": 428806796,
+    "amount_minor": 428806790,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30028,7 +30028,7 @@
     "period": "2026-06"
    },
    {
-    "amount_minor": 486643685,
+    "amount_minor": 486643679,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30074,7 +30074,7 @@
     "period": "2026-07"
    },
    {
-    "amount_minor": 544482468,
+    "amount_minor": 544482462,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30120,7 +30120,7 @@
     "period": "2026-08"
    },
    {
-    "amount_minor": 600457275,
+    "amount_minor": 600457269,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30166,7 +30166,7 @@
     "period": "2026-09"
    },
    {
-    "amount_minor": 658299666,
+    "amount_minor": 658299660,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30212,7 +30212,7 @@
     "period": "2026-10"
    },
    {
-    "amount_minor": 714277891,
+    "amount_minor": 714277885,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30258,7 +30258,7 @@
     "period": "2026-11"
    },
    {
-    "amount_minor": 772123738,
+    "amount_minor": 772123732,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30304,7 +30304,7 @@
     "period": "2026-12"
    },
    {
-    "amount_minor": 1441723310,
+    "amount_minor": 1441723303,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30350,7 +30350,7 @@
     "period": "FY2027"
    },
    {
-    "amount_minor": 2129441495,
+    "amount_minor": 2129441488,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30990,7 +30990,7 @@
   ],
   "fcf": [
    {
-    "amount_minor": 32174117,
+    "amount_minor": 32174111,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -31542,7 +31542,7 @@
     "period": "2026-12"
    },
    {
-    "amount_minor": 669599572,
+    "amount_minor": 669599571,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -31636,7 +31636,7 @@
   ],
   "fcf_cumulative": [
    {
-    "amount_minor": 32174117,
+    "amount_minor": 32174111,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -31682,7 +31682,7 @@
     "period": "2026-01"
    },
    {
-    "amount_minor": 84405073,
+    "amount_minor": 84405067,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -31728,7 +31728,7 @@
     "period": "2026-02"
    },
    {
-    "amount_minor": 142234105,
+    "amount_minor": 142234099,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -31774,7 +31774,7 @@
     "period": "2026-03"
    },
    {
-    "amount_minor": 198199675,
+    "amount_minor": 198199669,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -31820,7 +31820,7 @@
     "period": "2026-04"
    },
    {
-    "amount_minor": 256032719,
+    "amount_minor": 256032713,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -31866,7 +31866,7 @@
     "period": "2026-05"
    },
    {
-    "amount_minor": 312002092,
+    "amount_minor": 312002086,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -31912,7 +31912,7 @@
     "period": "2026-06"
    },
    {
-    "amount_minor": 369838981,
+    "amount_minor": 369838975,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -31958,7 +31958,7 @@
     "period": "2026-07"
    },
    {
-    "amount_minor": 427677764,
+    "amount_minor": 427677758,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -32004,7 +32004,7 @@
     "period": "2026-08"
    },
    {
-    "amount_minor": 483652571,
+    "amount_minor": 483652565,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -32050,7 +32050,7 @@
     "period": "2026-09"
    },
    {
-    "amount_minor": 541494962,
+    "amount_minor": 541494956,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -32096,7 +32096,7 @@
     "period": "2026-10"
    },
    {
-    "amount_minor": 597473187,
+    "amount_minor": 597473181,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -32142,7 +32142,7 @@
     "period": "2026-11"
    },
    {
-    "amount_minor": 655319034,
+    "amount_minor": 655319028,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -32188,7 +32188,7 @@
     "period": "2026-12"
    },
    {
-    "amount_minor": 1324918606,
+    "amount_minor": 1324918599,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -32234,7 +32234,7 @@
     "period": "FY2027"
    },
    {
-    "amount_minor": 2012636791,
+    "amount_minor": 2012636784,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -34817,7 +34817,7 @@
  },
  "strip": {
   "closing_cash": {
-   "amount_minor": 2129441495,
+   "amount_minor": 2129441488,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -34863,7 +34863,7 @@
    "lever_ids": []
   },
   "cumulative_fcf": {
-   "amount_minor": 2012636791,
+   "amount_minor": 2012636784,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -34973,7 +34973,7 @@
  "summary": {
   "cash_trough": {
    "amount": {
-    "amount_minor": 148978821,
+    "amount_minor": 148978815,
     "driver_ids": [
      "revenue_growth",
      "volume_index",

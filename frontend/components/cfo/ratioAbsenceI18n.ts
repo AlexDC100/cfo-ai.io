@@ -123,6 +123,13 @@ export function absenceSentence(
   if (a.kind === "not_meaningful") {
     return lang.toLowerCase().startsWith("ro") ? a.display.ro : a.display.en;
   }
+  // The ENGINE refused the inventory-days block (engine.ratios.
+  // inventory_days): its reason, per language — never worded as the
+  // EBITDA refusal below, which every older refusal is.
+  if (a.kind === "refused" && a.subject === "inventory_days") {
+    const ro = lang.toLowerCase().startsWith("ro");
+    return t("ratioAbsence.inventoryDaysRefused", opts({ reason: ro ? a.display.ro : a.display.en }));
+  }
   // The ENGINE refused EBITDA (the stock variation 711 could not be
   // measured): its typed reason, per language, never re-worded.
   if (a.kind === "refused") {

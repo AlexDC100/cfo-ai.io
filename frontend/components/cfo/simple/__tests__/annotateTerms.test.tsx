@@ -32,6 +32,18 @@ describe("annotateTerms", () => {
     expect(document.querySelectorAll('[data-term="ebitda"]').length).toBe(1);
   });
 
+  it("inventory days and SKU turnover days are two glossary entries, never one", async () => {
+    // owner spec 2026-09-26 P1: the company's inventory days (split by
+    // stock type) and the sales file's per-SKU days are different measures.
+    wrap(<p>{annotateTerms("Zile de stoc au crescut; zile de rotație SKU au scăzut.")}</p>);
+    expect(document.querySelector('[data-term="dio"]')!.textContent).toBe("Zile de stoc");
+    expect(document.querySelector('[data-term="sku_days"]')!.textContent).toBe("zile de rotație SKU");
+    const { GLOSSARY } = await import("@/lib/glossary");
+    expect(GLOSSARY.dio.term).toEqual({ en: "Inventory days (DIO)", ro: "Zile de stoc (DIO)" });
+    expect(GLOSSARY.dio.plain.ro).toContain("materiile prime");
+    expect(GLOSSARY.sku_days.plain.en).toContain("different measure");
+  });
+
   it("unknown jargon stays verbatim with NO affordance — never fake", () => {
     wrap(<p>{annotateTerms("WACC drifted 40bps")}</p>);
     expect(document.querySelector("[data-term]")).toBeNull();

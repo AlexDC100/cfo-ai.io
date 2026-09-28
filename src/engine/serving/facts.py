@@ -301,8 +301,14 @@ class FactsGateway(object):
                  methodology: Dict[str, Any],
                  snapshot_id: Optional[str], currency: str,
                  summary: Optional[Dict[str, Any]] = None,
-                 market: Optional[Dict[str, Any]] = None) -> None:
+                 market: Optional[Dict[str, Any]] = None,
+                 inventory_days: Optional[Dict[str, Any]] = None) -> None:
         self.tier = tier
+        #: The ONE served inventory-days block (schema inventory_days/1,
+        #: engine.ratios.inventory_days) the envelope carries, or None.
+        self._inventory_days = (inventory_days if isinstance(inventory_days, dict)
+                                and inventory_days.get("schema") == "inventory_days/1"
+                                else None)
         self._served = served
         self._raw_cbs = raw_cbs
         self._methodology = methodology or {}
@@ -397,6 +403,7 @@ class FactsGateway(object):
                 methodology=methodology,
                 snapshot_id=snapshot_id,
                 currency=currency,
+                inventory_days=envelope.get("inventory_days"),
             )
         legacy_totals = (methodology.get("totals") or {}) if isinstance(methodology, dict) else {}
         if all(
@@ -924,10 +931,24 @@ class FactsGateway(object):
         raise MissingFactError("dso is not a served concept (tier=%s)" % self.tier)
 
     def dio(self) -> "LockedRatio":
-        """Days inventory outstanding — see :meth:`dso`."""
+        """Days inventory outstanding — see :meth:`dso`. On the canonical
+        tier inventory days are served as ONE block: read
+        :meth:`inventory_days`."""
         if self.tier == self.TIER_SUMMARY:
             return self._locked("dio")
-        raise MissingFactError("dio is not a served concept (tier=%s)" % self.tier)
+        raise MissingFactError("dio is not a served concept (tier=%s); inventory days "
+                               "are served as the inventory_days block" % self.tier)
+
+    def inventory_days(self) -> Dict[str, Any]:
+        """THE served inventory-days block (engine.ratios.inventory_days,
+        schema inventory_days/1): the split by stock type, the total, the
+        basis and the claim policy — a defensive copy. Raises
+        MissingFactError when the envelope carries none (a period persisted
+        before the block, a public-summary or market tier)."""
+        if self._inventory_days is None:
+            raise MissingFactError("inventory days are not served on this envelope (tier=%s)"
+                                   % self.tier)
+        return copy.deepcopy(self._inventory_days)
 
     def ccc(self) -> "LockedRatio":
         """Cash conversion cycle — see :meth:`dso`."""

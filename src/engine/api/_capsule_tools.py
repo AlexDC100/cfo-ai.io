@@ -1764,8 +1764,11 @@ def build_router():  # pragma: no cover — thin wiring, exercised by e2e
                     )
                     try:
                         from .pipeline import _rebuild_assembled_for_briefing
+                        # The caller's client: the inventory-days block
+                        # reads the workspace's month-end periods and the
+                        # org's CAEN, as GET /api/period does.
                         statements = _rebuild_assembled_for_briefing(
-                            line_items, row, None).get("statements")
+                            line_items, row, None, client=client).get("statements")
                     except Exception:  # noqa: BLE001
                         logger.exception(
                             "[capsule] statements rebuild failed for %s",

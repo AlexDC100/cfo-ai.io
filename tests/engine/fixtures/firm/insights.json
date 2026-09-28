@@ -949,8 +949,8 @@
             "role": "trade_payable"
           }
         ],
-        "claim": "The net trade float is RON 1,327,011.19: RON 8,513,384.96 owed by customers against RON 7,186,373.77 owed to suppliers — 28.0 days of sales outstanding against 37.2 days of payables, a gap of -9.1 days.",
-        "claim_template": "The net trade float is {money:float}: {money:trade_receivables} owed by customers against {money:trade_payables} owed to suppliers — {measure:dso} of sales outstanding against {measure:dpo} of payables, a gap of {measure:float_days}.",
+        "claim": "The net trade float is RON 1,327,011.19: RON 8,513,384.96 owed by customers against RON 7,186,373.77 owed to suppliers — 28.0 days of sales outstanding against 26.7 days of payables (RON 7,554,847.25 of balance-sheet payables over RON 103,367,367.84 of total operating expense, on 365 days), a gap of 1.4 days.",
+        "claim_template": "The net trade float is {money:float}: {money:trade_receivables} owed by customers against {money:trade_payables} owed to suppliers — {measure:dso} of sales outstanding against {measure:dpo} of payables ({money:dpo_payables} of balance-sheet payables over {money:total_operating_expense} of total operating expense, on {measure:period_days}), a gap of {measure:float_days}.",
         "facts": [
           {
             "label": "Trade receivables net of provisions",
@@ -971,13 +971,13 @@
             "value": 110798309.14
           },
           {
-            "label": "Cost of goods sold",
-            "name": "assembled_pl.cogs",
+            "label": "Total operating expense",
+            "name": "assembled_pl.total_operating_expense",
             "unit": "money",
-            "value": 70557114.68
+            "value": 103367367.84
           }
         ],
-        "formula": "DSO = trade receivables net ÷ revenue × 365; DPO = trade payables ÷ cost of goods sold × 365; float = trade receivables net − trade payables",
+        "formula": "DSO = trade receivables net ÷ revenue × the period's days; DPO = balance-sheet payables ÷ total operating expense × the period's days (the ratio table's one DPO, engine.ratios.table.dpo_days); float = trade receivables net − trade payables",
         "id": "trade_float",
         "in_summary": false,
         "measures": [
@@ -989,15 +989,15 @@
           },
           {
             "key": "dpo",
-            "label": "Days payables outstanding",
+            "label": "Days payables outstanding (on total operating cost)",
             "unit": "days",
-            "value": 37.175930987914
+            "value": 26.676883661373
           },
           {
             "key": "float_days",
             "label": "Collection gap (DSO − DPO)",
             "unit": "days",
-            "value": -9.130507420361
+            "value": 1.36853990618
           },
           {
             "key": "float",
@@ -1018,14 +1018,27 @@
             "value": 7186373.77
           },
           {
-            "key": "cogs",
-            "label": "Cost of goods sold",
+            "key": "dpo_payables",
+            "label": "Balance-sheet payables (the DPO's numerator)",
             "unit": "money",
-            "value": 70557114.68
+            "value": 7554847.25
+          },
+          {
+            "key": "total_operating_expense",
+            "label": "Total operating expense",
+            "unit": "money",
+            "value": 103367367.84
+          },
+          {
+            "key": "period_days",
+            "label": "The period's day count",
+            "noun": "day",
+            "unit": "count",
+            "value": 365.0
           }
         ],
         "narrative": {
-          "explanation": "The net trade float is RON 1,327,011.19: RON 8,513,384.96 owed by customers against RON 7,186,373.77 owed to suppliers — 28.0 days of sales outstanding against 37.2 days of payables, a gap of -9.1 days. Graded low: the amount at stake is 1.2% of revenue, against the ladder printed beside this finding. Trade float is a claim on a year of trading, so it is graded as a share of that year's revenue — the same base both day counts already annualise against.",
+          "explanation": "The net trade float is RON 1,327,011.19: RON 8,513,384.96 owed by customers against RON 7,186,373.77 owed to suppliers — 28.0 days of sales outstanding against 26.7 days of payables (RON 7,554,847.25 of balance-sheet payables over RON 103,367,367.84 of total operating expense, on 365 days), a gap of 1.4 days. Graded low: the amount at stake is 1.2% of revenue, against the ladder printed beside this finding. Trade float is a claim on a year of trading, so it is graded as a share of that year's revenue — the same base both day counts already annualise against.",
           "reason": "the advisory lane was not invoked for this build",
           "so_what": "Compare the collection gap with the credit terms actually granted. Where suppliers fund the cycle, that funding is a payables line that can be withdrawn, not a permanent source.",
           "source": "deterministic"
@@ -1906,8 +1919,8 @@
             "role": "trade_payable"
           }
         ],
-        "claim": "The net trade float is RON -2,192,704.48: RON 10,829,721.07 owed by customers against RON 13,022,425.55 owed to suppliers — 41.8 days of sales outstanding against 82.8 days of payables, a gap of -40.9 days.",
-        "claim_template": "The net trade float is {money:float}: {money:trade_receivables} owed by customers against {money:trade_payables} owed to suppliers — {measure:dso} of sales outstanding against {measure:dpo} of payables, a gap of {measure:float_days}.",
+        "claim": "The net trade float is RON -2,192,704.48: RON 10,829,721.07 owed by customers against RON 13,022,425.55 owed to suppliers — 41.8 days of sales outstanding against 51.7 days of payables (RON 13,392,746.23 of balance-sheet payables over RON 94,617,707.03 of total operating expense, on 365 days), a gap of -9.8 days.",
+        "claim_template": "The net trade float is {money:float}: {money:trade_receivables} owed by customers against {money:trade_payables} owed to suppliers — {measure:dso} of sales outstanding against {measure:dpo} of payables ({money:dpo_payables} of balance-sheet payables over {money:total_operating_expense} of total operating expense, on {measure:period_days}), a gap of {measure:float_days}.",
         "facts": [
           {
             "label": "Trade receivables net of provisions",
@@ -1928,13 +1941,13 @@
             "value": 94509939.96
           },
           {
-            "label": "Cost of goods sold",
-            "name": "assembled_pl.cogs",
+            "label": "Total operating expense",
+            "name": "assembled_pl.total_operating_expense",
             "unit": "money",
-            "value": 57429796.23
+            "value": 94617707.03
           }
         ],
-        "formula": "DSO = trade receivables net ÷ revenue × 365; DPO = trade payables ÷ cost of goods sold × 365; float = trade receivables net − trade payables",
+        "formula": "DSO = trade receivables net ÷ revenue × the period's days; DPO = balance-sheet payables ÷ total operating expense × the period's days (the ratio table's one DPO, engine.ratios.table.dpo_days); float = trade receivables net − trade payables",
         "id": "trade_float",
         "in_summary": true,
         "measures": [
@@ -1946,15 +1959,15 @@
           },
           {
             "key": "dpo",
-            "label": "Days payables outstanding",
+            "label": "Days payables outstanding (on total operating cost)",
             "unit": "days",
-            "value": 82.765143493005
+            "value": 51.664244752835
           },
           {
             "key": "float_days",
             "label": "Collection gap (DSO − DPO)",
             "unit": "days",
-            "value": -40.940461430748
+            "value": -9.839562690578
           },
           {
             "key": "float",
@@ -1975,14 +1988,27 @@
             "value": 13022425.55
           },
           {
-            "key": "cogs",
-            "label": "Cost of goods sold",
+            "key": "dpo_payables",
+            "label": "Balance-sheet payables (the DPO's numerator)",
             "unit": "money",
-            "value": 57429796.23
+            "value": 13392746.23
+          },
+          {
+            "key": "total_operating_expense",
+            "label": "Total operating expense",
+            "unit": "money",
+            "value": 94617707.03
+          },
+          {
+            "key": "period_days",
+            "label": "The period's day count",
+            "noun": "day",
+            "unit": "count",
+            "value": 365.0
           }
         ],
         "narrative": {
-          "explanation": "The net trade float is RON -2,192,704.48: RON 10,829,721.07 owed by customers against RON 13,022,425.55 owed to suppliers — 41.8 days of sales outstanding against 82.8 days of payables, a gap of -40.9 days. Graded low: the amount at stake is 2.3% of revenue, against the ladder printed beside this finding. Trade float is a claim on a year of trading, so it is graded as a share of that year's revenue — the same base both day counts already annualise against.",
+          "explanation": "The net trade float is RON -2,192,704.48: RON 10,829,721.07 owed by customers against RON 13,022,425.55 owed to suppliers — 41.8 days of sales outstanding against 51.7 days of payables (RON 13,392,746.23 of balance-sheet payables over RON 94,617,707.03 of total operating expense, on 365 days), a gap of -9.8 days. Graded low: the amount at stake is 2.3% of revenue, against the ladder printed beside this finding. Trade float is a claim on a year of trading, so it is graded as a share of that year's revenue — the same base both day counts already annualise against.",
           "reason": "the advisory lane was not invoked for this build",
           "so_what": "Compare the collection gap with the credit terms actually granted. Where suppliers fund the cycle, that funding is a payables line that can be withdrawn, not a permanent source.",
           "source": "deterministic"
@@ -2529,8 +2555,8 @@
             "role": "trade_payable"
           }
         ],
-        "claim": "The net trade float is RON -2,633,068.76: RON 27,193.95 owed by customers against RON 2,660,262.71 owed to suppliers — 61.1 days of sales outstanding against not reported of payables, a gap of not reported.",
-        "claim_template": "The net trade float is {money:float}: {money:trade_receivables} owed by customers against {money:trade_payables} owed to suppliers — {measure:dso} of sales outstanding against {measure:dpo} of payables, a gap of {measure:float_days}.",
+        "claim": "The net trade float is RON -2,633,068.76: RON 27,193.95 owed by customers against RON 2,660,262.71 owed to suppliers — 61.1 days of sales outstanding against 33.2 days of payables (RON 2,660,262.76 of balance-sheet payables over RON 29,280,043.30 of total operating expense, on 365 days), a gap of 28.0 days.",
+        "claim_template": "The net trade float is {money:float}: {money:trade_receivables} owed by customers against {money:trade_payables} owed to suppliers — {measure:dso} of sales outstanding against {measure:dpo} of payables ({money:dpo_payables} of balance-sheet payables over {money:total_operating_expense} of total operating expense, on {measure:period_days}), a gap of {measure:float_days}.",
         "facts": [
           {
             "label": "Trade receivables net of provisions",
@@ -2551,13 +2577,13 @@
             "value": 162365.46
           },
           {
-            "label": "Cost of goods sold",
-            "name": "assembled_pl.cogs",
+            "label": "Total operating expense",
+            "name": "assembled_pl.total_operating_expense",
             "unit": "money",
-            "value": 0.0
+            "value": 29280043.3
           }
         ],
-        "formula": "DSO = trade receivables net ÷ revenue × 365; DPO = trade payables ÷ cost of goods sold × 365; float = trade receivables net − trade payables",
+        "formula": "DSO = trade receivables net ÷ revenue × the period's days; DPO = balance-sheet payables ÷ total operating expense × the period's days (the ratio table's one DPO, engine.ratios.table.dpo_days); float = trade receivables net − trade payables",
         "id": "trade_float",
         "in_summary": true,
         "measures": [
@@ -2569,15 +2595,15 @@
           },
           {
             "key": "dpo",
-            "label": "Days payables outstanding",
+            "label": "Days payables outstanding (on total operating cost)",
             "unit": "days",
-            "value": null
+            "value": 33.16237949006
           },
           {
             "key": "float_days",
             "label": "Collection gap (DSO − DPO)",
             "unit": "days",
-            "value": null
+            "value": 27.970029767426
           },
           {
             "key": "float",
@@ -2598,14 +2624,27 @@
             "value": 2660262.71
           },
           {
-            "key": "cogs",
-            "label": "Cost of goods sold",
+            "key": "dpo_payables",
+            "label": "Balance-sheet payables (the DPO's numerator)",
             "unit": "money",
-            "value": 0.0
+            "value": 2660262.76
+          },
+          {
+            "key": "total_operating_expense",
+            "label": "Total operating expense",
+            "unit": "money",
+            "value": 29280043.3
+          },
+          {
+            "key": "period_days",
+            "label": "The period's day count",
+            "noun": "day",
+            "unit": "count",
+            "value": 365.0
           }
         ],
         "narrative": {
-          "explanation": "The net trade float is RON -2,633,068.76: RON 27,193.95 owed by customers against RON 2,660,262.71 owed to suppliers — 61.1 days of sales outstanding against not reported of payables, a gap of not reported. Graded critical: the amount at stake is 1,621.7% of revenue, against the ladder printed beside this finding. Trade float is a claim on a year of trading, so it is graded as a share of that year's revenue — the same base both day counts already annualise against.",
+          "explanation": "The net trade float is RON -2,633,068.76: RON 27,193.95 owed by customers against RON 2,660,262.71 owed to suppliers — 61.1 days of sales outstanding against 33.2 days of payables (RON 2,660,262.76 of balance-sheet payables over RON 29,280,043.30 of total operating expense, on 365 days), a gap of 28.0 days. Graded critical: the amount at stake is 1,621.7% of revenue, against the ladder printed beside this finding. Trade float is a claim on a year of trading, so it is graded as a share of that year's revenue — the same base both day counts already annualise against.",
           "reason": "the advisory lane was not invoked for this build",
           "so_what": "Compare the collection gap with the credit terms actually granted. Where suppliers fund the cycle, that funding is a payables line that can be withdrawn, not a permanent source.",
           "source": "deterministic"
@@ -4322,8 +4361,8 @@
             "role": "trade_payable"
           }
         ],
-        "claim": "The net trade float is RON -6,212,428.22: RON 254,961.33 owed by customers against RON 6,467,389.55 owed to suppliers — 1.2 days of sales outstanding against 37.2 days of payables, a gap of -36.1 days.",
-        "claim_template": "The net trade float is {money:float}: {money:trade_receivables} owed by customers against {money:trade_payables} owed to suppliers — {measure:dso} of sales outstanding against {measure:dpo} of payables, a gap of {measure:float_days}.",
+        "claim": "The net trade float is RON -6,212,428.22: RON 254,961.33 owed by customers against RON 6,467,389.55 owed to suppliers — 1.2 days of sales outstanding against 29.8 days of payables (RON 6,455,119.80 of balance-sheet payables over RON 78,958,595.58 of total operating expense, on 365 days), a gap of -28.7 days.",
+        "claim_template": "The net trade float is {money:float}: {money:trade_receivables} owed by customers against {money:trade_payables} owed to suppliers — {measure:dso} of sales outstanding against {measure:dpo} of payables ({money:dpo_payables} of balance-sheet payables over {money:total_operating_expense} of total operating expense, on {measure:period_days}), a gap of {measure:float_days}.",
         "facts": [
           {
             "label": "Trade receivables net of provisions",
@@ -4344,13 +4383,13 @@
             "value": 79018306.77
           },
           {
-            "label": "Cost of goods sold",
-            "name": "assembled_pl.cogs",
+            "label": "Total operating expense",
+            "name": "assembled_pl.total_operating_expense",
             "unit": "money",
-            "value": 63376621.45
+            "value": 78958595.58
           }
         ],
-        "formula": "DSO = trade receivables net ÷ revenue × 365; DPO = trade payables ÷ cost of goods sold × 365; float = trade receivables net − trade payables",
+        "formula": "DSO = trade receivables net ÷ revenue × the period's days; DPO = balance-sheet payables ÷ total operating expense × the period's days (the ratio table's one DPO, engine.ratios.table.dpo_days); float = trade receivables net − trade payables",
         "id": "trade_float",
         "in_summary": true,
         "measures": [
@@ -4362,15 +4401,15 @@
           },
           {
             "key": "dpo",
-            "label": "Days payables outstanding",
+            "label": "Days payables outstanding (on total operating cost)",
             "unit": "days",
-            "value": 37.247128858271
+            "value": 29.839926985692
           },
           {
             "key": "float_days",
             "label": "Collection gap (DSO − DPO)",
             "unit": "days",
-            "value": -36.069415879418
+            "value": -28.662214006839
           },
           {
             "key": "float",
@@ -4391,14 +4430,27 @@
             "value": 6467389.55
           },
           {
-            "key": "cogs",
-            "label": "Cost of goods sold",
+            "key": "dpo_payables",
+            "label": "Balance-sheet payables (the DPO's numerator)",
             "unit": "money",
-            "value": 63376621.45
+            "value": 6455119.8
+          },
+          {
+            "key": "total_operating_expense",
+            "label": "Total operating expense",
+            "unit": "money",
+            "value": 78958595.58
+          },
+          {
+            "key": "period_days",
+            "label": "The period's day count",
+            "noun": "day",
+            "unit": "count",
+            "value": 365.0
           }
         ],
         "narrative": {
-          "explanation": "The net trade float is RON -6,212,428.22: RON 254,961.33 owed by customers against RON 6,467,389.55 owed to suppliers — 1.2 days of sales outstanding against 37.2 days of payables, a gap of -36.1 days. Graded medium: the amount at stake is 7.9% of revenue, against the ladder printed beside this finding. Trade float is a claim on a year of trading, so it is graded as a share of that year's revenue — the same base both day counts already annualise against.",
+          "explanation": "The net trade float is RON -6,212,428.22: RON 254,961.33 owed by customers against RON 6,467,389.55 owed to suppliers — 1.2 days of sales outstanding against 29.8 days of payables (RON 6,455,119.80 of balance-sheet payables over RON 78,958,595.58 of total operating expense, on 365 days), a gap of -28.7 days. Graded medium: the amount at stake is 7.9% of revenue, against the ladder printed beside this finding. Trade float is a claim on a year of trading, so it is graded as a share of that year's revenue — the same base both day counts already annualise against.",
           "reason": "the advisory lane was not invoked for this build",
           "so_what": "Compare the collection gap with the credit terms actually granted. Where suppliers fund the cycle, that funding is a payables line that can be withdrawn, not a permanent source.",
           "source": "deterministic"

@@ -300,7 +300,15 @@ describe("G-C1b — the arithmetic each chart draws", () => {
     const blk = byId(blocks(exportDoc(b)), "chart-wc-cycle");
     if (blk.status !== "drawn") return;
     const [dso, dio, dpo, ccc] = blk.tableRows.map((r) => parseDays(r.printed));
-    expect(Math.abs(dso + dio + dpo - ccc)).toBeLessThanOrEqual(0.2);
+    // Half a display step per printed row, as the cash walk: every term now
+    // prints the string its card prints (the ratio table's days rule, whole
+    // days — agras printed a CCC bar of 33.2 under a card of 33), so four
+    // whole-day roundings can differ from the printed cycle by up to 2.
+    expect(Math.abs(dso + dio + dpo - ccc)).toBeLessThanOrEqual(blk.tableRows.length * 0.5);
+    // …and UNROUNDED the terms foot to the served cycle: the chart states a
+    // drift in its caption when they do not (terms on two day counts).
+    expect(blk.caption, `${b}: ${blk.caption}`).toMatch(/sum to the served cycle of/);
+    expect(blk.caption).not.toMatch(/not all computed off the same day count/);
   });
 
   // The chart decomposes a number the document also prints as a headline.

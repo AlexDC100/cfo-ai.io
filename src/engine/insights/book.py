@@ -145,6 +145,12 @@ class Book(object):
         """One assembled-P&L figure, or None when the payload omits it."""
         return _num(self._pl.get(key))
 
+    def statements(self) -> Dict[str, Any]:
+        """The served statements block, for a detector that reads a figure
+        through its ONE engine authority (e.g. ``engine.ratios.table.
+        dpo_days``) rather than re-deriving it."""
+        return self._statements
+
     def pl_block(self, key: str) -> Optional[Dict[str, Any]]:
         """One structured assembled-P&L block (e.g. ``inventory_variation``:
         value | refusal, provenance, labels), or None when absent."""

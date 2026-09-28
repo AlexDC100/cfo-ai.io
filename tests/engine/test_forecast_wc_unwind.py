@@ -62,6 +62,17 @@ def _trailing(seen, window):
     return mul_div(weighted, 1, window)
 
 
+def _flow_of(projection, pl, flow):
+    """The flow a balance's target is priced on. Inventory's is the
+    inventory-days block's flow (cost of production sold + 607,
+    engine.ratios.inventory_days) moved with the period's cost of sales:
+    the book's flow x cost of sales / the book's."""
+    if flow != "inventory_flow":
+        return abs(pl[flow])
+    h = projection.history
+    return mul_div(abs(pl["cost_of_sales"]), h.inventory_flow, h.cogs)
+
+
 def test_agras_receivables_follow_the_unwind_formula_every_month():
     """Receivables, as 6.2 names them, and inventory and payables by the same
     formula. On agras the receivable days (28.05, printed) are shorter than
@@ -85,8 +96,8 @@ def test_agras_receivables_follow_the_unwind_formula_every_month():
             if item.period.granularity != "monthly":
                 continue
             span = item.period.days * MICRO_DAY
-            target = mul_div(abs(item.pl[flow]), days, span)
-            base_target = mul_div(abs(base.pl[flow]), days, span)
+            target = mul_div(_flow_of(plan.projection, item.pl, flow), days, span)
+            base_target = mul_div(_flow_of(plan.base, base.pl, flow), days, span)
             seen.append((item.period.days, target - base_target))
             expected = base_target + _trailing(seen, days)
             assert item.bs[balance] == expected, (

@@ -321,39 +321,26 @@ ratios:
     direction: higher_is_better
     note: "Rough DSCR; LT debt amortized over 8y assumption. Refine via per-period schedule when available."
 
-  # ── Efficiency (7) ──
+  # ── Efficiency (3) ──
   asset_turnover:
     formula: totals.revenue_net / totals.total_assets
     unit: ratio
     direction: higher_is_better
 
-  inventory_turnover:
-    formula: cogs.net / inventory_net.net
-    unit: ratio
-    direction: higher_is_better
-
-  days_inventory_outstanding:
-    formula: (inventory_net.net / cogs.net) * 365
-    unit: days
-    direction: lower_is_better
-    band_default: [30, 70]
+  # inventory_turnover, days_inventory_outstanding, days_payable_outstanding
+  # and cash_conversion_cycle are NOT views of this file (owner spec
+  # 2026-09-26, P1: one metric name, one formula). Inventory days are served
+  # ONCE, split by stock type on the average balance, by
+  # engine.ratios.inventory_days (assembled_metrics.inventory_days); DPO and
+  # the cycle are the ratio table's (engine.ratios.table). The views that
+  # lived here divided by cogs.net (601 + 602 + 607) — a third inventory-days
+  # formula (Scandia FY2025: 95.28 beside 52.5 and 48.8) and a second DPO.
 
   days_sales_outstanding:
     formula: (trade_receivables_net.net / totals.revenue_net) * 365
     unit: days
     direction: lower_is_better
     band_default: [30, 60]
-
-  days_payable_outstanding:
-    formula: (trade_payables.net / cogs.net) * 365
-    unit: days
-    direction: higher_is_better
-    band_default: [30, 60]
-
-  cash_conversion_cycle:
-    formula: ratios.days_inventory_outstanding + ratios.days_sales_outstanding - ratios.days_payable_outstanding
-    unit: days
-    direction: lower_is_better
 
   capex_intensity:
     formula: dap.net / totals.revenue_net

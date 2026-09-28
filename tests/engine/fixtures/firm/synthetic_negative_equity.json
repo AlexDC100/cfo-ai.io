@@ -231,6 +231,287 @@
    },
    "unmapped": []
   },
+  "inventory_days": {
+   "basis": "year_end_snapshot",
+   "basis_label": {
+    "en": "stock at 31 December — a single day",
+    "ro": "stoc la 31 decembrie — o singură zi"
+   },
+   "ccc_dio_term": {
+    "basis": "year_end_snapshot",
+    "basis_label": {
+     "en": "stock at 31 December — a single day",
+     "ro": "stoc la 31 decembrie — o singură zi"
+    },
+    "reason": {
+     "code": "no_stock_lines",
+     "inputs": [
+      "statement_line_items.class_3"
+     ],
+     "text_en": "the trial balance carries no stock accounts (class 3) that were read",
+     "text_ro": "balanța nu are conturi de stocuri (clasa 3) citite"
+    },
+    "value": null
+   },
+   "claim_policy": {
+    "may_call_slow": false,
+    "reason": "split_refused",
+    "reason_text": {
+     "en": "the split by stock type is not available; stock cannot be called slow",
+     "ro": "împărțirea pe tipuri de stoc nu este disponibilă; nu se poate spune că stocul este lent"
+    },
+    "requires": [
+     "split_by_stock_type",
+     "average_balance"
+    ]
+   },
+   "cost_of_production_sold": {
+    "basis": "no_own_production",
+    "formula": "total_operating_expense - 607 - net_711",
+    "label_en": "total operating cost excluding merchandise, adjusted for the change in inventories (no class-9 management accounts)",
+    "label_ro": "cost total de exploatare fără mărfuri, ajustat cu variația stocurilor (fără contabilitate de gestiune clasa 9)",
+    "operands": {
+     "cost_of_goods_resold_607": 120000.0,
+     "net_711": 0.0,
+     "net_711_provenance": "no_711_activity",
+     "total_operating_expense": 120000.0
+    },
+    "refusal": null,
+    "value": 0.0
+   },
+   "filed_basis_pointer": {
+    "label_en": "filed basis (stock ÷ net turnover) — not the same as the inventory days of this analysis",
+    "label_ro": "bază depusă (stoc ÷ cifra de afaceri) — nu aceeași cu zilele de stoc din analiză",
+    "never_compare": true,
+    "sector_row_key": "inventory_days_on_turnover"
+   },
+   "groups": [
+    {
+     "accounts": [],
+     "closing_value": null,
+     "closing_value_q": null,
+     "flow": {
+      "accounts": [
+       "601",
+       "602",
+       "603"
+      ],
+      "key": "materials_consumed",
+      "label_en": "Materials consumed (601 + 602 + 603)",
+      "label_ro": "Consum de materii prime și materiale (601 + 602 + 603)",
+      "value": 0.0
+     },
+     "key": "materials",
+     "label_en": "Raw materials and consumables",
+     "label_ro": "Materii prime și materiale",
+     "provision_accounts": [
+      "391",
+      "392"
+     ],
+     "provision_accounts_present": [],
+     "reason": {
+      "code": "no_stock_lines",
+      "inputs": [
+       "statement_line_items.class_3"
+      ],
+      "text_en": "the trial balance carries no stock accounts (class 3) that were read",
+      "text_ro": "balanța nu are conturi de stocuri (clasa 3) citite"
+     },
+     "stock": {
+      "average": 0.0,
+      "closing": 0.0,
+      "opening": null
+     },
+     "stock_accounts": [
+      "301",
+      "302",
+      "303",
+      "308"
+     ],
+     "value": null,
+     "value_q": null
+    },
+    {
+     "accounts": [],
+     "closing_value": null,
+     "closing_value_q": null,
+     "flow": {
+      "accounts": [],
+      "key": "cost_of_production_sold",
+      "label_en": "Cost of production sold",
+      "label_ro": "Costul producției vândute",
+      "value": 0.0
+     },
+     "key": "finished_goods_wip",
+     "label_en": "Finished goods and work in progress",
+     "label_ro": "Produse finite și producție în curs",
+     "provision_accounts": [
+      "393",
+      "394"
+     ],
+     "provision_accounts_present": [],
+     "reason": {
+      "code": "no_stock_lines",
+      "inputs": [
+       "statement_line_items.class_3"
+      ],
+      "text_en": "the trial balance carries no stock accounts (class 3) that were read",
+      "text_ro": "balanța nu are conturi de stocuri (clasa 3) citite"
+     },
+     "stock": {
+      "average": 0.0,
+      "closing": 0.0,
+      "opening": null
+     },
+     "stock_accounts": [
+      "331",
+      "341",
+      "345",
+      "348"
+     ],
+     "value": null,
+     "value_q": null
+    },
+    {
+     "accounts": [],
+     "closing_value": null,
+     "closing_value_q": null,
+     "flow": {
+      "accounts": [
+       "607"
+      ],
+      "key": "cost_of_goods_resold",
+      "label_en": "Cost of goods resold (607)",
+      "label_ro": "Costul mărfurilor vândute (607)",
+      "value": 120000.0
+     },
+     "key": "merchandise",
+     "label_en": "Merchandise",
+     "label_ro": "Mărfuri",
+     "provision_accounts": [
+      "397"
+     ],
+     "provision_accounts_present": [],
+     "reason": {
+      "code": "no_stock_lines",
+      "inputs": [
+       "statement_line_items.class_3"
+      ],
+      "text_en": "the trial balance carries no stock accounts (class 3) that were read",
+      "text_ro": "balanța nu are conturi de stocuri (clasa 3) citite"
+     },
+     "stock": {
+      "average": 0.0,
+      "closing": 0.0,
+      "opening": null
+     },
+     "stock_accounts": [
+      "371",
+      "378"
+     ],
+     "value": null,
+     "value_q": null
+    }
+   ],
+   "inventory_turnover": {
+    "formula": "period_days / total.value",
+    "reason": {
+     "code": "no_stock_lines",
+     "inputs": [
+      "statement_line_items.class_3"
+     ],
+     "text_en": "the trial balance carries no stock accounts (class 3) that were read",
+     "text_ro": "balanța nu are conturi de stocuri (clasa 3) citite"
+    },
+    "value": null,
+    "value_q": null
+   },
+   "opening": {
+    "convention": "mixed",
+    "reason": {
+     "code": "si_convention_undecided",
+     "text_en": "the movement columns do not show which date the opening balance is at, so only the period-end stock is used",
+     "text_ro": "structura rulajelor nu arată de la ce dată este soldul inițial, deci se folosește doar stocul de la sfârșitul perioadei"
+    },
+    "source": "tb_si_column",
+    "status": "absent"
+   },
+   "other": {
+    "accounts": [],
+    "key": "other_stock",
+    "label_en": "Other stock",
+    "label_ro": "Alte stocuri",
+    "provision_accounts_present": [],
+    "stock": {
+     "average": 0.0,
+     "closing": 0.0,
+     "opening": null
+    }
+   },
+   "period_days": 365.0,
+   "provenance": {
+    "flows": "statement_line_items (601, 602, 603, 607, 701-703)",
+    "net_711": "assembled_pl.inventory_variation",
+    "pack": "packs/ratios/inventory_days.yaml",
+    "period_days": "supplementary.periodDays",
+    "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
+    "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+   },
+   "reconciliation": {
+    "difference": 0.0,
+    "served_inventory_net": 0.0,
+    "status": "reconciled",
+    "sum_of_groups_closing": 0.0
+   },
+   "schema": "inventory_days/1",
+   "seasonality": {
+    "flagged": false,
+    "note_en": null,
+    "note_ro": null
+   },
+   "status": "refused",
+   "total": {
+    "closing_value": null,
+    "closing_value_q": null,
+    "flow": {
+     "components": {
+      "cost_of_goods_resold_607": 120000.0,
+      "cost_of_production_sold": 0.0
+     },
+     "label_en": "cost of production sold + cost of goods resold (607)",
+     "label_ro": "costul producției vândute + costul mărfurilor vândute (607)",
+     "value": 120000.0
+    },
+    "label_en": "Inventory days (total, flow-weighted)",
+    "label_ro": "Zile de stoc (total, ponderat cu fluxurile)",
+    "reason": {
+     "code": "no_stock_lines",
+     "inputs": [
+      "statement_line_items.class_3"
+     ],
+     "text_en": "the trial balance carries no stock accounts (class 3) that were read",
+     "text_ro": "balanța nu are conturi de stocuri (clasa 3) citite"
+    },
+    "stock": {
+     "average": 0.0,
+     "closing": 0.0,
+     "opening": null
+    },
+    "value": null,
+    "value_q": null,
+    "weighting": "flow"
+   }
+  },
+  "inventory_stock": {
+   "accounts": [],
+   "measured": true,
+   "opening": {
+    "convention": "mixed",
+    "reason": "si_convention_undecided",
+    "status": "absent"
+   },
+   "schema": "inventory_stock/1"
+  },
   "leaves": {
    "ap_trade": {
     "magnitude": 28000.0,
@@ -299,10 +580,6 @@
     {
      "error": "ZeroDivisionError: division by zero",
      "scope": "ratios.dscr_approx"
-    },
-    {
-     "error": "ZeroDivisionError: division by zero",
-     "scope": "ratios.inventory_turnover"
     },
     {
      "error": "ZeroDivisionError: division by zero",
@@ -378,13 +655,6 @@
      "unit": "ratio",
      "value": null
     },
-    "cash_conversion_cycle": {
-     "band": null,
-     "direction": "lower_is_better",
-     "note": "",
-     "unit": "days",
-     "value": -85.166667
-    },
     "cash_ratio": {
      "band": [
       0.1,
@@ -404,26 +674,6 @@
      "note": "",
      "unit": "ratio",
      "value": 0.285714
-    },
-    "days_inventory_outstanding": {
-     "band": [
-      30,
-      70
-     ],
-     "direction": "lower_is_better",
-     "note": "",
-     "unit": "days",
-     "value": 0.0
-    },
-    "days_payable_outstanding": {
-     "band": [
-      30,
-      60
-     ],
-     "direction": "higher_is_better",
-     "note": "",
-     "unit": "days",
-     "value": 85.166667
     },
     "days_sales_outstanding": {
      "band": [
@@ -514,14 +764,6 @@
       3.0,
       8.0
      ],
-     "direction": "higher_is_better",
-     "note": "",
-     "reason": "formula_error",
-     "unit": "ratio",
-     "value": null
-    },
-    "inventory_turnover": {
-     "band": null,
      "direction": "higher_is_better",
      "note": "",
      "reason": "formula_error",
@@ -1337,6 +1579,277 @@
    "taxExpense": 0.0
   },
   "industry": null,
+  "inventory_days": {
+   "basis": "year_end_snapshot",
+   "basis_label": {
+    "en": "stock at 31 December — a single day",
+    "ro": "stoc la 31 decembrie — o singură zi"
+   },
+   "ccc_dio_term": {
+    "basis": "year_end_snapshot",
+    "basis_label": {
+     "en": "stock at 31 December — a single day",
+     "ro": "stoc la 31 decembrie — o singură zi"
+    },
+    "reason": {
+     "code": "no_stock_lines",
+     "inputs": [
+      "statement_line_items.class_3"
+     ],
+     "text_en": "the trial balance carries no stock accounts (class 3) that were read",
+     "text_ro": "balanța nu are conturi de stocuri (clasa 3) citite"
+    },
+    "value": null
+   },
+   "claim_policy": {
+    "may_call_slow": false,
+    "reason": "split_refused",
+    "reason_text": {
+     "en": "the split by stock type is not available; stock cannot be called slow",
+     "ro": "împărțirea pe tipuri de stoc nu este disponibilă; nu se poate spune că stocul este lent"
+    },
+    "requires": [
+     "split_by_stock_type",
+     "average_balance"
+    ]
+   },
+   "cost_of_production_sold": {
+    "basis": "no_own_production",
+    "formula": "total_operating_expense - 607 - net_711",
+    "label_en": "total operating cost excluding merchandise, adjusted for the change in inventories (no class-9 management accounts)",
+    "label_ro": "cost total de exploatare fără mărfuri, ajustat cu variația stocurilor (fără contabilitate de gestiune clasa 9)",
+    "operands": {
+     "cost_of_goods_resold_607": 120000.0,
+     "net_711": 0.0,
+     "net_711_provenance": "no_711_activity",
+     "total_operating_expense": 120000.0
+    },
+    "refusal": null,
+    "value": 0.0
+   },
+   "filed_basis_pointer": {
+    "label_en": "filed basis (stock ÷ net turnover) — not the same as the inventory days of this analysis",
+    "label_ro": "bază depusă (stoc ÷ cifra de afaceri) — nu aceeași cu zilele de stoc din analiză",
+    "never_compare": true,
+    "sector_row_key": "inventory_days_on_turnover"
+   },
+   "groups": [
+    {
+     "accounts": [],
+     "closing_value": null,
+     "closing_value_q": null,
+     "flow": {
+      "accounts": [
+       "601",
+       "602",
+       "603"
+      ],
+      "key": "materials_consumed",
+      "label_en": "Materials consumed (601 + 602 + 603)",
+      "label_ro": "Consum de materii prime și materiale (601 + 602 + 603)",
+      "value": 0.0
+     },
+     "key": "materials",
+     "label_en": "Raw materials and consumables",
+     "label_ro": "Materii prime și materiale",
+     "provision_accounts": [
+      "391",
+      "392"
+     ],
+     "provision_accounts_present": [],
+     "reason": {
+      "code": "no_stock_lines",
+      "inputs": [
+       "statement_line_items.class_3"
+      ],
+      "text_en": "the trial balance carries no stock accounts (class 3) that were read",
+      "text_ro": "balanța nu are conturi de stocuri (clasa 3) citite"
+     },
+     "stock": {
+      "average": 0.0,
+      "closing": 0.0,
+      "opening": null
+     },
+     "stock_accounts": [
+      "301",
+      "302",
+      "303",
+      "308"
+     ],
+     "value": null,
+     "value_q": null
+    },
+    {
+     "accounts": [],
+     "closing_value": null,
+     "closing_value_q": null,
+     "flow": {
+      "accounts": [],
+      "key": "cost_of_production_sold",
+      "label_en": "Cost of production sold",
+      "label_ro": "Costul producției vândute",
+      "value": 0.0
+     },
+     "key": "finished_goods_wip",
+     "label_en": "Finished goods and work in progress",
+     "label_ro": "Produse finite și producție în curs",
+     "provision_accounts": [
+      "393",
+      "394"
+     ],
+     "provision_accounts_present": [],
+     "reason": {
+      "code": "no_stock_lines",
+      "inputs": [
+       "statement_line_items.class_3"
+      ],
+      "text_en": "the trial balance carries no stock accounts (class 3) that were read",
+      "text_ro": "balanța nu are conturi de stocuri (clasa 3) citite"
+     },
+     "stock": {
+      "average": 0.0,
+      "closing": 0.0,
+      "opening": null
+     },
+     "stock_accounts": [
+      "331",
+      "341",
+      "345",
+      "348"
+     ],
+     "value": null,
+     "value_q": null
+    },
+    {
+     "accounts": [],
+     "closing_value": null,
+     "closing_value_q": null,
+     "flow": {
+      "accounts": [
+       "607"
+      ],
+      "key": "cost_of_goods_resold",
+      "label_en": "Cost of goods resold (607)",
+      "label_ro": "Costul mărfurilor vândute (607)",
+      "value": 120000.0
+     },
+     "key": "merchandise",
+     "label_en": "Merchandise",
+     "label_ro": "Mărfuri",
+     "provision_accounts": [
+      "397"
+     ],
+     "provision_accounts_present": [],
+     "reason": {
+      "code": "no_stock_lines",
+      "inputs": [
+       "statement_line_items.class_3"
+      ],
+      "text_en": "the trial balance carries no stock accounts (class 3) that were read",
+      "text_ro": "balanța nu are conturi de stocuri (clasa 3) citite"
+     },
+     "stock": {
+      "average": 0.0,
+      "closing": 0.0,
+      "opening": null
+     },
+     "stock_accounts": [
+      "371",
+      "378"
+     ],
+     "value": null,
+     "value_q": null
+    }
+   ],
+   "inventory_turnover": {
+    "formula": "period_days / total.value",
+    "reason": {
+     "code": "no_stock_lines",
+     "inputs": [
+      "statement_line_items.class_3"
+     ],
+     "text_en": "the trial balance carries no stock accounts (class 3) that were read",
+     "text_ro": "balanța nu are conturi de stocuri (clasa 3) citite"
+    },
+    "value": null,
+    "value_q": null
+   },
+   "opening": {
+    "convention": "mixed",
+    "reason": {
+     "code": "si_convention_undecided",
+     "text_en": "the movement columns do not show which date the opening balance is at, so only the period-end stock is used",
+     "text_ro": "structura rulajelor nu arată de la ce dată este soldul inițial, deci se folosește doar stocul de la sfârșitul perioadei"
+    },
+    "source": "tb_si_column",
+    "status": "absent"
+   },
+   "other": {
+    "accounts": [],
+    "key": "other_stock",
+    "label_en": "Other stock",
+    "label_ro": "Alte stocuri",
+    "provision_accounts_present": [],
+    "stock": {
+     "average": 0.0,
+     "closing": 0.0,
+     "opening": null
+    }
+   },
+   "period_days": 365.0,
+   "provenance": {
+    "flows": "statement_line_items (601, 602, 603, 607, 701-703)",
+    "net_711": "assembled_pl.inventory_variation",
+    "pack": "packs/ratios/inventory_days.yaml",
+    "period_days": "supplementary.periodDays",
+    "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
+    "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+   },
+   "reconciliation": {
+    "difference": 0.0,
+    "served_inventory_net": 0.0,
+    "status": "reconciled",
+    "sum_of_groups_closing": 0.0
+   },
+   "schema": "inventory_days/1",
+   "seasonality": {
+    "flagged": false,
+    "note_en": null,
+    "note_ro": null
+   },
+   "status": "refused",
+   "total": {
+    "closing_value": null,
+    "closing_value_q": null,
+    "flow": {
+     "components": {
+      "cost_of_goods_resold_607": 120000.0,
+      "cost_of_production_sold": 0.0
+     },
+     "label_en": "cost of production sold + cost of goods resold (607)",
+     "label_ro": "costul producției vândute + costul mărfurilor vândute (607)",
+     "value": 120000.0
+    },
+    "label_en": "Inventory days (total, flow-weighted)",
+    "label_ro": "Zile de stoc (total, ponderat cu fluxurile)",
+    "reason": {
+     "code": "no_stock_lines",
+     "inputs": [
+      "statement_line_items.class_3"
+     ],
+     "text_en": "the trial balance carries no stock accounts (class 3) that were read",
+     "text_ro": "balanța nu are conturi de stocuri (clasa 3) citite"
+    },
+    "stock": {
+     "average": 0.0,
+     "closing": 0.0,
+     "opening": null
+    },
+    "value": null,
+    "value_q": null,
+    "weighting": "flow"
+   }
+  },
   "periodLabel": "Imported period",
   "subAggregates": {
    "ap_dividends": 0.0,

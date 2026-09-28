@@ -200,11 +200,14 @@ def _drafter_naming_an_absent_fact(_detector_id: str, view: Dict[str, Any]):
 
 
 def test_a_placeholder_naming_an_absent_fact_is_refused_not_rendered_as_zero():
-    """ABSENT != ZERO, at the narrative boundary. On the realestate book
-    `trade_float` cannot compute DPO — cost of goods sold is nil — and a
-    model naming that measure must be refused, never handed a 0."""
-    block = build_insights(_book("realestate"),
-                           drafter=_drafter_naming_an_absent_fact)
+    """ABSENT != ZERO, at the narrative boundary. On a book that does not
+    carry its trade payables `trade_float` cannot compute DPO, and a model
+    naming that measure must be refused, never handed a 0. CONSTRUCTED
+    witness: the realestate book with `balanceSheet.accountsPayable`
+    removed (the one DPO divides by total operating expense)."""
+    payload = _book("realestate")
+    del payload["statements"]["balanceSheet"]["accountsPayable"]
+    block = build_insights(payload, drafter=_drafter_naming_an_absent_fact)
     insight = _insight(block, "trade_float")
     assert insight["narrative"]["source"] == "deterministic"
     assert "absent_fact" in insight["narrative"]["reason"], (

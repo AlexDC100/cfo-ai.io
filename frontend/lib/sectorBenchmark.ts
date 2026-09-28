@@ -256,7 +256,11 @@ export function printSectorRows(doc: SectorBenchmarkDoc, locale?: string | null)
     const fig = lawfulFigure(row.sector, doc.min_peers);
     const company = row.company.value === null || row.company.value === undefined
       ? "" : sectorValueText(row.company.value, row.unit, loc);
+    // A row whose LABEL already says it is not the analysis's measure (the
+    // owner's filed-basis label for inventory days) carries no second note
+    // saying the same: caveats short and once.
     const note = row.definition.differs_from_card && row.definition.card_key
+      && !NEVER_COMPARED_CARDS.has(row.definition.card_key)
       ? t("benchmarkPage.sector.noteDiffers", { card: t(`benchmarkPage.sector.card.${row.definition.card_key}`) })
       : "";
     const base = { key: row.key, label, company, note, vsSector: null as VsSector, bar: null,
@@ -342,20 +346,38 @@ export function printSectorMovements(doc: SectorBenchmarkDoc, locale?: string | 
   };
 }
 
+/** Census keys whose figure is BUILT ON the split by stock type (the
+ *  analysis's inventory days, its inverse, and the cycle it sits in). The
+ *  filings are abridged: no sector is ever measured on the split, so no
+ *  sector band may sit beside these cards — not even one a document serves
+ *  (owner spec 2026-09-26 P1.3: "Never compare the split measure to the
+ *  filed one"). The engine serves them `general`; this is the browser's own
+ *  refusal, so an engine regression cannot put filed-basis quartiles beside
+ *  the split. */
+export const SPLIT_BASIS_CARDS: ReadonlySet<string> = new Set(["dio", "inventory_turnover", "ccc"]);
+
 /** The ratio card's band-source line: the sector band beside the general
  *  ladder, or the sentence saying the ladder is the general fallback and
  *  why. `null` doc (no served document) prints the general sentence. */
 export function bandSourceOf(doc: SectorBenchmarkDoc | null, censusKey: string): "sector" | "general" {
   const card = doc?.ratio_cards?.[censusKey];
-  if (!doc || !card || card.band_source !== "sector") return "general";
+  if (!doc || !card || card.band_source !== "sector" || SPLIT_BASIS_CARDS.has(censusKey)) return "general";
   return lawfulFigure(card, doc.min_peers) ? "sector" : "general";
 }
+
+/** Census keys whose filed-basis sector row is a DIFFERENT measure, never
+ *  compared (owner spec 2026-09-26 P1.3): the analysis's inventory days are
+ *  split by stock type; the filing supports only stock ÷ net turnover. The
+ *  card beside the split says there is no sector figure on its basis — it
+ *  does not send the reader to the filed row as if the two were one. */
+const NEVER_COMPARED_CARDS: ReadonlySet<string> = new Set(["dio"]);
 
 export function bandSourceText(doc: SectorBenchmarkDoc | null, censusKey: string, locale?: string | null): string {
   const loc = localeOf(locale);
   const t = tFor(loc);
   const card = doc?.ratio_cards?.[censusKey];
   if (!doc || !card) return t("benchmarkPage.sector.bandGeneral");
+  if (NEVER_COMPARED_CARDS.has(censusKey)) return t("benchmarkPage.sector.bandNeverCompared");
   if (bandSourceOf(doc, censusKey) === "sector" && card.band_source === "sector") {
     const fig = lawfulFigure(card, doc.min_peers)!;
     return t("benchmarkPage.sector.bandSector", {

@@ -1160,14 +1160,14 @@
   },
   {
    "basis": {
-    "en": "61.1 days = trade receivables RON 27.2k / revenue RON 162.4k × 365 (2025)",
-    "ro": "61,1 zile = creanțe comerciale 27,2 mii lei / venituri 162,4 mii lei × 365 (2025)"
+    "en": "61 days = trade receivables RON 27.2k / revenue RON 162.4k × 365 (2025)",
+    "ro": "61 zile = creanțe comerciale 27,2 mii lei / venituri 162,4 mii lei × 365 (2025)"
    },
    "decimals": 0,
    "default": "61.132409",
    "display": {
-    "en": "61.1",
-    "ro": "61,1"
+    "en": "61",
+    "ro": "61"
    },
    "engine_drivers": [
     "dso_days"
@@ -1215,8 +1215,8 @@
    "inert": null,
    "is_default": true,
    "label": {
-    "en": "Days inventory (DIO)",
-    "ro": "Zile stoc (DIO)"
+    "en": "Inventory days (DIO) — period-end balance, plan year",
+    "ro": "Zile de stoc (DIO) — sold la sfârșitul perioadei, anul planului"
    },
    "locked": null,
    "measured": false,
@@ -1228,8 +1228,8 @@
    },
    "shape": "per_year",
    "source": {
-    "engine_basis": "this book reports no cost of sales, so days inventory outstanding, in days of cost of sales cannot be measured; inventory is HELD at its closing balance of 67,821,213.71",
-    "rule_id": "forecast.dio_cogs",
+    "engine_basis": "inventory days are refused for this book: a component that holds stock is refused, so the total cannot be computed (reason code a_leg_refused); no driver is measured, so inventory is HELD at its closing balance of 67,821,213.71",
+    "rule_id": "forecast.dio_split",
     "tier": "absent"
    },
    "unit": "days",
@@ -1252,8 +1252,8 @@
    "inert": null,
    "is_default": true,
    "label": {
-    "en": "Days payables outstanding (DPO)",
-    "ro": "Zile plată furnizori (DPO)"
+    "en": "Trade payables in days of cost of sales",
+    "ro": "Datorii comerciale în zile de cost al vânzărilor"
    },
    "locked": null,
    "measured": false,
@@ -1265,7 +1265,7 @@
    },
    "shape": "per_year",
    "source": {
-    "engine_basis": "this book reports no cost of sales, so days payables outstanding, in days of cost of sales cannot be measured; trade payables are HELD at their closing balance of 16,192,883.08",
+    "engine_basis": "this book reports no cost of sales, so trade payables in days of cost of sales cannot be measured; trade payables are HELD at their closing balance of 16,192,883.08",
     "rule_id": "forecast.dpo_cogs",
     "tier": "absent"
    },
@@ -1502,7 +1502,7 @@
      "margin_refused": "margin not meaningful: turnover is 0.6% of activity",
      "margin_year0": null,
      "margin_year0_refused": "margin not meaningful: turnover is 0.6% of activity",
-     "note": "For a property developer, construction costs capitalised into inventory run through account 711 (Variația stocurilor de produse): the 2025 EBITDA included them — RON 29.6M; the plan years project the stock variation at 0, so the EBITDA above does not include them."
+     "note": "For a property developer, construction costs capitalised into inventory run through account 711 (Variația stocurilor de produse): the EBITDA above includes them — RON 29.6M in 2025."
     },
     "ro": {
      "amount": "−32,9 mil. lei",
@@ -1510,7 +1510,7 @@
      "margin_refused": "marjă nesemnificativă: cifra de afaceri este 0,6% din activitate",
      "margin_year0": null,
      "margin_year0_refused": "marjă nesemnificativă: cifra de afaceri este 0,6% din activitate",
-     "note": "Pentru un dezvoltator imobiliar, costurile de construcție capitalizate în stocuri trec prin contul 711 (Variația stocurilor de produse): EBITDA din 2025 le-a inclus — 29,6 mil. lei; anii de plan proiectează variația stocurilor la 0, deci EBITDA de mai sus nu le include."
+     "note": "Pentru un dezvoltator imobiliar, costurile de construcție capitalizate în stocuri trec prin contul 711 (Variația stocurilor de produse): EBITDA de mai sus le include — 29,6 mil. lei în 2025."
     }
    },
    "figure": {
@@ -1586,8 +1586,8 @@
    "margin_year0_ppm": null,
    "note": {
     "display": {
-     "en": "For a property developer, construction costs capitalised into inventory run through account 711 (Variația stocurilor de produse): the 2025 EBITDA included them — RON 29.6M; the plan years project the stock variation at 0, so the EBITDA above does not include them.",
-     "ro": "Pentru un dezvoltator imobiliar, costurile de construcție capitalizate în stocuri trec prin contul 711 (Variația stocurilor de produse): EBITDA din 2025 le-a inclus — 29,6 mil. lei; anii de plan proiectează variația stocurilor la 0, deci EBITDA de mai sus nu le include."
+     "en": "For a property developer, construction costs capitalised into inventory run through account 711 (Variația stocurilor de produse): the EBITDA above includes them — RON 29.6M in 2025.",
+     "ro": "Pentru un dezvoltator imobiliar, costurile de construcție capitalizate în stocuri trec prin contul 711 (Variația stocurilor de produse): EBITDA de mai sus le include — 29,6 mil. lei în 2025."
     },
     "figure": {
      "source": "assembled_pl.inventory_variation.value",
@@ -1641,11 +1641,11 @@
  },
  "period_id": "c-cur",
  "pins": {
-  "body_hash": "sha256:9cc87cc7ede8083033604d3809c28832b8f3907ef881634aec0e70515a28df47",
-  "cockpit_pack": "sha256:cc5ae7474d11755319867b91ab73d7a6cb8f284c0e88ff8da29c6d5f14133870",
+  "body_hash": "sha256:fd67055a05c2ccd4fa08eb590f481d53d568b71bd88ba65a8aef6deb3f65f119",
+  "cockpit_pack": "sha256:1ebafb5936c19893c4ef3768a45fd2829c87c36497ee61d34613b42f3a47348e",
   "engine_version": "0.1.0",
   "macro_pack": "sha256:786eec084a31392dca0f4be9c16faff90fcf6532c94bc8ed5823d5a05ff548b3",
-  "margin_pack": "sha256:bae7e9db9e98f58815b343b4695eb79b8f896679341604ac2abe05b874aa37f6",
+  "margin_pack": "sha256:39f88c776cc74fc155591ec8f59259542461572c0042734dbc840ca066139a3f",
   "pack_id": "forecast-cockpit"
  },
  "sentence": {

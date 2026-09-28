@@ -49,7 +49,8 @@ class PlHistory(object):
                  "capitalized_own_work", "filed_net_income_121",
                  "pretax_before_stock_variation",
                  "ebitda_before_stock_variation", "inventory_variation",
-                 "inventory_variation_provenance", "ebitda_refusal")
+                 "inventory_variation_provenance", "ebitda_refusal",
+                 "inventory_flow", "inventory_days_refusal")
 
     def __init__(self, revenue: Optional[int] = None, cogs: Optional[int] = None,
                  opex: Optional[int] = None, depreciation: Optional[int] = None,
@@ -69,7 +70,9 @@ class PlHistory(object):
                  ebitda_before_stock_variation: Optional[int] = None,
                  inventory_variation: Optional[int] = None,
                  inventory_variation_provenance: Optional[str] = None,
-                 ebitda_refusal: Optional[Dict[str, Any]] = None) -> None:
+                 ebitda_refusal: Optional[Dict[str, Any]] = None,
+                 inventory_flow: Optional[int] = None,
+                 inventory_days_refusal: Optional[Dict[str, Any]] = None) -> None:
         self.revenue = revenue
         self.cogs = cogs
         self.opex = opex
@@ -97,6 +100,12 @@ class PlHistory(object):
         self.inventory_variation = inventory_variation
         self.inventory_variation_provenance = inventory_variation_provenance
         self.ebitda_refusal = ebitda_refusal
+        # INVENTORY DAYS (owner spec 2026-09-26 P1, engine.ratios.
+        # inventory_days): the ONE block's total flow — cost of production
+        # sold + 607 — in cents, the flow the served split total divides;
+        # or the block's refusal. The DIO driver is days of THIS flow.
+        self.inventory_flow = inventory_flow
+        self.inventory_days_refusal = inventory_days_refusal
 
     # ── the two NET figures the model has a line for but the book does
     # not name directly. Both are differences, so both are ABSENT when
@@ -216,7 +225,8 @@ class PlHistory(object):
         out = {}
         for name in self.__slots__:
             value = getattr(self, name)
-            if name in ("inventory_variation_provenance", "ebitda_refusal"):
+            if name in ("inventory_variation_provenance", "ebitda_refusal",
+                        "inventory_days_refusal"):
                 out[name] = value
                 continue
             out[name] = None if value is None else to_float(value)
@@ -285,7 +295,39 @@ def pl_history_from_payload(payload: Dict[str, Any]) -> PlHistory:
             if inventory_variation.get("provenance") else None),
         ebitda_refusal=(dict(pl["ebitda_refusal"])
                         if isinstance(pl.get("ebitda_refusal"), dict) else None),
+        inventory_flow=_inventory_flow(statements),
+        inventory_days_refusal=_inventory_days_refusal(statements),
     )
+
+
+def _inventory_block(statements: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    from engine.ratios.inventory_days import served_block
+
+    return served_block(statements)
+
+
+def _inventory_flow(statements: Dict[str, Any]) -> Optional[int]:
+    """The served inventory-days block's total flow (cost of production sold
+    + 607), in cents — None when the block is absent or refuses its total."""
+    block = _inventory_block(statements)
+    total = (block or {}).get("total") if isinstance(block, dict) else None
+    if not isinstance(total, dict) or total.get("reason") is not None:
+        return None
+    flow = total.get("flow")
+    return _cents_or_none(flow.get("value")) if isinstance(flow, dict) else None
+
+
+def _inventory_days_refusal(statements: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """The block's refusal of its total — or, when no block is served, the
+    absence itself (never a fallback flow)."""
+    block = _inventory_block(statements)
+    if block is None:
+        # Worded by the pack (refusals.inventory_days_absent), never here.
+        from engine.ratios.inventory_days import pack_refusal
+
+        return pack_refusal("inventory_days_absent")
+    reason = (block.get("total") or {}).get("reason")
+    return dict(reason) if isinstance(reason, dict) else None
 
 
 def _p121_cross_check(payload: Dict[str, Any]) -> Any:

@@ -34,10 +34,11 @@ import { LearnableMetricCard } from "@/components/learning/LearnableMetricCard";
 import { PLStatementView } from "@/components/cfo/PLStatementView";
 import { BSStatementView } from "@/components/cfo/BSStatementView";
 import { CashFlowStatementView } from "@/components/cfo/CashFlowStatementView";
-import { computeRatios, verdictLabel, type RatioVerdict } from "@/lib/financialReport";
+import { computeRatios, verdictLabel, type RatioVerdict, type Statements } from "@/lib/financialReport";
 import { type AmountProvenance } from "@/components/instrument/Provenance";
 import { derivedRatioOrigin, marketFieldOrigin } from "./publicCompanyOrigins";
 import { buildPublicStatements } from "@/lib/publicCompanyAdapters";
+import { publicEfficiencyRows } from "@/lib/publicInventoryDays";
 import type { Currency } from "@/lib/rates";
 import {
   getPublicCompany,
@@ -247,7 +248,7 @@ function FullDashboard({
       </TabsContent>
 
       <TabsContent value="ratios" className="pt-5">
-        {ratios ? <RatiosTab ratios={ratios} period={adapted.current} /> : null}
+        {ratios ? <RatiosTab ratios={ratios} period={adapted.current} statements={adapted.statements} /> : null}
       </TabsContent>
 
       <TabsContent value="valuation" className="pt-5">
@@ -325,16 +326,20 @@ function RatioValue({ r, className, provenance = null }: {
 function RatiosTab({
   ratios,
   period,
+  statements,
 }: {
   ratios: ReturnType<typeof computeRatios>;
   period: PublicCompanyPeriod;
+  statements: Statements;
 }) {
   const groups: { label: string; list: typeof ratios.profitability }[] = [
     { label: "Profitability", list: ratios.profitability },
     { label: "Liquidity",     list: ratios.liquidity },
     { label: "Leverage",      list: ratios.leverage },
     { label: "Coverage",      list: ratios.coverage },
-    { label: "Efficiency",    list: ratios.efficiency },
+    // The company `dio` has no served block for a listed company; the
+    // filing's own basis prints under its own key and label instead.
+    { label: "Efficiency",    list: publicEfficiencyRows(ratios.efficiency, statements) },
   ];
   return (
     <div className="space-y-7" data-testid="public-company-ratios">

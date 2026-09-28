@@ -99,12 +99,24 @@ CARD_DEFINITION_DIFFERS: Dict[str, Tuple[str, str]] = {
             "the filing publishes ALL receivables (creante), the card "
             "divides trade receivables"),
     "dio": ("inventory_days_on_turnover",
-            "the filing supports inventory days on net turnover, the card "
-            "divides by operating cost"),
+            "the filing supports only year-end stock on net turnover (the filed "
+            "basis); the analysis splits stock by type over the flow that moves "
+            "each (engine.ratios.inventory_days) — never compared"),
     "debt_to_assets": ("liabilities_to_assets",
                        "the filing publishes TOTAL liabilities (datorii), "
                        "the card divides financial debt"),
 }
+
+#: Company days on NET TURNOVER that refuse where the ONE margin rule
+#: refuses (turnover negligible against the company's operating activity).
+TURNOVER_DAY_KEYS_REFUSED_WITH_MARGINS = ("inventory_days_on_turnover",)
+
+
+def _margins_refused(payload: Mapping[str, Any]) -> bool:
+    statements = payload.get("statements") if isinstance(payload, Mapping) else None
+    verdict = (statements or {}).get("margin_meaning") if isinstance(statements, Mapping) else None
+    return isinstance(verdict, Mapping) and verdict.get("status") == "not_meaningful"
+
 
 _POSITIONS = ("below_p25", "p25_to_median", "median_to_p75", "above_p75")
 _AR_PREFIX = "ar_"
@@ -343,6 +355,15 @@ def company_figures(payload: Mapping[str, Any],
             # Table pct rows are 0-100; the dataset holds fractions.
             put(key, float(row["value"]) / 100.0, None,
                 "ratio_table.%s" % card_key, list(row.get("operands") or []))
+            continue
+        if key in TURNOVER_DAY_KEYS_REFUSED_WITH_MARGINS and _margins_refused(payload):
+            # Days ON TURNOVER on a book whose turnover the ONE margin rule
+            # ruled negligible against its activity (the developer: 152,463
+            # days) describe an incidental line, not the stock: refused with
+            # the same verdict (owner spec 2026-09-26 P1, dio_measure §9).
+            put(key, None, {"code": "company_turnover_negligible",
+                            "inputs": ["statements.margin_meaning"]},
+                "restated_on_filed_basis", [num, den])
             continue
         value, reason = _div(num, den, scale)
         put(key, value, reason, "restated_on_filed_basis", [num, den])

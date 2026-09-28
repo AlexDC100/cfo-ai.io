@@ -126,7 +126,9 @@ SUBJECT_BUCKETS: Dict[str, Tuple[Tuple[str, ...], Tuple[str, ...]]] = {
     "dpo": (("ap",), _OPEX),
     "ccc": (("ar", "inventory"), ("ap",)),
     "asset_turnover": (("revenue",), _TA),
-    "inventory_turnover": (("cogs",), ("inventory",)),
+    # The split's flow (cost of production sold + 607) over its stock
+    # (engine.ratios.inventory_days) — the whole operating cost, as dio's.
+    "inventory_turnover": (_OPEX, ("inventory",)),
     "altman_z": (_CA + ("retainedEarnings",), _CL),
     "letter_grade": (_CA + ("retainedEarnings",), _CL),
 }
@@ -143,7 +145,7 @@ LABELS: Dict[str, str] = {
     "interest_coverage": "interest coverage", "ebitda_to_interest": "EBITDA to interest",
     "dscr": "debt service coverage", "adjusted_dscr": "lease-adjusted debt service coverage",
     "dscr_with_lt_principal": "debt service coverage with long-term principal",
-    "dso": "days sales outstanding", "dio": "days inventory outstanding",
+    "dso": "days sales outstanding", "dio": "inventory days (DIO)",
     "dpo": "days payables outstanding", "ccc": "cash conversion cycle",
     "asset_turnover": "asset turnover", "inventory_turnover": "inventory turnover",
     "altman_z": "Altman Z''", "letter_grade": "credit letter grade",
@@ -494,7 +496,8 @@ def _graded_on(key: str, bands_stamp: Mapping[str, Any]) -> str:
 def _finding(row: Mapping[str, Any], ctx: "_base.Ctx", *, labels: Mapping[str, str],
              ids: Mapping[str, Optional[str]], bands_stamp: Mapping[str, Any],
              line_items: Sequence[Mapping[str, Any]], denominators: Mapping[str, Mapping[str, Any]],
-             period_days: float) -> F.Finding:
+             period_days: float,
+             inventory_claim: Optional[Mapping[str, Any]] = None) -> F.Finding:
     key, mv = row["key"], row["movement"]
     unit = row["display_unit"]
     f_unit = _UNIT_OF[unit]
@@ -530,11 +533,15 @@ def _finding(row: Mapping[str, Any], ctx: "_base.Ctx", *, labels: Mapping[str, s
             comparator=_comparator(row), limit=_figure_value(float(Decimal(rung["value"])), unit),
             observed=current_v, unit=f_unit,
             source=_threshold_source(key, str(rung["name"]), bands_stamp))
+    description = ("the same company's %s (period %s) against %s (period %s), both graded on %s"
+                   % (labels["current"], ids.get("current_period_id"), labels["prior"],
+                      ids.get("prior_period_id"), _graded_on(key, bands_stamp)))
+    if inventory_claim is not None:
+        # The claim cites the split and the average (owner spec 2026-09-26
+        # P1 point 5): which kind of stock holds the days, on which balance.
+        description += "; " + inventory_claim["sentence_en"]
     comparison = F.ComparisonBasis(
-        kind="prior_period",
-        description="the same company's %s (period %s) against %s (period %s), both graded on %s"
-                    % (labels["current"], ids.get("current_period_id"), labels["prior"],
-                       ids.get("prior_period_id"), _graded_on(key, bands_stamp)),
+        kind="prior_period", description=description,
         basis_value=prior_v, basis_unit=f_unit)
     finding = _base.build_finding(
         ctx, rid, _severity(row), accounts, scope=scope, bag=bag, comparison=comparison,
@@ -546,6 +553,60 @@ def _finding(row: Mapping[str, Any], ctx: "_base.Ctx", *, labels: Mapping[str, s
     why = ctx.profile.why_here(rid, scope=embedded_scope)
     why = replace(why, rationale=_sentence_case(why.rationale))
     return replace(finding, evidence=replace(evidence, provenance=provenance), why_here=why)
+
+
+#: The rows whose deterioration calls the stock slow (the cycle adds DSO and
+#: DPO and is not a claim about the stock alone).
+INVENTORY_CLAIM_KEYS = ("dio", "inventory_turnover")
+
+
+def _inventory_claim_allowed(row: Mapping[str, Any], statements: Mapping[str, Any]) -> bool:
+    from engine.ratios.inventory_days import served_block
+
+    if row.get("key") not in INVENTORY_CLAIM_KEYS:
+        return True
+    if (row.get("movement") or {}).get("rungs_crossed", 0) >= 0:
+        return True  # an improvement calls nothing slow
+    policy = (served_block(statements) or {}).get("claim_policy") or {}
+    return policy.get("may_call_slow") is True
+
+
+def inventory_claim_citation(row: Mapping[str, Any], statements: Mapping[str, Any]
+                             ) -> Optional[Dict[str, Any]]:
+    """What a finding that calls the stock slow CITES (owner spec
+    2026-09-26 P1 point 5, design B5): the split by stock type — every leg
+    the block serves, with its days — and the average balance it rests on,
+    read from the ONE served block. None for any other row, an improvement,
+    or a block that does not allow the claim (the finding is then not
+    written at all — `_inventory_claim_allowed`)."""
+    from engine.ratios.inventory_days import served_block
+
+    if row.get("key") not in INVENTORY_CLAIM_KEYS:
+        return None
+    if (row.get("movement") or {}).get("rungs_crossed", 0) >= 0:
+        return None
+    block = served_block(statements) or {}
+    if (block.get("claim_policy") or {}).get("may_call_slow") is not True:
+        return None
+    legs = [{"key": g.get("key"), "label_ro": g.get("label_ro"), "label_en": g.get("label_en"),
+             "days_q": g.get("value_q")}
+            for g in block.get("groups") or [] if g.get("value_q") is not None]
+    total = (block.get("total") or {}).get("value_q")
+    label = block.get("basis_label") or {}
+    return {
+        "source": "engine.ratios.inventory_days",
+        "basis": block.get("basis"),
+        "basis_label": {"ro": label.get("ro"), "en": label.get("en")},
+        "legs": legs,
+        "total_days_q": total,
+        "sentence_en": "inventory days split by stock type (%s; total %s days) on the %s "
+                       "(engine.ratios.inventory_days)"
+                       % ("; ".join("%s %s days" % (str(g["label_en"]).lower(), g["days_q"]) for g in legs),
+                          total, label.get("en")),
+        "sentence_ro": "zile de stoc pe tipuri de stoc (%s; total %s zile), pe %s"
+                       % ("; ".join("%s %s zile" % (str(g["label_ro"]).lower(), g["days_q"]) for g in legs),
+                          total, label.get("ro")),
+    }
 
 
 def band_finding_objects(crossed: Sequence[Mapping[str, Any]], *,
@@ -563,6 +624,13 @@ def band_finding_objects(crossed: Sequence[Mapping[str, Any]], *,
     if not crossed:
         return []
     statements = current_payload.get("statements") if isinstance(current_payload.get("statements"), dict) else {}
+    # CLAIM POLICY (owner spec 2026-09-26 P1 point 5): a band finding that
+    # says inventory days WORSENED calls the stock slow. It is written only
+    # where the served inventory-days block allows it — the split AND an
+    # average balance — never on a single period-end balance.
+    crossed = [row for row in crossed if _inventory_claim_allowed(row, statements)]
+    if not crossed:
+        return []
     line_items = [li for li in (current_payload.get("line_items") or []) if isinstance(li, Mapping)]
     catalog = lane_catalog(CP.load_catalog(), crossed)
     profile = CP.build_company_profile(
@@ -575,7 +643,8 @@ def band_finding_objects(crossed: Sequence[Mapping[str, Any]], *,
            "current_snapshot_id": current_snapshot_id, "prior_snapshot_id": prior_snapshot_id}
     return [(row, _finding(row, ctx, labels=labels, ids=ids, bands_stamp=bands_stamp,
                            line_items=line_items, denominators=denominators,
-                           period_days=period_days))
+                           period_days=period_days,
+                           inventory_claim=inventory_claim_citation(row, statements)))
             for row in crossed]
 
 
@@ -591,8 +660,15 @@ def build_band_findings(crossed: Sequence[Mapping[str, Any]], *,
     out = []  # type: List[Dict[str, Any]]
     pairs = band_finding_objects(crossed, current_label=current_label,
                                  prior_label=prior_label, **kwargs)
+    current_payload = kwargs.get("current_payload") or {}
+    statements = current_payload.get("statements") if isinstance(current_payload.get("statements"), dict) else {}
     for rank, (row, finding) in enumerate(pairs, 1):
         payload = finding.to_payload()
+        citation = inventory_claim_citation(row, statements)
+        if citation is not None:
+            # Structured, for any surface that prints the claim in its own
+            # language: the legs, their days and the basis label (RO + EN).
+            payload["inventory_claim"] = citation
         payload.update({
             "finding_id": "%s:%s->%s" % (rule_id_for(row["key"]), row["movement"]["from"],
                                          row["movement"]["to"]),
@@ -611,6 +687,6 @@ __all__ = [
     "CONTRA_ACCOUNT_PREFIXES", "NON_MONEY_IMPACT_KEYS", "GROUP_POLICY", "LABELS", "LANE", "MONEY_AT_RUNG", "MONEY_HELD", "RESTATEMENT_CAVEAT",
     "TWO_PERIOD_CAVEATS",
     "RULE_PREFIX", "SUBJECT_BUCKETS", "COMPOSITE_LADDERS", "FIGURE_LABELS", "band_finding_objects", "build_band_findings",
-    "lane_catalog", "rule_id_for",
+    "lane_catalog", "rule_id_for", "inventory_claim_citation", "INVENTORY_CLAIM_KEYS",
     "subject_coverage",
 ]

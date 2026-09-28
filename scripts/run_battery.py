@@ -631,6 +631,154 @@ def _engine_gates() -> List[Gate]:
                        "EQUITY-READERS (briefing facts + Debt/Equity, methodology, FactsGateway.equity, "
                        "Capsule, insights, R4, findings, sector benchmark): unanchored (served), "
                        "g6_uncleared (served), unanchored_unbalanced (refused), realestate_no121 (refused)")),
+        # ── owner spec 2026-09-26 P1 (inventory days), design B1-B5 ────────
+        # The ONE served block (engine.ratios.inventory_days): the split by
+        # stock type reconciles to the served inventory_net to the cent,
+        # every days figure is its stock over its flow (recomputed from the
+        # evidence), an average is an average and a snapshot says "o singură
+        # zi", a refused 711 / the developer refuse, the claim policy, the
+        # seasonality flag, GET /api/period serves it once. Measured 152
+        # units. Plant log: gates.md "inventory-days".
+        Gate("inventory-days",
+             [PY, "-m", "pytest", "tests/engine/test_inventory_days.py", "-q", "-s"],
+             work_rx=r"GATE-WORK inventory-days units=(\d+)", floor=140,
+             units="evidence accounts reconciled, bases, blocks served",
+             canaries=("SCOPE inventory-days: corpus books agras, carniprod, realestate, retail",)),
+        # One metric name, one formula (design B4): dio / inventory_turnover /
+        # ccc / dpo across the ratio table, the metric rows, the efficiency
+        # block, the forecast driver, the trade-float insight, the methodology
+        # views, the radar and the sector row — plus a source scan of
+        # src/engine AND of the frontend's TypeScript (the browser's
+        # computeRatios had its own ÷ total operating expense) — and the
+        # cockpit's BANK EXPORT through create_app (the one block verbatim, the
+        # DIO lever on it, no DPO but the one), the forecast's payables labels
+        # (never "DPO" over cost of sales) and the methodology FILE. ONE DAY
+        # COUNT (2026-09-27): three non-365 served periods (a leap year, two
+        # 1 Jan-30 Jun books) — DSO / DPO / CCC recomputed from operands on
+        # the served periodDays against the table, metrics[], the efficiency
+        # block and the trade-float insight (whose printed operands must
+        # reproduce its DPO), and the bank export on a 366- and a 181-day
+        # period (the DIO lever restated on the plan's 365-day year); the
+        # block's printed days on the ratio table's quantization, and the
+        # bank export's DIO lever on the block's closing_value_q. Measured
+        # 98. Plant log: gates.md "one-metric-one-formula".
+        Gate("one-metric-one-formula",
+             [PY, "-m", "pytest", "tests/engine/test_one_metric_one_formula.py", "-q", "-s"],
+             work_rx=r"GATE-WORK one-metric-one-formula units=(\d+)", floor=85,
+             units="surfaces compared with the one authority",
+             canaries=("SCOPE one-metric-one-formula: corpus books agras, carniprod, realestate, retail",)),
+        # INVENTORY DAYS ON EVERY SURFACE (owner spec 2026-09-26 P1, design
+        # B4): the Ratios tile and drawer print the served split (three legs
+        # with their accounts, alte stocuri, the basis, seasonality); the CFO
+        # report, its workbook and the cockpit's bank export print ONE block,
+        # byte-identical in the two bank-bound documents; the Products SKU
+        # figure is "Zile de rotație SKU" and never enters the company CCC;
+        # a listed company's reported basis lives under its own key; the chat
+        # is handed the claim policy; the DIO card never points at the
+        # filed-basis sector row; the /report page prints the split under
+        # section 5; the tile, the split's total and the report print ONE
+        # string for the figure; a comparison across two bases prints the
+        # refusal, no figure, no tone; the cycle chart's period-end DIO row
+        # states the period-end term's own basis (chartsAgreeWithCards) and
+        # every cycle term prints its card's string / the block's
+        # closing_value_q; the bank export's DIO lever prints the split's
+        # period-end figure character for character (EN, RO); a snapshot
+        # period's DIO reading never says "on average" (the workbook row);
+        # the cycle chart's printed terms foot to the printed CCC within
+        # whole-day rounding and, unrounded, to the served cycle
+        # (reportCharts G-C1b). Rendered over served bytes (vitest).
+        # Measured 170 tests, floor 150.
+        # Plant log: gates.md "inventory-days-surfaces".
+        Gate("inventory-days-surfaces",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/inventoryDaysSplit.test.ts",
+              "frontend/lib/__tests__/inventoryDaysRatiosTab.test.tsx",
+              "frontend/lib/__tests__/inventoryDaysDocuments.test.ts",
+              "frontend/pages/cfo/__tests__/productsSkuDaysNotDio.test.tsx",
+              "frontend/lib/__tests__/publicInventoryDays.test.ts",
+              "frontend/pages/cfo/__tests__/chatSnapshotInventoryDays.test.ts",
+              "frontend/lib/__tests__/sectorBenchmark.test.tsx",
+              "frontend/components/cfo/simple/__tests__/annotateTerms.test.tsx",
+              "frontend/pages/cfo/__tests__/comprehensiveReportInventoryDays.test.tsx",
+              "frontend/lib/__tests__/chartsAgreeWithCards.test.ts",
+              "frontend/lib/__tests__/reportCharts.test.ts",
+              "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=150,
+             units="surface tests (tile, drawer, report, workbook, bank export, products, public, chat, benchmark, cycle chart)",
+             canaries=("the tile prints every leg with its accounts, alte stocuri and the basis",
+                       "the bank export (EN) prints the report's block byte for byte",
+                       "labels the SKU figure as SKU turnover days and takes CCC from the trial balance",
+                       "replaces the company dio with the reported-basis row under its own key",
+                       "the filed-basis inventory row wears the owner's label, no second note")),
+        # THE SPLIT ADDS UP (owner spec 2026-09-26 P1.1, design B1): on the
+        # ten corpus books that carry stock, through the real write path and
+        # GET /api/period, Σ legs + alte stocuri = the balance sheet's stock
+        # to the cent against the gate's OWN parse of each file; every
+        # class-3 account in the part the ruling gives it (39x against its
+        # group); a split that does not reconcile refuses; Scandia FY2025 as
+        # stored today reconciles its 55,341,817.75. Measured 245. Plant
+        # log: gates.md "inventory-split-reconciles".
+        Gate("inventory-split-reconciles",
+             [PY, "-m", "pytest", "tests/engine/test_inventory_split_reconciles.py", "-q", "-s"],
+             work_rx=r"GATE-WORK inventory-split-reconciles units=(\d+)", floor=230,
+             units="stock accounts, books, openings and refusals checked",
+             canaries=("SCOPE inventory-split-reconciles: corpus books saga_10_col, saga_10_col_agras",)),
+        # AN AVERAGE IS AN AVERAGE (P1.2, design B2): the two-year-end
+        # average only with the fiscal-year opening, labelled "media
+        # soldurilor la 1 ianuarie și 31 decembrie"; the snapshot — a
+        # 4-column file, an undated opening, every period written before the
+        # evidence, Scandia as stored — "stoc la 31 decembrie — o singură
+        # zi"; the monthly basis through create_app with twelve month-ends;
+        # food/FMCG flagged on both year-end bases, never on the monthly;
+        # every served-rebuild seam (Capsule, firm lane, radar, the period
+        # reader, a FactsGateway on the rebuilt envelope) serving the page's
+        # block on the twelve-month workspace; a monthly file whose si is the
+        # month opening (convention A) the snapshot; the upload-time block
+        # and the narrator carry the org's seasonality; a 4-pair export where
+        # B ties A dates its si only by a zero class 6/7 opening; a source
+        # with no trial-balance rows (model extraction, statutory return)
+        # says so, never "recomputed when reprocessed"; an unreconciled month
+        # never enters the monthly average. Measured 119. Plant log:
+        # gates.md "inventory-basis-label".
+        Gate("inventory-basis-label",
+             [PY, "-m", "pytest", "tests/engine/test_inventory_basis_label.py", "-q", "-s"],
+             work_rx=r"GATE-WORK inventory-basis-label units=(\d+)", floor=95,
+             units="bases, labels, seasonality flags and surfaces checked",
+             canaries=("SCOPE inventory-basis-label: corpus books saga_10_col",)),
+        # NEVER "SLOW" ON ONE DAY (P1.5, design B5): agras and two stock-rise
+        # variants through the real write path and the served comparatives —
+        # no slow claim on the snapshot, the average's claim cites every leg
+        # and the basis, a move across bases is basis_differs, improvements
+        # kept, gateway/narrator/prompt agree, no served text of a snapshot
+        # period calls the stock slow; no delta (value, % or direction)
+        # served across two bases. Measured 30. Plant log: gates.md
+        # "stock-claim-policy".
+        Gate("stock-claim-policy",
+             [PY, "-m", "pytest", "tests/engine/test_stock_claim_policy.py", "-q", "-s"],
+             work_rx=r"GATE-WORK stock-claim-policy units=(\d+)", floor=28,
+             units="claims withheld or cited, policy surfaces and served bodies scanned",
+             canaries=("SCOPE stock-claim-policy: corpus agras + tmp variants",)),
+        # THE FILED BASIS STAYS APART (P1.3, design B3) — engine half: five
+        # books through create_app, CAEN 1011; no sector band on a card built
+        # on the split, the filed row recomputed as stock ÷ net turnover,
+        # nothing of the split in the sector document. Measured 30.
+        Gate("benchmark-basis-separation-engine",
+             [PY, "-m", "pytest", "tests/engine/test_benchmark_basis_separation_engine.py", "-q", "-s"],
+             work_rx=r"GATE-WORK benchmark-basis-separation-engine units=(\d+)", floor=30,
+             units="split cards, filed rows and sector documents checked",
+             canaries=("SCOPE benchmark-basis-separation-engine:",)),
+        # — and the browser half: the Benchmark page's filed row, the DIO and
+        # cycle tiles, the CFO report — as served and against a document that
+        # hangs the filed quartiles on the split's cards (the browser refuses
+        # it). Measured 7 tests. Plant log: gates.md
+        # "benchmark-basis-separation".
+        Gate("benchmark-basis-separation",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/benchmarkBasisSeparation.test.tsx", "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=7,
+             units="surface tests (page row, tiles, report)",
+             canaries=("the DIO, inventory-turnover and cycle tiles — even when a document serves one",
+                       "sector section without the split, the split without a sector row — as served")),
         # ── owner ruling 2026-09-26, design A6: valuation-one-ebitda ────
         # EV/EBITDA multiplies the ONE EBITDA (never the revision-2 fallback
         # that rebuilt a second one from the incomeStatement mirror on 0.0);
@@ -916,7 +1064,9 @@ def _engine_gates() -> List[Gate]:
              # + forecastSentencesRo (RO + EN): every sentence of the engine's
              # served inventory comes out in Romanian under the digit law and
              # in English byte for byte; + the preview opt-in's first-paint
-             # cache (featuresPreview). Measured 68, floor 60.
+             # cache (featuresPreview); + the refused DIO driver in its
+             # own words, the Romanian mirror held to the pack
+             # (feat/inventory-days, 2026-09-28). Measured 73, floor 60.
              work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=60,
              units="page tests (F1 year 0, F5 placeholders, F6 saved scenarios, preview opt-in, served-sentence language)",
              canaries=("gate F1: year 0 is the dashboard's headline",
@@ -1265,7 +1415,7 @@ def _engine_gates() -> List[Gate]:
         # ratchet. Self-tests its own detection on a committed fixture every
         # run. Plant log: docs/engine_book/gates.md.
         Gate("floor-census", [PY, "scripts/check_floor_census.py"],
-             work_rx=r"GATE-WORK floor-census units=(\d+)", floor=80,  # measured 88 after the C6 floors merge (was 112)
+             work_rx=r"GATE-WORK floor-census units=(\d+)", floor=75,  # measured 79 after credit_model S8 4 -> 0 (feat/inventory-days; was 80 on 88 after the C6 floors merge)
              units="candidate sites",
              canaries=("self-test S1 DIVISOR_FLOOR",
                        "self-test S8 CONSTANT_PERIOD",

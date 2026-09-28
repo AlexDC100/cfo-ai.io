@@ -70,11 +70,14 @@ change that does not move toward it — or any change with no filed figure —
 makes the exit code 3 unless `--allow-turnover-change` is given.
 
 IDEMPOTENT. A period whose stored envelope already carries the evidence
-block, the current definition stamp and the RUNNING parser's stamp (G7 —
-the serve path refuses 711 on any other reader), and whose fresh run
-reproduces its stored turnover, EBITDA and composite, is `current` and is
+blocks (stock variation AND the class-3 inventory_stock evidence the
+inventory-days block reads — owner spec 2026-09-26 P1), the current
+definition stamp and the RUNNING parser's stamp (G7 — the serve path
+refuses 711 on any other reader), and whose fresh run reproduces its stored
+turnover, EBITDA, inventory days (dio) and composite, is `current` and is
 not rewritten (`--force` rewrites it anyway). The dry run prints the stored
-reader beside the running one.
+reader beside the running one, and inventory days before -> after with the
+served basis.
 
 Usage (inside the backend container, per CLAUDE.md §14):
   python3 scripts/reprocess_periods_definition.py                 # dry run, every period
@@ -200,6 +203,11 @@ def _stored_view(period: Dict[str, Any], metric_rows: Sequence[Dict[str, Any]]) 
         "parser_version": stored_reader,
         "running_parser_version": PARSER_VERSION,
         "parser_current": stored_reader is not None and stored_reader == PARSER_VERSION,
+        # The class-3 opening/closing evidence the inventory-days block reads
+        # (owner spec 2026-09-26 P1). A period without it serves the
+        # period-end snapshot only, until it is reprocessed.
+        "has_inventory_evidence": isinstance(env.get("inventory_stock"), dict),
+        "dio": _num(by_name.get("dio")),
         "definition": methodology.get("ebitda_definition"),
         "definition_current": methodology.get("ebitda_definition") == EBITDA_DEFINITION_REVISION,
         "turnover": _num(totals.get("revenue_net")),
@@ -223,7 +231,13 @@ def _fresh_view(assembled: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[st
     by_name = dict((str(m.get("name")), m.get("value")) for m in metrics)
     composite = _num(by_name.get("credit_composite"))
     refusal = iv.get("refusal") if isinstance(iv.get("refusal"), dict) else None
+    inv = statements.get("inventory_days") if isinstance(statements.get("inventory_days"), dict) else {}
+    inv_total = inv.get("total") if isinstance(inv.get("total"), dict) else {}
     return {
+        "dio": _num(by_name.get("dio")),
+        "inventory_days_basis": inv.get("basis"),
+        "inventory_days_refusal": ((inv_total.get("reason") or {}).get("code")
+                                   if isinstance(inv_total.get("reason"), dict) else None),
         "anchor_status": pl.get("net_income_anchor_status"),
         "book_state": iv.get("book_state"),
         "net_711": _num(iv.get("value")),
@@ -334,12 +348,20 @@ def reprocess_period(period: Dict[str, Any], *, apply: bool, force: bool = False
         row.update(status=REFUSED, reason="not_a_trial_balance")
         return row
 
+    resolved_end, _why = P.resolve_period_end_for_persist(doc, parsed)
+    # The inventory-days block the write would build (stage_persist builds it
+    # once the period end sets the day count) — the SAME helper, on a copy of
+    # the envelope, so the plan's metric rows are the ones the write persists.
+    _env = assembled.get("assembled_canonical_v1")
+    if isinstance(_env, dict):
+        P._attach_inventory_days_at_persist(
+            assembled, dict(_env, period_detection=_why), resolved_end)
+
     after, _metrics = _fresh_view(assembled)
     row["after"] = after
     row["turnover_move"] = _turnover_verdict(row["before"]["turnover"], after["turnover"], filed_turnover)
     row["filed_turnover"] = filed_turnover
 
-    resolved_end, _why = P.resolve_period_end_for_persist(doc, parsed)
     if str(resolved_end)[:10] != row["period_end"]:
         row.update(status=REFUSED, reason="period_end_moved", resolved_end=str(resolved_end)[:10])
         return row
@@ -351,6 +373,8 @@ def reprocess_period(period: Dict[str, Any], *, apply: bool, force: bool = False
     row["valuation"]["current"] = _valuation_current(row["valuation"], after["ebitda"])
     current = (before["has_evidence"] and before["definition_current"]
                and before["parser_current"]
+               and before["has_inventory_evidence"]
+               and _same(before["dio"], after["dio"])
                and _same(before["turnover"], after["turnover"])
                and _same(before["ebitda"], after["ebitda"])
                and _same(before["composite"], after["composite"])
@@ -460,6 +484,10 @@ def render(rows: Sequence[Dict[str, Any]]) -> str:
             lines.append("  EBITDA %s -> %s%s" % (_fmt(b.get("ebitda")), _fmt(a.get("ebitda")),
                                                  (" (refused: %s)" % a["ebitda_refusal"])
                                                  if a.get("ebitda_refusal") else ""))
+            lines.append("  inventory days %s -> %s (%s%s)"
+                         % (_fmt(b.get("dio")), _fmt(a.get("dio")), a.get("inventory_days_basis") or "—",
+                            (", refused: %s" % a["inventory_days_refusal"])
+                            if a.get("inventory_days_refusal") else ""))
             lines.append("  credit %s %s z %s -> %s %s z %s"
                          % (_fmt(b.get("composite")), b.get("letter") or "—", _fmt(b.get("altman_z")),
                             _fmt(a.get("composite")), a.get("letter") or "—", _fmt(a.get("altman_z"))))

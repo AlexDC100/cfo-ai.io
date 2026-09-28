@@ -379,10 +379,12 @@ CONCEPTS = (
     Concept(
         "days_inventory_outstanding", OWNER_DRIVERS, "supplied",
         "dio", ("dio_cogs_days",), "identity",
-        """Days of COST OF SALES, formula forecast.dio_cogs (R8). The ratio
-        table divides inventory by total operating expense and is quoted
-        beside it, never served under this name. On a book with no cost of
-        sales the driver is ABSENT on both sides and inventory is HELD."""),
+        """The SERVED inventory days (engine.ratios.inventory_days, owner
+        spec 2026-09-26 P1): the split by stock type on the period-end
+        balance, over the block's own flow (cost of production sold + 607),
+        formula forecast.dio_split. One name, one formula with the ratio
+        table (which serves the same split on its average basis). A refused
+        block leaves the driver ABSENT on both sides and inventory HELD."""),
     Concept(
         "days_payable_outstanding", OWNER_DRIVERS, "supplied",
         "dpo", ("dpo_cogs_days",), "identity",

@@ -233,7 +233,7 @@ export function derive(run: DailyRun): {
         i.bucket === "FIX" ? `Renegotiate ${i.id}` :
         `Reduce reorder for ${i.id}`,
       explanation: i.reason ??
-        `Real margin ${i.realMargin.toFixed(1)}% with ${i.dioDays}d DIO — ${i.bucket.toLowerCase()} action recommended.`,
+        `Real margin ${i.realMargin.toFixed(1)}% with ${i.dioDays} SKU days — ${i.bucket.toLowerCase()} action recommended.`,
       expected_cash_impact_kron: Math.abs(i.capitalMRon) * 1000 * (i.bucket === "REDUCE" ? 0.3 : 1),
       expected_margin_impact_pct: i.bucket === "FIX" ? 2 : null,
       urgency: i.realMargin < 0 ? "critical" : i.bucket === "LIQUIDATE" ? "high" : "medium",

@@ -116,10 +116,16 @@ RATIOS: Dict[str, Dict[str, Any]] = {
         "unit": "days",
         "formula": "I3 / I13 x 365",
         "filed_lines": [L_I3, L_I13],
-        "company_basis": "inventory / NET TURNOVER x 365. The ratio card's "
-                         "DIO divides by operating cost; the two are not "
-                         "comparable. Restate the company figure on "
-                         "turnover or refuse the comparison",
+        # The FILED BASIS, labelled "bază depusă (stoc ÷ cifra de afaceri) —
+        # nu aceeași cu zilele de stoc din analiză" (owner spec 2026-09-26
+        # P1 point 3): filed accounts are abridged, so the sector side and
+        # the company side are both year-end stock over net turnover.
+        "company_basis": "year-end stock / NET TURNOVER x 365 on BOTH sides "
+                         "(the filed basis: abridged filings carry no split "
+                         "of stock by type). The analysis measures inventory "
+                         "days split by stock type over the flow that moves "
+                         "each (engine.ratios.inventory_days); the two are "
+                         "different measures and are never compared",
     },
     "current_asset_share": {
         "unit": "fraction",

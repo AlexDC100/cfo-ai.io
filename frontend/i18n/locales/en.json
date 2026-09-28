@@ -133,7 +133,7 @@
       "niv": "NIV (kRON)",
       "gmPct": "GM%",
       "gm": "GM (kRON)",
-      "dio": "DIO (days)",
+      "dio": "SKU days",
       "lines": "# lines",
       "channels": "# channels",
       "signal": "Signal"
@@ -164,7 +164,7 @@
     "subtitle": "{{rows}} line rows · {{count}} unique SKUs across {{categories}} categories",
     "table": {
       "emptyFiltered": "No SKUs match these filters.",
-      "dioMissingTooltip": "DIO not available — inventory value and/or COGS not provided for this SKU"
+      "dioMissingTooltip": "SKU turnover days not available — inventory value and/or COGS not provided for this SKU"
     }
   },
   "onboarding": {
@@ -362,7 +362,7 @@
     "title": "Sales / trading analysis — XLSX",
     "intro": "One row per SKU-channel-period line. Headers below show the column names the parser recognizes (Romanian and English variants both accepted).",
     "required": "Only <c1>Denumire produs</c1> and <c2>NIV</c2> are required overall;",
-    "optional": "<c1>Inventory value</c1> + <c2>COGS</c2> are optional but unlock per-SKU <c3>DIO</c3>;",
+    "optional": "<c1>Inventory value</c1> + <c2>COGS</c2> are optional but unlock per-SKU <c3>turnover days</c3>;",
     "rollup": "the company-level <c1>CCC</c1> roll-up additionally uses the period trial balance for DSO / DPO.",
     "downloadExample": "Download example (XLSX)",
     "exampleCaption": "Anonymized example — match these columns; fictional data.",
@@ -372,7 +372,7 @@
     "title": "Working-capital roll-up",
     "subtitle": "Company DIO · DSO · DPO · CCC",
     "explainer": "DIO from uploaded SKU inventory & COGS, covered rows only. DSO / DPO from the period's trial-balance context. CCC is a company roll-up, not per-SKU.",
-    "companyDIO": "Company DIO",
+    "companyDIO": "SKU turnover days",
     "notAvailable": "not available",
     "notAvailableReason": "Inventory / COGS not provided on any SKU",
     "addColumnsHint": "Add Inventory value and COGS columns to the upload to compute DIO.",
@@ -680,7 +680,10 @@
         "capitalizedOwnWork": "capitalised own work",
         "operatingResult": "operating result",
         "grossProfit": "gross profit",
-        "inventoryVariation": "the stock variation (Variația stocurilor de produse)"
+        "inventoryVariation": "the stock variation (Variația stocurilor de produse)",
+        "inventoryDays": "inventory days (split by stock type)",
+        "inventoryDaysFlow": "cost of production sold plus cost of goods resold",
+        "inventoryAverage": "the average stock"
       },
       "reason": {
         "operand_absent": "Not reported: this filing does not carry {{inputs}}.",
@@ -714,7 +717,9 @@
         "unlisted": "No figure: reason code {{code}} has no sentence yet.",
         "malformed_value": "Not printed: the served figure is not a readable value for its unit.",
         "unrecognised": "Not printed: the served {{field}} is {{value}}, a value this reader does not recognise.",
-        "ebitda_refused": "Not computed: EBITDA and the operating result are refused for this period, because the stock variation (Variația stocurilor de produse) could not be measured."
+        "ebitda_refused": "Not computed: EBITDA and the operating result are refused for this period, because the stock variation (Variația stocurilor de produse) could not be measured.",
+        "inventory_days_refused": "Not computed: inventory days split by stock type are refused for this period — the reason is shown with the figure.",
+        "basis_differs": "Not compared: the two periods' inventory days are measured on different stock bases, so neither a change nor a band movement is printed — it would be the change of basis, not of the stock."
       },
       "label": {
         "current_ratio": "Current ratio",
@@ -735,7 +740,7 @@
         "adjusted_dscr": "Debt service coverage, lease-adjusted",
         "dscr_with_lt_principal": "Debt service coverage with long-term principal",
         "dso": "Days sales outstanding",
-        "dio": "Days inventory outstanding",
+        "dio": "Inventory days (DIO)",
         "dpo": "Days payables outstanding (on total operating cost)",
         "ccc": "Cash conversion cycle",
         "asset_turnover": "Asset turnover",
@@ -966,12 +971,12 @@
         "equity_ratio": "Equity ratio",
         "liabilities_to_assets": "Total liabilities / total assets",
         "receivables_days": "Receivables days (all receivables)",
-        "inventory_days_on_turnover": "Inventory days on turnover",
+        "inventory_days_on_turnover": "Inventory days — filed basis (stock ÷ net turnover) — not the same as the inventory days of this analysis",
         "current_asset_share": "Current assets / total assets",
         "revenue_growth": "Revenue growth"
       },
       "card": {
-        "dio": "DIO",
+        "dio": "Inventory days (DIO)",
         "dso": "DSO",
         "debt_to_assets": "Debt / assets",
         "roe": "ROE",
@@ -985,6 +990,7 @@
         "company_nonpositive_denominator": "Not compared: {{inputs}} is not positive in your period.",
         "company_margin_not_meaningful": "Not compared: your turnover is negligible against your operating activity, so the margin is not meaningful.",
         "company_figure_refused": "Not compared — refused: {{text}}",
+        "company_turnover_negligible": "Not compared: your turnover is negligible against your operating activity, so days on turnover have no meaning.",
         "prior_period_absent": "Needs the period one year earlier in this workspace.",
         "prior_period_not_servable": "The period one year earlier could not be read.",
         "period_end_absent": "The period has no end date.",
@@ -1003,7 +1009,7 @@
         "ebitda_margin": "EBITDA margin",
         "ebit_margin": "EBIT margin",
         "dpo": "Days payables outstanding",
-        "dio": "Days inventory outstanding (on operating cost)",
+        "dio": "Inventory days split by stock type (the filing carries no split)",
         "ccc": "Cash conversion cycle",
         "interest_coverage": "Interest coverage",
         "dscr": "Debt service coverage",
@@ -1013,7 +1019,8 @@
         "current_ratio": "Current ratio",
         "quick_ratio": "Quick ratio",
         "cash_ratio": "Cash ratio"
-      }
+      },
+      "bandNeverCompared": "General SME band. No sector band: filed accounts carry no split of stock by type, so the sector is not measured on this basis — the filed-basis figure on the Benchmark page is a different measure and is never compared."
     }
   },
   "authCallback": {
@@ -1078,13 +1085,13 @@
       "cost_hint": "Annual interest rate on working capital. Typical RON corporate financing is 5–8%.",
       "spread_label": "Bank margin spread",
       "spread_hint": "Additional spread above the base rate the bank charges. Tune to model different banking relationships.",
-      "avg_per_sku": "Avg per SKU: {{avg}} · DIO and inventory required to compute; SKUs without either skip the financing rule."
+      "avg_per_sku": "Avg per SKU: {{avg}} · SKU days and inventory required to compute; SKUs without either skip the financing rule."
     },
     "revert": "Revert",
     "apply": "Apply",
     "rule": {
       "gross_profit": "Gross profit per SKU",
-      "dio": "Days inventory outstanding (DIO)",
+      "dio": "SKU turnover days",
       "volume": "Volume (tons)",
       "revenue": "Revenue per SKU",
       "adjusted_gm_pct": "Adjusted GM % (after financing)",
@@ -1297,34 +1304,35 @@
       "gap": "<b1>Reconciliation gap — verify before external use.</b1> The SKU-level sum differs from the source NIV total by <b>{{delta}} ({{pct}}%)</b> with {{counted}} of {{total}} SKUs counted — rows may have been dropped or duplicated during extraction. Cross-check headline figures against your source before board reports or external submissions."
     },
     "wc": {
-      "heading": "Company DIO · DSO · DPO · CCC",
-      "desc": "DIO from uploaded SKU inventory & COGS, covered rows only. DSO / DPO from the period's trial-balance context. CCC is a company roll-up, not per-SKU.",
-      "infoAria": "What do DIO, DSO, DPO and CCC mean?",
+      "heading": "SKU turnover days · DSO · DPO · CCC",
+      "desc": "SKU turnover days from the uploaded SKU inventory & COGS, covered rows only — not the inventory days of the trial-balance analysis. DSO, DPO and CCC come from the period's trial balance.",
+      "infoAria": "What do SKU turnover days, DSO, DPO and CCC mean?",
       "infoTitle": "What do these mean?",
-      "companyDio": "Company DIO",
+      "companyDio": "SKU turnover days",
       "dioCoverage": "{{pct}}% of NIV · {{covered}} of {{total}} SKUs",
       "dioNoInputs": "Inventory / COGS not provided on any SKU",
       "dioFormulaCogs": "sum(Inventory) ÷ sum(COGS) × 365, covered rows",
-      "dioFormulaWeighted": "weighted by Inventory (per-SKU DIO; COGS not persisted)",
-      "dioMissingHint": "Add Inventory value and COGS columns to the upload to compute DIO.",
+      "dioFormulaWeighted": "weighted by Inventory (per-SKU days; COGS not persisted)",
+      "dioMissingHint": "Add Inventory value and COGS columns to the upload to compute SKU turnover days.",
       "fromTrialBalance": "from trial balance",
       "noTrialBalance": "no trial balance in this session",
       "dsoMissingHint": "Load a period with a trial balance to compute DSO.",
       "dpoMissingHint": "Load a period with a trial balance to compute DPO.",
-      "cccSource": "DIO + DSO − DPO, company-level",
-      "cccMissing": "missing: {{list}}",
-      "cccHint": "CCC is computed only when DIO, DSO and DPO are all available.",
+      "cccSource": "from the trial balance: DSO + inventory days (split by stock type, period-end balance) − DPO",
+      "cccHint": "CCC comes from the period's trial balance — its inventory days, DSO and DPO — never from the SKU file.",
       "loadedPeriod": "loaded",
       "modalTitle": "Working-capital metrics",
       "modalDesc": "What each pill measures and where the number comes from.",
-      "dioTitle": "Days Inventory Outstanding",
-      "dioBody": "How many days, on average, stock sits before it sells — sum(Inventory) ÷ sum(COGS) × 365 across covered SKUs. Lower is leaner; a high DIO means cash is tied up in shelves and warehouses.",
+      "dioTitle": "SKU turnover days",
+      "dioBody": "How many days, on average, a SKU's stock sits before it sells — sum(Inventory) ÷ sum(COGS) × 365 across the covered SKUs of the sales file. A different measure from the company's inventory days on the Ratios tab, which split the trial balance's stock by type.",
       "dsoTitle": "Days Sales Outstanding",
       "dsoBody": "How many days it takes to collect cash after a sale — receivables relative to revenue, read from the loaded period's trial balance. Lower means customers pay faster.",
       "dpoTitle": "Days Payable Outstanding",
-      "dpoBody": "How many days you take to pay suppliers — payables relative to COGS, from the trial balance. Higher means you hold onto cash longer (as long as it doesn't strain supplier terms).",
+      "dpoBody": "How many days you take to pay suppliers — trade payables relative to total operating expense, from the trial balance (the Ratios tab's DPO). Higher means you hold onto cash longer (as long as it doesn't strain supplier terms).",
       "cccTitle": "Cash Conversion Cycle",
-      "cccBody": "The net days your cash is locked in operations — DIO + DSO − DPO, at the company level. It's the headline: how long from paying for inventory to collecting from customers. Lower (or negative) is stronger working-capital health."
+      "cccBody": "The net days your cash is locked in operations — DSO + inventory days − DPO, from the trial balance, with the inventory term on the period-end balance so all three sit on one basis. Lower (or negative) is stronger working-capital health.",
+      "cccNoPeriod": "no trial balance in this session",
+      "skuChip": "SKU"
     },
     "channels": {
       "KA": "Key accounts",
@@ -1379,7 +1387,7 @@
     },
     "export": {
       "title": "Download CSV",
-      "body": "Every SKU in the current view — volume, NIV, gross margin and DIO — as a single spreadsheet-ready CSV. Respects your active filters and display currency; opens in Excel, Sheets or any tool."
+      "body": "Every SKU in the current view — volume, NIV, gross margin and SKU days — as a single spreadsheet-ready CSV. Respects your active filters and display currency; opens in Excel, Sheets or any tool."
     },
     "inflight": {
       "stage": {
@@ -1400,7 +1408,7 @@
       "step3": "Mapping SKUs",
       "step3Sub": "One row per product line",
       "step4": "Calculating margins",
-      "step4Sub": "NIV · GM · DIO when present",
+      "step4Sub": "NIV · GM · SKU days when present",
       "step5": "Classifying portfolio",
       "step5Sub": "anchor · scale · watch · wind-down",
       "step6": "Generating briefing",
@@ -1654,10 +1662,10 @@
     "docStatutoryWhere1": "Spațiul privat virtual (ANAF) → Bilanț contabil → download XLSX",
     "docStatutoryWhere2": "Your accountant's archive — the annual filing they sent to ANAF",
     "docSales": "Sales / trading analysis",
-    "docSalesShows": "SKU-level portfolio classification (anchor / scale / watch / eliminate), DIO + capital trap detection. Renders in /products.",
+    "docSalesShows": "SKU-level portfolio classification (anchor / scale / watch / eliminate), SKU turnover days + capital trap detection. Renders in /products.",
     "docSalesFormat": "XLSX export",
     "docSalesWhere1": "Your ERP's Trading Analysis report (XLSX)",
-    "docSalesWhere2": "Pivot of monthly sales with: SKU, volume, revenue, GM, DIO, customer category",
+    "docSalesWhere2": "Pivot of monthly sales with: SKU, volume, revenue, GM, SKU days, customer category",
     "whereToGet": "Where to get it",
     "badgeMostData": "Most data",
     "badgeFreeInstant": "Free / instant",
@@ -2992,7 +3000,7 @@
     },
     "columns": {
       "gm": "Gross margin",
-      "dio": "Days of inventory (DIO)",
+      "dio": "SKU turnover days",
       "volume": "Volume",
       "revenue": "Revenue per product",
       "marginPct": "Margin %"
@@ -3000,7 +3008,7 @@
     "presets": {
       "logical_default": {
         "label": "Logical default",
-        "desc": "Volume × margin matrix with hard cuts for negative margin and excess DIO. Recommended starting point."
+        "desc": "Volume × margin matrix with hard cuts for negative margin and excess SKU days. Recommended starting point."
       },
       "cash_protection": {
         "label": "Cash protection",
@@ -3016,7 +3024,7 @@
       },
       "working_capital_lens": {
         "label": "Working capital lens",
-        "desc": "Optimized for cash-cycle decisions. Heavy weight on DIO and financing cost."
+        "desc": "Optimized for cash-cycle decisions. Heavy weight on SKU days and financing cost."
       }
     },
     "financing": {
@@ -3287,6 +3295,12 @@
       "totalEquity": "total equity",
       "totalLiabilities": "total liabilities",
       "interestExpense": "interest expense"
+    },
+    "inventoryDaysReported": {
+      "label": "Inventory days — reported basis: inventory ÷ cost of sales",
+      "formula": "inventory ÷ cost of sales × period days, from the filing — a different measure from the inventory days split by stock type in a trial-balance analysis",
+      "benchmark": "Reported basis — not graded",
+      "commentary": "Stock is held about {{days}} days of cost of sales, on the filing's own figures."
     }
   },
   "forecast": {
@@ -3398,8 +3412,8 @@
       "useTier": "Use the {{tier}} figure",
       "revenue_growth": "Revenue growth",
       "dso_days": "Days sales outstanding",
-      "dio_cogs_days": "Days inventory on hand",
-      "dpo_cogs_days": "Days payable outstanding",
+      "dio_cogs_days": "Inventory days (DIO) — period-end balance, plan year",
+      "dpo_cogs_days": "Trade payables in days of cost of sales",
       "capex_pct_of_revenue": "Capex, share of revenue",
       "dividend_payout_pct": "Dividend payout",
       "gross_margin": "Gross margin",
@@ -3460,8 +3474,8 @@
       "interest_rate_debt": "Interest rate on debt",
       "revolver_rate": "Funding-line rate",
       "dso_days": "Days sales outstanding",
-      "dio_cogs_days": "Days inventory on hand",
-      "dpo_cogs_days": "Days payable outstanding",
+      "dio_cogs_days": "Inventory days (DIO) — period-end balance, plan year",
+      "dpo_cogs_days": "Trade payables in days of cost of sales",
       "capex_pct_of_revenue": "Capex, share of revenue",
       "dividend_payout_pct": "Dividend payout",
       "min_cash": "Cash floor",
@@ -3743,8 +3757,8 @@
       "pool_level_count_one": "Operating costs, the one cost pool this book serves",
       "pool_level_count_other": "Operating costs, all {{count}} cost pools this book serves",
       "dso_days": "Days sales outstanding",
-      "dio_cogs_days": "Days inventory on hand",
-      "dpo_cogs_days": "Days payable outstanding",
+      "dio_cogs_days": "Inventory days (DIO) — period-end balance, plan year",
+      "dpo_cogs_days": "Trade payables in days of cost of sales",
       "pool_level__energy_utilities": "Energy and utilities costs"
     },
     "op": {
@@ -4002,5 +4016,25 @@
       "deleteDialogTitle": "Delete {{company}}?",
       "deleteDialogBody": "It disappears from your companies now and is deleted for good after 30 days. Until then you can restore it from Your companies."
     }
+  },
+  "inventoryDays": {
+    "title": "Inventory days — split by stock type",
+    "basis": "Basis: {{label}}",
+    "closing": "The same split on the period-end balance: {{v}}",
+    "accounts": "accounts {{codes}}",
+    "netOf": "net of {{codes}}",
+    "flow": "÷ {{label}}",
+    "otherNote": "inside the total, no days of its own",
+    "refused": "not computed — {{reason}}",
+    "seasonal": "Seasonality: {{note}}",
+    "openingReason": "Single balance: {{reason}}",
+    "colType": "Stock type",
+    "colAccounts": "Accounts",
+    "colDays": "Days",
+    "colFlow": "Divided by",
+    "seasonalFlag": "Seasonal stock"
+  },
+  "ratioAbsence": {
+    "inventoryDaysRefused": "Inventory days refused: {{reason}}"
   }
 }

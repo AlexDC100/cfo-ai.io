@@ -580,7 +580,11 @@ def build_router():
                 return None
             try:
                 from .pipeline import _rebuild_assembled_for_briefing
-                rebuilt = _rebuild_assembled_for_briefing(line_items, full[0], None)
+                # The caller's client: the inventory-days block reads the
+                # workspace's month-end periods and the org's CAEN with it,
+                # exactly as GET /api/period does.
+                with _supabase.per_user(jwt) as c:
+                    rebuilt = _rebuild_assembled_for_briefing(line_items, full[0], None, client=c)
             except Exception as exc:  # noqa: BLE001 — stated, never swallowed
                 reason = "%s: %s" % (type(exc).__name__, exc)
                 logger.exception("[firm] statements rebuild failed for %s", period_id)

@@ -178,10 +178,21 @@ describe("0.1 — while the sector is disputed the printed export withholds sect
             .map((x) => x.label)
         : [],
     );
+    // A row the ENGINE refused outright (the inventory-days block on the
+    // developer: every leg refuses) has no value either: it states the
+    // engine's refusal — and, like every row below, no grade.
+    const engineRefused = new Set(
+      Object.values(computeRatios(disputedBook(book), undefined, metricsFor(book)))
+        .flat()
+        .filter((x) => x.value === null && x.unavailable?.kind === "refused")
+        .map((x) => x.label),
+    );
     for (const label of sectorCalibratedLabels(book)) {
       const card = cards.find((c) => c.label === label);
       expect(card, `${book}: the export prints no card "${label}"`).toBeDefined();
-      if (refusedLabels.has(label)) {
+      if (engineRefused.has(label) && !refusedLabels.has(label)) {
+        expect(card!.meta, `${book}: "${label}" was refused by the engine`).toContain("Refused");
+      } else if (refusedLabels.has(label)) {
         expect(card!.value, `${book}: "${label}" prints a figure the engine refused`).toBe(refusal!.en);
       } else {
         expect(
@@ -282,7 +293,7 @@ describe("0.1 — THE NEGATIVE: with the sector agreeing, all of it renders", ()
 
   it("the FMCG band — the exact string the owner saw — comes back on a food book", () => {
     const card = ratioCards(exportDoc("agras", agreeingBook("agras"))).find(
-      (c) => c.label === "Days inventory outstanding",
+      (c) => c.label === "Inventory days (DIO)",
     );
     expect(card!.meta).toContain("≤ 60 days for FMCG");
   });

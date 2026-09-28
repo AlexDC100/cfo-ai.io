@@ -578,20 +578,31 @@ describe("G-R13 · R1 — the KPI strip quotes the document's own figures", () =
       .toBeGreaterThan(0);
   });
 
-  it("agras: the DPO disagreement is stated, with both formulas", () => {
+  it("agras: ONE DPO — the finding and the ratio card print the same figure, and no clash note", () => {
+    // Until the inventory-days ruling (owner spec 2026-09-26, design B4) the
+    // trade-float insight divided payables by cost of goods sold (37.2 days)
+    // while the ratio card divided by total operating expense (27 days), and
+    // this test required the page to STATE the disagreement. The engine now
+    // serves one DPO (engine.ratios.table.dpo_days) to both, so the law is
+    // the agreement itself: no clash note, the card's figure in the finding.
     const doc = exportDoc("agras", withInsights("agras"));
     const note = doc.querySelector(
       '.insight-card[data-insight-id="trade_float"] tr.measure-clash[data-clash="days payables outstanding"]',
     );
-    expect(
-      note,
-      "agras prints DPO twice — 37.2 days inside trade_float, 27 days on a ratio card — with nothing between them",
-    ).toBeTruthy();
-    const said = text(note);
-    expect(said).toContain("Days payables outstanding");
-    expect(said).toContain("27 days");
-    expect(said).toContain("TOTAL operating expense");
-    expect(said).toContain("cost of goods sold");
+    expect(note, "agras still states a DPO clash — the two surfaces read two formulas").toBeNull();
+    const card = Array.from(doc.querySelectorAll(".ratio-card"))
+      .find((c) => /Days payables outstanding/.test(text(c.querySelector(".label"))));
+    expect(card, "agras prints no DPO card").toBeTruthy();
+    const rows = Array.from(doc.querySelectorAll('.insight-card[data-insight-id="trade_float"] tr'));
+    const dpoRow = rows.find((tr) => /Days payables outstanding/.test(text(tr.querySelector("td"))));
+    expect(dpoRow, "the trade-float finding prints no DPO row").toBeTruthy();
+    const onCard = parsePrinted(text(card!.querySelector(".value")));
+    const inFinding = parsePrinted(text(dpoRow!.querySelectorAll("td")[1]));
+    expect(onCard).not.toBeNull();
+    expect(inFinding).not.toBeNull();
+    // The two printed forms round differently (0 vs 1 decimal): within
+    // the half-step of each, never a different figure.
+    expect(Math.abs((onCard as number) - (inFinding as number))).toBeLessThanOrEqual(0.55);
   });
 
   it("agras: the strip prints the FILED close, not the reconstruction", () => {

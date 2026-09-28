@@ -196,52 +196,28 @@
   "text": "days in a year for every rate-to-period conversion"
  },
  {
-  "code": "forecast.dio_cogs",
+  "code": "forecast.dio_split",
   "kinds": [
    "driver.alternative",
    "driver.basis"
   ],
-  "text": "days inventory outstanding, in days of cost of sales = 39.135094 days = inventory net 6,795,205.57 / cost of sales 63,376,621.45 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.412033 days = inventory 6,795,205.57 x 365.0 days / total operating expense 78,958,595.58 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name"
+  "text": "days inventory outstanding, split by stock type on the period-end balance = 31.874917 days = inventory net 8,933,332.42 / cost of production sold + cost of goods resold (607) 102,295,680.81 x 365 days (forecast.dio_split). Beside it, the ratio table's dio (engine.ratios.table) reads 30.2117 days: the same split by stock type on the table's own basis; the plan projects period-end balances, so this driver is the split on the period-end balance"
  },
  {
-  "code": "forecast.dio_cogs",
+  "code": "forecast.dio_split",
   "kinds": [
    "driver.alternative",
    "driver.basis"
   ],
-  "text": "days inventory outstanding, in days of cost of sales = 46.213147 days = inventory net 8,933,332.42 / cost of sales 70,557,114.68 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 31.544446 days = inventory 8,933,332.42 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name"
+  "text": "days inventory outstanding, split by stock type on the period-end balance = 37.86421 days = inventory net 9,796,026.80 / cost of production sold + cost of goods resold (607) 94,430,857.50 x 365 days (forecast.dio_split). Beside it, the ratio table's dio (engine.ratios.table) reads 34.2676 days: the same split by stock type on the table's own basis; the plan projects period-end balances, so this driver is the split on the period-end balance"
  },
  {
-  "code": "forecast.dio_cogs",
+  "code": "forecast.dio_split",
   "kinds": [
    "driver.alternative",
    "driver.basis"
   ],
-  "text": "days inventory outstanding, in days of cost of sales = 62.259489 days = inventory net 9,796,026.80 / cost of sales 57,429,796.23 x 365 days (forecast.dio_cogs). Beside it, the ratio table's dio (engine.ratios.table) reads 37.789436 days = inventory 9,796,026.80 x 365.0 days / total operating expense 94,617,707.03 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name"
- },
- {
-  "code": "forecast.dpo_cogs",
-  "kinds": [
-   "driver.alternative",
-   "driver.basis"
-  ],
-  "text": "days payables outstanding, in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.676884 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name"
- },
- {
-  "code": "forecast.dpo_cogs",
-  "kinds": [
-   "driver.alternative",
-   "driver.basis"
-  ],
-  "text": "days payables outstanding, in days of cost of sales = 80.658389 days = trade payables 14,005,085.38 / cost of sales 63,376,621.45 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 29.839927 days = accounts payable 6,455,119.80 x 365.0 days / total operating expense 78,958,595.58 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name"
- },
- {
-  "code": "forecast.dpo_cogs",
-  "kinds": [
-   "driver.alternative",
-   "driver.basis"
-  ],
-  "text": "days payables outstanding, in days of cost of sales = 82.765143 days = trade payables 13,022,425.55 / cost of sales 57,429,796.23 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 51.664245 days = accounts payable 13,392,746.23 x 365.0 days / total operating expense 94,617,707.03 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name"
+  "text": "days inventory outstanding, split by stock type on the period-end balance = 39.239422 days = inventory net 6,795,205.57 / cost of production sold + cost of goods resold (607) 63,208,118.74 x 365 days (forecast.dio_split). Beside it, the ratio table's dio (engine.ratios.table) reads 40.1241 days: the same split by stock type on the table's own basis; the plan projects period-end balances, so this driver is the split on the period-end balance"
  },
  {
   "code": "forecast.dso",
@@ -520,6 +496,20 @@
   "text": "interest is charged and paid in the period it accrues, on the balance at the START of that period — which is what lets the funding line be sized in one pass instead of by an iterative solve whose convergence tolerance would leave a residual in a balance sheet required to close exactly."
  },
  {
+  "code": "book_absent",
+  "kinds": [
+   "driver.ladder"
+  ],
+  "text": "inventory days are refused for this book: a component that holds stock is refused, so the total cannot be computed (reason code a_leg_refused); no driver is measured, so inventory is HELD at its closing balance of 67,821,213.71"
+ },
+ {
+  "code": "forecast.dio_split",
+  "kinds": [
+   "driver.basis"
+  ],
+  "text": "inventory days are refused for this book: a component that holds stock is refused, so the total cannot be computed (reason code a_leg_refused); no driver is measured, so inventory is HELD at its closing balance of 67,821,213.71"
+ },
+ {
   "code": "packs/forecast/levers.yaml#capex_maintenance_replaces_depreciation",
   "kinds": [
    "driver.basis"
@@ -581,6 +571,13 @@
    "driver.basis"
   ],
   "text": "materials_non_inventory: this cost pool is larger than revenue, so it cannot move with sales volume (anchor base 1,103,472.22)"
+ },
+ {
+  "code": "inert_in_this_plan",
+  "kinds": [
+   "driver.inert"
+  ],
+  "text": "moving dio cogs days changes no figure in this plan"
  },
  {
   "code": "inert_in_this_plan",
@@ -930,7 +927,7 @@
    "refusal",
    "refused"
   ],
-  "text": "the plan draws 1,862,503.44 on the funding line in FY2028 and this book cannot price it: no borrowing rate is measurable from this book (it carries no interest expense, or no interest-bearing debt at the opening date), so the funding line CANNOT be priced. A plan that draws the line is refused rather than charged 0%; supply revolver_rate to price it"
+  "text": "the plan draws 1,862,503.57 on the funding line in FY2028 and this book cannot price it: no borrowing rate is measurable from this book (it carries no interest expense, or no interest-bearing debt at the opening date), so the funding line CANNOT be priced. A plan that draws the line is refused rather than charged 0%; supply revolver_rate to price it"
  },
  {
   "code": "funding_line_unpriceable",
@@ -938,7 +935,7 @@
    "refusal",
    "refused"
   ],
-  "text": "the plan draws 160,391.40 on the funding line in FY2028 and this book cannot price it: no borrowing rate is measurable from this book (it carries no interest expense, or no interest-bearing debt at the opening date), so the funding line CANNOT be priced. A plan that draws the line is refused rather than charged 0%; supply revolver_rate to price it"
+  "text": "the plan draws 160,391.56 on the funding line in FY2028 and this book cannot price it: no borrowing rate is measurable from this book (it carries no interest expense, or no interest-bearing debt at the opening date), so the funding line CANNOT be priced. A plan that draws the line is refused rather than charged 0%; supply revolver_rate to price it"
  },
  {
   "code": "funding_line_unpriceable",
@@ -946,7 +943,7 @@
    "refusal",
    "refused"
   ],
-  "text": "the plan draws 3,603,050.77 on the funding line in FY2028 and this book cannot price it: no borrowing rate is measurable from this book (it carries no interest expense, or no interest-bearing debt at the opening date), so the funding line CANNOT be priced. A plan that draws the line is refused rather than charged 0%; supply revolver_rate to price it"
+  "text": "the plan draws 3,603,050.94 on the funding line in FY2028 and this book cannot price it: no borrowing rate is measurable from this book (it carries no interest expense, or no interest-bearing debt at the opening date), so the funding line CANNOT be priced. A plan that draws the line is refused rather than charged 0%; supply revolver_rate to price it"
  },
  {
   "code": "funding_line_unpriceable",
@@ -954,7 +951,7 @@
    "refusal",
    "refused"
   ],
-  "text": "the plan draws 4,834,846.82 on the funding line in FY2027 and this book cannot price it: no borrowing rate is measurable from this book (it carries no interest expense, or no interest-bearing debt at the opening date), so the funding line CANNOT be priced. A plan that draws the line is refused rather than charged 0%; supply revolver_rate to price it"
+  "text": "the plan draws 4,834,846.94 on the funding line in FY2027 and this book cannot price it: no borrowing rate is measurable from this book (it carries no interest expense, or no interest-bearing debt at the opening date), so the funding line CANNOT be priced. A plan that draws the line is refused rather than charged 0%; supply revolver_rate to price it"
  },
  {
   "code": "funding_line_unpriceable",
@@ -962,7 +959,7 @@
    "refusal",
    "refused"
   ],
-  "text": "the plan draws 735,344.79 on the funding line in FY2027 and this book cannot price it: no borrowing rate is measurable from this book (it carries no interest expense, or no interest-bearing debt at the opening date), so the funding line CANNOT be priced. A plan that draws the line is refused rather than charged 0%; supply revolver_rate to price it"
+  "text": "the plan draws 735,344.91 on the funding line in FY2027 and this book cannot price it: no borrowing rate is measurable from this book (it carries no interest expense, or no interest-bearing debt at the opening date), so the funding line CANNOT be priced. A plan that draws the line is refused rather than charged 0%; supply revolver_rate to price it"
  },
  {
   "code": "funding_line_unpriceable",
@@ -970,7 +967,7 @@
    "refusal",
    "refused"
   ],
-  "text": "the plan draws 82,864.48 on the funding line in 2026-06 and this book cannot price it: no borrowing rate is measurable from this book (it carries no interest expense, or no interest-bearing debt at the opening date), so the funding line CANNOT be priced. A plan that draws the line is refused rather than charged 0%; supply revolver_rate to price it"
+  "text": "the plan draws 82,864.60 on the funding line in 2026-06 and this book cannot price it: no borrowing rate is measurable from this book (it carries no interest expense, or no interest-bearing debt at the opening date), so the funding line CANNOT be priced. A plan that draws the line is refused rather than charged 0%; supply revolver_rate to price it"
  },
  {
   "code": "convention_rejected",
@@ -1040,28 +1037,14 @@
   "kinds": [
    "driver.ladder"
   ],
-  "text": "this book reports no cost of sales, so days inventory outstanding, in days of cost of sales cannot be measured; inventory is HELD at its closing balance of 67,821,213.71"
- },
- {
-  "code": "forecast.dio_cogs",
-  "kinds": [
-   "driver.basis"
-  ],
-  "text": "this book reports no cost of sales, so days inventory outstanding, in days of cost of sales cannot be measured; inventory is HELD at its closing balance of 67,821,213.71"
- },
- {
-  "code": "book_absent",
-  "kinds": [
-   "driver.ladder"
-  ],
-  "text": "this book reports no cost of sales, so days payables outstanding, in days of cost of sales cannot be measured; trade payables are HELD at their closing balance of 16,192,883.08"
+  "text": "this book reports no cost of sales, so trade payables in days of cost of sales cannot be measured; trade payables are HELD at their closing balance of 16,192,883.08"
  },
  {
   "code": "forecast.dpo_cogs",
   "kinds": [
    "driver.basis"
   ],
-  "text": "this book reports no cost of sales, so days payables outstanding, in days of cost of sales cannot be measured; trade payables are HELD at their closing balance of 16,192,883.08"
+  "text": "this book reports no cost of sales, so trade payables in days of cost of sales cannot be measured; trade payables are HELD at their closing balance of 16,192,883.08"
  },
  {
   "code": "book_absent",
@@ -1158,6 +1141,30 @@
    "driver.ladder"
   ],
   "text": "this workspace carries no CAEN code, so no sector can be looked up"
+ },
+ {
+  "code": "forecast.dpo_cogs",
+  "kinds": [
+   "driver.alternative",
+   "driver.basis"
+  ],
+  "text": "trade payables in days of cost of sales = 37.175931 days = trade payables 7,186,373.77 / cost of sales 70,557,114.68 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 26.676884 days = accounts payable 7,554,847.25 x 365.0 days / total operating expense 103,367,367.84 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name"
+ },
+ {
+  "code": "forecast.dpo_cogs",
+  "kinds": [
+   "driver.alternative",
+   "driver.basis"
+  ],
+  "text": "trade payables in days of cost of sales = 80.658389 days = trade payables 14,005,085.38 / cost of sales 63,376,621.45 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 29.839927 days = accounts payable 6,455,119.80 x 365.0 days / total operating expense 78,958,595.58 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name"
+ },
+ {
+  "code": "forecast.dpo_cogs",
+  "kinds": [
+   "driver.alternative",
+   "driver.basis"
+  ],
+  "text": "trade payables in days of cost of sales = 82.765143 days = trade payables 13,022,425.55 / cost of sales 57,429,796.23 x 365 days (forecast.dpo_cogs). Beside it, the ratio table's dpo (engine.ratios.table) reads 51.664245 days = accounts payable 13,392,746.23 x 365.0 days / total operating expense 94,617,707.03 (cost of goods sold + operating expenses + depreciation amortization); that table divides by total operating expense, not cost of sales, so its value is quoted here and never served under this driver's name"
  },
  {
   "code": "packs/forecast/cost_behaviour.yaml#classification",

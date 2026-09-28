@@ -525,4 +525,8 @@ def test_with_no_711_and_no_72x_the_ruling_moves_nothing(io_forbidden):
             for r in CM.compute_period_metrics(statements, source_data_quality=sq)}
     golden = {r["name"]: {k: r[k] for k in ROW_KEYS} for r in case["rows"]}
     moved = sorted(n for n in golden if n in rows and rows[n] != golden[n])
-    assert moved == ["total_operating_revenue"], moved
+    # The inventory-days ruling (owner spec 2026-09-26, inventory days) revised dio, ccc
+    # and inventory_turnover on EVERY book — a different ruling, held by the
+    # inventory-days gate — so they are named here, not hidden.
+    inventory_ruling = sorted(CM.INVENTORY_DAYS_REVISED_METRICS)
+    assert moved == sorted(["total_operating_revenue"] + inventory_ruling), moved

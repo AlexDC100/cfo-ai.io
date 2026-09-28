@@ -246,8 +246,8 @@
         "absence": null
       },
       "dio": {
-        "value": 31.5444,
-        "printed": "32",
+        "value": 30.2117,
+        "printed": "30",
         "unit": "days",
         "verdict": "healthy",
         "higher_is_better": false,
@@ -259,7 +259,7 @@
         "absence": null
       },
       "dpo": {
-        "value": 26.6769,
+        "value": 26.67688366137272,
         "printed": "27",
         "unit": "days",
         "verdict": "watch",
@@ -271,7 +271,7 @@
         "absence": null
       },
       "ccc": {
-        "value": 32.913,
+        "value": 33.24343990618048,
         "printed": "33",
         "unit": "days",
         "verdict": "healthy",
@@ -518,8 +518,8 @@
         "absence": null
       },
       "dio": {
-        "value": 31.5444,
-        "printed": "32",
+        "value": 30.2117,
+        "printed": "30",
         "unit": "days",
         "verdict": "ungraded",
         "higher_is_better": null,
@@ -527,7 +527,7 @@
         "absence": null
       },
       "dpo": {
-        "value": 26.6769,
+        "value": 26.67688366137272,
         "printed": "27",
         "unit": "days",
         "verdict": "watch",
@@ -539,7 +539,7 @@
         "absence": null
       },
       "ccc": {
-        "value": 32.913,
+        "value": 33.24343990618048,
         "printed": "33",
         "unit": "days",
         "verdict": "healthy",
@@ -798,8 +798,8 @@
         "absence": null
       },
       "dio": {
-        "value": 43.215828,
-        "printed": "43",
+        "value": 30.2117,
+        "printed": "30",
         "unit": "days",
         "verdict": "healthy",
         "higher_is_better": false,
@@ -811,8 +811,8 @@
         "absence": null
       },
       "dpo": {
-        "value": 36.547353,
-        "printed": "37",
+        "value": 26.67688366137272,
+        "printed": "27",
         "unit": "days",
         "verdict": "watch",
         "higher_is_better": true,
@@ -823,8 +823,8 @@
         "absence": null
       },
       "ccc": {
-        "value": 45.09081,
-        "printed": "45",
+        "value": 33.24343990618048,
+        "printed": "33",
         "unit": "days",
         "verdict": "healthy",
         "higher_is_better": false,

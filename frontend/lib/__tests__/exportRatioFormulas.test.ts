@@ -84,6 +84,16 @@ type Env = {
    *  once carried its own `?? 365` and so re-floored, in the gate, the
    *  substitute the card had stopped making. */
   days: number | null;
+  /** The served inventory-days block (engine.ratios.inventory_days): its
+   *  OPERANDS — average / period-end stock, flow, day count — never its
+   *  value, which is what the card is checked against. */
+  inv: {
+    average: number | null;
+    closing: number | null;
+    flow: number | null;
+    days: number | null;
+    basisEn: string | null;
+  };
 };
 
 interface Spec {
@@ -312,14 +322,22 @@ const SPECS: Spec[] = [
     },
   },
   {
+    // INVENTORY DAYS — the ONE served split (owner spec 2026-09-26 P1),
+    // recomputed here from the block's OPERANDS: all stock on the block's
+    // basis ÷ (cost of production sold + 607) × its day count. The rule
+    // this row encoded until the ruling (inventory ÷ total operating
+    // expense) is the second denominator the ruling retired; a card that
+    // printed it again reds here.
     key: "dio",
-    label: "Days inventory outstanding",
+    label: "Inventory days (DIO)",
     formula: (e) =>
-      `inventory ÷ TOTAL operating expense (COGS + opex + D&A) × ${periodDaysLabel(e.days)} — not narrow COGS`,
+      `split by stock type — materials ÷ 601+602+603, finished goods + WIP ÷ cost of production sold, ` +
+      `merchandise ÷ 607; total = all stock ÷ (cost of production sold + 607) × ${periodDaysLabel(e.days)}` +
+      (e.inv.basisEn ? ` — ${e.inv.basisEn}` : ""),
     unit: "days",
     recompute: (e) => {
-      const v = div(e.bs.inventory, e.pl.total_operating_expense);
-      return v === null || e.days === null ? null : v * e.days;
+      const v = div(e.inv.average ?? undefined, e.inv.flow ?? undefined);
+      return v === null || e.inv.days === null ? null : v * e.inv.days;
     },
   },
   {
@@ -342,14 +360,15 @@ const SPECS: Spec[] = [
   {
     key: "ccc",
     label: "Cash conversion cycle",
-    formula: "DSO + DIO − DPO",
+    formula: "DSO + DIO (split, period-end balance) − DPO",
     unit: "days",
     recompute: (e) => {
+      // Three period-end terms: DSO, the split on the period-end stock, DPO.
       const dso = div(e.bs.accounts_receivable, e.pl.revenue);
-      const dio = div(e.bs.inventory, e.pl.total_operating_expense);
+      const dio = div(e.inv.closing ?? undefined, e.inv.flow ?? undefined);
       const dpo = div(e.bs.accounts_payable, e.pl.total_operating_expense);
-      if (dso === null || dio === null || dpo === null || e.days === null) return null;
-      return (dso + dio - dpo) * e.days;
+      if (dso === null || dio === null || dpo === null || e.days === null || e.inv.days === null) return null;
+      return (dso - dpo) * e.days + dio * e.inv.days;
     },
   },
   {
@@ -426,10 +445,24 @@ function envFrom(statements: unknown): Env {
     ...(typeof canonical.current_liabilities === "number"
       ? { total_current_liabilities: canonical.current_liabilities } : {}),
   };
+  const block = (s as { inventory_days?: Record<string, unknown> }).inventory_days;
+  const total = (block?.total ?? {}) as {
+    reason?: unknown; stock?: { average?: number; closing?: number }; flow?: { value?: number };
+  };
+  const refused = total.reason !== null && total.reason !== undefined;
+  const numOrNull = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  const label = (block?.basis_label ?? null) as { en?: string } | null;
   return {
     pl: s.assembled_pl ?? {},
     bs,
     days: s.supplementary?.periodDays ?? null,
+    inv: {
+      average: refused ? null : numOrNull(total.stock?.average),
+      closing: refused ? null : numOrNull(total.stock?.closing),
+      flow: refused ? null : numOrNull(total.flow?.value),
+      days: numOrNull(block?.period_days),
+      basisEn: typeof label?.en === "string" ? label.en : null,
+    },
   };
 }
 

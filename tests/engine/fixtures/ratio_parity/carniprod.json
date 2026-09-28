@@ -243,8 +243,8 @@
         "absence": null
       },
       "dio": {
-        "value": 37.7894,
-        "printed": "38",
+        "value": 34.2676,
+        "printed": "34",
         "unit": "days",
         "verdict": "healthy",
         "higher_is_better": false,
@@ -256,7 +256,7 @@
         "absence": null
       },
       "dpo": {
-        "value": 51.6642,
+        "value": 51.66424475283546,
         "printed": "52",
         "unit": "days",
         "verdict": "healthy",
@@ -268,7 +268,7 @@
         "absence": null
       },
       "ccc": {
-        "value": 27.9499,
+        "value": 28.024637309421564,
         "printed": "28",
         "unit": "days",
         "verdict": "strong",
@@ -512,8 +512,8 @@
         "absence": null
       },
       "dio": {
-        "value": 37.7894,
-        "printed": "38",
+        "value": 34.2676,
+        "printed": "34",
         "unit": "days",
         "verdict": "ungraded",
         "higher_is_better": null,
@@ -521,7 +521,7 @@
         "absence": null
       },
       "dpo": {
-        "value": 51.6642,
+        "value": 51.66424475283546,
         "printed": "52",
         "unit": "days",
         "verdict": "healthy",
@@ -533,7 +533,7 @@
         "absence": null
       },
       "ccc": {
-        "value": 27.9499,
+        "value": 28.024637309421564,
         "printed": "28",
         "unit": "days",
         "verdict": "strong",
@@ -789,8 +789,8 @@
         "absence": null
       },
       "dio": {
-        "value": 51.771478,
-        "printed": "52",
+        "value": 34.2676,
+        "printed": "34",
         "unit": "days",
         "verdict": "healthy",
         "higher_is_better": false,
@@ -802,10 +802,10 @@
         "absence": null
       },
       "dpo": {
-        "value": 70.779954,
-        "printed": "71",
+        "value": 51.66424475283546,
+        "printed": "52",
         "unit": "days",
-        "verdict": "strong",
+        "verdict": "healthy",
         "higher_is_better": true,
         "ladder": {
           "strong": 60,
@@ -814,10 +814,10 @@
         "absence": null
       },
       "ccc": {
-        "value": 38.291363000000004,
-        "printed": "38",
+        "value": 28.024637309421564,
+        "printed": "28",
         "unit": "days",
-        "verdict": "healthy",
+        "verdict": "strong",
         "higher_is_better": false,
         "ladder": {
           "strong": 30,

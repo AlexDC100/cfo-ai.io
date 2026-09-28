@@ -421,11 +421,12 @@ export const PRODUCTS_GUIDE: GuideStep[] = [
   },
   {
     eyebrow: "3 of 4",
-    title: "DIO & cash trapped",
+    title: "SKU days & cash trapped",
     body: (
       <>
-        Days Inventory Outstanding × daily COGS = how much cash is sitting
-        in each SKU's stock. High DIO + thin margin = the cash-burner
+        SKU turnover days × daily COGS = how much cash is sitting in each
+        SKU's stock (from the sales file — not the company's inventory days
+        on the Ratios tab). Many SKU days + thin margin = the cash-burner
         pattern.
       </>
     ),

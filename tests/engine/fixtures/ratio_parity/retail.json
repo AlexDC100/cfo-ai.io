@@ -246,8 +246,8 @@
         "absence": null
       },
       "dio": {
-        "value": 31.412,
-        "printed": "31",
+        "value": 40.1241,
+        "printed": "40",
         "unit": "days",
         "verdict": "healthy",
         "higher_is_better": false,
@@ -259,7 +259,7 @@
         "absence": null
       },
       "dpo": {
-        "value": 29.8399,
+        "value": 29.839926985692205,
         "printed": "30",
         "unit": "days",
         "verdict": "watch",
@@ -271,8 +271,8 @@
         "absence": null
       },
       "ccc": {
-        "value": 2.7498,
-        "printed": "3",
+        "value": 10.577185993160587,
+        "printed": "11",
         "unit": "days",
         "verdict": "strong",
         "higher_is_better": false,
@@ -518,8 +518,8 @@
         "absence": null
       },
       "dio": {
-        "value": 31.412,
-        "printed": "31",
+        "value": 40.1241,
+        "printed": "40",
         "unit": "days",
         "verdict": "ungraded",
         "higher_is_better": null,
@@ -527,7 +527,7 @@
         "absence": null
       },
       "dpo": {
-        "value": 29.8399,
+        "value": 29.839926985692205,
         "printed": "30",
         "unit": "days",
         "verdict": "watch",
@@ -539,8 +539,8 @@
         "absence": null
       },
       "ccc": {
-        "value": 2.7498,
-        "printed": "3",
+        "value": 10.577185993160587,
+        "printed": "11",
         "unit": "days",
         "verdict": "strong",
         "higher_is_better": false,
@@ -798,8 +798,8 @@
         "absence": null
       },
       "dio": {
-        "value": 43.034440000000004,
-        "printed": "43",
+        "value": 40.1241,
+        "printed": "40",
         "unit": "days",
         "verdict": "healthy",
         "higher_is_better": false,
@@ -811,8 +811,8 @@
         "absence": null
       },
       "dpo": {
-        "value": 40.880663000000006,
-        "printed": "41",
+        "value": 29.839926985692205,
+        "printed": "30",
         "unit": "days",
         "verdict": "watch",
         "higher_is_better": true,
@@ -823,8 +823,8 @@
         "absence": null
       },
       "ccc": {
-        "value": 3.7672260000000004,
-        "printed": "4",
+        "value": 10.577185993160587,
+        "printed": "11",
         "unit": "days",
         "verdict": "strong",
         "higher_is_better": false,

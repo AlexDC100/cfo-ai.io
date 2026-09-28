@@ -450,6 +450,9 @@ export const RATIO_REASON_CODES = [
   "ebitda_refused",
   // a margin over a turnover negligible against operating activity
   "margin_not_meaningful",
+  // the ONE inventory-days block (engine.ratios.inventory_days) refuses its
+  // total, or no block is served — never a fallback formula
+  "inventory_days_refused",
   // band withheld (value kept)
   "sector_unconfirmed",
   "negative_denominator",
@@ -471,6 +474,7 @@ export const RATIO_COMPARE_REASON_CODES = [
   "prior_refused",
   "both_refused",
   "direction_withheld",
+  "basis_differs",
   "ladder_differs",
   "graded_by_letter",
   "credit_inputs_absent",
@@ -559,6 +563,12 @@ export const RATIO_OPERAND_WORD: Readonly<Record<string, string>> = {
   "assembled_pl.gross_profit": "grossProfit",
   "assembled_pl.inventory_variation": "inventoryVariation",
   "incomeStatement.inventoryVariationMemo": "inventoryVariation",
+  // INVENTORY DAYS — the ONE served block's own operands
+  // (engine.ratios.inventory_days)
+  "assembled_metrics.inventory_days": "inventoryDays",
+  "assembled_metrics.inventory_days.total": "inventoryDays",
+  "inventory_days.total.flow.value": "inventoryDaysFlow",
+  "inventory_days.total.stock.average": "inventoryAverage",
   "incomeStatement.ebitda": "ebitda",
   "incomeStatement.ebit": "operatingResult",
   "incomeStatement.gross_profit": "grossProfit",

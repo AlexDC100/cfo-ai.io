@@ -118,7 +118,7 @@ const LEVERS: LeverDef[] = [
     label: ["Zile încasare clienți (DSO)", "Days sales outstanding (DSO)"],
     basis: ["măsurat din balanță: 45,0 zile (sintetic)", "measured on the book: 45.0 days (synthetic)"] },
   { id: "dio_days", group: "more", unit: "days", shape: "per_year", range: ["0", "365", "1"], decimals: 0, value: "52",
-    label: ["Zile stoc (DIO)", "Days inventory (DIO)"],
+    label: ["Zile de stoc (DIO) — sold la sfârșitul perioadei, anul planului", "Inventory days (DIO) — period-end balance, plan year"],
     basis: ["măsurat din balanță: 52,0 zile (sintetic)", "measured on the book: 52.0 days (synthetic)"] },
   { id: "capex", group: "more", unit: "pct", shape: "per_year", range: ["0", "0.30", "0.001"], decimals: 3, value: "0.03",
     label: ["Investiții (% din venituri)", "Capital expenditure (% of revenue)"],

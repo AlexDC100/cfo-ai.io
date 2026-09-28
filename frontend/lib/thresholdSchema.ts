@@ -101,13 +101,13 @@ export const SPECS: Record<GroupKey, ThresholdSpec[]> = {
       min: 0, max: 50, step: 0.5, calibrated: 5, format: (v) => `< ${fmtKron(v)}`,
     },
     {
-      key: "dioCapitalTrap", label: "Capital trap DIO",
+      key: "dioCapitalTrap", label: "Capital trap SKU days",
       caption: "Days a SKU can sit in stock before it's flagged as locking up cash.",
       min: 60, max: 365, step: 5, calibrated: 150, format: (v) => `> ${fmtDays(v)}`,
     },
     {
       key: "capitalTrapRealMarginPct", label: "Capital trap real margin",
-      caption: "If real margin is below this AND DIO is too long, SKU is eliminated.",
+      caption: "If real margin is below this AND its SKU days are too long, SKU is eliminated.",
       min: 0, max: 15, step: 0.5, calibrated: 5.0, format: (v) => `< ${fmtPct(v)}`,
     },
     {
@@ -128,7 +128,7 @@ export const SPECS: Record<GroupKey, ThresholdSpec[]> = {
       min: 0, max: 10, step: 0.5, calibrated: 3.0, format: (v) => `< ${fmtPct(v)}`,
     },
     {
-      key: "warningLongDio", label: "Long DIO",
+      key: "warningLongDio", label: "Long SKU days",
       caption: "Slow-moving inventory threshold for the WARNING bucket.",
       min: 60, max: 200, step: 5, calibrated: 100, format: (v) => `> ${fmtDays(v)}`,
     },
@@ -180,7 +180,7 @@ export const SPECS: Record<GroupKey, ThresholdSpec[]> = {
       min: 50, max: 400, step: 25, calibrated: 150, format: (v) => `> ${fmtPctInt(v)}`,
     },
     {
-      key: "scaleHighVolumeDioMax", label: "High-volume DIO max",
+      key: "scaleHighVolumeDioMax", label: "High-volume SKU days max",
       caption: "Inventory days cap that protects a high-volume scale candidate.",
       min: 15, max: 90, step: 5, calibrated: 45, format: (v) => `< ${fmtDays(v)}`,
     },

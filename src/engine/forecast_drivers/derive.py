@@ -655,12 +655,12 @@ def _build_one(spec, pack, history, newest, engine):
                             "the engine's own days sales outstanding")
     if key == "dio":
         return _from_engine(spec, pack, newest, engine, "dio_cogs_days",
-                            "the engine's own days inventory outstanding, "
-                            "in days of cost of sales")
+                            "the engine's own inventory days, split by stock "
+                            "type on the period-end balance")
     if key == "dpo":
         return _from_engine(spec, pack, newest, engine, "dpo_cogs_days",
-                            "the engine's own days payables outstanding, "
-                            "in days of cost of sales")
+                            "the engine's own trade payables in days of "
+                            "cost of sales (not the ratio table's DPO)")
     if key == "capex_rate":
         return _from_engine(spec, pack, newest, engine,
                             "capex_pct_of_revenue",

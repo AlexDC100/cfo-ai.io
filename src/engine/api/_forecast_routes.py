@@ -344,12 +344,17 @@ def _saved_case(jwt: str, org_id: str, case_id: str) -> Any:
 
 
 def cockpit(period_id: str, body: CockpitRequestBody, jwt: str,
-            x_org_id: Optional[str]) -> Dict[str, Any]:
+            x_org_id: Optional[str],
+            anchor_out: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """THE cockpit handler: the same loader, membership resolution and
     ``project_levers`` as :func:`recompute`, read into four numbers, one
     chart, the sentence, the levers with their bases, the cases, the bridge
     from base and the annual statements (engine.forecast.cockpit). Read-only
-    compute: it writes no table."""
+    compute: it writes no table.
+
+    ``anchor_out`` (the bank export only): filled with the served
+    ``statements`` of the period the plan stands on, so the export can carry
+    that period's ONE inventory-days block beside the CFO report's."""
     started = time.perf_counter()
     from . import _org
     _user_id, org_id = _org.resolve_org(jwt, x_org_id)
@@ -399,6 +404,8 @@ def cockpit(period_id: str, body: CockpitRequestBody, jwt: str,
     boundary.assert_no_actual_provenance(payload)
     # OUTSIDE pins.body_hash, like fp1.2's recompute_ms.
     payload["recompute_ms"] = int((time.perf_counter() - started) * 1000)
+    if anchor_out is not None:
+        anchor_out["statements"] = period.get("statements")
     return payload
 
 
@@ -506,7 +513,13 @@ def build_router() -> APIRouter:
         /api/report/pdf). Read-only compute: it writes no table."""
         jwt = _require_jwt(authorization)
         from engine.forecast.cockpit import export_document
-        return export_document(cockpit(period_id, _validated_cockpit(body), jwt, x_org_id))
+        from engine.ratios import inventory_days as _inventory_days
+        anchor = {}  # type: Dict[str, Any]
+        payload = cockpit(period_id, _validated_cockpit(body), jwt, x_org_id, anchor_out=anchor)
+        # INVENTORY DAYS (owner spec 2026-09-26, inventory days): the plan's base period's
+        # ONE served block, so the bank document prints the same split as the
+        # CFO report — or nothing, where the period serves none.
+        return export_document(payload, inventory_days=_inventory_days.served_block(anchor.get("statements")))
 
     return router
 

@@ -341,7 +341,7 @@ function CategoryCard({
               className="border-r border-rule-soft pr-4 pt-3"
             />
             <KpiCell
-              label="DIO"
+              label="SKU days"
               value={cat.dioDays != null
                 ? <><Amount kind="count" value={Math.round(cat.dioDays)} />d</>
                 : "—"

@@ -214,22 +214,23 @@ drivers:
       second DSO cannot exist beside the one the plan uses.
 
   - key: dio
-    label: "Days inventory outstanding, in days of cost of sales"
+    label: "Inventory days, split by stock type (period-end balance)"
     unit: days
     kind: level
     favourable_direction: down
-    authority: "canonical_bs.rows.inventory_net ÷ assembled_pl.cogs (engine.forecast forecast.dio_cogs)"
+    authority: "statements.inventory_days: canonical_bs.rows.inventory_net ÷ (cost of production sold + 607) (engine.forecast forecast.dio_split)"
     band_key: dio
     case_rule: band_traverse
     why: >-
-      Read from engine.forecast's formula forecast.dio_cogs (plan/2 contract
-      4, R8): inventory over COST OF SALES. The ratio table divides by total
-      operating expense, so the engine's basis quotes that value beside this
-      one rather than serving two numbers under one name. A book with no
-      cost of sales has no DIO, and so no driver.
+      Read from engine.forecast's formula forecast.dio_split (owner spec
+      2026-09-26 P1, point 4): the SERVED inventory days
+      (engine.ratios.inventory_days), split by stock type, on the
+      period-end balance the plan projects, over the block's own flow. The
+      ratio table serves the same split on its average basis; there is one
+      formula under the name. A refused block has no DIO, and so no driver.
 
   - key: dpo
-    label: "Days payable outstanding, in days of cost of sales"
+    label: "Trade payables in days of cost of sales"
     unit: days
     kind: level
     favourable_direction: up
@@ -237,9 +238,12 @@ drivers:
     band_key: dpo
     case_rule: band_traverse
     why: >-
-      As DIO, over cost of sales (forecast.dpo_cogs). Higher is favourable,
-      so the upside and downside rungs are read off the band in the
-      opposite direction to DSO and DIO.
+      Trade payables over cost of sales (forecast.dpo_cogs) — NOT the
+      ratio table's DPO, which divides by total operating expense and is
+      quoted beside this driver under its own name (owner spec 2026-09-26
+      P1: one metric name, one formula). Higher is favourable, so the
+      upside and downside rungs are read off the band in the opposite
+      direction to DSO and DIO.
 
   - key: capex_rate
     label: "Capex ÷ revenue"

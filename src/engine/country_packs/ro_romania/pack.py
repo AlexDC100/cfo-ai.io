@@ -667,6 +667,19 @@ class RomaniaPack:
             parser_version=str(parser_version) if parser_version else str(PARSER_VERSION),
         )
 
+    def measure_inventory_stock(self, tb_rows: Any) -> dict:
+        """The `inventory_stock/1` evidence block off parsed rows — every
+        class-3 account's balance at the fiscal-year opening (when the `si`
+        column is that opening) and at the period end
+        (`inventory_stock.measure`). ONE code object for the pipeline's
+        persist seam and the offline seam below."""
+        from . import inventory_stock as _inventory_stock
+
+        return _inventory_stock.measure(
+            [r for r in (tb_rows or []) if isinstance(r, dict)],
+            source_anchor=getattr(tb_rows, "source_anchor", None),
+        )
+
     # ── 6b. canonical_bs v2 integration glue ─────────────────
     # Shared by the pipeline (stage_extract/stage_map) AND the offline
     # scripts (verify_determinism / reprocess_documents) so the numeric
@@ -830,6 +843,10 @@ class RomaniaPack:
         self.merge_parser_exclusions(
             assembled, list(getattr(shaped, "excluded", None) or [])
         )
+        # The stock evidence (inventory days) — the same attach stage_map runs.
+        from . import inventory_stock as _inventory_stock
+
+        _inventory_stock.attach_to_envelope(assembled, self.measure_inventory_stock(tb_rows))
 
         # ANCHOR PROVENANCE — the same four fields, stamped by the same
         # code object, as `pipeline.stage_map`.

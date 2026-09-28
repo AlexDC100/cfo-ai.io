@@ -1009,7 +1009,6 @@ def compute_period_metrics(
     # stage_compute body. No new math; every field is either a ratio of
     # existing canonical values or a direct alias.
     ar = bs.get("accountsReceivable", 0.0)
-    inventory = bs.get("inventory", 0.0)
     ap = bs.get("accountsPayable", 0.0)
     st_debt = bs.get("shortTermDebt", 0.0)
     lt_debt = bs.get("longTermDebt", 0.0)
@@ -1046,6 +1045,39 @@ def compute_period_metrics(
         core_ebitda = ebitda_statutory - oi_758_fb - oi_781_fb
     net_debt = total_debt - bs.get("cash", 0.0)
 
+    # ── INVENTORY DAYS — READ from the one served block
+    # (engine.ratios.inventory_days, owner spec 2026-09-26 P1): the split by
+    # stock type over the flow that moves each stock, on the average
+    # balance. Never inventory x 365 / total operating expense again (the
+    # Ratios card's 52.5 on Scandia FY2025 beside the Benchmark's 48.8 and
+    # the Forecast's 95.3). A statements block without the block, or with a
+    # refused total, carries None — never a fallback formula. The CCC adds
+    # the split total on the PERIOD-END basis to the period-end DSO and DPO,
+    # so its three terms sit on one basis.
+    # (Read here as data — the model imports no engine module; the block's
+    # schema is the contract, `engine.ratios.inventory_days.served_block`.)
+    _inv_raw = s.get("inventory_days")
+    _inv_block = (_inv_raw if isinstance(_inv_raw, dict)
+                  and _inv_raw.get("schema") == "inventory_days/1" else None)
+    _inv_total = (_inv_block or {}).get("total") or {}
+    dio_days = _fnum(_inv_total.get("value")) if _inv_block is not None else None
+    # ONE DAY-COUNT RULE for dso / dpo / ccc — the ratio table's
+    # (engine.ratios.table._day_count), restated here because this module is
+    # held to a pure import set (tests/engine/test_credit_model_pure.py) and
+    # may not import the table: the served `supplementary.periodDays`, else
+    # the 365-day default the table names `constant.period_days_default`. A
+    # hard-coded 365 in the products put the cycle's DPO on a different day
+    # count from its DSO and the split's DIO on every leap year (366) and
+    # every year-to-date month. one-metric-one-formula holds the two rules
+    # to one figure on 366- and 181-day periods.
+    _sup = s.get("supplementary") if isinstance(s.get("supplementary"), dict) else {}
+    period_days = _fnum(_sup.get("periodDays"))
+    if period_days is None:
+        period_days = 365.0
+    dio_days_closing = _fnum(_inv_total.get("closing_value")) if _inv_block is not None else None
+    inventory_turnover = (_fnum(((_inv_block or {}).get("inventory_turnover") or {}).get("value"))
+                          if _inv_block is not None else None)
+
     metrics.extend([
         # Liquidity
         {"name": "quick_ratio",          "value": safe(bs.get("cash", 0.0) + ar, current_liab),       "unit": "ratio", "direction": "higher"},
@@ -1065,21 +1097,24 @@ def compute_period_metrics(
         {"name": "dscr_with_lt_principal","value": safe(ebitda, interest + lt_debt / 8.0),             "unit": "ratio", "direction": "higher"},
         # Efficiency
         {"name": "asset_turnover",       "value": safe(revenue, total_assets),                        "unit": "ratio", "direction": "higher"},
-        {"name": "dso",                  "value": safe(ar * 365, revenue),                            "unit": "days",  "direction": "lower"},
-        {"name": "dio",                  "value": safe(inventory * 365, total_operating_expense),     "unit": "days",  "direction": "lower"},
-        {"name": "dpo",                  "value": safe(ap * 365, total_operating_expense),            "unit": "days",  "direction": "higher"},
-        # CCC composes the three above. None-safe in the FE; here we
-        # surface only when all three components are computable.
+        {"name": "dso",                  "value": safe(ar * period_days, revenue),                    "unit": "days",  "direction": "lower"},
+        {"name": "dio",                  "value": dio_days,                                           "unit": "days",  "direction": "lower"},
+        {"name": "dpo",                  "value": safe(ap * period_days, total_operating_expense),    "unit": "days",  "direction": "higher"},
+        # CCC = DSO + the split inventory days ON THE PERIOD-END BASIS − DPO:
+        # three period-end terms on ONE day count. Refused (None) with the
+        # inventory days.
         {"name": "ccc",                  "value": (
-            None if (current_liab == 0 or revenue == 0 or total_operating_expense == 0)
+            None if (current_liab == 0 or revenue == 0 or total_operating_expense == 0
+                     or dio_days_closing is None)
             else round(
-                (ar * 365 / revenue)
-                + (inventory * 365 / total_operating_expense)
-                - (ap * 365 / total_operating_expense),
+                (ar * period_days / revenue)
+                + dio_days_closing
+                - (ap * period_days / total_operating_expense),
                 4,
             )
         ), "unit": "days", "direction": "lower"},
-        {"name": "inventory_turnover",   "value": safe(total_operating_expense, inventory),           "unit": "ratio", "direction": "higher"},
+        # Period days / the split total (the block's own figure).
+        {"name": "inventory_turnover",   "value": inventory_turnover,                                 "unit": "ratio", "direction": "higher"},
         # Margins over TURNOVER — operating_margin (the one operating
         # result, 711 and 72x inside) + core_ebitda_margin.
         {"name": "operating_margin",     "value": safe(operating_profit, revenue),                    "unit": "ratio", "direction": "higher"},
@@ -1392,8 +1427,23 @@ REVISION_3_ADDED_METRICS: Tuple[str, ...] = ("total_operating_expense",)
 RETIRED_METRICS: Tuple[str, ...] = (
     "ebitda_statutory_with_711", "inventory_variation_memo", "total_operating_revenue_statutory",
 )
+#: The rows the inventory-days ruling (owner spec 2026-09-26 P1) revised:
+#: a period persisted before it carries inventory / total operating expense
+#: under `dio`, a CCC built on that, and its inverse under
+#: `inventory_turnover`. Each is served from the serve-time model, which
+#: reads the ONE block (`engine.ratios.inventory_days`).
+INVENTORY_DAYS_REVISED_METRICS: Tuple[str, ...] = ("dio", "ccc", "inventory_turnover")
+#: The rows the one-day-count repair revised (2026-09-27): DSO and DPO on
+#: the served period's day count (`supplementary.periodDays`), as the ratio
+#: table and the trade-float insight compute them. A row persisted before
+#: the repair — or at write time, where the statements carry no
+#: `supplementary` — was multiplied by 365; on a leap year or a
+#: year-to-date month it is replaced by the serve-time row, so `metrics[]`,
+#: `assembled_metrics.ratios` and the ratio table carry one DPO.
+DAY_COUNT_REVISED_METRICS: Tuple[str, ...] = ("dso", "dpo")
 DEFINITION_REVISED_METRICS: Tuple[str, ...] = (
-    ("interest_coverage",) + ONE_EBITDA_REVISED_METRICS + RETIRED_METRICS)
+    ("interest_coverage",) + ONE_EBITDA_REVISED_METRICS + RETIRED_METRICS
+    + INVENTORY_DAYS_REVISED_METRICS + DAY_COUNT_REVISED_METRICS)
 
 #: Every persisted row a serve-basis response replaces.
 SERVE_REPLACED_METRICS: Tuple[str, ...] = CREDIT_FAMILY_METRICS + DEFINITION_REVISED_METRICS

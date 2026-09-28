@@ -39,6 +39,12 @@ import {
   type StatementRow,
 } from "@/lib/forecastCockpit";
 import { servedText } from "@/lib/forecastSentences";
+import {
+  INVENTORY_DAYS_DOC_CSS,
+  inventoryDaysDocHtml,
+  printInventoryDays,
+  readInventoryDaysSplit,
+} from "@/lib/inventoryDays";
 import { printCss } from "@/lib/reportPrintCss";
 import { ACCENT, BREACH, INK, INK_MUTE, INK_SOFT, PAPER, RULE, RULE_SOFT } from "@/lib/charts/tokens";
 
@@ -339,7 +345,14 @@ export function buildBankExportHtml(input: BankExportInput): string {
     td.basis { font-size: 8.5pt; color: ${INK_SOFT}; }
     ul { margin: 4px 0 12px; padding-left: 18px; font-size: 9pt; }
     section.rsec { break-before: page; page-break-before: always; }
+    ${INVENTORY_DAYS_DOC_CSS}
   `;
+
+  // INVENTORY DAYS — the base period's ONE served block (the engine carries
+  // it as `document.inventory_days`), printed by the same function as the
+  // CFO report's, so the two documents a bank reads carry one split.
+  const inventorySplit = readInventoryDaysSplit({ inventory_days: doc.inventory_days });
+  const inventoryBlock = inventorySplit ? inventoryDaysDocHtml(printInventoryDays(inventorySplit, lang)) : "";
 
   const title = pick(two(doc.title), lang) || t("forecast.cockpit.export.title", "Financial projection");
   const s = c.statements;
@@ -380,6 +393,7 @@ export function buildBankExportHtml(input: BankExportInput): string {
   <p><strong>${esc(pick(two(pcase.label), lang) || caseName)}</strong> — ${esc(pick(two(pcase.basis), lang))}</p>
   <h3>${esc(section("levers", t("forecast.cockpit.levers.title", "Assumptions")))}</h3>
   <table class="fin"><thead><tr><th>${esc(t("forecast.assumptions.driver", "Driver"))}</th><th class="num">${esc(t("forecast.assumptions.value", "Value"))}</th><th>${esc(t("forecast.cockpit.export.origin", "From"))}</th><th>${esc(t("forecast.assumptions.basis", "Basis"))}</th></tr></thead><tbody>${leverRows}</tbody></table>
+  ${inventoryBlock}
   <h3>DSCR</h3>
   <p>${esc(pick(two(dscrPage.formula), lang))} · ${esc(t("forecast.cockpit.export.threshold", "threshold"))} ${esc(str(dscrPage.threshold))}</p>
   <h3>${esc(t("forecast.cockpit.export.fundingLine", "The credit line"))}</h3>

@@ -656,7 +656,12 @@ def test_no_finding_names_a_contra_account_and_subjects_rank_by_signed_amount():
     # EBITDA turned from -29.0M to +0.55M and the manufacturers' margins
     # moved with net 711, so fewer EBITDA-family ratios cross a band between
     # the corpus pairs (>= 300 on the EBITDA without 711 / 72x).
-    assert checked >= 270, "non-vacuity: %d findings checked" % checked
+    # Measured 250 since the inventory-days ruling (owner spec 2026-09-26):
+    # dio 8 -> 0, inventory_turnover 8 -> 4 and ccc 16 -> 4 crossings —
+    # the split on the average balance moves less across the corpus pairs
+    # than stock / total operating cost did, and the developer's inventory
+    # days are refused (every leg), so they cross no band at all.
+    assert checked >= 250, "non-vacuity: %d findings checked" % checked
 
 
 def test_a_provision_or_an_opposite_side_line_never_outranks_the_bucket():

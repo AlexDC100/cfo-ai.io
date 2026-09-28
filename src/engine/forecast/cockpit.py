@@ -328,7 +328,14 @@ def fmt_ratio(value: Fraction, lang: str) -> str:
 
 
 def fmt_days(value: Fraction, lang: str) -> str:
-    return _decimal(value, 1, lang)
+    """Days on THE ratio table's days rule (``engine.ratios.table.
+    DISPLAY_DIGITS['days']``, half-up): the DIO lever's default IS the
+    split's period-end figure on a 365-day book, and the bank export prints
+    it beside the split — one figure, one string (it printed 31,9 beside
+    the split's 32 when this rule was one decimal of its own)."""
+    from engine.ratios.table import DISPLAY_DIGITS
+
+    return _decimal(value, DISPLAY_DIGITS["days"], lang)
 
 
 def fmt_money(cents: int, lang: str, pack: Optional[CockpitPack] = None) -> str:
@@ -440,6 +447,26 @@ def _pool_or_none(pools: Any, name: str) -> Any:
         if pool.name == name:
             return pool
     return None
+
+
+def _inventory_days_restated(payload: Mapping[str, Any]) -> Optional[Tuple[str, str]]:
+    """``(period_days, closing_value_q)`` of the served inventory-days block
+    when the period's day count is NOT the plan's 365-day year — the lever
+    (stock ÷ flow × 365) and the block's period-end figure (stock ÷ flow ×
+    the period's days) then differ, and the lever's sentence states both.
+    None on a 365-day period, or when the block serves no period-end total."""
+    from engine.ratios.inventory_days import served_block
+
+    statements = payload.get("statements") if isinstance(payload, Mapping) else None
+    block = served_block(statements) if isinstance(statements, Mapping) else None
+    if not isinstance(block, Mapping):
+        return None
+    period_days = block.get("period_days")
+    closing_q = (block.get("total") or {}).get("closing_value_q")
+    if (isinstance(period_days, bool) or not isinstance(period_days, (int, float))
+            or not isinstance(closing_q, str) or float(period_days) == 365.0):
+        return None
+    return ("%d" % int(period_days) if float(period_days).is_integer() else str(period_days)), closing_q
 
 
 def _defaults(plan: Any, payload: Mapping[str, Any], pack: CockpitPack) -> Dict[str, LeverDefault]:
@@ -618,7 +645,10 @@ def _defaults(plan: Any, payload: Mapping[str, Any], pack: CockpitPack) -> Dict[
 
     # working-capital days
     for lever_id, key, balance, flow in (("dso_days", "dso_days", opening.cents("ar"), history.revenue),
-                                         ("dio_days", "dio_cogs_days", opening.cents("inventory"), history.cogs),
+                                         # the ONE inventory-days block's flow
+                                         # (cost of production sold + 607)
+                                         ("dio_days", "dio_cogs_days", opening.cents("inventory"),
+                                          history.inventory_flow),
                                          ("dpo_days", "dpo_cogs_days", opening.cents("ap"), history.cogs)):
         item = a.get(key)
         if item.exact is None:
@@ -626,7 +656,20 @@ def _defaults(plan: Any, payload: Mapping[str, Any], pack: CockpitPack) -> Dict[
                                          src(item), measured=False)
             continue
         days = Fraction(item.exact, MICRO_DAY)
-        if item.tier == "book" and flow:
+        restated = _inventory_days_restated(payload) if lever_id == "dio_days" else None
+        if item.tier == "book" and flow and restated is not None:
+            # The plan's year is 365 days; the period's is not (a leap year,
+            # a year-to-date book). The lever is the SAME split restated on
+            # the plan's year, and its sentence prints the analysis figure
+            # beside it with the period's day count — never two period-end
+            # inventory-days figures under one name without the bridge.
+            period_days, closing_q = restated
+            basis = _both(pack, lever_id, "book_restated", days=_per_lang(fmt_days, days),
+                          balance=_per_lang(fmt_money, balance), flow=_per_lang(fmt_money, flow),
+                          year0=year0, period_days=period_days,
+                          closing=dict((l, closing_q.replace(".", ",") if l == "ro" else closing_q)
+                                       for l in _LANGS))
+        elif item.tier == "book" and flow:
             basis = _both(pack, lever_id, "book", days=_per_lang(fmt_days, days),
                           balance=_per_lang(fmt_money, balance), flow=_per_lang(fmt_money, flow),
                           year0=year0)
@@ -1526,13 +1569,20 @@ def _unserved() -> List[Tuple[str, str]]:
     return [(str(key), str(text)) for key, text in plan_pack().unserved]
 
 
-def export_document(payload: Dict[str, Any], pack: Optional[CockpitPack] = None) -> Dict[str, Any]:
+def export_document(payload: Dict[str, Any], pack: Optional[CockpitPack] = None, *,
+                    inventory_days: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
     """The bank export's data (POST .../cockpit/export): the cockpit payload
     as served, and an assumptions page built FROM it — every lever with its
     value, where the value came from and its basis, the DSCR formula and
     threshold, the funding line, the measured fixed/variable split, the
     engine's conventions, what the model does not cover and every external
-    source cited. Nothing is recomputed here."""
+    source cited. Nothing is recomputed here.
+
+    ``inventory_days`` is the base period's ONE served block
+    (engine.ratios.inventory_days, schema inventory_days/1), carried
+    verbatim as ``document.inventory_days`` so the bank document prints the
+    split exactly as the CFO report does; None where the period serves
+    none."""
     pack = pack or cockpit_pack()
     sources = {}  # type: Dict[str, Any]
     for lever in payload["levers"]:
@@ -1566,6 +1616,7 @@ def export_document(payload: Dict[str, Any], pack: Optional[CockpitPack] = None)
             "projected_note": pack.export["projected_note"],
             "sections": pack.export["sections"],
             "pins": dict(payload["pins"]),
+            "inventory_days": dict(inventory_days) if inventory_days is not None else None,
         },
         "cockpit": payload,
         "assumptions_page": {

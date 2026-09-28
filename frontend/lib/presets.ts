@@ -55,7 +55,7 @@ export const PRESETS: readonly Preset[] = [
     id: "logical_default",
     label: "Logical default",
     description:
-      "Volume × Margin matrix with hard cuts for negative margin and excess DIO. Recommended starting point.",
+      "Volume × Margin matrix with hard cuts for negative margin and excess SKU days. Recommended starting point.",
     combinationMode: "worst_wins",
     rules: {
       margin_pct: { enabled: true, thresholds: ["gmPct.p33", "gmPct.p67"] },
@@ -111,7 +111,7 @@ export const PRESETS: readonly Preset[] = [
     id: "working_capital_lens",
     label: "Working capital lens",
     description:
-      "Optimized for cash-cycle decisions. Heavy weight on DIO and financing cost.",
+      "Optimized for cash-cycle decisions. Heavy weight on SKU days and financing cost.",
     combinationMode: "worst_wins",
     rules: {
       dio:        { enabled: true, thresholds: [60, 150] },

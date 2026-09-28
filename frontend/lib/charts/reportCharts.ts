@@ -25,8 +25,9 @@
 // attaching a real prior to a real book.
 
 import type { CreditScoreResult } from "../financialValuation";
-import type { RatioBundle, Ratio, Statements } from "../financialReport";
+import { formatRatio, type RatioBundle, type Ratio, type Statements } from "../financialReport";
 import { factsFrom } from "../servedFacts";
+import { inventoryDaysFig, periodEndInventoryFormula, printDaysQ, readInventoryDaysSplit } from "../inventoryDays";
 import { plLevelsOf } from "../servedOneEbitda";
 import { printedPl, printedRow } from "../printedPl";
 import {
@@ -436,8 +437,38 @@ export function workingCapitalCycle(i: ChartInputs): ChartBlock {
     };
     return { id: "chart-wc-cycle", title, status: "absent", svg: gapCard(title, absence), rows: [], table: "", caption: `Not charted: ${missing.join(", ").toUpperCase()} could not be computed for this period.`, absence };
   }
+  // ONE QUANTIZATION. Every term prints the string its card prints
+  // (`formatRatio`: the served side's printed digits, else the ratio
+  // table's days rule) and the period-end DIO term prints the block's own
+  // `closing_value_q` — the string the split prints two lines above
+  // ("The same split on the period-end balance: 32 days"). The chart used
+  // a one-decimal rule of its own: agras printed "31.9 days" and a CCC of
+  // "33.2 days" under a split saying 32 and a CCC card saying 33.
   const days = (v: number): string => `${v.toFixed(1)} days`;
-  const dso = found[0] as Ratio, dio = found[1] as Ratio, dpo = found[2] as Ratio, ccc = found[3] as Ratio;
+  const dso = found[0] as Ratio, dioCard = found[1] as Ratio, dpo = found[2] as Ratio, ccc = found[3] as Ratio;
+  const negated = (printed: string): string => (printed.startsWith("-") ? printed.slice(1) : `-${printed}`);
+  // THE CYCLE'S INVENTORY TERM IS THE SERVED SPLIT ON THE PERIOD-END
+  // BALANCE (owner spec 2026-09-26 P1): DSO and DPO are period-end
+  // figures, so the cycle adds the split total on the same basis — the
+  // DIO card beside it prints the split on its served basis (the average
+  // of 1 January and 31 December where the book carries the opening).
+  // The bar draws the term the cycle actually adds, labelled as such.
+  const dioClosing = inventoryDaysFig(i.s, "closing_value").value;
+  const onPeriodEnd = dioClosing !== null && dioClosing !== dioCard.value;
+  // The period-end term carries ITS OWN formula line: the same arithmetic
+  // with the basis of the balance it divides ("stock at 31 December — a
+  // single day"), never the card's served-basis words — a reader
+  // recomputing a 31 December figure from "the average of the balances at
+  // 1 January and 31 December" gets the card's number, not this one.
+  const periodEndFormula = onPeriodEnd ? periodEndInventoryFormula(dioCard.formula, i.s) : null;
+  const dio: Ratio = onPeriodEnd
+    ? { ...dioCard, value: dioClosing, formula: periodEndFormula ?? "the served split on the period-end balance (engine.ratios.inventory_days, ccc_dio_term)" }
+    : dioCard;
+  const dioLabel = onPeriodEnd ? "plus DIO (period-end balance)" : "plus DIO";
+  const closingQ = readInventoryDaysSplit(i.s)?.totalClosingQ ?? null;
+  const dioPrinted = onPeriodEnd
+    ? (closingQ !== null ? printDaysQ(closingQ, "en") : days(dio.value as number))
+    : formatRatio(dioCard);
   // ── THE FORMULA IS THE RATIO'S OWN, NOT A SECOND SPELLING ──────────
   //
   // These four `source` strings used to be typed here: "inventory ÷ cost
@@ -457,10 +488,10 @@ export function workingCapitalCycle(i: ChartInputs): ChartBlock {
   // recomputes, and is the string the card prints; taking it from there
   // means the document holds one spelling per concept by construction.
   const rows: ChartRow[] = [
-    { key: "dso", label: "DSO", value: dso.value, printed: days(dso.value as number), source: dso.formula, kind: "anchor" },
-    { key: "dio", label: "plus DIO", value: dio.value, printed: days(dio.value as number), source: dio.formula, kind: "delta" },
-    { key: "dpo", label: "less DPO", value: -(dpo.value as number), printed: days(-(dpo.value as number)), source: dpo.formula, kind: "delta" },
-    { key: "ccc", label: "equals CCC", value: ccc.value, printed: days(ccc.value as number), source: ccc.formula, kind: "anchor", breach: ccc.verdict === "critical" },
+    { key: "dso", label: "DSO", value: dso.value, printed: formatRatio(dso), source: dso.formula, kind: "anchor" },
+    { key: "dio", label: dioLabel, value: dio.value, printed: dioPrinted, source: dio.formula, kind: "delta" },
+    { key: "dpo", label: "less DPO", value: -(dpo.value as number), printed: negated(formatRatio(dpo)), source: dpo.formula, kind: "delta" },
+    { key: "ccc", label: "equals CCC", value: ccc.value, printed: formatRatio(ccc), source: ccc.formula, kind: "anchor", breach: ccc.verdict === "critical" },
   ];
   // What the DRAWING carries under each bar. The table above is where the
   // formula lives — a 78-character sentence set at 8 px under a 149 px
@@ -482,8 +513,11 @@ export function workingCapitalCycle(i: ChartInputs): ChartBlock {
     table: rowsTable(rows, "days"),
     caption:
       Math.abs(drift) > 0.05
-        ? `The three terms sum to ${days(stepped)}; the served cycle is ${days(ccc.value as number)} — a ${days(drift)} difference, which means the four figures were not all computed off the same day count.`
-        : `Each bar is one term of the identity above; the three terms sum to the served cycle of ${days(ccc.value as number)}.`,
+        ? // A DIAGNOSTIC of a sub-day mismatch: both sides at one decimal, so
+          // the stated difference is the difference of the two printed
+          // numbers (whole days would read "33.3 vs 33 — a -0.1 difference").
+          `The three terms sum to ${days(stepped)}; the served cycle is ${days(ccc.value as number)} — a ${days(drift)} difference, which means the four figures were not all computed off the same day count.`
+        : `Each bar is one term of the identity above; the three terms sum to the served cycle of ${formatRatio(ccc)}.`,
   };
 }
 

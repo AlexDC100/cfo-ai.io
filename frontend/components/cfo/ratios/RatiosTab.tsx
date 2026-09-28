@@ -38,6 +38,7 @@ import { bandSourceOf, bandSourceText } from "@/lib/sectorBenchmark";
 import { RatioDetailDrawer } from "@/components/cfo/RatioDetailDrawer";
 import { absenceSentence } from "@/components/cfo/ratioAbsenceI18n";
 import { BandMovementLists } from "@/components/cfo/ratios/BandMovementLists";
+import { InventoryDaysSplit } from "@/components/cfo/ratios/InventoryDaysSplit";
 import { BADGE_BY_TONE, RatioComparisonTable, toneText } from "@/components/cfo/ratios/RatioComparisonTable";
 import { LearnableNumber } from "@/components/learning/LearnableNumber";
 import { formatRatio, type Ratio, type RatioBundle, type Statements } from "@/lib/financialReport";
@@ -161,7 +162,7 @@ export function RatiosTabContent({
         </div>
       </div>
       <div data-guide="ratios-efficiency">
-        <RatioGroupSection title={t("dash.ratioEfficiency")}          ratios={ratios.efficiency}    onPick={setSelected} />
+        <RatioGroupSection title={t("dash.ratioEfficiency")}          ratios={ratios.efficiency}    onPick={setSelected} statements={statements} />
       </div>
       <div data-guide="ratios-risk">
         <RatioGroupSection title={t("dash.ratioBankruptcy")}         ratios={altman ? [altman] : []} onPick={setSelected} />
@@ -188,12 +189,15 @@ export function RatiosTabContent({
 }
 
 export function RatioGroupSection({
-  title, ratios, onPick,
+  title, ratios, onPick, statements,
 }: {
   title: string;
   ratios: Ratio[];
   /** Click on any ratio tile opens the premium explainer drawer. */
   onPick?: (r: Ratio) => void;
+  /** The period's statements — the DIO tile prints the served
+   *  inventory-days split (`statements.inventory_days`) under its total. */
+  statements?: Statements | null;
 }) {
   return (
     <div>
@@ -202,7 +206,7 @@ export function RatioGroupSection({
       </h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {ratios.map((r) => (
-          <RatioTile key={r.key} ratio={r} onPick={onPick} />
+          <RatioTile key={r.key} ratio={r} onPick={onPick} statements={statements} />
         ))}
       </div>
     </div>
@@ -221,10 +225,11 @@ function legacyBadgeClass(verdict: Ratio["verdict"]): string {
 }
 
 export function RatioTile({
-  ratio, onPick,
+  ratio, onPick, statements,
 }: {
   ratio: Ratio;
   onPick?: (r: Ratio) => void;
+  statements?: Statements | null;
 }) {
   const { t, i18n } = useTranslation();
   const clickable = typeof onPick === "function";
@@ -339,6 +344,10 @@ export function RatioTile({
           {bandSourceText(sectorDoc, engineKey ?? "", i18n.language)}
         </div>
       ) : null}
+      {/* INVENTORY DAYS — what the total is made of: the three legs with
+          their accounts, "alte stocuri" inside the total, the basis and the
+          seasonality flag, all from the ONE served block. */}
+      {ratio.key === "dio" ? <InventoryDaysSplit statements={statements} variant="compact" /> : null}
       {/* COMPARATIVES — the served prior, change, prior band and band
           movement for this key. A prior the engine could not compute
           prints its reason. */}

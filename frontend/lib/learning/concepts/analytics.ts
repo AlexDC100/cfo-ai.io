@@ -643,54 +643,52 @@ const asset_turnover: Concept = {
   },
 };
 
+// INVENTORY DAYS — ONE served metric (owner spec 2026-09-26 P1): the engine
+// serves them split by stock type, each over the flow that moves it, on the
+// average balance where the book carries the opening
+// (`statements.inventory_days`). These concepts DESCRIBE that measure; they
+// carry no formula of their own to compute (the popover printed
+// "Inventory ÷ COGS × 365" tokens — 95.3 on Scandia — beside a card showing
+// 52.5), no `?? 0` operand and no benchmark rungs typed as prose.
 const inventory_turnover: Concept = {
   key: "inventory_turnover",
   name: { en: "Inventory Turnover", ro: "Rotația stocurilor" },
   category: "Working Capital",
   shortDefinition: {
-    en: "Cost of goods sold divided by average inventory. How many times per " +
-        "year inventory is sold and replaced. Higher = leaner inventory management.",
-    ro: "Costul bunurilor vândute împărțit la stocul mediu. De câte ori pe an " +
-        "se vinde și se înlocuiește stocul. Mai mare = stoc gestionat mai eficient.",
+    en: "How many times a year the stock turns: the period's days divided by " +
+        "the inventory days (split by stock type). Higher = leaner stock.",
+    ro: "De câte ori pe an se rotește stocul: zilele perioadei împărțite la " +
+        "zilele de stoc (pe tipuri de stoc). Mai mare = stoc mai redus.",
   },
-  inlineFormula: "COGS / Avg Inventory",
-  benchmark: { p25: 4.0, median: 7.0, p75: 12.0 },
+  inlineFormula: "period days ÷ inventory days (split by stock type)",
   related: ["dio_days", "inventory", "cogs"],
 };
 
 const dio_days: Concept = {
   key: "dio_days",
-  name: { en: "Days Inventory Outstanding", ro: "Zile stoc" },
+  name: { en: "Inventory days (DIO)", ro: "Zile de stoc (DIO)" },
   category: "Working Capital",
   shortDefinition: {
-    en: "How many days of cost of goods sold the inventory represents. Lower " +
-        "= leaner inventory; higher = more cash tied up in stock.",
-    ro: "Câte zile de cost al bunurilor vândute reprezintă stocul. Mai mic = " +
-        "stoc mai redus; mai mare = mai mult cash blocat.",
+    en: "How many days each kind of stock lasts at the pace it is used: " +
+        "materials over materials consumed (601–603), finished goods and WIP " +
+        "over the cost of production sold, merchandise over the cost of goods " +
+        "resold (607); the total is all stock over the two flows together.",
+    ro: "Câte zile ajunge fiecare tip de stoc la ritmul în care este folosit: " +
+        "materiile prime față de consumul de materii (601–603), produsele " +
+        "finite și producția în curs față de costul producției vândute, " +
+        "mărfurile față de costul mărfurilor vândute (607); totalul este tot " +
+        "stocul față de cele două fluxuri împreună.",
   },
-  inlineFormula: "Inventory / COGS × 365",
+  inlineFormula: "stock of each type ÷ the flow that moves it × days",
   plainEnglish: {
-    en: "How many days of sales the warehouse can supply from current stock. " +
-        "55 days = stock turns about 6× a year. Lower = leaner.",
-    ro: "Câte zile de vânzări poate susține depozitul din stocul actual. " +
-        "55 zile = stocul se rotește de ~6 ori pe an. Mai mic = mai eficient.",
+    en: "Read it on the average balance where the book shows the opening; a " +
+        "single year-end balance says nothing about the season. Stock is only " +
+        "called slow when the split and the average both say so.",
+    ro: "Se citește pe soldul mediu acolo unde balanța arată soldul inițial; un " +
+        "singur sold de sfârșit de an nu spune nimic despre sezon. Stocul este " +
+        "numit lent doar când împărțirea pe tipuri și media o arată amândouă.",
   },
-  benchmark: { p25: 30, median: 55, p75: 90 },
   related: ["inventory_turnover", "ccc_days", "dso_days", "dpo_days"],
-  computation: (ctx, v) => {
-    const m = ctx.metrics ?? {};
-    return {
-      result: { value: v, format: "days" },
-      layout: "inline",
-      tokens: [
-        { type: "value", value: m.inventory ?? 0, conceptKey: "inventory", label: "Inventory", format: "currency" },
-        { type: "operator", op: "÷" },
-        { type: "value", value: m.cogs ?? 0, conceptKey: "cogs", label: "COGS", format: "currency" },
-        { type: "operator", op: "×" },
-        { type: "literal", text: "365" },
-      ],
-    };
-  },
 };
 
 const dso_days: Concept = {

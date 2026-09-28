@@ -496,12 +496,18 @@ def decouple(series_set: "S.SeriesSet", pair: Tuple[str, str],
 
 # ── M-VELOCITY ───────────────────────────────────────────────────────────
 
-#: (cycle id, label, stock line, flow line). DSO, DIO and DPO, named the
-#: way a treasurer names them.
+#: (cycle id, label, stock line, flow line). The stock and payables cycles
+#: divide by cost of goods — NOT the served inventory days
+#: (engine.ratios.inventory_days, the split by stock type) nor the ratio
+#: table's DPO (÷ total operating cost), so they carry their OWN names (owner
+#: spec 2026-09-26 P1: one metric name, one formula). The detector stays
+#: parked (RADAR_DETECTORS_ENABLED); it is a velocity against the company's
+#: own history, never a second inventory-days or DPO figure.
 CYCLES = (
     ("dso", "Days sales outstanding", "ar_net", "revenue"),
-    ("dio", "Days inventory outstanding", "inventory", "cogs"),
-    ("dpo", "Days payables outstanding", "accounts_payable", "cogs"),
+    ("stock_days_on_cogs", "Stock days on cost of goods (radar velocity)", "inventory", "cogs"),
+    ("payables_days_on_cogs", "Payables days on cost of goods (radar velocity)",
+     "accounts_payable", "cogs"),
 )
 
 

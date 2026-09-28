@@ -385,16 +385,16 @@ export function SkuDetailDrawer({
                 sub={
                   breakdown.allocated_sga !== null
                     ? "proportional to revenue"
-                    : "needs DIO to decompose"
+                    : "needs SKU days to decompose"
                 }
               />
               <BreakdownRow
                 conceptKey="dio_days"
-                label="DIO"
+                label="SKU days"
                 value={sku.days_inventory_on_hand !== null
                   ? `${sku.days_inventory_on_hand.toLocaleString("en-GB", { maximumFractionDigits: 0 })} days`
                   : "—"}
-                sub="days inventory on hand"
+                sub="SKU turnover days (sales file) — not the company's inventory days"
               />
               <BreakdownRow
                 conceptKey="capital_cost_on_inventory"

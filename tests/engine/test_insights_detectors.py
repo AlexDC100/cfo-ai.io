@@ -279,8 +279,18 @@ def test_trade_float_prices_the_cycle_in_currency_and_in_days():
     # 709 reductions are read as reductions); DPO and the float in
     # currency, which read payables and cost of sales, do not.
     _approx(_measure(insight, "dso"), 28.045424, 1e-4)
-    _approx(_measure(insight, "dpo"), 37.175931, 1e-4)
-    _approx(_measure(insight, "float_days"), -9.130507, 1e-4)
+    # THE one DPO (design B4, owner spec 2026-09-26): the ratio table's —
+    # trade payables over TOTAL operating expense x the period's days — never
+    # over cost of goods sold (this measure read 37.175931 on that basis beside
+    # the Ratios card's 26.7, both under the name DPO). Recomputed here from
+    # the served statements, not copied from the engine.
+    st = _book("agras")["statements"]
+    inc = st["incomeStatement"]
+    toe = inc["costOfGoodsSold"] + inc["operatingExpenses"] + inc["depreciationAmortization"]
+    days = (st.get("supplementary") or {}).get("periodDays") or 365.0
+    dpo = st["balanceSheet"]["accountsPayable"] / toe * days
+    _approx(_measure(insight, "dpo"), dpo, 1e-6)
+    _approx(_measure(insight, "float_days"), 28.045424 - dpo, 1e-4)
     _approx(_measure(insight, "float"), 1327011.19, 0.01)
 
 

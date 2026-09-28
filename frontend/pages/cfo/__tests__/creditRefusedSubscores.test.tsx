@@ -350,7 +350,16 @@ describe.each(CASES)("$name", (c) => {
     expect(doc.querySelector("[data-report-credit-score]")?.textContent?.trim()).toBe("not reported");
     expect(doc.querySelector("[data-report-credit-letter]")?.textContent?.trim() ?? "not reported").toBe("not reported");
     expect(doc.querySelector("[data-report-credit-composite-refusal]")?.textContent).toContain(r.compositeRefusal!.sentence);
-    const trs = Array.from(doc.querySelectorAll("tr"));
+    // The model's COMPONENT table (Component | Value | Weight | Contribution
+    // | Read) — not the first row anywhere in the document that happens to
+    // carry the label: the executive summary lists the Altman ratio too
+    // whenever it is among the top graded rows.
+    const componentTable = Array.from(doc.querySelectorAll("table")).find((t) => {
+      const head = t.querySelector("thead")?.textContent ?? "";
+      return /Weight/.test(head) && /Contribution/.test(head);
+    });
+    expect(componentTable, "the exported report prints no component table").toBeDefined();
+    const trs = Array.from(componentTable!.querySelectorAll("tbody tr"));
     if (c.name === "compact_serve_renormalised_composite_planted") return;
     assertWeightColumn("exported report", r, c, (label) => {
       const tr = trs.find((x) => x.querySelector("td")?.textContent?.trim() === label);

@@ -234,6 +234,8 @@ _TAX = _PRETAX + ("tax_rate", "tax_accrued_year_to_date",
                   "tax_no_loss_carry_forward")
 _NET_INCOME = _PRETAX + _TAX
 _AR = _REVENUE + ("dso_days", "days_basis")
+#: Inventory is days of the inventory-days block's flow (cost of production
+#: sold + 607), moved with the plan's cost of sales pool.
 _INVENTORY = _COGS + ("dio_cogs_days", "days_basis")
 _AP = _COGS + ("dpo_cogs_days", "days_basis")
 _DIVIDENDS = _NET_INCOME + ("dividend_payout_pct",)
@@ -678,7 +680,7 @@ def _trailing_deviation(history, window_micro_days):
 #: The three balances the working-capital unwind of contract 6.2 governs:
 #: (balance line, days driver, the flow its target is priced on).
 WC_BALANCES = (("ar", "dso_days", "revenue"),
-               ("inventory", "dio_cogs_days", "cost_of_sales"),
+               ("inventory", "dio_cogs_days", "inventory_flow"),
                ("ap", "dpo_cogs_days", "cost_of_sales"))
 
 
@@ -1053,6 +1055,8 @@ def project(opening: OpeningPosition, history: PlHistory,
     #: lever in full in its landing month).
     wc_deviations = {}  # type: Dict[str, List[Tuple[int, int, int]]]
     days_scalar = {"dso_days": dso, "dio_cogs_days": dio, "dpo_cogs_days": dpo}
+    # The book's cost of sales, the pool the inventory flow moves with.
+    inventory_cost_0 = (history.cogs if history.inventory_flow is not None else None)
 
     for period in timeline:
         # The per-year rates a lever may have moved (2.6). The three that
@@ -1224,13 +1228,25 @@ def project(opening: OpeningPosition, history: PlHistory,
         # half a day of the flow that drives them and post the difference
         # as operating cash no assumption ever stated.
         period_micro_days = period.days * MICRO_DAY
-        flows = {"revenue": revenue, "cost_of_sales": cost_of_sales}
+        # INVENTORY is days of the inventory-days block's flow (cost of
+        # production sold + 607 — engine.ratios.inventory_days), which the
+        # driver was measured on. The plan moves that flow with its cost of
+        # sales pool — volume and input prices, the two things that move a
+        # stock's cost; wages and overheads inflate on the opex pools and
+        # are not re-priced into stock here: the book's flow x plan cost of
+        # sales / the book's. Exact at year 0 and flat at growth 0. Without
+        # a measured flow the driver is absent and inventory is HELD (never
+        # days of another flow).
+        inventory_flow = (mul_div(cost_of_sales, history.inventory_flow, inventory_cost_0)
+                          if history.inventory_flow is not None and inventory_cost_0 else None)
+        flows = {"revenue": revenue, "cost_of_sales": cost_of_sales,
+                 "inventory_flow": inventory_flow}
         closing_wc = {}  # type: Dict[str, int]
         for balance, days_key, flow_key in WC_BALANCES:
             compiled_days = plan.periods.get(days_key)
             days_now = (days_scalar[days_key] if compiled_days is None
                         else compiled_days[period.index])
-            if days_now is None:
+            if days_now is None or flows[flow_key] is None:
                 closing_wc[balance] = balances[balance]
                 continue
             target = mul_div(flows[flow_key], days_now, period_micro_days)

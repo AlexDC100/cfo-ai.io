@@ -1670,12 +1670,18 @@ def test_the_derived_day_count_is_exact_to_a_millionth_of_a_day(name):
     """Derived from the same two figures the basis cites, at micro-day
     resolution — so the working-capital balance the driver reproduces is
     the book's own, not one moved by a rounding rule."""
-    book = _book_pl(name)
+    book = dict(_book_pl(name))
+    # The inventory driver is the SERVED split (engine.ratios.inventory_days,
+    # owner spec 2026-09-26, inventory days) on the period-end balance: days of the
+    # block's own flow, cost of production sold + 607 — never of the narrow
+    # cost of sales the driver divided before the ruling.
+    block = load(name)["statements"].get("inventory_days") or {}
+    book["inventory_flow"] = ((block.get("total") or {}).get("flow") or {}).get("value")
     # plan/2 B3: at the book's own flows — base growth is the macro anchor
     # now (R1), and the landing check below is a zero-growth statement.
     projection = plan(name, horizon_years=1, revenue_growth=0)
     for key, line, flow in (("dso_days", "ar", "revenue"),
-                            ("dio_cogs_days", "inventory", "cogs"),
+                            ("dio_cogs_days", "inventory", "inventory_flow"),
                             ("dpo_cogs_days", "ap", "cogs")):
         driver = projection.assumptions[key]
         if driver.source == "unavailable":

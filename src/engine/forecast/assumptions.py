@@ -1249,10 +1249,11 @@ def derive_assumptions(opening: Any, history: Any, *,
 
     # ── working-capital days ───────────────────────────────────────────
     # contract 4 / R8: engine.forecast's formulas are the authority
-    # (forecast.dso, forecast.dio_cogs, forecast.dpo_cogs). Inventory and
-    # payables are days of COST OF SALES; the ratio table divides both by
-    # total operating expense, so its own value is quoted beside them as a
-    # book input rather than served under the same name.
+    # (forecast.dso, forecast.dio_split, forecast.dpo_cogs). Payables are
+    # days of COST OF SALES; the ratio table divides them by total operating
+    # expense, so its own value is quoted beside as a book input. Inventory
+    # is the SERVED split (engine.ratios.inventory_days) on the period-end
+    # basis, over the block's own flow — one formula with the ratio table.
     ar_cents = opening.cents("ar")
     inv_cents = opening.cents("inventory")
     ap_cents = opening.cents("ap")
@@ -1282,8 +1283,36 @@ def derive_assumptions(opening: Any, history: Any, *,
             table_micro_days = micro_days_from(row["value"])
             inputs.append(("ratio_table.%s" % ratio_key, table_micro_days,
                            "value_micro_days"))
-            quoted = ". " + _ratio_table_quote(ratio_key, table_micro_days,
-                                               row["operands"])
+            if key == "dio_cogs_days":
+                # ONE formula, two bases (engine.ratios.inventory_days): the
+                # table serves the split on its own basis (the average of
+                # the two year-ends where the book carries the opening); the
+                # plan projects period-end balances, so its driver is the
+                # same split on the period-end balance.
+                quoted = (". Beside it, the ratio table's dio "
+                          "(engine.ratios.table) reads %s days: the same split "
+                          "by stock type on the table's own basis; the plan "
+                          "projects period-end balances, so this driver is the "
+                          "split on the period-end balance"
+                          % days_fmt(table_micro_days))
+                period_days = [o.get("value") for o in row["operands"]
+                               if o.get("name") == "period_days"]
+                if (len(period_days) == 1
+                        and isinstance(period_days[0], (int, float))
+                        and not isinstance(period_days[0], bool)
+                        and float(period_days[0]) != float(days_basis)):
+                    # A leap year or a year-to-date book: the analysis
+                    # counts the period's own days, the plan a 365-day year.
+                    quoted += ("; the period counts %s days and the analysis's "
+                               "period-end split is stock / flow x %s days, so "
+                               "this driver is that split restated on the "
+                               "plan's %d-day year"
+                               % (days_fmt(micro_days_from(period_days[0])),
+                                  days_fmt(micro_days_from(period_days[0])),
+                                  days_basis))
+            else:
+                quoted = ". " + _ratio_table_quote(ratio_key, table_micro_days,
+                                                   row["operands"])
         put(key, _DAYS, measured, "derived",
             "%s = %s days = %s %s / %s %s x %d days (%s)%s"
             % (what, days_fmt(measured), balance_fact.split(".")[-1]
@@ -1296,13 +1325,45 @@ def derive_assumptions(opening: Any, history: Any, *,
                "canonical_bs.rows.trade_receivables_net", revenue,
                "assembled_pl.revenue", "days sales outstanding", "revenue",
                None)
-    day_driver("dio_cogs_days", "forecast.dio_cogs", inv_cents,
-               "canonical_bs.rows.inventory_net", cogs, "assembled_pl.cogs",
-               "days inventory outstanding, in days of cost of sales",
-               "cost of sales", "dio")
+    # INVENTORY DAYS (owner spec 2026-09-26 P1, point 4): the driver is the
+    # SERVED split (engine.ratios.inventory_days) on the 31 December basis —
+    # the stock at the period end over the block's own flow, cost of
+    # production sold + cost of goods resold (607) — so year 0 round-trips
+    # exactly to the closing stock, and the projection prices inventory on
+    # the same flow (project.py). A refused or absent block HOLDS inventory
+    # with the block's reason: never days of narrow cost of sales again (the
+    # 95.3 beside the Ratios card's 52.5 on one stock).
+    if history.inventory_flow is None:
+        refusal = history.inventory_days_refusal or {}
+        code = refusal.get("code") or "inventory_days_absent"
+        # The refusal's OWN words (the pack's, carried on the block's reason,
+        # engine.ratios.inventory_days): the reader is told why, never handed
+        # a bare code — the Romanian page prints the pack's Romanian words
+        # for the same code (frontend/lib/forecastSentencesRo.ts).
+        words = refusal.get("text_en") if isinstance(refusal.get("text_en"), str) else None
+        why = ("inventory days are refused for this book: %s (reason code %s); "
+               "no driver is measured, so inventory is HELD at its closing "
+               "balance of %s"
+               % (words or code, code, fmt(inv_cents)))
+        if refused_by_authority("dio_cogs_days"):
+            why = authority_absent["dio_cogs_days"]
+        put("dio_cogs_days", _DAYS, None, "unavailable", why, tier="absent",
+            rule_id="forecast.dio_split", steps=(_step("book", "absent", why),))
+    else:
+        day_driver("dio_cogs_days", "forecast.dio_split", inv_cents,
+                   "canonical_bs.rows.inventory_net", history.inventory_flow,
+                   "inventory_days.total.flow",
+                   "days inventory outstanding, split by stock type on the "
+                   "period-end balance",
+                   "cost of production sold + cost of goods resold (607)", "dio")
+    # ONE METRIC NAME, ONE FORMULA (owner spec 2026-09-26 P1, design B4):
+    # "days payables outstanding" (DPO) is the ratio table's formula, trade
+    # payables over TOTAL operating expense (engine.ratios.table.dpo_days).
+    # This driver divides by cost of sales, so it carries its own name and
+    # quotes the table's DPO beside it — never served as a second DPO.
     day_driver("dpo_cogs_days", "forecast.dpo_cogs", ap_cents,
                "canonical_bs.rows.trade_payables", cogs, "assembled_pl.cogs",
-               "days payables outstanding, in days of cost of sales",
+               "trade payables in days of cost of sales",
                "cost of sales", "dpo")
 
     # ── fixed assets ───────────────────────────────────────────────────

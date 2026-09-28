@@ -98,7 +98,7 @@
    "unit": "fraction"
   },
   "inventory_days_on_turnover": {
-   "company_basis": "inventory / NET TURNOVER x 365. The ratio card's DIO divides by operating cost; the two are not comparable. Restate the company figure on turnover or refuse the comparison",
+   "company_basis": "year-end stock / NET TURNOVER x 365 on BOTH sides (the filed basis: abridged filings carry no split of stock by type). The analysis measures inventory days split by stock type over the flow that moves each (engine.ratios.inventory_days); the two are different measures and are never compared",
    "filed_lines": [
     "Stocuri (I3)",
     "Cifra de afaceri neta (I13)"

@@ -18,8 +18,11 @@ WHAT THIS ADDS ON TOP OF `Book`
 Three payload regions `Book` has no reason to expose, and which drivers
 need:
 
-  `envelope.methodology.ratios`   THE published DSO / DIO / DPO / gross
-        margin. Read, never recomputed. There are already two gross
+  `envelope.methodology.ratios`   THE published DSO / gross margin (and
+        the DSCR note). Read, never recomputed. Inventory days, DPO and the
+        cash-conversion cycle are NOT here (owner spec 2026-09-26 P1): the
+        drivers read them from engine.forecast, which reads the ONE served
+        inventory-days block. There are already two gross
         profits in a served payload (`assembled_pl.gross_profit` and
         `methodology.totals.gross_profit`, 48,019,704.96 and
         46,989,940.34 on the agras book); computing a third from

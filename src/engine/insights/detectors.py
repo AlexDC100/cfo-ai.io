@@ -414,9 +414,6 @@ def detect_trade_float(book: Book, spec: DetectorSpec):
     receivables = book.row_sum(ar_rows)
     payables = book.row_sum(ap_rows)
     revenue = book.pl("revenue")
-    cogs = book.pl("cogs")
-    if cogs is None:
-        cogs = book.pl("cost_of_goods_sold")
 
     if receivables is None and payables is None:
         return NotFired(
@@ -429,12 +426,20 @@ def detect_trade_float(book: Book, spec: DetectorSpec):
             "has no annualisation base and the float cannot be dated."
         )
 
+    # THE one DPO (design B4): the ratio table's — balance-sheet payables
+    # over total operating expense, never over cost of goods sold (on one
+    # agras payload this detector printed 37.2 days beside the Ratios card's
+    # 26.7, both under the name DPO). ONE day count for both day figures:
+    # the one DPO's (the served `supplementary.periodDays`), so the gap never
+    # subtracts a period-day DPO from a 365-day DSO.
+    from engine.ratios.table import dpo_days
+
+    served_dpo = dpo_days(book.statements())
+    dpo = served_dpo["value"]
+    period_days = served_dpo["days"]
     dso = None
     if receivables is not None:
-        dso = receivables / revenue * 365.0
-    dpo = None
-    if payables is not None and cogs is not None and cogs > 0.0:
-        dpo = payables / cogs * 365.0
+        dso = receivables / revenue * period_days
     float_days = None
     if dso is not None and dpo is not None:
         float_days = dso - dpo
@@ -442,23 +447,34 @@ def detect_trade_float(book: Book, spec: DetectorSpec):
     if receivables is not None and payables is not None:
         float_money = receivables - payables
 
+    # The DPO is printed WITH the operands it divides — the balance sheet's
+    # payables (not the trade-payables row the float nets, which is a
+    # narrower figure: on the owner's own FY2025 book the claim printed the
+    # trade-payables row beside a DPO built on the larger balance-sheet
+    # payables), total operating expense and the day count — so
+    # a reader recomputes the printed days from the printed figures.
     measures = [
         Measure("dso", "Days sales outstanding", dso, "days"),
-        Measure("dpo", "Days payables outstanding", dpo, "days"),
+        Measure("dpo", "Days payables outstanding (on total operating cost)", dpo, "days"),
         Measure("float_days", "Collection gap (DSO − DPO)", float_days, "days"),
         Measure("float", "Net trade float (receivables − payables)",
                 float_money, "money"),
         Measure("trade_receivables", "Trade receivables net of provisions",
                 receivables, "money"),
         Measure("trade_payables", "Trade payables", payables, "money"),
-        Measure("cogs", "Cost of goods sold", cogs, "money"),
+        Measure("dpo_payables", "Balance-sheet payables (the DPO's numerator)",
+                served_dpo["payables"], "money"),
+        Measure("total_operating_expense", "Total operating expense",
+                served_dpo["total_operating_expense"], "money"),
+        Measure("period_days", "The period's day count", period_days,
+                "count", noun="day"),
     ]
     facts = [
         _fact_row(book, ar_rows, "trade_receivables",
                   "Trade receivables net of provisions"),
         _fact_row(book, ap_rows, "trade_payables", "Trade payables"),
         _fact_pl(book, "revenue", "Revenue"),
-        _fact_pl(book, "cogs", "Cost of goods sold"),
+        _fact_pl(book, "total_operating_expense", "Total operating expense"),
     ]
     accounts = (book.accounts_for(ar_rows, "trade_receivable")
                 + book.accounts_for(ap_rows, "trade_payable"))

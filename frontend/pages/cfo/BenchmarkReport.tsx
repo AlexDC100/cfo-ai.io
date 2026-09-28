@@ -1564,8 +1564,12 @@ function BenchmarkPreviewStrip() {
     {
       icon: ShieldAlert,
       eyebrow: "Working capital",
-      title: "Cash conversion cycle",
-      body: "DSO, DIO, DPO and CCC versus the median for your CAEN bracket.",
+      title: "Working-capital days",
+      // What the sector section actually sources: the filings support
+      // receivables days and stock on turnover only (engine.benchmarks_ro;
+      // DIO, DPO and CCC are refused on the filed basis). The filed stock
+      // row is a different measure from the analysis's inventory days.
+      body: "Receivables days and stock on net turnover (the filed basis) against the filings of your CAEN bracket — not the inventory days of your analysis.",
     },
   ];
   // Styled like the dashboard's document-guide cards (2026-07-24):

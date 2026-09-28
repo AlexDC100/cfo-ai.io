@@ -264,20 +264,24 @@
         "absence": null
       },
       "dio": {
-        "value": 845.4476,
-        "printed": "845",
+        "value": null,
+        "printed": null,
         "unit": "days",
-        "verdict": "critical",
-        "higher_is_better": false,
-        "ladder": {
-          "strong": 30,
-          "healthy": 60,
-          "watch": 100
-        },
-        "absence": null
+        "verdict": "unknown",
+        "higher_is_better": null,
+        "ladder": null,
+        "absence": {
+          "kind": "refused",
+          "code": "a_leg_refused",
+          "display": {
+            "ro": "o componentă cu stoc este refuzată, deci totalul nu poate fi calculat",
+            "en": "a component that holds stock is refused, so the total cannot be computed"
+          },
+          "subject": "inventory_days"
+        }
       },
       "dpo": {
-        "value": 33.1624,
+        "value": 33.16237949006038,
         "printed": "33",
         "unit": "days",
         "verdict": "watch",
@@ -289,17 +293,21 @@
         "absence": null
       },
       "ccc": {
-        "value": 873.4177,
-        "printed": "873",
+        "value": null,
+        "printed": null,
         "unit": "days",
-        "verdict": "critical",
-        "higher_is_better": false,
-        "ladder": {
-          "strong": 30,
-          "healthy": 60,
-          "watch": 100
-        },
-        "absence": null
+        "verdict": "unknown",
+        "higher_is_better": null,
+        "ladder": null,
+        "absence": {
+          "kind": "refused",
+          "code": "a_leg_refused",
+          "display": {
+            "ro": "o componentă cu stoc este refuzată, deci totalul nu poate fi calculat",
+            "en": "a component that holds stock is refused, so the total cannot be computed"
+          },
+          "subject": "inventory_days"
+        }
       },
       "asset_turnover": {
         "value": 0.0019464160456199107,
@@ -566,16 +574,24 @@
         "absence": null
       },
       "dio": {
-        "value": 845.4476,
-        "printed": "845",
+        "value": null,
+        "printed": null,
         "unit": "days",
-        "verdict": "ungraded",
+        "verdict": "unknown",
         "higher_is_better": null,
         "ladder": null,
-        "absence": null
+        "absence": {
+          "kind": "refused",
+          "code": "a_leg_refused",
+          "display": {
+            "ro": "o componentă cu stoc este refuzată, deci totalul nu poate fi calculat",
+            "en": "a component that holds stock is refused, so the total cannot be computed"
+          },
+          "subject": "inventory_days"
+        }
       },
       "dpo": {
-        "value": 33.1624,
+        "value": 33.16237949006038,
         "printed": "33",
         "unit": "days",
         "verdict": "watch",
@@ -587,17 +603,21 @@
         "absence": null
       },
       "ccc": {
-        "value": 873.4177,
-        "printed": "873",
+        "value": null,
+        "printed": null,
         "unit": "days",
-        "verdict": "critical",
-        "higher_is_better": false,
-        "ladder": {
-          "strong": 30,
-          "healthy": 60,
-          "watch": 100
-        },
-        "absence": null
+        "verdict": "unknown",
+        "higher_is_better": null,
+        "ladder": null,
+        "absence": {
+          "kind": "refused",
+          "code": "a_leg_refused",
+          "display": {
+            "ro": "o componentă cu stoc este refuzată, deci totalul nu poate fi calculat",
+            "en": "a component that holds stock is refused, so the total cannot be computed"
+          },
+          "subject": "inventory_days"
+        }
       },
       "asset_turnover": {
         "value": 0.0019464160456199107,
@@ -864,23 +884,27 @@
         "absence": null
       },
       "dio": {
-        "value": 1158.263212,
-        "printed": "1158",
+        "value": null,
+        "printed": null,
         "unit": "days",
-        "verdict": "critical",
-        "higher_is_better": false,
-        "ladder": {
-          "strong": 30,
-          "healthy": 60,
-          "watch": 100
-        },
-        "absence": null
+        "verdict": "unknown",
+        "higher_is_better": null,
+        "ladder": null,
+        "absence": {
+          "kind": "refused",
+          "code": "a_leg_refused",
+          "display": {
+            "ro": "o componentă cu stoc este refuzată, deci totalul nu poate fi calculat",
+            "en": "a component that holds stock is refused, so the total cannot be computed"
+          },
+          "subject": "inventory_days"
+        }
       },
       "dpo": {
-        "value": 45.432488,
-        "printed": "45",
+        "value": 33.16237949006038,
+        "printed": "33",
         "unit": "days",
-        "verdict": "healthy",
+        "verdict": "watch",
         "higher_is_better": true,
         "ladder": {
           "strong": 60,
@@ -889,17 +913,21 @@
         "absence": null
       },
       "ccc": {
-        "value": 1196.582249,
-        "printed": "1197",
+        "value": null,
+        "printed": null,
         "unit": "days",
-        "verdict": "critical",
-        "higher_is_better": false,
-        "ladder": {
-          "strong": 30,
-          "healthy": 60,
-          "watch": 100
-        },
-        "absence": null
+        "verdict": "unknown",
+        "higher_is_better": null,
+        "ladder": null,
+        "absence": {
+          "kind": "refused",
+          "code": "a_leg_refused",
+          "display": {
+            "ro": "o componentă cu stoc este refuzată, deci totalul nu poate fi calculat",
+            "en": "a component that holds stock is refused, so the total cannot be computed"
+          },
+          "subject": "inventory_days"
+        }
       },
       "asset_turnover": {
         "value": 0.0019464160456199107,

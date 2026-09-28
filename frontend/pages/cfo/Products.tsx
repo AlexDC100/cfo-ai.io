@@ -65,6 +65,7 @@ import {
 import { useDecisionRules } from "@/lib/decisionRulesStore";
 import type { Bucket3 } from "@/lib/bucket3";
 import { computeRatios } from "@/lib/financialReport";
+import { absenceSentence } from "@/components/cfo/ratioAbsenceI18n";
 import { useUploadEnqueue } from "@/hooks/useUploadEnqueue";
 import {
   getSupabase,
@@ -120,7 +121,7 @@ type Classification =
   | "anchor" | "anchor_alert" | "keep" | "watch"
   | "eliminate" | "wind_down" | "scale";
 
-interface SkuAggregate {
+export interface SkuAggregate {
   id: string;
   product_name: string;
   brand: string | null;
@@ -1864,11 +1865,15 @@ function DevWipeDataButton() {
 //     (receivables 4111 / payables 401, vs revenue / COGS) — reused
 //     via the same `computeRatios()` the dashboard ratios tab uses.
 //     No pipeline/engine recompute.
-//   · CCC = DIO + DSO − DPO. Shown ONLY when all three components are
-//     available; otherwise the panel labels CCC "not available" and
-//     names which component is missing. Never fabricated.
+//   · CCC is the trial balance's, never a hybrid: the period's served
+//     cycle (DSO + inventory days split by stock type on the period-end
+//     balance − DPO, `computeRatios` → the ONE inventory-days block). The
+//     SKU figure above is a DIFFERENT measure ("zile de rotație SKU", from
+//     the sales file) and is never added into the company's cycle (owner
+//     spec 2026-09-26 P1: one metric name, one formula). A period without
+//     the terms prints the reason, never a number.
 
-function WorkingCapitalRollup({ skus }: { skus: SkuAggregate[] }) {
+export function WorkingCapitalRollup({ skus }: { skus: SkuAggregate[] }) {
   const period = useActivePeriod();
   const { t } = useTranslation();
   // "i" info modal explaining the four working-capital metrics.
@@ -1918,6 +1923,8 @@ function WorkingCapitalRollup({ skus }: { skus: SkuAggregate[] }) {
   // emitted by the engine into the period's statements. No recompute.
   let dso: number | null = null;
   let dpo: number | null = null;
+  let ccc: number | null = null;
+  let cccReason: string | null = null;
   let periodContextNote: string | null = null;
   if (period.statements) {
     try {
@@ -1930,26 +1937,20 @@ function WorkingCapitalRollup({ skus }: { skus: SkuAggregate[] }) {
       const r = computeRatios(period.statements, undefined, metricsMap);
       const dsoRatio = r.efficiency.find((x) => x.key === "dso");
       const dpoRatio = r.efficiency.find((x) => x.key === "dpo");
+      const cccRatio = r.efficiency.find((x) => x.key === "ccc");
       dso = dsoRatio && Number.isFinite(dsoRatio.value) ? dsoRatio.value : null;
       dpo = dpoRatio && Number.isFinite(dpoRatio.value) ? dpoRatio.value : null;
+      ccc = cccRatio && Number.isFinite(cccRatio.value) ? cccRatio.value : null;
+      cccReason = cccRatio && ccc === null && cccRatio.unavailable ? absenceSentence(t, cccRatio.unavailable) : null;
       periodContextNote = `${period.label ?? period.id ?? t("productsX.wc.loadedPeriod")}`;
     } catch {
       // Sample periods may not have a full balance sheet; leave nulls
       // and the panel will mark these "not available" honestly.
       dso = null;
       dpo = null;
+      ccc = null;
     }
   }
-
-  // ── CCC = DIO + DSO − DPO ─────────────────────────────────────────
-  const ccc =
-    companyDio != null && dso != null && dpo != null
-      ? companyDio + dso - dpo
-      : null;
-  const missingForCcc: string[] = [];
-  if (companyDio == null) missingForCcc.push("DIO");
-  if (dso == null) missingForCcc.push("DSO");
-  if (dpo == null) missingForCcc.push("DPO");
 
   return (
     <section
@@ -2024,8 +2025,8 @@ function WorkingCapitalRollup({ skus }: { skus: SkuAggregate[] }) {
           unit={t("common.unit.days")}
           source={
             ccc != null
-              ? t("productsX.wc.cccSource")
-              : t("productsX.wc.cccMissing", { list: missingForCcc.join(", ") })
+              ? `${t("productsX.wc.cccSource")}${periodContextNote ? ` · ${periodContextNote}` : ""}`
+              : cccReason ?? t("productsX.wc.cccNoPeriod")
           }
           missingHint={
             ccc == null
@@ -2053,7 +2054,7 @@ function WcInfoModal({
   const { t } = useTranslation();
   // Same semantic tones as the WcCard badges — one chip system app-wide.
   const items: { label: string; tone: ChipTone; title: string; body: string }[] = [
-    { label: "DIO", tone: "accent",  title: t("productsX.wc.dioTitle"), body: t("productsX.wc.dioBody") },
+    { label: t("productsX.wc.skuChip"), tone: "accent",  title: t("productsX.wc.dioTitle"), body: t("productsX.wc.dioBody") },
     { label: "DSO", tone: "info",    title: t("productsX.wc.dsoTitle"), body: t("productsX.wc.dsoBody") },
     { label: "DPO", tone: "neutral", title: t("productsX.wc.dpoTitle"), body: t("productsX.wc.dpoBody") },
     { label: "CCC", tone: "caution", title: t("productsX.wc.cccTitle"), body: t("productsX.wc.cccBody") },
@@ -2545,7 +2546,7 @@ function SkuTable({
                       </div>
                     </div>
                     <div>
-                      <div className="text-[10px] uppercase tracking-[0.06em] text-ink-soft">DIO</div>
+                      <div className="text-[10px] uppercase tracking-[0.06em] text-ink-soft">{t("products.columns.dio")}</div>
                       <div
                         className="tabular-nums"
                         title={
@@ -3867,7 +3868,7 @@ function ExampleResultPreview() {
                 <div className="text-right">{t("totals.niv")}</div>
                 <div className="text-right">{t("products.columns.gmPct")}</div>
                 <div className="text-right">{t("totals.gm")}</div>
-                <div className="text-right">DIO</div>
+                <div className="text-right">{t("products.columns.dio")}</div>
                 <div>{t("products.columns.signal")}</div>
               </div>
               {EXAMPLE_SALES_ROWS.map((r) => {

@@ -203,6 +203,13 @@ class _RowServer(object):
                 rows = [r for r in rows if r.get(key) is None]
             elif cond == "not.is.null":
                 rows = [r for r in rows if r.get(key) is not None]
+            elif op == "in" and value.startswith("(") and value.endswith(")"):
+                # The inventory-days monthly lookup selects the fiscal year's
+                # 12 month-ends with `period_end=in.(...)` (pipeline.
+                # _monthly_inventory_points); the tenancy double
+                # (tests/engine/firm_postgrest_double.py) already expresses it.
+                wanted = [v.strip().strip('"') for v in value[1:-1].split(",") if v.strip()]
+                rows = [r for r in rows if r.get(key) is not None and str(r.get(key)) in wanted]
             else:
                 raise AssertionError(
                     "double cannot express filter %r on %r - the real client "

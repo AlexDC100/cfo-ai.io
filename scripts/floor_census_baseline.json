@@ -31,11 +31,7 @@
       "CLAMP": 4
     },
     "src/engine/ratios/credit_model.py": {
-      "OR_ZERO": 3,
-      "S8": 6
-    },
-    "src/engine/ratios/table.py": {
-      "S8": 1
+      "OR_ZERO": 3
     }
   },
   "reviewed": {

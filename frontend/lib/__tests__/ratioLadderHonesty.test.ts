@@ -281,12 +281,13 @@ describe("G-L1c — DPO is supplier float, and it is named by its denominator", 
     expect(under.length, "no book exercises the low end — the assertion above is vacuous").toBeGreaterThan(0);
   });
 
-  // R1 ACROSS SURFACES. The insight engine's `trade_float` detector
-  // computes DPO on cost of goods sold over a narrower payables base.
-  // Both blocks are contracted to render in one document. This reads the
-  // engine's OWN committed capture, so the disagreement is measured here
-  // rather than assumed.
-  it("the two DPOs in this product genuinely differ, so the name must not be shared", () => {
+  // R1 ACROSS SURFACES — ONE DPO (design B4, owner spec 2026-09-26). The
+  // insight engine's `trade_float` detector computed DPO on cost of goods
+  // sold (37.2 days on agras beside the card's 27) and this test required
+  // the disagreement. Both now read `engine.ratios.table.dpo_days`: this
+  // reads the engine's OWN committed capture, so the agreement is measured
+  // here rather than assumed.
+  it("the insight's DPO is the ratio card's DPO — one name, one formula", () => {
     const insights = JSON.parse(
       readFileSync(
         resolve(__dirname, "../../../tests/engine/fixtures/firm/insights.json"),
@@ -300,8 +301,8 @@ describe("G-L1c — DPO is supplier float, and it is named by its denominator", 
     expect(engineDpo, "the insight capture carries no trade_float DPO").not.toBeNull();
     expect(
       Math.abs((engineDpo as number) - (printed as number)),
-      "the two surfaces now agree — if that is real, this label may go back to being bare",
-    ).toBeGreaterThan(1);
+      "the insight and the ratio card print two DPOs — a second denominator is back",
+    ).toBeLessThan(1e-3);
   });
 
   it.each(BOOKS)("%s: the printed DPO label states its denominator", (book: Book) => {

@@ -353,7 +353,11 @@ def test_engine_value_is_the_printed_fe_value_on_every_shared_key(tables, captur
                             # the margin rule (engine.ratios.margin_meaning):
                             # the FE honours the served verdict, the table
                             # decides it over the same statements
-                            "not_meaningful": {"margin_not_meaningful"}}[kind]
+                            "not_meaningful": {"margin_not_meaningful"},
+                            # an ENGINE refusal both sides print with its
+                            # reason: the one EBITDA, or the one
+                            # inventory-days block (engine.ratios.inventory_days)
+                            "refused": {"ebitda_refused", "inventory_days_refused"}}[kind]
                 if row["reason"]["code"] not in expected:
                     failures.append("%s/%s %s: FE refused as %s, engine as %s" % (
                         book, variant, key, kind, row["reason"]["code"]))
@@ -552,7 +556,10 @@ DECLARED_SECTOR_WITHHELD = frozenset({
 def test_the_sector_withheld_set_is_declared_and_follows_the_sibling_rule():
     assert T.SECTOR_WITHHELD_KEYS == DECLARED_SECTOR_WITHHELD, sorted(
         T.SECTOR_WITHHELD_KEYS ^ DECLARED_SECTOR_WITHHELD)
-    metric_only = {k for k, p in T.PRECEDENCE.items() if p == "metric_only"}
+    # Keys with no FE row: the engine-metric-only ones and inventory
+    # turnover (read from the served inventory-days block on both sides).
+    metric_only = {k for k, p in T.PRECEDENCE.items()
+                   if p == "metric_only" or (p == "served_block" and k not in T.FE_KEY_OF)}
     assert set(T.SECTOR_SIBLING_OF) == metric_only, "every metric-only key declares a sibling"
     for key, sibling in T.SECTOR_SIBLING_OF.items():
         assert sibling in T.FE_KEY_OF, "%s's sibling %s is not an FE row" % (key, sibling)
@@ -572,7 +579,12 @@ def test_sector_withholding_follows_the_payload_signal(tables):
         # or, on the book the margin rule refuses, refused as not
         # meaningful (a margin with no value has no band to withhold).
         refused_by_rule = _margin_refused(tables[(book, "disputed")])
-        assert {"operating_margin", "core_ebitda_margin", "inventory_turnover"} <= valued | refused_by_rule, book
+        # ... or refused by the ONE inventory-days block (the developer: no
+        # own product sold, merchandise with no 607 — every leg refuses).
+        refused_by_block = {k for k in T.CENSUS
+                            if (disputed[k]["reason"] or {}).get("code") == "inventory_days_refused"}
+        assert {"operating_margin", "core_ebitda_margin", "inventory_turnover"} <= (
+            valued | refused_by_rule | refused_by_block), book
         assert bool(refused_by_rule) == (book in MARGIN_REFUSED_BOOKS), (book, sorted(refused_by_rule))
         for key in T.CENSUS:
             assert served[key]["band_status"] != "ungraded_sector", (book, key)
@@ -609,13 +621,18 @@ def _metric(book: str, key: str) -> Any:
     return _SERVED_METRICS[book].get(key)
 
 
+#: `served_block` keys that COMPOSE the block's term with two FE rows:
+#: key -> (added row, subtracted row).
+SERVED_BLOCK_COMPOSITES = {"ccc": ("dso", "dpo")}
+
+
 def test_declared_precedence_is_what_computeRatios_does_under_perturbed_metrics(tables, captures):
     """The perturbed capture multiplies every served metric by 1.37. A key
     the FE takes from the metric first moves to metric × 1.37 exactly; a
     key it takes from the printed statements first does not move at all.
     The declared `PRECEDENCE` must say which, key by key, and the engine
     rows must read the same side."""
-    observed = {"mOr": 0, "bsOr": 0}
+    observed = {"mOr": 0, "bsOr": 0, "served_block": 0}
     failures: List[str] = []
     for book in BOOKS:
         served = captures[book]["variants"]["served"]
@@ -650,6 +667,37 @@ def test_declared_precedence_is_what_computeRatios_does_under_perturbed_metrics(
                 if any(src.startswith("metrics.") for src in sources):
                     failures.append("%s %s declared bsOr, engine read %s" % (book, key, sources))
                 observed["bsOr"] += 1
+            elif decl == "served_block" and key in SERVED_BLOCK_COMPOSITES:
+                # The CCC: the block's PERIOD-END term plus the FE's own DSO
+                # and DPO rows as they themselves are read (perturbed with
+                # them) — the inventory term never moves with a metric.
+                plus, minus = SERVED_BLOCK_COMPOSITES[key]
+                block = payload_for(book, "served")["statements"]["inventory_days"]
+                closing = block["total"]["closing_value"]
+                if closing is None or pert[plus]["value"] is None or pert[minus]["value"] is None:
+                    expected = None
+                else:
+                    expected = pert[plus]["value"] + closing - pert[minus]["value"]
+                if (expected is None) != (p_row["value"] is None) or (
+                        expected is not None and abs(p_row["value"] - expected) > 1e-9):
+                    failures.append("%s %s declared served_block, FE perturbed %r != %s + block %r - %s = %r"
+                                    % (book, key, p_row["value"], plus, closing, minus, expected))
+                if "inventory_days.total.closing_value" not in sources:
+                    failures.append("%s %s declared served_block, engine read %s" % (book, key, sources))
+                observed["served_block"] += 1
+            elif decl == "served_block":
+                # Both sides read the ONE inventory-days block: perturbing
+                # the metric rows moves neither, and the engine reads no
+                # metric row and no statement division for the block's term.
+                if p_row["value"] != s_row["value"]:
+                    failures.append("%s %s declared served_block, FE moved with the metric: %r -> %r" % (
+                        book, key, s_row["value"], p_row["value"]))
+                if not any(src.startswith("inventory_days.") for src in sources):
+                    failures.append("%s %s declared served_block, engine read %s" % (book, key, sources))
+                if any(src == "metrics." + key for src in sources):
+                    failures.append("%s %s declared served_block, engine read its metric %s" % (
+                        book, key, sources))
+                observed["served_block"] += 1
             elif decl == "user_input":
                 assert p_row["value"] is None and e_row["value"] is None, (book, key)
     assert not failures, "PRECEDENCE:\n  " + "\n  ".join(failures)
@@ -660,7 +708,13 @@ def test_declared_precedence_is_what_computeRatios_does_under_perturbed_metrics(
     met_bsor = {k for b in BOOKS for k in declared_bsor if _metric(b, k) is not None}
     assert met_mor == declared_mor, sorted(declared_mor - met_mor)
     assert met_bsor == declared_bsor, sorted(declared_bsor - met_bsor)
-    assert observed["mOr"] >= 30 and observed["bsOr"] >= 40, observed
+    # dio and ccc left `mOr` for `served_block` (the inventory-days ruling):
+    # measured 26 mOr / 44 bsOr / 8 served_block (2 FE rows x 4 books). dpo
+    # then left `mOr` for `bsOr` (the ONE DPO on the period's day count,
+    # computed first as DSO is): measured 22 mOr / 48 bsOr / 8 served_block.
+    assert observed["mOr"] >= 22 and observed["bsOr"] >= 48, observed
+    assert observed["served_block"] == len(BOOKS) * sum(
+        1 for k, p in T.PRECEDENCE.items() if p == "served_block" and k in T.FE_KEY_OF), observed
 
 
 # ── one key, one formula: the no-metric route body ──────────────────────────
@@ -763,6 +817,29 @@ def test_a_period_with_no_metric_rows_serves_the_metrics_own_formula(route_bodie
                     s.startswith("incomeStatement.") and s != "incomeStatement.interestExpense"
                     for s in sources(key)):
                 failures.append("%s %s does not divide the one EBITDA: %s" % (book, key, sources(key)))
+        # INVENTORY DAYS: the route's rows are the route's OWN served block
+        # (statements.inventory_days) — its value on its basis, the CCC on the
+        # period-end term, or the block's refusal; never a division here.
+        block = body["statements"].get("inventory_days")
+        if not isinstance(block, dict):
+            failures.append("%s: the route serves no inventory_days block" % book)
+            continue
+        total = block["total"]
+        for key, expected in (("dio", total["value"]),
+                              ("inventory_turnover", block["inventory_turnover"]["value"])):
+            compared += 1
+            if rows[key]["value"] != expected:
+                failures.append("%s %s: %r is not the served block's %r" % (
+                    book, key, rows[key]["value"], expected))
+            if expected is None and rows[key]["reason"]["code"] != "inventory_days_refused":
+                failures.append("%s %s refused as %s, not the block's refusal" % (
+                    book, key, rows[key]["reason"]["code"]))
+        compared += 1
+        if total["closing_value"] is None:
+            if rows["ccc"]["value"] is not None:
+                failures.append("%s ccc served beside a refused block: %r" % (book, rows["ccc"]["value"]))
+        elif "inventory_days.total.closing_value" not in sources("ccc"):
+            failures.append("%s ccc does not add the block's period-end term: %s" % (book, sources("ccc")))
     assert not failures, "ONE KEY, TWO FORMULAS:\n  " + "\n  ".join(failures)
     assert compared >= 35, compared
 
@@ -809,6 +886,16 @@ def test_metric_only_rows_are_the_served_metric_graded_on_the_pack(tables):
                 assert row["band"] == _pack_verdict(metric, _GENERAL_SME_BAND_DEFINITIONS[key]), (
                     book, key, metric, row["band"])
                 graded += 1
+        # Inventory turnover left the metric-only rows for the ONE served
+        # block (the inventory-days ruling): its row is the block's figure,
+        # graded on the same pack ladder the metric row was.
+        row = rows["inventory_turnover"]
+        value = payload_for(book, "served")["statements"]["inventory_days"]["inventory_turnover"]["value"]
+        assert row["value"] == value, (book, row["value"], value)
+        if row["band_status"] == "graded":
+            assert row["band"] == _pack_verdict(value, _GENERAL_SME_BAND_DEFINITIONS["inventory_turnover"]), (
+                book, value, row["band"])
+            graded += 1
     assert graded >= 18, graded
     # The developer's net debt / EBITDA divides THE one EBITDA (the ruling
     # turned it from -29.0M to +0.55M): graded on it, no longer withheld
@@ -845,6 +932,17 @@ def _set(path: Tuple[str, str], value: float):
     return edit
 
 
+def _set_block(path: Tuple[str, ...], value: float):
+    def edit(payload):
+        block = copy.deepcopy(payload["statements"]["inventory_days"])
+        node = block
+        for k in path[:-1]:
+            node = node[k]
+        node[path[-1]] = value
+        payload["statements"] = dict(payload["statements"], inventory_days=block)
+    return edit
+
+
 #: (case id, book, payload edit or None, gateway concept made negative or
 #: None, {key: named input or None when the denominator is a composite}).
 SIGN_CASES = (
@@ -866,13 +964,19 @@ SIGN_CASES = (
     ("ebitda", "agras", _set(("assembled_pl", "ebitda"), -1.0e12), None,
      {"debt_to_ebitda": "assembled_pl.ebitda"}),
     ("operating_expense", "agras", _set(("incomeStatement", "operatingExpenses"), -1.0e12), None,
-     {"dio": None, "dpo": None}),
+     {"dpo": None}),
+    # INVENTORY DAYS read the ONE served block (engine.ratios.inventory_days):
+    # its sign denominators are the block's own total flow and average stock
+    # (the block refuses a non-positive flow itself; the plant keeps the
+    # value and turns the operand negative, so only the guard can react).
+    ("inventory_flow", "agras", _set_block(("total", "flow", "value"), -1.0e12), None,
+     {"dio": "inventory_days.total.flow.value"}),
     ("net_debt_to_ebitda", "agras", _set(("assembled_pl", "ebitda"), -1.0e12), None,
      {"net_debt_to_ebitda": "assembled_pl.ebitda"}),
     ("apl_revenue", "agras", _set(("assembled_pl", "revenue"), -1.0e12), None,
      {"operating_margin": "assembled_pl.revenue", "core_ebitda_margin": "assembled_pl.revenue"}),
-    ("inventory", "agras", _set(("balanceSheet", "inventory"), -1.0e12), None,
-     {"inventory_turnover": "balanceSheet.inventory"}),
+    ("inventory", "agras", _set_block(("total", "stock", "average"), -1.0e12), None,
+     {"inventory_turnover": "inventory_days.total.stock.average"}),
 )
 
 

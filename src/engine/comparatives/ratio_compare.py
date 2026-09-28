@@ -130,6 +130,11 @@ DELTA_REASON_CODES: Tuple[str, ...] = (
     "prior_refused",
     "both_refused",
     "direction_withheld",
+    # the two periods' inventory days sit on different averaging bases: the
+    # difference of the two figures is the change of basis, not of the
+    # stock, so no delta and no direction is served (the movement carries
+    # the same code)
+    "basis_differs",
 )
 
 #: Codes a `not_comparable` movement carries beyond the table's own band
@@ -141,7 +146,17 @@ MOVEMENT_REASON_CODES: Tuple[str, ...] = (
     "both_refused",
     "ladder_differs",
     "graded_by_letter",
+    # the two periods' inventory days sit on different averaging bases
+    # (engine.ratios.inventory_days: one the average of two year-ends, the
+    # other a single year-end, say) — a band move between them is the change
+    # of basis, not of the stock
+    "basis_differs",
 )
+
+#: The rows read from the ONE inventory-days block whose served basis
+#: (average or snapshot) can differ between two periods. The cycle adds the
+#: period-end split on both sides, so it never differs.
+INVENTORY_BASIS_KEYS: Tuple[str, ...] = ("dio", "inventory_turnover")
 
 #: Codes the composite rows and the Piotroski block carry. The two
 #: liabilities codes are the credit model's sub-score refusals
@@ -687,6 +702,15 @@ def _rank_key(row: Mapping[str, Any]) -> Tuple[Any, ...]:
             row["key"])
 
 
+def _inventory_basis(statements: Mapping[str, Any]) -> Optional[str]:
+    """The served inventory-days block's basis for one side, or None."""
+    from engine.ratios.inventory_days import served_block
+
+    block = served_block(statements)
+    basis = (block or {}).get("basis") if block is not None else None
+    return basis if isinstance(basis, str) else None
+
+
 def compare_ratio_tables(
     current_payload: Mapping[str, Any],
     prior_payload: Mapping[str, Any],
@@ -723,20 +747,36 @@ def compare_ratio_tables(
     days = _period_days(cur_st)
 
     pri_rows = {r["key"]: r for r in pri_t["rows"]}
+    inv_basis = {"current": _inventory_basis(cur_st), "prior": _inventory_basis(pri_st)}
     rows: List[Dict[str, Any]] = []
     for cr in cur_t["rows"]:
         pr = pri_rows[cr["key"]]
         cur_s, pri_s = _side(cr), _side(pr)
-        rows.append({
+        movement = _movement(cr["key"], cur_s, pri_s, cr["display_unit"],
+                             denominators, bases, days)
+        row = {
             "key": cr["key"], "group": cr["group"], "label_key": cr["label_key"],
             "formula_key": cr["formula_key"], "display_unit": cr["display_unit"],
             "higher_is_better": cr["higher_is_better"],
             "current": cur_s, "prior": pri_s,
             "delta": _delta(cur_s, pri_s, cr["display_unit"], cr["higher_is_better"]),
-            "movement": _movement(cr["key"], cur_s, pri_s, cr["display_unit"],
-                                  denominators, bases, days),
+            "movement": movement,
             "finding_id": None,
-        })
+        }
+        if cr["key"] in INVENTORY_BASIS_KEYS:
+            # Each side's inventory-days basis, stated; between two different
+            # bases BOTH the band move and the delta are refused (the change
+            # of basis is not a change of the stock). A served "+6 days,
+            # deteriorated" between an average and a single year-end printed
+            # a coloured verdict the movement sentence beside it disowned.
+            row["basis"] = dict(inv_basis)
+            if (inv_basis["current"] is not None and inv_basis["prior"] is not None
+                    and inv_basis["current"] != inv_basis["prior"]
+                    and _has_value(cur_s) and _has_value(pri_s)):
+                row["movement"] = _not_comparable("basis_differs")
+                row["delta"] = dict(row["delta"], value=None, pct_change=None,
+                                    favourable=None, reason_code="basis_differs")
+        rows.append(row)
 
     composites, subscores = _composite_rows(cur_t["credit"], pri_t["credit"])
 

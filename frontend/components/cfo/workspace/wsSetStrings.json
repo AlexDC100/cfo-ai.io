@@ -124,7 +124,7 @@
       },
       "columns": {
         "gm": "Gross margin",
-        "dio": "Days of inventory (DIO)",
+        "dio": "SKU turnover days",
         "volume": "Volume",
         "revenue": "Revenue per product",
         "marginPct": "Margin %"
@@ -132,7 +132,7 @@
       "presets": {
         "logical_default": {
           "label": "Logical default",
-          "desc": "Volume × margin matrix with hard cuts for negative margin and excess DIO. Recommended starting point."
+          "desc": "Volume × margin matrix with hard cuts for negative margin and excess SKU days. Recommended starting point."
         },
         "cash_protection": {
           "label": "Cash protection",
@@ -148,7 +148,7 @@
         },
         "working_capital_lens": {
           "label": "Working capital lens",
-          "desc": "Optimized for cash-cycle decisions. Heavy weight on DIO and financing cost."
+          "desc": "Optimized for cash-cycle decisions. Heavy weight on SKU days and financing cost."
         }
       },
       "financing": {
@@ -290,7 +290,7 @@
       },
       "columns": {
         "gm": "Marjă brută",
-        "dio": "Zile stoc (DIO)",
+        "dio": "Zile de rotație SKU",
         "volume": "Volum",
         "revenue": "Venituri per produs",
         "marginPct": "Marjă %"
@@ -298,7 +298,7 @@
       "presets": {
         "logical_default": {
           "label": "Implicit recomandat",
-          "desc": "Matrice volum × marjă, cu tăieri ferme pentru marjă negativă și DIO excesiv. Punct de plecare recomandat."
+          "desc": "Matrice volum × marjă, cu tăieri ferme pentru marjă negativă și zile SKU excesive. Punct de plecare recomandat."
         },
         "cash_protection": {
           "label": "Protejarea numerarului",
@@ -314,7 +314,7 @@
         },
         "working_capital_lens": {
           "label": "Perspectiva capitalului de lucru",
-          "desc": "Optimizat pentru decizii pe ciclul de numerar. Pondere mare pe DIO și pe costul finanțării."
+          "desc": "Optimizat pentru decizii pe ciclul de numerar. Pondere mare pe zilele SKU și pe costul finanțării."
         }
       },
       "financing": {

@@ -102,16 +102,23 @@ describe("the reader formats; it does not compute", () => {
   );
 
   it("renders an absent measure as a stated gap, never as zero", () => {
-    // realestate has no cost of goods sold, so DPO cannot be computed.
+    // CONSTRUCTED witness: DPO absent on the trade-float insight (a book
+    // that does not carry its trade payables). The one DPO divides by total
+    // operating expense since the inventory-days ruling, so no committed
+    // corpus book leaves it absent any more; the reader's law is the same.
     const block = blockFor("realestate");
-    const trade = insightById(block, "trade_float");
-    expect(trade).not.toBeNull();
-    const dpo = measure(trade as Insight, "dpo");
+    const served = insightById(block, "trade_float");
+    expect(served).not.toBeNull();
+    const trade = JSON.parse(JSON.stringify(served)) as Insight;
+    for (const m of trade.measures) {
+      if (m.key === "dpo" || m.key === "float_days") (m as { value: number | null }).value = null;
+    }
+    const dpo = measure(trade, "dpo");
     expect(dpo?.value).toBeNull();
     expect(formatMeasure(dpo as InsightMeasure, block.currency)).toBe(
       "not reported",
     );
-    expect((trade as Insight).claim).toContain("not reported");
+    expect(renderInsightClaim(trade, block.currency)).toContain("not reported");
   });
 
   it("does not print a genuinely non-zero share as 0.0%", () => {

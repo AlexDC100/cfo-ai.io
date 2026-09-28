@@ -101,10 +101,15 @@ def test_a_statements_only_payload_reports_its_gaps_instead_of_crashing():
 
 
 def test_an_absent_measure_is_null_and_never_a_zero():
-    """The realestate book cannot compute DPO — cost of goods sold is
-    nil. The measure must be null, and the rendered claim must say so in
-    words rather than printing a plausible 0.0 days."""
-    block = build_insights(_book("realestate"))
+    """A book that does not carry its trade payables cannot compute DPO.
+    The measure must be null, and the rendered claim must say so in words
+    rather than printing a plausible 0.0 days. CONSTRUCTED witness: the
+    realestate book with `balanceSheet.accountsPayable` removed (the one
+    DPO divides by total operating expense since the inventory-days
+    ruling, so no corpus book leaves it absent any more)."""
+    payload = _book("realestate")
+    del payload["statements"]["balanceSheet"]["accountsPayable"]
+    block = build_insights(payload)
     trade = [i for i in block["insights"] if i["id"] == "trade_float"][0]
     dpo = [m for m in trade["measures"] if m["key"] == "dpo"][0]
     assert dpo["value"] is None

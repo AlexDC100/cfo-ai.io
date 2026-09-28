@@ -133,7 +133,7 @@
       "niv": "NIV (kRON)",
       "gmPct": "GM%",
       "gm": "GM (kRON)",
-      "dio": "DIO (zile)",
+      "dio": "Zile SKU",
       "lines": "# linii",
       "channels": "# canale",
       "signal": "Semnal"
@@ -164,7 +164,7 @@
     "subtitle": "{{rows}} rânduri · {{count}} SKU-uri unice în {{categories}} categorii",
     "table": {
       "emptyFiltered": "Niciun SKU nu corespunde acestor filtre.",
-      "dioMissingTooltip": "DIO indisponibil — valoarea inventarului și/sau COGS nu au fost furnizate pentru acest SKU"
+      "dioMissingTooltip": "Zile de rotație SKU indisponibile — valoarea stocului și/sau COGS nu au fost furnizate pentru acest SKU"
     }
   },
   "onboarding": {
@@ -362,7 +362,7 @@
     "title": "Analiză vânzări / trading — XLSX",
     "intro": "Un rând per linie SKU-canal-perioadă. Antetele de mai jos arată numele de coloane recunoscute de parser (acceptate atât variantele românești, cât și cele englezești).",
     "required": "Doar <c1>Denumire produs</c1> și <c2>NIV</c2> sunt obligatorii;",
-    "optional": "<c1>Inventory value</c1> + <c2>COGS</c2> sunt opționale dar deblochează <c3>DIO</c3> per SKU;",
+    "optional": "<c1>Inventory value</c1> + <c2>COGS</c2> sunt opționale dar deblochează <c3>zilele de rotație</c3> per SKU;",
     "rollup": "agregarea <c1>CCC</c1> la nivel de companie folosește suplimentar balanța de verificare a perioadei pentru DSO / DPO.",
     "downloadExample": "Descarcă exemplu (XLSX)",
     "exampleCaption": "Exemplu anonimizat — potrivește aceste coloane; date fictive.",
@@ -372,7 +372,7 @@
     "title": "Agregare capital de lucru",
     "subtitle": "DIO · DSO · DPO · CCC la nivel de companie",
     "explainer": "DIO din inventarul și COGS-ul SKU-urilor încărcate, doar rândurile acoperite. DSO / DPO din contextul balanței de verificare a perioadei. CCC este o agregare la nivel de companie, nu per SKU.",
-    "companyDIO": "DIO companie",
+    "companyDIO": "Zile de rotație SKU",
     "notAvailable": "indisponibil",
     "notAvailableReason": "Inventory / COGS nu au fost furnizate pe niciun SKU",
     "addColumnsHint": "Adaugă coloanele Inventory value și COGS la încărcare pentru a calcula DIO.",
@@ -680,7 +680,10 @@
         "capitalizedOwnWork": "producția imobilizată",
         "operatingResult": "rezultatul din exploatare",
         "grossProfit": "profitul brut",
-        "inventoryVariation": "variația stocurilor de produse"
+        "inventoryVariation": "variația stocurilor de produse",
+        "inventoryDays": "zilele de stoc (pe tipuri de stoc)",
+        "inventoryDaysFlow": "costul producției vândute plus costul mărfurilor vândute",
+        "inventoryAverage": "stocul mediu"
       },
       "reason": {
         "operand_absent": "Neraportat: această raportare nu conține {{inputs}}.",
@@ -714,7 +717,9 @@
         "unlisted": "Nicio valoare: codul de motiv {{code}} nu are încă o propoziție.",
         "malformed_value": "Neafișat: valoarea servită nu poate fi citită pentru unitatea ei.",
         "unrecognised": "Neafișat: câmpul servit {{field}} are valoarea {{value}}, pe care acest cititor nu o recunoaște.",
-        "ebitda_refused": "Necalculat: EBITDA și rezultatul din exploatare sunt refuzate pentru această perioadă, deoarece variația stocurilor de produse nu a putut fi măsurată."
+        "ebitda_refused": "Necalculat: EBITDA și rezultatul din exploatare sunt refuzate pentru această perioadă, deoarece variația stocurilor de produse nu a putut fi măsurată.",
+        "inventory_days_refused": "Necalculat: zilele de stoc pe tipuri de stoc sunt refuzate pentru această perioadă — motivul este afișat lângă cifră.",
+        "basis_differs": "Necomparat: zilele de stoc ale celor două perioade sunt măsurate pe baze de stoc diferite, deci nu se afișează nici o variație, nici o mișcare de bandă — ar fi schimbarea bazei, nu a stocului."
       },
       "label": {
         "current_ratio": "Lichiditate curentă",
@@ -735,7 +740,7 @@
         "adjusted_dscr": "Acoperirea serviciului datoriei, ajustată cu leasingul",
         "dscr_with_lt_principal": "Acoperirea serviciului datoriei cu principalul pe termen lung",
         "dso": "Durata de încasare a creanțelor",
-        "dio": "Durata de rotație a stocurilor",
+        "dio": "Zile de stoc (DIO)",
         "dpo": "Durata de plată a furnizorilor (pe costul operațional total)",
         "ccc": "Ciclul de conversie a numerarului",
         "asset_turnover": "Rotația activelor",
@@ -966,12 +971,12 @@
         "equity_ratio": "Rata capitalurilor proprii",
         "liabilities_to_assets": "Datorii totale / active totale",
         "receivables_days": "Zile creanțe (toate creanțele)",
-        "inventory_days_on_turnover": "Zile stocuri raportate la cifra de afaceri",
+        "inventory_days_on_turnover": "Zile de stoc — bază depusă (stoc ÷ cifra de afaceri) — nu aceeași cu zilele de stoc din analiză",
         "current_asset_share": "Active circulante / active totale",
         "revenue_growth": "Creșterea veniturilor"
       },
       "card": {
-        "dio": "DIO",
+        "dio": "Zile de stoc (DIO)",
         "dso": "DSO",
         "debt_to_assets": "Datorii / active",
         "roe": "ROE",
@@ -985,6 +990,7 @@
         "company_nonpositive_denominator": "Necomparat: {{inputs}} nu este pozitiv în perioada ta.",
         "company_margin_not_meaningful": "Necomparat: cifra de afaceri este neglijabilă față de activitatea ta, deci marja nu este semnificativă.",
         "company_figure_refused": "Necomparat — refuzat: {{text}}",
+        "company_turnover_negligible": "Necomparat: cifra de afaceri este neglijabilă față de activitatea ta, deci zilele raportate la cifra de afaceri nu au sens.",
         "prior_period_absent": "Are nevoie de perioada de acum un an din acest spațiu de lucru.",
         "prior_period_not_servable": "Perioada de acum un an nu a putut fi citită.",
         "period_end_absent": "Perioada nu are dată de sfârșit.",
@@ -1003,7 +1009,7 @@
         "ebitda_margin": "Marja EBITDA",
         "ebit_margin": "Marja EBIT",
         "dpo": "Zile de plată a furnizorilor",
-        "dio": "Zile stocuri (raportate la costul operațional)",
+        "dio": "Zile de stoc pe tipuri de stoc (situația depusă nu are împărțirea)",
         "ccc": "Ciclul de conversie a numerarului",
         "interest_coverage": "Acoperirea dobânzii",
         "dscr": "Acoperirea serviciului datoriei",
@@ -1013,7 +1019,8 @@
         "current_ratio": "Lichiditatea curentă",
         "quick_ratio": "Lichiditatea rapidă",
         "cash_ratio": "Lichiditatea imediată"
-      }
+      },
+      "bandNeverCompared": "Bandă generală pentru IMM-uri. Fără bandă de sector: situațiile depuse nu împart stocul pe tipuri, deci sectorul nu se măsoară pe această bază — cifra pe baza depusă din pagina Benchmark este altă măsură și nu se compară."
     }
   },
   "authCallback": {
@@ -1078,13 +1085,13 @@
       "cost_hint": "Rata anuală a dobânzii pentru capitalul de lucru. Finanțarea corporativă tipică în RON este 5–8%.",
       "spread_label": "Marja băncii",
       "spread_hint": "Marja suplimentară peste rata de bază percepută de bancă. Ajustează pentru a modela relații bancare diferite.",
-      "avg_per_sku": "Medie per SKU: {{avg}} · DIO și stocul sunt necesare pentru calcul; SKU-urile fără oricare dintre ele sar peste regula de finanțare."
+      "avg_per_sku": "Medie per SKU: {{avg}} · zilele SKU și stocul sunt necesare pentru calcul; SKU-urile fără oricare dintre ele sar peste regula de finanțare."
     },
     "revert": "Anulează",
     "apply": "Aplică",
     "rule": {
       "gross_profit": "Profit brut per SKU",
-      "dio": "Zile de stoc (DIO)",
+      "dio": "Zile de rotație SKU",
       "volume": "Volum (tone)",
       "revenue": "Venit per SKU",
       "adjusted_gm_pct": "GM % ajustat (după finanțare)",
@@ -1297,34 +1304,35 @@
       "gap": "<b1>Diferență de reconciliere — verifică înainte de uz extern.</b1> Suma la nivel de SKU diferă de totalul NIV din sursă cu <b>{{delta}} ({{pct}}%)</b>, cu {{counted}} din {{total}} SKU-uri numărate — este posibil ca rânduri să fi fost pierdute sau duplicate la extracție. Verifică cifrele principale cu sursa înainte de rapoartele către consiliu sau transmiterile externe."
     },
     "wc": {
-      "heading": "DIO · DSO · DPO · CCC la nivel de companie",
-      "desc": "DIO din inventarul și COGS pe SKU din fișierul încărcat, doar rândurile acoperite. DSO / DPO din contextul balanței de verificare a perioadei. CCC este o agregare la nivel de companie, nu pe SKU.",
-      "infoAria": "Ce înseamnă DIO, DSO, DPO și CCC?",
+      "heading": "Zile de rotație SKU · DSO · DPO · CCC",
+      "desc": "Zilele de rotație SKU din stocul și COGS-ul pe SKU din fișierul încărcat, doar rândurile acoperite — nu sunt zilele de stoc din analiza balanței. DSO, DPO și CCC provin din balanța de verificare a perioadei.",
+      "infoAria": "Ce înseamnă zilele de rotație SKU, DSO, DPO și CCC?",
       "infoTitle": "Ce înseamnă acestea?",
-      "companyDio": "DIO companie",
+      "companyDio": "Zile de rotație SKU",
       "dioCoverage": "{{pct}}% din NIV · {{covered}} din {{total}} SKU-uri",
       "dioNoInputs": "Inventar / COGS nefurnizate pentru niciun SKU",
       "dioFormulaCogs": "sumă(Inventar) ÷ sumă(COGS) × 365, rânduri acoperite",
-      "dioFormulaWeighted": "ponderat după Inventar (DIO pe SKU; COGS nepersistat)",
-      "dioMissingHint": "Adaugă coloanele Inventory value și COGS în fișierul încărcat pentru a calcula DIO.",
+      "dioFormulaWeighted": "ponderat după Inventar (zile pe SKU; COGS nepersistat)",
+      "dioMissingHint": "Adaugă coloanele Inventory value și COGS în fișierul încărcat pentru a calcula zilele de rotație SKU.",
       "fromTrialBalance": "din balanța de verificare",
       "noTrialBalance": "nicio balanță de verificare în această sesiune",
       "dsoMissingHint": "Încarcă o perioadă cu balanță de verificare pentru a calcula DSO.",
       "dpoMissingHint": "Încarcă o perioadă cu balanță de verificare pentru a calcula DPO.",
-      "cccSource": "DIO + DSO − DPO, la nivel de companie",
-      "cccMissing": "lipsește: {{list}}",
-      "cccHint": "CCC se calculează doar când DIO, DSO și DPO sunt toate disponibile.",
+      "cccSource": "din balanță: DSO + zile de stoc (pe tipuri de stoc, sold la sfârșitul perioadei) − DPO",
+      "cccHint": "CCC provine din balanța perioadei — zilele de stoc, DSO și DPO — niciodată din fișierul pe SKU.",
       "loadedPeriod": "încărcată",
       "modalTitle": "Indicatori de capital de lucru",
       "modalDesc": "Ce măsoară fiecare indicator și de unde provine valoarea.",
-      "dioTitle": "Durata de rotație a stocurilor",
-      "dioBody": "Câte zile, în medie, stă marfa pe stoc înainte de a se vinde — sumă(Inventar) ÷ sumă(COGS) × 365 pe SKU-urile acoperite. Mai mic înseamnă mai eficient; un DIO ridicat înseamnă numerar blocat în rafturi și depozite.",
+      "dioTitle": "Zile de rotație SKU",
+      "dioBody": "Câte zile, în medie, stă stocul unui SKU înainte de a se vinde — sumă(Inventar) ÷ sumă(COGS) × 365 pe SKU-urile acoperite din fișierul de vânzări. Altă măsură decât zilele de stoc ale companiei din fila Indicatori, care împart stocul din balanță pe tipuri.",
       "dsoTitle": "Durata de încasare a creanțelor",
       "dsoBody": "Câte zile durează încasarea banilor după o vânzare — creanțe raportate la venituri, citite din balanța de verificare a perioadei încărcate. Mai mic înseamnă că clienții plătesc mai repede.",
       "dpoTitle": "Durata de plată a furnizorilor",
-      "dpoBody": "Câte zile durează plata furnizorilor — datorii raportate la COGS, din balanța de verificare. Mai mare înseamnă că păstrezi numerarul mai mult timp (atâta timp cât nu tensionează relația cu furnizorii).",
+      "dpoBody": "Câte zile durează plata furnizorilor — datorii comerciale raportate la totalul cheltuielilor de exploatare, din balanța de verificare (DPO din fila Indicatori). Mai mare înseamnă că păstrezi numerarul mai mult timp (atâta timp cât nu tensionează relația cu furnizorii).",
       "cccTitle": "Ciclul de conversie a numerarului",
-      "cccBody": "Numărul net de zile în care numerarul este blocat în operațiuni — DIO + DSO − DPO, la nivel de companie. Este cifra-cheie: cât durează de la plata stocurilor până la încasarea de la clienți. Mai mic (sau negativ) înseamnă un capital de lucru mai sănătos."
+      "cccBody": "Numărul net de zile în care numerarul este blocat în operațiuni — DSO + zile de stoc − DPO, din balanță, cu stocul la sfârșitul perioadei ca toate trei să fie pe aceeași bază. Mai mic (sau negativ) înseamnă un capital de lucru mai sănătos.",
+      "cccNoPeriod": "nicio balanță de verificare în această sesiune",
+      "skuChip": "SKU"
     },
     "channels": {
       "KA": "Conturi-cheie",
@@ -1381,7 +1389,7 @@
     },
     "export": {
       "title": "Descarcă CSV",
-      "body": "Fiecare SKU din vizualizarea curentă — volum, NIV, marjă brută și DIO — într-un singur fișier CSV gata de tabel. Respectă filtrele active și moneda de afișare; se deschide în Excel, Sheets sau orice alt instrument."
+      "body": "Fiecare SKU din vizualizarea curentă — volum, NIV, marjă brută și zile SKU — într-un singur fișier CSV gata de tabel. Respectă filtrele active și moneda de afișare; se deschide în Excel, Sheets sau orice alt instrument."
     },
     "inflight": {
       "stage": {
@@ -1402,7 +1410,7 @@
       "step3": "Maparea SKU-urilor",
       "step3Sub": "Un rând per linie de produs",
       "step4": "Calcularea marjelor",
-      "step4Sub": "NIV · GM · DIO când există",
+      "step4Sub": "NIV · GM · zile SKU când există",
       "step5": "Clasificarea portofoliului",
       "step5Sub": "ancoră · creștere · monitorizare · retragere",
       "step6": "Generarea sintezei",
@@ -1661,10 +1669,10 @@
     "docStatutoryWhere1": "Spațiul privat virtual (ANAF) → Bilanț contabil → descarcă XLSX",
     "docStatutoryWhere2": "Arhiva contabilului dvs. — depunerea anuală trimisă la ANAF",
     "docSales": "Analiză vânzări / trading",
-    "docSalesShows": "Clasificarea portofoliului la nivel de SKU (ancoră / creștere / monitorizare / eliminare), DIO + detectarea capitalului blocat. Se afișează în /products.",
+    "docSalesShows": "Clasificarea portofoliului la nivel de SKU (ancoră / creștere / monitorizare / eliminare), zile de rotație SKU + detectarea capitalului blocat. Se afișează în /products.",
     "docSalesFormat": "Export XLSX",
     "docSalesWhere1": "Raportul de analiză comercială din ERP (XLSX)",
-    "docSalesWhere2": "Pivot al vânzărilor lunare cu: SKU, volum, venituri, marjă brută, DIO, categorie de client",
+    "docSalesWhere2": "Pivot al vânzărilor lunare cu: SKU, volum, venituri, marjă brută, zile SKU, categorie de client",
     "whereToGet": "De unde îl obțineți",
     "badgeMostData": "Cele mai multe date",
     "badgeFreeInstant": "Gratuit / instant",
@@ -3016,7 +3024,7 @@
     },
     "columns": {
       "gm": "Marjă brută",
-      "dio": "Zile stoc (DIO)",
+      "dio": "Zile de rotație SKU",
       "volume": "Volum",
       "revenue": "Venituri per produs",
       "marginPct": "Marjă %"
@@ -3024,7 +3032,7 @@
     "presets": {
       "logical_default": {
         "label": "Implicit recomandat",
-        "desc": "Matrice volum × marjă, cu tăieri ferme pentru marjă negativă și DIO excesiv. Punct de plecare recomandat."
+        "desc": "Matrice volum × marjă, cu tăieri ferme pentru marjă negativă și zile SKU excesive. Punct de plecare recomandat."
       },
       "cash_protection": {
         "label": "Protejarea numerarului",
@@ -3040,7 +3048,7 @@
       },
       "working_capital_lens": {
         "label": "Perspectiva capitalului de lucru",
-        "desc": "Optimizat pentru decizii pe ciclul de numerar. Pondere mare pe DIO și pe costul finanțării."
+        "desc": "Optimizat pentru decizii pe ciclul de numerar. Pondere mare pe zilele SKU și pe costul finanțării."
       }
     },
     "financing": {
@@ -3311,6 +3319,12 @@
       "totalEquity": "totalul capitalurilor proprii",
       "totalLiabilities": "totalul datoriilor",
       "interestExpense": "cheltuielile cu dobânzile"
+    },
+    "inventoryDaysReported": {
+      "label": "Zile stoc — bază raportată: stoc ÷ costul vânzărilor",
+      "formula": "stoc ÷ costul vânzărilor × zilele perioadei, din raportare — altă măsură decât zilele de stoc pe tipuri de stoc din analiza unei balanțe",
+      "benchmark": "Bază raportată — fără notă",
+      "commentary": "Stocul acoperă aproximativ {{days}} zile de cost al vânzărilor, pe cifrele din raportare."
     }
   },
   "forecast": {
@@ -3422,8 +3436,8 @@
       "useTier": "Folosește cifra {{tier}}",
       "revenue_growth": "Creșterea veniturilor",
       "dso_days": "Zile de încasare a creanțelor",
-      "dio_cogs_days": "Zile de stoc",
-      "dpo_cogs_days": "Zile de plată a furnizorilor",
+      "dio_cogs_days": "Zile de stoc (DIO) — sold la sfârșitul perioadei, anul planului",
+      "dpo_cogs_days": "Datorii comerciale în zile de cost al vânzărilor",
       "capex_pct_of_revenue": "Investiții, pondere în venituri",
       "dividend_payout_pct": "Distribuire de dividende",
       "gross_margin": "Marja brută",
@@ -3484,8 +3498,8 @@
       "interest_rate_debt": "Rata dobânzii la datorii",
       "revolver_rate": "Rata liniei de finanțare",
       "dso_days": "Zile de încasare a creanțelor",
-      "dio_cogs_days": "Zile de stoc",
-      "dpo_cogs_days": "Zile de plată a furnizorilor",
+      "dio_cogs_days": "Zile de stoc (DIO) — sold la sfârșitul perioadei, anul planului",
+      "dpo_cogs_days": "Datorii comerciale în zile de cost al vânzărilor",
       "capex_pct_of_revenue": "Investiții, pondere în venituri",
       "dividend_payout_pct": "Distribuire de dividende",
       "min_cash": "Pragul de numerar",
@@ -3768,8 +3782,8 @@
       "pool_level_count_few": "Costurile de exploatare, toate cele {{count}} grupuri de costuri din această balanță",
       "pool_level_count_other": "Costurile de exploatare, toate cele {{count}} de grupuri de costuri din această balanță",
       "dso_days": "Zile de încasare a creanțelor",
-      "dio_cogs_days": "Zile de stoc",
-      "dpo_cogs_days": "Zile de plată a furnizorilor",
+      "dio_cogs_days": "Zile de stoc (DIO) — sold la sfârșitul perioadei, anul planului",
+      "dpo_cogs_days": "Datorii comerciale în zile de cost al vânzărilor",
       "pool_level__energy_utilities": "Costurile cu energia și utilitățile"
     },
     "op": {
@@ -4030,5 +4044,25 @@
       "deleteDialogTitle": "Ștergi {{company}}?",
       "deleteDialogBody": "Dispare acum din companiile tale și se șterge definitiv după 30 de zile. Până atunci o poți restaura din Companiile tale."
     }
+  },
+  "inventoryDays": {
+    "title": "Zile de stoc — pe tipuri de stoc",
+    "basis": "Bază: {{label}}",
+    "closing": "Aceeași împărțire pe soldul de la sfârșitul perioadei: {{v}}",
+    "accounts": "conturile {{codes}}",
+    "netOf": "net de {{codes}}",
+    "flow": "÷ {{label}}",
+    "otherNote": "inclus în total, fără zile proprii",
+    "refused": "necalculat — {{reason}}",
+    "seasonal": "Sezonalitate: {{note}}",
+    "openingReason": "Un singur sold: {{reason}}",
+    "colType": "Tip de stoc",
+    "colAccounts": "Conturi",
+    "colDays": "Zile",
+    "colFlow": "Împărțit la",
+    "seasonalFlag": "Stoc sezonier"
+  },
+  "ratioAbsence": {
+    "inventoryDaysRefused": "Zile de stoc refuzate: {{reason}}"
   }
 }

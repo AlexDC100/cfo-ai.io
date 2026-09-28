@@ -2769,7 +2769,7 @@
     "direction": "lower",
     "name": "dio",
     "unit": "days",
-    "value": 37.7894
+    "value": 34.2676
    },
    {
     "direction": "higher",
@@ -2781,13 +2781,13 @@
     "direction": "lower",
     "name": "ccc",
     "unit": "days",
-    "value": 27.9499
+    "value": 28.0246
    },
    {
     "direction": "higher",
     "name": "inventory_turnover",
     "unit": "ratio",
-    "value": 9.6588
+    "value": 10.6515
    },
    {
     "direction": "higher",
@@ -3610,7 +3610,7 @@
       "title_template": "Cash ratio on 5121.07 / 5311.09 / 401.01 at 0.09× — below the 0.10× watch rung of cash ratio for mid-size inventory-heavy operator"
      },
      {
-      "body": "401.01 (Zchgynjhy ygbohgy - 940.40 940.40), 401.110 (Ypurclfuc BVN 976.667), 601.201 (Xr.kvy.dxmka kaiag.zvxba 258.658): days payables outstanding in Dec 2024 — 52 days; days payables outstanding in Dec 2025 — 27 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 401.01, 401.110, 601.201; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_dpo fires when healthy rung of days payables outstanding is below 45 days; observed 27 days. Impact: the numerator of days payables outstanding at the healthy rung, versus as held moves from RON 12,743,922 to RON 7,554,852. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; days payables outstanding on 401.01 / 401.110 / 601.201 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the days payables outstanding movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 401.01, 401.110, 601.201, from the financial controller (before the next board pack). 2) Quantify what returns days payables outstanding to the healthy rung — headroom schedule for the numerator and the denominator of days payables outstanding, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body": "401.01 (Zchgynjhy ygbohgy - 940.40 940.40), 401.110 (Ypurclfuc BVN 976.667), 601.201 (Xr.kvy.dxmka kaiag.zvxba 258.658): days payables outstanding in Dec 2024 — 52 days; days payables outstanding in Dec 2025 — 27 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 401.01, 401.110, 601.201; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_dpo fires when healthy rung of days payables outstanding is below 45 days; observed 27 days. Impact: the numerator of days payables outstanding at the healthy rung, versus as held moves from RON 12,743,922 to RON 7,554,847. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; days payables outstanding on 401.01 / 401.110 / 601.201 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the days payables outstanding movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 401.01, 401.110, 601.201, from the financial controller (before the next board pack). 2) Quantify what returns days payables outstanding to the healthy rung — headroom schedule for the numerator and the denominator of days payables outstanding, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
       "body_template": "401.01 (Zchgynjhy ygbohgy - 940.40 940.40), 401.110 (Ypurclfuc BVN 976.667), 601.201 (Xr.kvy.dxmka kaiag.zvxba 258.658): days payables outstanding in Dec 2024 — 52 days; days payables outstanding in Dec 2025 — 27 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 401.01, 401.110, 601.201; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_dpo fires when healthy rung of days payables outstanding is below 45 days; observed 27 days. Impact: the numerator of days payables outstanding at the healthy rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; days payables outstanding on 401.01 / 401.110 / 601.201 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the days payables outstanding movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 401.01, 401.110, 601.201, from the financial controller (before the next board pack). 2) Quantify what returns days payables outstanding to the healthy rung — headroom schedule for the numerator and the denominator of days payables outstanding, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
       "category": "working_capital",
       "contract_elements": {
@@ -3640,7 +3640,7 @@
        "evidence": {
         "comparison_basis": {
          "basis_unit": "days",
-         "basis_value": 51.6642,
+         "basis_value": 51.66424475283546,
          "description": "the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision",
          "kind": "prior_period"
         },
@@ -3649,13 +3649,13 @@
           "fact": "dpo__prior",
           "label": "days payables outstanding in Dec 2024",
           "unit": "days",
-          "value": 51.6642
+          "value": 51.66424475283546
          },
          {
           "fact": "dpo__current",
           "label": "days payables outstanding in Dec 2025",
           "unit": "days",
-          "value": 26.6769
+          "value": 26.67688366137272
          }
         ],
         "provenance": {
@@ -3671,12 +3671,12 @@
         }
        },
        "impact": {
-        "adjusted": 7554851.8770709485,
+        "adjusted": 7554847.25,
         "adjusted_fact": "band_numerator_held",
         "baseline": 12743922.062465753,
         "baseline_fact": "band_numerator_at_rung",
         "currency": "RON",
-        "delta": -5189070.185394805,
+        "delta": -5189074.812465753,
         "kind": "headroom",
         "metric": "band_dpo",
         "metric_label": "the numerator of days payables outstanding at the healthy rung, versus as held",
@@ -3708,7 +3708,7 @@
        "threshold": {
         "comparator": "<",
         "limit": 45.0,
-        "observed": 26.6769,
+        "observed": 26.67688366137272,
         "parameter": "healthy",
         "parameter_label": "healthy rung of days payables outstanding",
         "rule_id": "band_dpo",
@@ -3749,9 +3749,9 @@
       },
       "facts_cited": {
        "band_numerator_at_rung": 12743922.062465753,
-       "band_numerator_held": 7554851.8770709485,
-       "dpo__current": 26.6769,
-       "dpo__prior": 51.6642
+       "band_numerator_held": 7554847.25,
+       "dpo__current": 26.67688366137272,
+       "dpo__prior": 51.66424475283546
       },
       "finding_id": "band_dpo:healthy->watch",
       "lane": "c_bands",
@@ -3772,7 +3772,7 @@
         "delta": "-25",
         "delta_unit": "days",
         "from": "healthy",
-        "headroom_money": "5189070.19",
+        "headroom_money": "5189074.81",
         "label_key": "ratioTable.dpo.label",
         "prior_label": "Dec 2024",
         "prior_value": "52",
@@ -4141,6 +4141,183 @@
       "title_template": "Current ratio on 4511.01 / 4111.01 / 401.01 at 2.10× — at or above the 2.00× strong rung of current ratio for mid-size inventory-heavy operator"
      },
      {
+      "body": "4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 301.201 (Uxsyann zanpy - fxaby 467.067), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): cash conversion cycle in Dec 2024 — 28 days; cash conversion cycle in Dec 2025 — 33 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 4111.01, 301.201, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_ccc fires when strong rung of cash conversion cycle is above 30 days; observed 33 days. Impact: the working capital cash conversion cycle ties up at the strong rung, versus as held moves from RON 9,106,710 to RON 10,091,279. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; cash conversion cycle on 4111.01 / 301.201 / 401.01 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the cash conversion cycle movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4111.01, 301.201, 401.01, from the financial controller (before the next board pack). 2) Quantify what returns cash conversion cycle to the strong rung — headroom schedule for the numerator and the denominator of cash conversion cycle, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body_template": "4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 301.201 (Uxsyann zanpy - fxaby 467.067), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): cash conversion cycle in Dec 2024 — 28 days; cash conversion cycle in Dec 2025 — 33 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 4111.01, 301.201, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_ccc fires when strong rung of cash conversion cycle is above 30 days; observed 33 days. Impact: the working capital cash conversion cycle ties up at the strong rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; cash conversion cycle on 4111.01 / 301.201 / 401.01 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the cash conversion cycle movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4111.01, 301.201, 401.01, from the financial controller (before the next board pack). 2) Quantify what returns cash conversion cycle to the strong rung — headroom schedule for the numerator and the denominator of cash conversion cycle, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "category": "working_capital",
+      "contract_elements": {
+       "action": {
+        "steps": [
+         {
+          "artefact": "two-period balance listing for accounts 4111.01, 301.201, 401.01",
+          "horizon": "before the next board pack",
+          "imperative": "Reconcile the cash conversion cycle movement from Dec 2024 to Dec 2025 to the ledger",
+          "lang": "en",
+          "provider": "the financial controller"
+         },
+         {
+          "artefact": "headroom schedule for the numerator and the denominator of cash conversion cycle",
+          "horizon": null,
+          "imperative": "Quantify what returns cash conversion cycle to the strong rung",
+          "lang": "en",
+          "provider": "the FP&A team"
+         }
+        ]
+       },
+       "confidence": {
+        "basis": "profile inventory_operator/band_mid/fin_related_party_funded resolved from structure",
+        "caveat": "Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
+        "level": "medium"
+       },
+       "evidence": {
+        "comparison_basis": {
+         "basis_unit": "days",
+         "basis_value": 28.024637309421564,
+         "description": "the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision",
+         "kind": "prior_period"
+        },
+        "figures": [
+         {
+          "fact": "ccc__prior",
+          "label": "cash conversion cycle in Dec 2024",
+          "unit": "days",
+          "value": 28.024637309421564
+         },
+         {
+          "fact": "ccc__current",
+          "label": "cash conversion cycle in Dec 2025",
+          "unit": "days",
+          "value": 33.24343990618048
+         }
+        ],
+        "provenance": {
+         "line_refs": [
+          "4111.01",
+          "301.201",
+          "401.01"
+         ],
+         "period_id": "period-agras-fy2025",
+         "prior_period_id": "period-carniprod-fy2024",
+         "snapshot_id": null,
+         "source": "assembled_canonical_v1"
+        }
+       },
+       "impact": {
+        "adjusted": 10091279.264663005,
+        "adjusted_fact": "band_numerator_held",
+        "baseline": 9106710.340273973,
+        "baseline_fact": "band_numerator_at_rung",
+        "currency": "RON",
+        "delta": 984568.9243890326,
+        "kind": "headroom",
+        "metric": "band_ccc",
+        "metric_label": "the working capital cash conversion cycle ties up at the strong rung, versus as held",
+        "unit": "money"
+       },
+       "subject": {
+        "accounts": [
+         {
+          "bucket": "ar",
+          "code": "4111.01",
+          "name": "Kukipmk Tuoc - 5444.84 5444.84",
+          "statement": "BS"
+         },
+         {
+          "bucket": "inventory",
+          "code": "301.201",
+          "name": "Uxsyann zanpy - fxaby 467.067",
+          "statement": "BS"
+         },
+         {
+          "bucket": "ap",
+          "code": "401.01",
+          "name": "Zchgynjhy ygbohgy - 940.40 940.40",
+          "statement": "BS"
+         }
+        ],
+        "scope": "Cash conversion cycle on 4111.01 / 301.201 / 401.01"
+       },
+       "threshold": {
+        "comparator": ">",
+        "limit": 30.0,
+        "observed": 33.24343990618048,
+        "parameter": "strong",
+        "parameter_label": "strong rung of cash conversion cycle",
+        "rule_id": "band_ccc",
+        "source": "general_sme_fallback#ccc.strong",
+        "unit": "days"
+       },
+       "why_here": {
+        "anchors": [
+         "mid-size inventory-heavy operator",
+         "inventory-heavy operator",
+         "mid-size company",
+         "inventory-heavy operator",
+         "related-party funded",
+         "bank debt outstanding",
+         "foreign-currency exposure",
+         "related-party balances on the books",
+         "revaluation reserve in equity"
+        ],
+        "profile_id": "inventory_operator",
+        "profile_label": "mid-size inventory-heavy operator",
+        "rationale": "Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; cash conversion cycle on 4111.01 / 301.201 / 401.01 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor.",
+        "signals": [
+         "bank_debt",
+         "fx_exposure",
+         "related_party",
+         "revaluation_reserve"
+        ]
+       }
+      },
+      "demoted": false,
+      "demotion_reasons": [],
+      "direction": "deteriorated",
+      "fact_units": {
+       "band_numerator_at_rung": "money",
+       "band_numerator_held": "money",
+       "ccc__current": "unknown",
+       "ccc__prior": "unknown"
+      },
+      "facts_cited": {
+       "band_numerator_at_rung": 9106710.340273973,
+       "band_numerator_held": 10091279.264663005,
+       "ccc__current": 33.24343990618048,
+       "ccc__prior": 28.024637309421564
+      },
+      "finding_id": "band_ccc:strong->healthy",
+      "lane": "c_bands",
+      "missing_elements": [],
+      "narrative_source": "deterministic",
+      "profile_fingerprint": "d251df531749c7e2",
+      "profile_id": "inventory_operator",
+      "rank": 8,
+      "ratio_key": "ccc",
+      "rule_key": "band_ccc",
+      "rungs_crossed": -1,
+      "severity": "medium",
+      "so_what": {
+       "key": "statements.ratioCmp.bandFinding.deteriorated",
+       "placeholders": {
+        "current_label": "Dec 2025",
+        "current_value": "33",
+        "delta": "+5",
+        "delta_unit": "days",
+        "from": "strong",
+        "headroom_money": "984568.92",
+        "label_key": "ratioTable.ccc.label",
+        "prior_label": "Dec 2024",
+        "prior_value": "28",
+        "rung": "strong",
+        "rung_value": "30",
+        "to": "healthy"
+       }
+      },
+      "source_currency": "RON",
+      "surfaced": true,
+      "title": "Cash conversion cycle on 4111.01 / 301.201 / 401.01 at 33 days — above the 30 days strong rung of cash conversion cycle for mid-size inventory-heavy operator",
+      "title_template": "Cash conversion cycle on 4111.01 / 301.201 / 401.01 at 33 days — above the 30 days strong rung of cash conversion cycle for mid-size inventory-heavy operator"
+     },
+     {
       "body": "4511.01 (Ndqe te cnifmfy NLC 3299.59), 4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): credit composite in Dec 2024 — 79.3; credit composite in Dec 2025 — 81.0. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the credit model's letter ladder (CREDIT_LETTER_LADDER) under credit model revision 3. Source: period period-agras-fy2025; accounts 4511.01, 4111.01, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_letter_grade fires when AA rung of credit composite is at or above 80.0; observed 81.0. Impact: the credit composite against the AA rung, in notches of the 10.0-point band moves from 0.00 notches to 0.10 notches (+0.10 notches). The letter is how a mid-size inventory-heavy operator is graded in one word by the group treasury and the statutory auditor; credit letter grade on 4511.01 / 4111.01 / 401.01 moving a notch changes that grade. Do this: 1) Reconcile the credit letter grade movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4511.01, 4111.01, 401.01, from the financial controller (before the next board pack). 2) Confirm the move past the AA rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4511.01, 4111.01, 401.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
       "body_template": "4511.01 (Ndqe te cnifmfy NLC 3299.59), 4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): credit composite in Dec 2024 — 79.3; credit composite in Dec 2025 — 81.0. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the credit model's letter ladder (CREDIT_LETTER_LADDER) under credit model revision 3. Source: period period-agras-fy2025; accounts 4511.01, 4111.01, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_letter_grade fires when AA rung of credit composite is at or above 80.0; observed 81.0. Impact: the credit composite against the AA rung, in notches of the 10.0-point band moves from 0.00 notches to 0.10 notches (+0.10 notches). The letter is how a mid-size inventory-heavy operator is graded in one word by the group treasury and the statutory auditor; credit letter grade on 4511.01 / 4111.01 / 401.01 moving a notch changes that grade. Do this: 1) Reconcile the credit letter grade movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4511.01, 4111.01, 401.01, from the financial controller (before the next board pack). 2) Confirm the move past the AA rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4511.01, 4111.01, 401.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
       "category": "leverage",
@@ -4286,7 +4463,7 @@
       "narrative_source": "deterministic",
       "profile_fingerprint": "d251df531749c7e2",
       "profile_id": "inventory_operator",
-      "rank": 8,
+      "rank": 9,
       "ratio_key": "letter_grade",
       "rule_key": "band_letter_grade",
       "rungs_crossed": 1,
@@ -4312,183 +4489,6 @@
       "surfaced": true,
       "title": "Credit letter grade on 4511.01 / 4111.01 / 401.01 at 81.0 — at or above the 80.0 AA rung of credit composite for mid-size inventory-heavy operator",
       "title_template": "Credit letter grade on 4511.01 / 4111.01 / 401.01 at 81.0 — at or above the 80.0 AA rung of credit composite for mid-size inventory-heavy operator"
-     },
-     {
-      "body": "4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 301.201 (Uxsyann zanpy - fxaby 467.067), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): cash conversion cycle in Dec 2024 — 28 days; cash conversion cycle in Dec 2025 — 33 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 4111.01, 301.201, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_ccc fires when strong rung of cash conversion cycle is above 30 days; observed 33 days. Impact: the working capital cash conversion cycle ties up at the strong rung, versus as held moves from RON 9,106,710 to RON 9,990,972. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; cash conversion cycle on 4111.01 / 301.201 / 401.01 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the cash conversion cycle movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4111.01, 301.201, 401.01, from the financial controller (before the next board pack). 2) Quantify what returns cash conversion cycle to the strong rung — headroom schedule for the numerator and the denominator of cash conversion cycle, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-      "body_template": "4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 301.201 (Uxsyann zanpy - fxaby 467.067), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): cash conversion cycle in Dec 2024 — 28 days; cash conversion cycle in Dec 2025 — 33 days. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision. Source: period period-agras-fy2025; accounts 4111.01, 301.201, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_ccc fires when strong rung of cash conversion cycle is above 30 days; observed 33 days. Impact: the working capital cash conversion cycle ties up at the strong rung, versus as held moves from {{money:band_numerator_at_rung}} to {{money:band_numerator_held}}. Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; cash conversion cycle on 4111.01 / 301.201 / 401.01 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor. Do this: 1) Reconcile the cash conversion cycle movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4111.01, 301.201, 401.01, from the financial controller (before the next board pack). 2) Quantify what returns cash conversion cycle to the strong rung — headroom schedule for the numerator and the denominator of cash conversion cycle, from the FP&A team. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-      "category": "working_capital",
-      "contract_elements": {
-       "action": {
-        "steps": [
-         {
-          "artefact": "two-period balance listing for accounts 4111.01, 301.201, 401.01",
-          "horizon": "before the next board pack",
-          "imperative": "Reconcile the cash conversion cycle movement from Dec 2024 to Dec 2025 to the ledger",
-          "lang": "en",
-          "provider": "the financial controller"
-         },
-         {
-          "artefact": "headroom schedule for the numerator and the denominator of cash conversion cycle",
-          "horizon": null,
-          "imperative": "Quantify what returns cash conversion cycle to the strong rung",
-          "lang": "en",
-          "provider": "the FP&A team"
-         }
-        ]
-       },
-       "confidence": {
-        "basis": "profile inventory_operator/band_mid/fin_related_party_funded resolved from structure",
-        "caveat": "Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed.",
-        "level": "medium"
-       },
-       "evidence": {
-        "comparison_basis": {
-         "basis_unit": "days",
-         "basis_value": 27.9499,
-         "description": "the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the general_sme_fallback band table (sha256 5fd90c0ea1cc) under one credit model revision",
-         "kind": "prior_period"
-        },
-        "figures": [
-         {
-          "fact": "ccc__prior",
-          "label": "cash conversion cycle in Dec 2024",
-          "unit": "days",
-          "value": 27.9499
-         },
-         {
-          "fact": "ccc__current",
-          "label": "cash conversion cycle in Dec 2025",
-          "unit": "days",
-          "value": 32.913
-         }
-        ],
-        "provenance": {
-         "line_refs": [
-          "4111.01",
-          "301.201",
-          "401.01"
-         ],
-         "period_id": "period-agras-fy2025",
-         "prior_period_id": "period-carniprod-fy2024",
-         "snapshot_id": null,
-         "source": "assembled_canonical_v1"
-        }
-       },
-       "impact": {
-        "adjusted": 9990971.914314574,
-        "adjusted_fact": "band_numerator_held",
-        "baseline": 9106710.340273973,
-        "baseline_fact": "band_numerator_at_rung",
-        "currency": "RON",
-        "delta": 884261.574040601,
-        "kind": "headroom",
-        "metric": "band_ccc",
-        "metric_label": "the working capital cash conversion cycle ties up at the strong rung, versus as held",
-        "unit": "money"
-       },
-       "subject": {
-        "accounts": [
-         {
-          "bucket": "ar",
-          "code": "4111.01",
-          "name": "Kukipmk Tuoc - 5444.84 5444.84",
-          "statement": "BS"
-         },
-         {
-          "bucket": "inventory",
-          "code": "301.201",
-          "name": "Uxsyann zanpy - fxaby 467.067",
-          "statement": "BS"
-         },
-         {
-          "bucket": "ap",
-          "code": "401.01",
-          "name": "Zchgynjhy ygbohgy - 940.40 940.40",
-          "statement": "BS"
-         }
-        ],
-        "scope": "Cash conversion cycle on 4111.01 / 301.201 / 401.01"
-       },
-       "threshold": {
-        "comparator": ">",
-        "limit": 30.0,
-        "observed": 32.913,
-        "parameter": "strong",
-        "parameter_label": "strong rung of cash conversion cycle",
-        "rule_id": "band_ccc",
-        "source": "general_sme_fallback#ccc.strong",
-        "unit": "days"
-       },
-       "why_here": {
-        "anchors": [
-         "mid-size inventory-heavy operator",
-         "inventory-heavy operator",
-         "mid-size company",
-         "inventory-heavy operator",
-         "related-party funded",
-         "bank debt outstanding",
-         "foreign-currency exposure",
-         "related-party balances on the books",
-         "revaluation reserve in equity"
-        ],
-        "profile_id": "inventory_operator",
-        "profile_label": "mid-size inventory-heavy operator",
-        "rationale": "Working-capital days decide how much cash a mid-size inventory-heavy operator ties up to trade; cash conversion cycle on 4111.01 / 301.201 / 401.01 moving band between the two periods changes the funding asked of the group treasury and the statutory auditor.",
-        "signals": [
-         "bank_debt",
-         "fx_exposure",
-         "related_party",
-         "revaluation_reserve"
-        ]
-       }
-      },
-      "demoted": false,
-      "demotion_reasons": [],
-      "direction": "deteriorated",
-      "fact_units": {
-       "band_numerator_at_rung": "money",
-       "band_numerator_held": "money",
-       "ccc__current": "unknown",
-       "ccc__prior": "unknown"
-      },
-      "facts_cited": {
-       "band_numerator_at_rung": 9106710.340273973,
-       "band_numerator_held": 9990971.914314574,
-       "ccc__current": 32.913,
-       "ccc__prior": 27.9499
-      },
-      "finding_id": "band_ccc:strong->healthy",
-      "lane": "c_bands",
-      "missing_elements": [],
-      "narrative_source": "deterministic",
-      "profile_fingerprint": "d251df531749c7e2",
-      "profile_id": "inventory_operator",
-      "rank": 9,
-      "ratio_key": "ccc",
-      "rule_key": "band_ccc",
-      "rungs_crossed": -1,
-      "severity": "medium",
-      "so_what": {
-       "key": "statements.ratioCmp.bandFinding.deteriorated",
-       "placeholders": {
-        "current_label": "Dec 2025",
-        "current_value": "33",
-        "delta": "+5",
-        "delta_unit": "days",
-        "from": "strong",
-        "headroom_money": "884261.57",
-        "label_key": "ratioTable.ccc.label",
-        "prior_label": "Dec 2024",
-        "prior_value": "28",
-        "rung": "strong",
-        "rung_value": "30",
-        "to": "healthy"
-       }
-      },
-      "source_currency": "RON",
-      "surfaced": true,
-      "title": "Cash conversion cycle on 4111.01 / 301.201 / 401.01 at 33 days — above the 30 days strong rung of cash conversion cycle for mid-size inventory-heavy operator",
-      "title_template": "Cash conversion cycle on 4111.01 / 301.201 / 401.01 at 33 days — above the 30 days strong rung of cash conversion cycle for mid-size inventory-heavy operator"
      }
     ],
     "improved": [
@@ -6909,6 +6909,10 @@
      }
     },
     {
+     "basis": {
+      "current": "average_two_year_ends",
+      "prior": "average_two_year_ends"
+     },
      "current": {
       "band": null,
       "band_status": "ungraded_sector",
@@ -6916,9 +6920,24 @@
       "ladder_floor": null,
       "operands": [
        {
-        "name": "dio",
-        "source": "metrics.dio",
-        "value": 31.5444
+        "name": "inventory_days",
+        "source": "inventory_days.total.value",
+        "value": 30.2117
+       },
+       {
+        "name": "inventory_average",
+        "source": "inventory_days.total.stock.average",
+        "value": 8467184.86
+       },
+       {
+        "name": "cost_of_sales_flow",
+        "source": "inventory_days.total.flow.value",
+        "value": 102295680.81
+       },
+       {
+        "name": "period_days",
+        "source": "inventory_days.period_days",
+        "value": 365.0
        }
       ],
       "reason": {
@@ -6927,15 +6946,15 @@
         "industry_signal.block_sector_content"
        ]
       },
-      "value": 31.5444,
-      "value_q": "32"
+      "value": 30.2117,
+      "value_q": "30"
      },
      "delta": {
       "favourable": "improved",
       "pct_change": null,
       "reason_code": null,
       "unit": "days",
-      "value": "-6"
+      "value": "-4"
      },
      "display_unit": "days",
      "finding_id": null,
@@ -6964,9 +6983,24 @@
       "ladder_floor": null,
       "operands": [
        {
-        "name": "dio",
-        "source": "metrics.dio",
-        "value": 37.7894
+        "name": "inventory_days",
+        "source": "inventory_days.total.value",
+        "value": 34.2676
+       },
+       {
+        "name": "inventory_average",
+        "source": "inventory_days.total.stock.average",
+        "value": 8865532.47
+       },
+       {
+        "name": "cost_of_sales_flow",
+        "source": "inventory_days.total.flow.value",
+        "value": 94430857.5
+       },
+       {
+        "name": "period_days",
+        "source": "inventory_days.period_days",
+        "value": 365.0
        }
       ],
       "reason": {
@@ -6975,8 +7009,8 @@
         "industry_signal.block_sector_content"
        ]
       },
-      "value": 37.7894,
-      "value_q": "38"
+      "value": 34.2676,
+      "value_q": "34"
      }
     },
     {
@@ -6991,13 +7025,33 @@
       "ladder_floor": "watch",
       "operands": [
        {
-        "name": "dpo",
-        "source": "metrics.dpo",
-        "value": 26.6769
+        "name": "accountsPayable",
+        "source": "balanceSheet.accountsPayable",
+        "value": 7554847.25
+       },
+       {
+        "name": "costOfGoodsSold",
+        "source": "incomeStatement.costOfGoodsSold",
+        "value": 70557114.68
+       },
+       {
+        "name": "operatingExpenses",
+        "source": "incomeStatement.operatingExpenses",
+        "value": 29854906.77
+       },
+       {
+        "name": "depreciationAmortization",
+        "source": "incomeStatement.depreciationAmortization",
+        "value": 2955346.39
+       },
+       {
+        "name": "period_days",
+        "source": "supplementary.periodDays",
+        "value": 365.0
        }
       ],
       "reason": null,
-      "value": 26.6769,
+      "value": 26.67688366137272,
       "value_q": "27"
      },
      "delta": {
@@ -7023,7 +7077,7 @@
       "materiality": {
        "basis_key": "total_assets",
        "basis_value": "39319114.09",
-       "headroom_money": "5189070.19",
+       "headroom_money": "5189074.81",
        "share": "0.1320"
       },
       "reason_code": null,
@@ -7046,13 +7100,33 @@
       "ladder_floor": "watch",
       "operands": [
        {
-        "name": "dpo",
-        "source": "metrics.dpo",
-        "value": 51.6642
+        "name": "accountsPayable",
+        "source": "balanceSheet.accountsPayable",
+        "value": 13392746.23
+       },
+       {
+        "name": "costOfGoodsSold",
+        "source": "incomeStatement.costOfGoodsSold",
+        "value": 57429796.23
+       },
+       {
+        "name": "operatingExpenses",
+        "source": "incomeStatement.operatingExpenses",
+        "value": 33492385.21
+       },
+       {
+        "name": "depreciationAmortization",
+        "source": "incomeStatement.depreciationAmortization",
+        "value": 3695525.59
+       },
+       {
+        "name": "period_days",
+        "source": "supplementary.periodDays",
+        "value": 365.0
        }
       ],
       "reason": null,
-      "value": 51.6642,
+      "value": 51.66424475283546,
       "value_q": "52"
      }
     },
@@ -7068,13 +7142,63 @@
       "ladder_floor": "critical",
       "operands": [
        {
-        "name": "ccc",
-        "source": "metrics.ccc",
-        "value": 32.913
+        "name": "accountsReceivable",
+        "source": "balanceSheet.accountsReceivable",
+        "value": 8513384.96
+       },
+       {
+        "name": "revenue",
+        "source": "incomeStatement.revenue",
+        "value": 110798309.14
+       },
+       {
+        "name": "period_days",
+        "source": "supplementary.periodDays",
+        "value": 365.0
+       },
+       {
+        "name": "inventory_days",
+        "source": "inventory_days.total.closing_value",
+        "value": 31.8749
+       },
+       {
+        "name": "inventory_closing",
+        "source": "inventory_days.total.stock.closing",
+        "value": 8933332.42
+       },
+       {
+        "name": "cost_of_sales_flow",
+        "source": "inventory_days.total.flow.value",
+        "value": 102295680.81
+       },
+       {
+        "name": "period_days",
+        "source": "inventory_days.period_days",
+        "value": 365.0
+       },
+       {
+        "name": "accountsPayable",
+        "source": "balanceSheet.accountsPayable",
+        "value": 7554847.25
+       },
+       {
+        "name": "costOfGoodsSold",
+        "source": "incomeStatement.costOfGoodsSold",
+        "value": 70557114.68
+       },
+       {
+        "name": "operatingExpenses",
+        "source": "incomeStatement.operatingExpenses",
+        "value": 29854906.77
+       },
+       {
+        "name": "depreciationAmortization",
+        "source": "incomeStatement.depreciationAmortization",
+        "value": 2955346.39
        }
       ],
       "reason": null,
-      "value": 32.913,
+      "value": 33.24343990618048,
       "value_q": "33"
      },
      "delta": {
@@ -7094,14 +7218,14 @@
      "movement": {
       "band_width": "30",
       "band_width_basis": "closed",
-      "distance_fraction": "0.097",
+      "distance_fraction": "0.108",
       "distance_past_rung": "3",
       "from": "strong",
       "materiality": {
        "basis_key": "total_assets",
        "basis_value": "39319114.09",
-       "headroom_money": "884261.57",
-       "share": "0.0225"
+       "headroom_money": "984568.92",
+       "share": "0.0250"
       },
       "reason_code": null,
       "rung_crossed": {
@@ -7123,13 +7247,63 @@
       "ladder_floor": "critical",
       "operands": [
        {
-        "name": "ccc",
-        "source": "metrics.ccc",
-        "value": 27.9499
+        "name": "accountsReceivable",
+        "source": "balanceSheet.accountsReceivable",
+        "value": 10829721.07
+       },
+       {
+        "name": "revenue",
+        "source": "incomeStatement.revenue",
+        "value": 94509939.96
+       },
+       {
+        "name": "period_days",
+        "source": "supplementary.periodDays",
+        "value": 365.0
+       },
+       {
+        "name": "inventory_days",
+        "source": "inventory_days.total.closing_value",
+        "value": 37.8642
+       },
+       {
+        "name": "inventory_closing",
+        "source": "inventory_days.total.stock.closing",
+        "value": 9796026.8
+       },
+       {
+        "name": "cost_of_sales_flow",
+        "source": "inventory_days.total.flow.value",
+        "value": 94430857.5
+       },
+       {
+        "name": "period_days",
+        "source": "inventory_days.period_days",
+        "value": 365.0
+       },
+       {
+        "name": "accountsPayable",
+        "source": "balanceSheet.accountsPayable",
+        "value": 13392746.23
+       },
+       {
+        "name": "costOfGoodsSold",
+        "source": "incomeStatement.costOfGoodsSold",
+        "value": 57429796.23
+       },
+       {
+        "name": "operatingExpenses",
+        "source": "incomeStatement.operatingExpenses",
+        "value": 33492385.21
+       },
+       {
+        "name": "depreciationAmortization",
+        "source": "incomeStatement.depreciationAmortization",
+        "value": 3695525.59
        }
       ],
       "reason": null,
-      "value": 27.9499,
+      "value": 28.024637309421564,
       "value_q": "28"
      }
     },
@@ -7565,6 +7739,10 @@
      }
     },
     {
+     "basis": {
+      "current": "average_two_year_ends",
+      "prior": "average_two_year_ends"
+     },
      "current": {
       "band": null,
       "band_status": "ungraded_sector",
@@ -7573,8 +7751,8 @@
       "operands": [
        {
         "name": "inventory_turnover",
-        "source": "metrics.inventory_turnover",
-        "value": 11.571
+        "source": "inventory_days.inventory_turnover.value",
+        "value": 12.0814
        }
       ],
       "reason": {
@@ -7583,15 +7761,15 @@
         "industry_signal.block_sector_content"
        ]
       },
-      "value": 11.571,
-      "value_q": "11.57"
+      "value": 12.0814,
+      "value_q": "12.08"
      },
      "delta": {
       "favourable": "improved",
-      "pct_change": "+19.8",
+      "pct_change": "+13.4",
       "reason_code": null,
       "unit": "turns",
-      "value": "+1.91"
+      "value": "+1.43"
      },
      "display_unit": "x",
      "finding_id": null,
@@ -7621,8 +7799,8 @@
       "operands": [
        {
         "name": "inventory_turnover",
-        "source": "metrics.inventory_turnover",
-        "value": 9.6588
+        "source": "inventory_days.inventory_turnover.value",
+        "value": 10.6515
        }
       ],
       "reason": {
@@ -7631,8 +7809,8 @@
         "industry_signal.block_sector_content"
        ]
       },
-      "value": 9.6588,
-      "value_q": "9.66"
+      "value": 10.6515,
+      "value_q": "10.65"
      }
     }
    ],

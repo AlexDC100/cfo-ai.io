@@ -27,6 +27,7 @@ import {
 // servedFacts gateway — the snapshot's BS totals are the SERVED
 // (reconciliation-adjusted) figures, so the assistant quotes the same
 // book the dashboard, exports and BS tab show.
+import { printInventoryDays, readInventoryDaysSplit } from "@/lib/inventoryDays";
 import { factsFrom } from "@/lib/servedFacts";
 import type { Statements } from "@/lib/financialReport";
 
@@ -239,6 +240,27 @@ export function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): s
       pushIf(lines, "PP&E (net)", abs.ppe_net);
     }
   }
+  // INVENTORY DAYS — the ONE served block (engine.ratios.inventory_days),
+  // printed as every surface prints it, and its CLAIM POLICY (owner spec
+  // 2026-09-26 P1.5, design B5): the assistant may call stock slow or high
+  // only when the policy allows it, and must cite the split and the average.
+  const inventorySplit = p.statements ? readInventoryDaysSplit(p.statements) : null;
+  if (inventorySplit) {
+    const printed = printInventoryDays(inventorySplit, "en");
+    lines.push("");
+    lines.push(`${printed.title} (served; the dio / ccc / inventory_turnover metrics above read it):`);
+    for (const r of [...printed.legs, ...(printed.other ? [printed.other] : []), printed.total]) {
+      lines.push(`  · ${r.label}${r.accounts ? ` (${r.accounts})` : ""}: ${r.days}${r.flow ? ` ${r.flow}` : ""}`);
+    }
+    for (const note of [printed.basis, printed.closing ?? "", ...printed.notes]) {
+      if (note) lines.push(`  · ${note}`);
+    }
+    lines.push(
+      `  · Claim policy: stock ${inventorySplit.maySlowClaim ? "MAY" : "may NOT"} be called slow or high` +
+        `${inventorySplit.claimText ? ` — ${inventorySplit.claimText.en}` : ""}.`,
+    );
+  }
+
   if (acf) {
     lines.push("");
     lines.push("Cash flow highlights:");

@@ -206,7 +206,7 @@ export const RULES: readonly RuleDefinition[] = [
   {
     id: "dio",
     labelKey: "decision_rules.rule.dio",
-    labelDefault: "Days inventory outstanding (DIO)",
+    labelDefault: "SKU turnover days",
     unitKey: "common.unit.days",
     unitDefault: "days",
     direction: "lower_better",

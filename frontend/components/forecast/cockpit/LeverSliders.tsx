@@ -2,8 +2,9 @@
 //
 // The four the spec names first (revenue growth, inflation, raw-material
 // price against the base year, wage growth) are always on screen; energy,
-// EUR/RON on imported inputs (and the imported share it reaches), DSO/DIO/
-// DPO, capex, the interest rate and dividends sit behind "Mai multe". Which
+// EUR/RON on imported inputs (and the imported share it reaches), DSO, DIO,
+// trade payables in days of cost of sales (not the ratio table's DPO),
+// capex, the interest rate and dividends sit behind "Mai multe". Which
 // lever is which, its range and step, the value in force, where that value
 // came from, and the sentence beneath it all come from the ENGINE
 // (`levers[]`). A lever the book cannot measure says so in its basis; a lever

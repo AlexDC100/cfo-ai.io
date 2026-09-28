@@ -122,14 +122,23 @@ levers:
     shape: per_year
     range: {min: "0", max: "365", step: "1", decimals: 0}
     compiles_to: {kind: override, drivers: [dio_cogs_days]}
-    label: {ro: "Zile stoc (DIO)", en: "Days inventory (DIO)"}
+    # On the plan's year (365 days): the lever is stock ÷ flow × 365, which
+    # is the analysis's period-end split only on a 365-day period; on any
+    # other (a leap year, a year-to-date book) its sentence prints the
+    # bridge. No digit in the label: the Romanian sentence translator keeps
+    # the served digits exactly, and a label digit would be a new one.
+    label: {ro: "Zile de stoc (DIO) — sold la sfârșitul perioadei, anul planului", en: "Inventory days (DIO) — period-end balance, plan year"}
   - id: dpo_days
     group: more
     unit: days
     shape: per_year
     range: {min: "0", max: "365", step: "1", decimals: 0}
     compiles_to: {kind: override, drivers: [dpo_cogs_days]}
-    label: {ro: "Zile plată furnizori (DPO)", en: "Days payables outstanding (DPO)"}
+    # Not "DPO": the ratio table's DPO divides trade payables by TOTAL
+    # operating expense; this lever sets payables in days of cost of sales
+    # (forecast.dpo_cogs). One metric name, one formula (owner spec
+    # 2026-09-26 P1, design B4).
+    label: {ro: "Datorii comerciale în zile de cost al vânzărilor", en: "Trade payables in days of cost of sales"}
   - id: capex
     group: more
     unit: pct
@@ -333,8 +342,11 @@ basis:
       en: "{days} days = trade receivables {balance} / revenue {flow} × 365 ({year0})"
   dio_days:
     book:
-      ro: "{days} zile de cost al vânzărilor = stocuri {balance} / cost al vânzărilor {flow} × 365 ({year0})"
-      en: "{days} days of cost of sales = inventory {balance} / cost of sales {flow} × 365 ({year0})"
+      ro: "{days} zile de stoc (împărțite pe tipuri de stoc, sold la sfârșitul perioadei) = stocuri {balance} / costul producției vândute + costul mărfurilor vândute {flow} × 365 ({year0})"
+      en: "{days} inventory days (split by stock type, period-end balance) = inventory {balance} / cost of production sold + cost of goods resold {flow} × 365 ({year0})"
+    book_restated:
+      ro: "{days} zile de stoc pe anul de 365 de zile al planului (împărțite pe tipuri de stoc, sold la sfârșitul perioadei) = stocuri {balance} / costul producției vândute + costul mărfurilor vândute {flow} × 365 ({year0}); pe zilele perioadei (numărul de zile: {period_days}) aceeași împărțire dă {closing}, cifra din analiză"
+      en: "{days} inventory days on the plan's 365-day year (split by stock type, period-end balance) = inventory {balance} / cost of production sold + cost of goods resold {flow} × 365 ({year0}); on the period's own days (day count: {period_days}) the same split is {closing}, the analysis figure"
   dpo_days:
     book:
       ro: "{days} zile de cost al vânzărilor = datorii comerciale {balance} / cost al vânzărilor {flow} × 365 ({year0})"

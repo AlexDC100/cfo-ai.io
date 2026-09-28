@@ -75,11 +75,19 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     },
   },
   dio: {
-    term: { en: "DIO", ro: "DIO" },
-    simple: { en: "Days stock sits on the shelf (DIO)", ro: "Zile cât stă marfa pe raft (DIO)" },
+    term: { en: "Inventory days (DIO)", ro: "Zile de stoc (DIO)" },
+    simple: { en: "Days each kind of stock lasts (inventory days, DIO)", ro: "Câte zile ajunge fiecare tip de stoc (zile de stoc, DIO)" },
     plain: {
-      en: "How many days, on average, goods wait between arriving and being sold. Fewer days means less money parked in stock.",
-      ro: "Câte zile stă marfa, în medie, între sosire și vânzare. Mai puține zile înseamnă mai puțini bani blocați în stoc.",
+      en: "How many days each kind of stock lasts at the pace it is used: raw materials against the materials consumed, finished goods and work in progress against the cost of what was produced and sold, merchandise against the cost of goods resold. Read on the average of the opening and closing balances where the trial balance carries both; a single year-end balance is one day and says nothing about the season.",
+      ro: "Câte zile ajunge fiecare tip de stoc la ritmul în care este folosit: materiile prime față de consumul de materii, produsele finite și producția în curs față de costul producției vândute, mărfurile față de costul mărfurilor vândute. Se citește pe media soldului inițial și final acolo unde balanța le are pe amândouă; un singur sold de sfârșit de an este o singură zi și nu spune nimic despre sezon.",
+    },
+  },
+  sku_days: {
+    term: { en: "SKU turnover days", ro: "Zile de rotație SKU" },
+    simple: { en: "Days a product's stock lasts, from the sales file (SKU turnover days)", ro: "Câte zile ajunge stocul unui produs, din fișierul de vânzări (zile de rotație SKU)" },
+    plain: {
+      en: "Per product, from the uploaded sales file: its stock divided by its cost of sales, in days. A different measure from the company's inventory days, which split the trial balance's stock by type.",
+      ro: "Pe produs, din fișierul de vânzări încărcat: stocul împărțit la costul vânzărilor, în zile. Altă măsură decât zilele de stoc ale companiei, care împart stocul din balanță pe tipuri.",
     },
   },
   dpo: {

@@ -48,6 +48,7 @@ import { ratioCompareHeadingsFor, type RatioCompareRow } from "./ratioTable";
 // status cell calls the SAME presentStatus the BS chip and the HTML export
 // footer use; this file carries no status wording of its own.
 import { factsFrom } from "./servedFacts";
+import { inventoryDaysSheetRows, printInventoryDays, readInventoryDaysSplit } from "./inventoryDays";
 import { plLevelsOf } from "./servedOneEbitda";
 import { printedPl, printedRow, type PrintedPlRow } from "./printedPl";
 // ONE sentence for "there is nothing to compare against", shared with
@@ -533,6 +534,10 @@ export function buildExcelWorkbook(
       ratioRows.push(["Unlisted", `the served lists name ${bands.unlisted.join(", ")}, which the served table carries no row for`]);
     }
   }
+  // ── INVENTORY DAYS — the ONE served block's split, the same printed
+  // lines as the document and the bank export (lib/inventoryDays.ts). ──
+  const inventorySplit = readInventoryDaysSplit(s);
+  if (inventorySplit) ratioRows.push([], ...inventoryDaysSheetRows(printInventoryDays(inventorySplit, "en")));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(ratioRows), "Ratios");
 
   // ─ Cash flow ─────────────────────────────────────────────────────────────

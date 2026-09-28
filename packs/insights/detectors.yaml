@@ -159,8 +159,10 @@ detectors:
   - id: trade_float
     title: "Suppliers and customers move the cash cycle"
     formula: >-
-      DSO = trade receivables net ÷ revenue × 365; DPO = trade payables ÷
-      cost of goods sold × 365; float = trade receivables net − trade payables
+      DSO = trade receivables net ÷ revenue × the period's days; DPO =
+      balance-sheet payables ÷ total operating expense × the period's days
+      (the ratio table's one DPO, engine.ratios.table.dpo_days); float =
+      trade receivables net − trade payables
     basis: revenue
     basis_label: "Revenue"
     basis_why: >-
@@ -178,8 +180,10 @@ detectors:
     claim: >-
       The net trade float is {money:float}: {money:trade_receivables} owed
       by customers against {money:trade_payables} owed to suppliers —
-      {measure:dso} of sales outstanding against {measure:dpo} of payables,
-      a gap of {measure:float_days}.
+      {measure:dso} of sales outstanding against {measure:dpo} of payables
+      ({money:dpo_payables} of balance-sheet payables over
+      {money:total_operating_expense} of total operating expense, on
+      {measure:period_days}), a gap of {measure:float_days}.
     rows:
       trade_receivables: [ar_trade_gross, ar_doubtful_gross, ar_provisions]
       trade_payables: [ap_trade]

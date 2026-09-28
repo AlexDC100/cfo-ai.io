@@ -1,0 +1,187 @@
+# INVENTORY DAYS — one served metric, split by stock type (owner spec
+# 2026-09-26 evening, P1 "one company, three numbers"; design B1-B5).
+#
+# Read by src/engine/ratios/inventory_days.py and by nothing else. Every
+# surface that prints inventory days (the Ratios card and drawer, the
+# credit-model metric rows, the report, the forecast driver, the command
+# bar, the bank export) reads the block that module serves as
+# `assembled_metrics.inventory_days` (schema inventory_days/1). No account
+# list, label or basis sentence below is typed anywhere else (TC-10).
+#
+# WHY. Scandia Food FY2025 showed 48.8 days (Benchmark, stock / turnover),
+# 52.5 (Ratios card, stock / total operating cost) and 95.3 (Forecast,
+# stock / materials + merchandise cost): one stock, three denominators,
+# one name. The split divides each kind of stock by the flow that moves it.
+#
+# THE GROUPS (the owner's LITERAL accounts; design B1 [DEFAULT]):
+#   materials            301, 302, 303, 308  / materials consumed 601 + 602 + 603
+#   finished goods + WIP 331, 341, 345, 348  / cost of production sold
+#   merchandise          371, 378            / cost of goods resold 607
+#   alte stocuri         every other class-3 stock account, listed with its
+#                        accounts, INSIDE the total, with no days of its own.
+# Each extension (357 -> merchandise, 346/347/354/332 -> finished goods,
+# 381 -> materials, ...) is an owner ruling offered with its day effect;
+# none is applied here.
+#
+# 39x provisions net against their own group (391/392 materials, 393/394
+# production, 397 merchandise, everything else -> alte stocuri), so every
+# group is a carrying amount and Σ groups + alte stocuri = the served
+# inventory_net to the cent — or the block refuses.
+#
+# COST OF PRODUCTION SOLD (no class-9 management accounts on any book, so
+# selling and admin cost cannot be separated from a by-nature P&L; design
+# B1 [DEFAULT: broad basis]):
+#   total operating expense (assembled_pl.total_operating_expense: cost of
+#   sales + operating expenses + D&A) − 607 − net 711 (the served
+#   "Variația stocurilor de produse": a stock increase takes cost OUT of
+#   "sold"). A refused net 711 refuses the finished-goods leg and the total
+#   with the same reason.
+#
+# TOTAL = Σ all stock (groups + alte stocuri) / (cost of production sold +
+# 607) — flow-weighted, ONE money denominator, no double count (materials
+# consumed already sit inside the cost of production sold).
+
+schema_version: 1
+
+groups:
+  - key: materials
+    label: {ro: "Materii prime și materiale", en: "Raw materials and consumables"}
+    stock_accounts: ["301", "302", "303", "308"]
+    provision_accounts: ["391", "392"]
+    flow:
+      key: materials_consumed
+      accounts: ["601", "602", "603"]
+      label: {ro: "Consum de materii prime și materiale (601 + 602 + 603)",
+              en: "Materials consumed (601 + 602 + 603)"}
+  - key: finished_goods_wip
+    label: {ro: "Produse finite și producție în curs", en: "Finished goods and work in progress"}
+    stock_accounts: ["331", "341", "345", "348"]
+    provision_accounts: ["393", "394"]
+    flow:
+      key: cost_of_production_sold
+      accounts: []
+      label: {ro: "Costul producției vândute", en: "Cost of production sold"}
+  - key: merchandise
+    label: {ro: "Mărfuri", en: "Merchandise"}
+    stock_accounts: ["371", "378"]
+    provision_accounts: ["397"]
+    flow:
+      key: cost_of_goods_resold
+      accounts: ["607"]
+      label: {ro: "Costul mărfurilor vândute (607)", en: "Cost of goods resold (607)"}
+
+other:
+  key: other_stock
+  label: {ro: "Alte stocuri", en: "Other stock"}
+
+#: Own-product turnover: the finished-goods leg refuses when it is zero.
+own_product_turnover_accounts: ["701", "702", "703"]
+
+cost_of_production_sold:
+  label: {ro: "cost total de exploatare fără mărfuri, ajustat cu variația stocurilor (fără contabilitate de gestiune clasa 9)",
+          en: "total operating cost excluding merchandise, adjusted for the change in inventories (no class-9 management accounts)"}
+
+total:
+  label: {ro: "Zile de stoc (total, ponderat cu fluxurile)", en: "Inventory days (total, flow-weighted)"}
+  flow_label: {ro: "costul producției vândute + costul mărfurilor vândute (607)",
+               en: "cost of production sold + cost of goods resold (607)"}
+
+bases:
+  average_monthly:
+    label: {ro: "media celor 12 solduri lunare și a soldului inițial",
+            en: "average of the 12 month-end balances and the opening balance"}
+  average_two_year_ends:
+    #: {start} / {end} are rendered from the period (e.g. "1 ianuarie", "31 decembrie").
+    label: {ro: "media soldurilor la {start} și {end}",
+            en: "average of the balances at {start} and {end}"}
+  year_end_snapshot:
+    label: {ro: "stoc la {end} — o singură zi",
+            en: "stock at {end} — a single day"}
+
+#: Food / FMCG: stock moves with the season, so a year-end point (or the
+#: average of two year-end points) can sit far from the year's typical
+#: level. Only monthly balances remove the effect.
+seasonality:
+  caen_prefixes: ["10", "11", "463", "471", "472"]
+  industry_keys: ["fmcg"]
+  note: {ro: "stocurile din alimentație și bunuri de larg consum sunt sezoniere: un sold la sfârșit de an poate fi departe de nivelul obișnuit; doar soldurile lunare elimină efectul",
+         en: "food and consumer-goods stock is seasonal: a year-end balance can sit far from the usual level; only monthly balances remove the effect"}
+
+filed_basis:
+  sector_row_key: inventory_days_on_turnover
+  label: {ro: "bază depusă (stoc ÷ cifra de afaceri) — nu aceeași cu zilele de stoc din analiză",
+          en: "filed basis (stock ÷ net turnover) — not the same as the inventory days of this analysis"}
+
+#: One mirror exists, because a browser cannot read this file: the forecast's
+#: Romanian page prints these words for the DIO driver's refusal
+#: (frontend/lib/forecastSentencesRo.ts INVENTORY_DAYS_REFUSALS), held word
+#: for word to this section by frontend/lib/__tests__/forecastSentencesRo.test.ts.
+refusals:
+  no_stock:
+    {ro: "nu există stocuri de acest tip la niciuna dintre date",
+     en: "there is no stock of this kind at either date"}
+  no_own_production_sold:
+    {ro: "nu s-au vândut produse proprii (conturile 701–703 sunt zero), deci stocul de produse nu are un flux de vânzare",
+     en: "no own products were sold (accounts 701–703 are zero), so product stock has no sales flow"}
+  cost_of_production_sold_not_positive:
+    {ro: "costul producției vândute nu este pozitiv (variația stocurilor depășește costurile), deci zilele de stoc nu au sens",
+     en: "the cost of production sold is not positive (the stock variation exceeds the costs), so inventory days have no meaning"}
+  no_goods_resold:
+    {ro: "există stoc de mărfuri, dar nu există cost al mărfurilor vândute (607)",
+     en: "there is merchandise stock but no cost of goods resold (607)"}
+  no_flow:
+    {ro: "fluxul care mișcă acest stoc este zero",
+     en: "the flow that moves this stock is zero"}
+  stock_variation_refused:
+    {ro: "variația stocurilor de produse (711) nu a putut fi măsurată, deci costul producției vândute nu este cunoscut",
+     en: "the change in inventories of products (711) could not be measured, so the cost of production sold is not known"}
+  a_leg_refused:
+    {ro: "o componentă cu stoc este refuzată, deci totalul nu poate fi calculat",
+     en: "a component that holds stock is refused, so the total cannot be computed"}
+  not_reconciled:
+    {ro: "stocurile pe tipuri nu se adună la stocul din bilanț, deci împărțirea nu se servește",
+     en: "the stock by type does not add up to the balance-sheet stock, so the split is not served"}
+  period_days_unknown:
+    {ro: "durata perioadei nu este stabilită",
+     en: "the length of the period is not established"}
+  no_stock_lines:
+    {ro: "balanța nu are conturi de stocuri (clasa 3) citite",
+     en: "the trial balance carries no stock accounts (class 3) that were read"}
+  #: No block is served for the period at all (the forecast's DIO driver
+  #: cites it: engine.forecast.history). Read from here, never typed there.
+  inventory_days_absent:
+    {ro: "perioada nu servește zilele de stoc",
+     en: "the period serves no inventory-days block"}
+
+opening_reasons:
+  si_column_absent:
+    {ro: "fișierul nu are coloana de sold inițial, deci se folosește doar stocul de la sfârșitul perioadei",
+     en: "the file carries no opening-balance column, so only the period-end stock is used"}
+  si_column_unknown:
+    {ro: "nu se poate stabili dacă fișierul are sold inițial, deci se folosește doar stocul de la sfârșitul perioadei",
+     en: "it cannot be established whether the file carries an opening balance, so only the period-end stock is used"}
+  si_date_undetermined:
+    {ro: "soldul inițial poate fi cel de la începutul lunii, nu de la 1 ianuarie, deci se folosește doar stocul de la sfârșitul perioadei",
+     en: "the opening balance may be the month's opening rather than 1 January, so only the period-end stock is used"}
+  si_convention_undecided:
+    {ro: "structura rulajelor nu arată de la ce dată este soldul inițial, deci se folosește doar stocul de la sfârșitul perioadei",
+     en: "the movement columns do not show which date the opening balance is at, so only the period-end stock is used"}
+  trial_balance_rows_unavailable:
+    {ro: "balanța nu a fost disponibilă pentru soldurile inițiale, deci se folosește doar stocul de la sfârșitul perioadei",
+     en: "the trial balance was not available for the opening balances, so only the period-end stock is used"}
+  period_predates_inventory_measurement:
+    {ro: "perioada a fost analizată înainte ca soldurile inițiale ale stocurilor să fie păstrate; se recalculează la reprocesare",
+     en: "the period was analysed before opening stock balances were kept; it is recomputed when reprocessed"}
+
+claim_policy:
+  #: The reasons a claim of "slow" / "high" stock is refused.
+  reasons:
+    snapshot_only:
+      {ro: "zilele de stoc sunt calculate pe un singur sold de sfârșit de perioadă; nu se poate spune că stocul este lent",
+       en: "inventory days rest on a single period-end balance; stock cannot be called slow"}
+    split_refused:
+      {ro: "împărțirea pe tipuri de stoc nu este disponibilă; nu se poate spune că stocul este lent",
+       en: "the split by stock type is not available; stock cannot be called slow"}
+    split_and_average:
+      {ro: "afirmația trebuie să citeze împărțirea pe tipuri de stoc și media soldurilor",
+       en: "a claim must cite the split by stock type and the average balance"}

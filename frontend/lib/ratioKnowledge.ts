@@ -417,21 +417,21 @@ export const RATIO_KNOWLEDGE: Record<string, RatioKnowledge> = {
   },
   dio: {
     category: "efficiency",
-    // ── THE DENOMINATOR THIS PRODUCT ACTUALLY DIVIDES BY ────────────
+    // ── ONE MEASURE, SPLIT BY STOCK TYPE (owner spec 2026-09-26, P1) ──
     //
-    // Textbook DIO divides by narrow COGS. This product divides by TOTAL
-    // operating expense (COGS + opex + D&A), deliberately: in a
-    // manufacturer, inventory absorbs materials, labour, utilities and
-    // overhead, and the narrow basis inflated Scandia's DIO from ~53 to
-    // ~95 days (see the calibration note in `computeRatios`). The card
-    // says so; this entry did not, and on the agras book the difference
-    // between the two bases is 31.5 days and 46.2 days.
+    // Scandia Food FY2025 printed 48.8 / 52.5 / 95.3 inventory days for one
+    // stock — three denominators under one name. The engine now serves ONE
+    // block (`statements.inventory_days`): each kind of stock over the flow
+    // that moves it, on the average balance where the book carries the
+    // opening. This entry describes that block and states no cutoff; the
+    // figure, its split and its basis are printed from the block itself.
     definition:
-      "Average number of days inventory sits on the balance sheet before being sold. Measured against TOTAL operating cost, not narrow COGS — a manufacturer's inventory absorbs labour, utilities and overhead as well as materials.",
-    formula: "(Inventory ÷ Total operating expense) × 365 — total operating cost, not narrow COGS",
+      "Average number of days stock is held, split by stock type: raw materials over materials consumed, finished goods and work in progress over the cost of production sold, merchandise over the cost of goods resold. The total weighs every kind of stock (including other stock) against the flows that move it. Where the trial balance carries the opening balance the stock is averaged; otherwise the figure rests on the year-end balance and says so.",
+    formula:
+      "materials (301–303, 308) ÷ 601 + 602 + 603 · finished goods + WIP (331, 341, 345, 348) ÷ cost of production sold · merchandise (371, 378) ÷ 607 · total = all stock ÷ (cost of production sold + 607) × days, on the balance basis the split states",
     whyItMatters:
-      "Working-capital intensity proxy — high DIO ties up cash and exposes you to obsolescence. Because the denominator is the whole operating cost base, this reads LOWER than a narrow-COGS DIO on the same book; do not compare it against a published figure without checking which basis that figure used.",
-    goodRange: "Industry-dependent · ≤ 60 days FMCG, 30–90 days manufacturing",
+      "Working-capital intensity — stock ties up cash and exposes you to obsolescence. Read each kind of stock against its own flow: a long materials figure and a short merchandise figure are different problems. A single year-end balance is one day; for seasonal food and consumer goods it can sit far from the usual level.",
+    goodRange: "Depends on the kind of stock and the industry — read each leg against its own flow",
     drivers: [
       "Demand forecasting accuracy",
       "Production lead-times",
@@ -443,7 +443,7 @@ export const RATIO_KNOWLEDGE: Record<string, RatioKnowledge> = {
   dpo: {
     category: "efficiency",
     definition:
-      "Average number of days you take to pay your suppliers — a measure of supplier float. Measured against TOTAL operating cost, not narrow COGS, so it pairs with DIO on the same denominator inside the cash-conversion cycle.",
+      "Average number of days you take to pay your suppliers — a measure of supplier float. Measured against TOTAL operating cost, not narrow COGS. It is the one DPO: the cash-conversion cycle, the trade-float insight and every report read this figure.",
     formula: "(Trade payables ÷ Total operating expense) × 365 — total operating cost, not narrow COGS",
     whyItMatters:
       "Higher DPO funds working capital from suppliers (within agreed terms). Push it too far and supplier risk + missed early-payment discounts erode margin. Paying FASTER than the benchmark is not a distress signal — it forgoes free credit, which is why this scale declares no critical rung.",
@@ -459,7 +459,10 @@ export const RATIO_KNOWLEDGE: Record<string, RatioKnowledge> = {
     category: "efficiency",
     definition:
       "Cash conversion cycle — the gap between paying for inputs and collecting from customers.",
-    formula: "DSO + DIO − DPO",
+    // The inventory term is the served split on the PERIOD-END balance, so
+    // the three terms of the cycle sit on one basis (DSO and DPO are
+    // period-end figures).
+    formula: "DSO + DIO (split by stock type, period-end balance) − DPO",
     whyItMatters:
       "The clearest summary of working-capital efficiency. A short or negative CCC means the business is self-funded; a long CCC eats cash.",
     goodRange: "Lower is better · negative CCC = customer-funded",

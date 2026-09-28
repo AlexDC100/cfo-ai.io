@@ -45,7 +45,7 @@ graph LR
     pkg_confidence["confidence (5 modules)"]
     pkg_consensus["consensus (6 modules)"]
     pkg_core["core (9 modules)"]
-    pkg_country_packs["country_packs (19 modules)"]
+    pkg_country_packs["country_packs (20 modules)"]
     pkg_detection["detection (2 modules)"]
     pkg_dst["dst (4 modules)"]
     pkg_firm["firm (12 modules)"]
@@ -68,7 +68,7 @@ graph LR
     pkg_public_market["public_market (19 modules)"]
     pkg_public_ro["public_ro (24 modules)"]
     pkg_radar["radar (15 modules)"]
-    pkg_ratios["ratios (6 modules)"]
+    pkg_ratios["ratios (7 modules)"]
     pkg_routing["routing (2 modules)"]
     pkg_security["security (2 modules)"]
     pkg_serving["serving (8 modules)"]
@@ -109,7 +109,7 @@ graph LR
     pkg_api -->|1| pkg_public_market
     pkg_api -->|3| pkg_public_ro
     pkg_api -->|1| pkg_radar
-    pkg_api -->|4| pkg_ratios
+    pkg_api -->|5| pkg_ratios
     pkg_api -->|1| pkg_routing
     pkg_api -->|4| pkg_serving
     pkg_api -->|2| pkg_storage
@@ -131,7 +131,7 @@ graph LR
     pkg_country_packs -->|3| pkg_core
     pkg_country_packs -->|1| pkg_methodology
     pkg_country_packs -->|1| pkg_packs
-    pkg_country_packs -->|1| pkg_passes
+    pkg_country_packs -->|2| pkg_passes
     pkg_dst -->|1| pkg_ai_lane
     pkg_dst -->|2| pkg_api
     pkg_dst -->|1| pkg_core
@@ -146,7 +146,7 @@ graph LR
     pkg_forecast -->|1| pkg_canonical
     pkg_forecast -->|1| pkg_country_packs
     pkg_forecast -->|1| pkg_industry
-    pkg_forecast -->|2| pkg_ratios
+    pkg_forecast -->|3| pkg_ratios
     pkg_forecast -->|1| pkg_serving
     pkg_forecast_drivers -->|2| pkg_forecast
     pkg_forecast_drivers -->|1| pkg_insights
@@ -156,6 +156,7 @@ graph LR
     pkg_frontends -->|5| pkg_country_packs
     pkg_frontends -->|7| pkg_ir
     pkg_insights -->|1| pkg_ai
+    pkg_insights -->|1| pkg_ratios
     pkg_interp -->|2| pkg_ai
     pkg_interp -->|1| pkg_ai_lane
     pkg_journal -->|1| pkg_api
@@ -184,7 +185,7 @@ graph LR
     pkg_radar -->|1| pkg_ir
     pkg_radar -->|1| pkg_serving
     pkg_ratios -->|1| pkg_comparatives
-    pkg_ratios -->|2| pkg_country_packs
+    pkg_ratios -->|3| pkg_country_packs
     pkg_ratios -->|1| pkg_serving
     pkg_routing -->|1| pkg_core
     pkg_serving -->|1| pkg_api
