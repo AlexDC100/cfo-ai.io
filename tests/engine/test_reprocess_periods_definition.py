@@ -455,6 +455,37 @@ def test_a_turnover_move_of_exactly_the_placed_7411_is_the_ruling_not_a_block():
     WORK["units"] += 9
 
 
+def test_the_dry_run_names_the_stock_build_regime():
+    """R1 (2026-09-28): the dry run the owner reviews before the deploy
+    names each period's credit regime — for the stock-build regime its
+    trigger shares, its cash status, the cash components it refused and the
+    finding (the owner's sentence) — and names none on a standard book. The
+    credit line carries the model revision on both sides."""
+    import _served_books as SB
+
+    dev, _rows = R._fresh_view(SB.book("realestate").persist_assembled)
+    reg = dev["credit_regime"]
+    assert reg is not None and reg["code"] == "stock_build", reg
+    assert reg["cash_status"] == "approximated" and reg["refused"] == ["coverage", "dscr", "leverage"], reg
+    assert reg["finding"]["ro"] == ("EBITDA pozitivă din stocuri capitalizate — numerarul a fost "
+                                    "consumat de construcție."), reg
+    assert dev["composite"] is None and dev["letter"] is None and dev["credit_model_revision"] == 5
+    ag, _rows = R._fresh_view(SB.book("agras").persist_assembled)
+    assert ag["credit_regime"] is None and ag["composite"] is not None
+    row = {"period_id": "p-dev", "period_end": "2025-12-31", "status": R.WOULD_REPROCESS,
+           "before": {"composite": 41.5, "letter": "B", "altman_z": 4.81, "credit_model_revision": 4},
+           "after": dev}
+    text = R.render([row])
+    for needle in ("credit 41.50 B z 4.81 -> — — z 2.43 (model revision 4 -> 5)",
+                   "credit regime stock_build: net_711_to_turnover 182.24 >= 1.0, "
+                   "net_711_to_operating_expense 1.01 >= 0.10 · cash approximated · "
+                   "refused: coverage, dscr, leverage",
+                   "finding: EBITDA pozitivă din stocuri capitalizate"):
+        assert needle in text, (needle, text)
+    assert "credit regime" not in R.render([dict(row, after=ag)])
+    WORK["units"] += 12
+
+
 def test_zz_scope(capsys):
     with capsys.disabled():
         print("\nSCOPE reprocess-periods-definition: corpus/saga_10_col_agras analysed by the "

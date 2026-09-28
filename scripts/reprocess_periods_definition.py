@@ -46,7 +46,10 @@ DRY RUN (the default) prints, per period: anchor status, book state, net
 before (the stored methodology `ebitda.reported` — the pre-ruling figure on
 an unstamped block) and after, the credit composite / letter / Altman
 Z'' before (the stored metric rows) and after (the credit model on the
-fresh statements), and the stored `valuations` row's `ebitda_used` (and
+fresh statements) with the model revision each was composed under, the
+credit regime (owner ruling R1: the stock-build regime's trigger shares,
+its cash status, the refused cash components and the finding), and the
+stored `valuations` row's `ebitda_used` (and
 primary method) against the one the rewrite persists (the one EBITDA, or
 refused). Nothing is written.
 
@@ -205,6 +208,9 @@ def _stored_view(period: Dict[str, Any], metric_rows: Sequence[Dict[str, Any]]) 
     by_name = dict((str(m.get("name")), m.get("value")) for m in metric_rows)
     composite = _num(by_name.get("credit_composite"))
     return {
+        # The credit model revision the stored rows were written under
+        # (revision 5: the stock-build regime, owner ruling R1).
+        "credit_model_revision": _num(by_name.get("credit_model_revision")),
         "has_evidence": isinstance(env.get("stock_variation"), dict),
         # G7 (design A10): the serve path folds the 121 residual into 711
         # only when the stored rows were read by the RUNNING trial-balance
@@ -243,6 +249,9 @@ def _fresh_view(assembled: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[st
         statements, source_data_quality=assembled.get("source_data_quality"))
     by_name = dict((str(m.get("name")), m.get("value")) for m in metrics)
     composite = _num(by_name.get("credit_composite"))
+    # R1 (2026-09-28): the credit regime the fresh rows were composed under —
+    # the stock-build regime names its cash status and the finding.
+    regime = credit_model.stock_build_regime(statements)
     refusal = iv.get("refusal") if isinstance(iv.get("refusal"), dict) else None
     inv = statements.get("inventory_days") if isinstance(statements.get("inventory_days"), dict) else {}
     inv_total = inv.get("total") if isinstance(inv.get("total"), dict) else {}
@@ -271,6 +280,15 @@ def _fresh_view(assembled: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[st
         "composite": composite,
         "letter": credit_model.composite_to_letter_grade(composite),
         "altman_z": _num(by_name.get("altman_z_score")),
+        "credit_model_revision": credit_model.CREDIT_MODEL_REVISION,
+        "credit_regime": None if regime is None else {
+            "code": regime["code"],
+            "cash_status": (regime.get("cash") or {}).get("status"),
+            "refused": sorted(k for k in ("leverage", "coverage", "dscr")
+                              if by_name.get("credit_subscore_%s" % k) is None),
+            "finding": (regime.get("finding") or {}).get("text"),
+            "tests": [(t["key"], t["share"], t["at_least"]) for t in regime["trigger"]["tests"]],
+        },
     }, metrics
 
 
@@ -497,6 +515,10 @@ def _fmt(v: Any) -> str:
     return str(v)
 
 
+def _fmt_rev(v: Any) -> str:
+    return "unstamped" if v is None else "%d" % int(v)
+
+
 def render(rows: Sequence[Dict[str, Any]]) -> str:
     lines = []  # type: List[str]
     for r in rows:
@@ -525,9 +547,22 @@ def render(rows: Sequence[Dict[str, Any]]) -> str:
                          % (_fmt(b.get("dio")), _fmt(a.get("dio")), a.get("inventory_days_basis") or "—",
                             (", refused: %s" % a["inventory_days_refusal"])
                             if a.get("inventory_days_refusal") else ""))
-            lines.append("  credit %s %s z %s -> %s %s z %s"
+            lines.append("  credit %s %s z %s -> %s %s z %s (model revision %s -> %s)"
                          % (_fmt(b.get("composite")), b.get("letter") or "—", _fmt(b.get("altman_z")),
-                            _fmt(a.get("composite")), a.get("letter") or "—", _fmt(a.get("altman_z"))))
+                            _fmt(a.get("composite")), a.get("letter") or "—", _fmt(a.get("altman_z")),
+                            _fmt_rev(b.get("credit_model_revision")), _fmt_rev(a.get("credit_model_revision"))))
+            reg = a.get("credit_regime")
+            if reg:
+                # R1 (2026-09-28): the stock-build regime, its trigger, its
+                # cash basis and the finding — the owner reviews these
+                # before the deploy.
+                lines.append("  credit regime %s: %s · cash %s%s" % (
+                    reg["code"],
+                    ", ".join("%s %s >= %s" % (k, _fmt(v) if v is not None else "—", t)
+                              for k, v, t in reg.get("tests") or []),
+                    reg.get("cash_status") or "—",
+                    (" · refused: %s" % ", ".join(reg["refused"])) if reg.get("refused") else ""))
+                lines.append("  finding: %s" % ((reg.get("finding") or {}).get("ro") or "—"))
             v = r.get("valuation") or {}
             if v.get("has_row"):
                 lines.append("  valuation EBITDA %s (%s) -> %s%s%s" % (
