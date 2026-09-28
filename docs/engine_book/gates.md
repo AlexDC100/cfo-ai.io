@@ -16755,3 +16755,22 @@ Rewritten laws: the pinned Agras after-EBITDA 11,848,065.27 → 11,844,076.57
 7411 move reported `no_filed_figure`): RED — `1 failed, 10 passed`
 (`test_a_turnover_move_of_exactly_the_placed_7411_is_the_ruling_not_a_block`:
 `assert 'no_filed_figure' == 'definition_7411'`). **REVERT** — `11 passed`.
+
+### Rulings R2 / R3 — the measured green runs at e8bb90fa (2026-09-28)
+
+Measured on the stage head, not asserted:
+
+- engine suite (`tests/engine`, 8 file shards + the nested `public/` and
+  `bench/` trees): **9,231 passed, 39 skipped, 2 xfailed, 0 failed**.
+- full vitest: **259 files, 4,296 passed, 1 skipped, 0 failed**.
+- `tsc --noEmit -p tsconfig.app.json`: the 10 known `capsuleAskGuard` errors,
+  no new one.
+- root `tests/` outside `tests/engine`: 6 failed + 21 errors, the known
+  missing-fixture set (`test_api`, `test_pricing_v3_atomicity`,
+  `test_statutory_104_prime_capital`, `test_validation_fixture`), 127 passed.
+- narrowed gates: provisions-symmetric 117 units, turnover-7411 65 units,
+  reprocess-periods-definition 85 units, gate canaries 13, floor-census PASS
+  (ratchet held), f31-parity GREEN (byte-identical on both fixtures),
+  engine-book clean, no-plants PASS, provenance-census its 11 pre-existing
+  findings, provenance-contrast PASS, F-A3.1 GREEN on every registered
+  fixture (EEI 0.0000 %, Scandia 0.1445 %).
