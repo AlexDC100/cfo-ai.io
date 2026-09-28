@@ -16895,9 +16895,11 @@ browser surfaces (vitest `creditRegimeSurfaces.test.tsx`).
 **LAW** — owner ruling R1: every surface that prints the grade prints the
 stock-build regime ONCE (`components/cfo/CreditRegimeNote.tsx`, a projection
 of `lib/creditRegime.readCreditRegime` over the served block): the Risks tab,
-the dashboard hero (which now states the engine's own refusal sentence for a
-refused composite — it said "Analysis pending — the health score will appear
-once this period's data is processed" beside a finished, refused analysis),
+the dashboard hero (under the regime the note stands in for the "Analysis
+pending — the health score will appear once this period's data is processed"
+line, which beside a finished, refused analysis was false; the note's cash
+status is the engine's reason, figure-free — every other absent score keeps
+the pending line, so no withheld figure is reprinted),
 /report's CreditScoreCard (`creditCardData` carries `regime`), the exported
 HTML report and the Excel workbook (`regimeDocumentText`, English like the
 documents), and the command bar's rest-state line (`regimeLine`, the
@@ -16925,21 +16927,21 @@ PLANT risks-tab-prints-the-regime-twice: frontend/pages/cfo/FinancialStatements.
     FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > the Risks tab prints the regime once > developer (EN): one regime block, the finding, the refused composite, the cash bases
   -> RED ; file restored byte-exact
 PLANT risks-tab-drops-the-regime: frontend/pages/cfo/FinancialStatements.tsx
-    × the Risks tab prints the regime once > developer (EN): one regime block, the finding, the refused composite, the cash bases 30ms
-    × the Risks tab prints the regime once > developer (RO): the owner's sentence verbatim 7ms
-    × the Risks tab prints the regime once > measured cash: the bottom rung, a composite on the regime's weights, the letter, the regime once 7ms
+    × the Risks tab prints the regime once > developer (EN): one regime block, the finding, the refused composite, the cash bases 31ms
+    × the Risks tab prints the regime once > developer (RO): the owner's sentence verbatim 8ms
+    × the Risks tab prints the regime once > measured cash: the bottom rung, a composite on the regime's weights, the letter, the regime once 6ms
     Tests  3 failed | 8 passed (11)
     ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
     FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > the Risks tab prints the regime once > developer (EN): one regime block, the finding, the refused composite, the cash bases
   -> RED ; file restored byte-exact
 PLANT hero-says-analysis-pending: frontend/pages/cfo/FinancialStatements.tsx
-    × the hero and /report's card print the regime once > the hero states the refusal, not 'analysis pending', and the regime once 9ms
+    × the hero and /report's card print the regime once > the hero states the refusal, not 'analysis pending', and the regime once 6ms
     Tests  1 failed | 10 passed (11)
     ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
     FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > the hero and /report's card print the regime once > the hero states the refusal, not 'analysis pending', and the regime once
   -> RED ; file restored byte-exact
 PLANT cash-components-labelled-on-ebitda: frontend/lib/financialValuation.ts
-    × the Risks tab prints the regime once > developer (EN): one regime block, the finding, the refused composite, the cash bases 43ms
+    × the Risks tab prints the regime once > developer (EN): one regime block, the finding, the refused composite, the cash bases 44ms
     Tests  1 failed | 10 passed (11)
     ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
     FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > the Risks tab prints the regime once > developer (EN): one regime block, the finding, the refused composite, the cash bases
@@ -16953,19 +16955,19 @@ PLANT note-prints-the-label-for-the-finding: frontend/components/cfo/CreditRegim
     FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > the Risks tab prints the regime once > developer (EN): one regime block, the finding, the refused composite, the cash bases
   -> RED ; file restored byte-exact
 PLANT report-card-drops-the-regime: frontend/components/cfo/CreditScoreCard.tsx
-    × the hero and /report's card print the regime once > /report's credit card prints the regime once, and none for a manufacturer 4ms
+    × the hero and /report's card print the regime once > /report's credit card prints the regime once, and none for a manufacturer 3ms
     Tests  1 failed | 10 passed (11)
     ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
     FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > the hero and /report's card print the regime once > /report's credit card prints the regime once, and none for a manufacturer
   -> RED ; file restored byte-exact
 PLANT exported-report-drops-the-regime: frontend/lib/financialReport.ts
-    × the printed documents state the regime once > the exported report and the workbook: the regime and the finding for the developer, nothing for agras 96ms
+    × the printed documents state the regime once > the exported report and the workbook: the regime and the finding for the developer, nothing for agras 97ms
     Tests  1 failed | 10 passed (11)
     ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
     FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > the printed documents state the regime once > the exported report and the workbook: the regime and the finding for the developer, nothing for agras
   -> RED ; file restored byte-exact
 PLANT workbook-drops-the-regime: frontend/lib/financialExports.ts
-    × the printed documents state the regime once > the exported report and the workbook: the regime and the finding for the developer, nothing for agras 105ms
+    × the printed documents state the regime once > the exported report and the workbook: the regime and the finding for the developer, nothing for agras 102ms
     Tests  1 failed | 10 passed (11)
     ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
     FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > the printed documents state the regime once > the exported report and the workbook: the regime and the finding for the developer, nothing for agras

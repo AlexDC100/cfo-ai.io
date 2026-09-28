@@ -1575,8 +1575,8 @@ without it raises) and ONE function, `credit_model.stock_build_regime`:
   cash was consumed by construction.", severity high, with the served net 711,
   turnover, EBITDA, EBITDA before the stock variation and CFO (only when
   measured). It is printed ONCE, beside the grade, on the Risks tab, the
-  dashboard hero (which now states the engine's refusal, never "analysis
-  pending"), /report's card (and so the CFO Report PDF), the exported report
+  dashboard hero (in place of the "analysis pending" line when the regime
+  refused the letter), /report's card (and so the CFO Report PDF), the exported report
   and workbook, the command bar (`credit_regime` on attention/1, one line at
   rest) and the briefing facts (`credit_regime`, text only). The developer
   keeps its margin refusal.
