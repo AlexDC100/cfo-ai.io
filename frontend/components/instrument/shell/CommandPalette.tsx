@@ -141,10 +141,6 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
   const benchmarksStatus = useFeatureStatus("benchmarks");
   const uploadTo = useUploadRoute("/dashboard");
   const workspaceV2 = useWorkspaceV2();
-  const featureStatusOf = useCallback(
-    (key: string) => (key === "forecast" ? forecastStatus : undefined),
-    [forecastStatus],
-  );
 
   const data = useCmdbarData({ open });
   const { scope } = data;
@@ -283,18 +279,22 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
       out.push({ id: "compare", label: compare.label[lang], terms: [compare.label.ro, compare.label.en, "compara", "compare", "an anterior", "last year"] });
     }
     if (ctx.periodId) {
-      out.push({ id: "export-pdf", label: t("cmdbar.action.exportPdf"), terms: [...bothLanguages("cmdbar.action.exportPdf"), "export", "exporta", "pdf", "raport", "banca", "bank"] });
-    }
-    const bank = attentionDoc?.actions.find((a) => a.target.kind === "forecast_bank_export");
-    if (bank && forecastStatus === "active") {
-      out.push({ id: "bank-export", label: bank.label[lang], terms: [bank.label.ro, bank.label.en, "banca", "bank"] });
+      // ONE typed export: the CFO Report PDF. Ruling R4 (owner, 2026-09-28):
+      // "Exportă raportul pentru bancă" is this same PDF, never the Forecast
+      // page — so the engine's bank-report label is a search term of this
+      // row, not a second row beside it.
+      const bank = attentionDoc?.actions.find((a) => a.key === "bank_export");
+      out.push({
+        id: "export-pdf", label: t("cmdbar.action.exportPdf"),
+        terms: [...bothLanguages("cmdbar.action.exportPdf"), ...(bank ? [bank.label.ro, bank.label.en] : []), "export", "exporta", "pdf", "raport", "banca", "bank"],
+      });
     }
     for (const c of data.companies) {
       if (c.id === scope.orgId) continue;
       out.push({ id: `switch:${c.id}`, label: t("cmdbar.action.switchCompany", { company: c.name }), terms: [c.name, "schimba", "switch", "firma", "company"] });
     }
     return out;
-  }, [t, lang, scope.orgId, company, attentionDoc, ctx.periodId, forecastStatus, data.companies]);
+  }, [t, lang, scope.orgId, company, attentionDoc, ctx.periodId, data.companies]);
 
   // ── the index: rebuilt when a cached document lands, never per key ──
   const index = useMemo(() => {
@@ -338,22 +338,9 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
       for (const item of attentionDoc.items) {
         out.push({ kind: "now", id: `now:${item.key}`, view: nowItemView(ctx, item, attentionDoc) });
       }
+      // The engine's actions, as served. No action reads a feature's status
+      // (ruling R4): the bank report is the CFO Report PDF either way.
       for (const a of attentionDoc.actions) {
-        if (a.requires_feature && featureStatusOf(a.requires_feature) !== "active") {
-          // The engine read the global registry; THIS reader's registry
-          // says the feature is not on — offer the engine's own fallback,
-          // the CFO report PDF (packs/serving/attention.yaml actions).
-          if (a.target.kind === "forecast_bank_export") {
-            out.push({
-              kind: "now-action", id: "now-action:cfo_report_pdf",
-              view: {
-                key: "cfo_report_pdf", label: t("cmdbar.action.exportPdf"), requiresFeature: null,
-                target: { kind: "report_pdf", route: "/dashboard", tab: "export", period_id: ctx.periodId },
-              },
-            });
-          }
-          continue;
-        }
         out.push({ kind: "now-action", id: `now-action:${a.key}`, view: nowActionView(ctx, a) });
       }
     }
@@ -361,7 +348,7 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
       out.push({ kind: "recent", id: `recent:${r.id}`, recent: r });
     }
     return out;
-  }, [typing, index, query, ctx, attentionDoc, recents, featureStatusOf, t]);
+  }, [typing, index, query, ctx, attentionDoc, recents]);
 
   // ONE status line when the rest state has nothing to list — loading,
   // no period, nothing material — never an empty panel.
@@ -560,10 +547,9 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
         case "upload":
           go(uploadTo);
           return;
-        case "forecast_bank_export":
-          go(withPeriod(target.route));
-          return;
         case "report_pdf":
+          // The CFO Report PDF — the export tab of THIS period's dashboard
+          // (ruling R4: the bank report goes here, never to the Forecast).
           go(ctx.orgId && ctx.periodId ? `${periodDashboardHref(ctx.orgId, ctx.periodId)}&tab=${target.tab}` : `/dashboard?tab=${target.tab}`);
           return;
         case "route":
@@ -579,12 +565,13 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
   const runAction = useCallback(
     (id: string) => {
       if (id === "upload" || id === "add-period") return go(uploadTo);
-      if (id === "export-pdf") {
+      // "bank-export" is a recent pick saved before ruling R4 (it opened the
+      // Forecast page): it opens the CFO Report PDF now, like the rest.
+      if (id === "export-pdf" || id === "bank-export") {
         return go(ctx.orgId && ctx.periodId ? `${periodDashboardHref(ctx.orgId, ctx.periodId)}&tab=export` : "/dashboard?tab=export");
       }
       const fromDoc = (kind: string) => attentionDoc?.actions.find((a) => a.target.kind === kind);
       if (id === "compare") { const a = fromDoc("compare"); if (a) runAttentionAction(nowActionView(ctx, a)); return; }
-      if (id === "bank-export") { const a = fromDoc("forecast_bank_export"); if (a) runAttentionAction(nowActionView(ctx, a)); return; }
       if (id.startsWith("switch:")) {
         const orgId = id.slice("switch:".length);
         openCompany(orgId, companySwitchHref(orgId, data.years[orgId], workspaceV2));

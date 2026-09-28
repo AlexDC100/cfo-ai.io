@@ -74,17 +74,19 @@ export interface AttentionItem {
   evidence: AttentionEvidence;
 }
 
+// Ruling R4 (owner, 2026-09-28): "Exportă raportul pentru bancă" is the CFO
+// Report PDF — a `report_pdf` target (the dashboard's export tab) — never the
+// Forecast page, and no action depends on a feature's status. The Forecast
+// cockpit's own bank export is reachable from the Forecast page only.
 export type AttentionActionTarget =
   | { kind: "compare"; period_id: string | null; prior_period_id: string | null }
   | { kind: "upload"; org_id: string | null; period_end: string | null }
-  | { kind: "forecast_bank_export"; route: string; period_id: string | null }
   | { kind: "report_pdf"; route: string; tab: string; period_id: string | null }
   | { kind: "route"; route: string; period_id: string | null };
 
 export interface AttentionAction {
   key: string;
   label: Bilingual;
-  requires_feature?: string;
   target: AttentionActionTarget;
 }
 
