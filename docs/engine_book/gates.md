@@ -17199,17 +17199,27 @@ is NOT current: `test_a_period_stamped_with_the_previous_definition_is_reprocess
 11,848,065.27 -> 11,844,076.57", the net provisions and EBIT; the apply
 restamps it and rewrites its metric rows and valuations row; a second run is
 current). A turnover move of EXACTLY the 7411 the fresh run placed inside
-turnover, on an earlier-definition period with no filed figure named, is the
-ruling (`definition_7411`) and does not block; any other move, a move on a
-current-definition period, and a move away from a named filed figure still
-block (`test_a_turnover_move_of_exactly_the_placed_7411_is_the_ruling_not_a_block`).
+turnover, on an earlier-definition period with no filed figure named, is
+named as the ruling (`definition_7411`) and — since 2026-09-29, the owner's
+"verify filed-turnover matching on any book with 7411" — STILL blocks until
+the filed turnover is named with `--filed`; any other move, a move on a
+current-definition period, and a move away from a named filed figure block
+too (`test_a_turnover_move_of_exactly_the_placed_7411_is_named_and_waits_for_its_filed_figure`).
 Rewritten laws: the pinned Agras after-EBITDA 11,848,065.27 → 11,844,076.57
 (the 7814.01 reversal 3,988.70 outside). Measured 85 units; floor 50 → 80.
 
 **PLANT** — `_turnover_verdict`'s `definition_7411` branch removed (the
 7411 move reported `no_filed_figure`): RED — `1 failed, 10 passed`
-(`test_a_turnover_move_of_exactly_the_placed_7411_is_the_ruling_not_a_block`:
+(`test_a_turnover_move_of_exactly_the_placed_7411_is_named_and_waits_for_its_filed_figure`:
 `assert 'no_filed_figure' == 'definition_7411'`). **REVERT** — `11 passed`.
+
+**PLANT (2026-09-29)** — `blocking()` given back `"definition_7411"` in its
+pass set (a 7411 move with no filed figure named passes the dry run): RED —
+`1 failed, 11 deselected`
+(`test_a_turnover_move_of_exactly_the_placed_7411_is_named_and_waits_for_its_filed_figure`).
+**REVERT** — `12 passed`. The production dry run of the candidate
+(2026-09-29, 10 periods) shows 7411 inside turnover 0.00 on every period, so
+no stored book is held by this law today.
 
 ### Rulings R2 / R3 — the measured green runs at e8bb90fa (2026-09-28)
 

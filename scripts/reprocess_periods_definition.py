@@ -74,8 +74,9 @@ the dry run prints the stamp it was written under beside the running one,
 and the net provisions and the 7411 placed in turnover of the fresh run. A
 turnover move that equals, to the cent, the 7411 the fresh run placed inside
 turnover on a period written under an earlier definition is the ruling
-itself (`definition_7411`) and does not block — unless a filed figure is
-named and the move goes away from it.
+itself (`definition_7411`) — and it STILL blocks until the period's filed
+turnover is named with --filed (owner, 2026-09-29: "verify filed-turnover
+matching on any book with 7411"); the named figure then judges the move.
 
 TURNOVER MOVES BLOCK THE DEPLOY (design A10). A period persisted by an older
 parser can read a different turnover now (Carniprod 7c29a71b served
@@ -588,10 +589,12 @@ def render(rows: Sequence[Dict[str, Any]]) -> str:
 
 
 def blocking(rows: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """The rows whose turnover moved other than toward a known filed figure
-    (or, with none named, by exactly the 7411 the ruling placed in it)."""
+    """The rows whose turnover moved other than toward a known filed figure.
+    A move of exactly the 7411 the ruling placed in turnover
+    (`definition_7411`) blocks too: the owner asked for filed-turnover
+    matching on any book with 7411, so it waits for its filed figure."""
     return [r for r in rows
-            if r.get("turnover_move") not in (None, "toward_filed", "definition_7411")]
+            if r.get("turnover_move") not in (None, "toward_filed")]
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:

@@ -434,12 +434,14 @@ def test_a_period_stamped_with_the_previous_definition_is_reprocessed(app, gw, n
     WORK["units"] += 14
 
 
-def test_a_turnover_move_of_exactly_the_placed_7411_is_the_ruling_not_a_block():
+def test_a_turnover_move_of_exactly_the_placed_7411_is_named_and_waits_for_its_filed_figure():
     """R3: 7411 entered net turnover. On a period written under an earlier
     definition a move of EXACTLY the 7411 the fresh run placed inside
-    turnover is the ruling (`definition_7411`) and does not block; a move of
-    any other size, a move on a period already on the current definition,
-    and a move away from a NAMED filed figure still block."""
+    turnover is named as the ruling (`definition_7411`) — and still blocks
+    until the filed turnover is named (owner, 2026-09-29: "verify
+    filed-turnover matching on any book with 7411"). A move of any other
+    size, a move on a period already on the current definition, and a move
+    away from a NAMED filed figure block too."""
     v = R._turnover_verdict
     assert v(100.0, 100.0, None, placed_7411=0.0, earlier_definition=True) is None
     assert v(100.0, 125.5, None, placed_7411=25.5, earlier_definition=True) == "definition_7411"
@@ -451,7 +453,8 @@ def test_a_turnover_move_of_exactly_the_placed_7411_is_the_ruling_not_a_block():
     assert v(100.0, 125.5, 90.0, placed_7411=25.5, earlier_definition=True) == "away_from_filed"
     rows = [{"turnover_move": m} for m in
             (None, "toward_filed", "definition_7411", "no_filed_figure", "away_from_filed")]
-    assert [r["turnover_move"] for r in R.blocking(rows)] == ["no_filed_figure", "away_from_filed"]
+    assert [r["turnover_move"] for r in R.blocking(rows)] == [
+        "definition_7411", "no_filed_figure", "away_from_filed"]
     WORK["units"] += 9
 
 
