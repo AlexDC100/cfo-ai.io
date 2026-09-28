@@ -1108,12 +1108,22 @@ export interface AltmanResult {
     coefficient: number;
     value: number | null;
     weighted: number | null;
+    /** Why this row has no value, when the ENGINE refused it — printed in
+     *  the value and weighted cells, never a bare dash. */
+    refusal?: { code: string; text: { en: string; ro: string } } | null;
   }>;
-  /** A component the ENGINE refused, with its typed reason — today X2
-   *  when total equity excludes a refused year's result (no account 121,
-   *  net 711 refused, the sheet short by the missing result): the reader
-   *  prints "refused — <reason>", never a bare dash. */
-  componentRefusals?: { x2?: { code: string; text: { en: string; ro: string } } | null };
+  /** A component the ENGINE refused, with its typed reason: X2 when total
+   *  equity excludes a refused year's result (no account 121, net 711
+   *  refused, the sheet short by the missing result); X3 when the
+   *  operating result is refused, and X4 (withheld with Z'') when the
+   *  Altman component is refused — the engine's sentence (critic round 3,
+   *  2026-09-28: the Risks tab printed a bare "—" and the report "not
+   *  reported"). The reader prints "refused — <reason>". */
+  componentRefusals?: {
+    x2?: { code: string; text: { en: string; ro: string } } | null;
+    x3?: { code: string; text: { en: string; ro: string } } | null;
+    x4?: { code: string; text: { en: string; ro: string } } | null;
+  };
   /** NULL when neither the engine row nor a complete FE fallback exists. */
   score: number | null;
   /** NULL exactly when `score` is null — and ALWAYS derived from THAT
@@ -1786,7 +1796,27 @@ function altmanFromEngine(
     // No engine score. Emit the components the engine DID send (so the
     // breakdown table still shows what is known) with no score and no zone.
     : altmanReaderOf(merged, /* refuseScore */ true);
-  return x2Refusal ? { ...out, componentRefusals: { x2: x2Refusal } } : out;
+  // X3 and X4 absent beside the engine's refusal of the Altman component
+  // carry that sentence (X4 on equity short by the refused result carries
+  // X2's: equity is its numerator).
+  const altRef = e.refused_subscores?.altman;
+  const altText = typeof altRef?.text === "string" && altRef.text.trim() ? altRef.text.trim() : null;
+  const altRefusal = altText
+    ? { code: String(altRef?.code ?? "refused"), text: { en: altText, ro: altText } }
+    : null;
+  const refusals = {
+    x2: x2Refusal,
+    x3: merged.altman_x3 === null ? altRefusal : null,
+    x4: merged.altman_x4 === null ? (x2Refusal ?? altRefusal) : null,
+  };
+  if (!refusals.x2 && !refusals.x3 && !refusals.x4) return out;
+  const byRow = [null, refusals.x2, refusals.x3, refusals.x4];
+  return {
+    ...out,
+    weightedComponents: out.weightedComponents.map((w, i) =>
+      w.value === null && byRow[i] ? { ...w, refusal: byRow[i] } : w),
+    componentRefusals: Object.fromEntries(Object.entries(refusals).filter(([, v]) => v)) as AltmanResult["componentRefusals"],
+  };
 }
 
 // ── THE LADDER. ONE OF THEM, AND IT BELONGS TO THE ENGINE ───────────

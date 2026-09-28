@@ -393,6 +393,14 @@ def test_refusal_carries_every_engine_surface_refuses_with_the_711_reason(name):
         if (bfacts.get("net_income_refusal") or {}).get("code") != code:
             problems.append("%s: the briefing's facts carry net_income_refusal %r, expected %r"
                             % (name, bfacts.get("net_income_refusal"), code))
+        # The profitability sub-score is refused by the NET RESULT (ROE and
+        # the net margin read it) — worded on that cause, not EBITDA's.
+        prof_ref = ((b.am.get("credit") or {}).get("refused_subscores") or {}).get("profitability") or {}
+        WORK["checks"] += 1
+        if not str(prof_ref.get("text") or "").startswith(
+                "The profitability component is not scored: the net result is refused"):
+            problems.append("%s: the profitability sub-score's refusal names another cause: %r"
+                            % (name, prof_ref.get("text")))
         WORK["net_result_refused"].append(name)
 
     # 11. TOTAL EQUITY (fixer round 1 of the critic, 2026-09-27): short by
@@ -438,6 +446,14 @@ def test_refusal_carries_every_engine_surface_refuses_with_the_711_reason(name):
             problems.append("%s: the served equity sub-score %r refused %r, expected "
                             "ebitda_refused with the 711 cause %r"
                             % (name, (credit_env.get("subscores") or {}).get("equity"), eq_ref, code))
+        # Worded on its OWN cause (critic round 3, 2026-09-28): total equity
+        # short by the refused result, never "EBITDA and the operating result
+        # are refused ... so the equity ratio is not defined".
+        WORK["checks"] += 1
+        if not str(eq_ref.get("text") or "").startswith(
+                "The equity component is not scored: total equity excludes the year's result"):
+            problems.append("%s: the equity sub-score's refusal names another cause: %r"
+                            % (name, eq_ref.get("text")))
         for key in ("asset_based_equity", "total_equity_used", "primary_equity_value",
                     "primary_equity_low", "primary_equity_high"):
             refused("valuation %s (book equity short by the refused result)" % key,

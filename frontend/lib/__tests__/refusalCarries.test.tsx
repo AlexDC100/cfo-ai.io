@@ -914,3 +914,89 @@ describe("refusal-carries — round 5: a refused net result prints no NaN, and n
   });
 });
 
+
+describe("refusal-carries — round 6: a refused figure is never a bare dash or 'not reported', and names its own cause", () => {
+  // critic round 3 (2026-09-28), design A7 "never '—' without a reason":
+  // the Risks tab's Altman table printed X2/X3/X4 as bare dashes; the
+  // report's §7 "X3 … not reported", §5 "ROE | —", "Equity ratio | —",
+  // §4 "~ Net profit | —"; the export's headline "Equity ratio not
+  // reported" and its ratio row "EBITDA refused: total equity excludes…".
+  afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+  const book = (name: string) => BOOKS.find((x) => x.name === name)!;
+  const eqText = (b: SurfaceBook) =>
+    ((b.statements.assembled_bs as Record<string, unknown>).total_equity_refusal as { text_en: string }).text_en;
+  const niText = (b: SurfaceBook) => (b.apl.net_income_refusal as { text_en: string }).text_en;
+
+  it("the Risks tab's Altman table and the report's §7 card print the engine's reason on X2, X3 and X4", () => {
+    const ub = book("unanchored_unbalanced");
+    const credit = constructedCredit(ub.name) as CreditEnvelope;
+    renderWithProviders(<RisksPanel statements={ub.statements} creditEnvelope={credit} piotroskiEnvelope={undefined as never} />);
+    const altman = ((credit.refused_subscores ?? {}).altman as { text: string }).text;
+    expect(screen.getByTestId("risks-altman-x2-refused").textContent).toContain(eqText(ub));
+    expect(screen.getByTestId("risks-altman-x3-refused").textContent).toContain(altman);
+    // X4 divides total equity: equity's own reason.
+    expect(screen.getByTestId("risks-altman-x4-refused").textContent).toContain(eqText(ub));
+    cleanup();
+    const data = creditCardData(computeCreditScore(ub.statements, credit))!;
+    renderWithProviders(<CreditScoreCard data={data} />);
+    expect(screen.getByTestId("report-altman-x3").textContent).toContain(altman);
+    expect(screen.getByTestId("report-altman-x4").textContent).toContain(eqText(ub));
+    expect(screen.getByTestId("report-altman-x3").textContent).not.toContain("not reported");
+    cleanup();
+    // A served book: every component a figure, no refusal row.
+    const u = book("unanchored");
+    renderWithProviders(<RisksPanel statements={u.statements} creditEnvelope={constructedCredit(u.name) as CreditEnvelope} piotroskiEnvelope={undefined as never} />);
+    expect(screen.queryByTestId("risks-altman-x2-refused")).toBeNull();
+  });
+
+  it("the report's §4 and §5 print the engine's reason on every refused row", async () => {
+    const mount = async (b: SurfaceBook) => {
+      const body = {
+        period: { id: `p-${b.name}`, period_end: "2025-12-31", currency: "RON",
+          source_document: { filename: `${b.name}.xlsx`, id: `d-${b.name}` } },
+        statements: b.statements, metrics: [], line_items: b.lineItems, alerts: [], recommendations: [],
+      };
+      vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, json: async () => body })));
+      renderWithProviders(<ComprehensiveReport />, { route: `/report?period=p-${b.name}` });
+      return screen.findByTestId("comprehensive-report");
+    };
+    const ub = book("unanchored_unbalanced");
+    await mount(ub);
+    for (const id of ["report-ratio-roe-refused", "report-ratio-roa-refused",
+      "report-cf-net_profit-refused", "report-cf-cash_from_operating-refused", "report-cf-net_change_in_cash-refused"]) {
+      expect(screen.getByTestId(id).textContent, id).toContain(niText(ub));
+    }
+    for (const id of ["report-ratio-equity_ratio-refused", "report-ratio-debt_to_equity-refused"]) {
+      expect(screen.getByTestId(id).textContent, id).toContain(eqText(ub));
+    }
+    expect(screen.getByTestId("report-ratio-debt_to_ebitda-refused").textContent).toContain(servedRefusal(ub).text_en);
+    cleanup(); vi.unstubAllGlobals();
+    // unanchored: the net result refused, equity complete — no equity refusal row.
+    await mount(book("unanchored"));
+    expect(screen.getByTestId("report-ratio-roe-refused")).toBeTruthy();
+    expect(screen.queryByTestId("report-ratio-equity_ratio-refused")).toBeNull();
+    cleanup(); vi.unstubAllGlobals();
+    // g6_uncleared: WITH account 121 the net result stands — no net-result refusal rows.
+    await mount(book("g6_uncleared"));
+    expect(screen.queryByTestId("report-cf-net_profit-refused")).toBeNull();
+    expect(screen.queryByTestId("report-ratio-roa-refused")).toBeNull();
+  });
+
+  it("the HTML export: the headline figures state the refusal, and the equity rows name total equity, not EBITDA", () => {
+    const ub = book("unanchored_unbalanced");
+    const doc = new DOMParser().parseFromString(
+      buildReportHtml(ub.statements, { credit: constructedCredit(ub.name) as CreditEnvelope }), "text/html");
+    const tile = (key: string) => (doc.querySelector(`tr[data-tile="${key}"] td.num`)?.textContent ?? "").trim();
+    expect(tile("equity_ratio")).toBe(`refused — ${eqText(ub)}`);
+    expect(tile("net_income")).toBe(`refused — ${niText(ub)}`);
+    expect(tile("ebitda")).toBe(`refused — ${servedRefusal(ub).text_en}`);
+    const text = doc.body.textContent ?? "";
+    expect(text).not.toContain("EBITDA refused: total equity");
+    expect(text).toContain(`Refused — ${eqText(ub)}`);
+    // A served book's tiles print figures.
+    const u = book("unanchored");
+    const docU = new DOMParser().parseFromString(
+      buildReportHtml(u.statements, { credit: constructedCredit(u.name) as CreditEnvelope }), "text/html");
+    expect((docU.querySelector('tr[data-tile="equity_ratio"] td.num')?.textContent ?? "")).toMatch(/\d/);
+  });
+});

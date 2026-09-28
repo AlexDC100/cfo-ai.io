@@ -6449,8 +6449,16 @@ export function RisksPanel({
                   <tr key={i} className="border-t border-rule">
                     <td className="py-2 px-3 text-ink">{c.label}</td>
                     <td className="py-2 px-3 text-right font-mono tabular-nums text-ink-soft">{c.coefficient.toFixed(3)}</td>
-                    <td className="py-2 px-3 text-right font-mono tabular-nums text-ink">{num(c.value, 4)}</td>
-                    <td className="py-2 px-3 text-right font-mono tabular-nums text-ink">{num(c.weighted, 3)}</td>
+                    {c.value === null && c.refusal ? (
+                      // The engine's reason, in the value and weighted cells —
+                      // never a bare dash (critic round 3, 2026-09-28).
+                      <td colSpan={2} className="py-2 px-3 text-right text-[12px] text-ink-soft leading-snug" data-testid={`risks-altman-x${i + 1}-refused`}>
+                        {`${t("statements.pl.refused", "refused")} — ${pickLang(c.refusal.text, i18n.language)}`}
+                      </td>
+                    ) : (<>
+                      <td className="py-2 px-3 text-right font-mono tabular-nums text-ink">{num(c.value, 4)}</td>
+                      <td className="py-2 px-3 text-right font-mono tabular-nums text-ink">{num(c.weighted, 3)}</td>
+                    </>)}
                   </tr>
                 ))}
                 <tr className="border-t-2 border-ink/30 bg-bg-2/50">

@@ -102,7 +102,11 @@ export interface CreditScoreData {
    *  excludes a refused year's result); null beside a value. */
   altmanX2Refusal: string | null;
   altmanX3: number | null;
+  /** "refused — <reason>" when the engine refused X3 / X4 (never "not
+   *  reported" for a figure the engine refused). */
+  altmanX3Refusal?: string | null;
   altmanX4: number | null;
+  altmanX4Refusal?: string | null;
   /** The seven weighted sub-scores, 0-100 each.
    *
    *  ⚠ ABSENT-CAPABLE, and this is the whole point. They were read as
@@ -243,7 +247,13 @@ export function creditCardData(result: CreditScoreResult | null): CreditScoreDat
       ? `refused — ${result.altman.componentRefusals.x2.text.en}`
       : null,
     altmanX3: result.altman.components.x3_ebit_to_assets,
+    altmanX3Refusal: result.altman.componentRefusals?.x3
+      ? `refused — ${result.altman.componentRefusals.x3.text.en}`
+      : null,
     altmanX4: result.altman.components.x4_equity_to_liabilities,
+    altmanX4Refusal: result.altman.componentRefusals?.x4
+      ? `refused — ${result.altman.componentRefusals.x4.text.en}`
+      : null,
     // The bars render the 0–100 WEIGHTED INPUTS, which is `subscore` on
     // every row — not `value`, because the Altman row's value is the Z"
     // itself. Stated by the reader, never recovered here by dividing a
@@ -415,9 +425,13 @@ export function CreditScoreCard({ data }: Props) {
               {data.altmanX2Refusal ?? fmtComponent(data.altmanX2)}
             </span>
             <span className="text-ink-mute">X3 (EBIT / assets)</span>
-            <span className="text-right">{fmtComponent(data.altmanX3)}</span>
+            <span className="text-right" data-testid="report-altman-x3">
+              {data.altmanX3Refusal ?? fmtComponent(data.altmanX3)}
+            </span>
             <span className="text-ink-mute">X4 (equity / liab)</span>
-            <span className="text-right">{fmtComponent(data.altmanX4)}</span>
+            <span className="text-right" data-testid="report-altman-x4">
+              {data.altmanX4Refusal ?? fmtComponent(data.altmanX4)}
+            </span>
           </div>
         </div>
       </div>

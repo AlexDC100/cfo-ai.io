@@ -71,6 +71,11 @@ export type FigureAbsence =
       kind: "refused";
       code: string;
       display: { readonly ro: string; readonly en: string };
+      /** WHAT the engine refused (the served figure's name: "EBITDA",
+       *  "EBIT", "total equity" ...), so the sentence names its own cause —
+       *  total equity short by a refused result is not "EBITDA refused"
+       *  (critic round 3, 2026-09-28). Absent: EBITDA. */
+      subject?: string;
     };
 
 /** A number, or an absence that knows why. */
@@ -97,7 +102,7 @@ export function servedFig(
   name: string,
 ): Fig {
   if (typeof value === "number" && Number.isFinite(value)) return { value, absence: PRESENT_CACHE_NONE };
-  if (refusal) return { value: null, absence: { kind: "refused", code: refusal.code, display: refusal.text } };
+  if (refusal) return { value: null, absence: { kind: "refused", code: refusal.code, display: refusal.text, subject: name } };
   return { value: null, absence: { kind: "missing", inputs: [name] } };
 }
 

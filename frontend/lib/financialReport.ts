@@ -1177,7 +1177,13 @@ export function describeAbsence(a: FigureAbsence): string {
   // so the commentary under it explains the rule rather than repeating it).
   if (a.kind === "not_meaningful") return a.basis?.en ?? a.display.en;
   // The engine refused EBITDA (and what is built on it): its own reason.
-  if (a.kind === "refused") return `Refused — EBITDA refused: ${a.display.en}.`;
+  // Total equity's refusal names itself ("total equity excludes the year's
+  // result, which is refused: …"); every other one is EBITDA's.
+  if (a.kind === "refused") {
+    return a.subject === "total equity"
+      ? `Refused — ${a.display.en}.`
+      : `Refused — EBITDA refused: ${a.display.en}.`;
+  }
   const d = absenceI18n(a);
   switch (d.key) {
     case "notMeaningful":
@@ -4779,8 +4785,11 @@ export function renderReportHtml(
   const tileFigure = (tile: ExecutiveSummary["tiles"][number]): string => {
     // A ratio tile with a served row prints the served current cell — the
     // same string the card and the six-column table print.
-    if (tile.ratio?.printed) return tile.ratio.printed.current;
     const value = tile.value;
+    // A figure the ENGINE refused says why — never "not reported" (a served
+    // two-period row's current cell prints "not reported" over it too).
+    if ((value === null || !Number.isFinite(value)) && tile.refusal) return `refused — ${tile.refusal}`;
+    if (tile.ratio?.printed) return tile.ratio.printed.current;
     if (value === null || !Number.isFinite(value)) return UNREPORTED_WORD;
     if (tile.unit === "pct") return `${formatNumber(value, 1)}%`;
     if (tile.unit === "x") return `${formatNumber(value, 2)}×`;

@@ -118,7 +118,9 @@ import { getSupabase } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/stores/currency";
 import { convertFromTo, formatAmountFrom, formatMoneyFrom } from "@/lib/money";
-import { componentShown, equityRefusalOf, readRefusal, readServedOneEbitda, reconLine } from "@/lib/servedOneEbitda";
+import {
+  componentShown, equityRefusalOf, netIncomeRefusalOf, readRefusal, readServedOneEbitda, reconLine,
+} from "@/lib/servedOneEbitda";
 import { briefingVisibility } from "@/lib/briefingDefinition";
 import type { Currency } from "@/lib/rates";
 
@@ -542,7 +544,18 @@ export default function ComprehensiveReport() {
           {/* ── 5. RATIOS ───────────────────────────────────────────── */}
           <section id="ratios" data-testid="report-section-5-ratios">
             <SectionHeader number={5} title="Financial Ratios" />
-            <RatiosTables metrics={metricsByName} marginRefusal={marginRefusalOf(report.statements)} />
+            <RatiosTables
+              metrics={metricsByName}
+              marginRefusal={marginRefusalOf(report.statements)}
+              refusals={{
+                netResult: netIncomeRefusalOf(report.statements)?.text.en ?? null,
+                equity: equityRefusalOf(report.statements)?.text.en ?? null,
+                ebitda: (() => {
+                  const one = readServedOneEbitda(pl);
+                  return one && one.ebitda === null ? one.refusal?.text.en ?? null : null;
+                })(),
+              }}
+            />
           </section>
 
           {/* ── 6. VALUATION ────────────────────────────────────────── */}
@@ -1160,13 +1173,26 @@ function CashFlowTable({ cf, currency, origin }: { cf: Record<string, number | b
   // so the ~ in the label and the card can never disagree.
   const f = (k: string) =>
     origin.field(`assembled_cf.${k}`, isApprox ? "indirect method · approximated" : undefined);
+  // The NET RESULT refused (no account 121, net 711 refused): every row the
+  // engine could not walk from it is absent, and says why — never a bare
+  // dash under "Net profit", "Cash from operating activities" or "Net
+  // change in cash" (critic round 3, 2026-09-28).
+  const cfRefusal = readRefusal((cf as Record<string, unknown>).net_income_refusal);
+  const cell = (key: string, value: number | undefined, prov: AmountProvenance | null) =>
+    value === undefined && cfRefusal ? (
+      <span data-testid={`report-cf-${key}-refused`} className="text-ink-soft font-normal">
+        refused — {cfRefusal.text.en}
+      </span>
+    ) : (
+      <MoneyAmount value={value} fromCurrency={currency as Currency} unit={false} provenance={prov} />
+    );
 
-  type CfRow = [label: string, value: number | undefined, origin: AmountProvenance | null];
+  type CfRow = [label: string, value: number | undefined, origin: AmountProvenance | null, key?: string];
   const sections: Array<{ title: string; rows: CfRow[]; subtotal: CfRow; }> = [
     {
       title: "Operating",
       rows: [
-        ["Net profit", n("net_profit"), f("net_profit")],
+        ["Net profit", n("net_profit"), f("net_profit"), "net_profit"],
         ["+ Depreciation & amortization", n("depreciation"), f("depreciation")],
         ["+ Provision movements", n("provision_movement"), f("provision_movement")],
         ["Δ Inventory", n("delta_inventory"), f("delta_inventory")],
@@ -1174,7 +1200,7 @@ function CashFlowTable({ cf, currency, origin }: { cf: Record<string, number | b
         ["Δ Trade payables", n("delta_trade_pay"), f("delta_trade_pay")],
         ["Δ Tax payables", n("delta_tax_pay"), f("delta_tax_pay")],
       ],
-      subtotal: ["Cash from operating activities", n("cash_from_operating"), f("cash_from_operating")],
+      subtotal: ["Cash from operating activities", n("cash_from_operating"), f("cash_from_operating"), "cash_from_operating"],
     },
     {
       title: "Investing",
@@ -1194,9 +1220,9 @@ function CashFlowTable({ cf, currency, origin }: { cf: Record<string, number | b
         ["Δ Long-term debt", n("delta_lt_debt"), f("delta_lt_debt")],
         ["Δ Short-term bank credit", n("delta_st_bank"), f("delta_st_bank")],
         ["− Interest paid", n("interest_paid"), f("interest_paid")],
-        ["− Dividends paid", n("dividends_paid"), f("dividends_paid")],
+        ["− Dividends paid", n("dividends_paid"), f("dividends_paid"), "dividends_paid"],
       ],
-      subtotal: ["Cash used in financing", n("cash_used_in_financing"), f("cash_used_in_financing")],
+      subtotal: ["Cash used in financing", n("cash_used_in_financing"), f("cash_used_in_financing"), "cash_used_in_financing"],
     },
   ];
 
@@ -1225,18 +1251,22 @@ function CashFlowTable({ cf, currency, origin }: { cf: Record<string, number | b
           />
           <table className="w-full text-[12.5px]">
             <tbody>
-              {s.rows.map(([label, val, rowOrigin]) => (
+              {s.rows.map(([label, val, rowOrigin, key]) => (
                 <tr key={label} className="border-t border-rule-soft first:border-t-0 h-8">
                   <td className="px-4 py-1 pl-8 text-ink-soft">{isApprox ? `~ ${label}` : label}</td>
                   <td className="px-3 py-1 text-right">
-                    <MoneyAmount value={val} fromCurrency={currency as Currency} unit={false} provenance={rowOrigin} />
+                    {key ? cell(key, val, rowOrigin) : (
+                      <MoneyAmount value={val} fromCurrency={currency as Currency} unit={false} provenance={rowOrigin} />
+                    )}
                   </td>
                 </tr>
               ))}
               <tr className="border-t border-t-rule-strong h-8 bg-bg-2/60 font-semibold text-ink">
                 <td className="px-4 py-1">{s.subtotal[0]}</td>
                 <td className="px-3 py-1 text-right">
-                  <MoneyAmount value={s.subtotal[1]} fromCurrency={currency as Currency} unit={false} provenance={s.subtotal[2]} />
+                  {s.subtotal[3] ? cell(s.subtotal[3], s.subtotal[1], s.subtotal[2]) : (
+                    <MoneyAmount value={s.subtotal[1]} fromCurrency={currency as Currency} unit={false} provenance={s.subtotal[2]} />
+                  )}
                 </td>
               </tr>
             </tbody>
@@ -1249,7 +1279,7 @@ function CashFlowTable({ cf, currency, origin }: { cf: Record<string, number | b
             <tr className="h-8 bg-bg-2/60 font-semibold text-ink">
               <td className="px-4 py-1">Net change in cash</td>
               <td className="px-3 py-1 text-right">
-                <MoneyAmount value={n("net_change_in_cash")} fromCurrency={currency as Currency} unit={false} provenance={f("net_change_in_cash")} />
+                {cell("net_change_in_cash", n("net_change_in_cash"), f("net_change_in_cash"))}
               </td>
             </tr>
           </tbody>
@@ -1262,13 +1292,25 @@ function CashFlowTable({ cf, currency, origin }: { cf: Record<string, number | b
 function RatiosTables({
   metrics,
   marginRefusal = null,
+  refusals = {},
 }: {
   metrics: Record<string, number | null>;
   /** The ENGINE's refusal of every margin over turnover (engine.ratios.
    *  margin_meaning): the three margin rows state it instead of a percent. */
   marginRefusal?: MarginBilingual | null;
+  /** The engine's refusals a ratio row with no figure is refused BY (its
+   *  own sentence, English: this is the English board document) — the net
+   *  result (ROE, ROA, net margin), total equity short by it (the equity
+   *  ratio, debt / equity) and EBITDA (the multiples and coverage on it).
+   *  A refused row prints the reason, never a bare dash (design A7;
+   *  critic round 3, 2026-09-28: "ROE | —", "Equity ratio | —"). */
+  refusals?: { netResult?: string | null; equity?: string | null; ebitda?: string | null };
 }) {
   const m = (k: string) => metrics[k];
+  const refusedCell = (key: string, reason: string | null | undefined, node: React.ReactNode) =>
+    m(key) == null && reason ? (
+      <span data-testid={`report-ratio-${key}-refused`} className="text-ink-soft">refused — {reason}</span>
+    ) : node;
   // Every ratio figure flows through the instrument, by unit.
   const pct = (v: number | null | undefined) => (
     <PercentLevel value={v != null ? v * 100 : null} />
@@ -1277,7 +1319,7 @@ function RatiosTables({
     marginRefusal ? (
       <span data-testid="report-ratio-margin-refused" className="text-ink-soft">{marginRefusal.en}</span>
     ) : (
-      pct(m(k))
+      refusedCell(k, k === "net_margin" ? refusals.netResult : refusals.ebitda, pct(m(k)))
     );
   const mult = (v: number | null | undefined) => <CappedMultiple value={v} />;
   const days = (v: number | null | undefined) =>
@@ -1294,9 +1336,9 @@ function RatiosTables({
         ["Gross margin",   margin("gross_margin")],
         ["EBITDA margin",  margin("ebitda_margin")],
         ["Net margin",     margin("net_margin")],
-        ["ROE",            pct(m("roe"))],
-        ["ROA",            pct(m("roa"))],
-        ["ROIC",           pct(m("roic"))],
+        ["ROE",            refusedCell("roe", refusals.netResult ?? refusals.equity, pct(m("roe")))],
+        ["ROA",            refusedCell("roa", refusals.netResult, pct(m("roa")))],
+        ["ROIC",           refusedCell("roic", refusals.ebitda ?? refusals.equity, pct(m("roic")))],
       ],
     },
     {
@@ -1310,9 +1352,9 @@ function RatiosTables({
     {
       title: "Leverage",
       rows: [
-        ["Equity ratio",      pct(m("equity_ratio"))],
-        ["Debt / Equity",     mult(m("debt_to_equity"))],
-        ["Net Debt / EBITDA", mult(m("debt_to_ebitda"))],
+        ["Equity ratio",      refusedCell("equity_ratio", refusals.equity, pct(m("equity_ratio")))],
+        ["Debt / Equity",     refusedCell("debt_to_equity", refusals.equity, mult(m("debt_to_equity")))],
+        ["Net Debt / EBITDA", refusedCell("debt_to_ebitda", refusals.ebitda, mult(m("debt_to_ebitda")))],
       ],
     },
     {
@@ -1323,7 +1365,7 @@ function RatiosTables({
         // the exports and the workbook. A bare "Interest coverage" beside
         // a figure whose definition was revised states no basis at all.
         [ratioLabelForKey("interest_coverage") ?? "Interest coverage (EBIT / interest)",
-          mult(m("interest_coverage"))],
+          refusedCell("interest_coverage", refusals.ebitda, mult(m("interest_coverage")))],
       ],
     },
     {

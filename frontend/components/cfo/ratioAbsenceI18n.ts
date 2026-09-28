@@ -126,6 +126,10 @@ export function absenceSentence(
   // The ENGINE refused EBITDA (the stock variation 711 could not be
   // measured): its typed reason, per language, never re-worded.
   if (a.kind === "refused") {
+    // Total equity's refusal names itself (critic round 3, 2026-09-28).
+    if (a.subject === "total equity") {
+      return lang.toLowerCase().startsWith("ro") ? a.display.ro : a.display.en;
+    }
     return lang.toLowerCase().startsWith("ro")
       ? `EBITDA refuzată: ${a.display.ro}`
       : `EBITDA refused: ${a.display.en}`;

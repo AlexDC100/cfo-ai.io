@@ -583,12 +583,26 @@ def subscore_refusal(key: str, code: Optional[str] = None,
                                  "text_en": c.get("text_en")}
         if c.get("inputs"):
             out["inputs"] = list(c["inputs"])
-        out["text"] = (
-            "The %s component is not scored: EBITDA and the operating result are refused for this "
-            "period, so %s is not defined%s." % (
-                "interest-coverage" if key == "coverage" else ("DSCR" if key == "dscr" else key),
-                _EBITDA_REFUSED_OPERAND.get(key, "the component's operand"),
-                (" — " + c["text_en"]) if c.get("text_en") else ""))
+        tail = (" — " + c["text_en"]) if c.get("text_en") else ""
+        if key == "equity":
+            # Its OWN cause (critic round 3, 2026-09-28): the equity ratio
+            # is refused because total equity excludes the refused year's
+            # result — not because EBITDA is.
+            out["text"] = (
+                "The equity component is not scored: total equity excludes the year's result, "
+                "which is refused for this period, so the equity ratio is not defined%s." % tail)
+        elif key == "profitability":
+            # ROE and the net margin read the NET RESULT, refused with the
+            # stock variation when there is no account 121.
+            out["text"] = (
+                "The profitability component is not scored: the net result is refused for this "
+                "period, so ROE and the net margin are not defined%s." % tail)
+        else:
+            out["text"] = (
+                "The %s component is not scored: EBITDA and the operating result are refused for "
+                "this period, so %s is not defined%s." % (
+                    "interest-coverage" if key == "coverage" else ("DSCR" if key == "dscr" else key),
+                    _EBITDA_REFUSED_OPERAND.get(key, "the component's operand"), tail))
     elif code == TOTAL_LIABILITIES_BELOW_MATERIALITY:
         pack = credit_pack()
         out["materiality"] = {"share": format(pack["share"], "f"), "basis": pack["basis"],
