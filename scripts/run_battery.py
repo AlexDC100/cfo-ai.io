@@ -950,8 +950,10 @@ def _engine_gates() -> List[Gate]:
                        "test_a_write_that_times_out_is_never_retried",
                        "test_a_read_failing_otherwise_is_not_retried",
                        "test_the_clients_one_get_is_the_retrying_helper_and_no_write_reaches_it",
-                       "GATE-WORK supabase-read-retry scenario=read_once_then_ok requests=2 warnings=1",
-                       "GATE-WORK supabase-read-retry scenario=write_insert requests=1 warnings=0")),
+                       # a junit gate's canaries are its test names (the
+                       # battery reads the junit report, not stdout)
+                       "test_a_write_that_times_out_is_never_retried[insert]",
+                       "test_a_write_that_times_out_is_never_retried[rpc]")),
         # ── plan/2 B4b (plan_contract_v2 5.6 / 28.3 B4): forecast-pools ──
         # The cost pools of section 5 on the four books, no shocks: pools
         # plus unallocated equal the assembled operating cost to the cent;
@@ -1713,7 +1715,10 @@ def _engine_gates() -> List[Gate]:
              # no sector chip beside the split, a refusal in the engine's words
              # (measured 190); fixer round 1: refused total equity / operating
              # result in the engine's words, the 711 note (measured 201).
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=201,
+             # Owner ruling R4 (2026-09-28): the bank report opens the CFO
+             # Report PDF, at rest / typed / from a pre-ruling recent, Forecast
+             # OFF and ON (measured 206).
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=206,
              units="command-bar tests",
              canaries=("the rows ARE the served items, in the served rank, each with its figure",
                        "inventory days are the served block — its figure, its basis label, no filed-basis row beside it",

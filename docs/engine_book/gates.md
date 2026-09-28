@@ -17144,7 +17144,7 @@ pentru bancă" (forecast-cockpit gates — it stays there, untouched).
 | | |
 |---|---|
 | command | `python -m pytest tests/engine/test_supabase_read_retry.py -q -s` |
-| canary | `test_a_read_that_times_out_once_is_retried_once_and_logged`, `test_a_write_that_times_out_is_never_retried`, `test_the_clients_one_get_is_the_retrying_helper_and_no_write_reaches_it`, `GATE-WORK supabase-read-retry scenario=read_once_then_ok requests=2 warnings=1`, `GATE-WORK supabase-read-retry scenario=write_insert requests=1 warnings=0` |
+| canary | `test_a_read_that_times_out_once_is_retried_once_and_logged`, `test_a_read_that_times_out_twice_raises_after_exactly_one_retry`, `test_a_write_that_times_out_is_never_retried[insert]`, `test_a_write_that_times_out_is_never_retried[rpc]`, `test_a_read_failing_otherwise_is_not_retried`, `test_the_clients_one_get_is_the_retrying_helper_and_no_write_reaches_it` (junit test names) |
 | work count | junit tests, floor **16** (measured 16) |
 
 **INCIDENT** — two transient `httpx.ReadTimeout`s on production, 2026-09-28
@@ -17212,3 +17212,40 @@ REVERT (clean tree) tests/engine/test_supabase_read_retry.py: exit=0 16 passed i
 not code); `_billing._user_email`'s auth-admin GET, which reaches into
 `client._client` directly and swallows its own failures (not the PostgREST
 read path the ruling names).
+
+### Rulings R4 / R5 — the measured green runs at 76ecc566 (2026-09-28)
+
+On `feat/rulings-2` at 76ecc566 (R4: the bank report is the CFO Report PDF; R5:
+Supabase read timeouts retried once), every run in the worktree, nothing
+deployed:
+- full engine suite `pytest tests/engine -q`: **9280 passed, 39 skipped, 2
+  xfailed**, 0 failed (21:46; R1 was 9260 — +16 supabase-read-retry, +2
+  attention-rules, +2 attention-route);
+- full vitest: **260 files, 4312 passed, 1 skipped** (+5 R4 laws in
+  commandBar.test.tsx);
+- `tsc --noEmit -p tsconfig.app.json`: the 10 known `capsuleAskGuard` errors,
+  nothing else; eslint clean on the three changed frontend files;
+- `vite build` (dist removed first): built; the hermetic bundle
+  (`VITE_SUPABASE_URL=http://harness.invalid`, `VITE_API_URL=http://engine.invalid`)
+  built and served on :4462, and `E2E_HERMETIC=1 playwright test
+  e2e/design/cmdbar.spec.ts e2e/design/cmdbar-typeopen.spec.ts
+  e2e/workspace-v2.spec.ts --project=chromium`: **50 passed, 8 skipped** (the
+  screenshot shots);
+- root `tests/` (without `tests/engine`): 6 failed, 127 passed, 21 errors — the
+  known environmental set, the same six names;
+- the narrowed battery (42 gates: R1's 40 + supabase-read-retry +
+  import-boundary): all green but `provenance-census`, on its 11
+  pre-existing findings (no new one). The first run redded supabase-read-retry
+  on two stdout canaries a junit gate cannot see (the battery reads a junit
+  gate's test names); they were replaced by test-name canaries and the gate
+  re-run green (16 tests), with attention-rules 31, attention-route 10,
+  cmdbar-surface 206 (floor raised 201 -> 206);
+- F-A3.1 (`scripts/measure_bs_drift.py`): GREEN on every registered fixture
+  (EEI 0.0000%, Scandia 0.1445%, Sibiu 0.9975% under its 1.0% threshold,
+  Frozen / RealEstate / Retail 0.0000%, Agras 0.1187%, Carniprod 0.0125%);
+  F3.1-PARITY byte-identical on both fixtures; engine book clean;
+  import-boundary holds (2103 files).
+- Read-only measurement on the 12 local real books (the real write path +
+  GET /api/period): R4 / R5 move no number — turnover, EBITDA, EBIT, CFO,
+  composite, letter, Z'', X3, sub-scores, weights and regime identical to the
+  R1 measurement on every book.
