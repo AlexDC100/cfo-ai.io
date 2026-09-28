@@ -12615,3 +12615,201 @@ findings series (`m_series` basis total equity — Radar parked); the exports'
 and BS tab's statement rows (they print what the rows sum to and state the
 imbalance) and the export's executive-summary "Total equity" tile (the
 statement total; its Equity ratio tile refuses); pixels.
+
+### refusal-carries / refusal-carries-engine — the sector benchmark, the build-up under `net_income`, NaN on a refused net result, rows persisted before the refusal, never a bare dash (critic round 3 fixer, 2026-09-28)
+
+**INCIDENT** — the round-3 critic, measured on the served bodies:
+`GET /api/period/{id}/sector-benchmark` graded the equity ratio 0.4925
+against the sector median 0.2996 on `realestate_no121` (0.4762 on
+`unanchored_unbalanced`) — `sector._gateway` read `canonical_bs` alone and
+restated any card not refused by the margin rule; stage_compute wrote the
+class 6/7 build-up without the refused 711 under `net_income` /
+`net_income_operational` (120,000.00; −30,391,418.38 where 121 closes at
+−801,604.14), served in `metrics[]` to the Ask-CFO chat's "Headline
+metrics" and handed to the briefing narrator; `deriveCashFlow` / `runGraham`
+fell back to `Number.NaN` ("EV / Revenue NaN×", "= FCF — Cash burning", twenty
+NaN workbook cells on both refused books); the WACC weighed the short equity
+("Weight equity 100.0 %"); the Risks tab printed Altman X2-X4 as bare dashes,
+the report "X3 not reported", "ROE | —", "~ Net profit | —", the export
+"Equity ratio not reported" and "EBITDA refused: total equity excludes …";
+the related-party insight named the equity refusal on a book with no
+related-party row.
+
+**LAW** — engine (`GATE-WORK refusal-carries-engine units=667`, floor 600):
+12k the sector document refuses the equity ratio (`company_refused`,
+`company_figure_refused`, cause = the 711 code, the engine's sentence) on both
+short-equity books and ROE / ROA on the three net-result-refused books, the
+filed-basis operand and the carried card refusal each witnessed alone; the
+equity ratio is compared on `unanchored` and ROE / ROA on `g6_uncleared`.
+12e the related-party insight: equity refusal on the developer (it carries a
+related-party balance), "No intercompany …" on the constructed book. 11 the
+equity and profitability sub-scores are worded on their own causes. 13
+(`test_refusal_carries_rows_persisted_before_the_refusal`, every refused
+book): stage_compute refuses `net_income` / `net_income_operational` on a
+refused net result; GET `/api/period` over STALE seeded rows serves every
+`NET_RESULT_REFUSED_METRICS` / `EQUITY_INCOMPLETE_METRICS` row refused where
+the statements refuse it (and the typed ratios block), and the stale figure
+where nothing refuses it; the narrator's rows (`enforce_metric_rows`) the
+same, a filed X2 0.2381 included (E2); GET over a stored valuations row
+carries `asset_based_refusal` on short equity (E7).
+Browser (`Tests 47 passed`, floor 44): the chat's Headline metrics over
+stale rows (net_income 120,000 → "REFUSED — <reason>"); round 5 — the
+builders null with the engine's reason, the WACC, a NaN/Infinity scan of
+every sheet of every fixture book (> 1,000 cells), the Valuation panel on
+both refused books and on `g6_uncleared`; round 6 — the Risks tab's Altman
+rows and the §7 card, the report's §4 / §5 rows, the export's headline
+tiles and equity rows; F1 (a stale `altman_x2` row under a refused X2) and
+F5 (the rendered NAV sensitivity cells). `sectorBenchmark.test.tsx`: a
+refused company figure prints the engine's sentence in EN and RO.
+
+**PLANTS** (each alone, byte-exact restore, `scratchpad/fx711r1/plant.py`):
+```
+PLANT S1 sector: equity operand not refused
+  E   AssertionError: unanchored_unbalanced: the sector benchmark's filed-basis equity operand {'name': 'equity', 'value': 200000.0, 'source': 'canonical_bs.equity'} on equity short by the refused result
+  1 failed, 3 passed -> RED ; restored
+PLANT S2 sector: card refusal not carried
+  E   AssertionError: unanchored_unbalanced: the sector benchmark restated the equity ratio beside a card that refused it: {'value': 0.47619047619047616, 'reason': None, 'basis': 'restated_on_filed_basis', ...}
+  1 failed, 3 passed -> RED ; restored
+PLANT S3 sector: both (the pre-fix seam)
+  E   AssertionError: unanchored_unbalanced: the sector benchmark graded the equity ratio on equity short by the refused result: 'sourced' / 0.47619047619047616 / {}
+  1 failed, 3 passed -> RED ; restored
+PLANT S4 sector: net result operand not refused (+ no card carry)
+  E   AssertionError: unanchored: the sector benchmark's roe on a refused net result: 'company_absent' / {'code': 'company_operand_absent', 'inputs': ['net_result']}
+  1 failed, 1 passed -> RED ; restored
+PLANT S5 sector page drops the engine's sentence (FE)
+  AssertionError: expected 'Not compared — refused: company_figur…' to be 'Not compared — refused: total equity …'
+  Tests 1 failed | 21 passed (22) -> RED ; restored
+PLANT N1 stage_compute serves the build-up under net_income
+  E   AssertionError: unanchored: stage_compute net_income = 120000.0 on a refused net result
+  1 failed, 5 passed -> RED ; restored
+PLANT N2 GET does not withhold persisted refused rows
+  E   AssertionError: unanchored: GET /api/period metrics[] serves net_income = 123456.78 beside a refused net result
+  1 failed, 5 passed -> RED ; restored
+PLANT N3 the narrator's rows are not withheld
+  E   AssertionError: unanchored: the narrator's metrics serves net_income = 123456.78 beside a refused net result
+  1 failed, 5 passed -> RED ; restored
+PLANT E2 withhold_persisted keeps a filed X2 over short equity
+  E   AssertionError: unanchored_unbalanced: the narrator's metrics serve a persisted X2 0.2381 over equity short by the refused result
+  1 failed, 7 passed -> RED ; restored
+PLANT E7 GET valuation drops asset_based_refusal
+  E   AssertionError: unanchored_unbalanced: GET valuation over a stored row serves primary None, asset_based_refusal {} on equity short by the refused result
+  1 failed, 7 passed -> RED ; restored
+PLANT C1 chat prints a refused row's persisted figure
+  Tests 1 failed | 38 skipped (39) -> RED ; restored
+PLANT V1 deriveCashFlow falls back to NaN (the pre-fix line)
+  × round 5 > the builders … ; × round 5 > the workbook: no NaN or Infinity cell …
+  Tests 3 failed | 1 passed -> RED ; restored
+PLANT V2 runDcf forms figures on a refused CFO
+  Tests 3 failed | 1 passed -> RED ; restored
+PLANT V3 runGraham capitalises a refused result
+  Tests 3 failed | 1 passed -> RED ; restored
+PLANT V4 the WACC weighs the short equity
+  × round 5 > the WACC weighs no equity short by the refused result … ; × the Valuation tab …
+  Tests 2 failed | 2 passed -> RED ; restored
+PLANT V5 the FCF verdict prints beside a refused FCF
+  × round 5 > the Valuation tab: no NaN, no 'Cash burning' beside a refused FCF …
+  Tests 1 failed | 3 passed -> RED ; restored
+PLANT V6 the workbook prints the refused cells raw
+  × round 5 > the workbook: no NaN or Infinity cell on any sheet of any fixture book …
+  Tests 1 failed | 3 passed -> RED ; restored
+PLANT V7 the tab drops the EV/Revenue refusal
+  Tests 1 failed | 3 passed -> RED ; restored
+PLANT I1 the equity refusal asked before the exposure (the pre-fix order)
+  E   AssertionError: unanchored_unbalanced: the related-party insight on a book with no related-party row names "Total equity is refused — total equity excludes the year's result …"
+  1 failed, 3 passed -> RED ; restored
+PLANT F1 a stale X2 metric row stands in for the refused component
+  AssertionError: a stale X2 row printed: expected 0.2381 to be null
+  Tests 1 failed | 6 passed -> RED ; restored
+PLANT F5 the rendered sensitivity cell prints 0 for a refused NNNAV
+  AssertionError: expected '—' to be 'refused'
+  Tests 1 failed | 6 passed -> RED ; restored
+PLANT M1 the Risks tab's Altman rows print a bare dash
+  × round 6 > the Risks tab's Altman table and the report's §7 card print the engine's reason on X2, X3 and X4
+  Tests 1 failed | 2 passed -> RED ; restored
+PLANT M2 the report's §7 card prints X3 'not reported'
+  AssertionError: expected 'not reported' to contain 'The altman component is not scored: E…'
+  Tests 1 failed | 2 passed -> RED ; restored
+PLANT M3 the report's §5 prints a bare dash on a refused ratio
+  × round 6 > the report's §4 and §5 print the engine's reason on every refused row
+  Tests 1 failed | 2 passed -> RED ; restored
+PLANT M4 the report's §4 prints a bare dash on a refused cash-flow row
+  Tests 1 failed | 2 passed -> RED ; restored
+PLANT M5 the export's headline prints 'not reported' over a refused figure
+  AssertionError: expected 'not reported' to be 'refused — total equity excludes the y…'
+  Tests 1 failed | 2 passed -> RED ; restored
+PLANT M6 the export names total equity's refusal 'EBITDA refused'
+  AssertionError: expected '…' not to contain 'EBITDA refused: total equity'
+  -> RED ; restored
+PLANT M7 the equity sub-score worded on EBITDA's cause
+  E   AssertionError: unanchored_unbalanced: the equity sub-score's refusal names another cause: "The equity component is not scored: EBITDA and the operating result are refused …"
+  1 failed, 3 passed -> RED ; restored
+PLANT M8 the profitability sub-score worded on EBITDA's cause
+  E   AssertionError: unanchored: the profitability sub-score's refusal names another cause: "The profitability component is not scored: EBITDA and the operating result are refused …"
+  1 failed, 1 passed -> RED ; restored
+```
+**REVERT** — engine `11 passed`; browser `Tests 47 passed (47)`; sector
+`Tests 22 passed (22)`.
+
+**GOLDEN-CHANGE** — `constructed_books.json` re-captured twice (3449a64d:
+the related-party insight's reason on `unanchored_unbalanced`; 9e329263: the
+equity and profitability sub-score sentences). No figure moved.
+
+**CANNOT SEE:** whether the engine was right to refuse (net-711-rule); the
+engine-served code on the equity rows, X2 and the equity sub-score is still
+`ebitda_refused` (cause = the net result's code) — the browser names total
+equity's refusal by its SUBJECT (the served figure's name), not by a new
+code; a stored row this file does not seed; pixels.
+
+### valuation-one-ebitda — one industry key for every served valuation (critic round 3 fixer, 2026-09-28)
+
+**INCIDENT** — `_serialize_valuation` (GET /api/period) passed no key and
+read `statements["industry"]` (the org's display name); the briefing
+regenerate route passed the raw stored key. **LAW**
+(`test_one_valuation_choice_one_industry_key`, agras with a stored key and
+the developer stored as "generic"): both routes compute on the persist
+path's `_effective_industry(org, {statements, lineItems})[2]`
+(`_valuation_industry_key`; the save and recompute routes too). 23 tests.
+```
+PLANT K1 GET reads statements['industry'] (the display name)
+  E     Extra items in the left set: 'Denumirea afișată a sectorului'
+  E     Extra items in the right set: 'real_estate_commercial'
+  2 failed, 21 deselected -> RED ; restored
+PLANT K2 the regenerate route passes the raw stored key
+  E   assert (['generic'] and {'generic'} == {'real_estate_commercial'}
+  1 failed, 1 passed -> RED ; restored
+```
+
+### valuation-refused-override — a withheld stored row on its own cause, no 0.0× multiple (critic round 3 fixer, 2026-09-28)
+
+**LAW** (10 tests): a stored row withheld for another EBITDA prints
+"Stored valuation withheld — <reason>" (no "EBITDA refused", no
+"asset-based") and "withheld — <reason>" where the value sits; the EBITDA
+banner claims "asset-based" only when book equity is served; a refused book
+equity prints "refused — <reason>" as the value; with no multiple served no
+slider and no debt / cash editor is offered and a typed EBITDA saves
+`multiple_used: null`.
+```
+PLANT L1a a withheld stored row worded as a refused EBITDA
+  × … > a stored row on the previous EBITDA: no EBITDA, the stored row's reason, no EV/EBITDA value -> RED ; restored
+PLANT L1b 'the valuation is asset-based' beside a refused book equity
+  Tests 1 failed | 9 passed (10) -> RED ; restored
+PLANT L1c the slider and editors shown with no multiple served
+  Tests 2 failed | 8 passed (10) -> RED ; restored
+PLANT L1d a save pins the unserved multiple as 0
+  × … > a served EBITDA with no peer multiple: a typed EBITDA saves no multiple (never multiple_used 0)
+  Tests 1 failed | 9 passed (10) -> RED ; restored
+PLANT L1e a bare 'refused' where the primary value sits
+  Tests 1 failed | 9 passed (10) -> RED ; restored
+```
+
+### reprocess-periods-definition — the apply reads the valuations row back (critic round 3 fixer, 2026-09-28)
+
+**LAW** (`GATE-WORK reprocess-periods-definition units=56`, floor 50): an
+apply whose valuation write failed (`_compute_and_persist_valuation`
+swallows it) is refused `valuation_not_rewritten` with the value read back,
+and the period stays `would_reprocess`.
+```
+PLANT R1 the apply reports REPROCESSED without reading back the valuations row
+  E   assert ('reprocessed' == 'refused'
+  -> RED ; restored
+```
