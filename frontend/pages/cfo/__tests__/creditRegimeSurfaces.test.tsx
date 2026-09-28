@@ -157,9 +157,11 @@ describe("the hero and /report's card print the regime once", () => {
       </TooltipProvider>,
     );
     expect(screen.getAllByTestId("hero-credit-regime")).toHaveLength(1);
-    const pending = screen.getByTestId("hero-verdict-pending").textContent ?? "";
-    expect(pending).toBe(r.compositeRefusal!.sentence);
-    expect(pending).not.toContain(i18n.t("dashV2.verdictPending"));
+    // the engine's words for why there is no score, in place of "pending"
+    expect(screen.getByTestId("hero-credit-regime-cash").textContent).toBe(r.regime!.cash!.refusal!.text.en);
+    expect(screen.queryByTestId("hero-verdict-pending")).toBeNull();
+    expect(screen.getByTestId("hero-verdict").textContent).not.toContain(i18n.t("dashV2.verdictPending"));
+    expect(screen.getByTestId("hero-verdict").textContent).not.toMatch(/\b(AAA|AA|A|BBB|BB|B|CCC|CC)\b/);
   });
 
   it("a manufacturer's hero prints no regime", () => {

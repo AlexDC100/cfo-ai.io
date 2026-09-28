@@ -5527,20 +5527,21 @@ export function HeroVerdictCard({
         <div className="text-[11px] uppercase tracking-[0.08em] text-ink-soft font-medium">
           {t("dashV2.verdictLabel")}
         </div>
-        <div className="mt-2 flex items-center gap-3">
-          <Shield size={28} strokeWidth={1.5} className="text-ink-mute" />
-          <p className="text-[13.5px] text-ink-soft leading-relaxed max-w-[560px]" data-testid="hero-verdict-pending">
-            {/* A REFUSED composite is not a pending one: the engine said
-                why there is no score (R-COMPOSITE), so the hero says it
-                too — "analysis pending" beside a finished analysis was a
-                false statement. */}
-            {credit?.compositeRefusal?.stated ? credit.compositeRefusal.sentence : t("dashV2.verdictPending")}
-          </p>
-        </div>
         {/* THE CREDIT REGIME, ONCE (credit model revision 5, owner ruling
-            R1): why the stock-build book is graded on cash, with the
-            finding. */}
-        {credit?.regime ? <CreditRegimeNote regime={credit.regime} testid="hero-credit-regime" /> : null}
+            R1): a stock-build book whose cash components refused is not
+            "pending" — the regime note states why there is no score (the
+            engine's words for the cash basis) with the finding, in place of
+            the pending line. Every other absent score keeps it. */}
+        {credit?.regime ? (
+          <CreditRegimeNote regime={credit.regime} testid="hero-credit-regime" />
+        ) : (
+          <div className="mt-2 flex items-center gap-3">
+            <Shield size={28} strokeWidth={1.5} className="text-ink-mute" />
+            <p className="text-[13.5px] text-ink-soft leading-relaxed max-w-[560px]" data-testid="hero-verdict-pending">
+              {t("dashV2.verdictPending")}
+            </p>
+          </div>
+        )}
         {footer}
       </section>
     );

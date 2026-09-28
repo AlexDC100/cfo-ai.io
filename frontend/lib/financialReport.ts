@@ -5253,17 +5253,31 @@ export function renderReportHtml(
         </tr>`,
       )
       .join("");
+    // A REFUSED COMPOSITE ON A COMPARED PERIOD: the card's headline is the
+    // served reason — the very string its current cell prints — never
+    // "not reported" above a table that states why (the §4 law; the
+    // stock-build regime's refused composite, credit model revision 5, was
+    // the first on a corpus pair). With no served compare row, the bare
+    // word stays.
+    const refusedHeadline = (key: string): string | null => {
+      const row = ratioCmpWanted ? ratioCmpRows.get(key) : undefined;
+      if (!row || row.current.value_q !== null) return null;
+      return printRatioCompareRow(row, servedRatioLabel(key, null, null)).current;
+    };
+    const scoreHeadline = credit.score === null
+      ? (refusedHeadline("credit_composite") ?? creditScoreFigure) : creditScoreFigure;
+    const letterHeadline = credit.rating ?? refusedHeadline("letter_grade") ?? UNREPORTED_WORD;
     return `
     <div class="grid grid-3">
       <div class="ratio-card">
         <div class="label">${escapeHtml(servedRatioLabel("credit_composite", null, null))}</div>
-        <div class="value${credit.score === null ? " unreported" : ""}" data-report-credit-score>${escapeHtml(creditScoreFigure)}</div>
+        <div class="value${credit.score === null ? " unreported" : ""}" data-report-credit-score>${escapeHtml(scoreHeadline)}</div>
         <div class="meta">${escapeHtml(credit.model)}</div>
         ${ratioCmpCardTable("credit_composite", servedRatioLabel("credit_composite", null, null), creditScoreFigure, "Not banded")}
       </div>
       <div class="ratio-card">
         <div class="label">${escapeHtml(servedRatioLabel("letter_grade", null, null))}</div>
-        <div class="value${credit.rating === null ? " unreported" : ""}" data-report-credit-letter data-model="${escapeHtml(credit.rating === null ? "none" : credit.model)}">${escapeHtml(credit.rating ?? UNREPORTED_WORD)}</div>
+        <div class="value${credit.rating === null ? " unreported" : ""}" data-report-credit-letter data-model="${escapeHtml(credit.rating === null ? "none" : credit.model)}">${escapeHtml(letterHeadline)}</div>
         <div class="meta">${escapeHtml(credit.rating === null ? VERDICT_UNAVAILABLE_NOTE : credit.modelLabel)}</div>
         ${ratioCmpCardTable("letter_grade", servedRatioLabel("letter_grade", null, null), credit.rating ?? UNREPORTED_WORD, credit.rating ?? UNREPORTED_WORD)}
       </div>

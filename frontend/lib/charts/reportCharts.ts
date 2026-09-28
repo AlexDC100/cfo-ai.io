@@ -576,9 +576,15 @@ export function creditContributions(i: ChartInputs): ChartBlock {
       // printed in a table too — the same law every other figure obeys.
       // A refused term keeps its model weight (never renormalised) and
       // contributes nothing: the composite is refused with it.
+      // A REFUSED term's ceiling is drawn on its bar too ("of 15.0"), so
+      // its row prints the weight and the ceiling beside the refusal — the
+      // stock-build regime's refused leverage term (credit model revision
+      // 5) was the first refused row whose ceiling no other row printed.
       source:
         c.refusal
-          ? `not scored: ${c.refusal.sentence}`
+          ? c.weight === null
+            ? `not scored: ${c.refusal.sentence}`
+            : `weight ${(c.weight * 100).toFixed(0)}% · ceiling ${(c.weight * 100).toFixed(1)} · not scored: ${c.refusal.sentence}`
           : c.weight === null
           ? "weight not reported"
           : `weight ${(c.weight * 100).toFixed(0)}% · ceiling ${(c.weight * 100).toFixed(1)}`,
