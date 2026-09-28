@@ -2104,7 +2104,7 @@
       "margin_refused": "margin not meaningful: turnover is 0.5% of activity",
       "margin_year0": null,
       "margin_year0_refused": "margin not meaningful: turnover is 0.6% of activity",
-      "note": "For a property developer, construction costs capitalised into inventory run through account 711 (Variația stocurilor de produse): the EBITDA above includes them — RON 29.6M in 2025."
+      "note": "For a property developer, construction costs capitalised into inventory run through account 711 (Variația stocurilor de produse): the 2025 EBITDA included them — RON 29.6M; the plan years project the stock variation at 0, so the EBITDA above does not include them."
      },
      "ro": {
       "amount": "−34,6 mil. lei",
@@ -2112,7 +2112,7 @@
       "margin_refused": "marjă nesemnificativă: cifra de afaceri este 0,5% din activitate",
       "margin_year0": null,
       "margin_year0_refused": "marjă nesemnificativă: cifra de afaceri este 0,6% din activitate",
-      "note": "Pentru un dezvoltator imobiliar, costurile de construcție capitalizate în stocuri trec prin contul 711 (Variația stocurilor de produse): EBITDA de mai sus le include — 29,6 mil. lei în 2025."
+      "note": "Pentru un dezvoltator imobiliar, costurile de construcție capitalizate în stocuri trec prin contul 711 (Variația stocurilor de produse): EBITDA din 2025 le-a inclus — 29,6 mil. lei; anii de plan proiectează variația stocurilor la 0, deci EBITDA de mai sus nu le include."
      }
     },
     "figure": {
@@ -2188,8 +2188,8 @@
     "margin_year0_ppm": null,
     "note": {
      "display": {
-      "en": "For a property developer, construction costs capitalised into inventory run through account 711 (Variația stocurilor de produse): the EBITDA above includes them — RON 29.6M in 2025.",
-      "ro": "Pentru un dezvoltator imobiliar, costurile de construcție capitalizate în stocuri trec prin contul 711 (Variația stocurilor de produse): EBITDA de mai sus le include — 29,6 mil. lei în 2025."
+      "en": "For a property developer, construction costs capitalised into inventory run through account 711 (Variația stocurilor de produse): the 2025 EBITDA included them — RON 29.6M; the plan years project the stock variation at 0, so the EBITDA above does not include them.",
+      "ro": "Pentru un dezvoltator imobiliar, costurile de construcție capitalizate în stocuri trec prin contul 711 (Variația stocurilor de produse): EBITDA din 2025 le-a inclus — 29,6 mil. lei; anii de plan proiectează variația stocurilor la 0, deci EBITDA de mai sus nu le include."
      },
      "figure": {
       "source": "assembled_pl.inventory_variation.value",
@@ -2243,11 +2243,11 @@
   },
   "period_id": "c-cur",
   "pins": {
-   "body_hash": "sha256:472113ad8abcbf5b694efd064f1befa8bb6ca2ec1d3a59d2a6a4b29301ab1cce",
+   "body_hash": "sha256:ae421a46a15ab61346841687e729fdb565757663d00c5e6ef29e982a997aa108",
    "cockpit_pack": "sha256:1ebafb5936c19893c4ef3768a45fd2829c87c36497ee61d34613b42f3a47348e",
    "engine_version": "0.1.0",
    "macro_pack": "sha256:786eec084a31392dca0f4be9c16faff90fcf6532c94bc8ed5823d5a05ff548b3",
-   "margin_pack": "sha256:39f88c776cc74fc155591ec8f59259542461572c0042734dbc840ca066139a3f",
+   "margin_pack": "sha256:bae7e9db9e98f58815b343b4695eb79b8f896679341604ac2abe05b874aa37f6",
    "pack_id": "forecast-cockpit"
   },
   "sentence": {
@@ -4809,11 +4809,11 @@
   "kind": "bank_forecast",
   "period_id": "c-cur",
   "pins": {
-   "body_hash": "sha256:472113ad8abcbf5b694efd064f1befa8bb6ca2ec1d3a59d2a6a4b29301ab1cce",
+   "body_hash": "sha256:ae421a46a15ab61346841687e729fdb565757663d00c5e6ef29e982a997aa108",
    "cockpit_pack": "sha256:1ebafb5936c19893c4ef3768a45fd2829c87c36497ee61d34613b42f3a47348e",
    "engine_version": "0.1.0",
    "macro_pack": "sha256:786eec084a31392dca0f4be9c16faff90fcf6532c94bc8ed5823d5a05ff548b3",
-   "margin_pack": "sha256:39f88c776cc74fc155591ec8f59259542461572c0042734dbc840ca066139a3f",
+   "margin_pack": "sha256:bae7e9db9e98f58815b343b4695eb79b8f896679341604ac2abe05b874aa37f6",
    "pack_id": "forecast-cockpit"
   },
   "projected_note": {
