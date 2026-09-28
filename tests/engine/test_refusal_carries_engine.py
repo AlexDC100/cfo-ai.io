@@ -90,7 +90,12 @@ from _one_definition_served import (
 
 WORK: Dict[str, Any] = {"checks": 0, "books": [], "codes": {}, "net_result_refused": [],
                         "equity_incomplete": [], "equity_complete": [], "equity_readers": [],
-                        "sector_equity_refused": []}
+                        "sector_equity_refused": [], "related_party_refused": [],
+                        "related_party_absent": []}
+
+#: Refused-equity books that carry a related-party balance (the real
+#: developer); the constructed book has none.
+RELATED_PARTY_BOOKS = frozenset({"realestate_no121"})
 
 #: A CAEN the committed sector dataset serves every size band of the
 #: refused books at (asserted: the document is `ok` and lawful), so the
@@ -567,10 +572,19 @@ def _equity_readers(name: str, b: Any, abs_: Dict[str, Any], bfacts: Dict[str, A
                           "line_items": b.body.get("line_items") or []})
     fired = [i for i in ins["insights"] if i["id"] == "related_party_exposure"]
     quiet = [n for n in ins["not_fired"] if n["id"] == "related_party_exposure"]
-    if incomplete:
+    if incomplete and name in RELATED_PARTY_BOOKS:
         check(not fired and quiet and text in quiet[0]["reason"],
               "the related-party insight %r / %r on equity short by the refused result"
               % ([i["claim"] for i in fired], quiet))
+        WORK["related_party_refused"].append(name)
+    elif incomplete:
+        # No related-party row: quiet for THAT reason — the equity refusal
+        # is not its cause (critic round 3, 2026-09-28).
+        check(not fired and quiet and quiet[0]["reason"].startswith("No intercompany")
+              and "Total equity is refused" not in quiet[0]["reason"],
+              "the related-party insight on a book with no related-party row names %r"
+              % (quiet and quiet[0]["reason"],))
+        WORK["related_party_absent"].append(name)
     else:
         check(not (quiet and "Total equity is refused" in quiet[0]["reason"]),
               "the related-party insight refused on COMPLETE equity: %r" % (quiet,))
@@ -894,6 +908,9 @@ def test_refusal_carries_zz_work(capsys):
     # 12k: the sector benchmark refused the equity ratio on both.
     assert WORK["sector_equity_refused"] == ["unanchored_unbalanced", "realestate_no121"], \
         WORK["sector_equity_refused"]
+    # 12e: each side of the related-party order has a witness.
+    assert WORK["related_party_refused"] == ["realestate_no121"], WORK["related_party_refused"]
+    assert WORK["related_party_absent"] == ["unanchored_unbalanced"], WORK["related_party_absent"]
     # 13: the rows persisted before the refusal, on every refused book.
     assert sorted(WORK.get("persisted_rows") or []) == sorted(REFUSED_BOOKS), WORK.get("persisted_rows")
     # 12e-g non-vacuity: the insight, R6 and the findings detector judge

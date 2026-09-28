@@ -259,14 +259,11 @@ def detect_related_party_exposure(book: Book, spec: DetectorSpec):
     # 711 refused, the sheet short by the missing result) is neither: the
     # export printed "the equity ratio moves from 49.3% to 49.2%" beside a
     # ratio row that refuses the equity ratio (critic round 2, 2026-09-27).
-    equity_refusal = book.equity_refusal()
-    if equity_refusal is not None:
-        return NotFired(
-            "Total equity is refused — %s — and this exposure is graded "
-            "against equity and restates the equity ratio, so it is not "
-            "measured." % (equity_refusal.get("text_en") or equity_refusal.get("code"))
-        )
-
+    #
+    # Asked only once there IS an exposure to grade: a book with no
+    # related-party row (or one netting to nil) is quiet for that reason,
+    # whatever its equity — naming the equity refusal there gave the wrong
+    # cause (critic round 3, 2026-09-28).
     if exposure is None:
         return NotFired(
             "No intercompany or related-party receivable row is present in "
@@ -276,6 +273,13 @@ def detect_related_party_exposure(book: Book, spec: DetectorSpec):
         return NotFired(
             "The intercompany row is present and nets to nil, so there is no "
             "related-party exposure to haircut."
+        )
+    equity_refusal = book.equity_refusal()
+    if equity_refusal is not None:
+        return NotFired(
+            "Total equity is refused — %s — and this exposure is graded "
+            "against equity and restates the equity ratio, so it is not "
+            "measured." % (equity_refusal.get("text_en") or equity_refusal.get("code"))
         )
 
     share_assets = _div(exposure, total_assets)
