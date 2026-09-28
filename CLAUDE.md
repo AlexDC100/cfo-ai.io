@@ -1540,6 +1540,51 @@ below is rendered from that pack (TC-10).
   the placed 7411 on an earlier-definition period is the ruling
   (`definition_7411`) and does not block.
 
+**Ruling of 2026-09-28 (R1) — the stock-build credit regime, credit model
+revision 5 — candidate `feat/rulings-2`, NOT shipped until the owner has seen
+the re-grade.** The one EBITDA carries net 711 inside, so a developer that
+capitalises its construction into stock (the corpus developer: net 711
++29,589,814.24 against turnover 162,365.46) showed a positive EBITDA and
+graded 41.5 B. The regime is pack data (`packs/credit/model.yaml`
+`stock_build_regime`, loaded and validated by `ratios/credit_pack.py` — a pack
+without it raises) and ONE function, `credit_model.stock_build_regime`:
+- **Trigger:** a MEASURED net 711 > 0 reaching BOTH pack shares — of net
+  turnover and of total operating expense (compared by multiplication, so a
+  zero turnover never divides; a refused 711 never triggers). Every
+  manufacturer measured sits two orders of magnitude below (agras: 0.97% of
+  turnover).
+- **Effect:** leverage = net debt / cash from operations, coverage = CFO /
+  interest, DSCR = CFO / debt service, on the SERVED `assembled_cf.
+  cash_from_operating`; Altman X3 = (EBIT − net 711 − net 72x) / total assets,
+  labelled; the composite on the regime's weight table (liquidity 0.20,
+  profitability 0.10, the rest unchanged — never renormalised). An
+  APPROXIMATED or REFUSED CFO refuses the three cash components
+  (`cash_from_operations_approximated` / `_refused`) and the composite with
+  them — never 0, never back to EBITDA; a measured CFO <= 0 takes the
+  regime's declared bottom rung; debt-free with CFO > 0 takes R-D1 on cash.
+- **⚠ The served cash flow is approximated on EVERY book today**
+  (`assemble_statements` hard-codes `is_approximated = True`: the engine
+  threads no prior-period trial balance). So on the developer the three cash
+  components and the letter REFUSE (41.5 B → no letter; Z'' 4.81 → 2.43, X3
+  0.0059 → −0.3489). Read as if measured, the same approximated CFO
+  (−3,945,493.79) would give 33.9 CCC — the owner's call whether the regime
+  may grade on the approximation; the code does not.
+- **The finding** rides the served block (`credit.regime.finding`): "EBITDA
+  pozitivă din stocuri capitalizate — numerarul a fost consumat de
+  construcție." (verbatim) / "Positive EBITDA from capitalised stock — the
+  cash was consumed by construction.", severity high, with the served net 711,
+  turnover, EBITDA, EBITDA before the stock variation and CFO (only when
+  measured). It is printed ONCE, beside the grade, on the Risks tab, the
+  dashboard hero (which now states the engine's refusal, never "analysis
+  pending"), /report's card (and so the CFO Report PDF), the exported report
+  and workbook, the command bar (`credit_regime` on attention/1, one line at
+  rest) and the briefing facts (`credit_regime`, text only). The developer
+  keeps its margin refusal.
+- **Stamps / tools:** `CREDIT_MODEL_REVISION` 5 (`ONE_EBITDA_REVISION` stays
+  4 — the EBITDA family did not move); the reprocess dry run prints the
+  regime, its trigger shares, the cash status, the refused components and the
+  finding. Gates: `credit-stock-build`, `credit-regime-surfaces`.
+
 **DEPLOY REQUIREMENT.** Every stored period predates the definition: its
 EBITDA refuses (`period_predates_*`) until it is REPROCESSED from its stored
 document with `scripts/reprocess_periods_definition.py` (dry run → review
