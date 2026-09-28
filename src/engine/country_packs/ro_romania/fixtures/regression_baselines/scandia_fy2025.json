@@ -3,7 +3,7 @@
     "fixture": "scandia_fy2025",
     "company": "Scandia Food SRL",
     "captured_from": "one-EBITDA ruling re-capture (2026-09-27) — stock-variation evidence threaded as the write seam does",
-    "engine_module": "/private/tmp/claude-501/-Users-alex-Desktop-folder-claude-Scandia-copy/3ffcb142-1cba-4f4d-a1ef-1e69d9ad3827/scratchpad/wt-rel-rulings/src/engine/country_packs/ro_romania/chart_of_accounts.py",
+    "engine_module": "/private/tmp/claude-501/-Users-alex-Desktop-folder-claude-Scandia-copy/3ffcb142-1cba-4f4d-a1ef-1e69d9ad3827/scratchpad/wt-rulings2/src/engine/country_packs/ro_romania/chart_of_accounts.py",
     "account_count": 654
   },
   "assembled": {
@@ -43,22 +43,22 @@
         "inventoryVariationMemo": 630091698.19
       },
       "subAggregates": {
-        "ppe_under_construction": 6031376.49,
+        "interest_expense": 3075221.8,
+        "cash_fx": 15831.29,
+        "ppe_investment": 0.0,
+        "fx_loss": 1579544.76,
+        "fx_gain": 558829.54,
+        "ar_intercompany": 4262846.59,
+        "ppe_advances": 402873.09,
+        "ar_doubtful": 133858.47,
         "interest_income": 1016436.75,
         "opex_third_party": 12426910.23,
-        "ppe_advances": 402873.09,
-        "ap_dividends": 4678772.34,
-        "interest_expense": 3075221.8,
-        "fx_loss": 1579544.76,
-        "ppe_investment": 0.0,
-        "cash_fx": 15831.29,
-        "ar_provisions": 0.0,
-        "ar_doubtful": 133858.47,
-        "ar_intercompany": 4262846.59,
-        "fx_gain": 558829.54,
-        "financial_income": 7760979.0,
         "retained_earnings": 27929264.02,
+        "ap_dividends": 4678772.34,
         "equity_revaluation": 10507869.61,
+        "ar_provisions": 0.0,
+        "financial_income": 7760979.0,
+        "ppe_under_construction": 6031376.49,
         "current_year_pnl": 36787352.75
       },
       "assembled_bs": {
@@ -110,23 +110,67 @@
       "assembled_pl": {
         "revenue": 413727560.16,
         "turnover": 413727560.16,
+        "turnover_definition": {
+          "accounts": "70x − 709 + 7411",
+          "extra_prefixes": [
+            "7411"
+          ],
+          "placed_extra": 0.0,
+          "source": "OMFP 1802/2014, formularul F20 (contul de profit și pierdere): rd. 01 cifra de afaceri netă = rd. 02 … rd. 05; rd. 05 = venituri din subvenții de exploatare aferente cifrei de afaceri nete (ct. 7411)"
+        },
         "cogs": 212035114.77,
         "gross_profit": 202211834.5,
         "opex_total": 158895220.38,
         "opex_third_party": 12426910.23,
-        "depreciation": 13649644.51,
-        "ebitda": 54963222.44,
+        "depreciation": 11607174.27,
+        "net_provisions": {
+          "schema": "net_provisions/1",
+          "value": -6372805.17,
+          "charges": {
+            "prefixes": [
+              "6812",
+              "6814"
+            ],
+            "value": 2042470.24,
+            "by_account": {
+              "681401": 1276489.91,
+              "681402": 311983.09,
+              "681403": 48285.32,
+              "681404": 405711.92
+            }
+          },
+          "reversals": {
+            "prefixes": [
+              "7812",
+              "7814"
+            ],
+            "value": 8415275.41,
+            "by_account": {
+              "781401": 7261069.0,
+              "781402": 454061.15,
+              "781403": 300145.26,
+              "781404": 400000.0
+            }
+          },
+          "accounts": "6812 + 6814 − 7812 − 7814",
+          "name_ro": "Provizioane și ajustări nete",
+          "name_en": "Net provisions and impairment adjustments",
+          "label_ro": "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814)",
+          "label_en": "Net provisions and impairment adjustments (6812 + 6814 − 7812 − 7814)",
+          "outside_ebitda": true
+        },
+        "ebitda": 46547947.03,
         "ebit": 41313577.93,
         "operating_result": 41313577.93,
-        "ebitda_before_stock_variation": 54443833.33,
-        "ebitda_operational": 54963222.44,
-        "ebitda_statutory": 54963222.44,
-        "ebitda_operating_view": 54963222.44,
-        "ebitda_cash": 54963222.44,
-        "operating_ebitda": 54963222.44,
+        "ebitda_before_stock_variation": 46028557.92,
+        "ebitda_operational": 46547947.03,
+        "ebitda_statutory": 46547947.03,
+        "ebitda_operating_view": 46547947.03,
+        "ebitda_cash": 46547947.03,
+        "operating_ebitda": 46547947.03,
         "operating_ebit": 41313577.93,
         "ebitda_refusal": null,
-        "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+        "ebitda_definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
         "inventory_variation": {
           "schema": "stock_variation/1",
           "value": 519389.11,
@@ -191,32 +235,33 @@
         "opex_excluding_cogs_and_da": 158895220.38,
         "other_income_758": 3231332.91,
         "other_op_income_lump": 3231332.91,
-        "other_income_781_reversals": 8415275.41,
+        "other_income_781_reversals": 0.0,
         "core_ebitda": 43316614.12,
         "adjusted_ebitda": 43316614.12,
         "net_financial_result": 2225998.82,
         "financial_expense_total": 7110246.47,
         "free_cash_flow_proxy": 50436997.26,
-        "other_operating_income": 11646608.32,
+        "other_operating_income": 3231332.91,
         "net_income_reconciliation_to_121": 519389.11,
         "net_income_unexplained_vs_121": -0.0,
         "ebitda_reconciliation": {
           "schema": "ebitda_reconciliation/1",
-          "definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+          "definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
           "lines": [
             {
               "key": "turnover",
               "label_ro": "Cifra de afaceri netă",
               "label_en": "Net turnover",
-              "accounts": "70x − 709",
+              "accounts": "70x − 709 + 7411",
               "value": 413727560.16
             },
             {
               "key": "other_operating_income",
               "label_ro": "Alte venituri din exploatare",
               "label_en": "Other operating income",
-              "accounts": "74x, 75x, 77x, 78x",
-              "value": 11646608.32
+              "accounts": "74x, 75x, 77x, 78x (fără 7411, 7812, 7814)",
+              "value": 3231332.91,
+              "accounts_en": "74x, 75x, 77x, 78x (excl. 7411, 7812, 7814)"
             },
             {
               "key": "capitalized_own_work",
@@ -259,16 +304,25 @@
               "label_ro": "EBITDA",
               "label_en": "EBITDA",
               "accounts": null,
-              "value": 54963222.44,
+              "value": 46547947.03,
               "subtotal": true,
               "refusal": null
             },
             {
               "key": "depreciation",
-              "label_ro": "Amortizări, provizioane și ajustări (681x)",
-              "label_en": "Depreciation, provisions and impairment (681x)",
-              "accounts": "681x",
-              "value": -13649644.51
+              "label_ro": "Amortizări și alte ajustări",
+              "label_en": "Depreciation, amortisation and other adjustments",
+              "accounts": "68x fără 6812, 6814",
+              "value": -11607174.27,
+              "accounts_en": "68x excl. 6812, 6814"
+            },
+            {
+              "key": "net_provisions",
+              "label_ro": "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814)",
+              "label_en": "Net provisions and impairment adjustments (6812 + 6814 − 7812 − 7814)",
+              "accounts": "6812 + 6814 − 7812 − 7814",
+              "value": 6372805.17,
+              "outside_ebitda": true
             },
             {
               "key": "operating_result",
@@ -324,7 +378,7 @@
                 "key": "ebitda_before_stock_variation",
                 "label_ro": "EBITDA înainte de variația stocurilor și producția imobilizată",
                 "label_en": "EBITDA before stock variation and own work capitalised",
-                "value": 54443833.33
+                "value": 46028557.92
               },
               {
                 "key": "inventory_variation",
@@ -342,7 +396,16 @@
                 "key": "ebitda",
                 "label_ro": "EBITDA",
                 "label_en": "EBITDA",
-                "value": 54963222.44
+                "value": 46547947.03
+              }
+            ],
+            "after_ebitda": [
+              {
+                "key": "net_provisions",
+                "label_ro": "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814) — în afara EBITDA",
+                "label_en": "Net provisions and impairment adjustments (6812 + 6814 − 7812 − 7814) — outside EBITDA",
+                "value": 6372805.17,
+                "outside_ebitda": true
               }
             ],
             "refusal": null
@@ -7381,19 +7444,19 @@
       },
       "methodology": {
         "methodology_id": "ro_ras_2025_v1",
-        "methodology_version": "1.1.0",
+        "methodology_version": "1.2.0",
         "schema_version": "canonical_v1.0.0",
         "industry_key_applied": "default",
         "ebitda": {
-          "reported": 54963222.44,
+          "reported": 46547947.03,
           "strict": 43316614.12,
-          "cash": 54963222.44,
+          "cash": 46547947.03,
           "adjusted": 43316614.12
         },
         "totals": {
           "revenue_net": 413727560.16,
           "gross_profit": 202240833.67,
-          "operating_profit_reported": 32898302.52,
+          "operating_profit_reported": 41313577.93,
           "net_debt": 49241167.62,
           "total_debt": 55345982.91,
           "current_assets": 112500098.18,
@@ -7404,7 +7467,7 @@
         },
         "ratios": {
           "ebitda_margin_reported": {
-            "value": 0.1328,
+            "value": 0.1125,
             "unit": "ratio",
             "direction": "higher_is_better",
             "band": [
@@ -7414,14 +7477,14 @@
             "note": ""
           },
           "ebitda_margin_cash": {
-            "value": 0.1328,
+            "value": 0.1125,
             "unit": "ratio",
             "direction": "higher_is_better",
             "band": null,
             "note": ""
           },
           "net_margin": {
-            "value": 0.0686,
+            "value": 0.0889,
             "unit": "ratio",
             "direction": "higher_is_better",
             "band": [
@@ -7438,7 +7501,7 @@
             "note": ""
           },
           "return_on_equity": {
-            "value": 0.189,
+            "value": 0.245,
             "unit": "ratio",
             "direction": "higher_is_better",
             "band": [
@@ -7448,7 +7511,7 @@
             "note": ""
           },
           "return_on_assets": {
-            "value": 0.097,
+            "value": 0.1258,
             "unit": "ratio",
             "direction": "higher_is_better",
             "band": [
@@ -7522,7 +7585,7 @@
             "note": ""
           },
           "net_debt_to_ebitda": {
-            "value": 0.8959,
+            "value": 1.0579,
             "unit": "ratio",
             "direction": "lower_is_better",
             "band": [
@@ -7539,7 +7602,7 @@
             "note": ""
           },
           "interest_coverage": {
-            "value": 4.6269,
+            "value": 5.8104,
             "unit": "ratio",
             "direction": "higher_is_better",
             "band": [
@@ -7549,7 +7612,7 @@
             "note": ""
           },
           "ebitda_to_interest": {
-            "value": 7.7301,
+            "value": 6.5466,
             "unit": "ratio",
             "direction": "higher_is_better",
             "band": [
@@ -7559,7 +7622,7 @@
             "note": ""
           },
           "dscr_approx": {
-            "value": 4.5404,
+            "value": 3.8453,
             "unit": "ratio",
             "direction": "higher_is_better",
             "band": null,
@@ -7600,6 +7663,16 @@
             "value": 519389.11,
             "refusal": null,
             "provenance": "account_121_bridge"
+          },
+          "provision_charges_outside_ebitda": {
+            "value": 2042470.24,
+            "refusal": null,
+            "provenance": "pl_definition:6812+6814"
+          },
+          "provision_reversals_outside_ebitda": {
+            "value": 8415275.41,
+            "refusal": null,
+            "provenance": "pl_definition:7812+7814"
           }
         },
         "refusals": {},
@@ -7613,7 +7686,7 @@
           "right_of_use_assets.net"
         ],
         "errors": [],
-        "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial"
+        "ebitda_definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover"
       },
       "canonical_bs": {
         "schema": "bs_v2",
