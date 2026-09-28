@@ -1435,7 +1435,7 @@
     "pack": "packs/ratios/inventory_days.yaml",
     "period_days": "supplementary.periodDays",
     "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
-    "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+    "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation + net_provisions.charges"
    },
    "reconciliation": {
     "difference": 0.0,
@@ -2358,11 +2358,11 @@
   "methodology": {
    "ebitda": {
     "adjusted": 1536548.84,
-    "cash": 2263417.48,
-    "reported": 2263417.48,
+    "cash": 2185482.87,
+    "reported": 2185482.87,
     "strict": 1536548.84
    },
-   "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+   "ebitda_definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
    "errors": [],
    "industry_key_applied": "default",
    "measured": {
@@ -2375,10 +2375,20 @@
      "provenance": "no_711_activity",
      "refusal": null,
      "value": 0.0
+    },
+    "provision_charges_outside_ebitda": {
+     "provenance": "pl_definition:6812+6814",
+     "refusal": null,
+     "value": 350361.72
+    },
+    "provision_reversals_outside_ebitda": {
+     "provenance": "pl_definition:7812+7814",
+     "refusal": null,
+     "value": 77934.61
     }
    },
    "methodology_id": "ro_ras_2025_v1",
-   "methodology_version": "1.1.0",
+   "methodology_version": "1.2.0",
    "missing_buckets": [
     "deferred_income_lt.net",
     "deferred_tax_assets.net",
@@ -2459,14 +2469,14 @@
      "direction": "higher_is_better",
      "note": "Rough DSCR; LT debt amortized over 8y assumption. Refine via per-period schedule when available.",
      "unit": "ratio",
-     "value": 0.344259
+     "value": 0.332405
     },
     "ebitda_margin_cash": {
      "band": null,
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 0.028644
+     "value": 0.027658
     },
     "ebitda_margin_reported": {
      "band": [
@@ -2476,7 +2486,7 @@
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 0.028644
+     "value": 0.027658
     },
     "ebitda_to_interest": {
      "band": [
@@ -2486,7 +2496,7 @@
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 0.731934
+     "value": 0.706732
     },
     "equity_ratio": {
      "band": [
@@ -2513,7 +2523,7 @@
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 0.229159
+     "value": 0.254361
     },
     "lt_debt_to_equity": {
      "band": null,
@@ -2530,7 +2540,7 @@
      "direction": "lower_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 11.264382
+     "value": 11.666071
     },
     "net_margin": {
      "band": [
@@ -2540,7 +2550,7 @@
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 0.039577
+     "value": 0.040563
     },
     "quick_ratio": {
      "band": [
@@ -2560,7 +2570,7 @@
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 0.044618
+     "value": 0.04573
     },
     "return_on_equity": {
      "band": [
@@ -2570,7 +2580,7 @@
      "direction": "higher_is_better",
      "note": "",
      "unit": "ratio",
-     "value": 0.123979
+     "value": 0.127069
     },
     "working_capital": {
      "band": null,
@@ -2587,7 +2597,7 @@
     "current_liabilities": 17006445.6,
     "gross_profit": 16900166.66,
     "net_debt": 25495998.01,
-    "operating_profit_reported": 708645.22,
+    "operating_profit_reported": 786579.83,
     "revenue_net": 79018306.77,
     "total_assets": 70089631.84,
     "total_debt": 27859009.64,
@@ -6662,7 +6672,7 @@
     "fired": false,
     "limit": 0.0,
     "note": "statutory EBITDA is positive, so an earnings multiple has a denominator",
-    "observed": 2263417.48,
+    "observed": 2185482.87,
     "parameter": "ebitda_max",
     "profile_id": "unclassified_operator",
     "rule_id": "valuation_ebitda_non_positive",
@@ -6684,7 +6694,7 @@
     "fired": true,
     "limit": 6.0,
     "note": "",
-    "observed": 12.308383179933735,
+    "observed": 12.74730176219592,
     "parameter": "critical",
     "profile_id": "unclassified_operator",
     "rule_id": "leverage_debt_to_ebitda",
@@ -6695,7 +6705,7 @@
     "fired": true,
     "limit": 4.5,
     "note": "",
-    "observed": 11.805598501430678,
+    "observed": 12.22658771514416,
     "parameter": "critical",
     "profile_id": "unclassified_operator",
     "rule_id": "leverage_net_debt_ebitda",
@@ -7013,8 +7023,8 @@
   "statement": "4 finding(s) surfaced under a cap of 7; every finding graded Critical at or above the materiality floor surfaces (2), exempt from the cap.",
   "surfaced": [
    {
-    "body": "162 (Credite bancare pe termen lung), 167 (Alte împrumuturi și datorii asimilate), 519 (Credite bancare pe termen scurt): drawn bank debt — RON 27,859,010; statutory EBITDA — RON 2,263,417; gross leverage multiple — 12.31×. Basis: the multiple is the company's own drawn debt over its own statutory EBITDA, judged against the ceiling this structural profile is graded on. Source: period p-saga_10_col_retail; snapshot doc-saga_10_col_retail; accounts 162, 167, 519; assembled_canonical_v1. Rule leverage_debt_to_ebitda fires when Debt/EBITDA covenant alarm is above 6.00×; observed 12.31×. Impact: Gross leverage, as drawn versus after the cash balance is applied moves from 12.31× to 11.81× (-0.50×). Earnings cover is the test a mid-size operator (structure not inferable) is refinanced on: the lending bank's credit committee sizes facilities off EBITDA, and at this multiple the next renewal is negotiated from a position of weakness rather than choice. Do this: 1) Draft the covenant certificate on this period's figures before the testing date — covenant compliance certificate with the leverage calculation shown, from the treasury team (before the next testing date). 2) Refinance the facilities maturing inside twelve months — refinancing term sheet or a written extension of the existing facility, from the relationship bank. Confidence medium — The account mix did not resolve to a structural profile, so this threshold is the cross-profile default rather than a tuned one. Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile unclassified_operator/band_mid/fin_bank_levered resolved from structure).",
-    "body_template": "162 (Credite bancare pe termen lung), 167 (Alte împrumuturi și datorii asimilate), 519 (Credite bancare pe termen scurt): drawn bank debt — {{money:bank_debt_total}}; statutory EBITDA — {{money:ebitda_statutory}}; gross leverage multiple — 12.31×. Basis: the multiple is the company's own drawn debt over its own statutory EBITDA, judged against the ceiling this structural profile is graded on. Source: period p-saga_10_col_retail; snapshot doc-saga_10_col_retail; accounts 162, 167, 519; assembled_canonical_v1. Rule leverage_debt_to_ebitda fires when Debt/EBITDA covenant alarm is above 6.00×; observed 12.31×. Impact: Gross leverage, as drawn versus after the cash balance is applied moves from 12.31× to 11.81× (-0.50×). Earnings cover is the test a mid-size operator (structure not inferable) is refinanced on: the lending bank's credit committee sizes facilities off EBITDA, and at this multiple the next renewal is negotiated from a position of weakness rather than choice. Do this: 1) Draft the covenant certificate on this period's figures before the testing date — covenant compliance certificate with the leverage calculation shown, from the treasury team (before the next testing date). 2) Refinance the facilities maturing inside twelve months — refinancing term sheet or a written extension of the existing facility, from the relationship bank. Confidence medium — The account mix did not resolve to a structural profile, so this threshold is the cross-profile default rather than a tuned one. Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile unclassified_operator/band_mid/fin_bank_levered resolved from structure).",
+    "body": "162 (Credite bancare pe termen lung), 167 (Alte împrumuturi și datorii asimilate), 519 (Credite bancare pe termen scurt): drawn bank debt — RON 27,859,010; statutory EBITDA — RON 2,185,483; gross leverage multiple — 12.75×. Basis: the multiple is the company's own drawn debt over its own statutory EBITDA, judged against the ceiling this structural profile is graded on. Source: period p-saga_10_col_retail; snapshot doc-saga_10_col_retail; accounts 162, 167, 519; assembled_canonical_v1. Rule leverage_debt_to_ebitda fires when Debt/EBITDA covenant alarm is above 6.00×; observed 12.75×. Impact: Gross leverage, as drawn versus after the cash balance is applied moves from 12.75× to 12.23× (-0.52×). Earnings cover is the test a mid-size operator (structure not inferable) is refinanced on: the lending bank's credit committee sizes facilities off EBITDA, and at this multiple the next renewal is negotiated from a position of weakness rather than choice. Do this: 1) Draft the covenant certificate on this period's figures before the testing date — covenant compliance certificate with the leverage calculation shown, from the treasury team (before the next testing date). 2) Refinance the facilities maturing inside twelve months — refinancing term sheet or a written extension of the existing facility, from the relationship bank. Confidence medium — The account mix did not resolve to a structural profile, so this threshold is the cross-profile default rather than a tuned one. Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile unclassified_operator/band_mid/fin_bank_levered resolved from structure).",
+    "body_template": "162 (Credite bancare pe termen lung), 167 (Alte împrumuturi și datorii asimilate), 519 (Credite bancare pe termen scurt): drawn bank debt — {{money:bank_debt_total}}; statutory EBITDA — {{money:ebitda_statutory}}; gross leverage multiple — 12.75×. Basis: the multiple is the company's own drawn debt over its own statutory EBITDA, judged against the ceiling this structural profile is graded on. Source: period p-saga_10_col_retail; snapshot doc-saga_10_col_retail; accounts 162, 167, 519; assembled_canonical_v1. Rule leverage_debt_to_ebitda fires when Debt/EBITDA covenant alarm is above 6.00×; observed 12.75×. Impact: Gross leverage, as drawn versus after the cash balance is applied moves from 12.75× to 12.23× (-0.52×). Earnings cover is the test a mid-size operator (structure not inferable) is refinanced on: the lending bank's credit committee sizes facilities off EBITDA, and at this multiple the next renewal is negotiated from a position of weakness rather than choice. Do this: 1) Draft the covenant certificate on this period's figures before the testing date — covenant compliance certificate with the leverage calculation shown, from the treasury team (before the next testing date). 2) Refinance the facilities maturing inside twelve months — refinancing term sheet or a written extension of the existing facility, from the relationship bank. Confidence medium — The account mix did not resolve to a structural profile, so this threshold is the cross-profile default rather than a tuned one. Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile unclassified_operator/band_mid/fin_bank_levered resolved from structure).",
     "category": "leverage",
     "contract_elements": {
      "action": {
@@ -7058,13 +7068,13 @@
         "fact": "ebitda_statutory",
         "label": "statutory EBITDA",
         "unit": "money",
-        "value": 2263417.48
+        "value": 2185482.87
        },
        {
         "fact": "debt_to_ebitda",
         "label": "gross leverage multiple",
         "unit": "ratio",
-        "value": 12.308383179933735
+        "value": 12.74730176219592
        }
       ],
       "provenance": {
@@ -7079,12 +7089,12 @@
       }
      },
      "impact": {
-      "adjusted": 11.805598501430678,
+      "adjusted": 12.22658771514416,
       "adjusted_fact": null,
-      "baseline": 12.308383179933735,
+      "baseline": 12.74730176219592,
       "baseline_fact": null,
       "currency": null,
-      "delta": -0.5027846785030565,
+      "delta": -0.5207140470517615,
       "kind": "recomputed_ratio",
       "metric": "debt_to_ebitda_after_applying_cash",
       "metric_label": "Gross leverage, as drawn versus after the cash balance is applied",
@@ -7116,7 +7126,7 @@
      "threshold": {
       "comparator": ">",
       "limit": 6.0,
-      "observed": 12.308383179933735,
+      "observed": 12.74730176219592,
       "parameter": "critical",
       "parameter_label": "Debt/EBITDA covenant alarm",
       "rule_id": "leverage_debt_to_ebitda",
@@ -7163,8 +7173,8 @@
     },
     "facts_cited": {
      "bank_debt_total": 27859009.64,
-     "debt_to_ebitda": 12.308383179933735,
-     "ebitda_statutory": 2263417.48
+     "debt_to_ebitda": 12.74730176219592,
+     "ebitda_statutory": 2185482.87
     },
     "facts_provenance": {
      "cited": {
@@ -7172,7 +7182,7 @@
        "accessor": "FactsGateway.ebitda()",
        "line_id": null,
        "snapshot_id": "sha256-f30f652d21b51674a6c325e56305fe7c667a4438b843a03667b18d61ca174651",
-       "value": 2263417.48
+       "value": 2185482.87
       }
      },
      "conflict_count": 0,
@@ -7231,12 +7241,12 @@
     "source": "radar",
     "source_currency": "RON",
     "surfaced": true,
-    "title": "Drawn bank debt on 162 / 167 / 519 against statutory EBITDA at 12.31× — above the 6.00× Debt/EBITDA covenant alarm for mid-size operator (structure not inferable)",
-    "title_template": "Drawn bank debt on 162 / 167 / 519 against statutory EBITDA at 12.31× — above the 6.00× Debt/EBITDA covenant alarm for mid-size operator (structure not inferable)"
+    "title": "Drawn bank debt on 162 / 167 / 519 against statutory EBITDA at 12.75× — above the 6.00× Debt/EBITDA covenant alarm for mid-size operator (structure not inferable)",
+    "title_template": "Drawn bank debt on 162 / 167 / 519 against statutory EBITDA at 12.75× — above the 6.00× Debt/EBITDA covenant alarm for mid-size operator (structure not inferable)"
    },
    {
-    "body": "162 (Credite bancare pe termen lung), 167 (Alte împrumuturi și datorii asimilate), 519 (Credite bancare pe termen scurt), 5121 (Conturi la bănci în lei): net debt after applying cash — RON 26,720,998; cash applied against the debt — RON 1,138,012; statutory EBITDA — RON 2,263,417; net leverage multiple — 11.81×. Basis: net debt is the company's own drawn debt less its own cash, judged against the net-leverage ceiling this structural profile is graded on. Source: period p-saga_10_col_retail; snapshot doc-saga_10_col_retail; accounts 162, 167, 519, 5121; assembled_canonical_v1. Rule leverage_net_debt_ebitda fires when Net Debt/EBITDA covenant alarm is above 4.50×; observed 11.81×. Impact: Net leverage, today versus after one period of free cash flow is applied to the debt moves from 11.81× to 9.55× (-2.26×). Net of cash, a mid-size operator (structure not inferable) at this multiple has no buffer left between an ordinary trading month and a covenant test, and the lending bank's credit committee measures it quarterly. Do this: 1) Repay the revolver down to the comfort ceiling with the free cash flow this period produced — debt amortisation plan tied to the rolling cash forecast, from the treasury team. 2) Agree a covenant reset with the lender before the next test — amendment letter or waiver covering the testing dates in the next twelve months, from the relationship bank. Confidence medium — The account mix did not resolve to a structural profile, so this threshold is the cross-profile default rather than a tuned one. Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile unclassified_operator/band_mid/fin_bank_levered resolved from structure).",
-    "body_template": "162 (Credite bancare pe termen lung), 167 (Alte împrumuturi și datorii asimilate), 519 (Credite bancare pe termen scurt), 5121 (Conturi la bănci în lei): net debt after applying cash — {{money:net_debt}}; cash applied against the debt — {{money:cash}}; statutory EBITDA — {{money:ebitda_statutory}}; net leverage multiple — 11.81×. Basis: net debt is the company's own drawn debt less its own cash, judged against the net-leverage ceiling this structural profile is graded on. Source: period p-saga_10_col_retail; snapshot doc-saga_10_col_retail; accounts 162, 167, 519, 5121; assembled_canonical_v1. Rule leverage_net_debt_ebitda fires when Net Debt/EBITDA covenant alarm is above 4.50×; observed 11.81×. Impact: Net leverage, today versus after one period of free cash flow is applied to the debt moves from 11.81× to 9.55× (-2.26×). Net of cash, a mid-size operator (structure not inferable) at this multiple has no buffer left between an ordinary trading month and a covenant test, and the lending bank's credit committee measures it quarterly. Do this: 1) Repay the revolver down to the comfort ceiling with the free cash flow this period produced — debt amortisation plan tied to the rolling cash forecast, from the treasury team. 2) Agree a covenant reset with the lender before the next test — amendment letter or waiver covering the testing dates in the next twelve months, from the relationship bank. Confidence medium — The account mix did not resolve to a structural profile, so this threshold is the cross-profile default rather than a tuned one. Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile unclassified_operator/band_mid/fin_bank_levered resolved from structure).",
+    "body": "162 (Credite bancare pe termen lung), 167 (Alte împrumuturi și datorii asimilate), 519 (Credite bancare pe termen scurt), 5121 (Conturi la bănci în lei): net debt after applying cash — RON 26,720,998; cash applied against the debt — RON 1,138,012; statutory EBITDA — RON 2,185,483; net leverage multiple — 12.23×. Basis: net debt is the company's own drawn debt less its own cash, judged against the net-leverage ceiling this structural profile is graded on. Source: period p-saga_10_col_retail; snapshot doc-saga_10_col_retail; accounts 162, 167, 519, 5121; assembled_canonical_v1. Rule leverage_net_debt_ebitda fires when Net Debt/EBITDA covenant alarm is above 4.50×; observed 12.23×. Impact: Net leverage, today versus after one period of free cash flow is applied to the debt moves from 12.23× to 9.89× (-2.34×). Net of cash, a mid-size operator (structure not inferable) at this multiple has no buffer left between an ordinary trading month and a covenant test, and the lending bank's credit committee measures it quarterly. Do this: 1) Repay the revolver down to the comfort ceiling with the free cash flow this period produced — debt amortisation plan tied to the rolling cash forecast, from the treasury team. 2) Agree a covenant reset with the lender before the next test — amendment letter or waiver covering the testing dates in the next twelve months, from the relationship bank. Confidence medium — The account mix did not resolve to a structural profile, so this threshold is the cross-profile default rather than a tuned one. Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile unclassified_operator/band_mid/fin_bank_levered resolved from structure).",
+    "body_template": "162 (Credite bancare pe termen lung), 167 (Alte împrumuturi și datorii asimilate), 519 (Credite bancare pe termen scurt), 5121 (Conturi la bănci în lei): net debt after applying cash — {{money:net_debt}}; cash applied against the debt — {{money:cash}}; statutory EBITDA — {{money:ebitda_statutory}}; net leverage multiple — 12.23×. Basis: net debt is the company's own drawn debt less its own cash, judged against the net-leverage ceiling this structural profile is graded on. Source: period p-saga_10_col_retail; snapshot doc-saga_10_col_retail; accounts 162, 167, 519, 5121; assembled_canonical_v1. Rule leverage_net_debt_ebitda fires when Net Debt/EBITDA covenant alarm is above 4.50×; observed 12.23×. Impact: Net leverage, today versus after one period of free cash flow is applied to the debt moves from 12.23× to 9.89× (-2.34×). Net of cash, a mid-size operator (structure not inferable) at this multiple has no buffer left between an ordinary trading month and a covenant test, and the lending bank's credit committee measures it quarterly. Do this: 1) Repay the revolver down to the comfort ceiling with the free cash flow this period produced — debt amortisation plan tied to the rolling cash forecast, from the treasury team. 2) Agree a covenant reset with the lender before the next test — amendment letter or waiver covering the testing dates in the next twelve months, from the relationship bank. Confidence medium — The account mix did not resolve to a structural profile, so this threshold is the cross-profile default rather than a tuned one. Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile unclassified_operator/band_mid/fin_bank_levered resolved from structure).",
     "category": "leverage",
     "contract_elements": {
      "action": {
@@ -7286,13 +7296,13 @@
         "fact": "ebitda_statutory",
         "label": "statutory EBITDA",
         "unit": "money",
-        "value": 2263417.48
+        "value": 2185482.87
        },
        {
         "fact": "net_debt_ebitda",
         "label": "net leverage multiple",
         "unit": "ratio",
-        "value": 11.805598501430678
+        "value": 12.22658771514416
        }
       ],
       "provenance": {
@@ -7308,12 +7318,12 @@
       }
      },
      "impact": {
-      "adjusted": 9.548161773496599,
+      "adjusted": 9.888650493060146,
       "adjusted_fact": null,
-      "baseline": 11.805598501430678,
+      "baseline": 12.22658771514416,
       "baseline_fact": null,
       "currency": null,
-      "delta": -2.2574367279340795,
+      "delta": -2.3379372220840136,
       "kind": "recomputed_ratio",
       "metric": "net_debt_ebitda_after_one_period_of_free_cash_flow",
       "metric_label": "Net leverage, today versus after one period of free cash flow is applied to the debt",
@@ -7351,7 +7361,7 @@
      "threshold": {
       "comparator": ">",
       "limit": 4.5,
-      "observed": 11.805598501430678,
+      "observed": 12.22658771514416,
       "parameter": "critical",
       "parameter_label": "Net Debt/EBITDA covenant alarm",
       "rule_id": "leverage_net_debt_ebitda",
@@ -7399,9 +7409,9 @@
     },
     "facts_cited": {
      "cash": 1138011.63,
-     "ebitda_statutory": 2263417.48,
+     "ebitda_statutory": 2185482.87,
      "net_debt": 26720998.01,
-     "net_debt_ebitda": 11.805598501430678
+     "net_debt_ebitda": 12.22658771514416
     },
     "facts_provenance": {
      "cited": {
@@ -7409,7 +7419,7 @@
        "accessor": "FactsGateway.ebitda()",
        "line_id": null,
        "snapshot_id": "sha256-f30f652d21b51674a6c325e56305fe7c667a4438b843a03667b18d61ca174651",
-       "value": 2263417.48
+       "value": 2185482.87
       }
      },
      "conflict_count": 0,
@@ -7472,8 +7482,8 @@
     "source": "radar",
     "source_currency": "RON",
     "surfaced": true,
-    "title": "Net debt on 162 / 167 / 519 after cash, against statutory EBITDA at 11.81× — above the 4.50× Net Debt/EBITDA covenant alarm for mid-size operator (structure not inferable)",
-    "title_template": "Net debt on 162 / 167 / 519 after cash, against statutory EBITDA at 11.81× — above the 4.50× Net Debt/EBITDA covenant alarm for mid-size operator (structure not inferable)"
+    "title": "Net debt on 162 / 167 / 519 after cash, against statutory EBITDA at 12.23× — above the 4.50× Net Debt/EBITDA covenant alarm for mid-size operator (structure not inferable)",
+    "title_template": "Net debt on 162 / 167 / 519 after cash, against statutory EBITDA at 12.23× — above the 4.50× Net Debt/EBITDA covenant alarm for mid-size operator (structure not inferable)"
    },
    {
     "body": "5121 (Conturi la bănci în lei), 5124 (Conturi la bănci în valută), 531 (Casa): cash and bank balances — RON 1,138,012; current liabilities — RON 17,006,446; cash cover of current liabilities — 0.07×. Basis: cash is measured against the company's own current liabilities for the same period, against the cash floor this structural profile is graded on. Source: period p-saga_10_col_retail; snapshot doc-saga_10_col_retail; accounts 5121, 5124, 531; assembled_canonical_v1. Rule liquidity_cash_tight fires when cash-ratio floor is below 0.10×; observed 0.07×. Impact: Days of operating cost the cash balance covers, as held versus at the floor this profile is graded on moves from 5 days to 8 days (+3 days). A mid-size operator (structure not inferable) settles payroll and suppliers on a fixed calendar; at this cash ratio a single delayed collection cycle is funded by a revolver rather than by the balance sheet. Do this: 1) Obtain a committed overdraft sized to one month of operating cost — signed committed facility term sheet, with the drawdown conditions, from the relationship bank (within this quarter). 2) Negotiate longer settlement terms on the largest 401 supplier balances — revised payment calendar for the ten largest supplier accounts, from the procurement lead. Confidence medium — The account mix did not resolve to a structural profile, so this threshold is the cross-profile default rather than a tuned one. Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile unclassified_operator/band_mid/fin_bank_levered resolved from structure).",
@@ -8075,7 +8085,7 @@
     "fired": false,
     "limit": 0.0,
     "note": "statutory EBITDA is positive, so an earnings multiple has a denominator",
-    "observed": 2263417.48,
+    "observed": 2185482.87,
     "parameter": "ebitda_max",
     "profile_id": "unclassified_operator",
     "rule_id": "valuation_ebitda_non_positive",
@@ -8097,7 +8107,7 @@
     "fired": true,
     "limit": 6.0,
     "note": "",
-    "observed": 12.308383179933735,
+    "observed": 12.74730176219592,
     "parameter": "critical",
     "profile_id": "unclassified_operator",
     "rule_id": "leverage_debt_to_ebitda",
@@ -8108,7 +8118,7 @@
     "fired": true,
     "limit": 4.5,
     "note": "",
-    "observed": 11.805598501430678,
+    "observed": 12.22658771514416,
     "parameter": "critical",
     "profile_id": "unclassified_operator",
     "rule_id": "leverage_net_debt_ebitda",
@@ -8128,8 +8138,8 @@
   ],
   "payloads": [
    {
-    "body": "162 (Credite bancare pe termen lung), 167 (Alte împrumuturi și datorii asimilate), 519 (Credite bancare pe termen scurt): drawn bank debt — RON 27,859,010; statutory EBITDA — RON 2,263,417; gross leverage multiple — 12.31×. Basis: the multiple is the company's own drawn debt over its own statutory EBITDA, judged against the ceiling this structural profile is graded on. Source: period p-saga_10_col_retail; snapshot doc-saga_10_col_retail; accounts 162, 167, 519; assembled_canonical_v1. Rule leverage_debt_to_ebitda fires when Debt/EBITDA covenant alarm is above 6.00×; observed 12.31×. Impact: Gross leverage, as drawn versus after the cash balance is applied moves from 12.31× to 11.81× (-0.50×). Earnings cover is the test a mid-size operator (structure not inferable) is refinanced on: the lending bank's credit committee sizes facilities off EBITDA, and at this multiple the next renewal is negotiated from a position of weakness rather than choice. Do this: 1) Draft the covenant certificate on this period's figures before the testing date — covenant compliance certificate with the leverage calculation shown, from the treasury team (before the next testing date). 2) Refinance the facilities maturing inside twelve months — refinancing term sheet or a written extension of the existing facility, from the relationship bank. Confidence medium — The account mix did not resolve to a structural profile, so this threshold is the cross-profile default rather than a tuned one. Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile unclassified_operator/band_mid/fin_bank_levered resolved from structure).",
-    "body_template": "162 (Credite bancare pe termen lung), 167 (Alte împrumuturi și datorii asimilate), 519 (Credite bancare pe termen scurt): drawn bank debt — {{money:bank_debt_total}}; statutory EBITDA — {{money:ebitda_statutory}}; gross leverage multiple — 12.31×. Basis: the multiple is the company's own drawn debt over its own statutory EBITDA, judged against the ceiling this structural profile is graded on. Source: period p-saga_10_col_retail; snapshot doc-saga_10_col_retail; accounts 162, 167, 519; assembled_canonical_v1. Rule leverage_debt_to_ebitda fires when Debt/EBITDA covenant alarm is above 6.00×; observed 12.31×. Impact: Gross leverage, as drawn versus after the cash balance is applied moves from 12.31× to 11.81× (-0.50×). Earnings cover is the test a mid-size operator (structure not inferable) is refinanced on: the lending bank's credit committee sizes facilities off EBITDA, and at this multiple the next renewal is negotiated from a position of weakness rather than choice. Do this: 1) Draft the covenant certificate on this period's figures before the testing date — covenant compliance certificate with the leverage calculation shown, from the treasury team (before the next testing date). 2) Refinance the facilities maturing inside twelve months — refinancing term sheet or a written extension of the existing facility, from the relationship bank. Confidence medium — The account mix did not resolve to a structural profile, so this threshold is the cross-profile default rather than a tuned one. Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile unclassified_operator/band_mid/fin_bank_levered resolved from structure).",
+    "body": "162 (Credite bancare pe termen lung), 167 (Alte împrumuturi și datorii asimilate), 519 (Credite bancare pe termen scurt): drawn bank debt — RON 27,859,010; statutory EBITDA — RON 2,185,483; gross leverage multiple — 12.75×. Basis: the multiple is the company's own drawn debt over its own statutory EBITDA, judged against the ceiling this structural profile is graded on. Source: period p-saga_10_col_retail; snapshot doc-saga_10_col_retail; accounts 162, 167, 519; assembled_canonical_v1. Rule leverage_debt_to_ebitda fires when Debt/EBITDA covenant alarm is above 6.00×; observed 12.75×. Impact: Gross leverage, as drawn versus after the cash balance is applied moves from 12.75× to 12.23× (-0.52×). Earnings cover is the test a mid-size operator (structure not inferable) is refinanced on: the lending bank's credit committee sizes facilities off EBITDA, and at this multiple the next renewal is negotiated from a position of weakness rather than choice. Do this: 1) Draft the covenant certificate on this period's figures before the testing date — covenant compliance certificate with the leverage calculation shown, from the treasury team (before the next testing date). 2) Refinance the facilities maturing inside twelve months — refinancing term sheet or a written extension of the existing facility, from the relationship bank. Confidence medium — The account mix did not resolve to a structural profile, so this threshold is the cross-profile default rather than a tuned one. Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile unclassified_operator/band_mid/fin_bank_levered resolved from structure).",
+    "body_template": "162 (Credite bancare pe termen lung), 167 (Alte împrumuturi și datorii asimilate), 519 (Credite bancare pe termen scurt): drawn bank debt — {{money:bank_debt_total}}; statutory EBITDA — {{money:ebitda_statutory}}; gross leverage multiple — 12.75×. Basis: the multiple is the company's own drawn debt over its own statutory EBITDA, judged against the ceiling this structural profile is graded on. Source: period p-saga_10_col_retail; snapshot doc-saga_10_col_retail; accounts 162, 167, 519; assembled_canonical_v1. Rule leverage_debt_to_ebitda fires when Debt/EBITDA covenant alarm is above 6.00×; observed 12.75×. Impact: Gross leverage, as drawn versus after the cash balance is applied moves from 12.75× to 12.23× (-0.52×). Earnings cover is the test a mid-size operator (structure not inferable) is refinanced on: the lending bank's credit committee sizes facilities off EBITDA, and at this multiple the next renewal is negotiated from a position of weakness rather than choice. Do this: 1) Draft the covenant certificate on this period's figures before the testing date — covenant compliance certificate with the leverage calculation shown, from the treasury team (before the next testing date). 2) Refinance the facilities maturing inside twelve months — refinancing term sheet or a written extension of the existing facility, from the relationship bank. Confidence medium — The account mix did not resolve to a structural profile, so this threshold is the cross-profile default rather than a tuned one. Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile unclassified_operator/band_mid/fin_bank_levered resolved from structure).",
     "category": "leverage",
     "contract_elements": {
      "action": {
@@ -8173,13 +8183,13 @@
         "fact": "ebitda_statutory",
         "label": "statutory EBITDA",
         "unit": "money",
-        "value": 2263417.48
+        "value": 2185482.87
        },
        {
         "fact": "debt_to_ebitda",
         "label": "gross leverage multiple",
         "unit": "ratio",
-        "value": 12.308383179933735
+        "value": 12.74730176219592
        }
       ],
       "provenance": {
@@ -8194,12 +8204,12 @@
       }
      },
      "impact": {
-      "adjusted": 11.805598501430678,
+      "adjusted": 12.22658771514416,
       "adjusted_fact": null,
-      "baseline": 12.308383179933735,
+      "baseline": 12.74730176219592,
       "baseline_fact": null,
       "currency": null,
-      "delta": -0.5027846785030565,
+      "delta": -0.5207140470517615,
       "kind": "recomputed_ratio",
       "metric": "debt_to_ebitda_after_applying_cash",
       "metric_label": "Gross leverage, as drawn versus after the cash balance is applied",
@@ -8231,7 +8241,7 @@
      "threshold": {
       "comparator": ">",
       "limit": 6.0,
-      "observed": 12.308383179933735,
+      "observed": 12.74730176219592,
       "parameter": "critical",
       "parameter_label": "Debt/EBITDA covenant alarm",
       "rule_id": "leverage_debt_to_ebitda",
@@ -8270,8 +8280,8 @@
     },
     "facts_cited": {
      "bank_debt_total": 27859009.64,
-     "debt_to_ebitda": 12.308383179933735,
-     "ebitda_statutory": 2263417.48
+     "debt_to_ebitda": 12.74730176219592,
+     "ebitda_statutory": 2185482.87
     },
     "missing_elements": [],
     "narrative_source": "deterministic",
@@ -8281,12 +8291,12 @@
     "severity": "critical",
     "source_currency": "RON",
     "surfaced": true,
-    "title": "Drawn bank debt on 162 / 167 / 519 against statutory EBITDA at 12.31× — above the 6.00× Debt/EBITDA covenant alarm for mid-size operator (structure not inferable)",
-    "title_template": "Drawn bank debt on 162 / 167 / 519 against statutory EBITDA at 12.31× — above the 6.00× Debt/EBITDA covenant alarm for mid-size operator (structure not inferable)"
+    "title": "Drawn bank debt on 162 / 167 / 519 against statutory EBITDA at 12.75× — above the 6.00× Debt/EBITDA covenant alarm for mid-size operator (structure not inferable)",
+    "title_template": "Drawn bank debt on 162 / 167 / 519 against statutory EBITDA at 12.75× — above the 6.00× Debt/EBITDA covenant alarm for mid-size operator (structure not inferable)"
    },
    {
-    "body": "162 (Credite bancare pe termen lung), 167 (Alte împrumuturi și datorii asimilate), 519 (Credite bancare pe termen scurt), 5121 (Conturi la bănci în lei): net debt after applying cash — RON 26,720,998; cash applied against the debt — RON 1,138,012; statutory EBITDA — RON 2,263,417; net leverage multiple — 11.81×. Basis: net debt is the company's own drawn debt less its own cash, judged against the net-leverage ceiling this structural profile is graded on. Source: period p-saga_10_col_retail; snapshot doc-saga_10_col_retail; accounts 162, 167, 519, 5121; assembled_canonical_v1. Rule leverage_net_debt_ebitda fires when Net Debt/EBITDA covenant alarm is above 4.50×; observed 11.81×. Impact: Net leverage, today versus after one period of free cash flow is applied to the debt moves from 11.81× to 9.55× (-2.26×). Net of cash, a mid-size operator (structure not inferable) at this multiple has no buffer left between an ordinary trading month and a covenant test, and the lending bank's credit committee measures it quarterly. Do this: 1) Repay the revolver down to the comfort ceiling with the free cash flow this period produced — debt amortisation plan tied to the rolling cash forecast, from the treasury team. 2) Agree a covenant reset with the lender before the next test — amendment letter or waiver covering the testing dates in the next twelve months, from the relationship bank. Confidence medium — The account mix did not resolve to a structural profile, so this threshold is the cross-profile default rather than a tuned one. Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile unclassified_operator/band_mid/fin_bank_levered resolved from structure).",
-    "body_template": "162 (Credite bancare pe termen lung), 167 (Alte împrumuturi și datorii asimilate), 519 (Credite bancare pe termen scurt), 5121 (Conturi la bănci în lei): net debt after applying cash — {{money:net_debt}}; cash applied against the debt — {{money:cash}}; statutory EBITDA — {{money:ebitda_statutory}}; net leverage multiple — 11.81×. Basis: net debt is the company's own drawn debt less its own cash, judged against the net-leverage ceiling this structural profile is graded on. Source: period p-saga_10_col_retail; snapshot doc-saga_10_col_retail; accounts 162, 167, 519, 5121; assembled_canonical_v1. Rule leverage_net_debt_ebitda fires when Net Debt/EBITDA covenant alarm is above 4.50×; observed 11.81×. Impact: Net leverage, today versus after one period of free cash flow is applied to the debt moves from 11.81× to 9.55× (-2.26×). Net of cash, a mid-size operator (structure not inferable) at this multiple has no buffer left between an ordinary trading month and a covenant test, and the lending bank's credit committee measures it quarterly. Do this: 1) Repay the revolver down to the comfort ceiling with the free cash flow this period produced — debt amortisation plan tied to the rolling cash forecast, from the treasury team. 2) Agree a covenant reset with the lender before the next test — amendment letter or waiver covering the testing dates in the next twelve months, from the relationship bank. Confidence medium — The account mix did not resolve to a structural profile, so this threshold is the cross-profile default rather than a tuned one. Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile unclassified_operator/band_mid/fin_bank_levered resolved from structure).",
+    "body": "162 (Credite bancare pe termen lung), 167 (Alte împrumuturi și datorii asimilate), 519 (Credite bancare pe termen scurt), 5121 (Conturi la bănci în lei): net debt after applying cash — RON 26,720,998; cash applied against the debt — RON 1,138,012; statutory EBITDA — RON 2,185,483; net leverage multiple — 12.23×. Basis: net debt is the company's own drawn debt less its own cash, judged against the net-leverage ceiling this structural profile is graded on. Source: period p-saga_10_col_retail; snapshot doc-saga_10_col_retail; accounts 162, 167, 519, 5121; assembled_canonical_v1. Rule leverage_net_debt_ebitda fires when Net Debt/EBITDA covenant alarm is above 4.50×; observed 12.23×. Impact: Net leverage, today versus after one period of free cash flow is applied to the debt moves from 12.23× to 9.89× (-2.34×). Net of cash, a mid-size operator (structure not inferable) at this multiple has no buffer left between an ordinary trading month and a covenant test, and the lending bank's credit committee measures it quarterly. Do this: 1) Repay the revolver down to the comfort ceiling with the free cash flow this period produced — debt amortisation plan tied to the rolling cash forecast, from the treasury team. 2) Agree a covenant reset with the lender before the next test — amendment letter or waiver covering the testing dates in the next twelve months, from the relationship bank. Confidence medium — The account mix did not resolve to a structural profile, so this threshold is the cross-profile default rather than a tuned one. Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile unclassified_operator/band_mid/fin_bank_levered resolved from structure).",
+    "body_template": "162 (Credite bancare pe termen lung), 167 (Alte împrumuturi și datorii asimilate), 519 (Credite bancare pe termen scurt), 5121 (Conturi la bănci în lei): net debt after applying cash — {{money:net_debt}}; cash applied against the debt — {{money:cash}}; statutory EBITDA — {{money:ebitda_statutory}}; net leverage multiple — 12.23×. Basis: net debt is the company's own drawn debt less its own cash, judged against the net-leverage ceiling this structural profile is graded on. Source: period p-saga_10_col_retail; snapshot doc-saga_10_col_retail; accounts 162, 167, 519, 5121; assembled_canonical_v1. Rule leverage_net_debt_ebitda fires when Net Debt/EBITDA covenant alarm is above 4.50×; observed 12.23×. Impact: Net leverage, today versus after one period of free cash flow is applied to the debt moves from 12.23× to 9.89× (-2.34×). Net of cash, a mid-size operator (structure not inferable) at this multiple has no buffer left between an ordinary trading month and a covenant test, and the lending bank's credit committee measures it quarterly. Do this: 1) Repay the revolver down to the comfort ceiling with the free cash flow this period produced — debt amortisation plan tied to the rolling cash forecast, from the treasury team. 2) Agree a covenant reset with the lender before the next test — amendment letter or waiver covering the testing dates in the next twelve months, from the relationship bank. Confidence medium — The account mix did not resolve to a structural profile, so this threshold is the cross-profile default rather than a tuned one. Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile unclassified_operator/band_mid/fin_bank_levered resolved from structure).",
     "category": "leverage",
     "contract_elements": {
      "action": {
@@ -8336,13 +8346,13 @@
         "fact": "ebitda_statutory",
         "label": "statutory EBITDA",
         "unit": "money",
-        "value": 2263417.48
+        "value": 2185482.87
        },
        {
         "fact": "net_debt_ebitda",
         "label": "net leverage multiple",
         "unit": "ratio",
-        "value": 11.805598501430678
+        "value": 12.22658771514416
        }
       ],
       "provenance": {
@@ -8358,12 +8368,12 @@
       }
      },
      "impact": {
-      "adjusted": 9.548161773496599,
+      "adjusted": 9.888650493060146,
       "adjusted_fact": null,
-      "baseline": 11.805598501430678,
+      "baseline": 12.22658771514416,
       "baseline_fact": null,
       "currency": null,
-      "delta": -2.2574367279340795,
+      "delta": -2.3379372220840136,
       "kind": "recomputed_ratio",
       "metric": "net_debt_ebitda_after_one_period_of_free_cash_flow",
       "metric_label": "Net leverage, today versus after one period of free cash flow is applied to the debt",
@@ -8401,7 +8411,7 @@
      "threshold": {
       "comparator": ">",
       "limit": 4.5,
-      "observed": 11.805598501430678,
+      "observed": 12.22658771514416,
       "parameter": "critical",
       "parameter_label": "Net Debt/EBITDA covenant alarm",
       "rule_id": "leverage_net_debt_ebitda",
@@ -8441,9 +8451,9 @@
     },
     "facts_cited": {
      "cash": 1138011.63,
-     "ebitda_statutory": 2263417.48,
+     "ebitda_statutory": 2185482.87,
      "net_debt": 26720998.01,
-     "net_debt_ebitda": 11.805598501430678
+     "net_debt_ebitda": 12.22658771514416
     },
     "missing_elements": [],
     "narrative_source": "deterministic",
@@ -8453,8 +8463,8 @@
     "severity": "critical",
     "source_currency": "RON",
     "surfaced": true,
-    "title": "Net debt on 162 / 167 / 519 after cash, against statutory EBITDA at 11.81× — above the 4.50× Net Debt/EBITDA covenant alarm for mid-size operator (structure not inferable)",
-    "title_template": "Net debt on 162 / 167 / 519 after cash, against statutory EBITDA at 11.81× — above the 4.50× Net Debt/EBITDA covenant alarm for mid-size operator (structure not inferable)"
+    "title": "Net debt on 162 / 167 / 519 after cash, against statutory EBITDA at 12.23× — above the 4.50× Net Debt/EBITDA covenant alarm for mid-size operator (structure not inferable)",
+    "title_template": "Net debt on 162 / 167 / 519 after cash, against statutory EBITDA at 12.23× — above the 4.50× Net Debt/EBITDA covenant alarm for mid-size operator (structure not inferable)"
    },
    {
     "body": "5121 (Conturi la bănci în lei), 5124 (Conturi la bănci în valută), 531 (Casa): cash and bank balances — RON 1,138,012; current liabilities — RON 17,006,446; cash cover of current liabilities — 0.07×. Basis: cash is measured against the company's own current liabilities for the same period, against the cash floor this structural profile is graded on. Source: period p-saga_10_col_retail; snapshot doc-saga_10_col_retail; accounts 5121, 5124, 531; assembled_canonical_v1. Rule liquidity_cash_tight fires when cash-ratio floor is below 0.10×; observed 0.07×. Impact: Days of operating cost the cash balance covers, as held versus at the floor this profile is graded on moves from 5 days to 8 days (+3 days). A mid-size operator (structure not inferable) settles payroll and suppliers on a fixed calendar; at this cash ratio a single delayed collection cycle is funded by a revolver rather than by the balance sheet. Do this: 1) Obtain a committed overdraft sized to one month of operating cost — signed committed facility term sheet, with the drawdown conditions, from the relationship bank (within this quarter). 2) Negotiate longer settlement terms on the largest 401 supplier balances — revised payment calendar for the ten largest supplier accounts, from the procurement lead. Confidence medium — The account mix did not resolve to a structural profile, so this threshold is the cross-profile default rather than a tuned one. Cash-flow lines are indirect-method approximations because no prior period was supplied; working-capital movements carry a wide band. (profile unclassified_operator/band_mid/fin_bank_levered resolved from structure).",
@@ -10432,7 +10442,7 @@
      "pack": "packs/ratios/inventory_days.yaml",
      "period_days": "supplementary.periodDays",
      "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
-     "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+     "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation + net_provisions.charges"
     },
     "reconciliation": {
      "difference": 0.0,
@@ -10939,11 +10949,11 @@
    "methodology": {
     "ebitda": {
      "adjusted": 1536548.84,
-     "cash": 2263417.48,
-     "reported": 2263417.48,
+     "cash": 2185482.87,
+     "reported": 2185482.87,
      "strict": 1536548.84
     },
-    "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+    "ebitda_definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
     "errors": [],
     "industry_key_applied": "default",
     "measured": {
@@ -10956,10 +10966,20 @@
       "provenance": "no_711_activity",
       "refusal": null,
       "value": 0.0
+     },
+     "provision_charges_outside_ebitda": {
+      "provenance": "pl_definition:6812+6814",
+      "refusal": null,
+      "value": 350361.72
+     },
+     "provision_reversals_outside_ebitda": {
+      "provenance": "pl_definition:7812+7814",
+      "refusal": null,
+      "value": 77934.61
      }
     },
     "methodology_id": "ro_ras_2025_v1",
-    "methodology_version": "1.1.0",
+    "methodology_version": "1.2.0",
     "missing_buckets": [
      "deferred_income_lt.net",
      "deferred_tax_assets.net",
@@ -11040,14 +11060,14 @@
       "direction": "higher_is_better",
       "note": "Rough DSCR; LT debt amortized over 8y assumption. Refine via per-period schedule when available.",
       "unit": "ratio",
-      "value": 0.344259
+      "value": 0.332405
      },
      "ebitda_margin_cash": {
       "band": null,
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 0.028644
+      "value": 0.027658
      },
      "ebitda_margin_reported": {
       "band": [
@@ -11057,7 +11077,7 @@
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 0.028644
+      "value": 0.027658
      },
      "ebitda_to_interest": {
       "band": [
@@ -11067,7 +11087,7 @@
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 0.731934
+      "value": 0.706732
      },
      "equity_ratio": {
       "band": [
@@ -11094,7 +11114,7 @@
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 0.229159
+      "value": 0.254361
      },
      "lt_debt_to_equity": {
       "band": null,
@@ -11111,7 +11131,7 @@
       "direction": "lower_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 11.264382
+      "value": 11.666071
      },
      "net_margin": {
       "band": [
@@ -11121,7 +11141,7 @@
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 0.039577
+      "value": 0.040563
      },
      "quick_ratio": {
       "band": [
@@ -11141,7 +11161,7 @@
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 0.044618
+      "value": 0.04573
      },
      "return_on_equity": {
       "band": [
@@ -11151,7 +11171,7 @@
       "direction": "higher_is_better",
       "note": "",
       "unit": "ratio",
-      "value": 0.123979
+      "value": 0.127069
      },
      "working_capital": {
       "band": null,
@@ -11168,7 +11188,7 @@
      "current_liabilities": 17006445.6,
      "gross_profit": 16900166.66,
      "net_debt": 25495998.01,
-     "operating_profit_reported": 708645.22,
+     "operating_profit_reported": 786579.83,
      "revenue_net": 79018306.77,
      "total_assets": 70089631.84,
      "total_debt": 27859009.64,
@@ -11360,23 +11380,32 @@
    "cogs": 63376621.45,
    "core_ebitda": 1939569.7,
    "cost_of_goods_sold": 63376621.45,
-   "depreciation": 1476837.65,
+   "depreciation": 1126475.93,
    "discounts_received": 1923.78,
    "ebit": 786579.83,
-   "ebitda": 2263417.48,
-   "ebitda_before_stock_variation": 2263417.48,
-   "ebitda_cash": 2263417.48,
-   "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
-   "ebitda_operating_view": 2263417.48,
-   "ebitda_operational": 2263417.48,
+   "ebitda": 2185482.87,
+   "ebitda_before_stock_variation": 2185482.87,
+   "ebitda_cash": 2185482.87,
+   "ebitda_definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
+   "ebitda_operating_view": 2185482.87,
+   "ebitda_operational": 2185482.87,
    "ebitda_reconciliation": {
     "bridge": {
+     "after_ebitda": [
+      {
+       "key": "net_provisions",
+       "label_en": "Net provisions and impairment adjustments (6812 + 6814 − 7812 − 7814) — outside EBITDA",
+       "label_ro": "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814) — în afara EBITDA",
+       "outside_ebitda": true,
+       "value": -272427.11
+      }
+     ],
      "parts": [
       {
        "key": "ebitda_before_stock_variation",
        "label_en": "EBITDA before stock variation and own work capitalised",
        "label_ro": "EBITDA înainte de variația stocurilor și producția imobilizată",
-       "value": 2263417.48
+       "value": 2185482.87
       },
       {
        "key": "inventory_variation",
@@ -11394,27 +11423,28 @@
        "key": "ebitda",
        "label_en": "EBITDA",
        "label_ro": "EBITDA",
-       "value": 2263417.48
+       "value": 2185482.87
       }
      ],
      "refusal": null
     },
-    "definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+    "definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
     "identity_with_121": false,
     "lines": [
      {
-      "accounts": "70x − 709",
+      "accounts": "70x − 709 + 7411",
       "key": "turnover",
       "label_en": "Net turnover",
       "label_ro": "Cifra de afaceri netă",
       "value": 79018306.77
      },
      {
-      "accounts": "74x, 75x, 77x, 78x",
+      "accounts": "74x, 75x, 77x, 78x (fără 7411, 7812, 7814)",
+      "accounts_en": "74x, 75x, 77x, 78x (excl. 7411, 7812, 7814)",
       "key": "other_operating_income",
       "label_en": "Other operating income",
       "label_ro": "Alte venituri din exploatare",
-      "value": 726868.64
+      "value": 648934.03
      },
      {
       "accounts": "72x",
@@ -11459,14 +11489,23 @@
       "label_ro": "EBITDA",
       "refusal": null,
       "subtotal": true,
-      "value": 2263417.48
+      "value": 2185482.87
      },
      {
-      "accounts": "681x",
+      "accounts": "68x fără 6812, 6814",
+      "accounts_en": "68x excl. 6812, 6814",
       "key": "depreciation",
-      "label_en": "Depreciation, provisions and impairment (681x)",
-      "label_ro": "Amortizări, provizioane și ajustări (681x)",
-      "value": -1476837.65
+      "label_en": "Depreciation, amortisation and other adjustments",
+      "label_ro": "Amortizări și alte ajustări",
+      "value": -1126475.93
+     },
+     {
+      "accounts": "6812 + 6814 − 7812 − 7814",
+      "key": "net_provisions",
+      "label_en": "Net provisions and impairment adjustments (6812 + 6814 − 7812 − 7814)",
+      "label_ro": "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814)",
+      "outside_ebitda": true,
+      "value": -272427.11
      },
      {
       "accounts": null,
@@ -11519,7 +11558,7 @@
     "schema": "ebitda_reconciliation/1"
    },
    "ebitda_refusal": null,
-   "ebitda_statutory": 2263417.48,
+   "ebitda_statutory": 2185482.87,
    "financial_expense": 671267.28,
    "financial_expense_total": 3092377.62,
    "financial_income": 5511010.41,
@@ -11572,23 +11611,65 @@
    "net_income_statutory": 3205212.62,
    "net_income_statutory_anchor": 3205212.62,
    "net_income_unexplained_vs_121": 0.0,
+   "net_provisions": {
+    "accounts": "6812 + 6814 − 7812 − 7814",
+    "charges": {
+     "by_account": {
+      "6812.04": 66500.0,
+      "6814.01": 188080.54,
+      "6814.02": 35781.18,
+      "6814.03": 60000.0
+     },
+     "prefixes": [
+      "6812",
+      "6814"
+     ],
+     "value": 350361.72
+    },
+    "label_en": "Net provisions and impairment adjustments (6812 + 6814 − 7812 − 7814)",
+    "label_ro": "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814)",
+    "name_en": "Net provisions and impairment adjustments",
+    "name_ro": "Provizioane și ajustări nete",
+    "outside_ebitda": true,
+    "reversals": {
+     "by_account": {
+      "7812.04": 50000.0,
+      "7814.01": 27934.61
+     },
+     "prefixes": [
+      "7812",
+      "7814"
+     ],
+     "value": 77934.61
+    },
+    "schema": "net_provisions/1",
+    "value": 272427.11
+   },
    "operating_ebit": 786579.83,
-   "operating_ebitda": 2263417.48,
+   "operating_ebitda": 2185482.87,
    "operating_result": 786579.83,
    "opex_excluding_cogs_and_da": 14105136.48,
    "opex_third_party": 703258.2,
    "opex_total": 14105136.48,
    "other_income_758": 245913.17,
-   "other_income_781_reversals": 77934.61,
+   "other_income_781_reversals": 0.0,
    "other_op_income_lump": 648934.03,
-   "other_operating_income": 726868.64,
+   "other_operating_income": 648934.03,
    "pretax": 3205212.62,
    "pretax_before_stock_variation": 3205212.62,
    "revenue": 79018306.77,
    "tax": 0.0,
    "total_operating_expense": 78958595.58,
    "total_operating_revenue": 79745175.41,
-   "turnover": 79018306.77
+   "turnover": 79018306.77,
+   "turnover_definition": {
+    "accounts": "70x − 709 + 7411",
+    "extra_prefixes": [
+     "7411"
+    ],
+    "placed_extra": 0.0,
+    "source": "OMFP 1802/2014, formularul F20 (contul de profit și pierdere): rd. 01 cifra de afaceri netă = rd. 02 … rd. 05; rd. 05 = venituri din subvenții de exploatare aferente cifrei de afaceri nete (ct. 7411)"
+   }
   },
   "balanceSheet": {
    "accountsPayable": 6455119.8,
@@ -12674,7 +12755,7 @@
        "role": "financialIncome"
       }
      ],
-     "claim": "This book earns more on financial assets than it pays on debt: financial income of RON 5,511,010.41 against financial expense of RON 3,092,377.62 leaves a net gain of RON 2,418,632.79, 106.9% of RON 2,263,417.48.",
+     "claim": "This book earns more on financial assets than it pays on debt: financial income of RON 5,511,010.41 against financial expense of RON 3,092,377.62 leaves a net gain of RON 2,418,632.79, 110.7% of RON 2,185,482.87.",
      "claim_template": "This book earns more on financial assets than it pays on debt: financial income of {money:financial_income} against financial expense of {money:financial_expense} leaves a net gain of {money:net_financial}, {measure:graded_share} of {money:graded_base}.",
      "facts": [
       {
@@ -12711,7 +12792,7 @@
        "label": "EBITDA",
        "name": "assembled_pl.ebitda",
        "unit": "money",
-       "value": 2263417.48
+       "value": 2185482.87
       }
      ],
      "formula": "Financial income − financial expense, against operating EBITDA",
@@ -12740,13 +12821,13 @@
        "key": "graded_share",
        "label": "Net financial result as a share of ebitda",
        "unit": "ratio",
-       "value": 1.068575643412
+       "value": 1.106681193067
       },
       {
        "key": "graded_base",
        "label": "EBITDA",
        "unit": "money",
-       "value": 2263417.48
+       "value": 2185482.87
       },
       {
        "key": "interest_expense",
@@ -12764,11 +12845,11 @@
        "key": "ebitda",
        "label": "EBITDA",
        "unit": "money",
-       "value": 2263417.48
+       "value": 2185482.87
       }
      ],
      "narrative": {
-      "explanation": "This book earns more on financial assets than it pays on debt: financial income of RON 5,511,010.41 against financial expense of RON 3,092,377.62 leaves a net gain of RON 2,418,632.79, 106.9% of RON 2,263,417.48. Graded critical: the amount at stake is 106.9% of ebitda, against the ladder printed beside this finding. The financial result is graded against the operating earnings it sits beside, because the question is how much of the bottom line the company earned by trading rather than by lending or borrowing.",
+      "explanation": "This book earns more on financial assets than it pays on debt: financial income of RON 5,511,010.41 against financial expense of RON 3,092,377.62 leaves a net gain of RON 2,418,632.79, 110.7% of RON 2,185,482.87. Graded critical: the amount at stake is 110.7% of ebitda, against the ladder printed beside this finding. The financial result is graded against the operating earnings it sits beside, because the question is how much of the bottom line the company earned by trading rather than by lending or borrowing.",
       "reason": "the advisory lane was not invoked for this build",
       "so_what": "Separate the operating result from the financial one when judging the trading business. Financial income earned on assets or affiliates does not repeat because trading improved.",
       "source": "deterministic"
@@ -12800,10 +12881,10 @@
       ],
       "basis": "ebitda_positive",
       "basis_label": "EBITDA",
-      "basis_value": 2263417.48,
+      "basis_value": 2185482.87,
       "level": "critical",
       "magnitude": 2418632.79,
-      "materiality": 1.068576,
+      "materiality": 1.106681,
       "why": "The financial result is graded against the operating earnings it sits beside, because the question is how much of the bottom line the company earned by trading rather than by lending or borrowing."
      },
      "title": "The financial line is not incidental to the result"
@@ -12853,26 +12934,26 @@
        "role": "otherIncome"
       }
      ],
-     "claim": "RON 726,868.64 of operating income is other operating income and provision reversals rather than trading margin — 32.1% of RON 2,263,417.48; the operating cash proxy is RON 4,682,050.27 against an EBITDA of RON 2,263,417.48, a conversion of 206.9%.",
+     "claim": "RON 648,934.03 of operating income is other operating income and provision reversals rather than trading margin — 29.7% of RON 2,185,482.87; the operating cash proxy is RON 4,682,050.27 against an EBITDA of RON 2,185,482.87, a conversion of 214.2%.",
      "claim_template": "{money:non_trading} of operating income is other operating income and provision reversals rather than trading margin — {measure:graded_share} of {money:graded_base}; the operating cash proxy is {money:cash_proxy} against an EBITDA of {money:ebitda}, a conversion of {measure:cash_conversion}.",
      "facts": [
       {
        "label": "EBITDA",
        "name": "assembled_pl.ebitda",
        "unit": "money",
-       "value": 2263417.48
+       "value": 2185482.87
       },
       {
        "label": "Other operating income",
        "name": "assembled_pl.other_operating_income",
        "unit": "money",
-       "value": 726868.64
+       "value": 648934.03
       },
       {
        "label": "Provision reversals",
        "name": "assembled_pl.other_income_781_reversals",
        "unit": "money",
-       "value": 77934.61
+       "value": 0.0
       },
       {
        "label": "Capitalised own work",
@@ -12895,31 +12976,31 @@
        "key": "non_trading",
        "label": "Other operating income and provision reversals",
        "unit": "money",
-       "value": 726868.64
+       "value": 648934.03
       },
       {
        "key": "ebitda",
        "label": "EBITDA",
        "unit": "money",
-       "value": 2263417.48
+       "value": 2185482.87
       },
       {
        "key": "graded_share",
        "label": "Non-trading income as a share of ebitda",
        "unit": "ratio",
-       "value": 0.321137680707
+       "value": 0.296929360055
       },
       {
        "key": "graded_base",
        "label": "EBITDA",
        "unit": "money",
-       "value": 2263417.48
+       "value": 2185482.87
       },
       {
        "key": "provision_reversals",
        "label": "Provision reversals (781)",
        "unit": "money",
-       "value": 77934.61
+       "value": 0.0
       },
       {
        "key": "capitalised_own_work",
@@ -12937,11 +13018,11 @@
        "key": "cash_conversion",
        "label": "Operating cash proxy ÷ EBITDA",
        "unit": "ratio",
-       "value": 2.068575643412
+       "value": 2.142341326153
       }
      ],
      "narrative": {
-      "explanation": "RON 726,868.64 of operating income is other operating income and provision reversals rather than trading margin — 32.1% of RON 2,263,417.48; the operating cash proxy is RON 4,682,050.27 against an EBITDA of RON 2,263,417.48, a conversion of 206.9%. Graded critical: the amount at stake is 32.1% of ebitda, against the ladder printed beside this finding. Non-trading income is graded against the EBITDA it is inside, so the severity answers \"how much of this margin is not trading\" rather than \"is this a big number\".",
+      "explanation": "RON 648,934.03 of operating income is other operating income and provision reversals rather than trading margin — 29.7% of RON 2,185,482.87; the operating cash proxy is RON 4,682,050.27 against an EBITDA of RON 2,185,482.87, a conversion of 214.2%. Graded high: the amount at stake is 29.7% of ebitda, against the ladder printed beside this finding. Non-trading income is graded against the EBITDA it is inside, so the severity answers \"how much of this margin is not trading\" rather than \"is this a big number\".",
       "reason": "the advisory lane was not invoked for this build",
       "so_what": "Strip the non-trading income out before applying any multiple. Provision reversals and other operating income do not recur, and an EBITDA that leans on them overstates the run rate.",
       "source": "deterministic"
@@ -12973,10 +13054,10 @@
       ],
       "basis": "ebitda_positive",
       "basis_label": "EBITDA",
-      "basis_value": 2263417.48,
-      "level": "critical",
-      "magnitude": 726868.64,
-      "materiality": 0.321138,
+      "basis_value": 2185482.87,
+      "level": "high",
+      "magnitude": 648934.03,
+      "materiality": 0.296929,
       "why": "Non-trading income is graded against the EBITDA it is inside, so the severity answers \"how much of this margin is not trading\" rather than \"is this a big number\"."
      },
      "title": "Part of EBITDA is not trading income"
@@ -13068,7 +13149,7 @@
        "role": "accumulated_amortization"
       }
      ],
-     "claim": "59.9% of gross PP&E is already depreciated; the remaining net book value of RON 2,557,631.52 carries 1.7 years of life at the current annual charge of RON 1,476,837.65.",
+     "claim": "59.9% of gross PP&E is already depreciated; the remaining net book value of RON 2,557,631.52 carries 2.3 years of life at the current annual charge of RON 1,126,475.93.",
      "claim_template": "{measure:depreciated_share} of gross PP&E is already depreciated; the remaining net book value of {money:net_book_value} carries {measure:remaining_book_life} of life at the current annual charge of {money:annual_da}.",
      "facts": [
       {
@@ -13099,7 +13180,7 @@
        "label": "D&A charge for the period",
        "name": "assembled_pl.depreciation",
        "unit": "money",
-       "value": 1476837.65
+       "value": 1126475.93
       }
      ],
      "formula": "Accumulated depreciation ÷ gross PP&E; net book value ÷ annual D&A = remaining book life",
@@ -13140,17 +13221,17 @@
        "key": "annual_da",
        "label": "Annual depreciation and amortisation charge",
        "unit": "money",
-       "value": 1476837.65
+       "value": 1126475.93
       },
       {
        "key": "remaining_book_life",
        "label": "Remaining book life at current charge",
        "unit": "years",
-       "value": 1.731829846023
+       "value": 2.270471522636
       }
      ],
      "narrative": {
-      "explanation": "59.9% of gross PP&E is already depreciated; the remaining net book value of RON 2,557,631.52 carries 1.7 years of life at the current annual charge of RON 1,476,837.65. Graded medium: the amount at stake is 59.9% of gross pp&e, against the ladder printed beside this finding. Depreciation is graded against the asset base that produced it, so a factory and a courier are compared on the share of their OWN gross PP&E already written off rather than on an absolute charge.",
+      "explanation": "59.9% of gross PP&E is already depreciated; the remaining net book value of RON 2,557,631.52 carries 2.3 years of life at the current annual charge of RON 1,126,475.93. Graded medium: the amount at stake is 59.9% of gross pp&e, against the ladder printed beside this finding. Depreciation is graded against the asset base that produced it, so a factory and a courier are compared on the share of their OWN gross PP&E already written off rather than on an absolute charge.",
       "reason": "the advisory lane was not invoked for this build",
       "so_what": "Ask for the fixed-asset register by acquisition year and the committed capex plan. A book this far through its depreciation life either has replacement spending ahead of it or is running assets past their useful life, and the two have very different cash consequences.",
       "source": "deterministic"
@@ -13837,7 +13918,7 @@
        "key": "net_debt_ebitda",
        "label": "Net debt ÷ EBITDA as reported",
        "unit": "multiple",
-       "value": 11.805598501431
+       "value": 12.226587715144
       }
      ],
      "narrative": {
@@ -14159,7 +14240,7 @@
     "pack": "packs/ratios/inventory_days.yaml",
     "period_days": "supplementary.periodDays",
     "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
-    "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+    "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation + net_provisions.charges"
    },
    "reconciliation": {
     "difference": 0.0,
