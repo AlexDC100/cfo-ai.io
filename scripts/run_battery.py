@@ -611,7 +611,12 @@ def _engine_gates() -> List[Gate]:
              # deleted from the file (realestate_no121) and every other
              # reader of total equity — briefing facts, methodology,
              # FactsGateway / Capsule, insights, R4, findings (measured 521).
-             work_rx=r"GATE-WORK refusal-carries-engine units=(\d+)", floor=480,
+             # critic round 3 fixer (2026-09-28): the sector benchmark (12k),
+             # the related-party order (12e both sides), the sub-scores worded
+             # on their own causes, and rows persisted before the refusal —
+             # GET metrics[] / the typed ratios / a stored valuations row / the
+             # narrator's rows (13) (measured 667).
+             work_rx=r"GATE-WORK refusal-carries-engine units=(\d+)", floor=600,
              units="engine surfaces checked to refuse with the 711 reason",
              canaries=("SCOPE refusal-carries-engine: refused books g6_uncleared "
                        "(account_121_opening_not_cleared); realestate_no121 (account_121_anchor_absent); "
@@ -624,8 +629,8 @@ def _engine_gates() -> List[Gate]:
                        "complete: g6_uncleared, unanchored",
                        # critic fixer round 2: every other reader of total equity
                        "EQUITY-READERS (briefing facts + Debt/Equity, methodology, FactsGateway.equity, "
-                       "Capsule, insights, R4, findings): unanchored (served), g6_uncleared (served), "
-                       "unanchored_unbalanced (refused), realestate_no121 (refused)")),
+                       "Capsule, insights, R4, findings, sector benchmark): unanchored (served), "
+                       "g6_uncleared (served), unanchored_unbalanced (refused), realestate_no121 (refused)")),
         # ── owner ruling 2026-09-26, design A6: valuation-one-ebitda ────
         # EV/EBITDA multiplies the ONE EBITDA (never the revision-2 fallback
         # that rebuilt a second one from the incomeStatement mirror on 0.0);
@@ -640,8 +645,11 @@ def _engine_gates() -> List[Gate]:
         # Plant log: gates.md "valuation-one-ebitda".
         Gate("valuation-one-ebitda",
              [PY, "-m", "pytest", "tests/engine/test_valuation_one_ebitda.py", "-q"],
-             work_junit=True, floor=18, units="tests",
+             # critic round 3 fixer (2026-09-28): one industry key for every
+             # served valuation (GET and the regenerate route) — 23 tests.
+             work_junit=True, floor=21, units="tests",
              canaries=("test_the_developer_is_valued_on_its_assets_by_the_margin_rule_not_by_its_ebitda_sign",
+                       "test_one_valuation_choice_one_industry_key",
                        "test_a_refused_ebitda_refuses_every_ev_ebitda_figure_with_its_cause",
                        "test_saving_an_override_stamps_it_and_get_serves_it_current",
                        "test_a_stored_row_on_the_previous_ebitda_is_refused_when_nothing_recomputes",
@@ -691,7 +699,8 @@ def _engine_gates() -> List[Gate]:
         # Plant log: gates.md "reprocess-periods-definition".
         Gate("reprocess-periods-definition",
              [PY, "-m", "pytest", "tests/engine/test_reprocess_periods_definition.py", "-q", "-s"],
-             work_rx=r"GATE-WORK reprocess-periods-definition units=(\d+)", floor=45,
+             # critic round 3 fixer: the apply reads the valuations row back (56).
+             work_rx=r"GATE-WORK reprocess-periods-definition units=(\d+)", floor=50,
              units="dry-run / apply / refusal facts checked",
              canaries=("SCOPE reprocess-periods-definition: corpus/saga_10_col_agras analysed",)),
         # ── plan/2 B4b (plan_contract_v2 5.6 / 28.3 B4): forecast-pools ──
@@ -1101,7 +1110,11 @@ def _engine_gates() -> List[Gate]:
              # the dashboard resolver and cards, periodFacts, the document's
              # recommendation rules, the Capsule fact index and the chat
              # context (38).
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=35,
+             # critic round 3 fixer (2026-09-28): the chat's Headline metrics
+             # over stale rows, F1 / F5 witnesses, no NaN on the Valuation tab
+             # or in the workbook, no bare dash on the Risks tab / report /
+             # export (47).
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=44,
              units="surface tests (a refused EBITDA stays refused, with the engine's reason, on every surface)",
              canaries=("covers the three refused books, and on each the buckets would rebuild a number",
                        "unanchored: growth, the credit model, the DCF and the NAV cascade refuse with it",
@@ -1120,7 +1133,12 @@ def _engine_gates() -> List[Gate]:
                        "unanchored_unbalanced: periodFacts refuses total equity and every ratio on it — no `mOr` fallback, no stale row",
                        "unanchored_unbalanced: the chat context states the refusal — never 'Total equity 200,000'",
                        "unanchored_unbalanced: the document's recommendation rules grade no exposure against the short equity",
-                       "unanchored_unbalanced: the equity ratio and debt / equity refuse with the engine's reason; balanced, they compute")),
+                       "unanchored_unbalanced: the equity ratio and debt / equity refuse with the engine's reason; balanced, they compute",
+                       # critic round 3 fixer (2026-09-28)
+                       "the chat's 'Headline metrics' over rows persisted before the refusal: the build-up and the short-equity ratios are stated refused, never printed",
+                       "the workbook: no NaN or Infinity cell on any sheet of any fixture book; the refused books print the reason",
+                       "the Valuation tab: no NaN, no 'Cash burning' beside a refused FCF — the engine's reason on every refused tile",
+                       "the Risks tab's Altman table and the report's §7 card print the engine's reason on X2, X3 and X4")),
         # ── fixer round 1 (2026-09-27): valuation-refused-override ────────
         # The Valuation tab seeded a refused EBITDA as 0 and sent it on EVERY
         # save (debt, cash, the multiple slider): the engine applied the 0 as
@@ -1134,11 +1152,14 @@ def _engine_gates() -> List[Gate]:
         Gate("valuation-refused-override",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/components/cfo/__tests__/valuationRefusedOverride.test.tsx", "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=7,
+             # critic round 3 fixer (2026-09-28): a withheld stored row on its
+             # own cause, no 0.0x slider or multiple save when none is served (10).
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=9,
              units="interaction tests (a valuation save sends only an EBITDA the user typed)",
              canaries=("editing Total debt sends no EBITDA",
                        "moving the multiple slider sends no EBITDA",
-                       "editing Cash does not pin the served EBITDA as a user assumption")),
+                       "editing Cash does not pin the served EBITDA as a user assumption",
+                       "no peer multiple served: no 0.0× slider and no editor whose save would pin a multiple of 0")),
         # RATIOS: the engine as the one authority for ratio values, bands,
         # deltas, band movements and credit composites (critic
         # authority_decision). Four gates, one per batch, named separately

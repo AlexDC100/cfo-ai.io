@@ -45,6 +45,14 @@
 // `mOr` falling back to the rows' sum, the Capsule fact index's derived
 // equity ratio and the chat context all refuse with the engine's reason on
 // `unanchored_unbalanced`, and keep their figures on `unanchored`.
+// CRITIC ROUND 3 (rounds 5-6 here, 2026-09-28): the chat's "Headline
+// metrics" over rows persisted before the refusal state them refused; a
+// refused net result prints no NaN (deriveCashFlow / runDcf / runGraham,
+// every workbook sheet of every fixture book, the Valuation panel) and no
+// FCF verdict; the WACC weighs no short equity; the Risks tab's Altman
+// X2-X4, the report's §4/§5/§7 and the export's headline figures print the
+// engine's reason, and total equity's refusal is not called "EBITDA
+// refused"; a stale X2 row never stands in (F1); the rendered NAV grid (F5).
 // CANNOT SEE: whether the engine was right to refuse (net-711-rule);
 // surfaces that do not print EBITDA; pixels.
 import { afterEach, describe, expect, it, vi } from "vitest";

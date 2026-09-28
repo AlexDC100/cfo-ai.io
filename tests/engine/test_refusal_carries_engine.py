@@ -72,12 +72,32 @@ deleted from the FILE (bs_balance_delta -801,604.14); the one margin rule
 refuses its margins first, with its own code — still refused, never a
 number.
 
+CRITIC ROUND 3 (2026-09-28). Section 12k: the sector benchmark
+(GET /api/period/{id}/sector-benchmark) built its company side from
+`canonical_bs` alone and restated a figure whenever the card was refused
+for anything but the margin rule — it graded the equity ratio 0.4925
+against the sector median on the real developer with no 121; the equity
+ratio (and ROE / ROA on a refused net result) now refuse with the engine's
+reason, the operand and the card clause each witnessed on its own. Section
+12e: the related-party insight names the equity refusal only when there is
+an exposure to grade (the constructed book has no related-party row).
+Section 11: the equity and profitability sub-scores are worded on their own
+causes. Section 13 (`test_refusal_carries_rows_persisted_before_the_refusal`):
+stage_compute no longer writes the build-up without 711 under `net_income` /
+`net_income_operational`, and rows persisted before the refusal (stale
+figures seeded into the double) are served refused by GET /api/period's
+`metrics[]` and typed ratios and by the narrator's rows (a filed X2 too),
+while a stale figure nothing refuses is served as it stands; GET over a
+stored valuations row carries the book-equity refusal.
+
 REDS ON (TC-11): any of those surfaces carrying a number (a 0 above all)
 for a refused EBITDA, EBIT or a ratio built on them; a surface carrying a
 different code than the 711 refusal; a scope without both refusal kinds
 (vacuous, TC-3).
 CANNOT SEE: whether the engine was right to refuse (net-711-rule); the
-browser (the frontend `refusal-carries` gate).
+browser (the frontend `refusal-carries` gate); a period persisted with rows
+this file does not seed (section 13 seeds the refused names and X2); the
+sector dataset's own figures (benchmarks-ro).
 """
 from __future__ import annotations
 
