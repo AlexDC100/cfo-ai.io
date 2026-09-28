@@ -23,7 +23,7 @@
     "liquidity": 0.1,
     "profitability": 0.2
    },
-   "credit_model_revision": 3,
+   "credit_model_revision": 4,
    "declared_rungs": {
     "coverage": {
      "file": "packs/credit/model.yaml",
@@ -918,7 +918,7 @@
       "pack": "packs/ratios/inventory_days.yaml",
       "period_days": "supplementary.periodDays",
       "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
-      "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+      "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation + net_provisions.charges"
      },
      "reconciliation": {
       "difference": 0.0,
@@ -1039,7 +1039,7 @@
       "reported": 290000.0,
       "strict": 290000.0
      },
-     "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+     "ebitda_definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
      "errors": [
       {
        "error": "ZeroDivisionError: division by zero",
@@ -1077,10 +1077,20 @@
        "provenance": "account_121_bridge",
        "refusal": null,
        "value": 50000.0
+      },
+      "provision_charges_outside_ebitda": {
+       "provenance": "pl_definition:6812+6814",
+       "refusal": null,
+       "value": 0.0
+      },
+      "provision_reversals_outside_ebitda": {
+       "provenance": "pl_definition:7812+7814",
+       "refusal": null,
+       "value": 0.0
       }
      },
      "methodology_id": "ro_ras_2025_v1",
-     "methodology_version": "1.1.0",
+     "methodology_version": "1.2.0",
      "missing_buckets": [
       "deferred_income_lt.net",
       "deferred_revenue_st.net",
@@ -1512,11 +1522,20 @@
     "ebitda": 290000.0,
     "ebitda_before_stock_variation": 200000.0,
     "ebitda_cash": 290000.0,
-    "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+    "ebitda_definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
     "ebitda_operating_view": 290000.0,
     "ebitda_operational": 290000.0,
     "ebitda_reconciliation": {
      "bridge": {
+      "after_ebitda": [
+       {
+        "key": "net_provisions",
+        "label_en": "Net provisions and impairment adjustments (6812 + 6814 − 7812 − 7814) — outside EBITDA",
+        "label_ro": "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814) — în afara EBITDA",
+        "outside_ebitda": true,
+        "value": -0.0
+       }
+      ],
       "parts": [
        {
         "key": "ebitda_before_stock_variation",
@@ -1545,20 +1564,21 @@
       ],
       "refusal": null
      },
-     "definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+     "definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
      "identity_note_en": "On a closed trial balance the 711 line is derived from account 121, so the reconciliation closes by construction.",
      "identity_note_ro": "Pe o balanță închisă linia 711 este derivată din contul 121, deci reconcilierea se închide prin construcție.",
      "identity_with_121": true,
      "lines": [
       {
-       "accounts": "70x − 709",
+       "accounts": "70x − 709 + 7411",
        "key": "turnover",
        "label_en": "Net turnover",
        "label_ro": "Cifra de afaceri netă",
        "value": 1000000.0
       },
       {
-       "accounts": "74x, 75x, 77x, 78x",
+       "accounts": "74x, 75x, 77x, 78x (fără 7411, 7812, 7814)",
+       "accounts_en": "74x, 75x, 77x, 78x (excl. 7411, 7812, 7814)",
        "key": "other_operating_income",
        "label_en": "Other operating income",
        "label_ro": "Alte venituri din exploatare",
@@ -1610,11 +1630,20 @@
        "value": 290000.0
       },
       {
-       "accounts": "681x",
+       "accounts": "68x fără 6812, 6814",
+       "accounts_en": "68x excl. 6812, 6814",
        "key": "depreciation",
-       "label_en": "Depreciation, provisions and impairment (681x)",
-       "label_ro": "Amortizări, provizioane și ajustări (681x)",
+       "label_en": "Depreciation, amortisation and other adjustments",
+       "label_ro": "Amortizări și alte ajustări",
        "value": -50000.0
+      },
+      {
+       "accounts": "6812 + 6814 − 7812 − 7814",
+       "key": "net_provisions",
+       "label_en": "Net provisions and impairment adjustments (6812 + 6814 − 7812 − 7814)",
+       "label_ro": "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814)",
+       "outside_ebitda": true,
+       "value": -0.0
       },
       {
        "accounts": null,
@@ -1724,6 +1753,32 @@
     "net_income_statutory": 210000.0,
     "net_income_statutory_anchor": 210000.0,
     "net_income_unexplained_vs_121": 0.0,
+    "net_provisions": {
+     "accounts": "6812 + 6814 − 7812 − 7814",
+     "charges": {
+      "by_account": {},
+      "prefixes": [
+       "6812",
+       "6814"
+      ],
+      "value": 0.0
+     },
+     "label_en": "Net provisions and impairment adjustments (6812 + 6814 − 7812 − 7814)",
+     "label_ro": "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814)",
+     "name_en": "Net provisions and impairment adjustments",
+     "name_ro": "Provizioane și ajustări nete",
+     "outside_ebitda": true,
+     "reversals": {
+      "by_account": {},
+      "prefixes": [
+       "7812",
+       "7814"
+      ],
+      "value": 0.0
+     },
+     "schema": "net_provisions/1",
+     "value": 0.0
+    },
     "operating_ebit": 240000.0,
     "operating_ebitda": 290000.0,
     "operating_result": 240000.0,
@@ -1731,7 +1786,7 @@
     "opex_third_party": 0.0,
     "opex_total": 200000.0,
     "other_income_758": 0,
-    "other_income_781_reversals": 0,
+    "other_income_781_reversals": 0.0,
     "other_op_income_lump": 0,
     "other_operating_income": 0.0,
     "pretax": 240000.0,
@@ -1740,7 +1795,15 @@
     "tax": 30000.0,
     "total_operating_expense": 850000.0,
     "total_operating_revenue": 1040000.0,
-    "turnover": 1000000.0
+    "turnover": 1000000.0,
+    "turnover_definition": {
+     "accounts": "70x − 709 + 7411",
+     "extra_prefixes": [
+      "7411"
+     ],
+     "placed_extra": 0.0,
+     "source": "OMFP 1802/2014, formularul F20 (contul de profit și pierdere): rd. 01 cifra de afaceri netă = rd. 02 … rd. 05; rd. 05 = venituri din subvenții de exploatare aferente cifrei de afaceri nete (ct. 7411)"
+    }
    },
    "balanceSheet": {
     "accountsPayable": 0.0,
@@ -2360,7 +2423,7 @@
      "pack": "packs/ratios/inventory_days.yaml",
      "period_days": "supplementary.periodDays",
      "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
-     "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+     "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation + net_provisions.charges"
     },
     "reconciliation": {
      "difference": 0.0,
@@ -2449,7 +2512,7 @@
     "liquidity": 0.1,
     "profitability": 0.2
    },
-   "credit_model_revision": 3,
+   "credit_model_revision": 4,
    "declared_rungs": {
     "coverage": {
      "file": "packs/credit/model.yaml",
@@ -3335,7 +3398,7 @@
       "pack": "packs/ratios/inventory_days.yaml",
       "period_days": "supplementary.periodDays",
       "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
-      "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+      "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation + net_provisions.charges"
      },
      "reconciliation": {
       "difference": 0.0,
@@ -3450,7 +3513,7 @@
       "reported": 250000.0,
       "strict": 250000.0
      },
-     "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+     "ebitda_definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
      "errors": [
       {
        "error": "ZeroDivisionError: division by zero",
@@ -3488,10 +3551,20 @@
        "provenance": "account_121_bridge",
        "refusal": null,
        "value": 50000.0
+      },
+      "provision_charges_outside_ebitda": {
+       "provenance": "pl_definition:6812+6814",
+       "refusal": null,
+       "value": 0.0
+      },
+      "provision_reversals_outside_ebitda": {
+       "provenance": "pl_definition:7812+7814",
+       "refusal": null,
+       "value": 0.0
       }
      },
      "methodology_id": "ro_ras_2025_v1",
-     "methodology_version": "1.1.0",
+     "methodology_version": "1.2.0",
      "missing_buckets": [
       "deferred_income_lt.net",
       "deferred_revenue_st.net",
@@ -3921,11 +3994,20 @@
     "ebitda": 250000.0,
     "ebitda_before_stock_variation": 200000.0,
     "ebitda_cash": 250000.0,
-    "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+    "ebitda_definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
     "ebitda_operating_view": 250000.0,
     "ebitda_operational": 250000.0,
     "ebitda_reconciliation": {
      "bridge": {
+      "after_ebitda": [
+       {
+        "key": "net_provisions",
+        "label_en": "Net provisions and impairment adjustments (6812 + 6814 − 7812 − 7814) — outside EBITDA",
+        "label_ro": "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814) — în afara EBITDA",
+        "outside_ebitda": true,
+        "value": -0.0
+       }
+      ],
       "parts": [
        {
         "key": "ebitda_before_stock_variation",
@@ -3954,20 +4036,21 @@
       ],
       "refusal": null
      },
-     "definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+     "definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
      "identity_note_en": "On a closed trial balance the 711 line is derived from account 121, so the reconciliation closes by construction.",
      "identity_note_ro": "Pe o balanță închisă linia 711 este derivată din contul 121, deci reconcilierea se închide prin construcție.",
      "identity_with_121": true,
      "lines": [
       {
-       "accounts": "70x − 709",
+       "accounts": "70x − 709 + 7411",
        "key": "turnover",
        "label_en": "Net turnover",
        "label_ro": "Cifra de afaceri netă",
        "value": 1000000.0
       },
       {
-       "accounts": "74x, 75x, 77x, 78x",
+       "accounts": "74x, 75x, 77x, 78x (fără 7411, 7812, 7814)",
+       "accounts_en": "74x, 75x, 77x, 78x (excl. 7411, 7812, 7814)",
        "key": "other_operating_income",
        "label_en": "Other operating income",
        "label_ro": "Alte venituri din exploatare",
@@ -4019,11 +4102,20 @@
        "value": 250000.0
       },
       {
-       "accounts": "681x",
+       "accounts": "68x fără 6812, 6814",
+       "accounts_en": "68x excl. 6812, 6814",
        "key": "depreciation",
-       "label_en": "Depreciation, provisions and impairment (681x)",
-       "label_ro": "Amortizări, provizioane și ajustări (681x)",
+       "label_en": "Depreciation, amortisation and other adjustments",
+       "label_ro": "Amortizări și alte ajustări",
        "value": -50000.0
+      },
+      {
+       "accounts": "6812 + 6814 − 7812 − 7814",
+       "key": "net_provisions",
+       "label_en": "Net provisions and impairment adjustments (6812 + 6814 − 7812 − 7814)",
+       "label_ro": "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814)",
+       "outside_ebitda": true,
+       "value": -0.0
       },
       {
        "accounts": null,
@@ -4131,6 +4223,32 @@
     "net_income_statutory": 170000.0,
     "net_income_statutory_anchor": 170000.0,
     "net_income_unexplained_vs_121": 0.0,
+    "net_provisions": {
+     "accounts": "6812 + 6814 − 7812 − 7814",
+     "charges": {
+      "by_account": {},
+      "prefixes": [
+       "6812",
+       "6814"
+      ],
+      "value": 0.0
+     },
+     "label_en": "Net provisions and impairment adjustments (6812 + 6814 − 7812 − 7814)",
+     "label_ro": "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814)",
+     "name_en": "Net provisions and impairment adjustments",
+     "name_ro": "Provizioane și ajustări nete",
+     "outside_ebitda": true,
+     "reversals": {
+      "by_account": {},
+      "prefixes": [
+       "7812",
+       "7814"
+      ],
+      "value": 0.0
+     },
+     "schema": "net_provisions/1",
+     "value": 0.0
+    },
     "operating_ebit": 200000.0,
     "operating_ebitda": 250000.0,
     "operating_result": 200000.0,
@@ -4138,7 +4256,7 @@
     "opex_third_party": 0.0,
     "opex_total": 200000.0,
     "other_income_758": 0,
-    "other_income_781_reversals": 0,
+    "other_income_781_reversals": 0.0,
     "other_op_income_lump": 0,
     "other_operating_income": 0.0,
     "pretax": 200000.0,
@@ -4147,7 +4265,15 @@
     "tax": 30000.0,
     "total_operating_expense": 850000.0,
     "total_operating_revenue": 1000000.0,
-    "turnover": 1000000.0
+    "turnover": 1000000.0,
+    "turnover_definition": {
+     "accounts": "70x − 709 + 7411",
+     "extra_prefixes": [
+      "7411"
+     ],
+     "placed_extra": 0.0,
+     "source": "OMFP 1802/2014, formularul F20 (contul de profit și pierdere): rd. 01 cifra de afaceri netă = rd. 02 … rd. 05; rd. 05 = venituri din subvenții de exploatare aferente cifrei de afaceri nete (ct. 7411)"
+    }
    },
    "balanceSheet": {
     "accountsPayable": 0.0,
@@ -4780,7 +4906,7 @@
      "pack": "packs/ratios/inventory_days.yaml",
      "period_days": "supplementary.periodDays",
      "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
-     "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+     "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation + net_provisions.charges"
     },
     "reconciliation": {
      "difference": 0.0,
@@ -4869,7 +4995,7 @@
     "liquidity": 0.1,
     "profitability": 0.2
    },
-   "credit_model_revision": 3,
+   "credit_model_revision": 4,
    "declared_rungs": {
     "coverage": {
      "file": "packs/credit/model.yaml",
@@ -5741,7 +5867,7 @@
       "pack": "packs/ratios/inventory_days.yaml",
       "period_days": "supplementary.periodDays",
       "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
-      "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+      "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation + net_provisions.charges"
      },
      "reconciliation": {
       "difference": 0.0,
@@ -5850,7 +5976,7 @@
       "reported": 200000.0,
       "strict": 200000.0
      },
-     "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+     "ebitda_definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
      "errors": [
       {
        "error": "ZeroDivisionError: division by zero",
@@ -5888,10 +6014,20 @@
        "provenance": "no_711_activity",
        "refusal": null,
        "value": 0.0
+      },
+      "provision_charges_outside_ebitda": {
+       "provenance": "pl_definition:6812+6814",
+       "refusal": null,
+       "value": 0.0
+      },
+      "provision_reversals_outside_ebitda": {
+       "provenance": "pl_definition:7812+7814",
+       "refusal": null,
+       "value": 0.0
       }
      },
      "methodology_id": "ro_ras_2025_v1",
-     "methodology_version": "1.1.0",
+     "methodology_version": "1.2.0",
      "missing_buckets": [
       "deferred_income_lt.net",
       "deferred_revenue_st.net",
@@ -6321,11 +6457,20 @@
     "ebitda": 200000.0,
     "ebitda_before_stock_variation": 200000.0,
     "ebitda_cash": 200000.0,
-    "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+    "ebitda_definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
     "ebitda_operating_view": 200000.0,
     "ebitda_operational": 200000.0,
     "ebitda_reconciliation": {
      "bridge": {
+      "after_ebitda": [
+       {
+        "key": "net_provisions",
+        "label_en": "Net provisions and impairment adjustments (6812 + 6814 − 7812 − 7814) — outside EBITDA",
+        "label_ro": "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814) — în afara EBITDA",
+        "outside_ebitda": true,
+        "value": -0.0
+       }
+      ],
       "parts": [
        {
         "key": "ebitda_before_stock_variation",
@@ -6354,18 +6499,19 @@
       ],
       "refusal": null
      },
-     "definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+     "definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
      "identity_with_121": false,
      "lines": [
       {
-       "accounts": "70x − 709",
+       "accounts": "70x − 709 + 7411",
        "key": "turnover",
        "label_en": "Net turnover",
        "label_ro": "Cifra de afaceri netă",
        "value": 1000000.0
       },
       {
-       "accounts": "74x, 75x, 77x, 78x",
+       "accounts": "74x, 75x, 77x, 78x (fără 7411, 7812, 7814)",
+       "accounts_en": "74x, 75x, 77x, 78x (excl. 7411, 7812, 7814)",
        "key": "other_operating_income",
        "label_en": "Other operating income",
        "label_ro": "Alte venituri din exploatare",
@@ -6417,11 +6563,20 @@
        "value": 200000.0
       },
       {
-       "accounts": "681x",
+       "accounts": "68x fără 6812, 6814",
+       "accounts_en": "68x excl. 6812, 6814",
        "key": "depreciation",
-       "label_en": "Depreciation, provisions and impairment (681x)",
-       "label_ro": "Amortizări, provizioane și ajustări (681x)",
+       "label_en": "Depreciation, amortisation and other adjustments",
+       "label_ro": "Amortizări și alte ajustări",
        "value": -50000.0
+      },
+      {
+       "accounts": "6812 + 6814 − 7812 − 7814",
+       "key": "net_provisions",
+       "label_en": "Net provisions and impairment adjustments (6812 + 6814 − 7812 − 7814)",
+       "label_ro": "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814)",
+       "outside_ebitda": true,
+       "value": -0.0
       },
       {
        "accounts": null,
@@ -6527,6 +6682,32 @@
     "net_income_statutory": 122000.0,
     "net_income_statutory_anchor": 122000.0,
     "net_income_unexplained_vs_121": 2000.0,
+    "net_provisions": {
+     "accounts": "6812 + 6814 − 7812 − 7814",
+     "charges": {
+      "by_account": {},
+      "prefixes": [
+       "6812",
+       "6814"
+      ],
+      "value": 0.0
+     },
+     "label_en": "Net provisions and impairment adjustments (6812 + 6814 − 7812 − 7814)",
+     "label_ro": "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814)",
+     "name_en": "Net provisions and impairment adjustments",
+     "name_ro": "Provizioane și ajustări nete",
+     "outside_ebitda": true,
+     "reversals": {
+      "by_account": {},
+      "prefixes": [
+       "7812",
+       "7814"
+      ],
+      "value": 0.0
+     },
+     "schema": "net_provisions/1",
+     "value": 0.0
+    },
     "operating_ebit": 150000.0,
     "operating_ebitda": 200000.0,
     "operating_result": 150000.0,
@@ -6534,7 +6715,7 @@
     "opex_third_party": 0.0,
     "opex_total": 200000.0,
     "other_income_758": 0,
-    "other_income_781_reversals": 0,
+    "other_income_781_reversals": 0.0,
     "other_op_income_lump": 0,
     "other_operating_income": 0.0,
     "pretax": 150000.0,
@@ -6543,7 +6724,15 @@
     "tax": 30000.0,
     "total_operating_expense": 850000.0,
     "total_operating_revenue": 1000000.0,
-    "turnover": 1000000.0
+    "turnover": 1000000.0,
+    "turnover_definition": {
+     "accounts": "70x − 709 + 7411",
+     "extra_prefixes": [
+      "7411"
+     ],
+     "placed_extra": 0.0,
+     "source": "OMFP 1802/2014, formularul F20 (contul de profit și pierdere): rd. 01 cifra de afaceri netă = rd. 02 … rd. 05; rd. 05 = venituri din subvenții de exploatare aferente cifrei de afaceri nete (ct. 7411)"
+    }
    },
    "balanceSheet": {
     "accountsPayable": 0.0,
@@ -7272,7 +7461,7 @@
      "pack": "packs/ratios/inventory_days.yaml",
      "period_days": "supplementary.periodDays",
      "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
-     "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+     "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation + net_provisions.charges"
     },
     "reconciliation": {
      "difference": 0.0,
@@ -7361,7 +7550,7 @@
     "liquidity": 0.1,
     "profitability": 0.2
    },
-   "credit_model_revision": 3,
+   "credit_model_revision": 4,
    "declared_rungs": {},
    "letter_grade": null,
    "letter_grade_bands": [
@@ -8342,7 +8531,7 @@
       "pack": "packs/ratios/inventory_days.yaml",
       "period_days": "supplementary.periodDays",
       "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
-      "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+      "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation + net_provisions.charges"
      },
      "reconciliation": {
       "difference": 0.0,
@@ -8469,7 +8658,7 @@
       "reported": null,
       "strict": null
      },
-     "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+     "ebitda_definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
      "errors": [
       {
        "error": "ZeroDivisionError: division by zero",
@@ -8499,10 +8688,20 @@
         "text_ro": "soldul inițial al contului 121 (rezultatul anului anterior) nu apare închis în perioadă, deci ar intra în variația stocurilor"
        },
        "value": null
+      },
+      "provision_charges_outside_ebitda": {
+       "provenance": "pl_definition:6812+6814",
+       "refusal": null,
+       "value": 0.0
+      },
+      "provision_reversals_outside_ebitda": {
+       "provenance": "pl_definition:7812+7814",
+       "refusal": null,
+       "value": 0.0
       }
      },
      "methodology_id": "ro_ras_2025_v1",
-     "methodology_version": "1.1.0",
+     "methodology_version": "1.2.0",
      "missing_buckets": [
       "deferred_income_lt.net",
       "deferred_revenue_st.net",
@@ -9063,11 +9262,20 @@
     "ebitda": null,
     "ebitda_before_stock_variation": 200000.0,
     "ebitda_cash": null,
-    "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+    "ebitda_definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
     "ebitda_operating_view": null,
     "ebitda_operational": null,
     "ebitda_reconciliation": {
      "bridge": {
+      "after_ebitda": [
+       {
+        "key": "net_provisions",
+        "label_en": "Net provisions and impairment adjustments (6812 + 6814 − 7812 − 7814) — outside EBITDA",
+        "label_ro": "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814) — în afara EBITDA",
+        "outside_ebitda": true,
+        "value": -0.0
+       }
+      ],
       "parts": [
        {
         "key": "ebitda_before_stock_variation",
@@ -9116,18 +9324,19 @@
        "text_ro": "soldul inițial al contului 121 (rezultatul anului anterior) nu apare închis în perioadă, deci ar intra în variația stocurilor"
       }
      },
-     "definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+     "definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
      "identity_with_121": false,
      "lines": [
       {
-       "accounts": "70x − 709",
+       "accounts": "70x − 709 + 7411",
        "key": "turnover",
        "label_en": "Net turnover",
        "label_ro": "Cifra de afaceri netă",
        "value": 1000000.0
       },
       {
-       "accounts": "74x, 75x, 77x, 78x",
+       "accounts": "74x, 75x, 77x, 78x (fără 7411, 7812, 7814)",
+       "accounts_en": "74x, 75x, 77x, 78x (excl. 7411, 7812, 7814)",
        "key": "other_operating_income",
        "label_en": "Other operating income",
        "label_ro": "Alte venituri din exploatare",
@@ -9203,11 +9412,20 @@
        "value": null
       },
       {
-       "accounts": "681x",
+       "accounts": "68x fără 6812, 6814",
+       "accounts_en": "68x excl. 6812, 6814",
        "key": "depreciation",
-       "label_en": "Depreciation, provisions and impairment (681x)",
-       "label_ro": "Amortizări, provizioane și ajustări (681x)",
+       "label_en": "Depreciation, amortisation and other adjustments",
+       "label_ro": "Amortizări și alte ajustări",
        "value": -50000.0
+      },
+      {
+       "accounts": "6812 + 6814 − 7812 − 7814",
+       "key": "net_provisions",
+       "label_en": "Net provisions and impairment adjustments (6812 + 6814 − 7812 − 7814)",
+       "label_ro": "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814)",
+       "outside_ebitda": true,
+       "value": -0.0
       },
       {
        "accounts": null,
@@ -9377,6 +9595,32 @@
     "net_income_statutory": 250000.0,
     "net_income_statutory_anchor": 250000.0,
     "net_income_unexplained_vs_121": 130000.0,
+    "net_provisions": {
+     "accounts": "6812 + 6814 − 7812 − 7814",
+     "charges": {
+      "by_account": {},
+      "prefixes": [
+       "6812",
+       "6814"
+      ],
+      "value": 0.0
+     },
+     "label_en": "Net provisions and impairment adjustments (6812 + 6814 − 7812 − 7814)",
+     "label_ro": "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814)",
+     "name_en": "Net provisions and impairment adjustments",
+     "name_ro": "Provizioane și ajustări nete",
+     "outside_ebitda": true,
+     "reversals": {
+      "by_account": {},
+      "prefixes": [
+       "7812",
+       "7814"
+      ],
+      "value": 0.0
+     },
+     "schema": "net_provisions/1",
+     "value": 0.0
+    },
     "operating_ebit": null,
     "operating_ebitda": null,
     "operating_result": null,
@@ -9384,7 +9628,7 @@
     "opex_third_party": 0.0,
     "opex_total": 200000.0,
     "other_income_758": 0,
-    "other_income_781_reversals": 0,
+    "other_income_781_reversals": 0.0,
     "other_op_income_lump": 0,
     "other_operating_income": 0.0,
     "pretax": null,
@@ -9393,7 +9637,15 @@
     "tax": 30000.0,
     "total_operating_expense": 850000.0,
     "total_operating_revenue": 1000000.0,
-    "turnover": 1000000.0
+    "turnover": 1000000.0,
+    "turnover_definition": {
+     "accounts": "70x − 709 + 7411",
+     "extra_prefixes": [
+      "7411"
+     ],
+     "placed_extra": 0.0,
+     "source": "OMFP 1802/2014, formularul F20 (contul de profit și pierdere): rd. 01 cifra de afaceri netă = rd. 02 … rd. 05; rd. 05 = venituri din subvenții de exploatare aferente cifrei de afaceri nete (ct. 7411)"
+    }
    },
    "balanceSheet": {
     "accountsPayable": 0.0,
@@ -10044,7 +10296,7 @@
      "pack": "packs/ratios/inventory_days.yaml",
      "period_days": "supplementary.periodDays",
      "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
-     "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+     "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation + net_provisions.charges"
     },
     "reconciliation": {
      "difference": 0.0,
@@ -10145,7 +10397,7 @@
     "liquidity": 0.1,
     "profitability": 0.2
    },
-   "credit_model_revision": 3,
+   "credit_model_revision": 4,
    "declared_rungs": {
     "coverage": {
      "file": "packs/credit/model.yaml",
@@ -11000,7 +11252,7 @@
       "pack": "packs/ratios/inventory_days.yaml",
       "period_days": "supplementary.periodDays",
       "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
-      "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+      "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation + net_provisions.charges"
      },
      "reconciliation": {
       "difference": 0.0,
@@ -11110,7 +11362,7 @@
       "reported": 250000.0,
       "strict": 250000.0
      },
-     "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+     "ebitda_definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
      "errors": [
       {
        "error": "ZeroDivisionError: division by zero",
@@ -11148,10 +11400,20 @@
        "provenance": "711_net_movement",
        "refusal": null,
        "value": 50000.0
+      },
+      "provision_charges_outside_ebitda": {
+       "provenance": "pl_definition:6812+6814",
+       "refusal": null,
+       "value": 0.0
+      },
+      "provision_reversals_outside_ebitda": {
+       "provenance": "pl_definition:7812+7814",
+       "refusal": null,
+       "value": 0.0
       }
      },
      "methodology_id": "ro_ras_2025_v1",
-     "methodology_version": "1.1.0",
+     "methodology_version": "1.2.0",
      "missing_buckets": [
       "deferred_income_lt.net",
       "deferred_revenue_st.net",
@@ -11579,11 +11841,20 @@
     "ebitda": 250000.0,
     "ebitda_before_stock_variation": 200000.0,
     "ebitda_cash": 250000.0,
-    "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+    "ebitda_definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
     "ebitda_operating_view": 250000.0,
     "ebitda_operational": 250000.0,
     "ebitda_reconciliation": {
      "bridge": {
+      "after_ebitda": [
+       {
+        "key": "net_provisions",
+        "label_en": "Net provisions and impairment adjustments (6812 + 6814 − 7812 − 7814) — outside EBITDA",
+        "label_ro": "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814) — în afara EBITDA",
+        "outside_ebitda": true,
+        "value": -0.0
+       }
+      ],
       "parts": [
        {
         "key": "ebitda_before_stock_variation",
@@ -11612,18 +11883,19 @@
       ],
       "refusal": null
      },
-     "definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+     "definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
      "identity_with_121": false,
      "lines": [
       {
-       "accounts": "70x − 709",
+       "accounts": "70x − 709 + 7411",
        "key": "turnover",
        "label_en": "Net turnover",
        "label_ro": "Cifra de afaceri netă",
        "value": 1000000.0
       },
       {
-       "accounts": "74x, 75x, 77x, 78x",
+       "accounts": "74x, 75x, 77x, 78x (fără 7411, 7812, 7814)",
+       "accounts_en": "74x, 75x, 77x, 78x (excl. 7411, 7812, 7814)",
        "key": "other_operating_income",
        "label_en": "Other operating income",
        "label_ro": "Alte venituri din exploatare",
@@ -11675,11 +11947,20 @@
        "value": 250000.0
       },
       {
-       "accounts": "681x",
+       "accounts": "68x fără 6812, 6814",
+       "accounts_en": "68x excl. 6812, 6814",
        "key": "depreciation",
-       "label_en": "Depreciation, provisions and impairment (681x)",
-       "label_ro": "Amortizări, provizioane și ajustări (681x)",
+       "label_en": "Depreciation, amortisation and other adjustments",
+       "label_ro": "Amortizări și alte ajustări",
        "value": -50000.0
+      },
+      {
+       "accounts": "6812 + 6814 − 7812 − 7814",
+       "key": "net_provisions",
+       "label_en": "Net provisions and impairment adjustments (6812 + 6814 − 7812 − 7814)",
+       "label_ro": "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814)",
+       "outside_ebitda": true,
+       "value": -0.0
       },
       {
        "accounts": null,
@@ -11785,6 +12066,32 @@
     "net_income_statutory": 170000.0,
     "net_income_statutory_anchor": null,
     "net_income_unexplained_vs_121": 0.0,
+    "net_provisions": {
+     "accounts": "6812 + 6814 − 7812 − 7814",
+     "charges": {
+      "by_account": {},
+      "prefixes": [
+       "6812",
+       "6814"
+      ],
+      "value": 0.0
+     },
+     "label_en": "Net provisions and impairment adjustments (6812 + 6814 − 7812 − 7814)",
+     "label_ro": "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814)",
+     "name_en": "Net provisions and impairment adjustments",
+     "name_ro": "Provizioane și ajustări nete",
+     "outside_ebitda": true,
+     "reversals": {
+      "by_account": {},
+      "prefixes": [
+       "7812",
+       "7814"
+      ],
+      "value": 0.0
+     },
+     "schema": "net_provisions/1",
+     "value": 0.0
+    },
     "operating_ebit": 200000.0,
     "operating_ebitda": 250000.0,
     "operating_result": 200000.0,
@@ -11792,7 +12099,7 @@
     "opex_third_party": 0.0,
     "opex_total": 200000.0,
     "other_income_758": 0,
-    "other_income_781_reversals": 0,
+    "other_income_781_reversals": 0.0,
     "other_op_income_lump": 0,
     "other_operating_income": 0.0,
     "pretax": 200000.0,
@@ -11801,7 +12108,15 @@
     "tax": 30000.0,
     "total_operating_expense": 850000.0,
     "total_operating_revenue": 1000000.0,
-    "turnover": 1000000.0
+    "turnover": 1000000.0,
+    "turnover_definition": {
+     "accounts": "70x − 709 + 7411",
+     "extra_prefixes": [
+      "7411"
+     ],
+     "placed_extra": 0.0,
+     "source": "OMFP 1802/2014, formularul F20 (contul de profit și pierdere): rd. 01 cifra de afaceri netă = rd. 02 … rd. 05; rd. 05 = venituri din subvenții de exploatare aferente cifrei de afaceri nete (ct. 7411)"
+    }
    },
    "balanceSheet": {
     "accountsPayable": 0.0,
@@ -12426,7 +12741,7 @@
      "pack": "packs/ratios/inventory_days.yaml",
      "period_days": "supplementary.periodDays",
      "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
-     "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+     "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation + net_provisions.charges"
     },
     "reconciliation": {
      "difference": 0.0,
@@ -12522,7 +12837,7 @@
     "liquidity": 0.1,
     "profitability": 0.2
    },
-   "credit_model_revision": 3,
+   "credit_model_revision": 4,
    "declared_rungs": {},
    "letter_grade": null,
    "letter_grade_bands": [
@@ -13527,7 +13842,7 @@
       "pack": "packs/ratios/inventory_days.yaml",
       "period_days": "supplementary.periodDays",
       "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
-      "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+      "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation + net_provisions.charges"
      },
      "reconciliation": {
       "difference": 0.0,
@@ -13648,7 +13963,7 @@
       "reported": null,
       "strict": null
      },
-     "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+     "ebitda_definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
      "errors": [],
      "industry_key_applied": "default",
      "measured": {
@@ -13665,10 +13980,20 @@
         "text_ro": "balanța este închisă, iar contul 121 lipsește: variația stocurilor (711) nu are sold net și nu poate fi derivată"
        },
        "value": null
+      },
+      "provision_charges_outside_ebitda": {
+       "provenance": "pl_definition:6812+6814",
+       "refusal": null,
+       "value": 0.0
+      },
+      "provision_reversals_outside_ebitda": {
+       "provenance": "pl_definition:7812+7814",
+       "refusal": null,
+       "value": 0.0
       }
      },
      "methodology_id": "ro_ras_2025_v1",
-     "methodology_version": "1.1.0",
+     "methodology_version": "1.2.0",
      "missing_buckets": [
       "cash_and_equivalents.net",
       "deferred_income_lt.net",
@@ -14259,11 +14584,20 @@
     "ebitda": null,
     "ebitda_before_stock_variation": 200000.0,
     "ebitda_cash": null,
-    "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+    "ebitda_definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
     "ebitda_operating_view": null,
     "ebitda_operational": null,
     "ebitda_reconciliation": {
      "bridge": {
+      "after_ebitda": [
+       {
+        "key": "net_provisions",
+        "label_en": "Net provisions and impairment adjustments (6812 + 6814 − 7812 − 7814) — outside EBITDA",
+        "label_ro": "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814) — în afara EBITDA",
+        "outside_ebitda": true,
+        "value": -0.0
+       }
+      ],
       "parts": [
        {
         "key": "ebitda_before_stock_variation",
@@ -14312,18 +14646,19 @@
        "text_ro": "balanța este închisă, iar contul 121 lipsește: variația stocurilor (711) nu are sold net și nu poate fi derivată"
       }
      },
-     "definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+     "definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
      "identity_with_121": false,
      "lines": [
       {
-       "accounts": "70x − 709",
+       "accounts": "70x − 709 + 7411",
        "key": "turnover",
        "label_en": "Net turnover",
        "label_ro": "Cifra de afaceri netă",
        "value": 1000000.0
       },
       {
-       "accounts": "74x, 75x, 77x, 78x",
+       "accounts": "74x, 75x, 77x, 78x (fără 7411, 7812, 7814)",
+       "accounts_en": "74x, 75x, 77x, 78x (excl. 7411, 7812, 7814)",
        "key": "other_operating_income",
        "label_en": "Other operating income",
        "label_ro": "Alte venituri din exploatare",
@@ -14399,11 +14734,20 @@
        "value": null
       },
       {
-       "accounts": "681x",
+       "accounts": "68x fără 6812, 6814",
+       "accounts_en": "68x excl. 6812, 6814",
        "key": "depreciation",
-       "label_en": "Depreciation, provisions and impairment (681x)",
-       "label_ro": "Amortizări, provizioane și ajustări (681x)",
+       "label_en": "Depreciation, amortisation and other adjustments",
+       "label_ro": "Amortizări și alte ajustări",
        "value": -50000.0
+      },
+      {
+       "accounts": "6812 + 6814 − 7812 − 7814",
+       "key": "net_provisions",
+       "label_en": "Net provisions and impairment adjustments (6812 + 6814 − 7812 − 7814)",
+       "label_ro": "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814)",
+       "outside_ebitda": true,
+       "value": -0.0
       },
       {
        "accounts": null,
@@ -14592,6 +14936,32 @@
     "net_income_statutory": null,
     "net_income_statutory_anchor": null,
     "net_income_unexplained_vs_121": null,
+    "net_provisions": {
+     "accounts": "6812 + 6814 − 7812 − 7814",
+     "charges": {
+      "by_account": {},
+      "prefixes": [
+       "6812",
+       "6814"
+      ],
+      "value": 0.0
+     },
+     "label_en": "Net provisions and impairment adjustments (6812 + 6814 − 7812 − 7814)",
+     "label_ro": "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814)",
+     "name_en": "Net provisions and impairment adjustments",
+     "name_ro": "Provizioane și ajustări nete",
+     "outside_ebitda": true,
+     "reversals": {
+      "by_account": {},
+      "prefixes": [
+       "7812",
+       "7814"
+      ],
+      "value": 0.0
+     },
+     "schema": "net_provisions/1",
+     "value": 0.0
+    },
     "operating_ebit": null,
     "operating_ebitda": null,
     "operating_result": null,
@@ -14599,7 +14969,7 @@
     "opex_third_party": 0.0,
     "opex_total": 200000.0,
     "other_income_758": 0,
-    "other_income_781_reversals": 0,
+    "other_income_781_reversals": 0.0,
     "other_op_income_lump": 0,
     "other_operating_income": 0.0,
     "pretax": null,
@@ -14608,7 +14978,15 @@
     "tax": 30000.0,
     "total_operating_expense": 850000.0,
     "total_operating_revenue": 1000000.0,
-    "turnover": 1000000.0
+    "turnover": 1000000.0,
+    "turnover_definition": {
+     "accounts": "70x − 709 + 7411",
+     "extra_prefixes": [
+      "7411"
+     ],
+     "placed_extra": 0.0,
+     "source": "OMFP 1802/2014, formularul F20 (contul de profit și pierdere): rd. 01 cifra de afaceri netă = rd. 02 … rd. 05; rd. 05 = venituri din subvenții de exploatare aferente cifrei de afaceri nete (ct. 7411)"
+    }
    },
    "balanceSheet": {
     "accountsPayable": 0.0,
@@ -15146,7 +15524,7 @@
      "pack": "packs/ratios/inventory_days.yaml",
      "period_days": "supplementary.periodDays",
      "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
-     "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+     "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation + net_provisions.charges"
     },
     "reconciliation": {
      "difference": 0.0,
@@ -15260,7 +15638,7 @@
     "liquidity": 0.1,
     "profitability": 0.2
    },
-   "credit_model_revision": 3,
+   "credit_model_revision": 4,
    "declared_rungs": {},
    "letter_grade": null,
    "letter_grade_bands": [
@@ -16330,7 +16708,7 @@
       "pack": "packs/ratios/inventory_days.yaml",
       "period_days": "supplementary.periodDays",
       "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
-      "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+      "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation + net_provisions.charges"
      },
      "reconciliation": {
       "difference": 0.0,
@@ -16463,7 +16841,7 @@
       "reported": null,
       "strict": null
      },
-     "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+     "ebitda_definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
      "errors": [],
      "industry_key_applied": "default",
      "measured": {
@@ -16480,10 +16858,20 @@
         "text_ro": "balanța este închisă, iar contul 121 lipsește: variația stocurilor (711) nu are sold net și nu poate fi derivată"
        },
        "value": null
+      },
+      "provision_charges_outside_ebitda": {
+       "provenance": "pl_definition:6812+6814",
+       "refusal": null,
+       "value": 0.0
+      },
+      "provision_reversals_outside_ebitda": {
+       "provenance": "pl_definition:7812+7814",
+       "refusal": null,
+       "value": 0.0
       }
      },
      "methodology_id": "ro_ras_2025_v1",
-     "methodology_version": "1.1.0",
+     "methodology_version": "1.2.0",
      "missing_buckets": [
       "deferred_income_lt.net",
       "deferred_revenue_st.net",
@@ -17137,11 +17525,20 @@
     "ebitda": null,
     "ebitda_before_stock_variation": 200000.0,
     "ebitda_cash": null,
-    "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+    "ebitda_definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
     "ebitda_operating_view": null,
     "ebitda_operational": null,
     "ebitda_reconciliation": {
      "bridge": {
+      "after_ebitda": [
+       {
+        "key": "net_provisions",
+        "label_en": "Net provisions and impairment adjustments (6812 + 6814 − 7812 − 7814) — outside EBITDA",
+        "label_ro": "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814) — în afara EBITDA",
+        "outside_ebitda": true,
+        "value": -0.0
+       }
+      ],
       "parts": [
        {
         "key": "ebitda_before_stock_variation",
@@ -17190,18 +17587,19 @@
        "text_ro": "balanța este închisă, iar contul 121 lipsește: variația stocurilor (711) nu are sold net și nu poate fi derivată"
       }
      },
-     "definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+     "definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
      "identity_with_121": false,
      "lines": [
       {
-       "accounts": "70x − 709",
+       "accounts": "70x − 709 + 7411",
        "key": "turnover",
        "label_en": "Net turnover",
        "label_ro": "Cifra de afaceri netă",
        "value": 1000000.0
       },
       {
-       "accounts": "74x, 75x, 77x, 78x",
+       "accounts": "74x, 75x, 77x, 78x (fără 7411, 7812, 7814)",
+       "accounts_en": "74x, 75x, 77x, 78x (excl. 7411, 7812, 7814)",
        "key": "other_operating_income",
        "label_en": "Other operating income",
        "label_ro": "Alte venituri din exploatare",
@@ -17277,11 +17675,20 @@
        "value": null
       },
       {
-       "accounts": "681x",
+       "accounts": "68x fără 6812, 6814",
+       "accounts_en": "68x excl. 6812, 6814",
        "key": "depreciation",
-       "label_en": "Depreciation, provisions and impairment (681x)",
-       "label_ro": "Amortizări, provizioane și ajustări (681x)",
+       "label_en": "Depreciation, amortisation and other adjustments",
+       "label_ro": "Amortizări și alte ajustări",
        "value": -50000.0
+      },
+      {
+       "accounts": "6812 + 6814 − 7812 − 7814",
+       "key": "net_provisions",
+       "label_en": "Net provisions and impairment adjustments (6812 + 6814 − 7812 − 7814)",
+       "label_ro": "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814)",
+       "outside_ebitda": true,
+       "value": -0.0
       },
       {
        "accounts": null,
@@ -17470,6 +17877,32 @@
     "net_income_statutory": null,
     "net_income_statutory_anchor": null,
     "net_income_unexplained_vs_121": null,
+    "net_provisions": {
+     "accounts": "6812 + 6814 − 7812 − 7814",
+     "charges": {
+      "by_account": {},
+      "prefixes": [
+       "6812",
+       "6814"
+      ],
+      "value": 0.0
+     },
+     "label_en": "Net provisions and impairment adjustments (6812 + 6814 − 7812 − 7814)",
+     "label_ro": "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814)",
+     "name_en": "Net provisions and impairment adjustments",
+     "name_ro": "Provizioane și ajustări nete",
+     "outside_ebitda": true,
+     "reversals": {
+      "by_account": {},
+      "prefixes": [
+       "7812",
+       "7814"
+      ],
+      "value": 0.0
+     },
+     "schema": "net_provisions/1",
+     "value": 0.0
+    },
     "operating_ebit": null,
     "operating_ebitda": null,
     "operating_result": null,
@@ -17477,7 +17910,7 @@
     "opex_third_party": 0.0,
     "opex_total": 200000.0,
     "other_income_758": 0,
-    "other_income_781_reversals": 0,
+    "other_income_781_reversals": 0.0,
     "other_op_income_lump": 0,
     "other_operating_income": 0.0,
     "pretax": null,
@@ -17486,7 +17919,15 @@
     "tax": 30000.0,
     "total_operating_expense": 850000.0,
     "total_operating_revenue": 1000000.0,
-    "turnover": 1000000.0
+    "turnover": 1000000.0,
+    "turnover_definition": {
+     "accounts": "70x − 709 + 7411",
+     "extra_prefixes": [
+      "7411"
+     ],
+     "placed_extra": 0.0,
+     "source": "OMFP 1802/2014, formularul F20 (contul de profit și pierdere): rd. 01 cifra de afaceri netă = rd. 02 … rd. 05; rd. 05 = venituri din subvenții de exploatare aferente cifrei de afaceri nete (ct. 7411)"
+    }
    },
    "balanceSheet": {
     "accountsPayable": 50000.0,
@@ -18184,7 +18625,7 @@
      "pack": "packs/ratios/inventory_days.yaml",
      "period_days": "supplementary.periodDays",
      "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
-     "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+     "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation + net_provisions.charges"
     },
     "reconciliation": {
      "difference": 0.0,
