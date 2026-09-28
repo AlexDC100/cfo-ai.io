@@ -28,10 +28,10 @@ UNITS = ("money", "ratio", "pct", "multiple", "days", "years", "count")
 
 
 class Measure(object):
-    __slots__ = ("key", "label", "value", "unit", "noun")
+    __slots__ = ("key", "label", "value", "unit", "noun", "value_q")
 
     def __init__(self, key: str, label: str, value: Optional[float],
-                 unit: str, noun: str = "") -> None:
+                 unit: str, noun: str = "", value_q: Optional[str] = None) -> None:
         if unit not in UNITS:
             raise ValueError("unknown measure unit %r (legal: %s)"
                              % (unit, ", ".join(UNITS)))
@@ -47,6 +47,15 @@ class Measure(object):
                 "measure %r is a %s and may not carry a noun; only counts do"
                 % (key, unit))
         self.noun = noun
+        #: The PRINTED digits, when the figure is one another surface already
+        #: prints: the Ratios table's quantization (engine.ratios.table.
+        #: quantize_display — days: whole days), so the insight and the
+        #: table print ONE string for one figure (merge contract 2026-09-28:
+        #: the trade float printed "89.6 days" beside the table's "90 days").
+        #: Only a `days` measure carries one, and only when it is served.
+        if value_q is not None and (unit != "days" or value is None):
+            raise ValueError("measure %r: printed digits are carried only by a served days figure" % key)
+        self.value_q = value_q
 
     #: Serialisation precision, per unit.
     #:
@@ -71,6 +80,8 @@ class Measure(object):
                "unit": self.unit}
         if self.noun:
             out["noun"] = self.noun
+        if self.value_q is not None:
+            out["value_q"] = self.value_q
         return out
 
 
@@ -113,6 +124,11 @@ def format_measure(measure: Measure, currency: str) -> str:
     if measure.unit == "multiple":
         return "%s×" % _group(value, 2)
     if measure.unit == "days":
+        if measure.value_q is not None:
+            # The Ratios table's printed digits, verbatim, with its count
+            # form ("1 day", "90 days") — one string for one figure.
+            return "%s %s" % (measure.value_q,
+                              "day" if measure.value_q.lstrip("+-") == "1" else "days")
         return "%s days" % _group(value, 1)
     if measure.unit == "years":
         return "%s years" % _group(value, 1)

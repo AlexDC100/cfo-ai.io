@@ -447,6 +447,21 @@ def detect_trade_float(book: Book, spec: DetectorSpec):
     if receivables is not None and payables is not None:
         float_money = receivables - payables
 
+    # ONE PRINTED STRING PER FIGURE (merge contract 2026-09-28): DSO and DPO
+    # print on the Ratios table's precision (its days rule, whole days) —
+    # the claim printed "89.6 days … 79.2 days" beside the table's "90 days"
+    # and "79 days". The gap prints as the difference of the two PRINTED
+    # figures, so the sentence adds up as a reader reads it (90 − 79 = 11,
+    # never "10.4"); its exact value stays the measure's `value`.
+    from decimal import Decimal
+
+    from engine.ratios.table import quantize_display
+
+    dso_q = quantize_display(dso, "days")
+    dpo_q = quantize_display(dpo, "days")
+    float_q = (str(Decimal(dso_q) - Decimal(dpo_q))
+               if dso_q is not None and dpo_q is not None and float_days is not None else None)
+
     # The DPO is printed WITH the operands it divides — the balance sheet's
     # payables (not the trade-payables row the float nets, which is a
     # narrower figure: on the owner's own FY2025 book the claim printed the
@@ -454,9 +469,10 @@ def detect_trade_float(book: Book, spec: DetectorSpec):
     # payables), total operating expense and the day count — so
     # a reader recomputes the printed days from the printed figures.
     measures = [
-        Measure("dso", "Days sales outstanding", dso, "days"),
-        Measure("dpo", "Days payables outstanding (on total operating cost)", dpo, "days"),
-        Measure("float_days", "Collection gap (DSO − DPO)", float_days, "days"),
+        Measure("dso", "Days sales outstanding", dso, "days", value_q=dso_q),
+        Measure("dpo", "Days payables outstanding (on total operating cost)", dpo, "days",
+                value_q=dpo_q),
+        Measure("float_days", "Collection gap (DSO − DPO)", float_days, "days", value_q=float_q),
         Measure("float", "Net trade float (receivables − payables)",
                 float_money, "money"),
         Measure("trade_receivables", "Trade receivables net of provisions",

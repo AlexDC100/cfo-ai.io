@@ -91,6 +91,10 @@ export interface InsightMeasure {
   unit: InsightUnit;
   /** What a `count` counts ("account"). Only counts carry one. */
   noun?: string;
+  /** A `days` figure another surface already prints: the Ratios table's
+   *  printed digits (its days rule), served so the insight prints the ONE
+   *  string the table prints (engine.insights.measures.Measure.value_q). */
+  value_q?: string;
 }
 
 export interface InsightSeverityBand {
@@ -301,6 +305,10 @@ function readMeasure(raw: unknown): InsightMeasure | null {
     value: numberOrNull(m.value),
     unit: m.unit,
     noun: typeof m.noun === "string" ? m.noun : undefined,
+    // The Ratios table's printed digits, only on a served days figure.
+    ...(m.unit === "days" && typeof m.value_q === "string" && /^[+-]?\d+(\.\d+)?$/.test(m.value_q)
+      ? { value_q: m.value_q }
+      : {}),
   };
 }
 
@@ -352,7 +360,7 @@ function percent(pct: number): string {
  * stated gap, never a plausible figure.
  */
 export function formatMeasure(
-  measure: Pick<InsightMeasure, "value" | "unit" | "noun">,
+  measure: Pick<InsightMeasure, "value" | "unit" | "noun" | "value_q">,
   currency: string,
 ): string {
   if (measure.value === null) return "not reported";
@@ -367,6 +375,11 @@ export function formatMeasure(
     case "multiple":
       return `${group(value, 2)}×`;
     case "days":
+      // The Ratios table's printed digits, verbatim, with its count form —
+      // the engine's format_measure, byte for byte.
+      if (typeof measure.value_q === "string") {
+        return `${measure.value_q} ${measure.value_q.replace(/^[+-]/, "") === "1" ? "day" : "days"}`;
+      }
       return `${group(value, 1)} days`;
     case "years":
       return `${group(value, 1)} years`;

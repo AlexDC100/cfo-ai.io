@@ -453,9 +453,12 @@ def _vouched_by_envelope(payload: Dict[str, Any],
 def _render(measure: Dict[str, Any], currency: str) -> str:
     from engine.insights.measures import Measure, format_measure
 
+    # The SERIALIZED measure, whole — its printed digits (`value_q`, the
+    # Ratios table's days rule on a figure the table prints) included, as
+    # the frontend reader receives it.
     return format_measure(
         Measure(measure["key"], measure["label"], measure["value"],
-                measure["unit"], measure.get("noun", "")),
+                measure["unit"], measure.get("noun", ""), value_q=measure.get("value_q")),
         currency,
     )
 

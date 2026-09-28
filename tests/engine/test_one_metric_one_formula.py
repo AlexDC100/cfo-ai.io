@@ -301,8 +301,44 @@ def test_the_trade_float_prints_the_operands_its_days_divide(served, book):
     claim = trade["claim"]
     for k in ("dpo", "dpo_payables", "total_operating_expense", "period_days", "dso"):
         x = ms[k]
-        printed = format_measure(Measure(k, x["label"], x["value"], x["unit"], x.get("noun", "")), "RON")
+        printed = format_measure(Measure(k, x["label"], x["value"], x["unit"], x.get("noun", ""),
+                                         value_q=x.get("value_q")), "RON")
         assert printed in claim, (book, k, printed, claim)
+    WORK["units"] += 1
+
+
+@pytest.mark.parametrize("book", ALL_SERVED)
+def test_the_trade_float_prints_dso_and_dpo_as_the_ratios_table_prints_them(served, book):
+    """ONE PRINTED STRING PER FIGURE (merge contract 2026-09-28): the
+    trade-float insight printed "89.6 days of sales outstanding against 79.2
+    days of payables" beside the Ratios table's "90 days" and "79 days". Its
+    DSO and DPO now carry the table's printed digits (`value_q`, the days
+    rule) and the claim prints them verbatim; the gap is the difference of
+    the two PRINTED figures, so the sentence adds up as read."""
+    from decimal import Decimal
+
+    from engine.insights.measures import Measure, format_measure
+
+    st = served[book]["statements"]
+    trade = [i for i in (st.get("insights") or {}).get("insights") or [] if i["id"] == "trade_float"][0]
+    ms = dict((x["key"], x) for x in trade["measures"])
+    table = dict((r["key"], r) for r in served[book]["assembled_metrics"]["ratio_table"]["rows"])
+    claim = trade["claim"]
+    for key in ("dso", "dpo"):
+        assert ms[key]["value_q"] == table[key]["value_q"], (book, key, ms[key], table[key]["value_q"])
+        printed = format_measure(Measure(key, ms[key]["label"], ms[key]["value"], "days",
+                                         value_q=ms[key]["value_q"]), "RON")
+        # The table's EN form: "90 days" (a single day: "1 day").
+        assert printed == "%s %s" % (table[key]["value_q"],
+                                     "day" if table[key]["value_q"].lstrip("+-") == "1" else "days")
+        assert printed in claim, (book, key, printed, claim)
+        WORK["units"] += 1
+    gap = ms["float_days"]["value_q"]
+    assert Decimal(gap) == Decimal(ms["dso"]["value_q"]) - Decimal(ms["dpo"]["value_q"]), (book, gap)
+    assert "a gap of %s %s" % (gap, "day" if gap.lstrip("+-") == "1" else "days") in claim, (book, claim)
+    # No one-decimal day figure survives in the sentence.
+    import re
+    assert not re.search(r"\b\d+\.\d days?\b", claim), (book, claim)
     WORK["units"] += 1
 
 
