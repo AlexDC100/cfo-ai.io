@@ -17006,6 +17006,44 @@ ruling); a real book with a MEASURED cash flow (none exists — the engine
 threads no prior-period trial balance, `is_approximated` is always true); the
 browser surfaces (vitest `creditRegimeSurfaces.test.tsx`).
 
+**FIXER ROUND 2 (2026-09-29) — finding 3 raised again: re-confirmed, still
+NOT fixed (the owner's call).** Nothing in the code moved; this records the
+re-check and the two figures the owner's options were missing. At 22dcd6ea,
+through the production write path and GET /api/period (read-only,
+`specs-durable/rulings2_fixer_r2/measure_head.py`), the developer serves
+regime `stock_build`, cash `approximated`, composite null, letter null, Z''
+2.43; every other local book serves no regime and the same composite and
+letter as the production tree 80c2e8b5. The dry run's line for it stays
+`credit 41.50 B z 4.81 -> REFUSED (no composite, no letter) z 2.43 (model
+revision 4 -> 5)` (pinned by `test_the_dry_run_names_the_stock_build_regime`).
+The coordinator's decision ("a CFO that is refused or approximated refuses
+those components") is what the code does; either way to a letter overrules
+it, so neither is taken here. Option (a), measured by the same assembler on
+the book's own fiscal-year opening (every class 6/7 row zeroed, every other
+row's closing set to its `si`; `specs-durable/rulings2_fixer_r2/option_a.py`,
+`blast_a_corpus.py`):
+```
+corpus realestate (the developer)  opening available (convention C)
+  served CFO (approximated)          -3,945,493.79   cf before WC -729,412.53
+  option (a) measured WC            -16,641,217.55   inventory +29,589,814.29
+  option (a) CFO                    -17,370,630.08   -> 33.9 CCC
+  balance-sheet cash identity CFO   -17,380,602.20   -> 33.9 CCC
+  served CFO read as measured        -3,945,493.79   -> 33.9 CCC
+  subscores (all three)  altman 66.5 · profitability 0 · leverage 0 ·
+                         coverage 0 · dscr 0 · liquidity 45.4 · equity 96.6
+option (a) on every corpus book (served CFO -> option (a) CFO, the move):
+  agras       10,234,999.93 ->    -582,914.30   -10,817,914.23   (sign flip)
+  carniprod    5,620,484.36 ->   8,260,952.30    +2,640,467.94
+  realestate  -3,945,493.79 -> -17,370,630.08   -13,425,136.29
+  retail       5,109,521.75 ->  16,181,995.86   +11,072,474.11
+```
+Indicative only: it reads every other current asset and liability as working
+capital (on the developer, other current liabilities move +20,534,602.28).
+So (a) is a cash-flow redesign across every book, not a credit fix; (b) — the
+sign of the approximated CFO — gives the same 33.9 CCC on the developer and
+moves nothing else. Both need the owner's ruling before the regime prints a
+letter.
+
 ## credit-regime-surfaces
 
 | | |

@@ -1580,7 +1580,17 @@ without it raises) and ONE function, `credit_model.stock_build_regime`:
   it; (b) let the regime grade on the SIGN of the approximated CFO (bottom
   rung when ≤ 0). Either gives the developer 33.9 CCC (every measured CFO ≤ 0
   gives the same sub-scores: Altman 66.5, liquidity 45.4, equity 96.6, the
-  rest 0).
+  rest 0). Measured for (a) (fixer round 2, 2026-09-29, read-only, the same
+  assembler run on the book's own fiscal-year opening): the developer's CFO
+  would be −17,370,630.08 (the served −729,412.53 before working capital plus
+  −16,641,217.55 of measured working-capital movement; the balance-sheet
+  cash identity cross-checks at −17,380,602.20) → 33.9 CCC. **(a) is not
+  local to the developer:** on the four corpus books it moves the served CFO
+  by −10,817,914.23 (agras: +10,234,999.93 → −582,914.30, a sign flip),
+  +2,640,467.94 (carniprod), −13,425,136.29 (the developer) and
+  +11,072,474.11 (retail) — indicative only, since it reads every other
+  current asset and liability as working capital; (a) needs its own design
+  (which balance-sheet lines are operating) before it can serve anything.
 - **The finding** rides the served block (`credit.regime.finding`): "EBITDA
   pozitivă din stocuri capitalizate — numerarul a fost consumat de
   construcție." (verbatim) / "Positive EBITDA from capitalised stock — the
