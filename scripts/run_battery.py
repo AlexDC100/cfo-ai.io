@@ -665,9 +665,12 @@ def _engine_gates() -> List[Gate]:
         Gate("one-metric-one-formula",
              [PY, "-m", "pytest", "tests/engine/test_one_metric_one_formula.py", "-q", "-s"],
              # release r-rulings (2026-09-28): the trade float prints DSO / DPO
-             # as the Ratios table does, the gap as their printed difference,
-             # with the Scandia G7 witness where rounding parts them
-             # (measured 120).
+             # as the Ratios table does; fixer round 3 (coordinator's ruling,
+             # one figure per report): the GAP prints its own served figure
+             # on the same precision, with the rounding note iff the printed
+             # DSO − DPO parts from it — the Scandia G7 witness is where they
+             # part — and the pack's `rounded` variant carries en.json's
+             # roundedDays.note word for word (measured 121).
              work_rx=r"GATE-WORK one-metric-one-formula units=(\d+)", floor=110,
              units="surfaces compared with the one authority",
              canaries=("SCOPE one-metric-one-formula: corpus books agras, carniprod, realestate, retail",)),
@@ -688,11 +691,17 @@ def _engine_gates() -> List[Gate]:
         # closing_value_q; the bank export's DIO lever prints the split's
         # period-end figure character for character (EN, RO); a snapshot
         # period's DIO reading never says "on average" (the workbook row);
-        # the cycle chart adds up EXACTLY as printed — the CCC bar prints the
-        # sum of the printed terms, the exact served cycle in its tooltip and
-        # caption (reportCharts G-C1b, chartsAgreeWithCards; merge contract
-        # 2026-09-28) — and, unrounded, the terms foot to the served cycle.
-        # Rendered over served bytes (vitest). Measured 172 tests, floor 160.
+        # ONE CCC FIGURE PER REPORT (coordinator's ruling 2026-09-28,
+        # replacing the merge contract's sum of the printed terms): the cycle
+        # chart's CCC bar prints the CCC card's string, each term its own
+        # served figure, and ONE rounding note iff the printed terms do not
+        # foot — no tooltip figure, no second total in the caption
+        # (reportCharts G-C1b, chartsAgreeWithCards §A1b; POSITIVE CONTROL
+        # retail); the chat snapshot carries the stock-claim rule line on a
+        # snapshot-basis period, the inventory-days total with its basis
+        # label and the one EBITDA with its 711 / 72x components or the
+        # engine's refusal words (chat-llm not redeployed this release).
+        # Rendered over served bytes (vitest). Measured 191 tests, floor 185.
         # Plant log: gates.md "inventory-days-surfaces".
         Gate("inventory-days-surfaces",
              ["npx", "vitest", "run", "--root", ".",
@@ -708,10 +717,13 @@ def _engine_gates() -> List[Gate]:
               "frontend/lib/__tests__/chartsAgreeWithCards.test.ts",
               "frontend/lib/__tests__/reportCharts.test.ts",
               "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=160,
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=185,
              units="surface tests (tile, drawer, report, workbook, bank export, products, public, chat, benchmark, cycle chart)",
              canaries=("the tile prints every leg with its accounts, alte stocuri and the basis",
-                       "DSO + DIO − DPO = CCC, EXACTLY as printed",
+                       "the cycle prints ONE CCC — the card's string; the rounding note iff the printed terms do not foot",
+                       "POSITIVE CONTROL: retail's printed terms miss the card's cycle (the note is printed); another book foots (none is)",
+                       "the snapshot-basis period carries ONE rule line and the total with its basis label",
+                       "the one EBITDA with its 711 / 72x components, or the engine's refusal words",
                        "the bank export (EN) prints the report's block byte for byte",
                        "labels the SKU figure as SKU turnover days and takes CCC from the trial balance",
                        "replaces the company dio with the reported-basis row under its own key",

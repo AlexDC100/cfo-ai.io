@@ -16356,3 +16356,192 @@ to `source_accounts` changes served comparatives columns and their captures
 
 **CANNOT SEE:** pixels beyond what the hermetic specs assert (none of them
 opens a mixed 711 table or a refused prior); production periods.
+
+### Release r-rulings — fixer round 3: one CCC figure per report; the chat claim rule in the snapshot (2026-09-28)
+
+**The ruling (coordinator, replacing the merge contract's item b / c
+choice — the "NOT FIXED, owner ruling required" finding 3 of rounds 1 and
+2).** Every surface prints the cash conversion cycle as ONE string: the
+served figure on the ratio card's precision. The report's cycle chart prints
+that string on its CCC bar; each term (DSO, the period-end DIO, DPO) prints
+its own served figure on the same precision; where the printed terms do not
+foot to the printed total, the chart shows one rounding note (EN "rounded
+days — the rounded terms can differ from the total by a day", RO "zile
+rotunjite — termenii rotunjiți pot diferi de total cu o zi", i18n
+`roundedDays.note`) — never a second total, never a tooltip figure, never a
+caption claiming they add up. The same rule for the trade-float insight: the
+gap prints its own served figure on the table's precision (5a40f7ec printed
+the difference of the printed DSO and DPO — 11 days on the Scandia G7
+capture for an exact gap that rounds to 10), with the same note (the pack's
+`rounded` claim variant) where the printed DSO − DPO differs.
+
+**The chat.** The Ask CFO AI edge function (supabase/functions/chat-llm) is
+not redeployable in this release (the Supabase CLI is not signed in) and is
+not edited. The workspace snapshot it already puts into its system prompt
+(`dataset_summary`, built by `pages/cfo/Chat.buildWorkspaceSnapshot`) now
+carries: the inventory-days total with its basis label on one line; where
+`claim_policy.may_call_slow` is false, ONE plain rule line —
+`STOCK_SLOW_CLAIM_RULE`, the owner's "Nu descrie stocurile ca lente sau mari
+pe baza soldului de la o singură dată; citează împărțirea pe tipuri de stoc
+și media." with its English; and the one EBITDA with its 711 / 72x
+components, or the engine's refusal words for EBITDA and for a refused
+component (a refused 711 used to be silently dropped).
+
+**The laws** (commits 2fe1a998 / 246bc8c1 / becc580c / 1cfd725a):
+
+| gate | law | plant |
+|---|---|---|
+| inventory-days-surfaces | REWRITTEN (reportCharts G-C1b): the chart's CCC is the card's string — in its table, its drawing and on the printed card; no tooltip carries another cycle; the caption prints no day figure and never says the terms sum / add up; ONE rounding note iff the printed terms do not foot; POSITIVE CONTROL retail carries the note and another book foots without one; the note is the owner's sentence EN and RO | R1, R2 |
+| inventory-days-surfaces | REWRITTEN (chartsAgreeWithCards §A1b): the CCC row prints the CCC card's value; the note iff the printed terms (read back as printed) do not foot to it; no second cycle figure in the caption | R1, R2 |
+| inventory-days-surfaces | NEW (chatSnapshotInventoryDays): on all seven constructed books (POSITIVE CONTROL: every one `year_end_snapshot`, `may_call_slow` false) the snapshot carries the rule line exactly once and the total line ends with its basis label; a split-and-average period carries no rule line; the one EBITDA and both components print as served, or the engine's refusal words for EBITDA and for the refused 711 (POSITIVE CONTROL: a served EBITDA with non-zero 711 and 72x, and a refused one) | C1, C2, C3 |
+| one-metric-one-formula | REWRITTEN: on every served book the gap's `value_q` is `quantize_display(value, "days")` and the claim ends with exactly one gap — with the note iff the printed DSO − DPO parts from it; the Scandia G7 witness (POSITIVE CONTROL: there they part) prints its own gap WITH the note and the detector reproduces the served claim byte for byte | T1, T2 |
+| one-metric-one-formula | NEW: the pack's `rounded` variant is the default claim plus exactly en.json's `roundedDays.note`; ro.json carries the owner's Romanian | T3 |
+
+Each plant applied ALONE to the committed tree (1cfd725a), the law run, the
+file restored with `git checkout --` (byte-exact, asserted by sha256), the
+law re-run GREEN. Figures in the failure messages are redacted
+(`<figure>`). (R1 / R2 also red the POSITIVE CONTROL's "cycle charts drawn"
+count: the failing retail case stops before it is counted.)
+
+```
+PLANT R1 — reportCharts.workingCapitalCycle: the CCC bar prints the SUM OF THE PRINTED TERMS again (the merge contract's rule)
+  cmd: vitest frontend/lib/__tests__/reportCharts.test.ts frontend/lib/__tests__/chartsAgreeWithCards.test.ts
+  exit 1 -> RED
+       × §A the arithmetic is spelled once per document > retail: every working-capital row cites its own card's formula 33ms
+       × G-C1b — the arithmetic each chart draws > retail: the cycle prints ONE CCC — the card's string; the rounding note iff the printed terms do not foot 31ms
+       × G-C1b — the arithmetic each chart draws > POSITIVE CONTROL: retail's printed terms miss the card's cycle (the note is printed); another book foots (none is) 0ms
+     Test Files  2 failed (2)
+          Tests  3 failed | 95 passed (98)
+    AssertionError: retail: the CCC bar prints "10 days", the CCC card "11 days": expected '10 days' to be '11 days' // Object.is equality
+    AssertionError: retail: the chart's CCC is not the card's figure: expected '10 days' to be '11 days' // Object.is equality
+    AssertionError: cycle charts drawn: expected 2 to be greater than or equal to 3
+  REVERT (git checkout -- frontend/lib/charts/reportCharts.ts, byte-exact) exit 0
+  re-run vitest: exit 0 -> GREEN
+     Test Files  2 passed (2)
+          Tests  98 passed (98)
+PLANT R2 — reportCharts.workingCapitalCycle: the rounding note dropped (retail's printed terms miss the card's cycle with no note)
+  cmd: vitest frontend/lib/__tests__/reportCharts.test.ts frontend/lib/__tests__/chartsAgreeWithCards.test.ts
+  exit 1 -> RED
+       × §A the arithmetic is spelled once per document > retail: every working-capital row cites its own card's formula 41ms
+       × G-C1b — the arithmetic each chart draws > retail: the cycle prints ONE CCC — the card's string; the rounding note iff the printed terms do not foot 34ms
+       × G-C1b — the arithmetic each chart draws > POSITIVE CONTROL: retail's printed terms miss the card's cycle (the note is printed); another book foots (none is) 0ms
+     Test Files  2 failed (2)
+          Tests  3 failed | 95 passed (98)
+    AssertionError: retail: printed terms 1 days | 39 days | -30 days do not foot to 11 days: expected [] to deeply equal [ Array(1) ]
+    AssertionError: retail: 1 days | 39 days | -30 days | 11 days — no rounding note: expected [] to deeply equal [ Array(1) ]
+    AssertionError: cycle charts drawn: expected 2 to be greater than or equal to 3
+  REVERT (git checkout -- frontend/lib/charts/reportCharts.ts, byte-exact) exit 0
+  re-run vitest: exit 0 -> GREEN
+     Test Files  2 passed (2)
+          Tests  98 passed (98)
+PLANT T1 — detect_trade_float: the gap printed as the difference of the printed DSO and DPO again (5a40f7ec's rule)
+  cmd: pytest tests/engine/test_one_metric_one_formula.py -k trade_float
+  exit 1 -> RED
+    E   AssertionError: ('scandia G7', {'key': 'float_days', 'label': 'Collection gap (DSO − DPO)', 'unit': 'days', 'value': <figure>, ...})
+    E   assert '11' == '10'
+    FAILED tests/engine/test_one_metric_one_formula.py::test_the_trade_float_gap_is_its_own_served_figure_with_the_rounding_note_where_the_printed_terms_part
+    ================= 1 failed, 22 passed, 29 deselected in 3.79s ==================
+  REVERT (git checkout -- src/engine/insights/detectors.py, byte-exact) exit 0
+  re-run pytest: exit 0 -> GREEN
+    ====================== 23 passed, 29 deselected in 3.74s =======================
+PLANT T2 — detect_trade_float: the rounded variant never chosen (the note dropped where the printed figures part)
+  cmd: pytest tests/engine/test_one_metric_one_formula.py -k trade_float
+  exit 1 -> RED
+    E   AssertionError: ('scandia G7', 'The net trade float is RON <figure>: RON <figure> owed by customers against RON <figure> ...<figure> of balance-sheet payables over RON <figure> of total operating expense, on 365 days
+    E   assert False
+    FAILED tests/engine/test_one_metric_one_formula.py::test_the_trade_float_gap_is_its_own_served_figure_with_the_rounding_note_where_the_printed_terms_part
+    ================= 1 failed, 22 passed, 29 deselected in 3.80s ==================
+  REVERT (git checkout -- src/engine/insights/detectors.py, byte-exact) exit 0
+  re-run pytest: exit 0 -> GREEN
+    ====================== 23 passed, 29 deselected in 3.75s =======================
+PLANT T3 — packs/insights/detectors.yaml: the rounded variant's note reworded (a second spelling of the frontend's roundedDays.note)
+  cmd: pytest tests/engine/test_one_metric_one_formula.py -k trade_float
+  exit 1 -> RED
+    E   AssertionError: ('scandia G7', 'The net trade float is RON <figure>: RON <figure> owed by customers against RON <figure> ...<figure> of total operating expense, on 365 days), a gap of 10 days (rounded days — the terms
+    E   assert False
+    E   AssertionError: ('The net trade float is {money:float}: {money:trade_receivables} owed by customers against {money:trade_payables} owe...{money:total_operating_expense} of total operating expense, on {measure:period_
+    E   assert 'The net trad... up exactly).' == 'The net trad...al by a day).'
+    FAILED tests/engine/test_one_metric_one_formula.py::test_the_trade_float_gap_is_its_own_served_figure_with_the_rounding_note_where_the_printed_terms_part
+    FAILED tests/engine/test_one_metric_one_formula.py::test_the_trade_float_rounding_note_is_the_frontends_words
+    ================= 2 failed, 21 passed, 29 deselected in 3.82s ==================
+  REVERT (git checkout -- packs/insights/detectors.yaml, byte-exact) exit 0
+  re-run pytest: exit 0 -> GREEN
+    ====================== 23 passed, 29 deselected in 3.75s =======================
+PLANT C1 — Chat.buildWorkspaceSnapshot: the stock-claim rule line dropped on a snapshot-basis period
+  cmd: vitest frontend/pages/cfo/__tests__/chatSnapshotInventoryDays.test.ts
+  exit 1 -> RED
+       × the chat claim rule and the one EBITDA ride in the workspace snapshot (edge function not redeployed) > bridge_with_722: the snapshot-basis period carries ONE rule line and the total with its basis label 4ms
+       × the chat claim rule and the one EBITDA ride in the workspace snapshot (edge function not redeployed) > closed_bridge: the snapshot-basis period carries ONE rule line and the total with its basis label 1ms
+       × the chat claim rule and the one EBITDA ride in the workspace snapshot (edge function not redeployed) > closed_no_activity: the snapshot-basis period carries ONE rule line and the total with its basis label 1ms
+       × the chat claim rule and the one EBITDA ride in the workspace snapshot (edge function not redeployed) > g6_uncleared: the snapshot-basis period carries ONE rule line and the total with its basis label 1ms
+       × the chat claim rule and the one EBITDA ride in the workspace snapshot (edge function not redeployed) > open: the snapshot-basis period carries ONE rule line and the total with its basis label 1ms
+       × the chat claim rule and the one EBITDA ride in the workspace snapshot (edge function not redeployed) > unanchored: the snapshot-basis period carries ONE rule line and the total with its basis label 0ms
+       × the chat claim rule and the one EBITDA ride in the workspace snapshot (edge function not redeployed) > unanchored_unbalanced: the snapshot-basis period carries ONE rule line and the total with its basis label 0ms
+     Test Files  1 failed (1)
+          Tests  7 failed | 14 passed (21)
+    AssertionError: bridge_with_722: the rule line: expected [] to have a length of 1 but got +0
+    AssertionError: closed_bridge: the rule line: expected [] to have a length of 1 but got +0
+    AssertionError: closed_no_activity: the rule line: expected [] to have a length of 1 but got +0
+    AssertionError: g6_uncleared: the rule line: expected [] to have a length of 1 but got +0
+    AssertionError: open: the rule line: expected [] to have a length of 1 but got +0
+  REVERT (git checkout -- frontend/pages/cfo/Chat.tsx, byte-exact) exit 0
+  re-run vitest: exit 0 -> GREEN
+     Test Files  1 passed (1)
+          Tests  21 passed (21)
+PLANT C2 — Chat.buildWorkspaceSnapshot: the inventory-days total printed without its basis label
+  cmd: vitest frontend/pages/cfo/__tests__/chatSnapshotInventoryDays.test.ts
+  exit 1 -> RED
+       × the chat snapshot carries the inventory-days split and its claim policy > prints every leg, the total, the basis and MAY on a split-and-average block 20ms
+       × the chat claim rule and the one EBITDA ride in the workspace snapshot (edge function not redeployed) > bridge_with_722: the snapshot-basis period carries ONE rule line and the total with its basis label 2ms
+       × the chat claim rule and the one EBITDA ride in the workspace snapshot (edge function not redeployed) > closed_bridge: the snapshot-basis period carries ONE rule line and the total with its basis label 1ms
+       × the chat claim rule and the one EBITDA ride in the workspace snapshot (edge function not redeployed) > closed_no_activity: the snapshot-basis period carries ONE rule line and the total with its basis label 1ms
+       × the chat claim rule and the one EBITDA ride in the workspace snapshot (edge function not redeployed) > g6_uncleared: the snapshot-basis period carries ONE rule line and the total with its basis label 1ms
+       × the chat claim rule and the one EBITDA ride in the workspace snapshot (edge function not redeployed) > open: the snapshot-basis period carries ONE rule line and the total with its basis label 1ms
+       × the chat claim rule and the one EBITDA ride in the workspace snapshot (edge function not redeployed) > unanchored: the snapshot-basis period carries ONE rule line and the total with its basis label 1ms
+       × the chat claim rule and the one EBITDA ride in the workspace snapshot (edge function not redeployed) > unanchored_unbalanced: the snapshot-basis period carries ONE rule line and the total with its basis label 1ms
+     Test Files  1 failed (1)
+          Tests  8 failed | 13 passed (21)
+    AssertionError: expected 'Period: FY2025\nCompany: Corpus Entit…' to contain 'Basis: average of the balances at 1 J…'
+    AssertionError: bridge_with_722: "  · Inventory days (total, flow-weighted): 114 days ÷ cost of production sold + cost of goods resold (607)" lacks its basis label: expected false to be true // Object.is equality
+    AssertionError: closed_bridge: "  · Inventory days (total, flow-weighted): 114 days ÷ cost of production sold + cost of goods resold (607)" lacks its basis label: expected false to be true // Object.is equality
+    AssertionError: closed_no_activity: "  · Inventory days (total, flow-weighted): 107 days ÷ cost of production sold + cost of goods resold (607)" lacks its basis label: expected false to be true // Object.is equality
+  REVERT (git checkout -- frontend/pages/cfo/Chat.tsx, byte-exact) exit 0
+  re-run vitest: exit 0 -> GREEN
+     Test Files  1 passed (1)
+          Tests  21 passed (21)
+PLANT C3 — Chat.buildWorkspaceSnapshot: a refused 711 component silently dropped beside 'EBITDA: REFUSED'
+  cmd: vitest frontend/pages/cfo/__tests__/chatSnapshotInventoryDays.test.ts
+  exit 1 -> RED
+       × the chat claim rule and the one EBITDA ride in the workspace snapshot (edge function not redeployed) > g6_uncleared: the one EBITDA with its 711 / 72x components, or the engine's refusal words 9ms
+       × the chat claim rule and the one EBITDA ride in the workspace snapshot (edge function not redeployed) > unanchored: the one EBITDA with its 711 / 72x components, or the engine's refusal words 4ms
+       × the chat claim rule and the one EBITDA ride in the workspace snapshot (edge function not redeployed) > unanchored_unbalanced: the one EBITDA with its 711 / 72x components, or the engine's refusal words 3ms
+     Test Files  1 failed (1)
+          Tests  3 failed | 18 passed (21)
+    AssertionError: expected 'Period: FY2025\nCompany: Net 711 cons…' to contain '  · Variația stocurilor de produse (n…'
+  REVERT (git checkout -- frontend/pages/cfo/Chat.tsx, byte-exact) exit 0
+  re-run vitest: exit 0 -> GREEN
+     Test Files  1 passed (1)
+          Tests  21 passed (21)
+```
+
+**Registered** (scripts/run_battery.py): inventory-days-surfaces — measured
+191 tests (was 172: +1 reportCharts, +18 chat snapshot), floor 160 → 185,
+canaries for the rewritten cycle law, its positive control and the two new
+chat laws (the retired "DSO + DIO − DPO = CCC, EXACTLY as printed" canary
+removed); one-metric-one-formula — measured 121 units (floor 110 kept).
+
+**Re-captured by their own writers** (becc580c): the four captures where the
+printed DSO − DPO parts from the gap (radar/saga_10_col, radar/explain/
+saga_10_col, the coverage popover corpus's saga_10_col book, the Scandia G7
+e2e capture): `float_days.value_q` 11 → 10 and the claim takes the `rounded`
+variant. Nothing else moved.
+
+**OPEN (not fixed here, flagged).** On a payload with no served ratio table
+(the committed firm export fixtures) the card prints `formatRatio`'s fallback
+`${value.toFixed(0)} days`, so a one-day DSO reads "1 days" (the served-table
+path prints "1 day"). It is the card's own string and the chart prints the
+same bytes, so the one-figure law holds; the wording is a separate fix.
+
+**CANNOT SEE:** what the chat MODEL does with the rule line (the law holds
+the snapshot, not the answer — the edge function is unchanged); pixels;
+production periods.
