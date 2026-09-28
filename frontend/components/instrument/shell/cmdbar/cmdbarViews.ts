@@ -163,8 +163,19 @@ function columnChip(ctx: ViewContext, lineKey: string, guard?: (prior: ServedBod
   const col: ComparativeColumnDto | undefined = c.data.columns.find((x) => x.key === lineKey);
   if (!col) return { state: "none", text: t("cmdbar.figure.noPrior") };
   if (guard) {
+    // The PRIOR's refusal, NAMED AS THE PRIOR'S: printed bare beside the
+    // current figure it reads as a statement about that figure — "Total
+    // equity <figure> · total equity excludes the year's result, which is
+    // refused …" of a book that HAS account 121 (critic round 2). The
+    // engine's own column names the side the same way ("<prior>: <text>",
+    // src/engine/comparatives/columns.py).
     const prior = guard(priorBody(c.data));
-    if (prior && prior.refusal) return { state: "none", text: absentText(ctx.printer, prior.refusal) };
+    if (prior && prior.refusal) {
+      return {
+        state: "none",
+        text: t("cmdbar.figure.priorRefused", { prior: c.data.prior.label, reason: absentText(ctx.printer, prior.refusal) }),
+      };
+    }
   }
   const change = printColumnChange(ctx.printer, col);
   if (change === null) return { state: "none", text: t("cmdbar.figure.noPrior") };

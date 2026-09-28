@@ -1546,21 +1546,60 @@ describe("absent is never 0 — a REFUSED line prints the engine's words (fixer 
       .toBe(money(book.statements.assembled_bs.total_assets));
   });
 
-  it("a prior whose total equity the engine refuses carries no Δ — the prior's refusal, never a change against the short figure", () => {
-    const served = ONE_EBITDA_BOOKS.unanchored_unbalanced.statements.assembled_bs.total_equity_refusal;
+  // CRITIC ROUND 2 (2026-09-28): the prior's refusal printed BARE beside the
+  // current figure — "Total equity <figure> · total equity excludes the
+  // year's result, which is refused …" of a book that HAS account 121; the
+  // refusal was Dec 2024's. The engine's own column names the side
+  // ("<prior>: <text>", comparatives/columns.py); the bar dropped it. Held
+  // on ALL FOUR guarded answers, in both languages: the chip names the prior
+  // period, and the bare reason never stands beside a served current figure.
+  it("a prior the engine refused on a line carries no Δ — its refusal NAMED AS THE PRIOR'S on every guarded answer (EBITDA, operating result, net result, total equity), never the bare reason", async () => {
+    const book = ONE_EBITDA_BOOKS.unanchored_unbalanced.statements;
     const cmp = structuredClone(PAIR.comparatives);
-    cmp.prior_statements.assembled_bs.total_equity_refusal = served;
-    // POSITIVE CONTROL: the column itself still compares — the comparatives
-    // document reads no balance-sheet refusal, so only the bar's guard
-    // keeps the change off the row.
-    expect(cmp.columns.find((c: { key: string }) => c.key === "bs.total_equity").status).toBe("compared");
-    mount(pairWorld({ comparatives: cmp }));
-    type("total equity");
-    const row = answerRow("answer:equity")!;
-    expect(row.querySelector('[data-figure="answer"]')?.textContent).toBe(money(PAIR.current_body.statements.assembled_bs.total_equity));
-    const chips = chipTexts(row);
-    expect(chips[0]).toEqual({ state: "none", text: served.text_en });
-    expect(chips.some((c) => / vs /.test(c.text))).toBe(false);
+    // The prior becomes the engine's constructed book with no account 121:
+    // EBITDA and EBIT refused, the net result unanchored, total equity
+    // refused — each in the exact shape the engine serves it.
+    cmp.prior_statements.assembled_pl = structuredClone(book.assembled_pl);
+    cmp.prior_statements.assembled_bs = structuredClone(book.assembled_bs);
+    const priorLabel = cmp.prior.label;
+    expect(priorLabel, "POSITIVE CONTROL: the prior carries a label to name").toMatch(/\S/);
+    const words = (r: { text_en: string; text_ro: string }, lang: Lang) => (lang === "ro" ? r.text_ro : r.text_en);
+    // The reason each answer's prior carries, from the SERVED JSON and the
+    // strings — not from the bar's readers.
+    const reasonOf: Record<string, (lang: Lang) => string> = {
+      ebitda: (lang) => words(book.assembled_pl.ebitda_refusal, lang),
+      operating_result: (lang) => words(book.assembled_pl.ebitda_refusal, lang),
+      net_result: (lang) => i18n.getFixedT(lang)("cmdbar.absent.net_result_not_account_121", { status: book.assembled_pl.net_income_anchor_status }),
+      equity: (lang) => words(book.assembled_bs.total_equity_refusal, lang),
+    };
+    expect(book.assembled_pl.ebitda_refusal.fields, "POSITIVE CONTROL: EBIT refuses with EBITDA").toContain("ebit");
+    expect(book.assembled_pl.net_income_anchor_status).not.toBe("anchored");
+    let judged = 0;
+    for (const lang of LANGS) {
+      await useLang(lang);
+      const tt = i18n.getFixedT(lang);
+      for (const id of Object.keys(reasonOf)) {
+        // POSITIVE CONTROL: the column itself still compares — the
+        // comparatives document is the capture's, so only the bar's guard
+        // keeps the change off the row.
+        expect(cmp.columns.find((c: { key: string }) => c.key === LINE_OF[id]).status, id).toBe("compared");
+        mount(pairWorld({ comparatives: cmp }));
+        type(tt(`cmdbar.answer.${id}`));
+        const row = answerRow(`answer:${id}`);
+        expect(row, `${lang}/${id}: the answer`).toBeTruthy();
+        // The CURRENT figure is served (the pair's current book is anchored).
+        expect(row!.querySelector('[data-figure="answer"]')?.textContent, `${lang}/${id}: the current figure`).toMatch(/\d/);
+        const bare = reasonOf[id](lang);
+        const chips = chipTexts(row!);
+        expect(chips[0], `${lang}/${id}`).toEqual({ state: "none", text: tt("cmdbar.figure.priorRefused", { prior: priorLabel, reason: bare }) });
+        expect(chips[0].text.startsWith(`${priorLabel}: `), `${lang}/${id}: the chip names the prior`).toBe(true);
+        expect(chips.some((c) => c.text === bare), `${lang}/${id}: the bare reason beside a served current figure`).toBe(false);
+        expect(chips.some((c) => new RegExp(` ${lang === "ro" ? "față de" : "vs"} ${priorLabel}`).test(c.text)), `${lang}/${id}: a Δ against the refused prior`).toBe(false);
+        judged++;
+        cleanup();
+      }
+    }
+    console.log(`GATE-WORK cmdbar-prior-refused answers=${judged}`);
   });
 
   for (const name of ["g6_uncleared", "unanchored_unbalanced"] as const) {
