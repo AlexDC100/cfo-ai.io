@@ -5757,12 +5757,6 @@
           "role": "otherIncome"
          },
          {
-          "amount": 54304.98,
-          "code": "781401",
-          "name": "Venit.aj.depr.act.circul.",
-          "role": "otherIncome"
-         },
-         {
           "amount": 250358.76,
           "code": "781501",
           "name": "Venituri Din Fondul Comer",
@@ -13095,12 +13089,6 @@
           "amount": 135393.0,
           "code": "7588.07",
           "name": "Eixh rhv.zyvt.ayictjmcxjx 3166.53",
-          "role": "otherIncome"
-         },
-         {
-          "amount": 3988.7,
-          "code": "7814.01",
-          "name": "Qteyisdy tclq.au.ptld.abi.bydb. 7624.02",
           "role": "otherIncome"
          }
         ],
@@ -25963,18 +25951,6 @@
           "amount": 109252.6,
           "code": "7588.07",
           "name": "Qbvk pkt.xitj.cibfjlwfvlv",
-          "role": "otherIncome"
-         },
-         {
-          "amount": 50000.0,
-          "code": "7812.04",
-          "name": "Abfscpcfq svqcj cqsvqjrbv grzrpcqv 2419.85",
-          "role": "otherIncome"
-         },
-         {
-          "amount": 27934.61,
-          "code": "7814.01",
-          "name": "Kyknl.ws.tyzd.wxl.xndxgq.",
           "role": "otherIncome"
          }
         ],

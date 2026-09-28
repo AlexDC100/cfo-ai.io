@@ -21,7 +21,7 @@
     "org_id": "0a9a0000-0000-4000-8000-0000000000a9"
    }
   ],
-  "content_hash": "67ab3923d3ab520d8c05fce5de85557dc8ee96a924979f11a2269598db718676",
+  "content_hash": "ee696ad2920be00470804a8d181587fe43505705f7f9ec56a5f9bf489be961bc",
   "duplicate": null,
   "identity": {
    "caen_code": null,
@@ -10127,12 +10127,6 @@
         "amount": 3983.96,
         "code": "758891",
         "name": "Alte ven.expl.plus inven.",
-        "role": "otherIncome"
-       },
-       {
-        "amount": 54304.98,
-        "code": "781401",
-        "name": "Venit.aj.depr.act.circul.",
         "role": "otherIncome"
        },
        {

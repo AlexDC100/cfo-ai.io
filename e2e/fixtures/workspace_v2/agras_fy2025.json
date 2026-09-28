@@ -21,7 +21,7 @@
     "org_id": "0a9a0000-0000-4000-8000-0000000000a9"
    }
   ],
-  "content_hash": "e67ff67de7ecbaf4dc7c321518a14edee45962416df61eac459813a78cbec331",
+  "content_hash": "a263c9f86d2d905d71858131e8acd1292ea2b8d981afca38a30074f4690cc340",
   "duplicate": null,
   "identity": {
    "caen_code": null,
@@ -10412,12 +10412,6 @@
         "amount": 135393.0,
         "code": "7588.07",
         "name": "Eixh rhv.zyvt.ayictjmcxjx 3166.53",
-        "role": "otherIncome"
-       },
-       {
-        "amount": 3988.7,
-        "code": "7814.01",
-        "name": "Qteyisdy tclq.au.ptld.abi.bydb. 7624.02",
         "role": "otherIncome"
        }
       ],
