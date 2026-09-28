@@ -15685,7 +15685,7 @@ byte-exact, and re-run GREEN):
 | gate | law | plant |
 |---|---|---|
 | attention-rules | no block → no figure, no claim (`split_refused`), no fallback formula | A1 |
-| attention-rules | the served block is read with its basis LABEL and its own policy | A2 |
+| attention-rules | the served block is read with its basis LABEL and its own policy; a dio band item carries that label | A2, A11 |
 | attention-rules, cmdbar-fixtures | the filed-basis row carries the owner's label ONCE, no second note | A3 |
 | cmdbar-fixtures | an answer that prints the split never joins the filed-basis row | A4 |
 | cmdbar-surface | the inventory line prints the block's value_q (the tile's string) with the served basis label; snapshot label; refused block's words | A5, A8 |
@@ -15811,6 +15811,14 @@ PLANT A10 — _attention.listable_periods: the candidate periods read without th
     1 failed, 7 passed in 8.85s
   REVERT (git checkout -- src/engine/api/_attention.py, byte-exact) exit 0
     8 passed in 8.86s
+PLANT A11 — attention now._ratio_item: the dio band item hands over the basis CODE as its label
+  cmd: pytest tests/engine/test_attention_rules.py
+  exit 1 -> RED
+    tests/engine/test_attention_rules.py:371: AssertionError: {'en': 'average_two_year_ends', 'ro': 'average_two_year_ends'}
+    FAILED tests/engine/test_attention_rules.py::test_the_served_block_is_read_with_its_basis_label_and_its_policy
+    1 failed, 28 passed in 3.15s
+  REVERT (git checkout -- src/engine/attention/now.py, byte-exact) exit 0
+    29 passed in 3.17s
 PLANT B1 — reportCharts.workingCapitalCycle: the CCC bar prints the card's rounding of the exact cycle again
   cmd: vitest frontend/lib/__tests__/reportCharts.test.ts
   exit 1 -> RED
