@@ -17025,3 +17025,30 @@ Measured on the stage head, not asserted:
   engine-book clean, no-plants PASS, provenance-census its 11 pre-existing
   findings, provenance-contrast PASS, F-A3.1 GREEN on every registered
   fixture (EEI 0.0000 %, Scandia 0.1445 %).
+
+### Ruling R1 — the measured green runs at 7db8ff7d (2026-09-28)
+
+On `feat/rulings-2` at 7db8ff7d (the stock-build credit regime, credit model
+revision 5), every run in the worktree, nothing deployed:
+- full engine suite `pytest tests/engine -q`: **9260 passed, 39 skipped, 2
+  xfailed** (23:06);
+- full vitest: **260 files, 4307 passed, 1 skipped**;
+- `tsc --noEmit -p tsconfig.app.json`: the 10 known `capsuleAskGuard` errors,
+  nothing else;
+- root `tests/` (without `tests/engine`): 6 failed, 127 passed, 21 errors — the
+  known environmental set;
+- the narrowed battery (40 gates: credit-stock-build, credit-regime-surfaces,
+  ratio-credit-model, ratio-table, ratio-compare, ratio-band-findings,
+  served-range, credit-boundary, reprocess-periods-definition,
+  provisions-symmetric, turnover-7411, refusal-carries(-engine),
+  one-ebitda(-engine), net-711-rule, attention-rules / -served-only / -route,
+  cmdbar-fixtures / -surface / -evidence, evidence-lines, comparatives-route,
+  comparatives-depth-parity, briefing-definition, valuation-one-ebitda,
+  one-metric-one-formula, margin-meaning-page, pl-one-ebitda-page,
+  export-ratio-anchor, interest-coverage-one-operand, workspace-v2,
+  floor-census, f31-parity, bs-drift, engine-book, no-plants, stale-gates,
+  provenance-census): all green but `provenance-census`, which carries its 11
+  pre-existing findings (no new one); `interest-coverage-one-operand` was red
+  since R2 on its own canary and is repaired in 7db8ff7d;
+- F-A3.1 (`scripts/measure_bs_drift.py`): GREEN on every registered fixture;
+  F3.1-PARITY byte-identical on both fixtures.
