@@ -1288,6 +1288,281 @@
      }
     ]
    },
+   "inventory_days": {
+    "basis": "average_two_year_ends",
+    "basis_label": {
+     "en": "average of the balances at 1 January and 31 December",
+     "ro": "media soldurilor la 1 ianuarie și 31 decembrie"
+    },
+    "ccc_dio_term": {
+     "basis": "year_end_snapshot",
+     "basis_label": {
+      "en": "stock at 31 December — a single day",
+      "ro": "stoc la 31 decembrie — o singură zi"
+     },
+     "reason": {
+      "code": "a_leg_refused",
+      "legs": [
+       "finished_goods_wip",
+       "merchandise"
+      ],
+      "text_en": "a component that holds stock is refused, so the total cannot be computed",
+      "text_ro": "o componentă cu stoc este refuzată, deci totalul nu poate fi calculat"
+     },
+     "value": null
+    },
+    "claim_policy": {
+     "may_call_slow": false,
+     "reason": "split_refused",
+     "reason_text": {
+      "en": "the split by stock type is not available; stock cannot be called slow",
+      "ro": "împărțirea pe tipuri de stoc nu este disponibilă; nu se poate spune că stocul este lent"
+     },
+     "requires": [
+      "split_by_stock_type",
+      "average_balance"
+     ]
+    },
+    "cost_of_production_sold": {
+     "basis": "total_operating_expense_less_607_less_net_711",
+     "formula": "total_operating_expense - 607 - net_711",
+     "label_en": "total operating cost excluding merchandise, adjusted for the change in inventories (no class-9 management accounts)",
+     "label_ro": "cost total de exploatare fără mărfuri, ajustat cu variația stocurilor (fără contabilitate de gestiune clasa 9)",
+     "operands": {
+      "cost_of_goods_resold_607": 0.0,
+      "net_711": 29589814.24,
+      "net_711_provenance": "account_121_bridge",
+      "total_operating_expense": 29280043.3
+     },
+     "refusal": null,
+     "value": -309770.94
+    },
+    "filed_basis_pointer": {
+     "label_en": "filed basis (stock ÷ net turnover) — not the same as the inventory days of this analysis",
+     "label_ro": "bază depusă (stoc ÷ cifra de afaceri) — nu aceeași cu zilele de stoc din analiză",
+     "never_compare": true,
+     "sector_row_key": "inventory_days_on_turnover"
+    },
+    "groups": [
+     {
+      "accounts": [],
+      "closing_value": null,
+      "closing_value_q": null,
+      "flow": {
+       "accounts": [
+        "601",
+        "602",
+        "603"
+       ],
+       "key": "materials_consumed",
+       "label_en": "Materials consumed (601 + 602 + 603)",
+       "label_ro": "Consum de materii prime și materiale (601 + 602 + 603)",
+       "value": 1626.07
+      },
+      "key": "materials",
+      "label_en": "Raw materials and consumables",
+      "label_ro": "Materii prime și materiale",
+      "provision_accounts": [
+       "391",
+       "392"
+      ],
+      "provision_accounts_present": [],
+      "reason": {
+       "code": "no_stock",
+       "text_en": "there is no stock of this kind at either date",
+       "text_ro": "nu există stocuri de acest tip la niciuna dintre date"
+      },
+      "stock": {
+       "average": 0.0,
+       "closing": 0.0,
+       "opening": 0.0
+      },
+      "stock_accounts": [
+       "301",
+       "302",
+       "303",
+       "308"
+      ],
+      "value": null,
+      "value_q": null
+     },
+     {
+      "accounts": [
+       "331001",
+       "331002",
+       "331003"
+      ],
+      "closing_value": null,
+      "closing_value_q": null,
+      "flow": {
+       "accounts": [],
+       "key": "cost_of_production_sold",
+       "label_en": "Cost of production sold",
+       "label_ro": "Costul producției vândute",
+       "value": -309770.94
+      },
+      "key": "finished_goods_wip",
+      "label_en": "Finished goods and work in progress",
+      "label_ro": "Produse finite și producție în curs",
+      "provision_accounts": [
+       "393",
+       "394"
+      ],
+      "provision_accounts_present": [],
+      "reason": {
+       "code": "no_own_production_sold",
+       "inputs": [
+        "701",
+        "702",
+        "703"
+       ],
+       "text_en": "no own products were sold (accounts 701–703 are zero), so product stock has no sales flow",
+       "text_ro": "nu s-au vândut produse proprii (conturile 701–703 sunt zero), deci stocul de produse nu are un flux de vânzare"
+      },
+      "stock": {
+       "average": 22130354.57,
+       "closing": 36925261.71,
+       "opening": 7335447.42
+      },
+      "stock_accounts": [
+       "331",
+       "341",
+       "345",
+       "348"
+      ],
+      "value": null,
+      "value_q": null
+     },
+     {
+      "accounts": [
+       "371901"
+      ],
+      "closing_value": null,
+      "closing_value_q": null,
+      "flow": {
+       "accounts": [
+        "607"
+       ],
+       "key": "cost_of_goods_resold",
+       "label_en": "Cost of goods resold (607)",
+       "label_ro": "Costul mărfurilor vândute (607)",
+       "value": 0.0
+      },
+      "key": "merchandise",
+      "label_en": "Merchandise",
+      "label_ro": "Mărfuri",
+      "provision_accounts": [
+       "397"
+      ],
+      "provision_accounts_present": [],
+      "reason": {
+       "code": "no_goods_resold",
+       "inputs": [
+        "607"
+       ],
+       "text_en": "there is merchandise stock but no cost of goods resold (607)",
+       "text_ro": "există stoc de mărfuri, dar nu există cost al mărfurilor vândute (607)"
+      },
+      "stock": {
+       "average": 30895952.0,
+       "closing": 30895952.0,
+       "opening": 30895952.0
+      },
+      "stock_accounts": [
+       "371",
+       "378"
+      ],
+      "value": null,
+      "value_q": null
+     }
+    ],
+    "inventory_turnover": {
+     "formula": "period_days / total.value",
+     "reason": {
+      "code": "a_leg_refused",
+      "legs": [
+       "finished_goods_wip",
+       "merchandise"
+      ],
+      "text_en": "a component that holds stock is refused, so the total cannot be computed",
+      "text_ro": "o componentă cu stoc este refuzată, deci totalul nu poate fi calculat"
+     },
+     "value": null,
+     "value_q": null
+    },
+    "opening": {
+     "convention": "C",
+     "reason": null,
+     "source": "tb_si_column",
+     "status": "available"
+    },
+    "other": {
+     "accounts": [],
+     "key": "other_stock",
+     "label_en": "Other stock",
+     "label_ro": "Alte stocuri",
+     "provision_accounts_present": [],
+     "stock": {
+      "average": 0.0,
+      "closing": 0.0,
+      "opening": 0.0
+     }
+    },
+    "period_days": 365.0,
+    "provenance": {
+     "flows": "statement_line_items (601, 602, 603, 607, 701-703)",
+     "net_711": "assembled_pl.inventory_variation",
+     "pack": "packs/ratios/inventory_days.yaml",
+     "period_days": "supplementary.periodDays",
+     "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
+     "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+    },
+    "reconciliation": {
+     "difference": 0.0,
+     "served_inventory_net": 67821213.71,
+     "status": "reconciled",
+     "sum_of_groups_closing": 67821213.71
+    },
+    "schema": "inventory_days/1",
+    "seasonality": {
+     "flagged": false,
+     "note_en": null,
+     "note_ro": null
+    },
+    "status": "refused",
+    "total": {
+     "closing_value": null,
+     "closing_value_q": null,
+     "flow": {
+      "components": {
+       "cost_of_goods_resold_607": 0.0,
+       "cost_of_production_sold": -309770.94
+      },
+      "label_en": "cost of production sold + cost of goods resold (607)",
+      "label_ro": "costul producției vândute + costul mărfurilor vândute (607)",
+      "value": -309770.94
+     },
+     "label_en": "Inventory days (total, flow-weighted)",
+     "label_ro": "Zile de stoc (total, ponderat cu fluxurile)",
+     "reason": {
+      "code": "a_leg_refused",
+      "legs": [
+       "finished_goods_wip",
+       "merchandise"
+      ],
+      "text_en": "a component that holds stock is refused, so the total cannot be computed",
+      "text_ro": "o componentă cu stoc este refuzată, deci totalul nu poate fi calculat"
+     },
+     "stock": {
+      "average": 53026306.57,
+      "closing": 67821213.71,
+      "opening": 38231399.42
+     },
+     "value": null,
+     "value_q": null,
+     "weighting": "flow"
+    }
+   },
    "leaves": {
     "accrued_expenses": {
      "magnitude": 0.05,
@@ -1658,16 +1933,7 @@
      "strict": 534355.84
     },
     "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
-    "errors": [
-     {
-      "error": "ZeroDivisionError: division by zero",
-      "scope": "ratios.days_inventory_outstanding"
-     },
-     {
-      "error": "ZeroDivisionError: division by zero",
-      "scope": "ratios.days_payable_outstanding"
-     }
-    ],
+    "errors": [],
     "industry_key_applied": "default",
     "measured": {
      "capitalized_own_work_net": {
@@ -1711,13 +1977,6 @@
       "unit": "ratio",
       "value": 0.383206
      },
-     "cash_conversion_cycle": {
-      "band": null,
-      "direction": "lower_is_better",
-      "note": "",
-      "unit": "days",
-      "value": 61.132409
-     },
      "cash_ratio": {
       "band": [
        0.1,
@@ -1737,28 +1996,6 @@
       "note": "",
       "unit": "ratio",
       "value": 2.731191
-     },
-     "days_inventory_outstanding": {
-      "band": [
-       30,
-       70
-      ],
-      "direction": "lower_is_better",
-      "note": "",
-      "reason": "formula_error",
-      "unit": "days",
-      "value": null
-     },
-     "days_payable_outstanding": {
-      "band": [
-       30,
-       60
-      ],
-      "direction": "higher_is_better",
-      "note": "",
-      "reason": "formula_error",
-      "unit": "days",
-      "value": null
      },
      "days_sales_outstanding": {
       "band": [
@@ -1847,13 +2084,6 @@
       "note": "",
       "unit": "ratio",
       "value": 0.376032
-     },
-     "inventory_turnover": {
-      "band": null,
-      "direction": "higher_is_better",
-      "note": "",
-      "unit": "ratio",
-      "value": 0.0
      },
      "lt_debt_to_equity": {
       "band": null,
@@ -3220,8 +3450,8 @@
        "role": "trade_payable"
       }
      ],
-     "claim": "The net trade float is RON -2,633,068.76: RON 27,193.95 owed by customers against RON 2,660,262.71 owed to suppliers — 61.1 days of sales outstanding against not reported of payables, a gap of not reported.",
-     "claim_template": "The net trade float is {money:float}: {money:trade_receivables} owed by customers against {money:trade_payables} owed to suppliers — {measure:dso} of sales outstanding against {measure:dpo} of payables, a gap of {measure:float_days}.",
+     "claim": "The net trade float is RON -2,633,068.76: RON 27,193.95 owed by customers against RON 2,660,262.71 owed to suppliers — 61 days of sales outstanding against 33 days of payables (RON 2,660,262.76 of balance-sheet payables over RON 29,280,043.30 of total operating expense, on 365 days), a gap of 28 days.",
+     "claim_template": "The net trade float is {money:float}: {money:trade_receivables} owed by customers against {money:trade_payables} owed to suppliers — {measure:dso} of sales outstanding against {measure:dpo} of payables ({money:dpo_payables} of balance-sheet payables over {money:total_operating_expense} of total operating expense, on {measure:period_days}), a gap of {measure:float_days}.",
      "facts": [
       {
        "label": "Trade receivables net of provisions",
@@ -3242,13 +3472,13 @@
        "value": 162365.46
       },
       {
-       "label": "Cost of goods sold",
-       "name": "assembled_pl.cogs",
+       "label": "Total operating expense",
+       "name": "assembled_pl.total_operating_expense",
        "unit": "money",
-       "value": 0.0
+       "value": 29280043.3
       }
      ],
-     "formula": "DSO = trade receivables net ÷ revenue × 365; DPO = trade payables ÷ cost of goods sold × 365; float = trade receivables net − trade payables",
+     "formula": "DSO = trade receivables net ÷ revenue × the period's days; DPO = balance-sheet payables ÷ total operating expense × the period's days (the ratio table's one DPO, engine.ratios.table.dpo_days); float = trade receivables net − trade payables",
      "id": "trade_float",
      "in_summary": true,
      "measures": [
@@ -3256,19 +3486,22 @@
        "key": "dso",
        "label": "Days sales outstanding",
        "unit": "days",
-       "value": 61.132409257486
+       "value": 61.132409257486,
+       "value_q": "61"
       },
       {
        "key": "dpo",
-       "label": "Days payables outstanding",
+       "label": "Days payables outstanding (on total operating cost)",
        "unit": "days",
-       "value": null
+       "value": 33.16237949006,
+       "value_q": "33"
       },
       {
        "key": "float_days",
        "label": "Collection gap (DSO − DPO)",
        "unit": "days",
-       "value": null
+       "value": 27.970029767426,
+       "value_q": "28"
       },
       {
        "key": "float",
@@ -3289,14 +3522,27 @@
        "value": 2660262.71
       },
       {
-       "key": "cogs",
-       "label": "Cost of goods sold",
+       "key": "dpo_payables",
+       "label": "Balance-sheet payables (the DPO's numerator)",
        "unit": "money",
-       "value": 0.0
+       "value": 2660262.76
+      },
+      {
+       "key": "total_operating_expense",
+       "label": "Total operating expense",
+       "unit": "money",
+       "value": 29280043.3
+      },
+      {
+       "key": "period_days",
+       "label": "The period's day count",
+       "noun": "day",
+       "unit": "count",
+       "value": 365.0
       }
      ],
      "narrative": {
-      "explanation": "The net trade float is RON -2,633,068.76: RON 27,193.95 owed by customers against RON 2,660,262.71 owed to suppliers — 61.1 days of sales outstanding against not reported of payables, a gap of not reported. Graded critical: the amount at stake is 1,621.7% of revenue, against the ladder printed beside this finding. Trade float is a claim on a year of trading, so it is graded as a share of that year's revenue — the same base both day counts already annualise against.",
+      "explanation": "The net trade float is RON -2,633,068.76: RON 27,193.95 owed by customers against RON 2,660,262.71 owed to suppliers — 61 days of sales outstanding against 33 days of payables (RON 2,660,262.76 of balance-sheet payables over RON 29,280,043.30 of total operating expense, on 365 days), a gap of 28 days. Graded critical: the amount at stake is 1,621.7% of revenue, against the ladder printed beside this finding. Trade float is a claim on a year of trading, so it is graded as a share of that year's revenue — the same base both day counts already annualise against.",
       "reason": "the advisory lane was not invoked for this build",
       "so_what": "Compare the collection gap with the credit terms actually granted. Where suppliers fund the cycle, that funding is a payables line that can be withdrawn, not a permanent source.",
       "source": "deterministic"
@@ -4307,6 +4553,281 @@
     "asset_age",
     "earnings_quality"
    ]
+  },
+  "inventory_days": {
+   "basis": "average_two_year_ends",
+   "basis_label": {
+    "en": "average of the balances at 1 January and 31 December",
+    "ro": "media soldurilor la 1 ianuarie și 31 decembrie"
+   },
+   "ccc_dio_term": {
+    "basis": "year_end_snapshot",
+    "basis_label": {
+     "en": "stock at 31 December — a single day",
+     "ro": "stoc la 31 decembrie — o singură zi"
+    },
+    "reason": {
+     "code": "a_leg_refused",
+     "legs": [
+      "finished_goods_wip",
+      "merchandise"
+     ],
+     "text_en": "a component that holds stock is refused, so the total cannot be computed",
+     "text_ro": "o componentă cu stoc este refuzată, deci totalul nu poate fi calculat"
+    },
+    "value": null
+   },
+   "claim_policy": {
+    "may_call_slow": false,
+    "reason": "split_refused",
+    "reason_text": {
+     "en": "the split by stock type is not available; stock cannot be called slow",
+     "ro": "împărțirea pe tipuri de stoc nu este disponibilă; nu se poate spune că stocul este lent"
+    },
+    "requires": [
+     "split_by_stock_type",
+     "average_balance"
+    ]
+   },
+   "cost_of_production_sold": {
+    "basis": "total_operating_expense_less_607_less_net_711",
+    "formula": "total_operating_expense - 607 - net_711",
+    "label_en": "total operating cost excluding merchandise, adjusted for the change in inventories (no class-9 management accounts)",
+    "label_ro": "cost total de exploatare fără mărfuri, ajustat cu variația stocurilor (fără contabilitate de gestiune clasa 9)",
+    "operands": {
+     "cost_of_goods_resold_607": 0.0,
+     "net_711": 29589814.24,
+     "net_711_provenance": "account_121_bridge",
+     "total_operating_expense": 29280043.3
+    },
+    "refusal": null,
+    "value": -309770.94
+   },
+   "filed_basis_pointer": {
+    "label_en": "filed basis (stock ÷ net turnover) — not the same as the inventory days of this analysis",
+    "label_ro": "bază depusă (stoc ÷ cifra de afaceri) — nu aceeași cu zilele de stoc din analiză",
+    "never_compare": true,
+    "sector_row_key": "inventory_days_on_turnover"
+   },
+   "groups": [
+    {
+     "accounts": [],
+     "closing_value": null,
+     "closing_value_q": null,
+     "flow": {
+      "accounts": [
+       "601",
+       "602",
+       "603"
+      ],
+      "key": "materials_consumed",
+      "label_en": "Materials consumed (601 + 602 + 603)",
+      "label_ro": "Consum de materii prime și materiale (601 + 602 + 603)",
+      "value": 1626.07
+     },
+     "key": "materials",
+     "label_en": "Raw materials and consumables",
+     "label_ro": "Materii prime și materiale",
+     "provision_accounts": [
+      "391",
+      "392"
+     ],
+     "provision_accounts_present": [],
+     "reason": {
+      "code": "no_stock",
+      "text_en": "there is no stock of this kind at either date",
+      "text_ro": "nu există stocuri de acest tip la niciuna dintre date"
+     },
+     "stock": {
+      "average": 0.0,
+      "closing": 0.0,
+      "opening": 0.0
+     },
+     "stock_accounts": [
+      "301",
+      "302",
+      "303",
+      "308"
+     ],
+     "value": null,
+     "value_q": null
+    },
+    {
+     "accounts": [
+      "331001",
+      "331002",
+      "331003"
+     ],
+     "closing_value": null,
+     "closing_value_q": null,
+     "flow": {
+      "accounts": [],
+      "key": "cost_of_production_sold",
+      "label_en": "Cost of production sold",
+      "label_ro": "Costul producției vândute",
+      "value": -309770.94
+     },
+     "key": "finished_goods_wip",
+     "label_en": "Finished goods and work in progress",
+     "label_ro": "Produse finite și producție în curs",
+     "provision_accounts": [
+      "393",
+      "394"
+     ],
+     "provision_accounts_present": [],
+     "reason": {
+      "code": "no_own_production_sold",
+      "inputs": [
+       "701",
+       "702",
+       "703"
+      ],
+      "text_en": "no own products were sold (accounts 701–703 are zero), so product stock has no sales flow",
+      "text_ro": "nu s-au vândut produse proprii (conturile 701–703 sunt zero), deci stocul de produse nu are un flux de vânzare"
+     },
+     "stock": {
+      "average": 22130354.57,
+      "closing": 36925261.71,
+      "opening": 7335447.42
+     },
+     "stock_accounts": [
+      "331",
+      "341",
+      "345",
+      "348"
+     ],
+     "value": null,
+     "value_q": null
+    },
+    {
+     "accounts": [
+      "371901"
+     ],
+     "closing_value": null,
+     "closing_value_q": null,
+     "flow": {
+      "accounts": [
+       "607"
+      ],
+      "key": "cost_of_goods_resold",
+      "label_en": "Cost of goods resold (607)",
+      "label_ro": "Costul mărfurilor vândute (607)",
+      "value": 0.0
+     },
+     "key": "merchandise",
+     "label_en": "Merchandise",
+     "label_ro": "Mărfuri",
+     "provision_accounts": [
+      "397"
+     ],
+     "provision_accounts_present": [],
+     "reason": {
+      "code": "no_goods_resold",
+      "inputs": [
+       "607"
+      ],
+      "text_en": "there is merchandise stock but no cost of goods resold (607)",
+      "text_ro": "există stoc de mărfuri, dar nu există cost al mărfurilor vândute (607)"
+     },
+     "stock": {
+      "average": 30895952.0,
+      "closing": 30895952.0,
+      "opening": 30895952.0
+     },
+     "stock_accounts": [
+      "371",
+      "378"
+     ],
+     "value": null,
+     "value_q": null
+    }
+   ],
+   "inventory_turnover": {
+    "formula": "period_days / total.value",
+    "reason": {
+     "code": "a_leg_refused",
+     "legs": [
+      "finished_goods_wip",
+      "merchandise"
+     ],
+     "text_en": "a component that holds stock is refused, so the total cannot be computed",
+     "text_ro": "o componentă cu stoc este refuzată, deci totalul nu poate fi calculat"
+    },
+    "value": null,
+    "value_q": null
+   },
+   "opening": {
+    "convention": "C",
+    "reason": null,
+    "source": "tb_si_column",
+    "status": "available"
+   },
+   "other": {
+    "accounts": [],
+    "key": "other_stock",
+    "label_en": "Other stock",
+    "label_ro": "Alte stocuri",
+    "provision_accounts_present": [],
+    "stock": {
+     "average": 0.0,
+     "closing": 0.0,
+     "opening": 0.0
+    }
+   },
+   "period_days": 365.0,
+   "provenance": {
+    "flows": "statement_line_items (601, 602, 603, 607, 701-703)",
+    "net_711": "assembled_pl.inventory_variation",
+    "pack": "packs/ratios/inventory_days.yaml",
+    "period_days": "supplementary.periodDays",
+    "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
+    "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+   },
+   "reconciliation": {
+    "difference": 0.0,
+    "served_inventory_net": 67821213.71,
+    "status": "reconciled",
+    "sum_of_groups_closing": 67821213.71
+   },
+   "schema": "inventory_days/1",
+   "seasonality": {
+    "flagged": false,
+    "note_en": null,
+    "note_ro": null
+   },
+   "status": "refused",
+   "total": {
+    "closing_value": null,
+    "closing_value_q": null,
+    "flow": {
+     "components": {
+      "cost_of_goods_resold_607": 0.0,
+      "cost_of_production_sold": -309770.94
+     },
+     "label_en": "cost of production sold + cost of goods resold (607)",
+     "label_ro": "costul producției vândute + costul mărfurilor vândute (607)",
+     "value": -309770.94
+    },
+    "label_en": "Inventory days (total, flow-weighted)",
+    "label_ro": "Zile de stoc (total, ponderat cu fluxurile)",
+    "reason": {
+     "code": "a_leg_refused",
+     "legs": [
+      "finished_goods_wip",
+      "merchandise"
+     ],
+     "text_en": "a component that holds stock is refused, so the total cannot be computed",
+     "text_ro": "o componentă cu stoc este refuzată, deci totalul nu poate fi calculat"
+    },
+    "stock": {
+     "average": 53026306.57,
+     "closing": 67821213.71,
+     "opening": 38231399.42
+    },
+    "value": null,
+    "value_q": null,
+    "weighting": "flow"
+   }
   },
   "periodLabel": "2025-12-31",
   "subAggregates": {

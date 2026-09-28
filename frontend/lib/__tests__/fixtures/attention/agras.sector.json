@@ -131,7 +131,7 @@
     "inputs": [
      "inventory_days_on_turnover"
     ],
-    "text": "the filing supports inventory days on net turnover, the card divides by operating cost"
+    "text": "the filing supports only year-end stock on net turnover (the filed basis); the analysis splits stock by type over the flow that moves each (engine.ratios.inventory_days) — never compared"
    }
   },
   "dpo": {
@@ -883,7 +883,7 @@
    },
    "definition": {
     "card_key": "dio",
-    "company_basis": "inventory / NET TURNOVER x 365. The ratio card's DIO divides by operating cost; the two are not comparable. Restate the company figure on turnover or refuse the comparison",
+    "company_basis": "year-end stock / NET TURNOVER x 365 on BOTH sides (the filed basis: abridged filings carry no split of stock by type). The analysis measures inventory days split by stock type over the flow that moves each (engine.ratios.inventory_days); the two are different measures and are never compared",
     "differs_from_card": true,
     "formula": "I3 / I13 x 365"
    },

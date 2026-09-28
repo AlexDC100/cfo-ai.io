@@ -38,19 +38,6 @@
  "considered": {
   "insights": [
    {
-    "eligible": false,
-    "family": "insight",
-    "identity": "insight:reconstruction_gap",
-    "key": "reconstruction_gap",
-    "materiality": null,
-    "reason": {
-     "code": "excluded_data_quality",
-     "inputs": [
-      "reconstruction_gap"
-     ]
-    }
-   },
-   {
     "eligible": true,
     "family": "insight",
     "identity": "financial_result",
@@ -59,8 +46,8 @@
      "basis": "ebitda_positive",
      "level": "high",
      "measure": "served_insight_rank",
-     "served_rank": 2,
-     "share": 0.490391
+     "served_rank": 1,
+     "share": 0.469729
     },
     "reason": null
    },
@@ -73,8 +60,8 @@
      "basis": "ebitda_positive",
      "level": "medium",
      "measure": "served_insight_rank",
-     "served_rank": 3,
-     "share": 0.14327
+     "served_rank": 2,
+     "share": 0.137234
     },
     "reason": null
    },
@@ -87,7 +74,7 @@
      "basis": "revenue",
      "level": "medium",
      "measure": "served_insight_rank",
-     "served_rank": 4,
+     "served_rank": 3,
      "share": 0.066982
     },
     "reason": null
@@ -290,8 +277,8 @@
     "basis": "ebitda_positive",
     "level": "high",
     "measure": "served_insight_rank",
-    "served_rank": 2,
-    "share": 0.490391
+    "served_rank": 1,
+    "share": 0.469729
    },
    "rank": 1,
    "severity": {
@@ -320,7 +307,7 @@
     "basis": "ebitda_positive",
     "basis_label": "EBITDA",
     "level": "high",
-    "materiality": 0.490391
+    "materiality": 0.469729
    },
    "slot": "finding",
    "source": {
@@ -334,10 +321,7 @@
    "verdict": null
   },
   {
-   "basis_label": {
-    "en": "filed basis (stock ÷ net turnover) — not the same as the inventory days in the analysis",
-    "ro": "bază depusă (stoc ÷ cifra de afaceri) — nu aceeași cu zilele de stoc din analiză"
-   },
+   "basis_label": null,
    "claim_policy": {
     "may_call_slow": false,
     "reason": "filed_basis_position_only",
@@ -373,7 +357,7 @@
      },
      "definition": {
       "card_key": "dio",
-      "company_basis": "inventory / NET TURNOVER x 365. The ratio card's DIO divides by operating cost; the two are not comparable. Restate the company figure on turnover or refuse the comparison",
+      "company_basis": "year-end stock / NET TURNOVER x 365 on BOTH sides (the filed basis: abridged filings carry no split of stock by type). The analysis measures inventory days split by stock type over the flow that moves each (engine.ratios.inventory_days); the two are different measures and are never compared",
       "differs_from_card": true,
       "formula": "I3 / I13 x 365"
      },
@@ -425,8 +409,8 @@
     "path": "rows[key=inventory_days_on_turnover]"
    },
    "subject": {
-    "en": "Inventory days on turnover",
-    "ro": "Zile stocuri raportate la cifra de afaceri"
+    "en": "Inventory days — filed basis (stock ÷ net turnover) — not the same as the inventory days of this analysis",
+    "ro": "Zile de stoc — bază depusă (stoc ÷ cifra de afaceri) — nu aceeași cu zilele de stoc din analiză"
    },
    "verdict": null
   },
@@ -467,8 +451,8 @@
     "basis": "ebitda_positive",
     "level": "medium",
     "measure": "served_insight_rank",
-    "served_rank": 3,
-    "share": 0.14327
+    "served_rank": 2,
+    "share": 0.137234
    },
    "rank": 3,
    "severity": {
@@ -497,7 +481,7 @@
     "basis": "ebitda_positive",
     "basis_label": "EBITDA",
     "level": "medium",
-    "materiality": 0.14327
+    "materiality": 0.137234
    },
    "slot": "finding",
    "source": {
@@ -554,8 +538,12 @@
    "unclassified_balances": "data_quality"
   },
   "inventory_days_claim_policy": {
-   "may_call_slow": false,
-   "reason": "single_basis_year_end_snapshot",
+   "may_call_slow": true,
+   "reason": "split_and_average",
+   "reason_text": {
+    "en": "a claim must cite the split by stock type and the average balance",
+    "ro": "afirmația trebuie să citeze împărțirea pe tipuri de stoc și media soldurilor"
+   },
    "requires": [
     "split_by_stock_type",
     "average_balance"

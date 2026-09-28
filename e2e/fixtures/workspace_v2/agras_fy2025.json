@@ -21,7 +21,7 @@
     "org_id": "0a9a0000-0000-4000-8000-0000000000a9"
    }
   ],
-  "content_hash": "870654ed3fdcd9c74f9f46bef7593df8f25a0fbbc34d4101a0efde13f58fd32f",
+  "content_hash": "aefe1e5ebe31bf369ad6638548c0522a723ef382f7679ca3ef8bcda01cb17579",
   "duplicate": null,
   "identity": {
    "caen_code": null,
@@ -500,6 +500,262 @@
      "leverage": 90.0,
      "liquidity": 74.1,
      "profitability": 33.2
+    }
+   },
+   "inventory_days": {
+    "basis": "average_two_year_ends",
+    "basis_label": {
+     "en": "average of the balances at 1 January and 31 December",
+     "ro": "media soldurilor la 1 ianuarie \u0219i 31 decembrie"
+    },
+    "ccc_dio_term": {
+     "basis": "year_end_snapshot",
+     "basis_label": {
+      "en": "stock at 31 December \u2014 a single day",
+      "ro": "stoc la 31 decembrie \u2014 o singur\u0103 zi"
+     },
+     "reason": null,
+     "value": 31.8749
+    },
+    "claim_policy": {
+     "may_call_slow": true,
+     "reason": "split_and_average",
+     "reason_text": {
+      "en": "a claim must cite the split by stock type and the average balance",
+      "ro": "afirma\u021bia trebuie s\u0103 citeze \u00eemp\u0103r\u021birea pe tipuri de stoc \u0219i media soldurilor"
+     },
+     "requires": [
+      "split_by_stock_type",
+      "average_balance"
+     ]
+    },
+    "cost_of_production_sold": {
+     "basis": "total_operating_expense_less_607_less_net_711",
+     "formula": "total_operating_expense - 607 - net_711",
+     "label_en": "total operating cost excluding merchandise, adjusted for the change in inventories (no class-9 management accounts)",
+     "label_ro": "cost total de exploatare f\u0103r\u0103 m\u0103rfuri, ajustat cu varia\u021bia stocurilor (f\u0103r\u0103 contabilitate de gestiune clasa 9)",
+     "operands": {
+      "cost_of_goods_resold_607": 26488094.73,
+      "net_711": 1071687.03,
+      "net_711_provenance": "account_121_bridge",
+      "total_operating_expense": 103367367.84
+     },
+     "refusal": null,
+     "value": 75807586.08
+    },
+    "filed_basis_pointer": {
+     "label_en": "filed basis (stock \u00f7 net turnover) \u2014 not the same as the inventory days of this analysis",
+     "label_ro": "baz\u0103 depus\u0103 (stoc \u00f7 cifra de afaceri) \u2014 nu aceea\u0219i cu zilele de stoc din analiz\u0103",
+     "never_compare": true,
+     "sector_row_key": "inventory_days_on_turnover"
+    },
+    "groups": [
+     {
+      "accounts": [
+       "301.201",
+       "301.202",
+       "301.203",
+       "3021.01",
+       "3023.21",
+       "3023.22",
+       "3024.01",
+       "3028.01",
+       "3028.02",
+       "3028.03",
+       "3028.04",
+       "3031.01",
+       "3031.02"
+      ],
+      "closing_value": 35.3692,
+      "closing_value_q": "35",
+      "flow": {
+       "accounts": [
+        "601",
+        "602",
+        "603"
+       ],
+       "key": "materials_consumed",
+       "label_en": "Materials consumed (601 + 602 + 603)",
+       "label_ro": "Consum de materii prime \u0219i materiale (601 + 602 + 603)",
+       "value": 45090499.65
+      },
+      "key": "materials",
+      "label_en": "Raw materials and consumables",
+      "label_ro": "Materii prime \u0219i materiale",
+      "provision_accounts": [
+       "391",
+       "392"
+      ],
+      "provision_accounts_present": [],
+      "reason": null,
+      "stock": {
+       "average": 4610540.19,
+       "closing": 4369350.92,
+       "opening": 4851729.45
+      },
+      "stock_accounts": [
+       "301",
+       "302",
+       "303",
+       "308"
+      ],
+      "value": 37.3215,
+      "value_q": "37"
+     },
+     {
+      "accounts": [
+       "341.010",
+       "345.010",
+       "348.102"
+      ],
+      "closing_value": 11.8115,
+      "closing_value_q": "12",
+      "flow": {
+       "accounts": [],
+       "key": "cost_of_production_sold",
+       "label_en": "Cost of production sold",
+       "label_ro": "Costul produc\u021biei v\u00e2ndute",
+       "value": 75807586.08
+      },
+      "key": "finished_goods_wip",
+      "label_en": "Finished goods and work in progress",
+      "label_ro": "Produse finite \u0219i produc\u021bie \u00een curs",
+      "provision_accounts": [
+       "393",
+       "394"
+      ],
+      "provision_accounts_present": [],
+      "reason": null,
+      "stock": {
+       "average": 2479655.6,
+       "closing": 2453147.66,
+       "opening": 2506163.54
+      },
+      "stock_accounts": [
+       "331",
+       "341",
+       "345",
+       "348"
+      ],
+      "value": 11.9391,
+      "value_q": "12"
+     },
+     {
+      "accounts": [
+       "371.001",
+       "371.010",
+       "371.050",
+       "371.081",
+       "371.093",
+       "371.095",
+       "378.078",
+       "378.080"
+      ],
+      "closing_value": 28.445,
+      "closing_value_q": "28",
+      "flow": {
+       "accounts": [
+        "607"
+       ],
+       "key": "cost_of_goods_resold",
+       "label_en": "Cost of goods resold (607)",
+       "label_ro": "Costul m\u0103rfurilor v\u00e2ndute (607)",
+       "value": 26488094.73
+      },
+      "key": "merchandise",
+      "label_en": "Merchandise",
+      "label_ro": "M\u0103rfuri",
+      "provision_accounts": [
+       "397"
+      ],
+      "provision_accounts_present": [],
+      "reason": null,
+      "stock": {
+       "average": 1337794.7,
+       "closing": 2064260.65,
+       "opening": 611328.75
+      },
+      "stock_accounts": [
+       "371",
+       "378"
+      ],
+      "value": 18.4345,
+      "value_q": "18"
+     }
+    ],
+    "inventory_turnover": {
+     "formula": "period_days / total.value",
+     "reason": null,
+     "value": 12.0814,
+     "value_q": "12.08"
+    },
+    "opening": {
+     "convention": "C",
+     "reason": null,
+     "source": "tb_si_column",
+     "status": "available"
+    },
+    "other": {
+     "accounts": [
+      "381.001"
+     ],
+     "key": "other_stock",
+     "label_en": "Other stock",
+     "label_ro": "Alte stocuri",
+     "provision_accounts_present": [
+      "398"
+     ],
+     "stock": {
+      "average": 39194.37,
+      "closing": 46573.19,
+      "opening": 31815.54
+     }
+    },
+    "period_days": 365.0,
+    "provenance": {
+     "flows": "statement_line_items (601, 602, 603, 607, 701-703)",
+     "net_711": "assembled_pl.inventory_variation",
+     "pack": "packs/ratios/inventory_days.yaml",
+     "period_days": "supplementary.periodDays",
+     "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
+     "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+    },
+    "reconciliation": {
+     "difference": 0.0,
+     "served_inventory_net": 8933332.42,
+     "status": "reconciled",
+     "sum_of_groups_closing": 8933332.42
+    },
+    "schema": "inventory_days/1",
+    "seasonality": {
+     "flagged": false,
+     "note_en": null,
+     "note_ro": null
+    },
+    "status": "served",
+    "total": {
+     "closing_value": 31.8749,
+     "closing_value_q": "32",
+     "flow": {
+      "components": {
+       "cost_of_goods_resold_607": 26488094.73,
+       "cost_of_production_sold": 75807586.08
+      },
+      "label_en": "cost of production sold + cost of goods resold (607)",
+      "label_ro": "costul produc\u021biei v\u00e2ndute + costul m\u0103rfurilor v\u00e2ndute (607)",
+      "value": 102295680.81
+     },
+     "label_en": "Inventory days (total, flow-weighted)",
+     "label_ro": "Zile de stoc (total, ponderat cu fluxurile)",
+     "reason": null,
+     "stock": {
+      "average": 8467184.86,
+      "closing": 8933332.42,
+      "opening": 8001037.28
+     },
+     "value": 30.2117,
+     "value_q": "30",
+     "weighting": "flow"
     }
    },
    "piotroski": {
@@ -1521,14 +1777,29 @@
       "ladder_floor": "critical",
       "operands": [
        {
-        "name": "dio",
-        "source": "metrics.dio",
-        "value": 31.5444
+        "name": "inventory_days",
+        "source": "inventory_days.total.value",
+        "value": 30.2117
+       },
+       {
+        "name": "inventory_average",
+        "source": "inventory_days.total.stock.average",
+        "value": 8467184.86
+       },
+       {
+        "name": "cost_of_sales_flow",
+        "source": "inventory_days.total.flow.value",
+        "value": 102295680.81
+       },
+       {
+        "name": "period_days",
+        "source": "inventory_days.period_days",
+        "value": 365.0
        }
       ],
       "reason": null,
-      "value": 31.5444,
-      "value_q": "32"
+      "value": 30.2117,
+      "value_q": "30"
      },
      {
       "band": "watch",
@@ -1547,13 +1818,33 @@
       "ladder_floor": "watch",
       "operands": [
        {
-        "name": "dpo",
-        "source": "metrics.dpo",
-        "value": 26.6769
+        "name": "accountsPayable",
+        "source": "balanceSheet.accountsPayable",
+        "value": 7554847.25
+       },
+       {
+        "name": "costOfGoodsSold",
+        "source": "incomeStatement.costOfGoodsSold",
+        "value": 70557114.68
+       },
+       {
+        "name": "operatingExpenses",
+        "source": "incomeStatement.operatingExpenses",
+        "value": 29854906.77
+       },
+       {
+        "name": "depreciationAmortization",
+        "source": "incomeStatement.depreciationAmortization",
+        "value": 2955346.39
+       },
+       {
+        "name": "period_days",
+        "source": "supplementary.periodDays",
+        "value": 365.0
        }
       ],
       "reason": null,
-      "value": 26.6769,
+      "value": 26.67688366137272,
       "value_q": "27"
      },
      {
@@ -1573,13 +1864,63 @@
       "ladder_floor": "critical",
       "operands": [
        {
-        "name": "ccc",
-        "source": "metrics.ccc",
-        "value": 32.913
+        "name": "accountsReceivable",
+        "source": "balanceSheet.accountsReceivable",
+        "value": 8513384.96
+       },
+       {
+        "name": "revenue",
+        "source": "incomeStatement.revenue",
+        "value": 110798309.14
+       },
+       {
+        "name": "period_days",
+        "source": "supplementary.periodDays",
+        "value": 365.0
+       },
+       {
+        "name": "inventory_days",
+        "source": "inventory_days.total.closing_value",
+        "value": 31.8749
+       },
+       {
+        "name": "inventory_closing",
+        "source": "inventory_days.total.stock.closing",
+        "value": 8933332.42
+       },
+       {
+        "name": "cost_of_sales_flow",
+        "source": "inventory_days.total.flow.value",
+        "value": 102295680.81
+       },
+       {
+        "name": "period_days",
+        "source": "inventory_days.period_days",
+        "value": 365.0
+       },
+       {
+        "name": "accountsPayable",
+        "source": "balanceSheet.accountsPayable",
+        "value": 7554847.25
+       },
+       {
+        "name": "costOfGoodsSold",
+        "source": "incomeStatement.costOfGoodsSold",
+        "value": 70557114.68
+       },
+       {
+        "name": "operatingExpenses",
+        "source": "incomeStatement.operatingExpenses",
+        "value": 29854906.77
+       },
+       {
+        "name": "depreciationAmortization",
+        "source": "incomeStatement.depreciationAmortization",
+        "value": 2955346.39
        }
       ],
       "reason": null,
-      "value": 32.913,
+      "value": 33.24343990618048,
       "value_q": "33"
      },
      {
@@ -1744,7 +2085,7 @@
       "value_q": "10.3"
      },
      {
-      "band": "healthy",
+      "band": "strong",
       "band_status": "graded",
       "display_unit": "x",
       "formula_key": "ratioTable.inventory_turnover.formula",
@@ -1761,13 +2102,13 @@
       "operands": [
        {
         "name": "inventory_turnover",
-        "source": "metrics.inventory_turnover",
-        "value": 11.571
+        "source": "inventory_days.inventory_turnover.value",
+        "value": 12.0814
        }
       ],
       "reason": null,
-      "value": 11.571,
-      "value_q": "11.57"
+      "value": 12.0814,
+      "value_q": "12.08"
      }
     ],
     "stamps": {
@@ -1802,11 +2143,11 @@
     },
     "efficiency": {
      "asset_turnover": 2.8213,
-     "ccc": 32.913,
-     "dio": 31.5444,
+     "ccc": 33.2434,
+     "dio": 30.2117,
      "dpo": 26.6769,
      "dso": 28.0454,
-     "inventory_turnover": 11.571
+     "inventory_turnover": 12.0814
     },
     "leverage": {
      "debt_to_assets": 0.0927,
@@ -1984,6 +2325,36 @@
     "name": "dscr_with_lt_principal",
     "unit": "ratio",
     "value": 25.8701
+   },
+   {
+    "direction": "lower",
+    "name": "dso",
+    "unit": "days",
+    "value": 28.0454
+   },
+   {
+    "direction": "lower",
+    "name": "dio",
+    "unit": "days",
+    "value": 30.2117
+   },
+   {
+    "direction": "higher",
+    "name": "dpo",
+    "unit": "days",
+    "value": 26.6769
+   },
+   {
+    "direction": "lower",
+    "name": "ccc",
+    "unit": "days",
+    "value": 33.2434
+   },
+   {
+    "direction": "higher",
+    "name": "inventory_turnover",
+    "unit": "ratio",
+    "value": 12.0814
    },
    {
     "direction": "higher",
@@ -5236,7 +5607,7 @@
     "direction": "lower",
     "name": "dio",
     "unit": "days",
-    "value": 31.5444
+    "value": 30.2117
    },
    {
     "direction": "higher",
@@ -5248,13 +5619,13 @@
     "direction": "lower",
     "name": "ccc",
     "unit": "days",
-    "value": 32.913
+    "value": 33.2434
    },
    {
     "direction": "higher",
     "name": "inventory_turnover",
     "unit": "ratio",
-    "value": 11.571
+    "value": 12.0814
    },
    {
     "direction": "higher",
@@ -6746,6 +7117,262 @@
       }
      ]
     },
+    "inventory_days": {
+     "basis": "average_two_year_ends",
+     "basis_label": {
+      "en": "average of the balances at 1 January and 31 December",
+      "ro": "media soldurilor la 1 ianuarie \u0219i 31 decembrie"
+     },
+     "ccc_dio_term": {
+      "basis": "year_end_snapshot",
+      "basis_label": {
+       "en": "stock at 31 December \u2014 a single day",
+       "ro": "stoc la 31 decembrie \u2014 o singur\u0103 zi"
+      },
+      "reason": null,
+      "value": 31.8749
+     },
+     "claim_policy": {
+      "may_call_slow": true,
+      "reason": "split_and_average",
+      "reason_text": {
+       "en": "a claim must cite the split by stock type and the average balance",
+       "ro": "afirma\u021bia trebuie s\u0103 citeze \u00eemp\u0103r\u021birea pe tipuri de stoc \u0219i media soldurilor"
+      },
+      "requires": [
+       "split_by_stock_type",
+       "average_balance"
+      ]
+     },
+     "cost_of_production_sold": {
+      "basis": "total_operating_expense_less_607_less_net_711",
+      "formula": "total_operating_expense - 607 - net_711",
+      "label_en": "total operating cost excluding merchandise, adjusted for the change in inventories (no class-9 management accounts)",
+      "label_ro": "cost total de exploatare f\u0103r\u0103 m\u0103rfuri, ajustat cu varia\u021bia stocurilor (f\u0103r\u0103 contabilitate de gestiune clasa 9)",
+      "operands": {
+       "cost_of_goods_resold_607": 26488094.73,
+       "net_711": 1071687.03,
+       "net_711_provenance": "account_121_bridge",
+       "total_operating_expense": 103367367.84
+      },
+      "refusal": null,
+      "value": 75807586.08
+     },
+     "filed_basis_pointer": {
+      "label_en": "filed basis (stock \u00f7 net turnover) \u2014 not the same as the inventory days of this analysis",
+      "label_ro": "baz\u0103 depus\u0103 (stoc \u00f7 cifra de afaceri) \u2014 nu aceea\u0219i cu zilele de stoc din analiz\u0103",
+      "never_compare": true,
+      "sector_row_key": "inventory_days_on_turnover"
+     },
+     "groups": [
+      {
+       "accounts": [
+        "301.201",
+        "301.202",
+        "301.203",
+        "3021.01",
+        "3023.21",
+        "3023.22",
+        "3024.01",
+        "3028.01",
+        "3028.02",
+        "3028.03",
+        "3028.04",
+        "3031.01",
+        "3031.02"
+       ],
+       "closing_value": 35.3692,
+       "closing_value_q": "35",
+       "flow": {
+        "accounts": [
+         "601",
+         "602",
+         "603"
+        ],
+        "key": "materials_consumed",
+        "label_en": "Materials consumed (601 + 602 + 603)",
+        "label_ro": "Consum de materii prime \u0219i materiale (601 + 602 + 603)",
+        "value": 45090499.65
+       },
+       "key": "materials",
+       "label_en": "Raw materials and consumables",
+       "label_ro": "Materii prime \u0219i materiale",
+       "provision_accounts": [
+        "391",
+        "392"
+       ],
+       "provision_accounts_present": [],
+       "reason": null,
+       "stock": {
+        "average": 4610540.19,
+        "closing": 4369350.92,
+        "opening": 4851729.45
+       },
+       "stock_accounts": [
+        "301",
+        "302",
+        "303",
+        "308"
+       ],
+       "value": 37.3215,
+       "value_q": "37"
+      },
+      {
+       "accounts": [
+        "341.010",
+        "345.010",
+        "348.102"
+       ],
+       "closing_value": 11.8115,
+       "closing_value_q": "12",
+       "flow": {
+        "accounts": [],
+        "key": "cost_of_production_sold",
+        "label_en": "Cost of production sold",
+        "label_ro": "Costul produc\u021biei v\u00e2ndute",
+        "value": 75807586.08
+       },
+       "key": "finished_goods_wip",
+       "label_en": "Finished goods and work in progress",
+       "label_ro": "Produse finite \u0219i produc\u021bie \u00een curs",
+       "provision_accounts": [
+        "393",
+        "394"
+       ],
+       "provision_accounts_present": [],
+       "reason": null,
+       "stock": {
+        "average": 2479655.6,
+        "closing": 2453147.66,
+        "opening": 2506163.54
+       },
+       "stock_accounts": [
+        "331",
+        "341",
+        "345",
+        "348"
+       ],
+       "value": 11.9391,
+       "value_q": "12"
+      },
+      {
+       "accounts": [
+        "371.001",
+        "371.010",
+        "371.050",
+        "371.081",
+        "371.093",
+        "371.095",
+        "378.078",
+        "378.080"
+       ],
+       "closing_value": 28.445,
+       "closing_value_q": "28",
+       "flow": {
+        "accounts": [
+         "607"
+        ],
+        "key": "cost_of_goods_resold",
+        "label_en": "Cost of goods resold (607)",
+        "label_ro": "Costul m\u0103rfurilor v\u00e2ndute (607)",
+        "value": 26488094.73
+       },
+       "key": "merchandise",
+       "label_en": "Merchandise",
+       "label_ro": "M\u0103rfuri",
+       "provision_accounts": [
+        "397"
+       ],
+       "provision_accounts_present": [],
+       "reason": null,
+       "stock": {
+        "average": 1337794.7,
+        "closing": 2064260.65,
+        "opening": 611328.75
+       },
+       "stock_accounts": [
+        "371",
+        "378"
+       ],
+       "value": 18.4345,
+       "value_q": "18"
+      }
+     ],
+     "inventory_turnover": {
+      "formula": "period_days / total.value",
+      "reason": null,
+      "value": 12.0814,
+      "value_q": "12.08"
+     },
+     "opening": {
+      "convention": "C",
+      "reason": null,
+      "source": "tb_si_column",
+      "status": "available"
+     },
+     "other": {
+      "accounts": [
+       "381.001"
+      ],
+      "key": "other_stock",
+      "label_en": "Other stock",
+      "label_ro": "Alte stocuri",
+      "provision_accounts_present": [
+       "398"
+      ],
+      "stock": {
+       "average": 39194.37,
+       "closing": 46573.19,
+       "opening": 31815.54
+      }
+     },
+     "period_days": 365.0,
+     "provenance": {
+      "flows": "statement_line_items (601, 602, 603, 607, 701-703)",
+      "net_711": "assembled_pl.inventory_variation",
+      "pack": "packs/ratios/inventory_days.yaml",
+      "period_days": "supplementary.periodDays",
+      "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
+      "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+     },
+     "reconciliation": {
+      "difference": 0.0,
+      "served_inventory_net": 8933332.42,
+      "status": "reconciled",
+      "sum_of_groups_closing": 8933332.42
+     },
+     "schema": "inventory_days/1",
+     "seasonality": {
+      "flagged": false,
+      "note_en": null,
+      "note_ro": null
+     },
+     "status": "served",
+     "total": {
+      "closing_value": 31.8749,
+      "closing_value_q": "32",
+      "flow": {
+       "components": {
+        "cost_of_goods_resold_607": 26488094.73,
+        "cost_of_production_sold": 75807586.08
+       },
+       "label_en": "cost of production sold + cost of goods resold (607)",
+       "label_ro": "costul produc\u021biei v\u00e2ndute + costul m\u0103rfurilor v\u00e2ndute (607)",
+       "value": 102295680.81
+      },
+      "label_en": "Inventory days (total, flow-weighted)",
+      "label_ro": "Zile de stoc (total, ponderat cu fluxurile)",
+      "reason": null,
+      "stock": {
+       "average": 8467184.86,
+       "closing": 8933332.42,
+       "opening": 8001037.28
+      },
+      "value": 30.2117,
+      "value_q": "30",
+      "weighting": "flow"
+     }
+    },
     "leaves": {
      "accrued_expenses": {
       "magnitude": 368473.48,
@@ -7266,13 +7893,6 @@
        "unit": "ratio",
        "value": 0.026709
       },
-      "cash_conversion_cycle": {
-       "band": null,
-       "direction": "lower_is_better",
-       "note": "",
-       "unit": "days",
-       "value": 36.969396
-      },
       "cash_ratio": {
        "band": [
         0.1,
@@ -7292,26 +7912,6 @@
        "note": "",
        "unit": "ratio",
        "value": 2.111435
-      },
-      "days_inventory_outstanding": {
-       "band": [
-        30,
-        70
-       ],
-       "direction": "lower_is_better",
-       "note": "",
-       "unit": "days",
-       "value": 45.634053
-      },
-      "days_payable_outstanding": {
-       "band": [
-        30,
-        60
-       ],
-       "direction": "higher_is_better",
-       "note": "",
-       "unit": "days",
-       "value": 36.710081
       },
       "days_sales_outstanding": {
        "band": [
@@ -7400,13 +8000,6 @@
        "note": "",
        "unit": "ratio",
        "value": 25.848574
-      },
-      "inventory_turnover": {
-       "band": null,
-       "direction": "higher_is_better",
-       "note": "",
-       "unit": "ratio",
-       "value": 7.998413
       },
       "lt_debt_to_equity": {
        "band": null,
@@ -9871,8 +10464,8 @@
         "role": "trade_payable"
        }
       ],
-      "claim": "The net trade float is RON 1,327,011.19: RON 8,513,384.96 owed by customers against RON 7,186,373.77 owed to suppliers \u2014 28.0 days of sales outstanding against 37.2 days of payables, a gap of -9.1 days.",
-      "claim_template": "The net trade float is {money:float}: {money:trade_receivables} owed by customers against {money:trade_payables} owed to suppliers \u2014 {measure:dso} of sales outstanding against {measure:dpo} of payables, a gap of {measure:float_days}.",
+      "claim": "The net trade float is RON 1,327,011.19: RON 8,513,384.96 owed by customers against RON 7,186,373.77 owed to suppliers \u2014 28 days of sales outstanding against 27 days of payables (RON 7,554,847.25 of balance-sheet payables over RON 103,367,367.84 of total operating expense, on 365 days), a gap of 1 day.",
+      "claim_template": "The net trade float is {money:float}: {money:trade_receivables} owed by customers against {money:trade_payables} owed to suppliers \u2014 {measure:dso} of sales outstanding against {measure:dpo} of payables ({money:dpo_payables} of balance-sheet payables over {money:total_operating_expense} of total operating expense, on {measure:period_days}), a gap of {measure:float_days}.",
       "facts": [
        {
         "label": "Trade receivables net of provisions",
@@ -9893,13 +10486,13 @@
         "value": 110798309.14
        },
        {
-        "label": "Cost of goods sold",
-        "name": "assembled_pl.cogs",
+        "label": "Total operating expense",
+        "name": "assembled_pl.total_operating_expense",
         "unit": "money",
-        "value": 70557114.68
+        "value": 103367367.84
        }
       ],
-      "formula": "DSO = trade receivables net \u00f7 revenue \u00d7 365; DPO = trade payables \u00f7 cost of goods sold \u00d7 365; float = trade receivables net \u2212 trade payables",
+      "formula": "DSO = trade receivables net \u00f7 revenue \u00d7 the period's days; DPO = balance-sheet payables \u00f7 total operating expense \u00d7 the period's days (the ratio table's one DPO, engine.ratios.table.dpo_days); float = trade receivables net \u2212 trade payables",
       "id": "trade_float",
       "in_summary": false,
       "measures": [
@@ -9907,19 +10500,22 @@
         "key": "dso",
         "label": "Days sales outstanding",
         "unit": "days",
-        "value": 28.045423567553
+        "value": 28.045423567553,
+        "value_q": "28"
        },
        {
         "key": "dpo",
-        "label": "Days payables outstanding",
+        "label": "Days payables outstanding (on total operating cost)",
         "unit": "days",
-        "value": 37.175930987914
+        "value": 26.676883661373,
+        "value_q": "27"
        },
        {
         "key": "float_days",
         "label": "Collection gap (DSO \u2212 DPO)",
         "unit": "days",
-        "value": -9.130507420361
+        "value": 1.36853990618,
+        "value_q": "1"
        },
        {
         "key": "float",
@@ -9940,14 +10536,27 @@
         "value": 7186373.77
        },
        {
-        "key": "cogs",
-        "label": "Cost of goods sold",
+        "key": "dpo_payables",
+        "label": "Balance-sheet payables (the DPO's numerator)",
         "unit": "money",
-        "value": 70557114.68
+        "value": 7554847.25
+       },
+       {
+        "key": "total_operating_expense",
+        "label": "Total operating expense",
+        "unit": "money",
+        "value": 103367367.84
+       },
+       {
+        "key": "period_days",
+        "label": "The period's day count",
+        "noun": "day",
+        "unit": "count",
+        "value": 365.0
        }
       ],
       "narrative": {
-       "explanation": "The net trade float is RON 1,327,011.19: RON 8,513,384.96 owed by customers against RON 7,186,373.77 owed to suppliers \u2014 28.0 days of sales outstanding against 37.2 days of payables, a gap of -9.1 days. Graded low: the amount at stake is 1.2% of revenue, against the ladder printed beside this finding. Trade float is a claim on a year of trading, so it is graded as a share of that year's revenue \u2014 the same base both day counts already annualise against.",
+       "explanation": "The net trade float is RON 1,327,011.19: RON 8,513,384.96 owed by customers against RON 7,186,373.77 owed to suppliers \u2014 28 days of sales outstanding against 27 days of payables (RON 7,554,847.25 of balance-sheet payables over RON 103,367,367.84 of total operating expense, on 365 days), a gap of 1 day. Graded low: the amount at stake is 1.2% of revenue, against the ladder printed beside this finding. Trade float is a claim on a year of trading, so it is graded as a share of that year's revenue \u2014 the same base both day counts already annualise against.",
        "reason": "the advisory lane was not invoked for this build",
        "so_what": "Compare the collection gap with the credit terms actually granted. Where suppliers fund the cycle, that funding is a payables line that can be withdrawn, not a permanent source.",
        "source": "deterministic"
@@ -10170,6 +10779,262 @@
      "unclassified_balances",
      "earnings_quality"
     ]
+   },
+   "inventory_days": {
+    "basis": "average_two_year_ends",
+    "basis_label": {
+     "en": "average of the balances at 1 January and 31 December",
+     "ro": "media soldurilor la 1 ianuarie \u0219i 31 decembrie"
+    },
+    "ccc_dio_term": {
+     "basis": "year_end_snapshot",
+     "basis_label": {
+      "en": "stock at 31 December \u2014 a single day",
+      "ro": "stoc la 31 decembrie \u2014 o singur\u0103 zi"
+     },
+     "reason": null,
+     "value": 31.8749
+    },
+    "claim_policy": {
+     "may_call_slow": true,
+     "reason": "split_and_average",
+     "reason_text": {
+      "en": "a claim must cite the split by stock type and the average balance",
+      "ro": "afirma\u021bia trebuie s\u0103 citeze \u00eemp\u0103r\u021birea pe tipuri de stoc \u0219i media soldurilor"
+     },
+     "requires": [
+      "split_by_stock_type",
+      "average_balance"
+     ]
+    },
+    "cost_of_production_sold": {
+     "basis": "total_operating_expense_less_607_less_net_711",
+     "formula": "total_operating_expense - 607 - net_711",
+     "label_en": "total operating cost excluding merchandise, adjusted for the change in inventories (no class-9 management accounts)",
+     "label_ro": "cost total de exploatare f\u0103r\u0103 m\u0103rfuri, ajustat cu varia\u021bia stocurilor (f\u0103r\u0103 contabilitate de gestiune clasa 9)",
+     "operands": {
+      "cost_of_goods_resold_607": 26488094.73,
+      "net_711": 1071687.03,
+      "net_711_provenance": "account_121_bridge",
+      "total_operating_expense": 103367367.84
+     },
+     "refusal": null,
+     "value": 75807586.08
+    },
+    "filed_basis_pointer": {
+     "label_en": "filed basis (stock \u00f7 net turnover) \u2014 not the same as the inventory days of this analysis",
+     "label_ro": "baz\u0103 depus\u0103 (stoc \u00f7 cifra de afaceri) \u2014 nu aceea\u0219i cu zilele de stoc din analiz\u0103",
+     "never_compare": true,
+     "sector_row_key": "inventory_days_on_turnover"
+    },
+    "groups": [
+     {
+      "accounts": [
+       "301.201",
+       "301.202",
+       "301.203",
+       "3021.01",
+       "3023.21",
+       "3023.22",
+       "3024.01",
+       "3028.01",
+       "3028.02",
+       "3028.03",
+       "3028.04",
+       "3031.01",
+       "3031.02"
+      ],
+      "closing_value": 35.3692,
+      "closing_value_q": "35",
+      "flow": {
+       "accounts": [
+        "601",
+        "602",
+        "603"
+       ],
+       "key": "materials_consumed",
+       "label_en": "Materials consumed (601 + 602 + 603)",
+       "label_ro": "Consum de materii prime \u0219i materiale (601 + 602 + 603)",
+       "value": 45090499.65
+      },
+      "key": "materials",
+      "label_en": "Raw materials and consumables",
+      "label_ro": "Materii prime \u0219i materiale",
+      "provision_accounts": [
+       "391",
+       "392"
+      ],
+      "provision_accounts_present": [],
+      "reason": null,
+      "stock": {
+       "average": 4610540.19,
+       "closing": 4369350.92,
+       "opening": 4851729.45
+      },
+      "stock_accounts": [
+       "301",
+       "302",
+       "303",
+       "308"
+      ],
+      "value": 37.3215,
+      "value_q": "37"
+     },
+     {
+      "accounts": [
+       "341.010",
+       "345.010",
+       "348.102"
+      ],
+      "closing_value": 11.8115,
+      "closing_value_q": "12",
+      "flow": {
+       "accounts": [],
+       "key": "cost_of_production_sold",
+       "label_en": "Cost of production sold",
+       "label_ro": "Costul produc\u021biei v\u00e2ndute",
+       "value": 75807586.08
+      },
+      "key": "finished_goods_wip",
+      "label_en": "Finished goods and work in progress",
+      "label_ro": "Produse finite \u0219i produc\u021bie \u00een curs",
+      "provision_accounts": [
+       "393",
+       "394"
+      ],
+      "provision_accounts_present": [],
+      "reason": null,
+      "stock": {
+       "average": 2479655.6,
+       "closing": 2453147.66,
+       "opening": 2506163.54
+      },
+      "stock_accounts": [
+       "331",
+       "341",
+       "345",
+       "348"
+      ],
+      "value": 11.9391,
+      "value_q": "12"
+     },
+     {
+      "accounts": [
+       "371.001",
+       "371.010",
+       "371.050",
+       "371.081",
+       "371.093",
+       "371.095",
+       "378.078",
+       "378.080"
+      ],
+      "closing_value": 28.445,
+      "closing_value_q": "28",
+      "flow": {
+       "accounts": [
+        "607"
+       ],
+       "key": "cost_of_goods_resold",
+       "label_en": "Cost of goods resold (607)",
+       "label_ro": "Costul m\u0103rfurilor v\u00e2ndute (607)",
+       "value": 26488094.73
+      },
+      "key": "merchandise",
+      "label_en": "Merchandise",
+      "label_ro": "M\u0103rfuri",
+      "provision_accounts": [
+       "397"
+      ],
+      "provision_accounts_present": [],
+      "reason": null,
+      "stock": {
+       "average": 1337794.7,
+       "closing": 2064260.65,
+       "opening": 611328.75
+      },
+      "stock_accounts": [
+       "371",
+       "378"
+      ],
+      "value": 18.4345,
+      "value_q": "18"
+     }
+    ],
+    "inventory_turnover": {
+     "formula": "period_days / total.value",
+     "reason": null,
+     "value": 12.0814,
+     "value_q": "12.08"
+    },
+    "opening": {
+     "convention": "C",
+     "reason": null,
+     "source": "tb_si_column",
+     "status": "available"
+    },
+    "other": {
+     "accounts": [
+      "381.001"
+     ],
+     "key": "other_stock",
+     "label_en": "Other stock",
+     "label_ro": "Alte stocuri",
+     "provision_accounts_present": [
+      "398"
+     ],
+     "stock": {
+      "average": 39194.37,
+      "closing": 46573.19,
+      "opening": 31815.54
+     }
+    },
+    "period_days": 365.0,
+    "provenance": {
+     "flows": "statement_line_items (601, 602, 603, 607, 701-703)",
+     "net_711": "assembled_pl.inventory_variation",
+     "pack": "packs/ratios/inventory_days.yaml",
+     "period_days": "supplementary.periodDays",
+     "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
+     "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+    },
+    "reconciliation": {
+     "difference": 0.0,
+     "served_inventory_net": 8933332.42,
+     "status": "reconciled",
+     "sum_of_groups_closing": 8933332.42
+    },
+    "schema": "inventory_days/1",
+    "seasonality": {
+     "flagged": false,
+     "note_en": null,
+     "note_ro": null
+    },
+    "status": "served",
+    "total": {
+     "closing_value": 31.8749,
+     "closing_value_q": "32",
+     "flow": {
+      "components": {
+       "cost_of_goods_resold_607": 26488094.73,
+       "cost_of_production_sold": 75807586.08
+      },
+      "label_en": "cost of production sold + cost of goods resold (607)",
+      "label_ro": "costul produc\u021biei v\u00e2ndute + costul m\u0103rfurilor v\u00e2ndute (607)",
+      "value": 102295680.81
+     },
+     "label_en": "Inventory days (total, flow-weighted)",
+     "label_ro": "Zile de stoc (total, ponderat cu fluxurile)",
+     "reason": null,
+     "stock": {
+      "average": 8467184.86,
+      "closing": 8933332.42,
+      "opening": 8001037.28
+     },
+     "value": 30.2117,
+     "value_q": "30",
+     "weighting": "flow"
+    }
    },
    "periodLabel": "2025-12-31",
    "subAggregates": {

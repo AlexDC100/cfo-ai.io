@@ -172,8 +172,8 @@
    {
     "eligible": true,
     "family": "ratio_band",
-    "identity": "return_on_assets",
-    "key": "roa",
+    "identity": "ratio:roic",
+    "key": "roic",
     "materiality": {
      "measure": "served_band_movement_rank",
      "rank_basis": {
@@ -303,8 +303,8 @@
    {
     "eligible": true,
     "family": "ratio_band",
-    "identity": "ratio:roic",
-    "key": "roic",
+    "identity": "return_on_assets",
+    "key": "roa",
     "materiality": {
      "measure": "served_band_movement_rank",
      "rank_basis": {
@@ -1089,8 +1089,8 @@
    {
     "eligible": true,
     "family": "ratio_band",
-    "identity": "current_ratio",
-    "key": "current_ratio",
+    "identity": "ratio:core_ebitda_margin",
+    "key": "core_ebitda_margin",
     "materiality": {
      "measure": "served_band_movement_rank",
      "rank_basis": {
@@ -1220,8 +1220,8 @@
    {
     "eligible": true,
     "family": "ratio_band",
-    "identity": "ratio:core_ebitda_margin",
-    "key": "core_ebitda_margin",
+    "identity": "current_ratio",
+    "key": "current_ratio",
     "materiality": {
      "measure": "served_band_movement_rank",
      "rank_basis": {
@@ -1476,6 +1476,137 @@
       "sentence_key": "statements.ratioCmp.rankBasis"
      },
      "served_rank": 11
+    },
+    "reason": null
+   },
+   {
+    "eligible": true,
+    "family": "ratio_band",
+    "identity": "inventory_days",
+    "key": "inventory_turnover",
+    "materiality": {
+     "measure": "served_band_movement_rank",
+     "rank_basis": {
+      "bases": {
+       "asset_turnover": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "cash_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "ccc": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "core_ebitda_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "current_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_assets": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_ebitda": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "debt_to_equity": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dpo": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "dscr": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "dscr_with_lt_principal": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "dso": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "ebitda_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "ebitda_to_interest": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "equity_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "gross_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "interest_coverage": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "inventory_turnover": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "lt_debt_to_equity": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "net_debt_to_ebitda": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "net_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "operating_margin": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "quick_ratio": {
+        "base": "total_assets",
+        "numerator_statement": "balance_sheet"
+       },
+       "roa": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "roe": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       },
+       "roic": {
+        "base": "revenue",
+        "numerator_statement": "income_statement"
+       }
+      },
+      "materiality_floor": null,
+      "order": [
+       "abs(rungs_crossed) desc",
+       "distance_fraction desc nulls last",
+       "materiality.share desc nulls last",
+       "key asc"
+      ],
+      "sentence_key": "statements.ratioCmp.rankBasis"
+     },
+     "served_rank": 12
     },
     "reason": null
    }
@@ -2211,8 +2342,12 @@
    "unclassified_balances": "data_quality"
   },
   "inventory_days_claim_policy": {
-   "may_call_slow": false,
-   "reason": "single_basis_year_end_snapshot",
+   "may_call_slow": true,
+   "reason": "split_and_average",
+   "reason_text": {
+    "en": "a claim must cite the split by stock type and the average balance",
+    "ro": "afirmația trebuie să citeze împărțirea pe tipuri de stoc și media soldurilor"
+   },
    "requires": [
     "split_by_stock_type",
     "average_balance"

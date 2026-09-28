@@ -16083,6 +16083,305 @@
      },
      "unmapped": []
     },
+    "inventory_days": {
+     "basis": "year_end_snapshot",
+     "basis_label": {
+      "en": "stock at 31 December — a single day",
+      "ro": "stoc la 31 decembrie — o singură zi"
+     },
+     "ccc_dio_term": {
+      "basis": "year_end_snapshot",
+      "basis_label": {
+       "en": "stock at 31 December — a single day",
+       "ro": "stoc la 31 decembrie — o singură zi"
+      },
+      "reason": {
+       "cause": {
+        "code": "account_121_anchor_absent",
+        "text_en": "the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+        "text_ro": "balanța este închisă, iar contul 121 lipsește: variația stocurilor (711) nu are sold net și nu poate fi derivată"
+       },
+       "code": "stock_variation_refused",
+       "inputs": [
+        "assembled_pl.inventory_variation"
+       ],
+       "text_en": "the change in inventories of products (711) could not be measured, so the cost of production sold is not known",
+       "text_ro": "variația stocurilor de produse (711) nu a putut fi măsurată, deci costul producției vândute nu este cunoscut"
+      },
+      "value": null
+     },
+     "claim_policy": {
+      "may_call_slow": false,
+      "reason": "split_refused",
+      "reason_text": {
+       "en": "the split by stock type is not available; stock cannot be called slow",
+       "ro": "împărțirea pe tipuri de stoc nu este disponibilă; nu se poate spune că stocul este lent"
+      },
+      "requires": [
+       "split_by_stock_type",
+       "average_balance"
+      ]
+     },
+     "cost_of_production_sold": {
+      "basis": "total_operating_expense_less_607_less_net_711",
+      "formula": "total_operating_expense - 607 - net_711",
+      "label_en": "total operating cost excluding merchandise, adjusted for the change in inventories (no class-9 management accounts)",
+      "label_ro": "cost total de exploatare fără mărfuri, ajustat cu variația stocurilor (fără contabilitate de gestiune clasa 9)",
+      "operands": {
+       "cost_of_goods_resold_607": 0.0,
+       "net_711": null,
+       "net_711_provenance": null,
+       "total_operating_expense": 850000.0
+      },
+      "refusal": {
+       "cause": {
+        "code": "account_121_anchor_absent",
+        "text_en": "the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+        "text_ro": "balanța este închisă, iar contul 121 lipsește: variația stocurilor (711) nu are sold net și nu poate fi derivată"
+       },
+       "code": "stock_variation_refused",
+       "inputs": [
+        "assembled_pl.inventory_variation"
+       ],
+       "text_en": "the change in inventories of products (711) could not be measured, so the cost of production sold is not known",
+       "text_ro": "variația stocurilor de produse (711) nu a putut fi măsurată, deci costul producției vândute nu este cunoscut"
+      },
+      "value": null
+     },
+     "filed_basis_pointer": {
+      "label_en": "filed basis (stock ÷ net turnover) — not the same as the inventory days of this analysis",
+      "label_ro": "bază depusă (stoc ÷ cifra de afaceri) — nu aceeași cu zilele de stoc din analiză",
+      "never_compare": true,
+      "sector_row_key": "inventory_days_on_turnover"
+     },
+     "groups": [
+      {
+       "accounts": [],
+       "closing_value": null,
+       "closing_value_q": null,
+       "flow": {
+        "accounts": [
+         "601",
+         "602",
+         "603"
+        ],
+        "key": "materials_consumed",
+        "label_en": "Materials consumed (601 + 602 + 603)",
+        "label_ro": "Consum de materii prime și materiale (601 + 602 + 603)",
+        "value": 600000.0
+       },
+       "key": "materials",
+       "label_en": "Raw materials and consumables",
+       "label_ro": "Materii prime și materiale",
+       "provision_accounts": [
+        "391",
+        "392"
+       ],
+       "provision_accounts_present": [],
+       "reason": {
+        "code": "no_stock",
+        "text_en": "there is no stock of this kind at either date",
+        "text_ro": "nu există stocuri de acest tip la niciuna dintre date"
+       },
+       "stock": {
+        "average": 0.0,
+        "closing": 0.0,
+        "opening": null
+       },
+       "stock_accounts": [
+        "301",
+        "302",
+        "303",
+        "308"
+       ],
+       "value": null,
+       "value_q": null
+      },
+      {
+       "accounts": [
+        "345"
+       ],
+       "closing_value": null,
+       "closing_value_q": null,
+       "flow": {
+        "accounts": [],
+        "key": "cost_of_production_sold",
+        "label_en": "Cost of production sold",
+        "label_ro": "Costul producției vândute",
+        "value": null
+       },
+       "key": "finished_goods_wip",
+       "label_en": "Finished goods and work in progress",
+       "label_ro": "Produse finite și producție în curs",
+       "provision_accounts": [
+        "393",
+        "394"
+       ],
+       "provision_accounts_present": [],
+       "reason": {
+        "cause": {
+         "code": "account_121_anchor_absent",
+         "text_en": "the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+         "text_ro": "balanța este închisă, iar contul 121 lipsește: variația stocurilor (711) nu are sold net și nu poate fi derivată"
+        },
+        "code": "stock_variation_refused",
+        "inputs": [
+         "assembled_pl.inventory_variation"
+        ],
+        "text_en": "the change in inventories of products (711) could not be measured, so the cost of production sold is not known",
+        "text_ro": "variația stocurilor de produse (711) nu a putut fi măsurată, deci costul producției vândute nu este cunoscut"
+       },
+       "stock": {
+        "average": 250000.0,
+        "closing": 250000.0,
+        "opening": null
+       },
+       "stock_accounts": [
+        "331",
+        "341",
+        "345",
+        "348"
+       ],
+       "value": null,
+       "value_q": null
+      },
+      {
+       "accounts": [],
+       "closing_value": null,
+       "closing_value_q": null,
+       "flow": {
+        "accounts": [
+         "607"
+        ],
+        "key": "cost_of_goods_resold",
+        "label_en": "Cost of goods resold (607)",
+        "label_ro": "Costul mărfurilor vândute (607)",
+        "value": 0.0
+       },
+       "key": "merchandise",
+       "label_en": "Merchandise",
+       "label_ro": "Mărfuri",
+       "provision_accounts": [
+        "397"
+       ],
+       "provision_accounts_present": [],
+       "reason": {
+        "code": "no_stock",
+        "text_en": "there is no stock of this kind at either date",
+        "text_ro": "nu există stocuri de acest tip la niciuna dintre date"
+       },
+       "stock": {
+        "average": 0.0,
+        "closing": 0.0,
+        "opening": null
+       },
+       "stock_accounts": [
+        "371",
+        "378"
+       ],
+       "value": null,
+       "value_q": null
+      }
+     ],
+     "inventory_turnover": {
+      "formula": "period_days / total.value",
+      "reason": {
+       "cause": {
+        "code": "account_121_anchor_absent",
+        "text_en": "the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+        "text_ro": "balanța este închisă, iar contul 121 lipsește: variația stocurilor (711) nu are sold net și nu poate fi derivată"
+       },
+       "code": "stock_variation_refused",
+       "inputs": [
+        "assembled_pl.inventory_variation"
+       ],
+       "text_en": "the change in inventories of products (711) could not be measured, so the cost of production sold is not known",
+       "text_ro": "variația stocurilor de produse (711) nu a putut fi măsurată, deci costul producției vândute nu este cunoscut"
+      },
+      "value": null,
+      "value_q": null
+     },
+     "opening": {
+      "convention": null,
+      "reason": {
+       "code": "si_column_unknown",
+       "text_en": "it cannot be established whether the file carries an opening balance, so only the period-end stock is used",
+       "text_ro": "nu se poate stabili dacă fișierul are sold inițial, deci se folosește doar stocul de la sfârșitul perioadei"
+      },
+      "source": "tb_si_column",
+      "status": "absent"
+     },
+     "other": {
+      "accounts": [],
+      "key": "other_stock",
+      "label_en": "Other stock",
+      "label_ro": "Alte stocuri",
+      "provision_accounts_present": [],
+      "stock": {
+       "average": 0.0,
+       "closing": 0.0,
+       "opening": null
+      }
+     },
+     "period_days": 365.0,
+     "provenance": {
+      "flows": "statement_line_items (601, 602, 603, 607, 701-703)",
+      "net_711": "assembled_pl.inventory_variation",
+      "pack": "packs/ratios/inventory_days.yaml",
+      "period_days": "supplementary.periodDays",
+      "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
+      "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+     },
+     "reconciliation": {
+      "difference": 0.0,
+      "served_inventory_net": 250000.0,
+      "status": "reconciled",
+      "sum_of_groups_closing": 250000.0
+     },
+     "schema": "inventory_days/1",
+     "seasonality": {
+      "flagged": false,
+      "note_en": null,
+      "note_ro": null
+     },
+     "status": "refused",
+     "total": {
+      "closing_value": null,
+      "closing_value_q": null,
+      "flow": {
+       "components": {
+        "cost_of_goods_resold_607": 0.0,
+        "cost_of_production_sold": null
+       },
+       "label_en": "cost of production sold + cost of goods resold (607)",
+       "label_ro": "costul producției vândute + costul mărfurilor vândute (607)",
+       "value": null
+      },
+      "label_en": "Inventory days (total, flow-weighted)",
+      "label_ro": "Zile de stoc (total, ponderat cu fluxurile)",
+      "reason": {
+       "cause": {
+        "code": "account_121_anchor_absent",
+        "text_en": "the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+        "text_ro": "balanța este închisă, iar contul 121 lipsește: variația stocurilor (711) nu are sold net și nu poate fi derivată"
+       },
+       "code": "stock_variation_refused",
+       "inputs": [
+        "assembled_pl.inventory_variation"
+       ],
+       "text_en": "the change in inventories of products (711) could not be measured, so the cost of production sold is not known",
+       "text_ro": "variația stocurilor de produse (711) nu a putut fi măsurată, deci costul producției vândute nu este cunoscut"
+      },
+      "stock": {
+       "average": 250000.0,
+       "closing": 250000.0,
+       "opening": null
+      },
+      "value": null,
+      "value_q": null,
+      "weighting": "flow"
+     }
+    },
     "leaves": {
      "ap_trade": {
       "magnitude": 50000.0,
@@ -16225,13 +16524,6 @@
        "unit": "ratio",
        "value": 0.05
       },
-      "cash_conversion_cycle": {
-       "band": null,
-       "direction": "lower_is_better",
-       "note": "",
-       "unit": "days",
-       "value": 139.916666
-      },
       "cash_ratio": {
        "band": [
         0.1,
@@ -16251,26 +16543,6 @@
        "note": "",
        "unit": "ratio",
        "value": 8.4
-      },
-      "days_inventory_outstanding": {
-       "band": [
-        30,
-        70
-       ],
-       "direction": "lower_is_better",
-       "note": "",
-       "unit": "days",
-       "value": 152.083333
-      },
-      "days_payable_outstanding": {
-       "band": [
-        30,
-        60
-       ],
-       "direction": "higher_is_better",
-       "note": "",
-       "unit": "days",
-       "value": 30.416667
       },
       "days_sales_outstanding": {
        "band": [
@@ -16415,13 +16687,6 @@
        },
        "unit": "ratio",
        "value": null
-      },
-      "inventory_turnover": {
-       "band": null,
-       "direction": "higher_is_better",
-       "note": "",
-       "unit": "ratio",
-       "value": 2.4
       },
       "lt_debt_to_equity": {
        "band": null,
@@ -17497,8 +17762,8 @@
         "role": "trade_payable"
        }
       ],
-      "claim": "The net trade float is RON 0.00: RON 50,000.00 owed by customers against RON 50,000.00 owed to suppliers — 18.2 days of sales outstanding against 30.4 days of payables, a gap of -12.2 days.",
-      "claim_template": "The net trade float is {money:float}: {money:trade_receivables} owed by customers against {money:trade_payables} owed to suppliers — {measure:dso} of sales outstanding against {measure:dpo} of payables, a gap of {measure:float_days}.",
+      "claim": "The net trade float is RON 0.00: RON 50,000.00 owed by customers against RON 50,000.00 owed to suppliers — 18 days of sales outstanding against 21 days of payables (RON 50,000.00 of balance-sheet payables over RON 850,000.00 of total operating expense, on 365 days), a gap of -3 days.",
+      "claim_template": "The net trade float is {money:float}: {money:trade_receivables} owed by customers against {money:trade_payables} owed to suppliers — {measure:dso} of sales outstanding against {measure:dpo} of payables ({money:dpo_payables} of balance-sheet payables over {money:total_operating_expense} of total operating expense, on {measure:period_days}), a gap of {measure:float_days}.",
       "facts": [
        {
         "label": "Trade receivables net of provisions",
@@ -17519,13 +17784,13 @@
         "value": 1000000.0
        },
        {
-        "label": "Cost of goods sold",
-        "name": "assembled_pl.cogs",
+        "label": "Total operating expense",
+        "name": "assembled_pl.total_operating_expense",
         "unit": "money",
-        "value": 600000.0
+        "value": 850000.0
        }
       ],
-      "formula": "DSO = trade receivables net ÷ revenue × 365; DPO = trade payables ÷ cost of goods sold × 365; float = trade receivables net − trade payables",
+      "formula": "DSO = trade receivables net ÷ revenue × the period's days; DPO = balance-sheet payables ÷ total operating expense × the period's days (the ratio table's one DPO, engine.ratios.table.dpo_days); float = trade receivables net − trade payables",
       "id": "trade_float",
       "in_summary": true,
       "measures": [
@@ -17533,19 +17798,22 @@
         "key": "dso",
         "label": "Days sales outstanding",
         "unit": "days",
-        "value": 18.25
+        "value": 18.25,
+        "value_q": "18"
        },
        {
         "key": "dpo",
-        "label": "Days payables outstanding",
+        "label": "Days payables outstanding (on total operating cost)",
         "unit": "days",
-        "value": 30.416666666667
+        "value": 21.470588235294,
+        "value_q": "21"
        },
        {
         "key": "float_days",
         "label": "Collection gap (DSO − DPO)",
         "unit": "days",
-        "value": -12.166666666667
+        "value": -3.220588235294,
+        "value_q": "-3"
        },
        {
         "key": "float",
@@ -17566,14 +17834,27 @@
         "value": 50000.0
        },
        {
-        "key": "cogs",
-        "label": "Cost of goods sold",
+        "key": "dpo_payables",
+        "label": "Balance-sheet payables (the DPO's numerator)",
         "unit": "money",
-        "value": 600000.0
+        "value": 50000.0
+       },
+       {
+        "key": "total_operating_expense",
+        "label": "Total operating expense",
+        "unit": "money",
+        "value": 850000.0
+       },
+       {
+        "key": "period_days",
+        "label": "The period's day count",
+        "noun": "day",
+        "unit": "count",
+        "value": 365.0
        }
       ],
       "narrative": {
-       "explanation": "The net trade float is RON 0.00: RON 50,000.00 owed by customers against RON 50,000.00 owed to suppliers — 18.2 days of sales outstanding against 30.4 days of payables, a gap of -12.2 days. Graded info: the amount at stake is 0.0% of revenue, against the ladder printed beside this finding. Trade float is a claim on a year of trading, so it is graded as a share of that year's revenue — the same base both day counts already annualise against.",
+       "explanation": "The net trade float is RON 0.00: RON 50,000.00 owed by customers against RON 50,000.00 owed to suppliers — 18 days of sales outstanding against 21 days of payables (RON 50,000.00 of balance-sheet payables over RON 850,000.00 of total operating expense, on 365 days), a gap of -3 days. Graded info: the amount at stake is 0.0% of revenue, against the ladder printed beside this finding. Trade float is a claim on a year of trading, so it is graded as a share of that year's revenue — the same base both day counts already annualise against.",
        "reason": "the advisory lane was not invoked for this build",
        "so_what": "Compare the collection gap with the credit terms actually granted. Where suppliers fund the cycle, that funding is a payables line that can be withdrawn, not a permanent source.",
        "source": "deterministic"
@@ -17655,6 +17936,305 @@
     "summary_ids": [
      "trade_float"
     ]
+   },
+   "inventory_days": {
+    "basis": "year_end_snapshot",
+    "basis_label": {
+     "en": "stock at 31 December — a single day",
+     "ro": "stoc la 31 decembrie — o singură zi"
+    },
+    "ccc_dio_term": {
+     "basis": "year_end_snapshot",
+     "basis_label": {
+      "en": "stock at 31 December — a single day",
+      "ro": "stoc la 31 decembrie — o singură zi"
+     },
+     "reason": {
+      "cause": {
+       "code": "account_121_anchor_absent",
+       "text_en": "the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+       "text_ro": "balanța este închisă, iar contul 121 lipsește: variația stocurilor (711) nu are sold net și nu poate fi derivată"
+      },
+      "code": "stock_variation_refused",
+      "inputs": [
+       "assembled_pl.inventory_variation"
+      ],
+      "text_en": "the change in inventories of products (711) could not be measured, so the cost of production sold is not known",
+      "text_ro": "variația stocurilor de produse (711) nu a putut fi măsurată, deci costul producției vândute nu este cunoscut"
+     },
+     "value": null
+    },
+    "claim_policy": {
+     "may_call_slow": false,
+     "reason": "split_refused",
+     "reason_text": {
+      "en": "the split by stock type is not available; stock cannot be called slow",
+      "ro": "împărțirea pe tipuri de stoc nu este disponibilă; nu se poate spune că stocul este lent"
+     },
+     "requires": [
+      "split_by_stock_type",
+      "average_balance"
+     ]
+    },
+    "cost_of_production_sold": {
+     "basis": "total_operating_expense_less_607_less_net_711",
+     "formula": "total_operating_expense - 607 - net_711",
+     "label_en": "total operating cost excluding merchandise, adjusted for the change in inventories (no class-9 management accounts)",
+     "label_ro": "cost total de exploatare fără mărfuri, ajustat cu variația stocurilor (fără contabilitate de gestiune clasa 9)",
+     "operands": {
+      "cost_of_goods_resold_607": 0.0,
+      "net_711": null,
+      "net_711_provenance": null,
+      "total_operating_expense": 850000.0
+     },
+     "refusal": {
+      "cause": {
+       "code": "account_121_anchor_absent",
+       "text_en": "the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+       "text_ro": "balanța este închisă, iar contul 121 lipsește: variația stocurilor (711) nu are sold net și nu poate fi derivată"
+      },
+      "code": "stock_variation_refused",
+      "inputs": [
+       "assembled_pl.inventory_variation"
+      ],
+      "text_en": "the change in inventories of products (711) could not be measured, so the cost of production sold is not known",
+      "text_ro": "variația stocurilor de produse (711) nu a putut fi măsurată, deci costul producției vândute nu este cunoscut"
+     },
+     "value": null
+    },
+    "filed_basis_pointer": {
+     "label_en": "filed basis (stock ÷ net turnover) — not the same as the inventory days of this analysis",
+     "label_ro": "bază depusă (stoc ÷ cifra de afaceri) — nu aceeași cu zilele de stoc din analiză",
+     "never_compare": true,
+     "sector_row_key": "inventory_days_on_turnover"
+    },
+    "groups": [
+     {
+      "accounts": [],
+      "closing_value": null,
+      "closing_value_q": null,
+      "flow": {
+       "accounts": [
+        "601",
+        "602",
+        "603"
+       ],
+       "key": "materials_consumed",
+       "label_en": "Materials consumed (601 + 602 + 603)",
+       "label_ro": "Consum de materii prime și materiale (601 + 602 + 603)",
+       "value": 600000.0
+      },
+      "key": "materials",
+      "label_en": "Raw materials and consumables",
+      "label_ro": "Materii prime și materiale",
+      "provision_accounts": [
+       "391",
+       "392"
+      ],
+      "provision_accounts_present": [],
+      "reason": {
+       "code": "no_stock",
+       "text_en": "there is no stock of this kind at either date",
+       "text_ro": "nu există stocuri de acest tip la niciuna dintre date"
+      },
+      "stock": {
+       "average": 0.0,
+       "closing": 0.0,
+       "opening": null
+      },
+      "stock_accounts": [
+       "301",
+       "302",
+       "303",
+       "308"
+      ],
+      "value": null,
+      "value_q": null
+     },
+     {
+      "accounts": [
+       "345"
+      ],
+      "closing_value": null,
+      "closing_value_q": null,
+      "flow": {
+       "accounts": [],
+       "key": "cost_of_production_sold",
+       "label_en": "Cost of production sold",
+       "label_ro": "Costul producției vândute",
+       "value": null
+      },
+      "key": "finished_goods_wip",
+      "label_en": "Finished goods and work in progress",
+      "label_ro": "Produse finite și producție în curs",
+      "provision_accounts": [
+       "393",
+       "394"
+      ],
+      "provision_accounts_present": [],
+      "reason": {
+       "cause": {
+        "code": "account_121_anchor_absent",
+        "text_en": "the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+        "text_ro": "balanța este închisă, iar contul 121 lipsește: variația stocurilor (711) nu are sold net și nu poate fi derivată"
+       },
+       "code": "stock_variation_refused",
+       "inputs": [
+        "assembled_pl.inventory_variation"
+       ],
+       "text_en": "the change in inventories of products (711) could not be measured, so the cost of production sold is not known",
+       "text_ro": "variația stocurilor de produse (711) nu a putut fi măsurată, deci costul producției vândute nu este cunoscut"
+      },
+      "stock": {
+       "average": 250000.0,
+       "closing": 250000.0,
+       "opening": null
+      },
+      "stock_accounts": [
+       "331",
+       "341",
+       "345",
+       "348"
+      ],
+      "value": null,
+      "value_q": null
+     },
+     {
+      "accounts": [],
+      "closing_value": null,
+      "closing_value_q": null,
+      "flow": {
+       "accounts": [
+        "607"
+       ],
+       "key": "cost_of_goods_resold",
+       "label_en": "Cost of goods resold (607)",
+       "label_ro": "Costul mărfurilor vândute (607)",
+       "value": 0.0
+      },
+      "key": "merchandise",
+      "label_en": "Merchandise",
+      "label_ro": "Mărfuri",
+      "provision_accounts": [
+       "397"
+      ],
+      "provision_accounts_present": [],
+      "reason": {
+       "code": "no_stock",
+       "text_en": "there is no stock of this kind at either date",
+       "text_ro": "nu există stocuri de acest tip la niciuna dintre date"
+      },
+      "stock": {
+       "average": 0.0,
+       "closing": 0.0,
+       "opening": null
+      },
+      "stock_accounts": [
+       "371",
+       "378"
+      ],
+      "value": null,
+      "value_q": null
+     }
+    ],
+    "inventory_turnover": {
+     "formula": "period_days / total.value",
+     "reason": {
+      "cause": {
+       "code": "account_121_anchor_absent",
+       "text_en": "the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+       "text_ro": "balanța este închisă, iar contul 121 lipsește: variația stocurilor (711) nu are sold net și nu poate fi derivată"
+      },
+      "code": "stock_variation_refused",
+      "inputs": [
+       "assembled_pl.inventory_variation"
+      ],
+      "text_en": "the change in inventories of products (711) could not be measured, so the cost of production sold is not known",
+      "text_ro": "variația stocurilor de produse (711) nu a putut fi măsurată, deci costul producției vândute nu este cunoscut"
+     },
+     "value": null,
+     "value_q": null
+    },
+    "opening": {
+     "convention": null,
+     "reason": {
+      "code": "si_column_unknown",
+      "text_en": "it cannot be established whether the file carries an opening balance, so only the period-end stock is used",
+      "text_ro": "nu se poate stabili dacă fișierul are sold inițial, deci se folosește doar stocul de la sfârșitul perioadei"
+     },
+     "source": "tb_si_column",
+     "status": "absent"
+    },
+    "other": {
+     "accounts": [],
+     "key": "other_stock",
+     "label_en": "Other stock",
+     "label_ro": "Alte stocuri",
+     "provision_accounts_present": [],
+     "stock": {
+      "average": 0.0,
+      "closing": 0.0,
+      "opening": null
+     }
+    },
+    "period_days": 365.0,
+    "provenance": {
+     "flows": "statement_line_items (601, 602, 603, 607, 701-703)",
+     "net_711": "assembled_pl.inventory_variation",
+     "pack": "packs/ratios/inventory_days.yaml",
+     "period_days": "supplementary.periodDays",
+     "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
+     "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+    },
+    "reconciliation": {
+     "difference": 0.0,
+     "served_inventory_net": 250000.0,
+     "status": "reconciled",
+     "sum_of_groups_closing": 250000.0
+    },
+    "schema": "inventory_days/1",
+    "seasonality": {
+     "flagged": false,
+     "note_en": null,
+     "note_ro": null
+    },
+    "status": "refused",
+    "total": {
+     "closing_value": null,
+     "closing_value_q": null,
+     "flow": {
+      "components": {
+       "cost_of_goods_resold_607": 0.0,
+       "cost_of_production_sold": null
+      },
+      "label_en": "cost of production sold + cost of goods resold (607)",
+      "label_ro": "costul producției vândute + costul mărfurilor vândute (607)",
+      "value": null
+     },
+     "label_en": "Inventory days (total, flow-weighted)",
+     "label_ro": "Zile de stoc (total, ponderat cu fluxurile)",
+     "reason": {
+      "cause": {
+       "code": "account_121_anchor_absent",
+       "text_en": "the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived",
+       "text_ro": "balanța este închisă, iar contul 121 lipsește: variația stocurilor (711) nu are sold net și nu poate fi derivată"
+      },
+      "code": "stock_variation_refused",
+      "inputs": [
+       "assembled_pl.inventory_variation"
+      ],
+      "text_en": "the change in inventories of products (711) could not be measured, so the cost of production sold is not known",
+      "text_ro": "variația stocurilor de produse (711) nu a putut fi măsurată, deci costul producției vândute nu este cunoscut"
+     },
+     "stock": {
+      "average": 250000.0,
+      "closing": 250000.0,
+      "opening": null
+     },
+     "value": null,
+     "value_q": null,
+     "weighting": "flow"
+    }
    },
    "periodLabel": "2025-12-31",
    "subAggregates": {

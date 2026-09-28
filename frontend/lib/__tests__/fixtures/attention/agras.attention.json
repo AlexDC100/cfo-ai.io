@@ -95,19 +95,6 @@
    {
     "eligible": false,
     "family": "insight",
-    "identity": "insight:reconstruction_gap",
-    "key": "reconstruction_gap",
-    "materiality": null,
-    "reason": {
-     "code": "excluded_data_quality",
-     "inputs": [
-      "reconstruction_gap"
-     ]
-    }
-   },
-   {
-    "eligible": false,
-    "family": "insight",
     "identity": "earnings_quality",
     "key": "earnings_quality",
     "materiality": null,
@@ -570,8 +557,12 @@
    "unclassified_balances": "data_quality"
   },
   "inventory_days_claim_policy": {
-   "may_call_slow": false,
-   "reason": "single_basis_year_end_snapshot",
+   "may_call_slow": true,
+   "reason": "split_and_average",
+   "reason_text": {
+    "en": "a claim must cite the split by stock type and the average balance",
+    "ro": "afirmația trebuie să citeze împărțirea pe tipuri de stoc și media soldurilor"
+   },
    "requires": [
     "split_by_stock_type",
     "average_balance"
