@@ -21,7 +21,7 @@
     "org_id": "0a9a0000-0000-4000-8000-0000000000a9"
    }
   ],
-  "content_hash": "a263c9f86d2d905d71858131e8acd1292ea2b8d981afca38a30074f4690cc340",
+  "content_hash": "f40488d2df48c851de7c272efb27785da31fdb0ccb5201331dfb370bb8fe6b9c",
   "duplicate": null,
   "identity": {
    "caen_code": null,
@@ -405,6 +405,7 @@
      "x4": 1.554
     },
     "altman_variant": "Z\"",
+    "altman_x3_basis": null,
     "altman_z_score": 6.19,
     "altman_zone": "safe",
     "as_filed": null,
@@ -420,7 +421,7 @@
      "liquidity": 0.1,
      "profitability": 0.2
     },
-    "credit_model_revision": 4,
+    "credit_model_revision": 5,
     "declared_rungs": {},
     "letter_grade": "AA",
     "letter_grade_bands": [
@@ -492,6 +493,7 @@
     },
     "reason": null,
     "refused_subscores": {},
+    "regime": null,
     "subscores": {
      "altman": 100.0,
      "coverage": 95.0,
@@ -1177,6 +1179,7 @@
       "x1": 0.3683,
       "x2": 0.1903,
       "x3": 0.2264,
+      "x3_basis": null,
       "x4": 1.554,
       "z": 6.19,
       "zone": "safe"
@@ -1255,7 +1258,8 @@
      },
      "reason": null,
      "refused_subscores": {},
-     "revision": 4,
+     "regime": null,
+     "revision": 5,
      "subscores": {
       "altman": 100.0,
       "coverage": 95.0,
@@ -2179,7 +2183,7 @@
       "source": "general_sme_fallback",
       "table_sha256": "5fd90c0ea1cca27abf18dc5097082d258d561255254e00590f53c6c64eb58f12"
      },
-     "credit_model_revision": 4,
+     "credit_model_revision": 5,
      "currency": "RON",
      "methodology_version": "ro_ras_2025_v1",
      "metrics_basis": "serve",
@@ -2540,7 +2544,7 @@
     "direction": "neutral",
     "name": "credit_model_revision",
     "unit": "revision",
-    "value": 4
+    "value": 5
    }
   ],
   "deprecated_fields": [
@@ -5811,7 +5815,7 @@
     "direction": "neutral",
     "name": "credit_model_revision",
     "unit": "revision",
-    "value": 4
+    "value": 5
    },
    {
     "direction": "higher",

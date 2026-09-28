@@ -8,6 +8,7 @@
     "x4": null
    },
    "altman_variant": "Z\"",
+   "altman_x3_basis": null,
    "altman_z_score": null,
    "altman_zone": null,
    "as_filed": null,
@@ -23,7 +24,7 @@
     "liquidity": 0.1,
     "profitability": 0.2
    },
-   "credit_model_revision": 4,
+   "credit_model_revision": 5,
    "declared_rungs": {
     "coverage": {
      "file": "packs/credit/model.yaml",
@@ -182,6 +183,7 @@
      "text": "The liquidity component is not scored: current liabilities are not positive for this period, so the current, quick and cash ratios have no base."
     }
    },
+   "regime": null,
    "subscores": {
     "altman": null,
     "coverage": 95.0,
@@ -2497,6 +2499,7 @@
     "x4": null
    },
    "altman_variant": "Z\"",
+   "altman_x3_basis": null,
    "altman_z_score": null,
    "altman_zone": null,
    "as_filed": null,
@@ -2512,7 +2515,7 @@
     "liquidity": 0.1,
     "profitability": 0.2
    },
-   "credit_model_revision": 4,
+   "credit_model_revision": 5,
    "declared_rungs": {
     "coverage": {
      "file": "packs/credit/model.yaml",
@@ -2671,6 +2674,7 @@
      "text": "The liquidity component is not scored: current liabilities are not positive for this period, so the current, quick and cash ratios have no base."
     }
    },
+   "regime": null,
    "subscores": {
     "altman": null,
     "coverage": 95.0,
@@ -4980,6 +4984,7 @@
     "x4": null
    },
    "altman_variant": "Z\"",
+   "altman_x3_basis": null,
    "altman_z_score": null,
    "altman_zone": null,
    "as_filed": null,
@@ -4995,7 +5000,7 @@
     "liquidity": 0.1,
     "profitability": 0.2
    },
-   "credit_model_revision": 4,
+   "credit_model_revision": 5,
    "declared_rungs": {
     "coverage": {
      "file": "packs/credit/model.yaml",
@@ -5154,6 +5159,7 @@
      "text": "The liquidity component is not scored: current liabilities are not positive for this period, so the current, quick and cash ratios have no base."
     }
    },
+   "regime": null,
    "subscores": {
     "altman": null,
     "coverage": 95.0,
@@ -7535,6 +7541,7 @@
     "x4": null
    },
    "altman_variant": "Z\"",
+   "altman_x3_basis": null,
    "altman_z_score": null,
    "altman_zone": null,
    "as_filed": null,
@@ -7550,7 +7557,7 @@
     "liquidity": 0.1,
     "profitability": 0.2
    },
-   "credit_model_revision": 4,
+   "credit_model_revision": 5,
    "declared_rungs": {},
    "letter_grade": null,
    "letter_grade_bands": [
@@ -7756,6 +7763,7 @@
      "text": "The liquidity component is not scored: current liabilities are not positive for this period, so the current, quick and cash ratios have no base."
     }
    },
+   "regime": null,
    "subscores": {
     "altman": null,
     "coverage": null,
@@ -10382,6 +10390,7 @@
     "x4": null
    },
    "altman_variant": "Z\"",
+   "altman_x3_basis": null,
    "altman_z_score": null,
    "altman_zone": null,
    "as_filed": null,
@@ -10397,7 +10406,7 @@
     "liquidity": 0.1,
     "profitability": 0.2
    },
-   "credit_model_revision": 4,
+   "credit_model_revision": 5,
    "declared_rungs": {
     "coverage": {
      "file": "packs/credit/model.yaml",
@@ -10556,6 +10565,7 @@
      "text": "The liquidity component is not scored: current liabilities are not positive for this period, so the current, quick and cash ratios have no base."
     }
    },
+   "regime": null,
    "subscores": {
     "altman": null,
     "coverage": 95.0,
@@ -12822,6 +12832,7 @@
     "x4": null
    },
    "altman_variant": "Z\"",
+   "altman_x3_basis": null,
    "altman_z_score": null,
    "altman_zone": null,
    "as_filed": null,
@@ -12837,7 +12848,7 @@
     "liquidity": 0.1,
     "profitability": 0.2
    },
-   "credit_model_revision": 4,
+   "credit_model_revision": 5,
    "declared_rungs": {},
    "letter_grade": null,
    "letter_grade_bands": [
@@ -13077,6 +13088,7 @@
      "text": "The profitability component is not scored: the net result is refused for this period, so ROE and the net margin are not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived."
     }
    },
+   "regime": null,
    "subscores": {
     "altman": null,
     "coverage": null,
@@ -15623,6 +15635,7 @@
     "x4": null
    },
    "altman_variant": "Z\"",
+   "altman_x3_basis": null,
    "altman_z_score": null,
    "altman_zone": null,
    "as_filed": null,
@@ -15638,7 +15651,7 @@
     "liquidity": 0.1,
     "profitability": 0.2
    },
-   "credit_model_revision": 4,
+   "credit_model_revision": 5,
    "declared_rungs": {},
    "letter_grade": null,
    "letter_grade_bands": [
@@ -15878,6 +15891,7 @@
      "text": "The profitability component is not scored: the net result is refused for this period, so ROE and the net margin are not defined — the trial balance is closed and account 121 is absent: the stock variation (711) keeps no net balance and cannot be derived."
     }
    },
+   "regime": null,
    "subscores": {
     "altman": null,
     "coverage": null,

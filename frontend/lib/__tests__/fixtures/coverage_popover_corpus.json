@@ -168,6 +168,7 @@
         "x1": -0.0371,
         "x2": -0.0294,
         "x3": 0.0605,
+        "x3_basis": null,
         "x4": 0.1723,
         "z": 0.25,
         "zone": "distress"
@@ -246,7 +247,8 @@
        },
        "reason": null,
        "refused_subscores": {},
-       "revision": 4,
+       "regime": null,
+       "revision": 5,
        "subscores": {
         "altman": 8.9,
         "coverage": 40.0,
@@ -1170,7 +1172,7 @@
         "source": "general_sme_fallback",
         "table_sha256": "5fd90c0ea1cca27abf18dc5097082d258d561255254e00590f53c6c64eb58f12"
        },
-       "credit_model_revision": 4,
+       "credit_model_revision": 5,
        "currency": "RON",
        "methodology_version": null,
        "metrics_basis": "serve",
@@ -1581,7 +1583,7 @@
       "direction": "neutral",
       "name": "credit_model_revision",
       "unit": "revision",
-      "value": 4
+      "value": 5
      }
     ],
     "statements": {
@@ -7109,6 +7111,7 @@
         "x1": 0.3683,
         "x2": 0.1903,
         "x3": 0.2264,
+        "x3_basis": null,
         "x4": 1.554,
         "z": 6.19,
         "zone": "safe"
@@ -7187,7 +7190,8 @@
        },
        "reason": null,
        "refused_subscores": {},
-       "revision": 4,
+       "regime": null,
+       "revision": 5,
        "subscores": {
         "altman": 100.0,
         "coverage": 95.0,
@@ -8111,7 +8115,7 @@
         "source": "general_sme_fallback",
         "table_sha256": "5fd90c0ea1cca27abf18dc5097082d258d561255254e00590f53c6c64eb58f12"
        },
-       "credit_model_revision": 4,
+       "credit_model_revision": 5,
        "currency": "RON",
        "methodology_version": null,
        "metrics_basis": "serve",
@@ -8522,7 +8526,7 @@
       "direction": "neutral",
       "name": "credit_model_revision",
       "unit": "revision",
-      "value": 4
+      "value": 5
      }
     ],
     "statements": {
@@ -13963,14 +13967,18 @@
         },
         "x1": 0.5836,
         "x2": -0.0114,
-        "x3": 0.0059,
+        "x3": -0.3489,
+        "x3_basis": {
+         "en": "X3 on the operating result before the stock variation and own work capitalised (EBIT − net 711 − net 72x) / total assets",
+         "ro": "X3 pe rezultatul din exploatare înainte de variația stocurilor și producția imobilizată (EBIT − 711 net − 72x net) / active totale"
+        },
         "x4": 0.9339,
-        "z": 4.81,
-        "zone": "safe"
+        "z": 2.43,
+        "zone": "grey"
        },
        "as_filed": null,
        "as_filed_differs": false,
-       "composite": 41.5,
+       "composite": null,
        "declared_rungs": {},
        "ladder": [
         {
@@ -14006,7 +14014,7 @@
          "min": 0
         }
        ],
-       "letter": "B",
+       "letter": null,
        "profitability_disclosure": null,
        "ranges": {
         "altman_x1": {
@@ -14021,9 +14029,9 @@
          "source": "derived: on the D4 domain TL >= share x TA and BE <= TA, so BE / TL <= 1 / share"
         },
         "altman_z": {
-         "bound": 111.562484,
+         "bound": 109.178228,
          "bound_is": "6.56 x altman_x1.max + 3.26 x X2 + 6.72 x X3 + 1.05 x altman_x4.max",
-         "derivation": "6.56 x 1 + 3.26 x -0.0114 + 6.72 x 0.0059 + 1.05 x 100 = 111.5625",
+         "derivation": "6.56 x 1 + 3.26 x -0.0114 + 6.72 x -0.3489 + 1.05 x 100 = 109.1782",
          "file": "packs/credit/model.yaml",
          "source": "derived from the component bounds above with the book's own measured X2 and X3; X2 and X3 have no structural bound and are required finite"
         },
@@ -14040,15 +14048,263 @@
          "source": "CLAUDE.md Appendix A section 7: seven sub-scores on a 0-100 scale"
         }
        },
-       "reason": null,
-       "refused_subscores": {},
-       "revision": 4,
+       "reason": {
+        "code": "credit_component_undefined",
+        "components": [
+         {
+          "cause": "cash_from_operations_approximated",
+          "code": "credit_component_undefined",
+          "component": "leverage",
+          "inputs": [
+           "assembled_cf.cash_from_operating",
+           "assembled_cf.is_approximated"
+          ],
+          "regime": "stock_build",
+          "text": "The leverage component is not scored: cash from operations is approximated (no prior-year trial balance), and the stock-build regime grades only on measured cash.",
+          "text_en": "The leverage component is not scored: cash from operations is approximated (no prior-year trial balance), and the stock-build regime grades only on measured cash.",
+          "text_ro": "Îndatorarea nu este notată: fluxul de numerar din exploatare este aproximat (fără balanța anului anterior), iar regimul construcției pe stoc notează doar pe numerar măsurat."
+         },
+         {
+          "cause": "cash_from_operations_approximated",
+          "code": "credit_component_undefined",
+          "component": "coverage",
+          "inputs": [
+           "assembled_cf.cash_from_operating",
+           "assembled_cf.is_approximated"
+          ],
+          "regime": "stock_build",
+          "text": "The interest-coverage component is not scored: cash from operations is approximated (no prior-year trial balance), and the stock-build regime grades only on measured cash.",
+          "text_en": "The interest-coverage component is not scored: cash from operations is approximated (no prior-year trial balance), and the stock-build regime grades only on measured cash.",
+          "text_ro": "Acoperirea dobânzilor nu este notată: fluxul de numerar din exploatare este aproximat (fără balanța anului anterior), iar regimul construcției pe stoc notează doar pe numerar măsurat."
+         },
+         {
+          "cause": "cash_from_operations_approximated",
+          "code": "credit_component_undefined",
+          "component": "dscr",
+          "inputs": [
+           "assembled_cf.cash_from_operating",
+           "assembled_cf.is_approximated"
+          ],
+          "regime": "stock_build",
+          "text": "The DSCR component is not scored: cash from operations is approximated (no prior-year trial balance), and the stock-build regime grades only on measured cash.",
+          "text_en": "The DSCR component is not scored: cash from operations is approximated (no prior-year trial balance), and the stock-build regime grades only on measured cash.",
+          "text_ro": "Acoperirea serviciului datoriei (DSCR) nu este notată: fluxul de numerar din exploatare este aproximat (fără balanța anului anterior), iar regimul construcției pe stoc notează doar pe numerar măsurat."
+         }
+        ],
+        "inputs": [
+         "credit_model.leverage",
+         "credit_model.coverage",
+         "credit_model.dscr"
+        ],
+        "text": "No composite and no letter: the model's weights are not redistributed over the components that scored, and leverage and coverage and dscr did not score. The leverage component is not scored: cash from operations is approximated (no prior-year trial balance), and the stock-build regime grades only on measured cash. The interest-coverage component is not scored: cash from operations is approximated (no prior-year trial balance), and the stock-build regime grades only on measured cash. The DSCR component is not scored: cash from operations is approximated (no prior-year trial balance), and the stock-build regime grades only on measured cash."
+       },
+       "refused_subscores": {
+        "coverage": {
+         "code": "cash_from_operations_approximated",
+         "component": "coverage",
+         "inputs": [
+          "assembled_cf.cash_from_operating",
+          "assembled_cf.is_approximated"
+         ],
+         "regime": "stock_build",
+         "text": "The interest-coverage component is not scored: cash from operations is approximated (no prior-year trial balance), and the stock-build regime grades only on measured cash.",
+         "text_en": "The interest-coverage component is not scored: cash from operations is approximated (no prior-year trial balance), and the stock-build regime grades only on measured cash.",
+         "text_ro": "Acoperirea dobânzilor nu este notată: fluxul de numerar din exploatare este aproximat (fără balanța anului anterior), iar regimul construcției pe stoc notează doar pe numerar măsurat."
+        },
+        "dscr": {
+         "code": "cash_from_operations_approximated",
+         "component": "dscr",
+         "inputs": [
+          "assembled_cf.cash_from_operating",
+          "assembled_cf.is_approximated"
+         ],
+         "regime": "stock_build",
+         "text": "The DSCR component is not scored: cash from operations is approximated (no prior-year trial balance), and the stock-build regime grades only on measured cash.",
+         "text_en": "The DSCR component is not scored: cash from operations is approximated (no prior-year trial balance), and the stock-build regime grades only on measured cash.",
+         "text_ro": "Acoperirea serviciului datoriei (DSCR) nu este notată: fluxul de numerar din exploatare este aproximat (fără balanța anului anterior), iar regimul construcției pe stoc notează doar pe numerar măsurat."
+        },
+        "leverage": {
+         "code": "cash_from_operations_approximated",
+         "component": "leverage",
+         "inputs": [
+          "assembled_cf.cash_from_operating",
+          "assembled_cf.is_approximated"
+         ],
+         "regime": "stock_build",
+         "text": "The leverage component is not scored: cash from operations is approximated (no prior-year trial balance), and the stock-build regime grades only on measured cash.",
+         "text_en": "The leverage component is not scored: cash from operations is approximated (no prior-year trial balance), and the stock-build regime grades only on measured cash.",
+         "text_ro": "Îndatorarea nu este notată: fluxul de numerar din exploatare este aproximat (fără balanța anului anterior), iar regimul construcției pe stoc notează doar pe numerar măsurat."
+        }
+       },
+       "regime": {
+        "altman_x3": {
+         "capitalized_own_work": 0.0,
+         "label": {
+          "en": "X3 on the operating result before the stock variation and own work capitalised (EBIT − net 711 − net 72x) / total assets",
+          "ro": "X3 pe rezultatul din exploatare înainte de variația stocurilor și producția imobilizată (EBIT − 711 net − 72x net) / active totale"
+         },
+         "net_711": 29589814.24,
+         "numerator": -29101057.56,
+         "operating_result": 488756.68
+        },
+        "cash": {
+         "approximation_notes": [
+          "Working-capital movements estimated at 5% of current balances; actual ΔAR / ΔInventory / ΔAP cannot be computed without a prior-period trial balance.",
+          "Financing detail (LT/ST debt drawdowns vs repayments, dividends paid) approximated from typical Romanian payout ratios. The reconciliation plug captures the residual so closing cash still ties to the BS."
+         ],
+         "figure": "assembled_cf.cash_from_operating",
+         "label": {
+          "en": "Cash from operations",
+          "ro": "Fluxul de numerar din exploatare"
+         },
+         "net_income_refusal": null,
+         "refusal": {
+          "code": "cash_from_operations_approximated",
+          "text_en": "Cash from operations is approximated (no prior-year trial balance): leverage, interest coverage and DSCR are not scored, so neither is the composite or the letter.",
+          "text_ro": "Fluxul de numerar din exploatare este aproximat (fără balanța anului anterior): îndatorarea, acoperirea dobânzilor și DSCR nu sunt notate, deci nici scorul compozit și nici ratingul."
+         },
+         "status": "approximated",
+         "value": -3945493.79
+        },
+        "cash_components": [
+         "leverage",
+         "coverage",
+         "dscr"
+        ],
+        "code": "stock_build",
+        "component_bases": {
+         "coverage": {
+          "en": "cash from operations ÷ interest",
+          "ro": "fluxul de numerar din exploatare ÷ dobânzi"
+         },
+         "dscr": {
+          "en": "cash from operations ÷ debt service",
+          "ro": "fluxul de numerar din exploatare ÷ serviciul datoriei"
+         },
+         "leverage": {
+          "en": "net debt ÷ cash from operations",
+          "ro": "datorie netă ÷ fluxul de numerar din exploatare"
+         }
+        },
+        "file": "packs/credit/model.yaml",
+        "finding": {
+         "code": "stock_build_ebitda",
+         "figures": [
+          {
+           "key": "net_711",
+           "label": {
+            "en": "Change in inventories of finished goods and WIP (711, net)",
+            "ro": "Variația stocurilor de produse (711, netă)"
+           },
+           "status": "measured",
+           "unit": "RON",
+           "value": 29589814.24
+          },
+          {
+           "key": "net_turnover",
+           "label": {
+            "en": "Net turnover",
+            "ro": "Cifra de afaceri netă"
+           },
+           "status": "measured",
+           "unit": "RON",
+           "value": 162365.46
+          },
+          {
+           "key": "ebitda",
+           "label": {
+            "en": "EBITDA",
+            "ro": "EBITDA"
+           },
+           "status": "measured",
+           "unit": "RON",
+           "value": 550976.12
+          },
+          {
+           "key": "ebitda_before_stock_variation",
+           "label": {
+            "en": "EBITDA before the stock variation and own work capitalised",
+            "ro": "EBITDA înainte de variația stocurilor și producția imobilizată"
+           },
+           "status": "measured",
+           "unit": "RON",
+           "value": -29038838.12
+          },
+          {
+           "key": "cash_from_operations",
+           "label": {
+            "en": "Cash from operations",
+            "ro": "Fluxul de numerar din exploatare"
+           },
+           "status": "approximated",
+           "unit": "RON",
+           "value": null
+          }
+         ],
+         "file": "packs/credit/model.yaml",
+         "severity": "high",
+         "source": "owner ruling R1 (2026-09-28), the Romanian sentence verbatim",
+         "text": {
+          "en": "Positive EBITDA from capitalised stock — the cash was consumed by construction.",
+          "ro": "EBITDA pozitivă din stocuri capitalizate — numerarul a fost consumat de construcție."
+         }
+        },
+        "label": {
+         "en": "Credit regime: stock build — the EBITDA-based components are computed on cash",
+         "ro": "Regim de credit: construcție pe stoc — componentele bazate pe EBITDA sunt calculate pe numerar"
+        },
+        "trigger": {
+         "file": "packs/credit/model.yaml",
+         "net_711": 29589814.24,
+         "source": "owner ruling R1 (2026-09-28): when the 711 stock build exceeds turnover materially, the credit model weights cash flow and liquidity, not EBITDA; coordinator decision (design_2026-09-28_rulings2.md): both shares above, measured net 711 only",
+         "tests": [
+          {
+           "at_least": "1.0",
+           "basis": "net_turnover",
+           "basis_value": 162365.46,
+           "key": "net_711_to_turnover",
+           "label": {
+            "en": "the net change in inventories (711) against net turnover",
+            "ro": "variația stocurilor de produse (711, netă) raportată la cifra de afaceri netă"
+           },
+           "met": true,
+           "share": 182.242
+          },
+          {
+           "at_least": "0.10",
+           "basis": "total_operating_expense",
+           "basis_value": 29280043.3,
+           "key": "net_711_to_operating_expense",
+           "label": {
+            "en": "the net change in inventories (711) against total operating expense",
+            "ro": "variația stocurilor de produse (711, netă) raportată la cheltuielile totale de exploatare"
+           },
+           "met": true,
+           "share": 1.0106
+          }
+         ]
+        },
+        "weights": {
+         "altman": 0.3,
+         "coverage": 0.1,
+         "dscr": 0.1,
+         "equity": 0.05,
+         "leverage": 0.15,
+         "liquidity": 0.2,
+         "profitability": 0.1
+        },
+        "weights_why": {
+         "en": "Liquidity takes the weight moved out of profitability, whose net result carries the same capitalised stock; the cash components keep their weights.",
+         "ro": "Lichiditatea primește ponderea luată de la profitabilitate, al cărei rezultat net conține același stoc capitalizat; componentele pe numerar își păstrează ponderile."
+        }
+       },
+       "revision": 5,
        "subscores": {
-        "altman": 100.0,
-        "coverage": 12.7,
-        "dscr": 9.2,
+        "altman": 66.5,
+        "coverage": null,
+        "dscr": null,
         "equity": 96.6,
-        "leverage": 0.0,
+        "leverage": null,
         "liquidity": 45.4,
         "profitability": 0.0
        },
@@ -14058,8 +14314,8 @@
         "dscr": 0.1,
         "equity": 0.05,
         "leverage": 0.15,
-        "liquidity": 0.1,
-        "profitability": 0.2
+        "liquidity": 0.2,
+        "profitability": 0.1
        }
       },
       "rows": [
@@ -15008,7 +15264,7 @@
         "source": "general_sme_fallback",
         "table_sha256": "5fd90c0ea1cca27abf18dc5097082d258d561255254e00590f53c6c64eb58f12"
        },
-       "credit_model_revision": 4,
+       "credit_model_revision": 5,
        "currency": "RON",
        "methodology_version": null,
        "metrics_basis": "serve",
@@ -15341,7 +15597,7 @@
       "direction": "higher",
       "name": "altman_z_score",
       "unit": "ratio",
-      "value": 4.81
+      "value": 2.43
      },
      {
       "direction": "higher",
@@ -15359,7 +15615,7 @@
       "direction": "higher",
       "name": "altman_x3",
       "unit": "ratio",
-      "value": 0.0059
+      "value": -0.3489
      },
      {
       "direction": "higher",
@@ -15371,13 +15627,13 @@
       "direction": "higher",
       "name": "credit_composite",
       "unit": "score",
-      "value": 41.5
+      "value": null
      },
      {
       "direction": "higher",
       "name": "credit_subscore_altman",
       "unit": "score",
-      "value": 100
+      "value": 66.5
      },
      {
       "direction": "higher",
@@ -15389,19 +15645,19 @@
       "direction": "higher",
       "name": "credit_subscore_leverage",
       "unit": "score",
-      "value": 0
+      "value": null
      },
      {
       "direction": "higher",
       "name": "credit_subscore_coverage",
       "unit": "score",
-      "value": 12.7
+      "value": null
      },
      {
       "direction": "higher",
       "name": "credit_subscore_dscr",
       "unit": "score",
-      "value": 9.2
+      "value": null
      },
      {
       "direction": "higher",
@@ -15419,7 +15675,7 @@
       "direction": "neutral",
       "name": "credit_model_revision",
       "unit": "revision",
-      "value": 4
+      "value": 5
      }
     ],
     "statements": {
@@ -20376,6 +20632,7 @@
         "x1": -0.1008,
         "x2": 0.2423,
         "x3": 0.0112,
+        "x3_basis": null,
         "x4": 0.5622,
         "z": 0.79,
         "zone": "distress"
@@ -20454,7 +20711,8 @@
        },
        "reason": null,
        "refused_subscores": {},
-       "revision": 4,
+       "regime": null,
+       "revision": 5,
        "subscores": {
         "altman": 28.6,
         "coverage": 9.7,
@@ -21378,7 +21636,7 @@
         "source": "general_sme_fallback",
         "table_sha256": "5fd90c0ea1cca27abf18dc5097082d258d561255254e00590f53c6c64eb58f12"
        },
-       "credit_model_revision": 4,
+       "credit_model_revision": 5,
        "currency": "RON",
        "methodology_version": null,
        "metrics_basis": "serve",
@@ -21789,7 +22047,7 @@
       "direction": "neutral",
       "name": "credit_model_revision",
       "unit": "revision",
-      "value": 4
+      "value": 5
      }
     ],
     "statements": {

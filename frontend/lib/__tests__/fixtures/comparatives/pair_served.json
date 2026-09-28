@@ -2917,7 +2917,7 @@
     "direction": "neutral",
     "name": "credit_model_revision",
     "unit": "revision",
-    "value": 4
+    "value": 5
    }
   ],
   "prior_statements": {
@@ -10856,8 +10856,8 @@
       "title_template": "Cash conversion cycle on 4111.01 / 301.201 / 401.01 at 33 days — above the 30 days strong rung of cash conversion cycle for mid-size inventory-heavy operator"
      },
      {
-      "body": "4511.01 (Ndqe te cnifmfy NLC 3299.59), 4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): credit composite in Dec 2024 — 79.3; credit composite in Dec 2025 — 81.0. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the credit model's letter ladder (CREDIT_LETTER_LADDER) under credit model revision 4. Source: period period-agras-fy2025; accounts 4511.01, 4111.01, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_letter_grade fires when AA rung of credit composite is at or above 80.0; observed 81.0. Impact: the credit composite against the AA rung, in notches of the 10.0-point band moves from 0.00 notches to 0.10 notches (+0.10 notches). The letter is how a mid-size inventory-heavy operator is graded in one word by the group treasury and the statutory auditor; credit letter grade on 4511.01 / 4111.01 / 401.01 moving a notch changes that grade. Do this: 1) Reconcile the credit letter grade movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4511.01, 4111.01, 401.01, from the financial controller (before the next board pack). 2) Confirm the move past the AA rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4511.01, 4111.01, 401.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-      "body_template": "4511.01 (Ndqe te cnifmfy NLC 3299.59), 4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): credit composite in Dec 2024 — 79.3; credit composite in Dec 2025 — 81.0. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the credit model's letter ladder (CREDIT_LETTER_LADDER) under credit model revision 4. Source: period period-agras-fy2025; accounts 4511.01, 4111.01, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_letter_grade fires when AA rung of credit composite is at or above 80.0; observed 81.0. Impact: the credit composite against the AA rung, in notches of the 10.0-point band moves from 0.00 notches to 0.10 notches (+0.10 notches). The letter is how a mid-size inventory-heavy operator is graded in one word by the group treasury and the statutory auditor; credit letter grade on 4511.01 / 4111.01 / 401.01 moving a notch changes that grade. Do this: 1) Reconcile the credit letter grade movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4511.01, 4111.01, 401.01, from the financial controller (before the next board pack). 2) Confirm the move past the AA rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4511.01, 4111.01, 401.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body": "4511.01 (Ndqe te cnifmfy NLC 3299.59), 4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): credit composite in Dec 2024 — 79.3; credit composite in Dec 2025 — 81.0. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the credit model's letter ladder (CREDIT_LETTER_LADDER) under credit model revision 5. Source: period period-agras-fy2025; accounts 4511.01, 4111.01, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_letter_grade fires when AA rung of credit composite is at or above 80.0; observed 81.0. Impact: the credit composite against the AA rung, in notches of the 10.0-point band moves from 0.00 notches to 0.10 notches (+0.10 notches). The letter is how a mid-size inventory-heavy operator is graded in one word by the group treasury and the statutory auditor; credit letter grade on 4511.01 / 4111.01 / 401.01 moving a notch changes that grade. Do this: 1) Reconcile the credit letter grade movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4511.01, 4111.01, 401.01, from the financial controller (before the next board pack). 2) Confirm the move past the AA rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4511.01, 4111.01, 401.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body_template": "4511.01 (Ndqe te cnifmfy NLC 3299.59), 4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): credit composite in Dec 2024 — 79.3; credit composite in Dec 2025 — 81.0. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the credit model's letter ladder (CREDIT_LETTER_LADDER) under credit model revision 5. Source: period period-agras-fy2025; accounts 4511.01, 4111.01, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_letter_grade fires when AA rung of credit composite is at or above 80.0; observed 81.0. Impact: the credit composite against the AA rung, in notches of the 10.0-point band moves from 0.00 notches to 0.10 notches (+0.10 notches). The letter is how a mid-size inventory-heavy operator is graded in one word by the group treasury and the statutory auditor; credit letter grade on 4511.01 / 4111.01 / 401.01 moving a notch changes that grade. Do this: 1) Reconcile the credit letter grade movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4511.01, 4111.01, 401.01, from the financial controller (before the next board pack). 2) Confirm the move past the AA rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4511.01, 4111.01, 401.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
       "category": "leverage",
       "contract_elements": {
        "action": {
@@ -10887,7 +10887,7 @@
         "comparison_basis": {
          "basis_unit": "score",
          "basis_value": 79.3,
-         "description": "the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the credit model's letter ladder (CREDIT_LETTER_LADDER) under credit model revision 4",
+         "description": "the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the credit model's letter ladder (CREDIT_LETTER_LADDER) under credit model revision 5",
          "kind": "prior_period"
         },
         "figures": [
@@ -11767,6 +11767,7 @@
       "x1": 0.3683,
       "x2": 0.1903,
       "x3": 0.2264,
+      "x3_basis": null,
       "x4": 1.554,
       "z": 6.19,
       "zone": "safe"
@@ -11845,7 +11846,8 @@
      },
      "reason": null,
      "refused_subscores": {},
-     "revision": 4,
+     "regime": null,
+     "revision": 5,
      "subscores": {
       "altman": 100.0,
       "coverage": 95.0,
@@ -11874,6 +11876,7 @@
       "x1": 0.1132,
       "x2": -0.1073,
       "x3": 0.0118,
+      "x3_basis": null,
       "x4": 5.6337,
       "z": 6.39,
       "zone": "safe"
@@ -11969,7 +11972,8 @@
      },
      "reason": null,
      "refused_subscores": {},
-     "revision": 4,
+     "regime": null,
+     "revision": 5,
      "subscores": {
       "altman": 100.0,
       "coverage": 95.0,
@@ -14556,7 +14560,7 @@
       "source": "general_sme_fallback",
       "table_sha256": "5fd90c0ea1cca27abf18dc5097082d258d561255254e00590f53c6c64eb58f12"
      },
-     "credit_model_revision": 4,
+     "credit_model_revision": 5,
      "currency": "RON",
      "methodology_version": null,
      "metrics_basis": "serve",
@@ -14582,7 +14586,7 @@
       "source": "general_sme_fallback",
       "table_sha256": "5fd90c0ea1cca27abf18dc5097082d258d561255254e00590f53c6c64eb58f12"
      },
-     "credit_model_revision": 4,
+     "credit_model_revision": 5,
      "currency": "RON",
      "methodology_version": null,
      "metrics_basis": "serve",
@@ -15366,6 +15370,7 @@
      "x4": 1.554
     },
     "altman_variant": "Z\"",
+    "altman_x3_basis": null,
     "altman_z_score": 6.19,
     "altman_zone": "safe",
     "as_filed": null,
@@ -15381,7 +15386,7 @@
      "liquidity": 0.1,
      "profitability": 0.2
     },
-    "credit_model_revision": 4,
+    "credit_model_revision": 5,
     "declared_rungs": {},
     "letter_grade": "AA",
     "letter_grade_bands": [
@@ -15453,6 +15458,7 @@
     },
     "reason": null,
     "refused_subscores": {},
+    "regime": null,
     "subscores": {
      "altman": 100.0,
      "coverage": 95.0,
@@ -16138,6 +16144,7 @@
       "x1": 0.3683,
       "x2": 0.1903,
       "x3": 0.2264,
+      "x3_basis": null,
       "x4": 1.554,
       "z": 6.19,
       "zone": "safe"
@@ -16216,7 +16223,8 @@
      },
      "reason": null,
      "refused_subscores": {},
-     "revision": 4,
+     "regime": null,
+     "revision": 5,
      "subscores": {
       "altman": 100.0,
       "coverage": 95.0,
@@ -17140,7 +17148,7 @@
       "source": "general_sme_fallback",
       "table_sha256": "5fd90c0ea1cca27abf18dc5097082d258d561255254e00590f53c6c64eb58f12"
      },
-     "credit_model_revision": 4,
+     "credit_model_revision": 5,
      "currency": "RON",
      "methodology_version": null,
      "metrics_basis": "serve",
@@ -17491,7 +17499,7 @@
     "direction": "neutral",
     "name": "credit_model_revision",
     "unit": "revision",
-    "value": 4
+    "value": 5
    }
   ],
   "deprecated_fields": [
@@ -18446,7 +18454,7 @@
     "direction": "neutral",
     "name": "credit_model_revision",
     "unit": "revision",
-    "value": 4
+    "value": 5
    }
   ],
   "organization": {

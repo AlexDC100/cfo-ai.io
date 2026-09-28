@@ -8,6 +8,7 @@
     "x4": 1.554
    },
    "altman_variant": "Z\"",
+   "altman_x3_basis": null,
    "altman_z_score": 6.19,
    "altman_zone": "safe",
    "as_filed": null,
@@ -23,7 +24,7 @@
     "liquidity": 0.1,
     "profitability": 0.2
    },
-   "credit_model_revision": 4,
+   "credit_model_revision": 5,
    "declared_rungs": {},
    "letter_grade": "AA",
    "letter_grade_bands": [
@@ -95,6 +96,7 @@
    },
    "reason": null,
    "refused_subscores": {},
+   "regime": null,
    "subscores": {
     "altman": 100.0,
     "coverage": 95.0,
@@ -5627,6 +5629,7 @@
      "text": "The liquidity component is not scored: current liabilities are not positive for this period, so the current, quick and cash ratios have no base."
     }
    },
+   "regime": null,
    "subscores": {
     "altman": null,
     "coverage": 95,
@@ -5693,7 +5696,7 @@
    },
    {
     "name": "credit_model_revision",
-    "value": 4
+    "value": 5
    }
   ]
  },
@@ -5706,6 +5709,7 @@
     "x4": 1.5
    },
    "altman_variant": "Z\"",
+   "altman_x3_basis": null,
    "altman_z_score": 11.46,
    "altman_zone": "safe",
    "as_filed": null,
@@ -5721,7 +5725,7 @@
     "liquidity": 0.1,
     "profitability": 0.2
    },
-   "credit_model_revision": 4,
+   "credit_model_revision": 5,
    "declared_rungs": {},
    "letter_grade": null,
    "letter_grade_bands": [
@@ -5871,6 +5875,7 @@
      "text": "The liquidity component is not scored: current liabilities are not positive for this period, so the current, quick and cash ratios have no base."
     }
    },
+   "regime": null,
    "subscores": {
     "altman": 100.0,
     "coverage": null,
@@ -5936,7 +5941,7 @@
    },
    {
     "name": "credit_model_revision",
-    "value": 4
+    "value": 5
    }
   ]
  },
@@ -5997,7 +6002,7 @@
    },
    {
     "name": "credit_model_revision",
-    "value": 4
+    "value": 5
    }
   ]
  },
@@ -6010,6 +6015,7 @@
     "x4": null
    },
    "altman_variant": "Z\"",
+   "altman_x3_basis": null,
    "altman_z_score": null,
    "altman_zone": null,
    "as_filed": null,
@@ -6025,7 +6031,7 @@
     "liquidity": 0.1,
     "profitability": 0.2
    },
-   "credit_model_revision": 4,
+   "credit_model_revision": 5,
    "declared_rungs": {
     "coverage": {
      "file": "packs/credit/model.yaml",
@@ -6184,6 +6190,7 @@
      "text": "The liquidity component is not scored: current liabilities are not positive for this period, so the current, quick and cash ratios have no base."
     }
    },
+   "regime": null,
    "subscores": {
     "altman": null,
     "coverage": 95.0,
