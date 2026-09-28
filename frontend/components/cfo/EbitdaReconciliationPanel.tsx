@@ -221,7 +221,9 @@ function ReconRow({
   // and net provisions outside it (a net release prints "+").
   const component =
     line.key === "inventory_variation" || line.key === "capitalized_own_work" || line.key === "net_provisions";
-  const accounts = (lang ?? "").toLowerCase().startsWith("ro") ? line.accounts : line.accountsEn ?? line.accounts;
+  // The account codes in the reader's language ("fără" / "excl."), where
+  // the engine words them apart — a code string, never a figure.
+  const accountCodes = (lang ?? "").toLowerCase().startsWith("ro") ? line.accounts : line.accountsEn ?? line.accounts;
   const notAnchored = line.key === "account_121" && line.status === "not_anchored";
   const refusal = line.value === null ? reason(line.refusal) : null;
   return (
@@ -234,8 +236,8 @@ function ReconRow({
     >
       <span>
         <NameWithGloss label={line.label} lang={lang} />
-        {accounts && (
-          <span className="ml-1.5 font-mono text-[10px] text-ink-mute">{accounts}</span>
+        {accountCodes && (
+          <span className="ml-1.5 font-mono text-[10px] text-ink-mute">{accountCodes}</span>
         )}
         {component && line.key !== "net_provisions" && line.provenanceLabel && (
           <span className="block text-[11.5px] font-normal text-ink-mute" data-testid="ebitda-recon-provenance">
