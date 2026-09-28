@@ -11809,7 +11809,7 @@ benchmark's filed basis (sector, engine).
 |---|---|
 | command | `npx vitest run --root . frontend/lib/__tests__/refusalCarries.test.tsx --reporter=verbose` |
 | canary | `covers the two refused books, and on both the buckets would rebuild a number`, `unanchored: growth, the credit model, the DCF and the NAV cascade refuse with it`, `a payload the engine did not assemble, whose buckets show 711 activity, refuses the same way` |
-| work count | `Tests N passed`, floor **20** (measured 20; was 12 before fixer round 2) |
+| work count | `Tests N passed`, floor **44** (measured 47 after the critic round 3 fixer; 20 at fixer round 2, 12 before) |
 
 **INCIDENT** — design A3: "if net 711 is refused on a book with 711 activity,
 EBITDA, EBIT, gross profit and every margin/ratio built on them REFUSE with
@@ -12027,7 +12027,7 @@ from the ratio table's (agras 36.48 % vs 37.29 %).
 |---|---|
 | command | `python -m pytest tests/engine/test_refusal_carries_engine.py -q` |
 | canary | `SCOPE refusal-carries-engine: refused books g6_uncleared (account_121_opening_not_cleared); unanchored (account_121_anchor_absent)`, `NET-RESULT refused (no account 121): unanchored` |
-| work count | `GATE-WORK refusal-carries-engine units=N`, floor **185** (measured 192; was 160 / 177 before fixer round 2) |
+| work count | `GATE-WORK refusal-carries-engine units=N`, floor **600** (measured 663 after the critic round 3 fixer; 192 at fixer round 2, 160 / 177 before) |
 
 **INCIDENT** — design A3: "if net 711 is refused on a book with 711
 activity, EBITDA, EBIT, gross profit and every margin/ratio built on them
@@ -12635,7 +12635,7 @@ the report "X3 not reported", "ROE | —", "~ Net profit | —", the export
 the related-party insight named the equity refusal on a book with no
 related-party row.
 
-**LAW** — engine (`GATE-WORK refusal-carries-engine units=667`, floor 600):
+**LAW** — engine (`GATE-WORK refusal-carries-engine units=663`, floor 600):
 12k the sector document refuses the equity ratio (`company_refused`,
 `company_figure_refused`, cause = the 711 code, the engine's sentence) on both
 short-equity books and ROE / ROA on the three net-result-refused books, the

@@ -615,7 +615,7 @@ def _engine_gates() -> List[Gate]:
              # the related-party order (12e both sides), the sub-scores worded
              # on their own causes, and rows persisted before the refusal —
              # GET metrics[] / the typed ratios / a stored valuations row / the
-             # narrator's rows (13) (measured 667).
+             # narrator's rows (13) (measured 663).
              work_rx=r"GATE-WORK refusal-carries-engine units=(\d+)", floor=600,
              units="engine surfaces checked to refuse with the 711 reason",
              canaries=("SCOPE refusal-carries-engine: refused books g6_uncleared "
