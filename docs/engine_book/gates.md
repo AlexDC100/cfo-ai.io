@@ -16738,8 +16738,8 @@ bucket).
 | | |
 |---|---|
 | command | `python -m pytest tests/engine/test_credit_stock_build_regime.py -q -s` |
-| canary | `SCOPE credit-stock-build (owner ruling R1 2026-09-28, packs/credit/model.yaml stock_build_regime)`, `STOCK-BUILD-BOOKS: agras, at_turnover_threshold, …, zero_turnover`, `STOCK-BUILD-PLANTS: approximated-cash-read-as-measured, …, x3-keeps-the-stock-build` |
-| work count | `GATE-WORK credit-stock-build units=(\d+)`, floor **120** (measured 134) |
+| canary | `SCOPE credit-stock-build (owner ruling R1 2026-09-28, packs/credit/model.yaml stock_build_regime)`, `STOCK-BUILD-BOOKS: agras, at_turnover_threshold, …, stock_build_profitable_before_build, zero_turnover`, `STOCK-BUILD-PLANTS: approximated-cash-read-as-measured, …, withheld-names-nothing, x3-keeps-the-stock-build` |
+| work count | `GATE-WORK credit-stock-build units=(\d+)`, floor **150** (measured 164; 134 before fixer round 1) |
 
 **INCIDENT** — the owner's ruling R1 (2026-09-28): "Scandia Română
 Development went CCC → B because 29.6M of construction now flows through 711.
@@ -16868,6 +16868,118 @@ PLANT finding-paraphrased (the pack's Romanian sentence reworded): packs/credit/
 REVERT (clean tree) tests/engine/test_credit_stock_build_regime.py: exit=0 26 passed in 3.50s
 ```
 
+**FIXER ROUND 1 (2026-09-28) — the sentence's premise.** The gate asserted the
+owner's sentence verbatim on EVERY triggering book and never that its premise
+held, so it was green over witnesses whose own figures contradicted it: the
+gate's builder with net 711 5,000,000, turnover 0 and EBIT −5,000,000 served
+EBITDA −4,850,000 under "Positive EBITDA from capitalised stock…";
+`stock_build_cash_positive` (CFO +5,000,000 measured) served "…the cash was
+consumed by construction."; a build on a 12,000,000 EBITDA (2,000,000 before
+the build) served "EBITDA pozitivă din stocuri capitalizate". THE LAW, now:
+the finding is served only when the SERVED figures say all three facts —
+EBITDA (2 dp) > 0, EBITDA before the stock variation and own work (2 dp) <= 0,
+no MEASURED cash from operations > 0 (pack data, `stock_build_regime.finding.
+premise`, validated by `credit_pack`). One fails → the regime stands, `finding`
+is null and `finding_withheld` names the failed tests with the served figure
+each read; the briefing's `credit_regime.finding` is null (the narrator states
+no sentence). `check()` reads the premise off the served statements itself
+(`expected_premise`), with a hand statement of which books state it
+(`STATES_FINDING`). New witnesses (SYNTHETIC): `stock_build_negative_ebitda`,
+`stock_build_negative_ebitda_cash_negative` (the bottom rung AND no sentence),
+`stock_build_profitable_before_build`; `stock_build_cash_positive` /
+`_debt_free` now withhold. A third seam: the briefing on two withheld books.
+Four new in-file plants: finding-sign-unchecked, finding-before-build-unchecked,
+finding-on-measured-positive-cash, withheld-names-nothing. On the committed
+corpus nothing moves: the developer's premise holds (EBITDA +550,976.12,
+before −29,038,838.12, CFO approximated), so its served block is
+byte-identical.
+
+WHAT THIS REDS ON NOW (TC-11): the sentence beside an EBITDA <= 0, beside an
+EBITDA positive before the build, or beside a measured CFO > 0; the sentence
+withheld while all three hold; a withheld finding that names no premise or
+the wrong one, or whose premise values are not the served figures; the
+sentence anywhere in a withheld block, or handed to the narrator.
+
+Source-edit plants, each alone (engine: a copy of the tree with config.yaml
+and supabase/, `specs-durable/rulings2_r1/plant_fixer_r1.py`; restored
+byte-exact, sha256 checked):
+```
+PLANT finding-sign-unchecked (EBITDA > 0 never tested): src/engine/ratios/credit_model.py
+  exit=1 4 failed, 29 passed in 4.03s
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_negative_ebitda]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_negative_ebitda_cash_negative]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_every_seam_carries_one_regime
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_zz_scope_and_work
+  -> RED ; file restored byte-exact
+PLANT finding-before-build-unchecked (EBITDA before the build <= 0 never tested): src/engine/ratios/credit_model.py
+  exit=1 2 failed, 31 passed in 3.81s
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_profitable_before_build]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_zz_scope_and_work
+  -> RED ; file restored byte-exact
+PLANT finding-on-measured-positive-cash (a measured CFO > 0 ignored): src/engine/ratios/credit_model.py
+  exit=1 5 failed, 28 passed in 3.80s
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_cash_positive]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_debt_free]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_every_seam_carries_one_regime
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_thresholds_and_the_weights_are_read_from_the_pack
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_zz_scope_and_work
+  -> RED ; file restored byte-exact
+PLANT premise-bypassed (the sentence on every triggering book, the pre-fix code): src/engine/ratios/credit_model.py
+  exit=1 8 failed, 25 passed in 3.81s
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_cash_positive]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_debt_free]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_negative_ebitda]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_negative_ebitda_cash_negative]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_profitable_before_build]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_every_seam_carries_one_regime
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_thresholds_and_the_weights_are_read_from_the_pack
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_zz_scope_and_work
+  -> RED ; file restored byte-exact
+PLANT withheld-names-nothing (the finding dropped silently): src/engine/ratios/credit_model.py
+  exit=1 7 failed, 26 passed in 3.84s
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_cash_positive]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_debt_free]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_negative_ebitda]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_negative_ebitda_cash_negative]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_profitable_before_build]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_thresholds_and_the_weights_are_read_from_the_pack
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_zz_scope_and_work
+  -> RED ; file restored byte-exact
+PLANT briefing-hands-an-empty-finding (the pre-fix briefing shape): src/engine/api/pipeline.py
+  exit=1 2 failed, 31 passed in 3.85s
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_every_seam_carries_one_regime
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_zz_scope_and_work
+  -> RED ; file restored byte-exact
+PLANT dry-run-prints-a-refusal-as-a-dash (the pre-fix line): scripts/reprocess_periods_definition.py
+  exit=1 1 failed, 11 passed in 27.84s
+    FAILED tests/engine/test_reprocess_periods_definition.py::test_the_dry_run_names_the_stock_build_regime
+  -> RED ; file restored byte-exact
+PLANT dry-run-prints-no-withheld-premise: scripts/reprocess_periods_definition.py
+  exit=1 1 failed, 11 passed in 27.76s
+    FAILED tests/engine/test_reprocess_periods_definition.py::test_the_dry_run_names_the_stock_build_regime
+  -> RED ; file restored byte-exact
+REVERT (clean tree) tests/engine/test_credit_stock_build_regime.py: exit=0 33 passed in 3.80s
+REVERT (clean tree) tests/engine/test_reprocess_periods_definition.py: exit=0 12 passed in 27.56s
+```
+The reprocess dry run (gate `reprocess-periods-definition`) prints a fresh
+composite the engine refuses as `REFUSED (no composite, no letter)` — never
+"— —", which read as a re-grade to nothing — and a withheld finding as
+`finding withheld (the served figures contradict it): <keys>`.
+
+**FINDING 3 (confirmed, NOT fixed — the owner's call).** Because the served
+cash flow is approximated on every book (`assemble_statements` hard-codes
+`is_approximated = True`), the regime's cash scoring never runs on a real book:
+the developer's re-grade is a REFUSAL (41.5 B → no letter), not a grade. Read
+as measured, every CFO <= 0 gives the same 33.9 CCC (Altman 66.5,
+profitability 0, leverage / coverage / DSCR 0, liquidity 45.4, equity 96.6 —
+measured at −3,945,493.79 and at −23,000,000). The approximation also
+misstates a developer's working capital: the book's own class-3 leaves move
++29,589,814.29 from the fiscal-year opening (`si`) to the close (`sf`), the
+served `delta_inventory` is −3,391,060.69 (5% of closing). Options for the
+owner: measure the working-capital movements from the trial balance's own
+opening balances (every book's cash flow changes), or grade the regime on the
+sign of the approximated CFO.
+
 **Measured beside it** (independent referee
 `specs-durable/rulings2_r1/referee_r1.py` on the PRE-R1 engine, 386048ce):
 the developer triggers (182.24x turnover, 101.1% of operating cost), X3
@@ -16889,8 +17001,8 @@ browser surfaces (vitest `creditRegimeSurfaces.test.tsx`).
 | | |
 |---|---|
 | command | `npx vitest run frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx` |
-| canary | `developer (EN): one regime block, …`, `the hero states the refusal, not 'analysis pending', …`, `/report's credit card prints the regime once, …`, `CmdbarList renders it once at rest and not while typing` |
-| work count | vitest `Tests N passed`, floor **11** (measured 11) |
+| canary | `developer (EN): one regime block, …`, `the hero states the refusal, not 'analysis pending', …`, `/report's credit card prints the regime once, …`, `CmdbarList renders it once at rest and not while typing`, `the documents and the command bar: the regime's label, no sentence` |
+| work count | vitest `Tests N passed`, floor **14** (measured 14; 11 before fixer round 1) |
 
 **LAW** — owner ruling R1: every surface that prints the grade prints the
 stock-build regime ONCE (`components/cfo/CreditRegimeNote.tsx`, a projection
@@ -16979,6 +17091,40 @@ PLANT cmdbar-prints-the-regime-while-typing: frontend/components/instrument/shel
     FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > the command bar prints the regime once, in the rest state > CmdbarList renders it once at rest and not while typing
   -> RED ; file restored byte-exact
 REVERT (clean tree) frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx: exit=0 Tests  11 passed (11)
+```
+
+**FIXER ROUND 1 (2026-09-28) — a WITHHELD finding.** When the engine withholds
+the owner's sentence (its premise contradicted by the served figures; gate
+`credit-stock-build`), every surface prints the regime ONCE and the sentence
+NOWHERE, in both languages: the Risks tab, /report's card, the exported
+report, the command bar — whose `regimeLine` returned null without a finding
+and so would have dropped the regime altogether; it prints the served label
+alone. The regime note printed the measured cash in
+`finding?.figures[0]?.unit` — with no finding, the default RON on a EUR book;
+it prints in `regime.currency` (the finding's units, else the withheld
+premise's). Over a SYNTHETIC case in the route's own bytes,
+`served_credit_regime.json` `developer_withheld` (the gate's constructed book
+with EBITDA −8,850,000, CFO −8,000,000 measured). Plants, each alone in the
+worktree (`specs-durable/rulings2_r1/plant_fixer_r1.py fe`):
+```
+PLANT regime-line-null-without-finding (the command bar drops the regime): frontend/lib/creditRegime.ts
+  exit=1 ['Tests  1 failed | 13 passed (14)']
+    × a WITHHELD finding: the regime once, the owner's sentence nowhere > the documents and the command bar: the regime's label, no sentence 53ms
+    FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > a WITHHELD finding: the regime once, the owner's sentence nowhere > the documents and the command bar: the regime's label, no sentence
+  -> RED ; file restored byte-exact
+PLANT note-cash-in-default-currency (the pre-fix unit): frontend/components/cfo/CreditRegimeNote.tsx
+  exit=1 ['Tests  1 failed | 13 passed (14)']
+    × a WITHHELD finding: the regime once, the owner's sentence nowhere > the Risks tab (EN and RO) and /report's card print the regime once and no sentence 19ms
+    FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > a WITHHELD finding: the regime once, the owner's sentence nowhere > the Risks tab (EN and RO) and /report's card print the regime once and no sentence
+  -> RED ; file restored byte-exact
+PLANT reader-drops-the-withheld-block: frontend/lib/creditRegime.ts
+  exit=1 ['Tests  2 failed | 12 passed (14)']
+    × a WITHHELD finding: the regime once, the owner's sentence nowhere > the reader: the regime, no finding, the failed premise, the served currency 4ms
+    × a WITHHELD finding: the regime once, the owner's sentence nowhere > the Risks tab (EN and RO) and /report's card print the regime once and no sentence 17ms
+    FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > a WITHHELD finding: the regime once, the owner's sentence nowhere > the reader: the regime, no finding, the failed premise, the served currency
+    FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > a WITHHELD finding: the regime once, the owner's sentence nowhere > the Risks tab (EN and RO) and /report's card print the regime once and no sentence
+  -> RED ; file restored byte-exact
+REVERT (clean tree) frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx: exit=0 ['Tests  14 passed (14)']
 ```
 
 **CANNOT SEE:** the Ask CFO AI chat (the briefing facts carry the regime; the

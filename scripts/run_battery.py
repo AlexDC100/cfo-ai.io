@@ -913,23 +913,29 @@ def _engine_gates() -> List[Gate]:
         # Altman X3 on EBIT − net 711 − net 72x, the composite on the
         # regime's weights, and the finding (the owner's sentence, RO
         # verbatim + EN, high, the served figures) rides the served block,
-        # the attention document and the briefing facts. 11 constructed
-        # books, the 4 corpus books through GET /api/period, 2 seams, the
-        # pack plant (thresholds and weights move with it), 7 in-file plants.
-        # Measured 134. Plant log: gates.md "credit-stock-build".
+        # the attention document and the briefing facts — ONLY where the
+        # served figures say what it states (EBITDA > 0, EBITDA before the
+        # build <= 0, no measured CFO > 0; fixer round 1), else withheld by
+        # name and never handed to the narrator. 14 constructed books, the 4
+        # corpus books through GET /api/period, 3 seams, the pack plant
+        # (thresholds and weights move with it), 11 in-file plants.
+        # Measured 164. Plant log: gates.md "credit-stock-build".
         Gate("credit-stock-build",
              [PY, "-m", "pytest", "tests/engine/test_credit_stock_build_regime.py", "-q", "-s"],
-             work_rx=r"GATE-WORK credit-stock-build units=(\d+)", floor=120,
+             work_rx=r"GATE-WORK credit-stock-build units=(\d+)", floor=150,
              units="constructed and real books judged, seams compared, plants",
              canaries=("SCOPE credit-stock-build (owner ruling R1 2026-09-28, packs/credit/model.yaml "
                        "stock_build_regime)",
                        "STOCK-BUILD-BOOKS: agras, at_turnover_threshold, below_opex_threshold, "
                        "below_turnover_threshold, carniprod, manufacturer, realestate, refused_711, retail, "
                        "stock_build_approximated, stock_build_cash_negative, stock_build_cash_positive, "
-                       "stock_build_cash_refused, stock_build_debt_free, zero_turnover",
+                       "stock_build_cash_refused, stock_build_debt_free, stock_build_negative_ebitda, "
+                       "stock_build_negative_ebitda_cash_negative, stock_build_profitable_before_build, "
+                       "zero_turnover",
                        "STOCK-BUILD-PLANTS: approximated-cash-read-as-measured, cash-components-on-ebit, "
-                       "finding-paraphrased, model-weights-under-the-regime, refusal-falls-back-to-ebitda, "
-                       "trigger-threshold-in-code, x3-keeps-the-stock-build")),
+                       "finding-before-build-unchecked, finding-on-measured-positive-cash, finding-paraphrased, "
+                       "finding-sign-unchecked, model-weights-under-the-regime, refusal-falls-back-to-ebitda, "
+                       "trigger-threshold-in-code, withheld-names-nothing, x3-keeps-the-stock-build")),
         # ── owner ruling R5 (2026-09-28): supabase-read-retry. The engine's
         # Supabase client logs a WARNING and retries ONCE on a read timeout
         # for its one GET (select), and never retries a write: through the
@@ -1411,17 +1417,21 @@ def _engine_gates() -> List[Gate]:
         # the regime's served weights; nothing on a standard book. Over the
         # route's own bytes (served_credit_regime.json, kept by
         # test_credit_regime_fe_fixture.py); the exported HTML report and
-        # the workbook state it too. Measured 11 tests, floor 11.
+        # the workbook state it too. A WITHHELD finding (fixer round 1: the
+        # served figures contradict the sentence) prints the regime once and
+        # the sentence nowhere, the command bar keeping the label, the cash in
+        # the served currency. Measured 14 tests, floor 14.
         # Plant log: gates.md "credit-regime-surfaces".
         Gate("credit-regime-surfaces",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx", "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=11,
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=14,
              units="surface tests (the regime once, the owner's sentence, the cash bases)",
              canaries=("developer (EN): one regime block, the finding, the refused composite, the cash bases",
                        "the hero states the refusal, not 'analysis pending', and the regime once",
                        "/report's credit card prints the regime once, and none for a manufacturer",
-                       "CmdbarList renders it once at rest and not while typing")),
+                       "CmdbarList renders it once at rest and not while typing",
+                       "the documents and the command bar: the regime's label, no sentence")),
         Gate("valuation-refused-override",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/components/cfo/__tests__/valuationRefusedOverride.test.tsx", "--reporter=verbose"],

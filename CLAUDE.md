@@ -1568,13 +1568,34 @@ without it raises) and ONE function, `credit_model.stock_build_regime`:
   components and the letter REFUSE (41.5 B → no letter; Z'' 4.81 → 2.43, X3
   0.0059 → −0.3489). Read as if measured, the same approximated CFO
   (−3,945,493.79) would give 33.9 CCC — the owner's call whether the regime
-  may grade on the approximation; the code does not.
+  may grade on the approximation; the code does not. **The re-grade the owner
+  asked for is therefore a REFUSAL on every real book today** (fixer round 1,
+  finding 3 — confirmed, not fixed: it needs an owner decision). The dry run
+  prints it as `REFUSED (no composite, no letter)`, never as a re-grade. Two
+  ways to a letter, both the owner's to rule: (a) measure the working-capital
+  movements from the trial balance's own opening balances (`si_d`/`si_c`, the
+  fiscal-year opening `inventory_days` already reads) — on the developer the
+  class-3 leaves move +29,589,814.29 where the approximation serves
+  −3,391,060.69 (5% of closing), and every book's cash flow would change with
+  it; (b) let the regime grade on the SIGN of the approximated CFO (bottom
+  rung when ≤ 0). Either gives the developer 33.9 CCC (every measured CFO ≤ 0
+  gives the same sub-scores: Altman 66.5, liquidity 45.4, equity 96.6, the
+  rest 0).
 - **The finding** rides the served block (`credit.regime.finding`): "EBITDA
   pozitivă din stocuri capitalizate — numerarul a fost consumat de
   construcție." (verbatim) / "Positive EBITDA from capitalised stock — the
   cash was consumed by construction.", severity high, with the served net 711,
   turnover, EBITDA, EBITDA before the stock variation and CFO (only when
-  measured). It is printed ONCE, beside the grade, on the Risks tab, the
+  measured) — **ONLY when the served figures say what it states** (fixer
+  round 1): the served EBITDA > 0, the served EBITDA before the stock
+  variation and own work ≤ 0 (the build is what makes it positive), and no
+  MEASURED cash from operations > 0. Otherwise the regime stands (the grade
+  is on cash either way), `finding` is null and `finding_withheld` names the
+  failed premise (pack data: `stock_build_regime.finding.premise`) — no
+  sentence of our own; the command bar prints the regime's label alone and
+  the briefing hands the narrator no sentence. A pre-sales developer whose
+  overhead exceeds turnover (EBITDA < 0) triggers the regime WITHOUT the
+  sentence. It is printed ONCE, beside the grade, on the Risks tab, the
   dashboard hero (in place of the "analysis pending" line when the regime
   refused the letter), /report's card (and so the CFO Report PDF), the exported report
   and workbook, the command bar (`credit_regime` on attention/1, one line at
