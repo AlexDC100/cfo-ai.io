@@ -5766,6 +5766,336 @@
    }
   ]
  },
+ "developer_withheld": {
+  "credit": {
+   "altman_components": {
+    "x1": 0.6768,
+    "x2": 0.101,
+    "x3": -0.4242,
+    "x4": 1.2045
+   },
+   "altman_variant": "Z\"",
+   "altman_x3_basis": {
+    "en": "X3 on the operating result before the stock variation and own work capitalised (EBIT − net 711 − net 72x) / total assets",
+    "ro": "X3 pe rezultatul din exploatare înainte de variația stocurilor și producția imobilizată (EBIT − 711 net − 72x net) / active totale"
+   },
+   "altman_z_score": 3.18,
+   "altman_zone": "safe",
+   "as_filed": null,
+   "as_filed_differs": false,
+   "basis": "serve",
+   "composite_score": 38.8,
+   "composite_weights": {
+    "altman": 0.3,
+    "coverage": 0.1,
+    "dscr": 0.1,
+    "equity": 0.05,
+    "leverage": 0.15,
+    "liquidity": 0.2,
+    "profitability": 0.1
+   },
+   "credit_model_revision": 5,
+   "declared_rungs": {
+    "coverage": {
+     "file": "packs/credit/model.yaml",
+     "label": "stock-build regime: cash from operations not positive; the component takes the bottom rung by declared rule, not measured",
+     "rung": "cash_from_operations_not_positive",
+     "score": 0,
+     "source": "owner ruling R1 (2026-09-28); coordinator decision: a CFO <= 0 grades the cash components at the worst rung",
+     "when": "the stock-build regime applies and cash from operations <= 0, measured"
+    },
+    "dscr": {
+     "file": "packs/credit/model.yaml",
+     "label": "stock-build regime: cash from operations not positive; the component takes the bottom rung by declared rule, not measured",
+     "rung": "cash_from_operations_not_positive",
+     "score": 0,
+     "source": "owner ruling R1 (2026-09-28); coordinator decision: a CFO <= 0 grades the cash components at the worst rung",
+     "when": "the stock-build regime applies and cash from operations <= 0, measured"
+    },
+    "leverage": {
+     "file": "packs/credit/model.yaml",
+     "label": "stock-build regime: cash from operations not positive; the component takes the bottom rung by declared rule, not measured",
+     "rung": "cash_from_operations_not_positive",
+     "score": 0,
+     "source": "owner ruling R1 (2026-09-28); coordinator decision: a CFO <= 0 grades the cash components at the worst rung",
+     "when": "the stock-build regime applies and cash from operations <= 0, measured"
+    }
+   },
+   "letter_grade": "CCC",
+   "letter_grade_bands": [
+    {
+     "grade": "AAA",
+     "min": 90
+    },
+    {
+     "grade": "AA",
+     "min": 80
+    },
+    {
+     "grade": "A",
+     "min": 70
+    },
+    {
+     "grade": "BBB",
+     "min": 60
+    },
+    {
+     "grade": "BB",
+     "min": 50
+    },
+    {
+     "grade": "B",
+     "min": 40
+    },
+    {
+     "grade": "CCC",
+     "min": 25
+    },
+    {
+     "grade": "CC",
+     "min": 0
+    }
+   ],
+   "profitability_disclosure": null,
+   "ranges": {
+    "altman_x1": {
+     "file": "packs/credit/model.yaml",
+     "max": 1.0,
+     "source": "structural: current assets are part of total assets and the leaves are non-negative"
+    },
+    "altman_x4": {
+     "file": "packs/credit/model.yaml",
+     "max": 100.0,
+     "max_is": "1 / altman_x4.liabilities_materiality.share",
+     "source": "derived: on the D4 domain TL >= share x TA and BE <= TA, so BE / TL <= 1 / share"
+    },
+    "altman_z": {
+     "bound": 109.038636,
+     "bound_is": "6.56 x altman_x1.max + 3.26 x X2 + 6.72 x X3 + 1.05 x altman_x4.max",
+     "derivation": "6.56 x 1 + 3.26 x 0.101 + 6.72 x -0.4242 + 1.05 x 100 = 109.0386",
+     "file": "packs/credit/model.yaml",
+     "source": "derived from the component bounds above with the book's own measured X2 and X3; X2 and X3 have no structural bound and are required finite"
+    },
+    "composite": {
+     "file": "packs/credit/model.yaml",
+     "max": 100.0,
+     "min": 0.0,
+     "source": "CLAUDE.md Appendix A section 7: composite credit score (0-100, weighted); the weights sum to 1"
+    },
+    "subscore": {
+     "file": "packs/credit/model.yaml",
+     "max": 100.0,
+     "min": 0.0,
+     "source": "CLAUDE.md Appendix A section 7: seven sub-scores on a 0-100 scale"
+    }
+   },
+   "reason": null,
+   "refused_subscores": {},
+   "regime": {
+    "altman_x3": {
+     "capitalized_own_work": 0.0,
+     "label": {
+      "en": "X3 on the operating result before the stock variation and own work capitalised (EBIT − net 711 − net 72x) / total assets",
+      "ro": "X3 pe rezultatul din exploatare înainte de variația stocurilor și producția imobilizată (EBIT − 711 net − 72x net) / active totale"
+     },
+     "net_711": 12000000.0,
+     "numerator": -21000000.0,
+     "operating_result": -9000000.0
+    },
+    "cash": {
+     "approximation_notes": null,
+     "figure": "assembled_cf.cash_from_operating",
+     "label": {
+      "en": "Cash from operations",
+      "ro": "Fluxul de numerar din exploatare"
+     },
+     "net_income_refusal": null,
+     "refusal": null,
+     "status": "measured",
+     "value": -8000000.0
+    },
+    "cash_components": [
+     "leverage",
+     "coverage",
+     "dscr"
+    ],
+    "code": "stock_build",
+    "component_bases": {
+     "coverage": {
+      "en": "cash from operations ÷ interest",
+      "ro": "fluxul de numerar din exploatare ÷ dobânzi"
+     },
+     "dscr": {
+      "en": "cash from operations ÷ debt service",
+      "ro": "fluxul de numerar din exploatare ÷ serviciul datoriei"
+     },
+     "leverage": {
+      "en": "net debt ÷ cash from operations",
+      "ro": "datorie netă ÷ fluxul de numerar din exploatare"
+     }
+    },
+    "file": "packs/credit/model.yaml",
+    "finding": null,
+    "finding_withheld": {
+     "code": "stock_build_ebitda",
+     "failed": [
+      "ebitda_positive"
+     ],
+     "file": "packs/credit/model.yaml",
+     "premise": [
+      {
+       "key": "ebitda_positive",
+       "label": {
+        "en": "EBITDA is positive",
+        "ro": "EBITDA este pozitivă"
+       },
+       "met": false,
+       "status": "measured",
+       "unit": "RON",
+       "value": -8850000.0
+      },
+      {
+       "key": "ebitda_before_stock_variation_not_positive",
+       "label": {
+        "en": "EBITDA before the stock variation and own work capitalised is not positive",
+        "ro": "EBITDA înainte de variația stocurilor și producția imobilizată nu este pozitivă"
+       },
+       "met": true,
+       "status": "measured",
+       "unit": "RON",
+       "value": -20850000.0
+      },
+      {
+       "key": "cash_not_measured_positive",
+       "label": {
+        "en": "Cash from operations is not measured positive",
+        "ro": "Fluxul de numerar din exploatare nu este măsurat pozitiv"
+       },
+       "met": true,
+       "status": "measured",
+       "unit": "RON",
+       "value": -8000000.0
+      }
+     ]
+    },
+    "label": {
+     "en": "Credit regime: stock build — the EBITDA-based components are computed on cash",
+     "ro": "Regim de credit: construcție pe stoc — componentele bazate pe EBITDA sunt calculate pe numerar"
+    },
+    "trigger": {
+     "file": "packs/credit/model.yaml",
+     "net_711": 12000000.0,
+     "source": "owner ruling R1 (2026-09-28): when the 711 stock build exceeds turnover materially, the credit model weights cash flow and liquidity, not EBITDA; coordinator decision (design_2026-09-28_rulings2.md): both shares above, measured net 711 only",
+     "tests": [
+      {
+       "at_least": "1.0",
+       "basis": "net_turnover",
+       "basis_value": 200000.0,
+       "key": "net_711_to_turnover",
+       "label": {
+        "en": "the net change in inventories (711) against net turnover",
+        "ro": "variația stocurilor de produse (711, netă) raportată la cifra de afaceri netă"
+       },
+       "met": true,
+       "share": 60.0
+      },
+      {
+       "at_least": "0.10",
+       "basis": "total_operating_expense",
+       "basis_value": 30000000.0,
+       "key": "net_711_to_operating_expense",
+       "label": {
+        "en": "the net change in inventories (711) against total operating expense",
+        "ro": "variația stocurilor de produse (711, netă) raportată la cheltuielile totale de exploatare"
+       },
+       "met": true,
+       "share": 0.4
+      }
+     ]
+    },
+    "weights": {
+     "altman": 0.3,
+     "coverage": 0.1,
+     "dscr": 0.1,
+     "equity": 0.05,
+     "leverage": 0.15,
+     "liquidity": 0.2,
+     "profitability": 0.1
+    },
+    "weights_why": {
+     "en": "Liquidity takes the weight moved out of profitability, whose net result carries the same capitalised stock; the cash components keep their weights.",
+     "ro": "Lichiditatea primește ponderea luată de la profitabilitate, al cărei rezultat net conține același stoc capitalizat; componentele pe numerar își păstrează ponderile."
+    }
+   },
+   "subscores": {
+    "altman": 78.7,
+    "coverage": 0.0,
+    "dscr": 0.0,
+    "equity": 100.0,
+    "leverage": 0.0,
+    "liquidity": 51.0,
+    "profitability": 0.0
+   }
+  },
+  "metrics": [
+   {
+    "name": "altman_z_score",
+    "value": 3.18
+   },
+   {
+    "name": "altman_x1",
+    "value": 0.6768
+   },
+   {
+    "name": "altman_x2",
+    "value": 0.101
+   },
+   {
+    "name": "altman_x3",
+    "value": -0.4242
+   },
+   {
+    "name": "altman_x4",
+    "value": 1.2045
+   },
+   {
+    "name": "credit_composite",
+    "value": 38.8
+   },
+   {
+    "name": "credit_subscore_altman",
+    "value": 78.7
+   },
+   {
+    "name": "credit_subscore_profitability",
+    "value": 0
+   },
+   {
+    "name": "credit_subscore_leverage",
+    "value": 0
+   },
+   {
+    "name": "credit_subscore_coverage",
+    "value": 0
+   },
+   {
+    "name": "credit_subscore_dscr",
+    "value": 0
+   },
+   {
+    "name": "credit_subscore_liquidity",
+    "value": 51.0
+   },
+   {
+    "name": "credit_subscore_equity",
+    "value": 100
+   },
+   {
+    "name": "credit_model_revision",
+    "value": 5
+   }
+  ]
+ },
  "manufacturer": {
   "credit": {
    "altman_components": {

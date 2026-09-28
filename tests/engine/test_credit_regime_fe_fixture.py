@@ -22,6 +22,15 @@ Cases (committed corpus books, the production write path + GET /api/period):
   manufacturer             agras — no regime
   attention_developer      the attention document composed over the
                            developer's served body (its `credit_regime`)
+  developer_withheld       SYNTHETIC — the credit-stock-build gate's
+                           constructed `stock_build_negative_ebitda_cash_negative`
+                           (EBITDA -8,850,000, cash from operations -8,000,000
+                           measured) through the route's own builder: the
+                           regime applies (the bottom rung, a composite, a
+                           letter) and the finding is WITHHELD — the served
+                           EBITDA is not positive, so the owner's sentence
+                           would contradict the figure under it (fixer round
+                           1, 2026-09-28)
 
 WHAT THIS REDS ON (TC-11): the committed fixture differing from what the
 route and the builder serve today (re-capture:
@@ -50,6 +59,10 @@ def _credit_rows(rows):
 
 
 def _capture() -> Dict[str, Any]:
+    from test_credit_stock_build_regime import CONSTRUCTED
+
+    withheld = copy.deepcopy(CONSTRUCTED["stock_build_negative_ebitda_cash_negative"])
+    wrows = CM.compute_period_metrics(copy.deepcopy(withheld))
     dev = SB.served_body("realestate")
     man = SB.served_body("agras")
     measured = copy.deepcopy(dev["statements"])
@@ -66,6 +79,9 @@ def _capture() -> Dict[str, Any]:
                          "statements": man["statements"]},
         "attention_developer": {"credit_regime": doc["credit_regime"],
                                 "currency": (doc.get("period") or {}).get("currency")},
+        "developer_withheld": {
+            "credit": CM.serve_credit_envelope(CM.credit_block(wrows, statements=withheld)),
+            "metrics": _credit_rows(wrows)},
     }
 
 
@@ -95,3 +111,11 @@ def test_each_case_carries_the_state_it_exists_for():
             if v["rung"] == "cash_from_operations_not_positive"} == {"leverage", "coverage", "dscr"}
     assert cap["manufacturer"]["credit"]["regime"] is None
     assert cap["attention_developer"]["credit_regime"] == dev["regime"]
+    wh = cap["developer_withheld"]["credit"]
+    assert wh["regime"]["code"] == "stock_build" and wh["regime"]["finding"] is None
+    assert wh["regime"]["finding_withheld"]["failed"] == ["ebitda_positive"]
+    assert wh["composite_score"] is not None and wh["letter_grade"] is not None
+    assert {k for k, v in (wh["declared_rungs"] or {}).items()
+            if v["rung"] == "cash_from_operations_not_positive"} == {"leverage", "coverage", "dscr"}
+    # the developer's stated finding is untouched: its premise holds
+    assert dev["regime"]["finding"] is not None and "finding_withheld" not in dev["regime"]
