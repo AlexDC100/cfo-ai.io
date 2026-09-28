@@ -386,6 +386,19 @@ def reprocess_period(period: Dict[str, Any], *, apply: bool, force: bool = False
         with _supabase.admin() as client:
             P._persist_period_alerts(client, doc["org_id"], doc["id"], period_id, alerts)
         P._compute_and_persist_valuation(doc, org, assembled, period_id)
+        # READ BACK the valuations row (critic round 3, 2026-09-28):
+        # `_compute_and_persist_valuation` swallows its failures as
+        # non-fatal, so an apply that could not rewrite the row still said
+        # REPROCESSED over a row on the previous EBITDA. The row must now
+        # carry the fresh one EBITDA — None on a refused one.
+        with _supabase.admin() as client:
+            vrows = client.select("valuations", filters={"period_id": "eq.%s" % period_id}) or []
+        v_after = vrows[0].get("ebitda_used") if vrows else None
+        if not vrows or not _same(v_after, after["ebitda"]):
+            row["valuation"]["ebitda_used_read_back"] = v_after
+            row["valuation"]["row_read_back"] = bool(vrows)
+            row.update(status=REFUSED, reason="valuation_not_rewritten")
+            return row
     if guard.calls:
         # A write-path stage reached for the model after the plan did not.
         # Everything above is deterministic; say so rather than hide it.

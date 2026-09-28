@@ -283,6 +283,32 @@ def test_a_period_current_in_every_figure_but_its_valuations_row_is_never_curren
     WORK["units"] += 8
 
 
+def test_an_apply_that_could_not_rewrite_the_valuations_row_says_so(app, gw, no_quota, monkeypatch):
+    """`_compute_and_persist_valuation` swallows its failures (non-fatal):
+    an apply whose valuation write failed reported REPROCESSED over a row
+    still on the previous EBITDA (critic round 3, 2026-09-28). The apply
+    reads the row back: not on the fresh EBITDA -> refused,
+    `valuation_not_rewritten`, with what it read; the period stays not
+    current, so the next run retries it."""
+    from engine.api import _valuation as VAL
+
+    world = _analysed_pre_ruling(app, gw)
+    no_quota()
+    pid = world["period"]["id"]
+
+    def down(*_a, **_k):
+        raise RuntimeError("valuations table unreachable")
+
+    with monkeypatch.context() as mp:
+        mp.setattr(VAL, "persist_valuation", down)
+        (row,) = R.run(apply=True, period=pid)
+    assert row["status"] == R.REFUSED and row["reason"] == "valuation_not_rewritten", row
+    assert row["valuation"]["ebitda_used_read_back"] == pytest.approx(10776378.24, abs=0.005), row
+    (again,) = R.run(apply=False, period=pid)
+    assert again["status"] == R.WOULD_REPROCESS, again
+    WORK["units"] += 3
+
+
 def test_a_document_that_needs_the_model_is_refused_and_nothing_is_written(app, gw, no_quota):
     no_quota()
     doc = gw.db.add("documents", {
