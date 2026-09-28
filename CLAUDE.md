@@ -1451,10 +1451,43 @@ keystroke. Its ONE adapters (`attention/sources.py`, `cmdbarSources.ts`) read
 the one EBITDA (and its refusal's words) and the inventory-days block (its
 basis label, never the code; no filed-basis row beside the split).
 
-**Merge contract (2026-09-28)** also made the report's cycle chart add up AS
-PRINTED (the CCC bar prints the sum of the printed terms, the exact served
-cycle in its tooltip and caption) and the trade-float insight print DSO/DPO
-on the Ratios table's days rule (one printed string per figure).
+**One figure per report (coordinator's ruling 2026-09-28,** replacing the
+merge contract's "the cycle adds up as printed"): the cash conversion cycle
+prints ONE string everywhere — the served `ccc` on the ratio card's
+precision; the report's cycle chart prints that same string on its CCC bar
+and each term its own served figure, and where the printed terms do not
+foot to the printed total it shows one rounding note (`roundedDays.note`:
+"zile rotunjite — termenii rotunjiți pot diferi de total cu o zi" / "rounded
+days — the rounded terms can differ from the total by a day") — never a
+second total, a tooltip figure, or a caption claiming they add up. The
+trade-float insight prints DSO / DPO on the Ratios table's days rule and the
+gap as ITS OWN served figure on the same precision, with the same note (the
+pack's `rounded` claim variant) where the printed DSO − DPO differs.
+
+**Schema migrations this release depends on** (applied on production
+2026-09-27 12:37Z, each verified through the REST API per §14):
+`supabase/schema_phase_briefing_ebitda_definition.sql`
+(`briefings.ebitda_definition` — a briefing written under the previous EBITDA
+definition is hidden with a one-line note) and
+`supabase/schema_phase_valuation_ebitda_definition.sql`
+(`user_valuation_assumptions.ebitda_definition` — an override saved earlier
+is flagged "salvat sub definiția anterioară a EBITDA"). A fresh environment
+must apply both before this backend is switched in.
+
+**The chat claim rule rides in the workspace snapshot.** The Ask CFO AI edge
+function (`supabase/functions/chat-llm`) was NOT redeployed in this release
+(the Supabase CLI is not signed in) and is unchanged. The rule — never call
+stock slow or high on one balance; cite the split and the average — travels
+in the frontend's workspace snapshot (`pages/cfo/Chat.buildWorkspaceSnapshot`,
+which the function already puts into its system prompt as `dataset_summary`):
+the inventory-days total with its basis label, one plain rule line where
+`claim_policy.may_call_slow` is false, and the one EBITDA with its 711 / 72x
+components or the engine's refusal words. It stays there until chat-llm is
+redeployed with the rule in its own system prompt. **Owner step:** `supabase
+login`, then the Milestone D redeploy command (§16) — until then the snapshot
+is the only carrier of the rule, and the snapshot law
+(`chatSnapshotInventoryDays.test.ts`, gate inventory-days-surfaces) is what
+keeps it there.
 
 **DEPLOY REQUIREMENT.** Every stored period predates the definition: its
 EBITDA refuses (`period_predates_*`) until it is REPROCESSED from its stored
