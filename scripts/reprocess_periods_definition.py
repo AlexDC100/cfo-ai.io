@@ -62,6 +62,18 @@ saved override is never `current`. User overrides
 /api/period serves them flagged "salvat sub definiția anterioară a EBITDA"
 when typed under the previous definition.
 
+THE 2026-09-28 REVISION (owner rulings R2, R3). The definition stamp
+moved again: provisions (6812 / 6814 charges and 7812 / 7814 reversals)
+left EBITDA for their own net-provisions line, and 7411 entered net
+turnover. Every period stamped with an earlier revision
+(`EBITDA_DEFINITION_PREVIOUS_REVISIONS`) is NOT current and is reprocessed;
+the dry run prints the stamp it was written under beside the running one,
+and the net provisions and the 7411 placed in turnover of the fresh run. A
+turnover move that equals, to the cent, the 7411 the fresh run placed inside
+turnover on a period written under an earlier definition is the ruling
+itself (`definition_7411`) and does not block — unless a filed figure is
+named and the move goes away from it.
+
 TURNOVER MOVES BLOCK THE DEPLOY (design A10). A period persisted by an older
 parser can read a different turnover now (Carniprod 7c29a71b served
 99,424,740.16 where the filing says 94,509,940). Every turnover change is
@@ -210,6 +222,7 @@ def _stored_view(period: Dict[str, Any], metric_rows: Sequence[Dict[str, Any]]) 
         "dio": _num(by_name.get("dio")),
         "definition": methodology.get("ebitda_definition"),
         "definition_current": methodology.get("ebitda_definition") == EBITDA_DEFINITION_REVISION,
+        "running_definition": EBITDA_DEFINITION_REVISION,
         "turnover": _num(totals.get("revenue_net")),
         "ebitda": _num(ebitda.get("reported")),
         "composite": composite,
@@ -245,6 +258,13 @@ def _fresh_view(assembled: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[st
         "net_711_refusal": (refusal or {}).get("code"),
         "net_72x": _num(cap.get("value")),
         "turnover": _num(pl.get("turnover", pl.get("revenue"))),
+        # R3 (2026-09-28): the 7411 the fresh run placed inside turnover.
+        "turnover_7411": _num(((pl.get("turnover_definition") or {}).get("placed_extra"))
+                              if isinstance(pl.get("turnover_definition"), dict) else None),
+        # R2 (2026-09-28): charges − reversals, outside EBITDA.
+        "net_provisions": _num(((pl.get("net_provisions") or {}).get("value"))
+                               if isinstance(pl.get("net_provisions"), dict) else None),
+        "ebit": _num(pl.get("ebit")),
         "ebitda": _num(pl.get("ebitda")),
         "ebitda_refusal": ((pl.get("ebitda_refusal") or {}).get("code")
                            if isinstance(pl.get("ebitda_refusal"), dict) else None),
@@ -284,14 +304,24 @@ def _same(a: Optional[float], b: Optional[float]) -> bool:
 
 
 def _turnover_verdict(before: Optional[float], after: Optional[float],
-                      filed: Optional[float]) -> Optional[str]:
+                      filed: Optional[float], *, placed_7411: Optional[float] = None,
+                      earlier_definition: bool = False) -> Optional[str]:
     """None when turnover did not move; otherwise 'toward_filed',
-    'away_from_filed' or 'no_filed_figure'."""
+    'away_from_filed', 'definition_7411' or 'no_filed_figure'.
+
+    'definition_7411' (R3, 2026-09-28): no filed figure is named, the period
+    was written under an earlier EBITDA definition, and the move is exactly
+    the 7411 the fresh run placed inside turnover — the ruling, not a
+    reading change. A named filed figure always judges first."""
     if _same(before, after):
         return None
-    if filed is None or before is None or after is None:
-        return "no_filed_figure"
-    return "toward_filed" if abs(after - filed) < abs(before - filed) else "away_from_filed"
+    if filed is not None and before is not None and after is not None:
+        return "toward_filed" if abs(after - filed) < abs(before - filed) else "away_from_filed"
+    if (earlier_definition and before is not None and after is not None
+            and placed_7411 is not None and abs(placed_7411) >= 0.005
+            and _same(after - before, placed_7411)):
+        return "definition_7411"
+    return "no_filed_figure"
 
 
 # ── one period ─────────────────────────────────────────────────────────
@@ -359,7 +389,10 @@ def reprocess_period(period: Dict[str, Any], *, apply: bool, force: bool = False
 
     after, _metrics = _fresh_view(assembled)
     row["after"] = after
-    row["turnover_move"] = _turnover_verdict(row["before"]["turnover"], after["turnover"], filed_turnover)
+    row["turnover_move"] = _turnover_verdict(
+        row["before"]["turnover"], after["turnover"], filed_turnover,
+        placed_7411=after.get("turnover_7411"),
+        earlier_definition=not row["before"]["definition_current"])
     row["filed_turnover"] = filed_turnover
 
     if str(resolved_end)[:10] != row["period_end"]:
@@ -478,12 +511,16 @@ def render(rows: Sequence[Dict[str, Any]]) -> str:
             lines.append("  reader %s -> %s%s" % (
                 b.get("parser_version") or "unstamped", b.get("running_parser_version") or "—",
                 "" if b.get("parser_current") else "  [G7: served as reprocess_required until rewritten]"))
-            lines.append("  turnover %s -> %s%s" % (_fmt(b.get("turnover")), _fmt(a.get("turnover")),
-                                                    ("  [TURNOVER MOVED: %s]" % r["turnover_move"])
-                                                    if r.get("turnover_move") else ""))
+            lines.append("  definition %s -> %s" % (b.get("definition") or "unstamped",
+                                                   b.get("running_definition") or "—"))
+            lines.append("  turnover %s -> %s (7411 inside: %s)%s" % (
+                _fmt(b.get("turnover")), _fmt(a.get("turnover")), _fmt(a.get("turnover_7411")),
+                ("  [TURNOVER MOVED: %s]" % r["turnover_move"]) if r.get("turnover_move") else ""))
             lines.append("  EBITDA %s -> %s%s" % (_fmt(b.get("ebitda")), _fmt(a.get("ebitda")),
                                                  (" (refused: %s)" % a["ebitda_refusal"])
                                                  if a.get("ebitda_refusal") else ""))
+            lines.append("  net provisions (outside EBITDA) %s · EBIT %s" % (
+                _fmt(a.get("net_provisions")), _fmt(a.get("ebit"))))
             lines.append("  inventory days %s -> %s (%s%s)"
                          % (_fmt(b.get("dio")), _fmt(a.get("dio")), a.get("inventory_days_basis") or "—",
                             (", refused: %s" % a["inventory_days_refusal"])
@@ -505,8 +542,10 @@ def render(rows: Sequence[Dict[str, Any]]) -> str:
 
 
 def blocking(rows: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """The rows whose turnover moved other than toward a known filed figure."""
-    return [r for r in rows if r.get("turnover_move") not in (None, "toward_filed")]
+    """The rows whose turnover moved other than toward a known filed figure
+    (or, with none named, by exactly the 7411 the ruling placed in it)."""
+    return [r for r in rows
+            if r.get("turnover_move") not in (None, "toward_filed", "definition_7411")]
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:

@@ -22,6 +22,12 @@ WHAT THIS REDS ON (TC-11):
   · any quota call; any model call; a document that needs the model being
     written; a period whose stored document now resolves to another month
     being written; a turnover move applied without a ruling;
+  · THE 2026-09-28 REVISION (owner rulings R2, R3): a period carrying the
+    evidence and the PREVIOUS definition stamp reported `current`; a dry
+    run that does not print the stamp it was written under, the net
+    provisions and the 7411 inside turnover; a turnover move of exactly the
+    placed 7411 on an earlier-definition period blocking the apply, or ANY
+    other move (or one away from a named filed figure) not blocking;
   · THE VALUATIONS ROW (critic, 2026-09-27 — production held six rows the
     engine wrote under the previous definition): a dry run that does not
     print the stored row's `ebitda_used` against the one the rewrite
@@ -155,21 +161,31 @@ def test_the_dry_run_reports_the_move_and_writes_nothing(app, gw, no_quota):
     assert a["net_711_provenance"] == "account_121_bridge"
     assert a["net_72x"] == 0.0
     assert b["ebitda"] == pytest.approx(10776378.24, abs=0.005)
-    assert a["ebitda"] == pytest.approx(11848065.27, abs=0.005) == pytest.approx(world["ruled_ebitda"])
+    # R2 (2026-09-28): Agras's 7814.01 reversal (3,988.70) is outside
+    # EBITDA — 11,848,065.27 under the 2026-09-26 definition, 11,844,076.57
+    # now — and its net provisions (6812.01 + 6814.0x − 7814.01) are served
+    # beside it; the operating result does not move.
+    assert a["net_provisions"] == pytest.approx(131394.66, abs=0.005), a
+    assert a["ebit"] == pytest.approx(8892718.88, abs=0.005), a
+    assert a["turnover_7411"] == 0.0, a
+    assert a["ebitda"] == pytest.approx(11844076.57, abs=0.005) == pytest.approx(world["ruled_ebitda"])
     assert b["composite"] == 79.9 and b["letter"] and a["letter"] and a["composite"] is not None
     assert b["has_evidence"] is False and b["definition_current"] is False
     assert row["turnover_move"] is None, row
     v = row["valuation"]
     assert v["ebitda_used"] == pytest.approx(10776378.24, abs=0.005), v
-    assert v["ebitda_used_after"] == pytest.approx(11848065.27, abs=0.005), v
+    assert v["ebitda_used_after"] == pytest.approx(11844076.57, abs=0.005), v
     assert v["current"] is False, v
     text = R.render([row])
     for needle in ("anchor anchored", "book closed", "1,071,687.03", "account_121_bridge",
-                   "EBITDA 10,776,378.24 -> 11,848,065.27", "credit 79.90",
-                   "valuation EBITDA 10,776,378.24 (ev_ebitda) -> 11,848,065.27",
-                   "STORED ROW ON ANOTHER EBITDA"):
+                   "EBITDA 10,776,378.24 -> 11,844,076.57", "credit 79.90",
+                   "valuation EBITDA 10,776,378.24 (ev_ebitda) -> 11,844,076.57",
+                   "STORED ROW ON ANOTHER EBITDA",
+                   "definition unstamped -> ebitda/2026-09-28:",
+                   "net provisions (outside EBITDA) 131,394.66 · EBIT 8,892,718.88",
+                   "(7411 inside: 0.00)"):
         assert needle in text, (needle, text)
-    WORK["units"] += 16
+    WORK["units"] += 22
 
 
 def test_apply_rewrites_the_period_with_the_engines_stages_and_is_idempotent(app, gw, no_quota):
@@ -185,17 +201,17 @@ def test_apply_rewrites_the_period_with_the_engines_stages_and_is_idempotent(app
     assert env["stock_variation"]["schema"] == "stock_variation/1"
     from engine.country_packs.ro_romania.chart_of_accounts import EBITDA_DEFINITION_REVISION
     assert env["methodology"]["ebitda_definition"] == EBITDA_DEFINITION_REVISION
-    assert env["methodology"]["ebitda"]["reported"] == pytest.approx(11848065.27, abs=0.005)
+    assert env["methodology"]["ebitda"]["reported"] == pytest.approx(11844076.57, abs=0.005)
     metrics = dict((m["name"], m["value"]) for m in gw.db.rows("calculated_metrics")
                    if m["period_id"] == pid)
-    assert metrics["ebitda"] == pytest.approx(11848065.27, abs=0.005)
+    assert metrics["ebitda"] == pytest.approx(11844076.57, abs=0.005)
     assert metrics["credit_composite"] == row["after"]["composite"]
     keys = [a["alert_key"] for a in gw.db.rows("alerts") if a["period_id"] == pid]
     assert "ai_council::summary" in keys, keys          # carried over
     assert not [k for k in keys if k.startswith("earnings_quality_capitalized_own_work")]
     assert gw.db.rows("briefings") == briefing_before, "the briefing is never rewritten"
     (vrow,) = gw.db.rows("valuations")
-    assert vrow["ebitda_used"] == pytest.approx(11848065.27, abs=0.005), (
+    assert vrow["ebitda_used"] == pytest.approx(11844076.57, abs=0.005), (
         "the apply left the valuations row on the previous EBITDA", vrow)
     # A second run changes nothing: the period is current.
     snapshot = _tables(gw)
@@ -362,9 +378,86 @@ def test_a_turnover_move_blocks_the_apply_until_it_is_ruled(app, gw, no_quota, c
     WORK["units"] += 4
 
 
+def test_a_period_stamped_with_the_previous_definition_is_reprocessed(app, gw, no_quota):
+    """R2 / R3 (owner rulings 2026-09-28) moved the definition stamp. A period
+    analysed under 2026-09-26 carries the evidence blocks, the running
+    parser's stamp and figures a fresh run would reproduce — except EBITDA,
+    which the ruling moved. It is NOT current: the dry run names the stamp
+    it was written under, the apply restamps it and moves its EBITDA and
+    metric rows to the new definition, and a second run finds it current."""
+    from engine.country_packs.ro_romania.chart_of_accounts import (
+        EBITDA_DEFINITION_PREVIOUS_REVISIONS, EBITDA_DEFINITION_REVISION)
+
+    out = V.one_tap(app, V.agras_workbook(), "balanta.xlsx", on_screen=V.ORG_AGRAS)
+    V.run_analysis(gw, out["commit"]["document_id"])
+    no_quota()
+    (period,) = gw.db.rows("financial_periods")
+    pid = period["id"]
+    previous = EBITDA_DEFINITION_PREVIOUS_REVISIONS[-1]
+    assert previous != EBITDA_DEFINITION_REVISION
+    # What the 2026-09-26 analysis stored: its stamp and its EBITDA (the
+    # 7814.01 reversal inside) — everything else as a fresh run reads it.
+    env = period["assembled_canonical_v1"]
+    env["methodology"]["ebitda_definition"] = previous
+    env["methodology"]["ebitda"]["reported"] = 11848065.27
+    for m in gw.db.rows("calculated_metrics"):
+        if m["name"] == "ebitda":
+            m["value"] = 11848065.27
+    (vrow,) = gw.db.rows("valuations")
+    vrow["ebitda_used"] = 11848065.27
+    snapshot = _tables(gw)
+    (row,) = R.run(apply=False, period=pid)
+    assert _tables(gw) == snapshot, "the dry run wrote"
+    assert row["status"] == R.WOULD_REPROCESS, row
+    assert row["before"]["definition"] == previous
+    assert row["before"]["definition_current"] is False
+    assert row["before"]["has_evidence"] and row["before"]["parser_current"]
+    assert row["turnover_move"] is None, row
+    text = R.render([row])
+    for needle in ("definition %s -> %s" % (previous, EBITDA_DEFINITION_REVISION),
+                   "EBITDA 11,848,065.27 -> 11,844,076.57",
+                   "net provisions (outside EBITDA) 131,394.66 · EBIT 8,892,718.88"):
+        assert needle in text, (needle, text)
+    (applied,) = R.run(apply=True, period=pid)
+    assert applied["status"] == R.REPROCESSED, applied
+    (period,) = gw.db.rows("financial_periods")
+    meth = period["assembled_canonical_v1"]["methodology"]
+    assert meth["ebitda_definition"] == EBITDA_DEFINITION_REVISION
+    assert meth["ebitda"]["reported"] == pytest.approx(11844076.57, abs=0.005)
+    metrics = dict((m["name"], m["value"]) for m in gw.db.rows("calculated_metrics")
+                   if m["period_id"] == pid)
+    assert metrics["ebitda"] == pytest.approx(11844076.57, abs=0.005)
+    (vrow,) = gw.db.rows("valuations")
+    assert vrow["ebitda_used"] == pytest.approx(11844076.57, abs=0.005), vrow
+    (again,) = R.run(apply=False, period=pid)
+    assert again["status"] == R.CURRENT, again
+    WORK["units"] += 14
+
+
+def test_a_turnover_move_of_exactly_the_placed_7411_is_the_ruling_not_a_block():
+    """R3: 7411 entered net turnover. On a period written under an earlier
+    definition a move of EXACTLY the 7411 the fresh run placed inside
+    turnover is the ruling (`definition_7411`) and does not block; a move of
+    any other size, a move on a period already on the current definition,
+    and a move away from a NAMED filed figure still block."""
+    v = R._turnover_verdict
+    assert v(100.0, 100.0, None, placed_7411=0.0, earlier_definition=True) is None
+    assert v(100.0, 125.5, None, placed_7411=25.5, earlier_definition=True) == "definition_7411"
+    assert v(100.0, 125.51, None, placed_7411=25.5, earlier_definition=True) == "no_filed_figure"
+    assert v(100.0, 125.5, None, placed_7411=25.5, earlier_definition=False) == "no_filed_figure"
+    assert v(100.0, 125.5, None, placed_7411=0.0, earlier_definition=True) == "no_filed_figure"
+    # A named filed figure judges first.
+    assert v(100.0, 125.5, 126.0, placed_7411=25.5, earlier_definition=True) == "toward_filed"
+    assert v(100.0, 125.5, 90.0, placed_7411=25.5, earlier_definition=True) == "away_from_filed"
+    rows = [{"turnover_move": m} for m in
+            (None, "toward_filed", "definition_7411", "no_filed_figure", "away_from_filed")]
+    assert [r["turnover_move"] for r in R.blocking(rows)] == ["no_filed_figure", "away_from_filed"]
+    WORK["units"] += 9
+
+
 def test_zz_scope(capsys):
     with capsys.disabled():
         print("\nSCOPE reprocess-periods-definition: corpus/saga_10_col_agras analysed by the "
               "real pipeline over the workspace-v2 tenancy double, shaped pre-ruling; "
               "GATE-WORK reprocess-periods-definition units=%d" % WORK["units"])
-    assert WORK["units"] >= 43
+    assert WORK["units"] >= 72
