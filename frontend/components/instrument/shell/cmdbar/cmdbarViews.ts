@@ -12,7 +12,8 @@ import i18n from "@/i18n";
 import type { ComparativeColumnDto, ComparativesResponse } from "@/lib/comparatives";
 import type { PeriodLineItem } from "@/lib/activePeriod";
 import type { RatioCompareRow, RatioDisplayUnit, RatioSide, RatioTableRow } from "@/lib/ratioTable";
-import type { SectorBenchmarkDoc, SectorRow } from "@/lib/sectorBenchmark";
+import { SPLIT_BASIS_CARDS, type SectorBenchmarkDoc, type SectorRow } from "@/lib/sectorBenchmark";
+import { printDaysQ } from "@/lib/inventoryDays";
 import type { AttentionAction, AttentionDoc, AttentionItem } from "@/lib/attention";
 import {
   accountEvidenceHref,
@@ -91,15 +92,22 @@ export interface FigureView {
   ratios: string[];
   sector: Chip | null;
   /** The basis a figure is on, printed beside it when it is not the
-   *  obvious one (inventory days on a closing snapshot). */
+   *  obvious one: inventory days carry the served basis LABEL ("media
+   *  soldurilor la 1 ianuarie și 31 decembrie", "stoc la 31 decembrie — o
+   *  singură zi"). */
   basis: string | null;
   href: string;
   /** The served numbers the printed strings came from (for the gates). */
   served: { value: number | null; source: string; ratioKeys: string[]; sectorKey: string | null; columnKey: string | null };
 }
 
+/** The filed-basis inventory row of the sector document (stock ÷ net
+ *  turnover on the abridged filings; packs/ratios/inventory_days.yaml
+ *  `filed_basis.sector_row_key`). */
+const FILED_BASIS_ROW = "inventory_days_on_turnover";
+
 /** The pack's rule when no attention document has been served yet. */
-const DEFAULT_POSITION_ONLY: readonly string[] = ["inventory_days_on_turnover"];
+const DEFAULT_POSITION_ONLY: readonly string[] = [FILED_BASIS_ROW];
 
 function tt(ctx: ViewContext) {
   return i18n.getFixedT(ctx.printer.lang);
@@ -116,27 +124,27 @@ function ratioLine(ctx: ViewContext, row: RatioTableRow | null | undefined, key:
   return `${ratioLabel(ctx.printer, key)} ${printRatioSide(ctx.printer, row, row.display_unit as RatioDisplayUnit)}`;
 }
 
-/** Inventory days through the ONE adapter, with its basis: the printed
- *  value alone, and the value with the metric's name. */
+/** Inventory days through the ONE adapter (the served block): the printed
+ *  total at the block's own quantization — the string the Ratios tile, the
+ *  split and the report print (lib/inventoryDays printDaysQ) — with the
+ *  served basis LABEL beside it; a refused or absent block prints the
+ *  engine's reason, never a number. */
 function inventoryDaysLine(ctx: ViewContext): { value: string | null; text: string | null; basis: string | null; key: string } {
   const inv = inventoryDays(ctx.body as never);
   const t = tt(ctx);
+  const lang = ctx.printer.lang;
   const label = ratioLabel(ctx.printer, "dio");
-  if (inv.row) {
-    const value = printRatioSide(ctx.printer, inv.row, inv.row.display_unit as RatioDisplayUnit);
-    return {
-      value,
-      text: `${label} ${value}`,
-      basis: inv.basis === "ratio_table_dio_snapshot" ? t("cmdbar.figure.inventoryBasis") : inv.basis,
-      key: "dio",
-    };
-  }
+  const basis = inv.basisLabel ? inv.basisLabel[lang] : null;
   if (inv.total) {
-    const side = { value: inv.total.value, value_q: inv.total.value_q, reason: inv.reason } as unknown as RatioSide;
-    const value = printRatioSide(ctx.printer, side, "days");
-    return { value, text: `${label} ${value}`, basis: inv.basis, key: "dio" };
+    const value = printDaysQ(inv.total.value_q, lang);
+    return { value, text: t("cmdbar.figure.inventoryDays", { label, value }), basis, key: "dio" };
   }
-  return { value: null, text: null, basis: null, key: "dio" };
+  return {
+    value: null,
+    text: t("cmdbar.figure.inventoryDaysRefused", { label, reason: absentText(ctx.printer, inv.reason) }),
+    basis,
+    key: "dio",
+  };
 }
 
 function priorBody(cmp: ComparativesResponse): ServedBody {
@@ -161,7 +169,18 @@ function columnChip(ctx: ViewContext, lineKey: string, guard?: (prior: ServedBod
   return { state: "ok", text: t("cmdbar.figure.vsPrior", { change, prior: c.data.prior.label }) };
 }
 
-function sectorChip(ctx: ViewContext, key: string | null | undefined, cardKey?: string): { chip: Chip | null; key: string | null } {
+/** The sector position beside a figure. `besideSplit`: the figure is built
+ *  on the split by stock type (inventory days, inventory turnover, the
+ *  cycle) — no sector is measured on the split, and the filed-basis row
+ *  (stock ÷ net turnover) is NEVER placed beside it (owner spec 2026-09-26
+ *  P1.3; the served block's `filed_basis_pointer.never_compare`). */
+function sectorChip(
+  ctx: ViewContext,
+  key: string | null | undefined,
+  cardKey?: string,
+  besideSplit = false,
+): { chip: Chip | null; key: string | null } {
+  if (besideSplit && (key === FILED_BASIS_ROW || !key)) return { chip: null, key: null };
   const t = tt(ctx);
   const s = ctx.sector;
   let rowKey = key ?? null;
@@ -174,6 +193,7 @@ function sectorChip(ctx: ViewContext, key: string | null | undefined, cardKey?: 
     rowKey = row?.key ?? null;
   }
   if (!row) return { chip: null, key: rowKey };
+  if (besideSplit && row.key === FILED_BASIS_ROW) return { chip: null, key: null };
   const positionOnly = (ctx.positionOnly ?? DEFAULT_POSITION_ONLY).includes(row.key);
   const printed = printSectorRow(ctx.printer, row, s.data.min_peers, { positionOnly });
   if (!printed) return { chip: null, key: rowKey };
@@ -228,7 +248,8 @@ export function statementView(ctx: ViewContext, a: AnswerDef): FigureView {
     a.reader === "net_result" ? (p: ServedBody) => servedNetResult(p as never)
     : a.reader === "ebitda" ? (p: ServedBody) => servedEbitda(p as never)
     : undefined;
-  const sector = sectorChip(ctx, a.sector);
+  // An answer that prints the split never carries the filed-basis row.
+  const sector = sectorChip(ctx, a.sector, undefined, !!a.inventoryDays);
   return {
     id: `answer:${a.id}`,
     label: t(`cmdbar.answer.${a.id}`),
@@ -253,13 +274,15 @@ export function ratioView(ctx: ViewContext, key: string): FigureView {
   let basis: string | null = null;
   let servedValue: number | null = null;
   let source = `assembled_metrics.ratio_table.${key}`;
+  let absent: string | null = null;
   if (key === "dio") {
     const inv = inventoryDays(ctx.body as never);
     const line = inventoryDaysLine(ctx);
     value = line.value;
     basis = line.basis;
-    servedValue = inv.row ? inv.row.value ?? null : inv.total?.value ?? null;
+    servedValue = inv.total?.value ?? null;
     source = inv.source;
+    absent = value === null ? absentText(ctx.printer, inv.reason) : null;
   } else {
     const row = ratioTableRows(ctx.body as never).get(key);
     value = row ? printRatioSide(ctx.printer, row, row.display_unit as RatioDisplayUnit) : null;
@@ -275,12 +298,15 @@ export function ratioView(ctx: ViewContext, key: string): FigureView {
       ? { state: "ok", text: t("cmdbar.figure.vsPrior", { change: printRatioChange(ctx.printer, row), prior: c.data.ratios?.prior_label ?? c.data.prior.label }) }
       : { state: "none", text: t("cmdbar.figure.noPrior") };
   }
-  const sector = sectorChip(ctx, key === "dio" ? "inventory_days_on_turnover" : null, key === "dio" ? undefined : key);
+  // A card built on the split carries no sector position at all — least
+  // of all the filed-basis row's (owner spec 2026-09-26 P1.3).
+  const split = SPLIT_BASIS_CARDS.has(key);
+  const sector = split ? { chip: null, key: null } : sectorChip(ctx, null, key);
   return {
     id: `ratio:${key}`,
     label: ratioLabel(ctx.printer, key),
     value,
-    absent: value === null ? absentText(ctx.printer, { code: key === "dio" ? "inventory_days_absent" : "line_absent" }) : null,
+    absent: value === null ? absent ?? absentText(ctx.printer, { code: "line_absent" }) : null,
     tag: null,
     change,
     ratios: [],

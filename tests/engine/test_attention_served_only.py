@@ -223,6 +223,10 @@ ALLOWED_IMPORTS = {
     "__future__", "copy", "calendar", "os", "functools", "typing", "yaml",
     "engine.comparatives.analysis", "engine.comparatives.columns",
     "engine.comparatives.lines",
+    # THE inventory-days block's reader (`served_block`, pure) — the one
+    # authority for the figure (merge contract 2026-09-28): no model, no
+    # narration, no I/O at import.
+    "engine.ratios.inventory_days",
 }
 
 

@@ -10,13 +10,16 @@ the underlying fields:
                  cannot be measured; the day it lands, THIS function is the
                  one place that learns the refusal's field.
 
-  INVENTORY DAYS `inventory_days` returns today's served ratio-table `dio`
-                 row with the basis it is computed on, and the claim policy
-                 that follows from that basis: a single-basis year-end
-                 snapshot may NOT be called slow or fast (owner inventory-days ruling, point 5).
-                 When `assembled_metrics.inventory_days` (schema
-                 inventory_days/1, design B) is served it is read instead,
-                 with its own `claim_policy`.
+  INVENTORY DAYS `inventory_days` returns THE served block (schema
+                 inventory_days/1, engine.ratios.inventory_days: the split
+                 by stock type on the average where the book carries the
+                 opening) — its total, the served basis and its LABEL (the
+                 words a surface prints, never the code), and the block's
+                 own `claim_policy` (owner inventory-days ruling, point 5:
+                 no slow claim without the split and the average). No
+                 block → refused `inventory_days_absent`; there is no
+                 fallback formula (the ratio table's `dio` row reads this
+                 block too).
 
 Also here: the same-length prior rule (the dashboard's default comparison,
 frontend/lib/comparatives.ts `pickDefaultPrior`, now owned by the engine) as
@@ -39,7 +42,7 @@ __all__ = [
     "cut_of",
     "same_length_prior",
     "year_back",
-    "INVENTORY_DAYS_SNAPSHOT_POLICY",
+    "INVENTORY_DAYS_ABSENT_POLICY",
 ]
 
 
@@ -84,56 +87,61 @@ def served_ebitda(payload: Mapping[str, Any]) -> Dict[str, Any]:
 
 # ── Inventory days ───────────────────────────────────────────────────────
 
-#: What today's served inventory-days figure may claim. The ratio table's
-#: `dio` is one number on one basis (inventory ÷ total operating cost) at
-#: one date (the period end): it may be quoted with its basis, never called
-#: slow or fast (owner inventory-days ruling, point 5 — the claim needs the split by stock type
-#: and an average).
-INVENTORY_DAYS_SNAPSHOT_POLICY = {
+#: What a period that serves NO inventory-days block may claim: nothing —
+#: the split by stock type is not available (the block's own policy code
+#: for an unavailable split, packs/ratios/inventory_days.yaml
+#: `claim_policy.reasons.split_refused`).
+INVENTORY_DAYS_ABSENT_POLICY = {
     "may_call_slow": False,
     "requires": ["split_by_stock_type", "average_balance"],
-    "reason": "single_basis_year_end_snapshot",
+    "reason": "split_refused",
 }
 
 
-def inventory_days(payload: Mapping[str, Any]) -> Dict[str, Any]:
-    """{value, value_q, basis, source, claim_policy, reason}.
+def _inventory_block(payload: Mapping[str, Any]) -> Optional[Mapping[str, Any]]:
+    """THE served block: GET /api/period serves it as
+    `statements.inventory_days` and — the same object — as
+    `assembled_metrics.inventory_days`."""
+    from engine.ratios.inventory_days import served_block  # local: keeps this module's import floor
 
-    Reads the served `assembled_metrics.inventory_days` block when one is
-    served (schema inventory_days/1); otherwise the served ratio-table `dio`
-    row, labelled with its basis. Computes nothing."""
-    am = payload.get("assembled_metrics") if isinstance(payload, Mapping) else None
-    am = am if isinstance(am, Mapping) else {}
-    block = am.get("inventory_days")
-    if isinstance(block, Mapping) and str(block.get("schema") or "").startswith("inventory_days/"):
-        total = block.get("total") if isinstance(block.get("total"), Mapping) else {}
-        policy = block.get("claim_policy")
-        return {
-            "value": _num(total.get("value")),
-            "value_q": total.get("value_q"),
-            "basis": block.get("basis"),
-            "source": "assembled_metrics.inventory_days",
-            "claim_policy": dict(policy) if isinstance(policy, Mapping)
-            else dict(INVENTORY_DAYS_SNAPSHOT_POLICY),
-            "reason": total.get("reason"),
-        }
-    table = am.get("ratio_table") if isinstance(am.get("ratio_table"), Mapping) else {}
-    row = next((r for r in table.get("rows") or []
-                if isinstance(r, Mapping) and r.get("key") == "dio"), None)
-    if row is None:
-        return {"value": None, "value_q": None, "basis": None,
-                "source": "assembled_metrics.ratio_table.dio",
-                "claim_policy": dict(INVENTORY_DAYS_SNAPSHOT_POLICY),
+    block = served_block(_statements(payload))
+    if block is None:
+        am = payload.get("assembled_metrics") if isinstance(payload, Mapping) else None
+        if isinstance(am, Mapping):
+            block = served_block({"inventory_days": am.get("inventory_days")})
+    return block
+
+
+def inventory_days(payload: Mapping[str, Any]) -> Dict[str, Any]:
+    """{value, value_q, basis, basis_label, source, claim_policy, reason}.
+
+    Reads THE served block (schema inventory_days/1). `basis` is the served
+    code (average_monthly | average_two_year_ends | year_end_snapshot),
+    `basis_label` the served {ro, en} words a surface prints beside the
+    figure — never the code. A refused block serves `value` None and the
+    block's reason; no block serves `inventory_days_absent`. Computes
+    nothing, and never reads another formula: the retired ratio-table
+    fallback (inventory ÷ total operating cost at the period end) is gone —
+    the ratio table's `dio` row reads this block."""
+    block = _inventory_block(payload)
+    if block is None:
+        return {"value": None, "value_q": None, "basis": None, "basis_label": None,
+                "source": "statements.inventory_days",
+                "claim_policy": dict(INVENTORY_DAYS_ABSENT_POLICY),
                 "reason": {"code": "inventory_days_absent",
-                           "inputs": ["assembled_metrics.ratio_table.dio"]}}
+                           "inputs": ["statements.inventory_days"]}}
+    total = block.get("total") if isinstance(block.get("total"), Mapping) else {}
+    policy = block.get("claim_policy")
+    label = block.get("basis_label")
     return {
-        "value": _num(row.get("value")),
-        "value_q": row.get("value_q"),
-        "basis": "ratio_table.dio: inventory / total operating cost x period days, "
-                 "period-end balance",
-        "source": "assembled_metrics.ratio_table.dio",
-        "claim_policy": dict(INVENTORY_DAYS_SNAPSHOT_POLICY),
-        "reason": row.get("reason"),
+        "value": _num(total.get("value")),
+        "value_q": total.get("value_q"),
+        "basis": block.get("basis"),
+        "basis_label": dict(label) if isinstance(label, Mapping) else None,
+        "source": "statements.inventory_days",
+        "claim_policy": dict(policy) if isinstance(policy, Mapping)
+        else dict(INVENTORY_DAYS_ABSENT_POLICY),
+        "reason": dict(total["reason"]) if isinstance(total.get("reason"), Mapping) else None,
     }
 
 

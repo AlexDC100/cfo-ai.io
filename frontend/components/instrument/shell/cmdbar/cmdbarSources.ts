@@ -6,19 +6,20 @@
 // so each has exactly ONE reader here and nothing else in the bar touches
 // the underlying fields:
 //
-//   EBITDA          `servedEbitda` returns the served `assembled_pl.ebitda`
-//                   and its typed refusal. The 711/722 ruling moves the
-//                   definition (711 and 722 inside EBITDA, outside
-//                   turnover) and adds `assembled_pl.ebitda_refusal` when
-//                   the stock variation cannot be measured; the day it
-//                   lands, THIS function is the one place that learns it.
+//   EBITDA          `servedEbitda` returns THE ONE EBITDA the engine
+//                   serves (owner ruling 2026-09-26: 711 and 72x inside,
+//                   outside turnover) through lib/servedOneEbitda — the
+//                   browser's one reader of it — or its typed refusal
+//                   (`assembled_pl.ebitda_refusal`) WITH the engine's own
+//                   words, which the bar prints; never 0, never a code.
 //
-//   INVENTORY DAYS  `inventoryDays` returns today's served ratio-table
-//                   `dio` row with the basis it is computed on and the
-//                   claim policy that follows from it (a year-end snapshot
-//                   on one basis may NOT be called slow or fast). When
-//                   `assembled_metrics.inventory_days` (inventory_days/1)
-//                   is served, it is read instead, with its own policy.
+//   INVENTORY DAYS  `inventoryDays` returns THE served inventory-days
+//                   block (schema inventory_days/1) through lib/
+//                   inventoryDays — the reader the Ratios tile, the report
+//                   and the bank export use: its total at the block's own
+//                   quantization, the served basis LABEL (never the code),
+//                   and the block's refusal with its words. There is no
+//                   fallback formula: no block, no figure.
 //
 // Also the account-121 rule: the net result is "din contul 121" only when
 // the served anchor status says it IS account 121.
@@ -27,11 +28,16 @@
 // with the served reason.
 
 import type { PeriodApiResponse } from "@/lib/activePeriod";
+import { readInventoryDays, readInventoryDaysSplit } from "@/lib/inventoryDays";
 import type { RatioTableRow } from "@/lib/ratioTable";
+import { readServedOneEbitda } from "@/lib/servedOneEbitda";
 
 export interface ServedReason {
   code: string;
   inputs?: unknown[];
+  /** The engine's own words for a refusal it served, per language — the
+   *  bar prints these rather than a sentence of its own. */
+  text?: { ro: string; en: string };
 }
 
 type Body = Pick<PeriodApiResponse, "statements"> & {
@@ -65,21 +71,23 @@ export interface ServedFigure {
   source: string;
 }
 
-/** EBITDA as served, or its typed refusal. Never 0 for an absent figure. */
+/** THE ONE EBITDA as served, or its typed refusal with the engine's words.
+ *  Never 0 for an absent figure. */
 export function servedEbitda(body: Body | null | undefined): ServedFigure {
-  const p = pl(body);
-  const refusal = p.ebitda_refusal;
-  if (isObj(refusal) && typeof refusal.code === "string" && refusal.code) {
-    return {
-      value: null,
-      refusal: { code: refusal.code, inputs: Array.isArray(refusal.inputs) ? refusal.inputs : [] },
-      source: "assembled_pl.ebitda",
-    };
+  const st = body?.statements as unknown;
+  const one = readServedOneEbitda(isObj(st) ? st.assembled_pl : null);
+  if (!one) {
+    return { value: null, refusal: { code: "ebitda_absent", inputs: ["assembled_pl.ebitda"] }, source: "assembled_pl.ebitda" };
   }
-  const value = num(p.ebitda);
-  return value === null
-    ? { value: null, refusal: { code: "ebitda_absent", inputs: ["assembled_pl.ebitda"] }, source: "assembled_pl.ebitda" }
-    : { value, refusal: null, source: "assembled_pl.ebitda" };
+  if (one.ebitda !== null) return { value: one.ebitda, refusal: null, source: "assembled_pl.ebitda" };
+  const r = one.refusal;
+  return {
+    value: null,
+    refusal: r
+      ? { code: r.code, inputs: [], text: { ro: r.text.ro, en: r.text.en } }
+      : { code: "ebitda_absent", inputs: ["assembled_pl.ebitda"] },
+    source: "assembled_pl.ebitda",
+  };
 }
 
 /** Net-result statuses that mean "this IS account 121". Mirrors
@@ -147,63 +155,51 @@ export function ratioTableRows(body: Body | null | undefined): Map<string, Ratio
 
 // ── Inventory days: ONE reader ─────────────────────────────────────────
 
-export interface InventoryClaimPolicy {
-  may_call_slow: boolean;
-  requires: string[];
-  reason: string;
-}
-
-/** What today's served inventory-days figure may claim (owner ruling on
- *  inventory days, point 5): quoted with its basis, never slow or fast. */
-export const INVENTORY_DAYS_SNAPSHOT_POLICY: InventoryClaimPolicy = Object.freeze({
-  may_call_slow: false,
-  requires: ["split_by_stock_type", "average_balance"],
-  reason: "single_basis_year_end_snapshot",
-}) as InventoryClaimPolicy;
-
 export interface InventoryDays {
-  /** The served ratio-table row when that is the source (printed through
-   *  the ratio printer); null when the served block is the source. */
-  row: RatioTableRow | null;
-  /** The served block's total when that is the source. */
-  total: { value: number | null; value_q: string | null } | null;
-  /** Which basis the figure is on — printed beside it, always. */
-  basis: "ratio_table_dio_snapshot" | string | null;
-  source: string;
-  claimPolicy: InventoryClaimPolicy;
+  /** The served block's total: its value and the block's own quantization
+   *  (`value_q`, the ratio table's days rule — the string the Ratios tile,
+   *  the split and the report print). Null when refused or not served. */
+  total: { value: number; value_q: string } | null;
+  /** The served basis code (average_monthly | average_two_year_ends |
+   *  year_end_snapshot) — for the gates; never printed. */
+  basis: string | null;
+  /** The served basis LABEL, both languages — what the bar prints beside
+   *  the figure ("media soldurilor la 1 ianuarie și 31 decembrie", "stoc la
+   *  31 decembrie — o singură zi"). */
+  basisLabel: { ro: string; en: string } | null;
+  source: "statements.inventory_days";
+  /** The block's claim policy: a slow / high claim only on the split AND an
+   *  average (owner ruling on inventory days, point 5). */
+  maySlowClaim: boolean;
+  /** The block's refusal with the engine's words, or `inventory_days_absent`
+   *  when the period serves no block. */
   reason: ServedReason | null;
 }
 
 export function inventoryDays(body: Body | null | undefined): InventoryDays {
-  const am = body?.assembled_metrics;
-  const block = isObj(am) ? am.inventory_days : null;
-  if (isObj(block) && typeof block.schema === "string" && block.schema.startsWith("inventory_days/")) {
-    const total = isObj(block.total) ? block.total : {};
-    const policy = isObj(block.claim_policy) ? (block.claim_policy as unknown as InventoryClaimPolicy) : INVENTORY_DAYS_SNAPSHOT_POLICY;
+  const st = (body?.statements ?? null) as { inventory_days?: unknown } | null;
+  const view = readInventoryDays(st);
+  const split = readInventoryDaysSplit(st);
+  if (!view || !split) {
     return {
-      row: null,
-      total: { value: num(total.value), value_q: typeof total.value_q === "string" ? total.value_q : null },
-      basis: typeof block.basis === "string" ? block.basis : null,
-      source: "assembled_metrics.inventory_days",
-      claimPolicy: policy,
-      reason: isObj(total.reason) && typeof total.reason.code === "string" ? (total.reason as unknown as ServedReason) : null,
+      total: null, basis: null, basisLabel: null,
+      source: "statements.inventory_days",
+      maySlowClaim: false,
+      reason: { code: "inventory_days_absent", inputs: ["statements.inventory_days"] },
     };
   }
-  const row = ratioTableRows(body).get("dio") ?? null;
-  if (!row) {
-    return {
-      row: null, total: null, basis: null,
-      source: "assembled_metrics.ratio_table.dio",
-      claimPolicy: INVENTORY_DAYS_SNAPSHOT_POLICY,
-      reason: { code: "inventory_days_absent", inputs: ["assembled_metrics.ratio_table.dio"] },
-    };
-  }
+  const total = view.total !== null && split.totalQ !== null ? { value: view.total, value_q: split.totalQ } : null;
+  const reason: ServedReason | null = total
+    ? null
+    : view.reason
+      ? { code: view.reason.code, inputs: [], text: { ro: view.reason.text.ro, en: view.reason.text.en } }
+      : { code: "inventory_days_absent", inputs: ["statements.inventory_days"] };
   return {
-    row,
-    total: null,
-    basis: "ratio_table_dio_snapshot",
-    source: "assembled_metrics.ratio_table.dio",
-    claimPolicy: INVENTORY_DAYS_SNAPSHOT_POLICY,
-    reason: null,
+    total,
+    basis: view.basis,
+    basisLabel: view.basisLabel ? { ro: view.basisLabel.ro, en: view.basisLabel.en } : null,
+    source: "statements.inventory_days",
+    maySlowClaim: view.maySlowClaim,
+    reason,
   };
 }

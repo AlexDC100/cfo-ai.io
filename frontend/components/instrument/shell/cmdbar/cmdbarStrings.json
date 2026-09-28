@@ -36,8 +36,8 @@
         "fromAccount121": "from account 121",
         "sector": "vs sector — {{what}}: {{position}}",
         "sectorBasis": "vs sector — {{what}}: {{position}} ({{basis}})",
-        "inventoryBasis": "closing stock ÷ total operating cost — one date, not an average",
         "inventoryDays": "{{label}} {{value}}",
+        "inventoryDaysRefused": "{{label}}: {{reason}}",
         "delta": "{{delta}}"
       },
       "absent": {
@@ -94,9 +94,6 @@
       "vsSector": {
         "worse": "worse than the sector",
         "better": "better than the sector"
-      },
-      "sectorBasis": {
-        "inventory_days_on_turnover": "filed basis (stock ÷ net turnover) — not the same as the inventory days in the analysis"
       }
     }
   },
@@ -137,8 +134,8 @@
         "fromAccount121": "din contul 121",
         "sector": "față de sector — {{what}}: {{position}}",
         "sectorBasis": "față de sector — {{what}}: {{position}} ({{basis}})",
-        "inventoryBasis": "stoc la închidere ÷ cheltuieli totale de exploatare — o singură dată, nu o medie",
         "inventoryDays": "{{label}} {{value}}",
+        "inventoryDaysRefused": "{{label}}: {{reason}}",
         "delta": "{{delta}}"
       },
       "absent": {
@@ -195,9 +192,6 @@
       "vsSector": {
         "worse": "mai slab decât sectorul",
         "better": "mai bun decât sectorul"
-      },
-      "sectorBasis": {
-        "inventory_days_on_turnover": "bază depusă (stoc ÷ cifra de afaceri) — nu aceeași cu zilele de stoc din analiză"
       }
     }
   }

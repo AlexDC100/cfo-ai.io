@@ -17,8 +17,11 @@ WHAT IT REDS ON, AFTER THE REPAIR (TC-11):
   * a band crossing ranked ahead of a statutory result improving;
   * "Net result (account 121)" on a period whose net result is not account 121;
   * a refused EBITDA ranked as a movement;
-  * an inventory-days crossing claimed on a year-end snapshot; the filed-basis
-    inventory row printed with a verdict word or without its basis label;
+  * an inventory-days crossing claimed on a year-end snapshot or on a period
+    serving no block; an adapter that reads another formula than the served
+    block or hands over the basis code instead of its label; the filed-basis
+    inventory row printed with a verdict word, without the owner's label, or
+    with a second basis note;
   * two complementary sector rows, or a sector row repeating the movement,
     both shown;
   * a filler: a slot filled below its materiality basis or from a family the
@@ -301,30 +304,73 @@ def _with_dio_crossing(cmp):
     return cmp
 
 
+def _with_block_policy(cur, basis, policy_reason, may_call_slow):
+    """CONSTRUCTED from the served pair: the served inventory-days block with
+    exactly the fields the claim rule reads changed — its basis and its
+    claim policy — in both places GET /api/period serves the one object."""
+    cur = copy.deepcopy(cur)
+    block = cur["statements"]["inventory_days"]
+    block["basis"] = basis
+    block["claim_policy"] = dict(block["claim_policy"], may_call_slow=may_call_slow, reason=policy_reason)
+    cur["assembled_metrics"]["inventory_days"] = block
+    return cur
+
+
 def test_inventory_days_never_claim_speed_on_a_year_end_snapshot():
     cur, cmp = _pair()
+    cur = _with_block_policy(cur, "year_end_snapshot", "snapshot_only", False)
     doc = _compose(cur, comparatives=_with_dio_crossing(cmp), sector=_sector())
     assert "dio" not in [i["key"] for i in doc["items"]]
     dio = next(c for c in doc["considered"]["ratio_bands"] if c["key"] == "dio")
     assert dio["reason"]["code"] == "inventory_days_claim_not_allowed", dio
+    assert dio["reason"]["inputs"] == ["snapshot_only"], dio
     assert doc["rules"]["inventory_days_claim_policy"]["may_call_slow"] is False
-    assert doc["rules"]["inventory_days_claim_policy"]["reason"] == "single_basis_year_end_snapshot"
+    assert doc["rules"]["inventory_days_claim_policy"]["reason"] == "snapshot_only"
 
 
-def test_a_served_inventory_days_block_that_allows_the_claim_is_read_instead():
-    """Forward: once `assembled_metrics.inventory_days` (split + average) is
-    served, its own claim policy decides — read through the one adapter."""
+def test_no_served_block_is_no_claim_and_no_fallback_formula():
+    """A period that serves NO block claims nothing (the split is not
+    available: `split_refused`), and the one adapter reads no other formula
+    — a ratio-table `dio` row alone is not inventory days (the retired
+    'inventory / total operating cost at the period end' fallback)."""
+    from engine.attention import sources as S
+
     cur, cmp = _pair()
     cur = copy.deepcopy(cur)
-    cur["assembled_metrics"]["inventory_days"] = {
-        "schema": "inventory_days/1", "basis": "average_two_year_ends",
-        "total": {"value": 40.0, "value_q": "40", "reason": None},
-        "claim_policy": {"may_call_slow": True, "requires": [], "reason": "split_and_average"}}
+    cur["statements"].pop("inventory_days")
+    cur["assembled_metrics"].pop("inventory_days")
+    assert any(r["key"] == "dio" and r.get("value") is not None
+               for r in cur["assembled_metrics"]["ratio_table"]["rows"])
+    read = S.inventory_days(cur)
+    assert read["value"] is None and read["value_q"] is None and read["basis_label"] is None, read
+    assert read["reason"]["code"] == "inventory_days_absent", read
+    assert read["claim_policy"]["may_call_slow"] is False and read["claim_policy"]["reason"] == "split_refused"
+    doc = _compose(cur, comparatives=_with_dio_crossing(cmp), sector=_sector())
+    assert "dio" not in [i["key"] for i in doc["items"]]
+    assert doc["rules"]["inventory_days_claim_policy"]["reason"] == "split_refused"
+
+
+def test_the_served_block_is_read_with_its_basis_label_and_its_policy():
+    """The served pair's block (average of the two year-ends, split served):
+    its own claim policy decides, and the adapter hands over the served basis
+    LABEL a surface prints — never the code."""
+    from engine.attention import sources as S
+
+    cur, cmp = _pair()
+    block = cur["statements"]["inventory_days"]
+    assert block["basis"] == "average_two_year_ends" and block["claim_policy"]["may_call_slow"] is True
+    read = S.inventory_days(cur)
+    assert read["value_q"] == block["total"]["value_q"] and read["value"] == block["total"]["value"]
+    assert read["basis_label"] == block["basis_label"], read
+    assert read["basis_label"]["ro"].startswith("media soldurilor"), read["basis_label"]
+    assert read["source"] == "statements.inventory_days"
     doc = _compose(cur, comparatives=_with_dio_crossing(cmp), sector=_sector())
     assert [i["key"] for i in doc["items"] if i["slot"] == "improvement"] == ["dio"]
 
 
 def test_the_filed_basis_inventory_row_is_a_position_never_a_verdict():
+    import yaml
+
     cur, cmp = _pair()
     sector = copy.deepcopy(_sector())
     for row in sector["rows"]:
@@ -339,8 +385,14 @@ def test_the_filed_basis_inventory_row_is_a_position_never_a_verdict():
     assert item["verdict"] is None
     assert item["claim_policy"] == {"may_call_slow": False, "verdict_word": False,
                                     "reason": "filed_basis_position_only"}
-    assert item["basis_label"]["ro"] == ("bază depusă (stoc ÷ cifra de afaceri) — nu aceeași "
-                                         "cu zilele de stoc din analiză")
+    # The owner's label, ONCE: the subject carries it verbatim
+    # (packs/ratios/inventory_days.yaml `filed_basis.label`) and no second
+    # basis note is served beside it.
+    filed = yaml.safe_load((REPO / "packs" / "ratios" / "inventory_days.yaml")
+                           .read_text(encoding="utf-8"))["filed_basis"]["label"]
+    for lang in ("ro", "en"):
+        assert item["subject"][lang].endswith(filed[lang]), (lang, item["subject"][lang])
+    assert item["basis_label"] is None, item["basis_label"]
     blob = " ".join(_walk_strings(item)).lower()
     for word in ("slow", "lent", "high stock"):
         assert word not in blob, word
@@ -531,9 +583,24 @@ def test_a_receiver_that_heads_with_another_figure_is_declined_for_the_cited_acc
 
 
 def test_data_quality_findings_are_not_business_items(served):
+    """CONSTRUCTED since the one-EBITDA ruling: the developer's
+    reconstruction gap WAS its unmeasured 711 build-up, which the ruling put
+    inside EBITDA, so no corpus book fires the detector any more (firm
+    insights.json: not_fired on the four corpus books). The served developer
+    body is given a critical reconstruction_gap finding — its first served
+    finding with exactly the fields the rule reads changed: id, rank,
+    severity — and a critical data-quality finding still never becomes a
+    business item."""
     body, sector = served["realestate"]
-    ranked = {i["id"]: i["severity"]["level"] for i in body["statements"]["insights"]["insights"]}
-    assert ranked["reconstruction_gap"] == "critical"  # the corpus case the rule is about
+    body = copy.deepcopy(body)
+    served_list = body["statements"]["insights"]["insights"]
+    assert "reconstruction_gap" not in [i["id"] for i in served_list]
+    planted = copy.deepcopy(served_list[0])
+    planted.update(id="reconstruction_gap", rank=0)
+    planted["severity"] = dict(planted.get("severity") or {}, level="critical")
+    served_list.insert(0, planted)
+    ranked = {i["id"]: i["severity"]["level"] for i in served_list}
+    assert ranked["reconstruction_gap"] == "critical"
     doc = _compose(body, prior=PRIOR_ABSENT, sector=sector)
     assert "reconstruction_gap" not in [i["key"] for i in doc["items"]]
     rg = next(c for c in doc["considered"]["insights"] if c["key"] == "reconstruction_gap")

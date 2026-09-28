@@ -94,11 +94,12 @@ sector:
     revenue_growth: turnover
   # Printed as a POSITION against the sector, never with a verdict word, and
   # never as a slow-stock claim: the filed basis divides stock by turnover.
+  # Its subject below IS the owner's filed-basis label (the benchmark page's
+  # name for the row, which carries packs/ratios/inventory_days.yaml
+  # `filed_basis.label` verbatim), so no second basis note is served beside
+  # it (owner spec 2026-09-26 P1.3; merge contract 2026-09-28).
   position_only: [inventory_days_on_turnover]
-  basis_labels:
-    inventory_days_on_turnover:
-      ro: "bază depusă (stoc ÷ cifra de afaceri) — nu aceeași cu zilele de stoc din analiză"
-      en: "filed basis (stock ÷ net turnover) — not the same as the inventory days in the analysis"
+  basis_labels: {}
   # frontend/i18n/locales/*.json benchmarkPage.sector.ratio.<key> — held equal.
   subjects:
     net_margin: {ro: "Marja netă", en: "Net margin"}
@@ -107,7 +108,8 @@ sector:
     equity_ratio: {ro: "Rata capitalurilor proprii", en: "Equity ratio"}
     liabilities_to_assets: {ro: "Datorii totale / active totale", en: "Total liabilities / total assets"}
     receivables_days: {ro: "Zile creanțe (toate creanțele)", en: "Receivables days (all receivables)"}
-    inventory_days_on_turnover: {ro: "Zile stocuri raportate la cifra de afaceri", en: "Inventory days on turnover"}
+    inventory_days_on_turnover: {ro: "Zile de stoc — bază depusă (stoc ÷ cifra de afaceri) — nu aceeași cu zilele de stoc din analiză",
+                                 en: "Inventory days — filed basis (stock ÷ net turnover) — not the same as the inventory days of this analysis"}
     current_asset_share: {ro: "Active circulante / active totale", en: "Current assets / total assets"}
     revenue_growth: {ro: "Creșterea veniturilor", en: "Revenue growth"}
 
@@ -151,7 +153,7 @@ ratio_band:
     adjusted_dscr: {ro: "Acoperirea serviciului datoriei, ajustată cu leasingul", en: "Debt service coverage, lease-adjusted"}
     dscr_with_lt_principal: {ro: "Acoperirea serviciului datoriei cu principalul pe termen lung", en: "Debt service coverage with long-term principal"}
     dso: {ro: "Durata de încasare a creanțelor", en: "Days sales outstanding"}
-    dio: {ro: "Durata de rotație a stocurilor", en: "Days inventory outstanding"}
+    dio: {ro: "Zile de stoc (DIO)", en: "Inventory days (DIO)"}
     dpo: {ro: "Durata de plată a furnizorilor (pe costul operațional total)", en: "Days payables outstanding (on total operating cost)"}
     ccc: {ro: "Ciclul de conversie a numerarului", en: "Cash conversion cycle"}
     asset_turnover: {ro: "Rotația activelor", en: "Asset turnover"}

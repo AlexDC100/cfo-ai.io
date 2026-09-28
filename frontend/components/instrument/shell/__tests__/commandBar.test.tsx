@@ -78,6 +78,9 @@ const SECTOR = {
   scandia: read("frontend/lib/__tests__/fixtures/attention/scandia.sector.json"),
   agras: read("frontend/lib/__tests__/fixtures/attention/agras.sector.json"),
 };
+/** The engine's constructed one-EBITDA books (refusal-carries), for a
+ *  refusal in the exact shape the engine serves it. */
+const ONE_EBITDA_BOOKS = read("frontend/lib/__tests__/fixtures/oneEbitda/constructed_books.json");
 
 const RATES = { RON: 1, EUR: 5, USD: 4.6 };
 /** The bar's money: the SERVED currency with its code, never converted
@@ -402,11 +405,14 @@ describe("each item opens its evidence", () => {
     expect(screen.getByTestId("location").textContent).toMatch(/^\/benchmark\?.*row=receivables_days/);
   });
 
-  it("the filed-basis inventory row is a POSITION with its basis label, never a verdict", () => {
+  it("the filed-basis inventory row is a POSITION with the owner's label ONCE, never a verdict", () => {
     mount(scandiaWorld());
     const row = rowsOf("now").find((el) => el.getAttribute("data-row-id") === "now:inventory_days_on_turnover")!;
-    expect(row.textContent).toContain("filed basis (stock ÷ net turnover)");
-    expect(row.textContent).not.toMatch(/worse than the sector|slow/i);
+    const text = row.textContent ?? "";
+    expect(text).toContain("filed basis (stock ÷ net turnover)");
+    expect(text.split("filed basis (stock ÷ net turnover)").length - 1, "the label, once").toBe(1);
+    expect(row.querySelector("[data-basis]"), "no second basis note").toBeNull();
+    expect(text).not.toMatch(/worse than the sector|slow/i);
   });
 });
 
@@ -551,15 +557,69 @@ describe("cmdbar-figures — every figure is the served figure", () => {
     expect(differsFromMetrics).toBeGreaterThan(0);
   }, HEAVY);
 
-  it("inventory days come through the ONE adapter, with their basis, never called slow", () => {
-    const w = scandiaWorld();
-    mount(w);
+  // THE SERVED BLOCK (merge contract 2026-09-28): the bar prints the ONE
+  // inventory-days block — its total at the block's own quantization (the
+  // string the Ratios tile prints), the served basis LABEL (never the code,
+  // never the retired "closing stock ÷ total operating cost"), and never the
+  // filed-basis sector row beside it.
+  for (const [name, world] of [["scandia", () => scandiaWorld()], ["agras", () => agrasWorld()]] as const) {
+    it(`${name}: inventory days are the served block — its figure, its basis label, no filed-basis row beside it, never slow`, async () => {
+      for (const lang of ["en", "ro"] as const) {
+        await useLang(lang);
+        const w = world();
+        mount(w);
+        type("zile stoc");
+        const block = w.body.statements.inventory_days;
+        expect(block?.schema, "the capture serves the block").toBe("inventory_days/1");
+        const printed = formatRatioSide(
+          { value: null, value_q: block.total.value_q, band: null, band_status: "graded", ladder: null,
+            ladder_floor: null, operands: [], reason: null } as unknown as RatioTableRow,
+          "days", lang);
+        const row = rowsOf("answer").find((el) => el.getAttribute("data-row-id") === "answer:inventory")!;
+        expect(row.textContent).toContain(`${ratioLabelForKey("dio", lang)} ${printed}`);
+        // One printed string: the Ratios tile's dio row prints the same.
+        const dio = w.body.assembled_metrics.ratio_table.rows.find((r: { key: string }) => r.key === "dio");
+        expect(formatRatioSide(dio, dio.display_unit, lang)).toBe(printed);
+        expect(row.querySelector("[data-basis]")?.textContent).toBe(block.basis_label[lang]);
+        expect(row.textContent).not.toContain(block.basis);
+        expect(row.textContent).not.toMatch(/total operating cost|cheltuieli totale de exploatare/);
+        const filedLabel = i18n.getFixedT(lang)("benchmarkPage.sector.ratio.inventory_days_on_turnover");
+        expect(row.textContent).not.toContain(filedLabel);
+        expect(row.textContent).not.toMatch(/bază depusă|filed basis/);
+        const lead = i18n.getFixedT(lang)("cmdbar.figure.sector", { what: "\u0000", position: "" }).split("\u0000")[0];
+        const sectorChips = Array.from(row.querySelectorAll("[data-chip-state]"))
+          .filter((el) => (el.textContent ?? "").startsWith(lead));
+        expect(sectorChips.map((el) => el.textContent), "no sector chip beside the split").toEqual([]);
+        expect(row.textContent).not.toMatch(/\bslow\b|lent/i);
+        cleanup();
+      }
+    });
+  }
+
+  it("a period on the single-day snapshot prints ITS basis label; a refused block prints the engine's reason, never a figure", async () => {
+    await useLang("en");
+    const body = structuredClone(SCANDIA.period);
+    // CONSTRUCTED from the served block: the fields the printer reads —
+    // the basis and its served label — moved to the snapshot's.
+    body.statements.inventory_days.basis = "year_end_snapshot";
+    body.statements.inventory_days.basis_label = body.statements.inventory_days.ccc_dio_term.basis_label;
+    mount(scandiaWorld({ body }));
     type("zile stoc");
-    const row = rowsOf("answer").find((el) => el.getAttribute("data-row-id") === "answer:inventory")!;
-    const dio = w.body.assembled_metrics.ratio_table.rows.find((r: { key: string }) => r.key === "dio");
-    expect(row.textContent).toContain(formatRatioSide(dio, dio.display_unit, "en"));
-    expect(row.querySelector("[data-basis]")?.textContent).toMatch(/closing stock ÷ total operating cost/);
-    expect(row.textContent).not.toMatch(/\bslow\b|lent/i);
+    let row = rowsOf("answer").find((el) => el.getAttribute("data-row-id") === "answer:inventory")!;
+    expect(row.querySelector("[data-basis]")?.textContent).toBe(body.statements.inventory_days.ccc_dio_term.basis_label.en);
+    expect(row.querySelector("[data-basis]")?.textContent).toMatch(/a single day/);
+    cleanup();
+    const refused = structuredClone(SCANDIA.period);
+    const reason = { code: "stock_variation_refused", inputs: [],
+      text_ro: "variația stocurilor de produse (711) nu a putut fi măsurată, deci costul producției vândute nu este cunoscut",
+      text_en: "the change in inventories of products (711) could not be measured, so the cost of production sold is not known" };
+    refused.statements.inventory_days.total = { ...refused.statements.inventory_days.total, value: null, value_q: null, reason };
+    mount(scandiaWorld({ body: refused }));
+    type("zile stoc");
+    row = rowsOf("answer").find((el) => el.getAttribute("data-row-id") === "answer:inventory")!;
+    expect(row.textContent).toContain(reason.text_en);
+    expect(row.textContent).not.toContain("stock_variation_refused");
+    expect(row.textContent).not.toMatch(/(^|\s)0 days/);
   });
 
   it("Cont: a leaf account prints its served amount, its key metric, and opens the account", () => {
@@ -751,16 +811,26 @@ describe("absent is never 0", () => {
     expect(row.textContent).not.toContain("from account 121");
   });
 
-  it("a refused EBITDA (the 711 lane's typed refusal) prints the refusal", () => {
-    const body = structuredClone(SCANDIA.period);
-    delete body.statements.assembled_pl.ebitda;
-    body.statements.assembled_pl.ebitda_refusal = { code: "reprocess_required", inputs: [] };
-    mount(scandiaWorld({ body }));
-    type("ebitda");
-    const row = rowsOf("answer").find((el) => el.getAttribute("data-row-id") === "answer:ebitda")!;
-    expect(row.querySelector('[data-figure="answer"]')).toBeNull();
-    expect(row.textContent).toMatch(/re-read before EBITDA/);
-    expect(row.textContent).not.toMatch(/(^|\s)0(\s|$)/);
+  it("a refused EBITDA prints the engine's own words — the refusal the one-EBITDA ruling serves, never its code, never 0", async () => {
+    // The served shape: assembled_pl.ebitda null beside ebitda_refusal
+    // {code, text_ro, text_en, source, fields} — taken from the engine's
+    // constructed 'unanchored' book (oneEbitda/constructed_books.json).
+    const served = ONE_EBITDA_BOOKS.unanchored.statements.assembled_pl.ebitda_refusal;
+    expect(served.code).toBe("account_121_anchor_absent");
+    for (const lang of ["en", "ro"] as const) {
+      await useLang(lang);
+      const body = structuredClone(SCANDIA.period);
+      body.statements.assembled_pl.ebitda = null;
+      body.statements.assembled_pl.ebitda_refusal = served;
+      mount(scandiaWorld({ body }));
+      type("ebitda");
+      const row = rowsOf("answer").find((el) => el.getAttribute("data-row-id") === "answer:ebitda")!;
+      expect(row.querySelector('[data-figure="answer"]')).toBeNull();
+      expect(row.textContent).toContain(lang === "ro" ? served.text_ro : served.text_en);
+      expect(row.textContent).not.toContain(served.code);
+      expect(row.textContent).not.toMatch(/(^|\s)0(\s|$)/);
+      cleanup();
+    }
   });
 
   it("no prior: the Δ says there is none — not blank, not 0", () => {
@@ -940,7 +1010,7 @@ const LINE_OF: Record<string, string> = {
 
 /** The sector row the benchmark page compares each statement answer on. */
 const SECTOR_OF: Record<string, string> = {
-  turnover: "revenue_growth", net_result: "net_margin", inventory: "inventory_days_on_turnover",
+  turnover: "revenue_growth", net_result: "net_margin",
   receivables: "receivables_days", equity: "equity_ratio",
 };
 
@@ -1067,6 +1137,7 @@ describe("cmdbar-figures — every Δ IS its comparatives column, every vs-secto
       const doc = SECTOR.scandia;
       let lawful = 0;
       let refused = 0;
+      let splitCards = 0;
       const check = (row: HTMLElement, key: string) => {
         const sr = doc.rows.find((r: { key: string }) => r.key === key);
         // "vs sector — …" / "față de sector — …": the chip the sector row prints.
@@ -1082,18 +1153,28 @@ describe("cmdbar-figures — every Δ IS its comparatives column, every vs-secto
         expect(sector!.text).toContain(sectorValueText(sr.company.value, sr.unit, lang));
         expect(sector!.text).toContain(tt(`benchmarkPage.sector.position.${sr.position}`));
         const verdict = sr.vs_sector && sr.vs_sector !== "inside" ? tt(`cmdbar.vsSector.${sr.vs_sector}`) : null;
-        if (key === "inventory_days_on_turnover") {
-          // The owner's rule: the filed basis, labelled, never a verdict.
-          expect(sector!.text).toContain(tt("cmdbar.sectorBasis.inventory_days_on_turnover"));
-          if (verdict) expect(sector!.text).not.toContain(verdict);
-        } else if (verdict) {
-          expect(sector!.text).toContain(verdict);
-        }
+        if (verdict) expect(sector!.text).toContain(verdict);
         lawful++;
       };
       for (const [id, key] of Object.entries(SECTOR_OF)) {
         type(QUERIES[id]);
         check(answerRow(`answer:${id}`)!, key);
+      }
+      // THE SPLIT STANDS ALONE (owner spec 2026-09-26 P1.3, merge contract
+      // 2026-09-28): the inventory answer and every card built on the split
+      // carry NO sector chip — least of all the filed-basis row's, which
+      // the served document does carry.
+      const lead = tt("cmdbar.figure.sector", { what: "\u0000", position: "" }).split("\u0000")[0];
+      expect(doc.rows.some((r: { key: string; status: string }) => r.key === "inventory_days_on_turnover" && r.status === "sourced"),
+        "POSITIVE CONTROL: the filed-basis row is served and lawful here").toBe(true);
+      type(QUERIES.inventory);
+      expect(chipTexts(answerRow("answer:inventory")!).filter((c) => c.text.startsWith(lead)), "inventory").toEqual([]);
+      for (const card of ["dio", "inventory_turnover", "ccc"]) {
+        type(card === "dio" ? "dio" : card.replace(/_/g, " "));
+        const r = answerRow(`ratio:${card}`);
+        if (!r) continue;
+        expect(chipTexts(r).filter((c) => c.text.startsWith(lead)), card).toEqual([]);
+        splitCards++;
       }
       // Ratio answers meet their sector row through the row's card key.
       for (const sr of doc.rows as { key: string; definition?: { card_key?: string | null } }[]) {
@@ -1104,7 +1185,9 @@ describe("cmdbar-figures — every Δ IS its comparatives column, every vs-secto
         expect(row, `ratio:${card}`).toBeTruthy();
         check(row!, sr.key);
       }
+      console.log(`GATE-WORK cmdbar-sector lawful=${lawful} refused=${refused} split_cards=${splitCards}`);
       expect(lawful).toBeGreaterThanOrEqual(8);
+      expect(splitCards, "POSITIVE CONTROL: the split's cards were typed and found").toBeGreaterThanOrEqual(1);
       expect(refused, "POSITIVE CONTROL: revenue growth has no company figure here").toBeGreaterThanOrEqual(1);
     }, HEAVY);
   }

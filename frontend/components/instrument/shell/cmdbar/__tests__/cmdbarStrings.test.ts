@@ -67,7 +67,15 @@ describe("cmdbar-strings — one key set, two languages", () => {
     expect(RO["cmdbar.group.ask"]).toBe("Întreabă CFO AI");
     expect(RO["cmdbar.header.searching"]).toMatch(/^Caut în \{\{company\}\} · \{\{period\}\}$/);
     expect(RO["cmdbar.absent.line_absent"]).toBe("nu apare în balanță");
-    expect(RO["cmdbar.sectorBasis.inventory_days_on_turnover"]).toMatch(/^bază depusă \(stoc ÷ cifra de afaceri\)/);
+    // The filed-basis label is the owner's, served ONCE with its row (the
+    // attention pack's subject, the benchmark page's name): the bar keeps no
+    // copy, and never prints it beside the split (merge contract 2026-09-28).
+    expect(Object.keys(RO).filter((k) => k.includes("inventory_days_on_turnover"))).toEqual([]);
+    expect(Object.values(RO).some((v) => /bază depusă/.test(v))).toBe(false);
+    expect(Object.values(EN).some((v) => /filed basis/.test(v))).toBe(false);
+    // The retired fallback basis ("closing stock ÷ total operating cost") is
+    // gone: the bar prints the served block's basis label.
+    expect(Object.keys(EN).filter((k) => k.endsWith("inventoryBasis"))).toEqual([]);
   });
 
   it("Romanian is written with its own letters: no ASCII-folded word, no cedilla ş / ţ", () => {

@@ -115,6 +115,10 @@ def _served(app, path="/api/period/%s/attention" % CUR):
 
 
 def test_the_route_serves_the_company_against_its_same_length_prior(app, world):
+    # The log starts at THIS request: the fixture's seeding GETs (another
+    # workspace's user reading its own period, whose inventory-days monthly
+    # lookup is scoped to THAT workspace) are not the route's reads.
+    world.reset_calls()
     doc = _served(app)
     assert doc["schema"] == "attention/1"
     assert doc["prior"]["status"] == "found" and doc["prior"]["period_id"] == PRI, doc["prior"]

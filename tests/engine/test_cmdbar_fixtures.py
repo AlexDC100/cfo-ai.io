@@ -12,8 +12,10 @@ against an authority that does not exist. So:
      composition (capture_attention.py over the committed served bodies);
   2. the bar's statement-figure names (cmdbarStrings.json `cmdbar.answer.*`)
      equal the attention pack's subjects for the same identity, and the
-     filed-basis inventory label equals the pack's `basis_labels` —
-     one metric, one name, in both languages;
+     filed-basis inventory row's subject carries the owner's label
+     (packs/ratios/inventory_days.yaml `filed_basis.label`) verbatim, once —
+     no second basis note in the pack and no copy in the bar — one metric,
+     one name, in both languages;
   3. the bar's synonym table joins only to comparatives lines that exist
      (src/engine/comparatives/lines.py) and to ratio keys the ratio table
      serves — a join to nothing would answer with a refusal forever.
@@ -99,9 +101,19 @@ def test_one_metric_one_name_between_the_bar_and_the_attention_pack():
     net = by_identity["net_result"]["subject"]
     for lang in ("ro", "en"):
         assert net[lang].startswith(strings[lang]["cmdbar"]["answer"]["net_result"]), lang
-    basis = pack["sector"]["basis_labels"]["inventory_days_on_turnover"]
+    # THE FILED-BASIS LABEL, ONCE (merge contract 2026-09-28, owner spec
+    # 2026-09-26 P1.3): the sector row's subject IS the owner's label from
+    # packs/ratios/inventory_days.yaml `filed_basis.label`, verbatim; no second
+    # basis note is served beside it, and the bar keeps no copy of its own
+    # (it never places the filed-basis row beside the split).
+    inv_pack = yaml.safe_load((REPO / "packs" / "ratios" / "inventory_days.yaml").read_text(encoding="utf-8"))
+    filed = inv_pack["filed_basis"]
+    key = filed["sector_row_key"]
+    subject = pack["sector"]["subjects"][key]
     for lang in ("ro", "en"):
-        assert strings[lang]["cmdbar"]["sectorBasis"]["inventory_days_on_turnover"] == basis[lang], lang
+        assert subject[lang].endswith(filed["label"][lang]), (lang, subject[lang], filed["label"][lang])
+        assert key not in (strings[lang]["cmdbar"].get("sectorBasis") or {}), lang
+    assert key not in (pack["sector"].get("basis_labels") or {}), "a second note beside the owner's label"
 
 
 def test_the_synonym_table_joins_only_to_served_lines_and_ratios():
@@ -125,6 +137,9 @@ def test_the_synonym_table_joins_only_to_served_lines_and_ratios():
                 assert a[k] in ratio_keys, (a["id"], a[k])
         if a.get("sector"):
             assert a["sector"] in sector_keys, (a["id"], a["sector"])
+            # An answer that prints the split never carries the filed-basis row.
+            if a.get("inventoryDays"):
+                assert a["sector"] != "inventory_days_on_turnover", a["id"]
         assert a["terms"], a["id"]
     for key in terms["accountMetrics"].values():
         assert key in ratio_keys, key

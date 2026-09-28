@@ -103,8 +103,12 @@ function t(lang: Lang) {
   return i18n.getFixedT(lang);
 }
 
-/** The sentence for a served refusal / absence. */
+/** The sentence for a served refusal / absence. A refusal the engine
+ *  WORDED (the one EBITDA's, the inventory-days block's) prints the
+ *  engine's own words in the reader's language — never its code. */
 export function absentText(p: Printer, reason: ServedReason | null | undefined): string {
+  const worded = reason?.text?.[p.lang];
+  if (typeof worded === "string" && worded) return worded;
   const code = reason?.code ?? "line_absent";
   const status = Array.isArray(reason?.inputs) && typeof reason?.inputs[0] === "string"
     ? (reason?.inputs[0] as string) : "";
