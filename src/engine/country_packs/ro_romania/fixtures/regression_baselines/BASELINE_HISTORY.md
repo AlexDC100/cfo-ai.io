@@ -60,6 +60,51 @@ Background, blob identity and the accepted residuals:
 
 ---
 
+## 2026-09-28 — INVENTORY DAYS: the methodology's DIO / DPO / CCC / inventory-turnover views retired (re-baseline of the parity pair)
+
+**Authorization.** Owner spec 2026-09-26 on inventory days, point 4 ("ONE
+AUTHORITY: dashboard, Ratios, report, Forecast and the command bar read the
+same served metric"; `specs-durable/owner_specs_2026-09-26_evening.md` §3);
+coordinator design B4 ("methodology YAML DIO / turnover / CCC views removed or
+pointed"). feat/inventory-days retired the four views (commit aa64488c, in the
+squash ab0882b8 on `release/r-rulings`); the F3.1-PARITY gate was registered on
+the 711 lane AFTER the inventory-days fork (ffc9ebca), so the retirement first
+met the gate in the release merge (2026-09-28) — RED on the retired paths only.
+
+**Toward reality (rule 1).** The four views were a SECOND formula for one
+name: DIO on the methodology block divided stock by a narrow cost base (Scandia
+FY2025: 95.28 days) while the served block splits stock by type over the flow
+that moves each (the ratio table reads that block). Removing them leaves one
+formula per name; the served figure lives in `statements.inventory_days`.
+
+**What moved** (nothing else, on either fixture — the gate lists every path):
+
+| fixture | path | before | after |
+|---|---|---|---|
+| both | `methodology.ratios.days_inventory_outstanding` | a value (Scandia 95.2792) | removed |
+| both | `methodology.ratios.days_payable_outstanding` | a value (Scandia 82.8955) | removed |
+| both | `methodology.ratios.cash_conversion_cycle` | a value | removed |
+| both | `methodology.ratios.inventory_turnover` | a value (Scandia 3.8308) | removed |
+| eei_dec_2025 | `methodology.errors` | `ratios.inventory_turnover` ZeroDivisionError | empty (the view that divided by zero is gone) |
+| both | `_meta.engine_module` | the 711 lane's worktree path | the release worktree's path |
+
+No served figure moves: EBITDA, EBIT, turnover, the balance sheet and the
+stock-variation evidence are byte-identical to the 2026-09-27 capture.
+
+**Capture.** `scripts/capture_assembled_baseline.py --rebaseline` (its own
+writer; no hand edit). Pre-state: the 2026-09-27 capture, in git at
+`release/r-rulings` 88c1a2d9 (not archived — no consumer reads it; the legacy
+witnesses read `archive/*_pre_one_ebitda.json`, unchanged).
+
+**Consumers.** The 19 engine / frontend files that read the regression
+baselines: 799 engine tests passed (2 skipped), 37 frontend tests passed —
+none read the retired views.
+
+**Gates after:** `check_assembled_parity.py` GREEN (byte-identical on both);
+F-A3.1 `measure_bs_drift.py` GREEN (EEI 0.0000 %, Scandia 0.1445 %).
+
+---
+
 ## 2026-09-27 — THE ONE EBITDA: owner ruling on 711 / 722 (re-baseline of the parity pair)
 
 **Authorization.** Owner ruling, 2026-09-26 (verbatim in

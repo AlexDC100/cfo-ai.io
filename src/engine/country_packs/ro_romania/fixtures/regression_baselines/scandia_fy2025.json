@@ -3,7 +3,7 @@
     "fixture": "scandia_fy2025",
     "company": "Scandia Food SRL",
     "captured_from": "one-EBITDA ruling re-capture (2026-09-27) — stock-variation evidence threaded as the write seam does",
-    "engine_module": "/private/tmp/claude-501/-Users-alex-Desktop-folder-claude-Scandia-copy/3ffcb142-1cba-4f4d-a1ef-1e69d9ad3827/scratchpad/wt-711/src/engine/country_packs/ro_romania/chart_of_accounts.py",
+    "engine_module": "/private/tmp/claude-501/-Users-alex-Desktop-folder-claude-Scandia-copy/3ffcb142-1cba-4f4d-a1ef-1e69d9ad3827/scratchpad/wt-rel-rulings/src/engine/country_packs/ro_romania/chart_of_accounts.py",
     "account_count": 654
   },
   "assembled": {
@@ -43,21 +43,21 @@
         "inventoryVariationMemo": 630091698.19
       },
       "subAggregates": {
-        "ar_provisions": 0.0,
-        "ar_intercompany": 4262846.59,
-        "ar_doubtful": 133858.47,
-        "fx_loss": 1579544.76,
-        "fx_gain": 558829.54,
-        "ppe_advances": 402873.09,
         "ppe_under_construction": 6031376.49,
-        "interest_expense": 3075221.8,
-        "financial_income": 7760979.0,
-        "ap_dividends": 4678772.34,
-        "ppe_investment": 0.0,
-        "retained_earnings": 27929264.02,
         "interest_income": 1016436.75,
         "opex_third_party": 12426910.23,
+        "ppe_advances": 402873.09,
+        "ap_dividends": 4678772.34,
+        "interest_expense": 3075221.8,
+        "fx_loss": 1579544.76,
+        "ppe_investment": 0.0,
         "cash_fx": 15831.29,
+        "ar_provisions": 0.0,
+        "ar_doubtful": 133858.47,
+        "ar_intercompany": 4262846.59,
+        "fx_gain": 558829.54,
+        "financial_income": 7760979.0,
+        "retained_earnings": 27929264.02,
         "equity_revaluation": 10507869.61,
         "current_year_pnl": 36787352.75
       },
@@ -7572,23 +7572,6 @@
             "band": null,
             "note": ""
           },
-          "inventory_turnover": {
-            "value": 3.8308,
-            "unit": "ratio",
-            "direction": "higher_is_better",
-            "band": null,
-            "note": ""
-          },
-          "days_inventory_outstanding": {
-            "value": 95.2792,
-            "unit": "days",
-            "direction": "lower_is_better",
-            "band": [
-              30,
-              70
-            ],
-            "note": ""
-          },
           "days_sales_outstanding": {
             "value": 37.5633,
             "unit": "days",
@@ -7597,23 +7580,6 @@
               30,
               60
             ],
-            "note": ""
-          },
-          "days_payable_outstanding": {
-            "value": 82.8955,
-            "unit": "days",
-            "direction": "higher_is_better",
-            "band": [
-              30,
-              60
-            ],
-            "note": ""
-          },
-          "cash_conversion_cycle": {
-            "value": 49.947,
-            "unit": "days",
-            "direction": "lower_is_better",
-            "band": null,
             "note": ""
           },
           "capex_intensity": {
