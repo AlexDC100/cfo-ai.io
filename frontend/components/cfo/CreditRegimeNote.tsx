@@ -3,7 +3,9 @@
 //
 // A projection of the SERVED block (`lib/creditRegime.readCreditRegime`):
 // the regime's label, the finding (the owner's sentence — Romanian verbatim —
-// and its English equivalent, severity as served) with its served figures,
+// and its English equivalent, severity as served) with its served figures —
+// or NO finding when the engine withheld it (its premise contradicted by the
+// served figures; never a sentence of this component's own) —
 // why the regime applies (each trigger test: the share the book reached
 // against the pack share, both as served), the cash basis the components
 // were graded on (and, when it is not measured, the engine's own words for
@@ -74,7 +76,7 @@ export function CreditRegimeNote({
         <p className="mt-2 text-[12px] text-ink-soft" data-testid={`${testid}-cash`} data-status={regime.cash.status}>
           {regime.cash.refusal
             ? regime.cash.refusal.text[lang]
-            : `${regime.cash.label[lang]}: ${regime.cash.value === null ? notMeasured : servedAmount(regime.cash.value, finding?.figures[0]?.unit ?? null)}`}
+            : `${regime.cash.label[lang]}: ${regime.cash.value === null ? notMeasured : servedAmount(regime.cash.value, regime.currency)}`}
         </p>
       ) : null}
       {regime.altmanX3Label ? (

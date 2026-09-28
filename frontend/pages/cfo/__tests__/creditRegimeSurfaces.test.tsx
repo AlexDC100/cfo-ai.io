@@ -14,7 +14,9 @@
 // developer (regime, cash approximated -> composite refused), the same
 // statements with the cash flow stated as measured (the bottom rung, 33.9 on
 // the regime's weights, CCC), agras (no regime), the attention document's
-// regime.
+// regime, and a SYNTHETIC withheld case (the credit-stock-build gate's
+// constructed book with EBITDA -8.85M and cash measured -8M: the regime and a
+// letter, the finding WITHHELD because the served EBITDA is not positive).
 //
 // WHAT THIS REDS ON (TC-11): a surface printing the regime twice, or not at
 // all beside a regime grade, or on a standard book; the finding paraphrased
@@ -22,7 +24,9 @@
 // components labelled with an EBITDA / EBIT basis under the regime; the
 // hero saying "analysis pending" for a composite the engine refused; the
 // weights printed as anything but the regime's served table; the command
-// bar printing the regime while typing, or twice.
+// bar printing the regime while typing, or twice; the owner's sentence
+// printed on any surface where the engine WITHHELD it (its premise
+// contradicted by the served figures), or the regime dropped with it.
 
 import { describe, expect, it, vi, afterEach } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
@@ -50,7 +54,7 @@ import { CmdbarList } from "@/components/instrument/shell/cmdbar/CmdbarList";
 import { servedMoney } from "@/components/instrument/shell/cmdbar/cmdbarFigures";
 import { computeCreditScore, engineCreditResult, type CreditEnvelope } from "@/lib/financialValuation";
 import { buildExcelWorkbook, buildReportHtml } from "@/lib/financialExports";
-import { readCreditRegime, regimeLine } from "@/lib/creditRegime";
+import { printRegimeAmount, readCreditRegime, regimeLine } from "@/lib/creditRegime";
 import type { Statements } from "@/lib/financialReport";
 
 const OWNER_RO = "EBITDA pozitivă din stocuri capitalizate — numerarul a fost consumat de construcție.";
@@ -68,6 +72,7 @@ const FIX = JSON.parse(
   developer_measured_cash: Case;
   manufacturer: Case;
   attention_developer: { credit_regime: unknown; currency: string | null };
+  developer_withheld: Case;
 };
 
 const byName = (c: Case): Record<string, number | null> =>
@@ -206,6 +211,69 @@ describe("the printed documents state the regime once", () => {
         // the approximated cash flow is stated, never printed as a figure
         expect(blocks[0].textContent).toContain("not measured (approximated)");
       }
+    }
+  });
+});
+
+describe("a WITHHELD finding: the regime once, the owner's sentence nowhere", () => {
+  const c = FIX.developer_withheld;
+  const noSentence = (text: string) => {
+    expect(text).not.toContain(OWNER_EN);
+    expect(text).not.toContain(OWNER_RO);
+  };
+
+  it("the reader: the regime, no finding, the failed premise, the served currency", () => {
+    const r = readCreditRegime(c.credit.regime)!;
+    expect(r.code).toBe("stock_build");
+    expect(r.finding).toBeNull();
+    expect(r.findingWithheld).toEqual({ failed: ["ebitda_positive"] });
+    expect(r.currency).toBe("RON");
+    // the stated developer carries no withheld block
+    expect(readCreditRegime(FIX.developer.credit.regime)!.findingWithheld).toBeNull();
+  });
+
+  it("the Risks tab (EN and RO) and /report's card print the regime once and no sentence", async () => {
+    risks(c, FIX.developer.statements!);
+    expect(screen.getAllByTestId("credit-regime")).toHaveLength(1);
+    expect(screen.queryByTestId("credit-regime-finding")).toBeNull();
+    // the measured cash is printed in the currency it was served in
+    expect(screen.getByTestId("credit-regime-cash").textContent).toContain("RON");
+    noSentence(document.body.textContent ?? "");
+    cleanup();
+    await i18n.changeLanguage("ro");
+    risks(c, FIX.developer.statements!);
+    expect(screen.getAllByTestId("credit-regime")).toHaveLength(1);
+    noSentence(document.body.textContent ?? "");
+    cleanup();
+    // with no finding figures, the cash still prints in the SERVED currency
+    // (read off the withheld premise's unit) — never a default
+    const eur = JSON.parse(JSON.stringify(c.credit)) as CreditEnvelope & {
+      regime: { finding_withheld: { premise: { unit: string }[] }; cash: { value: number } };
+    };
+    for (const t of eur.regime.finding_withheld.premise) t.unit = "EUR";
+    risks({ ...c, credit: eur }, FIX.developer.statements!);
+    const cashText = screen.getByTestId("credit-regime-cash").textContent ?? "";
+    expect(cashText).toContain(printRegimeAmount(eur.regime.cash.value, "EUR"));
+    expect(cashText).not.toContain(printRegimeAmount(eur.regime.cash.value, "RON"));
+    cleanup();
+    const card = creditCardData(engineCreditResult(c.credit, undefined, byName(c)));
+    render(<TooltipProvider><CreditScoreCard data={card!} /></TooltipProvider>);
+    expect(screen.getAllByTestId("report-credit-regime")).toHaveLength(1);
+    expect(screen.queryByTestId("report-credit-regime-finding")).toBeNull();
+    noSentence(document.body.textContent ?? "");
+  });
+
+  it("the documents and the command bar: the regime's label, no sentence", () => {
+    const envelopes = { credit: c.credit, piotroski: undefined, metricsByName: byName(c) };
+    const doc = new DOMParser().parseFromString(buildReportHtml(FIX.developer.statements!, envelopes), "text/html");
+    const blocks = doc.querySelectorAll("[data-report-credit-regime]");
+    expect(blocks.length).toBe(1);
+    noSentence(blocks[0].textContent ?? "");
+    const r = readCreditRegime(c.credit.regime)!;
+    for (const lang of ["en", "ro"] as const) {
+      const line = regimeLine(r, lang, servedMoney("RON"));
+      expect(line).toBe(`${r.label[lang]}.`);
+      noSentence(line ?? "");
     }
   });
 });

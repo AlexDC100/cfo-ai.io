@@ -17,6 +17,13 @@
 // and its EN equivalent, with the served figures). It computes nothing; a
 // surface that prints the grade prints this ONCE (`CreditRegimeNote`).
 // A block it cannot read is null — never a guessed regime.
+//
+// THE FINDING MAY BE WITHHELD (fixer round 1, 2026-09-28): the engine serves
+// the owner's sentence only when the served figures say what it states
+// (EBITDA > 0, EBITDA before the stock variation <= 0, no measured cash from
+// operations > 0). Otherwise `finding` is null and `finding_withheld` names
+// the failed premise: a surface prints the regime and NO sentence — never a
+// sentence of its own.
 
 import { formatMoneyFrom } from "./money";
 import type { Currency, Rates } from "./rates";
@@ -72,6 +79,12 @@ export interface CreditRegime {
     text: Bilingual;
     figures: CreditRegimeFigure[];
   } | null;
+  /** The premise tests that failed when the engine WITHHELD the finding
+   *  (`finding_withheld.failed`), or null when it did not. */
+  findingWithheld: { failed: string[] } | null;
+  /** The currency the regime's figures were served in (their `unit`), or
+   *  null when none is served. */
+  currency: string | null;
 }
 
 function isObj(v: unknown): v is Record<string, unknown> {
@@ -157,6 +170,17 @@ export function readCreditRegime(raw: unknown): CreditRegime | null {
             : [],
         }
       : null;
+  const wh = isObj(raw.finding_withheld) ? raw.finding_withheld : null;
+  const findingWithheld = wh
+    ? { failed: Array.isArray(wh.failed) ? wh.failed.filter((k): k is string => typeof k === "string") : [] }
+    : null;
+  const premiseUnits = wh && Array.isArray(wh.premise)
+    ? wh.premise.map((t) => (isObj(t) && typeof t.unit === "string" ? t.unit : null))
+    : [];
+  const currency =
+    [...(finding?.figures.map((x) => x.unit) ?? []), ...premiseUnits].find(
+      (u): u is string => typeof u === "string" && u.length > 0,
+    ) ?? null;
   return {
     code: raw.code,
     label,
@@ -175,6 +199,8 @@ export function readCreditRegime(raw: unknown): CreditRegime | null {
     componentBases: bases,
     altmanX3Label: isObj(raw.altman_x3) ? bilingual(raw.altman_x3.label) : null,
     finding,
+    findingWithheld,
+    currency,
   };
 }
 
@@ -206,13 +232,15 @@ export function printAtLeast(atLeast: string, lang: RegimeLang): string {
 /** The command bar's ONE regime line: the served label and the finding,
  *  with the finding's net 711 and net turnover figures printed by the
  *  caller's money printer (the bar prints in the currency the engine served
- *  the period in). An unmeasured figure prints its status word. */
+ *  the period in). An unmeasured figure prints its status word. A WITHHELD
+ *  finding (the served figures contradict the sentence) prints the label
+ *  alone — the regime is still stated once, the sentence never. */
 export function regimeLine(
   regime: CreditRegime,
   lang: RegimeLang,
   print: (value: number) => string,
 ): string | null {
-  if (!regime.finding) return null;
+  if (!regime.finding) return `${regime.label[lang]}.`;
   const notMeasured = lang === "ro" ? "nemăsurat" : "not measured";
   const figs = regime.finding.figures
     .filter((f) => f.key === "net_711" || f.key === "net_turnover")
