@@ -596,6 +596,22 @@ describe("cmdbar-figures — every figure is the served figure", () => {
     });
   }
 
+  it("a period that serves NO block prints that reason — never the ratio table's days, never a retired formula", async () => {
+    await useLang("en");
+    const body = structuredClone(SCANDIA.period);
+    delete body.statements.inventory_days;
+    delete body.assembled_metrics.inventory_days;
+    const dio = body.assembled_metrics.ratio_table.rows.find((r: { key: string }) => r.key === "dio");
+    expect(dio.value_q, "POSITIVE CONTROL: a ratio-table dio row is still there to be misread").not.toBeNull();
+    mount(scandiaWorld({ body }));
+    type("zile stoc");
+    const row = rowsOf("answer").find((el) => el.getAttribute("data-row-id") === "answer:inventory")!;
+    expect(row.textContent).toContain(i18n.getFixedT("en")("cmdbar.absent.inventory_days_absent"));
+    expect(row.textContent).not.toContain(formatRatioSide(dio, dio.display_unit, "en"));
+    expect(row.querySelector("[data-basis]")).toBeNull();
+    expect(row.textContent).not.toMatch(/total operating cost/);
+  });
+
   it("a period on the single-day snapshot prints ITS basis label; a refused block prints the engine's reason, never a figure", async () => {
     await useLang("en");
     const body = structuredClone(SCANDIA.period);
