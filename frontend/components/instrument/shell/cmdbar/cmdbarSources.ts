@@ -179,23 +179,17 @@ export function servedTotalEquity(body: Body | null | undefined): ServedFigure {
 /** A money line of the served statements (`assembled_pl.<field>` /
  *  `assembled_bs.<field>`) — the SAME path the comparatives column reads
  *  (src/engine/comparatives/lines.py), so the value printed before the
- *  comparison lands is the column's `current` once it does. A line the
- *  engine REFUSED returns that refusal with its words: the operating
- *  result through `servedEbit`, total equity through `servedTotalEquity`,
- *  and any other P&L level the one-EBITDA refusal names in its `fields`
- *  (gross profit, PBT — `refusal_of`'s own rule). */
+ *  comparison lands is the column's `current` once it does. The two lines
+ *  the bar and the account view read that the engine can REFUSE return
+ *  that refusal with its words: the operating result through `servedEbit`,
+ *  total equity through `servedTotalEquity`. (Of the one-EBITDA refusal's
+ *  `fields`, EBITDA has its own reader and no other — gross profit, PBT —
+ *  is a line either surface reads.) */
 export function servedLine(body: Body | null | undefined, statement: "pl" | "bs", field: string): ServedFigure {
   if (statement === "pl" && (field === "ebit" || field === "operating_result")) return servedEbit(body);
   if (statement === "bs" && field === "total_equity") return servedTotalEquity(body);
-  const block = statement === "pl" ? pl(body) : bs(body);
-  const value = num(block[field]);
+  const value = num((statement === "pl" ? pl(body) : bs(body))[field]);
   const source = `assembled_${statement}.${field}`;
-  if (value === null && statement === "pl") {
-    const r = block.ebitda_refusal;
-    const fields = isObj(r) && Array.isArray(r.fields) ? r.fields : [];
-    const one = fields.includes(field) ? readServedOneEbitda(block) : null;
-    if (one?.refusal) return { value: null, refusal: worded(one.refusal), source };
-  }
   return value === null
     ? { value: null, refusal: { code: "line_absent", inputs: [source] }, source }
     : { value, refusal: null, source };
