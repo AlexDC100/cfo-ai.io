@@ -41,8 +41,8 @@ WHAT THIS REDS ON, AFTER THE REPAIR (TC-11):
     five ratio rows (value and printed value null, code, share, threshold,
     the RO and EN text), the one note — which since the 711 ruling
     (2026-09-26) says EBITDA INCLUDES the stock variation and quotes the
-    measured net 711, "29.589,8 mii lei" / "RON 29,589.8k" in the unit of
-    the EBITDA above it (551,0 mii lei), read off
+    measured net 711, "29.589,8 mii RON" / "29,589.8K RON" in the unit of
+    the EBITDA above it (551,0 mii RON), read off
     ``assembled_pl.inventory_variation.value`` — never the retired
     ``ebitda_statutory_with_711``, never a note saying EBITDA excludes 711;
     the cockpit's final-year and today's margins null with their reason,
@@ -98,6 +98,8 @@ DEVELOPER_REFUSAL = {
     "en": "margin not meaningful: turnover is 0.6% of activity",
 }
 #: The note (owner ruling 2026-09-26: EBITDA INCLUDES the stock variation).
+#: Its money prints with the ISO code after the figure in both languages
+#: (owner ruling 2026-09-29 — codes, never "lei" or a code before it).
 #: The amount is the developer's measured net 711 (the account-121 bridge,
 #: 29,589,814.24 — measure.md T7), printed in the unit of the served EBITDA
 #: above it (550,976.12 → thousands). Before the ruling this note said the
@@ -105,10 +107,10 @@ DEVELOPER_REFUSAL = {
 DEVELOPER_NOTE = {
     "ro": ("Pentru un dezvoltator imobiliar, costurile de construcție capitalizate în stocuri "
            "trec prin contul 711 (Variația stocurilor de produse): EBITDA de mai sus le include — "
-           "29.589,8 mii lei."),
+           "29.589,8 mii RON."),
     "en": ("For a property developer, construction costs capitalised into inventory run through "
            "account 711 (Variația stocurilor de produse): the EBITDA above includes them — "
-           "RON 29,589.8k."),
+           "29,589.8K RON."),
 }
 #: The note under the cockpit's final PLAN year (and the bank export). That
 #: EBITDA projects net 711 at 0 (design A6 — the card's own year0_step says
@@ -123,11 +125,11 @@ DEVELOPER_NOTE = {
 DEVELOPER_COCKPIT_NOTE = {
     "ro": ("Pentru un dezvoltator imobiliar, costurile de construcție capitalizate în stocuri "
            "trec prin contul 711 (Variația stocurilor de produse): EBITDA din 2025 le-a inclus — "
-           "29,6 mil. lei; anii de plan proiectează variația stocurilor la 0, deci EBITDA de mai "
+           "29,6 mil. RON; anii de plan proiectează variația stocurilor la 0, deci EBITDA de mai "
            "sus nu le include."),
     "en": ("For a property developer, construction costs capitalised into inventory run through "
            "account 711 (Variația stocurilor de produse): the 2025 EBITDA included them — "
-           "RON 29.6M; the plan years project the stock variation at 0, so the EBITDA above "
+           "29.6M RON; the plan years project the stock variation at 0, so the EBITDA above "
            "does not include them."),
 }
 
@@ -479,7 +481,7 @@ def test_the_note_is_the_packs_one_case_only():
     assert MM.note_block(MM.judge(110798309.14, 103367367.84), **served) is None
     # the amount prints in the unit of the EBITDA above it
     assert MM.note_block(refused, **dict(served, unit_of=4000000))["display"]["ro"].endswith(
-        "EBITDA de mai sus le include — 29,6 mil. lei.")
+        "EBITDA de mai sus le include — 29,6 mil. RON.")
     WORK["units"] += 11
 
 

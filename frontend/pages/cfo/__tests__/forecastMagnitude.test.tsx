@@ -75,10 +75,12 @@ function paintedNumber(text: string): number | null {
   return Number.isFinite(n) ? (neg ? -n : n) : null;
 }
 
-/** "RON 17.2M" / "RON 123.5k" → units. */
+/** "17.2M RON" / "123.5K RON" → units: the product standard, the code
+ *  after the figure (owner ruling 2026-09-29) — a readout printed
+ *  "RON 17.2M" reads as no figure at all. */
 function compactNumber(text: string): number | null {
   const t = text.replace(/ /g, " ").replace(/◇/g, "").trim();
-  const m = /(-|−)?RON\s*([\d.,]+)\s*([kKmM])?/.exec(t);
+  const m = /(-|−)?([\d.,]+)\s*([kKmM])?\s*RON\b/.exec(t);
   if (!m) return null;
   const base = Number(m[2].replace(/,/g, ""));
   const scale = m[3] ? (m[3].toLowerCase() === "m" ? 1_000_000 : 1_000) : 1;

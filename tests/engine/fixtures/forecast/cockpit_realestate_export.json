@@ -229,8 +229,8 @@
    },
    {
     "basis": {
-     "en": "personnel cost (accounts 641, 642, 643, 644, 645, 646) RON 38.0k in 2025; by default it grows with inflation · gross minimum wage RON 4,050 → RON 4,325 from July 2026 (+6.8%; HG, 2026-03-12)",
-     "ro": "cheltuieli cu personalul (conturile 641, 642, 643, 644, 645, 646) 38,0 mii lei în 2025; implicit cresc cu inflația · salariul minim brut 4.050 lei → 4.325 lei de la iulie 2026 (+6,8%; HG, 2026-03-12)"
+     "en": "personnel cost (accounts 641, 642, 643, 644, 645, 646) 38.0K RON in 2025; by default it grows with inflation · gross minimum wage 4,050 RON → 4,325 RON from July 2026 (+6.8%; HG, 2026-03-12)",
+     "ro": "cheltuieli cu personalul (conturile 641, 642, 643, 644, 645, 646) 38,0 mii RON în 2025; implicit cresc cu inflația · salariul minim brut 4.050 RON → 4.325 RON de la iulie 2026 (+6,8%; HG, 2026-03-12)"
     },
     "display": {
      "en": "6.1%",
@@ -259,8 +259,8 @@
    },
    {
     "basis": {
-     "en": "energy and utilities (account 605) RON 210.7k = 129.8% of revenue in 2025; its variable part follows volume",
-     "ro": "energie și utilități (cont 605) 210,7 mii lei = 129,8% din venituri în 2025; partea variabilă urmează volumul"
+     "en": "energy and utilities (account 605) 210.7K RON = 129.8% of revenue in 2025; its variable part follows volume",
+     "ro": "energie și utilități (cont 605) 210,7 mii RON = 129,8% din venituri în 2025; partea variabilă urmează volumul"
     },
     "display": {
      "en": "0.0%",
@@ -334,8 +334,8 @@
    },
    {
     "basis": {
-     "en": "61 days = trade receivables RON 27.2k / revenue RON 162.4k × 365 (2025)",
-     "ro": "61 zile = creanțe comerciale 27,2 mii lei / venituri 162,4 mii lei × 365 (2025)"
+     "en": "61 days = trade receivables 27.2K RON / revenue 162.4K RON × 365 (2025)",
+     "ro": "61 zile = creanțe comerciale 27,2 mii RON / venituri 162,4 mii RON × 365 (2025)"
     },
     "display": {
      "en": "61",
@@ -400,8 +400,8 @@
    },
    {
     "basis": {
-     "en": "convention: capital expenditure replaces the RON 62.2k depreciation charge (38.3% of revenue); a trial balance shows no investment plan",
-     "ro": "convenție: investițiile înlocuiesc amortizarea de 62,2 mii lei (38,3% din venituri); o balanță nu arată un plan de investiții"
+     "en": "convention: capital expenditure replaces the 62.2K RON depreciation charge (38.3% of revenue); a trial balance shows no investment plan",
+     "ro": "convenție: investițiile înlocuiesc amortizarea de 62,2 mii RON (38,3% din venituri); o balanță nu arată un plan de investiții"
     },
     "display": {
      "en": "38.3%",
@@ -424,8 +424,8 @@
    },
    {
     "basis": {
-     "en": "6.24% = interest RON 1.2M / interest-bearing debt RON 18.6M (2025); the same rate prices the credit line",
-     "ro": "6,24% = dobânzi 1,2 mil. lei / datorii purtătoare de dobândă 18,6 mil. lei (2025); aceeași rată se aplică liniei de credit"
+     "en": "6.24% = interest 1.2M RON / interest-bearing debt 18.6M RON (2025); the same rate prices the credit line",
+     "ro": "6,24% = dobânzi 1,2 mil. RON / datorii purtătoare de dobândă 18,6 mil. RON (2025); aceeași rată se aplică liniei de credit"
     },
     "display": {
      "en": "6.2%",
@@ -1570,8 +1570,8 @@
    },
    {
     "basis": {
-     "en": "personnel cost (accounts 641, 642, 643, 644, 645, 646) RON 38.0k in 2025; by default it grows with inflation · gross minimum wage RON 4,050 → RON 4,325 from July 2026 (+6.8%; HG, 2026-03-12)",
-     "ro": "cheltuieli cu personalul (conturile 641, 642, 643, 644, 645, 646) 38,0 mii lei în 2025; implicit cresc cu inflația · salariul minim brut 4.050 lei → 4.325 lei de la iulie 2026 (+6,8%; HG, 2026-03-12)"
+     "en": "personnel cost (accounts 641, 642, 643, 644, 645, 646) 38.0K RON in 2025; by default it grows with inflation · gross minimum wage 4,050 RON → 4,325 RON from July 2026 (+6.8%; HG, 2026-03-12)",
+     "ro": "cheltuieli cu personalul (conturile 641, 642, 643, 644, 645, 646) 38,0 mii RON în 2025; implicit cresc cu inflația · salariul minim brut 4.050 RON → 4.325 RON de la iulie 2026 (+6,8%; HG, 2026-03-12)"
     },
     "decimals": 3,
     "default": "0.025",
@@ -1639,8 +1639,8 @@
    },
    {
     "basis": {
-     "en": "energy and utilities (account 605) RON 210.7k = 129.8% of revenue in 2025; its variable part follows volume",
-     "ro": "energie și utilități (cont 605) 210,7 mii lei = 129,8% din venituri în 2025; partea variabilă urmează volumul"
+     "en": "energy and utilities (account 605) 210.7K RON = 129.8% of revenue in 2025; its variable part follows volume",
+     "ro": "energie și utilități (cont 605) 210,7 mii RON = 129,8% din venituri în 2025; partea variabilă urmează volumul"
     },
     "decimals": 2,
     "default": "0",
@@ -1762,8 +1762,8 @@
    },
    {
     "basis": {
-     "en": "61 days = trade receivables RON 27.2k / revenue RON 162.4k × 365 (2025)",
-     "ro": "61 zile = creanțe comerciale 27,2 mii lei / venituri 162,4 mii lei × 365 (2025)"
+     "en": "61 days = trade receivables 27.2K RON / revenue 162.4K RON × 365 (2025)",
+     "ro": "61 zile = creanțe comerciale 27,2 mii RON / venituri 162,4 mii RON × 365 (2025)"
     },
     "decimals": 0,
     "default": "61.132409",
@@ -1876,8 +1876,8 @@
    },
    {
     "basis": {
-     "en": "convention: capital expenditure replaces the RON 62.2k depreciation charge (38.3% of revenue); a trial balance shows no investment plan",
-     "ro": "convenție: investițiile înlocuiesc amortizarea de 62,2 mii lei (38,3% din venituri); o balanță nu arată un plan de investiții"
+     "en": "convention: capital expenditure replaces the 62.2K RON depreciation charge (38.3% of revenue); a trial balance shows no investment plan",
+     "ro": "convenție: investițiile înlocuiesc amortizarea de 62,2 mii RON (38,3% din venituri); o balanță nu arată un plan de investiții"
     },
     "decimals": 3,
     "default": "0.383206",
@@ -1916,8 +1916,8 @@
    },
    {
     "basis": {
-     "en": "6.24% = interest RON 1.2M / interest-bearing debt RON 18.6M (2025); the same rate prices the credit line",
-     "ro": "6,24% = dobânzi 1,2 mil. lei / datorii purtătoare de dobândă 18,6 mil. lei (2025); aceeași rată se aplică liniei de credit"
+     "en": "6.24% = interest 1.2M RON / interest-bearing debt 18.6M RON (2025); the same rate prices the credit line",
+     "ro": "6,24% = dobânzi 1,2 mil. RON / datorii purtătoare de dobândă 18,6 mil. RON (2025); aceeași rată se aplică liniei de credit"
     },
     "decimals": 4,
     "default": "0.062418",
@@ -2026,13 +2026,13 @@
    "cash": {
     "display": {
      "en": {
-      "amount": "RON 192.2M",
-      "interest": "RON 22.8M",
+      "amount": "192.2M RON",
+      "interest": "22.8M RON",
       "when": "January 2026"
      },
      "ro": {
-      "amount": "192,2 mil. lei",
-      "interest": "22,8 mil. lei",
+      "amount": "192,2 mil. RON",
+      "interest": "22,8 mil. RON",
       "when": "ianuarie 2026"
      }
     },
@@ -2051,8 +2051,8 @@
    },
    "cumulative_fcf": {
     "display": {
-     "en": "RON −193.3M",
-     "ro": "−193,3 mil. lei"
+     "en": "−193.3M RON",
+     "ro": "−193,3 mil. RON"
     },
     "figure": {
      "amount_minor": -19334496095,
@@ -2099,20 +2099,20 @@
    "ebitda_final_year": {
     "display": {
      "en": {
-      "amount": "RON −34.6M",
+      "amount": "−34.6M RON",
       "margin": null,
       "margin_refused": "margin not meaningful: turnover is 0.5% of activity",
       "margin_year0": null,
       "margin_year0_refused": "margin not meaningful: turnover is 0.6% of activity",
-      "note": "For a property developer, construction costs capitalised into inventory run through account 711 (Variația stocurilor de produse): the 2025 EBITDA included them — RON 29.6M; the plan years project the stock variation at 0, so the EBITDA above does not include them."
+      "note": "For a property developer, construction costs capitalised into inventory run through account 711 (Variația stocurilor de produse): the 2025 EBITDA included them — 29.6M RON; the plan years project the stock variation at 0, so the EBITDA above does not include them."
      },
      "ro": {
-      "amount": "−34,6 mil. lei",
+      "amount": "−34,6 mil. RON",
       "margin": null,
       "margin_refused": "marjă nesemnificativă: cifra de afaceri este 0,5% din activitate",
       "margin_year0": null,
       "margin_year0_refused": "marjă nesemnificativă: cifra de afaceri este 0,6% din activitate",
-      "note": "Pentru un dezvoltator imobiliar, costurile de construcție capitalizate în stocuri trec prin contul 711 (Variația stocurilor de produse): EBITDA din 2025 le-a inclus — 29,6 mil. lei; anii de plan proiectează variația stocurilor la 0, deci EBITDA de mai sus nu le include."
+      "note": "Pentru un dezvoltator imobiliar, costurile de construcție capitalizate în stocuri trec prin contul 711 (Variația stocurilor de produse): EBITDA din 2025 le-a inclus — 29,6 mil. RON; anii de plan proiectează variația stocurilor la 0, deci EBITDA de mai sus nu le include."
      }
     },
     "figure": {
@@ -2188,8 +2188,8 @@
     "margin_year0_ppm": null,
     "note": {
      "display": {
-      "en": "For a property developer, construction costs capitalised into inventory run through account 711 (Variația stocurilor de produse): the 2025 EBITDA included them — RON 29.6M; the plan years project the stock variation at 0, so the EBITDA above does not include them.",
-      "ro": "Pentru un dezvoltator imobiliar, costurile de construcție capitalizate în stocuri trec prin contul 711 (Variația stocurilor de produse): EBITDA din 2025 le-a inclus — 29,6 mil. lei; anii de plan proiectează variația stocurilor la 0, deci EBITDA de mai sus nu le include."
+      "en": "For a property developer, construction costs capitalised into inventory run through account 711 (Variația stocurilor de produse): the 2025 EBITDA included them — 29.6M RON; the plan years project the stock variation at 0, so the EBITDA above does not include them.",
+      "ro": "Pentru un dezvoltator imobiliar, costurile de construcție capitalizate în stocuri trec prin contul 711 (Variația stocurilor de produse): EBITDA din 2025 le-a inclus — 29,6 mil. RON; anii de plan proiectează variația stocurilor la 0, deci EBITDA de mai sus nu le include."
      },
      "figure": {
       "source": "assembled_pl.inventory_variation.value",
@@ -2213,15 +2213,15 @@
      "code": "stock_variation_not_projected",
      "display": {
       "en": {
-       "ebitda_year0": "RON 551.0k",
-       "ebitda_year0_before_stock_variation": "RON −29.0M",
-       "step": "RON 29.6M",
+       "ebitda_year0": "551.0K RON",
+       "ebitda_year0_before_stock_variation": "−29.0M RON",
+       "step": "29.6M RON",
        "text": "the stock variation and own work capitalised are not projected: 0 in every plan year"
       },
       "ro": {
-       "ebitda_year0": "551,0 mii lei",
-       "ebitda_year0_before_stock_variation": "−29,0 mil. lei",
-       "step": "29,6 mil. lei",
+       "ebitda_year0": "551,0 mii RON",
+       "ebitda_year0_before_stock_variation": "−29,0 mil. RON",
+       "step": "29,6 mil. RON",
        "text": "variația stocurilor de produse și producția capitalizată nu se proiectează: 0 în anii de plan"
       }
      },
@@ -2243,15 +2243,15 @@
   },
   "period_id": "c-cur",
   "pins": {
-   "body_hash": "sha256:ae421a46a15ab61346841687e729fdb565757663d00c5e6ef29e982a997aa108",
-   "cockpit_pack": "sha256:1ebafb5936c19893c4ef3768a45fd2829c87c36497ee61d34613b42f3a47348e",
+   "body_hash": "sha256:006a1865dde5d931b49eb96aec8a51822650f21756a3d647bfabd5f7eb5c55f1",
+   "cockpit_pack": "sha256:f2d970708529c7550ad029cf7f76d55a00f276acd6ea3e88881daa731a5f3cd7",
    "engine_version": "0.1.0",
    "macro_pack": "sha256:786eec084a31392dca0f4be9c16faff90fcf6532c94bc8ed5823d5a05ff548b3",
-   "margin_pack": "sha256:bae7e9db9e98f58815b343b4695eb79b8f896679341604ac2abe05b874aa37f6",
+   "margin_pack": "sha256:3f3ff11899d173b7ea4a399f5ac7a6194a25466e0220df07132bb2b161a071c9",
    "pack_id": "forecast-cockpit"
   },
   "sentence": {
-   "en": "In the pessimist case, you need a credit line of up to RON 192.2M starting in January 2026; DSCR falls below the bank's threshold: −0.82× in 2026 against 1.25×; EBITDA reaches RON −34.6M in 2030.",
+   "en": "In the pessimist case, you need a credit line of up to 192.2M RON starting in January 2026; DSCR falls below the bank's threshold: −0.82× in 2026 against 1.25×; EBITDA reaches −34.6M RON in 2030.",
    "facts": {
     "cash": {
      "amount_minor": 19216056058,
@@ -2263,7 +2263,7 @@
      "kind": "projected"
     }
    },
-   "ro": "În scenariul pesimist, ai nevoie de o linie de credit de până la 192,2 mil. lei începând din ianuarie 2026; DSCR scade sub pragul băncii: −0,82× în 2026 față de 1,25×; EBITDA ajunge la −34,6 mil. lei în 2030.",
+   "ro": "În scenariul pesimist, ai nevoie de o linie de credit de până la 192,2 mil. RON începând din ianuarie 2026; DSCR scade sub pragul băncii: −0,82× în 2026 față de 1,25×; EBITDA ajunge la −34,6 mil. RON în 2030.",
    "template": [
     "frame",
     "funding",
@@ -4809,11 +4809,11 @@
   "kind": "bank_forecast",
   "period_id": "c-cur",
   "pins": {
-   "body_hash": "sha256:ae421a46a15ab61346841687e729fdb565757663d00c5e6ef29e982a997aa108",
-   "cockpit_pack": "sha256:1ebafb5936c19893c4ef3768a45fd2829c87c36497ee61d34613b42f3a47348e",
+   "body_hash": "sha256:006a1865dde5d931b49eb96aec8a51822650f21756a3d647bfabd5f7eb5c55f1",
+   "cockpit_pack": "sha256:f2d970708529c7550ad029cf7f76d55a00f276acd6ea3e88881daa731a5f3cd7",
    "engine_version": "0.1.0",
    "macro_pack": "sha256:786eec084a31392dca0f4be9c16faff90fcf6532c94bc8ed5823d5a05ff548b3",
-   "margin_pack": "sha256:bae7e9db9e98f58815b343b4695eb79b8f896679341604ac2abe05b874aa37f6",
+   "margin_pack": "sha256:3f3ff11899d173b7ea4a399f5ac7a6194a25466e0220df07132bb2b161a071c9",
    "pack_id": "forecast-cockpit"
   },
   "projected_note": {
@@ -4859,7 +4859,7 @@
    }
   },
   "sentence": {
-   "en": "In the pessimist case, you need a credit line of up to RON 192.2M starting in January 2026; DSCR falls below the bank's threshold: −0.82× in 2026 against 1.25×; EBITDA reaches RON −34.6M in 2030.",
+   "en": "In the pessimist case, you need a credit line of up to 192.2M RON starting in January 2026; DSCR falls below the bank's threshold: −0.82× in 2026 against 1.25×; EBITDA reaches −34.6M RON in 2030.",
    "facts": {
     "cash": {
      "amount_minor": 19216056058,
@@ -4871,7 +4871,7 @@
      "kind": "projected"
     }
    },
-   "ro": "În scenariul pesimist, ai nevoie de o linie de credit de până la 192,2 mil. lei începând din ianuarie 2026; DSCR scade sub pragul băncii: −0,82× în 2026 față de 1,25×; EBITDA ajunge la −34,6 mil. lei în 2030.",
+   "ro": "În scenariul pesimist, ai nevoie de o linie de credit de până la 192,2 mil. RON începând din ianuarie 2026; DSCR scade sub pragul băncii: −0,82× în 2026 față de 1,25×; EBITDA ajunge la −34,6 mil. RON în 2030.",
    "template": [
     "frame",
     "funding",

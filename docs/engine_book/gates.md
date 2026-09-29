@@ -16645,8 +16645,8 @@ HEAD, the battery re-run):**
 
 ```
 ### PLANT A — frontend/lib/money.ts: the locale follows the CURRENCY again (the pre-fix rule: RON -> ro-RO, EUR -> de-DE, USD -> en-US), whatever the language
-FAIL cmdbar-surface (exit 1, 16.6s)
-FAIL ui-language-figures (exit 1, 2.3s)
+RED  FAIL cmdbar-surface (exit 1, 16.6s)
+RED  FAIL ui-language-figures (exit 1, 2.3s)
 PASS cmdbar-evidence (7.6s, 47 evidence-landing tests)
 failing tests (11): cmdbar-ui-language scandia/agras/pair (en); <Money> + table cell on a switch;
   company page (en); workspace home (en); lib/money en, ro (EUR de-DE, USD en-US in RO), explicit
@@ -16655,14 +16655,14 @@ failing tests (11): cmdbar-ui-language scandia/agras/pair (en); <Money> + table 
   defect; only the independent number-shape law sees it)
 ### REVERT A — PASS cmdbar-surface (16.9s, 207) · PASS ui-language-figures (2.4s, 20) · PASS cmdbar-evidence (7.6s, 47)
 ### PLANT B — frontend/lib/money.ts moneyLocaleFor: every language maps to ro-RO (a defect COMMON to the bar and the gate's expected printer)
-FAIL cmdbar-surface (exit 1, 16.6s)
-FAIL ui-language-figures (exit 1, 2.3s)
+RED  FAIL cmdbar-surface (exit 1, 16.6s)
+RED  FAIL ui-language-figures (exit 1, 2.3s)
 PASS cmdbar-evidence (7.6s, 47 evidence-landing tests)
 failing tests (10): cmdbar-ui-language scandia/agras/pair (en); <Money> + table cell; company page (en);
   workspace home (en); lib/money en; explicit locale; servedMoney bound; printMeasure
 ### REVERT B — PASS cmdbar-surface (16.3s, 207) · PASS ui-language-figures (2.3s, 20) · PASS cmdbar-evidence (7.6s, 47)
 ### PLANT C — CommandPalette.tsx: the bar's money printer bound to Romanian whatever the reader's language
-FAIL cmdbar-surface (exit 1, 13.4s)
+RED  FAIL cmdbar-surface (exit 1, 13.4s)
 PASS ui-language-figures (2.4s, 20 reader's-language figure tests)
 PASS cmdbar-evidence (7.7s, 47 evidence-landing tests)
 failing tests (18): every EN served-equality law (statement answers, every Cont leaf scandia/agras (en),
@@ -16671,13 +16671,13 @@ failing tests (18): every EN served-equality law (statement answers, every Cont 
 ### REVERT C — PASS cmdbar-surface (16.5s, 207) · PASS ui-language-figures (2.4s, 20) · PASS cmdbar-evidence (7.7s, 47)
 ### PLANT D — financialReport.ts formatRatio: the days fallback back to `${n} days` ("1 days")
 PASS cmdbar-surface (16.8s, 207 command-bar tests)
-FAIL ui-language-figures (exit 1, 2.3s)
+RED  FAIL ui-language-figures (exit 1, 2.3s)
 PASS cmdbar-evidence (7.6s, 47 evidence-landing tests)
 failing tests (4): 1 → 1 day · 0.6 → 1 day · 1.4 → 1 day · -1 → -1 day
 ### REVERT D — PASS cmdbar-surface (16.7s, 207) · PASS ui-language-figures (2.3s, 20) · PASS cmdbar-evidence (7.6s, 47)
 ### PLANT E — cmdbarFigures.ts printMeasure: the pre-fix English-only formatMeasure
-FAIL cmdbar-surface (exit 1, 16.8s)
-FAIL ui-language-figures (exit 1, 2.3s)
+RED  FAIL cmdbar-surface (exit 1, 16.8s)
+RED  FAIL ui-language-figures (exit 1, 2.3s)
 PASS cmdbar-evidence (7.6s, 47 evidence-landing tests)   (the drawer shares the printer: bar = landing either way)
 failing tests (3): cmdbar-ui-language scandia (ro), agras (ro); printMeasure in the printer's language
 ### REVERT E — PASS cmdbar-surface (16.8s, 207) · PASS ui-language-figures (2.3s, 20) · PASS cmdbar-evidence (7.7s, 47)
@@ -16689,7 +16689,7 @@ bundle AND left in source while the spec ran, so G6's expected printer
 
 ```
 E2E_HERMETIC=1 E2E_BASE_URL=http://127.0.0.1:4418 npx playwright test e2e/design/cmdbar.spec.ts --project=chromium -g G6
-  ✓ scandia (ro) · ✘ scandia (en) · ✓ agras (ro) · ✘ agras (en)
+  RED on EN: ✓ scandia (ro) · ✘ scandia (en) · ✓ agras (ro) · ✘ agras (en)
   Error: scandia/en: resting figures in the other language's format
     + "-2.577.640,82 RON", "753.070,01 RON", …
   Error: agras/en: painted figures in the other language's format
@@ -16735,3 +16735,260 @@ problem), test-env-isolation (no dotenv file in a worktree). Full vitest:
 ui-language-figures, +6 cmdbar-ui-language). tsc: the 10 known errors, none
 new. Hermetic Playwright `e2e/design/cmdbar.spec.ts` (chromium, the
 production bundle built per the spec's header): 37 passed.
+
+### ui-language-figures — every WORD too; the tooltip rate; the Forecast cockpit on the one printer (owner rulings 2026-09-29)
+
+**The rulings.** (1) Currency codes after the figure, in both languages, are
+the product standard ("413.7M RON", "1.2B USD") — codes, never symbols.
+(3) Fix the open items in the same branch: English words left in the
+Romanian bar ("not reported", "years"); the Romanian tooltip's exchange rate
+(5.2489 → 5,2489); the Forecast cockpit on the same printer when it opens.
+
+**What changed.**
+- `cmdbarFigures.printMeasure` prints every finding unit AND word in the
+  reader's language: absent → "not reported" / "neraportat"; years →
+  "12.5 years" / "12,5 ani" (the ratio table's Romanian count forms, now
+  exported as `ratioTable.countFormOf`: "1 an", "20 de ani"); a count of
+  days → the days printer; a count of accounts → "3 accounts" / "3 conturi";
+  days without a served `value_q` → the days printer on the engine's own
+  one-decimal digits. English output is byte-identical to before.
+- `narrativeMoney.trimRate`: the rate in the reader's numbering (same four
+  decimals).
+- `components/forecast/cockpit/format.ts`: `compactMoney` / `fullMoney`
+  print through `lib/money formatMoneyFrom` (they printed en-GB "RON 54.4m"
+  with their own `Intl` call). The census now discovers them by behaviour;
+  `pages/cfo/Forecast.tsx` is registered LACKS_SILENT (2 sites, projections).
+- ENGINE (goes live with the next BACKEND deploy; Forecast is closed):
+  `packs/forecast/cockpit.yaml` and `packs/ratios/margin_meaning.yaml`
+  `money_display` → `{value}M RON` / `{value}K RON` and `{value} mil. RON` /
+  `{value} mii RON` (were "RON {value}M" / "{value} mil. lei"); the cockpit's
+  minimum-wage basis → "{from_amount} RON → {to_amount} RON" (was "RON …" /
+  "… lei"). Captures re-written by their writers
+  (`scripts/gen_cockpit_fixtures.py`, `capture_margin_meaning.py`,
+  `test_coverage_popover_corpus_fixture.py --write`): only money strings and
+  their pack/body hashes moved. The margin note is LIVE on the P&L today —
+  it prints "29,6 mil. lei" / "RON 29.6M" until that backend deploy.
+
+**Laws** (ui-language-figures 20 → 35; cmdbar-surface 207 → 209):
+| gate | law |
+|---|---|
+| ui-language-figures | a finding's measure: absent, years (two), days with and without `value_q`, a count of days / accounts (one, three, twenty — the Romanian "de") and a bare count, each the exact string in EN and RO, no word of the other language (`\b(not reported|years?|days?|accounts?)\b` on RO, the Romanian words on EN) |
+| ui-language-figures | every count noun the engine's detectors emit (`noun="…"` in `src/engine/insights/detectors.py`, read from the source — VACUITY ≥ 2) is worded in Romanian — a new noun reds until it is |
+| ui-language-figures | the tooltip: "1 EUR = 5.2489 RON" / "1 EUR = 5,2489 RON", the native figure in each language's numbering |
+| ui-language-figures | the cockpit's `compactMoney` / `fullMoney`: "54.4M RON" / "54,4 mil. RON", "100,000,000 RON" / "100.000.000 RON", cents under one unit — equal to `formatMoneyFrom` |
+| ui-language-figures | EVERY bilingual string the engine serves in the ten cockpit captures and the margin-note capture: no number in the other language's format, no ISO code BEFORE a figure, never "lei" (VACUITY ≥ 50 money strings per language). It found the minimum-wage basis on its first run. |
+| cmdbar-surface | the rendered bar: no English unit / refusal word anywhere in the Romanian bar at rest or typed, on the three corpus worlds; and a CONSTRUCTED Agras document (the asset_age detector's `remaining_life` in years; an unmeasured liquidity measure) prints "12,5 ani" / "neraportat" (RO) and "12.5 years" / "not reported" (EN) |
+| forecast-cockpit-page | the cockpit's served strings and browser-printed readouts in the product standard ("17.2M RON", "18,0 mil. RON"); the magnitude law parses the code AFTER the figure only — "RON 17.2M" reads as no figure |
+| margin-meaning-page / margin-meaning (engine) | the note's literals re-stated ("29.589,8 mii RON", "29,589.8K RON", "29,6 mil. RON", "29.6M RON") |
+
+**PLANT (through the battery, `run_battery.main` narrowed to ui-language-figures, cmdbar-surface, forecast-cockpit-page, margin-meaning-page, cmdbar-evidence; each alone on the staged tree, restored with `git checkout --` and asserted equal to the index, the battery re-run GREEN):**
+
+```
+### PLANT F — printMeasure: an absent measure back to formatMeasure's English "not reported"
+PASS forecast-cockpit-page (8.4s, 96 cockpit page tests (engine-served figures, latest-wins, F4, F6, no 100x, no-math scan, lever scale))
+PASS margin-meaning-page (2.2s, 18 page tests (every surface that prints a margin, RO and EN, the note, the acceptance rule))
+RED  FAIL cmdbar-surface (exit 1, 12.8s)
+RED  FAIL ui-language-figures (exit 1, 1.9s)
+PASS cmdbar-evidence (6.3s, 47 evidence-landing tests)
+BATTERY: FAIL — 3/5 gates green  
+failing tests (2):
+    FAIL  frontend/components/instrument/shell/__tests__/commandBar.test.tsx > cmdbar-ui-language — a finding measured in years, and one the engine could not measure, in the reader's words > ro: 12,5 ani and neraportat; no word of the other language in the bar
+    FAIL  frontend/pages/cfo/__tests__/figuresFollowUiLanguage.test.tsx > a finding's measure: every unit and the absent case in the reader's words > absent
+    AssertionError: ro: expected 'not reported' to be 'neraportat' // Object.is equality
+    AssertionError: expected 'not reported' to be 'neraportat' // Object.is equality
+### REVERT F (git checkout -- frontend/components/instrument/shell/cmdbar/cmdbarFigures.ts; == index)
+PASS forecast-cockpit-page (8.4s, 96 cockpit page tests (engine-served figures, latest-wins, F4, F6, no 100x, no-math scan, lever scale))
+PASS margin-meaning-page (2.2s, 18 page tests (every surface that prints a margin, RO and EN, the note, the acceptance rule))
+PASS cmdbar-surface (13.2s, 209 command-bar tests)
+PASS ui-language-figures (1.9s, 35 reader's-language figure tests)
+PASS cmdbar-evidence (6.3s, 47 evidence-landing tests)
+BATTERY: PASS — 5/5 gates green  
+### PLANT G — printMeasure: a years measure back to formatMeasure ("12,5 years" in Romanian)
+PASS forecast-cockpit-page (8.4s, 96 cockpit page tests (engine-served figures, latest-wins, F4, F6, no 100x, no-math scan, lever scale))
+PASS margin-meaning-page (2.2s, 18 page tests (every surface that prints a margin, RO and EN, the note, the acceptance rule))
+RED  FAIL cmdbar-surface (exit 1, 12.9s)
+RED  FAIL ui-language-figures (exit 1, 1.9s)
+PASS cmdbar-evidence (6.3s, 47 evidence-landing tests)
+BATTERY: FAIL — 3/5 gates green  
+failing tests (3):
+    FAIL  frontend/components/instrument/shell/__tests__/commandBar.test.tsx > cmdbar-ui-language — a finding measured in years, and one the engine could not measure, in the reader's words > ro: 12,5 ani and neraportat; no word of the other language in the bar
+    FAIL  frontend/pages/cfo/__tests__/figuresFollowUiLanguage.test.tsx > a finding's measure: every unit and the absent case in the reader's words > years
+    FAIL  frontend/pages/cfo/__tests__/figuresFollowUiLanguage.test.tsx > a finding's measure: every unit and the absent case in the reader's words > years (one decimal, the engine's)
+    AssertionError: ro: expected '12,5 years' to be '12,5 ani' // Object.is equality
+    AssertionError: ro: expected '1,0 years' to be '1,0 ani' // Object.is equality
+    AssertionError: expected '12,5 years' to be '12,5 ani' // Object.is equality
+### REVERT G (git checkout -- frontend/components/instrument/shell/cmdbar/cmdbarFigures.ts; == index)
+PASS forecast-cockpit-page (8.4s, 96 cockpit page tests (engine-served figures, latest-wins, F4, F6, no 100x, no-math scan, lever scale))
+PASS margin-meaning-page (2.2s, 18 page tests (every surface that prints a margin, RO and EN, the note, the acceptance rule))
+PASS cmdbar-surface (12.9s, 209 command-bar tests)
+PASS ui-language-figures (1.9s, 35 reader's-language figure tests)
+PASS cmdbar-evidence (6.4s, 47 evidence-landing tests)
+BATTERY: PASS — 5/5 gates green  
+### PLANT H — narrativeMoney trimRate: the rate back to String() ("5.2489" in the Romanian tooltip)
+PASS forecast-cockpit-page (8.4s, 96 cockpit page tests (engine-served figures, latest-wins, F4, F6, no 100x, no-math scan, lever scale))
+PASS margin-meaning-page (2.3s, 18 page tests (every surface that prints a margin, RO and EN, the note, the acceptance rule))
+PASS cmdbar-surface (12.9s, 209 command-bar tests)
+RED  FAIL ui-language-figures (exit 1, 1.9s)
+PASS cmdbar-evidence (6.4s, 47 evidence-landing tests)
+BATTERY: FAIL — 4/5 gates green  
+failing tests (1):
+    FAIL  frontend/pages/cfo/__tests__/figuresFollowUiLanguage.test.tsx > the money tooltip's exchange rate in the reader's numbering > 5.2489 in English, 5,2489 in Romanian — the same digits
+    AssertionError: ro: expected '7.692.202,74 RON · afișat la 1 EUR = …' to contain '1 EUR = 5,2489 RON'
+### REVERT H (git checkout -- frontend/lib/narrativeMoney.tsx; == index)
+PASS forecast-cockpit-page (8.5s, 96 cockpit page tests (engine-served figures, latest-wins, F4, F6, no 100x, no-math scan, lever scale))
+PASS margin-meaning-page (2.3s, 18 page tests (every surface that prints a margin, RO and EN, the note, the acceptance rule))
+PASS cmdbar-surface (13.0s, 209 command-bar tests)
+PASS ui-language-figures (1.9s, 35 reader's-language figure tests)
+PASS cmdbar-evidence (6.4s, 47 evidence-landing tests)
+BATTERY: PASS — 5/5 gates green  
+### PLANT I — cockpit compactMoney: its own Intl call again (en-GB "RON 54.4m")
+RED  FAIL forecast-cockpit-page (exit 1, 8.5s)
+PASS margin-meaning-page (2.3s, 18 page tests (every surface that prints a margin, RO and EN, the note, the acceptance rule))
+PASS cmdbar-surface (13.6s, 209 command-bar tests)
+RED  FAIL ui-language-figures (exit 1, 1.9s)
+PASS cmdbar-evidence (6.4s, 47 evidence-landing tests)
+BATTERY: FAIL — 3/5 gates green  
+failing tests (3):
+    FAIL  frontend/pages/cfo/__tests__/figuresFollowUiLanguage.test.tsx > the Forecast cockpit prints through the same printer > compact and full money are lib/money's, in the page's language, cents under one unit
+    FAIL  frontend/pages/cfo/__tests__/forecastCockpit.test.tsx > the chart > draws year 0 as the actual and five projected years, every readout served
+    FAIL  frontend/pages/cfo/__tests__/forecastMagnitude.test.tsx > FC1 — a painted figure equals its payload value > a chart readout and the statement cell of the same served EBITDA agree about its size
+    AssertionError: en: expected { compact: 'RON 54.4m', …(3) } to deeply equal { compact: '54.4M RON', …(3) }
+    AssertionError: expected 'RON 17.2m' to be '17.2M RON' // Object.is equality
+    AssertionError: FY2026: the chart paints no EBITDA: expected null not to be null
+### REVERT I (git checkout -- frontend/components/forecast/cockpit/format.ts; == index)
+PASS forecast-cockpit-page (8.5s, 96 cockpit page tests (engine-served figures, latest-wins, F4, F6, no 100x, no-math scan, lever scale))
+PASS margin-meaning-page (2.3s, 18 page tests (every surface that prints a margin, RO and EN, the note, the acceptance rule))
+PASS cmdbar-surface (13.5s, 209 command-bar tests)
+PASS ui-language-figures (1.9s, 35 reader's-language figure tests)
+PASS cmdbar-evidence (6.5s, 47 evidence-landing tests)
+BATTERY: PASS — 5/5 gates green
+### PLANT J — packs/forecast/cockpit.yaml money_display back to "mil. lei" / "RON {value}M", captures REGENERATED by their writer (the write path a developer takes)
+PASS forecast-cockpit-page (9.4s, 96 cockpit page tests (engine-served figures, latest-wins, F4, F6, no 100x, no-math scan, lever scale))
+PASS margin-meaning-page (3.0s, 18 page tests (every surface that prints a margin, RO and EN, the note, the acceptance rule))
+PASS cmdbar-surface (15.9s, 209 command-bar tests)
+RED  FAIL ui-language-figures (exit 1, 2.3s)
+PASS cmdbar-evidence (7.9s, 47 evidence-landing tests)
+BATTERY: FAIL — 4/5 gates green  
+failing tests (1):
+    FAIL  frontend/pages/cfo/__tests__/figuresFollowUiLanguage.test.tsx > the Forecast cockpit prints through the same printer > every bilingual string the engine serves the cockpit and the margin note: its own language's numbers, the ISO code after the figure, never 'lei'
+    AssertionError: en: a code BEFORE the figure: "raw materials and consumables (accounts 601, 602) RON 44.1M = 62.5% of the RON 70.6M cost of sales in 2025, so a move in their price moves cost of sales by 62.5% of it · INS
+### REVERT J (git checkout -- packs/forecast/cockpit.yaml tests/engine/fixtures/forecast; == index)
+PASS forecast-cockpit-page (9.2s, 96 cockpit page tests (engine-served figures, latest-wins, F4, F6, no 100x, no-math scan, lever scale))
+PASS margin-meaning-page (3.1s, 18 page tests (every surface that prints a margin, RO and EN, the note, the acceptance rule))
+PASS cmdbar-surface (16.5s, 209 command-bar tests)
+PASS ui-language-figures (2.4s, 35 reader's-language figure tests)
+PASS cmdbar-evidence (7.7s, 47 evidence-landing tests)
+BATTERY: PASS — 5/5 gates green
+```
+
+(Plant J is the engine's write path: the pack template reverted AND the captures regenerated by their own writer, so every engine capture law stays green — the frontend law over the served strings is what reds. forecast-cockpit-page stays green there because it renders the synthetic payload.)
+
+### vitest — a canary that named a retired file (owner ruling 2026-09-29)
+
+The gate's canary `frontend/pages/cfo/__tests__/forecastPage.test.tsx` was retired with its page in 131061f6 (laws re-asserted on the cockpit) and kept being "checked" — the gate was red on it for a week, and the battery's own canary for this gate was the bare file name, which also matched the gate's "NEVER RAN" line. Now: the canary is `forecastCockpit.test.tsx`; a canary naming a file not in the tree reds with its OWN message (the gate points at nothing — repoint it), apart from "never ran"; the battery's canaries are the gate's "<file>: ran" lines; floor 2,500 → 3,900 (measured 4,336 tests; 2,500 had fallen to 58% of the suite).
+
+**Reds on, after the repair:** any failing test; fewer than 3,900 tests; a canary file that did not run; a canary naming a file the tree does not hold.
+
+```
+### PLANT K — the vitest canary names the retired forecastPage.test.tsx again (the defect)
+GATE-WORK vitest units=4336 floor=3900 label=frontend-unit-tests canaries=12/13
+  canary frontend/pages/cfo/__tests__/forecastPage.test.tsx: NEVER RAN
+RED  FAIL — 1 problem(s):
+  · canary names a file that is not in the tree (the gate points at nothing — repoint it): frontend/pages/cfo/__tests__/forecastPage.test.tsx
+### REVERT K (git checkout -- scripts/check_vitest.mjs; == index)
+GATE-WORK vitest units=4336 floor=3900 label=frontend-unit-tests canaries=13/13
+  canary frontend/pages/cfo/__tests__/forecastCockpit.test.tsx: ran
+PASS — 4335 frontend unit test(s) green; every canary area ran.
+```
+
+### test-env-isolation — independent of a checkout's dotenv (owner ruling 2026-09-29)
+
+It read only the dotenv files, so a worktree or CI with none examined 0 variables and went red "for a machine it never looked at" — a red nobody could act on. The subject is now every env a test path reads: the vitest manifest (`frontend/test/hermeticEnv.json`, always present — and CHECKED, its Supabase and API hosts must be unreachable: before, the manifest WAS the sanctioned value, so a production URL pasted into it would have been sanctioned), the process environment the dev server and Playwright inherit (vite gives it priority over dotenv), and the dotenv files where a checkout has them, merged the way vite merges them. Battery floor 1 → 14 (the manifest's variables).
+
+**Reds on, after the repair:** a test-mode flag with a non-sanctioned Supabase URL in any source or across sources (merged); a reachable host in the manifest; zero variables examined.
+
+```
+(Recorded before the gate's own printed floor was aligned with the battery's: it printed floor=1 here and prints floor=14 now.)
+### (a) this worktree — no dotenv file, a clean shell (the case that was red for a machine it never looked at)
+GATE-WORK test-env-isolation units=14 floor=1 label=env-vars-examined
+  sources examined     : frontend/test/hermeticEnv.json (14) · dotenv: (none in this checkout) · process env (0 VITE_/SUPABASE/test-mode key(s))
+PASS — no test path resolves a non-sanctioned Supabase project.
+  GREEN
+### PLANT (b) — the shell exports test mode and the production project
+GATE-WORK test-env-isolation units=16 floor=1 label=env-vars-examined
+  sources examined     : frontend/test/hermeticEnv.json (14) · dotenv: (none in this checkout) · process env (2 VITE_/SUPABASE/test-mode key(s))
+FAIL — a TEST PATH CAN WRITE TO PRODUCTION:
+  process env  (MERGED — the flag and the URL come from different places)
+      supabase host    : cjclenykwlngqvapmisb.supabase.co
+  RED (exit 1)
+  REVERT: the exports unset → (a) GREEN
+### PLANT (c) — the production URL pasted into the vitest manifest (was 'sanctioned' by construction before)
+GATE-WORK test-env-isolation units=14 floor=1 label=env-vars-examined
+FAIL — a TEST PATH CAN WRITE TO PRODUCTION:
+  frontend/test/hermeticEnv.json → VITE_SUPABASE_URL
+      supabase host    : cjclenykwlngqvapmisb.supabase.co
+  RED (exit 1)
+  REVERT (git checkout -- frontend/test/hermeticEnv.json; == index)
+PASS — no test path resolves a non-sanctioned Supabase project.
+### PLANT (d) --probe-vacuity (no source read)
+GATE-WORK test-env-isolation units=0 floor=1 label=env-vars-examined
+DISCOVERY BROKEN — examined 0 environment variables. A clean
+  RED (exit 1)
+### (e) the main checkout — has .env and .env.local
+GATE-WORK test-env-isolation units=21 floor=1 label=env-vars-examined
+  sources examined     : frontend/test/hermeticEnv.json (14) · dotenv: .env, .env.local · process env (0 VITE_/SUPABASE/test-mode key(s))
+PASS — no test path resolves a non-sanctioned Supabase project.
+  GREEN
+```
+
+### provenance-census — the 11 findings on a burn-down with owners (owner ruling 2026-09-29)
+
+The gate had been red on the same 11 findings through two releases ("pre-existing, none new" — a red treated as a baseline). They are now `design_review/PROVENANCE_BURNDOWN.json`, each with an owner, the stream that introduced it, an opened date and the next action; the count prints every run (`GATE-WORK provenance-burndown open=11 owners=Alex:11`) and a `weekly` row records it each week. A finding is matched by its FIRST SENTENCE, counts included, so a listed file drifting further is a new finding. One finding this branch itself caused (`pages/cfo/Forecast.tsx`: the cockpit printers now call a registered formatter, 2 sites) was REGISTERED, not burned down: LACKS_SILENT, projections only.
+
+**Reds on, after the repair:** any finding not on the burn-down (new, or a listed file drifting further); a listed finding that no longer occurs (remove it — the list only shrinks); an entry without an owner, a stream or an opened date; everything the census red on before.
+
+```
+### PLANT C1 — a NEW figure without a verdict: the Forecast.tsx census entry removed
+GATE-WORK provenance-burndown open=11 owners=Alex:11 oldest=2026-09-29
+RED  FAIL — 1 finding(s) not on the burn-down:
+  · UNREGISTERED: frontend/pages/cfo/Forecast.tsx renders 2 figure site(s) (0 tags, 2 formatter calls) and carries no provenance verdict. Add it to design_review/PROVENANCE_CENSUS.json with one of HAS_SHOWS / HAS_MISSING / LACKS_
+### REVERT C1
+GATE-WORK provenance-burndown open=11 owners=Alex:11 oldest=2026-09-29
+PASS — 812 figure site(s) across 106 file(s), each with a recorded provenance verdict or an owned burn-down entry (11 open); no fabricated affordance.
+### PLANT C2 — a finding RESOLVED but left on the burn-down: the stale UploadDialog.tsx entry removed from the census
+GATE-WORK provenance-burndown open=10 owners=Alex:10 oldest=2026-09-29
+RED  FAIL — 1 finding(s) not on the burn-down:
+  · BURNDOWN RESOLVED: "STALE ENTRY: frontend/components/cfo/UploadDialog.tsx is registered but renders no figures" no longer occurs — remove it from design_review/PROVENANCE_BURNDOWN.json (the list only shrinks; a resolved ite
+### REVERT C2
+GATE-WORK provenance-burndown open=11 owners=Alex:11 oldest=2026-09-29
+PASS — 812 figure site(s) across 106 file(s), each with a recorded provenance verdict or an owned burn-down entry (11 open); no fabricated affordance.
+### PLANT C3 — a burn-down entry without an owner
+GATE-WORK provenance-burndown open=11 owners=:1,Alex:10 oldest=2026-09-29
+RED  FAIL — 1 finding(s) not on the burn-down:
+  · BURNDOWN ENTRY INCOMPLETE: "UNREGISTERED: frontend/components/cfo/ComparativesPanel.tsx renders 7 figure site(s) (0 tags, 7 formatter calls) and carries no provenance verdict" has no owner in design_review/PROVENANCE_BURNDOWN
+### REVERT C3
+GATE-WORK provenance-burndown open=11 owners=Alex:11 oldest=2026-09-29
+PASS — 812 figure site(s) across 106 file(s), each with a recorded provenance verdict or an owned burn-down entry (11 open); no fabricated affordance.
+```
+
+### Rulings 2026-09-29 — the measured green runs
+
+Narrowed battery through `run_battery.main` (39 gates): `PASS 39/39` —
+among them `vitest (4336)`, `provenance-census (812 sites, burn-down open=11)`
+and `test-env-isolation (14)`, the three that had been red "as a baseline";
+`ui-language-figures (35)`, `cmdbar-surface (209)`, `cmdbar-evidence (47)`,
+`cmdbar-fixtures (6)`, `forecast-cockpit (14982)`, `forecast-cockpit-page
+(96)`, `forecast-served-sentences (166)`, `forecast-serving-boundary (69)`,
+`margin-meaning (188)`, `margin-meaning-page (18)`, `one-metric-one-formula
+(121)`, `inventory-days-surfaces (191)`, `tsc (1016 files, the 10 known
+errors)`. Full engine suite (`tests/engine`, the owner's untracked `files/`
+fixtures linked into the worktree for the run): 9201 passed, 39 skipped, 2
+xfailed, 3 failed — the fp1.2 served fixture (stale after the cockpit pack
+change; regenerated with `scripts/gen_fp1_2_fixtures.py`: only `pack_hash`
+and `body_hash` moved), this section's own RED marker (fixed), and
+`test_public_egress::test_a_repeat_inside_the_window_costs_zero[…EIA_API_KEY]`
+— a timing flake (the quota ledger's heartbeat catch-up landed inside the
+repeat window; 809/809 on three re-runs of the file); the two fixed files
+re-run: 160 passed. Hermetic `e2e/design/cmdbar.spec.ts` (chromium, the
+production bundle built per its header): 37 passed, G6 333 / 325 figures per
+company per language.

@@ -12,42 +12,41 @@
 // A value under one unit keeps its cents (gate F5: a served 0.01 printed
 // "RON 0" is a zero painted where a real value exists).
 
+import { formatMoneyFrom, moneyLocaleFor } from "@/lib/money";
+import type { Currency, Rates } from "@/lib/rates";
+
 export type MoneyFormat = (value: number) => string;
+
+// THE SAME PRINTER AS EVERY OTHER MONEY FIGURE (owner ruling 2026-09-29:
+// "Forecast cockpit uses the same printer when it opens"): lib/money
+// formatMoneyFrom, source = display = the book's currency, the locale the
+// READER'S LANGUAGE's through the one mapping (moneyLocaleFor) — "54.4M
+// RON" / "54,4 mil. RON", the ISO code after the figure, never en-GB's
+// "RON 54.4m". `locale` is the UI locale the page already holds.
 
 /** Whole units (cents under one unit). For the collapsed statements, the
  *  present-mode assumptions and the bank export. */
 export function fullMoney(currency: string, locale: string): MoneyFormat {
-  const whole = new Intl.NumberFormat(locale, {
-    style: "currency",
-    currency: currency || "RON",
-    maximumFractionDigits: 0,
-  });
-  const cents = new Intl.NumberFormat(locale, {
-    style: "currency",
-    currency: currency || "RON",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-  return (value) => (Math.abs(value) >= 1 ? whole : cents).format(value);
+  const code = (currency || "RON") as Currency;
+  const loc = moneyLocaleFor(locale);
+  return (value) =>
+    formatMoneyFrom(value, code, code, NO_RATES, { fractionDigits: Math.abs(value) >= 1 ? 0 : 2, locale: loc });
 }
 
-/** Compact ("54,4 mil. RON" / "RON 54.4M") for the four numbers and the chart,
- *  where a reader takes in magnitudes. The full figure is the statements'. */
+/** Compact ("54.4M RON" / "54,4 mil. RON") for the four numbers and the
+ *  chart, where a reader takes in magnitudes. The full figure is the
+ *  statements'. */
 export function compactMoney(currency: string, locale: string): MoneyFormat {
-  const compact = new Intl.NumberFormat(locale, {
-    style: "currency",
-    currency: currency || "RON",
-    notation: "compact",
-    maximumFractionDigits: 1,
-  });
-  const cents = new Intl.NumberFormat(locale, {
-    style: "currency",
-    currency: currency || "RON",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-  return (value) => (Math.abs(value) >= 1 ? compact : cents).format(value);
+  const code = (currency || "RON") as Currency;
+  const loc = moneyLocaleFor(locale);
+  return (value) =>
+    Math.abs(value) >= 1
+      ? formatMoneyFrom(value, code, code, NO_RATES, { compact: true, locale: loc })
+      : formatMoneyFrom(value, code, code, NO_RATES, { fractionDigits: 2, locale: loc });
 }
+
+/** Source = display: no rate is ever read. */
+const NO_RATES = {} as Rates;
 
 /** A served plan-year label for a reader: "FY2030" reads "2030". */
 export function yearLabel(period: string): string {

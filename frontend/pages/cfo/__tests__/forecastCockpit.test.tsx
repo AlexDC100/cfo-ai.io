@@ -204,9 +204,9 @@ describe("the four numbers a bank asks for", () => {
     await screen.findByTestId("cockpit-numbers");
     expect(cockpitCall).toHaveBeenCalledTimes(1);
     expect(lastBody()).toEqual({ case_id: "base", levers: {} });
-    expect(painted("cockpit-ebitda-final")).toBe("RON 17.2M");
-    expect(painted("cockpit-cumulative-fcf")).toBe("RON 45.0M");
-    expect(painted("cockpit-min-cash")).toBe("RON 3.1M");
+    expect(painted("cockpit-ebitda-final")).toBe("17.2M RON");
+    expect(painted("cockpit-cumulative-fcf")).toBe("45.0M RON");
+    expect(painted("cockpit-min-cash")).toBe("3.1M RON");
     expect(screen.getByTestId("cockpit-min-cash").textContent).toContain("March 2026");
     for (const id of ["cockpit-ebitda-final", "cockpit-cumulative-fcf", "cockpit-min-cash", "cockpit-dscr"]) {
       const card = screen.getByTestId(id);
@@ -249,11 +249,11 @@ describe("the four numbers a bank asks for", () => {
     fireEvent.click(screen.getByTestId("cockpit-case-pesimist"));
     const card = await screen.findByTestId("cockpit-funding-need");
     expect(screen.queryByTestId("cockpit-min-cash")).toBeNull();
-    expect(painted("cockpit-funding-need")).toBe("RON 18.0M");
+    expect(painted("cockpit-funding-need")).toBe("18.0M RON");
     expect(screen.getByTestId("cockpit-funding-month").textContent).toBe("from October 2026");
     const interest = screen.getByTestId("cockpit-funding-interest");
     expect(interest.querySelector("[data-projected-mark]")).not.toBeNull();
-    expect(nb(interest.querySelector("[data-projected-value]")?.textContent)).toBe("RON 123.5k");
+    expect(nb(interest.querySelector("[data-projected-value]")?.textContent)).toBe("123.5K RON");
     expect(card.getAttribute("data-tone")).toBe("warn");
     // the chart shades exactly the periods the ENGINE flags
     expect(screen.getByTestId("cockpit-chart").getAttribute("data-funding-gap")).toBe("true");
@@ -322,11 +322,11 @@ describe("the chart", () => {
     expect(y0?.querySelector("[data-actual]"), "year 0 is an actual").not.toBeNull();
     expect(y0?.querySelector("[data-projected-mark]")).toBeNull();
     const y5 = readouts.querySelector('[data-period="FY2030"] [data-series="ebitda"]');
-    expect(nb(y5?.querySelector("[data-projected-value]")?.textContent)).toBe("RON 17.2m");
+    expect(nb(y5?.querySelector("[data-projected-value]")?.textContent)).toBe("17.2M RON");
     expect(y5?.querySelector("[data-projected-mark]")).not.toBeNull();
     // year one's close is the served close of its LAST month (a selection)
     const y1cash = readouts.querySelector('[data-period="FY2026"] [data-series="cash"] [data-projected-value]');
-    expect(nb(y1cash?.textContent)).toBe("RON 3.8m");
+    expect(nb(y1cash?.textContent)).toBe("3.8M RON");
     expect(screen.queryByTestId("cockpit-chart-gap-legend")).toBeNull();
   });
 });
@@ -335,7 +335,7 @@ describe("the engine's sentence under the numbers", () => {
   it("is the engine's own, in the page's language", async () => {
     const en = wrap();
     const p = await screen.findByTestId("cockpit-sentence");
-    expect(p.textContent).toMatch(/^In the base case, cash never goes below zero, with a low of RON 3\.1M in March 2026;/);
+    expect(p.textContent).toMatch(/^In the base case, cash never goes below zero, with a low of 3\.1M RON in March 2026;/);
     en.unmount();
     await i18n.changeLanguage("ro");
     wrap();
@@ -344,7 +344,7 @@ describe("the engine's sentence under the numbers", () => {
     fireEvent.click(screen.getByTestId("cockpit-case-pesimist"));
     await waitFor(() =>
       expect(screen.getByTestId("cockpit-sentence").textContent).toMatch(
-        /^În scenariul pesimist, ai nevoie de o linie de credit de până la 18,0 mil\. lei începând din octombrie 2026; DSCR scade sub pragul băncii/,
+        /^În scenariul pesimist, ai nevoie de o linie de credit de până la 18,0 mil\. RON începând din octombrie 2026; DSCR scade sub pragul băncii/,
       ),
     );
     expect(screen.getByTestId("cockpit-case-base").textContent).toBe("Bază");
@@ -352,7 +352,7 @@ describe("the engine's sentence under the numbers", () => {
     expect(screen.getByTestId("cockpit-export").textContent).toContain("Exportă pentru bancă");
     expect(screen.getByTestId("cockpit-funding-need").textContent).toContain("Necesar de finanțare");
     expect(screen.getByTestId("cockpit-funding-month").textContent).toBe("din octombrie 2026");
-    expect(painted("cockpit-funding-need")).toBe("18,0 mil. lei");
+    expect(painted("cockpit-funding-need")).toBe("18,0 mil. RON");
     expect(screen.getByTestId("cockpit-case-basis").textContent).toContain("traiectoria BNR");
   });
 });
@@ -658,7 +658,7 @@ describe("present mode and the bank export", () => {
     expect(html).toContain('id="assumptions"');
     expect(html).toContain("inflation on the BNR path (synthetic); raw materials +12.0%");
     expect(html).toContain("from the case");
-    expect(html).toContain("In the pessimist case, you need a credit line of up to RON 18.0M");
+    expect(html).toContain("In the pessimist case, you need a credit line of up to 18.0M RON");
     expect(html).toContain("@page");
     expect(html).toContain("headcount is not served");
     const marked = html.match(/data-projected="true"[^>]*>[^<]*<sup class="pm"/g) ?? [];
@@ -678,7 +678,7 @@ describe("the collapsed statements", () => {
     expect(y0?.querySelector("[data-actual]")).not.toBeNull();
     expect(nb(y0?.textContent)).toContain("97,000,000");
     const y1 = document.querySelector('td[data-line="pl.revenue"][data-period="FY2026"]');
-    expect(nb(y1?.querySelector("[data-projected-value]")?.textContent)).toBe("RON 100,000,000");
+    expect(nb(y1?.querySelector("[data-projected-value]")?.textContent)).toBe("100,000,000 RON");
     expect(y1?.querySelector("[data-projected-mark]")).not.toBeNull();
     // interest on debt is never zero while the book carries debt (F5)
     const interest = Array.from(document.querySelectorAll('td[data-line="pl.interest_expense_debt"]')).filter(

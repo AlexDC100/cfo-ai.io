@@ -104,6 +104,15 @@
       "vsSector": {
         "worse": "worse than the sector",
         "better": "better than the sector"
+      },
+      "measure": {
+        "notReported": "not reported",
+        "years": "{{v}} years",
+        "yearsOne": "{{v}} year",
+        "yearsMany": "{{v}} years",
+        "account": "{{v}} accounts",
+        "accountOne": "{{v}} account",
+        "accountMany": "{{v}} accounts"
       }
     }
   },
@@ -212,6 +221,15 @@
       "vsSector": {
         "worse": "mai slab decât sectorul",
         "better": "mai bun decât sectorul"
+      },
+      "measure": {
+        "notReported": "neraportat",
+        "years": "{{v}} ani",
+        "yearsOne": "{{v}} an",
+        "yearsMany": "{{v}} de ani",
+        "account": "{{v}} conturi",
+        "accountOne": "{{v}} cont",
+        "accountMany": "{{v}} de conturi"
       }
     }
   }

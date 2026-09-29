@@ -63,7 +63,7 @@ import { useTranslation } from "react-i18next";
 
 import i18n from "@/i18n";
 import "@/lib/narrativeMoneyI18n";
-import { formatMoneyFrom } from "@/lib/money";
+import { activeMoneyLocale, formatMoneyFrom } from "@/lib/money";
 import type { Currency, Rates } from "@/lib/rates";
 import { useCurrency } from "@/stores/currency";
 import { TraceableNumber } from "@/components/cfo/TraceableNumber";
@@ -219,8 +219,15 @@ function rateBetween(
   return src / dst;
 }
 
+/** The rate at four decimals, trailing zeros dropped, in the reader's
+ *  numbering ("5.2489" / "5,2489" — owner ruling 2026-09-29: the Romanian
+ *  tooltip printed the English decimal). The digits are the same in both
+ *  languages; only the separator follows the UI language. */
 function trimRate(n: number): string {
-  return String(Number(n.toFixed(4)));
+  return Number(n.toFixed(4)).toLocaleString(activeMoneyLocale(), {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 4,
+  });
 }
 
 /**

@@ -758,6 +758,13 @@ const HAS_COUNT_FORMS: ReadonlySet<string> = new Set(RATIO_UNITS_WITH_COUNT_FORM
  *  Many the same as the plural. */
 function countForm(unitKey: string, served: string): "" | "One" | "Many" {
   if (!HAS_COUNT_FORMS.has(unitKey)) return "";
+  return countFormOf(served);
+}
+
+/** The count form of a printed quantity, whatever its unit — the rule
+ *  above, exported so every noun that follows a number (the command bar's
+ *  finding measures: years, accounts) takes the same Romanian forms. */
+export function countFormOf(served: string): "" | "One" | "Many" {
   const magnitude = served.replace(/^[+-]/, "");
   if (magnitude === "1") return "One";
   if (/^\d+$/.test(magnitude) && magnitude.length >= 2) {

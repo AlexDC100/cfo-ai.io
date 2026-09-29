@@ -1131,6 +1131,9 @@ describe("cmdbar-figures — every Răspuns in Romanian too", () => {
 // language, and no figure at rest or typed — answers, Δ chips, ratios,
 // accounts, notes — is a number in the other language's format
 // (frontend/test/numberLanguage.ts).
+/** English unit and refusal words the Romanian bar must never print. */
+const ENGLISH_UNIT_WORDS = /\b(?:not reported|years?|days?|accounts?|loading)\b/i;
+
 describe("cmdbar-ui-language — every figure the bar paints is in the reader's language", () => {
   const books: [string, () => World, Record<Lang, string>][] = [
     ["scandia", () => scandiaWorld(), { en: "48.3M RON", ro: "48,3 mil. RON" }],
@@ -1144,11 +1147,17 @@ describe("cmdbar-ui-language — every figure the bar paints is in the reader's 
         const w = world();
         mount(w);
         const seen: string[] = [];
+        const words: string[] = [];
         const collect = (where: string) => {
           for (const el of Array.from(document.querySelectorAll('[data-testid="cmdbar"] [data-figure], [data-testid="cmdbar"] [data-chip-state]'))) {
             const text = el.textContent ?? "";
             if (/\d/.test(text)) seen.push(`${where}: ${text}`);
           }
+          // Every WORD too (owner ruling 2026-09-29: the Romanian bar printed
+          // "not reported", "years"): the whole bar, every row it paints.
+          const bar = document.querySelector('[data-testid="cmdbar-rows"]')?.textContent ?? "";
+          const english = lang === "ro" ? ENGLISH_UNIT_WORDS.exec(bar) : null;
+          if (english) words.push(`${where}: "${english[0]}"`);
         };
         collect("rest");
         for (const q of [...Object.values(QUERIES), "profit", "4111", "401", "711", "stoc", "dso", "marja neta"]) {
@@ -1157,6 +1166,7 @@ describe("cmdbar-ui-language — every figure the bar paints is in the reader's 
         }
         const foreign = seen.filter((f) => foreignNumber(f.slice(f.indexOf(": ") + 2), lang) !== null);
         expect(foreign, `${name}/${lang}: figures in the other language's format`).toEqual([]);
+        expect(words, `${name}/${lang}: English words in the Romanian bar`).toEqual([]);
         const moneyFigures = seen.filter((f) => /RON/.test(f));
         expect(moneyFigures.length, "VACUITY: money figures painted").toBeGreaterThanOrEqual(10);
         if (turnover[lang]) {
@@ -1167,6 +1177,38 @@ describe("cmdbar-ui-language — every figure the bar paints is in the reader's 
         console.log(`GATE-WORK cmdbar-ui-language ${name}/${lang} figures=${seen.length} money=${moneyFigures.length}`);
       }, HEAVY);
     }
+  }
+});
+
+describe("cmdbar-ui-language — a finding measured in years, and one the engine could not measure, in the reader's words", () => {
+  // CONSTRUCTED from Agras's engine-composed document: its asset_age item
+  // carries the measure the engine's asset_age detector also emits
+  // (src/engine/insights/detectors.py: remaining_life, unit "years"), and its
+  // liquidity_quality item a measure the engine could not compute (value
+  // null). Neither shape occurs in the committed corpus documents, so the
+  // rendered law needs them built — the pure printer's law is in
+  // ui-language-figures.
+  const constructed = () => {
+    const doc = structuredClone(ATT.agras);
+    const age = doc.items.find((i: { key: string }) => i.key === "asset_age");
+    age.figure.measure = { key: "remaining_life", label: "Remaining useful life", unit: "years", value: 12.5 };
+    const liq = doc.items.find((i: { key: string }) => i.key === "liquidity_quality");
+    liq.figure.measure = { ...liq.figure.measure, value: null };
+    return doc;
+  };
+  const want = { en: { age: "12.5 years", liq: "not reported" }, ro: { age: "12,5 ani", liq: "neraportat" } } as const;
+  for (const lang of LANGS) {
+    it(`${lang}: ${want[lang].age} and ${want[lang].liq}; no word of the other language in the bar`, async () => {
+      await useLang(lang);
+      mount(agrasWorld({ attention: constructed() }));
+      const fig = (key: string) => plainSpaces(
+        rowsOf("now").find((el) => el.getAttribute("data-row-id") === `now:${key}`)?.querySelector('[data-figure="now"]')?.textContent);
+      expect(fig("asset_age")).toBe(want[lang].age);
+      expect(fig("liquidity_quality")).toBe(want[lang].liq);
+      const bar = screen.getByTestId("cmdbar-rows").textContent ?? "";
+      if (lang === "ro") expect(ENGLISH_UNIT_WORDS.exec(bar), "English words in the Romanian bar").toBeNull();
+      else expect(/\b(?:neraportat|ani)\b/.exec(bar), "Romanian words in the English bar").toBeNull();
+    });
   }
 });
 

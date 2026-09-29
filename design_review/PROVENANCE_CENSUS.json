@@ -586,6 +586,12 @@
       "affordances": 1,
       "why": "Builds HeadlineProvenance once (verified to the cent inside lib/headlineProvenance) and hands the SAME object to KeyMetricsRow, StoryOverview, FirstUploadJourney and, by context, the configurable tiles. Its own figure — the hero score — names assembled_metrics.credit.composite_score when the score IS that field, else the client derivation."
     },
+    "frontend/pages/cfo/Forecast.tsx": {
+      "bucket": "LACKS_SILENT",
+      "sites": 2,
+      "affordances": 0,
+      "why": "OPENED 2026-09-29 (owner ruling: the Forecast cockpit uses the same printer as every other money figure). The two sites bind the cockpit's printers — compactMoney() for the chart and the four readouts, fullMoney() for the collapsed statements and present mode — which since this date print through lib/money formatMoneyFrom in the reader's language (\"54.4M RON\" / \"54,4 mil. RON\"); the census discovers them by behaviour now that they call a registered formatter. Every figure they print is a PROJECTION (see PresentMode.tsx): it resolves to the assumptions the engine served, never to a cell in an uploaded book, so there is no source cell to name; the ◇ mark each projected figure carries (ProjectedAmount / ProjectedText) is the cockpit's own affordance, not a provenance jump."
+    },
     "frontend/pages/cfo/Landing.tsx": {
       "bucket": "LACKS_SILENT",
       "sites": 6,

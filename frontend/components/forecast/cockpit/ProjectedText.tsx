@@ -1,5 +1,5 @@
 // A PROJECTED FIGURE THE ENGINE SERVED ALREADY FORMATTED — the four numbers
-// ("54,4 mil. lei"), the final-year margin, the DSCR ("2,10×") — painted with
+// ("54,4 mil. RON"), the final-year margin, the DSCR ("2,10×") — painted with
 // the same ◇ mark <CockpitAmountView> and <ProjectedAmount> put on a projected
 // amount, and the same DOM attributes a gate reads (`data-projected="true"`,
 // `data-projected-value`, `data-projected-mark`).

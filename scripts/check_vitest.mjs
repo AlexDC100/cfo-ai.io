@@ -39,13 +39,15 @@
  * Run:  node scripts/check_vitest.mjs
  */
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-// MEASURED 2026-09-08: 2,784 tests across 751 suites. The floor is
-// ~10% below, so a genuine addition never trips it and a collapse does.
-const FLOOR = 2500;
+// MEASURED 2026-09-08: 2,784 tests across 751 suites; re-measured
+// 2026-09-29: 4,336 across 1,162 suites (the 2,500 floor had fallen to 58%
+// of the suite — a collapse of 1,800 tests would have passed). The floor
+// is ~10% below, so a genuine addition never trips it and a collapse does.
+const FLOOR = 3900;
 
 // One file per area the suite covers, so a per-area collapse is visible
 // rather than hidden inside a total that still clears the floor. Each is
@@ -53,7 +55,11 @@ const FLOOR = 2500;
 const CANARIES = [
   "frontend/lib/__tests__/capsuleFactIndex.test.ts",   // engine mirrors
   "frontend/lib/__tests__/forecastFactsBoundary.test.ts", // the projected boundary
-  "frontend/pages/cfo/__tests__/forecastPage.test.tsx",  // a page surface
+  // a page surface: the Forecast cockpit page. forecastPage.test.tsx was
+  // retired with the page it tested (131061f6, its laws re-asserted on the
+  // cockpit) and this canary kept naming it for a week — a canary that
+  // names nothing (owner ruling 2026-09-29: a vacuous gate).
+  "frontend/pages/cfo/__tests__/forecastCockpit.test.tsx",
   "frontend/lib/__tests__/exportRatioFormulas.test.ts", // the export renderers
   "frontend/lib/__tests__/socialLinksFromConfig.test.ts", // the config gates
   // plan/2 B1 (plan_contract_v2 S7): one sign-flip classifier, rendered as words
@@ -113,6 +119,10 @@ const ranFiles = (report.testResults ?? []).map((r) => String(r.name || ""));
 const missing = CANARIES.filter(
   (c) => !ranFiles.some((f) => f.replace(/\\/g, "/").includes(c)),
 );
+// A canary that names a file the tree does not hold is not a test that
+// failed to run — it is the GATE pointing at nothing. Said separately, so
+// the fix (repoint the canary) is not mistaken for a missing test.
+const absent = CANARIES.filter((c) => !existsSync(join(process.cwd(), c)));
 
 console.log("VITEST GATE");
 console.log("=".repeat(62));
@@ -158,8 +168,15 @@ if (total < FLOOR) {
       `has stopped matching files, which exits zero and proves nothing`,
   );
 }
-if (missing.length) {
-  problems.push(`canary file(s) never ran: ${missing.join(", ")}`);
+if (absent.length) {
+  problems.push(
+    `canary names a file that is not in the tree (the gate points at ` +
+      `nothing — repoint it): ${absent.join(", ")}`,
+  );
+}
+const unrun = missing.filter((c) => !absent.includes(c));
+if (unrun.length) {
+  problems.push(`canary file(s) never ran: ${unrun.join(", ")}`);
 }
 if (!problems.length && exitCode !== 0) {
   problems.push(

@@ -57,9 +57,9 @@ function money(minor: number): Json {
     return `${v < 0 ? "−" : ""}${g}${lang === "ro" ? "," : "."}${f}`;
   };
   if (Math.abs(units) >= 1_000_000) {
-    return { ro: `${one(units / 1_000_000, "ro")} mil. lei`, en: `RON ${one(units / 1_000_000, "en")}M` };
+    return { ro: `${one(units / 1_000_000, "ro")} mil. RON`, en: `${one(units / 1_000_000, "en")}M RON` };
   }
-  return { ro: `${one(units / 1000, "ro")} mii lei`, en: `RON ${one(units / 1000, "en")}k` };
+  return { ro: `${one(units / 1000, "ro")} mii RON`, en: `${one(units / 1000, "en")}K RON` };
 }
 const pct = (d: string): Json => {
   const v = (Number(d) * 100).toFixed(1);
@@ -106,7 +106,7 @@ const LEVERS: LeverDef[] = [
     basis: ["urmează inflația până la setare (salariul minim, sintetic)", "follows inflation until set (minimum wage, synthetic)"] },
   { id: "energy_price", group: "more", unit: "pct", shape: "scalar", range: ["-0.50", "1.00", "0.01"], decimals: 2, value: "0",
     label: ["Preț energie (față de 2025)", "Energy price (vs 2025)"],
-    basis: ["energia 605: 2,0 mil. lei în 2025 (sintetic)", "energy 605: RON 2.0M in 2025 (synthetic)"] },
+    basis: ["energia 605: 2,0 mil. RON în 2025 (sintetic)", "energy 605: 2.0M RON in 2025 (synthetic)"] },
   { id: "eur_ron", group: "more", unit: "pct", shape: "scalar", range: ["-0.20", "0.30", "0.005"], decimals: 3, value: null, measured: false,
     label: ["Curs EUR/RON pe inputuri importate (față de 2025)", "EUR/RON on imported inputs (vs 2025)"],
     basis: ["balanța nu separă achizițiile pe monede: nu se poate măsura", "the trial balance does not split purchases by currency: not measurable"],
@@ -282,13 +282,13 @@ export function syntheticCockpit(opts: SynthOptions = {}): Json {
   const inSentenceEn = saved ? `“${opts.savedName}”` : caseId === "pesimist" ? "pessimist" : caseId === "optimist" ? "optimist" : "base";
   const cashRo = funding
     ? annualFirst
-      ? `ai nevoie de o linie de credit de până la 18,0 mil. lei în cursul anului 2027`
-      : `ai nevoie de o linie de credit de până la 18,0 mil. lei începând din octombrie 2026`
+      ? `ai nevoie de o linie de credit de până la 18,0 mil. RON în cursul anului 2027`
+      : `ai nevoie de o linie de credit de până la 18,0 mil. RON începând din octombrie 2026`
     : `numerarul nu scade sub zero, cu un minim de ${(money(310_000_000 + shift) as { ro: string }).ro} în martie 2026`;
   const cashEn = funding
     ? annualFirst
-      ? `you need a credit line of up to RON 18.0M during 2027`
-      : `you need a credit line of up to RON 18.0M starting in October 2026`
+      ? `you need a credit line of up to 18.0M RON during 2027`
+      : `you need a credit line of up to 18.0M RON starting in October 2026`
     : `cash never goes below zero, with a low of ${(money(310_000_000 + shift) as { en: string }).en} in March 2026`;
   const dscrRo = opts.dscrBelow ? "DSCR scade sub pragul băncii: 0,98× în 2026 față de 1,25×" : "DSCR rămâne peste pragul băncii: 2,10× în 2026 față de 1,25×";
   const dscrEn = opts.dscrBelow ? "DSCR falls below the bank's threshold: 0.98× in 2026 against 1.25×" : "DSCR stays above the bank's threshold: 2.10× in 2026 against 1.25×";

@@ -80,10 +80,10 @@ const REFUSAL = {
 const NOTE = {
   ro:
     "Pentru un dezvoltator imobiliar, costurile de construcție capitalizate în stocuri trec prin contul 711 " +
-    "(Variația stocurilor de produse): EBITDA de mai sus le include — 29.589,8 mii lei.",
+    "(Variația stocurilor de produse): EBITDA de mai sus le include — 29.589,8 mii RON.",
   en:
     "For a property developer, construction costs capitalised into inventory run through account 711 " +
-    "(Variația stocurilor de produse): the EBITDA above includes them — RON 29,589.8k.",
+    "(Variația stocurilor de produse): the EBITDA above includes them — 29,589.8K RON.",
 };
 
 /** A percent of a thousand or more, in either direction, as a document prints it. */
@@ -343,11 +343,11 @@ describe("the forecast cockpit and the bank export (the developer's real engine 
     const COCKPIT_NOTE = {
       ro:
         "Pentru un dezvoltator imobiliar, costurile de construcție capitalizate în stocuri trec prin contul 711 " +
-        "(Variația stocurilor de produse): EBITDA din 2025 le-a inclus — 29,6 mil. lei; anii de plan proiectează " +
+        "(Variația stocurilor de produse): EBITDA din 2025 le-a inclus — 29,6 mil. RON; anii de plan proiectează " +
         "variația stocurilor la 0, deci EBITDA de mai sus nu le include.",
       en:
         "For a property developer, construction costs capitalised into inventory run through account 711 " +
-        "(Variația stocurilor de produse): the 2025 EBITDA included them — RON 29.6M; the plan years project " +
+        "(Variația stocurilor de produse): the 2025 EBITDA included them — 29.6M RON; the plan years project " +
         "the stock variation at 0, so the EBITDA above does not include them.",
     };
     for (const lang of ["ro", "en"] as const) {

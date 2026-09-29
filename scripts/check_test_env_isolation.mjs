@@ -43,6 +43,23 @@ const TEST_MODE_FLAGS = ['VITE_PUBLIC_TEST_MODE', 'PUBLIC_TEST_MODE', 'VITE_TEST
 
 const PROBE = process.argv.includes('--probe-vacuity')
 
+// THE SUBJECT IS EVERY ENV A TEST PATH READS — not only dotenv files
+// (owner ruling 2026-09-29: the gate must not depend on a checkout's
+// dotenv). Until then it read the dotenv files alone, so in a worktree or
+// on CI — where there are none — it examined nothing and went red for a
+// machine it never looked at. Three sources, each counted:
+//   1. the vitest manifest (always present): what `npx vitest run` resolves.
+//      It is CHECKED too, not trusted: its Supabase and API hosts must be
+//      unreachable. Before, the manifest WAS the sanctioned value, so a
+//      production URL pasted into it would have been "sanctioned".
+//   2. the process environment this runs in — the dev server and Playwright
+//      inherit it, and vite gives it priority over every dotenv file;
+//   3. the dotenv files a dev server reads, when a checkout has them.
+const UNREACHABLE_HOST = /(^|\.)test\.supabase\.co$|\.invalid$/
+const hostOf = (url) => (String(url).match(/^https?:\/\/([^/:]+)/) || [, ''])[1]
+const RELEVANT = /^(VITE_|SUPABASE_URL$|PUBLIC_TEST_MODE$)/
+const isOn = (v) => v !== undefined && v !== null && v !== '' && v !== '0' && v !== 'false'
+
 function parseEnv(rel) {
   const p = join(ROOT, rel)
   if (!existsSync(p)) return null
@@ -64,53 +81,72 @@ if (!SANCTIONED_SUPABASE) {
   process.exit(1)
 }
 
-const files = PROBE ? [] : ENV_FILES
 let examined = 0
-const present = []
+const sources = []
 const violations = []
 
+// ── 1. the vitest manifest ───────────────────────────────────────────────
+if (!PROBE) {
+  const entries = Object.entries(manifest)
+  examined += entries.length
+  sources.push(`${MANIFEST} (${entries.length})`)
+  for (const key of ['VITE_SUPABASE_URL', 'VITE_API_URL']) {
+    const v = manifest[key]
+    if (typeof v === 'string' && v && !UNREACHABLE_HOST.test(hostOf(v))) {
+      violations.push({ rel: `${MANIFEST} → ${key}`, flags: ['(the vitest run itself)'], host: hostOf(v) || v })
+    }
+  }
+  const manifestFlags = TEST_MODE_FLAGS.filter((f) => isOn(manifest[f]))
+  if (manifestFlags.length && !UNREACHABLE_HOST.test(hostOf(SANCTIONED_SUPABASE))) {
+    violations.push({ rel: MANIFEST, flags: manifestFlags, host: hostOf(SANCTIONED_SUPABASE) })
+  }
+}
+
+// ── 3. the dotenv files (read first: the process env overrides them) ────
+const files = PROBE ? [] : ENV_FILES
+const present = []
+const merged = new Map()
 for (const rel of files) {
   const env = parseEnv(rel)
   if (!env) continue
   present.push(rel)
   examined += env.size
+  for (const [k, v] of env) merged.set(k, v)
 
-  const flags = TEST_MODE_FLAGS.filter((f) => {
-    const v = env.get(f)
-    return v !== undefined && v !== '' && v !== '0' && v !== 'false'
-  })
+  const flags = TEST_MODE_FLAGS.filter((f) => isOn(env.get(f)))
   const supabase = env.get('VITE_SUPABASE_URL') || env.get('SUPABASE_URL')
   if (flags.length && supabase && supabase !== SANCTIONED_SUPABASE) {
-    violations.push({ rel, flags, host: (supabase.match(/https?:\/\/([^/]+)/) || [, supabase])[1] })
+    violations.push({ rel, flags, host: hostOf(supabase) || supabase })
   }
 }
+sources.push(`dotenv: ${present.join(', ') || '(none in this checkout)'}`)
+
+// ── 2. the process environment — vite gives it priority ─────────────────
+const procKeys = PROBE ? [] : Object.keys(process.env).filter((k) => RELEVANT.test(k))
+examined += procKeys.length
+for (const k of procKeys) merged.set(k, process.env[k])
+sources.push(`process env (${procKeys.length} VITE_/SUPABASE/test-mode key(s))`)
 
 // A production URL is dangerous only WITH a test flag — but the flag and
-// the URL routinely live in DIFFERENT dotenv files, which is exactly how
-// this shipped. So also check the MERGED view, the way vite does.
-const merged = new Map()
-for (const rel of files) {
-  const env = parseEnv(rel)
-  if (env) for (const [k, v] of env) merged.set(k, v)
-}
-const mergedFlags = TEST_MODE_FLAGS.filter((f) => {
-  const v = merged.get(f)
-  return v !== undefined && v !== '' && v !== '0' && v !== 'false'
-})
+// the URL routinely live in DIFFERENT places (two dotenv files, or a shell
+// export over a dotenv file), which is exactly how this shipped. So also
+// check the MERGED view, the way vite resolves it.
+const mergedFlags = TEST_MODE_FLAGS.filter((f) => isOn(merged.get(f)))
 const mergedSupabase = merged.get('VITE_SUPABASE_URL') || merged.get('SUPABASE_URL')
 if (mergedFlags.length && mergedSupabase && mergedSupabase !== SANCTIONED_SUPABASE
-    && !violations.length) {
+    && !violations.some((v) => present.includes(v.rel))) {
   violations.push({
-    rel: present.join(' + ') + '  (MERGED — the flag and the URL are in different files)',
+    rel: [...present, procKeys.length ? 'process env' : null].filter(Boolean).join(' + ') +
+      '  (MERGED — the flag and the URL come from different places)',
     flags: mergedFlags,
-    host: (mergedSupabase.match(/https?:\/\/([^/]+)/) || [, mergedSupabase])[1],
+    host: hostOf(mergedSupabase) || mergedSupabase,
   })
 }
 
 console.log('TEST-ENV ISOLATION')
 console.log('='.repeat(62))
-console.log(`GATE-WORK test-env-isolation units=${examined} floor=1 label=env-vars-examined`)
-console.log(`  dotenv files present : ${present.join(', ') || '(none)'}`)
+console.log(`GATE-WORK test-env-isolation units=${examined} floor=14 label=env-vars-examined`)
+console.log(`  sources examined     : ${sources.join(' · ')}`)
 console.log(`  sanctioned supabase  : ${SANCTIONED_SUPABASE}  (from ${MANIFEST})`)
 
 // TC-3/TC-9: a census over nothing must FAIL, not report clean.

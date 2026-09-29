@@ -38,8 +38,12 @@ import { activeMoneyLocale, formatAmountFrom, formatMoneyFrom, moneyLocaleFor } 
 import { formatRatio, type Ratio } from "@/lib/financialReport";
 import { Money } from "@/components/ui/Money";
 import { useAmountFormatter } from "@/stores/currency";
-import { printMeasure, servedMoney } from "@/components/instrument/shell/cmdbar/cmdbarFigures";
+import { MEASURE_NOUNS, printMeasure, servedMoney } from "@/components/instrument/shell/cmdbar/cmdbarFigures";
 import { formatMeasure } from "@/lib/insights";
+import { resolveMoneyDisplay } from "@/lib/narrativeMoney";
+import { compactMoney, fullMoney } from "@/components/forecast/cockpit/format";
+import { readFileSync, readdirSync } from "node:fs";
+import { resolve } from "node:path";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 (window as any).ResizeObserver ??= class {
@@ -109,6 +113,7 @@ import WorkspaceHomeV2 from "@/pages/cfo/WorkspaceHomeV2";
 import CompanyPage from "@/pages/cfo/CompanyPage";
 
 type Lang = "en" | "ro";
+const REPO = resolve(__dirname, "../../../..");
 const LANGS: readonly Lang[] = ["en", "ro"];
 const RATES = { RON: 1, EUR: 5, USD: 4.6 } as never;
 
@@ -328,6 +333,122 @@ describe("the command bar's servedMoney prints in the printer's language", () =>
 });
 
 // ── the report ──────────────────────────────────────────────────────────
+
+// ── every WORD too (owner ruling 2026-09-29) ─────────────────────────────
+
+/** English unit and refusal words a Romanian surface must never print. */
+const ENGLISH_WORDS = /\b(?:not reported|years?|days?|accounts?)\b/;
+/** Their Romanian counterparts, which an English surface must never print. */
+const ROMANIAN_WORDS = /\b(?:neraportat|ani|zile|zi|conturi|cont)\b/;
+
+describe("a finding's measure: every unit and the absent case in the reader's words", () => {
+  const m = (unit: string, value: number | null, extra: Record<string, unknown> = {}) =>
+    ({ key: "k", label: "k", unit, value, ...extra }) as never;
+  const cases: [string, unknown, { en: string; ro: string }][] = [
+    ["absent", m("money", null), { en: "not reported", ro: "neraportat" }],
+    ["years", m("years", 12.5), { en: "12.5 years", ro: "12,5 ani" }],
+    ["years (one decimal, the engine's)", m("years", 1), { en: "1.0 years", ro: "1,0 ani" }],
+    ["days, served value_q", m("days", 37.3, { value_q: "37.3" }), { en: "37.3 days", ro: "37,3 zile" }],
+    ["days, no value_q", m("days", 37.34), { en: "37.3 days", ro: "37,3 zile" }],
+    ["a count of days", m("count", 12, { noun: "day" }), { en: "12 days", ro: "12 zile" }],
+    ["a count of one day", m("count", 1, { noun: "day" }), { en: "1 day", ro: "1 zi" }],
+    ["a count of accounts", m("count", 3, { noun: "account" }), { en: "3 accounts", ro: "3 conturi" }],
+    ["a count of one account", m("count", 1, { noun: "account" }), { en: "1 account", ro: "1 cont" }],
+    ["twenty accounts (the Romanian 'de')", m("count", 20, { noun: "account" }), { en: "20 accounts", ro: "20 de conturi" }],
+    ["a count with no noun", m("count", 1234), { en: "1,234", ro: "1.234" }],
+  ];
+  it.each(cases)("%s", (_name, measure, want) => {
+    for (const lang of LANGS) {
+      const printed = plainSpaces(printMeasure({ lang, money: (v) => String(v) }, measure as never, "RON"));
+      expect(printed, lang).toBe(want[lang]);
+      if (lang === "ro") expect(ENGLISH_WORDS.exec(printed), `ro: "${printed}"`).toBeNull();
+      else expect(ROMANIAN_WORDS.exec(printed), `en: "${printed}"`).toBeNull();
+      expectNoForeignNumber(lang, printed, "finding measure");
+      figuresChecked++;
+    }
+  });
+
+  it("every count noun the engine's detectors emit is worded in both languages", () => {
+    const src = readFileSync(resolve(REPO, "src/engine/insights/detectors.py"), "utf-8");
+    const nouns = [...src.matchAll(/noun="(\w+)"/g)].map((x) => x[1]);
+    expect(nouns.length, "VACUITY: the detectors' nouns").toBeGreaterThanOrEqual(2);
+    for (const noun of nouns) {
+      expect(noun === "day" || MEASURE_NOUNS.has(noun), `the engine's noun "${noun}" has no Romanian words in the bar`).toBe(true);
+      for (const n of [1, 3, 20]) {
+        const ro = printMeasure({ lang: "ro", money: (v) => String(v) }, m("count", n, { noun }) as never, "RON");
+        expect(ENGLISH_WORDS.exec(ro), `ro, ${n} ${noun}: "${ro}"`).toBeNull();
+      }
+    }
+  });
+});
+
+describe("the money tooltip's exchange rate in the reader's numbering", () => {
+  it("5.2489 in English, 5,2489 in Romanian — the same digits", async () => {
+    const rates = { EUR: 1, RON: 5.2489, USD: 1.16 } as never;
+    for (const lang of LANGS) {
+      await useLang(lang);
+      const d = resolveMoneyDisplay(7_692_202.74, "RON", "EUR", rates, "2026-05-22");
+      const prov = plainSpaces(d.provenance);
+      expect(prov, lang).toContain(lang === "en" ? "1 EUR = 5.2489 RON" : "1 EUR = 5,2489 RON");
+      expect(prov, lang).toContain(lang === "en" ? "7,692,202.74 RON" : "7.692.202,74 RON");
+      expectNoForeignNumber(lang, prov.replace(/\(\d{4}-\d{2}-\d{2}\)/, ""), "tooltip");
+      figuresChecked += 2;
+    }
+  });
+});
+
+describe("the Forecast cockpit prints through the same printer", () => {
+  it("compact and full money are lib/money's, in the page's language, cents under one unit", () => {
+    const want = {
+      en: { compact: "54.4M RON", compactK: "123.5K RON", full: "100,000,000 RON", cents: "0.01 RON" },
+      ro: { compact: "54,4 mil. RON", compactK: "123,5 K RON", full: "100.000.000 RON", cents: "0,01 RON" },
+    } as const;
+    for (const [lang, uiLocale] of [["en", "en-GB"], ["ro", "ro-RO"]] as const) {
+      const compact = compactMoney("RON", uiLocale);
+      const full = fullMoney("RON", uiLocale);
+      const printed = {
+        compact: plainSpaces(compact(54_400_000)),
+        compactK: plainSpaces(compact(123_456)),
+        full: plainSpaces(full(100_000_000)),
+        cents: plainSpaces(full(0.01)),
+      };
+      expect(printed, lang).toEqual(want[lang]);
+      expect(plainSpaces(compact(54_400_000))).toBe(plainSpaces(formatMoneyFrom(54_400_000, "RON", "RON", RATES, { compact: true, locale: moneyLocaleFor(lang) })));
+      for (const v of Object.values(printed)) expectNoForeignNumber(lang, v, "cockpit");
+      figuresChecked += 4;
+    }
+  });
+
+  it("every bilingual string the engine serves the cockpit and the margin note: its own language's numbers, the ISO code after the figure, never 'lei'", () => {
+    const docs = [
+      ...readdirSync(resolve(REPO, "tests/engine/fixtures/forecast"))
+        .filter((f) => /^cockpit_.*\.json$/.test(f))
+        .map((f) => `tests/engine/fixtures/forecast/${f}`),
+      "tests/engine/fixtures/firm/margin_meaning.json",
+    ];
+    const byLang: Record<Lang, string[]> = { en: [], ro: [] };
+    const collect = (node: unknown, lang: Lang | null): void => {
+      if (typeof node === "string") { if (lang) byLang[lang].push(node); return; }
+      if (Array.isArray(node)) { node.forEach((x) => collect(x, lang)); return; }
+      if (node && typeof node === "object") {
+        const o = node as Record<string, unknown>;
+        if ("en" in o && "ro" in o) { collect(o.en, "en"); collect(o.ro, "ro"); return; }
+        for (const v of Object.values(o)) collect(v, lang);
+      }
+    };
+    for (const d of docs) collect(JSON.parse(readFileSync(resolve(REPO, d), "utf-8")), null);
+    for (const lang of LANGS) {
+      const money = byLang[lang].filter((x) => /\bRON\b/.test(x));
+      expect(money.length, `VACUITY: ${lang} money strings served`).toBeGreaterThanOrEqual(50);
+      for (const x of byLang[lang]) {
+        expect(foreignNumber(x, lang), `${lang}: "${x}"`).toBeNull();
+        expect(/\bRON\s*[−-]?\d/.exec(x), `${lang}: a code BEFORE the figure: "${x}"`).toBeNull();
+        expect(/\blei\b/.exec(x), `${lang}: "lei" is not the code: "${x}"`).toBeNull();
+      }
+      figuresChecked += money.length;
+    }
+  });
+});
 
 describe("the report's days fallback agrees with its count", () => {
   const days = (value: number): Ratio =>

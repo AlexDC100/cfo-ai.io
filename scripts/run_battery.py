@@ -1598,8 +1598,9 @@ def _engine_gates() -> List[Gate]:
              # result in the engine's words, the 711 note (measured 201);
              # owner ticket 2026-09-28 (every figure in the reader's
              # language): cmdbar-ui-language, three worlds x EN/RO (measured
-             # 207).
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=207,
+             # 207); owner rulings 2026-09-29 (every WORD too): a finding in
+             # years and an unmeasured one, EN/RO (measured 209).
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=209,
              units="command-bar tests",
              canaries=("the rows ARE the served items, in the served rank, each with its figure",
                        "inventory days are the served block — its figure, its basis label, no filed-basis row beside it",
@@ -1664,7 +1665,8 @@ def _engine_gates() -> List[Gate]:
                        "GATE-WORK cmdbar-ui-language scandia/en figures=",
                        "GATE-WORK cmdbar-ui-language agras/ro figures=",
                        "scandia (en): no figure at rest or typed is in the other language's format; turnover reads 48.3M RON",
-                       "agras (ro): no figure at rest or typed is in the other language's format; turnover reads 110,8 mil. RON")),
+                       "agras (ro): no figure at rest or typed is in the other language's format; turnover reads 110,8 mil. RON",
+                       "ro: 12,5 ani and neraportat; no word of the other language in the bar")),
         # EVERY FIGURE IN THE READER'S LANGUAGE (owner ticket 2026-09-28: the
         # ENGLISH interface printed "413,7 mil. RON" on the command bar, the
         # workspace cards and the company page, and the report's days
@@ -1686,7 +1688,11 @@ def _engine_gates() -> List[Gate]:
              ["npx", "vitest", "run", "--root", ".",
               "frontend/pages/cfo/__tests__/figuresFollowUiLanguage.test.tsx",
               "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=20,
+             # rulings 2026-09-29: + every word (finding units, the absent
+             # case, the engine's count nouns), the tooltip rate, the cockpit
+             # printers and every bilingual string the engine serves the
+             # cockpit and the margin note (measured 35; 20 before).
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=35,
              units="reader's-language figure tests",
              canaries=("GATE-WORK ui-language-figures figures=",
                        "every string from the ticket reads as Romanian on an English surface; the English strings do not",
@@ -1696,7 +1702,11 @@ def _engine_gates() -> List[Gate]:
                        "en: 2025 413.7M RON, 2024 380M RON, 2023 350M RON; no number in the other language's format",
                        "bound to a language, it prints that language whatever the global state; unbound, the active one",
                        "a finding's measure (the resting items, the evidence drawer's headline) in the printer's language",
-                       "1 → 1 day")),
+                       "1 → 1 day",
+                       "every count noun the engine's detectors emit is worded in both languages",
+                       "5.2489 in English, 5,2489 in Romanian — the same digits",
+                       "compact and full money are lib/money's, in the page's language, cents under one unit",
+                       "every bilingual string the engine serves the cockpit and the margin note")),
         # THE EVIDENCE RECEIVERS, frontend stage CB-F2 (design C4):
         #   evidence-lines   the account view's statement lines ARE the
         #                    engine's comparatives lines: the served path,
@@ -2070,11 +2080,18 @@ def _frontend_gates() -> List[Gate]:
         # VITE_PUBLIC_TEST_MODE=1; vite merges them, so the dev server ran
         # in test mode against production and every cold boot created a
         # real organisation. 8,880 junk rows, 99.6% of that table.
+        # 2026-09-29 (owner ruling: independent of a checkout's dotenv): the
+        # subject is every env a test path reads — the vitest manifest
+        # (always present, its hosts checked unreachable), the process env
+        # vite gives priority, and dotenv files where a checkout has them.
+        # A worktree / CI with no dotenv used to examine 0 and go red.
+        # Floor = the manifest's 14 variables: a run that did not read it reds.
         Gate("test-env-isolation",
              ["node", "scripts/check_test_env_isolation.mjs"],
-             work_rx=r"units=(\d+)", floor=1,
+             work_rx=r"units=(\d+)", floor=14,
              units="env vars examined",
-             canaries=("TEST-ENV ISOLATION", "sanctioned supabase")),
+             canaries=("TEST-ENV ISOLATION", "sanctioned supabase",
+                       "sources examined     : frontend/test/hermeticEnv.json (14)")),
         Gate("hermetic", ["node", "scripts/check_hermetic.mjs"],
              work_rx=r"GATE-WORK hermetic units=(\d+)", floor=14,
              units="recorded environment variables",
@@ -2157,10 +2174,17 @@ def _frontend_gates() -> List[Gate]:
         # whose real sheet and account codes were being discarded. In the
         # battery because that defect was found by READING, and reading
         # is not a control.
+        # 2026-09-29 (owner ruling: the 11 findings it carried are not a
+        # baseline): the findings are on design_review/PROVENANCE_BURNDOWN.json
+        # with owners; the gate fails on any finding NOT listed (a new one, or
+        # a listed file drifting further) and on a listed one that no longer
+        # occurs (the list only shrinks). The open count prints every run and
+        # is reported weekly.
         Gate("provenance-census", ["node", "scripts/check_provenance_census.mjs"],
              work_rx=r"GATE-WORK provenance-sites units=(\d+)", floor=80,
              units="figure render sites",
-             canaries=("PROVENANCE CENSUS", "GATE-WORK provenance-census")),
+             canaries=("PROVENANCE CENSUS", "GATE-WORK provenance-census",
+                       "GATE-WORK provenance-burndown open=")),
         # The affordance's own contrast, computed from the token sheet in
         # BOTH themes. Its subject is exactly the class that shipped: the
         # card's labels used `--ink-mute`, which measures 3.53:1 on the
@@ -2204,28 +2228,33 @@ def _frontend_gates() -> List[Gate]:
         # quoted phrase lifted out of a Python COMMENT. The gate prints
         # how many tests ran and names one file per area, because a suite
         # matching nothing exits zero and reports 2,784 -> 0 silently.
+        # 2026-09-29 (owner ruling: a gate whose canary is missing is
+        # vacuous): every canary is the gate's "<file>: ran" line, never the
+        # bare file name — the bare name also matched "<file>: NEVER RAN",
+        # which is how forecastPage.test.tsx (retired in 131061f6) stayed a
+        # "seen" canary here for a week. Floor re-measured (4,336 tests).
         Gate("vitest", ["node", "scripts/check_vitest.mjs"],
-             work_rx=r"GATE-WORK vitest units=(\d+)", floor=2500,
+             work_rx=r"GATE-WORK vitest units=(\d+)", floor=3900,
              units="frontend unit tests",
-             canaries=("capsuleFactIndex.test.ts",
-                       "forecastPage.test.tsx",
-                       "socialLinksFromConfig.test.ts",
+             canaries=("capsuleFactIndex.test.ts: ran",
+                       "frontend/pages/cfo/__tests__/forecastCockpit.test.tsx: ran",
+                       "socialLinksFromConfig.test.ts: ran",
                        # plan/2 B1 (S7, section 7): the TS classifier
                        # against the shared truth table, and the rendered
                        # sign flips on every converted consumer.
-                       "frontend/lib/__tests__/changeKind.test.ts",
-                       "frontend/components/scenarios/__tests__/signFlip.test.tsx",
+                       "frontend/lib/__tests__/changeKind.test.ts: ran",
+                       "frontend/components/scenarios/__tests__/signFlip.test.tsx: ran",
                        # plan/2 B6 (F2, F4, F6): the fp1.2 reader over the
                        # real served bytes, and the magnitude band whose
                        # early returns became reds.
-                       "frontend/lib/__tests__/forecastFactsReader.test.ts",
-                       "frontend/pages/cfo/__tests__/forecastMagnitude.test.tsx",
+                       "frontend/lib/__tests__/forecastFactsReader.test.ts: ran",
+                       "frontend/pages/cfo/__tests__/forecastMagnitude.test.tsx: ran",
                        # plan/2 B13 (minimal cut): the Scenarios page on the
                        # engine, rendered over the real served bytes.
-                       "frontend/pages/cfo/__tests__/scenariosEngine.test.tsx",
+                       "frontend/pages/cfo/__tests__/scenariosEngine.test.tsx: ran",
                        # forecast-scenarios-live: F1 / F5 / F6 on the pages.
-                       "frontend/components/forecast/__tests__/forecastYearZero.test.tsx",
-                       "frontend/pages/cfo/__tests__/scenariosSaved.test.tsx")),
+                       "frontend/components/forecast/__tests__/forecastYearZero.test.tsx: ran",
+                       "frontend/pages/cfo/__tests__/scenariosSaved.test.tsx: ran")),
         # RATIO BYTE-MATCH — the owner's "same columns, same numbers,
         # byte-matching" as a gate. It also rides `vitest`, and is named on
         # its own because its defect prints a believable figure on one

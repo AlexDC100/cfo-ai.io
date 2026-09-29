@@ -43,6 +43,7 @@ import {
   formatRatioDelta,
   formatRatioSide,
   joinRatioDelta,
+  countFormOf,
   localiseDecimal,
   ratioLabelForKey,
   type RatioCompareRow,
@@ -198,19 +199,67 @@ export function printSectorRow(
   return { company, position: tt(`benchmarkPage.sector.position.${row.position}`), verdict };
 }
 
-/** A finding's headline measure, in the printer's language: money through
- *  the served-money printer at full precision ("-2,577,640.82 RON" /
- *  "-2.577.640,82 RON"), a served days figure through the ratio table's
- *  printer (its count form, its decimal), every other unit through
- *  lib/insights formatMeasure in the language's numbering ("70.4%" /
- *  "70,4%", "1.50×" / "1,50×"). The evidence drawer heads the finding with
- *  this same printer, so an item and its landing print one string (owner
- *  ticket 2026-09-28: the Romanian bar printed "RON -2,577,640.82"). */
+/** A finding's headline measure, in the printer's language — every figure
+ *  AND every word (owner rulings 2026-09-28/29: the Romanian bar printed
+ *  "RON -2,577,640.82", "70.4%", then "not reported" and "years"):
+ *
+ *    money      the served-money printer at full precision
+ *               ("-2,577,640.82 RON" / "-2.577.640,82 RON");
+ *    days       the ratio table's printer — its count forms and decimal
+ *               ("37.3 days" / "37,3 zile", "1 zi", "20 de zile"), from the
+ *               served `value_q`, else the engine's own one-decimal digits;
+ *    years      the same count forms ("12.5 years" / "12,5 ani");
+ *    a count    of days → days; of accounts → "3 accounts" / "3 conturi";
+ *    absent     "not reported" / "neraportat";
+ *    the rest   lib/insights formatMeasure in the language's numbering
+ *               ("70.4%" / "70,4%", "1.50×" / "1,50×").
+ *
+ *  A count noun this table does not know prints the engine's own word —
+ *  the ui-language-figures law reds when the engine emits one.
+ *  The evidence drawer heads the finding with this same printer, so an item
+ *  and its landing print one string. */
 export function printMeasure(p: Printer, measure: InsightMeasure, currency: string | null): string {
+  const tt = t(p.lang);
   const value = measure.value;
-  if (typeof value === "number" && Number.isFinite(value)) {
-    if (measure.unit === "money") return servedMoney(currency, { lang: p.lang })(value);
-    if (measure.unit === "days" && typeof measure.value_q === "string") return printDaysQ(measure.value_q, p.lang);
+  if (typeof value !== "number" || !Number.isFinite(value)) return tt("cmdbar.measure.notReported");
+  switch (measure.unit) {
+    case "money":
+      return servedMoney(currency, { lang: p.lang })(value);
+    case "days":
+      return printDaysQ(typeof measure.value_q === "string" ? measure.value_q : engineDigits(value, 1), p.lang);
+    case "years":
+      return countWords(p, "cmdbar.measure.years", value, 1);
+    case "count":
+      if (measure.noun === "day") return printDaysQ(engineDigits(value, 0), p.lang);
+      if (measure.noun && MEASURE_NOUNS.has(measure.noun)) {
+        return countWords(p, `cmdbar.measure.${measure.noun}`, value, 0);
+      }
+      break;
+    default:
+      break;
   }
   return formatMeasure(measure, currency ?? "", { locale: moneyLocaleFor(p.lang) });
+}
+
+/** The count nouns the engine's insight detectors emit (other than "day",
+ *  which prints as days) and this bar words in both languages. */
+export const MEASURE_NOUNS: ReadonlySet<string> = new Set(["account"]);
+
+/** A value at the engine's precision, spelled plainly ("37.3", "-1234"). */
+function engineDigits(value: number, decimals: number): string {
+  return value.toLocaleString("en-US", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+    useGrouping: false,
+  });
+}
+
+/** "{{v}} <noun>" in the printer's language, the count form read off the
+ *  engine-precision digits, the number in the language's numbering. */
+function countWords(p: Printer, key: string, value: number, decimals: number): string {
+  const v = value.toLocaleString(moneyLocaleFor(p.lang), {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+  return t(p.lang)(`${key}${countFormOf(engineDigits(value, decimals))}`, { v });
 }

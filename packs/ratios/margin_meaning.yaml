@@ -125,9 +125,9 @@ note:
 # How the note's amount prints: one decimal, in the unit of the EBITDA the
 # note stands under (millions when that EBITDA is a million or more, else
 # thousands), so the headline and the stock variation read side by side
-# ("0,6 mil. lei" above, "29,6 mil. lei" in the note). The strings are the
+# ("0,6 mil. RON" above, "29,6 mil. RON" in the note). The strings are the
 # cockpit's own money display (packs/forecast/cockpit.yaml#money_display),
 # held equal by tests/engine/test_margin_meaning.py.
 money_display:
-  million: {ro: "{value} mil. lei", en: "RON {value}M"}
-  thousand: {ro: "{value} mii lei", en: "RON {value}k"}
+  million: {ro: "{value} mil. RON", en: "{value}M RON"}
+  thousand: {ro: "{value} mii RON", en: "{value}K RON"}

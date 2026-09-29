@@ -2896,13 +2896,61 @@ for (const [f, m] of [...producers].sort()) {
   console.log(`      ${f} — ${m.sites} call(s) [${fmt}]`);
 }
 
+// ── the burn-down (owner ruling 2026-09-29) ────────────────────────────
+// The findings this census carried into 2026-09-29 are not a baseline:
+// each is listed in design_review/PROVENANCE_BURNDOWN.json with an owner, a
+// stream and an opened date, and burns down; the count is reported weekly.
+// A finding is matched by its FIRST SENTENCE, counts included, so the same
+// file drifting further is a new finding. Anything not listed fails; an
+// entry whose finding is gone fails until it is removed (the list only
+// shrinks); an entry without an owner, stream or opened date fails.
+const BURNDOWN_PATH = "design_review/PROVENANCE_BURNDOWN.json";
+const burndown = JSON.parse(readFileSync(join(ROOT, BURNDOWN_PATH), "utf-8"));
+const findingKey = (msg) => msg.split(/\. (?=[A-Z])/)[0].trim();
+const listed = new Map();
+const blocking = [];
+for (const b of burndown.findings ?? []) {
+  if (listed.has(b.finding)) blocking.push(`BURNDOWN DUPLICATE: "${b.finding}" is listed twice in ${BURNDOWN_PATH}.`);
+  for (const field of ["owner", "stream", "opened"]) {
+    if (typeof b[field] !== "string" || !b[field].trim()) {
+      blocking.push(`BURNDOWN ENTRY INCOMPLETE: "${b.finding}" has no ${field} in ${BURNDOWN_PATH}.`);
+    }
+  }
+  listed.set(b.finding, b);
+}
+const burning = [];
+const matched = new Set();
+for (const f of failures) {
+  const key = findingKey(f);
+  if (listed.has(key)) { burning.push(listed.get(key)); matched.add(key); }
+  else blocking.push(f);
+}
+for (const key of listed.keys()) {
+  if (!matched.has(key)) {
+    blocking.push(
+      `BURNDOWN RESOLVED: "${key}" no longer occurs — remove it from ${BURNDOWN_PATH} ` +
+        "(the list only shrinks; a resolved item left here inflates the count).",
+    );
+  }
+}
+const byOwner = new Map();
+for (const b of burning) byOwner.set(b.owner, (byOwner.get(b.owner) ?? 0) + 1);
 console.log("");
-if (failures.length) {
-  console.log(`FAIL — ${failures.length} finding(s):`);
-  for (const f of failures) console.log(`  · ${f}`);
+console.log(
+  `GATE-WORK provenance-burndown open=${burning.length} ` +
+    `owners=${[...byOwner].map(([o, n]) => `${o}:${n}`).join(",") || "-"} ` +
+    `oldest=${burning.map((b) => b.opened).sort()[0] ?? "-"}`,
+);
+for (const b of burning) console.log(`  BURNDOWN [${b.owner} · ${b.stream}] ${b.finding}`);
+
+console.log("");
+if (blocking.length) {
+  console.log(`FAIL — ${blocking.length} finding(s) not on the burn-down:`);
+  for (const f of blocking) console.log(`  · ${f}`);
   process.exit(1);
 }
 console.log(
   `PASS — ${totalSites} figure site(s) across ${measured.size} file(s), each with a ` +
-    "recorded provenance verdict; no fabricated affordance.",
+    `recorded provenance verdict or an owned burn-down entry (${burning.length} open); ` +
+    "no fabricated affordance.",
 );

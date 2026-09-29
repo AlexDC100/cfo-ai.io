@@ -313,8 +313,8 @@ basis:
       ro: "balanța din {year0} nu are cheltuieli cu personalul (conturile {prefixes}), deci salariile nu mută nimic în acest plan"
       en: "the {year0} trial balance carries no personnel cost (accounts {prefixes}), so wages move nothing in this plan"
     minimum_wage:
-      ro: "salariul minim brut {from_amount} lei → {to_amount} lei de la {to_month} ({change}; {source}, {published})"
-      en: "gross minimum wage RON {from_amount} → RON {to_amount} from {to_month} ({change}; {source}, {published})"
+      ro: "salariul minim brut {from_amount} RON → {to_amount} RON de la {to_month} ({change}; {source}, {published})"
+      en: "gross minimum wage {from_amount} RON → {to_amount} RON from {to_month} ({change}; {source}, {published})"
   energy_price:
     measured:
       ro: "energie și utilități (cont {prefixes}) {amount} = {share} din venituri în {year0}; partea variabilă urmează volumul"
@@ -536,10 +536,12 @@ months:
   en: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 
 # How money prints in the sentence and the four numbers: millions above the
-# unit, thousands below it, one decimal.
+# unit, thousands below it, one decimal — the ISO code AFTER the figure in
+# both languages, as every money figure the browser prints (owner ruling
+# 2026-09-28/29: codes, never "lei" or a code before the figure; lib/money).
 money_display:
-  million: {ro: "{value} mil. lei", en: "RON {value}M"}
-  thousand: {ro: "{value} mii lei", en: "RON {value}k"}
+  million: {ro: "{value} mil. RON", en: "{value}M RON"}
+  thousand: {ro: "{value} mii RON", en: "{value}K RON"}
 
 # ── the bank export (POST .../cockpit/export) ───────────────────────────
 # The DATA the CFO-Report PDF pipeline prints: the cockpit payload itself

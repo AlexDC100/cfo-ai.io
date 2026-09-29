@@ -1524,6 +1524,38 @@ gates `ui-language-figures` (new) and `cmdbar-surface`'s `cmdbar-ui-language`
 (floor 201 → 207). Plant log: `docs/engine_book/gates.md`,
 "ui-language-figures".
 
+**Rulings 2026-09-29 (same branch).** Codes after the figure are THE PRODUCT
+STANDARD, in both languages, for every currency — no symbols, never "lei".
+Every WORD follows the UI language too: the bar's finding measures print
+"neraportat", "12,5 ani", "3 conturi" in Romanian (`printMeasure`, the ratio
+table's Romanian count forms via `countFormOf`); the money tooltip's rate
+prints "5,2489"; the Forecast cockpit's browser printers are lib/money's.
+**Engine packs follow the same standard** — `packs/forecast/cockpit.yaml`
+and `packs/ratios/margin_meaning.yaml` `money_display` (`{value}M RON`,
+`{value} mil. RON`, `{value} mii RON`) and the cockpit's minimum-wage basis —
+but a pack change goes live only with a BACKEND deploy (§14): until then the
+live P&L margin note still prints "29,6 mil. lei" / "RON 29.6M". The engine's
+insight claims ("RON 753,070.01", code before, the English-by-contract
+report and alert bodies) are NOT converted — a separate ruling.
+
+**Three gates that were red as a "baseline" (not acceptable, owner ruling):**
+- `vitest`: its canary named `forecastPage.test.tsx`, retired in 131061f6 —
+  now `forecastCockpit.test.tsx`; a canary naming a file not in the tree reds
+  with its own message; the battery's canaries are the "<file>: ran" lines
+  (the bare name also matched "NEVER RAN"); floor 2,500 → 3,900 (measured
+  4,336).
+- `test-env-isolation`: reads every env a test path reads — the vitest
+  manifest (always present; its hosts must be unreachable, so a production
+  URL pasted into it now reds), the process env vite gives priority, and
+  dotenv files where a checkout has them. A worktree / CI no longer examines
+  0 and goes red; floor 1 → 14.
+- `provenance-census`: its findings are on
+  `design_review/PROVENANCE_BURNDOWN.json` with owners. The gate reds on any
+  finding NOT listed (keyed by first sentence, counts included, so a listed
+  file drifting further is new) and on a listed one that no longer occurs
+  (the list only shrinks). `GATE-WORK provenance-burndown open=N` prints
+  every run; the count is reported weekly (`weekly` rows in the file).
+
 ---
 
 # 📘 Appendix A — Full Financial Analysis Methodology

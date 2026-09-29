@@ -1,0 +1,113 @@
+{
+  "_README": [
+    "THE PROVENANCE-CENSUS BURN-DOWN (owner ruling 2026-09-29: the 11 findings the census",
+    "carried into this date are not a baseline — each has an owner and burns down, and the",
+    "count is reported every week).",
+    "",
+    "Read by scripts/check_provenance_census.mjs. Each `finding` is the FIRST SENTENCE of a",
+    "census finding, counts included, so the same file drifting further is a NEW finding:",
+    "  · a finding NOT listed here fails the gate (nothing new joins silently);",
+    "  · an entry whose finding no longer occurs fails the gate until it is removed — the",
+    "    list only shrinks, and a resolved item cannot sit here inflating the count;",
+    "  · an entry without an owner, a stream or an opened date fails the gate.",
+    "`weekly` is the count, one row per week, appended by the weekly report."
+  ],
+  "findings": [
+    {
+      "finding": "UNREGISTERED: frontend/components/cfo/ComparativesPanel.tsx renders 7 figure site(s) (0 tags, 7 formatter calls) and carries no provenance verdict",
+      "owner": "Alex",
+      "stream": "comparatives (release r-comp; last change fe227995, 2026-09-26)",
+      "opened": "2026-09-29",
+      "seen_since": "2026-09-28 (release r-rulings round-3 measurement, b6276729)",
+      "next": "Adjudicate the 7 formatter sites (the served comparatives columns) and register the file with a bucket and a one-line why."
+    },
+    {
+      "finding": "COUNT DRIFT: frontend/components/cfo/RatioDetailDrawer.tsx declares 5 figure site(s), measured 6 (3 tags + 3 formatter calls)",
+      "owner": "Alex",
+      "stream": "inventory days (release r-rulings; ab0882b8, 2026-09-28)",
+      "opened": "2026-09-29",
+      "seen_since": "2026-09-28 (release r-rulings round-3 measurement, b6276729)",
+      "next": "Name the sixth site the inventory-days split added, give it a verdict, and restate the entry at 6."
+    },
+    {
+      "finding": "UNREGISTERED: frontend/components/cfo/ratios/RatiosTab.tsx renders 3 figure site(s) (2 tags, 1 formatter calls) and carries no provenance verdict",
+      "owner": "Alex",
+      "stream": "ratios / inventory days (release r-rulings; ab0882b8, 2026-09-28)",
+      "opened": "2026-09-29",
+      "seen_since": "2026-09-28 (release r-rulings round-3 measurement, b6276729)",
+      "next": "Register the Ratios tab (2 tags + 1 formatter call) with a bucket and a why."
+    },
+    {
+      "finding": "UNREGISTERED: frontend/components/public-companies/RiskBreakdownPanel.tsx renders 1 figure site(s) (0 tags, 1 formatter calls) and carries no provenance verdict",
+      "owner": "Alex",
+      "stream": "public companies UI (fd59bbf0, 2026-09-19)",
+      "opened": "2026-09-29",
+      "seen_since": "2026-09-28 (release r-rulings round-3 measurement, b6276729)",
+      "next": "Register the Risk tab's one formatter site (a public filing's score, not a book cell) with a bucket and a why."
+    },
+    {
+      "finding": "UNREGISTERED: frontend/pages/cfo/CompanyPage.tsx renders 2 figure site(s) (1 tags, 1 formatter calls) and carries no provenance verdict",
+      "owner": "Alex",
+      "stream": "workspace v2 redesign (7d655d42; last change 1a9aeaa6, 2026-09-27)",
+      "opened": "2026-09-29",
+      "seen_since": "2026-09-28 (release r-rulings round-3 measurement, b6276729)",
+      "next": "Register the company page (the year tile's <Money> and its % change) with a bucket and a why."
+    },
+    {
+      "finding": "COUNT DRIFT: frontend/pages/cfo/FinancialStatements.tsx declares 80 figure site(s), measured 78 (19 tags + 59 formatter calls)",
+      "owner": "Alex",
+      "stream": "refusals, never a bare dash (release r-rulings; 5ac224da / f772b723, 2026-09-28)",
+      "opened": "2026-09-29",
+      "seen_since": "2026-09-28 (release r-rulings round-3 measurement, b6276729)",
+      "next": "Confirm which two sites the refusal work removed (a refused figure now prints the engine's words) and restate the entry at 78."
+    },
+    {
+      "finding": "UNREGISTERED: frontend/pages/cfo/WorkspaceHomeV2.tsx renders 1 figure site(s) (1 tags, 0 formatter calls) and carries no provenance verdict",
+      "owner": "Alex",
+      "stream": "workspace v2 redesign (last change 4b88f2bf, 2026-09-27)",
+      "opened": "2026-09-29",
+      "seen_since": "2026-09-28 (release r-rulings round-3 measurement, b6276729)",
+      "next": "Register the workspace home (the company card's <Money>, labelled net turnover) with a bucket and a why."
+    },
+    {
+      "finding": "STALE ENTRY: frontend/components/cfo/UploadDialog.tsx is registered but renders no figures",
+      "owner": "Alex",
+      "stream": "onboarding upload (the file was deleted in 39a7d0b1, 2026-09-09)",
+      "opened": "2026-09-29",
+      "seen_since": "2026-09-28 (release r-rulings round-3 measurement, b6276729)",
+      "next": "Remove the UploadDialog.tsx entry from PROVENANCE_CENSUS.json."
+    },
+    {
+      "finding": "SURFACE ROSTER STALE: settings-workspace lists frontend/components/cfo/UploadDialog.tsx, which is not on disk",
+      "owner": "Alex",
+      "stream": "onboarding upload (the file was deleted in 39a7d0b1, 2026-09-09)",
+      "opened": "2026-09-29",
+      "seen_since": "2026-09-28 (release r-rulings round-3 measurement, b6276729)",
+      "next": "Drop UploadDialog.tsx from the settings-workspace SURFACES roster in scripts/check_provenance_census.mjs."
+    },
+    {
+      "finding": "UNSURFACED: frontend/components/forecast/cockpit/LeverSliders.tsx is registered but belongs to no SURFACES roster",
+      "owner": "Alex",
+      "stream": "Forecast cockpit (131061f6, 2026-09-21)",
+      "opened": "2026-09-29",
+      "seen_since": "2026-09-28 (release r-rulings round-3 measurement, b6276729)",
+      "next": "Add the cockpit's files to a SURFACES roster (with its floor), or record why a projection-only surface carries none."
+    },
+    {
+      "finding": "UNSURFACED: frontend/components/forecast/cockpit/PresentMode.tsx is registered but belongs to no SURFACES roster",
+      "owner": "Alex",
+      "stream": "Forecast cockpit (131061f6, 2026-09-21)",
+      "opened": "2026-09-29",
+      "seen_since": "2026-09-28 (release r-rulings round-3 measurement, b6276729)",
+      "next": "Same roster as LeverSliders.tsx."
+    }
+  ],
+  "weekly": [
+    {
+      "week": "2026-W40",
+      "date": "2026-09-29",
+      "open": 11,
+      "note": "burn-down opened"
+    }
+  ]
+}
