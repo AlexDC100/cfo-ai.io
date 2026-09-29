@@ -10,7 +10,11 @@
     "  · an entry whose finding no longer occurs fails the gate until it is removed — the",
     "    list only shrinks, and a resolved item cannot sit here inflating the count;",
     "  · an entry without an owner, a stream or an opened date fails the gate.",
-    "`weekly` is the count, one row per week, appended by the weekly report."
+    "`weekly` is the history of the count: a row is appended by the commit that changes the",
+    "list (an item burned down, or the week's reading when it is recorded). The weekly REPORT",
+    "is a scheduled, read-only run (Claude app task `provenance-burndown-weekly`, Mondays 09:00",
+    "local): it runs the census on origin/main in a throw-away worktree and reports the open",
+    "count, the change and the owners — it never writes this file."
   ],
   "findings": [
     {
