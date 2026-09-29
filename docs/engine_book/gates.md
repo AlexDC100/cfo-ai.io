@@ -13016,7 +13016,7 @@ item); the findings engine's CRITICAL_FINDING evidence still cites
 |---|---|
 | command | `python -m pytest tests/engine/test_briefing_definition.py -q -s` |
 | canary | `SCOPE briefing-definition: GET /api/period over the tenancy double` |
-| work count | `GATE-WORK briefing-definition units=N`, floor **8** (measured 8) |
+| work count | `GATE-WORK briefing-definition units=N`, floor **8** (measured 9 since 2026-09-29; 8 before) |
 
 **SCOPE** — design A9 (owner ruling 2026-09-26: net 711 and net 72x inside
 EBITDA, margins over turnover). A briefing is prose written once from the
@@ -13057,6 +13057,78 @@ FAILED tests/engine/test_briefing_definition.py::test_zz_scope - AssertionError
 CANNOT SEE: the page hiding the stale briefing (FE stage A7); the regenerate
 route's write under a real Anthropic call (it is the same upsert payload; the
 route is not driven here because it calls the model).
+
+### briefing-definition — the stale-definition words are GENERIC (deploy-readiness review of feat/rulings-2, 2026-09-29)
+
+**INCIDENT** — the EBITDA stamp moved twice (2026-09-26: 711 / 72x inside;
+2026-09-28, R2 / R3: provisions outside, 7411 in turnover). Four texts served
+for a stamp mismatch still named what the 2026-09-26 revision's predecessor
+lacked, so they MISDESCRIBED every period or briefing stamped 2026-09-26
+(which DID include 711 and 72x):
+- `pipeline.BRIEFING_PREVIOUS_DEFINITION_NOTE` — "written under the previous
+  EBITDA definition (without the stock variation and own work capitalised)";
+- `FactsGateway.ebitda()`'s `period_predates_ebitda_definition` —
+  "analysed before EBITDA included the stock variation (711) and own work
+  capitalised (72x)";
+- `_benchmark_engine` `REFUSAL_STALE` (rows stamped 2 AND 3 are stale since
+  R2) — "analysed before the one EBITDA definition (with the stock
+  variation …)";
+- the frontend fallback in `lib/briefingDefinition.ts`.
+
+**THE WORDS NOW** (pinned byte for byte): the briefing note RO "Comentariul
+a fost scris sub o definiție anterioară a EBITDA și este ascuns; reanalizați
+perioada pentru un comentariu nou." / EN "This briefing was written under an
+earlier EBITDA definition and is hidden; re-analyse the period for a new
+one." (the frontend fallback restates it); the gateway RO "Perioada a fost
+analizată sub o definiție anterioară a EBITDA; trebuie reanalizată înainte ca
+EBITDA să poată fi afișată." / EN "This period was analysed under an earlier
+EBITDA definition; it must be re-analysed before its EBITDA can be served.";
+the benchmark RO "Perioada a fost analizată sub o definiție anterioară a
+EBITDA; cifra se recalculează la reprocesarea perioadei." / EN "The period was
+analysed under an earlier EBITDA definition; the figure is recomputed when the
+period is reprocessed." Left alone, on purpose: texts about a genuinely
+different condition (`stock_variation.py`'s measurement refusals, R10b's
+refused-711 alert) and `_valuation.py`'s already-generic "saved under the
+previous EBITDA definition" flag.
+
+**LAWS** — `tests/engine/test_briefing_definition.py` (this gate; the note
+pinned, and a briefing stamped with every `EBITDA_DEFINITION_PREVIOUS_
+REVISIONS` entry gets it with no content word — 711, 72x, stock variation,
+provisions, 7411 — +1 unit); `tests/engine/test_facts_gateway.py` (a block on
+the 2026-09-26 stamp refuses with the generic words);
+`tests/engine/test_benchmark_headline_anchor.py` (rows stamped 2 and 3 refuse
+with them); `frontend/lib/__tests__/oneEbitdaSurfaceComponents.test.tsx` (the
+served note, and the fallback when the note is absent). The last three run in
+the full engine suite and full vitest.
+
+Source-edit plants (the pre-fix words, each alone, by `scratchpad/r2fix/
+plant.py`, restored byte-exact, sha256 checked), four of four RED:
+```
+PLANT briefing-note-names-the-2026-09-26-content (the pre-fix note): src/engine/api/pipeline.py
+  FAILED tests/engine/test_briefing_definition.py::test_the_status_of_a_stored_briefing
+  FAILED tests/engine/test_briefing_definition.py::test_a_briefing_stamped_with_an_earlier_revision_gets_the_generic_note
+  FAILED tests/engine/test_briefing_definition.py::test_a_briefing_written_before_the_ruling_is_served_as_such_through_the_real_route
+  FAILED tests/engine/test_briefing_definition.py::test_zz_scope - assert 4 >= 8
+  ========================= 4 failed, 2 passed in 2.14s ==========================
+  exit=1 -> RED ; file restored byte-exact (sha256 8dd27f36f548)
+PLANT gateway-refusal-names-711-72x (the pre-fix text_en / text_ro): src/engine/serving/facts.py
+  FAILED tests/engine/test_facts_gateway.py::test_ebitda_refuses_a_block_on_an_earlier_revision_with_generic_words
+  ========================= 1 failed, 22 passed in 0.95s =========================
+  exit=1 -> RED ; file restored byte-exact (sha256 0e38b1c2ece0)
+PLANT benchmark-stale-words-name-the-one-definition (the pre-fix display): src/engine/api/_benchmark_engine.py
+  FAILED tests/engine/test_benchmark_headline_anchor.py::test_rows_on_an_earlier_definition_refuse_with_generic_words[2]
+  FAILED tests/engine/test_benchmark_headline_anchor.py::test_rows_on_an_earlier_definition_refuse_with_generic_words[3]
+  ========================= 2 failed, 32 passed in 0.47s =========================
+  exit=1 -> RED ; file restored byte-exact (sha256 871545df82e1)
+PLANT fe-fallback-note-previous-definition (the pre-fix fallback): frontend/lib/briefingDefinition.ts
+  × frontend/lib/__tests__/oneEbitdaSurfaceComponents.test.tsx > a briefing written under the previous EBITDA definition is hidden with the engine's note > a hidden briefing served without its note: the fallback restates the engine's generic note 5ms
+  Tests  1 failed | 14 passed (15)
+  AssertionError: expected { …(2) } to deeply equal { …(2) }
+  exit=1 -> RED ; file restored byte-exact (sha256 089e1052d45f)
+```
+**REVERT** — the clean tree: `test_briefing_definition.py` 6 passed (GATE-WORK
+units=9), `test_facts_gateway.py` + `test_benchmark_headline_anchor.py` 57
+passed, `oneEbitdaSurfaceComponents.test.tsx` 15 passed.
 
 ## e2b-rewritten-laws (owner ruling 2026-09-26, design A6/A8)
 

@@ -842,7 +842,9 @@ def _engine_gates() -> List[Gate]:
         # (unstamped) briefing as written under the previous definition,
         # with the note the page hides it behind. The column has its
         # migration ending in the PostgREST NOTIFY. Real create_app and the
-        # real narrate write over the tenancy double. Measured 8 units.
+        # real narrate write over the tenancy double. Measured 8 units; 9
+        # with the generic note pinned on an earlier revision's stamp
+        # (deploy-readiness review of feat/rulings-2, 2026-09-29).
         # Plant log: gates.md "briefing-definition".
         Gate("briefing-definition",
              [PY, "-m", "pytest", "tests/engine/test_briefing_definition.py", "-q", "-s"],

@@ -158,11 +158,14 @@ REFUSAL_MARGIN = "margin_not_meaningful"
 #: `net_income_statutory` row whose value is None.
 REFUSAL_NET_INCOME = "net_income_refused"
 _REFUSAL_TEXT = {
+    # Generic: the definition stamp has moved more than once, so the words
+    # name no content an earlier definition lacked (deploy-readiness review,
+    # 2026-09-29).
     REFUSAL_STALE: {
-        "ro": "Perioada a fost analizată înainte de definiția unică a EBITDA (cu variația stocurilor "
-              "de produse și producția imobilizată); cifra se recalculează la reprocesarea perioadei.",
-        "en": "The period was analysed before the one EBITDA definition (with the stock variation "
-              "and own work capitalised); the figure is recomputed when the period is reprocessed.",
+        "ro": "Perioada a fost analizată sub o definiție anterioară a EBITDA; cifra se "
+              "recalculează la reprocesarea perioadei.",
+        "en": "The period was analysed under an earlier EBITDA definition; the figure is "
+              "recomputed when the period is reprocessed.",
     },
     REFUSAL_EBITDA: {
         "ro": "EBITDA este refuzat pentru această perioadă: variația stocurilor de produse nu a "

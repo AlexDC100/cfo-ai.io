@@ -1213,10 +1213,12 @@ class FactsGateway(object):
 
         Refuses (:class:`RefusedFactError`, never a zero) when the block's
         EBITDA is refused — net 711 could not be measured on a book that
-        posts to it — and when the block predates the ruling (no
-        ``ebitda_definition`` stamp): its ``reported`` figure is the
-        pre-ruling EBITDA without the stock variation, a second definition
-        the gateway must not serve beside the statements' one."""
+        posts to it — and when the block is not stamped with TODAY's
+        definition (no ``ebitda_definition`` stamp, or an earlier one): its
+        ``reported`` figure is an EBITDA on another definition, which the
+        gateway must not serve beside the statements' one. The refusal's
+        words are generic — the stamp has moved more than once, and naming
+        what one earlier definition lacked misdescribes the others."""
         stamp = self._methodology.get("ebitda_definition")
         if stamp != EBITDA_DEFINITION_REVISION:
             raise RefusedFactError(
@@ -1225,14 +1227,12 @@ class FactsGateway(object):
                 {"code": "period_predates_ebitda_definition",
                  "definition": EBITDA_DEFINITION_REVISION,
                  "stamped": stamp,
-                 "text_en": "This period was analysed before EBITDA included the "
-                            "stock variation (711) and own work capitalised "
-                            "(72x); it must be re-analysed before its EBITDA "
-                            "can be served.",
-                 "text_ro": "Perioada a fost analizată înainte ca EBITDA să "
-                            "includă variația stocurilor de produse (711) și "
-                            "producția imobilizată (72x); trebuie reanalizată "
-                            "înainte ca EBITDA să poată fi afișată."})
+                 "text_en": "This period was analysed under an earlier EBITDA "
+                            "definition; it must be re-analysed before its "
+                            "EBITDA can be served.",
+                 "text_ro": "Perioada a fost analizată sub o definiție "
+                            "anterioară a EBITDA; trebuie reanalizată înainte "
+                            "ca EBITDA să poată fi afișată."})
         refusals = self._methodology.get("refusals")
         refusal = refusals.get("ebitda.reported") if isinstance(refusals, dict) else None
         if refusal:

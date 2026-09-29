@@ -357,6 +357,29 @@ def test_rows_stamped_before_the_one_ebitda_refuse_every_ebitda_figure_and_both_
     assert head["refusals"]["ebitda"]["code"] == "period_predates_ebitda_definition"
 
 
+#: The stale refusal's words, pinned. GENERIC (deploy-readiness review of
+#: feat/rulings-2, 2026-09-29): rows stamped 3 (the 2026-09-26 definition —
+#: 711 / 72x ALREADY inside) are stale since R2 / R3 too, so words saying the
+#: period predates "the one EBITDA definition (with the stock variation …)"
+#: misdescribed them.
+STALE_WORDS = {
+    "ro": "Perioada a fost analizată sub o definiție anterioară a EBITDA; cifra se "
+          "recalculează la reprocesarea perioadei.",
+    "en": "The period was analysed under an earlier EBITDA definition; the figure is "
+          "recomputed when the period is reprocessed.",
+}
+
+
+@pytest.mark.parametrize("revision", [2, 3])
+def test_rows_on_an_earlier_definition_refuse_with_generic_words(revision):
+    rows, line_items, _served = _firm_metrics("agras")
+    stale = [dict(r, value=revision) if r["name"] == "credit_model_revision" else r for r in rows]
+    cm = be.compute_company_metrics(stale, line_items)
+    for k in ("ebitda", "ebitda_margin", "debt_to_ebitda", "net_margin"):
+        assert cm["refusals"][k]["code"] == "period_predates_ebitda_definition", k
+        assert cm["refusals"][k]["display"] == STALE_WORDS, cm["refusals"][k]
+
+
 def test_every_seeded_peer_records_the_basis_the_page_serves():
     """benchmarks_deep_seed.json records each peer's revenue basis; the page
     serves the basis the ONE classifier derives from the source (the DB rows

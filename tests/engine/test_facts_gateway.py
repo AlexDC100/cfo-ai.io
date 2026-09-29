@@ -645,6 +645,30 @@ def test_ebitda_refuses_a_block_written_before_the_ruling(balanced_env):
     assert gw.revenue().amount_minor == _cents(methodology["totals"]["revenue_net"])
 
 
+def test_ebitda_refuses_a_block_on_an_earlier_revision_with_generic_words(balanced_env):
+    """A block stamped 2026-09-26 (711 and 72x ALREADY inside) is not today's
+    definition since R2 / R3: refused — and the words name no content an
+    earlier definition lacked (they used to say "before EBITDA included the
+    stock variation (711) and own work capitalised (72x)", false for this
+    stamp; deploy-readiness review of feat/rulings-2, 2026-09-29)."""
+    from engine.country_packs.ro_romania.chart_of_accounts import (
+        EBITDA_DEFINITION_PREVIOUS_REVISIONS)
+    from engine.serving import RefusedFactError
+    for stamp in EBITDA_DEFINITION_PREVIOUS_REVISIONS:
+        env = dict(balanced_env)
+        env["methodology"] = dict(env["methodology"], ebitda_definition=stamp)
+        with pytest.raises(RefusedFactError) as err:
+            FactsGateway.from_envelope(env).ebitda()
+        r = err.value.refusal
+        assert r["code"] == "period_predates_ebitda_definition" and r["stamped"] == stamp
+        assert r["text_en"] == ("This period was analysed under an earlier EBITDA "
+                                "definition; it must be re-analysed before its "
+                                "EBITDA can be served.")
+        assert r["text_ro"] == ("Perioada a fost analizată sub o definiție "
+                                "anterioară a EBITDA; trebuie reanalizată înainte "
+                                "ca EBITDA să poată fi afișată.")
+
+
 def test_ebitda_refuses_with_the_blocks_own_refusal(balanced_env):
     from engine.serving import RefusedFactError
     env = dict(balanced_env)

@@ -2732,13 +2732,16 @@ _EBITDA_DEFINITION_REVISION = _ro_chart_of_accounts.EBITDA_DEFINITION_REVISION
 
 #: The one-line note a briefing written under an earlier EBITDA definition is
 #: served with (and hidden behind) — never shown beside corrected numbers.
+# GENERIC ON PURPOSE (deploy-readiness review, 2026-09-29): the stamp has
+# moved more than once (2026-09-26: 711 / 72x inside; 2026-09-28: provisions
+# outside, 7411 in turnover), so a note naming what the earlier definition
+# lacked misdescribes a briefing stamped 2026-09-26 — which DID include 711
+# and 72x. It says only that the definition differs.
 BRIEFING_PREVIOUS_DEFINITION_NOTE = {
-    "ro": "Comentariul a fost scris sub definiția anterioară a EBITDA "
-          "(fără variația stocurilor de produse și producția imobilizată) și "
+    "ro": "Comentariul a fost scris sub o definiție anterioară a EBITDA și "
           "este ascuns; reanalizați perioada pentru un comentariu nou.",
-    "en": "This briefing was written under the previous EBITDA definition "
-          "(without the stock variation and own work capitalised) and is "
-          "hidden; re-analyse the period for a new one.",
+    "en": "This briefing was written under an earlier EBITDA definition and "
+          "is hidden; re-analyse the period for a new one.",
 }
 
 
