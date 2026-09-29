@@ -1537,8 +1537,11 @@ below is rendered from that pack (TC-10).
   served from the serve-time model like the EBITDA family); benchmark `REPORT_REVISION` 6; methodology
   1.2.0. The reprocess script reports the stamp a period was written under,
   the net provisions and the 7411 inside turnover; a turnover move of exactly
-  the placed 7411 on an earlier-definition period is the ruling
-  (`definition_7411`) and does not block.
+  the placed 7411 on an earlier-definition period is named as the ruling
+  (`definition_7411`) and STILL blocks until `--filed` names the period's
+  filed turnover (owner, 2026-09-29: "verify filed-turnover matching on any
+  book with 7411"), the named figure then judging the move. No stored period
+  posts 7411 today (production dry run 2026-09-29: 0.00 on all 10).
 
 **Ruling of 2026-09-28 (R1) — the stock-build credit regime, credit model
 revision 5 — candidate `feat/rulings-2`, NOT shipped until the owner has seen
