@@ -380,11 +380,16 @@ function stockVariationSection(served: ServedOneEbitda | null): PLSection | null
  *  6814) less the ruled reversals (7812, 7814), OUTSIDE EBITDA, printed
  *  between EBITDA and the operating result beside D&A — the engine's name,
  *  its accounts in the chip. The amount is the served figure as the engine
- *  signs it (a charge, like D&A beside it — the comparatives cell for
- *  `pl.net_provisions` carries the same number), and the printed sign says
- *  its effect on the result: a net charge "−", a net release "+". Null on a
- *  payload the engine did not assemble under the ruling (its D&A still
- *  holds the charges, its EBITDA the reversals) and on a period that
+ *  signs it — a charge, like D&A beside it — and it PRINTS as D&A prints:
+ *  no effect sign, no colour; a net charge unsigned, a net release with
+ *  its minus ("6812 + 6814 − 7812 − 7814", as the label says). The row's
+ *  prior and Δ cells (`pl.net_provisions` off the comparatives endpoint)
+ *  are charge-signed too, so the three cells of the row read on ONE
+ *  convention (deploy-readiness review, 2026-09-29: the current cell
+ *  printed the effect sign — a net charge "−", a release "+" — beside a
+ *  charge-signed prior and Δ, and the signs flipped within the row). Null
+ *  on a payload the engine did not assemble under the ruling (its D&A
+ *  still holds the charges, its EBITDA the reversals) and on a period that
  *  posted to none of the four accounts. */
 export function netProvisionsLine(served: ServedOneEbitda | null): PLLine | null {
   const np = served?.netProvisions;
@@ -396,7 +401,6 @@ export function netProvisionsLine(served: ServedOneEbitda | null): PLLine | null
     roName: roNameOf(np.name),
     amount: np.value,
     style: "item",
-    sign: np.value > 0 ? "negative" : "positive",
     bucket: "netProvisions",
   };
 }
