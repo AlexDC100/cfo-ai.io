@@ -889,11 +889,16 @@ def _engine_gates() -> List[Gate]:
         # (no real, corpus or fixture book posts 7411); three plants.
         # Measured 117 / 65. Plant logs: gates.md "provisions-symmetric",
         # "turnover-7411".
+        # Deploy-readiness review of feat/rulings-2 (2026-09-29): the pack is
+        # verified at BOOT (boot_verify.verify_pl_definition_pack) — missing,
+        # not YAML, wrong schema, crossed classes each fail verify_config.
         Gate("provisions-symmetric",
-             [PY, "-m", "pytest", "tests/engine/test_provisions_symmetric.py", "-q", "-s"],
+             [PY, "-m", "pytest", "tests/engine/test_provisions_symmetric.py",
+              "tests/engine/test_boot_verify_pl_definition.py", "-q", "-s"],
              work_rx=r"GATE-WORK provisions-symmetric units=(\d+)", floor=100,
              units="constructed books judged, served seams compared, plants",
              canaries=("SCOPE provisions-symmetric (owner ruling R2 2026-09-28, packs/ro/pl_definition.yaml)",
+                       "BOOT-VERIFY pl_definition: committed, crossed-classes, missing, not-yaml, wrong-schema",
                        "PROVISIONS-BOOKS: no_provisions, prov_both, prov_charges_only, prov_code_forms, "
                        "prov_reversals_only",
                        "PROVISIONS-PLANTS: reversals-back-inside-ebitda, charges-back-inside-da, "

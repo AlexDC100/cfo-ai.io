@@ -34,6 +34,7 @@ __all__ = [
     "PACK_FILE",
     "PlDefinitionPackError",
     "definition",
+    "pack_path",
     "turnover_prefixes",
     "is_turnover_placement",
     "provision_charge_prefixes",
@@ -59,6 +60,12 @@ class PlDefinitionPackError(RuntimeError):
 def _pack_path() -> Path:
     override = os.environ.get("RO_PL_DEFINITION_PACKS_DIR")
     return (Path(override) if override else DEFAULT_PACKS_DIR) / PACK_NAME
+
+
+def pack_path() -> Path:
+    """The pack file this process reads (``RO_PL_DEFINITION_PACKS_DIR``
+    overrides the directory) — named in the boot check's message."""
+    return _pack_path()
 
 
 def _text(raw: Any, where: str) -> Dict[str, str]:

@@ -16795,8 +16795,8 @@ production periods.
 
 | | |
 |---|---|
-| command | `python -m pytest tests/engine/test_provisions_symmetric.py -q -s` |
-| canary | `SCOPE provisions-symmetric (owner ruling R2 2026-09-28, packs/ro/pl_definition.yaml)`, `PROVISIONS-BOOKS: no_provisions, prov_both, …`, `PROVISIONS-PLANTS: reversals-back-inside-ebitda, …, rebuild-loses-the-ruling` |
+| command | `python -m pytest tests/engine/test_provisions_symmetric.py tests/engine/test_boot_verify_pl_definition.py -q -s` |
+| canary | `SCOPE provisions-symmetric (owner ruling R2 2026-09-28, packs/ro/pl_definition.yaml)`, `BOOT-VERIFY pl_definition: committed, crossed-classes, missing, not-yaml, wrong-schema`, `PROVISIONS-BOOKS: no_provisions, prov_both, …`, `PROVISIONS-PLANTS: reversals-back-inside-ebitda, …, rebuild-loses-the-ruling` |
 | work count | `GATE-WORK provisions-symmetric units=(\d+)`, floor **100** (measured 117) |
 
 **INCIDENT** — the owner's ruling R2 (2026-09-28): "exclude both charges
@@ -16891,6 +16891,55 @@ moving its composite (20.6).
 **CANNOT SEE:** the browser surfaces (the P&L tab, the report, the printed
 P&L — `one-ebitda` / `pl-one-ebitda-page` hold those on the served fixtures);
 whether 6813 / 7813 belong outside too (not ruled).
+
+### provisions-symmetric — the pack is verified at BOOT (deploy-readiness review of feat/rulings-2, 2026-09-29)
+
+**INCIDENT** — `boot_verify.verify_config` checked the credit and the
+margin-meaning packs but not `packs/ro/pl_definition.yaml`, which
+`country_packs/ro_romania/pl_definition.definition()` reads LAZILY on the
+first Romanian period assembled. A container whose image lost the file (the
+2026-09-20 deploy lesson: `packs/` is runtime) or carried a malformed one
+passed the /health boot probe (CLAUDE.md §14 step 6) and failed every
+request that assembled a period.
+
+**LAW** (`tests/engine/test_boot_verify_pl_definition.py`, run by this gate)
+— `boot_verify.verify_pl_definition_pack()`, called from `verify_config`
+beside the credit pack check, raises a RuntimeError naming the pack when the
+file is missing, is not YAML (the loader lets `yaml.YAMLError` through; the
+boot check catches it too), carries the wrong `schema_version`, or lists a
+class-7 account among the charges; the committed pack passes. Each case reads
+a FRESH tmp directory through the loader's own override
+(`RO_PL_DEFINITION_PACKS_DIR`), the per-path `lru_cache` cleared before and
+after, and the committed pack is re-verified after each.
+
+Source-edit plants (each alone, `scratchpad/r2fix/plant.py`, restored
+byte-exact, sha256 checked), three of three RED:
+```
+PLANT boot-check-does-not-ask-the-pack (the pre-fix verify_config): src/engine/boot_verify.py
+  FAILED tests/engine/test_boot_verify_pl_definition.py::test_an_unusable_pack_fails_the_boot_check[crossed-classes]
+  FAILED tests/engine/test_boot_verify_pl_definition.py::test_an_unusable_pack_fails_the_boot_check[missing]
+  FAILED tests/engine/test_boot_verify_pl_definition.py::test_an_unusable_pack_fails_the_boot_check[not-yaml]
+  FAILED tests/engine/test_boot_verify_pl_definition.py::test_an_unusable_pack_fails_the_boot_check[wrong-schema]
+  FAILED tests/engine/test_boot_verify_pl_definition.py::test_zz_scope - Assert...
+  ========================= 5 failed, 1 passed in 0.47s ==========================
+  exit=1 -> RED ; file restored byte-exact (sha256 bb5dbc4e4906)
+PLANT boot-check-swallows-the-refusal (logs, comes up): src/engine/boot_verify.py
+  FAILED tests/engine/test_boot_verify_pl_definition.py::test_an_unusable_pack_fails_the_boot_check[crossed-classes]
+  FAILED tests/engine/test_boot_verify_pl_definition.py::test_an_unusable_pack_fails_the_boot_check[missing]
+  FAILED tests/engine/test_boot_verify_pl_definition.py::test_an_unusable_pack_fails_the_boot_check[not-yaml]
+  FAILED tests/engine/test_boot_verify_pl_definition.py::test_an_unusable_pack_fails_the_boot_check[wrong-schema]
+  FAILED tests/engine/test_boot_verify_pl_definition.py::test_zz_scope - Assert...
+  ========================= 5 failed, 1 passed in 0.48s ==========================
+  exit=1 -> RED ; file restored byte-exact (sha256 bb5dbc4e4906)
+PLANT boot-check-misses-a-yaml-syntax-error (only the pack error caught): src/engine/boot_verify.py
+  FAILED tests/engine/test_boot_verify_pl_definition.py::test_an_unusable_pack_fails_the_boot_check[not-yaml]
+  FAILED tests/engine/test_boot_verify_pl_definition.py::test_zz_scope - Assert...
+  ========================= 2 failed, 4 passed in 0.48s ==========================
+  exit=1 -> RED ; file restored byte-exact (sha256 bb5dbc4e4906)
+```
+**REVERT** — `6 passed` (`BOOT-VERIFY pl_definition: committed,
+crossed-classes, missing, not-yaml, wrong-schema`); the gate through
+`run_battery`'s own evaluation: see the measured runs below.
 
 ## turnover-7411
 
