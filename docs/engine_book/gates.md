@@ -16941,6 +16941,23 @@ PLANT boot-check-misses-a-yaml-syntax-error (only the pack error caught): src/en
 crossed-classes, missing, not-yaml, wrong-schema`); the gate through
 `run_battery`'s own evaluation: see the measured runs below.
 
+**Measured green at f54b3f66 (deploy-readiness fixes of feat/rulings-2,
+2026-09-29 — the six findings):** the full engine suite 9297 passed, 39
+skipped, 2 xfailed (17:45; the run at f69e9e35 had 1 failed —
+`test_engine_book::test_regeneration_is_byte_identical`, the new
+boot_verify → country_packs edge, regenerated in f54b3f66); full vitest 263
+files, 4334 passed, 1 skipped; tsc — the 10 known capsuleAskGuard errors
+only; `vite build` (dist removed first) OK; root tests 6 failed, 124 passed,
+24 errors (environmental — `data/validation_fixture_categories.csv` absent
+from the worktree); through `run_battery`'s own evaluation (exit, work count,
+floor, canaries): one-ebitda 40, pl-one-ebitda-page 66, provisions-symmetric
+117, briefing-definition 9, turnover-7411 65, valuation-one-ebitda 23,
+refusal-carries 47, reprocess-periods-definition 99, export-ratio-anchor 15,
+turnover-denominator 8, credit-regime-surfaces 14, valuation-refused-override
+10, cmdbar-evidence 47, route-binding 3, no-plants 1114, floor-census 77,
+pack-lint 4, plan-gate-census 29 — all PASS; provenance-census red on its 11
+pre-existing findings, none new.
+
 ## turnover-7411
 
 | | |
