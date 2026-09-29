@@ -1305,15 +1305,21 @@ def _engine_gates() -> List[Gate]:
         # net-711-rule captured through the real route (held live by
         # tests/engine/test_one_ebitda_fe_books.py). Measured 58 tests, floor
         # 50. Plant log: gates.md "pl-one-ebitda-page".
+        # Deploy-readiness review of feat/rulings-2 (2026-09-29, owner ruling
+        # R2): the net-provisions row prints current, prior and Δ on ONE sign
+        # convention (charge-signed, as D&A) — the committed pair and its
+        # constructed mirror. Measured 63 -> 66.
         Gate("pl-one-ebitda-page",
              ["npx", "vitest", "run", "--root", ".",
-              "frontend/lib/__tests__/plOneEbitda.test.tsx", "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=50,
-             units="P&L-tab tests (served subtotals, the 711 row, refusals RO/EN, 72x, the 121 remainder, the reconciliation line, the panel, retired copy)",
+              "frontend/lib/__tests__/plOneEbitda.test.tsx",
+              "frontend/lib/__tests__/netProvisionsRowSign.test.tsx", "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=60,
+             units="P&L-tab tests (served subtotals, the 711 row, refusals RO/EN, 72x, the 121 remainder, the reconciliation line, the panel, retired copy, the net-provisions row's sign)",
              canaries=("covers eleven books, three of them refused",
                        "unanchored: every refused figure states the engine's reason, RO and EN",
                        "closed_no_activity: no stock-variation row, the remainder labelled, then account 121",
-                       "renders the owner's name verbatim in Romanian, and with the engine's gloss in English")),
+                       "renders the owner's name verbatim in Romanian, and with the engine's gloss in English",
+                       "the served pair (current a net charge, prior a net release): the row prints current, prior and Δ charge-signed, as D&A prints its own")),
         # ── owner ruling 2026-09-26, design A8 (stage F2): the three surface
         # gates. Every other frontend surface — deriveTotals, computeRatios,
         # canonicalMetrics, the dashboard headline / canon / configurable
@@ -1327,14 +1333,26 @@ def _engine_gates() -> List[Gate]:
         # books of net-711-rule captured through the real route. Measured 25 /
         # 8 / 10 tests. Plant log: gates.md "one-ebitda", "turnover-
         # denominator", "refusal-carries".
+        # Deploy-readiness review of feat/rulings-2 (2026-09-29, owner ruling
+        # R2): the non-cash add-back is the cash flow's (all of 68x), never
+        # the narrowed P&L D&A — the client DCF (Valuation tab, workbook
+        # Valuation sheet) and the Cash Flow tab take it back / add it, and
+        # the row holding the 6812 / 6814 charges is named for them on the
+        # tab (EN / RO), /report §4 and the workbook. Measured 25 -> 40.
         Gate("one-ebitda",
              ["npx", "vitest", "run", "--root", ".",
-              "frontend/lib/__tests__/oneEbitdaSurfaces.test.tsx", "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=20,
-             units="surface tests (every browser surface prints the served EBITDA on eight served books)",
+              "frontend/lib/__tests__/oneEbitdaSurfaces.test.tsx",
+              "frontend/lib/__tests__/provisionsAddBack.test.tsx",
+              "frontend/pages/cfo/__tests__/comprehensiveReportAddBack.test.tsx", "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=36,
+             units="surface tests (every browser surface prints the served EBITDA on eight served books; the R2 add-back)",
              canaries=("covers eight served books, and on six of them the build-up before 711 / 72x differs from EBITDA",
                        "agras: the printed report, the workbook and the charts",
-                       "realestate: Debt / EBITDA and the no-envelope credit model divide the served EBITDA")),
+                       "realestate: Debt / EBITDA and the no-envelope credit model divide the served EBITDA",
+                       "three firm books post 6812 / 6814 charges: the cash flow's add-back exceeds the P&L's D&A by exactly them",
+                       "carniprod: stabilised FCF = CFO − assembled_cf.depreciation, whatever the P&L's D&A",
+                       "retail: the row is named for what it sums — the tab (EN, RO) and the workbook",
+                       "carniprod posts 6812 / 6814 charges: the row holding all of 68x names them")),
         # ── design A8 (stage G1): exportRatioFormulas' DISCRIMINATING scope
         # was made vacuous by the 121 bridge — on the four firm books the
         # build-up + the served 711 IS account 121, so a net-income ratio

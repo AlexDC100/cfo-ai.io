@@ -13265,9 +13265,9 @@ REVERT (clean tree):
 
 | | |
 |---|---|
-| command | `npx vitest run --root . frontend/lib/__tests__/plOneEbitda.test.tsx --reporter=verbose` |
-| canary | `covers ten books, two of them refused`, `unanchored: every refused figure states the engine's reason, RO and EN`, `closed_no_activity: no stock-variation row, the remainder labelled, then account 121`, `renders the owner's name verbatim in Romanian, and with the engine's gloss in English` |
-| work count | `Tests N passed`, floor **50** (measured 58) |
+| command | `npx vitest run --root . frontend/lib/__tests__/plOneEbitda.test.tsx frontend/lib/__tests__/netProvisionsRowSign.test.tsx --reporter=verbose` |
+| canary | `covers eleven books, three of them refused`, `unanchored: every refused figure states the engine's reason, RO and EN`, `closed_no_activity: no stock-variation row, the remainder labelled, then account 121`, `renders the owner's name verbatim in Romanian, and with the engine's gloss in English`, `the served pair (current a net charge, prior a net release): the row prints current, prior and Δ charge-signed, as D&A prints its own` |
+| work count | `Tests N passed`, floor **60** (measured 66: plOneEbitda 63 + the net-provisions row 3; floor 50 / measured 58 before) |
 
 **INCIDENT** — the owner's ruling of 2026-09-26 (711 and 72x inside EBITDA
 and the operating result; 711 shown as "Variația stocurilor de produse" next
@@ -13352,13 +13352,62 @@ RED (plant) — Tests 2 failed | 68 passed (70) (plOneEbitda + refusalCarries)
 **REVERT** — the re-captured fixture restored: `Tests 58 passed (58)` on
 plOneEbitda.
 
+### pl-one-ebitda-page — the net-provisions row on one sign convention (deploy-readiness review of feat/rulings-2, 2026-09-29, ruling R2)
+
+**INCIDENT** — `netProvisionsLine` printed the CURRENT cell with its EFFECT
+sign (a net charge "−", a net release "+", coloured `pl-neg` / `pl-pos`),
+while the same row's prior and Δ cells (`CmpCells rowKey "netProvisions"`,
+the comparatives endpoint's charge-signed `pl.net_provisions`) print the
+charge-signed figures. On the committed pair (current a net charge of
+131,394.66, prior a net release of 67,194.32) the row read "−131,394.66 |
+−67,194.32 | +198,588.98": both periods with a minus and opposite meanings,
+the current red and the Δ green. D&A beside it prints its charge unsigned,
+uncoloured, every cell charge-signed.
+
+**LAW** (`frontend/lib/__tests__/netProvisionsRowSign.test.tsx`) — on the
+committed comparatives pair and on the same pair read the other way (a
+CONSTRUCTED mirror: the pair's own blocks and column swapped, so the current
+is the net release): the current cell prints the served charge-signed value
+as D&A prints its own (a minus only on a negative value, never a "+", no
+colour class), the prior cell the column's prior on the same rule, the Δ cell
+the column's Δ signed; the D&A row of the same render prints the same way.
+The printed report and the workbook are effect-signed on EVERY row, current
+and prior alike (`printedPl`: `0 − np.value`, the prior through the same
+printer) — consistent, unchanged.
+
+Plants, each applied alone to the worktree by `scratchpad/r2fix/plant.py`
+(restored byte-exact, sha256 checked), two of two RED:
+```
+PLANT effect-sign-on-the-current-cell (the pre-fix line: a net charge '−', a net release '+'): frontend/lib/buildPlStatement.ts
+  × frontend/lib/__tests__/netProvisionsRowSign.test.tsx > the net-provisions row — one sign convention across current, prior and Δ > the served pair (current a net charge, prior a net release): the row prints current, prior and Δ charge-signed, as D&A prints its own 97ms
+  × frontend/lib/__tests__/netProvisionsRowSign.test.tsx > the net-provisions row — one sign convention across current, prior and Δ > the pair read the other way (current a net release, prior a net charge — constructed): the row prints current, prior and Δ charge-signed, as D&A prints its own 27ms
+  Tests  2 failed | 1 passed (3)
+  AssertionError: current −131.394,66: expected '−' to be '' // Object.is equality
+  AssertionError: current +67.194,32: expected '+' to be '−' // Object.is equality
+  exit=1 -> RED ; file restored byte-exact (sha256 f3042d99c799)
+PLANT signed-level-on-the-current-cell (a '+' on a net charge, coloured): frontend/lib/buildPlStatement.ts
+  × frontend/lib/__tests__/netProvisionsRowSign.test.tsx > the net-provisions row — one sign convention across current, prior and Δ > the served pair (current a net charge, prior a net release): the row prints current, prior and Δ charge-signed, as D&A prints its own 98ms
+  × frontend/lib/__tests__/netProvisionsRowSign.test.tsx > the net-provisions row — one sign convention across current, prior and Δ > the pair read the other way (current a net release, prior a net charge — constructed): the row prints current, prior and Δ charge-signed, as D&A prints its own 26ms
+  Tests  2 failed | 1 passed (3)
+  AssertionError: current +131.394,66: expected '+' to be '' // Object.is equality
+  AssertionError: no effect colour on the current cell: expected 'pl-amount pl-neg' not to match /\bpl-(pos|neg)\b/
+  exit=1 -> RED ; file restored byte-exact (sha256 f3042d99c799)
+```
+**REVERT** — the clean tree: `Tests 66 passed (66)` (plOneEbitda +
+netProvisionsRowSign); the gate through `run_battery`'s own evaluation: PASS,
+units 66, floor 60, no canary missing.
+
+CANNOT SEE: whether the served figures are right (`provisions-symmetric`);
+the one-line reconciliation under EBITDA and the reconciliation panel (their
+own signed parts); pixels.
+
 ## one-ebitda
 
 | | |
 |---|---|
-| command | `npx vitest run --root . frontend/lib/__tests__/oneEbitdaSurfaces.test.tsx --reporter=verbose` |
-| canary | `covers eight served books, and on six of them the build-up before 711 / 72x differs from EBITDA`, `agras: the printed report, the workbook and the charts`, `realestate: Debt / EBITDA and the no-envelope credit model divide the served EBITDA` |
-| work count | `Tests N passed`, floor **20** (measured 25) |
+| command | `npx vitest run --root . frontend/lib/__tests__/oneEbitdaSurfaces.test.tsx frontend/lib/__tests__/provisionsAddBack.test.tsx frontend/pages/cfo/__tests__/comprehensiveReportAddBack.test.tsx --reporter=verbose` |
+| canary | `covers eight served books, and on six of them the build-up before 711 / 72x differs from EBITDA`, `agras: the printed report, the workbook and the charts`, `realestate: Debt / EBITDA and the no-envelope credit model divide the served EBITDA`, `three firm books post 6812 / 6814 charges: the cash flow's add-back exceeds the P&L's D&A by exactly them`, `carniprod: stabilised FCF = CFO − assembled_cf.depreciation, whatever the P&L's D&A`, `retail: the row is named for what it sums — the tab (EN, RO) and the workbook`, `carniprod posts 6812 / 6814 charges: the row holding all of 68x names them` |
+| work count | `Tests N passed`, floor **36** (measured 40: oneEbitdaSurfaces 25 + the R2 add-back 13 + /report §4 2; floor 20 / measured 25 before) |
 
 **INCIDENT** — the owner's ruling of 2026-09-26 (711 and 72x inside EBITDA
 and the operating result, one definition everywhere). Before stage F2 the
@@ -13418,6 +13467,113 @@ CANNOT SEE: whether the served figure is right (`net-711-rule`); a refused
 EBITDA (`refusal-carries`); a margin's denominator (`turnover-denominator`);
 the engine-side surfaces (credit model, valuation, briefing — their own
 gates); pixels.
+
+### one-ebitda — the non-cash add-back is the cash flow's, never the narrowed P&L D&A (deploy-readiness review of feat/rulings-2, 2026-09-29, ruling R2)
+
+**INCIDENT** — after R2 the engine serves `assembled_pl.depreciation` = 68x
+− 6812 − 6814 (the charges sit with their reversals on the net-provisions
+line) while `assembled_cf.depreciation` — the cash-flow walk's non-cash
+add-back — stays all of 68x; the engine's own DCF (`_valuation.py`) reads
+the cash flow's first, "never a narrower one". Two browser readers did not:
+1. `runDcf` (the Valuation tab; the workbook's Valuation sheet through
+   `financialExports.ts`) stabilised FCF as `cash_from_operating −
+   assembled_pl.depreciation`, leaving the charges inside the perpetuity base
+   (agras +135,383.36, carniprod +393,123.16, retail +350,361.72 on the firm
+   books) — a client DCF off the engine's printed on the same page;
+2. `buildCashFlowStatement` added back `pl.depreciation ?? cf.depreciation`:
+   the add-back and "CF before WC changes" short by the charges, the
+   difference in the "WC reconciliation (other unmodeled accounts)" plug. The
+   row holding all of 68x was named "Depreciation & amortization" on the tab,
+   /report §4 and the workbook's Cash Flow sheet.
+
+**LAW** (`frontend/lib/__tests__/provisionsAddBack.test.tsx`,
+`frontend/pages/cfo/__tests__/comprehensiveReportAddBack.test.tsx`) — on the
+four firm books (real engine output; agras, carniprod and retail post the
+charges, asserted: 68x − D&A = the served charges to the cent; realestate is
+the control): the DCF's base FCF is `cash_from_operating −
+assembled_cf.depreciation` to the cent, and base FCF, EV, equity and the
+terminal PV are identical whether the served P&L carries the narrowed D&A,
+the cash flow's (the pre-R2 shape) or none; the workbook's Valuation sheet
+prints that EV. The Cash Flow tab adds back `assembled_cf.depreciation`, CF
+before WC changes = the net result + it, and the row is named "+
+Depreciation, amortisation and provision charges (68x)" / "+ Amortizări și
+provizioane (68x)" exactly where the two figures differ (plain D&A on the
+control) — on the tab (EN, RO), /report §4 and the workbook's Cash Flow
+sheet (one helper, `addBackHoldsProvisionCharges`). The P&L tab's D&A line is
+untouched.
+
+Plants, each applied alone to the worktree by `scratchpad/r2fix/plant.py`
+(restored byte-exact, sha256 checked), six of six RED:
+```
+PLANT dcf-subtracts-the-narrowed-da (runDcf reads assembled_pl.depreciation first — the pre-fix read): frontend/lib/financialValuation.ts
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the DCF takes back the add-back its CFO carries > agras: stabilised FCF = CFO − assembled_cf.depreciation, whatever the P&L's D&A 4ms
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the DCF takes back the add-back its CFO carries > carniprod: stabilised FCF = CFO − assembled_cf.depreciation, whatever the P&L's D&A 0ms
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the DCF takes back the add-back its CFO carries > retail: stabilised FCF = CFO − assembled_cf.depreciation, whatever the P&L's D&A 0ms
+  Tests  3 failed | 12 passed (15)
+  AssertionError: agras: base FCF: expected 135383.36000000127 to be less than 0.005
+  AssertionError: carniprod: base FCF: expected 393123.1599999997 to be less than 0.005
+  AssertionError: retail: base FCF: expected 350361.7200000002 to be less than 0.005
+  exit=1 -> RED ; file restored byte-exact (sha256 84e59f18aa80)
+PLANT cf-tab-adds-back-the-narrowed-da (the pre-fix line: pl.depreciation ?? cf.depreciation): frontend/lib/buildCashFlowStatement.ts
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the Cash Flow tab adds back all of 68x and says so > agras: the add-back is assembled_cf.depreciation and CF before WC changes is built on it 3ms
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the Cash Flow tab adds back all of 68x and says so > agras: the row is named for what it sums — the tab (EN, RO) and the workbook 64ms
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the Cash Flow tab adds back all of 68x and says so > carniprod: the add-back is assembled_cf.depreciation and CF before WC changes is built on it 0ms
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the Cash Flow tab adds back all of 68x and says so > carniprod: the row is named for what it sums — the tab (EN, RO) and the workbook 11ms
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the Cash Flow tab adds back all of 68x and says so > retail: the add-back is assembled_cf.depreciation and CF before WC changes is built on it 0ms
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the Cash Flow tab adds back all of 68x and says so > retail: the row is named for what it sums — the tab (EN, RO) and the workbook 8ms
+  Tests  6 failed | 9 passed (15)
+  AssertionError: agras: the add-back: expected 135383.36000000034 to be less than 0.005
+  AssertionError: agras (en): expected '+ Depreciation & amortization' to be '+ Depreciation, amortisation and prov…' // Object.is equality
+  AssertionError: carniprod: the add-back: expected 393123.1599999997 to be less than 0.005
+  AssertionError: carniprod (en): expected '+ Depreciation & amortization' to be '+ Depreciation, amortisation and prov…' // Object.is equality
+  AssertionError: retail: the add-back: expected 350361.72 to be less than 0.005
+  AssertionError: retail (en): expected '+ Depreciation & amortization' to be '+ Depreciation, amortisation and prov…' // Object.is equality
+  exit=1 -> RED ; file restored byte-exact (sha256 2169e48d4d6e)
+PLANT cf-tab-row-named-da-over-68x (the tab's label key never widens): frontend/components/cfo/CashFlowStatementView.tsx
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the Cash Flow tab adds back all of 68x and says so > agras: the row is named for what it sums — the tab (EN, RO) and the workbook 66ms
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the Cash Flow tab adds back all of 68x and says so > carniprod: the row is named for what it sums — the tab (EN, RO) and the workbook 11ms
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the Cash Flow tab adds back all of 68x and says so > retail: the row is named for what it sums — the tab (EN, RO) and the workbook 8ms
+  Tests  3 failed | 12 passed (15)
+  AssertionError: agras (en): expected '+ Depreciation & amortization' to be '+ Depreciation, amortisation and prov…' // Object.is equality
+  AssertionError: carniprod (en): expected '+ Depreciation & amortization' to be '+ Depreciation, amortisation and prov…' // Object.is equality
+  AssertionError: retail (en): expected '+ Depreciation & amortization' to be '+ Depreciation, amortisation and prov…' // Object.is equality
+  exit=1 -> RED ; file restored byte-exact (sha256 ab62cf0a4ade)
+PLANT workbook-row-named-da-over-68x (the Cash Flow sheet's label never widens): frontend/lib/financialExports.ts
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the Cash Flow tab adds back all of 68x and says so > agras: the row is named for what it sums — the tab (EN, RO) and the workbook 79ms
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the Cash Flow tab adds back all of 68x and says so > carniprod: the row is named for what it sums — the tab (EN, RO) and the workbook 19ms
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the Cash Flow tab adds back all of 68x and says so > retail: the row is named for what it sums — the tab (EN, RO) and the workbook 18ms
+  Tests  3 failed | 12 passed (15)
+  AssertionError: agras: the workbook's Cash Flow row "+ Depreciation, amortisation and provision charges (68x)": expected undefined to be defined
+  AssertionError: carniprod: the workbook's Cash Flow row "+ Depreciation, amortisation and provision charges (68x)": expected undefined to be defined
+  AssertionError: retail: the workbook's Cash Flow row "+ Depreciation, amortisation and provision charges (68x)": expected undefined to be defined
+  exit=1 -> RED ; file restored byte-exact (sha256 85fce99228c2)
+PLANT report-row-named-da-over-68x (/report §4's label never widens): frontend/pages/cfo/ComprehensiveReport.tsx
+  × frontend/pages/cfo/__tests__/comprehensiveReportAddBack.test.tsx > /report §4 — the add-back row is named for what it sums (R2) > carniprod posts 6812 / 6814 charges: the row holding all of 68x names them 102ms
+  Tests  1 failed | 14 passed (15)
+  AssertionError: expected [ 'Net profit', …(20) ] to include '+ Depreciation, amortisation and prov…'
+  exit=1 -> RED ; file restored byte-exact (sha256 f75dc2f1104e)
+PLANT label-widens-on-every-book (the helper answers true whatever the figures): frontend/lib/buildCashFlowStatement.ts
+  × frontend/pages/cfo/__tests__/comprehensiveReportAddBack.test.tsx > /report §4 — the add-back row is named for what it sums (R2) > realestate posts none: the row is plain D&A 45ms
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the Cash Flow tab adds back all of 68x and says so > realestate: the add-back is assembled_cf.depreciation and CF before WC changes is built on it 4ms
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the Cash Flow tab adds back all of 68x and says so > realestate: the row is named for what it sums — the tab (EN, RO) and the workbook 9ms
+  Tests  3 failed | 12 passed (15)
+  AssertionError: realestate: the label flag: expected true to be false // Object.is equality
+  AssertionError: realestate (en): expected '+ Depreciation, amortisation and prov…' to be '+ Depreciation & amortization' // Object.is equality
+  AssertionError: expected [ 'Net profit', …(20) ] to include '+ Depreciation & amortization'
+  exit=1 -> RED ; file restored byte-exact (sha256 2169e48d4d6e)
+```
+**REVERT** — the clean tree: `Tests 40 passed (40)` (oneEbitdaSurfaces +
+provisionsAddBack + comprehensiveReportAddBack); the gate through
+`run_battery`'s own evaluation: PASS, units 40, floor 36, no canary missing.
+
+**Left open, stated rather than moved:** after the fix the client DCF's base
+is CFO − 68x = net result + the walk's provision movement + ΔWC; the engine's
+stabilised FCF is net result + ΔWC. They still differ by
+`assembled_cf.provision_movement` (agras 234,054.33) — a pre-existing
+difference of formula, not of the depreciation read, and not this finding's.
+
+CANNOT SEE: whether the served figures are right (`provisions-symmetric`);
+the engine's DCF (`valuation-one-ebitda`, `floor-valuation`); pixels.
 
 ## turnover-denominator
 
