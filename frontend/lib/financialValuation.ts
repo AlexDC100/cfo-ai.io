@@ -265,12 +265,20 @@ export function runDcf(s: Statements): DcfResult {
   // Prefer the canonical views (`assembled_cf` / `assembled_pl`) when
   // the backend supplied them. Fall back to client-side derivations
   // only when canonical isn't available (sample mode).
+  //
+  // THE ADD-BACK THE CFO CARRIES, never a narrower one — the same ladder
+  // as the engine's DCF (`src/engine/api/_valuation.py`: cash flow's
+  // `depreciation`, then the P&L's, then the legacy mirror). Since the
+  // owner's R2 ruling (2026-09-28) `assembled_pl.depreciation` is D&A
+  // WITHOUT the 6812 / 6814 provision charges, while the CFO walk adds
+  // back all of 68x (`assembled_cf.depreciation`): subtracting the P&L
+  // figure left the charges inside the "maintenance capex" and moved this
+  // DCF off the engine's one printed on the same page.
   const canonicalCfo = s.assembled_cf?.cash_from_operating;
-  const canonicalDep = s.assembled_pl?.depreciation;
   const cfo = typeof canonicalCfo === "number" && Number.isFinite(canonicalCfo) ? canonicalCfo : cf.cfo;
-  const dep = typeof canonicalDep === "number"
-    ? canonicalDep
-    : s.incomeStatement.depreciationAmortization;
+  const dep = [s.assembled_cf?.depreciation, s.assembled_pl?.depreciation].find(
+    (v): v is number => typeof v === "number" && Number.isFinite(v),
+  ) ?? s.incomeStatement.depreciationAmortization;
   // Net debt — prefer canonical view, else legacy derivation.
   const canonicalDebt = s.assembled_bs?.total_debt;
   const canonicalCash = s.assembled_bs?.cash;
