@@ -826,6 +826,7 @@
         "header": "ACTIVITĂȚI OPERAȚIONALE",
         "netProfit": "Profit net",
         "depreciation": "+ Amortizare & depreciere",
+        "depreciationAndProvisionCharges": "+ Amortizări și provizioane (68x)",
         "cfBeforeWc": "CF operațional înainte de variația CL",
         "wcChanges": "Variația capitalului de lucru:",
         "cashFromOperating": "Numerar din activități operaționale"

@@ -69,6 +69,25 @@ function cfNum(
   return typeof v === "number" && Number.isFinite(v) ? v : fallback;
 }
 
+/** THE ADD-BACK ROW'S NAME (owner ruling R2, 2026-09-28). The cash-flow
+ *  walk adds back all of 68x (`assembled_cf.depreciation`); the P&L's
+ *  `depreciation` is D&A WITHOUT the 6812 / 6814 provision charges, which
+ *  it prints on their own net-provisions line. Where the figure a row adds
+ *  back differs from the P&L's D&A, the row holds those charges too and is
+ *  named for what it sums — never "Depreciation & amortization" alone.
+ *  False when either figure is absent (nothing to tell them apart by). */
+export function addBackHoldsProvisionCharges(addBack: unknown, plDepreciation: unknown): boolean {
+  const finiteNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
+  return finiteNum(addBack) && finiteNum(plDepreciation) && Math.abs(addBack - plDepreciation) >= 0.005;
+}
+
+/** The English row names of the exported documents (the Cash Flow tab reads
+ *  the same words from the locale files). */
+export const CF_ADD_BACK_LABEL_EN = {
+  depreciation: "+ Depreciation & amortization",
+  withProvisionCharges: "+ Depreciation, amortisation and provision charges (68x)",
+} as const;
+
 export function buildCashFlowStatement(args: BuildArgs): CashFlowStatement {
   const currency = args.currency ?? "RON";
   const pl = args.pl ?? {};
@@ -102,7 +121,20 @@ export function buildCashFlowStatement(args: BuildArgs): CashFlowStatement {
   }
   // Net profit (statutory — the same view the P&L tab + briefing use).
   const netProfit = pl.net_income_statutory ?? cfNum(cf.net_profit, 0);
-  const depreciation = pl.depreciation ?? cfNum(cf.depreciation, 0);
+  // THE CASH FLOW'S OWN ADD-BACK — all of 68x as the engine's walk adds it
+  // back (`assembled_cf.depreciation`), then the P&L's D&A. Since the
+  // owner's R2 ruling (2026-09-28) `assembled_pl.depreciation` is D&A
+  // WITHOUT the 6812 / 6814 provision charges (their net is its own P&L
+  // line, outside EBITDA) — still non-cash, so reading the P&L figure here
+  // understated the add-back and "CF before WC changes" by the charges and
+  // pushed them into the WC reconciliation plug.
+  const plDepreciation = typeof pl.depreciation === "number" && Number.isFinite(pl.depreciation)
+    ? pl.depreciation
+    : null;
+  const depreciation = cfNum(cf.depreciation, plDepreciation ?? 0);
+  // The row says what it sums: when the served add-back holds more than the
+  // P&L's D&A (the provision charges), it is not "D&A" alone.
+  const depreciationIncludesProvisionCharges = addBackHoldsProvisionCharges(depreciation, pl.depreciation);
   const cfBeforeWcChanges = netProfit + depreciation;
 
   // ── INVESTING — REAL capex (CIP additions), not D&A ──────────────────
@@ -237,6 +269,7 @@ export function buildCashFlowStatement(args: BuildArgs): CashFlowStatement {
     operating: {
       netProfit,
       depreciation,
+      depreciationIncludesProvisionCharges,
       cfBeforeWcChanges,
       wcChanges,
       cashFromOperating,

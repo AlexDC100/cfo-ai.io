@@ -826,6 +826,7 @@
         "header": "OPERATING ACTIVITIES",
         "netProfit": "Net profit",
         "depreciation": "+ Depreciation & amortization",
+        "depreciationAndProvisionCharges": "+ Depreciation, amortisation and provision charges (68x)",
         "cfBeforeWc": "Operating CF before WC changes",
         "wcChanges": "Working capital changes:",
         "cashFromOperating": "Cash from operating activities"

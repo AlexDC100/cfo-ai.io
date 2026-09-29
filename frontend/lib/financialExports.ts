@@ -52,6 +52,7 @@ import { regimeDocumentText } from "./creditRegime";
 import { inventoryDaysSheetRows, printInventoryDays, readInventoryDaysSplit } from "./inventoryDays";
 import { plLevelsOf } from "./servedOneEbitda";
 import { printedPl, printedRow, type PrintedPlRow } from "./printedPl";
+import { CF_ADD_BACK_LABEL_EN, addBackHoldsProvisionCharges } from "./buildCashFlowStatement";
 // ONE sentence for "there is nothing to compare against", shared with
 // the report model — so the workbook and the printed document cannot
 // describe the same absence two different ways.
@@ -568,7 +569,12 @@ export function buildExcelWorkbook(
     // question for `financialValuation.ts`, recorded rather than silently
     // patched from this file.
     ["Net income — reconstructed (class 6/7 movements)", cfCell(cf.netIncome)],
-    ["+ Depreciation & amortization", cf.depreciationAmortization],
+    // The add-back is the statement's all-68x figure; since the owner's R2
+    // ruling (2026-09-28) the P&L's D&A leaves out the 6812 / 6814 charges,
+    // so where the two differ the row is named for what it sums.
+    [addBackHoldsProvisionCharges(cf.depreciationAmortization, s.assembled_pl?.depreciation)
+      ? CF_ADD_BACK_LABEL_EN.withProvisionCharges
+      : CF_ADD_BACK_LABEL_EN.depreciation, cf.depreciationAmortization],
     ["- Δ Working capital", cf.workingCapitalChange],
     ["= Cash flow from operations (CFO)", cfCell(cf.cfo)],
     ["- Capex", cf.capex],
