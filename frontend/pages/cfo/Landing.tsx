@@ -36,7 +36,8 @@ import { getSupabase } from "@/lib/supabase";
 import { pickLanguageWithProfileSync, SUPPORTED_LANGUAGES } from "@/i18n";
 import { LEGAL_ENTITY, legalDocPath, socialLinks } from "@/lib/legalConfig";
 import { openCookieSettings } from "@/components/cfo/CookieBanner";
-import { MARQUEE } from "@/lib/markets";
+import { proofRows } from "@/lib/engineProof";
+import { coverageView, type CoverageCategory } from "@/lib/coverage";
 import { landingStringsFor, type LandingStrings } from "./landingStrings";
 
 type Page = "home" | "pricing" | "contact" | "legal";
@@ -282,6 +283,8 @@ function header(
 // Pricing cards — shared between the home page's #pricing section (footer
 // anchor target) and the standalone pricing page.
 const featureLi = (x: string) => `<li style="display:flex;gap:10px"><span style="color:var(--brand)">✓</span> ${x}</li>`;
+// A line that is PLANNED, not included today — a clock-like mark, never the tick.
+const pendingLi = (x: string) => `<li data-pending="true" style="display:flex;gap:10px"><span aria-hidden="true" style="color:var(--ink-mute)">◌</span> ${x}</li>`;
 
 type BillingCycle = "monthly" | "yearly";
 
@@ -327,16 +330,23 @@ const pricingGrid = (L: LandingStrings, cycle: BillingCycle = "monthly") => `
         ${L.pricing.business.features.map(featureLi).join("")}
       </ul>
     </div>
-    <div class="pricing-card" style="border:1px solid var(--rule);background:var(--surface);border-radius:20px;padding:30px;display:flex;flex-direction:column">
+    <!-- Multi-Country is COMING SOON (2026-10-01). International coverage
+         is not available — coverage.json row "other_countries" — so the
+         card stays visible but nothing on it starts a checkout: the CTA is
+         a disabled label, not a link to /signup?plan=multi. Its bullets
+         carry a clock, not a tick: a tick is a claim that the line is
+         included today. -->
+    <div class="pricing-card" data-plan="multi" data-plan-state="coming-soon" style="border:1px dashed var(--rule-strong);background:var(--surface);border-radius:20px;padding:30px;display:flex;flex-direction:column;position:relative">
+      <span data-plan-badge style="position:absolute;top:-11px;left:30px;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em;font-weight:600;color:var(--ink);background:var(--surface-hi);border:1px solid var(--rule-strong);padding:4px 12px;border-radius:999px">${L.pricing.pro.badge}</span>
       <div style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--ink-soft)">${L.pricing.pro.name}</div>
-      <div style="margin-top:14px;display:flex;align-items:baseline;gap:6px"><span style="font-family:var(--serif);font-size:44px;line-height:1;color:var(--ink)">${L.pricing.pro.price}</span></div>
+      <div style="margin-top:14px;display:flex;align-items:baseline;gap:6px"><span style="font-family:var(--serif);font-size:44px;line-height:1;color:var(--ink-mute)">${L.pricing.pro.price}</span></div>
       <div style="font-size:12.5px;color:var(--ink-mute);margin-top:6px">${L.pricing.pro.priceNote}</div>
       <p style="margin-top:14px;font-size:13.5px;color:var(--ink-soft)">${L.pricing.pro.blurb}</p>
-      <a href="/signup?plan=multi" data-act="signup:multi" class="hv-brand" style="margin-top:22px;display:inline-flex;align-items:center;justify-content:center;height:46px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:14px;transition:border-color .15s,color .15s">${L.pricing.pro.cta}</a>
-      <ul style="margin:24px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px;font-size:13.5px;color:var(--ink-2)">
+      <span role="button" aria-disabled="true" data-plan-cta="disabled" style="margin-top:22px;display:inline-flex;align-items:center;justify-content:center;height:46px;border-radius:999px;background:transparent;border:1px solid var(--rule);color:var(--ink-mute);font-weight:500;font-size:14px;cursor:not-allowed">${L.pricing.pro.cta}</span>
+      <ul style="margin:24px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px;font-size:13.5px;color:var(--ink-soft)">
         ${featureLi(L.pricing.pro.lead[0])}
-        ${featureLi(`<strong>${L.pricing.pro.lead[1]}</strong>`)}
-        ${L.pricing.pro.features.map(featureLi).join("")}
+        ${pendingLi(`<strong>${L.pricing.pro.lead[1]}</strong>`)}
+        ${L.pricing.pro.features.map(pendingLi).join("")}
       </ul>
     </div>
   </div>
@@ -541,27 +551,92 @@ function HeroTicker({ boardHost }: { boardHost: HTMLElement }) {
   );
 }
 
-// ── Global-positioning strip (directive 2026-08-29) ──────────────────────
-// One quiet line + the marquee market row, rendered under the hero mock.
-// The row comes STRAIGHT from lib/markets.ts MARQUEE so its order can never
-// drift from the canonical taxonomy (gate G4: US, DE, GB, FR, IT, ES, AE —
-// Hungary never appears in this row). No flags, no country singled out —
-// every name renders in the same quiet mono caps, and the line itself keeps
-// the ACCEPTANCE_LINE phrasing discipline (gate G3: "accepted" /
-// "machine-verified", never "supported / certified / guaranteed" beside a
-// global claim).
-const marqueeMarketRow = (langCode: string) => {
-  const lang: "en" | "ro" = langCode === "ro" ? "ro" : "en";
-  return MARQUEE
-    .map((m) => `<span style="white-space:nowrap">${m.displayName[lang]}</span>`)
-    .join(`<span aria-hidden="true" style="color:var(--rule-strong)">·</span>`);
+// THE GLOBAL STRIP USED TO LIVE HERE. Until 2026-10-01 the hero ended with
+// "Romania at deterministic grade. Any other country accepted — structure
+// read by AI, numbers machine-verified twice." over a row of seven markets
+// (United States, Germany, …). No test in the repository used a real book
+// from any of them, a file from those countries with no country chosen was
+// read as Romanian, and nothing was verified twice. It is deleted, not
+// reworded: what the product reads today is the coverage table below, and
+// its only source is frontend/data/coverage.json (gate public-claims).
+
+// ── Engine proof block ───────────────────────────────────────────────────
+// Every figure here is read from frontend/data/engineProof.json through
+// lib/engineProof — the headline "held / examined" of each check, what the
+// check is, and the date it was measured. The caption is the result in
+// words (landingStrings, tokens only). Nothing is typed: gate
+// `landing-proof` reads these data-proof-* attributes back and compares
+// them with the JSON.
+const proofStrip = (L: LandingStrings, langCode: string) => `
+      <div id="proof-strip" data-proof-source="frontend/data/engineProof.json" style="border:1px solid var(--rule);background:var(--bg-deep);border-radius:18px;padding:24px 26px">
+        <div style="display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.16em;color:var(--brand)">
+          <span style="width:7px;height:7px;background:var(--brand);display:inline-block"></span>${L.defensible.proof.label}
+        </div>
+        <div style="margin-top:18px;display:flex;flex-direction:column">
+          ${proofRows(langCode).map((r, i) => `
+          <div data-proof-check="${r.id}" style="display:flex;align-items:baseline;gap:16px;padding:12px 0;${i > 0 ? "border-top:1px solid var(--rule-soft)" : ""}">
+            <span data-proof-value style="font-family:var(--mono);font-size:20px;line-height:1.2;color:var(--brand-l);white-space:nowrap;font-variant-numeric:tabular-nums;min-width:64px">${r.value}</span>
+            <span style="display:flex;flex-direction:column;gap:4px">
+              <span data-proof-what style="font-size:13px;line-height:1.5;color:var(--ink-2)">${esc(r.what)}</span>
+              <span data-proof-caption style="font-size:12.5px;line-height:1.55;color:var(--ink-soft)">${L.defensible.proof.captions[r.id]}</span>
+              <time data-proof-date datetime="${r.measuredIso}" style="font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:var(--ink-mute)">${L.defensible.proof.measured.replace("{when}", r.measured)}</time>
+            </span>
+          </div>`).join("")}
+        </div>
+        <p style="margin:14px 0 0;font-family:var(--mono);font-size:11px;letter-spacing:.02em;line-height:1.6;color:var(--ink-mute);border-top:1px solid var(--rule-soft);padding-top:12px">${L.defensible.proof.note}</p>
+        <a href="/sample" data-act="sample" data-sample-link="proof" style="margin-top:12px;display:inline-flex;align-items:center;gap:6px;font-size:13px">${L.sample.proofCta} →</a>
+      </div>`;
+
+// ── Coverage table — beside the upload step ──────────────────────────────
+// What the product can read today, in three groups: Tested / AI-interpreted
+// / Not supported yet. Every row, count, evidence line and date comes from
+// frontend/data/coverage.json through lib/coverage; this function only
+// lays it out. The same data renders in the in-app upload zone
+// (components/cfo/CoverageTable).
+const COVERAGE_TONE: Record<CoverageCategory, string> = {
+  tested: "var(--brand)",
+  ai_interpreted: "var(--ink-soft)",
+  not_supported: "var(--alert)",
 };
 
-const globalStrip = (L: LandingStrings, langCode: string) => `
-      <div style="margin-top:64px;width:100%;max-width:820px;border-top:1px solid var(--rule-soft);padding-top:26px">
-        <p style="margin:0;font-size:13.5px;line-height:1.6;color:var(--ink-soft)">${L.global.line}</p>
-        <div style="margin-top:16px;display:flex;flex-wrap:wrap;align-items:baseline;justify-content:center;column-gap:14px;row-gap:8px;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.18em;color:var(--ink-mute)">${marqueeMarketRow(langCode)}</div>
-      </div>`;
+const coverageTable = (L: LandingStrings, langCode: string) => {
+  const v = coverageView(langCode);
+  return `
+    <div id="coverage" data-coverage-source="frontend/data/coverage.json" style="margin-top:56px;border:1px solid var(--rule);background:var(--surface);border-radius:18px;padding:28px;scroll-margin-top:88px">
+      ${eyebrow(L.coverage.eyebrow)}
+      <h3 style="margin-top:14px;font-family:var(--serif);font-weight:400;font-size:clamp(22px,3vw,30px);line-height:1.1;letter-spacing:-.015em">${esc(v.title)}</h3>
+      <p style="margin-top:10px;font-size:14px;color:var(--ink-soft);max-width:760px">${esc(v.lede)}</p>
+      <div style="margin-top:22px;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;align-items:start">
+        ${v.groups.map((g) => `
+        <div data-coverage-category="${g.category}" style="border:1px solid var(--rule);background:var(--bg-2);border-radius:14px;padding:18px">
+          <div style="display:flex;align-items:center;gap:9px;font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.14em;color:${COVERAGE_TONE[g.category]}">
+            <span style="width:7px;height:7px;border-radius:50%;background:${COVERAGE_TONE[g.category]};display:inline-block"></span>${esc(g.heading)}
+          </div>
+          <p style="margin:8px 0 0;font-size:12.5px;color:var(--ink-mute)">${esc(g.note)}</p>
+          <ul style="margin:14px 0 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:14px">
+            ${g.rows.map((r) => `
+            <li data-coverage-row="${r.id}" style="border-top:1px solid var(--rule-soft);padding-top:12px">
+              <div style="font-size:13.5px;line-height:1.5;color:var(--ink)">${esc(r.label)}</div>
+              ${r.availability ? `<div data-coverage-availability style="margin-top:6px;display:inline-block;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--alert);border:1px solid var(--alert);border-radius:999px;padding:2px 9px">${esc(r.availability)}</div>` : ""}
+              <div style="margin-top:6px;font-size:12.5px;line-height:1.55;color:var(--ink-soft)">${esc(r.note)}</div>
+              <div style="margin-top:8px;font-family:var(--mono);font-size:10.5px;line-height:1.6;color:var(--ink-mute)">
+                <span data-coverage-tested-on>${esc(r.testedOn)}</span> · ${esc(v.words.evidence)}: <span data-coverage-evidence>${esc(r.evidence)}</span> · <time datetime="${r.asOfIso}">${esc(v.words.asOf)} ${esc(r.asOf)}</time>
+              </div>
+            </li>`).join("")}
+          </ul>
+        </div>`).join("")}
+      </div>
+      <p style="margin:18px 0 0;font-size:12.5px;color:var(--ink-mute)">${esc(v.untestedNote)}</p>
+      <div data-sample-block style="margin-top:22px;border-top:1px solid var(--rule-soft);padding-top:20px;display:flex;flex-wrap:wrap;gap:18px;align-items:center;justify-content:space-between">
+        <div style="max-width:640px">
+          <div style="font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--brand)">${L.sample.kicker}</div>
+          <div style="margin-top:8px;font-family:var(--serif);font-size:21px;line-height:1.2;color:var(--ink)">${L.sample.title}</div>
+          <p style="margin:8px 0 0;font-size:13.5px;color:var(--ink-soft)">${L.sample.body}</p>
+        </div>
+        <a href="/sample" data-act="sample" data-sample-link="upload" class="btn-ghost2" style="display:inline-flex;align-items:center;height:46px;padding:0 22px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:14px;white-space:nowrap">${L.sample.cta} →</a>
+      </div>
+    </div>`;
+};
 
 const homeMain = (L: LandingStrings, signedIn: boolean, billingCycle: BillingCycle = "monthly", langCode = "en") => `
 <main>
@@ -606,7 +681,6 @@ const homeMain = (L: LandingStrings, signedIn: boolean, billingCycle: BillingCyc
         </div>
       </div>
       <p style="margin-top:22px;font-size:11.5px;color:var(--ink-mute);max-width:520px">${L.hero.mockNote}</p>
-      ${globalStrip(L, langCode)}
     </div>
   </section>
 
@@ -652,6 +726,7 @@ const homeMain = (L: LandingStrings, signedIn: boolean, billingCycle: BillingCyc
       </div>`;
       }).join("")}
     </div>
+    ${coverageTable(L, langCode)}
   </section>
 
   <section id="trust" style="border-top:1px solid var(--rule-soft);background:var(--bg-2);scroll-margin-top:88px">
@@ -664,23 +739,7 @@ const homeMain = (L: LandingStrings, signedIn: boolean, billingCycle: BillingCyc
           ${L.defensible.bullets.map((b) => `<li style="display:flex;gap:12px;align-items:flex-start"><span style="color:var(--brand);margin-top:2px">✓</span><div><strong style="color:var(--ink)">${b.strong}</strong> <span style="color:var(--ink-soft)">${b.rest}</span></div></li>`).join("\n          ")}
         </ul>
       </div>
-      <!-- Proof strip — replaces the former decorative peer-bar numbers
-           with REAL measured stats (they mirror the claims in the copy to
-           the left). Terminal register: near-black panel, mono readouts,
-           phosphor values. No animation — proof doesn't perform. -->
-      <div id="proof-strip" style="border:1px solid var(--rule);background:var(--bg-deep);border-radius:18px;padding:24px 26px">
-        <div style="display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.16em;color:var(--brand)">
-          <span style="width:7px;height:7px;background:var(--brand);display:inline-block"></span>${L.defensible.proof.label}
-        </div>
-        <div style="margin-top:18px;display:flex;flex-direction:column">
-          ${L.defensible.proof.stats.map((s, i) => `
-          <div style="display:flex;align-items:baseline;gap:16px;padding:11px 0;${i > 0 ? "border-top:1px solid var(--rule-soft)" : ""}">
-            <span style="font-family:var(--mono);font-size:20px;line-height:1.2;color:var(--brand-l);white-space:nowrap;font-variant-numeric:tabular-nums">${s.value}</span>
-            <span style="font-size:12.5px;line-height:1.55;color:var(--ink-soft)">${s.caption}</span>
-          </div>`).join("")}
-        </div>
-        <p style="margin:14px 0 0;font-family:var(--mono);font-size:11px;letter-spacing:.02em;color:var(--ink-mute);border-top:1px solid var(--rule-soft);padding-top:12px">${L.defensible.proof.note}</p>
-      </div>
+      ${proofStrip(L, langCode)}
     </div>
   </section>
 
@@ -1152,6 +1211,9 @@ export default function Landing() {
     if (act === "getstarted") { e.preventDefault(); navigate("/login?next=/&mode=sign_up"); return; }
     if (act === "billing:monthly") { e.preventDefault(); setBillingCycle("monthly"); return; }
     if (act === "billing:yearly") { e.preventDefault(); setBillingCycle("yearly"); return; }
+    // The public sample (a fictional company's trial balance and its full
+    // report) — a real route, reached without a full page load.
+    if (act === "sample") { e.preventDefault(); navigate("/sample"); return; }
     if (act === "signup:solo") { e.preventDefault(); navigate("/signup?plan=solo"); return; }
     if (act === "signup:business") { e.preventDefault(); navigate("/signup?plan=business"); return; }
     if (act.startsWith("scroll:")) { e.preventDefault(); scrollTo(act.slice(7)); return; }

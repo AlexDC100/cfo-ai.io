@@ -53,6 +53,7 @@ import { useToast } from "@/hooks/use-toast";
 import { getSupabase } from "@/lib/supabase";
 import {
   bulletText,
+  isComingSoonPlan,
   planFeatureBulletsFor,
   type PlanFeatureBullet,
 } from "@/lib/planFeatures";
@@ -131,6 +132,9 @@ export function PricingTableV2({
    *  checkout. Authed users POST directly to /api/checkout/start with their
    *  Supabase JWT and land on the Stripe session URL on success. */
   async function handlePick(plan: PlanKey) {
+    // A coming-soon plan is not on sale: no signup intent, no checkout.
+    // The card's CTA is disabled; this is the second lock on the same door.
+    if (isComingSoonPlan(plan)) return;
     if (status !== "signed_in") {
       try {
         localStorage.setItem("cfo.intent.plan", plan);
@@ -208,14 +212,7 @@ export function PricingTableV2({
             lang={i18n.language}
             ctaLabel={t("pricing.startPlan", { name: p.display_name })}
             extraDocCopy={t("pricing.extraDoc", { price: formatEur(p.extra_doc_eur ?? 0) })}
-            extraNonRoCopy={
-              p.allows_non_ro && p.extra_nonro_doc_eur != null
-                ? t("pricing.extraNonRoDoc", {
-                    price: formatEur(p.extra_nonro_doc_eur),
-                    included: p.included_nonro_docs ?? 0,
-                  })
-                : null
-            }
+            comingSoon={isComingSoonPlan(p.key)}
             onPick={() => handlePick(p.key)}
             submitting={submitting === p.key}
           />
@@ -272,7 +269,7 @@ function PlanCard({
   lang,
   ctaLabel,
   extraDocCopy,
-  extraNonRoCopy = null,
+  comingSoon = false,
   onPick,
   submitting,
 }: {
@@ -286,8 +283,11 @@ function PlanCard({
   lang: string;
   ctaLabel: string;
   extraDocCopy: string;
-  /** Multi-Country only: the non-RO overage line. */
-  extraNonRoCopy?: string | null;
+  /** Shown, not on sale: the blurb, the price line and the CTA all say so,
+   *  and the CTA is disabled. The backend's own blurb for the plan ("eight
+   *  non-Romanian documents included") is NOT rendered — it describes
+   *  something the product cannot do yet. */
+  comingSoon?: boolean;
   onPick: () => void;
   submitting: boolean;
 }) {
@@ -296,6 +296,7 @@ function PlanCard({
     <article
       data-testid={`pricing-plan-${plan.key}`}
       data-highlight={highlight ? "true" : "false"}
+      data-plan-state={comingSoon ? "coming-soon" : "on-sale"}
       className={`
         relative rounded-2xl bg-surface/85 backdrop-blur-sm
         overflow-hidden
@@ -333,8 +334,11 @@ function PlanCard({
           <h3 className="font-serif text-[26px] text-ink leading-tight">
             {plan.display_name}
           </h3>
-          <p className="mt-1 text-[12.5px] text-ink-soft leading-snug">
-            {plan.blurb}
+          <p
+            data-testid={`pricing-plan-${plan.key}-blurb`}
+            className="mt-1 text-[12.5px] text-ink-soft leading-snug"
+          >
+            {comingSoon ? t("pricing.multiComingSoonBlurb") : plan.blurb}
           </p>
         </header>
 
@@ -353,7 +357,9 @@ function PlanCard({
           <span className="text-[13px] text-ink-soft">{t("pricing.perMonth")}</span>
         </div>
         <p className="mt-1 text-[11.5px] text-ink-mute">
-          {t("pricing.trialThen", { price: formatEur(plan.price_eur) })}
+          {comingSoon
+            ? t("pricing.notOnSaleYet")
+            : t("pricing.trialThen", { price: formatEur(plan.price_eur) })}
         </p>
 
         <ul
@@ -399,17 +405,7 @@ function PlanCard({
           className="mt-5 rounded-xl bg-bg-2/40 border border-rule/60 px-3 py-2.5 text-[11.5px] text-ink-soft leading-snug flex items-start gap-2"
         >
           <Zap size={11} strokeWidth={2} className="text-ink-mute mt-0.5 shrink-0" />
-          <span>
-            {t("pricing.aboveQuota", { copy: extraDocCopy })}
-            {extraNonRoCopy && (
-              <>
-                {" "}
-                <span data-testid={`pricing-plan-${plan.key}-extra-nonro`}>
-                  {extraNonRoCopy}
-                </span>
-              </>
-            )}
-          </span>
+          <span>{t("pricing.aboveQuota", { copy: extraDocCopy })}</span>
         </div>
 
         <div className="mt-5">
@@ -421,6 +417,16 @@ function PlanCard({
               className="inline-flex items-center justify-center w-full h-11 rounded-xl border border-brand/40 bg-brand/10 text-brand-d text-[13.5px] font-medium cursor-default"
             >
               {t("pricing.currentPlan")}
+            </button>
+          ) : comingSoon ? (
+            <button
+              type="button"
+              disabled
+              aria-disabled="true"
+              data-testid={`pricing-plan-${plan.key}-coming-soon`}
+              className="inline-flex items-center justify-center w-full h-11 rounded-xl border border-rule bg-bg-2/40 text-ink-mute text-[13.5px] font-medium cursor-not-allowed"
+            >
+              {t("pricing.comingSoonCta")}
             </button>
           ) : (
             <button

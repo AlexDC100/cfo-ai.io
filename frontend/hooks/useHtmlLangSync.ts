@@ -20,9 +20,15 @@ import { useTranslation } from "react-i18next";
 // Localized <meta name="description"> + og:description/og:locale.
 // index.html ships the English copy; when the UI language flips we swap
 // the meta tags too so shares + SERP snippets match the page language.
-const META_DESCRIPTION: Record<string, string> = {
-  en: "Upload your trial balance and get a CFO-grade analysis in 90 seconds — statements, 22 ratios, valuation, credit score. Romanian RAS at deterministic grade; other European charts of accounts read with AI assistance.",
-  ro: "Încarcă balanța de verificare și primești o analiză de nivel CFO în 90 de secunde — situații, 22 de indicatori, evaluare, scor de credit. RAS românesc la nivel determinist; alte planuri de conturi europene, citite cu ajutorul AI.",
+//
+// COVERAGE WORDING (2026-10-01): this sentence is what a search result and a
+// link preview show. It said "other European charts of accounts read with AI
+// assistance" while every test in the repository was a Romanian trial
+// balance. It now states what is tested and what is not, and it is exported
+// so the gate `public-claims` reads the exact strings the hook writes.
+export const META_DESCRIPTION: Record<string, string> = {
+  en: "Upload a Romanian trial balance (RAS) and get a CFO-grade analysis in 90 seconds — statements, 22 ratios, valuation, credit score. Computed by a deterministic engine. Files from other countries are not supported yet.",
+  ro: "Încarcă o balanță de verificare românească (RAS) și primești o analiză de nivel CFO în 90 de secunde — situații, 22 de indicatori, evaluare, scor de credit. Calculată de un motor determinist. Fișierele din alte țări nu sunt încă suportate.",
 };
 const OG_LOCALE: Record<string, string> = { en: "en_GB", ro: "ro_RO" };
 

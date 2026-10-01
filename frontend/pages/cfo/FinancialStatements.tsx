@@ -114,6 +114,7 @@ import {
   JurisdictionSelect,
   jurisdictionHintFromSelection,
 } from "@/components/cfo/JurisdictionSelect";
+import { CoverageDisclosure } from "@/components/cfo/CoverageTable";
 import { CashFlowStatementView } from "@/components/cfo/CashFlowStatementView";
 import { EvidenceDrawer } from "@/components/cfo/evidence/EvidenceDrawer";
 import { NavValuationView } from "@/components/cfo/NavValuationView";
@@ -1897,14 +1898,13 @@ function FinancialStatementsInner() {
                   <span className="inline-flex items-center align-middle text-[10px] uppercase tracking-[0.08em] font-semibold text-ink bg-bg-2 border border-rule-strong rounded-full px-2 py-0.5">XLSX</span>
                   {" "}{t("common.or")}{" "}
                   <span className="inline-flex items-center align-middle text-[10px] uppercase tracking-[0.08em] font-semibold text-ink bg-bg-2 border border-rule-strong rounded-full px-2 py-0.5">PDF</span>
-                  , {t("dash.heroBodyExported")} —{" "}
-                  {["SAGA", "WinMentor", "SmartBill", "NEXTUP", "CIEL"].map((sys, i, arr) => (
-                    <span key={sys}>
-                      <span className="font-semibold text-brand-d">{sys}</span>
-                      {i < arr.length - 1 ? ", " : ""}
-                    </span>
-                  ))}
-                  . {t("dash.heroBodyTail")}
+                  , {t("dash.heroBodyExported")}. {t("dash.heroBodyTail")}{" "}
+                  {/* The five accounting-software names that used to be
+                      listed here (SAGA, WinMentor, SmartBill, NEXTUP, CIEL)
+                      are gone: no real export proves any of them. What is
+                      tested, and on how many real books, is the coverage
+                      table — frontend/data/coverage.json. */}
+                  <CoverageDisclosure />
                 </p>
                 {/* Ask CFO AI (same secondary style as the Products hero's
                     button). The Import button that used to lead this row was

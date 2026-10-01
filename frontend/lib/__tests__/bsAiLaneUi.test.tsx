@@ -169,8 +169,28 @@ describe("JurisdictionSelect — the pre-scan dropdown", () => {
       "Auto-detect",
       "Romania",
       "Hungary",
-      "International (IFRS-style reading)",
+      "Other country (IFRS-style reading)",
     ]);
+  });
+
+  // 2026-10-01: no file from another country is analysed correctly today
+  // (frontend/data/coverage.json, row other_countries). The group says so
+  // and its rows cannot be chosen before a scan.
+  it("heads the other-country group 'not supported yet' and disables its rows", () => {
+    render(<JurisdictionSelect data-testid="period-confirm-jurisdiction" />);
+    const select = screen.getByTestId("period-confirm-jurisdiction") as HTMLSelectElement;
+    const group = select.querySelector("optgroup");
+    expect(group?.getAttribute("label")).toBe("Other countries — not supported yet");
+    const byValue = Object.fromEntries(Array.from(select.options).map((o) => [o.value, o.disabled]));
+    expect(byValue).toEqual({ auto: false, RO: false, HU: true, INTL: true });
+  });
+
+  it("keeps a served other-country value displayable, and Romania choosable from it", () => {
+    render(<JurisdictionSelect includeAuto={false} value="HU" />);
+    const select = screen.getByTestId("jurisdiction-select") as HTMLSelectElement;
+    const byValue = Object.fromEntries(Array.from(select.options).map((o) => [o.value, o.disabled]));
+    expect(byValue).toEqual({ RO: false, HU: false, INTL: true });
+    expect(select.value).toBe("HU");
   });
 
   it("maps the selection to the upload hint — Auto sends NO hint", () => {
@@ -184,9 +204,9 @@ describe("JurisdictionSelect — the pre-scan dropdown", () => {
     const onChange = vi.fn();
     render(<JurisdictionSelect onChange={onChange} />);
     fireEvent.change(screen.getByTestId("jurisdiction-select"), {
-      target: { value: "HU" },
+      target: { value: "RO" },
     });
-    expect(onChange).toHaveBeenCalledWith("HU");
+    expect(onChange).toHaveBeenCalledWith("RO");
   });
 });
 

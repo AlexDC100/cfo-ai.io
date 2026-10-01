@@ -1,0 +1,107 @@
+{
+  "schema": "coverage/1",
+  "as_of": "2026-10-01",
+  "about": "THE ONLY SOURCE of coverage wording on any public or upload surface (landing, pricing, FAQ, page title and description, manifest, the in-app upload zone). A row may be in `tested` only with evidence: a battery gate id, or a dated production measurement. `real_books` is a count of DISTINCT real trial balances, or the string 'constructed test files only'. A row with `real_books_proof` must equal that key of frontend/data/engineProof.json `formats` (gate public-claims). Software names may appear only in `software` of a tested row backed by a real file. The owner flips `availability` on the AI row when the model has credit again.",
+  "rows": [
+    {
+      "id": "xlsx_10_column",
+      "category": "tested",
+      "label_en": "Romanian trial balance (RAS) as Excel .xlsx, 10-column layout: account, name, then Debit/Credit pairs for opening balances, period movements, cumulative totals and closing balances",
+      "label_ro": "Balanță de verificare românească (RAS) în Excel .xlsx, format cu 10 coloane: cont, denumire, apoi perechi Debit/Credit pentru solduri inițiale, rulaje, sume totale și solduri finale",
+      "formats": [
+        "xlsx"
+      ],
+      "software": [],
+      "evidence": "bs-drift, determinism, corpus-replay",
+      "real_books": 6,
+      "real_books_proof": "xlsx_10_column_layout",
+      "note_en": "Read without any AI. Includes the wider sheets some reporting templates export, with extra helper columns.",
+      "note_ro": "Citită fără AI. Include și foile mai late exportate de unele șabloane de raportare, cu coloane ajutătoare.",
+      "as_of": "2026-10-01"
+    },
+    {
+      "id": "pdf_positional",
+      "category": "tested",
+      "label_en": "Romanian trial balance as a WinMENTOR PDF export (\"Balanță analitică\"), read by column position",
+      "label_ro": "Balanță de verificare românească exportată în PDF din WinMENTOR („Balanță analitică”), citită după poziția coloanelor",
+      "formats": [
+        "pdf"
+      ],
+      "software": [
+        "WinMENTOR"
+      ],
+      "evidence": "bs-drift, corpus-replay",
+      "real_books": 1,
+      "real_books_proof": "pdf_positional_layout",
+      "note_en": "One real book, from 2019. Its source does not balance; the report shows the difference instead of hiding it.",
+      "note_ro": "O singură balanță reală, din 2019. Sursa nu se echilibrează; raportul afișează diferența, nu o ascunde.",
+      "as_of": "2026-10-01"
+    },
+    {
+      "id": "pdf_text_layer",
+      "category": "tested",
+      "label_en": "Romanian trial balance as a PDF with a text layer (not a scan)",
+      "label_ro": "Balanță de verificare românească în PDF cu strat de text (nu scanată)",
+      "formats": [
+        "pdf"
+      ],
+      "software": [],
+      "evidence": "production reprocess 2026-10-01",
+      "real_books": 2,
+      "note_en": "Two real books were read without any AI in production on 2026-10-01. The test files kept in the repository for this reader are constructed, not real.",
+      "note_ro": "Două balanțe reale au fost citite fără AI în producție la 2026-10-01. Fișierele de test păstrate în depozit pentru acest cititor sunt construite, nu reale.",
+      "as_of": "2026-10-01"
+    },
+    {
+      "id": "constructed_layouts",
+      "category": "tested",
+      "label_en": "Romanian trial balance as CSV, as a compact 6-column sheet (three Debit/Credit pairs), or as a generic 4-column sheet (one closing Debit/Credit pair)",
+      "label_ro": "Balanță de verificare românească în CSV, în format compact cu 6 coloane (trei perechi Debit/Credit) sau în format generic cu 4 coloane (o pereche Debit/Credit de sold final)",
+      "formats": [
+        "csv",
+        "xlsx"
+      ],
+      "software": [],
+      "evidence": "corpus-replay",
+      "real_books": "constructed test files only",
+      "note_en": "These readers pass their tests on files we built ourselves. No real export in these layouts has been tested yet.",
+      "note_ro": "Aceste cititoare trec testele pe fișiere construite de noi. Niciun export real în aceste formate nu a fost testat încă.",
+      "as_of": "2026-10-01"
+    },
+    {
+      "id": "ai_read",
+      "category": "ai_interpreted",
+      "label_en": "Scanned PDFs and photos, and financial statements that are not a trial balance (bilanț, P&L, annual report)",
+      "label_ro": "PDF-uri scanate și fotografii, precum și situații financiare care nu sunt o balanță de verificare (bilanț, cont de profit și pierdere, raport anual)",
+      "formats": [
+        "pdf",
+        "jpg",
+        "png"
+      ],
+      "software": [],
+      "evidence": "corpus-replay (constructed file, scripted model reply)",
+      "real_books": "constructed test files only",
+      "availability": "unavailable",
+      "availability_en": "Currently unavailable",
+      "availability_ro": "Indisponibil momentan",
+      "note_en": "These go through an AI model, and the result is labelled \"AI-read\" on the statement. This path is currently unavailable, so such a file fails today. No real document has been tested on it.",
+      "note_ro": "Acestea trec printr-un model AI, iar rezultatul este etichetat „Citit de AI” pe situație. Această cale este indisponibilă momentan, deci un astfel de fișier eșuează astăzi. Niciun document real nu a fost testat pe ea.",
+      "as_of": "2026-10-01"
+    },
+    {
+      "id": "other_countries",
+      "category": "not_supported",
+      "label_en": "Trial balances and financial statements from any country other than Romania",
+      "label_ro": "Balanțe de verificare și situații financiare din orice altă țară decât România",
+      "formats": [],
+      "software": [],
+      "evidence": "no real book from another country has been tested",
+      "real_books": 0,
+      "note_en": "Not supported yet. A file from another country is not analysed correctly today, on any plan.",
+      "note_ro": "Încă nesuportat. Un fișier din altă țară nu este analizat corect astăzi, pe niciun plan.",
+      "as_of": "2026-10-01"
+    }
+  ],
+  "untested_note_en": "Legacy .xls sheets and ANAF F30 + F10 workbooks are accepted by the uploader but have no real-file test yet, so neither is listed as tested.",
+  "untested_note_ro": "Foile .xls vechi și formularele ANAF F30 + F10 în Excel sunt acceptate la încărcare, dar nu au încă un test pe fișier real, deci niciuna nu este trecută ca testată."
+}

@@ -39,6 +39,16 @@ const NEXT_UP: RoadmapEntry[] = [
 ];
 
 const AFTER_THAT: RoadmapEntry[] = [
+  // 2026-10-01: until now no public page said international coverage is
+  // NOT available — the landing claimed it was. The coverage table on the
+  // landing (frontend/data/coverage.json) is the statement of record; this
+  // entry is where the plan for it lives.
+  {
+    title: "Trial balances from other countries",
+    description:
+      "Charts of accounts beyond Romanian RAS. Not available today: CFO AI reads Romanian trial balances only, and the Multi-Country plan is not on sale.",
+    status: "research",
+  },
   {
     title: "White-label PDF reports",
     description:

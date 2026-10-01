@@ -47,18 +47,10 @@
     "signIn": "Sign in"
   },
   "upload": {
-    "hero_title": "Upload your trial balance to begin",
-    "hero_subtitle": "We'll extract financials, compute 22 ratios, flag risks, and produce a board-ready analysis. Language and accounting format are auto-detected.",
     "choose_file": "Choose a file",
     "uploading": "Uploading…",
-    "paste_text_button": "Paste trial balance",
-    "paste_text_dialog_title": "Paste a trial balance",
-    "paste_text_dialog_description": "Paste any chart of accounts — language and format are auto-detected.",
-    "paste_text_placeholder": "Paste your trial balance text here — any language, any chart of accounts.",
-    "accepted_formats": "PDF · XLSX · CSV · JPG · PNG",
     "drop_or_click": "Drop a file or click to browse",
     "drop_here": "Drop your file here",
-    "tagline": "Detect · OCR · extract · ratios · Opus 4.7 narrative — end-to-end",
     "size_limit": "Up to 25 MB",
     "template": {
       "title": "Start from the official template",
@@ -76,8 +68,8 @@
         "trading": "SKU-level sales rows. One row per SKU × channel × period.",
         "dio": "Days inventory outstanding per category. Region 2 (rows 28-52) is the canonical source.",
         "trialBalance": "Romanian chart of accounts. Only needed for Dashboard reports.",
-        "exampleMultiCol": "Account code + account name, then Debit/Credit column pairs for opening balances, period movements, cumulative totals, and closing balances — the 10-column layout SAGA and most Romanian systems export.",
-        "exampleSaga": "The compact SAGA export: account code + account name with Debit/Credit column pairs for opening balances, period movements, and closing balances."
+        "exampleMultiCol": "Account code + account name, then Debit/Credit column pairs for opening balances, period movements, cumulative totals, and closing balances — the 10-column trial-balance layout.",
+        "exampleSaga": "The compact layout: account code + account name with Debit/Credit column pairs for opening balances, period movements, and closing balances."
       },
       "fallbackNote": "Your own .xlsx files still work — the template is the recommended path because it removes ambiguity.",
       "insideExamples": "Inside the example files",
@@ -92,7 +84,6 @@
     "hero_pre": "Upload your",
     "hero_highlight": "trial balance",
     "hero_post": "to unlock the full CFO analysis.",
-    "hero_subtitle": "XLSX or PDF, exported from your accounting system — SAGA, WinMentor, SmartBill, NEXTUP, CIEL. This is the document the full analysis is built for: P&L, Balance Sheet, Cash Flow, Ratios, Valuation, Risk, and Recommendations are all reconstructed from it. Every upload is auto-checked — clean trial balances reconcile within 0.1% of source.",
     "kpi": {
       "revenue": "Revenue",
       "ebitda": "EBITDA",
@@ -365,7 +356,7 @@
     "optional": "<c1>Inventory value</c1> + <c2>COGS</c2> are optional but unlock per-SKU <c3>turnover days</c3>;",
     "rollup": "the company-level <c1>CCC</c1> roll-up additionally uses the period trial balance for DSO / DPO.",
     "downloadExample": "Download example (XLSX)",
-    "exampleCaption": "Anonymized example — match these columns; fictional data.",
+    "exampleCaption": "Fictional example — match these columns; fictional data.",
     "exampleFooter": "Placeholder rows for illustration only — replace with your real export. The third row deliberately omits <c1>Inventory value</c1> & <c2>COGS</c2> to demonstrate the \"DIO not available\" rendering: rows without both inputs show \"—\", never 0, and are excluded from the company DIO aggregate."
   },
   "workingCapital": {
@@ -1130,13 +1121,12 @@
     "oneTime": "one-time",
     "accessUntil": "Access until {{date}}",
     "badgeSolo": "Romanian essentials",
-    "badgeMulti": "Cross-border",
+    "badgeMulti": "Coming soon",
     "startPlan": "Start {{name}}",
-    "extraNonRoDoc": "Non-RO: {{included}}/month included, then {{price}} per extra document.",
-    "nonRoBlockedTitle": "This document needs Multi-Country",
-    "nonRoBlockedDesc": "This looks like a non-Romanian filing. Analysing documents from other jurisdictions is included on the Multi-Country plan.",
-    "nonRoBlockedCta": "See Multi-Country",
-    "nonRoBlockedDismiss": "Not now",
+    "nonRoBlockedTitle": "Documents from other countries are not supported yet",
+    "nonRoBlockedDesc": "This looks like a document from outside Romania. Today CFO AI reads Romanian trial balances only; other countries are not supported yet, on any plan.",
+    "nonRoBlockedCta": "See what is supported",
+    "nonRoBlockedDismiss": "Close",
     "workspaceLimitTitle": "Workspace limit reached",
     "workspaceLimitDesc": "Your plan includes {{max}} workspace(s). Upgrade to add another company.",
     "workspaceLimitCta": "View plans",
@@ -1144,7 +1134,10 @@
     "usageChat": "Ask CFO AI",
     "usageNonRo": "Non-RO documents",
     "usageToday": "today",
-    "usageThisMonth": "this month"
+    "usageThisMonth": "this month",
+    "multiComingSoonBlurb": "Coming soon — international coverage is not available yet. Today CFO AI reads Romanian trial balances only.",
+    "notOnSaleYet": "Not on sale yet",
+    "comingSoonCta": "Coming soon"
   },
   "account": {
     "fallbackName": "Account",
@@ -1275,7 +1268,7 @@
     "officialTemplateDesc": "Exact sheet names, column headers, and row offsets the parser expects.",
     "salesExample": "Sales analysis example",
     "formatMultiCol": "Multi-column format",
-    "formatSaga": "Standard SAGA format",
+    "formatSaga": "Compact 6-column layout",
     "previewSubtitle": "upload template",
     "previewSalesSubtitle": "sales analysis example (fictional data)",
     "previewLoading": "Loading preview…",
@@ -1482,8 +1475,8 @@
     "financialAnalysisEyebrow": "Financial Analysis",
     "heroSuffix": "the full financial picture",
     "heroFallbackSubtitle": "Every statement rebuilt from your trial balance — P&L, balance sheet and cash flow — with ratios, valuation, a credit-risk score and ranked recommendations. Explore each in the tabs below.",
-    "heroBodyExported": "exported from your accounting system",
-    "heroBodyTail": "This is the document the full analysis is built for: P&L, Balance Sheet, Cash Flow, Ratios, Valuation, Risk, and Recommendations are all reconstructed from it. Every upload is auto-checked — clean trial balances reconcile within 0.1% of source.",
+    "heroBodyExported": "exported from your accounting software as a Romanian trial balance",
+    "heroBodyTail": "This is the document the full analysis is built for: P&L, Balance Sheet, Cash Flow, Ratios, Valuation, Risk, and Recommendations are all reconstructed from it. Every upload is checked — the balance sheet must close and the source's debits and credits must agree — and any difference is shown on the report.",
     "askCfoAiPrompt": "What will CFO AI do with my trial balance? Walk me through the analysis I'll get after uploading — P&L, balance sheet, ratios, valuation, risks.",
     "invoiceRegister": "Invoice register",
     "loadedPeriod": "Loaded period",
@@ -1565,7 +1558,7 @@
     "displayedIn": "displayed in {{currency}}",
     "regeneratingIn": "Regenerating in {{currency}}…",
     "regenFailed": "Couldn't regenerate in {{currency}} ({{error}}). Showing RON version.",
-    "briefingDisclaimer": "Generated from automated trial-balance extraction — accuracy auto-measured per upload (clean uploads reconcile within 0.1%). Cross-check headline numbers against your source on critical decisions.",
+    "briefingDisclaimer": "Generated from automated trial-balance extraction — the balance check is measured on each upload and shown on the report. Cross-check headline numbers against your source on critical decisions.",
     "topCustomerShare": "Top customer share",
     "dsoSub": "Days sales outstanding",
     "paidOnTime": "Paid on time",
@@ -1590,7 +1583,7 @@
     "accProblemBsTail": "— accounts may be missing or misclassified.",
     "accProblemTail": "Headline numbers below (revenue, EBITDA, net profit, debt, equity) may not match your source. Resolve the source-data issue before any external use.",
     "accUnknownTitle": "About data accuracy.",
-    "accUnknownBody": "Each upload is auto-checked against its source trial balance. Clean uploads pass with under 0.1% drift; if anything is off, you'll see a specific warning here naming the issue (source imbalance, account misclassification, etc.). Headline numbers are always safe to cross-check against your source.",
+    "accUnknownBody": "Each upload is checked against its source trial balance: the balance sheet must close and debits must equal credits. If anything is off, you'll see a specific warning here naming the issue (source imbalance, account misclassification, etc.). Headline numbers can always be cross-checked against your source.",
     "statutoryDetected": "Statutory format detected (Formular F30 + F10).",
     "statutoryBody": "Headline figures (revenue, EBITDA, debt, equity) extracted from your filed financial statements.",
     "statutoryWhatsNot": "What's not available with this format",
@@ -1619,12 +1612,11 @@
     "jumpToNotes": "Jump to Notes & recommendations",
     "replaceOrAdd": "Replace or add files",
     "dropTrialBalanceHere": "Drop your trial balance here",
-    "dropHint": "PDF · XLSX · CSV · image",
     "addTbTitle": "Add a trial balance to this workspace — click to browse or drop one here",
     "documentFallback": "document",
     "exampleTrialBalances": "Example trial balances",
     "exampleMultiCol": "Multi-column format",
-    "exampleSaga": "Standard SAGA format",
+    "exampleSaga": "Compact 6-column layout",
     "fictionalData": "Fictional data; demonstrates the required structure.",
     "view": "View",
     "debugSimulate": "Debug: simulate scan",
@@ -1655,8 +1647,8 @@
     "statusNarrating": "Generating insights…",
     "docTb": "Trial balance (balanță de verificare)",
     "docTbShows": "Per-account drilldown, full P&L + BS + cash flow reconciliation, 22 ratios, valuation, credit score, peer benchmarks",
-    "docTbWhere1": "Your accounting system (SAGA, WinMentor, SmartBill, NEXTUP, CIEL, etc.)",
-    "docTbWhere2": "Export → Balanță de verificare → XLSX or PDF (10-column SAGA format)",
+    "docTbWhere1": "Your accounting software",
+    "docTbWhere2": "Export → Balanță de verificare → XLSX or PDF (10-column layout)",
     "docPublicRecords": "Public records summary",
     "docPublicRecordsShows": "Multi-year history (up to 20 years): revenue, profit, debt, equity, employees. Deterministic, no LLM. Renders in /multi-year-history.",
     "pdfOnly": "PDF only",
@@ -4043,5 +4035,9 @@
   },
   "roundedDays": {
     "note": "rounded days — the rounded terms can differ from the total by a day"
+  },
+  "coverage": {
+    "open": "What can CFO AI read today?",
+    "sampleLink": "See a complete sample report"
   }
 }

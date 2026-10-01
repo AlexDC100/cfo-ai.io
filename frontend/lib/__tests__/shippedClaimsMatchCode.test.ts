@@ -3,7 +3,7 @@
 // THE CLAIM THIS ASSERTS
 //   Product copy may name a file format the product produces, a feature
 //   the registry serves, a trial length the pricing config sells, and a
-//   calibration result the fixture table measured — and nothing else.
+//   calibration result the engine proof measured — and nothing else.
 //
 // WHY THIS FILE EXISTS
 //   Measured on HEAD 5415906, all of it rendered:
@@ -38,10 +38,13 @@
 //     · feature statuses come from `src/engine/api/_features.py`, the one
 //       authority behind GET /api/features/status;
 //     · the trial window comes from `_pricing_config.py`;
-//     · the exact-zero fixture count comes from the drift TABLE in
-//       `docs/customer-facing/ROMANIAN-ENGINE-ACCURACY.md` — a column of
-//       measurements, not the prose next to it, which is the half that
-//       was wrong.
+//     · every "N of M" calibration count comes from
+//       `frontend/data/engineProof.json`, which `scripts/
+//       build_engine_proof.py` writes by RUNNING the checks. (Until
+//       2026-10-01 this read the drift table of
+//       `docs/customer-facing/ROMANIAN-ENGINE-ACCURACY.md` — a hand-kept
+//       table that was itself stale on one row, and that tied only the
+//       "four of eight" half while "9 / 9" beside it was tied to nothing.)
 //   Land a real PDF writer and `pdf` enters the shipped set on its own,
 //   with no edit here. Measured while writing this, on the same tree:
 //   before the PDF lane's `lib/reportPdf.ts` existed the harvester read
@@ -60,8 +63,8 @@
 //   · a landing module card with no `featureKey` (the field is required
 //     by the type, so this is the JSON-shape floor);
 //   · a trial length in landing copy that is not the configured window;
-//   · an "N of eight … 0.00%" claim that is not the number of 0.0000%
-//     rows in the committed fixture table;
+//   · an "N of M" / "N din M" count in landing copy that is not a
+//     (held, examined) pair of the engine proof;
 //   · any surviving reference to the three deleted PPTX-card i18n keys;
 //   · an Export-tab card whose key is missing from either dictionary;
 //   · the registry regex dropping a row (`invoices` / `inventory` carry an
@@ -684,17 +687,34 @@ function parseBvbQuoteTtlMinutes(): number {
   return Number(flat[1]) / 60;
 }
 
-/** How many calibration fixtures reconcile to EXACTLY zero, counted off
- *  the drift column of the committed table — never off the prose beside
- *  it, which is the half that said five while the column showed four. */
-function parseExactZeroFixtures(): { zeros: number; total: number } {
-  const src = readFileSync(
-    join(REPO, "docs/customer-facing/ROMANIAN-ENGINE-ACCURACY.md"),
-    "utf8",
-  );
-  const rows = [...src.matchAll(/^\|\s*\*{0,2}([A-Za-z][\w ()]*?)\*{0,2}\s*\|[^|]*\|\s*(\d+\.\d+)\s*%\s*\|/gm)];
-  const zeros = rows.filter((r) => Number(r[2]) === 0).length;
-  return { zeros, total: rows.length };
+/** Every "held of examined" pair the engine proof measured — the only
+ *  pairs landing copy may print. Read off the JSON here, independently of
+ *  lib/engineProof (the page's own printer). */
+function proofPairs(): Array<[number, number]> {
+  const doc = JSON.parse(
+    readFileSync(join(FRONTEND, "data/engineProof.json"), "utf8"),
+  ) as {
+    real_books_total: number;
+    checks: Array<{ id: string; subjects: number; result: Record<string, number> }>;
+  };
+  const held: Record<string, string> = {
+    rerun_identical: "books_identical",
+    balance_sheet_closes: "books_closing_exactly",
+    net_income_equals_121: "books_equal_to_the_cent",
+    turnover_equals_filing: "books_within_tolerance",
+    ebitda_variants_agree: "books_within_tolerance",
+  };
+  const out: Array<[number, number]> = [];
+  for (const c of doc.checks) {
+    out.push([c.result[held[c.id]], c.subjects]);
+    if (c.id === "rerun_identical") {
+      out.push([c.result.replay_cases_identical, c.result.replay_cases]);
+    }
+    if (c.id === "turnover_equals_filing") {
+      out.push([c.result.books_not_checkable, doc.real_books_total]);
+    }
+  }
+  return out;
 }
 
 /** Every format a line names that the tree cannot hand to a user. */
@@ -1303,37 +1323,44 @@ describe("shipped claims match the code", () => {
     expect(readers.join("\n")).toBe("");
   });
 
-  it("quotes the exact-zero fixture count the drift table measured", () => {
-    const { zeros, total } = parseExactZeroFixtures();
-    expect(total, "the fixture table in ROMANIAN-ENGINE-ACCURACY.md did not parse").toBe(8);
-
-    const WORDS: Record<string, number> = {
-      one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8,
-      unu: 1, doua: 2, două: 2, trei: 3, patru: 4, cinci: 5, sase: 6, șase: 6, sapte: 7, șapte: 7, opt: 8,
-    };
-    const rx = new RegExp(
-      `\\b(${Object.keys(WORDS).join("|")}|\\d+)\\b\\s*(?:of|din)\\s*(?:eight|opt|8)\\b`,
-      "gi",
-    );
+  it("prints no calibration count that is not a pair the engine proof measured", () => {
+    // REWRITTEN 2026-10-01. This law used to tie "four of eight … 0.00%"
+    // to the zero rows of a hand-kept markdown table, and looked at nothing
+    // else — so "9 / 9" in the block beside it, "all eight within 1%" and
+    // "re-run on every deploy" were tied to nothing, and the table itself
+    // carried a stale row. The landing now fills every count from
+    // frontend/data/engineProof.json; this law reads that file a second
+    // time and checks each "N of M" the FILLED copy prints is one of its
+    // (held, examined) pairs. The rendered block is `landing-proof`.
+    const pairs = proofPairs();
+    expect(pairs.length, "engineProof.json yielded no pairs").toBeGreaterThanOrEqual(5);
+    const rx = /\b(\d+)\s+(?:of|din)\s+(?:our\s+|cele\s+)?(\d+)\b/gi;
 
     const offenders: string[] = [];
+    let seen = 0;
     for (const lang of ["en", "ro"] as const) {
       const lines: Line[] = [];
       flatten(landingStringsFor(lang), "", lines, `landingStrings[${lang}]`);
       for (const line of lines) {
         for (const m of line.text.matchAll(rx)) {
-          const claimed = WORDS[m[1].toLowerCase()] ?? Number(m[1]);
-          // Only the exact-zero claim is under test; "all eight within 1%"
-          // is a different statement with its own number.
-          if (!/0[.,]00\s*%|\bexact/i.test(line.text)) continue;
-          if (claimed !== zeros) {
+          seen += 1;
+          const a = Number(m[1]);
+          const b = Number(m[2]);
+          if (!pairs.some(([x, y]) => x === a && y === b)) {
             offenders.push(
-              `${line.where}: claims "${m[0]}" at 0.00% — the drift table lists ${zeros} of ${total}`,
+              `${line.where}: prints "${m[0]}" — not a (held, examined) pair of ` +
+                `engineProof.json [${pairs.map((p) => p.join("/")).join(", ")}]`,
             );
           }
         }
+        // The retired typed claims, in words: no number word may count
+        // calibration books.
+        if (/\b(?:four|five|eight|nine|patru|cinci|opt|nouă)\s+(?:of|din)\b/i.test(line.text)) {
+          offenders.push(`${line.where}: a calibration count typed in words — "${line.text.slice(0, 120)}"`);
+        }
       }
     }
+    expect(seen, "the landing prints no calibration count at all").toBeGreaterThanOrEqual(10);
     expect(offenders.join("\n")).toBe("");
   });
 });

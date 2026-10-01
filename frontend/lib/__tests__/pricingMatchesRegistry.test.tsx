@@ -70,6 +70,7 @@ import { PricingTableV2 } from "@/components/cfo/PricingTableV2";
 import {
   AFTER_LAUNCH_MARKER_EN,
   AFTER_LAUNCH_MARKER_RO,
+  bulletText,
   planFeatureBulletsFor,
   planKeysWithFeatures,
   type PlanFeatureBullet,
@@ -233,7 +234,9 @@ const NULL_KEY_BULLETS_EN = [
   "Valuation module",
   "Up to 5 workspaces",
   "Everything in Pro",
-  "Any accounting jurisdiction",
+  // 2026-10-01: replaced "Any accounting jurisdiction" — Multi-Country is
+  // coming soon and the line now says what is true (coverage.json).
+  "Documents from other countries — not supported yet",
   "No card required",
   "7-day unlock, one-time payment",
 ];
@@ -363,9 +366,10 @@ describe.each([
   it("shows a line for every declared bullet, and no others", () => {
     renderTable();
     for (const key of RENDERED_PLANS) {
-      const declared = planFeatureBulletsFor(key).map((b) =>
-        lang === "ro" ? b.ro : b.en,
-      );
+      // `bulletText` fills a `{coverage.…}` token from coverage.json — the
+      // availability word of the AI-reading line is that file's, not typed.
+      const declared = planFeatureBulletsFor(key).map((b) => bulletText(b, lang));
+      expect(declared.join(" "), "an unfilled token reached the card").not.toMatch(/\{[a-z]+\./);
       const rendered = renderedBullets(key).map((r) => r.text);
       expect(rendered, `plan "${key}" (${lang}) rendered lines`).toEqual(declared);
     }

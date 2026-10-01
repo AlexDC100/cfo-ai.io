@@ -41,6 +41,7 @@
 
 import type { FeatureKey } from "@/lib/features";
 import type { PlanKey } from "@/lib/pricingConfig";
+import { fillProof } from "@/lib/engineProof";
 
 /** Marker appended to a bullet whose feature is not `active` yet. The gate
  *  asserts the rendered string contains it, so changing the wording here
@@ -92,10 +93,13 @@ const PLAN_FEATURES: PlanFeatureTable = {
       en: "5 financial documents / month",
       ro: "5 documente financiare / lună",
     },
+    // 2026-10-01: this line listed "bilanț, balanță de verificare, annual
+    // report". Only the trial balance is read by the deterministic engine;
+    // the other two need the AI reader (coverage.json row `ai_read`).
     {
-      featureKey: "upload_financial_statement",
-      en: "Romanian bilanț, balanță de verificare, annual report",
-      ro: "Bilanț, balanță de verificare, raportare anuală",
+      featureKey: "upload_trial_balance",
+      en: "Romanian trial balance (balanță de verificare), Excel or PDF",
+      ro: "Balanță de verificare românească, Excel sau PDF",
     },
     {
       featureKey: "dashboard",
@@ -127,10 +131,13 @@ const PLAN_FEATURES: PlanFeatureTable = {
       en: "3 Romanian documents / month",
       ro: "3 documente românești / lună",
     },
+    // 2026-10-01: this line listed "bilanț, balanță de verificare, annual
+    // report". Only the trial balance is read by the deterministic engine;
+    // the other two need the AI reader (coverage.json row `ai_read`).
     {
-      featureKey: "upload_financial_statement",
-      en: "Romanian bilanț, balanță de verificare, annual report",
-      ro: "Bilanț, balanță de verificare, raportare anuală",
+      featureKey: "upload_trial_balance",
+      en: "Romanian trial balance (balanță de verificare), Excel or PDF",
+      ro: "Balanță de verificare românească, Excel sau PDF",
     },
     {
       featureKey: "dashboard",
@@ -166,10 +173,12 @@ const PLAN_FEATURES: PlanFeatureTable = {
       en: "Trial balance analysis",
       ro: "Analiza balanței de verificare",
     },
+    // The availability word is coverage.json's (row `ai_read`), filled by
+    // `bulletText` — when the owner flips that row, this line follows.
     {
       featureKey: "upload_financial_statement",
-      en: "Scanned-PDF extraction",
-      ro: "Extragere din PDF-uri scanate",
+      en: "AI reading of scanned PDFs — {coverage.ai_read.availability_lc}",
+      ro: "Citirea cu AI a PDF-urilor scanate — {coverage.ai_read.availability_lc}",
     },
     {
       featureKey: "benchmarks",
@@ -196,20 +205,21 @@ const PLAN_FEATURES: PlanFeatureTable = {
       en: "15 Romanian documents / month",
       ro: "15 documente românești / lună",
     },
-    {
-      featureKey: "upload_financial_statement",
-      en: "8 non-RO documents / month included",
-      ro: "8 documente non-RO / lună incluse",
-    },
+    // 2026-10-01 — COMING SOON. This plan sold "8 non-RO documents / month"
+    // and "Any accounting jurisdiction". No file from another country is
+    // analysed correctly today (coverage.json row `other_countries`), so
+    // the plan is not on sale and the line says what is true.
     {
       featureKey: null,
-      en: "Any accounting jurisdiction",
-      ro: "Orice jurisdicție contabilă",
+      en: "Documents from other countries — not supported yet",
+      ro: "Documente din alte țări — încă nesuportate",
     },
+    // The availability word is coverage.json's (row `ai_read`), filled by
+    // `bulletText` — when the owner flips that row, this line follows.
     {
       featureKey: "upload_financial_statement",
-      en: "Scanned-PDF extraction",
-      ro: "Extragere din PDF-uri scanate",
+      en: "AI reading of scanned PDFs — {coverage.ai_read.availability_lc}",
+      ro: "Citirea cu AI a PDF-urilor scanate — {coverage.ai_read.availability_lc}",
     },
     {
       featureKey: "chat_page",
@@ -280,9 +290,21 @@ export function planKeysWithFeatures(): PlanKey[] {
   return Object.keys(PLAN_FEATURES) as PlanKey[];
 }
 
-/** The copy of one bullet in the given UI language (falls back to en). */
+/** The copy of one bullet in the given UI language (falls back to en).
+ *  `{coverage.…}` tokens are filled from frontend/data/coverage.json. */
 export function bulletText(b: PlanFeatureBullet, lang: string): string {
-  return lang?.startsWith("ro") ? b.ro : b.en;
+  const ro = lang?.startsWith("ro");
+  return fillProof(ro ? b.ro : b.en, ro ? "ro" : "en");
+}
+
+/** Plans that are shown but NOT on sale. Multi-Country is coming soon:
+ *  international coverage is not available yet, so its card stays visible,
+ *  is marked, and nothing on it starts a checkout. Existing subscribers
+ *  are untouched — their card still reads "Current plan". */
+export const COMING_SOON_PLANS: readonly PlanKey[] = ["multi"];
+
+export function isComingSoonPlan(key: PlanKey): boolean {
+  return COMING_SOON_PLANS.includes(key);
 }
 
 /** Feature bullets for a plan in the given UI language (falls back to en). */

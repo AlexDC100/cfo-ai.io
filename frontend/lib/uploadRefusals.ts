@@ -2,7 +2,9 @@
 //
 // 2026-08 tier restructure: non-Romanian documents (jurisdiction
 // resolver != RO) are ONLY allowed on the Multi-Country tier. The
-// backend refuses them with a typed payload:
+// backend refuses them with a typed payload (2026-10-01: the user is no
+// longer told to upgrade — other countries are not supported yet on any
+// plan, see frontend/data/coverage.json; the wire shape is unchanged):
 //
 //     { "error": "non_ro_not_included", "upgrade_to": "multi", "message": … }
 //
@@ -33,7 +35,7 @@ const NON_RO_CODE = "non_ro_not_included";
  *  (`pricing.nonRoBlockedDesc`) and use the server `message` only as
  *  supplementary detail. */
 const DEFAULT_MESSAGE =
-  "This document isn't a Romanian filing. Non-RO documents are included on the Multi-Country plan.";
+  "This document isn't a Romanian trial balance. Documents from other countries are not supported yet.";
 
 function asRecord(v: unknown): Record<string, unknown> | null {
   return v !== null && typeof v === "object" && !Array.isArray(v)

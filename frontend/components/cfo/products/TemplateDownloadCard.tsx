@@ -372,14 +372,14 @@ function FormatSummary({
             required: null,
             key: "exampleMultiCol",
             fallback:
-              "Account code + account name, then Debit/Credit column pairs for opening balances, period movements, cumulative totals, and closing balances — the 10-column layout SAGA and most Romanian systems export.",
+              "Account code + account name, then Debit/Credit column pairs for opening balances, period movements, cumulative totals, and closing balances — the 10-column trial-balance layout.",
           },
           {
             name: t("tmpl.formatSaga"),
             required: null,
             key: "exampleSaga",
             fallback:
-              "The compact SAGA export: account code + account name with Debit/Credit column pairs for opening balances, period movements, and closing balances.",
+              "The compact layout: account code + account name with Debit/Credit column pairs for opening balances, period movements, and closing balances.",
           },
         ]
       : [
