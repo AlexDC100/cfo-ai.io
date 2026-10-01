@@ -48,6 +48,9 @@ export interface SampleStrings {
   ratiosTitle: string;
   ratiosLede: string;
   ratio: string;
+  /** Why DSO + DIO − DPO, as printed in the table, is not the cycle: the
+   *  cycle adds inventory days on another basis. {days} {basis} */
+  cycleNote: string;
 
   /** THE LANDING'S PROOF LIST, ON THIS BOOK. What each check IS is not
    *  written here: the page prints `what_en` / `what_ro` of
@@ -100,6 +103,7 @@ export interface SampleStrings {
     inventoryBody: string;
     inventorySeasonal: string;
     cashFlowTitle: string;
+    /** {estimated} {opening} {closing} {movement} {prior} {current} */
     cashFlowApproximated: string;
     cashFlowExact: string;
     findingsTitle: string;
@@ -112,6 +116,9 @@ export interface SampleStrings {
   labelsTitle: string;
   /** {n} */
   labelsLede: string;
+  /** The page's own note on two labels that say a prior period is missing
+   *  while one is published here. {prior} */
+  labelsPriorNote: string;
   engineWords: string;
   engineWordsEnglishOnly: string;
   kinds: Record<string, string>;
@@ -128,6 +135,8 @@ export interface SampleStrings {
   mappingLede: string;
   mappingColumns: { account: string; name: string; line: string; amount: string };
   statements: Record<string, string>;
+  /** The served P&L line an account sums into (the mapping's `pl_line`). */
+  plLines: Record<string, string>;
   buckets: Record<string, string>;
   sections: Record<string, string>;
   mappingStatus: Record<string, string>;
@@ -154,13 +163,13 @@ export interface SampleStrings {
 const EN: SampleStrings = {
   metaTitle: "Public sample: a fictional company, read by the engine · CFO AI",
   metaDescription:
-    "A fictional Romanian company's trial balance, the complete report the engine produces from it, the mapping of every account and each uncertainty label. No sign-in.",
+"A fictional Romanian company's trial balance, the report the product exports from it, the mapping of every account and each uncertainty label. No sign-in.",
   home: "Home",
   otherLanguage: "Română",
   eyebrow: "Public sample · fictional data",
   title: "A fictional company, read by the real engine",
   lede:
-    "{company} does not exist. A script wrote its two trial balances, and the same engine that reads an uploaded trial balance processed them offline, with no AI model. Everything it produced is on this page: the files, the complete report, the mapping of every account and each uncertainty label it raised.",
+"{company} does not exist. A script wrote its two trial balances, and the same engine that reads an uploaded trial balance processed them offline, with no AI model. Everything it produced is on this page: the files, the exported report, the mapping of every account and each uncertainty label it raised.",
   fictionalTitle: "Fictional data, never a client book",
   fictionalBody:
     "No client trial balance was used here, anonymised or otherwise. The fiscal code {fiscalCode} fails the Romanian checksum on purpose, so it can match no real company, and the trade-register number {tradeRegister} does not exist.",
@@ -189,11 +198,11 @@ const EN: SampleStrings = {
       body: "The current year opens with these closing balances, account by account.",
     },
     report_html: {
-      title: "Complete report (HTML)",
-      body: "The product's own export, exactly as a signed-in user downloads it. The exported report is in English.",
+      title: "Exported report (HTML)",
+      body: "The product's own export of this book, with two changes for a public file: a fictional-company notice is added and the confidentiality line is removed. It has no valuation section, no sector benchmarks and no AI briefing. The exported report is in English.",
     },
     report_pdf: {
-      title: "Complete report (PDF)",
+      title: "Exported report (PDF)",
       body: "The same document, printed to A4.",
     },
     mapping: {
@@ -235,8 +244,11 @@ const EN: SampleStrings = {
     total_debt: "Bank and lease debt",
   },
   ratiosTitle: "Ratios and credit",
-  ratiosLede: "Printed at the engine's own precision, with the band it graded each one into.",
+  ratiosLede:
+    "Printed at the engine's own precision, with the band it graded each one into. The bands are the engine's general table for small and medium companies, not one calibrated to this sector — its own note on that is among the labels below.",
   ratio: "Ratio",
+  cycleNote:
+    "The cash conversion cycle is not the sum of the three rows above it. The inventory-days row is on the average of two year-end balances; the cycle adds inventory days on the period-end balance instead, {days} ({basis}), so that all three of its terms are period-end figures.",
 
   checksTitle: "The home page's checks, on this book",
   checksLede:
@@ -282,7 +294,7 @@ const EN: SampleStrings = {
     inventorySeasonal: "Flagged as seasonal for a food manufacturer.",
     cashFlowTitle: "Cash flow",
     cashFlowApproximated:
-      "Approximated, and labelled so on the statement itself. See the uncertainty labels below.",
+      "An estimate, and labelled so on the statement itself. The engine's cash-flow reconstruction does not read a prior period yet, even when one is uploaded, so it estimates the year's movements from the closing balances and ends on a net change in cash of {estimated}. The two balance sheets on this page say otherwise: cash went from {opening} at the end of {prior} to {closing} at the end of {current}, a movement of {movement}. Read the report's cash flow as an estimate and the balance sheets as the fact.",
     cashFlowExact: "Reconstructed from both years' balances.",
     findingsTitle: "Findings",
     findingsBody: "{n} findings, by severity:",
@@ -299,6 +311,8 @@ const EN: SampleStrings = {
   labelsTitle: "Uncertainty labels",
   labelsLede:
     "{n} notes the engine attached to this book: what is approximated, derived, on a stated basis, refused or not assessed, and what it checked and found clear.",
+  labelsPriorNote:
+    "Two of these labels say a prior period is missing, although {prior} is published on this page. They are quoted as the engine wrote them: its cash-flow reconstruction and its Piotroski score do not read a prior period yet. The two-year comparison above does.",
   engineWords: "The engine's words",
   engineWordsEnglishOnly: "The engine's words (it has this sentence in English only)",
   kinds: {
@@ -328,6 +342,11 @@ const EN: SampleStrings = {
     inventory_days_basis: "Inventory days use the average of two year-end balances",
     inventory_days_seasonality: "Year-end stock is seasonal in this activity",
     inventory_days_claim_policy: "What may be said about the stock",
+    bands_general_sme: "Ratio bands are the general SME table, not a sector table",
+    ccc_inventory_term_basis: "The cash cycle adds inventory days on the period-end balance",
+    methodology_note_capex_intensity: "Capex intensity is a proxy",
+    methodology_note_dscr_approx: "The approximate debt-service cover rests on an assumption",
+    findings_wording_template: "The findings are worded by the engine's template, not by a model",
     piotroski_prior_unavailable: "Piotroski: the year-over-year checks are not assessed",
     insight_not_fired_reconstruction_gap: "Reconstruction gap: checked, nothing to raise",
     insight_not_fired_related_party_exposure: "Related-party balances: checked, none in the book",
@@ -344,6 +363,20 @@ const EN: SampleStrings = {
     "All {n} accounts of the current year's trial balance, and the line the engine assigned each one to.",
   mappingColumns: { account: "Account", name: "Name", line: "Engine line", amount: "Amount carried (RON)" },
   statements: { BS: "Balance sheet", PL: "Profit and loss" },
+  plLines: {
+    turnover: "Net turnover",
+    cogs: "Cost of materials and goods",
+    opex_excluding_cogs_and_da: "Operating expenses",
+    depreciation: "Depreciation and amortisation",
+    net_provisions: "Net provisions and impairment adjustments (outside EBITDA)",
+    other_operating_income: "Other operating income",
+    inventory_variation: "Stock variation (711), served as the derived net",
+    capitalized_own_work: "Own work capitalised",
+    financial_income: "Financial income",
+    financial_expense: "Other financial expense",
+    interest_expense: "Interest expense",
+    income_tax: "Income tax",
+  },
   buckets: {
     shareCapital: "Share capital",
     otherEquity: "Reserves",
@@ -412,10 +445,11 @@ const EN: SampleStrings = {
     "The narrative briefing. In the product it is written by an AI model; this sample is built without one.",
     "The valuation view of the signed-in report page.",
     "Sector benchmarks from public filings.",
+    "A cash-flow statement built from both years. The engine estimates cash flow from one year's balances today.",
   ],
 
   ctaTitle: "Try it on your own trial balance",
-  ctaBody: "Upload a trial balance and you get the same kind of report as the one on this page.",
+  ctaBody: "Upload a Romanian trial balance and you get the same kind of report as the one on this page.",
   ctaPrimary: "Create an account",
   ctaSecondary: "Back to the home page",
 };
@@ -423,13 +457,13 @@ const EN: SampleStrings = {
 const RO: SampleStrings = {
   metaTitle: "Exemplu public: o firmă fictivă, citită de motor · CFO AI",
   metaDescription:
-    "Balanța de verificare a unei firme românești fictive, raportul complet pe care motorul îl produce din ea, maparea fiecărui cont și fiecare etichetă de incertitudine. Fără cont.",
+"Balanța de verificare a unei firme românești fictive, raportul pe care produsul îl exportă din ea, maparea fiecărui cont și fiecare etichetă de incertitudine. Fără cont.",
   home: "Acasă",
   otherLanguage: "English",
   eyebrow: "Exemplu public · date fictive",
   title: "O firmă fictivă, citită de motorul real",
   lede:
-    "{company} nu există. Un script i-a scris cele două balanțe de verificare, iar același motor care citește o balanță încărcată le-a procesat offline, fără niciun model AI. Tot ce a produs este pe pagina aceasta: fișierele, raportul complet, maparea fiecărui cont și fiecare etichetă de incertitudine pe care a ridicat-o.",
+    "{company} nu există. Un script i-a scris cele două balanțe de verificare, iar același motor care citește o balanță încărcată le-a procesat offline, fără niciun model AI. Tot ce a produs este pe pagina aceasta: fișierele, raportul exportat, maparea fiecărui cont și fiecare etichetă de incertitudine pe care a ridicat-o.",
   fictionalTitle: "Date fictive, niciodată balanța unui client",
   fictionalBody:
     "Aici nu a fost folosită nicio balanță de client, anonimizată sau nu. Codul fiscal {fiscalCode} nu trece intenționat de cifra de control, deci nu poate corespunde niciunei firme reale, iar numărul de la registrul comerțului {tradeRegister} nu există.",
@@ -458,11 +492,11 @@ const RO: SampleStrings = {
       body: "Anul curent se deschide cu aceste solduri finale, cont cu cont.",
     },
     report_html: {
-      title: "Raportul complet (HTML)",
-      body: "Exportul produsului, exact cum îl descarcă un utilizator autentificat. Raportul exportat este în engleză.",
+      title: "Raportul exportat (HTML)",
+      body: "Exportul produsului pentru această balanță, cu două modificări pentru un fișier public: am adăugat mențiunea că firma este fictivă și am scos linia de confidențialitate. Nu are secțiune de evaluare, comparații cu sectorul sau rezumat scris de AI. Raportul exportat este în engleză.",
     },
     report_pdf: {
-      title: "Raportul complet (PDF)",
+      title: "Raportul exportat (PDF)",
       body: "Același document, tipărit pe A4.",
     },
     mapping: {
@@ -504,8 +538,11 @@ const RO: SampleStrings = {
     total_debt: "Credite bancare și leasing",
   },
   ratiosTitle: "Indicatori și credit",
-  ratiosLede: "La precizia motorului, fiecare cu banda în care a fost încadrat.",
+  ratiosLede:
+    "La precizia motorului, fiecare cu banda în care a fost încadrat. Benzile sunt tabelul general al motorului pentru firme mici și mijlocii, nu unul calibrat pe acest sector — nota motorului despre asta este printre etichetele de mai jos.",
   ratio: "Indicator",
+  cycleNote:
+    "Ciclul de conversie a numerarului nu este suma celor trei rânduri de deasupra lui. Rândul cu zilele de stoc este calculat pe media a două solduri de sfârșit de an; ciclul adaugă zilele de stoc pe soldul de la sfârșitul perioadei, {days} ({basis}), pentru ca toți cei trei termeni ai lui să fie cifre de sfârșit de perioadă.",
 
   checksTitle: "Verificările de pe pagina principală, pe această balanță",
   checksLede:
@@ -552,7 +589,7 @@ const RO: SampleStrings = {
     inventorySeasonal: "Semnalat ca sezonier pentru un producător din industria alimentară.",
     cashFlowTitle: "Fluxul de numerar",
     cashFlowApproximated:
-      "Aproximat, și etichetat astfel chiar pe situație. Vezi etichetele de incertitudine de mai jos.",
+      "O estimare, etichetată astfel chiar pe situație. Reconstrucția fluxului de numerar făcută de motor nu citește încă o perioadă precedentă, nici atunci când este încărcată, așa că estimează mișcările anului din soldurile finale și ajunge la o variație netă a numerarului de {estimated}. Cele două bilanțuri de pe această pagină arată altceva: numerarul a trecut de la {opening} la sfârșitul {prior} la {closing} la sfârșitul {current}, o mișcare de {movement}. Citește fluxul de numerar din raport ca pe o estimare, iar bilanțurile ca pe faptul concret.",
     cashFlowExact: "Reconstruit din soldurile ambilor ani.",
     findingsTitle: "Constatări",
     findingsBody: "Constatări ({n}), după severitate:",
@@ -569,6 +606,8 @@ const RO: SampleStrings = {
   labelsTitle: "Etichete de incertitudine",
   labelsLede:
     "Notele pe care motorul le-a atașat acestei balanțe ({n}): ce este aproximat, derivat, calculat pe o bază declarată, refuzat sau neevaluat și ce a verificat fără să găsească nimic.",
+  labelsPriorNote:
+    "Două dintre aceste etichete spun că lipsește o perioadă precedentă, deși {prior} este publicat pe această pagină. Sunt citate așa cum le-a scris motorul: reconstrucția fluxului de numerar și scorul Piotroski nu citesc încă o perioadă precedentă. Comparația pe doi ani de mai sus o citește.",
   engineWords: "Cuvintele motorului",
   engineWordsEnglishOnly: "Cuvintele motorului (are această frază doar în engleză)",
   kinds: {
@@ -598,6 +637,11 @@ const RO: SampleStrings = {
     inventory_days_basis: "Zilele de stoc folosesc media a două solduri de sfârșit de an",
     inventory_days_seasonality: "Stocul de la sfârșit de an este sezonier în această activitate",
     inventory_days_claim_policy: "Ce se poate afirma despre stoc",
+    bands_general_sme: "Benzile indicatorilor sunt tabelul general pentru IMM-uri, nu un tabel de sector",
+    ccc_inventory_term_basis: "Ciclul de numerar adaugă zilele de stoc pe soldul de la sfârșitul perioadei",
+    methodology_note_capex_intensity: "Intensitatea investițiilor este o aproximare",
+    methodology_note_dscr_approx: "Acoperirea aproximativă a serviciului datoriei se sprijină pe o ipoteză",
+    findings_wording_template: "Constatările sunt formulate de șablonul motorului, nu de un model",
     piotroski_prior_unavailable: "Piotroski: verificările față de anul precedent nu sunt evaluate",
     insight_not_fired_reconstruction_gap: "Diferența de reconstrucție: verificată, nimic de semnalat",
     insight_not_fired_related_party_exposure: "Solduri cu părți afiliate: verificate, niciunul în balanță",
@@ -614,6 +658,20 @@ const RO: SampleStrings = {
     "Toate conturile din balanța anului curent ({n}) și linia pe care motorul a atribuit-o fiecăruia.",
   mappingColumns: { account: "Cont", name: "Denumire", line: "Linia motorului", amount: "Sumă preluată (RON)" },
   statements: { BS: "Bilanț", PL: "Cont de profit și pierdere" },
+  plLines: {
+    turnover: "Cifra de afaceri netă",
+    cogs: "Costul materialelor și mărfurilor",
+    opex_excluding_cogs_and_da: "Cheltuieli de exploatare",
+    depreciation: "Amortizare",
+    net_provisions: "Provizioane și ajustări nete (în afara EBITDA)",
+    other_operating_income: "Alte venituri din exploatare",
+    inventory_variation: "Variația stocurilor (711), servită ca valoare netă derivată",
+    capitalized_own_work: "Producția capitalizată",
+    financial_income: "Venituri financiare",
+    financial_expense: "Alte cheltuieli financiare",
+    interest_expense: "Cheltuieli cu dobânzile",
+    income_tax: "Impozit pe profit",
+  },
   buckets: {
     shareCapital: "Capital social",
     otherEquity: "Rezerve",
@@ -682,10 +740,11 @@ const RO: SampleStrings = {
     "Rezumatul narativ. În produs îl scrie un model AI; exemplul acesta este construit fără niciun model.",
     "Secțiunea de evaluare din pagina de raport pentru utilizatori autentificați.",
     "Comparațiile cu sectorul, din situațiile financiare publice.",
+    "O situație a fluxurilor de numerar construită din ambii ani. Astăzi motorul estimează fluxul de numerar din soldurile unui singur an.",
   ],
 
   ctaTitle: "Încearcă cu propria ta balanță",
-  ctaBody: "Încarci o balanță de verificare și primești același tip de raport ca cel de pe pagina aceasta.",
+  ctaBody: "Încarci o balanță de verificare românească și primești același tip de raport ca cel de pe pagina aceasta.",
   ctaPrimary: "Creează un cont",
   ctaSecondary: "Înapoi la pagina principală",
 };

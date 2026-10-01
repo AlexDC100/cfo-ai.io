@@ -51,6 +51,10 @@ import { INK, INK_MUTE, RULE, RULE_SOFT } from "./charts/tokens";
 export interface RunningHead {
   company: string;
   period: string;
+  /** A short notice printed at the foot of every page but the cover —
+   *  the public sample's "Fictional company". Absent on a customer's own
+   *  export. */
+  notice?: string | null;
 }
 
 /**
@@ -95,9 +99,10 @@ export function cssString(raw: string): string {
 export function printCss(head: RunningHead): string {
   const company = cssString(head.company);
   const period = cssString(head.period);
+  const notice = head.notice ? cssString(head.notice) : "";
 
   return `
-    /* ══ A4, AND THE RUNNING HEAD ══════════════════════════════════════
+    ${""/* ══ A4, AND THE RUNNING HEAD ══════════════════════════════════════
        The head is written as LITERAL text, not \`string-set\` /
        \`content: string(...)\`. Both this document's facts are known at
        build time, and \`string-set\` is a paged-media feature Chromium
@@ -106,14 +111,14 @@ export function printCss(head: RunningHead): string {
        different: \`counter(page)\`/\`counter(pages)\` inside a margin box
        IS implemented (measured 2026-09-08, Chromium 143 via Playwright
        1.59.1 — every page of the 30-page Agras export printed its own
-       "Page n of 30"), so it stays computed rather than baked. */
-    /* ── THE DOCUMENT SAYS WHO IT IS ABOUT ────────────────────────────
+       "Page n of 30"), so it stays computed rather than baked. */}
+    ${""/* ── THE DOCUMENT SAYS WHO IT IS ABOUT ────────────────────────────
        The same two strings the running head prints, in a place a
        machine can read. \`services/pdf/render.mjs\` names the downloaded
        file from THESE — not from what the caller told it — so the
        filename and the running head cannot name different companies.
        They are one interpolation of one argument; there is no second
-       read to drift. */
+       read to drift. */}
     :root {
       --cfoai-doc-company: "${company}";
       --cfoai-doc-period: "${period}";
@@ -152,35 +157,50 @@ export function printCss(head: RunningHead): string {
         color: ${INK_MUTE};
         vertical-align: top;
         padding-top: 6mm;
+      }${
+        notice
+          ? `
+      @bottom-left {
+        content: "${notice}";
+        font-family: 'Inter', -apple-system, sans-serif;
+        font-size: 7.5pt;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        color: ${INK};
+        vertical-align: top;
+        padding-top: 6mm;
+      }`
+          : ""
       }
     }
 
-    /* The cover carries its own identity in 26pt type. Repeating the
+    ${""/* The cover carries its own identity in 26pt type. Repeating the
        company name 15mm above it in 7.5pt is noise, and a page number on
-       a cover is a tell that nobody looked at the first page. */
+       a cover is a tell that nobody looked at the first page. */}
     @page :first {
       @top-left { content: ""; }
       @top-right { content: ""; }
-      @bottom-center { content: ""; }
+      @bottom-center { content: ""; }${notice ? `
+      @bottom-left { content: ""; }` : ""}
     }
 
     @media print {
-      /* ── ONE RUNNING HEAD, NOT TWO ────────────────────────────────
+      ${""/* ── ONE RUNNING HEAD, NOT TWO ────────────────────────────────
          \`.running-header\` is an in-flow div: it renders once, at the
          top of the body, i.e. on page 3 of 30 and nowhere else. It was
          the screen's header all along. On paper the @page margin box
          above does the job on EVERY page, so the div would be a second,
-         contradicting head on exactly one page. */
+         contradicting head on exactly one page. */}
       .running-header { display: none !important; }
 
-      /* ── SECTION DIVIDERS ─────────────────────────────────────────
+      ${""/* ── SECTION DIVIDERS ─────────────────────────────────────────
          Each of the report's ten sections opens a page. This is what
          makes it a board pack rather than a scroll: a reader handed
          "Credit and distress" can put a tab on it, and the printed
          contents page (target-counter, where the engine resolves it)
-         addresses a page that begins with the section it names. */
+         addresses a page that begins with the section it names. */}
       section.rsec { break-before: page; page-break-before: always; }
-      /* …EXCEPT the first, which follows the header block on the page
+      ${""/* …EXCEPT the first, which follows the header block on the page
          the contents opens onto. \`section.rsec:first-of-type\` does NOT
          express that: \`:first-of-type\` counts ELEMENT type, and the
          cover and the printed contents are \`<section>\` too, so it
@@ -188,13 +208,13 @@ export function printCss(head: RunningHead): string {
          — measured as a page 3 carrying 144 characters and a page
          count of 32 instead of 31. The adjacency below names the real
          relationship: the executive summary opens directly under the
-         header block. */
+         header block. */}
       .header-info + section.rsec {
         break-before: avoid;
         page-break-before: avoid;
       }
 
-      /* The heading, its rule and whatever follows it stay together. */
+      ${""/* The heading, its rule and whatever follows it stay together. */}
       section.rsec > h2 {
         break-after: avoid;
         page-break-after: avoid;
@@ -206,12 +226,12 @@ export function printCss(head: RunningHead): string {
         page-break-before: avoid;
       }
 
-      /* ── TABLES THAT CROSS A PAGE ─────────────────────────────────
+      ${""/* ── TABLES THAT CROSS A PAGE ─────────────────────────────────
          \`<thead>\` repeats on every page a table spans — that is the
          default for \`display: table-header-group\`, and it is written
          out here because the default is the thing a later rule would
          quietly overwrite. Measured with a 60-row table forced across
-         three pages: the header printed on all three. */
+         three pages: the header printed on all three. */}
       table.fin { break-inside: auto; page-break-inside: auto; }
       table.fin thead {
         display: table-header-group;
@@ -225,7 +245,7 @@ export function printCss(head: RunningHead): string {
         page-break-inside: avoid;
       }
 
-      /* ── NO ORPHANED ROWS ─────────────────────────────────────────
+      ${""/* ── NO ORPHANED ROWS ─────────────────────────────────────────
          Four distinct ways a row is orphaned, four rules. \`orphans\`
          and \`widows\` are NOT among them: those properties count LINE
          boxes inside a block, and a table row is not a line box — the
@@ -233,37 +253,37 @@ export function printCss(head: RunningHead): string {
          was inert in every engine.
 
          (a) the first two body rows travel with the header, so a table
-             never opens with a single stranded row; */
+             never opens with a single stranded row; */}
       table.fin tbody tr:first-child,
       table.fin tbody tr:first-child + tr { break-before: avoid; page-break-before: avoid; }
-      /*  (b) a total or subtotal never opens a page alone, away from the
-             rows it totals; */
+      ${""/*  (b) a total or subtotal never opens a page alone, away from the
+             rows it totals; */}
       table.fin tbody tr.total,
       table.fin tbody tr.subtotal {
         break-before: avoid;
         page-break-before: avoid;
       }
-      /*  (c) the row before a total travels with it, so the pair
-             "…last line / Total" is never split; */
+      ${""/*  (c) the row before a total travels with it, so the pair
+             "…last line / Total" is never split; */}
       table.fin tbody tr:has(+ tr.total),
       table.fin tbody tr:has(+ tr.subtotal) {
         break-after: avoid;
         page-break-after: avoid;
       }
-      /*  (d) the last two body rows travel together, so a table never
-             leaves one row alone on the following page. */
+      ${""/*  (d) the last two body rows travel together, so a table never
+             leaves one row alone on the following page. */}
       table.fin tbody tr:nth-last-child(2) {
         break-after: avoid;
         page-break-after: avoid;
       }
 
-      /* ── FIGURES THAT MUST NOT WRAP ───────────────────────────────
+      ${""/* ── FIGURES THAT MUST NOT WRAP ───────────────────────────────
          MEASURED: at 19pt serif, "RON 118,576,820" is wider than a
          four-up A4 column (37.9mm of content width per card), so every
          KPI card in the executive summary broke its own figure across
          two lines and the four cards' baselines stopped agreeing. The
          screen has 1280px and no such problem; this is a print-only
-         size. */
+         size. */}
       .ratio-card .value {
         font-size: 13pt;
         overflow-wrap: normal;
@@ -275,18 +295,18 @@ export function printCss(head: RunningHead): string {
         font-size: 7.5pt;
         letter-spacing: 0.08em;
       }
-      /* One label in the headline strip runs to two lines — "Net income
-         (account 121, as filed)" — and it pushed its own figure a line
+      ${""/* One label in the headline strip runs to two lines — "Net income
+         (account 121, closing balance)" — and it pushed its own figure a line
          below the other three, so the four headline numbers stopped
          sharing a baseline. Reserving two lines in the four-up strip
          costs one blank line on the three short labels and buys an
          aligned row. Scoped to \`.grid-4\`, which is that strip and
          nothing else (measured on the Agras export: one \`.grid-4\`, six
-         \`.grid-3\`), so the ratio grids keep their tight rhythm. */
+         \`.grid-3\`), so the ratio grids keep their tight rhythm. */}
       .grid-4 > .ratio-card .label { min-height: 2.5em; }
       .ratio-card { break-inside: avoid; page-break-inside: avoid; }
 
-      /* ── A BLOCK TALLER THAN WHAT IS LEFT ─────────────────────────
+      ${""/* ── A BLOCK TALLER THAN WHAT IS LEFT ─────────────────────────
          \`break-inside: avoid\` on a block that does not fit costs the
          REST OF THE PAGE. That is the right trade for a KPI card and
          the wrong one for a finding, because a finding card carries a
@@ -321,7 +341,7 @@ export function printCss(head: RunningHead): string {
          every engine, so writing \`orphans: 2\` states the default and
          changes nothing. Writing a rule that does nothing is how the
          inert \`table.fin { orphans: 3 }\` above came to look like it had
-         solved the orphan problem. */
+         solved the orphan problem. */}
       .insight-card { break-inside: auto; page-break-inside: auto; }
       .insight-head {
         break-inside: avoid;
@@ -330,7 +350,7 @@ export function printCss(head: RunningHead): string {
         page-break-after: avoid;
       }
       .insight-claim { break-before: avoid; page-break-before: avoid; }
-      /* The two ladder tables sit side by side in a grid, and it FLOWS
+      ${""/* The two ladder tables sit side by side in a grid, and it FLOWS
          for the same reason the card does. Held whole it was the last
          near-blank page left: MEASURED on the Agras pack, page 25 ended
          229 pt short because the grid below it moved off wholesale.
@@ -340,10 +360,10 @@ export function printCss(head: RunningHead): string {
          A fragmented grid stays readable because each half is a
          \`table.fin\`, and the \`table-header-group\` rule above reprints
          its header on the continuation — so a reader meeting the second
-         half first still sees which column is which. */
+         half first still sees which column is which. */}
       .insight-cols { break-inside: auto; page-break-inside: auto; }
 
-      /* ── CHARTS ───────────────────────────────────────────────────
+      ${""/* ── CHARTS ───────────────────────────────────────────────────
          THE DRAWING is never split, and the table that carries its
          figures always STARTS on the drawing's own page — the document's
          rule is that no chart is the only place a number appears, and a
@@ -363,35 +383,35 @@ export function printCss(head: RunningHead): string {
          the on-screen report uses for the same construct. It matched
          nothing in the printed document, where the element is
          \`figure.chart-figure\`, so it was doing none of the work its
-         name implied. */
+         name implied. */}
       .chart-block, svg.chart { break-inside: avoid; page-break-inside: avoid; }
       svg.chart + table.fin { break-before: avoid; page-break-before: avoid; }
       .chart-figure figcaption { break-before: avoid; page-break-before: avoid; }
 
-      /* The interactive furniture has no business on paper. \`.toolbar\`
+      ${""/* The interactive furniture has no business on paper. \`.toolbar\`
          and \`.toc\` are already hidden by documentShell; \`.prov-card\`
          is the hover panel, which is \`hidden\` until JS shows it — and
          the PDF renderer runs with JS OFF, so it never appears. Stated
-         anyway, because "it happens not to show" is not a rule. */
+         anyway, because "it happens not to show" is not a rule. */}
       #prov-card, .prov-card { display: none !important; }
 
-      /* Links print as text. A blue underline pointing at an anchor the
-         reader cannot click is ink spent on nothing. */
+      ${""/* Links print as text. A blue underline pointing at an anchor the
+         reader cannot click is ink spent on nothing. */}
       a { color: ${INK}; text-decoration: none; }
       .toc-print a { color: ${INK}; }
 
-      /* ── COLUMNS THAT TOUCH ───────────────────────────────────────
+      ${""/* ── COLUMNS THAT TOUCH ───────────────────────────────────────
          Base cell padding is \`6.5px 0\` — no horizontal padding at all.
          At 1280px of screen that is invisible; at 176mm of A4 it is
          not. MEASURED on the executive summary's verdict table: the
          right-aligned "THIS BOOK" header and the left-aligned "VERDICT"
          header beside it printed as the single word \`THIS BOOKVERDICT\`.
-         A gutter, in print only, so the screen keeps its own rhythm. */
+         A gutter, in print only, so the screen keeps its own rhythm. */}
       table.fin th + th, table.fin td + td { padding-left: 9px; }
       table.fin th.num, table.fin td.num { padding-left: 12px; }
 
-      /* Hairlines survive a laser: sub-pixel borders drop out entirely
-         on some drivers, so nothing is thinner than 0.5pt. */
+      ${""/* Hairlines survive a laser: sub-pixel borders drop out entirely
+         on some drivers, so nothing is thinner than 0.5pt. */}
       table.fin th { border-bottom-color: ${RULE}; }
       table.fin td { border-bottom-color: ${RULE_SOFT}; }
     }

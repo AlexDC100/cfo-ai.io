@@ -15,9 +15,14 @@
  *                     ->  services/pdf/render.mjs on headless Chromium
  *                     ->  public/sample/sample_report_fy2025.pdf
  *
- * NO CLOCK. The report prints "Report generated: <date>"; the date is the
- * sample's `as_of` (scripts/public_sample_config.json), not today's, so a
- * rebuild on another day produces the same bytes.
+ * NO CLOCK, NO LOCALE, NO TIMEZONE. The report prints "Report generated:
+ * <date>"; the date is the sample's `as_of` (scripts/public_sample_config.json),
+ * handed to the builder and printed as that calendar day in UTC, so a rebuild
+ * on another day, in another timezone or under another system locale produces
+ * the same bytes (gate public-sample S9 rebuilds under LANG=ro_RO.UTF-8 and
+ * TZ=Pacific/Auckland; until 2026-10-02 both changed the bytes — the
+ * recommendations printed "RON 164.171" under a Romanian locale and the
+ * cover "2 October" east of UTC+12).
  *
  *   node scripts/build_public_sample_report.mjs                write both
  *   node scripts/build_public_sample_report.mjs --check        compare, write nothing
@@ -99,7 +104,7 @@ async function loadFromRepo() {
     const prior = readJson(join(DIR, SERVED_PRIOR));
     const comparatives = readJson(join(DIR, SERVED_COMPARATIVES));
     const html = withFixedClock(CONFIG.as_of, () =>
-      builder.sampleReportHtml(current, prior, comparatives),
+      builder.sampleReportHtml(current, prior, comparatives, CONFIG.as_of),
     );
     return {
       html,

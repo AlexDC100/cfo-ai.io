@@ -471,8 +471,8 @@ describe("G-R12 · the grade travels with the facts that produced it", () => {
 
 describe("G-R13 · R1 — the KPI strip quotes the document's own figures", () => {
   const CARD_TO_TILE: Array<[string, string]> = [
-    ["Net Income (account 121, as filed)", "net_income"],
-    ["Operating revenue", "revenue"],
+    ["Net Income (account 121, closing balance)", "net_income"],
+    ["Net turnover", "revenue"],
   ];
 
   it.each(BOOKS)("%s: the strip and the cards print one value per concept", (book) => {

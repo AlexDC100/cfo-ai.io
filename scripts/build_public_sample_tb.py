@@ -682,7 +682,7 @@ def _assert_book(year: int, L: Ledger, rows: Sequence[Row], facts: Dict[str, Dec
 # ── The workbook ──────────────────────────────────────────────────────
 
 SHEET_NAME = "Balanta"
-GROUP_HEADER = (None, None, "Solduri initiale an", None, "Rulaje cumulate", None,
+GROUP_HEADER = (None, None, "Solduri inițiale an", None, "Rulaje cumulate", None,
                 "Sume totale", None, "Solduri finale", None)
 COLUMN_HEADER = ("Cont", "Denumire cont", "Debit", "Credit", "Debit", "Credit",
                  "Debit", "Credit", "Debit", "Credit")
@@ -721,7 +721,7 @@ def sheet_rows(year: int, rows: Sequence[Row], notice: str = FICTIONAL_NOTICE_RO
 # cumulative) and no closing-balance pair — a reader derives the closing
 # balance from the cumulative pair. A "Total sume clasa N" line closes each
 # class and "Totaluri:" closes the sheet.
-COMPACT_GROUP_HEADER = (None, None, "Solduri initiale an", None, "Rulaje perioada", None,
+COMPACT_GROUP_HEADER = (None, None, "Solduri inițiale an", None, "Rulaje perioada", None,
                         "Sume totale", None)
 COMPACT_COLUMN_HEADER = ("Cont", "Denumirea contului", "Debitoare", "Creditoare",
                          "Debitoare", "Creditoare", "Debitoare", "Creditoare")
@@ -797,7 +797,7 @@ def write_workbook(year: int, rows: Sequence[Row], *, notice: str = FICTIONAL_NO
     stamp = datetime.datetime(year, 12, 31)
     wb.properties.creator = "CFO AI - exemplu fictiv"
     wb.properties.lastModifiedBy = "CFO AI - exemplu fictiv"
-    wb.properties.title = "%s - balanta de verificare %d (date fictive)" % (COMPANY_NAME, year)
+    wb.properties.title = "%s - balanță de verificare %d (date fictive)" % (COMPANY_NAME, year)
     wb.properties.created = stamp
     wb.properties.modified = stamp
     raw = io.BytesIO()

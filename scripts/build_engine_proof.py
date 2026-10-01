@@ -49,6 +49,13 @@ WHAT IT MEASURES — each with the script or gate that owns the check
                          against the code, within its tolerance.
   counts                 listings in the bundled Bucharest Stock Exchange
                          universe and how many carry any financial figure.
+  software               the accounting-software names PRINTED INSIDE a
+                         committed real file a gate reads (its page text or
+                         its cells). A coverage row may name a piece of
+                         software only if it is here (gate public-claims
+                         C4): the landing named SAGA, SmartBill, NEXTUP and
+                         CIEL for a month and no real file carries any of
+                         them.
 
 THE PUBLIC FILE NAMES NO COMPANY AND CARRIES NO COMPANY'S FIGURE
   Counts, a tolerance, a date, and the largest difference observed. The
@@ -81,6 +88,7 @@ import contextlib
 import hashlib
 import io
 import json
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -594,6 +602,64 @@ def public_counts() -> Dict[str, Any]:
     }
 
 
+#: Exporter names looked for INSIDE the committed real files. A name that
+#: is not on this list cannot be proven by this script — which is the safe
+#: direction: `coverage.json` may name only what is found.
+EXPORTER_NAMES: Tuple[str, ...] = (
+    "WinMENTOR", "SAGA", "SmartBill", "NextUp", "CIEL", "ContSal", "SceptrumERP",
+    "Charisma", "Oblio", "Nexus", "WizCount",
+)
+
+
+def _visible_text(path: Path) -> str:
+    """What a reader of the file can see: a PDF's page text, a workbook's
+    cell strings and document properties. NOT a workbook's defined names —
+    the real spreadsheets on hand are reporting-template exports carrying
+    thousands of hidden names, one of which contains "saga" by accident."""
+    suffix = path.suffix.lower()
+    if suffix == ".pdf":
+        from pypdf import PdfReader
+
+        return "\n".join((page.extract_text() or "") for page in PdfReader(str(path)).pages)
+    if suffix == ".xlsx":
+        from openpyxl import load_workbook
+
+        wb = load_workbook(str(path), read_only=True)
+        cells = [c for ws in wb.worksheets for row in ws.iter_rows(values_only=True)
+                 for c in row if isinstance(c, str)]
+        props = wb.properties
+        cells += [str(getattr(props, k) or "") for k in ("creator", "lastModifiedBy", "title", "description")]
+        return "\n".join(cells)
+    return path.read_text(encoding="utf-8", errors="replace")
+
+
+def software_proven() -> Dict[str, Any]:
+    """Accounting-software names a COMMITTED real file prints, and in how
+    many such files. Read off the real corpus cases only, so the answer is
+    the same on a checkout without the local books."""
+    import corpus_replay
+
+    found: Dict[str, int] = {}
+    scanned = 0
+    for case_dir in corpus_replay.discover_cases(corpus_replay.DEFAULT_CORPUS):
+        if bool(corpus_replay._load_meta(case_dir).get("synthetic")):
+            continue
+        scanned += 1
+        text = _visible_text(corpus_replay._input_path(case_dir))
+        for name in EXPORTER_NAMES:
+            if re.search(r"(?<![A-Za-z])%s(?![A-Za-z])" % re.escape(name), text, re.I):
+                found[name] = found.get(name, 0) + 1
+    if scanned == 0:
+        raise ProofError("no real corpus file was scanned for exporter names")
+    return {
+        "proven": sorted(found),
+        "real_files": dict(sorted(found.items())),
+        "real_files_scanned": scanned,
+        "how": ("scripts/build_engine_proof.py: each name searched in the page text / cells of "
+                "every committed real corpus file (battery gate: corpus-replay reads them)"),
+    }
+
+
 def format_counts() -> Dict[str, Any]:
     """How many DISTINCT real books each input layout was read from."""
     out: Dict[str, int] = {}
@@ -657,6 +723,7 @@ def measure(full: bool, today: str) -> Dict[str, Any]:
         "checks": checks,
         "formats": format_counts() if full else None,
         "counts": public_counts(),
+        "software": software_proven(),
     }
 
 
@@ -717,6 +784,9 @@ def compare(measured: Dict[str, Any], committed: Dict[str, Any], full: bool) -> 
     if committed.get("counts") != measured.get("counts"):
         problems.append("counts: committed %s != measured %s" % (
             committed.get("counts"), measured.get("counts")))
+    if committed.get("software") != measured.get("software"):
+        problems.append("software: committed %s != measured %s" % (
+            committed.get("software"), measured.get("software")))
     by_id = {c["id"]: c for c in committed.get("checks", [])}
     for c in measured["checks"]:
         if not c.get("corpus_complete"):
@@ -772,6 +842,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     print("  formats                  %s" % json.dumps(measured["formats"]))
     print("  counts                   %s" % json.dumps(
         {k: v for k, v in measured["counts"].items() if k != "how"}))
+    print("  software                 %s" % json.dumps(measured["software"]["real_files"]))
     print("  engine                   %s · %d files · %s" % (
         measured["engine"]["parser_version"], measured["engine"]["tree_files"],
         measured["engine"]["tree_sha256"][:16]))
@@ -802,7 +873,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 1
         print("ENGINE PROOF: IN AGREEMENT — %s (%s)" % (
             _rel(out), "every check re-measured" if full
-            else "identity, rerun, account 121 and counts re-measured"))
+            else "identity, rerun, account 121, counts and software re-measured; "
+                 "NOT a full re-measurement"))
         return 0
 
     out.parent.mkdir(parents=True, exist_ok=True)

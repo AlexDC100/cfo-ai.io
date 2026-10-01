@@ -37,6 +37,7 @@ import {
   servedRatioComparison,
   servedRatioKey,
   servedRatioLabel,
+  type ReportOptions,
   type Statements,
 } from "./financialReport";
 // The band-movement headline, read off the served two-period table — the
@@ -903,12 +904,12 @@ const SHEET_LABEL: Readonly<Record<string, string>> = {
   other_financial_expense: "Financial expense",
   pretax: "Profit before tax",
   // The same string as NET_INCOME_LABEL below (declared after this map).
-  net_income: "Net income (account 121, as filed)",
+  net_income: "Net income (account 121, closing balance)",
 };
 
 /** What every sheet calls the filed figure, so no sheet can call it
  *  something else. The document's own row label, word for word. */
-const NET_INCOME_LABEL = "Net income (account 121, as filed)";
+const NET_INCOME_LABEL = "Net income (account 121, closing balance)";
 
 /** THE HEADER CELLS NAME THE FILE BEHIND EACH COLUMN, as a cell note —
  *  the workbook's `title`, the same line the dashboard's compare headers
@@ -987,14 +988,20 @@ function plRow(
 // REQUIRED — an omitted argument is how the first divergence happened, and
 // a caller with genuinely no engine envelope passes `{}`, which is a
 // decision the client-fallback model then names in the document itself.
-export function buildReportHtml(s: Statements, envelopes: CreditEnvelopes): string {
+export function buildReportHtml(
+  s: Statements,
+  envelopes: CreditEnvelopes,
+  // What the caller says ABOUT the document (confidentiality line, a
+  // notice, the prepared-on day). The Export tab passes none.
+  options?: ReportOptions,
+): string {
   const credit = computeCreditScore(
     s,
     envelopes.credit,
     envelopes.piotroski,
     envelopes.metricsByName,
   );
-  return renderReportHtml(s, credit, envelopes.metricsByName);
+  return renderReportHtml(s, credit, envelopes.metricsByName, options);
 }
 
 /** Browser-side helper: renders the board-pack HTML and saves it. */

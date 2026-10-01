@@ -38,7 +38,7 @@
 //   = Profit before tax
 //   − Tax expense
 //   [= Net result built from the accounts, ± not explained by the accounts]
-//   = Net income (account 121, as filed)
+//   = Net income (account 121, closing balance)
 //
 // A figure the engine REFUSED (the stock variation could not be measured)
 // is a row with `value: null` and its typed reason — never a zero and
@@ -95,7 +95,7 @@ export interface PrintedPl {
 }
 
 /** The label of the account-121 row; shared so no format renames it alone. */
-export const NET_INCOME_FILED_LABEL = "Net Income (account 121, as filed)";
+export const NET_INCOME_FILED_LABEL = "Net Income (account 121, closing balance)";
 export const NOT_EXPLAINED_LABEL =
   "± Not explained by the revenue and expense accounts (account 121 − the result built from them)";
 export const NET_RESULT_BUILT_LABEL = "Net result — built from the accounts";

@@ -129,6 +129,7 @@ import {
   type Comparatives,
 } from "./reportComparatives";
 import { printCss } from "./reportPrintCss";
+import { basisAuthorshipSentence, reportAuthorship } from "./reportFooter";
 // THE TWO-PERIOD RATIO TABLE, READ — never computed. `ratioTable.ts` is
 // the typed mirror of the block the engine serves on
 // `GET /api/period/{id}/comparatives → ratios` and the ONE formatter that
@@ -259,7 +260,7 @@ export interface PriorPeriod {
    *  prior arrived as a served statements block (the comparatives
    *  document's `prior_statements`). Typed as loosely as the current
    *  period's. Its `net_income_statutory` is account 121 as filed; the
-   *  workbook's "Net income (account 121, as filed)" prior cell and the
+   *  workbook's "Net income (account 121, closing balance)" prior cell and the
    *  Piotroski prior-year checks read it. Absent on priors built from bare
    *  statements (public-company history, demo series). */
   assembled_pl?: Record<string, number>;
@@ -2121,12 +2122,12 @@ export function computeRatios(
       row("net_margin", "Net Margin", "%", netMargin,
         { strong: 15, healthy: 8, watch: 3 }, true,
         "≥ 8% healthy",
-        "net profit as filed (account 121) ÷ revenue",
-        () => `${money(anchoredNetIncome)} net profit as filed, on ${money(anchoredRevenue)} revenue.`),
+        "net profit (account 121, closing balance) ÷ revenue",
+        () => `${money(anchoredNetIncome)} net profit (account 121), on ${money(anchoredRevenue)} revenue.`),
       row("roa", "Return on Assets", "%", roa,
         { strong: 10, healthy: 5, watch: 2 }, true,
         "≥ 5% healthy",
-        "net profit as filed (account 121) ÷ total assets",
+        "net profit (account 121, closing balance) ÷ total assets",
         (v) =>
           v >= 5
             ? "Assets generating solid returns."
@@ -2134,7 +2135,7 @@ export function computeRatios(
       row("roe", "Return on Equity", "%", roe,
         { strong: 20, healthy: 12, watch: 6 }, true,
         "≥ 12% healthy",
-        "net profit as filed (account 121) ÷ total equity",
+        "net profit (account 121, closing balance) ÷ total equity",
         (v) =>
           v >= 12
             ? "Capital deployed efficiently for shareholders."
@@ -3560,13 +3561,40 @@ export function shippedCss(css: string): string {
   return css.replace(/\/\*[\s\S]*?\*\//g, "").replace(/[ \t]+\n/g, "\n").replace(/\n{2,}/g, "\n");
 }
 
+/**
+ * What a caller may say ABOUT the document, as opposed to in it. Every
+ * field has the customer's own export as its default, so the product's
+ * download is unchanged; the public sample (lib/publicSampleReport) is the
+ * one caller that passes any.
+ *
+ * Until 2026-10-02 these were fixed strings: the published sample of a
+ * fictional company was stamped "Confidential — for internal use only"
+ * twice, carried no word that the company does not exist, and printed the
+ * day it was built in the build machine's timezone.
+ */
+export interface ReportOptions {
+  /** Print "Confidential — for internal use only" on the cover and in the
+   *  footer. Default true. A file published for anyone is not confidential. */
+  confidential?: boolean;
+  /** A notice printed on the cover, above the executive summary and in the
+   *  footer (`long`), and at the foot of every printed page (`short`). */
+  notice?: { long: string; short: string } | null;
+  /** The day the report was prepared, as an ISO date (YYYY-MM-DD); printed
+   *  as that calendar day whatever the machine's timezone. Default: today,
+   *  in the reader's own timezone. */
+  generatedOn?: string | null;
+}
+
 export function renderReportHtml(
   s: Statements,
   credit: CreditScoreResult,
   // The engine metric map THE SAME reader was built over. Compose the two
   // in one place — `financialExports.buildReportHtml` — never by hand.
   metricsByName?: Record<string, number | null>,
+  options: ReportOptions = {},
 ): string {
+  const confidential = options.confidential !== false;
+  const notice = options.notice ?? null;
   const t = deriveTotals(s);
   // servedFacts gateway — the report's BS totals + the balance-status
   // footer read the served envelope; this renderer never branches on
@@ -4288,14 +4316,20 @@ export function renderReportHtml(
     }
     ${chartCss()}
     ${shellCss()}
-    ${printCss({ company: s.companyName, period: s.periodLabel })}
+    ${printCss({ company: s.companyName, period: s.periodLabel, notice: notice?.short ?? null })}
   `;
 
-  const today = new Date().toLocaleDateString("en-GB", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  // A stated day is printed as THAT calendar day (UTC both ways); today is
+  // the reader's own.
+  const today = options.generatedOn
+    ? new Date(`${options.generatedOn}T00:00:00Z`).toLocaleDateString("en-GB", {
+        year: "numeric", month: "long", day: "numeric", timeZone: "UTC",
+      })
+    : new Date().toLocaleDateString("en-GB", {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
 
   // ── THE TOP LINE READS THE WHOLE PAGE, NOT ONE THIRD OF IT ──────────
   //
@@ -4634,6 +4668,14 @@ export function renderReportHtml(
   //   · the ranking is `src/engine/insights/rank.py`'s, consumed in the
   //     order the block arrives in. This renderer never re-sorts.
   const insightsBlock: InsightsBlock | null = readInsights(s);
+  // WHO READ THE DOCUMENT, AND WHO WROTE THE WORDS — from the served
+  // envelope, never a fixed sentence. "This document is AI-assisted" was
+  // printed on every export until 2026-10-02, including the public sample,
+  // which is built with no model at all (lib/reportFooter).
+  const authorship = reportAuthorship(s);
+  const authorshipSentence = basisAuthorshipSentence(s, {
+    aiNarrative: (insightsBlock?.insights ?? []).some((i) => i.narrative.source === "ai"),
+  });
   const insightCurrency = insightsBlock?.currency || s.currency;
 
   // ── ONE NAME, TWO VALUES — NOW THAT BOTH SURFACES ARE IN ONE FILE ───
@@ -4921,7 +4963,12 @@ export function renderReportHtml(
     const rows = summary.tiles
       .map((tile) => {
         const line = tile.line;
-        const label = tile.key === "revenue" ? "Operating revenue" : tile.label;
+        // The figure in this row is NET TURNOVER (class 70 − 709), the same
+        // one the card above prints under that name. It was labelled
+        // "Operating revenue" here until 2026-10-02 — a wider concept (it
+        // would add other operating income and the stock variation) over the
+        // narrower figure.
+        const label = tile.key === "revenue" ? "Net turnover" : tile.label;
         // A RATIO TILE reads its change off the served two-period row — the
         // engine's delta, in turns or points, printed by the one formatter.
         // Nothing here subtracts two ratios.
@@ -5477,7 +5524,7 @@ export function renderReportHtml(
       }
       ${
         hasBridge
-          ? `<div class="commentary" data-report-pl-bridge><strong>Built from the accounts &rarr; filed accounts.</strong> The column above builds the P&amp;L from the trial balance&rsquo;s class 6 and class 7 accounts; it ends on account 121&rsquo;s closing balance (${money(netIncomeStatutory, s.currency)}) &mdash; the figure the company filed, and the one every ratio in this document is built on. The ${money(bridgeTo121, s.currency)} step is <strong>not explained</strong> by any line on this statement. It is printed with its amount rather than folded into the stock variation or a plug, because a build-up that foots on an invented component is worse than one that names its gap. Reconciling the two needs the source ledger, not this extract.</div>`
+          ? `<div class="commentary" data-report-pl-bridge><strong>Built from the accounts &rarr; account 121.</strong> The column above builds the P&amp;L from the trial balance&rsquo;s class 6 and class 7 accounts; it ends on account 121&rsquo;s closing balance (${money(netIncomeStatutory, s.currency)}) &mdash; the figure every ratio in this document is built on. The ${money(bridgeTo121, s.currency)} step is <strong>not explained</strong> by any line on this statement. It is printed with its amount rather than folded into the stock variation or a plug, because a build-up that foots on an invented component is worse than one that names its gap. Reconciling the two needs the source ledger, not this extract.</div>`
           : ""
       }
     `;
@@ -5525,7 +5572,7 @@ export function renderReportHtml(
           attr: "pl-view",
           label: "Reconciliation to 121",
           options: [
-            { value: "filed", label: "Filed close", hint: "The headline figure is account 121's closing balance — what the company filed, and what every ratio here is built on. It does not change." },
+            { value: "filed", label: "Account 121", hint: "The headline figure is account 121's closing balance, which every ratio here is built on. It does not change." },
             { value: "reconstructed", label: "Show the build-up", hint: "Also state the result built from the revenue and expense accounts (the stock variation included) beside it. The two differ on this book by a step no account explains; neither is recomputed here." },
           ],
         }
@@ -5533,7 +5580,7 @@ export function renderReportHtml(
           attr: "pl-view",
           label: "Reconciliation to 121",
           options: [],
-          unavailableReason: "nothing to reconcile — the result built from the accounts equals the filed close on this book",
+          unavailableReason: "nothing to reconcile — the result built from the accounts equals account 121's closing balance on this book",
         },
     {
       attr: "voice",
@@ -5629,6 +5676,8 @@ export function renderReportHtml(
     verdict: overallVerdict,
     generated: today,
     statusLine: bsStatusLine,
+    confidential,
+    notice: notice?.long ?? null,
   })}
 
   ${contentsPage(SECTIONS)}
@@ -5644,6 +5693,7 @@ export function renderReportHtml(
     <p>Report generated: ${escapeHtml(today)}</p>
     ${industryDisputeNote}
   </div>
+  ${notice ? `<div class="doc-notice" data-report-notice="body">${escapeHtml(notice.long)}</div>` : ""}
 
   ${section(
     "sec-exec",
@@ -5687,9 +5737,9 @@ export function renderReportHtml(
       ${marginNote ? `<div class="meta" data-margin-note="1">${escapeHtml(marginNote.display.en)}</div>` : ""}
     </div>
     <div class="ratio-card">
-      <div class="label">Net Income (account 121, as filed)</div>
+      <div class="label">Net Income (account 121, closing balance)</div>
       <div class="value" ${provAttrs({
-        label: "Net income (account 121, as filed)",
+        label: "Net income (account 121, closing balance)",
         value: money(netIncomeStatutory, s.currency),
         formula: "account 121 closing balance",
         accounts: "121",
@@ -5698,8 +5748,8 @@ export function renderReportHtml(
       })}>${money(netIncomeStatutory, s.currency)}</div>
       ${
         hasBridge
-          ? `<div class="meta"><span data-variant="pl-filed">account 121, as filed &mdash; ${escapeHtml(marginLine("net_margin"))}</span><span data-variant="pl-reconstructed">built from the accounts: ${money(reconstructedNetIncome, s.currency)} &mdash; <span class="no-variant">margin not restated; the served margin is built on the filed close</span></span></div>`
-          : `<div class="meta">account 121, as filed &mdash; ${escapeHtml(marginLine("net_margin"))}</div>`
+          ? `<div class="meta"><span data-variant="pl-filed">account 121, closing balance &mdash; ${escapeHtml(marginLine("net_margin"))}</span><span data-variant="pl-reconstructed">built from the accounts: ${money(reconstructedNetIncome, s.currency)} &mdash; <span class="no-variant">margin not restated; the served margin is built on account 121's closing balance</span></span></div>`
+          : `<div class="meta">account 121, closing balance &mdash; ${escapeHtml(marginLine("net_margin"))}</div>`
       }
     </div>
     <div class="ratio-card">
@@ -5795,7 +5845,7 @@ export function renderReportHtml(
     `
   <aside class="basis-note">
     <strong>Basis of preparation</strong>
-    Figures reflect the period&rsquo;s statutory financial statements as ingested by the CFO AI engine. Ratios follow standard lender conventions (Altman Z-Score, DSCR, debt-to-EBITDA, etc.); benchmarks are indicative and industry-dependent. Where the underlying trial-balance reconciliation gap exceeds tolerance, the affected figure is annotated in the relevant statement above. This document is AI-assisted; final analytical judgement and any onward decisions remain with management.${provenanceNote}
+    Figures are computed from the ${authorship.documentWord} uploaded for the period. Ratios follow standard lender conventions (Altman Z-Score, DSCR, debt-to-EBITDA, etc.); benchmarks are indicative and industry-dependent. Where the underlying trial-balance reconciliation gap exceeds tolerance, the affected figure is annotated in the relevant statement above. <span data-report-authorship="${authorship.readBy}">${escapeHtml(authorshipSentence)}</span>${provenanceNote}
   </aside>
   ${voiced(
     `<strong>Charts.</strong> Every chart is generated with this document, from the same served figures the statements above print, and carries its own table &mdash; no chart is the only place a number appears. A chart whose inputs the filing did not carry is replaced by a card naming the missing input, never by an empty axis.`,
@@ -5808,7 +5858,9 @@ export function renderReportHtml(
 
   <footer class="footer">
     <span class="lhs"><strong>CFO AI</strong> &nbsp;·&nbsp; Financial Statement Intelligence</span>
-    <span class="rhs">Generated ${escapeHtml(today)} &nbsp;·&nbsp; Confidential &mdash; for internal use only</span>
+    <span class="rhs">Generated ${escapeHtml(today)}${
+      confidential ? " &nbsp;·&nbsp; Confidential &mdash; for internal use only" : ""
+    }${notice ? ` &nbsp;·&nbsp; <span data-report-notice="footer">${escapeHtml(notice.long)}</span>` : ""}</span>
   </footer>
   <script>${shellScript()}</script>
 </body>

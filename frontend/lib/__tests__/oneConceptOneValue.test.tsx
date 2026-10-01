@@ -330,7 +330,7 @@ const CAPTION_FACTS: Array<{
   concept: string;
   field: string;
 }> = [
-  { card: "Net margin", concept: "net profit as filed (account 121)", field: "net_income_statutory" },
+  { card: "Net margin", concept: "net profit (account 121, closing balance)", field: "net_income_statutory" },
   { card: "EBITDA margin", concept: "EBITDA (statutory)", field: "ebitda_statutory" },
   { card: "Gross margin", concept: "revenue", field: "revenue" },
 ];

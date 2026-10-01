@@ -9,6 +9,19 @@
 // document for the pair), joined by `ratioSurfacesOf`, the same function
 // the page's hook runs. Nothing is computed here.
 //
+// WHAT THE SAMPLE SAYS ABOUT ITSELF (2026-10-02). The report is the
+// product's export, but two things a customer's own download prints are
+// false on a file published for anyone, and one thing it does not print is
+// needed here:
+//   · "Confidential — for internal use only" — turned off;
+//   · nothing said the company does not exist (the PDF is the file most
+//     likely to travel without the /sample page) — the cover, the body, the
+//     footer and the foot of every printed page now carry the notice below,
+//     in English and Romanian;
+//   · the prepared-on day is the sample's `as_of`, printed as that calendar
+//     day on every machine.
+// These are `ReportOptions` — inputs about the document, not figures in it.
+//
 // Two readers: `scripts/build_public_sample_report.mjs` (writes the file)
 // and `frontend/lib/__tests__/publicSample.test.tsx` (reds when the
 // committed file is not what this function returns for the committed
@@ -16,7 +29,7 @@
 
 import type { ComparativesResponse } from "@/lib/comparatives";
 import { buildReportHtml } from "@/lib/financialExports";
-import type { Statements } from "@/lib/financialReport";
+import type { ReportOptions, Statements } from "@/lib/financialReport";
 import { ratioSurfacesOf } from "@/lib/useRatioSurfaces";
 
 /** The fields of a `GET /api/period/{id}` body this module reads. */
@@ -56,12 +69,30 @@ export function exportInputsOf(
   };
 }
 
-/** The whole report document, as the Export tab writes it to disk. */
+/** The notice every copy of the sample report carries. The report is
+ *  English by contract; the notice is in both languages because it is the
+ *  one line a reader of either must not miss. */
+export const SAMPLE_REPORT_NOTICE = {
+  long:
+    "Fictional company — this is a generated sample, not a real entity; every figure is invented. " +
+    "Companie fictivă — acesta este un exemplu generat, nu o entitate reală; toate cifrele sunt inventate.",
+  short: "Fictional company — generated sample · Companie fictivă — exemplu generat",
+} as const;
+
+/** What the sample says about the document: not confidential, fictional,
+ *  prepared on the sample's as-of day. */
+export function sampleReportOptions(asOf: string): ReportOptions {
+  return { confidential: false, notice: SAMPLE_REPORT_NOTICE, generatedOn: asOf };
+}
+
+/** The whole report document, as the Export tab writes it to disk, with
+ *  the sample's own notice. `asOf` is scripts/public_sample_config.json's. */
 export function sampleReportHtml(
   current: ServedPeriodBody,
   prior: ServedPeriodBody,
   comparatives: ComparativesResponse,
+  asOf: string,
 ): string {
   const { statements, envelopes } = exportInputsOf(current, prior, comparatives);
-  return buildReportHtml(statements, envelopes);
+  return buildReportHtml(statements, envelopes, sampleReportOptions(asOf));
 }

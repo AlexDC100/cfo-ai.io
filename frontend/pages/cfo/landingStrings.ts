@@ -42,6 +42,15 @@ export interface LandingStrings {
     mockNote: string;
     /** Title line of the fake browser chrome on the hero mock. */
     mockTitle: string;
+    /** The illustrative dashboard under the hero, in the reader's language
+     *  and number format. Invented figures, labelled illustrative by
+     *  `mockNote`; none is a claim about the engine. */
+    mock: {
+      kpis: { label: string; value: string; unit: string; sub: string }[];
+      briefingTitle: string;
+      briefingBody: string;
+      bullets: string[];
+    };
   };
   stats: { drift: string; ratios: string; peers: string; upload: string };
   modules: {
@@ -137,42 +146,53 @@ const en: LandingStrings = {
   },
   hero: {
     eyebrow: "CFO AI · Built for Romanian private businesses",
-    t1: "Turn a Romanian trial balance into a ", thl: "CFO-grade analysis", t2: " in 90 seconds.",
-    body: "Upload your trial balance (balanță de verificare, RAS). CFO AI reconstructs your P&L, balance sheet, cash flow, 22 ratios, valuation and credit score — then compares you with Romanian companies in your sector and turnover band, and with named companies listed on the Bucharest Stock Exchange.",
+    t1: "Turn a Romanian trial balance into a ", thl: "CFO-grade analysis", t2: ".",
+    body: "Upload your trial balance (balanță de verificare, RAS). CFO AI reconstructs your P&L and balance sheet, estimates your cash flow, and computes ratios, a valuation range and a credit score — then compares you with Romanian companies in your sector and turnover band, and with named companies listed on the Bucharest Stock Exchange.",
     ctaStart: "Get started", ctaSignIn: "Sign in",
     checks: ["7-day free trial", "Romanian trial balances (RAS)", "Cancel anytime"],
     mockNote: "Illustrative dashboard. AI-assisted analysis — final decisions remain with your management team.",
     mockTitle: "cfo-ai · today's briefing · 06:14",
+    mock: {
+      kpis: [
+        { label: "EBITDA margin", value: "11.4", unit: "%", sub: "+1.8 pp vs sector" },
+        { label: "Altman Z″", value: "3.12", unit: "", sub: "Safe zone" },
+        { label: "Net debt / EBITDA", value: "1.8", unit: "×", sub: "Comfortable" },
+        { label: "ROIC", value: "17.7", unit: "%", sub: "+2.1 pp vs last year" },
+      ],
+      briefingTitle: "AI CFO Briefing",
+      briefingBody: "Profitability is above sector median, and the balance sheet is conservatively levered. Two watch-items: receivable days creeping up, and one supplier concentration above 30%.",
+      bullets: ["DSO up 6 days — tighten collections", "Refinance short-term line before Q3", "Benchmark vs 3 named peers ready"],
+    },
   },
   stats: { drift: "Balance-sheet drift", ratios: "Financial ratios", peers: "Public-company peers", upload: "Upload to report" },
   modules: {
     eyebrow: "Three flagship modules", t1: "One platform. ", thl: "Your books, or a company listed on the BVB.",
     cards: [
-      { kicker: "Trial balance → board-ready report", title: "Financial Statement Intelligence", body: "A Romanian trial balance (RAS), exported from your accounting software as Excel or PDF. Accounts are mapped to the statements by the engine, then ratioed, valued and explained. The coverage table below lists exactly which file layouts are tested, and on how many real books.", featureKey: "upload_trial_balance" },
+      { kicker: "Trial balance → board-ready report", title: "Financial Statement Intelligence", body: "A Romanian trial balance (RAS), exported from your accounting software as Excel or PDF. Accounts are mapped to the statements by the engine, then turned into ratios, a credit score and ranked recommendations. The coverage table below lists exactly which file layouts are tested, and on how many real books.", featureKey: "upload_trial_balance" },
       { kicker: "BVB tickers → company pages", title: "Public Company Intelligence", body: "{bvb.listings} listings on the Bucharest Stock Exchange, with delayed quotes. {bvb.withFinancials} of them carry summary financial figures today — annual-report figures for the main index, the latest statutory filing for others. Add any of them as a benchmark peer.", featureKey: "public_companies" },
-      { kicker: "Ask questions → grounded answers", title: "Ask CFO AI", body: "A financial copilot that answers from your own statements. Ask why margin moved, what a ratio means, or what to do next — it names the period and the figure it used.", featureKey: "chat_page" },
+      { kicker: "Ask questions → grounded answers", title: "Ask CFO AI", body: "A financial copilot that answers from your own statements. Ask why margin moved, what a ratio means, or what to do next — it names the period and the figure it used. Its answers are written by an AI model.{coverage.chat.status}", featureKey: "chat_page" },
     ],
   },
   how: {
     eyebrow: "How it works", t1: "Three steps from spreadsheet to ", thl: "action plan.",
     steps: [
       { title: "Upload your trial balance", body: "A Romanian trial balance (balanță de verificare), exported from your accounting software as Excel or PDF. Columns and RAS accounts are mapped by the engine. The table below says exactly what is tested." },
-      { title: "CFO AI computes the economics", body: "P&amp;L, balance sheet, cash flow, 22 ratios, EBITDA variants, Altman Z, valuation and credit score. Your file gets the same checks as our test books: the balance sheet must close and net income must equal account 121 — any difference is shown on the report." },
+      { title: "CFO AI computes the economics", body: "P&amp;L, balance sheet, a cash-flow estimate, ratios, EBITDA variants, Altman Z, a valuation range and a credit score. Two checks run on your own file every time: the balance sheet must close and net income must equal account 121 — any difference is shown on the report." },
       { title: "You act with context", body: "Ranked, quantified recommendations plus named public-company peers — export to HTML or a 9-sheet Excel model." },
     ],
   },
   coverage: { eyebrow: "Coverage", evidenceLabel: "Evidence", asOfLabel: "as of" },
   sample: {
     kicker: "Public sample",
-    title: "Inspect a complete report before you upload anything.",
-    body: "A fictional Romanian company — its trial balance, the full report generated from it, every account-to-line mapping and every uncertainty label. Fictional data, the real engine.",
+    title: "Inspect a sample report before you upload anything.",
+    body: "A fictional Romanian company — its trial balance, the report the product exports from it, every account-to-line mapping and every uncertainty label. The sample has no valuation, no sector benchmarks and no AI briefing. Fictional data, the real engine.",
     cta: "Open the sample report",
     proofCta: "See these checks on the sample report",
   },
   defensible: {
     eyebrow: "Checked, and dated",
     title: "Numbers you can check, not numbers you have to trust.",
-    body: "For a Romanian trial balance the engine is deterministic: the numbers are read and computed by code, never by an AI model. We publish what we check, on how many real books, and on what date — the block alongside is written by the test run itself, not typed. When a source file has an imbalance, CFO AI shows it rather than smoothing it over.",
+    body: "For a Romanian trial balance in one of the tested layouts in the coverage table, the engine is deterministic: the numbers are read and computed by code, never by an AI model. A scan, or a layout the readers do not recognise, needs the AI reader, and its result is labelled as AI-read. We publish what we check, on how many real books, and on what date — the block alongside is written by the test run itself, not typed. When a source file has an imbalance, CFO AI shows it rather than smoothing it over.",
     bullets: [
       { strong: "Reproducible.", rest: "The same trial balance gives the same output — re-run and compared byte for byte." },
       { strong: "Traceable.", rest: "Every account is mapped to a named statement line, and the mapping is part of the result — the public sample lists all of it." },
@@ -188,7 +208,7 @@ const en: LandingStrings = {
         ebitda_variants_agree: "{ebitda.within} of {ebitda.subjects} real books: the methodology and the code agree on all {ebitda.variants} variants within {ebitda.tol}.",
       },
       measured: "measured {when}",
-      note: "Written by scripts/build_engine_proof.py from a test run on real Romanian trial balances. Each book is counted once; no company is named. These are checks on our test books — your own file gets the same checks, and its report shows each result.",
+      note: "Written by scripts/build_engine_proof.py from a test run on real Romanian trial balances. Each book is counted once; no company is named. These are checks on our test books. On your own file, the balance sheet must close and net income must equal account 121, and the report shows both; the other checks here are run on the test books only.",
     },
   },
   audiences: {
@@ -197,7 +217,7 @@ const en: LandingStrings = {
       { title: "Founders &amp; owners", body: "Understand your own financials the way an analyst would — and see exactly where you stand against real peers." },
       { title: "Finance teams", body: "Turn a month-end trial balance into board-ready statements, ratios and a credit score without rebuilding a model." },
       { title: "Investors &amp; analysts", body: "Run due diligence on a private Romanian target from its trial balance, and set it beside companies listed on the BVB." },
-      { title: "Advisors &amp; accountants", body: "Deliver CFO-grade analyses across a portfolio of client companies — consistently, in minutes each." },
+      { title: "Advisors &amp; accountants", body: "Deliver CFO-grade analyses across a portfolio of client companies — the same framework for each one." },
       { title: "Lenders", body: "Screen credit with Altman Z″, coverage ratios and covenant-ready strict EBITDA — with the source reconciliation shown." },
       { title: "Family offices", body: "Review multiple group entities and holdings on one consistent framework, including NAV for asset-heavy vehicles." },
     ],
@@ -205,8 +225,8 @@ const en: LandingStrings = {
   faq: {
     eyebrow: "Questions", title: "Frequently asked",
     items: [
-      { q: "What file formats can I upload?", a: "A Romanian trial balance (balanță de verificare) as an Excel .xlsx sheet or as a PDF with a text layer. The coverage table on this page lists each layout, how many real books it was tested on, and what is not supported yet. Scanned PDFs, photos and statements that are not a trial balance need the AI reader — its status is in the same table." },
-      { q: "What do you check, and on how many books?", a: "We do not publish an accuracy percentage. We publish what was checked, on how many real Romanian trial balances, and when (measured {proof.date}). Re-runs are byte-identical on {rerun.books} of {rerun.subjects} books. The balance sheet as served closes exactly on {balance.exact} of {balance.subjects}; on the remaining {balance.surfaced} the source itself does not balance and the report shows the difference. Net income equals account 121 on {net.equal} of {net.subjects}. Turnover matches the Ministry-of-Finance filing within {turnover.tol} on {turnover.within} of {turnover.subjects} books whose trial balance is the filed year; the other {turnover.unchecked} are preliminary closes or have no filing on hand, and are not claimed. The three EBITDA variants agree between the methodology and the code within {ebitda.tol} on {ebitda.within} of {ebitda.subjects}. Your own file gets the same checks. It is a decision-support tool, not a substitute for professional judgement." },
+      { q: "What file formats can I upload?", a: "A Romanian trial balance (balanță de verificare) as an Excel .xlsx sheet or as a PDF with a text layer, in one of the layouts the coverage table on this page lists — with how many real books each was tested on, how many real files were refused, and what is not supported yet. Scanned PDFs, photos, a trial balance in a layout the readers do not recognise, and statements that are not a trial balance (a balance sheet, a P&amp;L, an annual report) need the AI reader — its status is in the same table." },
+      { q: "What do you check, and on how many books?", a: "We do not publish an accuracy percentage. We publish what was checked, on how many real Romanian trial balances, and when (measured {proof.date}). Re-runs are byte-identical on {rerun.books} of {rerun.subjects} books. The balance sheet as served closes exactly on {balance.exact} of {balance.subjects}; on the remaining {balance.surfaced} the source itself does not balance and the report shows the difference. Net income equals account 121 on {net.equal} of {net.subjects}. Turnover matches the Ministry-of-Finance filing within {turnover.tol} on {turnover.within} of {turnover.subjects} books whose trial balance is the filed year; the other {turnover.unchecked} are preliminary closes or have no filing on hand, and are not claimed. The three EBITDA variants agree between the methodology and the code within {ebitda.tol} on {ebitda.within} of {ebitda.subjects}. On your own file the balance sheet must close and net income must equal account 121, and the report shows both; the other checks are run on our test books only. It is a decision-support tool, not a substitute for professional judgement." },
       { q: "Is my financial data secure?", a: "Your data is stored on EU-region infrastructure with row-level security so only your account can access it. We never sell your data. Where a document or a question is processed by the AI model, that content is sent to our model provider in the United States. See our {privacy} for the full detail on sub-processors and your rights under the GDPR." },
       { q: "Do you offer a free trial?", a: "Yes — a 7-day free trial covering one document, with no card required. You can cancel any time before renewal." },
       { q: "Which countries and accounting standards are supported?", a: "Romania only, today: trial balances kept under Romanian accounting standards (RAS, OMFP 1802). Files from other countries are not supported yet, and the Multi-Country plan is not available. Public-company pages cover {bvb.listings} listings on the Bucharest Stock Exchange; {bvb.withFinancials} of them carry financial figures today." },
@@ -215,7 +235,7 @@ const en: LandingStrings = {
   },
   cta: {
     t1: "See your business the way a ", thl: "CFO would.",
-    body: "Upload your first Romanian trial balance and get a full analysis in under five minutes. No credit card required.",
+    body: "Upload your first Romanian trial balance and get the full analysis. No credit card required for the 7-day trial.",
     start: "Get started", signIn: "Sign in", goWorkspace: "Go to workspace",
   },
   pricing: {
@@ -227,14 +247,14 @@ const en: LandingStrings = {
       name: "RO Solo", yearly: "3 trial balances / month · 50 AI chats",
       blurb: "One Romanian company, the full CFO-grade analysis, every month.",
       cta: "Start with RO Solo",
-      features: ["1 company workspace", "3 trial balances / month (€1.49 per extra)", "Full 8-section analysis &amp; board report", "P&amp;L, balance sheet, cash flow &amp; ratios", "50 Ask CFO AI chats / month", "Exports &amp; email support"],
+      features: ["1 company workspace", "3 trial balances / month (€1.49 per extra)", "8-section analysis page &amp; exported report", "P&amp;L, balance sheet, cash-flow estimate &amp; ratios", "50 Ask CFO AI chats / month{coverage.chat.suffix}", "Exports &amp; email support"],
     },
     business: {
       badge: "Most popular", name: "Pro", yearly: "15 trial balances / month · 150 AI chats",
       blurb: "Groups of SRLs, internal finance teams and advisors running several companies.",
       cta: "Start with Pro",
       lead: ["Up to 5 company workspaces", "Everything in RO Solo, plus:"],
-      features: ["15 trial balances / month (€0.99 per extra)", "AI reading of scanned PDFs — {coverage.ai_read.availability_lc}", "Industry benchmarks &amp; peer comparison", "Valuation suite &amp; NAV cascade", "150 Ask CFO AI chats / month", "Priority support"],
+      features: ["15 trial balances / month (€0.99 per extra)", "AI reading of scanned PDFs — {coverage.ai_read.availability_lc}", "Industry benchmarks &amp; peer comparison", "Valuation suite &amp; NAV cascade", "150 Ask CFO AI chats / month{coverage.chat.suffix}", "Priority support"],
     },
     pro: {
       name: "Multi-Country", badge: "Coming soon", price: "€16.99", priceNote: "/mo — not on sale yet",
@@ -293,42 +313,53 @@ const ro: LandingStrings = {
   },
   hero: {
     eyebrow: "CFO AI · Creat pentru afaceri private din România",
-    t1: "Transformă o balanță de verificare românească într-o ", thl: "analiză de nivel CFO", t2: " în 90 de secunde.",
-    body: "Încarcă-ți balanța de verificare (RAS). CFO AI reconstruiește P&L-ul, bilanțul, fluxul de numerar, 22 de indicatori, evaluarea și scorul de credit — apoi te compară cu firmele românești din sectorul și din banda ta de cifră de afaceri și cu companii listate la Bursa de Valori București, numite explicit.",
+    t1: "Transformă o balanță de verificare românească într-o ", thl: "analiză de nivel CFO", t2: ".",
+    body: "Încarcă-ți balanța de verificare (RAS). CFO AI reconstruiește contul de profit și pierdere și bilanțul, estimează fluxul de numerar și calculează indicatori, un interval de evaluare și un scor de credit — apoi te compară cu firmele românești din sectorul și din banda ta de cifră de afaceri și cu companii listate la Bursa de Valori București, numite explicit.",
     ctaStart: "Începe", ctaSignIn: "Autentificare",
     checks: ["Probă gratuită de 7 zile", "Balanțe de verificare românești (RAS)", "Anulezi oricând"],
     mockNote: "Dashboard ilustrativ. Analiză asistată de AI — deciziile finale rămân la echipa ta de management.",
     mockTitle: "cfo-ai · briefingul de azi · 06:14",
+    mock: {
+      kpis: [
+        { label: "Marja EBITDA", value: "11,4", unit: "%", sub: "+1,8 pp față de sector" },
+        { label: "Altman Z″", value: "3,12", unit: "", sub: "Zonă sigură" },
+        { label: "Datorie netă / EBITDA", value: "1,8", unit: "×", sub: "Confortabil" },
+        { label: "ROIC", value: "17,7", unit: "%", sub: "+2,1 pp față de anul trecut" },
+      ],
+      briefingTitle: "Briefing AI CFO",
+      briefingBody: "Profitabilitatea este peste mediana sectorului, iar bilanțul este îndatorat prudent. Două puncte de urmărit: zilele de încasare cresc, iar un furnizor depășește 30% din achiziții.",
+      bullets: ["DSO a crescut cu 6 zile — strânge încasările", "Refinanțează linia pe termen scurt înainte de T3", "Comparația cu 3 companii numite este gata"],
+    },
   },
   stats: { drift: "Abatere de bilanț", ratios: "Indicatori financiari", peers: "Companii publice comparabile", upload: "De la încărcare la raport" },
   modules: {
     eyebrow: "Trei module emblematice", t1: "O singură platformă. ", thl: "Contabilitatea ta sau o companie listată la BVB.",
     cards: [
-      { kicker: "Balanță de verificare → raport pentru board", title: "Financial Statement Intelligence", body: "O balanță de verificare românească (RAS), exportată din programul tău de contabilitate în Excel sau PDF. Conturile sunt mapate pe situații de către motor, apoi transformate în indicatori, evaluate și explicate. Tabelul de acoperire de mai jos arată exact ce formate de fișier sunt testate și pe câte balanțe reale.", featureKey: "upload_trial_balance" },
+      { kicker: "Balanță de verificare → raport pentru board", title: "Financial Statement Intelligence", body: "O balanță de verificare românească (RAS), exportată din programul tău de contabilitate în Excel sau PDF. Conturile sunt mapate pe situații de către motor, apoi transformate în indicatori, un scor de credit și recomandări ierarhizate. Tabelul de acoperire de mai jos arată exact ce formate de fișier sunt testate și pe câte balanțe reale.", featureKey: "upload_trial_balance" },
       { kicker: "Tickere BVB → pagini de companie", title: "Public Company Intelligence", body: "{bvb.listings} de listări la Bursa de Valori București, cu cotații cu întârziere. {bvb.withFinancials} dintre ele au astăzi cifre financiare sumare — cifre din rapoartele anuale pentru indicele principal, ultima raportare statutară pentru celelalte. Adaugă oricare drept reper de comparație.", featureKey: "public_companies" },
-      { kicker: "Pui întrebări → răspunsuri fundamentate", title: "Ask CFO AI", body: "Un copilot financiar care răspunde din propriile tale situații. Întreabă de ce s-a mișcat marja, ce înseamnă un indicator sau ce urmează — numește perioada și cifra pe care le-a folosit.", featureKey: "chat_page" },
+      { kicker: "Pui întrebări → răspunsuri fundamentate", title: "Ask CFO AI", body: "Un copilot financiar care răspunde din propriile tale situații. Întreabă de ce s-a mișcat marja, ce înseamnă un indicator sau ce urmează — numește perioada și cifra pe care le-a folosit. Răspunsurile sunt scrise de un model AI.{coverage.chat.status}", featureKey: "chat_page" },
     ],
   },
   how: {
     eyebrow: "Cum funcționează", t1: "Trei pași de la foaia de calcul la ", thl: "planul de acțiune.",
     steps: [
       { title: "Încarcă-ți balanța de verificare", body: "O balanță de verificare românească, exportată din programul tău de contabilitate în Excel sau PDF. Coloanele și conturile RAS sunt mapate de motor. Tabelul de mai jos spune exact ce este testat." },
-      { title: "CFO AI calculează economia afacerii", body: "P&amp;L, bilanț, cash flow, 22 de indicatori, variante de EBITDA, Altman Z, evaluare și scor de credit. Fișierul tău trece prin aceleași verificări ca balanțele noastre de test: bilanțul trebuie să se închidă, iar rezultatul net trebuie să fie egal cu contul 121 — orice diferență este afișată în raport." },
+      { title: "CFO AI calculează economia afacerii", body: "Cont de profit și pierdere, bilanț, o estimare a fluxului de numerar, indicatori, variante de EBITDA, Altman Z, un interval de evaluare și un scor de credit. Două verificări rulează de fiecare dată pe fișierul tău: bilanțul trebuie să se închidă, iar rezultatul net trebuie să fie egal cu contul 121 — orice diferență este afișată în raport." },
       { title: "Tu acționezi în cunoștință de cauză", body: "Recomandări ierarhizate și cuantificate plus companii publice comparabile, numite explicit — export în HTML sau model Excel cu 9 foi." },
     ],
   },
   coverage: { eyebrow: "Acoperire", evidenceLabel: "Dovadă", asOfLabel: "la data de" },
   sample: {
     kicker: "Exemplu public",
-    title: "Examinează un raport complet înainte să încarci ceva.",
-    body: "O companie românească fictivă — balanța ei de verificare, raportul complet generat din ea, fiecare mapare cont → linie și fiecare etichetă de incertitudine. Date fictive, motorul real.",
+    title: "Examinează un raport-exemplu înainte să încarci ceva.",
+    body: "O companie românească fictivă — balanța ei de verificare, raportul pe care produsul îl exportă din ea, fiecare mapare cont → linie și fiecare etichetă de incertitudine. Exemplul nu are evaluare, comparații cu sectorul sau rezumat scris de AI. Date fictive, motorul real.",
     cta: "Deschide raportul-exemplu",
     proofCta: "Vezi aceste verificări pe raportul-exemplu",
   },
   defensible: {
     eyebrow: "Verificat și datat",
     title: "Cifre pe care le poți verifica, nu cifre pe care trebuie să le crezi.",
-    body: "Pentru o balanță de verificare românească motorul este determinist: cifrele sunt citite și calculate de cod, niciodată de un model AI. Publicăm ce verificăm, pe câte balanțe reale și la ce dată — blocul alăturat este scris chiar de rularea testelor, nu tastat. Când un fișier-sursă are un dezechilibru, CFO AI îl arată în loc să-l netezească.",
+    body: "Pentru o balanță de verificare românească într-unul dintre formatele testate din tabelul de acoperire, motorul este determinist: cifrele sunt citite și calculate de cod, niciodată de un model AI. Un document scanat sau un format pe care cititoarele nu îl recunosc are nevoie de cititorul AI, iar rezultatul este etichetat „Citit de AI”. Publicăm ce verificăm, pe câte balanțe reale și la ce dată — blocul alăturat este scris chiar de rularea testelor, nu tastat. Când un fișier-sursă are un dezechilibru, CFO AI îl arată în loc să-l netezească.",
     bullets: [
       { strong: "Reproductibil.", rest: "Aceeași balanță de verificare dă același rezultat — rulat din nou și comparat octet cu octet." },
       { strong: "Trasabil.", rest: "Fiecare cont este mapat pe o linie numită din situații, iar maparea face parte din rezultat — exemplul public o listează în întregime." },
@@ -344,7 +375,7 @@ const ro: LandingStrings = {
         ebitda_variants_agree: "{ebitda.within} din {ebitda.subjects} balanțe reale: metodologia și codul dau aceeași valoare pentru toate cele {ebitda.variants} variante, în limita a {ebitda.tol}.",
       },
       measured: "măsurat la {when}",
-      note: "Scris de scripts/build_engine_proof.py dintr-o rulare de teste pe balanțe de verificare românești reale. Fiecare balanță este numărată o singură dată; nicio companie nu este numită. Acestea sunt verificări pe balanțele noastre de test — fișierul tău trece prin aceleași verificări, iar raportul lui arată fiecare rezultat.",
+      note: "Scris de scripts/build_engine_proof.py dintr-o rulare de teste pe balanțe de verificare românești reale. Fiecare balanță este numărată o singură dată; nicio companie nu este numită. Acestea sunt verificări pe balanțele noastre de test. Pe fișierul tău, bilanțul trebuie să se închidă și rezultatul net trebuie să fie egal cu contul 121, iar raportul le arată pe amândouă; celelalte verificări de aici se rulează doar pe balanțele de test.",
     },
   },
   audiences: {
@@ -353,7 +384,7 @@ const ro: LandingStrings = {
       { title: "Fondatori &amp; proprietari", body: "Înțelege-ți propriile finanțe așa cum ar face-o un analist — și vezi exact unde te situezi față de companii comparabile reale." },
       { title: "Echipe financiare", body: "Transformă balanța de la închiderea lunii în situații pentru board, indicatori și un scor de credit, fără a reconstrui un model." },
       { title: "Investitori &amp; analiști", body: "Rulează due diligence pe o țintă privată românească pornind de la balanța ei de verificare și pune-o lângă companii listate la BVB." },
-      { title: "Consultanți &amp; contabili", body: "Livrează analize de nivel CFO pentru un portofoliu de clienți — consecvent, în câteva minute fiecare." },
+      { title: "Consultanți &amp; contabili", body: "Livrează analize de nivel CFO pentru un portofoliu de clienți — același cadru pentru fiecare." },
       { title: "Creditori", body: "Evaluează riscul de credit cu Altman Z″, indicatori de acoperire și EBITDA strict pregătit pentru covenante — cu reconcilierea sursei afișată." },
       { title: "Family office-uri", body: "Analizează mai multe entități de grup și participații într-un cadru unic și consecvent, inclusiv NAV pentru vehicule cu active semnificative." },
     ],
@@ -361,8 +392,8 @@ const ro: LandingStrings = {
   faq: {
     eyebrow: "Întrebări", title: "Întrebări frecvente",
     items: [
-      { q: "Ce formate de fișiere pot încărca?", a: "O balanță de verificare românească în Excel (.xlsx) sau în PDF cu strat de text. Tabelul de acoperire de pe această pagină arată fiecare format, pe câte balanțe reale a fost testat și ce nu este încă suportat. PDF-urile scanate, fotografiile și situațiile care nu sunt o balanță de verificare au nevoie de cititorul AI — starea lui este în același tabel." },
-      { q: "Ce verificați și pe câte balanțe?", a: "Nu publicăm un procent de acuratețe. Publicăm ce a fost verificat, pe câte balanțe de verificare românești reale și când (măsurat la {proof.date}). Rerulările sunt identice octet cu octet pe {rerun.books} din {rerun.subjects} balanțe. Bilanțul, așa cum este afișat, se închide exact pe {balance.exact} din {balance.subjects}; la restul de {balance.surfaced}, sursa nu se echilibrează, iar raportul afișează diferența. Rezultatul net este egal cu contul 121 pe {net.equal} din {net.subjects}. Cifra de afaceri corespunde raportării depuse la Ministerul Finanțelor, în limita a {turnover.tol}, pe {turnover.within} din {turnover.subjects} balanțe care sunt închiderea de an depusă; celelalte {turnover.unchecked} sunt închideri preliminare sau nu au o raportare la îndemână și nu sunt revendicate. Cele trei variante de EBITDA coincid între metodologie și cod, în limita a {ebitda.tol}, pe {ebitda.within} din {ebitda.subjects}. Fișierul tău trece prin aceleași verificări. Este un instrument de suport decizional, nu un substitut pentru judecata profesională." },
+      { q: "Ce formate de fișiere pot încărca?", a: "O balanță de verificare românească în Excel (.xlsx) sau în PDF cu strat de text, într-unul dintre formatele din tabelul de acoperire de pe această pagină — care arată și pe câte balanțe reale a fost testat fiecare, câte fișiere reale au fost refuzate și ce nu este încă suportat. PDF-urile scanate, fotografiile, o balanță într-un format pe care cititoarele nu îl recunosc și situațiile care nu sunt o balanță de verificare (un bilanț, un cont de profit și pierdere, un raport anual) au nevoie de cititorul AI — starea lui este în același tabel." },
+      { q: "Ce verificați și pe câte balanțe?", a: "Nu publicăm un procent de acuratețe. Publicăm ce a fost verificat, pe câte balanțe de verificare românești reale și când (măsurat la {proof.date}). Rerulările sunt identice octet cu octet pe {rerun.books} din {rerun.subjects} balanțe. Bilanțul, așa cum este afișat, se închide exact pe {balance.exact} din {balance.subjects}; la restul de {balance.surfaced}, sursa nu se echilibrează, iar raportul afișează diferența. Rezultatul net este egal cu contul 121 pe {net.equal} din {net.subjects}. Cifra de afaceri corespunde raportării depuse la Ministerul Finanțelor, în limita a {turnover.tol}, pe {turnover.within} din {turnover.subjects} balanțe care sunt închiderea de an depusă; celelalte {turnover.unchecked} sunt închideri preliminare sau nu au o raportare la îndemână și nu sunt revendicate. Cele trei variante de EBITDA coincid între metodologie și cod, în limita a {ebitda.tol}, pe {ebitda.within} din {ebitda.subjects}. Pe fișierul tău, bilanțul trebuie să se închidă și rezultatul net trebuie să fie egal cu contul 121, iar raportul le arată pe amândouă; celelalte verificări se rulează doar pe balanțele noastre de test. Este un instrument de suport decizional, nu un substitut pentru judecata profesională." },
       { q: "Datele mele financiare sunt în siguranță?", a: "Datele tale sunt stocate pe infrastructură din regiunea UE, cu securitate la nivel de rând, astfel încât doar contul tău le poate accesa. Nu îți vindem niciodată datele. Atunci când un document sau o întrebare este procesată de modelul AI, acel conținut este trimis furnizorului nostru de model din Statele Unite. Vezi {privacy} pentru detalii complete despre subprocesatori și drepturile tale conform GDPR." },
       { q: "Oferiți o perioadă de probă gratuită?", a: "Da — o probă gratuită de 7 zile pentru un document, fără card. Poți anula oricând înainte de reînnoire." },
       { q: "Ce țări și standarde contabile sunt suportate?", a: "Doar România, astăzi: balanțe de verificare ținute după reglementările contabile românești (RAS, OMFP 1802). Fișierele din alte țări nu sunt încă suportate, iar planul Multi-Country nu este disponibil. Paginile de companii publice acoperă {bvb.listings} de listări la Bursa de Valori București; {bvb.withFinancials} dintre ele au astăzi cifre financiare." },
@@ -371,7 +402,7 @@ const ro: LandingStrings = {
   },
   cta: {
     t1: "Vezi-ți afacerea așa cum ar vedea-o un ", thl: "CFO.",
-    body: "Încarcă prima ta balanță de verificare românească și primești o analiză completă în mai puțin de cinci minute. Fără card de credit.",
+    body: "Încarcă prima ta balanță de verificare românească și primești analiza completă. Fără card pentru proba de 7 zile.",
     start: "Începe gratuit", signIn: "Autentificare", goWorkspace: "Mergi la spațiul de lucru",
   },
   pricing: {
@@ -383,14 +414,14 @@ const ro: LandingStrings = {
       name: "RO Solo", yearly: "3 balanțe de verificare / lună · 50 de conversații AI",
       blurb: "O companie românească, analiza completă de nivel CFO, în fiecare lună.",
       cta: "Începe cu RO Solo",
-      features: ["1 spațiu de lucru", "3 balanțe de verificare / lună (1,49 € per extra)", "Analiza completă în 8 secțiuni &amp; raport de board", "P&amp;L, bilanț, cash flow &amp; indicatori", "50 de conversații Ask CFO AI / lună", "Exporturi &amp; suport pe e-mail"],
+      features: ["1 spațiu de lucru", "3 balanțe de verificare / lună (1,49 € per extra)", "Pagină de analiză în 8 secțiuni &amp; raport exportat", "Cont de profit și pierdere, bilanț, estimare a fluxului de numerar &amp; indicatori", "50 de conversații Ask CFO AI / lună{coverage.chat.suffix}", "Exporturi &amp; suport pe e-mail"],
     },
     business: {
       badge: "Cel mai popular", name: "Pro", yearly: "15 balanțe de verificare / lună · 150 de conversații AI",
       blurb: "Grupuri de SRL-uri, echipe financiare interne și consultanți care administrează mai multe companii.",
       cta: "Începe cu Pro",
       lead: ["Până la 5 spații de lucru", "Tot ce e în RO Solo, plus:"],
-      features: ["15 balanțe de verificare / lună (0,99 € per extra)", "Citirea cu AI a PDF-urilor scanate — {coverage.ai_read.availability_lc}", "Benchmark-uri de industrie &amp; comparație cu companii similare", "Suită de evaluare &amp; cascadă NAV", "150 de conversații Ask CFO AI / lună", "Suport prioritar"],
+      features: ["15 balanțe de verificare / lună (0,99 € per extra)", "Citirea cu AI a PDF-urilor scanate — {coverage.ai_read.availability_lc}", "Benchmark-uri de industrie &amp; comparație cu companii similare", "Suită de evaluare &amp; cascadă NAV", "150 de conversații Ask CFO AI / lună{coverage.chat.suffix}", "Suport prioritar"],
     },
     pro: {
       name: "Multi-Country", badge: "În curând", price: "16,99 €", priceNote: "/lună — încă nu este de vânzare",

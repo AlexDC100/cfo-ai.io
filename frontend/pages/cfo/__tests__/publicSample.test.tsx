@@ -31,6 +31,12 @@
 //   P7 the page needs a session or a network call to render
 //   P8 Romanian copy in the formal register, with cedilla diacritics, or
 //      left in English
+//   P9 the page prints a cash cycle that does not foot without saying why
+//      (DSO + DIO − DPO, as printed in its own table, is NOT the cycle: the
+//      cycle adds inventory days on the period-end balance), or repeats the
+//      engine's "cannot be computed without a prior-period trial balance"
+//      beside a published prior year without the page's own note and the
+//      movement the two balance sheets actually show
 //
 // Plant log: docs/engine_book/gates.md, "public-sample-page".
 import { readFileSync, statSync } from "node:fs";
@@ -202,6 +208,44 @@ describe.each(LANGS)("P1 the page's figures are the served document's — %s", (
     figuresChecked += 6;
   });
 
+  it("P9 the cash cycle's inventory term and the cash movement are printed beside what they qualify", async () => {
+    await renderPage(lang);
+    const st = CURRENT.statements as unknown as Record<string, Record<string, unknown>>;
+    const inv = st.inventory_days as {
+      total: { value_q: string; closing_value_q: string };
+      ccc_dio_term: { basis_label: Record<string, string> };
+    };
+    // THE CYCLE: the table prints DSO, DIO (on the average) and DPO, and a
+    // cycle that is not their sum. The note prints the term the cycle adds.
+    const ratios = SAMPLE.ratios as SampleRatio[];
+    const q = (key: string) => Number(ratios.find((r) => r.key === key)!.current.value_q);
+    expect(q("dso") + q("dio") - q("dpo"), "the printed rows foot to the cycle — the note is not needed")
+      .not.toBe(q("ccc"));
+    expect(q("dso") + Number(inv.total.closing_value_q) - q("dpo")).toBe(q("ccc"));
+    const note = plainSpaces(screen.getByTestId("sample-cycle-note").textContent);
+    expect(note).toContain(inv.total.closing_value_q);
+    expect(note).toContain(inv.ccc_dio_term.basis_label[lang]);
+    expect(inv.total.closing_value_q).not.toBe(inv.total.value_q);
+
+    // THE CASH FLOW: the engine's estimate, and beside it the movement the
+    // two served balance sheets show — each figure re-read from its document.
+    const cashOf = (body: ServedPeriodBody) =>
+      (body.statements as unknown as { assembled_bs: { cash: number } }).assembled_bs.cash;
+    const estimated = (st.assembled_cf as { net_change_in_cash: number }).net_change_in_cash;
+    const card = plainSpaces(screen.getByTestId("sample-verdict-cashflow").textContent);
+    for (const value of [estimated, cashOf(PRIOR), cashOf(CURRENT), cashOf(CURRENT) - cashOf(PRIOR)]) {
+      expect(card, `${lang}: the cash-flow card does not print ${value}`).toContain(expectedMoney(value, lang));
+      figuresChecked += 1;
+    }
+    expect(Math.abs(estimated - (cashOf(CURRENT) - cashOf(PRIOR))), "the estimate IS the movement — rewrite the card").toBeGreaterThan(1);
+    expect(card).toMatch(lang === "ro" ? /nu citește încă o perioadă precedentă/ : /does not read a prior period yet/);
+    // the labels that say "no prior period" carry the page's own note
+    expect(plainSpaces(screen.getByTestId("sample-labels-prior-note").textContent)).toContain(
+      (SAMPLE.periods.prior as { label: string }).label,
+    );
+    expect(foreignNumber(card, lang), `${lang}: other language's number format on the cash-flow card`).toBeNull();
+  });
+
   it("nothing the page says in its own voice is a number in the other language's format", async () => {
     const { container } = await renderPage(lang);
     fireEvent.click(screen.getByTestId("sample-mapping-toggle"));
@@ -282,6 +326,9 @@ describe("P3 every key the page prints has words in both languages", () => {
       if (row.status === "mapped") {
         expect(S.statements[row.statement ?? ""], `statement ${row.statement}`).toBeTruthy();
         expect(S.buckets[row.engine_bucket ?? ""], `bucket ${row.engine_bucket}`).toBeTruthy();
+        // a P&L account names the served line it sums into, in words
+        if (row.statement === "PL") expect(S.plLines[row.pl_line ?? ""], `P&L line ${row.pl_line}`).toBeTruthy();
+        else expect(row.balance_sheet_row, `account ${row.account} has no balance-sheet row`).toBeTruthy();
       } else expect(S.mappingStatus[row.status], `status ${row.status}`).toBeTruthy();
       if (row.balance_sheet_section) {
         expect(S.sections[row.balance_sheet_section], `section ${row.balance_sheet_section}`).toBeTruthy();
@@ -343,7 +390,7 @@ describe("P5 / P6 the published report is the product's own export", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(`${CONFIG.as_of}T12:00:00Z`));
     try {
-      const rebuilt = sampleReportHtml(CURRENT, PRIOR, COMPARATIVES);
+      const rebuilt = sampleReportHtml(CURRENT, PRIOR, COMPARATIVES, CONFIG.as_of);
       expect(rebuilt.length).toBe(committed.length);
       expect(rebuilt === committed, "public/sample report HTML differs from a rebuild").toBe(true);
     } finally {

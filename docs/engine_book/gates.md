@@ -18571,9 +18571,9 @@ the tree), not asserted:
 
 | | |
 |---|---|
-| command | `python -m pytest tests/engine/test_engine_proof.py -q` |
-| canary | junit test names: `test_rerunning_the_proof_script_agrees_with_the_committed_file`, `test_the_committed_file_is_a_full_dated_proof`, `test_books_are_counted_once`, `test_the_public_file_names_no_company_and_no_company_figure`, `test_the_engine_identity_is_this_trees`, `test_the_script_refuses_to_write_a_proof_over_the_committed_subset` |
-| work count | junit tests, floor **7** (measured 7); the script's own line `GATE-WORK engine-proof checks=5 subjects=29 scope=full` (2 checks / 11 subjects on a checkout without the local calibration books) |
+| command | `python -m pytest tests/engine/test_engine_proof.py -q -rs` |
+| canary | junit test names: `test_rerunning_the_proof_script_agrees_with_the_committed_file`, `test_every_check_was_re_measured_on_this_checkout`, `test_software_is_proven_only_by_a_committed_real_file`, `test_the_committed_file_is_a_full_dated_proof`, `test_books_are_counted_once`, `test_the_public_file_names_no_company_and_no_company_figure`, `test_the_engine_identity_is_this_trees`, `test_the_script_refuses_to_write_a_proof_over_the_committed_subset` |
+| work count | junit tests minus skips, floor **9** = the number of laws (was 7 until the second review, 2026-10-02: on a checkout without the local calibration books one law skips, so the gate cannot pass there); the script's own line `GATE-WORK engine-proof checks=5 subjects=29 scope=full` |
 
 **INCIDENT** — 2026-10-01, the first public review of the landing page. One
 sentence said "reconciles all eight calibration fixtures … four of eight to
@@ -18669,13 +18669,82 @@ is not an independent recomputation, and the page's wording says so.
 
 ---
 
+### engine-proof — second review (2026-10-02): a partial re-measurement is not a pass; software is proven by a file
+
+**INCIDENT** — a verifier cloned the committed tree (no local calibration
+books: `files/` holds only its three tracked notes, as on any clone or CI
+runner) and edited `frontend/data/engineProof.json` by hand: balance sheet
+6 → 7 of 7, imbalance surfaced 1 → 0, the old drift 0.9975 → 0.1, the EBITDA
+tolerance 1 → 0. `engine-proof` printed **PASS (7 tests)**, `landing-proof`
+PASS, `public-claims` PASS: the landing would have printed "7 / 7". Then an
+engine file was changed and the new digest pasted into the JSON: the script
+itself refused to write (exit 2), and the gate still printed PASS, every
+check dated the day before. Cause: without the books the script compares
+only the checks the committed corpus can carry (the rerun, account 121), the
+identity and the counts; the other three were compared with nothing, and the
+`NOTICE … compared by identity only` line was inside pytest's captured
+output, so the battery showed a plain PASS.
+
+**LAW** — EP7 (`test_every_check_was_re_measured_on_this_checkout`) SKIPS
+when the script's scope is not `full`, with the reason. The gate's work is
+junit tests minus skips and its floor is now the number of laws (9), so on a
+checkout without the books `engine-proof` **cannot report PASS** — with or
+without an edit. The gate command carries `-rs`, so the tail the battery
+prints states why. EP8: the proof's `software.proven` is what
+`software_proven()` measures — names PRINTED by a committed real corpus file
+— and nothing else.
+
+**PLANT, observed RED, then REVERT** (2026-10-02; `rungate.py` = the named
+gates through `run_battery.main` itself):
+
+```
+PLANT EP-F0  the local books absent (the links removed), NO edit
+  FAIL engine-proof (exit 0, 29.3s)
+     ! WORK BELOW FLOOR — examined 8 tests, floor 9.
+     | tests/engine/test_engine_proof.py .s.......
+     | ======================== 8 passed, 1 skipped in 28.41s =========================
+  BATTERY: FAIL — 0/1 gates green
+PLANT EP-F   the same checkout + the verifier's hand edit
+             (books_closing_exactly 6 -> 7, books_imbalance_surfaced 1 -> 0,
+              legacy_drift_worst_pct 0.9975 -> 0.1)
+  FAIL engine-proof (exit 0, 29.3s)
+     ! WORK BELOW FLOOR — examined 8 tests, floor 9.
+     | ======================== 8 passed, 1 skipped in 28.36s =========================
+  PASS landing-proof (2.4s, 1255 figures and copy lines held to the proof)
+  PASS public-claims (3.2s, 3713 copy lines and claims examined)
+  BATTERY: FAIL — 2/3 gates green
+PLANT EP-A   (re-run, books present) books_closing_exactly 6 -> 7
+  E     ENGINE PROOF: FAIL — the committed proof is not what this tree measures:
+  E         ✗ checks.balance_sheet_closes.result.books_closing_exactly: committed 7 != measured 6
+PLANT EP-G   (books present) "SAGA" added to software.proven by hand
+  E         ✗ software.proven: committed ["SAGA", "WinMENTOR"] != measured ["WinMENTOR"]
+REVERT (file restored, links back): PASS engine-proof (42.2s, 9 tests) — BATTERY: PASS — 1/1 gates green
+```
+
+`landing-proof` and `public-claims` stay GREEN on the hand edit by design —
+they hold the PAGE to the file. That is why this gate must not be able to
+pass where it cannot hold the FILE to the engine.
+
+**AFTER THE REPAIR this reds on (TC-11):** any run on a checkout without the
+local calibration books (it is PARTIAL there, and says so); a hand edit of
+any check where the books are; a software name in the proof that no
+committed real file prints.
+
+**CANNOT SEE:** nothing new is seen on a checkout without the books — the
+gate is red there, not smarter. **The release battery must run where
+`files/` is present** (the owner's machine, or the production image, which
+copies `files/`). A digest pasted over a changed engine where the books ARE
+present re-measures every count and passes if they are unchanged — the
+proof's content is then true for that tree, though its date is the earlier
+one.
+
 ## landing-proof
 
 | | |
 |---|---|
 | command | `npx vitest run --root . frontend/lib/__tests__/landingProof.test.tsx frontend/lib/__tests__/shippedClaimsMatchCode.test.ts --reporter=verbose` |
 | canary | test names `L1 carries five dated checks, each saying what is checked, in both languages`, `L1 names no company and publishes no company's figure`, `L2 the tree digest, parser version and EBITDA definition are the working tree's`, `L3 the proof block prints the JSON: headline, what is checked, date, caption figures`, `L4 the FAQ's proof answer prints only numbers the JSON holds`, `L5 the accuracy block carries tokens, never a digit`, `L5 no accuracy claim is typed anywhere in the landing copy, the page meta or the manifest`, `L7 the listing counts are the JSON's, on the card and in the FAQ`, `L8 the public sample lists the same checks in the same words, and the proof block's link lands on them`, `prints no calibration count that is not a pair the engine proof measured` |
-| work count | `GATE-WORK landing-proof figures=N`, floor **400** (measured 539 before the public sample was merged, 559 with L8: every figure compared plus every copy line scanned) |
+| work count | `GATE-WORK landing-proof figures=N`, floor **900** (measured 1,255 after the second review; 400 / 559 before it); any skipped test fails the gate |
 
 **INCIDENT** — the same as `engine-proof`: "eight" in the sentence, "9 / 9"
 in the block beside it, both typed.
@@ -18788,13 +18857,92 @@ green — plant EP-A above shows that, and shows `engine-proof` catching it.
 
 ---
 
+### landing-proof — second review (2026-10-02): L9, L10, L11, and a skipped law is a red
+
+**INCIDENT** — four things the first version let through, each planted and
+observed GREEN by a verifier:
+
+1. *A true count under the wrong noun.* The rerun caption wired to the
+   replay tokens printed "18 of 18 real books, re-run 5 times each" (5 books
+   are re-run; 18 is the replay cases, 12 of them constructed files). The
+   turnover caption wired to the total printed "8 of 8 real books match the
+   Ministry-of-Finance figure" (3 were checkable). L3 only asked that a
+   printed number be one of that check's numbers or the total, and the pair
+   law accepted any (held, examined) pair of any check. The same defect as
+   the original "9 / 9".
+2. *A speed nobody measured*, on every share surface: "in 90 seconds" (hero,
+   description, both share descriptions, image alt, manifest, the share
+   image), "in under five minutes", "in minutes each", and "22 ratios" (the
+   Excel export's ratio-spec count; the report the landing links to states
+   30). `shippedClaimsMatchCode` FLOORED the opposite: at least one surface
+   had to quote a speed, because its law was agreement between surfaces.
+3. *A promise about the visitor's own file.* "Your own file gets the same
+   checks, and its report shows each result" sat under the five-check block
+   and in the FAQ. An upload is not re-run five times and byte-compared, its
+   turnover is not compared with a filing, and the methodology-vs-code
+   comparison is a script over the test books. "Your own file is guaranteed
+   to reconcile exactly" was planted in the copy and passed.
+4. *A skipped law satisfied its own canary.* `it.skip("L2 …")` → the gate
+   stayed PASS: vitest's verbose reporter prints a skipped test's name.
+
+**LAW** — L9: a caption uses only its own check's tokens (`rerun.` /
+`replay.`; `balance.` / `drift.`; `net.`; `turnover.` and `proof.books`;
+`ebitda.`) and the first "N of M" it prints is that check's held / examined.
+L10: no speed and no ratio count on the landing strings, the title, the
+description, the share tags, the manifest, the share-image record, the
+/pricing dictionaries or the signup subtitle; the old floor in
+`shippedClaimsMatchCode` is inverted (no surface may quote a speed). L11: a
+sentence naming the visitor's own file carries no "same checks", guarantee,
+exactness, accuracy or "each result". The battery's `no_skips`: any skipped
+or todo test in the gate's vitest summary is a FAIL.
+
+**PLANT, observed RED, then REVERT** (2026-10-02; each alone, the file
+restored from its backup, the tree digest identical after each):
+
+```
+PLANT LP9a  EN rerun caption: {rerun.books} of {rerun.subjects} -> {replay.identical} of {replay.cases}
+  × L9 a caption uses only its own check's tokens, and leads with that check's held / examined
+    → en caption rerun_identical leads with 18 of 18, which is not this check's held / examined (5 / 5): "18 of 18 real books, re-run 5 times each: …"
+  Tests  1 failed | 36 passed (37)
+PLANT LP9b  EN turnover caption: "{proof.books} of {proof.books} real books match …"
+  × L9 …
+    → en caption turnover_equals_filing leads with 8 of 8, which is not this check's held / examined (3 / 3): "8 of 8 real books match the Ministry-of-Finance figure within 1 RON. …"
+PLANT LP10  hero t2: "." -> " in 90 seconds."
+  × quotes one value per product figure, across every surface
+    → a marketing surface quotes a speed nobody measured: expected [ Array(1) ] to deeply equal []
+  × L10 quotes no speed and no ratio count on any public surface
+    → an unmeasured speed or count is printed: expected [ Array(1) ] to deeply equal []
+PLANT LP11  defensible.body += " Your own file is guaranteed to reconcile exactly."
+  × L11 a sentence about your own file promises only the two checks that run on every file
+    → a promise about the visitor's own file that no check on that file backs: expected [ Array(1) ] to deeply equal []
+PLANT LP12  landingProof.test.tsx: it("L2 the tree digest …") -> it.skip(…), through run_battery
+  FAIL landing-proof (exit 0, 2.4s)
+     ! SKIPPED LAW — 1 test(s) of this gate were skipped (it.skip / it.todo / describe.skip). A skipped law still prints its name, so its canary is satisfied by a test that did not run.
+     |       Tests  36 passed | 1 skipped (37)
+REVERT (each): Tests 37 passed (37) — GATE-WORK landing-proof figures=1255
+```
+
+Floor raised 400 → 900 (measured 1,255). Canaries added: the L9 and L10 test
+names.
+
+**AFTER THE REPAIR this reds on (TC-11):** a caption or its lead figure
+taken from another check; any typed duration to a result or a ratio count on
+a public surface; a guarantee, "same checks" or exactness said of the
+visitor's own file; a skipped or todo law.
+
+**CANNOT SEE:** a FAQ sentence that takes another check's token but not as a
+false "N of M" pair (the FAQ is held by the pair law and L4, not by L9's
+token binding); a promise about the visitor's file worded without naming the
+file; whether a speed that is one day printed WITH a measurement is true —
+there is no such measurement yet.
+
 ## public-claims
 
 | | |
 |---|---|
 | command | `npx vitest run --root . frontend/lib/__tests__/publicClaims.test.tsx frontend/lib/__tests__/reportFooter.test.ts frontend/lib/__tests__/globalPositioning.test.ts --reporter=verbose` |
-| canary | test names `C1 claims no country or region as covered but Romania`, `C1b every row but Romania sits in a group that says not supported, and cannot be chosen`, `C2 names no accounting software that is not a tested row's, backed by a real file`, `C3 offers no input format outside the tested rows unless it says AI-read or not supported`, `C4 every tested row has evidence a reader can check, a dated count the proof agrees with`, `C5 renders every row beside the upload step, with what it was tested on and when`, `C6 the landing card is marked coming soon and starts no checkout`, `C7 says other countries are not supported yet, offers the coverage table, sells nothing`, `C8 the section count a plan sells is the count the report renders`, `C9 the share image's text is the hero's; its alt says what the image says`, `F2 an imbalanced book: that status and the served difference to the cent`, `lib/markets.ts is gone and nothing imports it`, and the line `GATE-WORK report-footer laws=6` |
-| work count | `GATE-WORK public-claims units=N`, floor **2000** (measured 2,708: harvested copy lines plus every claim examined) |
+| canary | test names `C1 claims no country or region as covered but Romania`, `C1b every row but Romania sits in a group that says not supported, and cannot be chosen`, `C2 names no accounting software that is not a tested row's, backed by a real file`, `C3 offers no input format outside the tested rows unless it says AI-read or not supported`, `C4 every tested row has evidence a reader can check, a dated count the proof agrees with`, `C5 renders every row beside the upload step, with what it was tested on and when`, `C6 the landing card is marked coming soon and starts no checkout`, `C7 says other countries are not supported yet, offers the coverage table, sells nothing`, `C8 the section count a plan sells is the count the report renders`, `C9 the share image's text is the hero's; its alt says what the image says`, `F2 an imbalanced book: that status and the served difference to the cent`, `lib/markets.ts is gone and nothing imports it`, and the line `GATE-WORK report-footer laws=8`, and (second review) `C1 the detector: negation must govern the claim; every country is a country`, `C3 offers no document type but a trial balance as an input, unless it says AI-read or not supported`, `C4 the table prints the denominator: files read, files refused, in the reader's date format`, `F6 who read the document is the served extraction method, never a universal sentence`, `F7 the export closes under the same law, and the published sample prints none of the retired sentences` |
+| work count | `GATE-WORK public-claims units=N`, floor **3000** (measured 3,713 after the second review; 2,000 / 2,708 before it); any skipped test fails the gate |
 
 **INCIDENT** — 2026-10-01, the same review. The headline module card read
 "Ministry-of-Finance filings, accountant exports, annual reports — from any
@@ -19059,6 +19207,147 @@ doing their job:
 `public-claims` stays green on the trial tree, the release's new upload
 refusals included.
 
+### public-claims — second review (2026-10-02): the surfaces it never read, and a negation that governed nothing
+
+**INCIDENT** — what was still public after the first repair, and what the
+gate let through. Rendered from the built bundle by a verifier:
+
+- `/pricing` hero: "Upload one trial balance, balance sheet, or P&L. CFO AI
+  builds the full financial model … in minutes." (and the Romanian twin, in
+  the formal register). Its FAQ, English on the Romanian page too: "a trial
+  balance, a balance sheet, a P&L, or an annual report"; "Ask CFO AI is
+  available after launch"; "What happens if billing is not wired yet? In
+  development, billing actions use mock billing…". `/signup`: "Free tier —
+  no credit card." The gate harvested `dash`, `upload`, `pricing`,
+  `coverage` — not `pricingX`, `authX`, nor the FAQ component.
+- Plants that ran GREEN: "…or P&L from any European country." in the pricing
+  hero; "SAGA, SmartBill and any EU accounting software are supported
+  worldwide." in the pricing FAQ; "Free tier — works in any European
+  country." on signup; "Any European country works, and distance is not a
+  problem." and "Files from any European country are read by AI — full
+  certification coming soon." on the landing (the negation list held a bare
+  "is / are not", "planned", "coming soon"); "Balance sheets, P&L statements
+  and annual reports are read too, deterministically." and
+  "Ministry-of-Finance filings, accountant exports, annual reports and SAF-T
+  files — all read automatically." (C3 knew file formats, not document
+  types); "Austria · Czechia · Greece · Netherlands · Portugal · Serbia ·
+  Croatia." (a typed list of eleven countries); `{" "}SAGA, SmartBill,
+  NEXTUP and CIEL exports are supported.` as JSX text after an expression;
+  `"software": ["SAGA", "SmartBill"]` on a tested row; and
+  `pdf_text_layer.real_books` 2 → 20 (a typed count).
+- Two tested rows were wider than what is read: one real 10-column sheet on
+  hand is refused (its header abbreviates Debit / Credit to D / C), and the
+  text-layer reader reads three named row layouts and refuses a real file in
+  one of them; a trial balance in an unrecognised layout was in no row.
+- The new report footer was itself universal: "Every figure is computed by
+  the deterministic engine from the uploaded trial balance" — also on a
+  period whose `extraction.method` is `llm`, over a valuation section
+  computed in the browser; and the export's own closing lines ("This document
+  is AI-assisted", "Confidential — for internal use only") were outside the
+  footer law (F5 scanned one file), so a planted "within 0.5%" reached the
+  published sample with every gate green once the sample was rebuilt.
+
+**LAW** — the harvest now mounts `/pricing` as a signed-out visitor gets it
+and `/signup`, and reads `pricingX`, `pricingFaq`, `authX`, `cookieConsent`,
+the localised title and image alt — with a FLOOR per surface. C1: the
+negation must GOVERN the claim — it must say the thing is not supported /
+available / analysed / read / on sale / tested (or "other than Romania"),
+and sit in the claim's own clause or be a bare verdict in the clause right
+after it; the region vocabulary is every region `Intl.DisplayNames` knows in
+English and Romanian, minus Romania. C3: a document type other than a trial
+balance offered as an input (listed as a peer of the trial balance, the
+object of "upload", or said to be read / accepted / supported) must sit in a
+sentence that says AI-read or not supported — and the product's NAME is not
+that marker ("…CFO AI analyzes — a trial balance, a balance sheet…" passed on
+the "AI" in "CFO AI"). C2: JSX text after an expression is scanned. C4:
+evidence is structured (`gates`, `record`, a note in both languages); a
+count is the proof's or a DATED RECORD's
+(`frontend/data/coverageRecords.json`) and the row must equal it; files
+refused are stated with the record; a note states a count only through a
+token; a `software` entry must be in `engineProof.json` `software.proven`.
+F6 / F7: the footer and the export's basis note are built from the served
+extraction method by `lib/reportFooter`; the retired sentences are scanned
+for in `financialReport.ts`, its chart / shell / print modules and the
+published sample.
+
+**PLANT, observed RED, then REVERT** (2026-10-02; each alone, restored from
+its backup, the tree digest identical after each):
+
+```
+PLANT PC17  en pricingX.hero_sub: "Upload one trial balance, balance sheet, or P&L from any European country. …"
+  × C1 (en) → a coverage claim beyond Romania that its own clause does not negate: expected [ …(2) ]   (pricing-page + dictionary)
+  × C3 (en) offers no document type but a trial balance as an input … → expected [ …(2) ]
+PLANT PC18  en pricingFaq.whatCounts.a += "SAGA, SmartBill and any EU accounting software are supported worldwide."
+  × C1 (en) → … expected [ …(2) ]
+  × C2 (en) names no accounting software that is not a tested row's, backed by a real file → expected [ …(6) ]
+PLANT PC19  en authX.subtitle_sign_up_page: "… Free tier — works in any European country."
+  × C1 (en) → … expected [ …(2) ]                                   (signup-page + dictionary)
+PLANT PC20  module card += " Any European country works, and distance is not a problem."
+  × C1 (en) → … expected [ Array(1) ]
+  node scripts/check_global_positioning.mjs: G3 COVERAGE-TRUTH LINT — coverage beyond Romania claimed, not negated (1)
+PLANT PC21  module card += " Balance sheets, P&L statements and annual reports are read too, deterministically."
+  × C3 (en) offers no document type but a trial balance as an input … → expected [ Array(1) ]
+PLANT PC22  coverage.json pdf_text_layer: "real_books": 2 -> 20
+  × C4 → pdf_text_layer: real_books is not its record's real_books_read: expected 2 to be 20
+PLANT PC23  hero.mockNote: "Austria · Czechia · Greece · Netherlands · Portugal · Serbia · Croatia. …"
+  × G4 the landing copy names no country but Romania as readable → expected [ Array(1) ]
+  × C1 (en) → … expected [ …(7) ]
+PLANT PC24  module card += " Files from any European country are read by AI — full certification coming soon."
+  × C1 (en) → … expected [ Array(1) ]
+  node scripts/check_global_positioning.mjs: G3 COVERAGE-TRUTH LINT — … not negated (1)
+PLANT PC25  FinancialStatements.tsx: {" "}SAGA, SmartBill, NEXTUP and CIEL exports are supported. <CoverageDisclosure />
+  × C2 no accounting-software name is typed into an upload or marketing component → expected [ …(6) ]
+PLANT PC26  coverage.json xlsx_10_column: "software": ["SAGA", "SmartBill"]
+  × C4 → xlsx_10_column: names SAGA, which no committed real file prints (engineProof.json software.proven = [WinMENTOR])
+PLANT PC27  FAQ: "… exported from Pluriva, Keez, SocrateCloud or Entersoft as an Excel .xlsx sheet"
+  × C2 (en) → expected [ …(4) ];  × C2 component literals → expected [ …(4) ]
+PLANT PC28  module card += " Ministry-of-Finance filings, accountant exports, annual reports and SAF-T files — all read automatically."
+  × C3 (en) offers no document type but a trial balance as an input … → expected [ Array(1) ]
+PLANT PC29  financialReport.ts basis note += " Numbers reconcile to the source trial balance within 0.5%."
+  × F7 → frontend/lib/financialReport.ts types a retired sentence: expected 'within 0.5%' to be null
+PLANT PC30  lib/reportFooter.ts: an llm extraction read as "code" (the universal sentence back)
+  × F6 → expected 'Generated by CFO AI. The statements, …' to match /read from the uploaded document by an…/
+PLANT PC31  publicClaims.test.tsx: it("C1 claims no country …") -> it.skip(…), through run_battery
+  FAIL public-claims (exit 0, 3.0s)
+     ! WORK BELOW FLOOR — examined 171 copy lines and claims examined, floor 3000.
+     ! SKIPPED LAW — 2 test(s) of this gate were skipped (it.skip / it.todo / describe.skip). …
+PLANT PSM   (shared with public-sample) financialReport.ts += " This document is AI-assisted.", the sample HTML rebuilt
+  × F7 → frontend/lib/financialReport.ts types a retired sentence: expected 'This document is AI-assisted' to be null
+REVERT (each): Tests 43 passed (43) — GATE-WORK public-claims units=3713 · GATE-WORK report-footer laws=8
+```
+
+Floor raised 2,000 → 3,000 (measured 3,713). `no_skips` on. Canaries added:
+the detector test, the document-type law, the denominator law, F6, F7,
+`GATE-WORK report-footer laws=8`.
+
+**`scripts/check_global_positioning.mjs` G3, and what it fails on now
+(TC-11).** Its negation list held "is not", "are not", "coming soon", "în
+curând" and "încă", matched anywhere in the sentence — the verb lint in a new
+form. It now requires the same governing negation, in the claim's clause (or
+a bare verdict after it). `globalPositioning.test.ts` G4's eleven typed
+countries are the generated region vocabulary too.
+
+**AFTER THE REPAIR this reds on (TC-11):** any of the sentences above, on any
+harvested surface, in either language; a claim excused only by a negation in
+another clause; a country of any name; a balance sheet, P&L, annual report,
+filing, SAF-T or bank statement offered as an input without the AI marker; a
+software name typed after a JSX expression; a software name on a row that no
+committed real file prints; a count on a row that neither the proof nor a
+dated record states; a refused-file count without a record; a count or an ISO
+date typed into a row's note; an evidence note in one language; a harvest
+that stops reading `/pricing`, `/signup` or their dictionaries; the footer or
+the export crediting the deterministic engine on an AI-read period; a retired
+sentence in the export's source or in the published sample.
+
+**CANNOT SEE:** an accounting-software name that is not on its deny-list (it
+cannot know every product); a document type or an input verb outside its
+vocabulary; whether a dated record is TRUE — it holds the row to the record,
+and the record says who measured what and when, on files that are not in the
+repository; whether `ai_features` availability is current (it is "unverified"
+until the owner runs one chat turn and one briefing in production); the
+signed-in dashboard's own Romanian register (36 `dash.*` strings are still in
+the formal register — not a coverage claim, and not swept here).
+
 ## public-sample
 
 **The request (owner, 2026-10-01, after the first public review).** A
@@ -19082,9 +19371,9 @@ workbooks (`public/examples`) as two layouts of the same FY2025 book.
 
 | | |
 |---|---|
-| command | `pytest tests/engine/test_public_sample.py -q` |
-| work count | junit, floor **20** (measured 22) |
-| canary | eight test ids named in `scripts/run_battery.py` |
+| command | `pytest tests/engine/test_public_sample.py -q -rs` |
+| work count | junit tests minus skips, floor **29** = the number of laws (20 of 22 before the second review) |
+| canary | the test ids named in `scripts/run_battery.py` (eight, plus S6 completeness, the two S6 mapping laws, S9 and S10) |
 
 **What it fails on, now that the product is correct (TC-11):**
 
@@ -19166,6 +19455,98 @@ running server — `curl -I https://cfo-ai.io/sample` after the first deploy is
 the live check. And the engine's reading of a REAL book: the sample proves the
 engine on a book written to be consistent, which is what a sample is.
 
+### public-sample — second review (2026-10-02): what the sample left out, and what its report said about itself
+
+**INCIDENT** — an inspector reading the published sample found:
+
+- *The label list was incomplete.* The page says "each uncertainty label it
+  raised"; the gate held only that a LISTED label was the engine's sentence,
+  so a caveat left out was invisible. Three were: the bands disclosure (every
+  band under a ratio is graded on the engine's general-SME table, not a
+  sector table), the basis of the inventory term the cash cycle adds
+  ("stock at 31 December — a single day"), and two methodology notes.
+- *The mapping was incomplete.* Five analytic accounts (1518, 3022, 3028,
+  4423, 4751) were "mapped" with no balance-sheet row — the lookup was by
+  exact code and the engine lists a row's accounts by prefix. 7812 / 7814
+  were listed as "other operating income" although the engine nets them, with
+  6812 / 6814, into the provisions line outside EBITDA: summing the file by
+  bucket gave an "other income" the report does not print.
+- *The report was not the same bytes on every machine.* Under
+  `LANG=ro_RO.UTF-8` a recommendation printed "RON 164.171 interest on RON
+  2.051.400 debt" (`Math.round(n).toLocaleString()` with no locale); under
+  `TZ=Pacific/Auckland` the cover said "Prepared 2 October 2026".
+- *The report said false things about itself:* "This document is AI-assisted"
+  (no model ran), "Confidential — for internal use only" (a public file),
+  "Net Income (account 121, as filed)" and "equals the filed close" (a
+  fictional company files nothing; the engine cannot know a trial balance was
+  filed), "implying an opening balance of RON 108,263" beside a prior-year
+  balance sheet closing at RON 236,635, and an asset-age card saying the age
+  "cannot be recovered … at any level of effort" under a balance sheet that
+  prints both sides. And nothing in the HTML, the PDF, the CSV or the labels
+  file said the company is fictional.
+
+**LAW** — S6 gains four laws: every mapped balance-sheet account names its
+served row (longest listed prefix) and the rows' accounts add up to the
+served rows; every P&L account names the served line it sums into
+(`pl_line`) and each line's accounts add up to it to the cent; every
+disclosure / basis / note / refusal field of the served documents is a label
+or sits on `LABEL_EXCLUSIONS` with its reason, and no exclusion is dead; the
+cash movement the page prints beside the engine's estimate is the difference
+of two served cash balances. S9: `build_public_sample_report.mjs --check
+--no-pdf` under `LANG=ro_RO.UTF-8 LC_ALL=ro_RO.UTF-8 TZ=Pacific/Auckland` is
+byte-identical (with a probe that the environment was honoured). S10: the
+report's HTML and every page of its PDF but the cover say the company is
+fictional, in English and Romanian; the CSV's first line and the labels
+file do; and the report prints none of "AI-assisted", "Confidential", "as
+filed", "filed close", "implying an opening balance", "at any level of
+effort".
+
+**PLANT, observed RED, then REVERT** (2026-10-02; each alone; where the
+plant is in a generator the files were REBUILT so S2 stays green and the law
+under test is the one that reds; the tree digest identical after each
+revert-and-rebuild):
+
+```
+PLANT PSG  uncertainty_labels(): the bands disclosure not collected, engine files rebuilt
+  E   AssertionError: the served document states 2 caveat(s) the label list omits; first: /statements/assembled_bands/disclosure — "Verdict bands are general-SME defaults — not calibrated to the resolved industry's seeded distribution. …"
+  1 failed, 28 deselected
+PLANT PSH  _bs_row_for(): exact code instead of longest prefix, rebuilt
+  E   AssertionError: account 1518 is mapped to the balance sheet with no served row
+PLANT PSI  _pl_line(): the provisions accounts left on their bucket, rebuilt
+  E   AssertionError: P&L line depreciation: the mapping's accounts sum to 459839.83, the engine serves 400705.85
+PLANT PSJ  recommendationRules.ts: toLocaleString("en-US") -> toLocaleString()
+  E   AssertionError: the sample report is not the same bytes under LANG=ro_RO.UTF-8 / TZ=Pacific/Auckland:
+  E       FAIL sample_report_fy2025.html … committed ",171 interest on RON 2,051,400 debt) …" vs rebuilt ".171 interest on RON 2.051.400 debt)
+PLANT PSK  publicSampleReport.ts: generatedOn: null (the clock, in local time)
+  E       FAIL … committed "1 October 2026</dd>…" vs rebuilt "2 October 2026</dd>…
+PLANT PSL  publicSampleReport.ts: notice: null, the report (HTML + PDF) rebuilt
+  E   AssertionError: sample_report_fy2025.html does not say the company is fictional ('Fictional company')
+PLANT PSM  financialReport.ts basis note += " This document is AI-assisted.", the HTML rebuilt
+  E   AssertionError: sample_report_fy2025.html prints 'AI-assisted': …remain with management. This document is AI-assisted. Balance-sheet provenance…
+REVERT (each restored and rebuilt): 29 passed
+```
+
+Floor 20 → 29 = the number of laws (a skipped law is a red; S9 skips where
+node is absent). The gate command carries `-rs`.
+
+**AFTER THE REPAIR this reds on (TC-11):** a caveat the served document
+states that is neither a label nor a reasoned exclusion; a mapped
+balance-sheet account with no served row; a P&L line whose accounts do not
+sum to the served line; a report that differs under another locale or
+timezone; a published report, mapping or labels file that does not say the
+company is fictional; a report sentence that is false for a public,
+model-free sample.
+
+**CANNOT SEE:** a caveat the engine states under a field name that is not in
+`DISCLOSURE_FIELDS`; whether the engine's cash flow is RIGHT — it is an
+estimate that does not read the prior year, the page says so and prints the
+two balance sheets' movement beside it, and the engine limitation is
+ticketed, not fixed here (the served dividends, loan drawdowns and capex
+lines also disagree with the ledger); the two quick ratios the report prints
+(0.96× on its card, 0.97× "as reported" inside a finding — two definitions
+in the engine) and the 40.5% depreciated share whose base includes
+construction in progress: both are engine wording, quoted as served.
+
 ## public-sample-page
 
 The `/sample` page and the published report, held to the COMMITTED served
@@ -19215,6 +19596,39 @@ an English number on the ro page: expected '9,358,823' to be null
 **RED** `cedilla diacritic: expected 'Descărcaţi' not to match /[şţŞŢ]/` — 1 failed, 18 passed.
 
 **REVERT** — each plant restored; `19 passed`.
+
+### public-sample-page — second review (2026-10-02): P9
+
+**INCIDENT** — the page printed DSO 54, DIO 65, DPO 42 and a cash conversion
+cycle of 81: 54 + 65 − 42 = 77. The cycle adds inventory days on the
+period-end balance (69 — "stock at 31 December — a single day"), which the
+report explained and the page did not. It also quoted the engine's "cannot
+be computed without a prior-period trial balance" beside a published prior
+year, with no word of its own.
+
+**LAW** — P9: the cycle note prints the period-end inventory term and its
+served basis label, and DSO + that term − DPO IS the printed cycle; the
+cash-flow card prints the engine's estimate, both served cash balances and
+the movement between them, each re-read from its served document and printed
+by an independent formatter; the labels section carries the page's note
+about the prior period.
+
+**PLANT, observed RED, then REVERT** (2026-10-02):
+
+```
+PLANT SP9a  PublicSample.tsx: the note prints total_value_q (the average) instead of the period-end term
+  × P9 (en) → expected 'The cash conversion cycle is not the …' to contain '69'
+  × P9 (ro) → expected 'Ciclul de conversie a numerarului nu …' to contain '69'
+  Tests  2 failed | 19 passed (21)
+PLANT SP9b  the card prints the engine's estimate as the movement
+  × P9 (en) → en: the cash-flow card does not print -9848.42…: expected 'Cash flowAn estimate, and labelled so…' to contain '-9,848.42 RON'
+  × P9 (ro) → … to contain '-9.848,42 RON'
+REVERT (each): Tests 21 passed (21) — GATE-WORK public-sample-page figures=134
+```
+
+`no_skips` on. **CANNOT SEE:** whether the note is still needed after the
+engine changes the cycle's basis — P9 then reds on its own precondition
+("the printed rows foot to the cycle — the note is not needed").
 
 ## public-sample-pdf
 
@@ -19279,3 +19693,123 @@ to a rebuild`, `public sample report: PASS`.
   `stale-gates`, `no-plants`, `hermetic`, `test-env-isolation`: PASS.
   `scripts/check_report_pdf.mjs` (not a battery gate): 13 assertions PASS
   after the stylesheet-comment change — pagination is unchanged.
+
+## bundle-labels
+
+| | |
+|---|---|
+| command | `python scripts/check_bundle_labels.py` (after `npm-build`) |
+| canary | `BUNDLE LABELS: PASS`, `identifier match(es)` |
+| work count | `GATE-WORK bundle-labels files=N`, floor **50** (measured 127 built text files) |
+
+**INCIDENT** — 2026-10-02. The production bundle every visitor downloads
+(`dist/assets/index-*.js`) carried the label of a client's book six times:
+"MEASURED on the delivered … pack", "every page of the 30-page … export".
+They were developer notes written as CSS comments INSIDE the template
+literals of the report's print and shell stylesheets
+(`frontend/lib/reportPrintCss.ts`, `frontend/lib/charts/documentShell.ts`) —
+and a minifier does not strip a comment that lives inside a string. The
+`public-sample` gate had found the same notes in the exported report on
+2026-10-01 and `shippedCss()` removed them from the EXPORT; its own comment
+said "the export carries none". The bundle was the other outlet, and the
+public-sample scan covers `public/sample` only. The same scan also found a
+real company's name used as an input placeholder ("e.g. … SRL") in both
+dictionaries.
+
+**LAW** — after the build, every text file under `dist/` is scanned for the
+labels of the real books this repository holds, derived at run time from
+their file and directory names (`scripts/client_labels.py`, shared with
+`public-sample` S5 — never typed). A label glued to a hyphen is an
+identifier (a CSS custom property or class name), and one label is also a
+place name the listed-company map prints; both are counted in the work line
+and are not prose. The notes themselves are now TypeScript comments
+(`${""/* … */}` inside the template), so the string the bundle holds — and
+therefore the exported report — carries none; the placeholder is the
+fictional sample's name.
+
+**PLANT** (2026-10-02) — the first note of `printCss()` put back as a CSS
+comment inside the template (`${""/* ══ A4, AND THE RUNNING HEAD … */}` →
+`/* … */`), then a real `npm run build`.
+
+**RED**
+
+```
+FAIL bundle-labels (exit 1, 0.9s)
+     | GATE-WORK bundle-labels files=127 labels=6 identifiers=162 places=3
+     | BUNDLE LABELS: FAIL — a real book's label is in the production bundle (1 place(s)):
+     |   dist/assets/index-DIqzSWEN.js at character 707441 (5 characters long)
+BATTERY: FAIL — 0/1 gates green
+```
+
+(the label is not printed: a log is not the place for it either.) On the
+bundle as it stood before the repair the gate reads 8 places — the six
+notes and the two placeholders.
+
+**REVERT** — the file restored, `dist` removed and rebuilt:
+
+```
+PASS bundle-labels (0.9s, 127 built text files scanned)
+BATTERY: PASS — 1/1 gates green
+```
+
+and with `dist/` absent: `FAIL bundle-labels (exit 2) — BUNDLE LABELS: NOTHING
+TO SCAN — dist/ is absent; run `npm run build` first. A scan of nothing is
+not a pass.`
+
+**AFTER THE REPAIR this reds on (TC-11):** a client label in any `.js`,
+`.css`, `.html`, `.json` or other text file under `dist/` outside an
+identifier or the listed place name; a missing `dist/`; fewer than four
+labels derived; fewer than fifty files scanned.
+
+**CANNOT SEE:** a client's name that is in no fixture's file name; a label
+inside an image; the server-rendered storefront. And it does not judge the
+identifier it excuses: the report page's stylesheet namespace is a
+calibration book's short label (162 occurrences as a CSS variable / class
+prefix) — an internal name, never prose, left as it is and stated here.
+
+### landing trust — second review (2026-10-02): the measured green runs
+
+Measured on `fix/landing-trust` after the second review's fixes, with the
+owner's local calibration books linked into `files/` for the run and removed
+after — not asserted:
+
+- `scripts/build_engine_proof.py`: `ENGINE PROOF: WRITTEN — measured
+  2026-10-01 (scope full)`, 5 checks, 29 subjects, `software {"WinMENTOR":
+  1}`; the engine digest is unchanged (no file under `src/engine` or `packs`
+  was touched).
+- the public sample rebuilt by its writers (`build_public_sample.py`,
+  `build_public_examples.py`): the two workbooks (their group header now
+  carries its diacritics), the mapping (a notice line, a `pl_line` column,
+  every balance-sheet account on its row), the labels (20, with the company
+  block), the report HTML and PDF (28 pages, the fictional-company notice on
+  every one but the cover), the page data; the share image regenerated
+  (`build_og_image.mjs`).
+- `run_battery.main` narrowed to the 19 gates this review touches or adds:
+  **19/19 PASS** — engine-proof 9 tests (5 checks, 29 subjects re-measured,
+  scope full), public-sample 29, landing-proof 1,255, public-claims 3,713,
+  public-sample-page 134, public-sample-pdf 28 pages, global-positioning
+  995, ui-language-figures 35, cmdbar-surface 216, provenance-census 825
+  (the 11 listed burn-down findings, none new; `Landing.tsx` restated 6 → 8
+  for the two card prices, which now print in one format per language),
+  import-boundary 2,123, engine-book 6, floor-census 77, stale-gates 942,
+  no-plants 1,124, test-env-isolation 14, plan-gate-census 29, npm-build
+  3,657 modules, bundle-labels 127 built files. `corpus-policy` (4,961
+  tracked files) passed on its own run. `tests/engine/test_gate_canaries.py`:
+  13 passed.
+- full vitest (`scripts/check_vitest.mjs`): **268 files, 4,481 tests — 4,480
+  passed, 1 skipped, 0 failed**, canaries 16/16. `tsc`
+  (`scripts/check_tsc.mjs`): 1,038 files, the 10 known errors, 0 new.
+- **Not run here:** the full engine pytest suite (no file under `src/engine`
+  or `packs` changed; the two engine test files touched are the gates
+  above), `hermetic` (it writes under the shared `node_modules` link) and
+  the Playwright gate (it needs a dev server and an engine in test-mode
+  posture).
+- **Owner actions this review leaves open,** each stated on the page or in a
+  data file rather than hidden: run one Ask CFO AI turn and one briefing in
+  production and set `coverage.json` `ai_features` (it reads `unverified`);
+  measure upload-to-report in production before any speed returns to the
+  copy; the engine's cash-flow reconstruction does not read a prior period
+  (the sample page says so and prints the balance sheets' movement beside
+  it); the engine prints two quick ratios and a depreciated share whose base
+  includes construction in progress; 36 `dash.*` Romanian strings are still
+  in the formal register.

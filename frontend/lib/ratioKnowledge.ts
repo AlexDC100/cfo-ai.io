@@ -221,7 +221,7 @@ export const RATIO_KNOWLEDGE: Record<string, RatioKnowledge> = {
     category: "profitability",
     definition:
       "Bottom-line earnings as a share of revenue — after every cost, including interest and tax.",
-    formula: "Net profit as filed (account 121) ÷ Revenue",
+    formula: "Net profit (account 121, closing balance) ÷ Revenue",
     whyItMatters:
       "What actually reaches the equity holders. Sensitive to leverage and tax structure on top of operations.",
     goodRange: "≥ 8% healthy",
@@ -237,7 +237,7 @@ export const RATIO_KNOWLEDGE: Record<string, RatioKnowledge> = {
     category: "profitability",
     definition:
       "How efficiently total assets generate earnings — combines profitability and asset productivity.",
-    formula: "Net profit as filed (account 121) ÷ Total assets at period end",
+    formula: "Net profit (account 121, closing balance) ÷ Total assets at period end",
     whyItMatters:
       "Captures asset-intensity in the business model. Two companies with the same net margin can have very different ROAs.",
     goodRange: "≥ 5% healthy · ≥ 10% strong",
@@ -252,7 +252,7 @@ export const RATIO_KNOWLEDGE: Record<string, RatioKnowledge> = {
     category: "profitability",
     definition:
       "Return generated on book equity — the headline for shareholders. Computed here on CLOSING equity, not on the average of opening and closing: a trial balance carries one period, so an average would need a prior-period balance sheet this report does not have.",
-    formula: "Net profit as filed (account 121) ÷ Total equity at period end",
+    formula: "Net profit (account 121, closing balance) ÷ Total equity at period end",
     whyItMatters:
       "Directly comparable to cost-of-equity. A persistent ROE below cost-of-capital means equity is being destroyed.",
     goodRange: "≥ 12% healthy · ≥ 20% strong",

@@ -38,6 +38,9 @@
  *     "Any other country accepted", "from any European country",
  *     "worldwide trial balances", "Any accounting jurisdiction",
  *     "RAS / EU filings supported", "analysis for European SMEs".
+ *     "Files from any European country are read by AI — full certification
+ *     coming soon"; "Any European country works, and distance is not a
+ *     problem" (a negation that does not govern the claim).
  *   WHAT IT PASSES: "Trial balances … from any country other than Romania
  *     — not supported yet"; "Coming soon — international coverage is not
  *     available yet".
@@ -84,16 +87,45 @@ const CLAIM = new RegExp(
   ].join("|"),
   "i",
 );
-// … and the only company it may keep: a sentence saying it is not available.
+// … and the only company it may keep: a CLAUSE saying that it is not
+// available.
+//
+// 2026-10-02 — THE NEGATION MUST GOVERN THE CLAIM. The first version of this
+// rewrite excused a claim when ANY negation word sat anywhere in its
+// sentence, and its list held "is not", "are not", "coming soon", "în
+// curând" and "încă". A verifier planted "Files from any European country
+// are read by AI — full certification coming soon" and "Any European country
+// works, and distance is not a problem": both PASSED. That is the old verb
+// lint in a new form — wording decided, not truth. Now the negation must (a)
+// say the thing is not supported / available / analysed / read / on sale /
+// tested, or name it as "other than Romania", and (b) sit in the SAME CLAUSE
+// as the claim, or be a bare verdict in the clause right after it ("… — not
+// supported yet"). The vitest gate `public-claims` C1 holds the same rule on
+// the rendered pages.
 const NEGATION = new RegExp(
   [
-    "not (?:yet )?(?:supported|available|analysed|analyzed|on sale|tested)",
-    "(?:is|are)n't", "\\b(?:is|are) not\\b", "other than romania", "coming soon",
-    "\\bnu (?:este|sunt|e)\\b", "\\bîncă\\b", "nesuportat", "indisponibil",
-    "decât românia", "în curând", "no real book",
+    "not (?:yet )?(?:supported|available|analysed|analyzed|read|on sale|tested)",
+    "(?:isn't|aren't) (?:yet )?(?:supported|available|read|on sale)",
+    "other than romania", "no real book",
+    "(?<![\\p{L}])nu (?:este|sunt|e|a fost|au fost) (?:încă )?(?:suportat|disponibil|analizat|citit|de vânzare|testat)",
+    "nesuportat", "indisponibil", "decât românia",
   ].join("|"),
-  "i",
+  "iu",
 );
+const BARE_VERDICT = new RegExp(`^(?:încă |yet |still )?(?:${NEGATION.source})`, "iu");
+const clausesOf = (sentence) =>
+  sentence.split(/\s[—–]\s|;\s|:\s|,\s/).map((c) => c.trim()).filter(Boolean);
+/** True when a clause of `sentence` claims coverage beyond Romania and is
+ *  not said to be unavailable by itself or by a bare verdict after it. */
+function unexcused(sentence) {
+  const clauses = clausesOf(sentence);
+  for (let i = 0; i < clauses.length; i += 1) {
+    if (!CLAIM.test(clauses[i]) || NEGATION.test(clauses[i])) continue;
+    if (i + 1 < clauses.length && BARE_VERDICT.test(clauses[i + 1])) continue;
+    return true;
+  }
+  return false;
+}
 const IS_TEST = /(^|\/)(__tests__|test)\//;
 
 function* walk(dir) {
@@ -170,7 +202,7 @@ for (const root of ROOTS) {
           for (const sentence of str.split(/[.!?](?:\s|$|["'`])/)) {
             if (!CLAIM.test(sentence)) continue;
             claimMatchesAnywhere += 1;
-            if (!NEGATION.test(sentence)) {
+            if (unexcused(sentence)) {
               g3.push(`${rel}:${i + 1}: ${sentence.trim().slice(0, 130)}`);
             }
           }

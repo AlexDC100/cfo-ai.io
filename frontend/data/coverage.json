@@ -1,22 +1,30 @@
 {
-  "schema": "coverage/1",
+  "schema": "coverage/2",
   "as_of": "2026-10-01",
-  "about": "THE ONLY SOURCE of coverage wording on any public or upload surface (landing, pricing, FAQ, page title and description, manifest, the in-app upload zone). A row may be in `tested` only with evidence: a battery gate id, or a dated production measurement. `real_books` is a count of DISTINCT real trial balances, or the string 'constructed test files only'. A row with `real_books_proof` must equal that key of frontend/data/engineProof.json `formats` (gate public-claims). Software names may appear only in `software` of a tested row backed by a real file. The owner flips `availability` on the AI row when the model has credit again.",
+  "about": "THE ONLY SOURCE of coverage wording on any public or upload surface (landing, pricing, FAQ, page title and description, manifest, the in-app upload zone). A row may be in `tested` only with evidence: battery gate ids (`evidence.gates`), or a dated record of a measurement no committed gate can re-run (`evidence.record`, an id of frontend/data/coverageRecords.json). `real_books` is a count of DISTINCT real trial balances that were READ, or the string 'constructed test files only'; `real_files_refused` counts real files of the row's kind that the reader refused. A count comes from engineProof.json `formats` (`real_books_proof`) or from the row's record — never typed alone (gate public-claims C4). Notes carry tokens, never a count: {read} {refused} {held} {record_date}. Software names may appear only in `software` of a tested row, and only names engineProof.json `software.proven` holds. The owner flips `availability` on the AI row when the model has credit again.",
   "rows": [
     {
       "id": "xlsx_10_column",
       "category": "tested",
-      "label_en": "Romanian trial balance (RAS) as Excel .xlsx, 10-column layout: account, name, then Debit/Credit pairs for opening balances, period movements, cumulative totals and closing balances",
-      "label_ro": "Balanță de verificare românească (RAS) în Excel .xlsx, format cu 10 coloane: cont, denumire, apoi perechi Debit/Credit pentru solduri inițiale, rulaje, sume totale și solduri finale",
+      "label_en": "Romanian trial balance (RAS) as Excel .xlsx, 10-column layout: account, name, then Debit/Credit pairs for opening balances, period movements, cumulative totals and closing balances, with the words Debit and Credit in the header",
+      "label_ro": "Balanță de verificare românească (RAS) în Excel .xlsx, format cu 10 coloane: cont, denumire, apoi perechi Debit/Credit pentru solduri inițiale, rulaje, sume totale și solduri finale, cu Debit și Credit scrise în antet",
       "formats": [
         "xlsx"
       ],
       "software": [],
-      "evidence": "bs-drift, determinism, corpus-replay",
+      "evidence": {
+        "gates": [
+          "bs-drift",
+          "determinism",
+          "corpus-replay"
+        ],
+        "record": "xlsx_10_column_refused_2026-10-01"
+      },
       "real_books": 6,
       "real_books_proof": "xlsx_10_column_layout",
-      "note_en": "Read without any AI. Includes the wider sheets some reporting templates export, with extra helper columns.",
-      "note_ro": "Citită fără AI. Include și foile mai late exportate de unele șabloane de raportare, cu coloane ajutătoare.",
+      "real_files_refused": 1,
+      "note_en": "Read without any AI. Of the {held} real 10-column sheets we hold, {read} are read and {refused} is refused: its header abbreviates Debit and Credit to D and C, so the header row is not found. Includes the wider sheets some reporting templates export, with extra helper columns.",
+      "note_ro": "Citită fără AI. Din cele {held} foi reale cu 10 coloane pe care le avem, {read} sunt citite și {refused} este refuzată: antetul ei prescurtează Debit și Credit la D și C, așa că rândul de antet nu este găsit. Include și foile mai late exportate de unele șabloane de raportare, cu coloane ajutătoare.",
       "as_of": "2026-10-01"
     },
     {
@@ -30,7 +38,12 @@
       "software": [
         "WinMENTOR"
       ],
-      "evidence": "bs-drift, corpus-replay",
+      "evidence": {
+        "gates": [
+          "bs-drift",
+          "corpus-replay"
+        ]
+      },
       "real_books": 1,
       "real_books_proof": "pdf_positional_layout",
       "note_en": "One real book, from 2019. Its source does not balance; the report shows the difference instead of hiding it.",
@@ -40,16 +53,19 @@
     {
       "id": "pdf_text_layer",
       "category": "tested",
-      "label_en": "Romanian trial balance as a PDF with a text layer (not a scan)",
-      "label_ro": "Balanță de verificare românească în PDF cu strat de text (nu scanată)",
+      "label_en": "Romanian trial balance as a PDF with a text layer (not a scan), in one of the three row layouts the text reader recognises: eight figures per row, five Debit/Credit pairs per row, or four pairs with blank zero cells",
+      "label_ro": "Balanță de verificare românească în PDF cu strat de text (nu scanată), într-unul dintre cele trei formate de rând pe care cititorul de text le recunoaște: opt cifre pe rând, cinci perechi Debit/Credit pe rând sau patru perechi cu zerourile lăsate necompletate",
       "formats": [
         "pdf"
       ],
       "software": [],
-      "evidence": "production reprocess 2026-10-01",
+      "evidence": {
+        "record": "pdf_text_layer_2026-10-01"
+      },
       "real_books": 2,
-      "note_en": "Two real books were read without any AI in production on 2026-10-01. The test files kept in the repository for this reader are constructed, not real.",
-      "note_ro": "Două balanțe reale au fost citite fără AI în producție la 2026-10-01. Fișierele de test păstrate în depozit pentru acest cititor sunt construite, nu reale.",
+      "real_files_refused": 1,
+      "note_en": "{read} real books were read without any AI in production on {record_date}; {refused} real file, in the blank-zero layout, was refused rather than guessed. A text-layer PDF in any other layout is not read here: it needs the AI reader below. The test files kept in the repository for this reader are constructed, not real.",
+      "note_ro": "{read} balanțe reale au fost citite fără AI în producție la {record_date}; {refused} fișier real, în formatul cu zerouri necompletate, a fost refuzat, nu ghicit. Un PDF cu strat de text în orice alt format nu este citit aici: are nevoie de cititorul AI de mai jos. Fișierele de test păstrate în depozit pentru acest cititor sunt construite, nu reale.",
       "as_of": "2026-10-01"
     },
     {
@@ -62,7 +78,11 @@
         "xlsx"
       ],
       "software": [],
-      "evidence": "corpus-replay",
+      "evidence": {
+        "gates": [
+          "corpus-replay"
+        ]
+      },
       "real_books": "constructed test files only",
       "note_en": "These readers pass their tests on files we built ourselves. No real export in these layouts has been tested yet.",
       "note_ro": "Aceste cititoare trec testele pe fișiere construite de noi. Niciun export real în aceste formate nu a fost testat încă.",
@@ -71,15 +91,22 @@
     {
       "id": "ai_read",
       "category": "ai_interpreted",
-      "label_en": "Scanned PDFs and photos, and financial statements that are not a trial balance (bilanț, P&L, annual report)",
-      "label_ro": "PDF-uri scanate și fotografii, precum și situații financiare care nu sunt o balanță de verificare (bilanț, cont de profit și pierdere, raport anual)",
+      "label_en": "Needs the AI reader: scanned PDFs and photos, Romanian trial balances in a layout none of the readers above recognises, and financial statements that are not a trial balance (bilanț, P&L, annual report)",
+      "label_ro": "Au nevoie de cititorul AI: PDF-uri scanate și fotografii, balanțe de verificare românești într-un format pe care niciunul dintre cititoarele de mai sus nu îl recunoaște și situații financiare care nu sunt o balanță de verificare (bilanț, cont de profit și pierdere, raport anual)",
       "formats": [
         "pdf",
         "jpg",
-        "png"
+        "png",
+        "xlsx"
       ],
       "software": [],
-      "evidence": "corpus-replay (constructed file, scripted model reply)",
+      "evidence": {
+        "gates": [
+          "corpus-replay"
+        ],
+        "note_en": "a constructed file with a scripted model reply",
+        "note_ro": "un fișier construit, cu un răspuns de model scriptat"
+      },
       "real_books": "constructed test files only",
       "availability": "unavailable",
       "availability_en": "Currently unavailable",
@@ -95,7 +122,10 @@
       "label_ro": "Balanțe de verificare și situații financiare din orice altă țară decât România",
       "formats": [],
       "software": [],
-      "evidence": "no real book from another country has been tested",
+      "evidence": {
+        "note_en": "no real book from another country has been tested",
+        "note_ro": "nicio balanță reală din altă țară nu a fost testată"
+      },
       "real_books": 0,
       "note_en": "Not supported yet. A file from another country is not analysed correctly today, on any plan.",
       "note_ro": "Încă nesuportat. Un fișier din altă țară nu este analizat corect astăzi, pe niciun plan.",
@@ -103,5 +133,19 @@
     }
   ],
   "untested_note_en": "Legacy .xls sheets and ANAF F30 + F10 workbooks are accepted by the uploader but have no real-file test yet, so neither is listed as tested.",
-  "untested_note_ro": "Foile .xls vechi și formularele ANAF F30 + F10 în Excel sunt acceptate la încărcare, dar nu au încă un test pe fișier real, deci niciuna nu este trecută ca testată."
+  "untested_note_ro": "Foile .xls vechi și formularele ANAF F30 + F10 în Excel sunt acceptate la încărcare, dar nu au încă un test pe fișier real, deci niciuna nu este trecută ca testată.",
+  "ai_features": {
+    "about": "Ask CFO AI (chat) and the written briefing are produced by an AI model, through a different credential from the AI document reader above. Whether they answer today can only be measured in production: `availability` is 'available', 'unavailable' or 'unverified' (nobody has measured since `as_of`). When it is 'unavailable' the landing prints the wording below on the Ask CFO AI card and on each chat quota line. The owner sets it after running one chat turn and one briefing in production.",
+    "chat": {
+      "availability": "unverified",
+      "as_of": "2026-10-02"
+    },
+    "briefing": {
+      "availability": "unverified",
+      "as_of": "2026-10-02"
+    },
+    "unavailable_en": "Currently unavailable",
+    "unavailable_ro": "Indisponibil momentan",
+    "owner_action": "Run one Ask CFO AI turn and generate one briefing in production; set each availability to 'available' or 'unavailable' and its as_of to that day."
+  }
 }

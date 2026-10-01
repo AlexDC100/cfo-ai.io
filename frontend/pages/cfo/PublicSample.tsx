@@ -219,7 +219,12 @@ export default function PublicSample() {
   const lineOf = (row: SampleMappingRow): string => {
     if (row.status !== "mapped") return S.mappingStatus[row.status] ?? row.status;
     const statement = row.statement ? S.statements[row.statement] ?? row.statement : "";
-    const bucket = row.engine_bucket ? S.buckets[row.engine_bucket] ?? row.engine_bucket : "";
+    // A P&L account names the SERVED LINE it sums into (the engine nets
+    // 6812 / 6814 / 7812 / 7814 into one line outside EBITDA, whatever
+    // bucket their line item carries); a balance-sheet account its bucket.
+    const bucket = row.pl_line
+      ? S.plLines[row.pl_line] ?? row.pl_line
+      : row.engine_bucket ? S.buckets[row.engine_bucket] ?? row.engine_bucket : "";
     const section = row.balance_sheet_section
       ? S.sections[row.balance_sheet_section] ?? row.balance_sheet_section
       : "";
@@ -394,6 +399,12 @@ export default function PublicSample() {
               </tbody>
             </table>
           </div>
+          <p data-testid="sample-cycle-note" className="mt-3 max-w-[720px] text-[12.5px] leading-relaxed text-ink-soft">
+            {fill(S.cycleNote, {
+              days: printDaysQ(v.inventory_days.ccc_term_value_q, lang),
+              basis: lang === "ro" ? v.inventory_days.ccc_term_basis_label_ro : v.inventory_days.ccc_term_basis_label_en,
+            })}
+          </p>
         </Section>
 
         {/* ── the landing's proof list, on this book ───────────────── */}
@@ -499,7 +510,18 @@ export default function PublicSample() {
             </Card>
 
             <Card testId="sample-verdict-cashflow" title={S.verdict.cashFlowTitle}>
-              <p>{v.cash_flow.is_approximated ? S.verdict.cashFlowApproximated : S.verdict.cashFlowExact}</p>
+              <p>
+                {v.cash_flow.is_approximated
+                  ? fill(S.verdict.cashFlowApproximated, {
+                      estimated: money(v.cash_flow.net_change_estimated),
+                      opening: money(v.cash_flow.prior_closing_cash),
+                      closing: money(v.cash_flow.closing_cash),
+                      movement: money(v.cash_flow.balance_sheet_movement),
+                      prior: prior.label,
+                      current: current.label,
+                    })
+                  : S.verdict.cashFlowExact}
+              </p>
             </Card>
 
             <Card testId="sample-verdict-findings" title={S.verdict.findingsTitle}>
@@ -538,6 +560,11 @@ export default function PublicSample() {
           title={S.labelsTitle}
           lede={fill(S.labelsLede, { n: integer(labels.length, lang) })}
         >
+          {v.cash_flow.is_approximated && !v.piotroski.has_prior_period ? (
+            <p data-testid="sample-labels-prior-note" className="mb-4 max-w-[720px] text-[13px] leading-relaxed text-ink-soft">
+              {fill(S.labelsPriorNote, { prior: prior.label })}
+            </p>
+          ) : null}
           <ul className="space-y-3">
             {labels.map((label) => {
               const { text, quotedIn } = labelQuote(label, lang);

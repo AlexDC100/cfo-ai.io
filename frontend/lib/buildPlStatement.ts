@@ -580,7 +580,7 @@ function closingSection(
     section: {
       ...base,
       lines,
-      subtotalLabel: identity ? "Net profit (account 121)" : "= Net result, account 121 (as filed)",
+      subtotalLabel: identity ? "Net profit (account 121)" : "= Net result, account 121 (closing balance)",
       subtotalRoName: roNameOf(acc.label),
       ...(filed !== null ? { subtotalAmount: filed } : { subtotalRefusal: NET_RESULT_NOT_SERVED }),
     },

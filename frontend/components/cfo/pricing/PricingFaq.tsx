@@ -1,6 +1,5 @@
 // PricingFaq.tsx — accordion FAQ rendered at the bottom of the /pricing
-// page. The 7 questions + answers are taken verbatim from the redesign
-// spec §9; copy is the contract.
+// page.
 //
 // Native <details>/<summary> is used over a custom accordion so:
 //   · keyboard navigation works out of the box (Space/Enter toggle)
@@ -8,91 +7,58 @@
 //   · no animation-library dependency for what is, fundamentally,
 //     a disclosure widget
 //
-// The DOM exposes data-testid for each item so a future copy-hygiene
-// grep can find this surface directly (e.g. asserting "What counts as a
-// document" exists, asserting the intro-not-subscription answer exists).
+// THE COPY IS IN THE DICTIONARIES (`pricingFaq.*`, both languages), and it
+// is a harvested surface of the gate `public-claims`. Until 2026-10-02 the
+// answers were typed here, in English only — so the Romanian pricing page
+// showed an English FAQ — and three of them were false on a public page:
+//
+//   · "A document is … a trial balance, a balance sheet, a P&L, or an
+//     annual report": the engine reads Romanian trial balances; the other
+//     three need the AI reader, whose availability is a row of
+//     frontend/data/coverage.json. The answer now says that and prints that
+//     row's status ({{aiStatus}}) rather than a typed word.
+//   · "Ask CFO AI is available after launch": the feature registry has had
+//     `chat_page` active for weeks and the landing sells it as a module.
+//   · "What happens if billing is not wired yet? In development, billing
+//     actions use mock billing…": developer copy. Removed.
 
 import { ChevronDown } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
-interface FaqItem {
-  q: string;
-  a: string;
-  testId: string;
-}
+import { proofTokens } from "@/lib/engineProof";
 
-const FAQ: FaqItem[] = [
-  {
-    testId: "faq-what-counts",
-    q: "What counts as a document?",
-    // 2026-09-06 — the earlier answer listed "public filing, invoice
-    // export, or inventory report" as things a document can be. In the
-    // registry `public_records` is hidden and `upload_invoice` /
-    // `upload_inventory` are coming_soon, so three of the five examples
-    // named ingest this release does not run. The list now names only
-    // what the pipeline accepts today, and says where the rest sits.
-    a:
-      "A document is one uploaded file that CFO AI analyzes — a trial " +
-      "balance, a balance sheet, a P&L, or an annual report. Invoice and " +
-      "inventory ingest are on the roadmap and are not part of this release.",
-  },
-  {
-    testId: "faq-quota-hit",
-    q: "What happens when I hit my included document quota?",
-    a:
-      "You will see the extra-document price before processing. " +
-      "CFO AI never charges silently.",
-  },
-  {
-    testId: "faq-intro-subscription",
-    q: "Is the €0.99 Intro Unlock a subscription?",
-    a: "No. It is a one-time 7-day unlock for one extra document.",
-  },
-  {
-    testId: "faq-rollover",
-    q: "Do unused documents roll over?",
-    a: "No. Included documents reset each billing period.",
-  },
-  {
-    testId: "faq-move-plans",
-    q: "Can I move between plans?",
-    a: "Yes. You can upgrade or downgrade from Billing.",
-  },
-  {
-    testId: "faq-chat-cap",
-    q: "Are Ask CFO AI messages capped?",
-    // 2026-09-06 — the previous answer ("The app shows your daily and
-    // monthly usage") described a surface this release does not serve:
-    // the registry has `chat_page` hidden, so /chat renders "Not in this
-    // release". The answer now states the position instead of implying
-    // chat is live.
-    a:
-      "Ask CFO AI is available after launch. When it opens, each plan " +
-      "carries a daily and a monthly message cap, shown in the app. Chat " +
-      "is capped rather than metered — it is never billed per message.",
-  },
-  {
-    testId: "faq-billing-not-wired",
-    q: "What happens if billing is not wired yet?",
-    a:
-      "In development, billing actions use mock billing only if enabled. " +
-      "In production, paid extra documents require the payment provider " +
-      "to be connected.",
-  },
+/** The questions, in order. `key` is the dictionary entry under
+ *  `pricingFaq`; `testId` is stable for the copy gates. */
+const FAQ: Array<{ key: string; testId: string }> = [
+  { key: "whatCounts", testId: "faq-what-counts" },
+  { key: "quotaHit", testId: "faq-quota-hit" },
+  { key: "introSubscription", testId: "faq-intro-subscription" },
+  { key: "rollover", testId: "faq-rollover" },
+  { key: "movePlans", testId: "faq-move-plans" },
+  { key: "chatCap", testId: "faq-chat-cap" },
 ];
 
 export function PricingFaq() {
+  const { t, i18n } = useTranslation();
+  // The AI reader's status and the chat's are coverage.json's, through the
+  // same tokens the landing copy uses — never a word typed here.
+  const tokens = proofTokens(i18n.language);
+  const values = {
+    aiStatus: tokens["coverage.ai_read.availability_lc"] ?? t("pricingFaq.aiReaderAvailable"),
+    chatStatus: tokens["coverage.chat.status"] ?? "",
+  };
   return (
     <section
       data-testid="pricing-faq"
-      aria-label="Frequently asked questions"
+      aria-label={t("pricingFaq.aria")}
       className="max-w-[760px] mx-auto px-5 sm:px-8 py-12"
     >
       <header className="text-center mb-8">
         <div className="text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-medium">
-          FAQ
+          {t("pricingFaq.eyebrow")}
         </div>
         <h2 className="mt-2 font-serif text-[28px] sm:text-[34px] leading-[1.1] text-ink">
-          Questions, answered.
+          {t("pricingFaq.title")}
         </h2>
       </header>
       <ul className="space-y-2">
@@ -114,7 +80,7 @@ export function PricingFaq() {
                   outline-none focus-visible:ring-2 focus-visible:ring-brand/40 rounded-md
                 "
               >
-                <span className="flex-1">{item.q}</span>
+                <span className="flex-1">{t(`pricingFaq.${item.key}.q`)}</span>
                 <ChevronDown
                   size={14}
                   strokeWidth={2}
@@ -122,7 +88,7 @@ export function PricingFaq() {
                 />
               </summary>
               <p className="mt-2 text-[12.5px] text-ink-soft leading-relaxed">
-                {item.a}
+                {t(`pricingFaq.${item.key}.a`, values)}
               </p>
             </details>
           </li>

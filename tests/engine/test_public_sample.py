@@ -33,13 +33,27 @@ WHAT THIS GATE REDS ON, once the product is correct (TC-11):
   S5  a client label, a fiscal code other than the fictional one, or a
       trade-register number other than the fictional one appears in any
       published file;
-  S6  the mapping stops covering every account exactly once, or the labels
-      stop being the engine's own sentences;
+  S6  the mapping stops covering every account exactly once, leaves a mapped
+      balance-sheet account without its served row, or names a P&L line
+      whose accounts do not sum to the served line; the labels stop being
+      the engine's own sentences, or OMIT a caveat the served document
+      states (every disclosure / basis / note / refusal field is walked;
+      what is not a label must be on a reasoned exclusion list); the cash
+      movement the page prints beside the engine's estimate is not the two
+      served balance sheets';
   S7  the /sample route loses its place outside the auth wall, or nginx
       stops handing the route to the app (the directory of the same name
       would answer 403);
   S8  the dashboard's two example workbooks are not a rebuild, say
-      "anonimizat", or read differently in their two layouts.
+      "anonimizat", or read differently in their two layouts;
+  S9  the report is not the same bytes under another system locale and
+      timezone (it printed "RON 164.171" under ro_RO and "2 October" east
+      of UTC+12 until 2026-10-02);
+  S10 the report (HTML and PDF), the mapping CSV or the labels file does
+      not say the company is fictional; or the report carries a sentence
+      that is false for a public, model-free sample ("AI-assisted",
+      "Confidential", "as filed" / "filed close", "implying an opening
+      balance").
 
 WHAT IT CANNOT SEE: the report's HTML and PDF. Those are built by the
 product's TypeScript — `frontend/pages/cfo/__tests__/publicSample.test.tsx`
@@ -55,7 +69,10 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import re
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Tuple
@@ -293,42 +310,13 @@ def _published_texts() -> Iterator[Tuple[str, str]]:
             yield path.name, path.read_text(encoding="utf-8")
 
 
-#: Words in a fixture's file or directory name that are not a client's
-#: label: layout names, statement words, period markers.
-_GENERIC = frozenset((
-    "saga", "col", "pdf", "positional", "fy", "dec", "trial", "balance", "frozen",
-    "realestate", "retail", "real", "estate", "prod", "analysis", "trading", "balanta",
-    "verificare",
-))
-_BOOK_SUFFIXES = (".xlsx", ".xls", ".pdf", ".csv")
-
-
 def _client_labels() -> List[str]:
     """The labels of the REAL books this repository holds, read off their
-    file and directory names at run time — never typed here. Sources: the
-    corpus cases marked `synthetic: false`, the regression baselines, the
-    pack's real-workbook samples, and the books under files/ when the
-    checkout has them. A baseline or workbook is named `<label>_<period>…`,
-    so its label is the words before the first digit."""
-    import yaml
+    file and directory names at run time — never typed (scripts/
+    client_labels.py, shared with the `bundle-labels` gate)."""
+    import client_labels as CL
 
-    names: List[str] = []
-    for meta in sorted((REPO / "corpus").glob("*/meta.yaml")):
-        if yaml.safe_load(meta.read_text(encoding="utf-8")).get("synthetic") is False:
-            names.append(re.sub(r"\d+", " ", meta.parent.name))
-    fixtures = REPO / "src" / "engine" / "country_packs" / "ro_romania" / "fixtures"
-    books = sorted((fixtures / "regression_baselines").glob("*.json"))
-    books += sorted((fixtures / "saga_contsal_samples").glob("*"))
-    if (REPO / "files").is_dir():
-        books += [p for p in sorted((REPO / "files").iterdir())
-                  if p.is_file() and p.suffix.lower() in _BOOK_SUFFIXES]
-    names += [re.split(r"\d", p.stem, maxsplit=1)[0] for p in books]
-    labels = set()
-    for name in names:
-        for word in re.split(r"[^A-Za-z]+", name):
-            if len(word) >= 3 and word.lower() not in _GENERIC:
-                labels.add(word.lower())
-    return sorted(labels)
+    return CL.client_labels()
 
 
 def test_s5_no_client_label_appears_in_a_published_file():
@@ -389,8 +377,66 @@ def test_s6_the_mapping_lists_every_account_exactly_once(served, books, page_dat
             assert row["account"] not in served_items, row
             assert row["status"].startswith("excluded:") or row["status"] == "no_closing_balance", row
     csv_lines = (PUBLIC / B.MAPPING_CSV).read_text(encoding="utf-8-sig").splitlines()
-    assert csv_lines[0].split(",") == list(B.MAPPING_COLUMNS)
-    assert len(csv_lines) == len(accounts) + 1
+    assert csv_lines[0] == B.MAPPING_NOTICE
+    assert csv_lines[1].split(",") == list(B.MAPPING_COLUMNS)
+    assert len(csv_lines) == len(accounts) + 2
+
+
+def test_s6_every_mapped_balance_sheet_account_names_its_served_row(served, page_data):
+    """An account the engine carries to the balance sheet says WHICH row —
+    five analytic accounts (the engine lists their rows by prefix) had none
+    until 2026-10-02 — and the rows' accounts add up to the served rows."""
+    cbs = served[B.CURRENT_YEAR]["statements"]["canonical_bs"]
+    rows = {row["id"]: row for row in cbs["rows"]}
+    by_row: Dict[str, float] = {}
+    checked = 0
+    for m in page_data["mapping"]:
+        if m["status"] == "mapped" and m["statement"] == "BS":
+            assert m["balance_sheet_row"] in rows and m["balance_sheet_section"], (
+                "account %s is mapped to the balance sheet with no served row" % m["account"])
+            assert m["balance_sheet_section"] == rows[m["balance_sheet_row"]]["section"], m
+            by_row[m["balance_sheet_row"]] = by_row.get(m["balance_sheet_row"], 0.0) + m["amount_ron"]
+            checked += 1
+        if m["statement"] == "PL":
+            assert m["balance_sheet_row"] is None and m["balance_sheet_section"] is None, m
+    assert checked >= 35, "only %d balance-sheet accounts were checked" % checked
+    for row_id, total in by_row.items():
+        assert abs(abs(total) - abs(rows[row_id]["amount"])) < CENT, (
+            "row %s: its accounts carry %.2f, the served row %.2f" % (row_id, total, rows[row_id]["amount"]))
+    assert set(by_row) == set(rows) - {"current_year_profit"}, (
+        "served rows with no account in the mapping: %s" % sorted(set(rows) - set(by_row)))
+
+
+def test_s6_each_pl_account_names_the_served_line_it_sums_into(served, page_data):
+    """The mapping's `pl_line` is the served P&L line, and the accounts it
+    names add up to that line to the cent. 7812 / 7814 were listed as "other
+    operating income" although the engine nets them, with 6812 / 6814, into
+    the provisions line outside EBITDA: summing the file by bucket gave an
+    "other income" the report does not print."""
+    pl = served[B.CURRENT_YEAR]["statements"]["assembled_pl"]
+    sums: Dict[str, float] = {}
+    for m in page_data["mapping"]:
+        if m["statement"] != "PL":
+            assert m["pl_line"] is None, m
+            continue
+        assert m["pl_line"], "P&L account %s names no served line" % m["account"]
+        sums.setdefault(m["pl_line"], 0.0)
+        if m["pl_line"] == "net_provisions":
+            sign = 1.0 if m["account"] in pl["net_provisions"]["charges"]["by_account"] else -1.0
+            sums[m["pl_line"]] += sign * m["amount_ron"]
+        elif m["pl_line"] == "inventory_variation":
+            # the account's amount is its GROSS turnover; the line is the note
+            assert m["note"] and m["note"]["key"] == "served_net_derived_from_121", m
+            sums[m["pl_line"]] += m["note"]["value"]
+        else:
+            sums[m["pl_line"]] += m["amount_ron"]
+    assert len(sums) >= 9, sorted(sums)
+    for line, total in sorted(sums.items()):
+        node = pl[line]
+        want = node["value"] if isinstance(node, dict) else node
+        assert abs(total - want) < CENT, (
+            "P&L line %s: the mapping's accounts sum to %.2f, the engine serves %.2f"
+            % (line, total, want))
 
 
 def test_s6_every_label_is_the_engines_own_sentence(served, page_data):
@@ -414,6 +460,43 @@ def test_s6_every_label_is_the_engines_own_sentence(served, page_data):
                     % (label["key"], label["source"]))
     assert served[B.CURRENT_YEAR]["statements"]["assembled_cf"]["is_approximated"] == any(
         label["key"].startswith("cash_flow_approximated") for label in labels)
+
+
+def test_s6_no_caveat_the_engine_stated_is_left_off_the_label_list(served, page_data):
+    """The page says "each uncertainty label". Every disclosure, basis,
+    note and refusal the served documents state is a label, or sits on the
+    exclusion list with its reason — and no exclusion is dead."""
+    result = B.label_completeness(served[B.CURRENT_YEAR], served["comparatives"], page_data["labels"])
+    assert result["examined"] >= 100, "only %d disclosure fields were walked" % result["examined"]
+    assert not result["missing"], (
+        "the served document states %d caveat(s) the label list omits; first: %s — %r. Add it "
+        "to uncertainty_labels(), or to LABEL_EXCLUSIONS with the reason it is not one."
+        % (len(result["missing"]), result["missing"][0][0], result["missing"][0][1][:120]))
+    assert not result["dead_exclusions"], (
+        "LABEL_EXCLUSIONS entries that match nothing: %s" % result["dead_exclusions"])
+    keys = {label["key"] for label in page_data["labels"]}
+    # the three that were missing until 2026-10-02
+    assert {"bands_general_sme", "ccc_inventory_term_basis", "methodology_note_dscr_approx"} <= keys, keys
+    published = json.loads((PUBLIC / B.LABELS_JSON).read_text(encoding="utf-8"))
+    assert published["labels"] == page_data["labels"]
+
+
+def test_s6_the_cash_movement_beside_the_estimate_is_the_two_balance_sheets(served, page_data):
+    """The engine's cash flow is an estimate that does not read the prior
+    year; the page prints the real movement beside it. That movement is the
+    difference of two SERVED cash balances, re-read here."""
+    cash_flow = page_data["verdicts"]["cash_flow"]
+    closing = B.pointer(served[B.CURRENT_YEAR], cash_flow["pointer_cash"])
+    opening = B.pointer(served[B.PRIOR_YEAR], cash_flow["pointer_cash"])
+    assert (cash_flow["closing_cash"], cash_flow["prior_closing_cash"]) == (closing, opening)
+    assert abs(cash_flow["balance_sheet_movement"] - (closing - opening)) < CENT
+    assert cash_flow["net_change_estimated"] == B.pointer(
+        served[B.CURRENT_YEAR], cash_flow["pointer_net_change"])
+    assert cash_flow["is_approximated"] is True
+    inv = page_data["verdicts"]["inventory_days"]
+    total = served[B.CURRENT_YEAR]["statements"]["inventory_days"]["total"]
+    assert inv["ccc_term_value_q"] == total["closing_value_q"] != total["value_q"], (
+        "the cycle's inventory term is the period-end one, printed on its own")
 
 
 # ── S7 — the page is reachable, signed out, by URL ────────────────────
@@ -474,3 +557,88 @@ def test_s8_both_example_layouts_read_as_one_consistent_book():
     assert four[0] != compact[0], "the two examples are the same layout: %s" % four[0]
     assert four[1:] == compact[1:], "the two layouts of one book read differently: %s vs %s" % (
         four, compact)
+
+
+# ── S9 — the same bytes under another locale and timezone ─────────────
+
+
+def test_s9_the_report_is_the_same_bytes_under_another_locale_and_timezone():
+    """`build_public_sample_report.mjs --check --no-pdf` under a Romanian
+    system locale and a timezone thirteen hours east. Until 2026-10-02 both
+    changed the report: a recommendation printed its amounts with the
+    machine's own grouping ("RON 164.171"), and the cover printed the day in
+    local time ("2 October")."""
+    if shutil.which("node") is None or not (REPO / "node_modules").exists():
+        pytest.skip("node / node_modules are not on this host: the report cannot be rebuilt here")
+    env = dict(os.environ, LANG="ro_RO.UTF-8", LC_ALL="ro_RO.UTF-8", TZ="Pacific/Auckland")
+    proc = subprocess.run(
+        ["node", str(B.REPORT_SCRIPT), "--check", "--no-pdf"],
+        cwd=str(REPO), env=env, capture_output=True, text=True, timeout=180)
+    out = proc.stdout + proc.stderr
+    assert proc.returncode == 0 and "byte-identical rebuild" in out, (
+        "the sample report is not the same bytes under LANG=ro_RO.UTF-8 / TZ=Pacific/Auckland:\n%s"
+        % out[-900:])
+    # the environment was honoured: this Node formats a number the Romanian way
+    probe = subprocess.run(
+        ["node", "-e", "process.stdout.write((1234567.5).toLocaleString() + '|' + "
+                       "new Date('2026-10-01T12:00:00Z').getDate())"],
+        env=env, capture_output=True, text=True, timeout=60)
+    grouped, _, day = probe.stdout.partition("|")
+    assert day == "2", "TZ was not applied to the rebuild (day %r)" % day
+    assert grouped.startswith("1.234.567"), (
+        "this Node build has no Romanian locale data (%r): the locale half of the law is "
+        "vacuous on this host" % grouped)
+
+
+# ── S10 — what the published files say about themselves ───────────────
+
+#: Sentences the product's export printed on every report until 2026-10-02
+#: that are false for a public sample built without a model.
+_FALSE_ON_A_PUBLIC_SAMPLE = (
+    r"AI-assisted", r"Confidential", r"\bas filed\b", r"filed close", r"company filed",
+    r"implying an opening balance", r"at any level of effort",
+)
+
+
+def _report_texts() -> List[Tuple[str, str]]:
+    import html as _html
+
+    out = []
+    for name, text in _published_texts():
+        if name == B.REPORT_HTML:
+            body = text[text.index("</style>"):]
+            body = re.sub(r"<script[\s\S]*?</script>", " ", body)
+            out.append((name, re.sub(r"\s+", " ", _html.unescape(re.sub(r"<[^>]+>", " ", body)))))
+        elif name == B.REPORT_PDF:
+            out.append((name, re.sub(r"\s+", " ", text)))
+    return out
+
+
+def test_s10_the_report_says_the_company_is_fictional_and_nothing_false_about_itself():
+    texts = _report_texts()
+    assert [name for name, _ in texts] == [B.REPORT_HTML, B.REPORT_PDF]
+    for name, text in texts:
+        for word in ("Fictional company", "not a real entity", "Companie fictivă"):
+            assert word in text, "%s does not say the company is fictional (%r)" % (name, word)
+        for pattern in _FALSE_ON_A_PUBLIC_SAMPLE:
+            hit = re.search(pattern, text)
+            assert hit is None, "%s prints %r: …%s…" % (
+                name, hit.group(0), text[max(0, hit.start() - 80):hit.end() + 80])
+        assert "no AI model read or produced these figures" in text, (
+            "%s does not say who read the document" % name)
+    # every printed page of the PDF but the cover carries the short notice
+    from pypdf import PdfReader
+
+    reader = PdfReader(io.BytesIO((PUBLIC / B.REPORT_PDF).read_bytes()))
+    pages = [(page.extract_text() or "") for page in reader.pages]
+    without = [i + 1 for i, text in enumerate(pages) if "Fictional company" not in text]
+    assert not without, "PDF pages with no fictional-company notice: %s" % without
+
+
+def test_s10_the_mapping_and_the_labels_say_the_company_is_fictional():
+    first = (PUBLIC / B.MAPPING_CSV).read_text(encoding="utf-8-sig").splitlines()[0]
+    assert first.startswith("#") and "fictional company" in first and "companie fictivă" in first, first
+    labels = json.loads((PUBLIC / B.LABELS_JSON).read_text(encoding="utf-8"))
+    assert labels["company"]["fictional"] is True
+    assert "Fictional company" in labels["company"]["notice_en"]
+    assert "Companie fictivă" in labels["company"]["notice_ro"]

@@ -409,6 +409,8 @@ export default function ComprehensiveReport() {
     statements: report.statements,
     currency,
     briefingShown: !sectorBlocked && briefingShown.body !== null,
+    // Section 6 (Valuation) on this page is computed in the browser.
+    browserValuation: true,
     language: i18n.language,
   });
   const canonical = buildCanonicalMetricsFromInputs({
@@ -1001,7 +1003,7 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
   rows.push({
     label: acc121?.status === "not_anchored"
       ? "= Net profit — built from the accounts (no account 121 in the trial balance)"
-      : "= Net profit — account 121 (as filed)",
+      : "= Net profit — account 121 (closing balance)",
     val: filedNetProfit,
     style: "headline",
     origin: f("net_income_statutory"),
@@ -1078,8 +1080,8 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
           The column above builds the P&amp;L from the trial balance&rsquo;s class 6 and class 7
           movements, with the stock variation (711) and own work capitalised (72x) inside EBITDA —
           one definition on every page. It ends on account 121&rsquo;s closing balance
-          ({fmt(filedNetProfit)} {displayCurrency}) — the figure the company filed, and the one
-          every KPI tile and ratio on this page states.
+          ({fmt(filedNetProfit)} {displayCurrency}) — the figure every KPI tile and ratio on
+          this page states.
           {recon?.identityNote && <> {recon.identityNote.en}</>}
           {recon?.splitAssumption && <> {recon.splitAssumption.en}</>}
           {hasUnexplained && (

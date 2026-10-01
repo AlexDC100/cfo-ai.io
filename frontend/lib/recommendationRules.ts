@@ -466,7 +466,7 @@ interface Rule {
  *  net result nobody served) is "not reported" — `Math.round(null)` is 0,
  *  and "RON 0" would be a figure the statements never stated. */
 const RON = (n: number | null | undefined) =>
-  typeof n === "number" && Number.isFinite(n) ? `RON ${Math.round(n).toLocaleString()}` : "not reported";
+  typeof n === "number" && Number.isFinite(n) ? `RON ${Math.round(n).toLocaleString("en-US")}` : "not reported";
 
 // ─── Absent-ratio discipline ────────────────────────────────────────────
 //

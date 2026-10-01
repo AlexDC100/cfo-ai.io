@@ -20,7 +20,16 @@
 //     status cell print;
 //   · the difference is the served `canonical_bs.difference`, to the cent,
 //     or the statement that none was served — never a typed tolerance;
-//   · the narrative is credited only when a briefing is shown.
+//   · the narrative is credited only when a briefing is shown;
+//   · WHO READ THE DOCUMENT is the served extraction method, never a
+//     universal sentence (2026-10-02). "Every figure is computed by the
+//     deterministic engine from the uploaded trial balance" was printed on
+//     every report — including a period whose `extraction.method` is "llm",
+//     where a model read the numbers and the same page carries the AI-read
+//     badge, and over a valuation section that is arithmetic done in the
+//     browser. `reportAuthorship` reads the method once; the in-app footer
+//     and the standalone export's basis note (`basisAuthorshipSentence`)
+//     both print from it.
 //
 // Law: lib/__tests__/reportFooter.test.ts (gate public-claims).
 
@@ -37,6 +46,9 @@ export interface ReportFooterInput {
   currency: string;
   /** True when a briefing body is SHOWN on this report. */
   briefingShown: boolean;
+  /** True when the page carries a valuation section computed in the
+   *  browser (the signed-in /report page does; the export does not). */
+  browserValuation?: boolean;
   /** UI language — the figure's number format follows it (CLAUDE.md §26). */
   language: string;
 }
@@ -91,12 +103,98 @@ function servedBalance(
   };
 }
 
+/** How the uploaded document's numbers were read, as the engine stamped it
+ *  on the served balance sheet (`canonical_bs.extraction.method`, or
+ *  `classification.method` for the AI lane — the same two fields the
+ *  statement's AI-read badge tests). */
+export type ReadBy =
+  /** every number read by the deterministic parser */
+  | "code"
+  /** the numbers were read by an AI model */
+  | "ai_model"
+  /** an AI model interpreted the layout; the numbers were read by code */
+  | "ai_layout"
+  /** the served document does not say */
+  | "not_stated";
+
+export interface ReportAuthorship {
+  readBy: ReadBy;
+  /** "trial balance" only when the engine read one of its trial-balance
+   *  layouts; any other upload is "document". */
+  documentWord: "trial balance" | "document";
+}
+
+/** `extraction.source_format` values that ARE a trial-balance layout. A
+ *  statutory F30/F10 workbook, a map-guided or a model read is a
+ *  "document". */
+const TRIAL_BALANCE_FORMAT = /^(saga_\w+|generic_\w+|pdf_positional)$/;
+
+export function reportAuthorship(statements: unknown): ReportAuthorship {
+  const cbs = isRec(statements) && isRec(statements.canonical_bs) ? statements.canonical_bs : null;
+  const extraction = cbs && isRec(cbs.extraction) ? cbs.extraction : null;
+  const classification = cbs && isRec(cbs.classification) ? cbs.classification : null;
+  const method = typeof extraction?.method === "string" ? extraction.method : null;
+  const format = typeof extraction?.source_format === "string" ? extraction.source_format : "";
+  const readBy: ReadBy =
+    method === "llm" || classification?.method === "llm"
+      ? "ai_model"
+      : method === "mechanical_mapped"
+        ? "ai_layout"
+        : method === "deterministic"
+          ? "code"
+          : "not_stated";
+  return {
+    readBy,
+    documentWord: readBy === "code" && TRIAL_BALANCE_FORMAT.test(format) ? "trial balance" : "document",
+  };
+}
+
+/** Who read the document and who computed the figures — one sentence per
+ *  reading, none of them universal. */
+function readSentence(a: ReportAuthorship): string {
+  switch (a.readBy) {
+    case "code":
+      return `The statements, ratios and credit score in this report were read and computed by ` +
+        `code — the deterministic engine — from the uploaded ${a.documentWord}; no AI model read ` +
+        `or produced these figures.`;
+    case "ai_model":
+      return "The figures in this report were read from the uploaded document by an AI model, " +
+        "then computed by the engine. Check them against the source before external use.";
+    case "ai_layout":
+      return "The layout of the uploaded document was interpreted by an AI model; the numbers " +
+        "were then read and computed by code.";
+    default:
+      return "The served statement does not record how the uploaded document was read.";
+  }
+}
+
+/** The standalone export's basis note: what the figures were computed from
+ *  and by whom. `aiNarrative` is true when at least one finding in the
+ *  document carries wording an AI model wrote. The export renders no
+ *  briefing and no valuation section. */
+export function basisAuthorshipSentence(
+  statements: unknown, opts: { aiNarrative: boolean },
+): string {
+  const a = reportAuthorship(statements);
+  return (
+    readSentence(a) +
+    (opts.aiNarrative
+      ? " The explanations marked as AI-written under \u201cWhat the numbers say\u201d were worded by an AI model from these figures."
+      : "") +
+    " Final analytical judgement and any onward decisions remain with management."
+  );
+}
+
 export function reportFooterLines(input: ReportFooterInput): ReportFooterLines {
   const { p, diff } = servedBalance(input.statements, input.currency);
 
   const generated =
-    "Generated by CFO AI. Every figure is computed by the deterministic engine " +
-    "from the uploaded trial balance." +
+    "Generated by CFO AI. " +
+    readSentence(reportAuthorship(input.statements)) +
+    (input.browserValuation
+      ? " The valuation section is arithmetic done in your browser on those figures and the " +
+        "assumptions shown there."
+      : "") +
     (input.briefingShown
       ? " The briefing in section 1 was written by an AI model from these figures."
       : "");

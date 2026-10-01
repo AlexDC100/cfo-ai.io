@@ -24,38 +24,38 @@
  },
  "files": [
   {
-   "bytes": 66239,
+   "bytes": 66246,
    "kind": "trial_balance",
    "name": "balanta_exemplu_fictiv_31.12.2025.xlsx",
-   "sha256": "d2fbe7afbf77cc563437672fa5c9f7650be931389602bc0eb15718bb63c9ecd6"
+   "sha256": "c421e65667e247396bb9961b248695fc4d7641693f24ee68d9b43c5199169eb0"
   },
   {
-   "bytes": 64106,
+   "bytes": 64113,
    "kind": "trial_balance",
    "name": "balanta_exemplu_fictiv_31.12.2024.xlsx",
-   "sha256": "c1c4550539416323d5954e8a8ae5aa5546b2a506e2ffe8027e2a68dcfb4db38c"
+   "sha256": "e7732ca670751f2400c2b5d8b0b4966ccc2035f946cb2e501bde0b0a3afde67a"
   },
   {
-   "bytes": 324345,
+   "bytes": 326289,
    "kind": "report_html",
    "name": "sample_report_fy2025.html",
-   "sha256": "dbece367255d801445250eb82287678f180b69c8eb860ee6008c33896fae5fc8"
+   "sha256": "066a5889409fa32a0900bf8fe2daa0f937e5e3c80d5ee5b1ceaecfe0a4678700"
   },
   {
    "kind": "report_pdf",
    "name": "sample_report_fy2025.pdf"
   },
   {
-   "bytes": 8694,
+   "bytes": 9885,
    "kind": "mapping",
    "name": "account_mapping_fy2025.csv",
-   "sha256": "16d1ee0f56a4733e66ccab3c0048347f4b404bd09b9c491ed67d8788ee9ae57b"
+   "sha256": "2c467bf4025687a8529c7c232fad3dda5b91d7e23c2c29f6d480a8c9b36f1f58"
   },
   {
-   "bytes": 5631,
+   "bytes": 7947,
    "kind": "labels",
    "name": "uncertainty_labels_fy2025.json",
-   "sha256": "5e3464db012388180d349e17a1b7ba190a9058dbf0515223cf62e35c751ee156"
+   "sha256": "60e334633090be2a7adf2a54c590e0bcab122286a9b92ffc7ead6821922b5a14"
   },
   {
    "bytes": 218786,
@@ -73,7 +73,7 @@
    "bytes": 363497,
    "kind": "served_document",
    "name": "served_comparatives_fy2025_vs_fy2024.json",
-   "sha256": "ab963c66faefcf5568943715fda006dd5e56643523f1cb81a0c483d1ca62c1eb"
+   "sha256": "725ea2cf4b99f3cb0826bcd833a32e018b303b5823a48e71e8d5a66189359864"
   }
  ],
  "labels": [
@@ -115,6 +115,15 @@
   },
   {
    "area": "ratios",
+   "engine_en": "Verdict bands are general-SME defaults — not calibrated to the resolved industry's seeded distribution. Industry-specific bands activate when the period's resolved CAEN has matching rows in industry_benchmarks; that wiring is scheduled for a follow-up engine pass.",
+   "engine_ro": null,
+   "key": "bands_general_sme",
+   "kind": "basis",
+   "reason": null,
+   "source": "/statements/assembled_bands/disclosure"
+  },
+  {
+   "area": "ratios",
    "engine_en": "average of the balances at 1 January and 31 December",
    "engine_ro": "media soldurilor la 1 ianuarie și 31 decembrie",
    "key": "inventory_days_basis",
@@ -124,12 +133,30 @@
   },
   {
    "area": "ratios",
+   "engine_en": "stock at 31 December — a single day",
+   "engine_ro": "stoc la 31 decembrie — o singură zi",
+   "key": "ccc_inventory_term_basis",
+   "kind": "basis",
+   "reason": null,
+   "source": "/statements/inventory_days/ccc_dio_term/basis_label"
+  },
+  {
+   "area": "ratios",
    "engine_en": "food and consumer-goods stock is seasonal: a year-end balance can sit far from the usual level; only monthly balances remove the effect",
    "engine_ro": "stocurile din alimentație și bunuri de larg consum sunt sezoniere: un sold la sfârșit de an poate fi departe de nivelul obișnuit; doar soldurile lunare elimină efectul",
    "key": "inventory_days_seasonality",
    "kind": "basis",
    "reason": null,
    "source": "/statements/inventory_days/seasonality"
+  },
+  {
+   "area": "ratios",
+   "engine_en": "a claim must cite the split by stock type and the average balance",
+   "engine_ro": "afirmația trebuie să citeze împărțirea pe tipuri de stoc și media soldurilor",
+   "key": "inventory_days_claim_policy",
+   "kind": "basis",
+   "reason": null,
+   "source": "/statements/inventory_days/claim_policy"
   },
   {
    "area": "ratios",
@@ -146,6 +173,24 @@
     "ratio": "adjusted_dscr"
    },
    "source": "/assembled_metrics/ratio_table/rows/key=adjusted_dscr/reason"
+  },
+  {
+   "area": "ratios",
+   "engine_en": "Proxy: D&A as % revenue. Real capex requires period-over-period PPE delta + disposals (F4.3 cash flow refinement).",
+   "engine_ro": null,
+   "key": "methodology_note_capex_intensity",
+   "kind": "approximation",
+   "reason": null,
+   "source": "/statements/assembled_canonical_v1/methodology/ratios/capex_intensity/note"
+  },
+  {
+   "area": "ratios",
+   "engine_en": "Rough DSCR; LT debt amortized over 8y assumption. Refine via per-period schedule when available.",
+   "engine_ro": null,
+   "key": "methodology_note_dscr_approx",
+   "kind": "approximation",
+   "reason": null,
+   "source": "/statements/assembled_canonical_v1/methodology/ratios/dscr_approx/note"
   },
   {
    "area": "risk",
@@ -182,6 +227,15 @@
    "kind": "checked_clear",
    "reason": null,
    "source": "/statements/insights/not_fired/2/reason"
+  },
+  {
+   "area": "findings",
+   "engine_en": "the advisory lane was not invoked for this build",
+   "engine_ro": null,
+   "key": "findings_wording_template",
+   "kind": "basis",
+   "reason": null,
+   "source": "/statements/insights/insights/0/narrative/reason"
   },
   {
    "area": "document",
@@ -221,6 +275,7 @@
    "balance_sheet_section": "equity",
    "engine_bucket": "shareCapital",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -233,6 +288,7 @@
    "balance_sheet_section": "equity",
    "engine_bucket": "otherEquity",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -245,6 +301,7 @@
    "balance_sheet_section": "equity",
    "engine_bucket": "otherEquity",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -257,6 +314,7 @@
    "balance_sheet_section": "equity",
    "engine_bucket": "retainedEarnings",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -269,6 +327,7 @@
    "balance_sheet_section": "equity",
    "engine_bucket": null,
    "note": null,
+   "pl_line": null,
    "statement": null,
    "status": "excluded:profit_control_account_121"
   },
@@ -276,11 +335,12 @@
    "account": "1518",
    "account_name": "Alte provizioane",
    "amount_ron": 50025.43,
-   "balance_sheet_row": null,
-   "balance_sheet_row_label_key": null,
-   "balance_sheet_section": null,
+   "balance_sheet_row": "provisions_lt",
+   "balance_sheet_row_label_key": "bs.row.provisions_lt",
+   "balance_sheet_section": "provisions",
    "engine_bucket": "otherNonCurrentLiab",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -293,6 +353,7 @@
    "balance_sheet_section": "non_current_liabilities",
    "engine_bucket": "ltDebt",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -305,6 +366,7 @@
    "balance_sheet_section": "non_current_liabilities",
    "engine_bucket": "ltDebt",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -317,6 +379,7 @@
    "balance_sheet_section": "non_current_assets",
    "engine_bucket": "intangibles",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -329,6 +392,7 @@
    "balance_sheet_section": "non_current_assets",
    "engine_bucket": "ppe",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -341,6 +405,7 @@
    "balance_sheet_section": "non_current_assets",
    "engine_bucket": "ppe",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -353,6 +418,7 @@
    "balance_sheet_section": "non_current_assets",
    "engine_bucket": "ppe",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -365,6 +431,7 @@
    "balance_sheet_section": "non_current_assets",
    "engine_bucket": "ppe",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -377,6 +444,7 @@
    "balance_sheet_section": "non_current_assets",
    "engine_bucket": "ppe",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -389,6 +457,7 @@
    "balance_sheet_section": "non_current_assets",
    "engine_bucket": "ppe",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -401,6 +470,7 @@
    "balance_sheet_section": "non_current_assets",
    "engine_bucket": "intangibles",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -413,6 +483,7 @@
    "balance_sheet_section": "non_current_assets",
    "engine_bucket": "ppe",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -425,6 +496,7 @@
    "balance_sheet_section": "non_current_assets",
    "engine_bucket": "ppe",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -437,6 +509,7 @@
    "balance_sheet_section": "non_current_assets",
    "engine_bucket": "ppe",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -449,6 +522,7 @@
    "balance_sheet_section": "current_assets",
    "engine_bucket": "inventory",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -456,11 +530,12 @@
    "account": "3022",
    "account_name": "Combustibili",
    "amount_ron": 6120.0,
-   "balance_sheet_row": null,
-   "balance_sheet_row_label_key": null,
-   "balance_sheet_section": null,
+   "balance_sheet_row": "inventory_consumables",
+   "balance_sheet_row_label_key": "bs.row.inventory_consumables",
+   "balance_sheet_section": "current_assets",
    "engine_bucket": "inventory",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -468,11 +543,12 @@
    "account": "3028",
    "account_name": "Alte materiale consumabile",
    "amount_ron": 19804.09,
-   "balance_sheet_row": null,
-   "balance_sheet_row_label_key": null,
-   "balance_sheet_section": null,
+   "balance_sheet_row": "inventory_consumables",
+   "balance_sheet_row_label_key": "bs.row.inventory_consumables",
+   "balance_sheet_section": "current_assets",
    "engine_bucket": "inventory",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -485,6 +561,7 @@
    "balance_sheet_section": "current_assets",
    "engine_bucket": "inventory",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -497,6 +574,7 @@
    "balance_sheet_section": "current_assets",
    "engine_bucket": "inventory",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -509,6 +587,7 @@
    "balance_sheet_section": "current_assets",
    "engine_bucket": "inventory",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -521,6 +600,7 @@
    "balance_sheet_section": "current_assets",
    "engine_bucket": "inventory",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -533,6 +613,7 @@
    "balance_sheet_section": "current_assets",
    "engine_bucket": "inventory",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -545,6 +626,7 @@
    "balance_sheet_section": "current_liabilities",
    "engine_bucket": "ap",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -557,6 +639,7 @@
    "balance_sheet_section": "current_liabilities",
    "engine_bucket": "ap",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -569,6 +652,7 @@
    "balance_sheet_section": "current_liabilities",
    "engine_bucket": "ap",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -581,6 +665,7 @@
    "balance_sheet_section": "current_assets",
    "engine_bucket": "otherCurrentAssets",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -593,6 +678,7 @@
    "balance_sheet_section": "current_assets",
    "engine_bucket": "ar",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -605,6 +691,7 @@
    "balance_sheet_section": "current_assets",
    "engine_bucket": "ar",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -617,6 +704,7 @@
    "balance_sheet_section": "current_liabilities",
    "engine_bucket": "otherCurrentLiab",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -629,6 +717,7 @@
    "balance_sheet_section": "current_liabilities",
    "engine_bucket": "otherCurrentLiab",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -641,6 +730,7 @@
    "balance_sheet_section": "current_liabilities",
    "engine_bucket": "otherCurrentLiab",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -653,6 +743,7 @@
    "balance_sheet_section": "current_liabilities",
    "engine_bucket": "otherCurrentLiab",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -665,6 +756,7 @@
    "balance_sheet_section": "current_liabilities",
    "engine_bucket": "otherCurrentLiab",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -677,6 +769,7 @@
    "balance_sheet_section": "current_liabilities",
    "engine_bucket": "otherCurrentLiab",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -684,11 +777,12 @@
    "account": "4423",
    "account_name": "TVA de plată",
    "amount_ron": 9189.96,
-   "balance_sheet_row": null,
-   "balance_sheet_row_label_key": null,
-   "balance_sheet_section": null,
+   "balance_sheet_row": "ap_tax",
+   "balance_sheet_row_label_key": "bs.row.ap_tax",
+   "balance_sheet_section": "current_liabilities",
    "engine_bucket": "otherCurrentLiab",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -701,6 +795,7 @@
    "balance_sheet_section": null,
    "engine_bucket": null,
    "note": null,
+   "pl_line": null,
    "statement": null,
    "status": "no_closing_balance"
   },
@@ -713,6 +808,7 @@
    "balance_sheet_section": null,
    "engine_bucket": null,
    "note": null,
+   "pl_line": null,
    "statement": null,
    "status": "no_closing_balance"
   },
@@ -725,6 +821,7 @@
    "balance_sheet_section": "current_liabilities",
    "engine_bucket": "otherCurrentLiab",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -737,6 +834,7 @@
    "balance_sheet_section": "current_liabilities",
    "engine_bucket": "otherCurrentLiab",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -749,6 +847,7 @@
    "balance_sheet_section": null,
    "engine_bucket": null,
    "note": null,
+   "pl_line": null,
    "statement": null,
    "status": "no_closing_balance"
   },
@@ -761,6 +860,7 @@
    "balance_sheet_section": "current_liabilities",
    "engine_bucket": "otherCurrentLiab",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -773,6 +873,7 @@
    "balance_sheet_section": "prepaid_expenses",
    "engine_bucket": "otherCurrentAssets",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -780,11 +881,12 @@
    "account": "4751",
    "account_name": "Subvenții guvernamentale pentru investiții",
    "amount_ron": 180000.0,
-   "balance_sheet_row": null,
-   "balance_sheet_row_label_key": null,
-   "balance_sheet_section": null,
+   "balance_sheet_row": "government_grants_deferred",
+   "balance_sheet_row_label_key": "bs.row.government_grants_deferred",
+   "balance_sheet_section": "deferred_income",
    "engine_bucket": "otherNonCurrentLiab",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -797,6 +899,7 @@
    "balance_sheet_section": "current_assets",
    "engine_bucket": "ar",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -809,6 +912,7 @@
    "balance_sheet_section": "current_assets",
    "engine_bucket": "cash",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -821,6 +925,7 @@
    "balance_sheet_section": "current_assets",
    "engine_bucket": "cash",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -833,6 +938,7 @@
    "balance_sheet_section": "current_liabilities",
    "engine_bucket": "stDebt",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -845,6 +951,7 @@
    "balance_sheet_section": "current_assets",
    "engine_bucket": "cash",
    "note": null,
+   "pl_line": null,
    "statement": "BS",
    "status": "mapped"
   },
@@ -857,6 +964,7 @@
    "balance_sheet_section": null,
    "engine_bucket": null,
    "note": null,
+   "pl_line": null,
    "statement": null,
    "status": "excluded:transit_account_581"
   },
@@ -869,6 +977,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "cogs",
    "note": null,
+   "pl_line": "cogs",
    "statement": "PL",
    "status": "mapped"
   },
@@ -881,6 +990,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "cogs",
    "note": null,
+   "pl_line": "cogs",
    "statement": "PL",
    "status": "mapped"
   },
@@ -893,6 +1003,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "cogs",
    "note": null,
+   "pl_line": "cogs",
    "statement": "PL",
    "status": "mapped"
   },
@@ -905,6 +1016,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "operatingExpenses",
    "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
    "statement": "PL",
    "status": "mapped"
   },
@@ -917,6 +1029,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "operatingExpenses",
    "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
    "statement": "PL",
    "status": "mapped"
   },
@@ -929,6 +1042,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "operatingExpenses",
    "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
    "statement": "PL",
    "status": "mapped"
   },
@@ -941,6 +1055,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "cogs",
    "note": null,
+   "pl_line": "cogs",
    "statement": "PL",
    "status": "mapped"
   },
@@ -953,6 +1068,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "operatingExpenses",
    "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
    "statement": "PL",
    "status": "mapped"
   },
@@ -965,6 +1081,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "operatingExpenses",
    "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
    "statement": "PL",
    "status": "mapped"
   },
@@ -977,6 +1094,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "operatingExpenses",
    "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
    "statement": "PL",
    "status": "mapped"
   },
@@ -989,6 +1107,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "operatingExpenses",
    "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
    "statement": "PL",
    "status": "mapped"
   },
@@ -1001,6 +1120,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "operatingExpenses",
    "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
    "statement": "PL",
    "status": "mapped"
   },
@@ -1013,6 +1133,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "operatingExpenses",
    "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
    "statement": "PL",
    "status": "mapped"
   },
@@ -1025,6 +1146,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "operatingExpenses",
    "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
    "statement": "PL",
    "status": "mapped"
   },
@@ -1037,6 +1159,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "operatingExpenses",
    "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
    "statement": "PL",
    "status": "mapped"
   },
@@ -1049,6 +1172,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "operatingExpenses",
    "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
    "statement": "PL",
    "status": "mapped"
   },
@@ -1061,6 +1185,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "operatingExpenses",
    "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
    "statement": "PL",
    "status": "mapped"
   },
@@ -1073,6 +1198,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "operatingExpenses",
    "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
    "statement": "PL",
    "status": "mapped"
   },
@@ -1085,6 +1211,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "operatingExpenses",
    "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
    "statement": "PL",
    "status": "mapped"
   },
@@ -1097,6 +1224,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "operatingExpenses",
    "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
    "statement": "PL",
    "status": "mapped"
   },
@@ -1109,6 +1237,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "operatingExpenses",
    "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
    "statement": "PL",
    "status": "mapped"
   },
@@ -1121,6 +1250,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "operatingExpenses",
    "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
    "statement": "PL",
    "status": "mapped"
   },
@@ -1133,6 +1263,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "operatingExpenses",
    "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
    "statement": "PL",
    "status": "mapped"
   },
@@ -1145,6 +1276,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "operatingExpenses",
    "note": null,
+   "pl_line": "opex_excluding_cogs_and_da",
    "statement": "PL",
    "status": "mapped"
   },
@@ -1157,6 +1289,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "financialExpense",
    "note": null,
+   "pl_line": "financial_expense",
    "statement": "PL",
    "status": "mapped"
   },
@@ -1169,6 +1302,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "interestExpense",
    "note": null,
+   "pl_line": "interest_expense",
    "statement": "PL",
    "status": "mapped"
   },
@@ -1181,6 +1315,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "depreciation",
    "note": null,
+   "pl_line": "depreciation",
    "statement": "PL",
    "status": "mapped"
   },
@@ -1193,6 +1328,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "depreciation",
    "note": null,
+   "pl_line": "net_provisions",
    "statement": "PL",
    "status": "mapped"
   },
@@ -1205,6 +1341,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "depreciation",
    "note": null,
+   "pl_line": "net_provisions",
    "statement": "PL",
    "status": "mapped"
   },
@@ -1217,6 +1354,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "taxExpense",
    "note": null,
+   "pl_line": "income_tax",
    "statement": "PL",
    "status": "mapped"
   },
@@ -1229,6 +1367,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "revenue",
    "note": null,
+   "pl_line": "turnover",
    "statement": "PL",
    "status": "mapped"
   },
@@ -1241,6 +1380,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "revenue",
    "note": null,
+   "pl_line": "turnover",
    "statement": "PL",
    "status": "mapped"
   },
@@ -1253,6 +1393,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "revenue",
    "note": null,
+   "pl_line": "turnover",
    "statement": "PL",
    "status": "mapped"
   },
@@ -1265,6 +1406,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "revenue",
    "note": null,
+   "pl_line": "turnover",
    "statement": "PL",
    "status": "mapped"
   },
@@ -1280,6 +1422,7 @@
     "key": "served_net_derived_from_121",
     "value": 123740.06
    },
+   "pl_line": "inventory_variation",
    "statement": "PL",
    "status": "mapped"
   },
@@ -1292,6 +1435,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "otherIncome",
    "note": null,
+   "pl_line": "other_operating_income",
    "statement": "PL",
    "status": "mapped"
   },
@@ -1304,6 +1448,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "otherIncome",
    "note": null,
+   "pl_line": "other_operating_income",
    "statement": "PL",
    "status": "mapped"
   },
@@ -1316,6 +1461,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "financialIncome",
    "note": null,
+   "pl_line": "financial_income",
    "statement": "PL",
    "status": "mapped"
   },
@@ -1328,6 +1474,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "financialIncome",
    "note": null,
+   "pl_line": "financial_income",
    "statement": "PL",
    "status": "mapped"
   },
@@ -1340,6 +1487,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "otherIncome",
    "note": null,
+   "pl_line": "net_provisions",
    "statement": "PL",
    "status": "mapped"
   },
@@ -1352,6 +1500,7 @@
    "balance_sheet_section": null,
    "engine_bucket": "otherIncome",
    "note": null,
+   "pl_line": "net_provisions",
    "statement": "PL",
    "status": "mapped"
   }
@@ -1836,7 +1985,13 @@
    "unmapped": 0
   },
   "cash_flow": {
-   "is_approximated": true
+   "balance_sheet_movement": -9848.42,
+   "closing_cash": 226786.8,
+   "is_approximated": true,
+   "net_change_estimated": 118524.0,
+   "pointer_cash": "/statements/assembled_bs/cash",
+   "pointer_net_change": "/statements/assembled_cf/net_change_in_cash",
+   "prior_closing_cash": 236635.22
   },
   "credit": {
    "altman_z": 4.34,
@@ -1942,6 +2097,9 @@
    "basis": "average_two_year_ends",
    "basis_label_en": "average of the balances at 1 January and 31 December",
    "basis_label_ro": "media soldurilor la 1 ianuarie și 31 decembrie",
+   "ccc_term_basis_label_en": "stock at 31 December — a single day",
+   "ccc_term_basis_label_ro": "stoc la 31 decembrie — o singură zi",
+   "ccc_term_value_q": "69",
    "may_call_slow": true,
    "reconciliation": "reconciled",
    "seasonality_flagged": true,

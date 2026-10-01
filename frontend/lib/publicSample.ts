@@ -98,6 +98,8 @@ export interface SampleMappingRow {
   engine_bucket: string | null;
   balance_sheet_section: string | null;
   balance_sheet_row: string | null;
+  /** The served P&L line (a field of `assembled_pl`) the account sums into. */
+  pl_line: string | null;
   amount_ron: number | null;
   status: string;
   note: { key: string; value: number } | null;

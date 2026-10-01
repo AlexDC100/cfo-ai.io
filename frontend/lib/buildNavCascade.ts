@@ -233,7 +233,7 @@ export function buildNavCascade(args: BuildArgs): NavCascade {
       const propertyValue = noi / capRate;
       assumptions.cap_rate = capRate;
       assumptions.noi = noi;
-      notes = `Marked to market at ${(capRate * 100).toFixed(2)}% cap rate on NOI ${noi.toLocaleString()}`;
+      notes = `Marked to market at ${(capRate * 100).toFixed(2)}% cap rate on NOI ${noi.toLocaleString("en-US")}`;
       return {
         accountCode: "215",
         accountName: RO_ACCOUNT_NAMES["215"] ?? "Investment property",
@@ -250,7 +250,7 @@ export function buildNavCascade(args: BuildArgs): NavCascade {
       assumptions.yield = affiliateYield;
       assumptions.annual_dividend = dividendIncome;
       notes = dividendIncome > 0
-        ? `Capitalized at ${(affiliateYield * 100).toFixed(1)}% yield on annual dividend ${dividendIncome.toLocaleString()}`
+        ? `Capitalized at ${(affiliateYield * 100).toFixed(1)}% yield on annual dividend ${dividendIncome.toLocaleString("en-US")}`
         : "No dividend stream observed — held at book";
     } else if (rule.method === "haircut") {
       const haircut = rule.params?.haircut_pct ?? 0;

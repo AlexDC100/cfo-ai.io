@@ -172,7 +172,7 @@ const SPECS: Spec[] = [
   {
     key: "net_margin",
     label: "Net margin",
-    formula: "net profit as filed (account 121) ÷ revenue",
+    formula: "net profit (account 121, closing balance) ÷ revenue",
     unit: "%",
     recompute: (e) => {
       const v = div(e.pl.net_income_statutory, e.pl.revenue);
@@ -186,7 +186,7 @@ const SPECS: Spec[] = [
   {
     key: "roa",
     label: "Return on assets",
-    formula: "net profit as filed (account 121) ÷ total assets",
+    formula: "net profit (account 121, closing balance) ÷ total assets",
     unit: "%",
     recompute: (e) => {
       const v = div(e.pl.net_income_statutory, e.bs.total_assets);
@@ -200,7 +200,7 @@ const SPECS: Spec[] = [
   {
     key: "roe",
     label: "Return on equity",
-    formula: "net profit as filed (account 121) ÷ total equity",
+    formula: "net profit (account 121, closing balance) ÷ total equity",
     unit: "%",
     recompute: (e) => {
       const v = div(e.pl.net_income_statutory, e.bs.total_equity);
@@ -498,7 +498,7 @@ describe("G4 — every rendered ratio equals its stated formula", () => {
       // first strip card (was "Operating revenue", which added 722).
       "Net turnover",
       "EBITDA",
-      "Net Income (account 121, as filed)",
+      "Net Income (account 121, closing balance)",
       "Total Debt",
       "Composite credit score",
       "Credit letter grade",

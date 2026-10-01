@@ -129,12 +129,20 @@ class Gate(object):
     ``canaries``    literals the output MUST contain. Missing => the
                     gate's discovery is broken, whatever its exit code.
     ``vacuous_ok``  0 work is reported as PASS(VACUOUS), not green.
+    ``no_skips``    a vitest gate whose run reports ANY skipped test fails.
+                    A canary is a test NAME, and vitest's verbose reporter
+                    prints the name of a skipped test too ("↓ … L2 …"): a
+                    law marked `it.skip` satisfied its own canary and the
+                    gate stayed green (2026-10-02, verified on
+                    `landing-proof`). For a junit gate the equivalent is a
+                    floor equal to the number of laws — skipped tests are
+                    already subtracted from the count.
     """
 
     def __init__(self, name, cmd, floor=0, units="items", canaries=(),
                  work_rx=None, work_sum=False, work_count_rx=None,
                  work_junit=False, work_glob=None, vacuous_ok=False,
-                 external_reason=""):
+                 external_reason="", no_skips=False):
         self.name = name
         self.cmd = cmd
         self.floor = floor
@@ -147,6 +155,7 @@ class Gate(object):
         self.work_glob = tuple(work_glob or ())
         self.vacuous_ok = vacuous_ok
         self.external_reason = external_reason
+        self.no_skips = no_skips
 
     # BACKWARD COMPATIBILITY, DELIBERATE.
     #
@@ -317,9 +326,19 @@ def _engine_gates() -> List[Gate]:
         # / PDF are `public-sample-page` and `public-sample-pdf` (frontend).
         # Plant log: gates.md "public-sample".
         Gate("public-sample",
-             [PY, "-m", "pytest", "tests/engine/test_public_sample.py", "-q"],
-             work_junit=True, floor=20, units="tests",
+             # -rs: a skipped law prints its reason in the tail the battery shows
+             [PY, "-m", "pytest", "tests/engine/test_public_sample.py", "-q", "-rs"],
+             # floor == the number of laws (measured 29): a skipped law is a
+             # red, because junit work is tests minus skips. S9 skips where
+             # node is absent — the report cannot be rebuilt there, and that
+             # is not a pass.
+             work_junit=True, floor=29, units="tests",
              canaries=("test_s1_the_current_year_opens_with_the_prior_years_closing",
+                       "test_s6_no_caveat_the_engine_stated_is_left_off_the_label_list",
+                       "test_s6_every_mapped_balance_sheet_account_names_its_served_row",
+                       "test_s6_each_pl_account_names_the_served_line_it_sums_into",
+                       "test_s9_the_report_is_the_same_bytes_under_another_locale_and_timezone",
+                       "test_s10_the_report_says_the_company_is_fictional_and_nothing_false_about_itself",
                        "test_s2_every_published_engine_file_is_a_byte_identical_rebuild",
                        "test_s2_the_pages_data_is_the_served_document",
                        "test_s3_a_second_rebuild_is_byte_identical",
@@ -1730,7 +1749,7 @@ def _engine_gates() -> List[Gate]:
              # the composer takes no feature statuses and the pack refuses an
              # action carrying a feature gate / a target / an unknown name
              # (measured 31).
-             work_junit=True, floor=31, units="tests",
+             work_junit=True, floor=29, units="tests",
              canaries=("test_other_equity_is_never_the_biggest_movement_on_the_served_pair",
                        "test_the_bank_report_is_the_cfo_report_pdf_never_the_forecast",
                        "test_the_actions_cannot_read_the_feature_registry",
@@ -2281,9 +2300,20 @@ def _engine_gates() -> List[Gate]:
         # subset. The page side is `landing-proof` (frontend gates).
         # Plant log: docs/engine_book/gates.md "engine-proof".
         Gate("engine-proof",
-             [PY, "-m", "pytest", "tests/engine/test_engine_proof.py", "-q"],
-             work_junit=True, floor=7, units="tests",
+             # -rs: the PARTIAL skip prints its reason in the tail the battery shows
+             [PY, "-m", "pytest", "tests/engine/test_engine_proof.py", "-q", "-rs"],
+             # floor == the number of laws (9). EP7 SKIPS on a checkout
+             # without the local calibration books, where three of the five
+             # checks cannot be re-measured — and junit work is tests minus
+             # skips, so this gate CANNOT print PASS there. It used to: a
+             # hand edit of the three unmeasured checks (6 → 7 of 7, 0.9975
+             # → 0.1) and a pasted engine digest passed it, landing-proof and
+             # public-claims on 2026-10-02. Run the release battery where
+             # files/ is present.
+             work_junit=True, floor=9, units="tests",
              canaries=("test_rerunning_the_proof_script_agrees_with_the_committed_file",
+                       "test_every_check_was_re_measured_on_this_checkout",
+                       "test_software_is_proven_only_by_a_committed_real_file",
                        "test_the_committed_file_is_a_full_dated_proof",
                        "test_books_are_counted_once",
                        "test_the_public_file_names_no_company_and_no_company_figure",
@@ -2509,9 +2539,12 @@ def _frontend_gates() -> List[Gate]:
               "frontend/lib/__tests__/landingProof.test.tsx",
               "frontend/lib/__tests__/shippedClaimsMatchCode.test.ts",
               "--reporter=verbose"],
-             work_rx=r"GATE-WORK landing-proof figures=(\d+)", floor=400,
+             work_rx=r"GATE-WORK landing-proof figures=(\d+)", floor=900,
              units="figures and copy lines held to the proof",
+             no_skips=True,
              canaries=("L1 carries five dated checks, each saying what is checked, in both languages",
+                       "L9 a caption uses only its own check's tokens, and leads with that check's held / examined",
+                       "L10 quotes no speed and no ratio count on any public surface",
                        "L1 names no company and publishes no company's figure",
                        "L2 the tree digest, parser version and EBITDA definition are the working tree's",
                        "L3 the proof block prints the JSON: headline, what is checked, date, caption figures",
@@ -2548,9 +2581,15 @@ def _frontend_gates() -> List[Gate]:
               "frontend/lib/__tests__/reportFooter.test.ts",
               "frontend/lib/__tests__/globalPositioning.test.ts",
               "--reporter=verbose"],
-             work_rx=r"GATE-WORK public-claims units=(\d+)", floor=2000,
+             work_rx=r"GATE-WORK public-claims units=(\d+)", floor=3000,
              units="copy lines and claims examined",
+             no_skips=True,
              canaries=("C1 claims no country or region as covered but Romania",
+                       "C1 the detector: negation must govern the claim; every country is a country",
+                       "C3 offers no document type but a trial balance as an input, unless it says AI-read or not supported",
+                       "C4 the table prints the denominator: files read, files refused, in the reader's date format",
+                       "F6 who read the document is the served extraction method, never a universal sentence",
+                       "F7 the export closes under the same law, and the published sample prints none of the retired sentences",
                        "C1b every row but Romania sits in a group that says not supported, and cannot be chosen",
                        "C2 names no accounting software that is not a tested row's, backed by a real file",
                        "C3 offers no input format outside the tested rows unless it says AI-read or not supported",
@@ -2560,7 +2599,7 @@ def _frontend_gates() -> List[Gate]:
                        "C7 says other countries are not supported yet, offers the coverage table, sells nothing",
                        "C8 the section count a plan sells is the count the report renders",
                        "C9 the share image's text is the hero's; its alt says what the image says",
-                       "GATE-WORK report-footer laws=6",
+                       "GATE-WORK report-footer laws=8",
                        "F2 an imbalanced book: that status and the served difference to the cent",
                        "lib/markets.ts is gone and nothing imports it")),
         # `npx tsc --noEmit` sat here and CHECKED ZERO FILES. The root
@@ -2652,6 +2691,7 @@ def _frontend_gates() -> List[Gate]:
               "frontend/pages/cfo/__tests__/publicSample.test.tsx", "--reporter=verbose"],
              work_rx=r"GATE-WORK public-sample-page figures=(\d+)", floor=100,
              units="printed figures held to the served document",
+             no_skips=True,
              canaries=("GATE-WORK public-sample-page figures=",
                        "every money figure of both years, printed in the reader's language",
                        "nothing the page says in its own voice is a number in the other language's format",
@@ -2669,6 +2709,20 @@ def _frontend_gates() -> List[Gate]:
              work_rx=r"(\d+) modules transformed", floor=1000,
              units="modules transformed",
              canaries=("dist/index.html",)),
+        # BUNDLE-LABELS (2026-10-02) — no client book's label in the files
+        # every visitor downloads. The production bundle carried one six
+        # times: developer notes written as CSS comments INSIDE the report's
+        # stylesheet template, which a minifier does not strip. The exported
+        # report was cleaned on 2026-10-01 (`shippedCss`); the bundle was the
+        # other outlet. Runs AFTER npm-build, over dist/; the labels are
+        # derived at run time from the real books' file names
+        # (scripts/client_labels.py), never typed. A missing dist/ is exit 2:
+        # a scan of nothing is not a pass. Plant log: gates.md
+        # "bundle-labels".
+        Gate("bundle-labels", [PY, "scripts/check_bundle_labels.py"],
+             work_rx=r"GATE-WORK bundle-labels files=(\d+)", floor=50,
+             units="built text files scanned",
+             canaries=("BUNDLE LABELS: PASS", "identifier match(es)")),
         # PLAYWRIGHT — the last suite outside the net until 2026-09-09, and
         # it had already taken the battery down once by starving vitest of
         # CPU. Baseline measured serially on a quiet machine with the dev
@@ -2769,6 +2823,24 @@ def _extract_work(gate: Gate, out: str, junit: Optional[Path]) -> Tuple[Optional
             return sum(int(x) for x in found), out.splitlines()
         return int(found[-1]), out.splitlines()
     return None, out.splitlines()
+
+
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+_VITEST_TESTS_LINE = re.compile(r"^\s*Tests\s+(.*)$", re.M)
+
+
+def _skipped_tests(out: str) -> int:
+    """Skipped + todo tests in a vitest run, from its summary line
+    ("Tests  33 passed | 1 skipped (34)") and, failing that, from the
+    reporter's own skip marks."""
+    plain = _ANSI.sub("", out)
+    total = 0
+    for line in _VITEST_TESTS_LINE.findall(plain):
+        for count, kind in re.findall(r"(\d+)\s+(skipped|todo)", line):
+            total += int(count)
+    if total == 0:
+        total = len(re.findall(r"^\s*↓\s", plain, re.M))
+    return total
 
 
 def _missing_canaries(gate: Gate, haystack: List[str]) -> List[str]:
@@ -2887,6 +2959,13 @@ def main(argv: Optional[List[str]] = None) -> int:
                 reasons.append(
                     "DISCOVERY BROKEN — canary absent from the gate's own "
                     "output: %s" % ", ".join(repr(m) for m in missing))
+            skipped = _skipped_tests(out) if g.no_skips else 0
+            if skipped:
+                state = "FAIL"
+                reasons.append(
+                    "SKIPPED LAW — %d test(s) of this gate were skipped (it.skip / "
+                    "it.todo / describe.skip). A skipped law still prints its name, "
+                    "so its canary is satisfied by a test that did not run." % skipped)
 
         results[g.name] = {
             "ok": state != "FAIL",

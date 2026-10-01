@@ -69,8 +69,29 @@ describe("G4 — there is no market row", () => {
   });
 
   it("the landing copy names no country but Romania as readable", () => {
-    const COUNTRY =
-      /\b(United States|Statele Unite|USA|Germany|Germania|United Kingdom|Regatul Unit|France|Franța|Italy|Italia|Spain|Spania|UAE|Emirate\w*|Hungary|Ungaria|Poland|Polonia|Bulgaria|Moldova)\b/i;
+    // EVERY region the runtime can name, in English and Romanian, minus
+    // Romania — generated. This was a typed list of eleven countries until
+    // 2026-10-02, and "Austria · Czechia · Greece · Netherlands · Portugal ·
+    // Serbia · Croatia" passed it (and `public-claims` C1, which carried the
+    // same list).
+    const names = new Set<string>(["USA", "UAE", "Czechia", "Cehia", "Olanda", "Holland"]);
+    const A = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    for (const locale of ["en", "ro"]) {
+      const display = new Intl.DisplayNames([locale], { type: "region", fallback: "none" });
+      for (const a of A) for (const b of A) {
+        if (a + b === "RO") continue;
+        const name = display.of(a + b);
+        if (name && name.length >= 4) names.add(name);
+      }
+    }
+    expect(names.size, "the region vocabulary collapsed").toBeGreaterThan(400);
+    const escaped = [...names].sort((x, y) => y.length - x.length)
+      .map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+    const COUNTRY = new RegExp(`(?<![\\p{L}-])(?:${escaped.join("|")})(?![\\p{L}-])`, "u");
+    for (const probe of ["Austria", "Greece", "Grecia", "Portugal", "Serbia", "Germany", "Ungaria"]) {
+      expect(COUNTRY.test(`from ${probe} too`), `${probe} is not detected`).toBe(true);
+    }
+    expect(COUNTRY.test("a Romanian trial balance from Romania / România")).toBe(false);
     const lines: Array<[string, string]> = [];
     const flat = (o: unknown, path: string) => {
       if (typeof o === "string") lines.push([path, o]);

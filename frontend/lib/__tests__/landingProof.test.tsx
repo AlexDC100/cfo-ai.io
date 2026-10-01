@@ -32,6 +32,28 @@
 //   L8  the public sample (/sample) lists THE SAME checks, in the same
 //       order and the same words, as the proof block, and the block's
 //       link lands on that list (the fragment exists on the sample page).
+//   L9  each caption speaks for ITS OWN check: it uses only that check's
+//       tokens, and the first "N of M" it prints is that check's held /
+//       examined. (2026-10-02: a verifier wired the rerun caption to the
+//       replay tokens — "18 of 18 real books", where 5 books were re-run and
+//       12 of the 18 replay cases are constructed files — and the turnover
+//       caption to the total — "8 of 8 real books match the Ministry-of-
+//       Finance figure", where 3 were checkable. Both printed, and L3 and
+//       the pair law stayed green: 18 and 8 are numbers of the JSON, and
+//       18/18 is a pair of another count. The same defect as the original
+//       "9 / 9": a true count under the wrong noun.)
+//   L10 no speed and no ratio count nobody measured: "in 90 seconds",
+//       "under five minutes", "in minutes", "22 ratios" are on no public
+//       surface.
+//   L11 a sentence about THE VISITOR'S OWN FILE promises only what runs on
+//       every file — the balance check and account 121. The proof block is
+//       measured on test books; "your own file gets the same checks, and
+//       its report shows each result" (the note under the block, and the
+//       FAQ) was false for three of the five: an upload is not re-run five
+//       times and byte-compared, its turnover is not compared with a filing,
+//       and the methodology-vs-code comparison is a script over the test
+//       books. No gate read the sentence: "Your own file is guaranteed to
+//       reconcile exactly" was planted and passed.
 //
 // WHAT IT REDS ON, AFTER THE REPAIR (TC-11)
 //   · a digit typed into `defensible.*` or into an accuracy sentence
@@ -66,7 +88,9 @@ import proof from "@/data/engineProof.json";
 import { ENGINE_PROOF, fillProofDeep, hasProofToken, proofDate } from "@/lib/engineProof";
 import { LANDING_STRINGS, landingStringsFor } from "@/pages/cfo/landingStrings";
 import PublicSample from "@/pages/cfo/PublicSample";
-import { META_DESCRIPTION } from "@/hooks/useHtmlLangSync";
+import { META_DESCRIPTION, META_IMAGE_ALT, META_TITLE } from "@/hooks/useHtmlLangSync";
+import enDict from "@/i18n/locales/en.json";
+import roDict from "@/i18n/locales/ro.json";
 import { foreignNumber } from "@/test/numberLanguage";
 import { numbersIn, renderLanding, setLanguage, textOf, type SurfaceLang } from "@/test/publicSurfaces";
 
@@ -372,6 +396,133 @@ function flat(obj: unknown, path: string, out: Array<[string, string]>): void {
     for (const [k, v] of Object.entries(obj)) flat(v, path ? `${path}.${k}` : k, out);
   }
 }
+
+/** The token namespaces a check's caption may use. `proof.books` (the total
+ *  of real books) belongs to the one check whose sentence is about the
+ *  books it could NOT examine. */
+const CAPTION_TOKENS: Record<string, RegExp> = {
+  rerun_identical: /^(?:rerun|replay)\./,
+  balance_sheet_closes: /^(?:balance|drift)\./,
+  net_income_equals_121: /^net\./,
+  turnover_equals_filing: /^(?:turnover\.|proof\.books$)/,
+  ebitda_variants_agree: /^ebitda\./,
+};
+
+describe("landing-proof · each caption speaks for its own check", () => {
+  it("L9 a caption uses only its own check's tokens, and leads with that check's held / examined", () => {
+    for (const lang of LANGS) {
+      const raw = LANDING_STRINGS[lang].defensible.proof.captions as Record<string, string>;
+      const filled = landingStringsFor(lang).defensible.proof.captions as Record<string, string>;
+      for (const id of CHECK_IDS) {
+        const tokens = [...raw[id].matchAll(/\{([a-z]+(?:\.[A-Za-z0-9_]+)+)\}/g)].map((m) => m[1]);
+        expect(tokens.length, `${lang} ${id}: no token`).toBeGreaterThan(1);
+        const foreign = tokens.filter((t) => !CAPTION_TOKENS[id].test(t));
+        expect(foreign, `${lang} caption ${id} prints another check's figure`).toEqual([]);
+        const c = checkOf(id);
+        const lead = /(\d+)\s+(?:of|din)\s+(\d+)/.exec(filled[id]);
+        expect(lead, `${lang} caption ${id} states no "N of M"`).not.toBeNull();
+        expect(
+          [Number(lead![1]), Number(lead![2])],
+          `${lang} caption ${id} leads with ${lead![0]}, which is not this check's ` +
+            `held / examined (${c.result[HELD[id]]} / ${c.subjects}): "${filled[id]}"`,
+        ).toEqual([c.result[HELD[id]], c.subjects]);
+        figuresChecked += 2;
+      }
+    }
+  });
+});
+
+describe("landing-proof · nothing unmeasured", () => {
+  it("L10 quotes no speed and no ratio count on any public surface", () => {
+    // Nobody has measured upload-to-report in production; and the "22" the
+    // hero carried is the Excel export's ratio-spec count, while the report
+    // the landing links to states 30 ratios and composites. Until either is
+    // measured and dated, neither is printed.
+    // (`u` flag and explicit look-arounds: without it `\b` does not see "î"
+    // as a letter, so a pattern starting `\bîn` can never match.)
+    const SPEED = new RegExp(
+      [
+        "(?<![\\p{L}\\d])\\d+\\s*(?:de\\s+)?(?:seconds?|secunde|minutes?|minute)(?![\\p{L}])",
+        "(?<![\\p{L}])(?:under|in|within|less than)\\s+(?:a few |five |ten |two |\\d+ )?(?:seconds|minutes)(?![\\p{L}])",
+        "(?<![\\p{L}])în(?:tr-un)?\\s+(?:mai puțin de )?(?:câteva |cinci |zece |două |\\d+ (?:de )?)?(?:secunde|minute|minut)(?![\\p{L}])",
+      ].join("|"),
+      "iu",
+    );
+    const RATIO_COUNT = /\b\d+\+?\s*(?:de\s+)?(?:financial\s+)?(?:ratios|indicatori)\b/i;
+    const lines: Array<[string, string]> = [];
+    for (const lang of LANGS) flat(landingStringsFor(lang), `landingStrings[${lang}]`, lines);
+    const html = readFileSync(join(REPO, "index.html"), "utf8");
+    lines.push(["index.html <title>", /<title>([^<]*)<\/title>/.exec(html)?.[1] ?? ""]);
+    for (const m of html.matchAll(/content\s*=\s*"([^"]*)"/g)) lines.push(["index.html meta", m[1]]);
+    const manifest = JSON.parse(readFileSync(join(REPO, "public/manifest.webmanifest"), "utf8"));
+    lines.push(["manifest.description", String(manifest.description)]);
+    for (const lang of LANGS) {
+      lines.push([`META_DESCRIPTION.${lang}`, META_DESCRIPTION[lang]]);
+      lines.push([`META_TITLE.${lang}`, META_TITLE[lang]]);
+      lines.push([`META_IMAGE_ALT.${lang}`, META_IMAGE_ALT[lang]]);
+    }
+    flat(JSON.parse(readFileSync(join(REPO, "public/og/homepage.json"), "utf8")).text, "og/homepage.json", lines);
+    for (const [lang, dict] of [["en", enDict], ["ro", roDict]] as const) {
+      const d = dict as unknown as Record<string, Record<string, unknown>>;
+      for (const ns of ["pricingX", "pricingFaq"]) flat(d[ns], `${lang}.json ${ns}`, lines);
+      flat({ a: d.authX.subtitle_sign_up, b: d.authX.subtitle_sign_up_page }, `${lang}.json authX`, lines);
+    }
+    expect(lines.length, "the harvest is empty").toBeGreaterThan(450);
+    const offenders = lines
+      // the 7-day trial and "7 zile" are durations of an offer, not a speed;
+      // the proof's own dates are not either
+      .filter(([, text]) => SPEED.test(text) || RATIO_COUNT.test(text))
+      .map(([where, text]) => `${where}: "${text.slice(0, 160)}"`);
+    expect(offenders, "an unmeasured speed or count is printed").toEqual([]);
+    // the detector is alive
+    for (const text of ["a CFO-grade analysis in 90 seconds.", "get a full analysis in under five minutes", "în 90 de secunde", "în mai puțin de cinci minute", "first analysis in minutes.", "22 ratios", "22 de indicatori", "în câteva minute fiecare"]) {
+      expect(SPEED.test(text) || RATIO_COUNT.test(text), `not detected: ${text}`).toBe(true);
+    }
+    figuresChecked += lines.length;
+  });
+});
+
+describe("landing-proof · the visitor's own file", () => {
+  /** The visitor's own upload, in either language. */
+  const OWN_FILE =
+    /\byour (?:own )?(?:file|upload|trial balance|data|books?)\b|(?<![\p{L}])(?:fișierul tău|balanța ta|datele tale|încărcarea ta)(?![\p{L}])/iu;
+  /** A promise wider than "these two checks run, and the difference is
+   *  shown": the same checks as the test books, a guarantee, exactness,
+   *  accuracy, each / every result. */
+  const PROMISE =
+    /\bsame checks\b|aceleași verificări|guarantee\w*|garant\w*|\bexactly\b|\bexact\b(?! la)|\baccura\w*|\bprecis\w*|each result|every result|fiecare rezultat|\balways (?:reconcil|balanc|clos)\w*|reconcil\w* (?:exactly|to|within)|\bbyte|octet/iu;
+
+  it("L11 a sentence about your own file promises only the two checks that run on every file", () => {
+    const lines: Array<[string, string]> = [];
+    for (const lang of LANGS) flat(landingStringsFor(lang), `landingStrings[${lang}]`, lines);
+    for (const lang of LANGS) lines.push([`META_DESCRIPTION.${lang}`, META_DESCRIPTION[lang]]);
+    const sentences = lines.flatMap(([where, text]) =>
+      text.split(/(?<=[.!?])\s+/).map((sentence) => [where, sentence] as const));
+    const about = sentences.filter(([, sentence]) => OWN_FILE.test(sentence));
+    // the copy does speak about the visitor's file, in both languages
+    expect(about.filter(([w]) => w.startsWith("landingStrings[en]")).length).toBeGreaterThanOrEqual(3);
+    expect(about.filter(([w]) => w.startsWith("landingStrings[ro]")).length).toBeGreaterThanOrEqual(3);
+    const offenders = about
+      .filter(([, sentence]) => PROMISE.test(sentence))
+      .map(([where, sentence]) => `${where}: "${sentence.slice(0, 220)}"`);
+    expect(offenders, "a promise about the visitor's own file that no check on that file backs").toEqual([]);
+    // what the copy must say instead, where it says anything: the two checks
+    for (const lang of LANGS) {
+      const note = landingStringsFor(lang).defensible.proof.note;
+      expect(note).toMatch(lang === "ro" ? /contul 121/ : /account 121/);
+      expect(note).toMatch(lang === "ro" ? /doar pe balanțele de test/ : /on the test books only/);
+    }
+    // the detector is alive on the two sentences that were on the page or planted
+    for (const text of [
+      "These are checks on our test books — your own file gets the same checks, and its report shows each result.",
+      "Your own file is guaranteed to reconcile exactly.",
+      "Fișierul tău trece prin aceleași verificări, iar raportul lui arată fiecare rezultat.",
+    ]) {
+      expect(OWN_FILE.test(text) && PROMISE.test(text), `not detected: ${text}`).toBe(true);
+    }
+    figuresChecked += about.length;
+  });
+});
 
 describe("landing-proof · the raw copy", () => {
   it("L5 the accuracy block carries tokens, never a digit", () => {

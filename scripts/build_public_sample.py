@@ -271,7 +271,7 @@ def ratios_of(comparatives: Dict[str, Any]) -> List[Dict[str, Any]]:
     return out
 
 
-def verdicts_of(period_body: Dict[str, Any]) -> Dict[str, Any]:
+def verdicts_of(period_body: Dict[str, Any], prior_body: Dict[str, Any]) -> Dict[str, Any]:
     """The engine's own verdicts on the book, copied — never re-decided."""
     st = period_body["statements"]
     cbs = st["canonical_bs"]
@@ -337,8 +337,15 @@ def verdicts_of(period_body: Dict[str, Any]) -> Dict[str, Any]:
             "seasonality_flagged": inv["seasonality"]["flagged"],
             "reconciliation": inv["reconciliation"]["status"],
             "may_call_slow": inv["claim_policy"]["may_call_slow"],
+            # The cash conversion cycle does NOT add the figure above: it adds
+            # the split on the period-end balance, so that all three of its
+            # terms are period-end figures. The page prints this term and its
+            # basis beside the cycle (DSO + DIO − DPO would otherwise not foot).
+            "ccc_term_value_q": inv["total"]["closing_value_q"],
+            "ccc_term_basis_label_ro": inv["ccc_dio_term"]["basis_label"]["ro"],
+            "ccc_term_basis_label_en": inv["ccc_dio_term"]["basis_label"]["en"],
         },
-        "cash_flow": {"is_approximated": st["assembled_cf"]["is_approximated"]},
+        "cash_flow": cash_flow_verdict(period_body, prior_body),
         "piotroski": {"score": piotroski["score"], "score_max": piotroski["score_max"],
                       "has_prior_period": piotroski["has_prior_period"]},
         "insights": [
@@ -348,6 +355,34 @@ def verdicts_of(period_body: Dict[str, Any]) -> Dict[str, Any]:
         ],
         "insights_by_level": _count_by_level(insights["insights"]),
         "ratio_table": dict(period_body["assembled_metrics"]["ratio_table"]["coverage"]),
+    }
+
+
+def cash_flow_verdict(period_body: Dict[str, Any], prior_body: Dict[str, Any]) -> Dict[str, Any]:
+    """The engine's cash-flow reconstruction beside the two balance sheets.
+
+    The engine labels its cash flow approximated and says the movements
+    "cannot be computed without a prior-period trial balance" — while the
+    prior year is published on the same page. That is a limit of the
+    engine, stated here rather than hidden: its reconstruction does not
+    read the prior period yet. So the page prints, beside the engine's
+    estimate of the year's net change in cash, the cash each served balance
+    sheet closes on and the movement between them. The one subtraction is
+    made HERE, between two served figures named by their pointers (gate
+    `public-sample` S6 re-reads both and re-checks it); the page computes
+    nothing."""
+    cf = period_body["statements"]["assembled_cf"]
+    cash_pointer = "/statements/assembled_bs/cash"
+    closing = pointer(period_body, cash_pointer)
+    opening = pointer(prior_body, cash_pointer)
+    return {
+        "is_approximated": cf["is_approximated"],
+        "net_change_estimated": cf["net_change_in_cash"],
+        "pointer_net_change": "/statements/assembled_cf/net_change_in_cash",
+        "closing_cash": closing,
+        "prior_closing_cash": opening,
+        "pointer_cash": cash_pointer,
+        "balance_sheet_movement": round(closing - opening, 2) + 0.0,
     }
 
 
@@ -443,15 +478,30 @@ def uncertainty_labels(period_body: Dict[str, Any], comparatives: Dict[str, Any]
         add("ebitda_refused", "refusal", "profit_and_loss", "/statements/assembled_pl/ebitda_refusal",
             refusal["text_en"], refusal["text_ro"])
 
+    bands = st.get("assembled_bands") or {}
+    if bands.get("disclosure"):
+        # Every band printed under a ratio is graded on this table.
+        add("bands_general_sme", "basis", "ratios", "/statements/assembled_bands/disclosure",
+            bands["disclosure"], None)
+
     inv = st["inventory_days"]
     add("inventory_days_basis", "basis", "ratios", "/statements/inventory_days/basis_label",
         inv["basis_label"]["en"], inv["basis_label"]["ro"])
+    term = inv.get("ccc_dio_term") or {}
+    if term.get("basis_label") and term["basis_label"] != inv["basis_label"]:
+        # The cash conversion cycle adds inventory days on ANOTHER basis.
+        add("ccc_inventory_term_basis", "basis", "ratios",
+            "/statements/inventory_days/ccc_dio_term/basis_label",
+            term["basis_label"]["en"], term["basis_label"]["ro"])
     if inv["seasonality"]["flagged"]:
         add("inventory_days_seasonality", "basis", "ratios", "/statements/inventory_days/seasonality",
             inv["seasonality"]["note_en"], inv["seasonality"]["note_ro"])
-    if not inv["claim_policy"]["may_call_slow"]:
+    policy_text = inv["claim_policy"].get("reason_text") or {}
+    if policy_text.get("en"):
+        # What may be said about the stock on this basis — stated by the
+        # engine whether or not the claim is allowed.
         add("inventory_days_claim_policy", "basis", "ratios", "/statements/inventory_days/claim_policy",
-            inv["claim_policy"]["reason_text"]["en"], inv["claim_policy"]["reason_text"]["ro"])
+            policy_text["en"], policy_text.get("ro"))
 
     table = period_body["assembled_metrics"]["ratio_table"]
     for row in table["rows"]:
@@ -464,6 +514,13 @@ def uncertainty_labels(period_body: Dict[str, Any], comparatives: Dict[str, Any]
                 reason={"ratio": row["key"], "display_unit": row["display_unit"],
                         "code": reason.get("code"), "inputs": list(reason.get("inputs") or [])})
 
+    methodology = (st["assembled_canonical_v1"].get("methodology") or {}).get("ratios") or {}
+    for key in sorted(methodology):
+        note = methodology[key].get("note") if isinstance(methodology[key], dict) else None
+        if note:
+            add("methodology_note_%s" % key, "approximation", "ratios",
+                "/statements/assembled_canonical_v1/methodology/ratios/%s/note" % key, note, None)
+
     piotroski = st["assembled_piotroski"]
     uncertain = [c for c in piotroski["checks"] if c["result"] == "uncertain"]
     if uncertain:
@@ -473,6 +530,16 @@ def uncertainty_labels(period_body: Dict[str, Any], comparatives: Dict[str, Any]
     for i, item in enumerate(st["insights"].get("not_fired") or []):
         add("insight_not_fired_%s" % item["id"], "checked_clear", "findings",
             "/statements/insights/not_fired/%d/reason" % i, item["reason"], None)
+    # Who worded the findings: the engine's template, with its stated reason.
+    template_reasons = sorted({
+        (item.get("narrative") or {}).get("reason") or ""
+        for item in st["insights"].get("insights") or []
+        if (item.get("narrative") or {}).get("source") == "deterministic"} - {""})
+    for i, reason in enumerate(template_reasons):
+        first = next(n for n, item in enumerate(st["insights"]["insights"])
+                     if (item.get("narrative") or {}).get("reason") == reason)
+        add("findings_wording_template" + ("" if i == 0 else "_%d" % (i + 1)), "basis", "findings",
+            "/statements/insights/insights/%d/narrative/reason" % first, reason, None)
 
     confidence = period_body.get("confidence") or {}
     if confidence.get("calibration_tier"):
@@ -490,9 +557,158 @@ def uncertainty_labels(period_body: Dict[str, Any], comparatives: Dict[str, Any]
     return labels
 
 
+#: Field names under which the engine states a caveat about a figure: a
+#: disclosure, the basis a figure stands on, an approximation, a refusal, a
+#: note. `label_completeness` walks the served documents for them.
+DISCLOSURE_FIELDS = frozenset((
+    "disclosure", "basis_label", "approximation_notes", "note", "note_en", "note_ro",
+    "identity_note_en", "identity_note_ro", "refusal", "reason_text", "reason",
+))
+
+#: Places a disclosure field carries something that is NOT an uncertainty
+#: about a figure — each with the reason. An entry that matches nothing is
+#: itself a red (the list only shrinks).
+LABEL_EXCLUSIONS: Tuple[Tuple[str, str], ...] = (
+    (r"/insights/insights/\d+/severity/basis_label$",
+     "the name of the figure a finding's severity is measured against — printed with the finding"),
+    (r"/canonical_bs/excluded/\d+/reason$",
+     "why an account is not summed as a row — the mapping's own status column, account by account"),
+    (r"/claim_policy/reason$",
+     "the claim policy's CODE; its sentence (`reason_text`) is the label"),
+    (r"^comparatives:/(prior_statements|prior_canonical_bs|prior|bridges|movers|common_size)/",
+     "the prior period's own document and the comparison's working — the labels describe the current year"),
+    (r"^comparatives:/columns/\d+/note$",
+     "how each line of the two-year comparison states its change — printed with the comparison, line by line"),
+    (r"^comparatives:/ratios/",
+     "refused ratio sides of the comparison: the current year's are labels; the prior year's are printed in the two-year table"),
+)
+
+
+def _disclosures(doc: Any, prefix: str) -> List[Tuple[str, List[str]]]:
+    """(pointer, the sentences or codes stated there) for every disclosure
+    field of `doc` that carries a value."""
+    found: List[Tuple[str, List[str]]] = []
+
+    def strings(node: Any) -> List[str]:
+        if isinstance(node, str):
+            return [node] if node.strip() else []
+        if isinstance(node, list):
+            return [s for item in node for s in strings(item)]
+        if isinstance(node, dict):
+            return [s for key in sorted(node) for s in strings(node[key])]
+        return []
+
+    def walk(node: Any, path: str) -> None:
+        if isinstance(node, dict):
+            for key in sorted(node):
+                child = "%s/%s" % (path, key)
+                if key in DISCLOSURE_FIELDS:
+                    texts = strings(node[key])
+                    if texts:
+                        found.append((child, texts))
+                walk(node[key], child)
+        elif isinstance(node, list):
+            for i, item in enumerate(node):
+                walk(item, "%s/%d" % (path, i))
+
+    walk(doc, prefix)
+    return found
+
+
+def label_completeness(period_body: Dict[str, Any], comparatives: Dict[str, Any],
+                       labels: Sequence[Dict[str, Any]]) -> Dict[str, Any]:
+    """Is every caveat the engine stated ABOUT THIS BOOK on the label list?
+
+    The page says "each uncertainty label it raised". Until 2026-10-02 the
+    list was whatever `uncertainty_labels` remembered to collect, and the
+    gate checked only that a listed label was the engine's own sentence —
+    so a disclosure left out was invisible. Three were: the general-SME
+    band table every ratio band is graded on, the basis of the inventory
+    term the cash cycle adds, and two methodology notes.
+
+    Returns {"missing": [(pointer, text)], "dead_exclusions": [pattern],
+    "examined": n}: a statement found under a disclosure field of the
+    served statements (or the comparison) that no label quotes and no
+    exclusion explains; and an exclusion that matched nothing."""
+    import re as _re
+
+    quoted: List[str] = []
+    for label in labels:
+        quoted += [t for t in (label["engine_en"], label["engine_ro"]) if t]
+        if label["reason"]:
+            quoted.append(str(label["reason"]["code"]))
+            quoted += [str(x) for x in label["reason"].get("inputs") or []]
+    blob = "\n".join(quoted)
+    used = set()
+    missing: List[Tuple[str, str]] = []
+    examined = 0
+    found = _disclosures(period_body["statements"], "/statements")
+    found += _disclosures(period_body.get("assembled_metrics") or {}, "/assembled_metrics")
+    found += _disclosures(comparatives, "comparatives:")
+    for path, texts in found:
+        examined += 1
+        excluded = [pattern for pattern, _why in LABEL_EXCLUSIONS if _re.search(pattern, path)]
+        if excluded:
+            used.update(excluded)
+            continue
+        for text in texts:
+            if text not in blob:
+                missing.append((path, text))
+    return {
+        "missing": missing,
+        "dead_exclusions": [pattern for pattern, _why in LABEL_EXCLUSIONS if pattern not in used],
+        "examined": examined,
+    }
+
+
+#: The served P&L line (a field of `statements.assembled_pl`) each engine
+#: bucket lands on. Three lines are not a bucket and are decided by the
+#: served document itself: the provisions accounts the engine nets into
+#: `net_provisions` (it lists them, by account), account 711, whose line is
+#: the DERIVED net, and 72x.
+PL_LINE_OF_BUCKET = {
+    "revenue": "turnover",
+    "cogs": "cogs",
+    "operatingExpenses": "opex_excluding_cogs_and_da",
+    "depreciation": "depreciation",
+    "otherIncome": "other_operating_income",
+    "financialIncome": "financial_income",
+    "financialExpense": "financial_expense",
+    "interestExpense": "interest_expense",
+    "taxExpense": "income_tax",
+}
+
+
+def _pl_line(code: str, bucket: Optional[str], pl: Dict[str, Any]) -> Optional[str]:
+    provisions = pl.get("net_provisions") or {}
+    for side in ("charges", "reversals"):
+        if code in ((provisions.get(side) or {}).get("by_account") or {}):
+            return "net_provisions"
+    if code.startswith("711"):
+        return "inventory_variation"
+    if code.startswith("72"):
+        return "capitalized_own_work"
+    return PL_LINE_OF_BUCKET.get(bucket or "")
+
+
+def _bs_row_for(code: str, rows: Sequence[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """The served balance-sheet row an account lands on. The engine lists a
+    row's accounts by PREFIX ('151', '302', '442', '475'), so an analytic
+    account (1518, 3022, 4423, 4751) is matched by its longest listed
+    prefix — an exact-code lookup left five mapped accounts with no row."""
+    best: Optional[Dict[str, Any]] = None
+    best_len = -1
+    for row in rows:
+        for listed in row.get("account_codes") or []:
+            listed = str(listed)
+            if code.startswith(listed) and len(listed) > best_len:
+                best, best_len = row, len(listed)
+    return best
+
+
 #: The mapping file's columns.
 MAPPING_COLUMNS = ("account", "account_name", "statement", "engine_bucket", "balance_sheet_section",
-                   "balance_sheet_row", "amount_ron", "status", "note")
+                   "balance_sheet_row", "pl_line", "amount_ron", "status", "note")
 
 
 def mapping_rows(year: int, period_body: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -506,17 +722,15 @@ def mapping_rows(year: int, period_body: Dict[str, Any]) -> List[Dict[str, Any]]
         if code in by_code:
             raise RuntimeError("account %s appears twice in the served line items" % code)
         by_code[code] = item
-    bs_row: Dict[str, Dict[str, Any]] = {}
-    for row in cbs["rows"]:
-        for code in row.get("account_codes") or []:
-            bs_row[str(code)] = row
     excluded = {str(e["code"]): e["reason"] for e in cbs.get("excluded") or []}
-    variation = period_body["statements"]["assembled_pl"]["inventory_variation"]
+    pl = period_body["statements"]["assembled_pl"]
+    variation = pl["inventory_variation"]
     out: List[Dict[str, Any]] = []
     for tb_row in books[year]["rows"]:  # type: ignore[index]
         code, name = tb_row[0], tb_row[1]
         item = by_code.pop(code, None)
-        row = bs_row.get(code)
+        on_balance_sheet = (item is not None and item["statement"] == "BS") or code in excluded
+        row = _bs_row_for(code, cbs["rows"]) if on_balance_sheet else None
         if item is not None:
             status = "mapped"
         elif code in excluded:
@@ -534,6 +748,8 @@ def mapping_rows(year: int, period_body: Dict[str, Any]) -> List[Dict[str, Any]]
             "balance_sheet_section": row["section"] if row else None,
             "balance_sheet_row": row["id"] if row else None,
             "balance_sheet_row_label_key": row["label_key"] if row else None,
+            "pl_line": (_pl_line(code, item["bucket"], pl)
+                        if item is not None and item["statement"] == "PL" else None),
             "amount_ron": amount,
             "status": status,
             # 711 on a closed book: the line item carries the account's GROSS
@@ -548,14 +764,21 @@ def mapping_rows(year: int, period_body: Dict[str, Any]) -> List[Dict[str, Any]]
     return out
 
 
+#: The first line of the mapping file: a reader who opens the CSV on its
+#: own must see that the company does not exist.
+MAPPING_NOTICE = ("# %s — companie fictivă, exemplu generat; nu este o entitate reală / "
+                  "fictional company, a generated sample; not a real entity" % TB.COMPANY_NAME)
+
+
 def mapping_csv(rows: Sequence[Dict[str, Any]]) -> bytes:
     buf = io.StringIO()
     writer = csv.writer(buf, lineterminator="\n")
+    buf.write(MAPPING_NOTICE + "\n")      # one line, not a CSV record
     writer.writerow(MAPPING_COLUMNS)
     for row in rows:
         writer.writerow([
             row["account"], row["account_name"], row["statement"] or "", row["engine_bucket"] or "",
-            row["balance_sheet_section"] or "", row["balance_sheet_row"] or "",
+            row["balance_sheet_section"] or "", row["balance_sheet_row"] or "", row["pl_line"] or "",
             "" if row["amount_ron"] is None else "%.2f" % row["amount_ron"], row["status"],
             "" if row["note"] is None else "%s=%.2f" % (row["note"]["key"], row["note"]["value"]),
         ])
@@ -593,7 +816,13 @@ def engine_files() -> "OrderedDict[str, bytes]":
     files[SERVED_COMPARATIVES] = canonical_json(served["comparatives"]).encode("utf-8")
     files[MAPPING_CSV] = mapping_csv(mapping_rows(CURRENT_YEAR, current))
     files[LABELS_JSON] = canonical_json({
-        "schema": "public_sample_labels/1",
+        "schema": "public_sample_labels/2",
+        "company": {
+            "name": TB.COMPANY_NAME,
+            "fictional": True,
+            "notice_en": "Fictional company — a generated sample, not a real entity.",
+            "notice_ro": "Companie fictivă — exemplu generat, nu o entitate reală.",
+        },
         "period": "FY%d" % CURRENT_YEAR,
         "labels": uncertainty_labels(current, served["comparatives"]),
     }).encode("utf-8")
@@ -645,7 +874,7 @@ def page_data(directory: Path) -> Dict[str, Any]:
                       "figures": figures_of(prior)},
         },
         "ratios": ratios_of(comparatives),
-        "verdicts": verdicts_of(current),
+        "verdicts": verdicts_of(current, prior),
         "labels": uncertainty_labels(current, comparatives),
         "mapping": mapping_rows(CURRENT_YEAR, current),
         "files": files,

@@ -57,6 +57,8 @@ export interface EngineProof {
   checks: ProofCheck[];
   formats: Record<string, number> | null;
   counts: { bvb_listings: number; bvb_listings_with_financials: number; how: string };
+  /** Accounting-software names a committed real file prints. */
+  software: { proven: string[]; real_files: Record<string, number>; real_files_scanned: number; how: string };
 }
 
 export const ENGINE_PROOF = proofJson as unknown as EngineProof;
@@ -120,6 +122,13 @@ interface CoverageRowLite {
   availability_ro?: string;
 }
 
+interface AiFeatures {
+  chat?: { availability: string; as_of: string };
+  briefing?: { availability: string; as_of: string };
+  unavailable_en?: string;
+  unavailable_ro?: string;
+}
+
 /** Every token the copy may use, formatted for `lang`. Built from the JSON
  *  on each call — there is no second place a number could come from. */
 export function proofTokens(lang: string): Record<string, string> {
@@ -176,6 +185,18 @@ export function proofTokens(lang: string): Record<string, string> {
       out[`coverage.${row.id}.availability`] = text;
       out[`coverage.${row.id}.availability_lc`] = text.charAt(0).toLowerCase() + text.slice(1);
     }
+  }
+  // The model-written features (chat, briefing). Empty unless coverage.json
+  // says the feature is UNAVAILABLE — then the card and each quota line say
+  // so. `.status` is a sentence after a full stop, `.suffix` a tail on a
+  // list item.
+  const ai = (coverageJson as { ai_features?: AiFeatures }).ai_features;
+  for (const key of ["chat", "briefing"] as const) {
+    const down = ai?.[key]?.availability === "unavailable";
+    const words = (l === "ro" ? ai?.unavailable_ro : ai?.unavailable_en) ?? "";
+    out[`coverage.${key}.status`] = down && words ? ` ${words}.` : "";
+    out[`coverage.${key}.suffix`] =
+      down && words ? ` — ${words.charAt(0).toLowerCase()}${words.slice(1)}` : "";
   }
   return out;
 }

@@ -69,7 +69,7 @@
         "dio": "Days inventory outstanding per category. Region 2 (rows 28-52) is the canonical source.",
         "trialBalance": "Romanian chart of accounts. Only needed for Dashboard reports.",
         "exampleMultiCol": "Account code + account name, then Debit/Credit column pairs for opening balances, period movements, cumulative totals, and closing balances — the 10-column trial-balance layout.",
-        "exampleSaga": "The compact layout: account code + account name with Debit/Credit column pairs for opening balances, period movements, and closing balances."
+        "exampleSaga": "The compact layout: account code + account name with Debit/Credit column pairs for opening balances, period movements and cumulative totals. It has no closing-balance pair: the closing balances are derived from the totals."
       },
       "fallbackNote": "Your own .xlsx files still work — the template is the recommended path because it removes ambiguity.",
       "insideExamples": "Inside the example files",
@@ -1163,9 +1163,9 @@
   "authX": {
     "tagline": "Financial Intelligence",
     "subtitle_sign_in": "Sign in to continue. Your decisions and uploads are scoped to your workspace.",
-    "subtitle_sign_up": "Create your workspace. Free tier — no credit card.",
+    "subtitle_sign_up": "Create your workspace. 7-day trial with one document — no credit card.",
     "subtitle_sign_in_page": "Sign in to your CFO AI workspace.",
-    "subtitle_sign_up_page": "Create your CFO AI workspace. Free tier — no credit card.",
+    "subtitle_sign_up_page": "Create your CFO AI workspace. 7-day trial with one document — no credit card.",
     "not_configured": "Authentication isn't configured on this build.",
     "selected_plan": "Selected plan",
     "change_plan": "Change",
@@ -1226,11 +1226,11 @@
     "hero_eyebrow": "Free 7-day trial — no credit card",
     "hero_title_pre": "See your",
     "hero_title_highlight": "first analysis",
-    "hero_title_post": "in minutes.",
-    "hero_sub": "Upload one trial balance, balance sheet, or P&L. CFO AI builds the full financial model, ratios, valuation, and strategic recommendations — in minutes. No card required to start.",
+    "hero_title_post": "before you pay.",
+    "hero_sub": "Upload one Romanian trial balance (balanță de verificare). CFO AI builds the statements, the ratios, a credit score and ranked recommendations from it. No card required to start.",
     "hero_cta": "Start your 7-day free trial",
     "trust_no_card": "No credit card required",
-    "trust_full_report": "Full report — not a sample",
+    "trust_full_report": "One document, analysed in full",
     "trust_cancel_anytime": "Cancel anytime",
     "hero_compliance": "AI-assisted financial recommendations. Final decisions remain with your team.",
     "current_plan": "Current plan",
@@ -1252,7 +1252,12 @@
     "cancel_scheduled_title": "Cancellation scheduled",
     "cancel_scheduled_body": "You'll keep access until the end of the current period.",
     "cancel_failed_title": "Couldn't cancel",
-    "cancel_failed_body": "Please try again or contact support."
+    "cancel_failed_body": "Please try again or contact support.",
+    "cycle_aria": "Billing cycle",
+    "cycle_monthly": "Monthly",
+    "cycle_annual": "Annual",
+    "cycle_coming_soon": "Coming soon",
+    "cycle_annual_hint": "Annual pricing is not available yet"
   },
   "files": {
     "sourceFiles": "Source files",
@@ -1518,7 +1523,7 @@
     "sourceTbTooltip": "Source: trial balance. Full account-level granularity.",
     "sourceStatutoryBadge": "Source: statutory statement (Formular F30 + F10)",
     "noRecsTitle": "No recommendations yet",
-    "noRecsBody": "Upload a balance sheet, P&L, or trial balance to receive prioritized recommendations.",
+    "noRecsBody": "Upload a Romanian trial balance to receive prioritized recommendations.",
     "nothingToExportTitle": "Nothing to export yet",
     "nothingToExportBody": "Load a sample or upload a financial statement to enable HTML and Excel exports.",
     "pickSampleOrUpload": "Pick a sample or upload",
@@ -1569,7 +1574,7 @@
     "qualityPassedLink": "Quality checks passed · About data accuracy",
     "accCleanTitle": "Quality checks passed.",
     "accCleanPre": "Extraction reconciles within",
-    "accCleanPost": "on this document (target: under 0.1%). Balance sheet balances; source debits and credits agree. Headline figures (revenue, EBITDA, net profit, debt, equity) are safe to use — cross-check on board-level / external decisions out of habit.",
+    "accCleanPost": "on this document. The balance sheet closes and the source's debits and credits agree — those are the two checks run on every upload. Cross-check the headline figures (revenue, EBITDA, net profit, debt, equity) against your source before a board-level or external decision.",
     "accWatchTitle": "Verify before external use.",
     "accSrcImbalancePre": "Your source trial balance has a",
     "accImbalanceBold": "{{pct}}% debit / credit imbalance",
@@ -1846,7 +1851,7 @@
     "skipForNow": "Skip for now — open the dashboard",
     "stepNameTitle": "Name your workspace",
     "stepNameBody": "Give this workspace a name so you can recognize it — usually the company or entity you're analyzing.",
-    "namePlaceholder": "e.g. Scandia Food SRL",
+    "namePlaceholder": "e.g. Conserve Exemplu SRL",
     "industryHint": "Pick the closest match — CFO AI applies industry-appropriate benchmarks. A 4× Debt/EBITDA is normal in real estate and alarming in B2B SaaS.",
     "stepRulesTitle": "Set your decision rules",
     "stepRulesBody": "These rules classify every product into Protect / Watch / Wind down. Pick a preset or tune the thresholds — you can always change them later from Products.",
@@ -4039,5 +4044,35 @@
   "coverage": {
     "open": "What can CFO AI read today?",
     "sampleLink": "See a complete sample: a fictional company's trial balance and the report generated from it"
+  },
+  "pricingFaq": {
+    "eyebrow": "FAQ",
+    "title": "Questions, answered.",
+    "aria": "Frequently asked questions",
+    "aiReaderAvailable": "available",
+    "whatCounts": {
+      "q": "What counts as a document?",
+      "a": "A document is one uploaded file that CFO AI analyses. Today the engine reads Romanian trial balances (balanță de verificare) in the tested layouts — the coverage table on the home page lists them. A balance sheet, a P&L, an annual report or a scan is not read by the engine: it needs the AI reader, which is {{aiStatus}}. Invoice and inventory files are not read in this release."
+    },
+    "quotaHit": {
+      "q": "What happens when I hit my included document quota?",
+      "a": "You will see the extra-document price before processing. CFO AI never charges silently."
+    },
+    "introSubscription": {
+      "q": "Is the €0.99 Intro Unlock a subscription?",
+      "a": "No. It is a one-time 7-day unlock for one extra document."
+    },
+    "rollover": {
+      "q": "Do unused documents roll over?",
+      "a": "No. Included documents reset each billing period."
+    },
+    "movePlans": {
+      "q": "Can I move between plans?",
+      "a": "Yes. You can upgrade or downgrade from Billing."
+    },
+    "chatCap": {
+      "q": "Are Ask CFO AI messages capped?",
+      "a": "Yes. Each plan carries a daily and a monthly message cap, shown on its card and in the app. Chat is capped rather than metered — it is never billed per message. Its answers are written by an AI model.{{chatStatus}}"
+    }
   }
 }

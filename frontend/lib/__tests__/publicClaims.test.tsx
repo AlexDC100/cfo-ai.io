@@ -18,16 +18,20 @@
 //   its description / Open Graph / Twitter tags, the web manifest, the
 //   runtime meta the language hook writes, the share image's text record
 //   and alt, the in-app upload copy, the plan bullets, the non-Romanian
-//   refusal dialog, the public sample page's copy (/sample) — and holds:
+//   refusal dialog, the public sample page's copy (/sample), the /pricing
+//   page as a visitor gets it (hero, billing toggle, FAQ) and the /signup
+//   card — and holds:
 //
 //   C1  no country or region is claimed as covered other than Romania;
 //   C2  no accounting-software name that is not in a TESTED row backed by a
 //       real file;
-//   C3  no input format that is not in a tested row, unless the sentence
+//   C3  no input format that is not in a tested row, and no DOCUMENT TYPE
+//       other than a trial balance offered as an input, unless the sentence
 //       says it is AI-read or not supported;
-//   C4  every tested row carries evidence — a battery gate that exists, or
-//       a dated production measurement — and a book count the proof agrees
-//       with; the AI row is marked unavailable; rows are dated;
+//   C4  every tested row carries evidence — battery gates that exist, or a
+//       dated record (frontend/data/coverageRecords.json) — and counts the
+//       proof or the record states; software names are the proof's; the AI
+//       row is marked unavailable; rows are dated;
 //   C5  the coverage table renders every row, on the landing and in-app;
 //   C6  Multi-Country is coming soon everywhere: marked, no checkout;
 //   C7  the non-Romanian refusal says "not supported yet", never "upgrade";
@@ -44,6 +48,32 @@
 //   /signup?plan=multi link, "needs Multi-Country", "9-section", an image
 //   record that differs from the hero.
 //
+// SECOND REVIEW, 2026-10-02 — WHAT THE FIRST VERSION OF THIS GATE LET
+// THROUGH, each planted and observed GREEN by a verifier, each RED now:
+//   · surfaces it never read: /pricing's hero ("Upload one trial balance,
+//     balance sheet, or P&L"), its English-only FAQ ("a balance sheet, a
+//     P&L, or an annual report", "Ask CFO AI is available after launch",
+//     "What happens if billing is not wired yet?") and /signup ("Free
+//     tier"). They are harvested now, as rendered, with a floor each;
+//   · a claim excused by ANY negation word in its sentence: "Files from any
+//     European country are read by AI — full certification coming soon",
+//     "Any European country works, and distance is not a problem". The
+//     negation must now sit in the SAME CLAUSE as the claim and say that it
+//     is not supported / available / analysed — bare "is not", "planned",
+//     "coming soon" and "încă" excuse nothing;
+//   · countries outside a typed list of eleven ("Austria · Czechia ·
+//     Greece…"): the vocabulary is now every region name the runtime knows
+//     (Intl.DisplayNames, English and Romanian), minus Romania;
+//   · document types as inputs ("Balance sheets, P&L statements and annual
+//     reports are read too", "Ministry-of-Finance filings … SAF-T files —
+//     all read automatically"): C3 knew file formats, not document types;
+//   · a software name typed as JSX text after an expression, and one added
+//     to a tested row of coverage.json (which then allowed it everywhere):
+//     a row may name only software engineProof.json `software.proven`
+//     holds — a name a committed real file prints;
+//   · a book count typed into coverage.json (2 → 20): a count is the
+//     proof's or a dated record's, and the row must equal it.
+//
 // WHAT IT CANNOT SEE (TC-11)
 //   · whether a tested row's evidence gate actually exercises that layout —
 //     it checks the gate EXISTS in the battery and, where the row is tied to
@@ -51,7 +81,13 @@
 //   · the pixels of the share image (it compares the generator's text
 //     record with the hero; regenerate with scripts/build_og_image.mjs);
 //   · e-mails and the server-rendered storefront templates;
-//   · coverage implied without a region word, a software name or a format.
+//   · coverage implied without a region word, a software name, a format
+//     or a document type;
+//   · an accounting-software name that is not on its list — the software
+//     vocabulary is a DENY-LIST of names (it cannot know every product);
+//   · whether a dated record is TRUE: it holds a count to its record, and
+//     the record says who measured what and when — it cannot re-run a
+//     measurement taken on files that are not in the repository.
 //
 // Plant log: docs/engine_book/gates.md, "public-claims".
 
@@ -66,6 +102,7 @@ import i18n from "@/i18n";
 import en from "@/i18n/locales/en.json";
 import ro from "@/i18n/locales/ro.json";
 import coverage from "@/data/coverage.json";
+import coverageRecords from "@/data/coverageRecords.json";
 import proof from "@/data/engineProof.json";
 import "@/components/cfo/bsCanonicalStatusI18n";
 import { CoverageTable } from "@/components/cfo/CoverageTable";
@@ -74,8 +111,10 @@ import { NonRoUpgradeDialog } from "@/components/cfo/pricing/NonRoUpgradeDialog"
 import { PricingTableV2 } from "@/components/cfo/PricingTableV2";
 import { MonthlyBillEstimator } from "@/components/cfo/pricing/MonthlyBillEstimator";
 import { COMING_SOON_PLAN_IDS, SELLABLE_PLAN_IDS, isOnSalePlanId } from "@/lib/plans";
-import { META_DESCRIPTION } from "@/hooks/useHtmlLangSync";
-import { coverageView } from "@/lib/coverage";
+import { META_DESCRIPTION, META_IMAGE_ALT, META_TITLE } from "@/hooks/useHtmlLangSync";
+import { coverageView, evidenceText, type CoverageRowData } from "@/lib/coverage";
+import Pricing from "@/pages/cfo/Pricing";
+import Signup from "@/pages/cfo/Signup";
 import { bulletText, planFeatureBulletsFor, planKeysWithFeatures } from "@/lib/planFeatures";
 import {
   __clearPricingConfigForTest,
@@ -97,21 +136,26 @@ vi.mock("@/lib/auth", () => ({
   useAuth: () => ({
     isAuthenticated: false, displayName: null, initials: null, user: null,
     status: "signed_out", signOut: vi.fn(),
+    signIn: vi.fn(), signUp: vi.fn(), signInWithOAuth: vi.fn(),
   }),
+}));
+// A signed-out visitor has no plan; the page must not reach for the network.
+vi.mock("@/lib/planState", async (orig) => ({
+  ...(await orig<typeof import("@/lib/planState")>()),
+  usePlanState: () => ({ state: null, loading: false, error: null, refresh: vi.fn() }),
 }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
 
 const REPO = resolve(__dirname, "../../..");
 const LANGS: SurfaceLang[] = ["en", "ro"];
 
-interface Row {
-  id: string; category: string; label_en: string; label_ro: string;
-  formats: string[]; software: string[]; evidence: string;
-  real_books: number | string; real_books_proof?: string;
-  availability?: string; availability_en?: string; availability_ro?: string;
-  note_en: string; note_ro: string; as_of: string;
-}
+type Row = CoverageRowData;
 const ROWS = (coverage as unknown as { rows: Row[] }).rows;
+interface CoverageRecordRow {
+  id: string; row: string; measured_at: string; measured_by: string; how_en: string; how_ro: string;
+  detail: string; real_books_read: number; real_files_refused: number;
+}
+const RECORDS = (coverageRecords as unknown as { records: CoverageRecordRow[] }).records;
 const TESTED = ROWS.filter((r) => r.category === "tested");
 
 // ── the pricing config the signed-in table renders from ───────────────
@@ -153,8 +197,23 @@ function flat(obj: unknown, path: string, where: string, out: Line[]): void {
   }
 }
 
-/** The dictionary namespaces an upload, pricing or coverage surface reads. */
-const UPLOAD_NAMESPACES = ["dash", "dashboard", "upload", "expectedFormat", "tmpl", "pricing", "coverage"];
+/** The dictionary namespaces an upload, pricing, signup or coverage surface
+ *  reads. `pricingX` (the /pricing hero), `pricingFaq` and `authX` (the
+ *  signup card) were not here until 2026-10-02 — which is how "Upload one
+ *  trial balance, balance sheet, or P&L" and "Free tier" stayed public. */
+const UPLOAD_NAMESPACES = [
+  "dash", "dashboard", "upload", "expectedFormat", "tmpl", "pricing", "coverage",
+  "pricingX", "pricingFaq", "authX", "cookieConsent",
+];
+
+/** Own text of every element under `root` that carries any. */
+function ownTexts(root: Element, selector: string, where: string, out: Line[]): void {
+  for (const el of root.querySelectorAll(selector)) {
+    const own = [...el.childNodes].filter((n) => n.nodeType === 3)
+      .map((n) => n.textContent ?? "").join(" ").replace(/\s+/g, " ").trim();
+    if (own.length > 2) out.push({ where: `${where} <${el.tagName.toLowerCase()}>`, text: own });
+  }
+}
 
 function indexHtmlLines(): Line[] {
   const src = readFileSync(join(REPO, "index.html"), "utf8");
@@ -203,6 +262,15 @@ async function harvest(lang: SurfaceLang): Promise<Line[]> {
   render(<MemoryRouter><NonRoUpgradeDialog open onClose={() => {}} serverMessage="Non-RO documents are included on the Multi-Country plan." /></MemoryRouter>);
   out.push({ where: `non-ro-dialog[${lang}]`, text: textOf(screen.getByTestId("non-ro-upgrade-dialog")) });
   cleanup();
+  // 3b. the /pricing page as a signed-out visitor gets it — the hero, the
+  //     billing toggle, the plan cards, the FAQ — and the /signup page
+  __setPricingConfigForTest(CONFIG);
+  const pricing = render(<MemoryRouter initialEntries={["/pricing"]}><Pricing /></MemoryRouter>);
+  ownTexts(pricing.container, "h1,h2,h3,p,li,span,button,a,summary,div,footer", `pricing-page[${lang}]`, out);
+  cleanup();
+  const signup = render(<MemoryRouter initialEntries={["/signup"]}><Signup /></MemoryRouter>);
+  ownTexts(signup.container, "h1,h2,h3,p,li,span,button,a,label,div,footer", `signup-page[${lang}]`, out);
+  cleanup();
   // 4. upload / pricing copy in the dictionaries
   const dict = (lang === "ro" ? ro : en) as Record<string, unknown>;
   for (const ns of UPLOAD_NAMESPACES) flat(dict[ns], ns, `${lang}.json`, out);
@@ -218,6 +286,8 @@ async function harvest(lang: SurfaceLang): Promise<Line[]> {
   flat(SAMPLE_STRINGS[lang], "", `sample[${lang}]`, out);
   // 6. meta the hook writes, the refusal default, the coverage data itself
   out.push({ where: `META_DESCRIPTION.${lang}`, text: META_DESCRIPTION[lang] });
+  out.push({ where: `META_TITLE.${lang}`, text: META_TITLE[lang] });
+  out.push({ where: `META_IMAGE_ALT.${lang}`, text: META_IMAGE_ALT[lang] });
   if (lang === "en") {
     out.push(...indexHtmlLines());
     const manifest = JSON.parse(readFileSync(join(REPO, "public/manifest.webmanifest"), "utf8"));
@@ -260,24 +330,82 @@ const BEYOND_WORDS = new RegExp(
   "i",
 );
 const BEYOND_ABBREVIATIONS = /\b(?:EU|UE|USA|US|UK|UAE|EAU|SUA|IFRS)\b/;
+
+/** EVERY country and region the runtime can name, in English and Romanian,
+ *  minus Romania — generated, not typed. The first version listed eleven
+ *  countries; "Austria · Czechia · Greece · Netherlands · Portugal · Serbia
+ *  · Croatia" passed it. Matched case-sensitively as whole words (a country
+ *  is a proper noun: "Turkey", not "turkey"). */
+function regionNames(): string[] {
+  const names = new Set<string>();
+  const A = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  for (const locale of ["en", "ro"]) {
+    const display = new Intl.DisplayNames([locale], { type: "region", fallback: "none" });
+    for (const a of A) for (const b of A) {
+      const code = a + b;
+      if (code === "RO") continue;
+      const name = display.of(code);
+      if (name && name.length >= 4) names.add(name);
+    }
+  }
+  // CLDR's long forms and the short ones people type
+  for (const extra of ["Czechia", "Cehia", "Olanda", "Holland", "Great Britain", "Marea Britanie", "America"]) {
+    names.add(extra);
+  }
+  return [...names];
+}
+const REGION_NAMES = regionNames();
+const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const REGIONS = new RegExp(
+  `(?<![\\p{L}-])(?:${REGION_NAMES.sort((a, b) => b.length - a.length).map(esc).join("|")})(?![\\p{L}-])`, "u");
+
 const BEYOND_ROMANIA = {
   exec(sentence: string): RegExpExecArray | null {
-    return BEYOND_WORDS.exec(sentence) ?? BEYOND_ABBREVIATIONS.exec(sentence);
+    return BEYOND_WORDS.exec(sentence) ?? BEYOND_ABBREVIATIONS.exec(sentence) ?? REGIONS.exec(sentence);
   },
 };
 
-/** The sentence says the thing is NOT available — the not-supported row
- *  and the coming-soon card. */
+/** THE NEGATION MUST GOVERN THE CLAIM. These say, of the thing named in
+ *  the same clause, that it is not supported / available / analysed / read
+ *  / on sale / tested — or name it as "other than Romania". Words that
+ *  negate SOMETHING ("is not", "planned", "coming soon", "încă", "în
+ *  curând") are not here: "Any European country works, and distance is not
+ *  a problem" used to pass on its "is not". */
 const NEGATED = new RegExp(
   [
-    "not (?:yet )?(?:supported|available|analysed|on sale|tested)", "\\b(?:is|are) not\\b",
-    "not supported yet", "coming soon", "other than romania", "no real book",
-    "\\bnu (?:este|sunt|e)\\b", "\\bîncă\\b", "nesuportat\\w*", "indisponibil\\w*", "în curând",
-    "decât românia", "nicio balanță", "planned",
-    "planificat",
+    "not (?:yet )?(?:supported|available|analysed|analyzed|read|on sale|tested)",
+    "(?:isn't|aren't) (?:yet )?(?:supported|available|read|on sale)",
+    "other than romania", "no real book",
+    "\\bnu (?:este|sunt|e|a fost|au fost) (?:încă )?(?:suportat\\w*|disponibil\\w*|analizat\\w*|citit\\w*|de vânzare|testat\\w*)",
+    "nesuportat\\w*", "indisponibil\\w*", "decât românia",
   ].join("|"),
   "i",
 );
+
+/** A sentence's clauses: split at a dash, a semicolon, a colon or a comma.
+ *  A claim is excused only by a negation INSIDE ITS OWN clause. */
+const clausesOf = (sentence: string): string[] =>
+  sentence.split(/\s[—–]\s|;\s|:\s|,\s/).map((c) => c.trim()).filter(Boolean);
+
+/** A clause that is ONLY the verdict on what came before it — "… — not
+ *  supported yet", "… — încă nesuportate" — with no subject of its own. */
+const BARE_VERDICT = new RegExp(`^(?:încă |yet |still )?(?:${NEGATED.source})`, "i");
+
+/** The clause of `sentence` that makes a coverage claim beyond Romania and
+ *  is not said to be unavailable — by its own clause, or by a bare verdict
+ *  that follows it — or null. A negation in another clause WITH ITS OWN
+ *  SUBJECT excuses nothing: "Any European country works — scanned files
+ *  are not supported yet" is a claim. */
+function unexcusedClaim(sentence: string): { hit: string; clause: string } | null {
+  const clauses = clausesOf(sentence);
+  for (let i = 0; i < clauses.length; i += 1) {
+    const hit = BEYOND_ROMANIA.exec(clauses[i]);
+    if (!hit || NEGATED.test(clauses[i])) continue;
+    if (i + 1 < clauses.length && BARE_VERDICT.test(clauses[i + 1])) continue;
+    return { hit: hit[0], clause: clauses[i] };
+  }
+  return null;
+}
 
 /** A region word that is not about coverage: where data is stored, where
  *  the model provider is, the GDPR badge. */
@@ -288,6 +416,15 @@ const NOT_COVERAGE = new RegExp(
   ].join("|"),
   "i",
 );
+
+/** STRUCTURALLY NEGATIVE SURFACES — places whose own heading says "not
+ *  supported yet" / "coming soon", so a line inside them is not a claim
+ *  even without a negation in its own clause. Identified by where the line
+ *  was harvested from, never by its wording. */
+const NEGATIVE_SURFACE: Array<{ where: RegExp; why: string }> = [
+  { where: /\.json pricing\.(comingSoon\w*|nonRoBlocked\w*)$/, why: "the coming-soon plan's and the refusal's own dictionary keys" },
+  { where: /^non-ro-dialog\[/, why: "the refusal dialog, held to its wording by C7" },
+];
 
 /** Named exemptions — each one a string a reader meets that is NOT a claim
  *  that the product reads another country's files, with the reason. A new
@@ -303,8 +440,11 @@ const SOFTWARE = [
   "SAGA", "WinMENTOR", "WinMentor", "Mentor", "SmartBill", "Smart Bill", "NEXTUP", "NextUp", "CIEL",
   "SAP", "Crystal Reports", "Crystal", "SceptrumERP", "Sceptrum", "ContSal", "Oblio", "FGO",
   "Charisma", "Navision", "Dynamics", "QuickBooks", "Xero", "Sage", "DATEV", "Odoo", "Senior",
-  "Nexus", "WizCount", "Facturis",
+  "Nexus", "WizCount", "Facturis", "Pluriva", "Keez", "SocrateCloud", "Socrate", "Entersoft",
+  "Softone", "Lexware", "NetSuite", "Zoho", "FreshBooks",
 ];
+// A DENY-LIST: it reds on a name it knows. A product it has never heard of
+// passes — stated under "cannot see".
 const softwareIn = (text: string): string[] =>
   SOFTWARE.filter((name) => new RegExp(`(?<![\\w-])${name.replace(/ /g, "\\s?")}(?![\\w-])`, "i").test(text))
     // "Mentor" inside "WinMENTOR" is one name, not two
@@ -316,8 +456,49 @@ const softwareIn = (text: string): string[] =>
  *  counts.) */
 const UNTESTED_FORMAT =
   /\bscanned\b|\bscanat\w*|\bphotos?\b|\bfotografi\w*|\bimages?\b|\bimagine\b|\bimagini\b|\.xls\b|\bxls\b|\bdocx\b|\bpptx?\b|\bjpe?g\b|\bpng\b|\bheic\b|\bOCR\b/i;
-const AI_OR_NEGATED = new RegExp(
+const AI_OR_NEGATED_RX = new RegExp(
   `\\bAI\\b|${NEGATED.source}|real-file test|test pe fișier real|\\bnu scanat\\w*|not a scan`, "i");
+/** Does the sentence say the thing is AI-read or unavailable? The product's
+ *  own NAME is not that marker: "…one uploaded file that CFO AI analyzes —
+ *  a trial balance, a balance sheet, a P&L" passed on the "AI" in "CFO AI". */
+const AI_OR_NEGATED = {
+  test: (sentence: string): boolean =>
+    AI_OR_NEGATED_RX.test(sentence.replace(/\b(?:Ask )?CFO AI\b/g, " ")),
+};
+
+/** A DOCUMENT TYPE other than a trial balance. The engine reads trial
+ *  balances; these are read (when they are read at all) by the AI reader. */
+const OTHER_DOCUMENT =
+  /\bbalance sheets?\b|\bbilan[țt](?:uri|ul|urile)?\b|\bP&(?:amp;)?L\b|profit (?:and|&) loss|income statements?|cont(?:ul|uri)? de profit și pierdere|\bannual reports?\b|raport(?:ul|ului)? anual|rapoarte(?:le)? anuale|\bfilings?\b|raportări (?:depuse|UE)|\bF30\b|\bF10\b|\bSAF-?T\b|e-?Factura|bank statements?|extras(?:e|ul)? de cont|accountant exports?|invoice exports?/i;
+const DOC = OTHER_DOCUMENT.source;
+const TB = "(?:trial balances?|balanț[ăae](?:le)? de verificare)";
+const AND = "(?:,|\\bor\\b|\\band\\b|\\bsau\\b|\\bși\\b)";
+/** …offered as an INPUT. Three shapes, each seen in the retired copy:
+ *    · listed as a peer of the trial balance ("a trial balance, a balance
+ *      sheet, a P&L, or an annual report");
+ *    · the object of upload / import ("Upload a balance sheet");
+ *    · said to be read, accepted or supported ("…annual reports are read
+ *      too", "…SAF-T files — all read automatically").
+ *  "CFO AI reconstructs your P&L and balance sheet" and "the balance sheet
+ *  must close" name OUTPUTS and are none of these. */
+const INPUT_SHAPES: RegExp[] = [
+  // (a dash ends the list: "rebuilt from your trial balance — P&L, balance
+  // sheet and cash flow" names what is BUILT from it)
+  new RegExp(`${TB}[^.;!?—–]{0,40}?${AND}[^.;!?—–]{0,70}?(?:${DOC})`, "i"),
+  new RegExp(`(?:${DOC})[^.;!?—–]{0,70}?${AND}[^.;!?—–]{0,40}?${TB}`, "i"),
+  new RegExp(`\\b(?:upload\\w*|import\\w*|încarc\\w*|încărc\\w*)\\s+(?:(?:a|an|one|your|the|o|un|una)\\s+)?(?:[\\p{L}-]+\\s+){0,2}?(?:${DOC})`, "iu"),
+  new RegExp(`(?:${DOC})[^.!?]{0,90}?\\b(?:(?:is|are|sunt|este)\\s+(?:also\\s+|all\\s+)?(?:read|accepted|supported|ingested|citit\\w*|acceptat\\w*|suportat\\w*)|all read|read too|read automatically)\\b`, "i"),
+];
+const INPUT_CONTEXT = { test: (sentence: string): boolean => INPUT_SHAPES.some((rx) => rx.test(sentence)) };
+
+/** Software a surface may name: in a tested row's `software` AND printed by
+ *  a committed real file (engineProof.json `software.proven`). The row alone
+ *  is not enough — typing "SAGA" into a row used to allow it everywhere. */
+function allowedSoftware(): Set<string> {
+  const proven = new Set(
+    (proof as unknown as { software: { proven: string[] } }).software.proven.map((s) => s.toLowerCase()));
+  return new Set(TESTED.flatMap((r) => r.software.map((s) => s.toLowerCase())).filter((s) => proven.has(s)));
+}
 
 let unitsChecked = 0;
 
@@ -335,9 +516,22 @@ describe.each(LANGS)("public-claims · every surface (%s)", (lang) => {
     const lines = await harvest(lang);
     // Floors — a harvest that stops reading a surface must not pass.
     expect(lines.length, "harvest collapsed").toBeGreaterThan(400);
-    for (const prefix of ["landing[", "pricing-table[", "coverage-table[", "non-ro-dialog[", `${lang}.json pricing`, "planFeatures.multi", "sample[", "META_DESCRIPTION"]) {
-      expect(lines.some((l) => l.where.startsWith(prefix)), `nothing harvested from ${prefix}`).toBe(true);
+    for (const [prefix, floor] of [
+      ["landing[", 150], ["pricing-table[", 10], ["coverage-table[", 1], ["non-ro-dialog[", 1],
+      [`${lang}.json pricing.`, 30], ["planFeatures.multi", 1], ["sample[", 150], ["META_DESCRIPTION", 1],
+      // added 2026-10-02 — surfaces the first version never read
+      ["pricing-page[", 40], ["signup-page[", 10], [`${lang}.json pricingX.`, 30],
+      [`${lang}.json pricingFaq.`, 12], [`${lang}.json authX.`, 30],
+    ] as const) {
+      const n = lines.filter((l) => l.where.startsWith(prefix)).length;
+      expect(n, `only ${n} line(s) harvested from ${prefix} (floor ${floor})`).toBeGreaterThanOrEqual(floor);
     }
+    // the rendered pages are the real ones: their own landmarks are in the harvest
+    const pricingPage = lines.filter((l) => l.where.startsWith("pricing-page[")).map((l) => l.text).join(" | ");
+    expect(pricingPage, "the /pricing hero was not rendered").toContain(i18n.t("pricingX.hero_sub"));
+    expect(pricingPage, "the /pricing FAQ was not rendered").toContain(i18n.t("pricingFaq.whatCounts.q"));
+    const signupPage = lines.filter((l) => l.where.startsWith("signup-page[")).map((l) => l.text).join(" | ");
+    expect(signupPage, "the /signup subtitle was not rendered").toContain(i18n.t("authX.subtitle_sign_up_page"));
     if (lang === "en") {
       for (const w of ["index.html <title>", "index.html meta[description]", "index.html meta[og:image:alt]", "manifest.description", "og/homepage.json text.headline"]) {
         expect(lines.some((l) => l.where === w), `nothing harvested from ${w}`).toBe(true);
@@ -346,23 +540,56 @@ describe.each(LANGS)("public-claims · every surface (%s)", (lang) => {
     const offenders: string[] = [];
     for (const line of lines) {
       for (const sentence of sentencesOf(line.text)) {
-        const hit = BEYOND_ROMANIA.exec(sentence);
-        if (!hit) continue;
+        if (!BEYOND_ROMANIA.exec(sentence)) continue;
         unitsChecked += 1;
-        if (NEGATED.test(sentence) || NOT_COVERAGE.test(sentence)) continue;
+        if (NOT_COVERAGE.test(sentence)) continue;
+        const claim = unexcusedClaim(sentence);
+        if (!claim) continue;
         // The plan's own name, alone, on its coming-soon card.
         if (/^multi-country$/i.test(sentence.trim())) continue;
+        if (NEGATIVE_SURFACE.some((n) => n.where.test(line.where))) continue;
         if (EXEMPT.some((e) => e.where.test(line.where) && e.text.test(line.text))) continue;
-        offenders.push(`${line.where}: "${hit[0]}" in "${sentence.slice(0, 180)}"`);
+        offenders.push(`${line.where}: "${claim.hit}" in the clause "${claim.clause.slice(0, 160)}" of "${sentence.slice(0, 200)}"`);
       }
     }
-    expect(offenders, "a coverage claim beyond Romania that is not negated").toEqual([]);
+    expect(offenders, "a coverage claim beyond Romania that its own clause does not negate").toEqual([]);
     unitsChecked += lines.length;
+  });
+
+  it("C1 the detector: negation must govern the claim; every country is a country", () => {
+    // The four sentences a verifier planted and saw GREEN on the first
+    // version of this gate, and the honest ones that must stay green.
+    const red = [
+      "Files from any European country are read by AI — full certification coming soon.",
+      "Any European country works, and distance is not a problem.",
+      "Austria · Czechia · Greece · Netherlands · Portugal · Serbia · Croatia.",
+      "A trial balance from Romania, Austria or Greece as an Excel .xlsx sheet.",
+      "Balanțe din Austria, Grecia sau Olanda.",
+      "International coverage is planned.",
+    ];
+    const green = [
+      "Files from other countries are not supported yet, and the Multi-Country plan is not available.",
+      "Coming soon — international coverage is not available yet.",
+      "Trial balances and financial statements from any country other than Romania",
+      "Fișierele din alte țări nu sunt încă suportate.",
+      "A file from another country is not analysed correctly today, on any plan.",
+      "Upload a Romanian trial balance.",
+    ];
+    const offends = (text: string) =>
+      sentencesOf(text).some((s) => !NOT_COVERAGE.test(s) && unexcusedClaim(s) !== null);
+    for (const text of red) expect(offends(text), `should be RED: ${text}`).toBe(true);
+    for (const text of green) expect(offends(text), `should be green: ${text}`).toBe(false);
+    expect(REGION_NAMES.length, "the region vocabulary collapsed").toBeGreaterThan(400);
+    for (const name of ["Austria", "Greece", "Grecia", "Portugal", "Serbia", "Japan", "Japonia", "Brazil"]) {
+      expect(REGIONS.test(name), `${name} is not in the vocabulary`).toBe(true);
+    }
+    expect(REGIONS.test("Romania") || REGIONS.test("România"), "Romania must not be a foreign region").toBe(false);
+    unitsChecked += red.length + green.length;
   });
 
   it("C2 names no accounting software that is not a tested row's, backed by a real file", async () => {
     const lines = await harvest(lang);
-    const allowed = new Set(TESTED.flatMap((r) => r.software.map((s) => s.toLowerCase())));
+    const allowed = allowedSoftware();
     const offenders: string[] = [];
     for (const line of lines) {
       for (const name of softwareIn(line.text)) {
@@ -393,6 +620,42 @@ describe.each(LANGS)("public-claims · every surface (%s)", (lang) => {
     expect(seen, "no untested-format word found anywhere — the detector is dead").toBeGreaterThan(0);
     expect(offenders).toEqual([]);
     unitsChecked += seen;
+  });
+
+  it("C3 offers no document type but a trial balance as an input, unless it says AI-read or not supported", async () => {
+    const lines = await harvest(lang);
+    const offenders: string[] = [];
+    let seen = 0;
+    for (const line of lines) {
+      for (const sentence of sentencesOf(line.text)) {
+        const hit = OTHER_DOCUMENT.exec(sentence);
+        if (!hit || !INPUT_CONTEXT.test(sentence)) continue;
+        seen += 1;
+        if (AI_OR_NEGATED.test(sentence)) continue;
+        offenders.push(`${line.where}: "${hit[0]}" offered as an input in "${sentence.slice(0, 200)}"`);
+      }
+    }
+    // alive: the landing FAQ and the coverage table DO name these documents — beside the AI reader
+    expect(seen, "no document type found in an input sentence — the detector is dead").toBeGreaterThan(1);
+    expect(offenders).toEqual([]);
+    unitsChecked += seen;
+    // the retired sentences, and the outputs that must not trip it
+    const red = [
+      "Upload one trial balance, balance sheet, or P&L.",
+      "A document is one uploaded file that CFO AI analyzes — a trial balance, a balance sheet, a P&L, or an annual report.",
+      "Balance sheets, P&L statements and annual reports are read too, deterministically.",
+      "Ministry-of-Finance filings, accountant exports, annual reports and SAF-T files — all read automatically.",
+      "Încărcați o balanță de verificare, un bilanț sau un cont de profit și pierdere.",
+    ];
+    const green = [
+      "CFO AI reconstructs your P&L and balance sheet, estimates your cash flow.",
+      "The balance sheet must close and net income must equal account 121.",
+      "A balance sheet, a P&L, an annual report or a scan is not read by the engine: it needs the AI reader.",
+    ];
+    const offends = (text: string) => sentencesOf(text).some(
+      (s) => OTHER_DOCUMENT.test(s) && INPUT_CONTEXT.test(s) && !AI_OR_NEGATED.test(s));
+    for (const text of red) expect(offends(text), `should be RED: ${text}`).toBe(true);
+    for (const text of green) expect(offends(text), `should be green: ${text}`).toBe(false);
   });
 });
 
@@ -435,14 +698,17 @@ describe("public-claims · component literals", () => {
       "frontend/lib/uploadRefusals.ts",
       "frontend/hooks/useHtmlLangSync.ts",
     ];
-    const allowed = new Set(TESTED.flatMap((r) => r.software.map((s) => s.toLowerCase())));
+    const allowed = allowedSoftware();
     const offenders: string[] = [];
     for (const rel of files) {
       expect(existsSync(join(REPO, rel)), `${rel} is gone — update this list`).toBe(true);
       const src = readFileSync(join(REPO, rel), "utf8")
         .replace(/\/\*[\s\S]*?\*\//g, " ")
         .replace(/(^|[^:\\])\/\/[^\n]*/g, "$1 ");
-      for (const m of src.matchAll(/"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`[^`]*`|>[^<>{}]+</g)) {
+      // String literals, and JSX TEXT — which starts after a tag (`>`) OR
+      // after an expression (`}`): `{" "}SAGA, SmartBill … are supported.`
+      // was typed after a `}` and the first version of this scan skipped it.
+      for (const m of src.matchAll(/"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`[^`]*`|(?<=[>}])[^<>{}]+(?=[<{])/g)) {
         for (const name of softwareIn(m[0])) {
           if (!allowed.has(name.toLowerCase())) offenders.push(`${rel}: "${name}" in ${m[0].slice(0, 120)}`);
         }
@@ -469,29 +735,66 @@ describe("public-claims · coverage.json", () => {
       expect(r.note_ro.length, `${r.id}: note_ro`).toBeGreaterThan(10);
       unitsChecked += 1;
     }
+    const records = new Map(RECORDS.map((rec) => [rec.id, rec]));
+    for (const rec of RECORDS) {
+      expect(rec.measured_at, `${rec.id}: measured_at`).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(rec.id.endsWith(rec.measured_at), `${rec.id}: a record's id carries its date`).toBe(true);
+      for (const key of ["measured_by", "how_en", "how_ro", "detail"] as const) {
+        expect(rec[key].trim().length, `${rec.id}: ${key}`).toBeGreaterThan(3);
+      }
+      expect(ROWS.some((r) => r.id === rec.row && r.evidence.record === rec.id), `${rec.id}: no row cites this record`).toBe(true);
+    }
+    const proven = new Set((proof as unknown as { software: { proven: string[] } }).software.proven);
     for (const r of TESTED) {
-      expect(r.evidence.trim().length, `${r.id}: a tested row with no evidence`).toBeGreaterThan(0);
-      const production = /^production reprocess \d{4}-\d{2}-\d{2}$/.test(r.evidence);
-      if (!production) {
-        const gates = r.evidence.split(",").map((g) => g.trim());
-        for (const g of gates) {
-          expect(battery.includes(`Gate("${g}"`), `${r.id}: evidence names "${g}", which is not a battery gate`).toBe(true);
-        }
+      const gates = r.evidence.gates ?? [];
+      const record = r.evidence.record ? records.get(r.evidence.record) : undefined;
+      expect(gates.length > 0 || !!record, `${r.id}: a tested row with no evidence`).toBe(true);
+      if (r.evidence.record) {
+        expect(record, `${r.id}: evidence names record "${r.evidence.record}", which frontend/data/coverageRecords.json does not hold`).toBeTruthy();
+        expect(record?.row, `${r.id}: its record is another row's`).toBe(r.id);
+      }
+      for (const g of gates) {
+        expect(battery.includes(`Gate("${g}"`), `${r.id}: evidence names "${g}", which is not a battery gate`).toBe(true);
       }
       if (typeof r.real_books === "number") {
         expect(r.real_books, `${r.id}: a tested row counting no real book`).toBeGreaterThan(0);
+        // A COUNT IS NEVER TYPED ALONE: it is the proof's, or a dated record's.
         if (r.real_books_proof) {
           expect(formats[r.real_books_proof], `${r.id}: real_books is not engineProof.json formats.${r.real_books_proof}`).toBe(r.real_books);
+          if (record) expect(record.real_books_read, `${r.id}: its record disagrees with the proof`).toBe(r.real_books);
         } else {
-          expect(production, `${r.id}: a typed real-book count needs either real_books_proof or a dated production measurement`).toBe(true);
+          expect(record, `${r.id}: a typed real-book count needs either real_books_proof or a dated record`).toBeTruthy();
+          expect(record?.real_books_read, `${r.id}: real_books is not its record's real_books_read`).toBe(r.real_books);
         }
       } else {
         expect(r.real_books).toBe("constructed test files only");
+        expect(r.real_files_refused, `${r.id}: a refusal count on a row with no real file`).toBeUndefined();
       }
-      // A software name is a claim about a real export: it needs a real
-      // file inside a gate.
+      // files refused: stated only with a record, and equal to it
+      if (r.real_files_refused !== undefined || (record && record.real_files_refused > 0)) {
+        expect(record, `${r.id}: real_files_refused without a dated record`).toBeTruthy();
+        expect(r.real_files_refused, `${r.id}: real_files_refused is not its record's`).toBe(record?.real_files_refused);
+      }
+      // a note states a count only through a token
+      for (const note of [r.note_en, r.note_ro]) {
+        expect(/\b\d+\s+(?:real\b|balanțe reale|fișier(?:e)? real)/i.test(note), `${r.id}: a count typed into a note — use {read} / {refused} / {held}: "${note.slice(0, 120)}"`).toBe(false);
+        expect(/\b\d{4}-\d{2}-\d{2}\b/.test(note), `${r.id}: an ISO date typed into a note — use {record_date}`).toBe(false);
+      }
+      // A software name is a claim about a real export: it must be a name a
+      // committed real file PRINTS (engineProof.json software.proven).
+      for (const name of r.software) {
+        expect(proven.has(name), `${r.id}: names ${name}, which no committed real file prints (engineProof.json software.proven = [${[...proven].join(", ")}])`).toBe(true);
+      }
       if (r.software.length > 0) {
         expect(typeof r.real_books === "number" && !!r.real_books_proof, `${r.id}: names ${r.software.join(", ")} without a gate-backed real file`).toBe(true);
+      }
+    }
+    for (const r of ROWS) {
+      if (r.category !== "tested") expect(r.software, `${r.id}: software named outside a tested row`).toEqual([]);
+      // what the row prints as evidence exists in both languages
+      for (const lang of LANGS) expect(evidenceText(r, lang).length, `${r.id}: no evidence text (${lang})`).toBeGreaterThan(5);
+      if (r.evidence.note_en || r.evidence.note_ro) {
+        expect(r.evidence.note_en && r.evidence.note_ro, `${r.id}: an evidence note in one language only`).toBeTruthy();
       }
     }
     // every layout the proof read is a row here — nothing tested is unlisted
@@ -509,6 +812,44 @@ describe("public-claims · coverage.json", () => {
     const ns = ROWS.filter((r) => r.category === "not_supported");
     expect(ns.length).toBe(1);
     expect(ns[0].real_books).toBe(0);
+    // the AI row lists a trial balance in an unrecognised layout too — such a
+    // file was in no row at all until 2026-10-02
+    expect(ai[0].label_en).toMatch(/layout none of the readers above recognises/);
+    expect(ai[0].label_ro).toMatch(/format pe care niciunul dintre cititoarele de mai sus nu îl recunoaște/);
+    // the model-written features say whether they answer today, or that nobody has measured
+    const features = (coverage as unknown as { ai_features: Record<string, { availability?: string; as_of?: string }> & { owner_action: string; unavailable_en: string; unavailable_ro: string } }).ai_features;
+    for (const key of ["chat", "briefing"]) {
+      expect(["available", "unavailable", "unverified"], `ai_features.${key}`).toContain(features[key].availability);
+      expect(features[key].as_of, `ai_features.${key}.as_of`).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
+    expect(features.unavailable_en && features.unavailable_ro && features.owner_action).toBeTruthy();
+  });
+
+  it("C4 the table prints the denominator: files read, files refused, in the reader's date format", () => {
+    for (const lang of LANGS) {
+      const view = coverageView(lang);
+      const rows = view.groups.flatMap((g) => g.rows);
+      const xlsx = rows.find((r) => r.id === "xlsx_10_column")!;
+      const text = rows.find((r) => r.id === "pdf_text_layer")!;
+      const xlsxRecord = RECORDS.find((rec) => rec.row === "xlsx_10_column")!;
+      const textRecord = RECORDS.find((rec) => rec.row === "pdf_text_layer")!;
+      const read = (proof as unknown as { formats: Record<string, number> }).formats.xlsx_10_column_layout;
+      expect(xlsx.testedOn).toContain(String(read));
+      expect(xlsx.testedOn).toMatch(lang === "ro" ? /refuzat/ : /refused/);
+      expect(xlsx.note, "the xlsx note states the files held").toContain(String(read + xlsxRecord.real_files_refused));
+      expect(text.testedOn).toContain(String(textRecord.real_books_read));
+      expect(text.testedOn).toMatch(lang === "ro" ? /refuzat/ : /refused/);
+      for (const r of rows) {
+        expect(r.note, `${r.id} (${lang}): an unfilled token`).not.toMatch(/\{\w+\}/);
+        // no ISO date beside a formatted one: every date goes through the page's printer
+        expect(`${r.note} ${r.evidence}`, `${r.id} (${lang}): an ISO date on the page`).not.toMatch(/\b\d{4}-\d{2}-\d{2}\b/);
+        unitsChecked += 1;
+      }
+      // the evidence line is in the reader's language (gate ids are identifiers)
+      const prose = rows.map((r) => r.evidence).join(" ");
+      if (lang === "ro") expect(prose).not.toMatch(/production reprocess|constructed file|no real book|scripted model reply/);
+      else expect(prose).not.toMatch(/reprocesare|fișier construit|nicio balanță/);
+    }
   });
 });
 
@@ -716,6 +1057,12 @@ describe("public-claims · figures and identity", () => {
     expect(lines.find((l) => l.where === "index.html meta[description]")?.text).toBe(META_DESCRIPTION.en);
     expect(META_DESCRIPTION.en).toMatch(/Romanian trial balance/);
     expect(META_DESCRIPTION.ro).toMatch(/balanță de verificare românească/);
+    // the title and the image alt follow the reader's language at runtime;
+    // index.html ships the English ones the hook would write
+    expect(title).toBe(META_TITLE.en);
+    expect(META_TITLE.ro).toMatch(/balanță de verificare românească/);
+    for (const alt of lines.filter((l) => /image:alt/.test(l.where))) expect(alt.text).toBe(META_IMAGE_ALT.en);
+    expect(META_IMAGE_ALT.ro).toMatch(/balanță de verificare românească/);
     const manifest = JSON.parse(readFileSync(join(REPO, "public/manifest.webmanifest"), "utf8"));
     expect(String(manifest.description)).toMatch(/Romanian trial balance/);
     unitsChecked += 6;

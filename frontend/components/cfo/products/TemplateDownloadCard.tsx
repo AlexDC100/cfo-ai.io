@@ -179,14 +179,14 @@ export function TemplateDownloadCard({
                 meta={t("expectedFormat.exampleCaption")}
                 onView={() =>
                   void previewWorkbookInNewTab(
-                    "/examples/example_products_trading.xlsx",
-                    "example_products_trading.xlsx",
+                    "/examples/example_sales_analysis.xlsx",
+                    "example_sales_analysis.xlsx",
                     t("tmpl.previewSalesSubtitle"),
                   )
                 }
                 viewTestid="view-sales-template"
-                href="/examples/example_products_trading.xlsx"
-                downloadName="example_products_trading.xlsx"
+                href="/examples/example_sales_analysis.xlsx"
+                downloadName="example_sales_analysis.xlsx"
                 downloadTestid="download-sales-template"
               />
             </div>

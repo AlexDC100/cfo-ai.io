@@ -87,7 +87,7 @@ const REQUIRED_ROWS = [
   "Pre-tax profit",
   "Income tax",
   "Net profit — built from the accounts",
-  "= Net profit — account 121 (as filed)",
+  "= Net profit — account 121 (closing balance)",
 ];
 
 /** THE ONE EBITDA (owner ruling 2026-09-26): on a book whose stock variation

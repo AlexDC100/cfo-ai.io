@@ -11,7 +11,7 @@
 // account 121 closed at 32,108,059.51) and a bucket sum missing a
 // 216,194.00 "Unclassified — debit side" row. The dashboard's own P&L and
 // BS bridges already quoted the right priors. The workbook's "Net income
-// (account 121, as filed)" row printed the reconstruction too: its reader
+// (account 121, closing balance)" row printed the reconstruction too: its reader
 // looked for `prior.assembled_pl`, which `statementsForExportOf` never
 // carried.
 //
@@ -235,7 +235,7 @@ describe("the three deliverables print the served prior", () => {
     const p = fresh();
     const s = surfaces(p);
     const wb = buildExcelWorkbook(s.statementsForExport!, undefined, s.creditEnvelopes);
-    const row = workbookRow(wb, "P&L", "Net income (account 121, as filed)");
+    const row = workbookRow(wb, "P&L", "Net income (account 121, closing balance)");
     expect(row[1]).toBe(currentPl(p).net_income_statutory);
     expect(row[2]).toBe(p.comparatives.bridges.pl.prior_total);
     // One-EBITDA ruling: on this bridge book the result built from the

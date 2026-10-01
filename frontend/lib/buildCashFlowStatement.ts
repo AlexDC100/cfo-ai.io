@@ -219,11 +219,11 @@ export function buildCashFlowStatement(args: BuildArgs): CashFlowStatement {
   const dividendsPayable = bs.ap_dividends ?? 0;
   if (dividendsPayable > 1000) {
     notes.push(
-      `Dividends of RON ${Math.round(dividendsPayable).toLocaleString()} were ` +
+      `Dividends of RON ${Math.round(dividendsPayable).toLocaleString("en-US")} were ` +
       `DECLARED (debit to 1171 retained earnings, credit to 457 dividends ` +
       `payable) but NOT paid in cash during ${yearLabel} — they sit on the ` +
       `balance sheet as a current liability awaiting distribution. Cash ` +
-      `distribution would reduce cash by RON ${Math.round(dividendsPayable).toLocaleString()} ` +
+      `distribution would reduce cash by RON ${Math.round(dividendsPayable).toLocaleString("en-US")} ` +
       `if paid out next period.`
     );
   }
@@ -231,11 +231,11 @@ export function buildCashFlowStatement(args: BuildArgs): CashFlowStatement {
     const direction = wcReconciliationPlug < 0 ? "use of" : "source of";
     notes.push(
       `Working capital reconciliation includes a RON ` +
-      `${Math.round(Math.abs(wcReconciliationPlug)).toLocaleString()} ${direction} cash ` +
+      `${Math.round(Math.abs(wcReconciliationPlug)).toLocaleString("en-US")} ${direction} cash ` +
       `for movements in accounts not explicitly modeled (working-capital ` +
       `deltas, financing flows where YTD st_c / st_d are missing, retained-` +
       `earnings adjustments). The statement balances to the BS cash position ` +
-      `of RON ${Math.round(closingCashActual).toLocaleString()} within RON 1.`
+      `of RON ${Math.round(closingCashActual).toLocaleString("en-US")} within RON 1.`
     );
   }
   if (

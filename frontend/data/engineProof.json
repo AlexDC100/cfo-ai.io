@@ -113,5 +113,15 @@
     "bvb_listings": 88,
     "bvb_listings_with_financials": 35,
     "how": "engine.public.bvb_seed.bvb_universe() — the bundled universe the page serves"
+  },
+  "software": {
+    "proven": [
+      "WinMENTOR"
+    ],
+    "real_files": {
+      "WinMENTOR": 1
+    },
+    "real_files_scanned": 6,
+    "how": "scripts/build_engine_proof.py: each name searched in the page text / cells of every committed real corpus file (battery gate: corpus-replay reads them)"
   }
 }

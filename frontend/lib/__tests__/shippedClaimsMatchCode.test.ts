@@ -999,10 +999,19 @@ describe("shipped claims match the code", () => {
           seen.set(n, at);
         }
       }
-      // Floor: at least one surface must actually quote this figure, or
-      // the "they all agree" result is agreement about nothing.
+      // NO SURFACE QUOTES A SPEED ANY MORE (2026-10-02). This law used to
+      // floor the opposite — "at least one surface must quote a speed" —
+      // because its job was agreement between surfaces, and it said so in
+      // its own header: "the figure law proves the surfaces agree, not that
+      // 90 seconds is true". Nobody had measured it. Every surface agreed on
+      // an unmeasured number, which is the defect in agreement's clothes.
+      // The number is gone from the hero, the meta, the manifest and the
+      // share image; `landing-proof` L10 holds that. Here: none may return.
       if (unit === "seconds") {
-        expect(seen.size, "no marketing surface quotes a speed at all").toBeGreaterThan(0);
+        expect(
+          [...seen.entries()].map(([n, wheres]) => `${n} seconds — ${wheres.join(" ; ")}`),
+          "a marketing surface quotes a speed nobody measured",
+        ).toEqual([]);
       }
       if (seen.size > 1) {
         const detail = [...seen.entries()]

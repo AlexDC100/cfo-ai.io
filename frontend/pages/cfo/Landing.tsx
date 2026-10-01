@@ -294,6 +294,14 @@ type BillingCycle = "monthly" | "yearly";
 const SOLO_MONTHLY = 4.99;
 const BUSINESS_MONTHLY = 9.99;
 
+/** A card's price in ONE format per language — the same one the card's own
+ *  bullets use ("€1.49 per extra" / "1,49 € per extra"). The Romanian page
+ *  used to print "€4.99" over a list saying "1,49 €". */
+const cardPrice = (amount: number, langCode: string): string =>
+  langCode.toLowerCase().startsWith("ro")
+    ? `${amount.toFixed(2).replace(".", ",")}\u00a0€`
+    : `€${amount.toFixed(2)}`;
+
 const billingToggle = (cycle: BillingCycle) => `
   <div style="display:flex;justify-content:center;margin-bottom:28px">
     <div style="display:inline-flex;padding:4px;border-radius:999px;background:var(--bg-2);border:1px solid var(--rule)">
@@ -305,11 +313,11 @@ const billingToggle = (cycle: BillingCycle) => `
 // Annual billing intentionally NOT offered on the landing grid: checkout
 // carries monthly Stripe prices only — never promise a price that cannot
 // be purchased. (billingToggle kept above for a future annual launch.)
-const pricingGrid = (L: LandingStrings, cycle: BillingCycle = "monthly") => `
+const pricingGrid = (L: LandingStrings, cycle: BillingCycle = "monthly", langCode = "en") => `
   <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px;align-items:stretch;max-width:1320px;margin:0 auto">
     <div class="pricing-card" style="border:1px solid var(--rule);background:var(--surface);border-radius:20px;padding:30px;display:flex;flex-direction:column">
       <div style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--ink-soft)">${L.pricing.solo.name}</div>
-      <div style="margin-top:14px;display:flex;align-items:baseline;gap:6px"><span style="font-family:var(--serif);font-size:52px;line-height:1;color:var(--ink)">€${SOLO_MONTHLY}</span><span style="font-size:14px;color:var(--ink-soft)">${L.pricing.perMonth}</span></div>
+      <div style="margin-top:14px;display:flex;align-items:baseline;gap:6px"><span data-plan-price="solo" style="font-family:var(--serif);font-size:52px;line-height:1;color:var(--ink)">${cardPrice(SOLO_MONTHLY, langCode)}</span><span style="font-size:14px;color:var(--ink-soft)">${L.pricing.perMonth}</span></div>
       <div style="font-size:12.5px;color:var(--ink-mute);margin-top:6px">${L.pricing.solo.yearly}</div>
       <p style="margin-top:14px;font-size:13.5px;color:var(--ink-soft)">${L.pricing.solo.blurb}</p>
       <a href="/signup?plan=solo" data-act="signup:solo" class="hv-brand" style="margin-top:22px;display:inline-flex;align-items:center;justify-content:center;height:46px;border-radius:999px;background:transparent;border:1px solid var(--rule-strong);color:var(--ink);font-weight:500;font-size:14px;transition:border-color .15s,color .15s">${L.pricing.solo.cta}</a>
@@ -320,7 +328,7 @@ const pricingGrid = (L: LandingStrings, cycle: BillingCycle = "monthly") => `
     <div class="pricing-card" style="border:1.5px solid var(--brand);background:var(--surface);border-radius:20px;padding:30px;display:flex;flex-direction:column;position:relative;box-shadow:0 24px 60px -30px rgba(75,191,168,.5)">
       <span style="position:absolute;top:-11px;left:30px;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em;font-weight:600;color:var(--on-brand);background:var(--brand);padding:4px 12px;border-radius:999px">${L.pricing.business.badge}</span>
       <div style="font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.16em;color:var(--brand)">${L.pricing.business.name}</div>
-      <div style="margin-top:14px;display:flex;align-items:baseline;gap:6px"><span style="font-family:var(--serif);font-size:52px;line-height:1;color:var(--ink)">€${BUSINESS_MONTHLY}</span><span style="font-size:14px;color:var(--ink-soft)">${L.pricing.perMonth}</span></div>
+      <div style="margin-top:14px;display:flex;align-items:baseline;gap:6px"><span data-plan-price="pro" style="font-family:var(--serif);font-size:52px;line-height:1;color:var(--ink)">${cardPrice(BUSINESS_MONTHLY, langCode)}</span><span style="font-size:14px;color:var(--ink-soft)">${L.pricing.perMonth}</span></div>
       <div style="font-size:12.5px;color:var(--ink-mute);margin-top:6px">${L.pricing.business.yearly}</div>
       <p style="margin-top:14px;font-size:13.5px;color:var(--ink-soft)">${L.pricing.business.blurb}</p>
       <a href="/signup?plan=pro" data-act="signup:pro" class="btn-grad" style="margin-top:22px;display:inline-flex;align-items:center;justify-content:center;height:46px;border-radius:999px;background:var(--grad);color:var(--on-brand);font-weight:500;font-size:14px">${L.pricing.business.cta}</a>
@@ -663,19 +671,15 @@ const homeMain = (L: LandingStrings, signedIn: boolean, billingCycle: BillingCyc
           <span style="margin-left:12px;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-mute)">${L.hero.mockTitle}</span>
         </div>
         <div class="mock-grid" style="padding:24px;display:grid;grid-template-columns:2fr 1fr;gap:20px">
-          <div class="mock-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px">
-            <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:14px;padding:16px"><div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft)">EBITDA margin</div><div style="font-family:var(--serif);font-size:40px;line-height:1;margin-top:8px;color:var(--brand)">11.4<span style="font-size:18px;color:var(--ink-soft)">%</span></div><div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px">+1.8pp vs sector</div></div>
-            <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:14px;padding:16px"><div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft)">Altman Z″</div><div style="font-family:var(--serif);font-size:40px;line-height:1;margin-top:8px;color:var(--brand)">3.12</div><div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px">Safe zone</div></div>
-            <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:14px;padding:16px"><div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft)">Net debt / EBITDA</div><div style="font-family:var(--serif);font-size:40px;line-height:1;margin-top:8px;color:var(--brand)">1.8<span style="font-size:18px;color:var(--ink-soft)">×</span></div><div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px">Comfortable</div></div>
-            <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:14px;padding:16px"><div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft)">ROIC</div><div style="font-family:var(--serif);font-size:40px;line-height:1;margin-top:8px;color:var(--brand)">17.7<span style="font-size:18px;color:var(--ink-soft)">%</span></div><div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px">+2.1pp YoY</div></div>
+          <div class="mock-kpis" data-hero-mock style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px">
+            ${L.hero.mock.kpis.map((k) => `
+            <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:14px;padding:16px"><div style="font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink-soft)">${k.label}</div><div style="font-family:var(--serif);font-size:40px;line-height:1;margin-top:8px;color:var(--brand)">${k.value}${k.unit ? `<span style="font-size:18px;color:var(--ink-soft)">${k.unit}</span>` : ""}</div><div style="font-size:11.5px;color:var(--ink-soft);margin-top:6px">${k.sub}</div></div>`).join("")}
           </div>
           <div style="border:1px solid var(--rule);background:var(--bg-2);border-radius:14px;padding:18px">
-            <div style="display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--brand)">✦ AI CFO Briefing</div>
-            <p style="margin-top:12px;font-size:13.5px;line-height:1.6;color:var(--ink-2)">Profitability is above sector median, and the balance sheet is conservatively levered. Two watch-items: receivable days drifting up, and one supplier concentration above 30%.</p>
+            <div style="display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.14em;color:var(--brand)">✦ ${L.hero.mock.briefingTitle}</div>
+            <p style="margin-top:12px;font-size:13.5px;line-height:1.6;color:var(--ink-2)">${L.hero.mock.briefingBody}</p>
             <ul style="margin:10px 0 0;padding:0;list-style:none;font-size:12.5px;color:var(--ink-soft);display:flex;flex-direction:column;gap:8px">
-              <li style="display:flex;gap:8px"><span style="color:var(--brand)">→</span> DSO up 6 days — tighten collections</li>
-              <li style="display:flex;gap:8px"><span style="color:var(--brand)">→</span> Refinance short-term line before Q3</li>
-              <li style="display:flex;gap:8px"><span style="color:var(--brand)">→</span> Benchmark vs 3 named peers ready</li>
+              ${L.hero.mock.bullets.map((b) => `<li style="display:flex;gap:8px"><span style="color:var(--brand)">→</span> ${b}</li>`).join("")}
             </ul>
           </div>
         </div>
@@ -759,7 +763,7 @@ const homeMain = (L: LandingStrings, signedIn: boolean, billingCycle: BillingCyc
         <h2 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(30px,4.5vw,46px);line-height:1.06;letter-spacing:-.02em">${L.pricing.t1}<span class="grad-text">${L.pricing.thl}</span></h2>
         <p style="margin-top:14px;font-size:15px;color:var(--ink-soft)">${L.pricing.subtitle}</p>
       </div>
-      ${pricingGrid(L, billingCycle)}
+      ${pricingGrid(L, billingCycle, langCode)}
     </div>
   </section>
 
@@ -796,14 +800,14 @@ const homeMain = (L: LandingStrings, signedIn: boolean, billingCycle: BillingCyc
   </section>
 </main>`;
 
-const pricingMain = (L: LandingStrings, cycle: BillingCycle = "monthly") => `
+const pricingMain = (L: LandingStrings, cycle: BillingCycle = "monthly", langCode = "en") => `
 <main style="max-width:var(--maxw);margin:0 auto;padding:64px 24px 40px">
   <div style="text-align:center;max-width:680px;margin:0 auto 44px">
     ${eyebrow(L.pricing.eyebrow)}
     <h1 style="margin-top:16px;font-family:var(--serif);font-weight:400;font-size:clamp(34px,5vw,52px);line-height:1.05;letter-spacing:-.025em">${L.pricing.t1}<span class="grad-text">${L.pricing.thl}</span></h1>
     <p style="margin-top:16px;font-size:16px;color:var(--ink-soft)">${L.pricing.subtitle}</p>
   </div>
-  ${pricingGrid(L, cycle)}
+  ${pricingGrid(L, cycle, langCode)}
 </main>`;
 
 // THE LEGAL TEXT USED TO LIVE HERE, AND IT NO LONGER DOES.
@@ -1260,7 +1264,7 @@ export default function Landing() {
     const main =
       page === "contact" ? contactMain(contactRef.current, contactStatus, L)
       : page === "home" ? homeMain(L, account != null, billingCycle, langCode)
-      : page === "pricing" ? pricingMain(L, billingCycle)
+      : page === "pricing" ? pricingMain(L, billingCycle, langCode)
       : legalMain(L);
     return main
       + footer(year, L, langCode)

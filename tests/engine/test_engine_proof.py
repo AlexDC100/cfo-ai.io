@@ -29,12 +29,28 @@ the pipeline's property invariants, and harvests them from test files)
       size; the filed turnover figures stay inside the script.
   EP5  the engine identity in the file is this tree's (a stale proof is red).
   EP6  the script REFUSES to write a proof over the committed subset.
+  EP7  A PARTIAL RE-MEASUREMENT IS NOT A PASS (2026-10-02). On a checkout
+      without the local books three checks cannot be re-run, and EP1 could
+      only compare the rest. A verifier edited the committed file by hand
+      there — balance sheet 6 → 7 of 7, the imbalance 1 → 0, the old drift
+      0.9975 → 0.1 — and pasted a new engine digest over a changed engine;
+      this gate, `landing-proof` and `public-claims` all printed PASS, and
+      the landing would have printed "7 / 7". EP7 SKIPS when the scope is
+      not full, with the reason; the battery counts tests minus skips
+      against a floor equal to the number of laws, so `engine-proof` cannot
+      report PASS where it could not re-measure everything. The release
+      battery must run where files/ is present.
+  EP8  a piece of accounting software is "proven" only by a committed real
+      file that prints its name.
 
 PLANTS (docs/engine_book/gates.md, "engine-proof"):
   A  a count edited by hand in the JSON            → EP1 red
   B  a file under src/engine changed, not re-run   → EP1 and EP5 red
   C  a fixture label written into the JSON         → EP4 red
   D  the scope guard removed from the script       → EP6 red
+  F  a count edited by hand on a checkout without the books
+                                                   → EP7 skipped, battery red
+  G  a software name added to the proof by hand    → EP1 red
 """
 from __future__ import annotations
 
@@ -111,6 +127,42 @@ def test_rerunning_the_proof_script_agrees_with_the_committed_file(check_run):
         print("NOTICE engine-proof: the local calibration books are absent; "
               "balance_sheet_closes, turnover_equals_filing and "
               "ebitda_variants_agree were compared by identity only.")
+
+
+# ── EP7 ────────────────────────────────────────────────────────────────
+
+
+def test_every_check_was_re_measured_on_this_checkout(check_run, proof):
+    out = check_run.stdout + check_run.stderr
+    work = re.search(r"GATE-WORK engine-proof checks=(\d+) subjects=(\d+) scope=(\S+)", out)
+    assert work, "the script printed no work count:\n%s" % out[-1500:]
+    checks, scope = int(work.group(1)), work.group(3)
+    if scope != "full":
+        pytest.skip(
+            "PARTIAL — scope %s: only %d of %d checks were re-measured (the local calibration "
+            "books under files/ are absent). The other checks' counts were NOT compared with "
+            "anything: a hand edit of them passes here. This is not a green engine-proof; run "
+            "the gate where files/ is present." % (scope, checks, len(proof["checks"])))
+    assert check_run.returncode == 0, out[-2000:]
+    assert checks == len(proof["checks"]) == len(CHECK_IDS), (checks, scope)
+    assert "every check re-measured" in out
+
+
+# ── EP8 ────────────────────────────────────────────────────────────────
+
+
+def test_software_is_proven_only_by_a_committed_real_file(proof):
+    script = _load_script()
+    software = proof["software"]
+    assert software == script.software_proven(), (
+        "the proof's software block is not what the committed real files print")
+    assert software["real_files_scanned"] >= 5
+    assert software["proven"] == sorted(software["real_files"])
+    for name, files in software["real_files"].items():
+        assert isinstance(files, int) and files >= 1, name
+        assert name in script.EXPORTER_NAMES, name
+    # the detector is alive: the one real PDF export names its exporter
+    assert "WinMENTOR" in software["proven"], software
 
 
 # ── EP2 ────────────────────────────────────────────────────────────────
