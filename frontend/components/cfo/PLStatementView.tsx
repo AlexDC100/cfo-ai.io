@@ -541,10 +541,12 @@ function PLLineView({ line, currency }: { line: PLLine; currency: string }) {
 //   EBITDA înainte de variația stocurilor și producția imobilizată X
 //   · Variația stocurilor de produse ±Y · Producția imobilizată Z
 //   = EBITDA W · Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814)
-//   — în afara EBITDA ±P
+//   — în afara EBITDA P
 //
 // every label and every value as served (`ebitda_reconciliation.bridge`),
-// the two components signed as their effect on the result, a zero printed
+// the two components signed as their effect on the result, net provisions
+// printed as the row below prints it (the served charge, a level — see
+// `afterParts`), a zero printed
 // as a zero (the reader must see the definition includes the line even
 // when this period did not post to it), and a refused part as the word.
 // Under it the engine's notes: on a closed book the 711 line is DERIVED
@@ -566,15 +568,29 @@ function EbitdaBridgeLine({
   const fmt = useAmountFormatter(currency);
   const recon = served.reconciliation;
   if (!recon || recon.bridge.parts.length === 0) return null;
-  // Signed as their effect on the result: the two components inside EBITDA
-  // and, after it, net provisions (owner ruling R2, 2026-09-28).
+  // Signed as their effect on the result: the two components inside EBITDA.
   const signedPart = (key: string) =>
-    key === "inventory_variation" || key === "capitalized_own_work" || key === "net_provisions";
+    key === "inventory_variation" || key === "capitalized_own_work";
   const value = (key: string, v: number | null): string => {
     if (v === null) return t("statements.pl.refused");
     if (Math.abs(v) < 0.005) return "0";
     return signedPart(key) ? fmt(v, { sign: v > 0 ? "positive" : "negative" }) : fmt(v);
   };
+  // NET PROVISIONS AFTER EBITDA — on the page's ONE convention (review
+  // 2026-10-01). The engine serves the bridge's part signed as its effect on
+  // the result (a net charge negative); the net-provisions ROW a few lines
+  // below prints the served `assembled_pl.net_provisions.value` as D&A
+  // prints its own — a charge as a level, "6812 + 6814 − 7812 − 7814", as
+  // both labels say. Two figures under one label with opposite signs is the
+  // defect, so the bridge prints THE ROW'S served figure, through the same
+  // printer, unsigned and uncoloured: one figure, one convention. A block
+  // without a readable net-provisions figure (not one the engine writes
+  // under R2) prints no after-part rather than a second convention.
+  const afterParts = recon.bridge.afterEbitda.flatMap((p) => {
+    if (p.key !== "net_provisions") return [p];
+    const np = served.netProvisions;
+    return np ? [{ ...p, value: np.value }] : [];
+  });
   return (
     <div className="pl-ebitda-bridge" data-testid="pl-ebitda-bridge" data-definition={recon.definition ?? undefined}>
       <div className="pl-bridge-parts">
@@ -588,7 +604,7 @@ function EbitdaBridgeLine({
           </span>
         ))}
         {/* After EBITDA and outside it — the engine's label says so. */}
-        {recon.bridge.afterEbitda.map((p) => (
+        {afterParts.map((p) => (
           <span key={p.key} className="pl-bridge-part" data-bridge-after={p.key}>
             <span className="pl-bridge-sep">{" · "}</span>
             <span className="pl-bridge-label">{pickLang(p.label, lang)}</span>{" "}

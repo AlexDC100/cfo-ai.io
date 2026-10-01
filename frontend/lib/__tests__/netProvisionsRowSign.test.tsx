@@ -27,11 +27,20 @@
 //     the column's Δ signed "+" / "−" — the one convention of the row;
 //   · the D&A row of the same render prints the same way (the pattern the
 //     row follows).
+//   · THE RECONCILIATION LINE under EBITDA, a few lines above the row, prints
+//     net provisions on the same convention, in English and in Romanian: the
+//     row's served figure, the row's printed string, no "+" (review
+//     2026-10-01: the line printed the engine's effect-signed bridge part —
+//     agras "−131,394.66" above a row reading "131,394.66", under labels that
+//     both say "6812 + 6814 − 7812 − 7814").
 // REDS ON: an effect sign ("+" on a release, "−" on a charge) or a colour on
-// the current cell; a prior or Δ cell off the engine's column.
+// the current cell; a prior or Δ cell off the engine's column; the
+// reconciliation line's net-provisions part printing another sign or
+// another figure than the row.
 // CANNOT SEE: whether the served figures are right (provisions-symmetric);
-// the printed report / workbook (effect-signed on every row, current and
-// prior alike — printedPl); pixels.
+// the printed report / workbook and the Valuation tab's reconciliation panel
+// (effect-signed on every line, the chain's D&A included — printedPl,
+// EbitdaReconciliationPanel); pixels.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { cleanup } from "@testing-library/react";
 
@@ -72,6 +81,11 @@ function mirrored(): Pair {
   const col = p.comparatives.columns.find((c) => c.key === "pl.net_provisions")!;
   const [c, pr] = [col.prior as number, col.current as number];
   Object.assign(col, { current: c, prior: pr, delta: Math.round((c - pr) * 100) / 100 });
+  // The reconciliation line's after-EBITDA part travels with its block: the
+  // engine serves it effect-signed (−net provisions).
+  const after = ((apl.ebitda_reconciliation as Rec).bridge as Rec).after_ebitda as Rec[];
+  const part = after.find((a) => a.key === "net_provisions")!;
+  part.value = -((apl.net_provisions as Rec).value as number);
   return p;
 }
 
@@ -168,6 +182,38 @@ describe("the net-provisions row — one sign convention across current, prior a
         expect(da.amount?.className ?? "").not.toMatch(/\bpl-(pos|neg)\b/);
         expect(glyph(da.prior)).toBe(levelGlyph(daCol.prior as number));
       } finally {
+        cleanup();
+      }
+    });
+
+    it(`${name}: the reconciliation line above the row prints net provisions on the row's convention, EN and RO`, async () => {
+      const pair = make();
+      const apl = pair.current_body.statements.assembled_pl as unknown as Rec;
+      const servedValue = (apl.net_provisions as { value: number }).value;
+      // Non-vacuity: the engine's bridge part is the EFFECT-signed figure —
+      // the opposite sign of the row's — so printing it would red here.
+      const part = (((apl.ebitda_reconciliation as Rec).bridge as Rec).after_ebitda as Rec[])
+        .find((a) => a.key === "net_provisions")!;
+      expect(Math.sign(part.value as number), "the served bridge part is effect-signed").toBe(-Math.sign(servedValue));
+      try {
+        for (const lang of ["en", "ro"] as const) {
+          await i18n.changeLanguage(lang);
+          const { container } = renderPl(pair);
+          const row = printed(rowFor(container, "pl.net_provisions"));
+          const after = container.querySelector<HTMLElement>('[data-bridge-after="net_provisions"]');
+          expect(after, `${lang}: the line carries net provisions after EBITDA`).not.toBeNull();
+          const label = after!.querySelector(".pl-bridge-label")?.textContent ?? "";
+          expect(label, `${lang}: the engine's label, charge arithmetic`).toContain("6812 + 6814 − 7812 − 7814");
+          const value = after!.querySelector<HTMLElement>(".pl-bridge-value")!;
+          expect(value.textContent, `${lang}: the line prints the row's figure, as the row prints it`).toBe(row.current);
+          expect(glyph(value.textContent), `${lang}: ${value.textContent}`).toBe(levelGlyph(servedValue));
+          expect(digits(value.textContent), `${lang}: the served figure`).toBe(digitsOf(servedValue));
+          expect(Number(value.getAttribute("data-bridge-value")), `${lang}: the attribute is the row's figure`)
+            .toBe(servedValue);
+          cleanup();
+        }
+      } finally {
+        await i18n.changeLanguage("en");
         cleanup();
       }
     });
