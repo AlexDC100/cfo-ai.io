@@ -12,28 +12,29 @@ read was a markdown table that was itself stale on one row. A generated file
 is only better than a typed number if something re-generates it and
 compares.
 
-THE LAWS
-  P1  re-running the script agrees with the committed file. With the local
+THE LAWS (numbered EP1–EP6: the engine book reserves the bare P-numbers for
+the pipeline's property invariants, and harvests them from test files)
+  EP1  re-running the script agrees with the committed file. With the local
       calibration books present (files/ — client trial balances, never
       committed) EVERY check is re-measured. Without them the script
       re-measures what the committed corpus carries — the engine identity,
       the rerun and replay counts, account 121, the listing counts — and
       says which checks it could not; it never passes by measuring nothing.
-  P2  the committed file is a FULL proof, shaped as the page expects: five
+  EP2  the committed file is a FULL proof, shaped as the page expects: five
       checks, each with what is checked in two languages, how, a count of
       distinct books, a result, a date; every check passed.
-  P3  books are counted once: no check claims more subjects than there are
+  EP3  books are counted once: no check claims more subjects than there are
       real books, and the rerun check counts books, not the paths it read.
-  P4  the public file names no company and carries no figure of company
+  EP4  the public file names no company and carries no figure of company
       size; the filed turnover figures stay inside the script.
-  P5  the engine identity in the file is this tree's (a stale proof is red).
-  P6  the script REFUSES to write a proof over the committed subset.
+  EP5  the engine identity in the file is this tree's (a stale proof is red).
+  EP6  the script REFUSES to write a proof over the committed subset.
 
 PLANTS (docs/engine_book/gates.md, "engine-proof"):
-  A  a count edited by hand in the JSON            → P1 red
-  B  a file under src/engine changed, not re-run   → P1 and P5 red
-  C  a fixture label written into the JSON         → P4 red
-  D  the scope guard removed from the script       → P6 red
+  A  a count edited by hand in the JSON            → EP1 red
+  B  a file under src/engine changed, not re-run   → EP1 and EP5 red
+  C  a fixture label written into the JSON         → EP4 red
+  D  the scope guard removed from the script       → EP6 red
 """
 from __future__ import annotations
 
@@ -87,7 +88,7 @@ def check_run() -> subprocess.CompletedProcess:
     )
 
 
-# ── P1 ────────────────────────────────────────────────────────────────
+# ── EP1 ────────────────────────────────────────────────────────────────
 
 
 def test_rerunning_the_proof_script_agrees_with_the_committed_file(check_run):
@@ -112,7 +113,7 @@ def test_rerunning_the_proof_script_agrees_with_the_committed_file(check_run):
               "ebitda_variants_agree were compared by identity only.")
 
 
-# ── P2 ────────────────────────────────────────────────────────────────
+# ── EP2 ────────────────────────────────────────────────────────────────
 
 
 def test_the_committed_file_is_a_full_dated_proof(proof):
@@ -135,7 +136,7 @@ def test_the_committed_file_is_a_full_dated_proof(proof):
     assert proof["counts"]["bvb_listings"] >= proof["counts"]["bvb_listings_with_financials"] > 0
 
 
-# ── P3 ────────────────────────────────────────────────────────────────
+# ── EP3 ────────────────────────────────────────────────────────────────
 
 
 def test_books_are_counted_once(proof):
@@ -166,7 +167,7 @@ def test_books_are_counted_once(proof):
     assert turnover["subjects"] == len(script.FILED_TURNOVER_RON)
 
 
-# ── P4 ────────────────────────────────────────────────────────────────
+# ── EP4 ────────────────────────────────────────────────────────────────
 
 
 def _fixture_labels() -> set:
@@ -212,7 +213,7 @@ def test_the_public_file_names_no_company_and_no_company_figure(proof):
         assert str(filed) not in text and "{:,}".format(filed) not in text
 
 
-# ── P5 ────────────────────────────────────────────────────────────────
+# ── EP5 ────────────────────────────────────────────────────────────────
 
 
 def test_the_engine_identity_is_this_trees(proof):
@@ -247,7 +248,7 @@ def test_the_identity_digest_moves_with_any_engine_file(tmp_path, monkeypatch):
     assert after != before
 
 
-# ── P6 ────────────────────────────────────────────────────────────────
+# ── EP6 ────────────────────────────────────────────────────────────────
 
 
 def test_the_script_refuses_to_write_a_proof_over_the_committed_subset(tmp_path, monkeypatch, capsys):

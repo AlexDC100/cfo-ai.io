@@ -1782,6 +1782,35 @@ GLOBAL-POSITIONING GATES: PASS (G2 headline lint, G3 honesty lint) — 663 file(
 
 Verdict: **PROVEN RED**
 
+### global-positioning — G3 rewritten as a coverage-truth lint (2026-10-01)
+
+G3 was a verb lint ("supported / certified / guaranteed" never beside "any
+country / worldwide"; "accepted" approved). It PASSED the landing's "Any
+other country accepted" for a month and would have red on "…is not supported
+yet". It now reds on a phrase claiming coverage beyond Romania that its own
+sentence does not negate, and passes the negated not-supported wording. Full
+account, and what it fails on now: § public-claims. Canaries added: `G3
+coverage-truth lint`, `coverage claims beyond Romania:`.
+
+**PLANT** (2026-10-02) — the retired headline back in
+`frontend/pages/cfo/landingStrings.ts`: "… annual reports — from any European
+country."
+
+**RED** — exit `1`:
+
+```
+G3 COVERAGE-TRUTH LINT — coverage beyond Romania claimed, not negated (1):
+  frontend/pages/cfo/landingStrings.ts:151: "Ministry-of-Finance filings, accountant exports, annual reports — from any European country
+GATE-WORK global-positioning units=988 floor=400 label=frontend-files
+```
+
+**REVERT** — exit `0`:
+
+```
+GATE-WORK global-positioning units=988 floor=400 label=frontend-files
+GLOBAL-POSITIONING GATES: PASS (G2 headline lint, G3 coverage-truth lint) — 988 file(s) / 394035 line(s) scanned; HU pattern fired 8x, all inside the allowed country-list files; coverage claims beyond Romania: 6, every one negated
+```
+
 ---
 
 ## tsc
@@ -18535,3 +18564,378 @@ the tree), not asserted:
   18, plan-gate-census 29, floor-census 77, pack-lint 4, ui-language-figures
   35, provenance-census 815 (the 11 listed burn-down findings, none new),
   engine-book 6, test-env-isolation 14, no-plants 1,116, stale-gates 930.
+
+---
+
+## engine-proof
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_engine_proof.py -q` |
+| canary | junit test names: `test_rerunning_the_proof_script_agrees_with_the_committed_file`, `test_the_committed_file_is_a_full_dated_proof`, `test_books_are_counted_once`, `test_the_public_file_names_no_company_and_no_company_figure`, `test_the_engine_identity_is_this_trees`, `test_the_script_refuses_to_write_a_proof_over_the_committed_subset` |
+| work count | junit tests, floor **7** (measured 7); the script's own line `GATE-WORK engine-proof checks=5 subjects=29 scope=full` (2 checks / 11 subjects on a checkout without the local calibration books) |
+
+**INCIDENT** — 2026-10-01, the first public review of the landing page. One
+sentence said "reconciles all eight calibration fixtures … four of eight to
+exactly 0.00%"; the block beside it said "9 / 9 calibration fixtures
+byte-identical across five consecutive runs"; the note under both said
+"re-run on every deploy". Both numbers were typed by hand on 2026-09-08. They
+count different things: eight books whose balance sheet closes on an older
+drift measure, and nine file PATHS re-run five times — five distinct books,
+four of them present twice (a committed copy and its local twin). Neither
+carried a date or the list of what was checked. No deploy script runs either
+check. The one gate that tied a landing number to anything
+(`shippedClaimsMatchCode`) read a hand-kept markdown table that was itself
+stale on one row.
+
+**LAW** — `frontend/data/engineProof.json` is the ONE source of every
+accuracy number a public page prints. `scripts/build_engine_proof.py` writes
+it by RUNNING the checks: byte-identical re-runs (verify_determinism's roster
+× 5) plus the corpus replay; the SERVED canonical balance sheet closing
+(measure_bs_drift's closing-identity roster — the older drift figure only as
+a secondary worst case); net income equal to account 121 (the anchor gate's
+own harness, the real write path and the real `GET /api/period`); turnover
+equal to the Ministry-of-Finance filing, only for books whose trial balance
+is the filed year (the rest counted as not checkable); the three EBITDA
+variants agreeing between methodology and code within the parity gate's
+tolerance. Books are counted by the NUMBERS in their rows, so a committed
+copy and its local twin are one book. The file carries the engine identity
+(parser version, EBITDA definition revision, a sha256 over every file under
+`src/engine` and `packs`), names no company and holds no figure of company
+size; the filed turnover figures (public record) stay in the script, keyed by
+the existing fixture labels. This gate re-runs the script (`--check`) and
+compares field by field, and holds the committed file to: full scope, books
+counted once, no company named, identity = this tree, and the script refusing
+to write a proof over the committed subset.
+
+**PLANT, observed RED, then REVERT** — each applied alone in the worktree and
+reverted with `git checkout -- <file>` (2026-10-02, on 117bff0c):
+
+```
+PLANT EP-A  frontend/data/engineProof.json — a count edited by hand
+            (balance_sheet_closes.books_closing_exactly 6 -> 7)
+  pytest -k rerunning                                        exit 1
+  E  AssertionError: the committed engineProof.json is NOT what this tree measures.
+  E    ENGINE PROOF: FAIL — the committed proof is not what this tree measures:
+  E        ✗ checks.balance_sheet_closes.result.books_closing_exactly: committed 7 != measured 6
+  landing-proof (the page prints what the file says — by design it stays GREEN here;
+                 a wrong count in the file is THIS gate's to catch)   exit 0
+PLANT LP4   src/engine/…/trial_balance_parser.py — one comment line appended, proof not re-measured
+  pytest -k identity_is_this                                 exit 1
+  E  AssertionError: STALE PROOF — src/engine or packs changed since the proof was measured
+     (committed aa54546242055ef7…, tree bd1ad5c7378a1106…). Re-measure: python scripts/build_engine_proof.py
+PLANT EP-C  frontend/data/engineProof.json — a fixture label written into `how`
+  pytest -k names_no_company                                 exit 1
+  E  AssertionError: engineProof.json names calibration book(s): ['carniprod']
+PLANT EP-D  scripts/build_engine_proof.py — the scope guard removed
+            (`if not full and not args.check:` -> `if False:`)
+  pytest -k refuses_to_write                                 exit 1
+  E    GATE-WORK engine-proof checks=2 subjects=11 scope=committed_corpus_only
+  E    ENGINE PROOF: WRITTEN — …/engineProof.json, measured 2026-10-01 (scope committed_corpus_only)
+  E  assert 0 == 2
+PLANT EP-E  frontend/data/engineProof.json — a book counted twice
+            (rerun_identical subjects 5 -> 9, the retired "9 / 9")
+  pytest -k counted_once                                     exit 1
+  E  AssertionError: rerun_identical claims 9 subjects; there are 8 distinct real books
+REVERT (clean tree): 7 passed in 45.21s — SCOPE engine-proof full — 5 check(s), 29 subject(s) re-measured
+```
+
+(The first EP-D run failed on a path error — `relative_to` on a temp path —
+before the refusal assertion could run: the plant was red for the wrong
+reason. The script now prints such a path as itself, and the log above is
+the re-run.)
+
+**AFTER THE REPAIR this reds on (TC-11):** a count in the JSON that the tree
+does not measure (hand edit, or an engine change without re-measuring); an
+engine or pack file changed since the proof was measured; a check that did
+not hold being published (`passed` false); a proof written over the committed
+subset (`scope` not `full`); a check claiming more subjects than there are
+distinct real books, or the rerun check counting paths as books; a fixture
+label or a figure ≥ 1,000 in the public file; a filed turnover figure
+appearing in it; the script writing without the local calibration books.
+
+**CANNOT SEE:** on a checkout WITHOUT the local calibration books (CI, a
+clean clone) three checks — `balance_sheet_closes`, `turnover_equals_filing`,
+`ebitda_variants_agree` — are not re-measured; the gate says so
+(`NOT RE-MEASURED here`) and holds them by identity only (the engine digest
+is the tree's), so a regression in those three shows up only where the books
+are. It cannot see whether a filed turnover figure typed into the script is
+the real filing (three figures, public record, matched in production's
+reprocess dry run on 2026-10-01), nor whether "preliminary close" is the
+right reason a book is not checkable — it counts them, it does not classify
+them. `net_income_equals_121` holds an ANCHOR: served net income is account
+121 by construction, with the class 6/7 reconstruction printed beside it; it
+is not an independent recomputation, and the page's wording says so.
+
+---
+
+## landing-proof
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/lib/__tests__/landingProof.test.tsx frontend/lib/__tests__/shippedClaimsMatchCode.test.ts --reporter=verbose` |
+| canary | test names `L1 carries five dated checks, each saying what is checked, in both languages`, `L1 names no company and publishes no company's figure`, `L2 the tree digest, parser version and EBITDA definition are the working tree's`, `L3 the proof block prints the JSON: headline, what is checked, date, caption figures`, `L4 the FAQ's proof answer prints only numbers the JSON holds`, `L5 the accuracy block carries tokens, never a digit`, `L5 no accuracy claim is typed anywhere in the landing copy, the page meta or the manifest`, `L7 the listing counts are the JSON's, on the card and in the FAQ`, `prints no calibration count that is not a pair the engine proof measured` |
+| work count | `GATE-WORK landing-proof figures=N`, floor **400** (measured 539: every figure compared plus every copy line scanned) |
+
+**INCIDENT** — the same as `engine-proof`: "eight" in the sentence, "9 / 9"
+in the block beside it, both typed.
+
+**LAW** — the gate mounts the REAL `<Landing />` (signed-out visitor) in
+English and Romanian and reads the DOM back
+(`frontend/test/publicSurfaces.tsx`). For each of the five checks: the
+headline is `held / examined`, computed in the gate from the JSON with its
+own field map (not the page's); the sentence of what is checked is the
+JSON's `what_en` / `what_ro`; the `<time datetime>` is the check's
+`measured_at`; every number in the caption — parsed as a VALUE in the
+surface's language — is one of that check's JSON numbers; no figure is in the
+other language's number format and nothing prints "lei". The FAQ's proof
+answer prints only the JSON's numbers; the listing counts on the
+public-company card and in the FAQ are the JSON's. The RAW copy
+(`LANDING_STRINGS`) carries tokens and no digit anywhere in the accuracy
+block, and no typed accuracy claim (a percentage, an "N of M", a number word
+beside the vocabulary of measuring the engine) exists in the landing strings,
+`index.html`'s title and meta, the manifest or the runtime meta. The proof's
+engine digest is recomputed in Node and must equal the JSON's.
+`shippedClaimsMatchCode`'s rewritten law rides in the same gate: every "N of
+M" the filled copy prints is a (held, examined) pair of the JSON.
+
+**PLANT, observed RED, then REVERT** (2026-10-02, on 117bff0c; each alone,
+`git checkout -- <file>` after):
+
+```
+PLANT LP1  landingStrings[en].defensible.body += " All eight within 1%."
+  × L5 the accuracy block carries tokens, never a digit
+    → a number is typed into the accuracy copy — it must come from engineProof.json
+  × L5 no accuracy claim is typed anywhere in the landing copy, the page meta or the manifest
+  Tests  2 failed | 30 passed (32)
+PLANT LP2  EN balance caption: {balance.exact} -> {rerun.books}
+  × L3 the proof block prints the JSON: headline, what is checked, date, caption figures
+    → balance_sheet_closes (en) prints 5, which is not in its proof block [7, 6, 0, 1, 8, 0.9975]:
+      "5 of 7 real books close to exactly 0.00 RON as served. …"
+  × prints no calibration count that is not a pair the engine proof measured
+PLANT LP3  lib/engineProof.ts HELD_KEY.balance_sheet_closes -> "books_imbalance_surfaced"
+  × L3 (en) → balance_sheet_closes headline: expected '1 / 7' to be '6 / 7'
+  × L3 (ro) → balance_sheet_closes headline: expected '1 / 7' to be '6 / 7'
+PLANT LP4  one comment line appended to src/engine/…/trial_balance_parser.py
+  × L2 the tree digest, parser version and EBITDA definition are the working tree's
+    → STALE PROOF — src/engine or packs changed since frontend/data/engineProof.json was measured.
+PLANT LP5  index.html description += " Reconciled to within 1% drift."
+  × L5 no accuracy claim is typed anywhere in the landing copy, the page meta or the manifest
+PLANT LP6  RO proof note += "Re-rulat la fiecare instalare."
+  × L3 (ro) → expected 'Proba motorului · verificări măsurate…' not to match /every deploy|fiecare instalare|…/i
+PLANT LP7  lib/engineProof.ts PROOF_CHECK_ORDER without "turnover_equals_filing"
+  × L3 (en), L3 (ro) → expected [ 'rerun_identical', …(3) ] to deeply equal [ 'rerun_identical', …(4) ]
+PLANT EP-C a fixture label in the JSON
+  × L1 names no company and publishes no company's figure
+    → engineProof.json names a calibration book: expected [ 'Carniprod', 'carniprod' ] to deeply equal []
+REVERT (clean tree): Tests 32 passed (32) — GATE-WORK landing-proof figures=539
+```
+
+**AFTER THE REPAIR this reds on (TC-11):** any digit typed into
+`defensible.*`; "all eight within 1%", "9 / 9", "four of eight", "re-run on
+every deploy" or any typed accuracy claim in the landing copy, the page meta
+or the manifest; a caption or FAQ number that is not in the JSON; the
+headline of a check differing from held / examined; a check dropped from the
+page; an unfilled token reaching a reader; a figure in the other language's
+number format; the JSON naming a calibration book; a proof measured on a
+different engine tree.
+
+**WHAT THE REWRITTEN `shippedClaimsMatchCode` LAW FAILS ON NOW.** It used to
+tie "N of eight … 0.00%" to the zero rows of the drift table in
+`docs/customer-facing/ROMANIAN-ENGINE-ACCURACY.md` and looked at nothing
+else — so "9 / 9", "all eight within 1%" and "every deploy" were tied to
+nothing, and the table carried a stale row (0.0330% where the script
+measures 0.1445%). It now reds on any "N of M" / "N din M" in the filled
+landing copy that is not a (held, examined) pair of `engineProof.json`, and
+on a calibration count typed in words. It no longer reads the markdown
+table, which is marked SUPERSEDED.
+
+**CANNOT SEE:** whether the JSON's counts are true (`engine-proof`);
+accuracy wording with no number in it; the server-rendered storefront and
+e-mails; the share image's pixels (`public-claims` C9 holds its text record).
+With a hand-edited count the page stays self-consistent and this gate stays
+green — plant EP-A above shows that, and shows `engine-proof` catching it.
+
+---
+
+## public-claims
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/lib/__tests__/publicClaims.test.tsx frontend/lib/__tests__/reportFooter.test.ts frontend/lib/__tests__/globalPositioning.test.ts --reporter=verbose` |
+| canary | test names `C1 claims no country or region as covered but Romania`, `C1b every row but Romania sits in a group that says not supported, and cannot be chosen`, `C2 names no accounting software that is not a tested row's, backed by a real file`, `C3 offers no input format outside the tested rows unless it says AI-read or not supported`, `C4 every tested row has evidence a reader can check, a dated count the proof agrees with`, `C5 renders every row beside the upload step, with what it was tested on and when`, `C6 the landing card is marked coming soon and starts no checkout`, `C7 says other countries are not supported yet, offers the coverage table, sells nothing`, `C8 the section count a plan sells is the count the report renders`, `C9 the share image's text is the hero's; its alt says what the image says`, `F2 an imbalanced book: that status and the served difference to the cent`, `lib/markets.ts is gone and nothing imports it`, and the line `GATE-WORK report-footer laws=6` |
+| work count | `GATE-WORK public-claims units=N`, floor **2000** (measured 2,708: harvested copy lines plus every claim examined) |
+
+**INCIDENT** — 2026-10-01, the same review. The headline module card read
+"Ministry-of-Finance filings, accountant exports, annual reports — from any
+European country". The strip under the hero read "Romania at deterministic
+grade. Any other country accepted — structure read by AI, numbers
+machine-verified twice." over United States · Germany · United Kingdom ·
+France · Italy · Spain · UAE. The page title sold "CFO-grade analysis for
+European SMEs"; the description, "other European charts of accounts read
+with AI assistance". The FAQ named "SAGA, WinMENTOR and standard Romanian and
+European accounting software"; the dashboard listed SAGA, WinMentor,
+SmartBill, NEXTUP, CIEL. A plan called Multi-Country was on sale with "Any
+accounting jurisdiction", and the refusal for a non-Romanian file said "This
+document needs Multi-Country". What the repository's tests cover: Romanian
+trial balances — one spreadsheet layout on six real books and one PDF export
+on one real book; every other layout on files built for the tests; no real
+book from any other country; the AI path unavailable.
+
+**LAW** — `frontend/data/coverage.json` is the ONLY source of coverage
+wording: rows `{category: tested | ai_interpreted | not_supported, label_ro,
+label_en, evidence, real_books, as_of}`. The gate renders the landing, the
+signed-in pricing table, the in-app coverage table, the upload dialog's
+country dropdown and the non-Romanian refusal in English and Romanian, and
+reads the page title / description / Open Graph / Twitter tags, the
+manifest, the runtime meta, the share image's text record, the upload and
+pricing dictionaries and every plan bullet. C1: no country or region claimed
+beyond Romania unless the sentence says it is not available. C2: no
+accounting-software name outside a tested row backed by a real file in a
+gate. C3: no input format outside the tested rows unless marked AI-read or
+unsupported. C4: every tested row has evidence — battery gates that EXIST, or
+a dated production measurement — and a book count equal to the proof's
+`formats`; the AI row states its availability; one row says other countries
+are not supported. C5: the table renders every row beside the upload step
+and in-app. C6: Multi-Country is coming soon on both pricing surfaces, with
+no checkout path. C7: the refusal sells nothing. C8: a quoted section count
+is the number of sections the report renders. C9: the share image's recorded
+text is the hero's. With it, the report footer (F1–F5: the engine's verdict
+and the served difference for THAT report; the narrative credited only when
+a briefing is shown) and the rewritten G4 / G5.
+
+**PLANT, observed RED, then REVERT** (2026-10-02, on 117bff0c; each alone,
+`git checkout -- <file>` after):
+
+```
+PLANT PC1   module card: "… annual reports — from any European country."
+  × C1 (en) claims no country or region as covered but Romania
+  node scripts/check_global_positioning.mjs                   exit 1
+    G3 COVERAGE-TRUTH LINT — coverage beyond Romania claimed, not negated (1):
+      frontend/pages/cfo/landingStrings.ts:151: "Ministry-of-Finance filings, … — from any European country
+PLANT PC2   en dash.docTbWhere1 = "Your accounting software (SAGA, SmartBill)"
+  × C2 (en) names no accounting software that is not a tested row's, backed by a real file
+PLANT PC3   FinancialStatements.tsx: ["SAGA", "WinMentor", "SmartBill", "NEXTUP", "CIEL"] back
+  × C2 no accounting-software name is typed into an upload or marketing component
+PLANT PC4   Pro bullet -> "Scanned-PDF extraction"
+  × C3 (en) offers no input format outside the tested rows unless it says AI-read or not supported
+PLANT PC5a  coverage.json xlsx row: evidence = "bs-drift, no-such-gate"
+  × C4 → xlsx_10_column: evidence names "no-such-gate", which is not a battery gate
+PLANT PC5b  coverage.json xlsx row: real_books 6 -> 9
+  × C4 → xlsx_10_column: real_books is not engineProof.json formats.xlsx_10_column_layout: expected 6 to be 9
+PLANT PC5c  coverage.json constructed_layouts.software = ["SAGA"]
+  × C4 → constructed_layouts: names SAGA without a gate-backed real file
+PLANT PC6   landing: the disabled label -> <a href="/signup?plan=multi">
+  × C6 (en), C6 (ro) → the coming-soon card carries a link
+PLANT PC7   en pricing.nonRoBlockedTitle = "This document needs Multi-Country"
+  × C1 (en); × C7 (en) → expected 'This document needs Multi-Country…' not to match /Multi-Country/i
+PLANT PC8   "Full 9-section analysis"
+  × C8 → landingStrings[en] pricing.solo.features[2]: "9-section" — the report renders 8 sections
+PLANT PC9   hero.body EN: "22 ratios" -> "100+ ratios", image not regenerated
+  × C9 the share image's text is the hero's; its alt says what the image says
+  × (landing-proof) quotes one value per product figure, across every surface
+PLANT PC10  ComprehensiveReport.tsx footer: "Numbers reconcile to the source trial balance within 0.5%." typed back
+  × F5 → text typed into the report footer: "Numbers reconcile to the source trial balance within 0.5%."
+PLANT PC11  lib/reportFooter.ts: the difference printed as 0 whatever was served
+  × F2 → expected 'Assets − (Equity + Liabilities) = 0.0…' to contain '-12,253.38 RON'
+PLANT PC12  JurisdictionSelect: `disabled={code !== current}` removed
+  × C1b (en) → HU ("Hungary") can be chosen; × C1b (ro) → HU ("Ungaria") can be chosen
+  × G5 the dropdown disables every other-country row it does not already carry
+PLANT PC13  PricingTableV2: comingSoon={false}
+  × C1 (en), C1 (ro); × C6 (en), C6 (ro) → expected 'on-sale' to be 'coming-soon'
+PLANT PC14  frontend/lib/markets.ts re-created with `export const MARQUEE`
+  × G4 lib/markets.ts is gone and nothing imports it
+PLANT PC15  FAQ: "Romania and Hungary today: …"
+  × C1 (en); × G4 the landing copy names no country but Romania as readable
+REVERT (clean tree): Tests 34 passed (34) — GATE-WORK public-claims units=2708 · GATE-WORK report-footer laws=5
+(a sixth footer law — a served verdict without its totals block — was added after the plants; the gate now prints laws=6)
+```
+
+**THE THREE LINTS THAT ENCODED THE OVERCLAIM, AND WHAT EACH FAILS ON NOW
+(TC-11).**
+
+- `scripts/check_global_positioning.mjs` **G3** was a VERB lint: "supported /
+  certified / guaranteed" could not share a sentence with "any country /
+  worldwide / 150+", and "accepted" was the approved verb. It passed "Any
+  other country accepted" for a month, had no word for Europe ("from any
+  European country", "EU filings supported", "European SMEs" all passed), and
+  would have RED on the honest sentence "any country other than Romania is
+  not supported". It is now a coverage-truth lint: a phrase claiming coverage
+  beyond Romania may appear only in a sentence that says it is not available.
+  It fails on the six retired claims and passes the not-supported row and the
+  coming-soon card. Its new canaries (`G3 coverage-truth lint`, `coverage
+  claims beyond Romania:`) prove the detector still fires.
+- `globalPositioning.test.ts` **G4** pinned the seven-market row's order. It
+  now fails when `lib/markets.ts` (or a MARQUEE / ACCEPTANCE_LINE export)
+  comes back, and when the landing copy names a country other than Romania
+  outside the sentence about the model provider.
+- `globalPositioning.test.ts` **G5** froze `intl: "International (IFRS-style
+  reading)"`. The trust strings (AI-read, dual-verified, the re-extraction
+  honesty line) are still frozen; the dropdown group must now read "Other
+  countries — not supported yet" / "Alte țări — încă nesuportate", and its
+  rows must be disabled.
+
+**AFTER THE REPAIR this reds on (TC-11):** "any European country", "Any
+other country accepted", "European SMEs", "EU filings", "worldwide",
+"Cross-border", "Any accounting jurisdiction", a market name in a list;
+"SAGA" / "SmartBill" / "NEXTUP" / "CIEL" in any harvested copy or typed into
+an upload or marketing component; "scanned PDF", an image format or `.xls`
+offered without the AI marker or a negation; a tested row with no evidence,
+with a gate that does not exist, with a count the proof disagrees with, or
+naming software without a gate-backed real file; a `/signup?plan=multi`
+link, an enabled Multi-Country button or its backend blurb on a pricing
+surface; "needs Multi-Country" or a link to /pricing in the refusal; a
+section count other than the report's; a share-image record that is not the
+hero; a typed sentence, a tolerance or a model name in the report footer; a
+balanced verdict or a zero difference printed over an imbalanced book.
+
+**CANNOT SEE:** whether a tested row's evidence gate actually exercises that
+layout (it checks the gate exists and, where the row is tied to the proof,
+that the count agrees — the text-layer PDF row rests on a dated production
+measurement, two real books on 2026-10-01, which no committed gate can
+re-run); the pixels of the share image; e-mails and the server-rendered
+storefront; a coverage claim made without a region word, a software name or
+a format; whether the AI row's `availability` is CURRENT — it is a fact the
+owner flips in `coverage.json` when the model has credit again, and nothing
+measures it. One named exemption: `pricing.usageNonRo` ("Non-RO documents"),
+the usage-meter label on an existing Multi-Country subscriber's current-plan
+card. The dictionaries' quarantined `landing.*` namespace (dead copy with no
+reader, held unreachable by `shippedClaimsMatchCode`) still says "any
+format"; it is not harvested here because nothing renders it.
+
+### landing trust (2026-10-01/02) — the measured green runs
+
+Measured on `fix/landing-trust` (base 21c54704, the release r-rulings2
+lineage) with the owner's local calibration books linked into `files/` for
+the run and removed after, not asserted:
+
+- `run_battery.main` narrowed to the 18 gates this work touches or adds:
+  **18/18 PASS** — engine-proof 7 (5 checks, 29 subjects re-measured, scope
+  full), landing-proof 539, public-claims 2,706, global-positioning 988,
+  vitest 4,447 (canaries 15/15), tsc 1,031 files (the 10 known errors, 0
+  new), npm-build 3,652 modules (dist removed first), import-boundary 2,115,
+  provenance-census 814 (the 11 listed burn-down findings, none new),
+  engine-book 6, ui-language-figures 35, floor-census 77, plan-gate-census
+  29, no-plants 1,120, stale-gates 937, narrative-units 7,
+  provenance-contrast 6, test-env-isolation 14. `corpus-policy` (4,937
+  tracked files) and `scrub-unreachable` passed on the first run.
+- **Found by the battery, fixed before landing:** `import-boundary` red on
+  the new report footer reading `canonical_bs.difference` itself (it now
+  goes through `lib/servedFacts` for every shape); `provenance-census` red
+  on `PricingTableV2.tsx` (4 declared figure sites, 3 measured — the non-RO
+  overage line left with the coming-soon card; restated); `engine-book` red
+  because the new test file numbered its laws P1–P6, which the book
+  harvests as the pipeline's property invariants (renumbered EP1–EP6).
+- **Not run clean here:** `hermetic` writes its vitest config under
+  `node_modules/.hermetic-gate`; this worktree's `node_modules` is a symlink
+  to the main checkout's, shared with a second worktree running at the same
+  time, and the run died on `ENOENT` for that directory after 124 s. An
+  environment collision, not a finding; it must be re-run on a checkout with
+  its own `node_modules`.
+
+**After this branch is merged onto a newer release tip the proof is STALE by
+design.** The release lineage already carries commits past this base that
+touch `src/engine` and `packs`; the digest in `engineProof.json` will not be
+the merged tree's, and `landing-proof` L2 and `engine-proof` EP5 will red
+until `python scripts/build_engine_proof.py` is run on the merged tree (≈40 s,
+needs the local calibration books) and the file committed.

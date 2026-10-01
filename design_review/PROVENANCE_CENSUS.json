@@ -137,9 +137,9 @@
     },
     "frontend/components/cfo/PricingTableV2.tsx": {
       "bucket": "LACKS_SILENT",
-      "sites": 4,
+      "sites": 3,
       "affordances": 0,
-      "why": "OPENED 2026-09-04. formatEur() over the static price list on the pricing page. Nothing served, nothing claimed."
+      "why": "OPENED 2026-09-04; RE-STATED 2026-10-01 (4 -> 3 sites) when Multi-Country became coming-soon and its non-RO overage line (one formatEur call) left the card. formatEur() over the static price list on the pricing page. Nothing served, nothing claimed."
     },
     "frontend/components/cfo/PublicRecordsQuickCard.tsx": {
       "bucket": "HAS_MISSING",

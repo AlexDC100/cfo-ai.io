@@ -62,8 +62,8 @@ describe("report footer — only what is true for this report", () => {
     expect(f.machineStatus).toBe("BALANCED");
     expect(f.balance).toMatch(/^Balance check: /);
     expect(f.balance).toMatch(/Assets = Equity \+ Liabilities/);
-    expect(plain(f.difference)).toBe("Assets − (Equity + Liabilities) = 0.00 RON on this report.");
-    const all = plain(`${f.generated} ${f.balance} ${f.difference}`);
+    expect(plain(f.differenceLine)).toBe("Assets − (Equity + Liabilities) = 0.00 RON on this report.");
+    const all = plain(`${f.generated} ${f.balance} ${f.differenceLine}`);
     expect(all).not.toMatch(/%|within|reconcile to the source/i);
   });
 
@@ -75,32 +75,46 @@ describe("report footer — only what is true for this report", () => {
     expect(en.machineStatus).toBe("MATERIAL_IMBALANCE");
     expect(en.balance).toMatch(/Material imbalance/);
     expect(en.balance).not.toMatch(/passed|Balanced\b/);
-    expect(plain(en.difference)).toContain("-12,253.38 RON");
-    expect(foreignNumber(plain(en.difference), "en")).toBeNull();
+    expect(plain(en.differenceLine)).toContain("-12,253.38 RON");
+    expect(foreignNumber(plain(en.differenceLine), "en")).toBeNull();
 
     // the figure follows the reader's language; the code stays after it
     const ro = reportFooterLines({
       statements: { canonical_bs: canonical("MATERIAL_IMBALANCE", -12253.38, 4_250_401.72) },
       currency: "RON", briefingShown: false, language: "ro",
     });
-    expect(plain(ro.difference)).toContain("-12.253,38 RON");
-    expect(foreignNumber(plain(ro.difference), "ro")).toBeNull();
-    expect(plain(ro.difference)).not.toMatch(/\blei\b|RON\s*-?\d/);
+    expect(plain(ro.differenceLine)).toContain("-12.253,38 RON");
+    expect(foreignNumber(plain(ro.differenceLine), "ro")).toBeNull();
+    expect(plain(ro.differenceLine)).not.toMatch(/\blei\b|RON\s*-?\d/);
 
     const drift = reportFooterLines({
       statements: { canonical_bs: canonical("MINOR_DRIFT", 0.05, 1_000_000) },
       currency: "RON", briefingShown: false, language: "en",
     });
     expect(drift.machineStatus).toBe("MINOR_DRIFT");
-    expect(plain(drift.difference)).toContain("0.05 RON");
+    expect(plain(drift.differenceLine)).toContain("0.05 RON");
   });
 
   it("F3 a period with no engine verdict says so, and prints no difference", () => {
     const f = reportFooterLines({ statements: {}, currency: "RON", briefingShown: false, language: "en" });
     expect(f.machineStatus).toBe("UNVERIFIED");
     expect(f.balance).toMatch(/not engine-verified/);
-    expect(f.difference).toBe("No engine balance verdict exists for this period.");
-    expect(f.difference).not.toMatch(/\d/);
+    expect(f.differenceLine).toBe("No engine balance verdict exists for this period.");
+    expect(f.differenceLine).not.toMatch(/\d/);
+  });
+
+  it("F3 a served verdict without its totals block still prints the served status and difference", () => {
+    const f = reportFooterLines({
+      statements: { canonical_bs: { status: "MATERIAL_IMBALANCE", difference: -12253.38 } },
+      currency: "RON", briefingShown: false, language: "en",
+    });
+    expect(f.machineStatus).toBe("MATERIAL_IMBALANCE");
+    expect(plain(f.differenceLine)).toContain("-12,253.38 RON");
+    const none = reportFooterLines({
+      statements: { canonical_bs: { status: "MINOR_DRIFT" } },
+      currency: "RON", briefingShown: false, language: "en",
+    });
+    expect(none.differenceLine).toMatch(/^Difference: not stated/);
   });
 
   it("F4 credits the narrative only when a briefing is shown, and names no model version", () => {
@@ -125,11 +139,11 @@ describe("report footer — only what is true for this report", () => {
     expect(footer.length, "no <footer> in the report page").toBeGreaterThan(50);
     expect(footer).toContain("{footer.generated}");
     expect(footer).toContain("{footer.balance}");
-    expect(footer).toContain("{footer.difference}");
+    expect(footer).toContain("{footer.differenceLine}");
     // nothing typed in the footer but the three served lines
     const typed = footer.replace(/<[^>]+>/g, " ").replace(/\{[^}]*\}/g, " ").replace(/\s+/g, " ").trim();
     expect(typed, `text typed into the report footer: "${typed}"`).toBe("");
     expect(code).not.toMatch(/within 0\.5%|see Section 5|Opus 4\.7 narrative/);
-    console.log("GATE-WORK report-footer laws=5");
+    console.log("GATE-WORK report-footer laws=6");
   });
 });

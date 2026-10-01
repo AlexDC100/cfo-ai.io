@@ -30,7 +30,7 @@ import { Check, Loader2, Mail, Sparkle, Sparkles } from "lucide-react";
 // is allowed to resolve. See the note on the chip below for the defect
 // this replaced.
 import {
-  isSellablePlanId,
+  isOnSalePlanId,
   type BillingCycle,
 } from "@/lib/plans";
 import {
@@ -145,7 +145,7 @@ export function AuthCard({
   // renders no plan rather than a plan the backend cannot sell.
   const selectedPlan = useMemo(
     () =>
-      subscription && isSellablePlanId(subscription.planId)
+      subscription && isOnSalePlanId(subscription.planId)
         ? planByKey(pricingConfig, subscription.planId)
         : null,
     [subscription, pricingConfig],
@@ -155,7 +155,10 @@ export function AuthCard({
   // previously persisted selection. Stored locally so the chip survives
   // refreshes.
   //
-  // `isSellablePlanId` is the gate, and it is deliberately strict. It used
+  // `isOnSalePlanId` is the gate, and it is deliberately strict: a plan the
+  // backend sells AND the product puts on sale. `?plan=multi` — the link the
+  // landing carried until 2026-10-01 — resolves to nothing: Multi-Country
+  // is coming soon, and a signup card echoing it would be an offer. It used
   // to be `getPlan(planFromUrl)` against a frontend catalog holding
   // `starter`/`professional`/`enterprise` — ids the backend does not sell
   // — so `/signup?plan=professional`, the shape old marketing links carry,
@@ -165,7 +168,7 @@ export function AuthCard({
   useEffect(() => {
     const planFromUrl = searchParams.get("plan");
     const cycleFromUrl = searchParams.get("cycle") as BillingCycle | null;
-    if (isSellablePlanId(planFromUrl)) {
+    if (isOnSalePlanId(planFromUrl)) {
       setSelectedPlanLocal(
         planFromUrl,
         cycleFromUrl === "yearly" ? "yearly" : "monthly",

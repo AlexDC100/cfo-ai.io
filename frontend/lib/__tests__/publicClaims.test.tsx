@@ -72,6 +72,8 @@ import { CoverageTable } from "@/components/cfo/CoverageTable";
 import { JurisdictionSelect } from "@/components/cfo/JurisdictionSelect";
 import { NonRoUpgradeDialog } from "@/components/cfo/pricing/NonRoUpgradeDialog";
 import { PricingTableV2 } from "@/components/cfo/PricingTableV2";
+import { MonthlyBillEstimator } from "@/components/cfo/pricing/MonthlyBillEstimator";
+import { COMING_SOON_PLAN_IDS, SELLABLE_PLAN_IDS, isOnSalePlanId } from "@/lib/plans";
 import { META_DESCRIPTION } from "@/hooks/useHtmlLangSync";
 import { coverageView } from "@/lib/coverage";
 import { bulletText, planFeatureBulletsFor, planKeysWithFeatures } from "@/lib/planFeatures";
@@ -599,6 +601,29 @@ describe.each(LANGS)("public-claims · Multi-Country (%s)", (lang) => {
     fireEvent.click(screen.getByTestId("pricing-plan-solo-cta"));
     expect(navigateSpy).toHaveBeenCalledWith("/signup?plan=solo&intent=checkout");
     unitsChecked += 5;
+  });
+});
+
+describe("public-claims · Multi-Country has no other way in", () => {
+  it("C6 a ?plan=multi signup link selects nothing, and the bill estimator prices only plans on sale", () => {
+    // The landing carried /signup?plan=multi until 2026-10-01; old links and
+    // a typed URL still arrive. The signup card resolves a plan only through
+    // isOnSalePlanId.
+    expect(COMING_SOON_PLAN_IDS).toEqual(["multi"]);
+    expect(SELLABLE_PLAN_IDS).toContain("multi"); // the backend's set, unchanged
+    expect(isOnSalePlanId("multi")).toBe(false);
+    expect(isOnSalePlanId("solo")).toBe(true);
+    expect(isOnSalePlanId("pro")).toBe(true);
+    const auth = readFileSync(join(REPO, "frontend/components/cfo/AuthCard.tsx"), "utf8")
+      .replace(/\/\/[^\n]*/g, " ");
+    expect(auth).toContain("isOnSalePlanId(planFromUrl)");
+    expect(auth).not.toMatch(/isSellablePlanId\(/);
+
+    render(<MonthlyBillEstimator config={CONFIG} />);
+    expect(screen.getByTestId("estimator-plan-solo")).toBeTruthy();
+    expect(screen.getByTestId("estimator-plan-pro")).toBeTruthy();
+    expect(screen.queryByTestId("estimator-plan-multi"), "a monthly bill is estimated for a plan that is not on sale").toBeNull();
+    unitsChecked += 6;
   });
 });
 

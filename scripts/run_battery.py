@@ -2239,6 +2239,29 @@ def _engine_gates() -> List[Gate]:
                        "test_classify_rows_refuses_anchor_profit_share_when_profit_nets_to_a_loss",
                        "test_dio_sheet_out_of_range_banner_span_is_not_used",
                        "test_analyze_route_states_refused_roic_and_share_instead_of_500")),
+        # THE PUBLIC PROOF IS WHAT THIS TREE MEASURES (owner, 2026-10-01,
+        # after the first public review found "eight calibration fixtures"
+        # beside "9 / 9" on the landing — both typed by hand, counting
+        # different things, neither dated). frontend/data/engineProof.json is
+        # now the one source of every accuracy number a public page prints;
+        # scripts/build_engine_proof.py writes it by RUNNING the checks and
+        # counting DISTINCT real books. This gate re-runs that script and
+        # compares (every check where the local calibration books are
+        # present; identity, rerun, account 121 and the listing counts where
+        # they are not — never a pass over nothing), and holds the file to
+        # its own rules: full scope, books counted once, no company named,
+        # the engine identity the tree's, no proof written over the committed
+        # subset. The page side is `landing-proof` (frontend gates).
+        # Plant log: docs/engine_book/gates.md "engine-proof".
+        Gate("engine-proof",
+             [PY, "-m", "pytest", "tests/engine/test_engine_proof.py", "-q"],
+             work_junit=True, floor=7, units="tests",
+             canaries=("test_rerunning_the_proof_script_agrees_with_the_committed_file",
+                       "test_the_committed_file_is_a_full_dated_proof",
+                       "test_books_are_counted_once",
+                       "test_the_public_file_names_no_company_and_no_company_figure",
+                       "test_the_engine_identity_is_this_trees",
+                       "test_the_script_refuses_to_write_a_proof_over_the_committed_subset")),
         Gate("floor-industry-absent",
              [PY, "-m", "pytest",
               "tests/engine/test_industry_classifier_absent_inputs.py", "-q"],
@@ -2428,10 +2451,85 @@ def _frontend_gates() -> List[Gate]:
              # measuring the component, which is fewer nodes and a real
              # subject instead of more nodes and a copy.
              canaries=("subjects parsed from", "non-text 3:1")),
+        # 2026-10-01: G3 is now a COVERAGE-TRUTH lint (it was a verb lint that
+        # passed "Any other country accepted" for a month and would have red
+        # on "…is not supported yet"). Its second canary proves the coverage
+        # detector still fires — on the negated not-supported wording.
         Gate("global-positioning", ["node", "scripts/check_global_positioning.mjs"],
              work_rx=r"GATE-WORK global-positioning units=(\d+)", floor=400,
              units="frontend files scanned",
-             canaries=("GLOBAL-POSITIONING GATES",)),
+             canaries=("GLOBAL-POSITIONING GATES",
+                       "G3 coverage-truth lint",
+                       "coverage claims beyond Romania:")),
+        # LANDING-PROOF — every accuracy number a public page prints is the
+        # proof's (owner, 2026-10-01). Mounts the real <Landing /> in English
+        # and Romanian and reads the DOM back: each check's headline "held /
+        # examined" (computed in the gate, independently of the page), the
+        # sentence of what is checked, its date, every number in its caption
+        # and in the FAQ answer — all equal to frontend/data/engineProof.json,
+        # in the reader's number format. Reds on a digit typed into the
+        # accuracy copy, on a typed accuracy claim anywhere in the landing
+        # strings / page meta / manifest, and on a proof measured on a
+        # different engine tree (stale proof: the digest of src/engine + packs
+        # is recomputed here). Whether the JSON's counts are TRUE is
+        # `engine-proof`. Plant log: docs/engine_book/gates.md "landing-proof".
+        Gate("landing-proof",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/landingProof.test.tsx",
+              "frontend/lib/__tests__/shippedClaimsMatchCode.test.ts",
+              "--reporter=verbose"],
+             work_rx=r"GATE-WORK landing-proof figures=(\d+)", floor=400,
+             units="figures and copy lines held to the proof",
+             canaries=("L1 carries five dated checks, each saying what is checked, in both languages",
+                       "L1 names no company and publishes no company's figure",
+                       "L2 the tree digest, parser version and EBITDA definition are the working tree's",
+                       "L3 the proof block prints the JSON: headline, what is checked, date, caption figures",
+                       "L4 the FAQ's proof answer prints only numbers the JSON holds",
+                       "L5 the accuracy block carries tokens, never a digit",
+                       "L5 no accuracy claim is typed anywhere in the landing copy, the page meta or the manifest",
+                       "L7 the listing counts are the JSON's, on the card and in the FAQ",
+                       "prints no calibration count that is not a pair the engine proof measured")),
+        # PUBLIC-CLAIMS — no coverage claim stronger than the tests (owner,
+        # 2026-10-01: "any European country" on the headline card, a row of
+        # seven markets under the hero, five accounting systems named on the
+        # dashboard, a Multi-Country plan on sale). frontend/data/coverage.json
+        # is the ONLY source of coverage wording. The gate renders the landing,
+        # the signed-in pricing table, the in-app coverage table, the upload
+        # dialog's country dropdown and the non-Romanian refusal in both
+        # languages, and reads the page title / meta / manifest / runtime meta
+        # / share-image record / upload dictionaries / plan bullets, and reds
+        # on: a country or region claimed beyond Romania; an accounting-
+        # software name not in a tested row backed by a real file; an input
+        # format outside the tested rows that is not marked AI-read or
+        # unsupported; a tested row without evidence (a battery gate that
+        # exists, or a dated production measurement) or with a book count the
+        # proof disagrees with; a checkout path for the coming-soon plan; an
+        # upsell on the refusal; a section count the report does not render;
+        # a share image that says something the hero does not. With it: the
+        # report footer law (only what is true for THAT report) and the
+        # rewritten G4 / G5. Plant log: docs/engine_book/gates.md
+        # "public-claims".
+        Gate("public-claims",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/lib/__tests__/publicClaims.test.tsx",
+              "frontend/lib/__tests__/reportFooter.test.ts",
+              "frontend/lib/__tests__/globalPositioning.test.ts",
+              "--reporter=verbose"],
+             work_rx=r"GATE-WORK public-claims units=(\d+)", floor=2000,
+             units="copy lines and claims examined",
+             canaries=("C1 claims no country or region as covered but Romania",
+                       "C1b every row but Romania sits in a group that says not supported, and cannot be chosen",
+                       "C2 names no accounting software that is not a tested row's, backed by a real file",
+                       "C3 offers no input format outside the tested rows unless it says AI-read or not supported",
+                       "C4 every tested row has evidence a reader can check, a dated count the proof agrees with",
+                       "C5 renders every row beside the upload step, with what it was tested on and when",
+                       "C6 the landing card is marked coming soon and starts no checkout",
+                       "C7 says other countries are not supported yet, offers the coverage table, sells nothing",
+                       "C8 the section count a plan sells is the count the report renders",
+                       "C9 the share image's text is the hero's; its alt says what the image says",
+                       "GATE-WORK report-footer laws=6",
+                       "F2 an imbalanced book: that status and the served difference to the cent",
+                       "lib/markets.ts is gone and nothing imports it")),
         # `npx tsc --noEmit` sat here and CHECKED ZERO FILES. The root
         # tsconfig.json is solution-style — `"files": []` plus references —
         # so without `-b` tsc obeys the empty file list and exits 0 in 0.2s.
@@ -2477,7 +2575,10 @@ def _frontend_gates() -> List[Gate]:
                        "frontend/pages/cfo/__tests__/scenariosEngine.test.tsx: ran",
                        # forecast-scenarios-live: F1 / F5 / F6 on the pages.
                        "frontend/components/forecast/__tests__/forecastYearZero.test.tsx: ran",
-                       "frontend/pages/cfo/__tests__/scenariosSaved.test.tsx: ran")),
+                       "frontend/pages/cfo/__tests__/scenariosSaved.test.tsx: ran",
+                       # landing trust (2026-10-01): the proof and the claims
+                       "frontend/lib/__tests__/landingProof.test.tsx: ran",
+                       "frontend/lib/__tests__/publicClaims.test.tsx: ran")),
         # RATIO BYTE-MATCH — the owner's "same columns, same numbers,
         # byte-matching" as a gate. It also rides `vitest`, and is named on
         # its own because its defect prints a believable figure on one

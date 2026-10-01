@@ -639,7 +639,7 @@ export default function ComprehensiveReport() {
         >
           <span data-testid="report-footer-generated">{footer.generated}</span><br />
           <span data-testid="report-footer-balance">{footer.balance}</span>{" "}
-          <span data-testid="report-footer-difference">{footer.difference}</span>
+          <span data-testid="report-footer-difference">{footer.differenceLine}</span>
         </footer>
       </div>
     </>

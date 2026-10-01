@@ -78,6 +78,10 @@ const CANARIES = [
   "frontend/pages/cfo/__tests__/scenariosSaved.test.tsx",
   // RO + EN: every served engine sentence in Romanian under the digit law
   "frontend/lib/__tests__/forecastSentencesRo.test.ts",
+  // landing trust (2026-10-01): every accuracy number is the proof's; no
+  // coverage claim beyond the tests
+  "frontend/lib/__tests__/landingProof.test.tsx",
+  "frontend/lib/__tests__/publicClaims.test.tsx",
 ];
 
 const dir = mkdtempSync(join(tmpdir(), "battery-vitest-"));

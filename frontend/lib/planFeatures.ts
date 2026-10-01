@@ -42,6 +42,7 @@
 import type { FeatureKey } from "@/lib/features";
 import type { PlanKey } from "@/lib/pricingConfig";
 import { fillProof } from "@/lib/engineProof";
+import { COMING_SOON_PLAN_IDS, isComingSoonPlanId } from "@/lib/plans";
 
 /** Marker appended to a bullet whose feature is not `active` yet. The gate
  *  asserts the rendered string contains it, so changing the wording here
@@ -301,10 +302,10 @@ export function bulletText(b: PlanFeatureBullet, lang: string): string {
  *  international coverage is not available yet, so its card stays visible,
  *  is marked, and nothing on it starts a checkout. Existing subscribers
  *  are untouched — their card still reads "Current plan". */
-export const COMING_SOON_PLANS: readonly PlanKey[] = ["multi"];
+export const COMING_SOON_PLANS: readonly PlanKey[] = COMING_SOON_PLAN_IDS;
 
 export function isComingSoonPlan(key: PlanKey): boolean {
-  return COMING_SOON_PLANS.includes(key);
+  return isComingSoonPlanId(key);
 }
 
 /** Feature bullets for a plan in the given UI language (falls back to en). */

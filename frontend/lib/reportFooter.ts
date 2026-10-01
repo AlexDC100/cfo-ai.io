@@ -24,9 +24,11 @@
 //
 // Law: lib/__tests__/reportFooter.test.ts (gate public-claims).
 
-import { factsFrom, presentStatus, type BsStatusPresentation } from "./servedFacts";
+import {
+  canonicalStatusCore, factsFrom, presentStatus, toDisplay, type BsStatusPresentation,
+} from "./servedFacts";
 import { moneyLocaleFor } from "./money";
-import type { CanonicalBsStatus, Statements } from "./financialReport";
+import type { CanonicalBs, Statements } from "./financialReport";
 
 export interface ReportFooterInput {
   /** `GET /api/period` → `statements` (carries `canonical_bs` on every
@@ -45,7 +47,7 @@ export interface ReportFooterLines {
   /** The engine's balance verdict for this report. */
   balance: string;
   /** The difference to the cent, or that none was served. */
-  difference: string;
+  differenceLine: string;
   /** Machine status — for the test id, never printed. */
   machineStatus: string;
 }
@@ -76,14 +78,14 @@ function servedBalance(
     const facts = factsFrom({ canonical_bs: cbs } as unknown as Statements);
     return { p: facts.presentStatus(currency), diff: facts.difference() };
   }
-  const diff = typeof cbs.difference === "number" && Number.isFinite(cbs.difference)
-    ? cbs.difference : null;
+  // A served object without its totals block: the verdict and the drift
+  // still come through the gateway's own picks (lib/servedFacts) — this
+  // module never reads a canonical_bs field itself.
+  const core = canonicalStatusCore(cbs as unknown as CanonicalBs);
+  const diff = core.differenceCents === null ? null : toDisplay(core.differenceCents);
   return {
     p: presentStatus({
-      status: (typeof cbs.status === "string" ? cbs.status : null) as CanonicalBsStatus | null,
-      difference: diff,
-      needsReview: cbs.needs_review === true,
-      currency,
+      status: core.status, needsReview: core.needsReview, difference: diff, currency,
     }),
     diff,
   };
@@ -99,7 +101,7 @@ export function reportFooterLines(input: ReportFooterInput): ReportFooterLines {
       ? " The briefing in section 1 was written by an AI model from these figures."
       : "");
 
-  const difference =
+  const differenceLine =
     p.machineStatus === "UNVERIFIED"
       ? "No engine balance verdict exists for this period."
       : diff === null
@@ -110,7 +112,7 @@ export function reportFooterLines(input: ReportFooterInput): ReportFooterLines {
   return {
     generated,
     balance: p.exportHeadline,
-    difference,
+    differenceLine,
     machineStatus: p.machineStatus,
   };
 }

@@ -35,6 +35,7 @@ import {
   formatEur,
   purchasablePaidPlans,
 } from "@/lib/pricingConfig";
+import { isComingSoonPlanId } from "@/lib/plans";
 
 interface Props {
   config: PricingPublicConfig;
@@ -45,9 +46,11 @@ export function MonthlyBillEstimator({ config }: Props) {
 
   // Purchasable recurring plans only — trial/intro never appear (they're
   // acquisition-only, no "estimated monthly bill" concept), and retired
-  // tiers (starter) must not be estimated for a plan nobody can buy.
+  // tiers (starter) must not be estimated for a plan nobody can buy. The
+  // same goes for a COMING-SOON plan (Multi-Country, 2026-10-01): a monthly
+  // bill for a plan that is not on sale is a price for nothing.
   const recurring = useMemo(
-    () => purchasablePaidPlans(config),
+    () => purchasablePaidPlans(config).filter((p) => !isComingSoonPlanId(p.key)),
     [config],
   );
 
