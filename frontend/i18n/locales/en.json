@@ -356,7 +356,7 @@
     "optional": "<c1>Inventory value</c1> + <c2>COGS</c2> are optional but unlock per-SKU <c3>turnover days</c3>;",
     "rollup": "the company-level <c1>CCC</c1> roll-up additionally uses the period trial balance for DSO / DPO.",
     "downloadExample": "Download example (XLSX)",
-    "exampleCaption": "Fictional example — match these columns; fictional data.",
+    "exampleCaption": "Fictional example — match these columns.",
     "exampleFooter": "Placeholder rows for illustration only — replace with your real export. The third row deliberately omits <c1>Inventory value</c1> & <c2>COGS</c2> to demonstrate the \"DIO not available\" rendering: rows without both inputs show \"—\", never 0, and are excluded from the company DIO aggregate."
   },
   "workingCapital": {

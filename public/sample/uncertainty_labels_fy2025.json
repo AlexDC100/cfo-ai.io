@@ -1,0 +1,139 @@
+{
+ "labels": [
+  {
+   "area": "cash_flow",
+   "engine_en": "Working-capital movements estimated at 5% of current balances; actual ΔAR / ΔInventory / ΔAP cannot be computed without a prior-period trial balance.",
+   "engine_ro": null,
+   "key": "cash_flow_approximated_1",
+   "kind": "approximation",
+   "reason": null,
+   "source": "/statements/assembled_cf/approximation_notes/0"
+  },
+  {
+   "area": "cash_flow",
+   "engine_en": "Financing detail (LT/ST debt drawdowns vs repayments, dividends paid) approximated from typical Romanian payout ratios. The reconciliation plug captures the residual so closing cash still ties to the BS.",
+   "engine_ro": null,
+   "key": "cash_flow_approximated_2",
+   "kind": "approximation",
+   "reason": null,
+   "source": "/statements/assembled_cf/approximation_notes/1"
+  },
+  {
+   "area": "profit_and_loss",
+   "engine_en": "Change in inventories of finished goods and WIP — derived: the result in account 121 less every other P&L line (a closed trial balance keeps no net balance on account 711)",
+   "engine_ro": "Variația stocurilor de produse — derivată: rezultatul din contul 121 minus celelalte linii ale contului de profit și pierdere (o balanță închisă nu păstrează soldul net al contului 711)",
+   "key": "stock_variation_derived",
+   "kind": "derived",
+   "reason": null,
+   "source": "/statements/assembled_pl/inventory_variation"
+  },
+  {
+   "area": "profit_and_loss",
+   "engine_en": "On a closed trial balance the 711 line is derived from account 121, so the reconciliation closes by construction.",
+   "engine_ro": "Pe o balanță închisă linia 711 este derivată din contul 121, deci reconcilierea se închide prin construcție.",
+   "key": "stock_variation_identity",
+   "kind": "derived",
+   "reason": null,
+   "source": "/statements/assembled_pl/inventory_variation"
+  },
+  {
+   "area": "ratios",
+   "engine_en": "average of the balances at 1 January and 31 December",
+   "engine_ro": "media soldurilor la 1 ianuarie și 31 decembrie",
+   "key": "inventory_days_basis",
+   "kind": "basis",
+   "reason": null,
+   "source": "/statements/inventory_days/basis_label"
+  },
+  {
+   "area": "ratios",
+   "engine_en": "food and consumer-goods stock is seasonal: a year-end balance can sit far from the usual level; only monthly balances remove the effect",
+   "engine_ro": "stocurile din alimentație și bunuri de larg consum sunt sezoniere: un sold la sfârșit de an poate fi departe de nivelul obișnuit; doar soldurile lunare elimină efectul",
+   "key": "inventory_days_seasonality",
+   "kind": "basis",
+   "reason": null,
+   "source": "/statements/inventory_days/seasonality"
+  },
+  {
+   "area": "ratios",
+   "engine_en": null,
+   "engine_ro": null,
+   "key": "ratio_refused_adjusted_dscr",
+   "kind": "refusal",
+   "reason": {
+    "code": "user_input_absent",
+    "display_unit": "x",
+    "inputs": [
+     "supplementary.annualLeaseExpense"
+    ],
+    "ratio": "adjusted_dscr"
+   },
+   "source": "/assembled_metrics/ratio_table/rows/key=adjusted_dscr/reason"
+  },
+  {
+   "area": "risk",
+   "engine_en": "Piotroski composite caps at 4 (of 9) until prior-period data is plumbed. The 4 unconditional checks (NI positive, ROA positive, CFO positive, CFO > NI) evaluate normally.",
+   "engine_ro": null,
+   "key": "piotroski_prior_unavailable",
+   "kind": "not_assessed",
+   "reason": null,
+   "source": "/statements/assembled_piotroski/disclosure"
+  },
+  {
+   "area": "findings",
+   "engine_en": "On this closed trial balance the stock variation (711) is derived from account 121, so the P&L reaches statutory profit by construction; the checks that still bind are the guards the derivation passed (every class-6/7 account read, the remainder within the 711 turnover, 121's opening cleared).",
+   "engine_ro": null,
+   "key": "insight_not_fired_reconstruction_gap",
+   "kind": "checked_clear",
+   "reason": null,
+   "source": "/statements/insights/not_fired/0/reason"
+  },
+  {
+   "area": "findings",
+   "engine_en": "No intercompany or related-party receivable row is present in the classified balance sheet.",
+   "engine_ro": null,
+   "key": "insight_not_fired_related_party_exposure",
+   "kind": "checked_clear",
+   "reason": null,
+   "source": "/statements/insights/not_fired/1/reason"
+  },
+  {
+   "area": "findings",
+   "engine_en": "Every account in the book matched a classification rule; no balance is carried under an Unclassified row.",
+   "engine_ro": null,
+   "key": "insight_not_fired_unclassified_balances",
+   "kind": "checked_clear",
+   "reason": null,
+   "source": "/statements/insights/not_fired/2/reason"
+  },
+  {
+   "area": "document",
+   "engine_en": "partially_calibrated",
+   "engine_ro": null,
+   "key": "calibration_tier",
+   "kind": "basis",
+   "reason": null,
+   "source": "/confidence/calibration_tier"
+  },
+  {
+   "area": "document",
+   "engine_en": "modal depth 3 (60.0% of 90 classifiable rows) is at or below the 4-digit synthetic boundary and only 0.0% of rows are deeper, under the 5.0% mixed floor; no header identity block",
+   "engine_ro": null,
+   "key": "detail_level",
+   "kind": "basis",
+   "reason": null,
+   "source": "comparatives:/current/detail_level/reason"
+  },
+  {
+   "area": "comparison",
+   "engine_en": "comparison struck at the synthetic level (current=synthetic, prior=synthetic): statement lines roll up losslessly across the difference, figures that exist only below the synthetic boundary do not",
+   "engine_ro": null,
+   "key": "comparison_level",
+   "kind": "basis",
+   "reason": null,
+   "source": "comparatives:/comparability/reason"
+  }
+ ],
+ "period": "FY2025",
+ "schema": "public_sample_labels/1"
+}

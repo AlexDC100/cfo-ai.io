@@ -3538,6 +3538,28 @@ export function reportChartBlocks(
   });
 }
 
+/**
+ * THE STYLESHEET AS IT SHIPS — without its comments.
+ *
+ * The CSS assembled below (this file, `reportCharts`, `reportShell`,
+ * `reportPrintCss`) is annotated for whoever edits it: what was measured,
+ * on which test document, why a rule is the way it is. Until 2026-10-01
+ * those notes were written into every exported report — about 18,000
+ * characters of developer commentary in a document a customer forwards to
+ * a bank, six of them naming the test document a measurement was taken on.
+ * Found by the public-sample gate, which scans the published sample report
+ * for the labels of the books this repository was calibrated on and found
+ * one inside the `<style>` block of a fictional company's report.
+ *
+ * A comment is not a rule: removing them changes no selector, no
+ * declaration and therefore no rendering (`reportPrintCss.test.ts` strips
+ * them the same way before it reads the rules). The source keeps every
+ * note; the export carries none.
+ */
+export function shippedCss(css: string): string {
+  return css.replace(/\/\*[\s\S]*?\*\//g, "").replace(/[ \t]+\n/g, "\n").replace(/\n{2,}/g, "\n");
+}
+
 export function renderReportHtml(
   s: Statements,
   credit: CreditScoreResult,
@@ -5591,7 +5613,7 @@ export function renderReportHtml(
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${escapeHtml(s.companyName)} — Financial Analysis ${escapeHtml(s.periodLabel)}</title>
-  <style>${css}</style>
+  <style>${shippedCss(css)}</style>
 </head>
 <body data-pl-view="filed" data-voice="pro" data-ccy="base" data-ic="with">
   ${toggleBar(toggles)}

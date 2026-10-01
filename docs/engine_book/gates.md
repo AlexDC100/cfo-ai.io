@@ -18946,3 +18946,224 @@ needs the local calibration books) and the file committed.
 in this worktree with the links removed): **7 passed in 25.33 s** — `SCOPE
 engine-proof committed_corpus_only — 2 check(s), 11 subject(s) re-measured`,
 with the notice naming the three checks compared by identity only.
+
+## public-sample
+
+**The request (owner, 2026-10-01, after the first public review).** A
+FICTIONAL Romanian company — its trial balance (downloadable) and the complete
+generated report — linked from the landing page, so anyone can inspect
+mappings and uncertainty labels. Fictional data only, never an anonymised
+client book.
+
+**What exists now.** `scripts/build_public_sample_tb.py` writes two years
+(FY2024, FY2025) of CONSERVE EXEMPLU FICTIV SRL as a double-entry ledger
+closed into account 121 (fixed seed, no clock, byte-stable .xlsx; the fiscal
+code fails the CUI checksum). `scripts/build_public_sample.py` carries both
+through the production write seam and serves them with `create_app()` over
+the PostgREST double (`tests/engine/_real_app_comparatives.py`; sockets
+blocked, the model library never imported), and publishes under
+`public/sample/`: the two workbooks, the three served documents, the account
+mapping (CSV) and the uncertainty labels (JSON). The report (HTML + PDF) is
+the frontend half: `public-sample-page`, `public-sample-pdf` below.
+`scripts/build_public_examples.py` regenerates the dashboard's two example
+workbooks (`public/examples`) as two layouts of the same FY2025 book.
+
+| | |
+|---|---|
+| command | `pytest tests/engine/test_public_sample.py -q` |
+| work count | junit, floor **20** (measured 22) |
+| canary | eight test ids named in `scripts/run_battery.py` |
+
+**What it fails on, now that the product is correct (TC-11):**
+
+| law | reds when |
+|---|---|
+| S1 | the generator stops producing a consistent ledger: a column pair that does not sum, a class-6/7 account left open, 121 not the year's profit, last year's result not cleared to 117, an opening balance that is not the prior closing, a fiscal code that PASSES the checksum |
+| S2 | a published file is not byte-identical to a rebuild (workbooks, served documents, mapping, labels), or `frontend/data/publicSample.json` is not the served documents' (every figure re-read through its own pointer; ≥ 50 held) |
+| S3 | two rebuilds differ |
+| S4 | the book fails a check the proof block lists: canonical balance sheet not BALANCED at 0.00, net profit not account 121 to the cent, turnover not the ledger's 70x − 709 (a fictional company has no MF filing; the ledger is its referee), the stock variation the bridge derives not the ledger's net 711, an EBITDA variant (reported / strict / cash) more than 1 RON from the methodology layer, a critical finding, inventory days not on the two-year-end average |
+| S5 | a published file (every workbook cell, the report's HTML and its PDF text, every JSON) carries the label of a real book this repository holds — labels derived at run time from the corpus cases marked `synthetic: false`, the regression baselines, the pack's real-workbook samples and `files/` when present, never typed — or a fiscal code / trade-register number other than the fictional ones |
+| S6 | the mapping stops listing every account exactly once with the served line item's bucket and amount; a label quotes a sentence the served document does not carry |
+| S7 | the `/sample` route is behind `AuthGuard` / `FeatureRoute` or inside the signed-in layout; nginx.conf loses the `location ~ ^/sample/?$` that hands the route to the app (`public/sample` is a directory in the image — the SPA fallback's `$uri/` answers it 403) |
+| S8 | `public/examples` is not a rebuild, says "anonimizat", has an account 121 that disagrees with classes 6/7, raises a critical finding, or its two layouts read as different books |
+
+**FOUND BY THE GATE, fixed at the source.** S5's first run was RED on the
+sample's own report: the exported report's `<style>` block carried the
+stylesheet's developer comments — about 18,000 characters in every export a
+customer forwards to a bank, six of them naming the test document a
+measurement was taken on. `financialReport.ts` now emits the stylesheet
+through `shippedCss()` (comments removed; no selector or declaration
+changes — `reportPrintCss.test.ts` strips them the same way before it reads
+the rules). The source keeps every note; the export carries none.
+
+**PLANT A** — a driver changes (`sales_701` FY2025 +1,000), files not rebuilt.
+
+**RED**
+```
+E   AssertionError: public/sample is not what the engine produces today: ['balanta_exemplu_fictiv_31.12.2025.xlsx', 'served_period_fy2025.json', 'served_comparatives_fy2025_vs_fy2024.json', 'account_mapping_fy2025.csv'] differ from a rebuild. Run scripts/build_public_sample.py and commit the result — after reading the diff.
+E   AssertionError: FY2025: served net profit 391558.34, account 121 in the ledger 392398.43
+E   AssertionError: public/examples is stale — run scripts/build_public_examples.py
+3 failed, 19 passed
+```
+
+**PLANT B** — the old example's defect: a stray posting after the closing
+entries (`L.post("121", "117", 25000)`), every file REBUILT so S2 stays green.
+
+**RED** — the engine's own guard refuses the book, and the gate says so:
+```
+E   AssertionError: FY2024: 117 received 312356.73, 121 opened with 287356.73
+E   AssertionError: assert ({'code': 'account_121_opening_not_cleared', …} is None)
+E   AssertionError: ('refused', 'average_two_year_ends')
+E   AssertionError: example_trial_balance_8col.xlsx: account 121 (366558.34) disagrees with classes 6/7 (267818.28) — the defect the old example shipped with
+9 failed, 13 passed
+```
+
+**PLANT C** — `<style>${shippedCss(css)}</style>` back to `<style>${css}</style>`,
+the report rebuilt.
+
+**RED**
+```
+E   AssertionError: sample_report_fy2025.html carries the label of a real book this repository holds, at character 31874 (5 characters long). Find where it comes from and remove it at the source.
+2 failed, 20 passed
+```
+(the label is not printed: a failure log is not the place for it either.)
+
+**PLANT D** — the nginx location removed.
+**RED** `E   AssertionError: nginx.conf has no location for the /sample route` — 1 failed, 21 passed.
+
+**PLANT E** — `EXAMPLE_NOTICE_RO` back to "EXEMPLU ANONIMIZAT - date fictive…", examples rebuilt.
+**RED** `E   AssertionError: example_trial_balance_8col.xlsx says the book is anonymised; it is fictional, which is a different claim` — 1 failed, 21 passed.
+
+**PLANT F** — `FISCAL_CODE = "RO 99999992"` (passes the checksum).
+**RED** `E   AssertionError: the sample's fiscal code RO 99999992 passes the CUI checksum — it could belong to a real company; pick a code that fails it` — 5 failed, 7 passed, 10 errors.
+
+**The fictional identifiers and the data-hygiene gate.** The first fictional
+code chosen (`RO 90000001`, checksum-invalid) made `corpus-policy` RED on all
+four workbooks: its Tier B treats a labelled CUI inside a tracked `.xlsx` as a
+statutory identifier unless it has the repository's fabricated-placeholder
+shape (`pdf_scrambler.is_placeholder_identifier`: a numeric group of one
+repeated digit). The sample now uses `RO 99999999` and `J99/9999/2099` — both
+placeholder-shaped, and the fiscal code still fails the checksum (S1).
+
+**REVERT** — each plant restored from its backup; `22 passed`, `git status` clean.
+
+**What it cannot see.** The report's HTML and PDF (TypeScript: the two gates
+below). nginx itself: S7 reads the config; no nginx binary or image is
+available on the build host, so the location has not been exercised against a
+running server — `curl -I https://cfo-ai.io/sample` after the first deploy is
+the live check. And the engine's reading of a REAL book: the sample proves the
+engine on a book written to be consistent, which is what a sample is.
+
+## public-sample-page
+
+The `/sample` page and the published report, held to the COMMITTED served
+documents (`frontend/pages/cfo/__tests__/publicSample.test.tsx`).
+
+| | |
+|---|---|
+| command | `npx vitest run --root . frontend/pages/cfo/__tests__/publicSample.test.tsx --reporter=verbose` |
+| work count | `GATE-WORK public-sample-page figures=(\d+)`, floor **100** (measured 126) |
+| canary | the GATE-WORK line and six titles named in `scripts/run_battery.py` |
+
+**What it fails on, now that the product is correct (TC-11):**
+
+| law | reds when |
+|---|---|
+| P1 | a money figure on the page (22 in the two-year table, the balance / anchor / stock-variation / EBITDA cards), in EN or RO, is not the served document's value at the figure's own pointer, printed by an INDEPENDENT formatter (`Intl.NumberFormat`, never lib/money — CLAUDE.md §26); or the page's own voice carries a number in the other language's format (`frontend/test/numberLanguage.ts`; the engine's quoted English sentences and identifiers are excluded, and the detector is shown to trip on the other language's page) |
+| P2 | a ratio or composite is not the served comparison row's `value_q` with the reader's decimal separator |
+| P3 | the EN and RO string tables differ in shape; a label, bucket, section, status, file card, severity or Altman zone has no words in a language; an engine sentence is not quoted with the `lang` it was written in |
+| P4 | a download points at no file under `public/sample`, or states a size the file does not have |
+| P5 | the committed report HTML is not byte-identical to `sampleReportHtml()` over the committed served documents (the Export tab's own call, clock pinned to the sample's `as_of`); the report ships a stylesheet comment |
+| P6 | the committed PDF's text lacks the report's own headline figures or the company name, or has fewer than 15 pages |
+| P7 | the page throws without a session or provider, or makes a network call |
+| P8 | Romanian copy with a cedilla diacritic, the formal register, an emoji, or a sentence left in English |
+
+**PLANT P1a** — `money(f.value * 1.01)` in the figures table.
+**RED** `en current net_turnover: expected '9,452,412.14 RON' to be '9,358,823.90 RON'` and the RO twin — 2 failed, 17 passed.
+
+**PLANT P1b** — `sampleMoney` printing with `moneyLocaleFor("en")` whatever the language.
+**RED**
+```
+ro current net_turnover: expected '9,358,823.90 RON' to be '9.358.823,90 RON'
+expected 'BilanțEchilibrat: active 6,542,143.53…' to contain '6.542.143,53 RON'
+an English number on the ro page: expected '9,358,823' to be null
+4 failed, 15 passed
+```
+
+**PLANT P3** — the Romanian name of bucket `ppe` deleted.
+**RED** `expected [ '.metaTitle', …(188) ] to deeply equal [ '.metaTitle', …(189) ]` and `bucket ppe: expected undefined to be truthy` — 2 failed, 17 passed.
+
+**PLANT P5** — the committed report edited by hand (`RON 9,358,824` → `RON 9,958,824`).
+**RED** `public/sample report HTML differs from a rebuild: expected false to be true` — 1 failed, 18 passed.
+
+**PLANT C (shared with `public-sample`)** — the stylesheet comments shipped again.
+**RED** `expected '\n    :root {\n      /* Standalone ge…' not to contain '/*'` and `sample_report_fy2025.html: expected 345150 to be 324345` — 2 failed, 17 passed.
+
+**PLANT P8** — `download: "Descărcaţi"`.
+**RED** `cedilla diacritic: expected 'Descărcaţi' not to match /[şţŞŢ]/` — 1 failed, 18 passed.
+
+**REVERT** — each plant restored; `19 passed`.
+
+## public-sample-pdf
+
+`node scripts/build_public_sample_report.mjs --check` — rebuilds the report
+from the committed served documents through the product's own builder (Vite
+SSR), re-prints it with the shipped renderer (`services/pdf/render.mjs`,
+headless Chromium) and compares: the HTML byte for byte, the PDF by page count
+and text layer (read back out of the bytes with `pdfText.ts`). A PDF's bytes
+belong to the Chromium that printed it; its text does not.
+
+| | |
+|---|---|
+| command | `node scripts/build_public_sample_report.mjs --check` |
+| work count | `(\d+) pages, text layer identical to a rebuild`, floor **15** (measured 27) |
+| canary | `sample_report_fy2025.html — byte-identical rebuild`, `text layer identical to a rebuild` |
+
+**What it fails on, now that the product is correct (TC-11):** the committed
+HTML is not what the report builder produces today; the committed PDF has a
+different page count or a page whose text differs from a re-print — i.e. the
+report changed and the published files were not rebuilt. It needs the pinned
+Chromium (`npx playwright install chromium-headless-shell`); a different
+Chromium can paginate differently, which is a RED that means "rebuild on the
+build host", not a defect in the report.
+
+**PLANT** — the served document changes (`companyName` in
+`served_period_fy2025.json`), nothing rebuilt.
+
+**RED**
+```
+  FAIL sample_report_fy2025.html is not what the report builder produces from the served documents (first difference at byte 173: …)
+  FAIL sample_report_fy2025.pdf: the text of page 1 differs from a rebuild
+public sample report: STALE — run scripts/build_public_sample.py
+```
+and, with only the committed HTML edited by hand (PLANT P5 above):
+`FAIL sample_report_fy2025.html is not what the report builder produces … (first difference at byte 57397 …)` while the PDF line stays `ok`.
+
+**REVERT** — restored: `ok sample_report_fy2025.html — byte-identical rebuild
+(322542 chars)`, `ok sample_report_fy2025.pdf — 27 pages, text layer identical
+to a rebuild`, `public sample report: PASS`.
+
+**Measured at c60a4b54 (the three public-sample commits), not asserted:**
+
+- `public-sample`: 22 passed. `public-sample-page`: 19 passed, 126 figures.
+  `public-sample-pdf`: HTML byte-identical, 27 pages, text layer identical.
+  Every plant above re-run on the committed state: RED as recorded, and the
+  tree clean after each revert. (The first re-run of PLANT F was VACUOUS — the
+  plant script still searched for the fiscal code replaced earlier in the day,
+  so it changed nothing and the gate stayed green; noticed because "22 passed"
+  is not what a plant prints. Re-run with the current code: 5 failed, 7 passed,
+  10 errors, as recorded.)
+- full engine suite (`pytest tests/engine`, the owner's untracked `files/`
+  books linked in for the run and removed after): **9,347 passed, 39 skipped,
+  2 xfailed, 0 failed** (9,325 + the 22 public-sample laws).
+- full vitest (`scripts/check_vitest.mjs`): **265 files, 4,419 passed, 1
+  skipped, 0 failed**, canaries 14/14 (4,400 + the 19 page laws).
+- `tsc` (`scripts/check_tsc.mjs`): 1,027 files, the 10 known errors, 0 new.
+  `vite build`: OK (3,651 modules; the /sample chunk is 82.5 kB, 21 kB gzip),
+  and the built app served by `vite preview` answers `/sample` and `/sample/`
+  with the app and `/sample/<file>` with each published file.
+- `corpus-policy`, `import-boundary`, `provenance-census` (824 sites, 108
+  files, 11 on the burn-down, none new), `launch-headers`, `engine-book`,
+  `stale-gates`, `no-plants`, `hermetic`, `test-env-isolation`: PASS.
+  `scripts/check_report_pdf.mjs` (not a battery gate): 13 assertions PASS
+  after the stylesheet-comment change — pagination is unchanged.

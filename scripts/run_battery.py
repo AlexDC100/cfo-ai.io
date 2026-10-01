@@ -300,6 +300,33 @@ def _engine_gates() -> List[Gate]:
              canaries=("test_no_mutating_route_demands_its_body_as_a_query_param",
                        "test_no_request_model_is_nested_inside_a_function_under_future_annotations",
                        "test_the_full_openapi_schema_generates")),
+        # THE PUBLIC SAMPLE (owner, 2026-10-01, after the first public review):
+        # a FICTIONAL company linked from the landing page — its trial
+        # balances, the report the product generates, the mapping of every
+        # account and every uncertainty label. The gate rebuilds it through
+        # the production write seam and create_app() (no model, sockets
+        # blocked) and reds when a published file is not byte-identical to the
+        # rebuild, when two rebuilds differ, when the book fails a check the
+        # landing page's proof block lists (balance sheet 0.00, net profit ==
+        # account 121, turnover == the ledger's, EBITDA variants within
+        # 1 RON), when a client label or a fiscal code other than the
+        # fictional one reaches a public file, when the /sample route loses
+        # its nginx location or its place outside the auth wall, and when the
+        # dashboard's example workbooks stop being a consistent, "date
+        # fictive" rebuild. Measured 22 tests. The page and the report's HTML
+        # / PDF are `public-sample-page` and `public-sample-pdf` (frontend).
+        # Plant log: gates.md "public-sample".
+        Gate("public-sample",
+             [PY, "-m", "pytest", "tests/engine/test_public_sample.py", "-q"],
+             work_junit=True, floor=20, units="tests",
+             canaries=("test_s1_the_current_year_opens_with_the_prior_years_closing",
+                       "test_s2_every_published_engine_file_is_a_byte_identical_rebuild",
+                       "test_s2_the_pages_data_is_the_served_document",
+                       "test_s3_a_second_rebuild_is_byte_identical",
+                       "test_s4_net_profit_is_account_121_and_turnover_is_the_ledgers",
+                       "test_s5_no_client_label_appears_in_a_published_file",
+                       "test_s7_the_route_is_public_and_nginx_hands_it_to_the_app",
+                       "test_s8_both_example_layouts_read_as_one_consistent_book")),
         # UPLOAD-REAL-TYPE (hotfix/upload-real-type 31dfce26 + b58bdff8,
         # landed in release r-rulings2, 2026-10-01): the 2026-09-23 incident —
         # a Word document named balanta_de_verificare_07.2025.pdf travelled
@@ -2597,6 +2624,41 @@ def _frontend_gates() -> List[Gate]:
                        "B5 the six column headings are one string",
                        "B3 the deteriorated list: the served order and the same cells",
                        "B6 non-vacuity: every named path is extracted whole and is the real served-row path")),
+        # THE PUBLIC SAMPLE, frontend half (engine half: `public-sample`):
+        #   public-sample-page  the /sample page in EN and RO — every money
+        #                    figure and ratio is the COMMITTED served
+        #                    document's (read through the figure's own
+        #                    pointer, printed by an independent formatter),
+        #                    nothing in the page's own voice is a number in
+        #                    the other language's format, every label /
+        #                    bucket / status is named in both languages, each
+        #                    download is a published file at its stated size,
+        #                    the committed report HTML is a byte-identical
+        #                    rebuild by the product's own report builder, the
+        #                    committed PDF prints its headline figures, and
+        #                    the page renders with no session and no fetch.
+        #   public-sample-pdf   re-prints the report through the shipped PDF
+        #                    renderer (headless Chromium) and compares the
+        #                    committed PDF's text layer, page by page.
+        #                    Plant log: gates.md.
+        Gate("public-sample-page",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/pages/cfo/__tests__/publicSample.test.tsx", "--reporter=verbose"],
+             work_rx=r"GATE-WORK public-sample-page figures=(\d+)", floor=100,
+             units="printed figures held to the served document",
+             canaries=("GATE-WORK public-sample-page figures=",
+                       "every money figure of both years, printed in the reader's language",
+                       "nothing the page says in its own voice is a number in the other language's format",
+                       "each ratio and composite, both years",
+                       "the committed HTML is a byte-identical rebuild from the committed served documents",
+                       "the committed PDF prints that report's headline figures",
+                       "renders with no session, no provider and no network call")),
+        Gate("public-sample-pdf",
+             ["node", "scripts/build_public_sample_report.mjs", "--check"],
+             work_rx=r"(\d+) pages, text layer identical to a rebuild", floor=15,
+             units="PDF pages re-printed and compared",
+             canaries=("sample_report_fy2025.html — byte-identical rebuild",
+                       "text layer identical to a rebuild")),
         Gate("npm-build", ["npm", "run", "build"],
              work_rx=r"(\d+) modules transformed", floor=1000,
              units="modules transformed",

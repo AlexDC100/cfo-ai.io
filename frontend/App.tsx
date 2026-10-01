@@ -113,6 +113,10 @@ const PublicCompanyDashboard = lazy(() => import("./pages/cfo/PublicCompanyDashb
 // Auth-optional (renders its own shell at runtime based on session state);
 // still lazy-loaded because it pulls in StockPriceChart + universe table.
 const PublicCompanyIntelligence = lazy(() => import("./pages/cfo/PublicCompanyIntelligence"));
+// /sample — the public sample (a fictional company read by the real engine).
+// Public and outside the auth wall. Lazy: it carries the sample's generated
+// data (frontend/data/publicSample.json), which no other route needs.
+const PublicSample = lazy(() => import("./pages/cfo/PublicSample"));
 
 import { PUBLIC_RECORDS_ENABLED, DECISIONS_ALERTS_ENABLED } from "./config/features";
 import { heartbeatIfIdentified } from "@/lib/identity";
@@ -379,6 +383,10 @@ function AppRoutes() {
             element={<FeatureRoute featureKey="roadmap"><RoadmapPage /></FeatureRoute>}
           />
           <Route path="/contact-sales" element={<ContactSalesPage />} />
+          {/* The public sample — no sign-in, no test-mode redirect: the page
+              reads only its own generated data and the files under
+              public/sample/. */}
+          <Route path="/sample" element={<PublicSample />} />
 
           {/* Legal — /privacy, /terms, /cookies plus their /ro/ twins.
               Until 2026-09-05 the three documents existed ONLY as sections
