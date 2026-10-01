@@ -93,10 +93,17 @@ function CashFlowStatementBody({ statement, hideGuide = false, prior = null }: O
   // of 68x — the provision charges with D&A — whenever either column's
   // served add-back holds the 6812 / 6814 charges the P&L prints on their
   // own line; plain D&A otherwise.
-  const depreciationLabelKey =
-    operating.depreciationIncludesProvisionCharges || (cmpOn && p?.operating.depreciationIncludesProvisionCharges)
-      ? "statements.cf.operating.depreciationAndProvisionCharges"
-      : "statements.cf.operating.depreciation";
+  const addBackHoldsCharges = Boolean(
+    operating.depreciationIncludesProvisionCharges || (cmpOn && p?.operating.depreciationIncludesProvisionCharges));
+  const depreciationLabelKey = addBackHoldsCharges
+    ? "statements.cf.operating.depreciationAndProvisionCharges"
+    : "statements.cf.operating.depreciation";
+  // The plain-language explainers of "depreciation" (the Simple-mode
+  // glossary tooltip over the label, the D&A learn popover over the figure:
+  // "Σ account 681") describe D&A alone — never put over a row that holds
+  // the provision charges too (review 2026-10-01). Neither explains the
+  // widened row, so it carries none rather than a wrong one.
+  const depreciationTermId = addBackHoldsCharges ? null : "depreciation";
   const driftExceedsTolerance = Math.abs(reconciliation.drift) > 1;
   const showApproximationBanner = statement.isApproximated;
   // 2026-05-24 — currency conversion via display-currency toggle.
@@ -174,7 +181,7 @@ function CashFlowStatementBody({ statement, hideGuide = false, prior = null }: O
               </div>
               <div className="cf-row cf-row-item">
                 <span className="cf-label">
-                  <SimpleTermLabel termId="depreciation">
+                  <SimpleTermLabel termId={depreciationTermId}>
                     <span data-testid="cf-depreciation-label">{t(depreciationLabelKey)}</span>
                   </SimpleTermLabel>
                 </span>
@@ -182,7 +189,7 @@ function CashFlowStatementBody({ statement, hideGuide = false, prior = null }: O
                     EBITDA − EBIT identity and refuses when either term is
                     missing. `fmt` paints the gap; no learnable trigger over
                     a figure nobody computed. */}
-                {typeof operating.depreciation === "number" ? (
+                {typeof operating.depreciation === "number" && !addBackHoldsCharges ? (
                   <LearnableNumber conceptKey="depreciation_amortization" value={operating.depreciation} className="cf-amount" block>
                     {fmt(operating.depreciation)}
                   </LearnableNumber>

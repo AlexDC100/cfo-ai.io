@@ -124,7 +124,7 @@ import {
 } from "@/components/cfo/EbitdaMultiplePrimaryCard";
 import { pickPLBuilder, buildPLStatementFromAggregates } from "@/lib/buildPlStatement";
 import { buildBSStatement } from "@/lib/buildBsStatement";
-import { buildCashFlowStatement } from "@/lib/buildCashFlowStatement";
+import { addBackHoldsProvisionCharges, buildCashFlowStatement } from "@/lib/buildCashFlowStatement";
 import { buildNavCascade } from "@/lib/buildNavCascade";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -5802,6 +5802,15 @@ export function ValuationPanel({
   const fcfView = fb?.free_cash_flow ?? cfClient.fcf;
   const capexAbs = Math.abs(capexView);
   const fcfNegativeDev = fb?.is_development_phase && fcfView !== null && fcfView < 0;
+  // THE ADD-BACK TILE SAYS WHAT IT SUMS (owner ruling R2, 2026-09-28; review
+  // 2026-10-01). `fcf_breakdown.depreciation` is the engine's DCF add-back —
+  // the cash-flow walk's all-of-68x (`assembled_cf.depreciation`), and the
+  // client fallback (`deriveCashFlow`) is all of 68x too — while the P&L's
+  // `depreciation` is D&A WITHOUT the 6812 / 6814 provision charges. Where
+  // the two differ the tile holds the charges and carries the Cash Flow
+  // tab's own name for that row (one key, so the two surfaces cannot drift),
+  // with no D&A-only explainer over it; plain "+ D&A" otherwise.
+  const depHoldsProvisionCharges = addBackHoldsProvisionCharges(depView, statements.assembled_pl?.depreciation);
 
   const pct = (x: number, d = 1) => `${(x * 100).toFixed(d)}%`;
   // A REFUSED figure (the net result, the walk from it, a WACC on refused
@@ -5822,7 +5831,14 @@ export function ValuationPanel({
         <h2 className="text-[13px] font-medium uppercase tracking-[0.08em] text-ink-soft mb-3">{t("dash.freeCashFlow")}</h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <KpiTile label={t("dash.netIncome")} value={netIncomeView === null ? refusedNode(cfRefusal, "valuation-net-income-refused") : <LearnableNumber conceptKey="net_profit" value={netIncomeView}>{fmtMoney(netIncomeView, cur)}</LearnableNumber>} sub={t("dash.statutoryView")} />
-          <KpiTile label={t("dash.plusDa")} value={<LearnableNumber conceptKey="depreciation_amortization" value={depView}>{fmtMoney(depView, cur)}</LearnableNumber>} />
+          <KpiTile
+            data-testid="valuation-add-back-tile"
+            data-add-back-holds-provision-charges={depHoldsProvisionCharges ? "true" : "false"}
+            label={depHoldsProvisionCharges ? t("statements.cf.operating.depreciationAndProvisionCharges") : t("dash.plusDa")}
+            value={depHoldsProvisionCharges
+              ? fmtMoney(depView, cur)
+              : <LearnableNumber conceptKey="depreciation_amortization" value={depView}>{fmtMoney(depView, cur)}</LearnableNumber>}
+          />
           <KpiTile label={t("dash.minusWc")} value={<LearnableNumber conceptKey="working_capital_changes" value={wcView}>{fmtMoney(wcView, cur)}</LearnableNumber>} />
           <KpiTile label={t("dash.eqCfo")} value={cfoView === null ? refusedNode(cfRefusal, "valuation-cfo-refused") : <LearnableNumber conceptKey="operating_cash_flow" value={cfoView}>{fmtMoney(cfoView, cur)}</LearnableNumber>} />
           <KpiTile

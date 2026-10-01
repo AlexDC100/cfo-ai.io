@@ -9,12 +9,15 @@
 //
 // LAW, on two firm books (real engine output): carniprod posts 6812 / 6814
 // charges — the row reads "+ Depreciation, amortisation and provision charges
-// (68x)" and prints the served add-back; realestate posts none — the row
-// reads "+ Depreciation & amortization". The tab and the workbook are held by
-// provisionsAddBack.test.tsx.
+// (68x)" and its printed figure is the served add-back
+// `assembled_cf.depreciation` (not the narrowed P&L D&A); realestate posts
+// none — the row reads "+ Depreciation & amortization" and prints its one
+// figure. The tab and the workbook are held by provisionsAddBack.test.tsx.
 // REDS ON: the row named D&A over the figure holding the charges, or named
-// for them on a book posting none. CANNOT SEE: the figures themselves
-// (provisions-symmetric); pixels.
+// for them on a book posting none; the row printing another figure than the
+// served add-back (review 2026-10-01: the law checked the label only).
+// CANNOT SEE: whether the served figures are right (provisions-symmetric);
+// pixels.
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
@@ -87,6 +90,22 @@ function cfLabels(): string[] {
     .filter(Boolean);
 }
 
+/** The printed figure of the §4 row whose first cell is `label`, as digits
+ *  (the printer's separators and decimals dropped). */
+function cfRowDigits(label: string): string {
+  const section = screen.getByTestId("report-section-4-cf");
+  const tr = Array.from(section.querySelectorAll("tr")).find(
+    (r) => (r.querySelector("td")?.textContent?.trim() ?? "").replace(/^~ /, "") === label,
+  );
+  expect(tr, `the §4 row "${label}"`).toBeDefined();
+  return (tr!.querySelectorAll("td")[1]?.textContent ?? "").replace(/\D/g, "");
+}
+/** The digits a served figure prints with, at the printer's precision. */
+const printedDigits = (v: number, printed: string) =>
+  (printed.length === Math.round(Math.abs(v)).toString().length
+    ? Math.round(Math.abs(v)).toString()
+    : Math.abs(v).toFixed(2).replace(/\D/g, ""));
+
 const WITH = "+ Depreciation, amortisation and provision charges (68x)";
 const PLAIN = "+ Depreciation & amortization";
 
@@ -103,6 +122,10 @@ describe("/report §4 — the add-back row is named for what it sums (R2)", () =
     const labels = cfLabels();
     expect(labels).toContain(WITH);
     expect(labels).not.toContain(PLAIN);
+    // The figure under the name: the served add-back, not the P&L's D&A.
+    const printed = cfRowDigits(WITH);
+    expect(printed, "the row prints assembled_cf.depreciation").toBe(printedDigits(acf.depreciation as number, printed));
+    expect(printed, "and not the narrowed P&L D&A").not.toBe(printedDigits(apl.depreciation as number, printed));
   });
 
   it("realestate posts none: the row is plain D&A", async () => {
@@ -114,5 +137,7 @@ describe("/report §4 — the add-back row is named for what it sums (R2)", () =
     const labels = cfLabels();
     expect(labels).toContain(PLAIN);
     expect(labels).not.toContain(WITH);
+    const printed = cfRowDigits(PLAIN);
+    expect(printed, "the row prints the one served figure").toBe(printedDigits(apl.depreciation as number, printed));
   });
 });
