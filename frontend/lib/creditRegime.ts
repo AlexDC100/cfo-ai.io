@@ -25,7 +25,7 @@
 // the failed premise: a surface prints the regime and NO sentence — never a
 // sentence of its own.
 
-import { formatMoneyFrom } from "./money";
+import { formatMoneyFrom, moneyLocaleFor } from "./money";
 import type { Currency, Rates } from "./rates";
 
 export interface Bilingual {
@@ -208,11 +208,12 @@ export function regimeLang(language: string | null | undefined): RegimeLang {
   return (language ?? "en").toLowerCase().startsWith("ro") ? "ro" : "en";
 }
 
-/** A served share (a fraction, 4 dp) as a percentage on the reader's
- *  locale, one decimal — the served figure times one hundred, printed. */
+/** A served share (a fraction, 4 dp) as a percentage in the reader's
+ *  language (lib/money's ONE mapping, moneyLocaleFor), one decimal — the
+ *  served figure times one hundred, printed. */
 export function printShare(share: number | null, lang: RegimeLang): string | null {
   if (share === null) return null;
-  return new Intl.NumberFormat(lang === "ro" ? "ro-RO" : "en-GB", {
+  return new Intl.NumberFormat(moneyLocaleFor(lang), {
     style: "percent",
     maximumFractionDigits: 1,
     minimumFractionDigits: 1,
@@ -223,7 +224,7 @@ export function printShare(share: number | null, lang: RegimeLang): string | nul
 export function printAtLeast(atLeast: string, lang: RegimeLang): string {
   const v = Number(atLeast);
   if (!Number.isFinite(v)) return atLeast;
-  return new Intl.NumberFormat(lang === "ro" ? "ro-RO" : "en-GB", {
+  return new Intl.NumberFormat(moneyLocaleFor(lang), {
     style: "percent",
     maximumFractionDigits: 1,
   }).format(v);
@@ -249,12 +250,15 @@ export function regimeLine(
 }
 
 /** A served regime amount printed in the currency it was SERVED in, with
- *  that currency's code (lib/money formatMoneyFrom, source = display — no
- *  rate is ever applied). */
-export function printRegimeAmount(value: number, unit: string | null): string {
+ *  that currency's code after the figure (lib/money formatMoneyFrom, source
+ *  = display — no rate is ever applied), in the READER'S language: pass the
+ *  surface's `lang` so its words and its figures are one language (owner
+ *  ticket 2026-09-28, CLAUDE.md §26); without one it prints in the active UI
+ *  language at call time. */
+export function printRegimeAmount(value: number, unit: string | null, lang?: RegimeLang): string {
   const code = (unit || "RON").toUpperCase() as Currency;
   try {
-    return formatMoneyFrom(value, code, code, {} as Rates);
+    return formatMoneyFrom(value, code, code, {} as Rates, lang ? { locale: moneyLocaleFor(lang) } : {});
   } catch {
     return `${value.toFixed(2)} ${code}`;
   }
@@ -262,12 +266,15 @@ export function printRegimeAmount(value: number, unit: string | null): string {
 
 /** The regime as the printed documents state it (the exported report, the
  *  workbook): the label, the finding and every finding figure, English — the
- *  documents' language — each figure in its served currency, an unmeasured
- *  one by its status. One sentence, never a second computation. */
+ *  documents' language, so the figures are bound to English numbering
+ *  whatever the UI language (a Romanian reader's export never prints
+ *  "13,6 mil. RON" inside an English sentence) — each figure in its served
+ *  currency, an unmeasured one by its status. One sentence, never a second
+ *  computation. */
 export function regimeDocumentText(regime: CreditRegime): string {
   const f = regime.finding;
   const figs = (f?.figures ?? []).map(
-    (x) => `${x.label.en}: ${x.value === null ? `not measured (${x.status})` : printRegimeAmount(x.value, x.unit)}`,
+    (x) => `${x.label.en}: ${x.value === null ? `not measured (${x.status})` : printRegimeAmount(x.value, x.unit, "en")}`,
   );
   const cash = regime.cash?.refusal ? ` ${regime.cash.refusal.text.en}` : "";
   return `${regime.label.en}. ${f ? f.text.en : ""}${figs.length ? ` ${figs.join(" · ")}.` : ""}${cash}`.trim();

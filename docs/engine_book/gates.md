@@ -17784,7 +17784,7 @@ on its 11 pre-existing findings, none new.
 |---|---|
 | command | `npx vitest run frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx` |
 | canary | `developer (EN): one regime block, …`, `the hero states the refusal, not 'analysis pending', …`, `/report's credit card prints the regime once, …`, `CmdbarList renders it once at rest and not while typing`, `the documents and the command bar: the regime's label, no sentence` |
-| work count | vitest `Tests N passed`, floor **14** (measured 14; 11 before fixer round 1) |
+| work count | vitest `Tests N passed`, floor **19** (measured 19 at release r-rulings2; 14 on the rulings lineage; 11 before fixer round 1) |
 
 **LAW** — owner ruling R1: every surface that prints the grade prints the
 stock-build regime ONCE (`components/cfo/CreditRegimeNote.tsx`, a projection
@@ -18076,6 +18076,77 @@ REVERT (clean tree) commandBar.test.tsx -t "ruling R4|the actions are the engine
 **CANNOT SEE:** whether the export tab's PDF card renders the PDF (the
 report-pdf gates and the renderer sidecar); the Forecast page's own "Exportă
 pentru bancă" (forecast-cockpit gates — it stays there, untouched).
+
+### release r-rulings2 (2026-10-01) — the regime's figures in the reader's language
+
+**INCIDENT** — found at the merge of the rulings lineage with main's
+reader's-language ruling (CLAUDE.md §26: every figure through lib/money's
+printers bound to the UI language, the ISO code after the figure, the report
+English by contract). The R1 surfaces were written before it:
+`lib/creditRegime.printRegimeAmount` printed in whatever the ACTIVE language
+was, so the exported report and the workbook (`regimeDocumentText`, English
+like the documents) printed Romanian-shaped figures inside an English sentence
+for a Romanian reader; the trigger shares chose `en-GB` / `ro-RO` by their own
+ternary instead of the one mapping (`moneyLocaleFor`); and the command bar's
+regime line was built with an UNBOUND `servedMoney(currency)`, outside the law
+"a Printer's words and its figures are one language". No book of
+`cmdbar-ui-language` carries a regime, so that line had never been read by the
+language law, and the regime's own tests compared the printed cash only
+against `printRegimeAmount` — the same printer on both sides, the shape
+§26 names ("never compare a printed figure only against the same printer").
+
+**LAW** — `printRegimeAmount(value, unit, lang)` binds the locale to the
+surface's language (`moneyLocaleFor(lang)`); `CreditRegimeNote` passes its own
+`lang`; `regimeDocumentText` binds English; the palette builds the line with
+`servedMoney(currency, { lang })`. Five tests in
+`creditRegimeSurfaces.test.tsx` ("the regime's figures follow the reader's
+language": the STATED strings `-8,000,000.00 RON` / `-8.000.000,00 RON` and
+`13,650,000.50 EUR` / `13.650.000,50 EUR` under both UI languages; the Risks
+tab's note over the developer, the measured-cash and the withheld captures in
+EN and RO — every `.tabular-nums` figure and the measured cash line read by
+the independent detector `frontend/test/numberLanguage.ts`, money ending in
+its code, `GATE-WORK credit-regime-ui-language <lang> figures=23 money=11`;
+the document sentence identical under an English and a Romanian UI and free
+of Romanian number shapes; the bar's line through a bound printer under both
+UI languages) and two in `commandBar.test.tsx` (gate `cmdbar-surface`:
+"cmdbar-ui-language — the credit regime line prints its figures in the bar's
+language", the RENDERED bar over a constructed document — Agras's
+engine-composed attention document carrying the corpus developer's served
+regime block — `GATE-WORK cmdbar-ui-language regime/<lang> figures=2`).
+Floors: credit-regime-surfaces 14 -> 19, cmdbar-surface 214 -> 216.
+
+**PLANT, observed RED, then REVERT** — two source edits applied together in
+the worktree, the two files restored byte-exact from their saved copies:
+
+```
+PLANT amount-ignores-the-surface-language: frontend/lib/creditRegime.ts
+      (formatMoneyFrom(..., lang ? { locale: moneyLocaleFor(lang) } : {}) -> {})
+PLANT bar-line-printer-bound-to-romanian: frontend/components/instrument/shell/CommandPalette.tsx
+      (servedMoney(currency, { lang }) -> servedMoney(currency, { lang: "ro" }))
+$ npx vitest run --root . frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx \
+      frontend/components/instrument/shell/__tests__/commandBar.test.tsx -t "regime"
+   × cmdbar-ui-language — the credit regime line prints its figures in the bar's language > en: the regime line's net 711 and net turnover are in the reader's format, each with its code after the figure
+     → en: a figure in the other language's format in "Credit regime: stock build — … (711, net): 29.589.814,24 RON · Net turnover: 162.365,46 RON."
+   × the regime's figures follow the reader's language > bound to a language, the amount prints that language whatever the UI language — the code after the figure
+     → ro (UI en): expected [ '-8,000,000.00 RON', …(1) ] to deeply equal [ '-8.000.000,00 RON', …(1) ]
+   × the regime's figures follow the reader's language > the documents are English by contract: under a Romanian UI the regime sentence still prints English figures
+     → expected [ …(2) ] to deeply equal [ …(2) ]
+      Tests  3 failed | 18 passed | 90 skipped (111)
+  exit=1 -> RED ; both files restored byte-exact
+REVERT (clean tree), the same command: exit=0  Tests  21 passed | 90 skipped (111)
+```
+
+**AFTER THE REPAIR this reds on (TC-11):** the regime's money printed in the
+currency's or the active language's locale instead of the surface's; a code
+before the figure; "lei"; a share printed with the other language's decimal;
+the exported documents following the UI language; the bar's regime line built
+with a printer of another language.
+
+**CANNOT SEE:** the palette's line under an UNBOUND printer — the bar's `lang`
+IS the active language, so an unbound printer prints the same bytes there;
+the binding is held by the pure law (a bound printer under both UI languages)
+and by the source reading `{ lang }`. The engine's own bilingual sentences
+(the regime's labels, the cash refusal) — they are served text, not figures.
 
 ## supabase-read-retry
 

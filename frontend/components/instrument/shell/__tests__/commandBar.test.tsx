@@ -1276,6 +1276,32 @@ describe("cmdbar-ui-language — a finding measured in years, and one the engine
   }
 });
 
+// release r-rulings2 (2026-10-01): the stock-build regime line (owner ruling
+// R1) was written before the reader's-language ruling and no book of the law
+// above carries a regime, so the line's two money figures were never examined
+// by it. CONSTRUCTED: Agras's engine-composed document carrying the corpus
+// developer's served regime block (the committed capture
+// frontend/lib/__tests__/fixtures/served_credit_regime.json) — the regime of
+// one book on the document of another, which no engine serves; the law is
+// the PRINTING of the line, not the regime's figures.
+describe("cmdbar-ui-language — the credit regime line prints its figures in the bar's language", () => {
+  const REGIME = read("frontend/lib/__tests__/fixtures/served_credit_regime.json").attention_developer;
+  for (const lang of LANGS) {
+    it(`${lang}: the regime line's net 711 and net turnover are in the reader's format, each with its code after the figure`, async () => {
+      await useLang(lang);
+      mount(agrasWorld({ attention: { ...structuredClone(ATT.agras), credit_regime: REGIME.credit_regime } }));
+      const line = plainSpaces(screen.getByTestId("cmdbar-credit-regime").textContent);
+      expect(foreignNumber(line, lang), `${lang}: a figure in the other language's format in "${line}"`).toBeNull();
+      // the code AFTER the figure, never before it (and never "lei")
+      const money = line.match(/-?\d[\d.,]*(?: (?:mii|mil\.|mld\.)|[KMBT])? RON/g) ?? [];
+      expect(money.length, "VACUITY: the line's two served money figures").toBe(2);
+      expect(line).not.toMatch(/RON -?\d/);
+      expect(line).not.toMatch(/\blei\b/);
+      console.log(`GATE-WORK cmdbar-ui-language regime/${lang} figures=${money.length}`);
+    });
+  }
+});
+
 describe("cmdbar-figures — every Δ IS its comparatives column, every vs-sector IS its sector row", () => {
   for (const lang of LANGS) {
     it(`pair (${lang}): each statement answer's Δ is the served column through the shared printers`, async () => {

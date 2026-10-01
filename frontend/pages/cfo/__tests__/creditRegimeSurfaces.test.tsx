@@ -54,7 +54,8 @@ import { CmdbarList } from "@/components/instrument/shell/cmdbar/CmdbarList";
 import { servedMoney } from "@/components/instrument/shell/cmdbar/cmdbarFigures";
 import { computeCreditScore, engineCreditResult, type CreditEnvelope } from "@/lib/financialValuation";
 import { buildExcelWorkbook, buildReportHtml } from "@/lib/financialExports";
-import { printRegimeAmount, readCreditRegime, regimeLine } from "@/lib/creditRegime";
+import { printRegimeAmount, readCreditRegime, regimeDocumentText, regimeLine } from "@/lib/creditRegime";
+import { foreignNumber, plainSpaces } from "@/test/numberLanguage";
 import type { Statements } from "@/lib/financialReport";
 
 const OWNER_RO = "EBITDA pozitivă din stocuri capitalizate — numerarul a fost consumat de construcție.";
@@ -301,5 +302,98 @@ describe("the command bar prints the regime once, in the rest state", () => {
     cleanup();
     render(<CmdbarList {...props} regime={line} mode="typing" />);
     expect(screen.queryByTestId("cmdbar-credit-regime")).toBeNull();
+  });
+});
+
+// EVERY REGIME FIGURE IN THE READER'S LANGUAGE (owner ticket 2026-09-28 /
+// rulings 2026-09-29, CLAUDE.md §26; release r-rulings2, 2026-10-01). The
+// regime's surfaces were written before that ruling: `printRegimeAmount`
+// printed in whatever the ACTIVE language was — so the English-by-contract
+// report and workbook printed "29,6 mil."-shaped Romanian figures inside an
+// English sentence for a Romanian reader — and the command bar's line used an
+// unbound printer. The expected strings below are STATED, and the rendered
+// surfaces are read by the independent number-shape detector
+// (frontend/test/numberLanguage.ts) — never by the printer under test.
+//
+// WHAT THIS REDS ON (TC-11): the regime's money printed in the currency's or
+// the active language's locale instead of the surface's; a code before the
+// figure; "lei"; a share printed with the other language's decimal; the
+// exported documents following the UI language.
+describe("the regime's figures follow the reader's language", () => {
+  const LANGS = ["en", "ro"] as const;
+
+  it("bound to a language, the amount prints that language whatever the UI language — the code after the figure", async () => {
+    const want = {
+      en: ["-8,000,000.00 RON", "13,650,000.50 EUR"],
+      ro: ["-8.000.000,00 RON", "13.650.000,50 EUR"],
+    } as const;
+    for (const global of LANGS) {
+      await i18n.changeLanguage(global);
+      for (const lang of LANGS) {
+        expect(
+          [plainSpaces(printRegimeAmount(-8_000_000, "RON", lang)), plainSpaces(printRegimeAmount(13_650_000.5, "EUR", lang))],
+          `${lang} (UI ${global})`,
+        ).toEqual([...want[lang]]);
+      }
+      // unbound: the active language's
+      expect(plainSpaces(printRegimeAmount(-8_000_000, "RON"))).toBe(want[global][0]);
+    }
+  });
+
+  for (const lang of LANGS) {
+    it(`the Risks tab's note (${lang}): every figure it prints is in the note's language, money with its code after the figure`, async () => {
+      await i18n.changeLanguage(lang);
+      let figures = 0;
+      let money = 0;
+      for (const c of [FIX.developer, FIX.developer_measured_cash, FIX.developer_withheld]) {
+        risks(c, FIX.developer.statements!);
+        const note = screen.getByTestId("credit-regime");
+        const nodes = Array.from(note.querySelectorAll(".tabular-nums"));
+        const cash = screen.getByTestId("credit-regime-cash");
+        if (cash.getAttribute("data-status") === "measured") nodes.push(cash);
+        for (const el of nodes) {
+          const text = plainSpaces(el.textContent);
+          if (!/\d/.test(text)) continue;
+          figures++;
+          expect(foreignNumber(text, lang), `${lang}: "${text}" is in the other language's format`).toBeNull();
+          if (/RON/.test(text)) {
+            money++;
+            expect(text).toMatch(/\d RON$/);
+            expect(text).not.toMatch(/RON -?\d/);
+          }
+          expect(text).not.toMatch(/\blei\b/);
+        }
+        cleanup();
+      }
+      expect(figures, "VACUITY: regime figures read").toBeGreaterThanOrEqual(12);
+      expect(money, "VACUITY: regime money figures read").toBeGreaterThanOrEqual(6);
+      console.log(`GATE-WORK credit-regime-ui-language ${lang} figures=${figures} money=${money}`);
+    });
+  }
+
+  it("the documents are English by contract: under a Romanian UI the regime sentence still prints English figures", async () => {
+    const r = readCreditRegime(FIX.developer.credit.regime)!;
+    const measured = readCreditRegime(FIX.developer_measured_cash.credit.regime)!;
+    await i18n.changeLanguage("en");
+    const english = [regimeDocumentText(r), regimeDocumentText(measured)];
+    await i18n.changeLanguage("ro");
+    const underRo = [regimeDocumentText(r), regimeDocumentText(measured)];
+    expect(underRo).toEqual(english);
+    for (const text of underRo) {
+      expect(foreignNumber(plainSpaces(text), "en"), `a Romanian figure in the English document: "${text}"`).toBeNull();
+      expect((plainSpaces(text).match(/\d RON\b/g) ?? []).length, "VACUITY: served money in the sentence").toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it("the command bar's line: a printer bound to the bar's language prints it whatever the UI language", async () => {
+    const reg = readCreditRegime(FIX.attention_developer.credit_regime)!;
+    for (const global of LANGS) {
+      await i18n.changeLanguage(global);
+      for (const lang of LANGS) {
+        const line = plainSpaces(regimeLine(reg, lang, servedMoney(FIX.attention_developer.currency, { lang })));
+        expect(foreignNumber(line, lang), `${lang} line under a ${global} UI: "${line}"`).toBeNull();
+        expect((line.match(/\d RON\b/g) ?? []).length).toBe(2);
+      }
+    }
   });
 });

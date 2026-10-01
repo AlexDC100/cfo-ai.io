@@ -1446,17 +1446,29 @@ def _engine_gates() -> List[Gate]:
         # served figures contradict the sentence) prints the regime once and
         # the sentence nowhere, the command bar keeping the label, the cash in
         # the served currency. Measured 14 tests, floor 14.
+        # release r-rulings2 (2026-10-01, the merge with the reader's-language
+        # ruling, CLAUDE.md §26): every regime figure in the SURFACE's
+        # language — the note bound to its own `lang`, the exported report and
+        # workbook English whatever the UI language, the bar's line through a
+        # printer bound to the bar's language; expected strings stated, the
+        # rendered note read by the independent detector
+        # (frontend/test/numberLanguage.ts). Measured 19 tests, floor 19.
         # Plant log: gates.md "credit-regime-surfaces".
         Gate("credit-regime-surfaces",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx", "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=14,
-             units="surface tests (the regime once, the owner's sentence, the cash bases)",
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=19,
+             units="surface tests (the regime once, the owner's sentence, the cash bases, the reader's language)",
              canaries=("developer (EN): one regime block, the finding, the refused composite, the cash bases",
                        "the hero states the refusal, not 'analysis pending', and the regime once",
                        "/report's credit card prints the regime once, and none for a manufacturer",
                        "CmdbarList renders it once at rest and not while typing",
-                       "the documents and the command bar: the regime's label, no sentence")),
+                       "the documents and the command bar: the regime's label, no sentence",
+                       # release r-rulings2: the reader's language
+                       "bound to a language, the amount prints that language whatever the UI language — the code after the figure",
+                       "GATE-WORK credit-regime-ui-language en figures=",
+                       "GATE-WORK credit-regime-ui-language ro figures=",
+                       "the documents are English by contract: under a Romanian UI the regime sentence still prints English figures")),
         Gate("valuation-refused-override",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/components/cfo/__tests__/valuationRefusedOverride.test.tsx", "--reporter=verbose"],
@@ -1758,8 +1770,9 @@ def _engine_gates() -> List[Gate]:
              # Report PDF, at rest / typed / from a pre-ruling recent, Forecast
              # OFF and ON (measured 206 on the rulings lineage, +5).
              # release r-rulings2 (2026-10-01): both lineages merged —
-             # 209 + the five R4 tests (measured 214).
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=214,
+             # 209 + the five R4 tests (214), + the regime line in the
+             # reader's language, EN/RO (measured 216).
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=216,
              units="command-bar tests",
              canaries=("the rows ARE the served items, in the served rank, each with its figure",
                        "inventory days are the served block — its figure, its basis label, no filed-basis row beside it",
@@ -1831,7 +1844,11 @@ def _engine_gates() -> List[Gate]:
                        # from a pre-ruling recent pick, Forecast OFF and ON
                        "at rest: \"Exportă raportul pentru bancă\" opens the export tab (Forecast active)",
                        "typed: every bank word finds ONE export row, the CFO Report PDF (Forecast active)",
-                       "a recent pick saved before the ruling (it opened the Forecast) opens the CFO Report PDF")),
+                       "a recent pick saved before the ruling (it opened the Forecast) opens the CFO Report PDF",
+                       # release r-rulings2 (2026-10-01): the R1 regime line
+                       # under the reader's-language ruling
+                       "GATE-WORK cmdbar-ui-language regime/en figures=",
+                       "GATE-WORK cmdbar-ui-language regime/ro figures=")),
         # EVERY FIGURE IN THE READER'S LANGUAGE (owner ticket 2026-09-28: the
         # ENGLISH interface printed "413,7 mil. RON" on the command bar, the
         # workspace cards and the company page, and the report's days

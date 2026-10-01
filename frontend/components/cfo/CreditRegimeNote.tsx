@@ -11,8 +11,10 @@
 // were graded on (and, when it is not measured, the engine's own words for
 // why the letter is refused), and what Altman X3 was computed on. It computes
 // nothing: money prints in the currency it was served in, with that
-// currency's code (lib/money formatMoneyFrom, source = display, no rate), and
-// a figure the engine did not measure prints its status, never 0.
+// currency's code after the figure, in the note's own language (lib/money
+// formatMoneyFrom, source = display, no rate; the locale bound to `lang`, so
+// the note's words and figures are one language), and a figure the engine
+// did not measure prints its status, never 0.
 
 import { useTranslation } from "react-i18next";
 
@@ -53,7 +55,7 @@ export function CreditRegimeNote({
                 <li key={f.key} data-testid={`${testid}-figure-${f.key}`}>
                   {f.label[lang]}:{" "}
                   <span className="font-mono tabular-nums text-ink">
-                    {f.value === null ? notMeasured : servedAmount(f.value, f.unit)}
+                    {f.value === null ? notMeasured : servedAmount(f.value, f.unit, lang)}
                   </span>
                 </li>
               ))}
@@ -76,7 +78,7 @@ export function CreditRegimeNote({
         <p className="mt-2 text-[12px] text-ink-soft" data-testid={`${testid}-cash`} data-status={regime.cash.status}>
           {regime.cash.refusal
             ? regime.cash.refusal.text[lang]
-            : `${regime.cash.label[lang]}: ${regime.cash.value === null ? notMeasured : servedAmount(regime.cash.value, regime.currency)}`}
+            : `${regime.cash.label[lang]}: ${regime.cash.value === null ? notMeasured : servedAmount(regime.cash.value, regime.currency, lang)}`}
         </p>
       ) : null}
       {regime.altmanX3Label ? (

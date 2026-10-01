@@ -383,7 +383,9 @@ export function CommandPalette({ open, onOpenChange, onOpenAi }: Props) {
     if (typing || !attentionDoc) return null;
     const regime = readCreditRegime(attentionDoc.credit_regime);
     if (!regime) return null;
-    return regimeLine(regime, lang, servedMoney(attentionDoc.period.currency));
+    // The printer is bound to the bar's `lang`: the line's words and its
+    // figures are one language (CLAUDE.md §26).
+    return regimeLine(regime, lang, servedMoney(attentionDoc.period.currency, { lang }));
   }, [typing, attentionDoc, lang]);
 
   // ── open / close ───────────────────────────────────────────────────
