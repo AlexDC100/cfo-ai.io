@@ -13375,8 +13375,8 @@ REVERT (clean tree):
 | | |
 |---|---|
 | command | `npx vitest run --root . frontend/lib/__tests__/plOneEbitda.test.tsx frontend/lib/__tests__/netProvisionsRowSign.test.tsx --reporter=verbose` |
-| canary | `covers eleven books, three of them refused`, `unanchored: every refused figure states the engine's reason, RO and EN`, `closed_no_activity: no stock-variation row, the remainder labelled, then account 121`, `renders the owner's name verbatim in Romanian, and with the engine's gloss in English`, `the served pair (current a net charge, prior a net release): the row prints current, prior and Δ charge-signed, as D&A prints its own` |
-| work count | `Tests N passed`, floor **60** (measured 66: plOneEbitda 63 + the net-provisions row 3; floor 50 / measured 58 before) |
+| canary | `covers eleven books, three of them refused`, `unanchored: every refused figure states the engine's reason, RO and EN`, `closed_no_activity: no stock-variation row, the remainder labelled, then account 121`, `renders the owner's name verbatim in Romanian, and with the engine's gloss in English`, `the served pair (current a net charge, prior a net release): the row prints current, prior and Δ charge-signed, as D&A prints its own`, `the served pair (current a net charge, prior a net release): the reconciliation line above the row prints net provisions on the row's convention, EN and RO`, `the served pair (current a net charge): the panel's bridge after EBITDA prints the P&L tab's figure, and its chain row's arithmetic is its figure, EN and RO`, `the served pair (current a net charge): the printed P&L (report + workbook) — the row's arithmetic is its figure, the bridge after EBITDA the P&L tab's charge` |
+| work count | `Tests N passed`, floor **72** (measured 72: plOneEbitda 63 + netProvisionsRowSign 9; 68 / floor 66 before the 2026-10-01 review round; floor 50 / measured 58 at first) |
 
 **INCIDENT** — the owner's ruling of 2026-09-26 (711 and 72x inside EBITDA
 and the operating result; 711 shown as "Variația stocurilor de produse" next
@@ -13509,6 +13509,58 @@ units 66, floor 60, no canary missing.
 CANNOT SEE: whether the served figures are right (`provisions-symmetric`);
 the one-line reconciliation under EBITDA and the reconciliation panel (their
 own signed parts); pixels.
+
+### pl-one-ebitda-page — the Valuation tab's panel and the printed P&L (review of release r-rulings2, 2026-10-01, ruling R2)
+
+**INCIDENT** — after the P&L tab's reconciliation line was put on the row's
+convention (8572c0ea), the SAME served bridge still printed net provisions
+with the opposite sign on another tab of the same dashboard: the
+`EbitdaReconciliationPanel` (Valuation tab `#ebitda-bridge`, and /report
+Section 1) printed the engine's effect-signed after-EBITDA part — agras
+"… (6812 + 6814 − 7812 − 7814) — outside EBITDA −131,394.66" against the P&L
+tab's "131,394.66", RO "−131.394,66"; Scandia's release "+6,372,805" against
+"−6,372,805.17". The panel's chain row printed −131,394.66 under the same
+"6812 + 6814 − 7812 − 7814", and the printed report / workbook row
+(`printedPl`, `0 − np.value` under `np.label.en`) the same — a label whose own
+arithmetic is the charge over the figure of its effect.
+
+**LAW** (second describe block of `netProvisionsRowSign.test.tsx`, on the pair
+and its constructed mirror, EN and RO) — the panel's bridge part after EBITDA
+prints THE P&L TAB'S STRING (the served charge, unsigned, uncoloured, under
+the engine's label); the panel's CHAIN row keeps the effect, because the chain
+sums to the operating result with every cost negative, and the accounts
+beside it are written as the effect's arithmetic
+(`servedOneEbitda.netProvisionsEffectAccounts`: "7812 + 7814 − 6812 − 6814",
+from the served prefixes); the printed P&L row does the same
+("Net provisions and impairment adjustments (7812 + 7814 − 6812 − 6814)",
+`0 − np.value`); the printed one-line bridge carries the P&L tab's charge after
+EBITDA. The test EVALUATES each stated expression — every prefix replaced by
+the served by-account amounts it names — and holds it equal to the printed
+figure to the cent, so a label and its figure can no longer disagree in sign.
+
+Plants (`scratchpad/r2fix3/plants_fe.py`, each applied alone, restored
+byte-exact), four of four RED:
+```
+PLANT panel-after-part-effect-signed: exit 1 ['Tests  2 failed | 7 passed (9)']
+    × net provisions on the Valuation tab's panel and the printed P&L — one convention per surface > the served pair (current a net charge): the panel's bridge after EBITDA prints the P&L tab's figure, and its chain row's ar
+    × net provisions on the Valuation tab's panel and the printed P&L — one convention per surface > the pair read the other way (current a net release — constructed): the panel's bridge after EBITDA prints the P&L tab's fig
+PLANT panel-chain-charge-arithmetic: exit 1 ['Tests  2 failed | 7 passed (9)']
+    × net provisions on the Valuation tab's panel and the printed P&L — one convention per surface > the served pair (current a net charge): the panel's bridge after EBITDA prints the P&L tab's figure, and its chain row's ar
+    × net provisions on the Valuation tab's panel and the printed P&L — one convention per surface > the pair read the other way (current a net release — constructed): the panel's bridge after EBITDA prints the P&L tab's fig
+PLANT printed-row-charge-label: exit 1 ['Tests  2 failed | 7 passed (9)']
+    × net provisions on the Valuation tab's panel and the printed P&L — one convention per surface > the served pair (current a net charge): the printed P&L (report + workbook) — the row's arithmetic is its figure, the bridg
+    × net provisions on the Valuation tab's panel and the printed P&L — one convention per surface > the pair read the other way (current a net release — constructed): the printed P&L (report + workbook) — the row's arithmet
+PLANT printed-bridge-effect-signed: exit 1 ['Tests  2 failed | 7 passed (9)']
+    × net provisions on the Valuation tab's panel and the printed P&L — one convention per surface > the served pair (current a net charge): the printed P&L (report + workbook) — the row's arithmetic is its figure, the bridg
+    × net provisions on the Valuation tab's panel and the printed P&L — one convention per surface > the pair read the other way (current a net release — constructed): the printed P&L (report + workbook) — the row's arithmet
+restored
+```
+**REVERT** — the clean tree: `Tests 72 passed (72)`; through
+`run_battery.main` narrowed to the gate: PASS, 72 tests, floor 72, no canary
+missing.
+
+CANNOT SEE: whether the served figures are right (`provisions-symmetric`);
+pixels; the Forecast cockpit's statements (their own gate).
 
 ## one-ebitda
 
@@ -17819,9 +17871,9 @@ on its 11 pre-existing findings, none new.
 
 | | |
 |---|---|
-| command | `npx vitest run frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx` |
-| canary | `developer (EN): one regime block, …`, `the hero states the refusal, not 'analysis pending', …`, `/report's credit card prints the regime once, …`, `CmdbarList renders it once at rest and not while typing`, `the documents and the command bar: the regime's label, no sentence` |
-| work count | vitest `Tests N passed`, floor **19** (measured 19 at release r-rulings2; 14 on the rulings lineage; 11 before fixer round 1) |
+| command | `npx vitest run frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx frontend/pages/cfo/__tests__/chatSnapshotCreditRegime.test.ts` |
+| canary | `developer (EN): one regime block, …`, `the hero states the refusal, not 'analysis pending', …`, `/report's credit card prints the regime once, …`, `CmdbarList renders it once at rest and not while typing`, `the documents and the command bar: the regime's label, no sentence`, `the developer: the regime EN + RO, the owner's finding verbatim, the cash refusal, the composite REFUSED`, `the withheld finding: the regime once, the owner's sentence in neither language` |
+| work count | vitest `Tests N passed`, floor **24** (measured 24 after the 2026-10-01 review round, the chat snapshot's 5; 19 at release r-rulings2; 14 on the rulings lineage; 11 before fixer round 1) |
 
 **LAW** — owner ruling R1: every surface that prints the grade prints the
 stock-build regime ONCE (`components/cfo/CreditRegimeNote.tsx`, a projection
@@ -18185,6 +18237,52 @@ the binding is held by the pure law (a bound printer under both UI languages)
 and by the source reading `{ lang }`. The engine's own bilingual sentences
 (the regime's labels, the cash refusal) — they are served text, not figures.
 
+
+### credit-regime-surfaces — the Ask CFO AI workspace snapshot (review of release r-rulings2, 2026-10-01)
+
+**INCIDENT** — `buildWorkspaceSnapshot` (`frontend/pages/cfo/Chat.tsx`), the
+grounding the chat edge function puts into its system prompt as
+`dataset_summary`, had no reference to credit or the regime. For the corpus
+developer the stored `credit_composite` row is NULL and was skipped silently
+(`m.value === null → continue`), while the sub-scores that did score and the
+EBITDA-based ratios reached the assistant, and `ebitda_margin` — a margin the
+engine refuses (`margin_not_meaningful`) — reached it as a figure. The regime
+rode only the briefing facts, and after the no-model reprocess every briefing
+is hidden as written under the previous definition: the assistant had neither
+the owner's sentence nor why there was no letter.
+
+**LAW** (`frontend/pages/cfo/__tests__/chatSnapshotCreditRegime.test.ts`, over
+the served envelopes of `served_credit_regime.json`) — the snapshot reads the
+grade through the one reader the Risks tab, the hero and /report use
+(`engineCreditResult`): the composite and letter, or "Composite and letter:
+REFUSED — <the Risks tab's sentence>", and the `credit_composite` row REFUSED
+with the same sentence, never skipped; under the regime, its served label EN +
+RO, the component bases, the cash refusal EN + RO (or the measured cash
+figure), and the owner's finding EN + RO verbatim with its served figures —
+nowhere when the engine WITHHELD it; the engine's margin refusal on every
+margin row (`MARGIN_CONCEPT_KEYS`), in the engine's words.
+
+Plants (`scratchpad/r2fix3/plants_fe.py`, each applied alone, restored
+byte-exact), four of four RED:
+```
+PLANT no-credit-section: exit 1 ['Tests  4 failed | 1 passed (5)']
+    × the chat snapshot carries the engine's grade, its refusal and the stock-build regime > the developer: the regime EN + RO, the owner's finding verbatim, the cash refusal, the composite REFUSED 22ms
+    × the chat snapshot carries the engine's grade, its refusal and the stock-build regime > the withheld finding: the regime once, the owner's sentence in neither language 1ms
+    × the chat snapshot carries the engine's grade, its refusal and the stock-build regime > measured cash: the composite and letter as served, the cash figure, no refusal 2ms
+    × the chat snapshot carries the engine's grade, its refusal and the stock-build regime > the manufacturer (standard model): no regime line, its letter 2ms
+PLANT null-composite-skipped: exit 1 ['Tests  1 failed | 4 passed (5)']
+    × the chat snapshot carries the engine's grade, its refusal and the stock-build regime > the developer: the regime EN + RO, the owner's finding verbatim, the cash refusal, the composite REFUSED 47ms
+PLANT margin-refusal-ignored: exit 1 ['Tests  1 failed | 4 passed (5)']
+    × the chat snapshot carries the engine's grade, its refusal and the stock-build regime > the developer: every margin the engine refuses is stated refused, in its words, never a percent 5ms
+PLANT withheld-finding-paraphrased: exit 1 ['Tests  1 failed | 4 passed (5)']
+    × the chat snapshot carries the engine's grade, its refusal and the stock-build regime > the withheld finding: the regime once, the owner's sentence in neither language 4ms
+restored
+```
+**REVERT** — the clean tree: through `run_battery.main` narrowed to the gate:
+PASS, 24 tests, floor 24, no canary missing.
+
+CANNOT SEE: what the model answers with the snapshot (the edge function); the
+briefing's own copy of the regime.
 ## supabase-read-retry
 
 | | |

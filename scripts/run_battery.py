@@ -1358,18 +1358,26 @@ def _engine_gates() -> List[Gate]:
         # reconciliation line under EBITDA prints net provisions on the row's
         # convention (the row's served figure, no effect sign), EN and RO,
         # on the pair and its mirror. Measured 66 -> 68, floor 60 -> 66.
+        # Its review round (2026-10-01): the Valuation tab's panel (/report
+        # Section 1 too) prints the bridge after EBITDA as the P&L tab does
+        # (the served charge), and the panel's chain row and the printed P&L
+        # (report + workbook) state the EFFECT's arithmetic beside the effect
+        # they print — the label evaluates to the figure. Measured 68 -> 72,
+        # floor 66 -> 72.
         Gate("pl-one-ebitda-page",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/lib/__tests__/plOneEbitda.test.tsx",
               "frontend/lib/__tests__/netProvisionsRowSign.test.tsx", "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=66,
-             units="P&L-tab tests (served subtotals, the 711 row, refusals RO/EN, 72x, the 121 remainder, the reconciliation line, the panel, retired copy, the net-provisions row's sign on the row and the line)",
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=72,
+             units="P&L-tab tests (served subtotals, the 711 row, refusals RO/EN, 72x, the 121 remainder, the reconciliation line, the panel, retired copy, the net-provisions row's sign on the row, the line, the panel and the printed P&L)",
              canaries=("covers eleven books, three of them refused",
                        "unanchored: every refused figure states the engine's reason, RO and EN",
                        "closed_no_activity: no stock-variation row, the remainder labelled, then account 121",
                        "renders the owner's name verbatim in Romanian, and with the engine's gloss in English",
                        "the served pair (current a net charge, prior a net release): the row prints current, prior and Δ charge-signed, as D&A prints its own",
-                       "the served pair (current a net charge, prior a net release): the reconciliation line above the row prints net provisions on the row's convention, EN and RO")),
+                       "the served pair (current a net charge, prior a net release): the reconciliation line above the row prints net provisions on the row's convention, EN and RO",
+                       "the served pair (current a net charge): the panel's bridge after EBITDA prints the P&L tab's figure, and its chain row's arithmetic is its figure, EN and RO",
+                       "the served pair (current a net charge): the printed P&L (report + workbook) — the row's arithmetic is its figure, the bridge after EBITDA the P&L tab's charge")),
         # ── owner ruling 2026-09-26, design A8 (stage F2): the three surface
         # gates. Every other frontend surface — deriveTotals, computeRatios,
         # canonicalMetrics, the dashboard headline / canon / configurable
@@ -1507,12 +1515,19 @@ def _engine_gates() -> List[Gate]:
         # printer bound to the bar's language; expected strings stated, the
         # rendered note read by the independent detector
         # (frontend/test/numberLanguage.ts). Measured 19 tests, floor 19.
+        # Review round (2026-10-01): the Ask CFO AI workspace snapshot is a
+        # regime surface too — the served label, the owner's finding EN + RO
+        # (none where withheld), the cash refusal, the composite / letter or
+        # their refusal through `engineCreditResult`, and the engine's margin
+        # refusal on the margin rows (chatSnapshotCreditRegime). Measured 24,
+        # floor 24.
         # Plant log: gates.md "credit-regime-surfaces".
         Gate("credit-regime-surfaces",
              ["npx", "vitest", "run", "--root", ".",
-              "frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx", "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=19,
-             units="surface tests (the regime once, the owner's sentence, the cash bases, the reader's language)",
+              "frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx",
+              "frontend/pages/cfo/__tests__/chatSnapshotCreditRegime.test.ts", "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=24,
+             units="surface tests (the regime once, the owner's sentence, the cash bases, the reader's language, the chat snapshot)",
              canaries=("developer (EN): one regime block, the finding, the refused composite, the cash bases",
                        "the hero states the refusal, not 'analysis pending', and the regime once",
                        "/report's credit card prints the regime once, and none for a manufacturer",
@@ -1522,7 +1537,10 @@ def _engine_gates() -> List[Gate]:
                        "bound to a language, the amount prints that language whatever the UI language — the code after the figure",
                        "GATE-WORK credit-regime-ui-language en figures=",
                        "GATE-WORK credit-regime-ui-language ro figures=",
-                       "the documents are English by contract: under a Romanian UI the regime sentence still prints English figures")),
+                       "the documents are English by contract: under a Romanian UI the regime sentence still prints English figures",
+                       # review round 2026-10-01: the chat snapshot
+                       "the developer: the regime EN + RO, the owner's finding verbatim, the cash refusal, the composite REFUSED",
+                       "the withheld finding: the regime once, the owner's sentence in neither language")),
         Gate("valuation-refused-override",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/components/cfo/__tests__/valuationRefusedOverride.test.tsx", "--reporter=verbose"],

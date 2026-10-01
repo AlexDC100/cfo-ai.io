@@ -31,6 +31,9 @@ import {
 import { STOCK_SLOW_CLAIM_RULE, printInventoryDays, readInventoryDaysSplit } from "@/lib/inventoryDays";
 import { factsFrom } from "@/lib/servedFacts";
 import type { Statements } from "@/lib/financialReport";
+import { engineCreditResult, type CreditEnvelope, type PiotroskiEnvelope } from "@/lib/financialValuation";
+import { printRegimeAmount } from "@/lib/creditRegime";
+import { MARGIN_CONCEPT_KEYS, marginRefusalOf } from "@/lib/marginMeaning";
 
 export default function Chat() {
   // 2026-05-24 — auto-resolve active period so the chat has workspace
@@ -113,6 +116,18 @@ export function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): s
   if (!p.id) return undefined;
 
   const lines: string[] = [];
+  // THE ENGINE'S CREDIT READ — the one reader the Risks tab, the hero and
+  // /report use (`engineCreditResult`), so the assistant is handed the
+  // grade the dashboard prints, or its refusal, and the regime it was
+  // composed under. Null when the engine said nothing about credit.
+  const am = (p as { assembled_metrics?: Record<string, unknown> | null }).assembled_metrics ?? null;
+  const creditRead = am && am.credit && typeof am.credit === "object"
+    ? engineCreditResult(
+        am.credit as CreditEnvelope,
+        (am.piotroski && typeof am.piotroski === "object" ? am.piotroski : undefined) as PiotroskiEnvelope | undefined,
+        Object.fromEntries(((p.metrics ?? []) as PeriodMetric[]).map((m) => [m.name, m.value ?? null])),
+      )
+    : null;
   lines.push(`Period: ${p.label ?? p.id}`);
   if (p.statements?.companyName) lines.push(`Company: ${p.statements.companyName}`);
   if (p.industry) lines.push(`Industry: ${p.industry}`);
@@ -125,15 +140,31 @@ export function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): s
     // it is stated refused, with the engine's reason.
     const niRefusal = netIncomeRefusalOf(p.statements);
     const eqRefusal = equityRefusalOf(p.statements);
+    // The engine's margin verdict (engine.ratios.margin_meaning): a margin
+    // over a turnover too small to describe the company is refused on every
+    // surface, the snapshot included (review 2026-10-01: the developer's
+    // ebitda_margin row reached the assistant as a figure the dashboard
+    // refuses).
+    const marginRefusal = marginRefusalOf(p.statements);
     const refusalOfRow = (name: string) =>
       (niRefusal && NET_RESULT_REFUSED_METRICS.includes(name) ? niRefusal : null)
-      ?? (eqRefusal && EQUITY_INCOMPLETE_METRICS.includes(name) ? eqRefusal : null);
+      ?? (eqRefusal && EQUITY_INCOMPLETE_METRICS.includes(name) ? eqRefusal : null)
+      ?? (marginRefusal && MARGIN_CONCEPT_KEYS.has(name) ? { text: marginRefusal } : null);
     lines.push("");
     lines.push("Headline metrics (server-computed):");
     for (const m of p.metrics as PeriodMetric[]) {
       const refused = refusalOfRow(m.name);
       if (refused) {
         lines.push(`  · ${m.name}: REFUSED — ${refused.text.en}`);
+        continue;
+      }
+      // A composite the engine REFUSED is stated refused, with the reason
+      // the Risks tab prints — never skipped as if no grade existed (review
+      // 2026-10-01: the developer's null composite vanished from the
+      // snapshot while its sub-scores reached the assistant).
+      if (m.name === "credit_composite" && (m.value === null || m.value === undefined)
+          && creditRead?.compositeRefusal?.stated) {
+        lines.push(`  · ${m.name}: REFUSED — ${creditRead.compositeRefusal.sentence}`);
         continue;
       }
       if (m.value === null || m.value === undefined) continue;
@@ -293,6 +324,49 @@ export function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): s
     );
     if (!inventorySplit.maySlowClaim) {
       lines.push(`  · Rule: ${STOCK_SLOW_CLAIM_RULE.en} (RO: ${STOCK_SLOW_CLAIM_RULE.ro})`);
+    }
+  }
+
+  // CREDIT — the composite and letter as the Risks tab prints them, or the
+  // engine's refusal; and THE STOCK-BUILD REGIME (owner ruling R1) when the
+  // grade was composed under it: its label, the owner's finding when the
+  // engine serves it (never when it WITHHELD it), the cash basis and why the
+  // cash components refuse. Both languages, the engine's words (review
+  // 2026-10-01: the regime rode only the briefing facts, and every briefing
+  // is hidden after the no-model reprocess, so the assistant had neither the
+  // owner's sentence nor why there was no letter).
+  if (creditRead) {
+    lines.push("");
+    lines.push("Credit (the engine's grade, as the Risks tab prints it):");
+    if (creditRead.score !== null && creditRead.rating) {
+      lines.push(`  · Composite: ${fmtNum(creditRead.score)} / 100 — letter ${creditRead.rating}`);
+    } else if (creditRead.compositeRefusal?.stated) {
+      lines.push(`  · Composite and letter: REFUSED — ${creditRead.compositeRefusal.sentence}`);
+    }
+    const regime = creditRead.regime ?? null;
+    if (regime) {
+      // The served label names itself ("Credit regime: stock build — …").
+      lines.push(`  · ${regime.label.en} (RO: ${regime.label.ro})`);
+      for (const [component, basis] of Object.entries(regime.componentBases)) {
+        lines.push(`  · ${component} graded on: ${basis.en} (RO: ${basis.ro})`);
+      }
+      if (regime.cash) {
+        if (regime.cash.refusal) {
+          lines.push(
+            `  · ${regime.cash.label.en}: REFUSED — ${regime.cash.refusal.text.en} (RO: ${regime.cash.refusal.text.ro})`,
+          );
+        } else if (regime.cash.value !== null) {
+          lines.push(`  · ${regime.cash.label.en}: ${printRegimeAmount(regime.cash.value, regime.currency, "en")}`);
+        }
+      }
+      if (regime.finding) {
+        lines.push(`  · Finding (${regime.finding.severity}): ${regime.finding.text.en} (RO: ${regime.finding.text.ro})`);
+        for (const f of regime.finding.figures) {
+          lines.push(
+            `    · ${f.label.en}: ${f.value === null ? `not measured (${f.status})` : printRegimeAmount(f.value, f.unit, "en")}`,
+          );
+        }
+      }
     }
   }
 

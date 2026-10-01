@@ -336,6 +336,27 @@ export function readNetProvisions(assembledPl: unknown): ServedNetProvisions | n
   };
 }
 
+/** The net-provisions accounts written as the arithmetic of the figure's
+ *  EFFECT on the result — reversals less charges, "7812 + 7814 − 6812 −
+ *  6814" — from the prefixes the engine served.
+ *
+ *  The engine's own `accounts` ("6812 + 6814 − 7812 − 7814") is the CHARGE
+ *  arithmetic: it belongs beside the charge figure (the P&L row, the bridge
+ *  after EBITDA). A surface that prints net provisions as its effect — a
+ *  chain that sums to the operating result, every cost in it negative —
+ *  printed that charge arithmetic over the opposite figure (review
+ *  2026-10-01: agras "6812 + 6814 − 7812 − 7814 … −131,394.66", which the
+ *  label itself evaluates to +131,394.66). Under this string the label's
+ *  arithmetic IS the printed figure. Codes only — no figure is built here.
+ *  Null when the engine served no prefixes. */
+export function netProvisionsEffectAccounts(np: ServedNetProvisions): string | null {
+  const minus = "−";
+  const parts: string[] = [];
+  np.reversalPrefixes.forEach((p, i) => parts.push(i === 0 ? p : `+ ${p}`));
+  np.chargePrefixes.forEach((p) => parts.push(parts.length === 0 ? `${minus}${p}` : `${minus} ${p}`));
+  return parts.length > 0 ? parts.join(" ") : null;
+}
+
 export function readServedOneEbitda(assembledPl: unknown): ServedOneEbitda | null {
   if (!isRec(assembledPl)) return null;
   const apl = assembledPl;

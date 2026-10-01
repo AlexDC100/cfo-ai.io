@@ -49,6 +49,7 @@
 import type { Statements } from "./financialReport";
 import {
   componentShown,
+  netProvisionsEffectAccounts,
   plLevelsOf,
   readRefusal,
   readServedOneEbitda,
@@ -211,12 +212,16 @@ export function printedPl(s: Statements): PrintedPl {
   }
   push("ebitda", "EBITDA", levels.ebitda, "subtotal", refusal);
   push("da", "Depreciation & amortization", -dna, "step");
-  // R2: net provisions, outside EBITDA — the engine's name and accounts,
-  // signed as its effect on the result. Absent on a payload the engine did
+  // R2: net provisions, outside EBITDA — the engine's name, signed as its
+  // effect on the result like every step here, with the accounts written as
+  // THAT effect's arithmetic ("7812 + 7814 − 6812 − 6814"). The engine's
+  // label carries the charge arithmetic, which a printed −131,394.66 under
+  // it contradicted (review 2026-10-01). Absent on a payload the engine did
   // not assemble under the ruling (its D&A still holds the charges).
   const np = served?.netProvisions ?? null;
   if (np && (Math.abs(np.charges) >= HALF_CENT || Math.abs(np.reversals) >= HALF_CENT)) {
-    push("net_provisions", np.label.en, 0 - np.value, "step");
+    const effect = netProvisionsEffectAccounts(np);
+    push("net_provisions", effect ? `${np.name.en} (${effect})` : np.name.en, 0 - np.value, "step");
   }
   push("ebit", "EBIT", levels.ebit, "subtotal", levels.ebitRefusal);
   push("financial_income", "Financial income", finIncome, "step");
@@ -273,9 +278,14 @@ export function printedPl(s: Statements): PrintedPl {
             const lead = i === 0 ? "" : i === parts.length - 1 ? "= " : p.value !== null && p.value >= 0 ? "+ " : "";
             return `${lead}${p.label.en} ${v}`;
           }),
-          ...after.map((p) => {
+          ...after.flatMap((p) => {
+            // Net provisions after EBITDA: the P&L tab's line — the served
+            // CHARGE under the engine's charge-arithmetic label, unsigned,
+            // not the effect-signed bridge part (review 2026-10-01). No
+            // readable figure, no after-part rather than a second convention.
+            if (p.key === "net_provisions") return np ? [`${p.label.en} ${money(np.value)}`] : [];
             const v = p.value === null ? "refused" : money(p.value);
-            return `${p.value !== null && p.value >= 0 ? "+ " : ""}${p.label.en} ${v}`;
+            return [`${p.value !== null && p.value >= 0 ? "+ " : ""}${p.label.en} ${v}`];
           }),
         ].join(" · ")
       : null;
