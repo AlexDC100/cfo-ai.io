@@ -18731,3 +18731,28 @@ and, with only the committed HTML edited by hand (PLANT P5 above):
 **REVERT** — restored: `ok sample_report_fy2025.html — byte-identical rebuild
 (322542 chars)`, `ok sample_report_fy2025.pdf — 27 pages, text layer identical
 to a rebuild`, `public sample report: PASS`.
+
+**Measured at c60a4b54 (the three public-sample commits), not asserted:**
+
+- `public-sample`: 22 passed. `public-sample-page`: 19 passed, 126 figures.
+  `public-sample-pdf`: HTML byte-identical, 27 pages, text layer identical.
+  Every plant above re-run on the committed state: RED as recorded, and the
+  tree clean after each revert. (The first re-run of PLANT F was VACUOUS — the
+  plant script still searched for the fiscal code replaced earlier in the day,
+  so it changed nothing and the gate stayed green; noticed because "22 passed"
+  is not what a plant prints. Re-run with the current code: 5 failed, 7 passed,
+  10 errors, as recorded.)
+- full engine suite (`pytest tests/engine`, the owner's untracked `files/`
+  books linked in for the run and removed after): **9,347 passed, 39 skipped,
+  2 xfailed, 0 failed** (9,325 + the 22 public-sample laws).
+- full vitest (`scripts/check_vitest.mjs`): **265 files, 4,419 passed, 1
+  skipped, 0 failed**, canaries 14/14 (4,400 + the 19 page laws).
+- `tsc` (`scripts/check_tsc.mjs`): 1,027 files, the 10 known errors, 0 new.
+  `vite build`: OK (3,651 modules; the /sample chunk is 82.5 kB, 21 kB gzip),
+  and the built app served by `vite preview` answers `/sample` and `/sample/`
+  with the app and `/sample/<file>` with each published file.
+- `corpus-policy`, `import-boundary`, `provenance-census` (824 sites, 108
+  files, 11 on the burn-down, none new), `launch-headers`, `engine-book`,
+  `stale-gates`, `no-plants`, `hermetic`, `test-env-isolation`: PASS.
+  `scripts/check_report_pdf.mjs` (not a battery gate): 13 assertions PASS
+  after the stylesheet-comment change — pagination is unchanged.
