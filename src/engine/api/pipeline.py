@@ -352,11 +352,13 @@ class UploadedFileTypeMismatchError(UserFacingUploadError):
     inherits `UserFacingUploadError`; without it the handler would prefix
     the class name onto the sentence. See `_upload_type`.
 
-    Refuses only what reaches NO reader (`_upload_type.REACHES_NO_READER`,
-    plus a PDF on the branches whose readers cannot take one). It must
-    never refuse a container a reader downstream would have parsed:
-    `parse_trial_balance` dispatches on magic bytes, so an Excel balance
-    named .pdf and a balance PDF named .xls are both read today.
+    Refuses only what reaches NO reader on the branch the file is on
+    (`_upload_type.refused_on`: `REACHES_NO_READER` everywhere, plus what
+    that branch's own readers cannot open). It must never refuse a
+    container a reader downstream would have parsed: `parse_trial_balance`
+    dispatches on magic bytes, so an Excel balance named .pdf and a
+    balance PDF named .xls are both read today. The sentence is in the
+    uploader's language (`documents.detected_language`).
     """
 
 
@@ -1299,8 +1301,12 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
         # measured: corpus/saga_10_col_carniprod as `balanta.pdf` yields
         # 367 accounts, account-121 anchor 1,435,533.59. Refusing those
         # would delete a working upload and say "no reader can open it"
-        # while the branch's own reader does. The Office formats below
-        # genuinely reach no reader, and are the incident.
+        # while the branch's own reader does. What is refused is decided
+        # by `_upload_type.refused_on("pdf", …)` — the Office formats
+        # (the incident, legacy .doc / .ppt included), an empty file, a
+        # zip with no Open XML manifest (openpyxl needs one), and text or
+        # unnameable bytes that carry no `%PDF-` anywhere — the one policy
+        # both guard sites read.
         #
         # The bytes are normally the ones downloaded above. When THAT
         # download failed the guard used to be skipped — while the Claude
@@ -1328,20 +1334,24 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
                     doc.get("original_filename") or "(no filename)",
                 )
                 _pdf_bytes_for_sniff = None
+        from . import _upload_type as _pdf_type
         if _pdf_bytes_for_sniff is not None:
-            from . import _upload_type as _ut
+            _ut = _pdf_type
             _real = _ut.sniff_container(_pdf_bytes_for_sniff)
-            if _real in _ut.REACHES_NO_READER:
+            if _ut.refused_on("pdf", _real, _pdf_bytes_for_sniff):
                 logger.info(
                     "[stage_extract] %r is named .pdf but its bytes are %s "
                     "— refusing before any reader or model call",
                     doc.get("original_filename") or "(no filename)", _real,
                 )
+                # In the uploader's language: /api/pipeline/run writes the
+                # UI language into detected_language before the run.
                 raise UploadedFileTypeMismatchError(
                     _ut.mismatch_message(
                         _ut.claimed_extension(doc.get("original_filename"), "pdf"),
                         _real,
                         filename=doc.get("original_filename") or None,
+                        language=doc.get("detected_language"),
                     )
                 )
 
@@ -1537,6 +1547,36 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
                 type(e).__name__,
             )
 
+        # ── The Claude PDF lane reads PDFs only ─────────────────────
+        # The type guard above lets a workbook, a legacy .xls and an Open
+        # XML zip through, because the positional `parse_trial_balance`
+        # just above opens those by their magic bytes. When it has
+        # DECLINED one (a workbook that is not a trial balance, a damaged
+        # .xls), the lane below would send it to Anthropic as
+        # `application/pdf` — which it can never be: the request fails
+        # after it is made, on an empty balance with the 2026-09-23
+        # incident's "credit balance is too low" (review 2026-10-01: a
+        # junk OLE2 workbook and an unrecognised Office zip named .pdf
+        # both reached it). Bytes with no `%PDF-` anywhere stop here, by
+        # name, with the fix — "rename it to .xlsx" puts a workbook on the
+        # spreadsheet branch, whose readers and model fallback take it.
+        if (_pdf_bytes_for_sniff is not None
+                and _pdf_type.PDF_MAGIC not in _pdf_bytes_for_sniff):
+            _real_lane = _pdf_type.sniff_container(_pdf_bytes_for_sniff)
+            logger.info(
+                "[stage_extract] %r is named .pdf, no reader took its %s "
+                "bytes — refusing before the Claude PDF lane",
+                doc.get("original_filename") or "(no filename)", _real_lane,
+            )
+            raise UploadedFileTypeMismatchError(
+                _pdf_type.mismatch_message(
+                    _pdf_type.claimed_extension(doc.get("original_filename"), "pdf"),
+                    _real_lane,
+                    filename=doc.get("original_filename") or None,
+                    language=doc.get("detected_language"),
+                )
+            )
+
         with _supabase.admin() as admin_client:
             signed = admin_client.signed_url(
                 "documents", storage_path,
@@ -1590,24 +1630,30 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
     # form, and guarding only the renamed case would have left it.
     #
     # THE REFUSAL SET IS PER-BRANCH, and derived from what that branch's
-    # readers actually accept rather than from the extension:
-    #   · Office documents (Word / PowerPoint / OpenDocument) reach no
+    # readers actually accept rather than from the extension — one policy,
+    # `_upload_type.refused_on`, read by both guard sites:
+    #   · Office documents (Word / PowerPoint / OpenDocument, legacy .doc
+    #     and .ppt included), a binary .xlsb and an empty file reach no
     #     reader anywhere — always refused.
-    #   · A PDF is refused everywhere EXCEPT the xlsx branch, whose
-    #     `pack.parse_trial_balance` routes `%PDF` bytes to the PyMuPDF
-    #     ingester: a RAS balance PDF stored as .xls is read there today
-    #     (measured: corpus/pdf_positional as `balanta.xls` → 249 rows).
-    # Everything else — text mistaken for a workbook, an unrecognised
-    # zip, bytes we cannot name — keeps today's behaviour exactly,
-    # because those can still succeed downstream and a refusal here
-    # would take away an upload that works. This path carries every
-    # trial balance in production; it is not the place to guess.
+    #   · The xlsx branch refuses nothing else: `pack.parse_trial_balance`
+    #     routes `%PDF` bytes to the PyMuPDF ingester (a RAS balance PDF
+    #     stored as .xls is read there today — measured: corpus/
+    #     pdf_positional as `balanta.xls` → 249 rows), OLE2 to xlrd, and
+    #     CSV / HTML exports named .xls are common.
+    #   · The csv / text / image / unknown branches read text (or an
+    #     image) only, so a PDF, a workbook, a legacy Office file or any
+    #     archive is refused there — measured before this: an Excel
+    #     balance named balanta.csv went to the model as 172,681
+    #     characters of zip bytes. The image branch refuses text too.
+    # Text and unnameable bytes keep today's behaviour on the text
+    # branches (a UTF-16 CSV sniffs "unknown"; every real PNG or JPEG
+    # does too), because those can still succeed downstream and a
+    # refusal here would take away an upload that works. This path
+    # carries every trial balance in production; it is not the place to
+    # guess.
     from . import _upload_type as _ut
     _real_kind = _ut.sniff_container(file_bytes)
-    _refused_here = set(_ut.REACHES_NO_READER)
-    if kind != "xlsx":
-        _refused_here.add(_ut.PDF)
-    if _real_kind in _refused_here:
+    if _ut.refused_on(kind, _real_kind, file_bytes):
         logger.info(
             "[stage_extract] %r classified as %s but its bytes are %s "
             "— refusing before any reader or model call",
@@ -1618,6 +1664,7 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
                 _ut.claimed_extension(doc.get("original_filename"), kind),
                 _real_kind,
                 filename=doc.get("original_filename") or None,
+                language=doc.get("detected_language"),
             )
         )
 

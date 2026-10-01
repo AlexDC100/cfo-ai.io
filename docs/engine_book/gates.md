@@ -18301,8 +18301,8 @@ deployed:
 | | |
 |---|---|
 | command | `python -m pytest tests/engine/test_upload_real_type.py -q` |
-| canary | junit test names: `test_a_docx_named_pdf_is_refused_before_the_paid_path`, `test_an_excel_balance_named_pdf_is_READ_not_refused`, `test_a_balance_pdf_named_xls_is_READ_not_refused`, `test_a_docx_named_xlsx_is_refused_before_the_paid_path`, `test_an_honestly_named_docx_is_refused_through_the_real_branch`, `test_the_guard_still_runs_when_the_first_download_fails`, `test_the_failure_handler_stores_the_sentence_without_a_class_name` |
-| work count | junit tests, floor **27** (measured 27 at release r-rulings2) |
+| canary | junit test names: `test_a_docx_named_pdf_is_refused_before_the_paid_path`, `test_an_excel_balance_named_pdf_is_READ_not_refused`, `test_a_balance_pdf_named_xls_is_READ_not_refused`, `test_a_docx_named_xlsx_is_refused_before_the_paid_path`, `test_an_honestly_named_docx_is_refused_through_the_real_branch`, `test_the_guard_still_runs_when_the_first_download_fails`, `test_the_failure_handler_stores_the_sentence_without_a_class_name`, `test_a_legacy_word_doc_is_refused_under_every_name_before_any_reader`, `test_the_pdf_branch_refuses_what_none_of_its_readers_opens`, `test_a_workbook_the_positional_reader_declines_never_reaches_the_claude_pdf_lane`, `test_a_mimetype_entry_that_lies_about_its_size_is_not_inflated`, `test_the_real_branch_answers_in_the_language_the_run_carries` |
+| work count | junit tests, floor **88** (measured 27 at release r-rulings2, 88 after the 2026-10-01 review round) |
 
 **INCIDENT** — 2026-09-23: a prospect uploaded
 `balanta_de_verificare_07.2025.pdf`, a Word document renamed (PK zip header,
@@ -18318,9 +18318,10 @@ was registered.
 
 **LAW** — `engine.api._upload_type` (pure: bytes in, a label out) names the
 real container; `stage_extract` refuses ONLY what reaches no reader on the
-branch it is on — Word / PowerPoint / OpenDocument everywhere
-(`REACHES_NO_READER`), a PDF everywhere except the spreadsheet branch (whose
-`parse_trial_balance` routes `%PDF` to the PyMuPDF ingester) — before the
+branch it is on (`_upload_type.refused_on`, since the 2026-10-01 review
+round below; at the hotfix: Word / PowerPoint / OpenDocument everywhere,
+`REACHES_NO_READER`, and a PDF everywhere except the spreadsheet branch,
+whose `parse_trial_balance` routes `%PDF` to the PyMuPDF ingester) — before the
 AI-lane gate, every deterministic reader and the Claude lane, with a sentence
 naming the real type and the fix (`UploadedFileTypeMismatchError`, a
 `UserFacingUploadError`: the failure handler of `_run_pipeline_stages` stores
@@ -18367,15 +18368,94 @@ E       AssertionError: stage_extract constructed an Anthropic client — this u
 REVERT (clean tree): PASS upload-real-type (6.0s, 27 tests) — BATTERY: PASS — 1/1 gates green
 ```
 
-**AFTER THE REPAIR this reds on (TC-11):** an Office document reaching any
-reader, the AI lane or a model call on any branch; the refusal naming the
-wrong type or none, or mentioning credit / billing / Claude; the honest
-`.docx` told it was misnamed; an Excel balance named .pdf or a balance PDF
-named .xls refused (the readers read them); text or unnameable bytes refused;
-the guard skipped when the first download failed; the class name stored in
-front of the sentence.
+**REVIEW ROUND 2026-10-01 — what the guard above still let through**, each
+reproduced on the release head before the repair (the review's 247-run
+matrix through the real `stage_extract`: 119 runs reached a paid call before,
+45 after — every one of them text or unnameable bytes on a text branch, or a
+real PDF on the PDF lane; no run that was READ before is read differently):
 
-**CANNOT SEE:** the upload ROUTES — `/api/uploads/identify` and `/commit`
+- **A legacy Word .doc passed under every name.** `sniff_container` called
+  every OLE2 file XLS_OLE2, which no branch refuses; a real Word 97 file
+  (`textutil`, committed as `tests/engine/fixtures/upload_type/word97_textutil.doc`)
+  named `balanta.pdf` reached the Claude PDF lane and, on an empty balance,
+  stored the 2026-09-23 incident's sentence word for word. `_ole2_flavour`
+  now reads the ROOT of the compound file's directory with the same
+  `xlrd.compdoc` xlrd itself uses: `Workbook` / `Book` → XLS_OLE2 (it wins
+  over anything else), `WordDocument` → DOC_OLE2, `PowerPoint Document` →
+  PPT_OLE2, anything unreadable or unnamed → XLS_OLE2 (a real .xls is never
+  refused). DOC_OLE2 and PPT_OLE2 joined `REACHES_NO_READER`, with a binary
+  `.xlsb` (openpyxl and xlrd both refuse it) and an EMPTY file.
+- **Files no reader on their branch opens still went to the model.** One
+  policy, `_upload_type.refused_on(kind, real, bytes)`, read by both guard
+  sites: the .pdf branch also refuses text and unnameable bytes with no
+  `%PDF-` anywhere (a header pushed past the sniff window is a PDF to
+  pdfminer and the model) and a zip with no Open XML manifest (openpyxl needs
+  `[Content_Types].xml`); the csv / text / image / unknown branches refuse a
+  PDF, a workbook, an OLE2 file and any archive (the Excel book named
+  balanta.csv went to the model as 172,681 characters of zip bytes); the
+  image branch refuses text too; the spreadsheet branch refuses nothing
+  beyond `REACHES_NO_READER`. A cut-off Word / PowerPoint zip is named by the
+  payload folders in its local headers, the window the route reads.
+- **The Claude PDF lane is reached only by PDF bytes.** A workbook the
+  positional reader DECLINED on the .pdf branch (not a trial balance, a
+  damaged .xls, an unrecognised Office zip) was sent to Anthropic as
+  `application/pdf`; it is refused there, by name ("rename it to .xlsx" puts
+  a workbook where the spreadsheet branch's readers take it).
+- **The ODF `mimetype` bound was on the DECLARED size**, which an archive
+  can lie about: `zf.read()` inflated the whole stream first (+201 MB peak
+  for a 199 KB upload). The read is now bounded (`fh.read(257)`); measured
+  with tracemalloc, 67 MB → 0.2 MB for the law's 47 KB archive.
+- **The sentence was English only** (§26). `mismatch_message(…, language=)`
+  reads `documents.detected_language`, which `/api/pipeline/run` fills with
+  the UI language before the run; `_ADVICE_RO` answers every label in
+  Romanian (informal tu, comma-below ș / ț). Two more shapes: a file with NO
+  extension is told what its contents are and how to name it (never "this
+  app cannot read" a PDF), and an empty file is told it is empty.
+
+```
+PLANT ole2-all-xls (_ole2_flavour returns XLS_OLE2 first)
+      12 failed, 76 passed — the legacy .doc under all six names, the .ppt
+      under three, the builder's Word / PowerPoint rows, the real Word 97 file
+PLANT no-residual-pdf-lane-guard (the PDF_MAGIC check before the lane disabled)
+      1 failed — test_a_workbook_the_positional_reader_declines_never_reaches_the_claude_pdf_lane
+PLANT unbounded-mimetype-read (zf.read("mimetype") restored)
+      1 failed — test_a_mimetype_entry_that_lies_about_its_size_is_not_inflated
+PLANT refusal-sets-not-widened (refused_on = REACHES_NO_READER, + PDF off the xlsx/pdf branches)
+      15 failed — the .pdf-branch set, the workbook on six text-branch names,
+      an archive / OLE2 on four text-branch names
+PLANT language-ignored (_is_romanian returns False)
+      8 failed — every Romanian law, the real branch in RO
+PLANT pdf-anywhere-ignored (the .pdf branch refuses unknown bytes even with %PDF- in them)
+      1 failed — test_the_pdf_branch_still_reads_a_pdf_whose_header_sits_past_the_window
+REVERT (clean tree): PASS upload-real-type (12.2s, 88 tests) — BATTERY: PASS — 1/1 gates green
+```
+
+**AFTER THE REPAIR this reds on (TC-11):** an Office document — Word,
+PowerPoint, OpenDocument, a legacy .doc or .ppt, a binary .xlsb — reaching
+any reader, the AI lane or a model call on any branch, under any name; an
+empty file reaching anything; a PDF, a workbook, an OLE2 file or an archive
+reaching a text reader; text or unnameable bytes without `%PDF-` reaching the
+PDF readers; a non-PDF reaching the Claude PDF lane after the positional
+reader declined it; a real .xls (a root `Workbook` / `Book`) refused on the
+spreadsheet branch; a real PDF refused (its header past the sniff window
+included); the `mimetype` read inflating a stream that lies about its size;
+the refusal naming the wrong type or none, or mentioning credit / billing /
+Claude; a Romanian reader told it in English (or an English one in
+Romanian), a label answered in one language only, the cedilla ş / ţ; a file
+with no extension told the app "cannot read" a PDF; the honest `.docx` told
+it was misnamed; an Excel balance named .pdf or a balance PDF named .xls
+refused (the readers read them); text or unnameable bytes refused on the
+spreadsheet branch, or text / UTF-16 / a PNG under its own name refused; the
+guard skipped when the first download failed; the class name stored in front
+of the sentence.
+
+**CANNOT SEE:** a Word file with a `Workbook` stream at its ROOT (not inside
+`ObjectPool`, where an embedded sheet lives) is read as an .xls and reaches
+the spreadsheet fallback — deliberate, so no real .xls is ever refused; text
+and unnameable bytes on a text branch, and a real PDF on the PDF lane, still
+reach the model (a top-up of Anthropic credit stays a separate blocker); the
+public-records probe and the AI-lane jurisdiction gate on the .pdf branch run
+on the bytes the guard has already let through. The upload ROUTES — `/api/uploads/identify` and `/commit`
 refuse a name/bytes mismatch before storage with their own check
 (`engine.api._uploads.format_mismatch`, gated in
 `test_workspace_uploads.py`), and they REFUSE the two cases this gate holds
@@ -18383,7 +18463,16 @@ the pipeline to READ (an Excel workbook named .pdf: "This is an Excel
 workbook, not a PDF."; a PDF named .xls: "This is a PDF, not an Excel
 workbook."). The two layers disagree on those two files; this gate holds the
 pipeline's half only (the pipeline is also reached by direct-storage uploads
-through `/api/pipeline/run`, retries and recover-stuck). Also unseen: the
+through `/api/pipeline/run`, retries and recover-stuck). **So a pre-flight
+PASS on (a) "canary workbook as balanta.pdf" and (b) "balance PDF as .xls"
+does NOT mean those files work through the workspace upload card** — the
+card goes through `/api/uploads/identify` + `/commit`, which answer them with
+a 422 and a rename instruction before storage; they are read only on the
+dashboard path (`uploadDocument` → `/api/pipeline/run`), retry and
+recover-stuck. Aligning the two (`_uploads._COMPATIBLE` allowing xlsx / ole
+under .pdf and pdf under .xls / .xlsx, or keeping the route's instruction as
+the product answer) is the OWNER's decision, raised at the 2026-10-01 review
+and not taken here. Also unseen: the
 public-records probe (pypdf text extraction) that runs on the .pdf branch's
 downloaded bytes BEFORE this guard — it fails on a non-PDF and logs, costs
 nothing and calls no model; and with `ANTHROPIC_API_KEY` UNSET the non-PDF

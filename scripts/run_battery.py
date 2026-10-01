@@ -314,17 +314,30 @@ def _engine_gates() -> List[Gate]:
         # dispatch on magic bytes); text and unnameable bytes keep today's
         # behaviour; the guard refetches when the first download failed; the
         # failure handler stores the sentence without a class name. Measured
-        # 27 tests.  Plant log: gates.md "upload-real-type".
+        # 27 tests. The 2026-10-01 review round: a legacy Word .doc / .ppt is
+        # told apart from an .xls by its OLE2 directory and refused under
+        # every name; each branch refuses what none of ITS readers opens
+        # (`_upload_type.refused_on` — text / empty / an archive on the .pdf
+        # branch, a workbook / PDF / OLE2 / archive on the text branches);
+        # a non-PDF the positional reader declined never reaches the Claude
+        # PDF lane; the ODF `mimetype` read is bounded on what is read; the
+        # sentence is in the uploader's language. Measured 88 tests.
+        # Plant log: gates.md "upload-real-type".
         Gate("upload-real-type",
              [PY, "-m", "pytest", "tests/engine/test_upload_real_type.py", "-q"],
-             work_junit=True, floor=27, units="tests",
+             work_junit=True, floor=88, units="tests",
              canaries=("test_a_docx_named_pdf_is_refused_before_the_paid_path",
                        "test_an_excel_balance_named_pdf_is_READ_not_refused",
                        "test_a_balance_pdf_named_xls_is_READ_not_refused",
                        "test_a_docx_named_xlsx_is_refused_before_the_paid_path",
                        "test_an_honestly_named_docx_is_refused_through_the_real_branch",
                        "test_the_guard_still_runs_when_the_first_download_fails",
-                       "test_the_failure_handler_stores_the_sentence_without_a_class_name")),
+                       "test_the_failure_handler_stores_the_sentence_without_a_class_name",
+                       "test_a_legacy_word_doc_is_refused_under_every_name_before_any_reader",
+                       "test_the_pdf_branch_refuses_what_none_of_its_readers_opens",
+                       "test_a_workbook_the_positional_reader_declines_never_reaches_the_claude_pdf_lane",
+                       "test_a_mimetype_entry_that_lies_about_its_size_is_not_inflated",
+                       "test_the_real_branch_answers_in_the_language_the_run_carries")),
         # WORKSPACE-V2 — the redesign's engine gates (one company per
         # workspace, keyed by CUI) on the REAL create_app() and the REAL
         # identifier: G1 a file lands in the company its header names, G2 the
