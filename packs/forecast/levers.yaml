@@ -671,6 +671,12 @@ unserved:
       the stock variation (Variația stocurilor de produse) and own work
       capitalised are not projected: they are nil in every plan year, so
       plan year one starts from the actual year's EBITDA before them
+  net_provisions:
+    sentence: >-
+      net provisions and impairment adjustments (charges less reversals,
+      outside EBITDA) are not projected: they are nil in every plan year,
+      so plan pre-tax result and net profit leave out the actual year's net
+      charge or release
 
 # 2.3-2.6, 5.4, 6.5, 6.7. The sentences a refused request is answered with.
 # code is stable; {placeholders} are rendered from the request the engine

@@ -9520,6 +9520,31 @@ the mirror; a new refusal code in the pack with no Romanian mirror entry; the
 Romanian rendering dropping the reason's words for its code. **It cannot see**
 whether the pack's Romanian reads well.
 
+
+### forecast-f-page — the net-provisions step on the Forecast and Scenarios pages (review of release r-rulings2, 2026-10-01, ruling R2)
+
+**LAW** (`frontend/components/forecast/__tests__/forecastNetProvisionsStep.test.tsx`,
+over the engine's captured `cockpit_agras_base.json` and
+`fp1_2_agras_served.json`) — the Forecast appendix prints the year-0-only
+"Provizioane și ajustări nete" row with the engine's not-projected sentence
+beside it, in English and in Romanian; the "not modelled" list and the
+Scenarios lever rail print the unserved `net_provisions` sentence in the
+reader's language (Romanian from `forecast.served.net_provisions` by its served
+code, `lib/forecastSentences` FIXED_CODES; English as served).
+
+Plants (`scratchpad/r2fix3/plants_fe.py`, each applied alone, restored
+byte-exact), two of two RED:
+```
+PLANT fixed-code-missing: exit 1 ['Tests  2 failed | 2 passed (4)']
+    × net provisions — the step from year 0 the plan does not project > ro: the appendix prints the row with the engine's sentence, and the not-modelled list says it 48ms
+    × net provisions — the step from year 0 the plan does not project > the Scenarios lever rail's unserved sentence: Romanian by its served code, English as served 9ms
+PLANT appendix-note-dropped: exit 1 ['Tests  2 failed | 2 passed (4)']
+    × net provisions — the step from year 0 the plan does not project > en: the appendix prints the row with the engine's sentence, and the not-modelled list says it 110ms
+    × net provisions — the step from year 0 the plan does not project > ro: the appendix prints the row with the engine's sentence, and the not-modelled list says it 39ms
+restored
+```
+**REVERT** — the clean tree: forecast-f-page PASS, 77 tests.
+
 ## forecast-served-sentences
 
 | | |
@@ -9969,6 +9994,63 @@ code; p95 slider latency over budget. **It cannot see** what the page paints
 (the frontend gates), network latency to Supabase in production, the owner's
 books unless FORECAST_LOCAL_SCANDIA is set, or whether a forecast is a GOOD
 one.
+
+
+### forecast-cockpit — net provisions, the step from year 0 the plan does not project (review of release r-rulings2, 2026-10-01, ruling R2)
+
+**INCIDENT** — net provisions (6812 + 6814 − 7812 − 7814) sit outside EBITDA
+but inside the actual year's operating, pre-tax and net result, and every plan
+year projects them at 0. The only sentence that said so was in
+`project._notes`, served in `GET /api/forecast` `notes`, which no page paints;
+the cockpit payload never mentioned provisions (`year0_step` and
+`_YEAR0_ONLY` covered 711 / 72x only). On the calibration book (a net release
+of 6,372,805.17) the review measured plan-year-one pre-tax and net profit well
+below year 0's while revenue grew 2.5% and EBITDA rose — the release dropped,
+unexplained, beside the year-0 column.
+
+**LAW** (`test_c_net_provisions_the_plan_drops_are_said_beside_year_zero`,
+the four corpus books through the real route) — where the served book carries
+net provisions (agras, carniprod and retail do; realestate does not), the
+statements carry a year-0-only `pl.net_provisions` row
+(`cockpit._YEAR0_ONLY`, now a line -> pack-sentence map): year 0 the served
+figure as its effect on the result (a net charge negative, like every cost in
+the table; the label "Provizioane și ajustări nete" / "Net provisions and
+impairment adjustments" carries no account arithmetic), 0 in every plan year,
+the pack's `net_provisions_step` sentence EN + RO beside it, after D&A and
+before EBIT; no row where the book carries none. Every book's "not modelled"
+list (`packs/forecast/levers.yaml#unserved`, also the forecast GET's
+`client.unserved` the Scenarios lever rail prints) names it.
+`test_c_net_provisions_law_is_not_vacuous` reds if no book reached the row.
+The committed cockpit and fp1.2 fixtures were re-captured by their own writers
+(`scripts/gen_cockpit_fixtures.py`, `scripts/gen_fp1_2_fixtures.py`): the new
+row, the unserved entry and the pins, nothing else.
+
+Plants (`scratchpad/r2fix3/plants_py.py`, each applied alone, restored
+byte-exact), three of three RED:
+```
+PLANT net-provisions-not-a-year0-row: exit 1 ['================== 4 failed, 1 passed, 46 deselected in 4.51s ==================']
+    tests/engine/test_forecast_cockpit.py::test_c_net_provisions_the_plan_drops_are_said_beside_year_zero[agras]
+    tests/engine/test_forecast_cockpit.py::test_c_net_provisions_the_plan_drops_are_said_beside_year_zero[carniprod]
+    tests/engine/test_forecast_cockpit.py::test_c_net_provisions_the_plan_drops_are_said_beside_year_zero[retail]
+    tests/engine/test_forecast_cockpit.py::test_c_net_provisions_law_is_not_vacuous
+PLANT year0-on-the-charge-sign: exit 1 ['================== 4 failed, 1 passed, 46 deselected in 4.32s ==================']
+    tests/engine/test_forecast_cockpit.py::test_c_net_provisions_the_plan_drops_are_said_beside_year_zero[agras]
+    tests/engine/test_forecast_cockpit.py::test_c_net_provisions_the_plan_drops_are_said_beside_year_zero[carniprod]
+    tests/engine/test_forecast_cockpit.py::test_c_net_provisions_the_plan_drops_are_said_beside_year_zero[retail]
+    tests/engine/test_forecast_cockpit.py::test_c_net_provisions_law_is_not_vacuous
+PLANT unserved-sentence-dropped: exit 1 ['================== 4 failed, 1 passed, 46 deselected in 4.30s ==================']
+    tests/engine/test_forecast_cockpit.py::test_c_net_provisions_the_plan_drops_are_said_beside_year_zero[agras]
+    tests/engine/test_forecast_cockpit.py::test_c_net_provisions_the_plan_drops_are_said_beside_year_zero[carniprod]
+    tests/engine/test_forecast_cockpit.py::test_c_net_provisions_the_plan_drops_are_said_beside_year_zero[retail]
+    tests/engine/test_forecast_cockpit.py::test_c_net_provisions_the_plan_drops_are_said_beside_year_zero[realestate]
+restored
+```
+**REVERT** — the clean tree: through `run_battery.main` narrowed to
+forecast-cockpit, forecast-served-sentences, forecast-f-page and
+forecast-cockpit-page: 4/4 PASS (forecast-cockpit 15,054 units).
+
+CANNOT SEE: whether projecting net provisions at 0 is the right model — the
+owner's ruling; the page's own rendering (forecast-f-page).
 
 ## forecast-scenarios-active
 

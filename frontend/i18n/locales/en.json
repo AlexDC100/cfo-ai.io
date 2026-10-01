@@ -3449,7 +3449,8 @@
       "avg_personnel_cost": "average personnel cost is not served: it needs a headcount the book does not carry",
       "segment_growth": "growth by segment is not served: revenue is not split by segment in the book",
       "policy_rate_shift": "a policy-rate shift is not served: the book does not say which of its debt reprices with the policy rate",
-      "stock_variation": "the stock variation (Variația stocurilor de produse) and own work capitalised are not projected: they are nil in every plan year, so plan year one starts from the actual year's EBITDA before them"
+      "stock_variation": "the stock variation (Variația stocurilor de produse) and own work capitalised are not projected: they are nil in every plan year, so plan year one starts from the actual year's EBITDA before them",
+      "net_provisions": "net provisions and impairment adjustments (charges less reversals, outside EBITDA) are not projected: they are nil in every plan year, so plan pre-tax result and net profit leave out the actual year's net charge or release"
     },
     "formula": {
       "cumulativeFcf": "sum of operating and investing cash over the served periods",

@@ -69,7 +69,7 @@
   "period_id": "route-period-agras",
   "snapshot_id": "sha256-10b9c390378a05d332cf2e3b24323576f47ab333939f1c5836e41dbccaf4fa3d"
  },
- "body_hash": "sha256:c1319deb13b4cf5a067598f68b6a62f80531c025548f8b2fd024dbf22d23173b",
+ "body_hash": "sha256:c379de3118396740389706461ce9d06ae3d722f5a6903de3eba82cf2b389a8ed",
  "client": {
   "analysis_debounce_ms": 600,
   "debounce_ms": 150,
@@ -126,6 +126,15 @@
     "sentence": {
      "code": "stock_variation",
      "text": "the stock variation (Variația stocurilor de produse) and own work capitalised are not projected: they are nil in every plan year, so plan year one starts from the actual year's EBITDA before them"
+    }
+   },
+   {
+    "key": "net_provisions",
+    "panel": null,
+    "rail_group": null,
+    "sentence": {
+     "code": "net_provisions",
+     "text": "net provisions and impairment adjustments (charges less reversals, outside EBITDA) are not projected: they are nil in every plan year, so plan pre-tax result and net profit leave out the actual year's net charge or release"
     }
    }
   ]
@@ -28928,7 +28937,7 @@
   "engine_version": "0.1.0",
   "history_hash": "sha256:868153d2ad4c4dde97d47e65cc43344e839f85407885e54a2b65ae9664fadb7a",
   "macro_snapshot_id": null,
-  "pack_hash": "sha256:69f1c45defd17f3c3622aa879f75b7efcc15455383a1fb0d470f7b87babe2215",
+  "pack_hash": "sha256:4a745e333db636a47ed213a928ab23b8250f8b04efe18406dc7594305bc8c61e",
   "sector_snapshot_id": null
  },
  "pins_changed": [],

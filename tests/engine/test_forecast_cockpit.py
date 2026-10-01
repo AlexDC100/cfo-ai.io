@@ -226,12 +226,15 @@ def _rows(body: Dict[str, Any]) -> Dict[Tuple[str, str], int]:
         for row in body["statements"][section]:
             if row.get("not_projected"):
                 # Year-0-only lines (net 711 / net 72x — owner ruling
-                # 2026-09-26): inside the actual year's EBITDA, nil in every
-                # plan year and SAID so. No engine line projects them, so
-                # they are not compared — but a non-zero plan-year value
-                # would be a stock variation the model invented.
+                # 2026-09-26, inside the actual year's EBITDA; net provisions
+                # — ruling R2, outside it): nil in every plan year and SAID
+                # so. No engine line projects them, so they are not compared
+                # — but a non-zero plan-year value would be a stock variation
+                # or a provision the model invented.
                 assert all(v["amount_minor"] == 0 for v in row["values"]), row
-                assert row["not_projected"]["code"] == "stock_variation_not_projected", row
+                assert row["not_projected"]["code"] == {
+                    "pl.net_provisions": "net_provisions_not_projected",
+                }.get(row["line"], "stock_variation_not_projected"), row
                 continue
             for value in row["values"]:
                 out[(row["line"], value["period"])] = value["amount_minor"]
@@ -298,6 +301,67 @@ def test_c_f1_year_zero_is_the_actuals_the_dashboard_serves(name):
     print("C-F1 %s year0 %s" % (name, json.dumps(dashboard, sort_keys=True)))
     WORK["units"] += len(dashboard) + 3
     WORK["books"].append(name)
+
+
+# ── the step from year 0 the plan does not project: net provisions ─────
+
+@pytest.mark.parametrize("name", BOOKS)
+def test_c_net_provisions_the_plan_drops_are_said_beside_year_zero(name):
+    """REVIEW 2026-10-01 (owner ruling R2). Net provisions (6812 + 6814 −
+    7812 − 7814) sit OUTSIDE EBITDA but inside the actual year's operating,
+    pre-tax and net result, and the plan years project them at 0. Before
+    this, nothing in the cockpit named that: `project._notes` said it in a
+    note no page paints, so on a book with a net release plan-year-one
+    pre-tax fell below the actual year's while revenue and EBITDA rose
+    (the calibration book: a 6,372,805.17 release), and the appendix
+    printed the two side by side.
+
+    LAW: where the served book carries net provisions, the statements carry
+    a year-0-only `pl.net_provisions` row — year 0 the served figure as its
+    effect on the result (a net charge negative, like every cost in the
+    table), 0 in every plan year, the pack's sentence EN + RO beside it,
+    placed after D&A and before EBIT; where it carries none, no row. Every
+    book's "not modelled" list names it. REDS ON: the row missing, a plan
+    year carrying a provision, the year-0 figure not the served one or on
+    the other sign, the sentence missing in a language."""
+    from engine.forecast.cockpit import cockpit_pack
+    pack = cockpit_pack()
+    with _World(name) as world:
+        period = world.get("/api/period/%s" % CUR)
+        body = world.ok()
+    np_block = ((period.get("statements") or {}).get("assembled_pl") or {}).get("net_provisions")
+    served = np_block.get("value") if isinstance(np_block, dict) else None
+    rows = body["statements"]["pl"]
+    lines = [r["line"] for r in rows]
+    row = next((r for r in rows if r["line"] == "pl.net_provisions"), None)
+    if not served:
+        assert row is None, (name, row)
+    else:
+        assert row is not None, "%s: net provisions of %s, and no row says the plan drops them" % (name, served)
+        assert row["year0"] == {"kind": "actual", "amount_minor": -int(round(served * 100)),
+                                "period": body["statements"]["years"][0]}, (name, row["year0"], served)
+        assert all(v["amount_minor"] == 0 and v["kind"] == "projected" for v in row["values"]), row
+        assert row["not_projected"] == {"code": "net_provisions_not_projected",
+                                        "text": dict(pack.net_provisions_step["text"])}, row
+        assert row["not_projected"]["text"]["ro"] and row["not_projected"]["text"]["en"]
+        assert row["label"] == dict(pack.lines["pl.net_provisions"]), row["label"]
+        at = lines.index("pl.net_provisions")
+        before = [l for l in lines[:at] if l in ("pl.ebitda", "pl.depreciation", "pl.amortisation")]
+        after = [l for l in lines[at + 1:] if l in ("pl.ebit", "pl.pretax_result", "pl.net_income")]
+        assert before and after, (name, lines)
+        NP_SEEN.append(name)
+    assert "net_provisions" in [c["id"] for c in body["not_modelled"]], body["not_modelled"]
+    WORK["units"] += 3
+
+
+NP_SEEN = []  # type: List[str]
+
+
+def test_c_net_provisions_law_is_not_vacuous():
+    """At least one committed book carries net provisions (agras, a net
+    charge), so the row's law above ran on a row rather than on absences."""
+    assert NP_SEEN, "no book with net provisions reached the law — it asserted absences only"
+    print("C-NP books carrying net provisions: %s" % ", ".join(NP_SEEN))
 
 
 # ── F2 ───────────────────────────────────────────────────────────────────

@@ -1214,6 +1214,7 @@ def _engine_gates() -> List[Gate]:
               "frontend/pages/cfo/__tests__/scenariosEngine.test.tsx",
               "frontend/lib/__tests__/featuresPreview.test.ts",
               "frontend/lib/__tests__/forecastSentencesRo.test.ts",
+              "frontend/components/forecast/__tests__/forecastNetProvisionsStep.test.tsx",
               "--reporter=verbose"],
              # + forecastSentencesRo (RO + EN): every sentence of the engine's
              # served inventory comes out in Romanian under the digit law and
@@ -1221,13 +1222,19 @@ def _engine_gates() -> List[Gate]:
              # cache (featuresPreview); + the refused DIO driver in its
              # own words, the Romanian mirror held to the pack
              # (feat/inventory-days, 2026-09-28). Measured 73, floor 60.
+             # + the review round of release r-rulings2 (2026-10-01, ruling
+             # R2): the step the plan does not project — net provisions — on
+             # the Forecast appendix (row + sentence, EN and RO), the
+             # not-modelled list and the Scenarios lever rail in the reader's
+             # language, over the engine's captured bytes. Measured 77.
              work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=60,
              units="page tests (F1 year 0, F5 placeholders, F6 saved scenarios, preview opt-in, served-sentence language)",
              canaries=("gate F1: year 0 is the dashboard's headline",
                        "gate F5 on the Forecast statements",
                        "gate F5: no dash and no zero where the engine served a figure",
                        "gate F6: a saved scenario survives reload and belongs to its company",
-                       "comes out in Romanian, digits exactly the served ones, no English left")),
+                       "comes out in Romanian, digits exactly the served ones, no English left",
+                       "the Scenarios lever rail's unserved sentence: Romanian by its served code, English as served")),
         # The engine half of RO + EN: the committed inventory of every
         # sentence the two pages paint (tests/engine/fixtures/forecast/
         # served_sentences.json) IS what the real route serves on the corpus
@@ -1301,7 +1308,10 @@ def _engine_gates() -> List[Gate]:
              canaries=("SCOPE forecast-cockpit (forecast-scenarios-live)",
                        "C-F1 books: agras, carniprod, retail, realestate",
                        "C-F10 agras: 13 levers, scale held across 4 moved answers",
-                       "C-ONE-ENGINE agras: 550 figures agree between the cockpit and the scenario route")),
+                       "C-ONE-ENGINE agras: 550 figures agree between the cockpit and the scenario route",
+                       # review round 2026-10-01 (ruling R2): the year-0-only
+                       # net-provisions row on the books that carry them
+                       "C-NP books carrying net provisions: agras, carniprod, retail")),
         # MARGIN-MEANING (2026-09-26): ONE rule for when a margin over turnover
         # is not meaningful — turnover negligible against operating activity
         # (packs/ratios/margin_meaning.yaml, engine.ratios.margin_meaning) —
