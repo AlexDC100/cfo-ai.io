@@ -1,0 +1,67 @@
+// The public sample's report — the product's own export, built from the
+// served documents exactly as the dashboard's Export tab builds it.
+//
+// `public/sample/sample_report_fy2025.html` is NOT a hand-made page. It is
+// `buildReportHtml(statementsForExport ?? statements, creditEnvelopes)` —
+// the call FinancialStatements.tsx makes when a signed-in user clicks
+// "Download HTML report" — over the three documents the engine served for
+// the fictional book (GET /api/period for each year and the comparatives
+// document for the pair), joined by `ratioSurfacesOf`, the same function
+// the page's hook runs. Nothing is computed here.
+//
+// Two readers: `scripts/build_public_sample_report.mjs` (writes the file)
+// and `frontend/lib/__tests__/publicSample.test.tsx` (reds when the
+// committed file is not what this function returns for the committed
+// served documents).
+
+import type { ComparativesResponse } from "@/lib/comparatives";
+import { buildReportHtml } from "@/lib/financialExports";
+import type { Statements } from "@/lib/financialReport";
+import { ratioSurfacesOf } from "@/lib/useRatioSurfaces";
+
+/** The fields of a `GET /api/period/{id}` body this module reads. */
+export interface ServedPeriodBody {
+  period: { id: string; period_end?: string | null };
+  statements: Statements;
+  metrics: Array<{ name: string; value: number | null }>;
+  assembled_metrics: unknown;
+}
+
+export function metricsByNameOf(body: ServedPeriodBody): Record<string, number | null> {
+  const out: Record<string, number | null> = {};
+  for (const m of body.metrics) out[m.name] = typeof m.value === "number" ? m.value : null;
+  return out;
+}
+
+/** What the Export tab hands the report builder for `current`, compared
+ *  with `prior` through the served `comparatives` document. */
+export function exportInputsOf(
+  current: ServedPeriodBody,
+  prior: ServedPeriodBody,
+  comparatives: ComparativesResponse,
+) {
+  const surfaces = ratioSurfacesOf({
+    assembledMetrics: current.assembled_metrics,
+    statements: current.statements,
+    metricsByName: metricsByNameOf(current),
+    currentLabel: current.statements.periodLabel ?? "",
+    periodId: current.period.id,
+    priorId: prior.period.id,
+    comparatives: { data: { kind: "ok", data: comparatives }, isError: false },
+    sector: null,
+  });
+  return {
+    statements: (surfaces.statementsForExport ?? current.statements) as Statements,
+    envelopes: surfaces.creditEnvelopes,
+  };
+}
+
+/** The whole report document, as the Export tab writes it to disk. */
+export function sampleReportHtml(
+  current: ServedPeriodBody,
+  prior: ServedPeriodBody,
+  comparatives: ComparativesResponse,
+): string {
+  const { statements, envelopes } = exportInputsOf(current, prior, comparatives);
+  return buildReportHtml(statements, envelopes);
+}

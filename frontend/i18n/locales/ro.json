@@ -365,7 +365,7 @@
     "optional": "<c1>Inventory value</c1> + <c2>COGS</c2> sunt opționale dar deblochează <c3>zilele de rotație</c3> per SKU;",
     "rollup": "agregarea <c1>CCC</c1> la nivel de companie folosește suplimentar balanța de verificare a perioadei pentru DSO / DPO.",
     "downloadExample": "Descarcă exemplu (XLSX)",
-    "exampleCaption": "Exemplu anonimizat — potrivește aceste coloane; date fictive.",
+    "exampleCaption": "Exemplu fictiv — potrivește aceste coloane.",
     "exampleFooter": "Rânduri de tip placeholder doar pentru ilustrație — înlocuiește cu exportul real. Al treilea rând omite intenționat <c1>Inventory value</c1> și <c2>COGS</c2> pentru a demonstra randarea \"DIO indisponibil\": rândurile fără ambele intrări afișează \"—\", niciodată 0, și sunt excluse din agregatul DIO al companiei."
   },
   "workingCapital": {
