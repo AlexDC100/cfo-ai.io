@@ -43,7 +43,11 @@ const repoRoot = resolve(__dirname, "../../../..");
 const book = (name: string) =>
   JSON.parse(
     readFileSync(resolve(repoRoot, `tests/engine/fixtures/firm/saga_10_col_${name}.json`), "utf-8"),
-  ) as { statements: Statements & { assembled_pl: Json; incomeStatement: Json } };
+  ) as { statements: Statements };
+/** The served P&L block and the legacy buckets, read as plain JSON (the laws
+ *  read their raw keys). */
+const aplOf = (s: Statements): Json => (s as unknown as { assembled_pl: Json }).assembled_pl;
+const bucketsOf = (s: Statements): Json => s.incomeStatement as unknown as Json;
 
 const BOOKS = ["agras", "carniprod", "retail", "realestate"] as const;
 const cent = (v: number) => Math.round(v * 100) / 100;
@@ -53,8 +57,8 @@ describe("Budget Variance — the Actual column reads the served EBITDA → EBIT
     let differing = 0;
     for (const name of BOOKS) {
       const s = book(name).statements;
-      const apl = s.assembled_pl;
-      const all68x = s.incomeStatement.depreciationAmortization as number;
+      const apl = aplOf(s);
+      const all68x = bucketsOf(s).depreciationAmortization as number;
       const rebuilt = cent((apl.ebitda as number) - all68x);
       const reversals = ((apl.net_provisions as Json).reversals as Json).value as number;
       // The old subtraction is short by exactly the served reversals.
@@ -67,7 +71,7 @@ describe("Budget Variance — the Actual column reads the served EBITDA → EBIT
   for (const name of BOOKS) {
     it(`${name}: EBIT, D&A and net provisions are the served figures, and the rows foot`, () => {
       const s = book(name).statements;
-      const apl = s.assembled_pl;
+      const apl = aplOf(s);
       const np = apl.net_provisions as Json;
       const lines = actualLinesFor(s);
       expect(lines.ebit, "EBIT is assembled_pl.ebit").toBe(apl.ebit);
@@ -90,10 +94,11 @@ describe("Budget Variance — the Actual column reads the served EBITDA → EBIT
   }
 
   it("a refused EBITDA refuses EBIT too — never a figure rebuilt from the buckets", () => {
-    const s = JSON.parse(JSON.stringify(book("agras").statements)) as Statements & { assembled_pl: Json };
-    s.assembled_pl.ebitda = null;
-    s.assembled_pl.ebit = null;
-    s.assembled_pl.ebitda_refusal = { code: "x", text_ro: "refuzat", text_en: "refused" };
+    const s = JSON.parse(JSON.stringify(book("agras").statements)) as Statements;
+    const apl = aplOf(s);
+    apl.ebitda = null;
+    apl.ebit = null;
+    apl.ebitda_refusal = { code: "x", text_ro: "refuzat", text_en: "refused" };
     const lines = actualLinesFor(s);
     expect(lines.ebitda).toBeNull();
     expect(lines.ebit).toBeNull();

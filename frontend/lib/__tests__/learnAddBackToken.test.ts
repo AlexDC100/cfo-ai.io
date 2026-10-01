@@ -32,7 +32,9 @@ const repoRoot = resolve(__dirname, "../../..");
 const book = (name: string) =>
   (JSON.parse(
     readFileSync(resolve(repoRoot, `tests/engine/fixtures/firm/saga_10_col_${name}.json`), "utf-8"),
-  ) as { statements: Statements & { assembled_pl: Json } }).statements;
+  ) as { statements: Statements }).statements;
+/** The served P&L block, read as plain JSON (the laws read its raw keys). */
+const aplOf = (s: Statements): Json => (s as unknown as { assembled_pl: Json }).assembled_pl;
 
 function addBackTokenOf(conceptKey: string, s: Statements, locale: "en" | "ro") {
   const concept = lookupConcept(conceptKey);
@@ -50,7 +52,7 @@ describe("the CFO and FCF Learn popovers name the non-cash add-back for what it 
   for (const name of ["agras", "carniprod", "retail"] as const) {
     it(`${name} posts 6812 / 6814 charges: the token is not "D&A", EN and RO`, () => {
       const s = book(name);
-      const apl = s.assembled_pl;
+      const apl = aplOf(s);
       const charges = ((apl.net_provisions as Json).charges as Json).value as number;
       expect(charges).toBeGreaterThan(1);
       for (const key of ["operating_cash_flow", "free_cash_flow"]) {
@@ -73,7 +75,7 @@ describe("the CFO and FCF Learn popovers name the non-cash add-back for what it 
       for (const locale of ["en", "ro"] as const) {
         const tok = addBackTokenOf(key, s, locale);
         expect(tok.label).toBe("D&A");
-        expect(tok.value).toBe(s.assembled_pl.depreciation);
+        expect(tok.value).toBe(aplOf(s).depreciation);
       }
     }
   });
