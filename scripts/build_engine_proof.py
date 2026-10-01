@@ -665,16 +665,42 @@ def _dump(doc: Dict[str, Any]) -> str:
     return json.dumps(doc, indent=2, ensure_ascii=False) + "\n"
 
 
+def _field_diffs(prefix: str, a: Any, b: Any, out: List[str]) -> None:
+    """Name the FIELD that differs — "checks.balance_sheet_closes.result.
+    books_closing_exactly: committed 7 != measured 6" — not a 300-character
+    slice of two documents a reader has to diff by eye."""
+    if isinstance(a, dict) and isinstance(b, dict):
+        for key in sorted(set(a) | set(b)):
+            _field_diffs("%s.%s" % (prefix, key) if prefix else str(key),
+                         a.get(key), b.get(key), out)
+    elif a != b:
+        out.append("%s: committed %s != measured %s" % (
+            prefix, json.dumps(a, ensure_ascii=False)[:160],
+            json.dumps(b, ensure_ascii=False)[:160]))
+
+
+def _by_check_id(doc: Dict[str, Any]) -> Dict[str, Any]:
+    """The same document with `checks` keyed by id, so a diff names a check."""
+    out = dict(doc)
+    out["checks"] = {c["id"]: c for c in doc.get("checks", [])}
+    return out
+
+
+def _rel(path: Path) -> str:
+    try:
+        return path.resolve().relative_to(REPO.resolve()).as_posix()
+    except ValueError:
+        return str(path)
+
+
 def compare(measured: Dict[str, Any], committed: Dict[str, Any], full: bool) -> List[str]:
     problems: List[str] = []
     if full:
-        if _strip_dates(measured) != _strip_dates(committed):
-            a, b = _strip_dates(committed), _strip_dates(measured)
-            for key in sorted(set(a) | set(b)):
-                if a.get(key) != b.get(key):
-                    problems.append("%s: committed %s != measured %s" % (
-                        key, json.dumps(a.get(key), ensure_ascii=False)[:300],
-                        json.dumps(b.get(key), ensure_ascii=False)[:300]))
+        a, b = _strip_dates(committed), _strip_dates(measured)
+        if a != b:
+            _field_diffs("", _by_check_id(a), _by_check_id(b), problems)
+            if [c["id"] for c in a.get("checks", [])] != [c["id"] for c in b.get("checks", [])]:
+                problems.append("checks: the order or the set of checks differs")
         return problems
 
     if committed.get("engine") != measured.get("engine"):
@@ -752,7 +778,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     out = Path(args.out)
     if args.check:
         if not out.is_file():
-            print("ENGINE PROOF: FAIL — %s is not committed." % out.relative_to(REPO))
+            print("ENGINE PROOF: FAIL — %s is not committed." % _rel(out))
             return 1
         committed = json.loads(out.read_text(encoding="utf-8"))
         problems = compare(measured, committed, full)
@@ -768,13 +794,14 @@ def main(argv: Optional[List[str]] = None) -> int:
             print("  Re-measure with: python scripts/build_engine_proof.py")
             return 1
         print("ENGINE PROOF: IN AGREEMENT — %s (%s)" % (
-            out.relative_to(REPO), "every check re-measured" if full
+            _rel(out), "every check re-measured" if full
             else "identity, rerun, account 121 and counts re-measured"))
         return 0
 
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(_dump(measured), encoding="utf-8")
-    print("ENGINE PROOF: WRITTEN — %s, measured %s" % (out.relative_to(REPO), today))
+    print("ENGINE PROOF: WRITTEN — %s, measured %s (scope %s)" % (
+        _rel(out), today, measured["scope"]))
     return 0
 
 
