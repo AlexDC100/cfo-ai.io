@@ -916,14 +916,14 @@ def _engine_gates() -> List[Gate]:
         # "turnover-7411".
         # Deploy-readiness review of feat/rulings-2 (2026-09-29): the pack is
         # verified at BOOT (boot_verify.verify_pl_definition_pack) — missing,
-        # not YAML, wrong schema, crossed classes each fail verify_config.
+        # not YAML, not UTF-8, wrong schema, crossed classes each fail verify_config.
         Gate("provisions-symmetric",
              [PY, "-m", "pytest", "tests/engine/test_provisions_symmetric.py",
               "tests/engine/test_boot_verify_pl_definition.py", "-q", "-s"],
              work_rx=r"GATE-WORK provisions-symmetric units=(\d+)", floor=100,
              units="constructed books judged, served seams compared, plants",
              canaries=("SCOPE provisions-symmetric (owner ruling R2 2026-09-28, packs/ro/pl_definition.yaml)",
-                       "BOOT-VERIFY pl_definition: committed, crossed-classes, missing, not-yaml, wrong-schema",
+                       "BOOT-VERIFY pl_definition: committed, crossed-classes, missing, not-utf8, not-yaml, wrong-schema",
                        "PROVISIONS-BOOKS: no_provisions, prov_both, prov_charges_only, prov_code_forms, "
                        "prov_reversals_only",
                        "PROVISIONS-PLANTS: reversals-back-inside-ebitda, charges-back-inside-da, "
@@ -1341,17 +1341,22 @@ def _engine_gates() -> List[Gate]:
         # R2): the net-provisions row prints current, prior and Δ on ONE sign
         # convention (charge-signed, as D&A) — the committed pair and its
         # constructed mirror. Measured 63 -> 66.
+        # Pre-deploy review of release/r-rulings2 (2026-10-01): the
+        # reconciliation line under EBITDA prints net provisions on the row's
+        # convention (the row's served figure, no effect sign), EN and RO,
+        # on the pair and its mirror. Measured 66 -> 68, floor 60 -> 66.
         Gate("pl-one-ebitda-page",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/lib/__tests__/plOneEbitda.test.tsx",
               "frontend/lib/__tests__/netProvisionsRowSign.test.tsx", "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=60,
-             units="P&L-tab tests (served subtotals, the 711 row, refusals RO/EN, 72x, the 121 remainder, the reconciliation line, the panel, retired copy, the net-provisions row's sign)",
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=66,
+             units="P&L-tab tests (served subtotals, the 711 row, refusals RO/EN, 72x, the 121 remainder, the reconciliation line, the panel, retired copy, the net-provisions row's sign on the row and the line)",
              canaries=("covers eleven books, three of them refused",
                        "unanchored: every refused figure states the engine's reason, RO and EN",
                        "closed_no_activity: no stock-variation row, the remainder labelled, then account 121",
                        "renders the owner's name verbatim in Romanian, and with the engine's gloss in English",
-                       "the served pair (current a net charge, prior a net release): the row prints current, prior and Δ charge-signed, as D&A prints its own")),
+                       "the served pair (current a net charge, prior a net release): the row prints current, prior and Δ charge-signed, as D&A prints its own",
+                       "the served pair (current a net charge, prior a net release): the reconciliation line above the row prints net provisions on the row's convention, EN and RO")),
         # ── owner ruling 2026-09-26, design A8 (stage F2): the three surface
         # gates. Every other frontend surface — deriveTotals, computeRatios,
         # canonicalMetrics, the dashboard headline / canon / configurable
@@ -1371,12 +1376,18 @@ def _engine_gates() -> List[Gate]:
         # Valuation sheet) and the Cash Flow tab take it back / add it, and
         # the row holding the 6812 / 6814 charges is named for them on the
         # tab (EN / RO), /report §4 and the workbook. Measured 25 -> 40.
+        # Pre-deploy review of release/r-rulings2 (2026-10-01): the Valuation
+        # tab's FCF tile carries the same name over the same add-back (EN /
+        # RO, from fcf_breakdown and the client fallback); the label widens
+        # from the comparison's prior; no D&A-only explainer over the widened
+        # row; the second step of the add-back order; /report's printed
+        # figure; the alert trace hint. Measured 40 -> 53, floor 36 -> 50.
         Gate("one-ebitda",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/lib/__tests__/oneEbitdaSurfaces.test.tsx",
               "frontend/lib/__tests__/provisionsAddBack.test.tsx",
               "frontend/pages/cfo/__tests__/comprehensiveReportAddBack.test.tsx", "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=36,
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=50,
              units="surface tests (every browser surface prints the served EBITDA on eight served books; the R2 add-back)",
              canaries=("covers eight served books, and on six of them the build-up before 711 / 72x differs from EBITDA",
                        "agras: the printed report, the workbook and the charts",
@@ -1384,7 +1395,12 @@ def _engine_gates() -> List[Gate]:
                        "three firm books post 6812 / 6814 charges: the cash flow's add-back exceeds the P&L's D&A by exactly them",
                        "carniprod: stabilised FCF = CFO − assembled_cf.depreciation, whatever the P&L's D&A",
                        "retail: the row is named for what it sums — the tab (EN, RO) and the workbook",
-                       "carniprod posts 6812 / 6814 charges: the row holding all of 68x names them")),
+                       "carniprod posts 6812 / 6814 charges: the row holding all of 68x names them",
+                       "agras: with assembled_cf.depreciation absent, the builder and runDcf take assembled_pl.depreciation",
+                       "a book posting no charges compared with one that does: the widened name, from the prior column",
+                       "retail: Simple mode's glossary tooltip and the D&A learn popover only over plain D&A",
+                       "carniprod: the tile from the engine's fcf_breakdown and from the client fallback, EN and RO",
+                       "the depreciation fact's hint: the pack's D&A name, none of the ruled provision accounts")),
         # ── design A8 (stage G1): exportRatioFormulas' DISCRIMINATING scope
         # was made vacuous by the 121 bridge — on the four firm books the
         # build-up + the served 711 IS account 121, so a net-income ratio

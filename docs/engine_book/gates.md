@@ -18430,3 +18430,108 @@ two upload-type commits), not asserted:
 - the upload-type pre-flight (`specs-durable/upload_type_preflight.py`) run
   locally against this worktree: 7 checks PASS, exit 0; its guard-disabled
   plant: 3 FAIL, exit 1.
+
+### release r-rulings2 — the pre-deploy review's open findings (2026-10-01)
+
+The adversarial review of the rulings candidate left eleven findings open
+(`specs-durable/predeploy_r1_open_findings.json`). Nine are fixed on the
+release; two are the owner's (below). Every plant was applied, run red and
+reverted green.
+
+**pl-one-ebitda-page — net provisions on ONE sign convention on the P&L
+tab.** The row prints the served charge-signed `assembled_pl.net_provisions
+.value` as D&A prints its own; the reconciliation line under EBITDA printed
+the engine's bridge part, which is served effect-signed, with an effect sign
+— agras "−131,394.66" on the line above "131,394.66" on the row, both under
+"6812 + 6814 − 7812 − 7814". The line now prints the row's served figure
+through the same printer, unsigned and uncoloured. Law
+(`netProvisionsRowSign.test.tsx`): on the committed pair and its constructed
+mirror (whose bridge part is swapped with its block), EN and RO, the line's
+value is the row's printed string, sign and digits, its `data-bridge-value`
+the row's figure. Plants: the bridge part with its effect sign → 2 red; the
+bridge part unsigned → 2 red. Measured 66 → 68, floor 60 → 66, canary added.
+CANNOT SEE: the printed report, the workbook and the Valuation tab's
+`EbitdaReconciliationPanel`, which stay effect-signed on every line of their
+chains (D&A included) — one convention per surface.
+
+**one-ebitda — the add-back is named for what it sums wherever it prints.**
+- The Valuation tab's FCF tile printed `fcf_breakdown.depreciation` (the
+  engine's all-68x add-back) or the client fallback (all of 68x too) as
+  "+ D&A" / "+ Amortizare". It now takes the Cash Flow tab's own key through
+  `addBackHoldsProvisionCharges`, and drops the D&A learn popover over a
+  figure holding the charges.
+- The Cash Flow tab's widened row carries neither the Simple-mode
+  "depreciation" glossary tooltip nor the D&A learn popover.
+- The alert trace hint for a cited `depreciation` fact said "(6811/6812)";
+  it names the row by the pack's D&A name and lists no accounts.
+- Laws (`provisionsAddBack.test.tsx`, `comprehensiveReportAddBack.test.tsx`):
+  the tile's name, figure and popover on the four firm books, from a
+  CONSTRUCTED `fcf_breakdown` (built as `_valuation.py` builds it) and from
+  the client fallback, EN and RO; the label widening from the comparison's
+  prior alone (realestate compared with agras); no explainer over the widened
+  row (Pro popover, Simple term with every line shown); the SECOND step of
+  the add-back order (`assembled_cf.depreciation` absent → `assembled_pl`'s,
+  in the builder and in `runDcf`); /report §4's printed figure, not only its
+  label; the hint against `packs/ro/pl_definition.yaml`.
+- Plants (red count): tile label always "+ D&A" (3); builder second step
+  dropped (3); `runDcf` second step dropped (3); CF label ignoring the prior
+  (1); Simple term always "depreciation" (3); CF learn popover always (3);
+  tile learn popover always (3); /report row reading the P&L D&A (1); the old
+  hint (1); the pack's name with an account list (1).
+- Measured 40 → 53, floor 36 → 50, five canaries added.
+- CANNOT SEE: a canonical CFO served without its own add-back (not an engine
+  shape) would still pair the narrowed D&A with it in `runDcf` — the basis
+  question rides with the client-DCF ticket below.
+
+**briefing-definition (the frontend half) — the saved-override flag.** The
+Valuation tab's sentence told users whose override was saved under the
+2026-09-26 revision to re-check "the stock variation 711 and own work
+capitalised 72x" (that revision already held both inside) and printed only
+English. It is generic and in the reader's language
+(`dash.valuationOverrideDefinitionFlag`, the served flag picked by
+`pickLang`). Law (`oneEbitdaSurfaceComponents.test.tsx`, in the vitest gate):
+the exact sentence EN and RO on an unstamped row and on a row stamped
+`ebitda/2026-09-26:711-72x-inside,767-financial`, and no content word (711,
+72x, 7411, 6812 / 6814 / 7812 / 7814, stock variation, own work, stocurilor,
+imobilizat, provision, provizi). Plants: the old tail → red; the flag always
+English → red.
+
+**provisions-symmetric — a non-UTF-8 pack fails boot with the named
+message.** `pl_definition._load` caught only `OSError`, so a pack behind a
+UTF-16 byte-order mark escaped as a bare `UnicodeDecodeError` (the container
+still did not come up, but without "[boot_verify] the P&L definition pack at
+… is unusable"). Law: the "not-utf8" case in
+`test_boot_verify_pl_definition.py`; canary
+"BOOT-VERIFY pl_definition: committed, crossed-classes, missing, not-utf8,
+not-yaml, wrong-schema". Plant (the clause catching `KeyError` instead) → 2
+red. Units unchanged (117 — the GATE-WORK line is the provisions suite's).
+
+**Not fixed — owner ruling 2026-10-01.** The client DCF's disagreement with
+the engine's by `assembled_cf.provision_movement` (and its floor at 0 where
+the engine refuses), and the four different CFO figures one period prints
+across surfaces, are ticketed as the release that moves the client-side DCF
+into the engine (CLAUDE.md §25).
+
+Measured at 0574b466 (the four fix commits; the battery edits uncommitted in
+the tree), not asserted:
+
+- full engine suite (`pytest tests/engine`, the owner's untracked `files/`
+  books linked in for the run and removed after): **9,325 passed, 39
+  skipped, 2 xfailed, 0 failed** (9,324 + the not-utf8 case). A first run,
+  made while vite build and the narrowed battery ran beside it, had 1 failed:
+  `test_public_egress::test_a_repeat_inside_the_window_costs_zero[GET
+  /api/public/markets/universe-keyless]` counted a `document_quota_ledger`
+  GET — the quota-ledger maintenance daemon thread (started earlier in the
+  same process) sweeping inside the test's window. The file alone: 809
+  passed; the full suite rerun without load: green. No ledger code changed.
+- full vitest (`scripts/check_vitest.mjs`): **264 files, 4,400 passed, 1
+  skipped, 0 failed**, canaries 13/13 (4,384 + 16).
+- `tsc` (`scripts/check_tsc.mjs`): 1,022 files, the 10 known errors, 0 new.
+  `vite build` (dist removed first): OK.
+- `run_battery.main` narrowed to the 18 gates these fixes touch: **18/18
+  PASS** — pl-one-ebitda-page 68, one-ebitda 53, provisions-symmetric 117,
+  turnover-7411 65, refusal-carries 47, valuation-one-ebitda 23,
+  valuation-refused-override 10, briefing-definition 9, margin-meaning-page
+  18, plan-gate-census 29, floor-census 77, pack-lint 4, ui-language-figures
+  35, provenance-census 815 (the 11 listed burn-down findings, none new),
+  engine-book 6, test-env-isolation 14, no-plants 1,116, stale-gates 930.

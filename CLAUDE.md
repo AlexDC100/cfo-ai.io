@@ -1652,6 +1652,16 @@ delete, rpc, signed_url, upload_object and delete_object. Gate
 `supabase-read-retry`. Out of scope: `_billing._user_email`'s auth-admin GET,
 which reaches into `client._client` directly and swallows its own failures.
 
+**Known and ticketed, not fixed in this release (owner ruling 2026-10-01).**
+The Valuation tab's client DCF (`runDcf`: CFO − `assembled_cf.depreciation`)
+still disagrees with the engine's DCF (NI + ΔWC) by exactly
+`assembled_cf.provision_movement`, and floors a non-positive base at 0 where
+the engine refuses; and one period prints four different CFO figures across
+surfaces (the Cash Flow tab, /report with the served `assembled_cf`, the
+Valuation tab's tile, the workbook's Cash Flow sheet). Both are ticketed as
+the release that moves the client-side DCF into the engine — "no financial
+computation in the browser, one engine for every number".
+
 **DEPLOY REQUIREMENT.** Every stored period predates the definition: its
 EBITDA refuses (`period_predates_*`) until it is REPROCESSED from its stored
 document with `scripts/reprocess_periods_definition.py` (dry run → review
