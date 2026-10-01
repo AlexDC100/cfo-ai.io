@@ -499,6 +499,15 @@ def test_legacy_code_page_text_is_text_not_unnameable():
     assert ut.sniff_container(b"\x01\x02\xff\xfe" * 16) == ut.UNKNOWN
     assert ut.sniff_container("Cont;Denumire\n".encode("utf-16")) == ut.UNKNOWN
     assert ut.sniff_container(_png()) == ut.UNKNOWN
+    # NARROW: high bytes that are not letters are not text. A bare PNG or
+    # JPEG signature has no NUL and no control byte, and must stay
+    # unnameable — on an image branch "a text file" would REFUSE it (the
+    # first form of this rule called a 4-byte PNG stub text, and a stored
+    # scan stopped reaching the image lane).
+    assert ut.sniff_container(b"\x89PNG") == ut.UNKNOWN
+    assert ut.sniff_container(b"\xff\xd8\xff\xe0JFIF and more bytes") == ut.UNKNOWN
+    assert ut.sniff_container(b"cont;denumire\n101;\x81\x8d\x8f\n") == ut.UNKNOWN  # undefined in cp1250
+    assert not ut.refused_on("image_png", ut.sniff_container(b"\x89PNG"), b"\x89PNG")
     committed = CORPUS / "csv" / "input.csv"
     if committed.is_file():
         assert ut.sniff_container(committed.read_bytes()) == ut.TEXT

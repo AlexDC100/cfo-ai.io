@@ -220,19 +220,42 @@ def sniff_container(file_bytes: bytes) -> str:
         return UNKNOWN
     try:
         head.decode("utf-8")
-    except UnicodeDecodeError:
-        # A Romanian ERP's CSV export is usually cp1250 / ISO-8859-2, which
-        # is not valid UTF-8 the moment it carries a diacritic — and a UTF-8
-        # file can be cut mid-character by the 2,048-byte window. Both are
-        # text, and "not a readable document" is the wrong sentence for a
-        # CSV that reads the moment it is named .csv. No NUL (checked above)
-        # and no C0 control byte other than whitespace is what a text
-        # export looks like in any single-byte code page; every image and
-        # container format carries one or the other in its first bytes.
-        if any(b < 0x20 and b not in (0x09, 0x0A, 0x0C, 0x0D) for b in head):
-            return UNKNOWN
-        return TEXT
+    except UnicodeDecodeError as exc:
+        # Two kinds of real text fail that test, and "not a readable
+        # document" is the wrong sentence for a CSV that reads the moment it
+        # is named .csv:
+        #  · a UTF-8 file cut mid-character by the 2,048-byte window — valid
+        #    up to its last three bytes, and longer than the window;
+        #  · a legacy code-page export (cp1250 / ISO-8859-2 — what a
+        #    Romanian ERP writes), invalid the moment it carries a diacritic.
+        if len(file_bytes) > len(head) and exc.start >= len(head) - 3:
+            return TEXT
+        return TEXT if _looks_like_legacy_text(head) else UNKNOWN
     return TEXT
+
+
+#: Non-letters above 0x7F that ordinary text carries in a Central European
+#: code page: the no-break space, quotation marks, dashes, the ellipsis, the
+#: euro, degree and section signs.
+_LEGACY_TEXT_MARKS = frozenset("\u00a0\u201e\u201d\u201c\u2019\u2018\u2013\u2014\u2026\u20ac\u00b0\u00a7\u00ab\u00bb")
+
+
+def _looks_like_legacy_text(head: bytes) -> bool:
+    """True when bytes that are not UTF-8 read as text in cp1250: no control
+    byte but whitespace, every byte defined in the code page, and every
+    character above ASCII a LETTER (ă, â, î, ş, ţ and their capitals sit at
+    the same code points in cp1250 and ISO-8859-2) or an ordinary
+    typographic mark. Deliberately narrow — a label that goes into the
+    sentence a person reads: a binary file's high bytes decode to symbols
+    (a PNG's first byte is "‰", a JPEG's "˙"), never to a run of letters,
+    and stay unnameable."""
+    if any(b < 0x20 and b not in (0x09, 0x0A, 0x0C, 0x0D) for b in head):
+        return False
+    try:
+        text = head.decode("cp1250")
+    except UnicodeDecodeError:
+        return False
+    return all(ch.isalpha() or ch in _LEGACY_TEXT_MARKS for ch in text if ord(ch) > 0x7F)
 
 
 def classify(filename: Optional[str], mime: Optional[str]) -> str:
