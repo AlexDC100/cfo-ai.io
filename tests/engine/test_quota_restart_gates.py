@@ -337,6 +337,13 @@ def test_the_settlement_settles_into_the_month_of_the_reservation(world, monkeyp
 def restore(world, monkeypatch):
     from engine.api import _pricing_tiers
     monkeypatch.setattr(_pricing_tiers, "current_month_bucket", lambda now=None: "2026-09")
+    # ONE month for the restore AND for the run it restores. The script's
+    # month was pinned here and the engine's was not: a run reserved by a
+    # test stamped its ledger row with the WALL CLOCK's month, so the two
+    # agreed only while the calendar read September 2026 — from 2026-10-01
+    # the restore saw "no live reservation this month" and reset the slot of
+    # a live run (two reds, on a suite nothing had changed in).
+    monkeypatch.setattr(_usage_gate, "_month_bucket", lambda d=None: "2026-09")
     world["db"].rows("user_usage").append({"id": "uu", "user_id": OWNER, "month": "2026-09",
                                            "uploads": 0, "uploads_reserved": 0})
     import importlib.util
