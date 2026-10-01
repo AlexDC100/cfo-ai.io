@@ -5368,8 +5368,8 @@
     ],
     "note": {
      "display": {
-      "en": "For a property developer, construction costs capitalised into inventory run through account 711 (Variația stocurilor de produse): the EBITDA above includes them — RON 29,589.8k.",
-      "ro": "Pentru un dezvoltator imobiliar, costurile de construcție capitalizate în stocuri trec prin contul 711 (Variația stocurilor de produse): EBITDA de mai sus le include — 29.589,8 mii lei."
+      "en": "For a property developer, construction costs capitalised into inventory run through account 711 (Variația stocurilor de produse): the EBITDA above includes them — 29,589.8K RON.",
+      "ro": "Pentru un dezvoltator imobiliar, costurile de construcție capitalizate în stocuri trec prin contul 711 (Variația stocurilor de produse): EBITDA de mai sus le include — 29.589,8 mii RON."
      },
      "figure": {
       "source": "assembled_pl.inventory_variation.value",
