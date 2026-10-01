@@ -280,15 +280,24 @@ def verdicts_of(period_body: Dict[str, Any]) -> Dict[str, Any]:
     variation = pl["inventory_variation"]
     insights = st["insights"]
     piotroski = st["assembled_piotroski"]
-    presentation = cbs.get("status_presentation") or {}
+    # The balance-sheet facts through the engine's ONE authority for them
+    # (engine.serving.facts — docs/CANONICAL_BS_V2_CONTRACT.md), not read
+    # off the raw totals.
+    from engine.serving.facts import FactsGateway
+
+    gateway = FactsGateway.from_envelope(st["assembled_canonical_v1"], currency=st["currency"])
+    if gateway is None:
+        raise RuntimeError("the served envelope carries no canonical balance sheet")
+    served_bs = gateway.served_canonical_bs or {}
+    presentation = served_bs.get("status_presentation") or {}
     return {
         "balance": {
-            "status": cbs["status"],
-            "difference": cbs["difference"],
+            "status": served_bs["status"],
+            "served_difference": gateway.difference().to_float(),
             "display_en": presentation.get("display_en"),
             "display_ro": presentation.get("display_ro"),
-            "assets": cbs["totals"]["assets"],
-            "equity_plus_liabilities": cbs["totals"]["equity_plus_liabilities"],
+            "assets": gateway.total_assets().to_float(),
+            "equity_plus_liabilities": gateway.equity_plus_liabilities().to_float(),
             "source_anchor": cbs["source_anchor"]["anchor_status"],
             "source_balanced": cbs["source_anchor"]["source_balanced"],
             "unmapped": len(cbs.get("unmapped") or []),

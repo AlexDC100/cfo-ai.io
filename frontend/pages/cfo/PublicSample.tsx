@@ -157,6 +157,12 @@ export default function PublicSample() {
   const labels = data.labels as SampleLabel[];
   const mapping = data.mapping as SampleMappingRow[];
   const shownMapping = allAccounts ? mapping : mapping.slice(0, MAPPING_PREVIEW);
+  // Where each figure was read from: the published served document and the
+  // pointer inside it — shown as the figure's title.
+  const cards = fileKeys(data);
+  const servedFile = (key: "served_current" | "served_prior" | "served_comparatives") =>
+    cards.find((c) => c.key === key)!.file.name;
+  const origin = (file: string, pointer: string) => `${file} · ${pointer}`;
 
   const labelTitle = (label: SampleLabel): string => {
     if (S.labelTitles[label.key]) return S.labelTitles[label.key];
@@ -246,7 +252,7 @@ export default function PublicSample() {
         {/* ── the files ────────────────────────────────────────────── */}
         <Section id="downloads" title={S.downloadsTitle} lede={S.downloadsLede}>
           <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {fileKeys(data).map(({ key, file }) => {
+            {cards.map(({ key, file }) => {
               const opens = key === "report_html";
               return (
                 <li key={key} className="flex flex-col rounded-lg border border-rule bg-surface p-4">
@@ -291,10 +297,18 @@ export default function PublicSample() {
                     <th scope="row" className="px-3 py-2 text-left font-normal text-ink">
                       {S.figures[f.key] ?? f.key}
                     </th>
-                    <td data-period="current" className="px-2 py-2 text-right tabular-nums text-ink sm:px-3">
+                    <td
+                      data-period="current"
+                      title={origin(servedFile("served_current"), f.pointer)}
+                      className="px-2 py-2 text-right tabular-nums text-ink sm:px-3"
+                    >
                       <MoneyCell printed={money(f.value)} />
                     </td>
-                    <td data-period="prior" className="px-2 py-2 text-right tabular-nums text-ink-soft sm:px-3">
+                    <td
+                      data-period="prior"
+                      title={origin(servedFile("served_prior"), f.pointer)}
+                      className="px-2 py-2 text-right tabular-nums text-ink-soft sm:px-3"
+                    >
                       <MoneyCell printed={money(figure(prior, f.key))} />
                     </td>
                   </tr>
@@ -327,6 +341,7 @@ export default function PublicSample() {
                         <td
                           key={which}
                           data-period={which}
+                          title={origin(servedFile("served_comparatives"), `${r.pointer}/${which}`)}
                           className={`px-3 py-2 text-right tabular-nums ${which === "current" ? "text-ink" : "text-ink-soft"}`}
                         >
                           <span data-figure>{sampleRatio(side, r.display_unit, lang)}</span>
@@ -350,7 +365,7 @@ export default function PublicSample() {
                   status: (lang === "ro" ? v.balance.display_ro : v.balance.display_en) ?? v.balance.status,
                   assets: money(v.balance.assets),
                   liabilities: money(v.balance.equity_plus_liabilities),
-                  difference: money(v.balance.difference),
+                  difference: money(v.balance.served_difference),
                 })}
               </p>
               <p className="text-ink-soft">

@@ -160,6 +160,10 @@ describe.each(LANGS)("P1 the page's figures are the served document's — %s", (
           .getByTestId(`sample-figure-${f.key}`)
           .querySelector(`[data-period="${which}"]`) as HTMLElement;
         expect(plainSpaces(cell.textContent), `${lang} ${which} ${f.key}`).toBe(expectedMoney(served, lang));
+        // the figure says where it was read from: the served file and the pointer
+        expect(cell.getAttribute("title")).toBe(
+          `${servedName("served_document", which === "current" ? 0 : 1)} · ${f.pointer}`,
+        );
         figuresChecked += 1;
       }
     }
@@ -203,7 +207,7 @@ describe.each(LANGS)("P1 the page's figures are the served document's — %s", (
     fireEvent.click(screen.getByTestId("sample-mapping-toggle"));
     const text = ownText(container, lang);
     expect(text.length).toBeGreaterThan(4000);
-    expect(foreignNumber(text, lang), `a ${lang === "en" ? "Romanian" : "English"} number on the ${lang} page`).toBeNull();
+    expect(foreignNumber(text, lang), `${lang === "en" ? "a Romanian" : "an English"} number on the ${lang} page`).toBeNull();
     // the detector is not vacuous on this page: the other language's page trips it
     cleanup();
     const other = await renderPage(lang === "en" ? "ro" : "en");

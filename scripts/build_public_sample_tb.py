@@ -56,8 +56,11 @@ SEED = 20261001
 
 COMPANY_NAME = "CONSERVE EXEMPLU FICTIV SRL"
 #: Deliberately INVALID: `assert_fiscal_code_is_invalid` proves the control
-#: digit is wrong, so no real company can carry this code.
-FISCAL_CODE = "RO 90000001"
+#: digit is wrong, so no real company can carry this code. All nines, like
+#: the trade-register number below: the shape this repository's data-hygiene
+#: gate (scripts/pdf_scrambler.py `is_placeholder_identifier`) recognises as
+#: a fabricated placeholder rather than a registration.
+FISCAL_CODE = "RO 99999999"
 #: County code 99 does not exist; neither does the year.
 TRADE_REGISTER = "J99/9999/2099"
 CAEN = "1039"

@@ -6,7 +6,7 @@
   "caen_name_ro": "Prelucrarea și conservarea fructelor și legumelor n.c.a.",
   "currency": "RON",
   "fictional": true,
-  "fiscal_code": "RO 90000001",
+  "fiscal_code": "RO 99999999",
   "fiscal_code_valid": false,
   "name": "CONSERVE EXEMPLU FICTIV SRL",
   "trade_register": "J99/9999/2099",
@@ -27,13 +27,13 @@
    "bytes": 66239,
    "kind": "trial_balance",
    "name": "balanta_exemplu_fictiv_31.12.2025.xlsx",
-   "sha256": "3c3f3ffd74bd6834f19eb6fd920f21b75d355c59136ba64bac7f84b630a4965c"
+   "sha256": "d2fbe7afbf77cc563437672fa5c9f7650be931389602bc0eb15718bb63c9ecd6"
   },
   {
    "bytes": 64106,
    "kind": "trial_balance",
    "name": "balanta_exemplu_fictiv_31.12.2024.xlsx",
-   "sha256": "88ced73ef76177d26b914763478f28237607cd2da55efc1a80262466fd780363"
+   "sha256": "c1c4550539416323d5954e8a8ae5aa5546b2a506e2ffe8027e2a68dcfb4db38c"
   },
   {
    "bytes": 324345,
@@ -73,7 +73,7 @@
    "bytes": 363497,
    "kind": "served_document",
    "name": "served_comparatives_fy2025_vs_fy2024.json",
-   "sha256": "e8a65474ee5a9a3b36a694e2b2e46c4866028cf40abda6076809299be5dc4186"
+   "sha256": "ab963c66faefcf5568943715fda006dd5e56643523f1cb81a0c483d1ca62c1eb"
   }
  ],
  "labels": [
@@ -1826,10 +1826,10 @@
   },
   "balance": {
    "assets": 6542143.53,
-   "difference": 0.0,
    "display_en": "Balanced",
    "display_ro": "Echilibrat",
    "equity_plus_liabilities": 6542143.53,
+   "served_difference": 0.0,
    "source_anchor": "MATCHED",
    "source_balanced": true,
    "status": "BALANCED",

@@ -76,6 +76,9 @@ const CANARIES = [
   // gate F6 (a saved scenario survives reload and belongs to its company)
   "frontend/components/forecast/__tests__/forecastYearZero.test.tsx",
   "frontend/pages/cfo/__tests__/scenariosSaved.test.tsx",
+  // the public sample (2026-10-01): the /sample page held to the served
+  // document, and the published report to the product's own builder.
+  "frontend/pages/cfo/__tests__/publicSample.test.tsx",
   // RO + EN: every served engine sentence in Romanian under the digit law
   "frontend/lib/__tests__/forecastSentencesRo.test.ts",
 ];

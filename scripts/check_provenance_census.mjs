@@ -725,6 +725,17 @@ const SURFACES = {
       "frontend/components/cfo/AuthCard.tsx",
     ],
   },
+  // 2026-10-01 — THE PUBLIC SAMPLE (/sample). Every figure on the page is
+  // read from frontend/data/publicSample.json, where it carries the JSON
+  // pointer into the served document published beside it
+  // (public/sample/served_period_fy2025.json). The page names and links
+  // that document, but wears no per-figure affordance: HAS_MISSING, the
+  // remaining work named in the census entry.
+  "public-sample": {
+    ratchet: 0, // MEASURED, exact — no headroom (see RATCHET above)
+    witness: "unit: frontend/pages/cfo/__tests__/publicSample.test.tsx",
+    files: ["frontend/pages/cfo/PublicSample.tsx"],
+  },
   "industry-classification": {
     ratchet: 0, // MEASURED, exact — no headroom (see RATCHET above)
     witness:

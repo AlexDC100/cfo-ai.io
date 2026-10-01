@@ -467,7 +467,7 @@ const RO: SampleStrings = {
     total_debt: "Credite bancare și leasing",
   },
   ratiosTitle: "Indicatori și credit",
-  ratiosLede: "Tipăriți la precizia motorului, cu banda în care l-a încadrat pe fiecare.",
+  ratiosLede: "La precizia motorului, fiecare cu banda în care a fost încadrat.",
   ratio: "Indicator",
 
   verdictsTitle: "Verdictele motorului pentru această balanță",
@@ -500,7 +500,7 @@ const RO: SampleStrings = {
       "Aproximat, și etichetat astfel chiar pe situație. Vezi etichetele de incertitudine de mai jos.",
     cashFlowExact: "Reconstruit din soldurile ambilor ani.",
     findingsTitle: "Constatări",
-    findingsBody: "{n} constatări, după severitate:",
+    findingsBody: "Constatări ({n}), după severitate:",
     levels: {
       critical: "critice",
       high: "ridicate",
@@ -513,7 +513,7 @@ const RO: SampleStrings = {
 
   labelsTitle: "Etichete de incertitudine",
   labelsLede:
-    "{n} note pe care motorul le-a atașat acestei balanțe: ce este aproximat, derivat, calculat pe o bază declarată, refuzat sau neevaluat și ce a verificat fără să găsească nimic.",
+    "Notele pe care motorul le-a atașat acestei balanțe ({n}): ce este aproximat, derivat, calculat pe o bază declarată, refuzat sau neevaluat și ce a verificat fără să găsească nimic.",
   engineWords: "Cuvintele motorului",
   engineWordsEnglishOnly: "Cuvintele motorului (are această frază doar în engleză)",
   kinds: {
@@ -556,7 +556,7 @@ const RO: SampleStrings = {
 
   mappingTitle: "Maparea conturilor",
   mappingLede:
-    "Toate cele {n} conturi din balanța anului curent și linia pe care motorul a atribuit-o fiecăruia.",
+    "Toate conturile din balanța anului curent ({n}) și linia pe care motorul a atribuit-o fiecăruia.",
   mappingColumns: { account: "Cont", name: "Denumire", line: "Linia motorului", amount: "Sumă preluată (RON)" },
   statements: { BS: "Bilanț", PL: "Cont de profit și pierdere" },
   buckets: {
@@ -602,7 +602,7 @@ const RO: SampleStrings = {
   },
   mappingNoteDerived:
     "Suma este rulajul brut al contului. Linia pe care motorul o servește în contul de profit și pierdere este valoarea netă derivată: {value}.",
-  showAll: "Arată toate cele {n} conturi",
+  showAll: "Arată toate conturile ({n})",
   showFewer: "Arată mai puține",
 
   howTitle: "Cum este făcut acest exemplu",
