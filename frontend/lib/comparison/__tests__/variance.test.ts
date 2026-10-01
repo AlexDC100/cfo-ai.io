@@ -23,6 +23,7 @@ const actual: Record<VarianceLineKey, number | null> = {
   opex: 2_300_000,
   ebitda: 2_100_000,
   depreciation: 800_000,
+  net_provisions: null,
   ebit: 1_300_000,
   net_financial_result: -600_000,
   income_tax: 300_000,
