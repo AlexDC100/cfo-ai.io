@@ -123,7 +123,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useCurrency } from "@/stores/currency";
 import { convertFromTo, formatAmountFrom, formatMoneyFrom } from "@/lib/money";
 import {
-  componentShown, equityRefusalOf, netIncomeRefusalOf, readRefusal, readServedOneEbitda, reconLine,
+  componentShown, equityRefusalOf, netIncomeRefusalOf, netProvisionsEffectLabel, readRefusal,
+  readServedOneEbitda, reconLine,
 } from "@/lib/servedOneEbitda";
 import { briefingVisibility } from "@/lib/briefingDefinition";
 import type { Currency } from "@/lib/rates";
@@ -923,6 +924,8 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
     role: "step" | "subtotal";
     /** The engine's reason, printed under a refused figure. */
     note?: string | null;
+    /** A stable handle for the laws (`data-pl-row`). */
+    key?: string;
   };
 
   const ivLabel = iv ? `${iv.nameRo ?? "Variația stocurilor de produse"} (711)${iv.glossEn ? ` — ${iv.glossEn}` : ""}` : "";
@@ -954,7 +957,20 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
   );
   const np = served?.netProvisions ?? null;
   if (np && (Math.abs(np.charges) >= 0.005 || Math.abs(np.reversals) >= 0.005)) {
-    rows.push({ label: np.label.en, val: 0 - np.value, style: "indent", origin: neg("net_provisions.value"), role: "step" });
+    // Printed as its EFFECT on the result, like every step of this column
+    // (D&A above it is negated too) — so the label states the effect's
+    // arithmetic, "7812 + 7814 − 6812 − 6814", never the engine's charge
+    // arithmetic over the opposite figure (review 2026-10-02: agras read
+    // "… (6812 + 6814 − 7812 − 7814) −131,395"). The printed report and the
+    // workbook compose the same label (`netProvisionsEffectLabel`).
+    rows.push({
+      label: netProvisionsEffectLabel(np, "en"),
+      val: 0 - np.value,
+      style: "indent",
+      origin: neg("net_provisions.value"),
+      role: "step",
+      key: "net_provisions",
+    });
   }
   rows.push(
     { label: "EBIT", val: num(served?.ebit), style: "highlight", origin: f("ebit"), role: "subtotal", note: served?.ebit == null ? refusalEn : null },
@@ -1026,6 +1042,7 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
                 <tr
                   key={r.label}
                   data-pl-role={r.role}
+                  data-pl-row={r.key}
                   data-pl-exact={v == null ? undefined : String(v)}
                   className={`h-8 ${r.style === "headline" ? "border-t border-t-rule-strong" : r.style === "reconciliation" ? "border-t border-dashed border-rule-strong" : "border-t border-rule-soft"} first:border-t-0 ${rowCls[r.style]}`}
                 >

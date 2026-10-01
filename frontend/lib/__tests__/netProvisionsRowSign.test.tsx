@@ -40,6 +40,14 @@
 // The Valuation tab's reconciliation panel (/report Section 1 too) and the
 // printed report / workbook (printedPl) are held by the second describe
 // block below (review 2026-10-01).
+// D2 (coordinator ruling 2026-10-02): on the row and its COMPARE CELLS, any
+// account arithmetic in the row's full text evaluates to the printed figure
+// — the current cell over the current period's served accounts, the prior
+// cell over the prior's, Δ their difference (frontend/test/
+// netProvisionsArithmetic.ts; every other surface is held on the firm books
+// by netProvisionsEverySurface.test.tsx and, for /report, pages/cfo/
+// __tests__/comprehensiveReportNetProvisions.test.tsx). And the row's share
+// and Δ% cells print in the reader's language — the third describe block.
 // CANNOT SEE: whether the served figures are right (provisions-symmetric);
 // pixels.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -53,6 +61,8 @@ import { PLStatementView } from "@/components/cfo/PLStatementView";
 import { pickPLBuilder } from "@/lib/buildPlStatement";
 import type { ComparativeColumnDto, ComparativesResponse } from "@/lib/comparatives";
 import type { Statements } from "@/lib/financialReport";
+
+import { evaluateArithmetic, rowProblems } from "@/test/netProvisionsArithmetic";
 
 import pairJson from "./fixtures/comparatives/pair_served.json";
 
@@ -175,6 +185,28 @@ describe("the net-provisions row — one sign convention across current, prior a
         expect(glyph(np.prior), `prior ${np.prior}`).toBe(levelGlyph(col.prior as number));
         expect(digits(np.delta), "delta digits").toBe(digitsOf(col.delta as number));
         expect(glyph(np.delta), `delta ${np.delta}`).toBe((col.delta as number) > 0 ? "+" : MINUS);
+
+        // D2: ANY arithmetic in the row's full text is the printed figure —
+        // the current cell over this period's served accounts, the prior
+        // cell over the prior period's, Δ their difference.
+        const rowEl = rowFor(container, "pl.net_provisions");
+        const copy = rowEl.cloneNode(true) as HTMLElement;
+        copy.querySelectorAll(".pl-amount, .cmp-cells").forEach((n) => n.remove());
+        const rowText = (copy.textContent ?? "").replace(/\s+/g, " ").trim();
+        const block = (pair.current_body.statements.assembled_pl as unknown as Rec).net_provisions as Rec;
+        const priorBlock = (pair.comparatives.prior_statements as { assembled_pl: Rec }).assembled_pl
+          .net_provisions as Rec;
+        expect(rowProblems({ surface: "P&L row, current", text: rowText, value: served, printed: np.current }, block))
+          .toEqual([]);
+        expect(rowProblems(
+          { surface: "P&L row, prior cell", text: rowText, value: col.prior as number, printed: np.prior }, priorBlock,
+        )).toEqual([]);
+        const expr = (block.accounts as string);
+        expect(rowText, "the row states the engine's arithmetic").toContain(expr);
+        expect(
+          Math.round((evaluateArithmetic(expr, block) - evaluateArithmetic(expr, priorBlock)) * 100) / 100,
+          "Δ is the arithmetic's own difference",
+        ).toBeCloseTo(col.delta as number, 2);
 
         // The pattern the row follows: D&A, the charge beside it.
         const da = printed(rowFor(container, "pl.depreciation"));
@@ -361,4 +393,77 @@ describe("net provisions on the Valuation tab's panel and the printed P&L — on
       expect(segment.startsWith("+ "), `"${segment}" carries no effect sign`).toBe(false);
     });
   }
+});
+
+// ── THE ROW'S SHARE AND Δ% CELLS IN THE READER'S LANGUAGE (review 2026-10-02,
+// low; §26) ──────────────────────────────────────────────────────────────
+//
+// The compare columns printed "0.1%" and "+0.2 pp" to a Romanian reader,
+// beside money printed "131.394,66": the three printers of lib/comparatives
+// (`formatDeltaPct`, `formatShare`, `formatPts`) used toFixed and an English
+// unit whatever the language. They take the UI language now — the decimal
+// comma and "p.p." (the ratio table's word) in Romanian — through the one
+// mapping, `moneyLocaleFor`. Same digits; only the mark and the word move.
+// REDS ON: a decimal point or " pp" in a Romanian compare cell; a decimal
+// comma or "p.p." in an English one; the digits differing between the two.
+import { formatDeltaPct, formatPts, formatShare } from "@/lib/comparatives";
+
+describe("the compare cells' percent, share and points print in the reader's language", () => {
+  it("the printers: same digits, the language's decimal mark and unit word", () => {
+    expect(formatDeltaPct(0.1234)).toBe("+12.3%");
+    expect(formatDeltaPct(0.1234, "en")).toBe("+12.3%");
+    expect(formatDeltaPct(0.1234, "ro")).toBe("+12,3%");
+    expect(formatDeltaPct(-0.05, "ro-RO")).toBe("-5,0%");
+    expect(formatShare(0.0012, "en")).toBe("0.1%");
+    expect(formatShare(0.0012, "ro")).toBe("0,1%");
+    expect(formatPts(0.2, "en")).toBe("+0.2 pp");
+    expect(formatPts(0.2, "ro")).toBe("+0,2 p.p.");
+    expect(formatPts(-1.25, "ro")).toBe("-1,3 p.p.");
+    expect(formatDeltaPct(null, "ro")).toBeNull();
+    expect(formatShare(null, "ro")).toBeNull();
+    expect(formatPts(null, "ro")).toBeNull();
+  });
+
+  it("the rendered rows: the net-provisions row's share cell and D&A's Δ% cell, RO and EN", async () => {
+    const pair = served();
+    const read = (container: HTMLElement, key: string) => {
+      const cells = Array.from(
+        rowFor(container, key).querySelectorAll<HTMLElement>(".cmp-cells > .cmp-cell"),
+      ).map((c) => c.textContent ?? "");
+      // prior, Δ, Δ%, share (+ points) — the four columns of COLUMNS.
+      return { pct: cells[2] ?? "", share: cells[3] ?? "" };
+    };
+    try {
+      await i18n.changeLanguage("ro");
+      const ro = renderPl(pair);
+      const roNp = read(ro.container, "pl.net_provisions");
+      const roDa = read(ro.container, "pl.depreciation");
+      cleanup();
+      await i18n.changeLanguage("en");
+      const en = renderPl(pair);
+      const enNp = read(en.container, "pl.net_provisions");
+      const enDa = read(en.container, "pl.depreciation");
+
+      // Non-vacuity: the cells carry a share with a decimal, and a percent.
+      expect(enNp.share, "the row's share cell").toMatch(/\d\.\d%/);
+      expect(enDa.pct, "D&A's Δ% cell").toMatch(/\d\.\d%/);
+      expect(enNp.share).toContain(" pp");
+
+      expect(roNp.share, `RO share: ${roNp.share}`).toMatch(/\d,\d%/);
+      expect(roNp.share).not.toMatch(/\d\.\d/);
+      expect(roNp.share).toContain(" p.p.");
+      expect(roNp.share).not.toMatch(/ pp\b/);
+      expect(roDa.pct, `RO Δ%: ${roDa.pct}`).toMatch(/\d,\d%/);
+      expect(roDa.pct).not.toMatch(/\d\.\d/);
+      expect(enNp.share).not.toMatch(/\d,\d%/);
+      expect(enNp.share).not.toContain("p.p.");
+
+      // The same digits either way.
+      expect(roNp.share.replace(/\D/g, "")).toBe(enNp.share.replace(/\D/g, ""));
+      expect(roDa.pct.replace(/\D/g, "")).toBe(enDa.pct.replace(/\D/g, ""));
+    } finally {
+      await i18n.changeLanguage("en");
+      cleanup();
+    }
+  });
 });

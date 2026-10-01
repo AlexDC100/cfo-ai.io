@@ -177,9 +177,9 @@ function Bridge({ bridge, title, currency }: { bridge: BridgeDto; title: string;
 }
 
 function MoverRow({ m, currency }: { m: MoverDto; currency: string }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const fmt = useAmountFormatter(currency);
-  const pct = formatDeltaPct(m.delta_pct);
+  const pct = formatDeltaPct(m.delta_pct, i18n.language);
   return (
     <li className="flex items-baseline justify-between gap-3 py-1 text-[12.5px]" data-mover={m.key} data-verdict={m.verdict ?? "none"}>
       <span className="text-ink truncate">{m.label}</span>

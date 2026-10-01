@@ -49,7 +49,7 @@
 import type { Statements } from "./financialReport";
 import {
   componentShown,
-  netProvisionsEffectAccounts,
+  netProvisionsEffectLabel,
   plLevelsOf,
   readRefusal,
   readServedOneEbitda,
@@ -220,8 +220,7 @@ export function printedPl(s: Statements): PrintedPl {
   // not assemble under the ruling (its D&A still holds the charges).
   const np = served?.netProvisions ?? null;
   if (np && (Math.abs(np.charges) >= HALF_CENT || Math.abs(np.reversals) >= HALF_CENT)) {
-    const effect = netProvisionsEffectAccounts(np);
-    push("net_provisions", effect ? `${np.name.en} (${effect})` : np.name.en, 0 - np.value, "step");
+    push("net_provisions", netProvisionsEffectLabel(np, "en"), 0 - np.value, "step");
   }
   push("ebit", "EBIT", levels.ebit, "subtotal", levels.ebitRefusal);
   push("financial_income", "Financial income", finIncome, "step");

@@ -146,6 +146,7 @@ export function EbitdaReconciliationPanel({
                 money={money}
                 reason={reason}
                 effectAccounts={l.key === "net_provisions" ? npEffectAccounts : null}
+                nameOnly={l.key === "net_provisions" && np ? np.name : null}
               />
             ))}
           </ol>
@@ -244,6 +245,7 @@ function ReconRow({
   money,
   reason,
   effectAccounts = null,
+  nameOnly = null,
 }: {
   line: ServedReconLine;
   lang: string | undefined;
@@ -253,6 +255,14 @@ function ReconRow({
    *  chain prints (reversals − charges), in place of the engine's charge
    *  arithmetic, which the printed figure contradicts. */
   effectAccounts?: string | null;
+  /** Net provisions only: the served block's NAME, without accounts, in
+   *  place of the chain line's label. That label is the engine's full
+   *  "… (6812 + 6814 − 7812 − 7814)" — the charge arithmetic — and beside
+   *  the effect chip it made ONE ROW state two opposite arithmetics (review
+   *  2026-10-02: "… (6812 + 6814 − 7812 − 7814) 7812 + 7814 − 6812 − 6814
+   *  −131,394.66"). The name carries no arithmetic; the chip carries the
+   *  one this row's figure is. */
+  nameOnly?: Bilingual | null;
 }) {
   const { t } = useTranslation();
   // Signed as its effect on the result: the two components inside EBITDA
@@ -275,7 +285,7 @@ function ReconRow({
       } ${line.key === "inventory_variation" ? "pl-4" : ""}`}
     >
       <span>
-        <NameWithGloss label={line.label} lang={lang} />
+        <NameWithGloss label={nameOnly ?? line.label} lang={lang} />
         {accountCodes && (
           <span className="ml-1.5 font-mono text-[10px] text-ink-mute" data-recon-accounts={line.key}>
             {accountCodes}

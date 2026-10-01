@@ -216,9 +216,10 @@ export function CmpCells({
     c.status === "refused" && c.prior === null
       ? priorRefusalText(ctx.doc.prior_statements, c.key, i18n.language)
       : null;
-  const deltaPctText = formatDeltaPct(c.deltaPct);
-  const shareText = formatShare(c.currentShare);
-  const ptsText = formatPts(c.deltaPts);
+  // In the reader's language (§26): decimal comma and "p.p." in Romanian.
+  const deltaPctText = formatDeltaPct(c.deltaPct, i18n.language);
+  const shareText = formatShare(c.currentShare, i18n.language);
+  const ptsText = formatPts(c.deltaPts, i18n.language);
 
   return (
     <span className="cmp-cells" data-cmp={c.status} data-cmp-key={c.key}>
@@ -282,7 +283,7 @@ export function BsCmpCells({
   absentWord?: string;
 }) {
   const ctx = useComparativeContext();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   if (!ctx) return null;
   const cols = ctx.columns;
   const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
@@ -302,7 +303,7 @@ export function BsCmpCells({
       pctNode = word(t(changeKindWordKey(change.kind)));
     } else {
       const ratio = Number(change.deltaPct);
-      const text = formatDeltaPct(ratio);
+      const text = formatDeltaPct(ratio, i18n.language);
       pctNode = text === null ? gap() : <span className={`cmp-cell ${signClass(ratio)}`}>{text}</span>;
     }
   } else if (!isNum(opening) && isNum(closing) && absentWord) {
@@ -317,8 +318,8 @@ export function BsCmpCells({
     const pri = isNum(opening) && isNum(basePrior) && Math.abs(basePrior) >= 0.005
       ? opening / Math.abs(basePrior) : null;
     const pts = pri === null ? null : (cur - pri) * 100;
-    const shareText = formatShare(cur);
-    const ptsText = formatPts(pts);
+    const shareText = formatShare(cur, i18n.language);
+    const ptsText = formatPts(pts, i18n.language);
     shareNode = (
       <span className="cmp-cell" title={ptsText ? `${shareText} (${ptsText})` : shareText ?? undefined}>
         {shareText}

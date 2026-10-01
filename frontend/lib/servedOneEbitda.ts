@@ -357,6 +357,22 @@ export function netProvisionsEffectAccounts(np: ServedNetProvisions): string | n
   return parts.length > 0 ? parts.join(" ") : null;
 }
 
+/** THE ROW'S LABEL WHERE IT PRINTS ITS EFFECT — the engine's name and, in
+ *  brackets, the effect's arithmetic: "Net provisions and impairment
+ *  adjustments (7812 + 7814 − 6812 − 6814)". ONE composition for every
+ *  surface that prints net provisions effect-signed in a column that sums to
+ *  the operating result (the printed report and the workbook through
+ *  `printedPl`, /report §2's table): the engine's own `label` carries the
+ *  CHARGE arithmetic and must never stand beside the effect (review
+ *  2026-10-02: /report §2 printed agras "… (6812 + 6814 − 7812 − 7814)
+ *  −131,395", a label that evaluates to +131,394.66). Without served
+ *  prefixes the name stands alone — never the charge arithmetic. */
+export function netProvisionsEffectLabel(np: ServedNetProvisions, lang: "ro" | "en"): string {
+  const effect = netProvisionsEffectAccounts(np);
+  const name = lang === "ro" ? np.name.ro : np.name.en;
+  return effect ? `${name} (${effect})` : name;
+}
+
 export function readServedOneEbitda(assembledPl: unknown): ServedOneEbitda | null {
   if (!isRec(assembledPl)) return null;
   const apl = assembledPl;
