@@ -59,7 +59,12 @@ CFG = load_config(REPO_ROOT / "config.yaml")
 
 
 @pytest.fixture
-def client():
+def client(monkeypatch):
+    # HERMETIC (2026-10-02): `create_app()` verifies the Supabase variables at
+    # boot; without the switch these tests errored at setup on any host with
+    # no .env (green only where the variables, or a leaked switch, happened
+    # to be set). Nothing they assert reads Supabase.
+    monkeypatch.setenv("CFO_AI_SKIP_BOOT_VERIFY", "1")
     os.environ.pop("ENGINE_API_TOKEN", None)
     return TestClient(create_app(config_path=REPO_ROOT / "config.yaml"))
 
@@ -345,6 +350,7 @@ def _legacy_client(monkeypatch):
     """/api/analyze sits behind the LEGACY_SKU_AI_ENABLED wall; no model key, so
     the narrative is the deterministic one."""
     monkeypatch.setenv("LEGACY_SKU_AI_ENABLED", "1")
+    monkeypatch.setenv("CFO_AI_SKIP_BOOT_VERIFY", "1")  # hermetic: see `client`
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     os.environ.pop("ENGINE_API_TOKEN", None)
     return TestClient(create_app(config_path=REPO_ROOT / "config.yaml"))
