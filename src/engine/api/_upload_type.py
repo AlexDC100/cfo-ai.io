@@ -11,6 +11,17 @@ the user's mistake.
 PURE — bytes in, a label out. No I/O, no network, no logging, so the
 upload path can consult it before spending anything.
 
+ONE UPLOAD POLICY, READ BY REAL TYPE (coordinator ruling 2026-10-02).
+This module is the ONE authority on what an upload is and whether any
+reader opens it: `classify` (the branch its name claims), `sniff_container`
+(what its bytes are), `reads_as_pdf` (the bytes go through the .pdf
+branch's readers whatever the name says), `refused_on` (no reader on the
+branch opens them) and `upload_refusal` (the verdict and the sentence).
+`pipeline.stage_extract` reads it at both guard sites and the workspace
+upload card's routes (`_uploads`, /api/uploads/identify and /commit) read
+the SAME function — what the pipeline reads the card reads, what it
+refuses the card refuses, in the same sentence, in the reader's language.
+
 ZIP CONTAINERS ARE NOT INTERCHANGEABLE. xlsx, docx and pptx are all
 `PK\\x03\\x04`, which is why `_detect_spreadsheet_format` calling every
 zip "xlsx" is not enough to answer this question: it would send a Word
@@ -81,9 +92,8 @@ def looks_like_pdf(file_bytes: bytes) -> bool:
     return PDF_MAGIC in file_bytes[:PDF_MAGIC_WINDOW]
 
 
-#: How far into an UNREADABLE zip the payload folder names are looked for.
-#: The same window `_uploads.actual_file_kind` reads, so the route and the
-#: pipeline name a cut-off Word file the same way.
+#: How far into an UNREADABLE zip the payload folder names are looked for
+#: (from each end), so a cut-off Word file is still named a Word file.
 _TRUNCATED_ZIP_WINDOW = 262144
 
 
@@ -211,8 +221,44 @@ def sniff_container(file_bytes: bytes) -> str:
     try:
         head.decode("utf-8")
     except UnicodeDecodeError:
-        return UNKNOWN
+        # A Romanian ERP's CSV export is usually cp1250 / ISO-8859-2, which
+        # is not valid UTF-8 the moment it carries a diacritic — and a UTF-8
+        # file can be cut mid-character by the 2,048-byte window. Both are
+        # text, and "not a readable document" is the wrong sentence for a
+        # CSV that reads the moment it is named .csv. No NUL (checked above)
+        # and no C0 control byte other than whitespace is what a text
+        # export looks like in any single-byte code page; every image and
+        # container format carries one or the other in its first bytes.
+        if any(b < 0x20 and b not in (0x09, 0x0A, 0x0C, 0x0D) for b in head):
+            return UNKNOWN
+        return TEXT
     return TEXT
+
+
+def classify(filename: Optional[str], mime: Optional[str]) -> str:
+    """The branch an upload's NAME and declared MIME type claim: 'pdf' |
+    'xlsx' | 'csv' | 'image_jpeg' | 'image_png' | 'text' | 'unknown'.
+
+    A claim, not evidence — `stage_extract` and the upload routes both
+    start from it and then read the bytes. It lives here (it was
+    `pipeline._classify_file`, which now delegates) so the route and the
+    pipeline classify one way.
+    """
+    mime = (mime or "").lower()
+    name = (filename or "").lower()
+    if mime == "application/pdf" or name.endswith(".pdf"):
+        return "pdf"
+    if "spreadsheet" in mime or name.endswith(".xlsx") or name.endswith(".xls"):
+        return "xlsx"
+    if mime == "text/csv" or name.endswith(".csv"):
+        return "csv"
+    if mime == "image/jpeg" or name.endswith((".jpg", ".jpeg")):
+        return "image_jpeg"
+    if mime == "image/png" or name.endswith(".png"):
+        return "image_png"
+    if mime.startswith("text/") or name.endswith(".txt"):
+        return "text"
+    return "unknown"
 
 
 #: The containers that reach NO reader in this engine, on any path: an
@@ -221,38 +267,77 @@ def sniff_container(file_bytes: bytes) -> str:
 #: neither openpyxl nor xlrd, and an empty file is nothing at all — so
 #: every branch refuses these unconditionally. Everything else is decided
 #: per branch by `refused_on`, from what that branch's readers actually
-#: accept — `parse_trial_balance` dispatches on magic bytes, so an .xlsx
-#: under a .pdf name, or a balance PDF under a .xls name, is read today
-#: and must keep being read.
+#: accept.
 REACHES_NO_READER = frozenset({DOCX, PPTX, ODF, DOC_OLE2, PPT_OLE2, XLSB, EMPTY})
 
-#: What `stage_extract`'s non-spreadsheet, non-PDF branches (csv, text,
-#: image, unknown) can never read: their readers are the CSV parser
-#: (which decodes the bytes as text) and Claude's text or image lane, so
-#: a PDF, a workbook or any archive becomes decoded binary — measured: an
-#: Excel balance named balanta.csv went to the model as 172,681
-#: characters of zip bytes, and named .png as `image/png`.
-_CONTAINERS_NO_TEXT_READER = frozenset({PDF, XLSX, XLS_OLE2, OOXML_UNKNOWN, ZIP_UNKNOWN})
+#: Workbook and archive containers. `stage_extract`'s text branches (csv,
+#: text, image, unknown) cannot read them: their readers are the CSV parser
+#: (which decodes the bytes as text) and Claude's text or image lane, so a
+#: workbook or any archive becomes decoded binary — measured: an Excel
+#: balance named balanta.csv went to the model as 172,681 characters of
+#: zip bytes, and named .png as `image/png`. A PDF is NOT in this set: PDF
+#: bytes are read by the .pdf branch's readers under every name
+#: (`reads_as_pdf`).
+_CONTAINERS_NO_TEXT_READER = frozenset({XLSX, XLS_OLE2, OOXML_UNKNOWN, ZIP_UNKNOWN})
+
+#: `%%EOF` — the last line of every PDF. How far from the end it may sit.
+_PDF_TRAILER = b"%%EOF"
+_PDF_TRAILER_WINDOW = 2048
+
+
+def reads_as_pdf(kind: str, real: str, file_bytes: bytes) -> bool:
+    """True when these bytes are read by the .pdf branch's readers on
+    `stage_extract`'s `kind` branch — the strict text-line balanta reader
+    first (its refusal is final), then the positional reader under the .pdf
+    branch's acceptance gate, then the PDF model lane. ONE reading of a PDF,
+    whatever its name: `stage_extract` re-enters its own .pdf branch with
+    the bytes, so a balance PDF named .xls, .xlsx or .csv yields the
+    extraction the same bytes yield named .pdf, or the same refusal.
+
+    (Before 2026-10-02 the spreadsheet branch sent `%PDF` bytes straight to
+    the positional reader and accepted on "any rows": a five-pair balanta
+    named .xls was served with ONE account and a credit-first one with its
+    net profit sign-flipped — the read the .pdf branch refuses.)
+
+    · sniffed PDF (`%PDF-` in the first 1,024 bytes, no zip / OLE2
+      signature): on every branch.
+    · text or unnameable bytes carrying `%PDF-` further in (a header pushed
+      past the sniffer's window — pdfminer and the model both tolerate it):
+      on the .pdf and spreadsheet branches, where no other reader opens
+      such bytes; on the text and image branches only when the file also
+      ENDS like a PDF (`%%EOF` in its last 2,048 bytes) — a CSV that
+      merely mentions "%PDF-" stays a CSV.
+    """
+    if real == PDF:
+        return True
+    if real in (TEXT, UNKNOWN) and PDF_MAGIC in file_bytes:
+        if kind in ("pdf", "xlsx"):
+            return True
+        return _PDF_TRAILER in file_bytes[-_PDF_TRAILER_WINDOW:]
+    return False
 
 
 def refused_on(kind: str, real: str, file_bytes: bytes) -> bool:
     """True when NO reader on `stage_extract`'s `kind` branch can open a
-    file whose bytes are `real` — the one policy both guard sites read,
-    kept HERE beside the labels so the two call sites cannot drift apart.
+    file whose bytes are `real` — the one policy every guard site reads
+    (both of `stage_extract`'s, and the upload routes through
+    `upload_refusal`), kept HERE beside the labels so they cannot drift.
 
     Per branch, from the readers that branch actually runs:
 
-    · `pdf` — the text-line reader and Claude's PDF lane read PDF; the
-      positional `parse_trial_balance` also opens `%PDF` (first 8 bytes),
-      any zip through openpyxl (which needs `[Content_Types].xml`) and
-      OLE2 through xlrd. So PDF, XLSX, OOXML_UNKNOWN and XLS_OLE2 are
-      read; a zip with no Open XML manifest is not, and text or
-      unnameable bytes are not — UNLESS `%PDF-` occurs anywhere in them,
-      because pdfminer and the model both tolerate a header pushed past
-      the sniffer's window, and refusing a real PDF is the worse error.
-    · `xlsx` — `parse_trial_balance` dispatches on magic bytes and the
-      fallback renders whatever it can; CSV and HTML exports named .xls
-      are common. Only `REACHES_NO_READER`.
+    · everywhere — `REACHES_NO_READER` is refused, and bytes that
+      `reads_as_pdf` are never refused: the .pdf branch's readers read them.
+    · `pdf` and `xlsx` — the same answer, because the two names lead to the
+      same two families of reader: PDF bytes to the .pdf branch's readers,
+      and a workbook to `parse_trial_balance`, which opens any zip through
+      openpyxl (it needs `[Content_Types].xml`) and OLE2 through xlrd on
+      either branch. So XLSX, OOXML_UNKNOWN and XLS_OLE2 are read. A zip
+      with no Open XML manifest is not, and text or unnameable bytes are
+      not: measured 2026-10-02 on the spreadsheet branch, `_xlsx_to_text`
+      and `parse_trial_balance` both raise on them and the AI lane's
+      renderer is openpyxl only — a CSV named .xls ended "RuntimeError:
+      Unrecognized spreadsheet format … try Save As → Excel Workbook",
+      in English, with the wrong fix.
     · `csv` / `text` / `unknown` — text readers only:
       `_CONTAINERS_NO_TEXT_READER` is refused. Text and unnameable bytes
       (a UTF-16 CSV is "unknown") are not.
@@ -261,14 +346,10 @@ def refused_on(kind: str, real: str, file_bytes: bytes) -> bool:
     """
     if real in REACHES_NO_READER:
         return True
-    if kind == "pdf":
-        if real == ZIP_UNKNOWN:
-            return True
-        if real in (TEXT, UNKNOWN):
-            return PDF_MAGIC not in file_bytes
+    if reads_as_pdf(kind, real, file_bytes):
         return False
-    if kind == "xlsx":
-        return False
+    if kind in ("pdf", "xlsx"):
+        return real in (ZIP_UNKNOWN, TEXT, UNKNOWN)
     if real in _CONTAINERS_NO_TEXT_READER:
         return True
     if kind in ("image_jpeg", "image_png") and real == TEXT:
@@ -474,4 +555,27 @@ def mismatch_message(claimed_extension: str, real_kind: str,
         f"This file{shown} is named {claimed_extension} but its contents are "
         f"{described}, so no reader can open it as {claimed_extension}. "
         f"To fix it: {action}."
+    )
+
+
+def upload_refusal(filename: Optional[str], mime: Optional[str],
+                   file_bytes: bytes,
+                   language: Optional[str] = None) -> Optional[tuple]:
+    """THE VERDICT on an upload, for every caller that has its name, its
+    declared MIME type and its bytes: None when a reader opens it, else
+    `(real_label, sentence)` — the label `sniff_container` gives the bytes
+    and the sentence `mismatch_message` writes, in the reader's language.
+
+    One composition of the pieces above — `classify` → `sniff_container` →
+    `refused_on` → `mismatch_message` — so `stage_extract`'s guards and the
+    upload card's routes (`_uploads.format_mismatch`) cannot answer
+    differently for the same file. Never raises.
+    """
+    kind = classify(filename, mime)
+    real = sniff_container(file_bytes)
+    if not refused_on(kind, real, file_bytes):
+        return None
+    return real, mismatch_message(
+        claimed_extension(filename, kind), real,
+        filename=filename or None, language=language,
     )

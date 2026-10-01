@@ -89,7 +89,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from fastapi import APIRouter, File, Form, Header, HTTPException, UploadFile
 
-from . import _org, _supabase
+from . import _org, _supabase, _upload_type
 
 logger = logging.getLogger(__name__)
 
@@ -693,123 +693,55 @@ def _confirmed_period_end(value: Optional[str]) -> str:
 # ── The request body ───────────────────────────────────────────────────
 
 
-def _read_upload(file: UploadFile) -> Tuple[bytes, str, str]:
+def _read_upload(file: UploadFile, language: Optional[str] = None) -> Tuple[bytes, str, str]:
     content = file.file.read(MAX_UPLOAD_BYTES + 1)
+    filename = (file.filename or "").rsplit("/", 1)[-1].rsplit("\\", 1)[-1] or "upload"
     if not content:
-        raise HTTPException(400, {"code": "empty_file", "message": "The file is empty."})
+        # The sentence the pipeline's own guard writes for an empty file, in
+        # the reader's language — one policy, one wording (`_upload_type`).
+        raise HTTPException(400, {
+            "code": "empty_file",
+            "message": _upload_type.mismatch_message(
+                _upload_type.claimed_extension(filename, "unknown"), _upload_type.EMPTY,
+                filename=filename, language=language),
+        })
     if len(content) > MAX_UPLOAD_BYTES:
         raise HTTPException(413, {"code": "file_too_large",
                                   "message": "The file is larger than 25 MB."})
-    filename = (file.filename or "").rsplit("/", 1)[-1].rsplit("\\", 1)[-1] or "upload"
     return content, filename, (file.content_type or "application/octet-stream")
 
 
 # ── The real file type, from the bytes ─────────────────────────────────
 #
-# A Word document renamed .pdf — a PK (zip) container holding
-# word/document.xml — used to reach the PDF path: the identifier's PDF
-# reader failed, the card read "not in the document" everywhere, and
-# Analyse handed the file to Claude. The name says what the user believes;
-# the magic bytes say what the file IS. A provable mismatch is refused with
-# a plain sentence before the identifier, the meter or storage; bytes that
-# prove nothing (a CSV, an unknown header, a PK container that names no
-# Office part) are never refused.
-
-#: What the extension declares.
-_DECLARED_BY_EXT = {
-    "pdf": "pdf", "xlsx": "xlsx", "xlsm": "xlsx", "xls": "xls", "csv": "csv",
-    "jpg": "image", "jpeg": "image", "png": "image", "heic": "image", "heif": "image",
-    "pptx": "pptx", "ppt": "ppt",
-}
-
-#: The words for a kind the bytes prove, in the sentence "This is X, not Y."
-_KIND_WORDS = {
-    "pdf": "a PDF", "docx": "a Word document", "xlsx": "an Excel workbook",
-    "pptx": "a PowerPoint presentation", "zip": "a ZIP archive",
-    "ole": "an older Office document", "image": "an image",
-}
-
-#: What each declared kind is called in "…, not Y."
-_DECLARED_WORDS = {
-    "pdf": "a PDF", "xlsx": "an Excel workbook", "xls": "an Excel workbook",
-    "csv": "a CSV file", "image": "an image", "pptx": "a PowerPoint presentation",
-    "ppt": "a PowerPoint presentation",
-}
-
-#: The kinds each declared kind may actually be (everything else the bytes
-#: PROVE is a mismatch; "unknown" and "text" never refuse).
-_COMPATIBLE = {
-    "pdf": {"pdf"},
-    "xlsx": {"xlsx", "zip"},
-    "xls": {"ole", "xlsx", "zip"},      # .xls exports are often xlsx or HTML inside
-    "csv": {"text"},
-    "image": {"image"},
-    "pptx": {"pptx", "zip"},
-    "ppt": {"ole", "pptx", "zip"},
-}
+# ONE UPLOAD POLICY (coordinator ruling 2026-10-02). These routes used to
+# carry their own table of "what each extension may actually be"
+# (`_COMPATIBLE`), next to the pipeline's guard (`_upload_type`). The two
+# disagreed: the table refused an Excel balance named balanta.pdf ("This is
+# an Excel workbook, not a PDF.") and a balance PDF named .xls — both files
+# the pipeline READS — and waved through a Word document under its own
+# .docx name, which the pipeline refuses. The table is gone. The verdict is
+# `_upload_type.upload_refusal`, the same function `stage_extract`'s guards
+# are composed from: what the pipeline reads the card reads, what it
+# refuses the card refuses — before the identifier, the meter or storage —
+# in the same sentence, in the reader's language. A file is refused only
+# when NO reader on the branch its name leads to can open its bytes.
 
 
-def declared_file_kind(filename: str) -> Optional[str]:
-    return _DECLARED_BY_EXT.get(_ext_of(filename or ""))
+def format_mismatch(filename: str, content: bytes, mime: Optional[str] = None,
+                    language: Optional[str] = None) -> Optional[Tuple[str, str]]:
+    """(real type, sentence) when the pipeline would refuse this upload —
+    no reader opens these bytes under this name — else None. The verdict
+    and the sentence are `_upload_type.upload_refusal`'s; nothing is
+    decided here."""
+    return _upload_type.upload_refusal(filename, mime, content, language)
 
 
-def actual_file_kind(content: bytes) -> str:
-    """The kind the magic bytes prove: pdf / docx / xlsx / pptx / zip / ole /
-    image / text / unknown. Never raises."""
-    head = bytes(content[:16] or b"")
-    if head.startswith(b"%PDF"):
-        return "pdf"
-    if head.startswith(b"PK"):
-        names = []  # type: List[str]
-        try:
-            import io
-            import zipfile
-            with zipfile.ZipFile(io.BytesIO(content)) as z:
-                names = z.namelist()
-        except Exception:  # noqa: BLE001 — a truncated container: read the names off the bytes
-            for marker in (b"word/", b"xl/", b"ppt/"):
-                if marker in content[:262144] or marker in content[-262144:]:
-                    names.append(marker.decode("ascii"))
-        if any(n.startswith("word/") for n in names):
-            return "docx"
-        if any(n.startswith("xl/") for n in names):
-            return "xlsx"
-        if any(n.startswith("ppt/") for n in names):
-            return "pptx"
-        return "zip"
-    if head.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"):
-        return "ole"
-    if head.startswith(b"\x89PNG\r\n\x1a\n") or head.startswith(b"\xff\xd8\xff") or head.startswith(b"GIF8"):
-        return "image"
-    if len(head) >= 12 and head[4:8] == b"ftyp":
-        return "image"  # HEIC / HEIF (and any ISO media file a phone exports)
-    try:
-        content[:4096].decode("utf-8")
-        return "text"
-    except Exception:  # noqa: BLE001
-        return "unknown"
-
-
-def format_mismatch(filename: str, content: bytes) -> Optional[Tuple[str, str]]:
-    """(code, plain sentence) when the bytes PROVE the file is not what its
-    name says — "This is a Word document, not a PDF." — else None."""
-    declared = declared_file_kind(filename)
-    if not declared:
-        return None
-    actual = actual_file_kind(content)
-    if actual in ("unknown", "text") or actual in _COMPATIBLE.get(declared, set()):
-        return None
-    if actual not in _KIND_WORDS:
-        return None
-    code = "%s_not_%s" % (actual, declared)
-    return code, "This is %s, not %s." % (_KIND_WORDS[actual], _DECLARED_WORDS[declared])
-
-
-def _refuse_format_mismatch(filename: str, content: bytes) -> None:
-    hit = format_mismatch(filename, content)
+def _refuse_format_mismatch(filename: str, content: bytes, mime: Optional[str] = None,
+                            language: Optional[str] = None) -> None:
+    hit = format_mismatch(filename, content, mime, language)
     if hit is not None:
-        code, message = hit
-        raise HTTPException(422, {"code": "format_mismatch", "kind": code, "message": message})
+        real, message = hit
+        raise HTTPException(422, {"code": "format_mismatch", "kind": real, "message": message})
 
 
 def _ext_of(filename: str) -> str:
@@ -1016,6 +948,7 @@ def build_router() -> APIRouter:
     @router.post("/api/uploads/identify")
     def identify_upload(
         file: UploadFile = File(...),
+        output_language: Optional[str] = Form(None),
         authorization: Optional[str] = Header(None),
         x_org_id: Optional[str] = Header(None, alias="X-Org-Id"),
     ) -> Dict[str, Any]:
@@ -1030,9 +963,11 @@ def build_router() -> APIRouter:
         except HTTPException as exc:
             if exc.status_code != 404:  # 403: X-Org-Id names a company not theirs
                 raise
-        content, filename, _mime = _read_upload(file)
-        # The bytes, before anything reads them as what the name claims.
-        _refuse_format_mismatch(filename, content)
+        content, filename, _mime = _read_upload(file, output_language)
+        # The bytes, before anything reads them as what the name claims —
+        # the pipeline's own verdict, in the language the card is read in
+        # (`output_language`, the same field /commit takes).
+        _refuse_format_mismatch(filename, content, _mime, output_language)
         content_hash = hashlib.sha256(content).hexdigest()
         identity = identify(content, filename)
         with _supabase.per_user(jwt) as client:
@@ -1094,10 +1029,11 @@ def build_router() -> APIRouter:
             raise HTTPException(422, {"code": "target_required",
                                       "message": "Choose a company, or create a new one."})
         confirmed_end = _confirmed_period_end(period_end)
-        content, filename, mime = _read_upload(file)
-        # Belt and braces with identify: a mismatch never reaches storage,
-        # the meter or the pipeline (and so never Claude).
-        _refuse_format_mismatch(filename, content)
+        content, filename, mime = _read_upload(file, output_language)
+        # Belt and braces with identify: a file the pipeline would refuse
+        # never reaches storage, the meter or the pipeline (and so never
+        # Claude) — the same verdict, from the same function.
+        _refuse_format_mismatch(filename, content, mime, output_language)
         content_hash = hashlib.sha256(content).hexdigest()
         chosen_industry = (str(industry_key).strip() or None) if industry_key else None
 

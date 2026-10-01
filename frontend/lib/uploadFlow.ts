@@ -25,7 +25,6 @@
 import { useSyncExternalStore } from "react";
 
 import type { DocumentStatus } from "@/lib/supabase";
-import { sniffFileMismatch, type KindMismatch } from "@/lib/fileKind";
 import { isAcceptedFinancialUpload } from "@/lib/uploadAccept";
 import {
   commitUpload,
@@ -76,8 +75,9 @@ export interface FlowState {
   duplicate: { documentId: string; periodId: string | null; orgId: string; companyName: string } | null;
   error: {
     code: FlowErrorCode;
+    /** code "wrong_kind": the ENGINE's sentence — what the file really is
+     *  and what fixes it — in the reader's language, printed verbatim. */
     message: string | null;
-    kind?: KindMismatch;
     /** code "cap": the plan and the number of companies it allows. */
     cap?: { plan: string; count: number };
   } | null;
@@ -234,14 +234,12 @@ export async function startUploadFlow(
     return;
   }
   setFlow({ ...base, phase: "identifying" });
-  // The real type, from the bytes: a Word document renamed .pdf is told so
-  // here and never leaves the browser (lib/fileKind).
-  const mismatch = await sniffFileMismatch(file);
-  if (my !== token) return;
-  if (mismatch) {
-    setFlow({ ...base, phase: "error", error: { code: "wrong_kind", message: null, kind: mismatch } });
-    return;
-  }
+  // The real type is read from the bytes by the ENGINE — one upload policy
+  // (`engine/api/_upload_type`), the same verdict the pipeline gives: an
+  // Excel balance named .pdf and a balance PDF named .xls are read; a Word
+  // document is refused under any name. The browser used to carry its own
+  // table (lib/fileKind) and refused the first two before the engine saw
+  // them — a second authority, and it disagreed. There is none here now.
   try {
     const result = await identifyUpload(file, onScreenOrgId);
     if (my !== token) return;
@@ -268,10 +266,18 @@ export async function startUploadFlow(
     setFlow({ ...base, phase: "confirm", result, choice: defaultChoice(result) });
   } catch (err) {
     if (my !== token) return;
+    // A file no reader opens (or an empty one): the engine's refusal is
+    // final and its sentence is the message — not "we couldn't read the
+    // file, try again".
+    const refusedByType =
+      err instanceof UploadApiError && (err.code === "format_mismatch" || err.code === "empty_file");
     setFlow({
       ...base,
       phase: "error",
-      error: { code: "identify", message: err instanceof Error ? err.message : null },
+      error: {
+        code: refusedByType ? "wrong_kind" : "identify",
+        message: err instanceof Error ? err.message : null,
+      },
     });
   }
 }

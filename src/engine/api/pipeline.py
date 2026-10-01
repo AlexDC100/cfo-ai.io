@@ -355,10 +355,12 @@ class UploadedFileTypeMismatchError(UserFacingUploadError):
     Refuses only what reaches NO reader on the branch the file is on
     (`_upload_type.refused_on`: `REACHES_NO_READER` everywhere, plus what
     that branch's own readers cannot open). It must never refuse a
-    container a reader downstream would have parsed: `parse_trial_balance`
-    dispatches on magic bytes, so an Excel balance named .pdf and a
-    balance PDF named .xls are both read today. The sentence is in the
-    uploader's language (`documents.detected_language`).
+    container a reader would have parsed: an Excel balance named .pdf is
+    read as the workbook it is, and PDF bytes are read by the .pdf
+    branch's readers under every name (`_upload_type.reads_as_pdf`). The
+    upload card's routes take the same verdict from the same module
+    (`_upload_type.upload_refusal`). The sentence is in the uploader's
+    language (`documents.detected_language`).
     """
 
 
@@ -697,22 +699,13 @@ Begin."""
 
 
 def _classify_file(doc: Dict[str, Any]) -> str:
-    """Returns 'pdf' | 'xlsx' | 'csv' | 'image_jpeg' | 'image_png' | 'text' | 'unknown'."""
-    mime = (doc.get("mime_type") or "").lower()
-    name = (doc.get("original_filename") or "").lower()
-    if mime == "application/pdf" or name.endswith(".pdf"):
-        return "pdf"
-    if "spreadsheet" in mime or name.endswith(".xlsx") or name.endswith(".xls"):
-        return "xlsx"
-    if mime == "text/csv" or name.endswith(".csv"):
-        return "csv"
-    if mime == "image/jpeg" or name.endswith((".jpg", ".jpeg")):
-        return "image_jpeg"
-    if mime == "image/png" or name.endswith(".png"):
-        return "image_png"
-    if mime.startswith("text/") or name.endswith(".txt"):
-        return "text"
-    return "unknown"
+    """Returns 'pdf' | 'xlsx' | 'csv' | 'image_jpeg' | 'image_png' | 'text' | 'unknown'.
+
+    The branch the upload's NAME and MIME type claim. The rule itself lives
+    in `_upload_type.classify` — the one authority the upload routes read
+    too — so the pipeline and the upload card classify one way."""
+    from . import _upload_type as _ut
+    return _ut.classify(doc.get("original_filename"), doc.get("mime_type"))
 
 
 def _detect_spreadsheet_format(spreadsheet_bytes: bytes) -> str:
@@ -1152,9 +1145,27 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
       - JPG/PNG  → image content block
       - Plain text → text content block
     Anything else falls back to text after best-effort UTF-8 decoding.
+
+    READ BY REAL TYPE (2026-10-02). The name picks the branch, the BYTES
+    pick the readers: PDF bytes found on any other branch re-enter the
+    .pdf branch of the one body below (`_stage_extract_by_real_type`), so
+    they are read by the very same code a .pdf name runs — the strict
+    text-line balanta reader with its final refusal, the positional reader
+    under the .pdf acceptance gate, the PDF model lane — and yield the
+    same extraction or the same refusal. Not a second copy of the branch:
+    the same statements.
     """
+    return _stage_extract_by_real_type(doc, None)
+
+
+def _stage_extract_by_real_type(
+    doc: Dict[str, Any], _pdf_bytes_in_hand: Optional[bytes],
+) -> Dict[str, Any]:
+    """`stage_extract`'s body. `_pdf_bytes_in_hand` is set only by this
+    function's own re-entry (PDF bytes found on a non-.pdf branch) — it
+    selects the .pdf branch and hands it the stored file already read."""
     storage_path: str = doc["storage_path"]
-    kind = _classify_file(doc)
+    kind = "pdf" if _pdf_bytes_in_hand is not None else _classify_file(doc)
 
     # PDF still uses the existing parser (it has the canonical RO trial-balance
     # rubric in its system prompt — re-using avoids drift between two prompts).
@@ -1170,14 +1181,19 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
         # Detection runs locally on extracted text — zero Claude tokens
         # spent on the wrong format.
         try:
-            with _supabase.admin() as admin_client:
-                signed_for_text = admin_client.signed_url(
-                    "documents", storage_path,
-                    org_id=doc.get("org_id"), expires_in=300)
-            with httpx.Client(timeout=30.0) as http:
-                _r = http.get(signed_for_text)
-                _r.raise_for_status()
-                _pdf_bytes = _r.content
+            if _pdf_bytes_in_hand is not None:
+                # PDF bytes that arrived under another name: the branch that
+                # found them already holds the stored file.
+                _pdf_bytes = _pdf_bytes_in_hand
+            else:
+                with _supabase.admin() as admin_client:
+                    signed_for_text = admin_client.signed_url(
+                        "documents", storage_path,
+                        org_id=doc.get("org_id"), expires_in=300)
+                with httpx.Client(timeout=30.0) as http:
+                    _r = http.get(signed_for_text)
+                    _r.raise_for_status()
+                    _pdf_bytes = _r.content
             try:
                 from pypdf import PdfReader  # type: ignore
             except ImportError:
@@ -1601,10 +1617,6 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
         return _stamp_llm_extraction(out)
 
     # Everything else: download bytes, build a Claude message, parse the JSON.
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY not configured.")
-
     with _supabase.admin() as admin_client:
         signed = admin_client.signed_url(
             "documents", storage_path,
@@ -1613,6 +1625,31 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
         r = http.get(signed)
         r.raise_for_status()
         file_bytes = r.content
+
+    # ── PDF bytes are read as a PDF, whatever the file is named ─────
+    # Before anything on this branch reads them — and before this branch's
+    # own preconditions (the model key, the size ceiling), which the .pdf
+    # branch does not have: the read must be the one the same bytes get
+    # under a .pdf name, to the byte, or the same refusal.
+    #
+    # WHY (review 2026-10-02, HIGH). The spreadsheet fast-path below hands
+    # `%PDF` bytes to the positional ingester and accepts on "any rows".
+    # A five-pair balanta PDF named .xls was served with ONE account
+    # (account 121), MATERIAL_IMBALANCE; the credit-first variant with its
+    # net profit sign-flipped (a profit served as a loss); the off-by-a-cent
+    # one partially — all three books the .pdf branch reads whole or
+    # refuses for good (`BalantaPdfRefusedError`). The strict text-line
+    # reader and the "anchor or ≥ 50 accounts" gate lived on the .pdf
+    # branch only. They still do: these bytes now GO there.
+    from . import _upload_type as _ut
+    _real_kind = _ut.sniff_container(file_bytes)
+    if _ut.reads_as_pdf(kind, _real_kind, file_bytes):
+        logger.info(
+            "[stage_extract] %r is classified as %s but its bytes are a PDF "
+            "— reading it on the .pdf branch",
+            doc.get("original_filename") or "(no filename)", kind,
+        )
+        return _stage_extract_by_real_type(doc, file_bytes)
 
     if len(file_bytes) > 25 * 1024 * 1024:
         raise RuntimeError(f"File too large ({len(file_bytes)/1_000_000:.1f} MB) — 25 MB ceiling.")
@@ -1635,24 +1672,27 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
     #   · Office documents (Word / PowerPoint / OpenDocument, legacy .doc
     #     and .ppt included), a binary .xlsb and an empty file reach no
     #     reader anywhere — always refused.
-    #   · The xlsx branch refuses nothing else: `pack.parse_trial_balance`
-    #     routes `%PDF` bytes to the PyMuPDF ingester (a RAS balance PDF
-    #     stored as .xls is read there today — measured: corpus/
-    #     pdf_positional as `balanta.xls` → 249 rows), OLE2 to xlrd, and
-    #     CSV / HTML exports named .xls are common.
+    #   · PDF bytes never reach this guard: they were sent to the .pdf
+    #     branch above (`reads_as_pdf`), under every name.
+    #   · The xlsx branch reads workbooks — any Open XML zip through
+    #     openpyxl, OLE2 through xlrd — and nothing else: a zip with no
+    #     Open XML manifest, text (a CSV or an HTML export named .xls) and
+    #     unnameable bytes reach no reader there (measured 2026-10-02:
+    #     `parse_trial_balance` and `_xlsx_to_text` both raise, and the
+    #     person was told, in English and under a "RuntimeError:" prefix,
+    #     to "Save As → Excel Workbook" a CSV). They are refused by name,
+    #     with the fix — "rename it to .csv".
     #   · The csv / text / image / unknown branches read text (or an
-    #     image) only, so a PDF, a workbook, a legacy Office file or any
-    #     archive is refused there — measured before this: an Excel
-    #     balance named balanta.csv went to the model as 172,681
-    #     characters of zip bytes. The image branch refuses text too.
+    #     image) only, so a workbook, a legacy Office file or any archive
+    #     is refused there — measured before this: an Excel balance named
+    #     balanta.csv went to the model as 172,681 characters of zip
+    #     bytes. The image branch refuses text too.
     # Text and unnameable bytes keep today's behaviour on the text
     # branches (a UTF-16 CSV sniffs "unknown"; every real PNG or JPEG
     # does too), because those can still succeed downstream and a
     # refusal here would take away an upload that works. This path
     # carries every trial balance in production; it is not the place to
     # guess.
-    from . import _upload_type as _ut
-    _real_kind = _ut.sniff_container(file_bytes)
     if _ut.refused_on(kind, _real_kind, file_bytes):
         logger.info(
             "[stage_extract] %r classified as %s but its bytes are %s "
@@ -1667,6 +1707,14 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
                 language=doc.get("detected_language"),
             )
         )
+
+    # The model key is this branch's precondition — checked AFTER the type
+    # guard, so a file no reader opens is told what it is, not that a key
+    # is missing, and after the PDF re-entry, whose deterministic readers
+    # need no key (as under a .pdf name).
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise RuntimeError("ANTHROPIC_API_KEY not configured.")
 
     # ── AI-lane jurisdiction gate (xlsx/csv/text/image) ──────────────
     # Resolver BEFORE lane selection: HU/OTHER documents route to the

@@ -251,7 +251,7 @@ def pdf_upload(monkeypatch):
     except ImportError:  # SDK absent is the same guarantee
         pass
 
-    def _run(content: bytes, filename: str, language: Any = None):
+    def _run(content: bytes, filename: str, language: Any = None, mime: Any = None):
         class _Admin:
             def signed_url(self, *a: Any, **k: Any) -> str:
                 return "https://not-fetched.invalid/upload"
@@ -297,6 +297,8 @@ def pdf_upload(monkeypatch):
         if language is not None:
             # What /api/pipeline/run writes before the run: the UI language.
             doc["detected_language"] = language
+        if mime is not None:
+            doc["mime_type"] = mime
         return P.stage_extract(doc)
 
     _run.calls = calls  # type: ignore[attr-defined]
@@ -343,16 +345,20 @@ def test_an_excel_balance_named_pdf_is_READ_not_refused(pdf_upload):
 
 
 def test_a_balance_pdf_named_xls_is_READ_not_refused(sheet_upload):
-    """The mirror image, on the spreadsheet branch: its reader routes
-    `%PDF` bytes to the PyMuPDF ingester, so a RAS balance PDF stored as
-    .xls parses today. The first version of this guard listed PDF in the
-    spreadsheet refusal set and killed that path too."""
+    """The mirror image: a RAS balance PDF stored as .xls is read — by the
+    .pdf branch's readers, which is where PDF bytes go under every name
+    (`_upload_type.reads_as_pdf`), so the read IS the one the same bytes
+    get named .pdf. The first version of this guard listed PDF in the
+    spreadsheet refusal set and killed the upload; the second let the
+    spreadsheet branch's own fast-path read it, which skipped the strict
+    reader (the strict-layout laws further down)."""
     p = CORPUS / "pdf_positional" / "input.pdf"
     if not p.is_file():
         pytest.skip("corpus pdf_positional/input.pdf not present")
     parsed = sheet_upload(p.read_bytes(), "balanta_de_verificare_2025.xls")
     assert parsed.get("detected_type") == "trial_balance"
     assert parsed.get("accounts")
+    assert parsed == sheet_upload(p.read_bytes(), "balanta_de_verificare_2025.pdf")
     assert sheet_upload.calls["claude_lane"] == 0  # type: ignore[attr-defined]
 
 
@@ -390,22 +396,20 @@ def test_a_docx_named_xlsx_is_refused_before_the_paid_path(sheet_upload):
     assert sheet_upload.calls["claude_lane"] == 0  # type: ignore[attr-defined]
 
 
-def test_a_pdf_named_csv_is_told_to_rename_it_not_that_it_is_unreadable(sheet_upload):
-    """A PDF on the CSV branch reaches no reader (`parse_trial_balance_csv`
-    has no PDF dispatch, unlike the xlsx entry point), so refusing it is
-    right — but the refusal must name it a PDF, not "not a readable
-    document"."""
-    from engine.api.pipeline import UploadedFileTypeMismatchError
-
+def test_a_pdf_named_csv_is_read_as_the_pdf_it_is(sheet_upload):
+    """THIS TEST REPLACES ONE THAT PINNED THE OLD RULING ("a PDF named .csv
+    is told to rename it"). Coordinator ruling 2026-10-02 — one upload
+    policy, read by real type: PDF bytes go through the .pdf branch's
+    readers on EVERY branch, so the person is not sent away to rename a
+    file the engine can read. Reds if PDF returns to the text branches'
+    refusal set, or if the read differs from the .pdf-named one."""
     p = CORPUS / "pdf_positional" / "input.pdf"
     if not p.is_file():
         pytest.skip("corpus pdf_positional/input.pdf not present")
-    with pytest.raises(UploadedFileTypeMismatchError) as e:
-        sheet_upload(p.read_bytes(), "balanta.csv")
-    msg = str(e.value)
-    assert "PDF" in msg and "rename it to .pdf" in msg
-    assert "not a readable document" not in msg
-    assert "balanta.csv" in msg and ".csv" in msg
+    parsed = sheet_upload(p.read_bytes(), "balanta.csv")
+    assert parsed.get("detected_type") == "trial_balance" and parsed.get("accounts")
+    assert parsed == sheet_upload(p.read_bytes(), "balanta.pdf")
+    assert sheet_upload.calls["claude_lane"] == 0  # type: ignore[attr-defined]
 
 
 def test_real_corpus_books_still_parse_through_the_guarded_path(sheet_upload):
@@ -440,39 +444,64 @@ def test_real_corpus_books_still_parse_through_the_guarded_path(sheet_upload):
     assert sheet_upload.calls["claude_lane"] == 0  # type: ignore[attr-defined]
 
 
-def test_text_and_unnameable_bytes_keep_todays_behaviour(sheet_upload):
-    """The guard is deliberately narrow: a CSV mistakenly named .xlsx, or
-    bytes we cannot name, must NOT be refused here — they can still
-    succeed downstream, and refusing them would remove working uploads.
-    Reds if someone widens the tuple to UNKNOWN/TEXT/ZIP_UNKNOWN."""
-    from engine.api.pipeline import UploadedFileTypeMismatchError
+@pytest.mark.parametrize("name", ["balanta.xlsx", "balanta.xls"])
+def test_the_spreadsheet_branch_refuses_by_name_what_none_of_its_readers_opens(sheet_upload, name):
+    """THIS TEST REPLACES ONE THAT PINNED A DEFECT. Its earlier form
+    ("text and unnameable bytes keep today's behaviour") asserted that a
+    CSV named .xlsx and a cut-off archive are NOT refused, on the premise
+    that "they can still succeed downstream". Measured 2026-10-02 they
+    cannot: `parse_trial_balance` and `_xlsx_to_text` both raise on them
+    and the AI lane's renderer is openpyxl only. The run ended "RuntimeError:
+    Unrecognized spreadsheet format … try Save As → Excel Workbook (.xlsx)"
+    — English whatever the interface, class name included, and the wrong
+    fix for a CSV — after constructing a model client.
 
-    reached_paid = 0
-    for content, name in ((b"Cont;Denumire;Debit;Credit\n100;Capital;;80\n", "balanta.xlsx"),
-                          (b"PK\x03\x04" + b"\x00" * 20, "balanta.xlsx")):
-        try:
-            sheet_upload(content, name)
-        except UploadedFileTypeMismatchError as e:
-            pytest.fail(f"{name} with {content[:8]!r} was refused as a type mismatch: {e}")
-        except AssertionError as e:
-            # The fixture's own tripwire, NOT a test failure here: these two
-            # inputs do still reach the paid fallback today, which is the
-            # behaviour this test exists to preserve. A bare `except
-            # Exception: pass` swallowed this invisibly — the one test in
-            # the file that walked the whole fallback was also the one that
-            # could not report reaching Anthropic.
-            if "paid path" not in str(e) and "Claude lane" not in str(e):
-                raise
-            reached_paid += 1
-        except Exception:
-            pass  # any other outcome is today's behaviour, unchanged
-    # Stated, not hidden: with the guard deliberately narrow, these inputs
-    # still reach the paid lane. That is why topping up Anthropic credit is
-    # a separate, real blocker — not something this guard resolves.
-    assert reached_paid == 2, (
-        "expected both narrow-guard inputs to still reach the paid fallback "
-        f"(today's behaviour); reached {reached_paid}"
-    )
+    Reds on: text, unnameable bytes or a zip with no Open XML manifest
+    reaching a reader or a model client on the spreadsheet branch; the
+    refusal not naming the file, the real type and the fix; a Romanian
+    reader told it in English."""
+    cases = {
+        "a UTF-8 csv": (b"Cont;Denumire;Debit;Credit\n100;Capital;;80\n", "text file", "rename it to .csv"),
+        "a cp1250 csv": ("Cont;Denumire\n101;Capital subscris v\u0103rsat;\u021bar\u0103\n".encode("cp1250", "replace")
+                         + "121;Rezultat \u00een curs\n".encode("cp1250"), "text file", "rename it to .csv"),
+        "an HTML export": (b"<html><table><tr><td>Cont</td><td>101</td></tr></table></html>",
+                           "text file", "rename it to .csv"),
+        "a UTF-16 csv": ("Cont;Denumire\n101;Capital\n".encode("utf-16"),
+                         "not a readable document", "re-export the balance"),
+        "a cut-off archive": (b"PK\x03\x04" + b"\x00" * 20, "ZIP archive or a damaged file", "export or download it again"),
+        "a zip of a workbook": (_zip_of({"balanta.xlsx": _real_xlsx()}), "ZIP archive", "not an archive of it"),
+    }
+    for label, (content, described, fix) in cases.items():
+        msg = _refused(sheet_upload, content, name)
+        assert repr(name) in msg and described in msg and fix in msg, (label, msg)
+        assert "RuntimeError" not in msg and "Save As" not in msg, (label, msg)
+        ro = _refused(sheet_upload, content, name, "ro")
+        assert "Ca să rezolvi:" in ro and "To fix it" not in ro, (label, ro)
+    # Refused BEFORE the fallback: the earlier behaviour constructed a model
+    # client on every one of these.
+    assert sheet_upload.calls["claude_lane"] == 0  # type: ignore[attr-defined]
+
+
+def test_legacy_code_page_text_is_text_not_unnameable():
+    """A cp1250 / ISO-8859-2 export is not valid UTF-8 the moment it carries
+    a diacritic, and a UTF-8 file can be cut mid-character by the sniffer's
+    2,048-byte window — both were "not a readable document". They are text:
+    the sentence a person gets must say "rename it to .csv". A binary blob
+    (control bytes) and a UTF-16 file (NULs) stay unnameable."""
+    cp1250 = "Cont;Denumire\n101;Capital v\u0103rsat\n".encode("cp1250")
+    with pytest.raises(UnicodeDecodeError):
+        cp1250.decode("utf-8")
+    assert ut.sniff_container(cp1250) == ut.TEXT
+    cut = ("a" * 2047 + "\u0103").encode("utf-8")  # the window ends inside the character
+    with pytest.raises(UnicodeDecodeError):
+        cut[:2048].decode("utf-8")
+    assert ut.sniff_container(cut) == ut.TEXT
+    assert ut.sniff_container(b"\x01\x02\xff\xfe" * 16) == ut.UNKNOWN
+    assert ut.sniff_container("Cont;Denumire\n".encode("utf-16")) == ut.UNKNOWN
+    assert ut.sniff_container(_png()) == ut.UNKNOWN
+    committed = CORPUS / "csv" / "input.csv"
+    if committed.is_file():
+        assert ut.sniff_container(committed.read_bytes()) == ut.TEXT
 
 
 def test_the_guard_still_runs_when_the_first_download_fails(monkeypatch):
@@ -926,7 +955,9 @@ def test_the_pdf_branch_still_reads_a_pdf_whose_header_sits_past_the_window(pdf_
     from engine.api.pipeline import UploadedFileTypeMismatchError
 
     content = b"J" * 2000 + _corpus("pdf_positional/input.pdf")
-    assert ut.sniff_container(content) == ut.UNKNOWN
+    # Not PDF by the sniffer (text or unnameable, by what the window holds):
+    assert ut.sniff_container(content) in (ut.TEXT, ut.UNKNOWN)
+    assert ut.reads_as_pdf("pdf", ut.sniff_container(content), content)
     with pytest.raises(AssertionError, match="Claude lane"):
         try:
             pdf_upload(content, "balanta.pdf")
@@ -967,11 +998,13 @@ def test_a_workbook_on_a_text_branch_is_told_to_take_its_own_name(sheet_upload, 
     assert sheet_upload.calls["claude_lane"] == 0  # type: ignore[attr-defined]
 
 
-@pytest.mark.parametrize("content_key", ["pdf", "zip", "ole2"])
+@pytest.mark.parametrize("content_key", ["zip", "ole2"])
 @pytest.mark.parametrize("name", ["balanta.csv", "balanta.txt", "balanta.png", "balanta"])
 def test_no_container_reaches_a_text_reader(sheet_upload, name, content_key):
+    """A workbook or an archive on a text branch is refused. (A PDF is not
+    in this set since 2026-10-02: it is READ, by the .pdf branch's readers —
+    `test_pdf_bytes_are_read_by_the_pdf_readers_under_every_name`.)"""
     content = {
-        "pdf": lambda: _corpus("pdf_positional/input.pdf"),
         "zip": lambda: _zip_of({"balanta.pdf": b"%PDF-1.4 inside an archive"}),
         "ole2": lambda: _cfb({"Workbook": b"\x09\x08" + b"x" * 600}),
     }[content_key]()
@@ -1125,3 +1158,328 @@ def test_the_real_branch_answers_in_the_language_the_run_carries(pdf_upload, nam
     assert en.startswith("This file") and "Word document (.docx)" in en, en
     assert _refused(pdf_upload, content, name).startswith("This file")
     assert pdf_upload.calls["claude_lane"] == 0  # type: ignore[attr-defined]
+
+
+# ════════════════════════════════════════════════════════════════════
+# ONE UPLOAD POLICY, READ BY REAL TYPE (coordinator ruling 2026-10-02)
+# ════════════════════════════════════════════════════════════════════
+#
+# The owner's expectation, verbatim: "Carniprod canary as balanta.pdf is
+# read; a balance PDF as .xls is read; a Word file refused both ways".
+#
+# WHAT THE REVIEW FOUND ON THE RELEASE HEAD (eeafcadb), all reproduced:
+#   · HIGH — a five-pair balanta PDF named .xls / .xlsx was served with ONE
+#     account (121), MATERIAL_IMBALANCE; the credit-first variant with the
+#     account-121 anchor at −12,345.67 (a profit served as a loss); the
+#     off-by-a-cent one partially. Named .pdf the first is read whole and
+#     the other two are refused for good. The strict reader ran on the .pdf
+#     branch only.
+#   · the upload card's routes carried their OWN table and refused the two
+#     files the pipeline reads (the canary as .pdf, a balance PDF as .xls).
+#   · the upload picker offered .ppt / .pptx, which every branch refuses.
+#
+# WHAT THESE RED ON, after the repair (TC-11): PDF bytes read by anything
+# but the .pdf branch's readers under any name — a read that differs from
+# the .pdf-named one by a byte, or a different refusal; a workbook named
+# .pdf reading differently from the same bytes named .xlsx; the routes'
+# verdict or sentence differing from the pipeline guard's for any (name,
+# bytes) pair, in either language; the picker offering an extension whose
+# own file type no reader opens.
+
+_XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+_NAMES = [
+    ("balanta.pdf", "application/pdf"),
+    ("balanta.xlsx", _XLSX_MIME),
+    ("balanta.xls", "application/vnd.ms-excel"),
+    ("balanta.csv", "text/csv"),
+    ("balanta.txt", "text/plain"),
+    ("balanta.png", "image/png"),
+    ("balanta.jpg", "image/jpeg"),
+    ("balanta.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+    ("balanta.doc", "application/msword"),
+    ("balanta.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"),
+    ("balanta", "application/octet-stream"),
+]
+
+
+def _canonical(parsed: Dict[str, Any]) -> str:
+    import json
+    return json.dumps(parsed, sort_keys=True, default=str, ensure_ascii=False)
+
+
+def _outcome(run: Any, content: bytes, name: str, mime: str) -> Any:
+    """("read", canonical payload) or ("refused", exception class, sentence).
+    The fixture's own tripwires (a model client, the Claude lane) are
+    AssertionErrors and are an outcome too — they must match as well."""
+    try:
+        return ("read", _canonical(run(content, name, None, mime)))
+    except Exception as e:  # noqa: BLE001
+        return ("refused", type(e).__name__, str(e))
+
+
+@pytest.fixture
+def strict_books(monkeypatch):
+    """The synthetic balanta PDFs of test_pdf_balanta_stage_extract (PyMuPDF,
+    an invented company, invented figures): the three five-pair books of
+    the HIGH finding, the four-pair one and the eight-figure one."""
+    pytest.importorskip("fitz")
+    import test_pdf_balanta_stage_extract as PB
+
+    PB._on_parser(monkeypatch, "tb_parser_v6")
+    return {
+        "five_pair": PB._pdf_bytes(PB._synthetic_five_pair_lines()),
+        "five_pair_credit_first": PB._pdf_bytes(PB._tampered(PB._credit_first)),
+        "five_pair_off_by_a_cent": PB._pdf_bytes(PB._tampered(PB._off_by_a_cent)),
+        "four_pair": PB.FOUR.pdf(),
+        "eight_figure": PB._pdf_bytes(PB._synthetic_balanta_lines()),
+    }
+
+
+@pytest.mark.parametrize("name,mime", [n for n in _NAMES if n[0] != "balanta.pdf"])
+def test_pdf_bytes_are_read_by_the_pdf_readers_under_every_name(pdf_upload, strict_books, name, mime):
+    """D1(a): a balance PDF under ANY other name yields the extraction the
+    same bytes yield named .pdf — byte-identical — or the identical
+    refusal. Five books × every name the classifier tells apart."""
+    for label, content in strict_books.items():
+        as_pdf = _outcome(pdf_upload, content, "balanta.pdf", "application/pdf")
+        other = _outcome(pdf_upload, content, name, mime)
+        assert other == as_pdf, (label, name, other[:2], as_pdf[:2])
+    assert pdf_upload.calls["claude_lane"] == 0  # type: ignore[attr-defined]
+
+
+@pytest.mark.parametrize("name,mime", [("balanta.xls", "application/vnd.ms-excel"),
+                                       ("balanta.xlsx", _XLSX_MIME)])
+def test_the_five_pair_books_of_the_high_finding_under_a_spreadsheet_name(pdf_upload, strict_books, name, mime):
+    """THE HIGH FINDING, stated outright rather than only as an equality
+    (an equality of two wrong reads would pass the law above): the whole
+    book is read by the strict reader — never the positional one, never one
+    account — and the two tampered books are REFUSED, finally, with the
+    strict reader's own refusal. The credit-first book was served with its
+    net profit sign-flipped."""
+    from decimal import Decimal
+    from engine.api.pipeline import BalantaPdfRefusedError
+
+    parsed = pdf_upload(strict_books["five_pair"], name, None, mime)
+    ext = parsed.get("extraction") or {}
+    assert ext.get("source_format") == "saga_10_col", ext      # the strict reader's hand-over
+    assert ext.get("source_format") != "pdf_positional"
+    assert len(parsed.get("accounts") or []) > 1, "a partial balance: one account"
+    assert Decimal(str(parsed["statutory_net_profit_anchor"])).quantize(Decimal("0.01")) == Decimal("12345.67")
+    for tampered in ("five_pair_credit_first", "five_pair_off_by_a_cent"):
+        with pytest.raises(BalantaPdfRefusedError) as e:
+            pdf_upload(strict_books[tampered], name, None, mime)
+        assert "five column pairs" in str(e.value), str(e.value)
+    assert pdf_upload.calls["claude_lane"] == 0  # type: ignore[attr-defined]
+
+
+@pytest.mark.parametrize("rel", ["saga_10_col_carniprod/input.xlsx", "saga_10_col/input.xlsx"])
+def test_a_workbook_named_pdf_reads_as_the_same_bytes_named_xlsx(pdf_upload, rel):
+    """D1(b): workbook bytes on the .pdf branch are read as the workbook —
+    the same payload the same bytes yield under their own .xlsx name."""
+    content = _corpus(rel)
+    as_xlsx = _outcome(pdf_upload, content, "balanta.xlsx", _XLSX_MIME)
+    as_pdf = _outcome(pdf_upload, content, "balanta.pdf", "application/pdf")
+    assert as_xlsx[0] == "read", as_xlsx[:2]
+    assert as_pdf == as_xlsx
+    assert pdf_upload.calls["claude_lane"] == 0  # type: ignore[attr-defined]
+
+
+def test_the_pdf_rule_on_the_text_branches_needs_the_file_to_end_like_a_pdf():
+    """A displaced `%PDF-` header is a PDF on the .pdf and spreadsheet
+    branches (no other reader there opens such bytes); on the text branches
+    only when the file also ends `%%EOF` — a CSV that mentions "%PDF-" in a
+    cell stays a CSV."""
+    csv_mentioning = b"Cont;Denumire\n" + b"x" * 1100 + b"\n101;export %PDF-1.4 vechi\n"
+    assert ut.sniff_container(csv_mentioning) == ut.TEXT
+    for kind in ("csv", "text", "unknown", "image_png"):
+        assert not ut.reads_as_pdf(kind, ut.TEXT, csv_mentioning), kind
+    displaced = b"J" * 2000 + b"%PDF-1.4\n1 0 obj\nendobj\ntrailer\n%%EOF\n"
+    real = ut.sniff_container(displaced)
+    assert real in (ut.TEXT, ut.UNKNOWN)
+    for kind in ("pdf", "xlsx", "csv", "text", "unknown", "image_png", "image_jpeg"):
+        assert ut.reads_as_pdf(kind, real, displaced), kind
+        assert not ut.refused_on(kind, real, displaced), kind
+
+
+# ── the upload card's routes read the SAME verdict ─────────────────
+
+def _policy_bodies() -> Dict[str, bytes]:
+    return {
+        "a workbook": _corpus("saga_10_col/input.xlsx"),
+        "a balance PDF": _corpus("pdf_positional/input.pdf"),
+        "a PDF behind 2,000 junk bytes": b"J" * 2000 + _corpus("pdf_positional/input.pdf"),
+        "a Word document": _ooxml("word"),
+        "a PowerPoint file": _ooxml("ppt"),
+        "an OpenDocument file": _odf(),
+        "a binary workbook": _zip_of({"[Content_Types].xml": b"<Types/>", "xl/workbook.bin": b"\x00"}),
+        "an unrecognised Office zip": _zip_of({"[Content_Types].xml": b"<Types/>", "workbook.xml": b"<w/>"}),
+        "a legacy Word document": WORD97.read_bytes(),
+        "a legacy PowerPoint": _cfb({"PowerPoint Document": b"p" * 600}),
+        "a legacy workbook container": _cfb({"Workbook": b"\x09\x08" + b"x" * 600}),
+        "a zip archive": _zip_of({"balanta.pdf": b"%PDF-1.4 inside an archive"}),
+        "a cut-off archive": b"PK\x03\x04" + b"\x00" * 20,
+        "a csv": b"Cont;Denumire;Debit;Credit\n101;Capital;;80\n",
+        "a cp1250 csv": "Cont;Denumire\n101;Capital vărsat\n".encode("cp1250"),
+        "a UTF-16 csv": "Cont;Denumire\n101;Capital\n".encode("utf-16"),
+        "a PNG": _png(),
+        "an empty file": b"",
+    }
+
+
+class _PastTheGuard(BaseException):
+    """A reader or lane was reached: the type guard let the file through.
+    BaseException — stage_extract wraps its readers in `except Exception`,
+    and this must not be swallowed there."""
+
+
+@pytest.fixture
+def reached(monkeypatch):
+    """Stops stage_extract at the FIRST reader or lane it hands a document
+    to — "refused by the GUARD" means the refusal came with none of them
+    reached (the .pdf branch has one later refusal, after its readers
+    declined a workbook; that one is not the guard's and the routes cannot
+    know it). Stopping there, rather than counting and reading on, is what
+    keeps a 198-pair matrix affordable: what a reader then makes of the file
+    is the other laws' subject."""
+    from engine.api import pipeline as P
+
+    seen: Dict[str, int] = {"n": 0}
+
+    def wrap(owner: Any, attr: str) -> None:
+        def _stop(*a: Any, **k: Any) -> Any:
+            seen["n"] += 1
+            raise _PastTheGuard(attr)
+
+        monkeypatch.setattr(owner, attr, _stop)
+
+    pack_cls = type(P._ro_pack())
+    wrap(pack_cls, "parse_trial_balance")
+    wrap(pack_cls, "parse_trial_balance_csv")
+    wrap(P._pdf_balanta_text, "read_balanta_text_verdict")
+    wrap(P, "_maybe_route_ai_lane")
+    wrap(P, "_xlsx_to_text")
+    return seen
+
+
+def _guard_verdict(run: Any, reached: Dict[str, int], content: bytes, name: str, mime: str,
+                   language: Any = None) -> Any:
+    """None when stage_extract's type guard let the file through (whatever
+    happened to it afterwards), else the guard's sentence."""
+    from engine.api.pipeline import UploadedFileTypeMismatchError
+
+    before = (reached["n"], run.calls["claude_lane"])
+    try:
+        run(content, name, language, mime)
+    except UploadedFileTypeMismatchError as e:
+        if (reached["n"], run.calls["claude_lane"]) == before:
+            return str(e)
+    except BaseException:  # noqa: BLE001 — read on, declined, or a tripwire: not the guard
+        pass
+    return None
+
+
+def test_one_upload_policy_the_routes_verdict_is_the_pipeline_guards(pdf_upload, reached):
+    """D1(d) — THE LAW. Over the matrix of (claimed name, real bytes), what
+    the upload card's routes answer (`_uploads.format_mismatch`, called by
+    /api/uploads/identify and /commit) IS what stage_extract's guard does:
+    read where it reads, refused where it refuses, the same sentence — in
+    English and in Romanian. Driven through the REAL stage_extract, not
+    through `refused_on` (comparing the policy with itself proves nothing).
+
+    Plant-proven (docs/engine_book/gates.md, upload-real-type): the routes'
+    old table restored for one pair reds this."""
+    from engine.api import _uploads
+
+    bodies = _policy_bodies()
+    refused = read = 0
+    for label, content in bodies.items():
+        for name, mime in _NAMES:
+            guard = _guard_verdict(pdf_upload, reached, content, name, mime)
+            route = _uploads.format_mismatch(name, content, mime)
+            assert (route is None) == (guard is None), (
+                f"{label} named {name}: the routes "
+                f"{'READ' if route is None else 'REFUSE'} it, the pipeline guard "
+                f"{'READS' if guard is None else 'REFUSES'} it")
+            if guard is None:
+                read += 1
+                continue
+            refused += 1
+            assert route[1] == guard, (label, name, route[1], guard)
+            assert route[0] == ut.sniff_container(content), (label, name, route)
+            ro_guard = _guard_verdict(pdf_upload, reached, content, name, mime, "ro")
+            ro_route = _uploads.format_mismatch(name, content, mime, "ro")
+            assert ro_route is not None and ro_route[1] == ro_guard, (label, name, ro_route, ro_guard)
+            assert "Ca să rezolvi:" in ro_route[1] and "To fix it" not in ro_route[1], ro_route[1]
+    # Non-vacuity: the matrix exercises both answers, many times.
+    assert refused >= 60 and read >= 40, (refused, read)
+
+
+def test_the_owners_three_files_at_the_routes_and_in_the_pipeline(pdf_upload):
+    """The owner's sentence, at both layers: the canary workbook as
+    balanta.pdf is read; a balance PDF as .xls is read; a Word file is
+    refused both ways (named .pdf, and under its own name)."""
+    from engine.api import _uploads
+    from engine.api.pipeline import UploadedFileTypeMismatchError
+
+    canary = _corpus("saga_10_col_carniprod/input.xlsx")
+    pdf = _corpus("pdf_positional/input.pdf")
+    docx = _ooxml("word")
+    assert _uploads.format_mismatch("balanta.pdf", canary, "application/pdf") is None
+    assert pdf_upload(canary, "balanta.pdf", None, "application/pdf").get("accounts")
+    assert _uploads.format_mismatch("balanta.xls", pdf, "application/vnd.ms-excel") is None
+    assert pdf_upload(pdf, "balanta.xls", None, "application/vnd.ms-excel").get("accounts")
+    for name, mime, must in (("balanta.pdf", "application/pdf", "is named .pdf but its contents are"),
+                             ("balanta.docx", _NAMES[7][1], "which this app cannot read")):
+        hit = _uploads.format_mismatch(name, docx, mime)
+        assert hit is not None and hit[0] == ut.DOCX and must in hit[1], (name, hit)
+        with pytest.raises(UploadedFileTypeMismatchError) as e:
+            pdf_upload(docx, name, None, mime)
+        assert str(e.value) == hit[1]
+    assert pdf_upload.calls["claude_lane"] == 0  # type: ignore[attr-defined]
+
+
+def test_the_classifier_is_the_one_the_pipeline_runs():
+    """`pipeline._classify_file` is `_upload_type.classify` — the routes
+    classify by the same rule the pipeline does."""
+    from engine.api import pipeline as P
+
+    for name, mime in _NAMES + [("Balanta.PDF", ""), ("balanta.xlsm", "application/vnd.ms-excel.sheet.macroEnabled.12"),
+                                ("raport.csv", "application/vnd.ms-excel"), ("scan.jpeg", ""), ("note.txt", "")]:
+        doc = {"original_filename": name, "mime_type": mime}
+        assert P._classify_file(doc) == ut.classify(name, mime), (name, mime)
+    assert ut.classify("balanta.xls", "application/vnd.ms-excel") == "xlsx"
+    assert ut.classify("raport.csv", "application/vnd.ms-excel") == "csv"
+    assert ut.classify(None, None) == "unknown"
+
+
+# ── the picker offers nothing the engine refuses by name ────────────
+
+def _offered_extensions() -> list:
+    import re as _re
+
+    src = (REPO / "frontend" / "lib" / "uploadAccept.ts").read_text(encoding="utf-8")
+    block = _re.search(r"FINANCIAL_UPLOAD_EXTENSIONS\s*=\s*\[(.*?)\]", src, _re.S)
+    assert block, "FINANCIAL_UPLOAD_EXTENSIONS not found in frontend/lib/uploadAccept.ts"
+    return _re.findall(r'"(\.[a-z0-9]+)"', block.group(1))
+
+
+def test_the_upload_picker_offers_no_type_the_engine_refuses_by_name():
+    """D1(e). `frontend/lib/uploadAccept.ts` is what every financial upload
+    input and drop zone offers. An extension whose OWN file type reaches no
+    reader (`REACHES_NO_READER` — a PowerPoint file under .pptx or .ppt, a
+    Word document, a binary workbook, OpenDocument) is an invitation to a
+    refusal. On the release head it offered .pptx and .ppt."""
+    import re as _re
+
+    offered = _offered_extensions()
+    assert {".pdf", ".xlsx", ".xls", ".csv"} <= set(offered), offered
+    for ext in offered:
+        dead = sorted(label for label, exts in ut._NATURAL_EXTENSIONS.items()
+                      if ext in exts and label in ut.REACHES_NO_READER)
+        assert dead == [], f"the picker offers {ext}, which is {dead} — refused on every branch"
+    src = (REPO / "frontend" / "lib" / "uploadAccept.ts").read_text(encoding="utf-8")
+    accept = _re.search(r"FINANCIAL_UPLOAD_ACCEPT\s*=\s*\n?\s*\"([^\"]*)\"", src)
+    assert accept, "FINANCIAL_UPLOAD_ACCEPT not found"
+    tokens = [t.strip() for t in accept.group(1).split(",") if t.strip()]
+    assert not [t for t in tokens if "powerpoint" in t or "presentation" in t or t in (".ppt", ".pptx")], tokens
+    assert sorted(t for t in tokens if t.startswith(".")) == sorted(offered), (tokens, offered)
