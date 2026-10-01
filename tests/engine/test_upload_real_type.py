@@ -570,3 +570,97 @@ def test_the_honest_and_mismatched_forms_both_carry_an_action():
         msg = ut.mismatch_message(claimed, kind, filename="f" + claimed)
         assert "To fix it:" in msg
         assert "credit" not in msg.lower() and "claude" not in msg.lower()
+
+
+# ── release r-rulings2 (2026-10-01): the natural form and the stored sentence ──
+
+def test_an_honestly_named_docx_is_refused_through_the_real_branch(sheet_upload):
+    """THE 2026-09-23 INCIDENT FILE IN ITS NATURAL FORM, end to end: a Word
+    document uploaded as ``balanta.docx`` is classified ``unknown`` and used
+    to reach the paid fallback. Through the REAL stage_extract it is refused
+    with the unsupported-format sentence — never the self-contradicting
+    "named .docx but its contents are a Word document" — before any reader
+    or model call. The message-only test above never drove this branch.
+
+    Reds if the guard covers only the renamed kinds (pdf / xlsx / csv), or
+    if the honest form falls back to the mismatch sentence.
+    """
+    from engine.api import pipeline as P
+    from engine.api.pipeline import UploadedFileTypeMismatchError
+
+    doc = {"original_filename": "balanta.docx",
+           "mime_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
+    assert P._classify_file(doc) == "unknown"
+    with pytest.raises(UploadedFileTypeMismatchError) as e:
+        sheet_upload(_ooxml("word"), "balanta.docx")
+    msg = str(e.value)
+    assert "Word document" in msg and "which this app cannot read" in msg, msg
+    assert "but its contents are" not in msg and "is named .docx" not in msg, msg
+    assert "balanta.docx" in msg and "To fix it:" in msg, msg
+    assert sheet_upload.calls["claude_lane"] == 0  # type: ignore[attr-defined]
+
+
+def test_the_failure_handler_stores_the_sentence_without_a_class_name(monkeypatch):
+    """`documents.error` is what the upload card prints. The release's
+    failure handler (in `_run_pipeline_stages`) already stored a
+    `PlainRefusal` as its own sentence; the type refusal joins it through
+    `UserFacingUploadError`. Driven through the REAL `_run_pipeline_sync`
+    (the daemon thread's terminal) with stage_extract raising, over an
+    in-memory documents table.
+
+    Reds if the handler prefixes the class name onto the sentence written
+    for the uploader ("UploadedFileTypeMismatchError: This file …") — the
+    review finding this marker exists for — or stops naming the class of an
+    unexpected exception, where the class IS the diagnosis.
+    """
+    import contextlib
+    import types
+    from engine.api import pipeline as P
+
+    sentence = "This file 'balanta.pdf' is named .pdf but its contents are a Word document (.docx)."
+    raised = {
+        "type": P.UploadedFileTypeMismatchError(sentence),
+        "plain": P.PlainRefusal("The file's own CUI is not this company's."),
+        "other": RuntimeError("compute failed"),
+    }
+    stored: Dict[str, Any] = {}
+    doc = {"id": "handler-probe", "org_id": "00000000-0000-0000-0000-000000000000",
+           "storage_path": "test/balanta.pdf", "original_filename": "balanta.pdf",
+           "mime_type": "application/pdf", "uploaded_by": None, "status": "queued",
+           "scope": "financial"}
+
+    class _Admin:
+        def select(self, table: str, *a: Any, **k: Any) -> Any:
+            return [dict(doc)] if table == "documents" else []
+
+        def update(self, table: str, values: Dict[str, Any], *a: Any, **k: Any) -> Any:
+            if table == "documents":
+                stored.update(values)
+            return [dict(doc, **values)]
+
+        def __getattr__(self, name: str) -> Any:
+            return lambda *a, **k: []
+
+    @contextlib.contextmanager
+    def _admin():
+        yield _Admin()
+
+    monkeypatch.setattr(P, "_supabase", types.SimpleNamespace(admin=_admin, per_user=_admin))
+    monkeypatch.setattr(P, "_admin_set_status",
+                        lambda _id, status, error=None, **k: stored.update(status=status, error=error))
+    monkeypatch.setattr(P, "_rollback_period_of_failed_run", lambda *a, **k: None)
+    seen = {}
+    for key, exc in raised.items():
+        stored.clear()
+
+        def _extract(_doc: Any, _exc: BaseException = exc) -> Any:
+            raise _exc
+
+        monkeypatch.setattr(P, "stage_extract", _extract)
+        P._run_pipeline_sync(doc["id"])
+        assert stored.get("status") == "failed", (key, stored)
+        seen[key] = stored.get("error")
+    assert seen["type"] == sentence, seen
+    assert seen["plain"] == "The file's own CUI is not this company's.", seen
+    assert seen["other"] == "RuntimeError: compute failed", seen
+

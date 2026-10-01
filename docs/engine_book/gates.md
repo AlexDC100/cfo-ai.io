@@ -18258,3 +18258,102 @@ deployed:
   GET /api/period): R4 / R5 move no number — turnover, EBITDA, EBIT, CFO,
   composite, letter, Z'', X3, sub-scores, weights and regime identical to the
   R1 measurement on every book.
+
+## upload-real-type
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_upload_real_type.py -q` |
+| canary | junit test names: `test_a_docx_named_pdf_is_refused_before_the_paid_path`, `test_an_excel_balance_named_pdf_is_READ_not_refused`, `test_a_balance_pdf_named_xls_is_READ_not_refused`, `test_a_docx_named_xlsx_is_refused_before_the_paid_path`, `test_an_honestly_named_docx_is_refused_through_the_real_branch`, `test_the_guard_still_runs_when_the_first_download_fails`, `test_the_failure_handler_stores_the_sentence_without_a_class_name` |
+| work count | junit tests, floor **27** (measured 27 at release r-rulings2) |
+
+**INCIDENT** — 2026-09-23: a prospect uploaded
+`balanta_de_verificare_07.2025.pdf`, a Word document renamed (PK zip header,
+no `%PDF-` anywhere). Nothing in `stage_extract`'s PDF branch read the bytes:
+the positional ingester failed, the text-line reader failed, and the document
+reached `financial_statements.parse_document`, where Anthropic answered "your
+credit balance is too low" — the user was told our billing was broken about a
+file no reader could ever open, and a request was spent to learn what a
+four-byte header says. Fixed on `hotfix/upload-real-type` (31dfce26, then
+b58bdff8 after an adversarial review found the first guard refusing books
+production reads); landed in release r-rulings2 (2026-10-01), where the gate
+was registered.
+
+**LAW** — `engine.api._upload_type` (pure: bytes in, a label out) names the
+real container; `stage_extract` refuses ONLY what reaches no reader on the
+branch it is on — Word / PowerPoint / OpenDocument everywhere
+(`REACHES_NO_READER`), a PDF everywhere except the spreadsheet branch (whose
+`parse_trial_balance` routes `%PDF` to the PyMuPDF ingester) — before the
+AI-lane gate, every deterministic reader and the Claude lane, with a sentence
+naming the real type and the fix (`UploadedFileTypeMismatchError`, a
+`UserFacingUploadError`: the failure handler of `_run_pipeline_stages` stores
+it as itself, like a `PlainRefusal`, and `_run_pipeline_sync` releases the
+run's reservation). An Excel balance named .pdf and a balance PDF named .xls
+are READ as their bytes are; text and unnameable bytes keep today's
+behaviour. Through the REAL `stage_extract` with only the signed URL and the
+download stubbed; the Claude lane's entry point and the Anthropic constructor
+are tripwires. Release r-rulings2 added two laws the hotfix did not drive: the
+honestly named `balanta.docx` through the real branch (classified `unknown`,
+the unsupported-format sentence, never "named .docx but its contents are a
+Word document"), and the stored sentence through the real
+`_run_pipeline_sync` (no class name before a sentence written for the
+uploader or a plain refusal; an unexpected exception keeps its class name).
+
+**PLANT, observed RED, then REVERT** — each applied alone in the worktree,
+the file restored byte-exact from a saved copy, run through
+`run_battery.main` with the gate list narrowed to this gate:
+
+```
+PLANT guard-disabled: src/engine/api/_upload_type.py
+      (REACHES_NO_READER = frozenset({DOCX, PPTX, ODF}) -> frozenset())
+FAIL upload-real-type (exit 1, 6.4s)
+     | FAILED tests/engine/test_upload_real_type.py::test_a_docx_named_pdf_is_refused_before_the_paid_path
+     | FAILED tests/engine/test_upload_real_type.py::test_a_docx_named_xlsx_is_refused_before_the_paid_path
+     | FAILED tests/engine/test_upload_real_type.py::test_the_guard_still_runs_when_the_first_download_fails
+     | FAILED tests/engine/test_upload_real_type.py::test_an_honestly_named_docx_is_refused_through_the_real_branch
+     | =================== 4 failed, 23 passed, 5 warnings in 5.60s ===================
+BATTERY: FAIL — 0/1 gates green
+PLANT the-original-false-refusal: src/engine/api/pipeline.py
+      (the .pdf branch refuses every non-PDF; the spreadsheet branch refuses a PDF too)
+     | FAILED tests/engine/test_upload_real_type.py::test_an_excel_balance_named_pdf_is_READ_not_refused
+     | FAILED tests/engine/test_upload_real_type.py::test_a_balance_pdf_named_xls_is_READ_not_refused
+     | =================== 2 failed, 25 passed, 5 warnings in 4.55s ===================
+BATTERY: FAIL — 0/1 gates green
+PLANT class-name-before-the-sentence: src/engine/api/pipeline.py
+      (isinstance(exc, (PlainRefusal, UserFacingUploadError)) -> isinstance(exc, PlainRefusal))
+     | FAILED tests/engine/test_upload_real_type.py::test_the_failure_handler_stores_the_sentence_without_a_class_name
+     | =================== 1 failed, 26 passed, 5 warnings in 5.29s ===================
+BATTERY: FAIL — 0/1 gates green
+PLANT guard-on-renamed-kinds-only: src/engine/api/pipeline.py
+      (the non-PDF guard wrapped in `if kind in ("xlsx", "csv")`), pytest -k directly:
+E       AssertionError: stage_extract constructed an Anthropic client — this upload reached the paid path
+REVERT (clean tree): PASS upload-real-type (6.0s, 27 tests) — BATTERY: PASS — 1/1 gates green
+```
+
+**AFTER THE REPAIR this reds on (TC-11):** an Office document reaching any
+reader, the AI lane or a model call on any branch; the refusal naming the
+wrong type or none, or mentioning credit / billing / Claude; the honest
+`.docx` told it was misnamed; an Excel balance named .pdf or a balance PDF
+named .xls refused (the readers read them); text or unnameable bytes refused;
+the guard skipped when the first download failed; the class name stored in
+front of the sentence.
+
+**CANNOT SEE:** the upload ROUTES — `/api/uploads/identify` and `/commit`
+refuse a name/bytes mismatch before storage with their own check
+(`engine.api._uploads.format_mismatch`, gated in
+`test_workspace_uploads.py`), and they REFUSE the two cases this gate holds
+the pipeline to READ (an Excel workbook named .pdf: "This is an Excel
+workbook, not a PDF."; a PDF named .xls: "This is a PDF, not an Excel
+workbook."). The two layers disagree on those two files; this gate holds the
+pipeline's half only (the pipeline is also reached by direct-storage uploads
+through `/api/pipeline/run`, retries and recover-stuck). Also unseen: the
+public-records probe (pypdf text extraction) that runs on the .pdf branch's
+downloaded bytes BEFORE this guard — it fails on a non-PDF and logs, costs
+nothing and calls no model; and with `ANTHROPIC_API_KEY` UNSET the non-PDF
+branch still stops at "ANTHROPIC_API_KEY not configured." before it reads the
+bytes (pre-existing; the key is set in production).
+
+The upload-type PRE-FLIGHT (`specs-durable/upload_type_preflight.py`, run
+inside the built image before the switch) drives the same four files through
+`stage_extract` + `stage_map` with no model, no network and no writes, and
+prints the routes' verdict beside the pipeline's.

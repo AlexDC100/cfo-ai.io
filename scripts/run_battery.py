@@ -300,6 +300,31 @@ def _engine_gates() -> List[Gate]:
              canaries=("test_no_mutating_route_demands_its_body_as_a_query_param",
                        "test_no_request_model_is_nested_inside_a_function_under_future_annotations",
                        "test_the_full_openapi_schema_generates")),
+        # UPLOAD-REAL-TYPE (hotfix/upload-real-type 31dfce26 + b58bdff8,
+        # landed in release r-rulings2, 2026-10-01): the 2026-09-23 incident —
+        # a Word document named balanta_de_verificare_07.2025.pdf travelled
+        # the whole PDF branch and came back as "Claude extraction failed:
+        # your credit balance is too low". Through the REAL stage_extract with
+        # only the signed URL and the download stubbed, and the Claude lane's
+        # entry point and the Anthropic constructor as tripwires: a Word /
+        # PowerPoint / OpenDocument file reaches NO reader on any branch and
+        # is refused by name (a mismatch sentence, or the unsupported-format
+        # one for an honestly named .docx); an Excel balance named .pdf and a
+        # balance PDF named .xls are READ, as their bytes are (the readers
+        # dispatch on magic bytes); text and unnameable bytes keep today's
+        # behaviour; the guard refetches when the first download failed; the
+        # failure handler stores the sentence without a class name. Measured
+        # 27 tests.  Plant log: gates.md "upload-real-type".
+        Gate("upload-real-type",
+             [PY, "-m", "pytest", "tests/engine/test_upload_real_type.py", "-q"],
+             work_junit=True, floor=27, units="tests",
+             canaries=("test_a_docx_named_pdf_is_refused_before_the_paid_path",
+                       "test_an_excel_balance_named_pdf_is_READ_not_refused",
+                       "test_a_balance_pdf_named_xls_is_READ_not_refused",
+                       "test_a_docx_named_xlsx_is_refused_before_the_paid_path",
+                       "test_an_honestly_named_docx_is_refused_through_the_real_branch",
+                       "test_the_guard_still_runs_when_the_first_download_fails",
+                       "test_the_failure_handler_stores_the_sentence_without_a_class_name")),
         # WORKSPACE-V2 — the redesign's engine gates (one company per
         # workspace, keyed by CUI) on the REAL create_app() and the REAL
         # identifier: G1 a file lands in the company its header names, G2 the
