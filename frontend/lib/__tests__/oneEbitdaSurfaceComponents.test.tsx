@@ -8,7 +8,11 @@
 //     with the engine's note (design A9) — never shown with stale numbers;
 //   · the Valuation tab never offers a refused EBITDA as an editable 0,
 //     states the refusal, the served routing basis and the "saved under
-//     the previous EBITDA definition" flag;
+//     the previous EBITDA definition" flag — in a sentence that names no
+//     revision's content (it told users whose rows were saved under the
+//     2026-09-26 revision to re-check 711 / 72x, which that revision already
+//     held inside — review 2026-10-01) and prints in the reader's language,
+//     the served flag included (CLAUDE.md §26);
 //   · the budget variance shows the actual EBITDA's 711 / 72x components
 //     (template unchanged) or its refusal;
 //   · the benchmark page renders the engine's "refused" verdict (it
@@ -21,6 +25,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { cleanup, screen } from "@testing-library/react";
 
+import i18n from "@/i18n";
 import { renderWithProviders } from "@/test/renderWithProviders";
 import { briefingVisibility } from "@/lib/briefingDefinition";
 import { ValuationSection } from "@/components/cfo/ValuationSection";
@@ -116,31 +121,58 @@ describe("Valuation tab — a refused EBITDA is not an editable 0", () => {
     expect(screen.getByTestId("valuation-routing").textContent).toContain("EBITDA is refused");
   });
 
+  // The engine's flag (`_valuation.PREVIOUS_DEFINITION_FLAG`) and the two
+  // stamps it is served on: an unstamped row (saved before the stamp
+  // existed) and a row stamped with the revision before today's
+  // (`chart_of_accounts.EBITDA_DEFINITION_PREVIOUS_REVISIONS`).
+  const FLAG = { ro: "salvat sub definiția anterioară a EBITDA", en: "saved under the previous EBITDA definition" };
+  const CURRENT = "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover";
+  const PREVIOUS = "ebitda/2026-09-26:711-72x-inside,767-financial";
+  const SENTENCE = {
+    en: "Your saved figures were saved under the previous EBITDA definition — they still apply; re-check the EBITDA you typed against today's definition.",
+    ro: "Valorile tale: salvat sub definiția anterioară a EBITDA. Se aplică în continuare; verifică EBITDA pe care ai introdus-o față de definiția actuală.",
+  } as const;
+  // A word naming what some revision moved — true of one stamp, false of another.
+  const CONTENT_WORDS = /711|72x|7411|6812|6814|7812|7814|stock variation|own work|stocurilor|imobilizat|provision|provizi/i;
+
+  const flagged = (savedUnder: string | null) =>
+    valuationOf({
+      primary_method: "ev_ebitda",
+      inputs: { ebitda_used: 11_848_065.27, revenue_used: 110_798_309.14, total_debt_used: 0, cash_used: 0 },
+      routing: { basis: "margin_not_meaningful" },
+      user_assumptions: {
+        ebitda_used: 10_776_378.24, multiple_used: null, debt_used: null, cash_used: null,
+        definition: {
+          saved_under: savedUnder, current_definition: CURRENT, saved_under_previous_definition: true, flag: FLAG,
+        },
+      },
+    });
+
   it("a served EBITDA: the editor, the routing basis and the previous-definition flag", () => {
-    renderWithProviders(
-      <ValuationSection
-        periodId="p"
-        currency="RON"
-        valuation={valuationOf({
-          primary_method: "ev_ebitda",
-          inputs: { ebitda_used: 11_848_065.27, revenue_used: 110_798_309.14, total_debt_used: 0, cash_used: 0 },
-          routing: { basis: "margin_not_meaningful" },
-          user_assumptions: {
-            ebitda_used: 10_776_378.24, multiple_used: null, debt_used: null, cash_used: null,
-            definition: {
-              saved_under: null, current_definition: "x", saved_under_previous_definition: true,
-              flag: { ro: "salvat sub definiția anterioară a EBITDA", en: "saved under the previous EBITDA definition" },
-            },
-          },
-        })}
-      />,
-    );
+    renderWithProviders(<ValuationSection periodId="p" currency="RON" valuation={flagged(null)} />);
     expect(screen.queryByTestId("valuation-ebitda-refused")).toBeNull();
     expect(screen.getByTestId("valuation-input-ebitda")).toBeTruthy();
     expect(screen.getByTestId("valuation-routing").textContent).toContain("the margin rule");
     expect(screen.getByTestId("valuation-override-definition-flag").textContent).toContain(
       "saved under the previous EBITDA definition",
     );
+  });
+
+  it("the flag's sentence names no revision's content and prints in the reader's language, on either stamp", async () => {
+    try {
+      for (const savedUnder of [null, PREVIOUS]) {
+        for (const lang of ["en", "ro"] as const) {
+          await i18n.changeLanguage(lang);
+          renderWithProviders(<ValuationSection periodId="p" currency="RON" valuation={flagged(savedUnder)} />);
+          const text = screen.getByTestId("valuation-override-definition-flag").textContent ?? "";
+          expect(text, `${savedUnder ?? "unstamped"} (${lang})`).toBe(SENTENCE[lang]);
+          expect(text, `${savedUnder ?? "unstamped"} (${lang}): no content word`).not.toMatch(CONTENT_WORDS);
+          cleanup();
+        }
+      }
+    } finally {
+      await i18n.changeLanguage("en");
+    }
   });
 });
 

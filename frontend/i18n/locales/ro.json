@@ -1742,6 +1742,7 @@
     "notServed": "neservit",
     "netIncome": "Profit net",
     "plusDa": "+ Amortizare",
+    "valuationOverrideDefinitionFlag": "Valorile tale: {{flag}}. Se aplică în continuare; verifică EBITDA pe care ai introdus-o față de definiția actuală.",
     "minusWc": "− Δ capital de lucru",
     "eqCfo": "= Flux operațional",
     "minusCapex": "− CapEx",

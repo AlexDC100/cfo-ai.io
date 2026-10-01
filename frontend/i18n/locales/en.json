@@ -1735,6 +1735,7 @@
     "notServed": "not served",
     "netIncome": "Net income",
     "plusDa": "+ D&A",
+    "valuationOverrideDefinitionFlag": "Your saved figures were {{flag}} — they still apply; re-check the EBITDA you typed against today's definition.",
     "minusWc": "− ΔWorking capital",
     "eqCfo": "= CFO",
     "minusCapex": "− CapEx",
