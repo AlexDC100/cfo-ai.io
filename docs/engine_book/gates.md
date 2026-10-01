@@ -18995,6 +18995,70 @@ in this worktree with the links removed): **7 passed in 25.33 s** — `SCOPE
 engine-proof committed_corpus_only — 2 check(s), 11 subject(s) re-measured`,
 with the notice naming the three checks compared by identity only.
 
+### landing trust + public sample, integrated (2026-10-02) — the measured green runs
+
+`fix/landing-sample` merged into `fix/landing-trust` (merge 8c51ef71, wiring
+fbd3f950; both branches from 21c54704). Measured on the merged tree with the
+owner's local calibration books linked into `files/` for the run and removed
+after, not asserted:
+
+- **Nothing generated went stale in the merge.** `scripts/build_engine_proof.py
+  --check`: `ENGINE PROOF: IN AGREEMENT` (every check re-measured, scope
+  full, 5 checks, 29 subjects; the sample branch touched neither `src/engine`
+  nor `packs`, so the digest is unchanged and the file was not rewritten —
+  its date stays the day it was measured). The public sample's files are
+  byte-identical rebuilds (`public-sample` S2 / S3 / S8,
+  `public-sample-page` P5, `public-sample-pdf` 27 pages).
+- `run_battery.main` narrowed to the 21 gates the two branches touch or add:
+  **21/21 PASS** — landing-proof 559, public-claims 3,102, public-sample 22,
+  public-sample-page 126, public-sample-pdf 27, engine-proof 7,
+  ui-language-figures 35, cmdbar-surface 216, provenance-census 823 (the
+  listed burn-down findings, none new), global-positioning 994, engine-book
+  6, import-boundary 2,123, corpus-policy 4,958, no-plants 1,124,
+  stale-gates 942, test-env-isolation 14, floor-census 77, plan-gate-census
+  29, tsc 1,037 files (the 10 known errors, 0 new), vitest 4,468 (4,467
+  passed, 1 skipped, canaries 16/16), npm-build 3,656 modules (dist removed
+  first). `tests/engine/test_gate_canaries.py`: 13 passed.
+- **The built page, not only the mounted one.** A production build from a
+  clean `dist` with the hermetic values of `frontend/test/hermeticEnv.json`,
+  served by `vite preview`: `/`, `/sample`, `/sample/` return the app, each
+  `/sample/<file>` returns its file; the only requests to other hosts are
+  the two unreachable hermetic ones. `e2e/i18n-mobile-sweep.spec.ts` (public
+  mode, now walking `/sample` too) against that preview: **12 passed** —
+  landing, pricing, sample, login, signup, 404 × EN / RO × 375 / 390 / 768 /
+  1280, no horizontal overflow, no wrong-language word, no raw key. Clicking
+  the proof block's link in that bundle lands on `/sample#checks` with the
+  list at the top of the viewport, in both languages; the link beside the
+  upload step opens the page at its top.
+- **Not run here:** the full engine pytest suite (the sample branch measured
+  9,347 passed before the merge; the merge changed no engine file), the
+  `hermetic` gate (it writes under the shared `node_modules` link), and the
+  full Playwright gate (it needs a dev server and an engine in test-mode
+  posture).
+
+**MEASURED, NOT ASSUMED — what reds when this branch meets the newer release
+tip.** The release lineage is four commits past this base (six files under
+`src/engine` + `packs`, and the report's net-provisions rows). A trial merge
+(`git merge --no-commit release/r-rulings2`, aborted after measuring) merges
+without a textual conflict; tsc stays at the 10 known errors; the full vitest
+suite runs 4,489 tests with exactly TWO failures, both the generated files
+doing their job:
+
+1. `landing-proof` L2 — STALE PROOF. `build_engine_proof.py --check` on the
+   trial tree disagrees on ONE field, `engine.tree_sha256`; every count
+   re-measures the same. Repair: `python scripts/build_engine_proof.py`
+   (needs the local calibration books), commit the JSON.
+2. `public-sample-page` P5 — the committed sample report HTML is no longer
+   what the report builder returns (the release changed how the report prints
+   net provisions). Repair: `PYTHONPATH=src python
+   scripts/build_public_sample.py` (rebuilds the served documents, the page
+   data, the report HTML and the PDF), commit `public/sample/` and
+   `frontend/data/publicSample.json`; then `public-sample`,
+   `public-sample-page`, `public-sample-pdf`.
+
+`public-claims` stays green on the trial tree, the release's new upload
+refusals included.
+
 ## public-sample
 
 **The request (owner, 2026-10-01, after the first public review).** A
