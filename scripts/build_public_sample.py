@@ -56,7 +56,6 @@ import csv
 import hashlib
 import io
 import json
-import os
 import shutil
 import socket
 import subprocess
@@ -149,7 +148,9 @@ def serve_workbooks(entries: Sequence[Tuple[int, str, bytes]], *,
     import _real_app_comparatives as RA
     import firm_postgrest_double as D
 
-    os.environ.setdefault("CFO_AI_SKIP_BOOT_VERIFY", "1")
+    # No environment is set here: `RA.build_app()` pins what the app needs
+    # for the duration of its construction and restores it, so a test
+    # session that imports this module is left exactly as it was.
     with no_network(), tempfile.TemporaryDirectory(prefix="public-sample-") as tmp:
         seeded = []
         for year, filename, content in entries:
@@ -715,7 +716,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     if shutil.which("node") is None and not args.no_report:
         print("node is not on PATH; pass --no-report to build the engine files only", file=sys.stderr)
         return 2
-    os.environ.setdefault("CFO_AI_SKIP_BOOT_VERIFY", "1")
     if args.check:
         return check(report=not args.no_report, pdf=not args.no_pdf)
     return build(report=not args.no_report, pdf=not args.no_pdf)
