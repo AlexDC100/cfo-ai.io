@@ -8,6 +8,12 @@
 // inside EBITDA, outside turnover. Turnover is net turnover (70x − 709).
 // The reconciliation line is shown.
 //
+// OWNER RULINGS (2026-09-28). R2: the provision charges (6812, 6814) and
+// their reversals (7812, 7814) are OUTSIDE EBITDA; their net is its own
+// row between D&A and EBIT, under the engine's name. R3: net turnover
+// holds 7411 (operating subsidies related to turnover, F20 rd. 05) — the
+// row's accounts are the engine's.
+//
 // Before this module the two deliverables each assembled their own column
 // from the `incomeStatement` buckets — neither of which carries the
 // measured net 711 or net 72x — and printed the ENGINE's EBITDA under a
@@ -26,6 +32,7 @@
 //   + Own work capitalised (72x)               ← operating, outside turnover
 //   = EBITDA
 //   − Depreciation & amortization
+//   ± Net provisions (6812 + 6814 − 7812 − 7814)   ← outside EBITDA (R2)
 //   = EBIT (operating result)
 //   + Financial income − interest − other financial expense
 //   = Profit before tax
@@ -156,7 +163,10 @@ export function printedPl(s: Statements): PrintedPl {
     note: string | null = null,
   ) => rows.push({ key, label, value, kind, refusal: value === null ? rowRefusal : null, note });
 
-  push("turnover", "Net turnover (70x − 709)", levels.turnover, "step");
+  // The turnover row's accounts are the engine's (70x − 709 + 7411 since
+  // R3); a payload the engine did not assemble keeps the bucket's own.
+  const turnoverAccounts = reconLine(recon, "turnover")?.accounts ?? "70x − 709";
+  push("turnover", `Net turnover (${turnoverAccounts})`, levels.turnover, "step");
   push("cogs", "Cost of goods sold", -cogs, "step");
 
   // ── 711, beside cost of sales ─────────────────────────────────────────
@@ -201,6 +211,13 @@ export function printedPl(s: Statements): PrintedPl {
   }
   push("ebitda", "EBITDA", levels.ebitda, "subtotal", refusal);
   push("da", "Depreciation & amortization", -dna, "step");
+  // R2: net provisions, outside EBITDA — the engine's name and accounts,
+  // signed as its effect on the result. Absent on a payload the engine did
+  // not assemble under the ruling (its D&A still holds the charges).
+  const np = served?.netProvisions ?? null;
+  if (np && (Math.abs(np.charges) >= HALF_CENT || Math.abs(np.reversals) >= HALF_CENT)) {
+    push("net_provisions", np.label.en, 0 - np.value, "step");
+  }
   push("ebit", "EBIT", levels.ebit, "subtotal", levels.ebitRefusal);
   push("financial_income", "Financial income", finIncome, "step");
   push("interest_expense", "Interest expense", -interest, "step");
@@ -245,15 +262,22 @@ export function printedPl(s: Statements): PrintedPl {
 
   // ── the one-line bridge and the notes ─────────────────────────────────
   const parts = recon?.bridge.parts ?? [];
+  // After EBITDA, outside it (R2): net provisions, the engine's label saying
+  // so — the parts above still sum to EBITDA.
+  const after = recon?.bridge.afterEbitda ?? [];
   const bridge =
     parts.length > 0
-      ? parts
-          .map((p, i) => {
+      ? [
+          ...parts.map((p, i) => {
             const v = p.value === null ? "refused" : money(p.value);
             const lead = i === 0 ? "" : i === parts.length - 1 ? "= " : p.value !== null && p.value >= 0 ? "+ " : "";
             return `${lead}${p.label.en} ${v}`;
-          })
-          .join(" · ")
+          }),
+          ...after.map((p) => {
+            const v = p.value === null ? "refused" : money(p.value);
+            return `${p.value !== null && p.value >= 0 ? "+ " : ""}${p.label.en} ${v}`;
+          }),
+        ].join(" · ")
       : null;
   return {
     rows,

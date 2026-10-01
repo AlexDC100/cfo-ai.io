@@ -63,8 +63,8 @@
         "absence": null
       },
       "ebitda_margin": {
-        "value": 5.48,
-        "printed": "5.5",
+        "value": 4.99,
+        "printed": "5.0",
         "unit": "%",
         "verdict": "critical",
         "higher_is_better": true,
@@ -344,8 +344,8 @@
         "absence": null
       },
       "ebitda_margin": {
-        "value": 5.48,
-        "printed": "5.5",
+        "value": 4.99,
+        "printed": "5.0",
         "unit": "%",
         "verdict": "ungraded",
         "higher_is_better": null,
@@ -609,8 +609,8 @@
         "absence": null
       },
       "ebitda_margin": {
-        "value": 7.5076,
-        "printed": "7.5",
+        "value": 6.8363000000000005,
+        "printed": "6.8",
         "unit": "%",
         "verdict": "critical",
         "higher_is_better": true,

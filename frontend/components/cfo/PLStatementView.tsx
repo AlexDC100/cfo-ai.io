@@ -540,7 +540,8 @@ function PLLineView({ line, currency }: { line: PLLine; currency: string }) {
 //
 //   EBITDA înainte de variația stocurilor și producția imobilizată X
 //   · Variația stocurilor de produse ±Y · Producția imobilizată Z
-//   = EBITDA W
+//   = EBITDA W · Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814)
+//   — în afara EBITDA ±P
 //
 // every label and every value as served (`ebitda_reconciliation.bridge`),
 // the two components signed as their effect on the result, a zero printed
@@ -565,7 +566,10 @@ function EbitdaBridgeLine({
   const fmt = useAmountFormatter(currency);
   const recon = served.reconciliation;
   if (!recon || recon.bridge.parts.length === 0) return null;
-  const signedPart = (key: string) => key === "inventory_variation" || key === "capitalized_own_work";
+  // Signed as their effect on the result: the two components inside EBITDA
+  // and, after it, net provisions (owner ruling R2, 2026-09-28).
+  const signedPart = (key: string) =>
+    key === "inventory_variation" || key === "capitalized_own_work" || key === "net_provisions";
   const value = (key: string, v: number | null): string => {
     if (v === null) return t("statements.pl.refused");
     if (Math.abs(v) < 0.005) return "0";
@@ -577,6 +581,16 @@ function EbitdaBridgeLine({
         {recon.bridge.parts.map((p, i) => (
           <span key={p.key} className="pl-bridge-part" data-bridge-part={p.key}>
             {i > 0 && <span className="pl-bridge-sep">{p.key === "ebitda" ? " = " : " · "}</span>}
+            <span className="pl-bridge-label">{pickLang(p.label, lang)}</span>{" "}
+            <span className="pl-bridge-value" data-bridge-value={p.value === null ? "refused" : String(p.value)}>
+              {value(p.key, p.value)}
+            </span>
+          </span>
+        ))}
+        {/* After EBITDA and outside it — the engine's label says so. */}
+        {recon.bridge.afterEbitda.map((p) => (
+          <span key={p.key} className="pl-bridge-part" data-bridge-after={p.key}>
+            <span className="pl-bridge-sep">{" · "}</span>
             <span className="pl-bridge-label">{pickLang(p.label, lang)}</span>{" "}
             <span className="pl-bridge-value" data-bridge-value={p.value === null ? "refused" : String(p.value)}>
               {value(p.key, p.value)}

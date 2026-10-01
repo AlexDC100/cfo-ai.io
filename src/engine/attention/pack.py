@@ -26,6 +26,11 @@ MODES = ("with_prior", "single_period")
 LANGS = ("ro", "en")
 EVIDENCE_KINDS = ("statement", "ratio", "benchmark_row", "account")
 STATEMENT_TABS = ("pl", "balance_sheet", "cash_flow")
+#: The actions the composer offers (now._actions), each a label in the pack.
+#: Ruling R4 (2026-09-28): ONE export action, `bank_export` — "Exportă
+#: raportul pentru bancă" — whose target is the CFO Report PDF.
+ACTION_KEYS = ("compare_prior", "compare_previous_period", "add_prior_year",
+               "bank_export", "set_industry")
 
 
 class AttentionPackError(RuntimeError):
@@ -172,12 +177,24 @@ def _validate(raw: Any, where: str) -> Dict[str, Any]:
     actions = pack.get("actions")
     if not isinstance(actions, Mapping):
         _fail(where, "actions missing")
-    for key in ("compare_prior", "compare_previous_period", "add_prior_year",
-                "bank_export", "cfo_report_pdf", "set_industry"):
+    for key in ACTION_KEYS:
         if key not in actions:
             _fail(where, "actions.%s missing" % key)
-        actions[key]["label"] = _text("%s actions.%s.label" % (where, key),
-                                      (actions[key] or {}).get("label"))
+        spec = actions[key]
+        if not isinstance(spec, Mapping):
+            _fail(where, "actions.%s: expected a mapping" % key)
+        # Ruling R4: an action is its label — no feature gate, no target.
+        # The bank report is the CFO Report PDF whatever the Forecast
+        # registry says, and the composer (now._actions) owns the target.
+        extra = sorted(set(spec) - {"label"})
+        if extra:
+            _fail(where, "actions.%s carries %s: an action carries its label only "
+                  "(ruling R4 — the bank report never depends on a feature)" % (key, extra))
+        spec["label"] = _text("%s actions.%s.label" % (where, key), spec.get("label"))
+    unknown = sorted(set(actions) - set(ACTION_KEYS))
+    if unknown:
+        _fail(where, "actions %s are not composed by the engine (ruling R4: one export "
+              "action, the bank report, which is the CFO Report PDF)" % (unknown,))
 
     caveats = pack.get("caveats")
     if not isinstance(caveats, Mapping):

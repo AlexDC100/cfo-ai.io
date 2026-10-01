@@ -40,8 +40,8 @@ export function briefingVisibility(briefing: unknown): BriefingVisibility {
         ro && en
           ? { ro, en }
           : {
-              ro: "Comentariul a fost scris sub definiția anterioară a EBITDA și este ascuns.",
-              en: "This briefing was written under the previous EBITDA definition and is hidden.",
+              ro: "Comentariul a fost scris sub o definiție anterioară a EBITDA și este ascuns; reanalizați perioada pentru un comentariu nou.",
+              en: "This briefing was written under an earlier EBITDA definition and is hidden; re-analyse the period for a new one.",
             },
     };
   }

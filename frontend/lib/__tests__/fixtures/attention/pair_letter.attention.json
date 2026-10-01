@@ -18,11 +18,11 @@
     "en": "Export the bank report",
     "ro": "Exportă raportul pentru bancă"
    },
-   "requires_feature": "forecast",
    "target": {
-    "kind": "forecast_bank_export",
+    "kind": "report_pdf",
     "period_id": "period-agras-fy2025",
-    "route": "/dashboard/forecast"
+    "route": "/dashboard",
+    "tab": "export"
    }
   }
  ],
@@ -1849,6 +1849,7 @@
    }
   ]
  },
+ "credit_regime": null,
  "deduped": [],
  "items": [
   {

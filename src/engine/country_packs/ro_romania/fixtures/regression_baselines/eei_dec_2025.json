@@ -3,7 +3,7 @@
     "fixture": "eei_dec_2025",
     "company": "EEI IMOBILIARA INVESTMENT SRL",
     "captured_from": "one-EBITDA ruling re-capture (2026-09-27) — stock-variation evidence threaded as the write seam does",
-    "engine_module": "/private/tmp/claude-501/-Users-alex-Desktop-folder-claude-Scandia-copy/3ffcb142-1cba-4f4d-a1ef-1e69d9ad3827/scratchpad/wt-rel-rulings/src/engine/country_packs/ro_romania/chart_of_accounts.py",
+    "engine_module": "/private/tmp/claude-501/-Users-alex-Desktop-folder-claude-Scandia-copy/3ffcb142-1cba-4f4d-a1ef-1e69d9ad3827/scratchpad/wt-rulings2/src/engine/country_packs/ro_romania/chart_of_accounts.py",
     "account_count": 62
   },
   "assembled": {
@@ -43,22 +43,22 @@
         "inventoryVariationMemo": 0.0
       },
       "subAggregates": {
-        "ppe_under_construction": 2164079.83,
+        "interest_expense": 716741.02,
+        "cash_fx": 679102.51,
+        "ppe_investment": 14457160.32,
+        "fx_loss": 338580.67,
+        "fx_gain": 26632.48,
+        "ar_intercompany": 2596892.49,
+        "ppe_advances": 2021340.0,
+        "ar_doubtful": 167026.63,
         "interest_income": 2460.43,
         "opex_third_party": 2172788.6,
-        "ppe_advances": 2021340.0,
-        "ap_dividends": 1.0,
-        "interest_expense": 716741.02,
-        "fx_loss": 338580.67,
-        "ppe_investment": 14457160.32,
-        "cash_fx": 679102.51,
-        "ar_provisions": 0.0,
-        "ar_doubtful": 167026.63,
-        "ar_intercompany": 2596892.49,
-        "fx_gain": 26632.48,
-        "financial_income": 716544.16,
         "retained_earnings": 364310.48,
+        "ap_dividends": 1.0,
         "equity_revaluation": 3980157.61,
+        "ar_provisions": 0.0,
+        "financial_income": 716544.16,
+        "ppe_under_construction": 2164079.83,
         "current_year_pnl": 1425245.58
       },
       "assembled_bs": {
@@ -110,11 +110,45 @@
       "assembled_pl": {
         "revenue": 2727103.68,
         "turnover": 2727103.68,
+        "turnover_definition": {
+          "accounts": "70x − 709 + 7411",
+          "extra_prefixes": [
+            "7411"
+          ],
+          "placed_extra": 0.0,
+          "source": "OMFP 1802/2014, formularul F20 (contul de profit și pierdere): rd. 01 cifra de afaceri netă = rd. 02 … rd. 05; rd. 05 = venituri din subvenții de exploatare aferente cifrei de afaceri nete (ct. 7411)"
+        },
         "cogs": 0.0,
         "gross_profit": 2727103.68,
         "opex_total": 2763779.81,
         "opex_third_party": 2172788.6,
         "depreciation": 355606.5,
+        "net_provisions": {
+          "schema": "net_provisions/1",
+          "value": 0.0,
+          "charges": {
+            "prefixes": [
+              "6812",
+              "6814"
+            ],
+            "value": 0.0,
+            "by_account": {}
+          },
+          "reversals": {
+            "prefixes": [
+              "7812",
+              "7814"
+            ],
+            "value": 0.0,
+            "by_account": {}
+          },
+          "accounts": "6812 + 6814 − 7812 − 7814",
+          "name_ro": "Provizioane și ajustări nete",
+          "name_en": "Net provisions and impairment adjustments",
+          "label_ro": "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814)",
+          "label_en": "Net provisions and impairment adjustments (6812 + 6814 − 7812 − 7814)",
+          "outside_ebitda": true
+        },
         "ebitda": 2127403.7,
         "ebit": 1771797.2,
         "operating_result": 1771797.2,
@@ -126,7 +160,7 @@
         "operating_ebitda": 2127403.7,
         "operating_ebit": 1771797.2,
         "ebitda_refusal": null,
-        "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+        "ebitda_definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
         "inventory_variation": {
           "schema": "stock_variation/1",
           "value": 0.0,
@@ -176,7 +210,7 @@
         "opex_excluding_cogs_and_da": 2763779.81,
         "other_income_758": 0,
         "other_op_income_lump": 0,
-        "other_income_781_reversals": 0,
+        "other_income_781_reversals": 0.0,
         "core_ebitda": 2127403.7,
         "adjusted_ebitda": 2127403.7,
         "net_financial_result": -309684.62,
@@ -187,21 +221,22 @@
         "net_income_unexplained_vs_121": 0.0,
         "ebitda_reconciliation": {
           "schema": "ebitda_reconciliation/1",
-          "definition": "ebitda/2026-09-26:711-72x-inside,767-financial",
+          "definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover",
           "lines": [
             {
               "key": "turnover",
               "label_ro": "Cifra de afaceri netă",
               "label_en": "Net turnover",
-              "accounts": "70x − 709",
+              "accounts": "70x − 709 + 7411",
               "value": 2727103.68
             },
             {
               "key": "other_operating_income",
               "label_ro": "Alte venituri din exploatare",
               "label_en": "Other operating income",
-              "accounts": "74x, 75x, 77x, 78x",
-              "value": 0.0
+              "accounts": "74x, 75x, 77x, 78x (fără 7411, 7812, 7814)",
+              "value": 0.0,
+              "accounts_en": "74x, 75x, 77x, 78x (excl. 7411, 7812, 7814)"
             },
             {
               "key": "capitalized_own_work",
@@ -250,10 +285,19 @@
             },
             {
               "key": "depreciation",
-              "label_ro": "Amortizări, provizioane și ajustări (681x)",
-              "label_en": "Depreciation, provisions and impairment (681x)",
-              "accounts": "681x",
-              "value": -355606.5
+              "label_ro": "Amortizări și alte ajustări",
+              "label_en": "Depreciation, amortisation and other adjustments",
+              "accounts": "68x fără 6812, 6814",
+              "value": -355606.5,
+              "accounts_en": "68x excl. 6812, 6814"
+            },
+            {
+              "key": "net_provisions",
+              "label_ro": "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814)",
+              "label_en": "Net provisions and impairment adjustments (6812 + 6814 − 7812 − 7814)",
+              "accounts": "6812 + 6814 − 7812 − 7814",
+              "value": -0.0,
+              "outside_ebitda": true
             },
             {
               "key": "operating_result",
@@ -328,6 +372,15 @@
                 "label_ro": "EBITDA",
                 "label_en": "EBITDA",
                 "value": 2127403.7
+              }
+            ],
+            "after_ebitda": [
+              {
+                "key": "net_provisions",
+                "label_ro": "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814) — în afara EBITDA",
+                "label_en": "Net provisions and impairment adjustments (6812 + 6814 − 7812 − 7814) — outside EBITDA",
+                "value": -0.0,
+                "outside_ebitda": true
               }
             ],
             "refusal": null
@@ -1682,7 +1735,7 @@
       },
       "methodology": {
         "methodology_id": "ro_ras_2025_v1",
-        "methodology_version": "1.1.0",
+        "methodology_version": "1.2.0",
         "schema_version": "canonical_v1.0.0",
         "industry_key_applied": "default",
         "ebitda": {
@@ -1901,6 +1954,16 @@
             "value": 0.0,
             "refusal": null,
             "provenance": "no_711_activity"
+          },
+          "provision_charges_outside_ebitda": {
+            "value": 0.0,
+            "refusal": null,
+            "provenance": "pl_definition:6812+6814"
+          },
+          "provision_reversals_outside_ebitda": {
+            "value": 0.0,
+            "refusal": null,
+            "provenance": "pl_definition:7812+7814"
           }
         },
         "refusals": {},
@@ -1919,7 +1982,7 @@
           "right_of_use_assets.net"
         ],
         "errors": [],
-        "ebitda_definition": "ebitda/2026-09-26:711-72x-inside,767-financial"
+        "ebitda_definition": "ebitda/2026-09-28:711-72x-inside,767-financial,provisions-6812-6814-7812-7814-outside,7411-turnover"
       },
       "canonical_bs": {
         "schema": "bs_v2",

@@ -109,7 +109,8 @@ describe("comparatives — the WORKBOOK's own comparison column", () => {
   // no column" are different claims and only the second one is true.
   const SHEETS: Array<[string, string, string]> = [
     // The first P&L row is net turnover (70x − 709) under the one-EBITDA ruling.
-    ["P&L", "Profit & Loss", "Net turnover (70x − 709)"],
+    // R3 (2026-09-28): the engine names what turnover holds.
+    ["P&L", "Profit & Loss", "Net turnover (70x − 709 + 7411)"],
   ];
 
   it.each(BOOKS)(

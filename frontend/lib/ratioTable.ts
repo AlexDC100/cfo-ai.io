@@ -485,6 +485,10 @@ export const RATIO_COMPARE_REASON_CODES = [
   "interest_expense_not_positive",
   "credit_out_of_range",
   "ebitda_refused",
+  // credit model revision 5: the stock-build regime's cash components on a
+  // cash from operations that is approximated or refused
+  "cash_from_operations_approximated",
+  "cash_from_operations_refused",
   "credit_component_undefined",
 ] as const;
 

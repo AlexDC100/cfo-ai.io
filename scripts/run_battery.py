@@ -842,7 +842,9 @@ def _engine_gates() -> List[Gate]:
         # (unstamped) briefing as written under the previous definition,
         # with the note the page hides it behind. The column has its
         # migration ending in the PostgREST NOTIFY. Real create_app and the
-        # real narrate write over the tenancy double. Measured 8 units.
+        # real narrate write over the tenancy double. Measured 8 units; 9
+        # with the generic note pinned on an earlier revision's stamp
+        # (deploy-readiness review of feat/rulings-2, 2026-09-29).
         # Plant log: gates.md "briefing-definition".
         Gate("briefing-definition",
              [PY, "-m", "pytest", "tests/engine/test_briefing_definition.py", "-q", "-s"],
@@ -866,9 +868,105 @@ def _engine_gates() -> List[Gate]:
         Gate("reprocess-periods-definition",
              [PY, "-m", "pytest", "tests/engine/test_reprocess_periods_definition.py", "-q", "-s"],
              # critic round 3 fixer: the apply reads the valuations row back (56).
-             work_rx=r"GATE-WORK reprocess-periods-definition units=(\d+)", floor=50,
+             # owner rulings R2 / R3 (2026-09-28): a period on the PREVIOUS
+             # definition stamp is reprocessed, the dry run prints the stamp,
+             # net provisions and the 7411 inside turnover, and a turnover move
+             # of exactly the placed 7411 is the ruling (measured 85).
+             work_rx=r"GATE-WORK reprocess-periods-definition units=(\d+)", floor=80,
              units="dry-run / apply / refusal facts checked",
              canaries=("SCOPE reprocess-periods-definition: corpus/saga_10_col_agras analysed",)),
+        # ── owner rulings 2026-09-28 (R2, R3): provisions-symmetric and
+        # turnover-7411. R2: the 6812 / 6814 charges AND the 7812 / 7814
+        # reversals are OUTSIDE EBITDA, their net its own line between EBITDA
+        # and the operating result, EBIT unchanged to the cent — five
+        # constructed books (both sides, one side each, the analytic / 6-digit
+        # code forms, none) through the offline composition, the real write
+        # path, GET /api/period and the briefing rebuild; the methodology's
+        # reported / strict / operating result and the credit model's rows
+        # beside them; five in-file plants. R3: 7411 inside cifra de afaceri
+        # netă (F20 rd. 05), 7418 outside, EBITDA unmoved, the margin and
+        # FactsGateway on the turnover that holds it — constructed witnesses
+        # (no real, corpus or fixture book posts 7411); three plants.
+        # Measured 117 / 65. Plant logs: gates.md "provisions-symmetric",
+        # "turnover-7411".
+        # Deploy-readiness review of feat/rulings-2 (2026-09-29): the pack is
+        # verified at BOOT (boot_verify.verify_pl_definition_pack) — missing,
+        # not YAML, wrong schema, crossed classes each fail verify_config.
+        Gate("provisions-symmetric",
+             [PY, "-m", "pytest", "tests/engine/test_provisions_symmetric.py",
+              "tests/engine/test_boot_verify_pl_definition.py", "-q", "-s"],
+             work_rx=r"GATE-WORK provisions-symmetric units=(\d+)", floor=100,
+             units="constructed books judged, served seams compared, plants",
+             canaries=("SCOPE provisions-symmetric (owner ruling R2 2026-09-28, packs/ro/pl_definition.yaml)",
+                       "BOOT-VERIFY pl_definition: committed, crossed-classes, missing, not-yaml, wrong-schema",
+                       "PROVISIONS-BOOKS: no_provisions, prov_both, prov_charges_only, prov_code_forms, "
+                       "prov_reversals_only",
+                       "PROVISIONS-PLANTS: reversals-back-inside-ebitda, charges-back-inside-da, "
+                       "ebit-forgets-net-provisions, methodology-subtracts-reversals, rebuild-loses-the-ruling")),
+        Gate("turnover-7411",
+             [PY, "-m", "pytest", "tests/engine/test_turnover_7411.py", "-q", "-s"],
+             work_rx=r"GATE-WORK turnover-7411 units=(\d+)", floor=55,
+             units="constructed witnesses judged, served seams compared, plants",
+             canaries=("SCOPE turnover-7411 (owner ruling R3 2026-09-28, F20 rd. 05, packs/ro/pl_definition.yaml)",
+                       "TURNOVER7411-BOOKS: only_7418, subsidy_7411, subsidy_7411_analytic",
+                       "TURNOVER7411-PLANTS: 7411-left-in-other-income, 7418-pulled-into-turnover, "
+                       "rebuild-drops-the-placement")),
+        # ── owner ruling R1 (2026-09-28): credit-stock-build. On a book whose
+        # MEASURED net 711 build reaches the pack's shares of net turnover and
+        # of total operating expense (packs/credit/model.yaml
+        # stock_build_regime), leverage / coverage / DSCR are graded on the
+        # served cash from operations (approximated or refused -> refused,
+        # never 0, never EBITDA; measured <= 0 -> the declared bottom rung),
+        # Altman X3 on EBIT − net 711 − net 72x, the composite on the
+        # regime's weights, and the finding (the owner's sentence, RO
+        # verbatim + EN, high, the served figures) rides the served block,
+        # the attention document and the briefing facts — ONLY where the
+        # served figures say what it states (EBITDA > 0, EBITDA before the
+        # build <= 0, no measured CFO > 0; fixer round 1), else withheld by
+        # name and never handed to the narrator. 14 constructed books, the 4
+        # corpus books through GET /api/period, 3 seams, the pack plant
+        # (thresholds and weights move with it), 11 in-file plants.
+        # Measured 164. Plant log: gates.md "credit-stock-build".
+        Gate("credit-stock-build",
+             [PY, "-m", "pytest", "tests/engine/test_credit_stock_build_regime.py", "-q", "-s"],
+             work_rx=r"GATE-WORK credit-stock-build units=(\d+)", floor=150,
+             units="constructed and real books judged, seams compared, plants",
+             canaries=("SCOPE credit-stock-build (owner ruling R1 2026-09-28, packs/credit/model.yaml "
+                       "stock_build_regime)",
+                       "STOCK-BUILD-BOOKS: agras, at_turnover_threshold, below_opex_threshold, "
+                       "below_turnover_threshold, carniprod, manufacturer, realestate, refused_711, retail, "
+                       "stock_build_approximated, stock_build_cash_negative, stock_build_cash_positive, "
+                       "stock_build_cash_refused, stock_build_debt_free, stock_build_negative_ebitda, "
+                       "stock_build_negative_ebitda_cash_negative, stock_build_profitable_before_build, "
+                       "zero_turnover",
+                       "STOCK-BUILD-PLANTS: approximated-cash-read-as-measured, cash-components-on-ebit, "
+                       "finding-before-build-unchecked, finding-on-measured-positive-cash, finding-paraphrased, "
+                       "finding-sign-unchecked, model-weights-under-the-regime, refusal-falls-back-to-ebitda, "
+                       "trigger-threshold-in-code, withheld-names-nothing, x3-keeps-the-stock-build")),
+        # ── owner ruling R5 (2026-09-28): supabase-read-retry. The engine's
+        # Supabase client logs a WARNING and retries ONCE on a read timeout
+        # for its one GET (select), and never retries a write: through the
+        # REAL SupabaseClient over a stubbed transport — a read that times out
+        # once answers on the second GET with one WARNING line (the table and
+        # the parameter NAMES, never a value or the key); twice raises after
+        # exactly two; every write method (insert, upsert, update, delete,
+        # rpc, signed_url, upload_object, delete_object) that times out raises
+        # after ONE request; a connect timeout / connect error / HTTP 500 on a
+        # read is not retried; the AST census holds the client's one raw GET
+        # inside the retrying helper and no write reaching it. Measured 16.
+        # Plant log: gates.md "supabase-read-retry".
+        Gate("supabase-read-retry",
+             [PY, "-m", "pytest", "tests/engine/test_supabase_read_retry.py", "-q", "-s"],
+             work_junit=True, floor=16, units="tests",
+             canaries=("test_a_read_that_times_out_once_is_retried_once_and_logged",
+                       "test_a_read_that_times_out_twice_raises_after_exactly_one_retry",
+                       "test_a_write_that_times_out_is_never_retried",
+                       "test_a_read_failing_otherwise_is_not_retried",
+                       "test_the_clients_one_get_is_the_retrying_helper_and_no_write_reaches_it",
+                       # a junit gate's canaries are its test names (the
+                       # battery reads the junit report, not stdout)
+                       "test_a_write_that_times_out_is_never_retried[insert]",
+                       "test_a_write_that_times_out_is_never_retried[rpc]")),
         # ── plan/2 B4b (plan_contract_v2 5.6 / 28.3 B4): forecast-pools ──
         # The cost pools of section 5 on the four books, no shocks: pools
         # plus unallocated equal the assembled operating cost to the cent;
@@ -1214,15 +1312,21 @@ def _engine_gates() -> List[Gate]:
         # net-711-rule captured through the real route (held live by
         # tests/engine/test_one_ebitda_fe_books.py). Measured 58 tests, floor
         # 50. Plant log: gates.md "pl-one-ebitda-page".
+        # Deploy-readiness review of feat/rulings-2 (2026-09-29, owner ruling
+        # R2): the net-provisions row prints current, prior and Δ on ONE sign
+        # convention (charge-signed, as D&A) — the committed pair and its
+        # constructed mirror. Measured 63 -> 66.
         Gate("pl-one-ebitda-page",
              ["npx", "vitest", "run", "--root", ".",
-              "frontend/lib/__tests__/plOneEbitda.test.tsx", "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=50,
-             units="P&L-tab tests (served subtotals, the 711 row, refusals RO/EN, 72x, the 121 remainder, the reconciliation line, the panel, retired copy)",
+              "frontend/lib/__tests__/plOneEbitda.test.tsx",
+              "frontend/lib/__tests__/netProvisionsRowSign.test.tsx", "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=60,
+             units="P&L-tab tests (served subtotals, the 711 row, refusals RO/EN, 72x, the 121 remainder, the reconciliation line, the panel, retired copy, the net-provisions row's sign)",
              canaries=("covers eleven books, three of them refused",
                        "unanchored: every refused figure states the engine's reason, RO and EN",
                        "closed_no_activity: no stock-variation row, the remainder labelled, then account 121",
-                       "renders the owner's name verbatim in Romanian, and with the engine's gloss in English")),
+                       "renders the owner's name verbatim in Romanian, and with the engine's gloss in English",
+                       "the served pair (current a net charge, prior a net release): the row prints current, prior and Δ charge-signed, as D&A prints its own")),
         # ── owner ruling 2026-09-26, design A8 (stage F2): the three surface
         # gates. Every other frontend surface — deriveTotals, computeRatios,
         # canonicalMetrics, the dashboard headline / canon / configurable
@@ -1236,14 +1340,26 @@ def _engine_gates() -> List[Gate]:
         # books of net-711-rule captured through the real route. Measured 25 /
         # 8 / 10 tests. Plant log: gates.md "one-ebitda", "turnover-
         # denominator", "refusal-carries".
+        # Deploy-readiness review of feat/rulings-2 (2026-09-29, owner ruling
+        # R2): the non-cash add-back is the cash flow's (all of 68x), never
+        # the narrowed P&L D&A — the client DCF (Valuation tab, workbook
+        # Valuation sheet) and the Cash Flow tab take it back / add it, and
+        # the row holding the 6812 / 6814 charges is named for them on the
+        # tab (EN / RO), /report §4 and the workbook. Measured 25 -> 40.
         Gate("one-ebitda",
              ["npx", "vitest", "run", "--root", ".",
-              "frontend/lib/__tests__/oneEbitdaSurfaces.test.tsx", "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=20,
-             units="surface tests (every browser surface prints the served EBITDA on eight served books)",
+              "frontend/lib/__tests__/oneEbitdaSurfaces.test.tsx",
+              "frontend/lib/__tests__/provisionsAddBack.test.tsx",
+              "frontend/pages/cfo/__tests__/comprehensiveReportAddBack.test.tsx", "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=36,
+             units="surface tests (every browser surface prints the served EBITDA on eight served books; the R2 add-back)",
              canaries=("covers eight served books, and on six of them the build-up before 711 / 72x differs from EBITDA",
                        "agras: the printed report, the workbook and the charts",
-                       "realestate: Debt / EBITDA and the no-envelope credit model divide the served EBITDA")),
+                       "realestate: Debt / EBITDA and the no-envelope credit model divide the served EBITDA",
+                       "three firm books post 6812 / 6814 charges: the cash flow's add-back exceeds the P&L's D&A by exactly them",
+                       "carniprod: stabilised FCF = CFO − assembled_cf.depreciation, whatever the P&L's D&A",
+                       "retail: the row is named for what it sums — the tab (EN, RO) and the workbook",
+                       "carniprod posts 6812 / 6814 charges: the row holding all of 68x names them")),
         # ── design A8 (stage G1): exportRatioFormulas' DISCRIMINATING scope
         # was made vacuous by the 121 bridge — on the four firm books the
         # build-up + the served 711 IS account 121, so a net-income ratio
@@ -1317,6 +1433,30 @@ def _engine_gates() -> List[Gate]:
         # Measured 5 tests; 7 with a refused book equity and a withheld
         # stored row printing their reason (critic fixer round 1).
         # Plant log: gates.md "valuation-refused-override".
+        # ── owner ruling R1 (2026-09-28): credit-regime-surfaces. Every
+        # surface that prints the grade prints the stock-build regime ONCE —
+        # the Risks tab, the dashboard hero (which states the engine's
+        # refusal, never "analysis pending"), /report's CreditScoreCard and
+        # the command bar's rest-state line — with the owner's sentence
+        # verbatim (RO + EN), the cash bases on the three cash components and
+        # the regime's served weights; nothing on a standard book. Over the
+        # route's own bytes (served_credit_regime.json, kept by
+        # test_credit_regime_fe_fixture.py); the exported HTML report and
+        # the workbook state it too. A WITHHELD finding (fixer round 1: the
+        # served figures contradict the sentence) prints the regime once and
+        # the sentence nowhere, the command bar keeping the label, the cash in
+        # the served currency. Measured 14 tests, floor 14.
+        # Plant log: gates.md "credit-regime-surfaces".
+        Gate("credit-regime-surfaces",
+             ["npx", "vitest", "run", "--root", ".",
+              "frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx", "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=14,
+             units="surface tests (the regime once, the owner's sentence, the cash bases)",
+             canaries=("developer (EN): one regime block, the finding, the refused composite, the cash bases",
+                       "the hero states the refusal, not 'analysis pending', and the regime once",
+                       "/report's credit card prints the regime once, and none for a manufacturer",
+                       "CmdbarList renders it once at rest and not while typing",
+                       "the documents and the command bar: the regime's label, no sentence")),
         Gate("valuation-refused-override",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/components/cfo/__tests__/valuationRefusedOverride.test.tsx", "--reporter=verbose"],
@@ -1348,6 +1488,9 @@ def _engine_gates() -> List[Gate]:
               "tests/engine/test_credit_model_refusals.py",
               "tests/engine/test_credit_model_rungs_and_ranges.py",
               "tests/engine/test_credit_refusal_fe_fixture.py",
+              # credit model revision 5 (owner ruling R1): the FE regime
+              # fixture is the route's own bytes
+              "tests/engine/test_credit_regime_fe_fixture.py",
               "tests/engine/test_period_route_revised_rows.py", "-q"],
              work_junit=True, floor=60, units="tests",
              canaries=("test_pure_rows_are_the_pre_extraction_rows_byte_for_byte",
@@ -1502,8 +1645,15 @@ def _engine_gates() -> List[Gate]:
              [PY, "-m", "pytest", "tests/engine/test_attention_rules.py", "-q"],
              # release r-rulings (2026-09-28): the served inventory-days block
              # read with its label and policy, no fallback formula (measured 29).
-             work_junit=True, floor=29, units="tests",
+             # Owner ruling R4 (2026-09-28): "Exportă raportul pentru bancă" is
+             # the CFO Report PDF in every action state, never the Forecast;
+             # the composer takes no feature statuses and the pack refuses an
+             # action carrying a feature gate / a target / an unknown name
+             # (measured 31).
+             work_junit=True, floor=31, units="tests",
              canaries=("test_other_equity_is_never_the_biggest_movement_on_the_served_pair",
+                       "test_the_bank_report_is_the_cfo_report_pdf_never_the_forecast",
+                       "test_the_actions_cannot_read_the_feature_registry",
                        "test_no_served_block_is_no_claim_and_no_fallback_formula",
                        "test_the_served_block_is_read_with_its_basis_label_and_its_policy",
                        "test_the_composite_letter_is_never_the_biggest_movement",
@@ -1520,8 +1670,12 @@ def _engine_gates() -> List[Gate]:
                        "GATE-WORK attention-served-only items=")),
         Gate("attention-route",
              [PY, "-m", "pytest", "tests/engine/test_attention_route_real_app.py", "-q"],
-             work_junit=True, floor=8, units="tests",
+             # owner ruling R4 (2026-09-28): the bank report served as the CFO
+             # Report PDF with the Forecast feature ON and OFF in the served
+             # registry (measured 10).
+             work_junit=True, floor=10, units="tests",
              canaries=("test_the_route_serves_the_company_against_its_same_length_prior",
+                       "test_the_bank_report_is_the_cfo_report_pdf_whatever_the_forecast_registry_says",
                        "test_the_route_composes_exactly_what_the_same_app_serves",
                        "test_an_explicit_prior_is_read_inside_the_workspace_only",
                        "test_a_current_period_from_another_workspace_is_not_found")),
@@ -1600,7 +1754,12 @@ def _engine_gates() -> List[Gate]:
              # language): cmdbar-ui-language, three worlds x EN/RO (measured
              # 207); owner rulings 2026-09-29 (every WORD too): a finding in
              # years and an unmeasured one, EN/RO (measured 209).
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=209,
+             # Owner ruling R4 (2026-09-28): the bank report opens the CFO
+             # Report PDF, at rest / typed / from a pre-ruling recent, Forecast
+             # OFF and ON (measured 206 on the rulings lineage, +5).
+             # release r-rulings2 (2026-10-01): both lineages merged —
+             # 209 + the five R4 tests (measured 214).
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=214,
              units="command-bar tests",
              canaries=("the rows ARE the served items, in the served rank, each with its figure",
                        "inventory days are the served block — its figure, its basis label, no filed-basis row beside it",
@@ -1666,7 +1825,13 @@ def _engine_gates() -> List[Gate]:
                        "GATE-WORK cmdbar-ui-language agras/ro figures=",
                        "scandia (en): no figure at rest or typed is in the other language's format; turnover reads 48.3M RON",
                        "agras (ro): no figure at rest or typed is in the other language's format; turnover reads 110,8 mil. RON",
-                       "ro: 12,5 ani and neraportat; no word of the other language in the bar")),
+                       "ro: 12,5 ani and neraportat; no word of the other language in the bar",
+                       # owner ruling R4 (2026-09-28): "Exportă raportul pentru
+                       # bancă" opens the CFO Report PDF — at rest, typed and
+                       # from a pre-ruling recent pick, Forecast OFF and ON
+                       "at rest: \"Exportă raportul pentru bancă\" opens the export tab (Forecast active)",
+                       "typed: every bank word finds ONE export row, the CFO Report PDF (Forecast active)",
+                       "a recent pick saved before the ruling (it opened the Forecast) opens the CFO Report PDF")),
         # EVERY FIGURE IN THE READER'S LANGUAGE (owner ticket 2026-09-28: the
         # ENGLISH interface printed "413,7 mil. RON" on the command bar, the
         # workspace cards and the company page, and the report's days

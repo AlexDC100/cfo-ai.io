@@ -30,8 +30,8 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     // and own work capitalised (72x) are INSIDE it, so it names both — two
     // lines that move no cash — instead of calling itself a cash proxy.
     plain: {
-      en: "What the business earns from its day-to-day work, before loan costs, taxes and the accounting wear-and-tear on equipment. It includes two lines that move no cash — the change in stocks of products the company made (711) and work capitalised into its own assets (72x) — so it is not the cash the operations generated.",
-      ro: "Ce câștigă afacerea din activitatea de zi cu zi, înainte de costul creditelor, impozite și uzura contabilă a echipamentelor. Include două linii care nu mișcă numerar — variația stocurilor de produse (711) și producția imobilizată (72x) — deci nu este numerarul generat de operațiuni.",
+      en: "What the business earns from its day-to-day work, before loan costs, taxes and the accounting wear-and-tear on equipment. It includes two lines that move no cash — the change in stocks of products the company made (711) and work capitalised into its own assets (72x) — so it is not the cash the operations generated. Provisions and impairment adjustments sit outside it, charges and reversals alike.",
+      ro: "Ce câștigă afacerea din activitatea de zi cu zi, înainte de costul creditelor, impozite și uzura contabilă a echipamentelor. Include două linii care nu mișcă numerar — variația stocurilor de produse (711) și producția imobilizată (72x) — deci nu este numerarul generat de operațiuni. Provizioanele și ajustările sunt în afara ei, atât constituirile, cât și reluările.",
     },
   },
   stock_variation: {

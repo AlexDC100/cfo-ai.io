@@ -661,7 +661,14 @@ def test_no_finding_names_a_contra_account_and_subjects_rank_by_signed_amount():
     # the split on the average balance moves less across the corpus pairs
     # than stock / total operating cost did, and the developer's inventory
     # days are refused (every leg), so they cross no band at all.
-    assert checked >= 250, "non-vacuity: %d findings checked" % checked
+    # Measured 248 since the stock-build credit regime (owner ruling R1,
+    # credit model revision 5): the developer's letter is refused (its cash
+    # components refuse on the approximated cash flow), so the six
+    # letter-grade crossings on its pairs are gone, and its Z'' (4.81 ->
+    # 2.43, X3 without the stock build) now crosses the safe / grey rung
+    # against agras and carniprod in both directions (four crossings) — 250
+    # − 6 + 4. Measured per pair on both trees (scratchpad/r1/bands_probe.py).
+    assert checked >= 248, "non-vacuity: %d findings checked" % checked
 
 
 def test_a_provision_or_an_opposite_side_line_never_outranks_the_bucket():

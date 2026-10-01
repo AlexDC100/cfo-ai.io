@@ -1502,6 +1502,17 @@ def _notes(assumptions: AssumptionSet, history: PlHistory) -> Tuple[str, ...]:
                fmt(history.inventory_variation or 0),
                fmt(history.capitalized_own_work or 0),
                fmt(history.ebitda_before_stock_variation)))
+    # Net provisions (owner ruling R2, 2026-09-28): outside EBITDA, inside
+    # the actual year's operating result, projected at 0 in every plan year
+    # — said, with the figure, so the step from the book's pre-tax result
+    # to plan year one is named, never absorbed.
+    net_provisions = history.net_provisions
+    if net_provisions:
+        out.append(
+            "net provisions and impairment adjustments (charges less "
+            "reversals, outside EBITDA) are not projected: 0 in every plan "
+            "year. The actual year's operating result carries a net %s of %s."
+            % ("charge" if net_provisions > 0 else "release", fmt(abs(net_provisions))))
     reversals = history.provision_reversals
     if reversals:
         out.append(

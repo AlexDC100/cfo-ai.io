@@ -158,14 +158,20 @@ def test_the_retail_book_states_why_unclassified_balances_did_not_fire():
 
 
 def test_asset_age_reproduces_the_owners_measurement_on_agras():
-    """The owner measured 70.4% depreciated and ~4 years of book life."""
+    """The owner measured 70.4% depreciated and ~4 years of book life.
+
+    Since the owner's R2 ruling (2026-09-28) the served D&A is WITHOUT the
+    6812 / 6814 provision charges (their net with the reversals is its own
+    line): agras's annual D&A 2,955,346.39 → 2,819,963.03 (the charges
+    135,383.36 were never wear of fixed assets), so the remaining book life
+    reads 3.97 → 4.16 years — still the owner's "~4 years"."""
     insight = _by_id(_block("agras"))["asset_age"]
     _approx(_measure(insight, "depreciated_share"), 0.704407, 1e-5)
     _approx(_measure(insight, "gross_ppe"), 37400897.02, 0.01)
     _approx(_measure(insight, "accumulated_depreciation"), 26345447.48, 0.01)
     _approx(_measure(insight, "net_book_value"), 11728539.67, 0.01)
-    _approx(_measure(insight, "annual_da"), 2955346.39, 0.01)
-    _approx(_measure(insight, "remaining_book_life"), 3.968, 0.01)
+    _approx(_measure(insight, "annual_da"), 2819963.03, 0.01)
+    _approx(_measure(insight, "remaining_book_life"), 4.159, 0.01)
     _approx(_measure(insight, "intangible_amortised_share"), 0.873028, 1e-5)
     assert insight["severity"]["level"] == "high"
 
@@ -317,11 +323,17 @@ def test_earnings_quality_separates_trading_margin_from_the_rest():
     # plan/2 B4a: retail's EBITDA is 2,263,417.48 once its mirrored 609
     # supplier discounts stop being added to opex twice (220,162.84 before);
     # non-trading income is unchanged, so its share falls from 3.30x to 32%.
-    _approx(_measure(insight, "non_trading"), 726868.64, 0.01)
-    _approx(_measure(insight, "ebitda"), 2263417.48, 0.01)
-    _approx(_measure(insight, "graded_share"), 0.321138, 1e-4)
+    # Owner ruling R2 (2026-09-28): the 7812 / 7814 reversals (77,934.61)
+    # left EBITDA AND other operating income — non-trading income 726,868.64
+    # → 648,934.03, EBITDA 2,263,417.48 → 2,185,482.87 — so the non-trading
+    # share falls from 32.1% to 29.7%, under the pack's critical band (30%):
+    # the verdict moves critical → high BY RULING (a non-cash release no
+    # longer counts as operating income in either figure).
+    _approx(_measure(insight, "non_trading"), 648934.03, 0.01)
+    _approx(_measure(insight, "ebitda"), 2185482.87, 0.01)
+    _approx(_measure(insight, "graded_share"), 0.296929, 1e-4)
     _approx(_measure(insight, "cash_proxy"), 4682050.27, 0.01)
-    assert insight["severity"]["level"] == "critical"
+    assert insight["severity"]["level"] == "high"
 
 
 def test_unclassified_balances_surfaces_account_413_on_agras():

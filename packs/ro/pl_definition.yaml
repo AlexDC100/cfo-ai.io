@@ -1,0 +1,88 @@
+# THE P&L DEFINITION PACK — pure data, no code (owner rulings 2026-09-28,
+# R2 and R3; design specs-durable/design_2026-09-28_rulings2.md).
+#
+# Two statement PLACEMENTS the one assembly
+# (country_packs/ro_romania/chart_of_accounts.assemble_statements) applies
+# to accounts the classification pack (packs/ro/omfp1802-v1) has already
+# classified. Classification says WHAT an account is (7411 is an operating
+# subsidy; 6812 a provision charge); placement says WHERE the statutory
+# statement prints it. The classification pack is frozen and untouched —
+# this file holds only the placement, and the engine renders every account
+# list and every line name below from it (TC-10: no account list or line
+# name is typed in code or prose). Loaded by
+# `engine.country_packs.ro_romania.pl_definition`.
+#
+# R3 — 7411 IN TURNOVER. The statutory profit and loss account (formularul
+# F20, OMFP 1802/2014) builds cifra de afaceri netă (rd. 01) from rd. 02 to
+# rd. 05, and rd. 05 is "Venituri din subvenții de exploatare aferente
+# cifrei de afaceri nete (ct. 7411)". So net turnover = class 70 − 709 +
+# 7411. The 7411 leaves are placed in the turnover line (bucket `revenue`)
+# at assembly; every margin, growth figure and turnover denominator reads
+# the one turnover and follows.
+#
+# R2 — PROVISIONS SYMMETRIC. Charges to provisions and to current-asset
+# impairment (6812, 6814) AND their reversals (7812, 7814) are both OUTSIDE
+# EBITDA. Their net — charges − reversals — is printed as its own line
+# between EBITDA and the operating result. The operating result is
+# unchanged: EBIT = EBITDA − D&A − net provisions. Every other 68x / 78x
+# account (6811, 6813, 6817, 7813, 7815, …) stays where it was: not ruled.
+schema_version: "ro_pl_definition/1"
+pack_id: "ro-pl-definition"
+
+turnover:
+  # Account prefixes (the classification pack's convention:
+  # `code.startswith(prefix)` on the account code as the book writes it)
+  # whose leaves are placed INSIDE net turnover beside class 70 − 709.
+  extra_prefixes: ["7411"]
+  # Only a leaf the classification pack routed to this line is placed: the
+  # placement moves an operating subsidy, never anything else.
+  placed_from_line: "otherIncome"
+  base_accounts: "70x − 709"
+  source: >-
+    OMFP 1802/2014, formularul F20 (contul de profit și pierdere): rd. 01
+    cifra de afaceri netă = rd. 02 … rd. 05; rd. 05 = venituri din subvenții
+    de exploatare aferente cifrei de afaceri nete (ct. 7411)
+  name:
+    ro: "Cifra de afaceri netă"
+    en: "Net turnover"
+  # Said beside a 7411 leaf wherever a leaf is listed under turnover.
+  placement_note:
+    ro: "subvenții de exploatare aferente cifrei de afaceri — incluse în cifra de afaceri netă (F20 rd. 05)"
+    en: "operating subsidies related to turnover — inside net turnover (F20 row 05)"
+
+provisions_outside_ebitda:
+  # Charges (expense side, classified `depreciation`) and reversals (income
+  # side, classified `otherIncome`) — both outside EBITDA, symmetric.
+  charges: ["6812", "6814"]
+  charges_from_line: "depreciation"
+  reversals: ["7812", "7814"]
+  reversals_from_line: "otherIncome"
+  # The line name; the engine appends the accounts it read from the lists
+  # above: "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814)".
+  name:
+    ro: "Provizioane și ajustări nete"
+    en: "Net provisions and impairment adjustments"
+  # The one-line EBITDA bridge carries the line after EBITDA, said to be
+  # outside it.
+  bridge_suffix:
+    ro: "în afara EBITDA"
+    en: "outside EBITDA"
+
+depreciation:
+  # The D&A line once the ruled provision charges have left it; the engine
+  # appends "(68x fără 6812, 6814)" from the charge list above.
+  name:
+    ro: "Amortizări și alte ajustări"
+    en: "Depreciation, amortisation and other adjustments"
+  base_accounts: "68x"
+  without:
+    ro: "fără"
+    en: "excl."
+
+other_operating_income:
+  # The other-operating-income line once 7411 (turnover) and the ruled
+  # reversals (outside EBITDA) have left it.
+  name:
+    ro: "Alte venituri din exploatare"
+    en: "Other operating income"
+  base_accounts: "74x, 75x, 77x, 78x"

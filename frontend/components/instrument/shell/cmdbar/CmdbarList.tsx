@@ -74,6 +74,10 @@ export interface CmdbarListProps {
   onRun: (idx: number) => void;
   /** The ONE caveat line for the panel (joined served caveats), or null. */
   caveat: string | null;
+  /** The credit regime line (revision 5, owner ruling R1) — the served
+   *  regime's label and finding with its served figures, printed ONCE in
+   *  the rest state; null under the standard model or while typing. */
+  regime?: string | null;
   /** A single status line when there are no rows to show (loading, no
    *  period, nothing material). */
   status: string | null;
@@ -211,7 +215,7 @@ function RowIcon({ row }: { row: BarRow }) {
   }
 }
 
-export function CmdbarList({ header, rows, activeIdx, onActivate, onRun, caveat, status, mode }: CmdbarListProps) {
+export function CmdbarList({ header, rows, activeIdx, onActivate, onRun, caveat, regime = null, status, mode }: CmdbarListProps) {
   const { t } = useTranslation();
   let lastSection: BarSection | null = null;
   // The caveat qualifies "Ce contează acum", so it sits directly under
@@ -238,6 +242,11 @@ export function CmdbarList({ header, rows, activeIdx, onActivate, onRun, caveat,
       {status && (
         <p data-testid="cmdbar-status" className="px-4 py-2 text-[12.5px] text-ink-soft">{status}</p>
       )}
+      {regime && mode === "rest" ? (
+        <p data-testid="cmdbar-credit-regime" className="px-4 pb-1.5 text-[11.5px] leading-snug text-caution">
+          {regime}
+        </p>
+      ) : null}
       <div
         role="listbox"
         aria-labelledby={HEADER_ID}

@@ -42,6 +42,14 @@ from engine.canonical import (
     leaves_for_aggregate,
     schema_version,
 )
+from engine.country_packs.ro_romania import pl_definition as _pl_definition
+
+#: The canonical leaf a 7411 leaf placed inside net turnover lands on (R3,
+#: 2026-09-28): a `revenue_gross` leaf, so `totals.revenue_net` = 70x − 709
+#: + 7411. The schema has no subsidy-revenue leaf; "other operating
+#: revenue" is the revenue_gross leaf for turnover that is not a sale of a
+#: named kind.
+_TURNOVER_PLACED_CANONICAL = "revenue_other_operating"
 
 # Rule-table vintage stamped onto every canonical_bs emission. Imported
 # from the rules module (the single owner of the constant); the fallback
@@ -536,6 +544,15 @@ def _route_line_item(li: Dict[str, Any]):
     canonical_name = _canonical_bucket_for_ras(code, name)
     canonical_name = _sign_aware_canonical(code, canonical_name, signed_amount)
     canonical_name = _side_flip_canonical(li, canonical_name)
+    # R3 (owner ruling 2026-09-28): a 7411 leaf the assembly placed inside
+    # net turnover (packs/ro/pl_definition.yaml) is turnover here too — the
+    # methodology's `totals.revenue_net` reads `revenue_gross`, never the
+    # grant it was classified as. Recognised by the assembly's placement
+    # flag, or, on rows read back from storage, by its persisted bucket.
+    if li.get("placement") == "turnover" or (
+            li.get("bucket") == "revenue"
+            and _pl_definition.matches(code, _pl_definition.turnover_prefixes())):
+        canonical_name = _TURNOVER_PLACED_CANONICAL
     return code, name, signed_amount, canonical_name
 
 

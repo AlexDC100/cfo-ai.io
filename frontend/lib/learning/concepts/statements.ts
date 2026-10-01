@@ -56,6 +56,29 @@ const depreciation_amortization: Concept = {
   },
 };
 
+/** Net provisions — the owner's R2 ruling (2026-09-28): the charges to
+ *  provisions and current-asset impairment (6812, 6814) and their reversals
+ *  (7812, 7814) sit OUTSIDE EBITDA, their net between EBITDA and the
+ *  operating result. The account list is the engine's
+ *  (packs/ro/pl_definition.yaml); the figure is the served
+ *  `assembled_pl.net_provisions.value`. */
+const net_provisions: Concept = {
+  key: "net_provisions",
+  name: { en: "Net provisions and impairment adjustments", ro: "Provizioane și ajustări nete" },
+  category: "Romanian RAS",
+  shortDefinition: {
+    en: "Provision and current-asset impairment charges less their reversals. " +
+        "Outside EBITDA on both sides — neither the charge nor the release is " +
+        "operating cash — and between EBITDA and the operating result.",
+    ro: "Cheltuielile cu provizioanele și ajustările pentru deprecierea activelor " +
+        "circulante, minus reluările lor. În afara EBITDA pe ambele părți — nici " +
+        "constituirea, nici reluarea nu sunt numerar din exploatare — între EBITDA " +
+        "și rezultatul din exploatare.",
+  },
+  inlineFormula: "Charges − reversals (the engine's accounts)",
+  related: ["ebitda", "ebit", "depreciation_amortization"],
+};
+
 const operating_cash_flow_before_wc: Concept = {
   key: "operating_cash_flow_before_wc",
   name: { en: "Operating CF Before WC Changes", ro: "CF operațional înainte de modificări WC" },
@@ -810,6 +833,7 @@ export const STATEMENT_CONCEPTS: Readonly<Record<string, Concept>> = {
   // Cash Flow
   [net_profit.key]: net_profit,
   [depreciation_amortization.key]: depreciation_amortization,
+  [net_provisions.key]: net_provisions,
   [operating_cash_flow_before_wc.key]: operating_cash_flow_before_wc,
   [working_capital_changes.key]: working_capital_changes,
   [operating_cash_flow.key]: operating_cash_flow,

@@ -1489,6 +1489,169 @@ is the only carrier of the rule, and the snapshot law
 (`chatSnapshotInventoryDays.test.ts`, gate inventory-days-surfaces) is what
 keeps it there.
 
+**Rulings of 2026-09-28 (R2, R3) — candidate `feat/rulings-2`, NOT shipped
+until the owner has seen the per-period diff.** Design:
+`specs-durable/design_2026-09-28_rulings2.md`. Both are PLACEMENTS of accounts
+the frozen classification pack has already classified, held as data in
+`packs/ro/pl_definition.yaml` (loader `country_packs/ro_romania/pl_definition.py`)
+and applied once, in `assemble_statements`; every account list and line name
+below is rendered from that pack (TC-10).
+- **R2 — provisions symmetric.** The 6812 / 6814 charges AND the 7812 / 7814
+  reversals are OUTSIDE EBITDA; `assembled_pl.net_provisions` {value = charges
+  − reversals (signed as a charge), per-account charges / reversals, the
+  pack's name "Provizioane și ajustări nete (6812 + 6814 − 7812 − 7814)"} is
+  its own line between EBITDA and the operating result — on the
+  reconciliation chain, after EBITDA on the one-line bridge
+  (`bridge.after_ebitda`), on the P&L tab, the report, the printed P&L / Excel
+  workbook, the chat snapshot and the EBITDA popover. `depreciation` is D&A
+  WITHOUT the ruled charges; `other_operating_income` is without the ruled
+  reversals. **EBIT does not move** (computed on the pre-ruling terms, to the
+  cent): EBIT = EBITDA − D&A − net provisions. What the ruling does NOT move:
+  core / adjusted EBITDA (`other_income_781_reversals` is now the 781 still
+  inside EBITDA, so no reversal is stripped twice), the cash-flow add-back
+  (`assembled_cf.depreciation` stays all of 68x, and the DCF reads it), the
+  operating-cost total and the inventory-days flow (the charges are still
+  operating costs), the liquidity finding's cash cost (the charges are
+  still non-cash). Unruled 68x / 78x (6811, 6813, 6817, 7813, 7815…) stay
+  where they were. The forecast (closed) follows: plan-year D&A and the
+  maintenance-capex proxy read D&A without the charges, net provisions are
+  not projected, year-0 EBITDA and other operating income are the served
+  ones. The methodology's operating result used to be `reported −
+  dap.net`, which subtracted every 78x reversal `reported` had just added
+  (the served EBIT less the reversals); it is now EBITDA − D&A − net
+  provisions and equals the in-code EBIT (gate provisions-symmetric).
+- **R3 — 7411 in turnover.** Cifra de afaceri netă = 70x − 709 + 7411 (F20
+  rd. 05 of rd. 01). The 7411 leaves are placed in the turnover bucket at
+  assembly (persisted as `revenue`, with `classified_bucket` beside them in
+  memory; a rebuild recognises the stored placement); the canonical adapter
+  places them in `revenue_gross`. 7418 (other operating subsidies) stays other
+  operating income. `assembled_pl.turnover_definition` says what turnover
+  holds. No real, corpus or fixture book posts 7411 — the witness is
+  constructed (gate turnover-7411).
+- **Stamps.** `EBITDA_DEFINITION_REVISION` = `ebitda/2026-09-28:…,provisions-
+  6812-6814-7812-7814-outside,7411-turnover` (the previous one in
+  `EBITDA_DEFINITION_PREVIOUS_REVISIONS`); credit-model revision 4
+  (`ONE_EBITDA_REVISION` 4 — stored rows stamped 3 are refused by the Section
+  9 benchmark until reprocessed; `RULINGS_2_REVISED_METRICS` —
+  other_income_781_reversals, revenue, net_margin, asset_turnover — are
+  served from the serve-time model like the EBITDA family); benchmark `REPORT_REVISION` 6; methodology
+  1.2.0. The reprocess script reports the stamp a period was written under,
+  the net provisions and the 7411 inside turnover; a turnover move of exactly
+  the placed 7411 on an earlier-definition period is named as the ruling
+  (`definition_7411`) and STILL blocks until `--filed` names the period's
+  filed turnover (owner, 2026-09-29: "verify filed-turnover matching on any
+  book with 7411"), the named figure then judging the move. No stored period
+  posts 7411 today (production dry run 2026-09-29: 0.00 on all 10).
+
+**Ruling of 2026-09-28 (R1) — the stock-build credit regime, credit model
+revision 5 — candidate `feat/rulings-2`, NOT shipped until the owner has seen
+the re-grade.** The one EBITDA carries net 711 inside, so a developer that
+capitalises its construction into stock (the corpus developer: net 711
++29,589,814.24 against turnover 162,365.46) showed a positive EBITDA and
+graded 41.5 B. The regime is pack data (`packs/credit/model.yaml`
+`stock_build_regime`, loaded and validated by `ratios/credit_pack.py` — a pack
+without it raises) and ONE function, `credit_model.stock_build_regime`:
+- **Trigger:** a MEASURED net 711 > 0 reaching BOTH pack shares — of net
+  turnover and of total operating expense (compared by multiplication, so a
+  zero turnover never divides; a refused 711 never triggers). Every
+  manufacturer measured sits two orders of magnitude below (agras: 0.97% of
+  turnover).
+- **Effect:** leverage = net debt / cash from operations, coverage = CFO /
+  interest, DSCR = CFO / debt service, on the SERVED `assembled_cf.
+  cash_from_operating`; Altman X3 = (EBIT − net 711 − net 72x) / total assets,
+  labelled; the composite on the regime's weight table (liquidity 0.20,
+  profitability 0.10, the rest unchanged — never renormalised). An
+  APPROXIMATED or REFUSED CFO refuses the three cash components
+  (`cash_from_operations_approximated` / `_refused`) and the composite with
+  them — never 0, never back to EBITDA; a measured CFO <= 0 takes the
+  regime's declared bottom rung; debt-free with CFO > 0 takes R-D1 on cash.
+- **⚠ The served cash flow is approximated on EVERY book today**
+  (`assemble_statements` hard-codes `is_approximated = True`: the engine
+  threads no prior-period trial balance). So on the developer the three cash
+  components and the letter REFUSE (41.5 B → no letter; Z'' 4.81 → 2.43, X3
+  0.0059 → −0.3489). Read as if measured, the same approximated CFO
+  (−3,945,493.79) would give 33.9 CCC — the owner's call whether the regime
+  may grade on the approximation; the code does not. **The re-grade the owner
+  asked for is therefore a REFUSAL on every real book today** (fixer round 1,
+  finding 3 — confirmed, not fixed: it needs an owner decision). The dry run
+  prints it as `REFUSED (no composite, no letter)`, never as a re-grade. Two
+  ways to a letter, both the owner's to rule: (a) measure the working-capital
+  movements from the trial balance's own opening balances (`si_d`/`si_c`, the
+  fiscal-year opening `inventory_days` already reads) — on the developer the
+  class-3 leaves move +29,589,814.29 where the approximation serves
+  −3,391,060.69 (5% of closing), and every book's cash flow would change with
+  it; (b) let the regime grade on the SIGN of the approximated CFO (bottom
+  rung when ≤ 0). Either gives the developer 33.9 CCC (every measured CFO ≤ 0
+  gives the same sub-scores: Altman 66.5, liquidity 45.4, equity 96.6, the
+  rest 0). Measured for (a) (fixer round 2, 2026-09-29, read-only, the same
+  assembler run on the book's own fiscal-year opening): the developer's CFO
+  would be −17,370,630.08 (the served −729,412.53 before working capital plus
+  −16,641,217.55 of measured working-capital movement; the balance-sheet
+  cash identity cross-checks at −17,380,602.20) → 33.9 CCC. **(a) is not
+  local to the developer:** on the four corpus books it moves the served CFO
+  by −10,817,914.23 (agras: +10,234,999.93 → −582,914.30, a sign flip),
+  +2,640,467.94 (carniprod), −13,425,136.29 (the developer) and
+  +11,072,474.11 (retail) — indicative only, since it reads every other
+  current asset and liability as working capital; (a) needs its own design
+  (which balance-sheet lines are operating) before it can serve anything.
+- **The finding** rides the served block (`credit.regime.finding`): "EBITDA
+  pozitivă din stocuri capitalizate — numerarul a fost consumat de
+  construcție." (verbatim) / "Positive EBITDA from capitalised stock — the
+  cash was consumed by construction.", severity high, with the served net 711,
+  turnover, EBITDA, EBITDA before the stock variation and CFO (only when
+  measured) — **ONLY when the served figures say what it states** (fixer
+  round 1): the served EBITDA > 0, the served EBITDA before the stock
+  variation and own work ≤ 0 (the build is what makes it positive), and no
+  MEASURED cash from operations > 0. Otherwise the regime stands (the grade
+  is on cash either way), `finding` is null and `finding_withheld` names the
+  failed premise (pack data: `stock_build_regime.finding.premise`) — no
+  sentence of our own; the command bar prints the regime's label alone and
+  the briefing hands the narrator no sentence. A pre-sales developer whose
+  overhead exceeds turnover (EBITDA < 0) triggers the regime WITHOUT the
+  sentence. It is printed ONCE, beside the grade, on the Risks tab, the
+  dashboard hero (in place of the "analysis pending" line when the regime
+  refused the letter), /report's card (and so the CFO Report PDF), the exported report
+  and workbook, the command bar (`credit_regime` on attention/1, one line at
+  rest) and the briefing facts (`credit_regime`, text only). The developer
+  keeps its margin refusal.
+- **Stamps / tools:** `CREDIT_MODEL_REVISION` 5 (`ONE_EBITDA_REVISION` stays
+  4 — the EBITDA family did not move); the reprocess dry run prints the
+  regime, its trigger shares, the cash status, the refused components and the
+  finding. Gates: `credit-stock-build`, `credit-regime-surfaces`.
+
+**Ruling of 2026-09-28 (R4) — the bank report is the CFO Report PDF —
+candidate `feat/rulings-2`.** "Exportă raportul pentru bancă" / "Export the
+bank report" opens the CFO Report PDF — the dashboard's export tab, whose PDF
+card posts the report (`buildReportHtml` with the credit envelopes) to
+`/api/report/pdf` — and NEVER the Forecast page, whatever the Forecast
+feature's status. This retires design C1's default ("the Forecast cockpit's
+bank export when forecast is active"). attention/1 serves ONE export action,
+`bank_export`, target `report_pdf`. `compose_attention` takes no feature
+statuses and the attention route reads no feature registry. The pack
+(`packs/serving/attention.yaml`) holds an action as its label only.
+`attention/pack.py` refuses a feature gate, a target, or an action name the
+composer does not use (the retired "Exportă raportul CFO (PDF)" row
+included). The command bar prints the engine's actions as served, with no
+per-reader feature fallback. Typing offers ONE export row, "Exportă raportul
+CFO (PDF)", with the bank label as one of its search terms. A recent pick
+saved as `action:bank-export` before the ruling opens the export tab. The
+Forecast cockpit's own "Exportă pentru bancă" stays reachable from the
+Forecast page only. Gates: `attention-rules`, `attention-route`,
+`cmdbar-fixtures`, `cmdbar-surface`.
+
+**Ruling of 2026-09-28 (R5) — Supabase read timeouts, logged and retried
+once.** Two `httpx.ReadTimeout`s hit production that day (ops log). The same
+selects answer in 0.07–0.4 s. In `engine/api/_supabase.py`, `select` (the
+client's one GET) goes through `_get`. On `httpx.ReadTimeout` ONLY, `_get`
+logs one WARNING and sends the same GET once more (`READ_TIMEOUT_RETRIES` =
+1). The WARNING carries the table and the parameter NAMES, never a value and
+never the headers that carry the service key. A second timeout raises. A
+connect error or an HTTP error status is never retried. Writes are never
+retried, because a timed-out write may have landed: insert, upsert, update,
+delete, rpc, signed_url, upload_object and delete_object. Gate
+`supabase-read-retry`. Out of scope: `_billing._user_email`'s auth-admin GET,
+which reaches into `client._client` directly and swallows its own failures.
+
 **DEPLOY REQUIREMENT.** Every stored period predates the definition: its
 EBITDA refuses (`period_predates_*`) until it is REPROCESSED from its stored
 document with `scripts/reprocess_periods_definition.py` (dry run → review

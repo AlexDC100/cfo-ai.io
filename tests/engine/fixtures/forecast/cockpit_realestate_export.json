@@ -4758,7 +4758,7 @@
     "pack": "packs/ratios/inventory_days.yaml",
     "period_days": "supplementary.periodDays",
     "stock": "inventory_stock/1 accounts (sf_d - sf_c; si_d - si_c at the fiscal-year opening)",
-    "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation"
+    "total_operating_expense": "assembled_pl.cogs + opex_total + depreciation + net_provisions.charges"
    },
    "reconciliation": {
     "difference": 0.0,

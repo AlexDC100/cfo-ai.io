@@ -89,6 +89,14 @@ function CashFlowStatementBody({ statement, hideGuide = false, prior = null }: O
     ? `${lang === "ro" ? "Refuzat" : "Refused"} — ${prior.refusal.text[lang]}`
     : null;
   const p = priorRefused ? null : cashFlowFigures(prior);
+  // The add-back row says what it sums (owner ruling R2, 2026-09-28): all
+  // of 68x — the provision charges with D&A — whenever either column's
+  // served add-back holds the 6812 / 6814 charges the P&L prints on their
+  // own line; plain D&A otherwise.
+  const depreciationLabelKey =
+    operating.depreciationIncludesProvisionCharges || (cmpOn && p?.operating.depreciationIncludesProvisionCharges)
+      ? "statements.cf.operating.depreciationAndProvisionCharges"
+      : "statements.cf.operating.depreciation";
   const driftExceedsTolerance = Math.abs(reconciliation.drift) > 1;
   const showApproximationBanner = statement.isApproximated;
   // 2026-05-24 — currency conversion via display-currency toggle.
@@ -167,7 +175,7 @@ function CashFlowStatementBody({ statement, hideGuide = false, prior = null }: O
               <div className="cf-row cf-row-item">
                 <span className="cf-label">
                   <SimpleTermLabel termId="depreciation">
-                    {t("statements.cf.operating.depreciation")}
+                    <span data-testid="cf-depreciation-label">{t(depreciationLabelKey)}</span>
                   </SimpleTermLabel>
                 </span>
                 {/* ABSENT-CAPABLE: the public adapter derives D&A from the

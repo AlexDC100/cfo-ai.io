@@ -168,15 +168,26 @@ describe.each(Object.keys(FIXTURES))("the committed comparatives pair — %s", (
     expectPriorCell(cellsOf(container, NET_TURNOVER), revenue);
   });
 
-  it("the 758 line and its subtotal are keyed to the engine's 758 line — and refused, because this row carries 781 reversals", () => {
+  it("the 758 line and its subtotal are keyed to the engine's 758 line — carried where the row IS 758, refused where it holds a 781 reversal", () => {
     const { current_body, comparatives: doc } = load();
     const st = current_body.statements;
     const line758 = column(doc, "pl.other_operating_income");
-    // The row shows the served other-operating-income line; on this book it
-    // holds provision reversals (781) the engine's 758 line excludes.
-    const rowAmount = (st.assembled_pl as Record<string, number>).other_operating_income;
-    expect(Math.abs(rowAmount - (line758.current as number))).toBeGreaterThanOrEqual(PARITY_FLOOR);
-    expect((st.assembled_pl as Record<string, number>).other_income_781_reversals).toBeGreaterThan(0);
+    // Owner ruling R2 (2026-09-28): the 7812 / 7814 reversals left other
+    // operating income for their own net-provisions line, so on this book
+    // (whose only reversals were 7814) the served row IS the 758 leaves —
+    // the engine's 758 line — and carries its cells.
+    const pl = st.assembled_pl as Record<string, number>;
+    expect(Math.abs(pl.other_operating_income - (line758.current as number))).toBeLessThan(PARITY_FLOOR);
+    expect(pl.other_income_781_reversals).toBe(0);
+    const served = renderPl(st, doc);
+    expectPriorCell(cellsOf(served.container, LINE_758), line758);
+    expectPriorCell(cellsOf(served.container, TOTAL_758), line758);
+    served.unmount();
+    // A reversal still inside EBITDA (an unruled 7813, say) makes the row
+    // wider than the engine's 758 line: refused, never painted wrong.
+    pl.other_operating_income = (line758.current as number) + 1_234.56;
+    pl.other_income_781_reversals = 1_234.56;
+    st.incomeStatement.otherIncome = pl.other_operating_income;
     const { container } = renderPl(st, doc);
     expectDefinitionDiffers(cellsOf(container, LINE_758), "pl.other_operating_income");
     expectDefinitionDiffers(cellsOf(container, TOTAL_758), "pl.other_operating_income");

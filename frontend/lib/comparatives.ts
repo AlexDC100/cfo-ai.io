@@ -581,6 +581,8 @@ export const PL_ROW_TO_KEY: Readonly<Record<string, string>> = {
   opexTotal: "pl.opex_total",
   opexThirdParty: "pl.opex_third_party",
   depreciationAmortization: "pl.depreciation",
+  // R2 (2026-09-28): the net of the ruled provision charges and reversals.
+  netProvisions: "pl.net_provisions",
   ebitda: "pl.ebitda",
   ebit: "pl.ebit",
   financialIncomeTotal: "pl.financial_income",
@@ -594,7 +596,8 @@ export const PL_ROW_TO_KEY: Readonly<Record<string, string>> = {
 
 /**
  * THE ENGINE LINES ON THE ONE EBITDA DEFINITION. Their figures moved with
- * the owner's ruling of 2026-09-26 (711 and 72x inside, 767 financial), so
+ * the owner's rulings of 2026-09-26 (711 and 72x inside, 767 financial) and
+ * 2026-09-28 (provisions symmetric outside EBITDA, 7411 in turnover), so
  * a prior assembled under another definition is not the same line: such a
  * row carries the engine's cells only while the PRIOR's served block —
  * `prior_statements.assembled_pl.ebitda_definition`, read off the served
@@ -610,6 +613,16 @@ export const PL_ROW_ONE_EBITDA_KEYS: ReadonlySet<string> = new Set([
   "pl.gross_profit",
   "pl.inventory_variation",
   "pl.capitalized_own_work",
+  // The owner's R2 ruling of 2026-09-28 moved these too: the 6812 / 6814
+  // charges out of D&A, onto their own net-provisions line with the 7812 /
+  // 7814 reversals. A prior stamped with the previous definition carries
+  // them under the same names, built another way. (`pl.other_operating_
+  // income` is the 758 leaves alone — the ruling did not move it. Net
+  // turnover moved by R3 only on a book that posts 7411 — none is known —
+  // and a prior's stamp cannot say whether it did, so it is not held: see
+  // the comparatives law "net turnover … never held to it".)
+  "pl.depreciation",
+  "pl.net_provisions",
 ]);
 
 /** What the definition guard reads for one row: the EBITDA definition the

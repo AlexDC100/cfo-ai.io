@@ -412,7 +412,9 @@ const PL_CONCEPTS: readonly Concept[] = [
   // (70x − 709), 711 prints beside cost of sales under the owner's
   // Romanian name, 72x is its own operating line — every one of them one
   // concept across the three formats.
-  { id: "turnover", doc: "Net turnover (70x − 709)", sheet: "Net turnover (70x − 709)", gateway: "revenue" },
+  // R3 (owner ruling 2026-09-28): 7411 is inside net turnover — the row's
+  // accounts are the engine's (`turnover_definition.accounts`).
+  { id: "turnover", doc: "Net turnover (70x − 709 + 7411)", sheet: "Net turnover (70x − 709 + 7411)", gateway: "revenue" },
   { id: "cogs", doc: "Cost of goods sold", sheet: "Cost of goods sold" },
   {
     id: "inventory_variation",

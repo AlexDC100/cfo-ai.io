@@ -106,9 +106,38 @@ def _reference() -> Dict:
 
 def _payload(name: str) -> Dict:
     book = json.loads((FIRM / ("saga_10_col_%s.json" % name)).read_text())
-    return {"envelope": book["envelope"], "statements": book["statements"],
+    return {"envelope": book["envelope"],
+            "statements": _as_the_reference_read_them(book["statements"]),
             "line_items": book["line_items"], "period_end": book["period_end"],
             "currency": book.get("currency") or "RON"}
+
+
+def _as_the_reference_read_them(statements: Dict) -> Dict:
+    """The statements in the composition the REFERENCE engine read — the
+    same hold as `REFERENCE_TAX_RATE` below, for a deliberate move of the
+    INPUTS this gate does not hold.
+
+    The owner's R2 ruling (2026-09-28) moved the 7812 / 7814 reversals out
+    of other operating income and the 6812 / 6814 charges out of D&A onto
+    their own net-provisions line, which no plan year projects. That is a
+    move of what the forecast is FED (held by forecast-model: plan year one
+    reproduces the book's pre-tax result less the stated net provisions, to
+    the cent), not of the cost-pool arithmetic this gate holds against B3.
+    So the parity request hands the engine the two lines as the reference
+    engine read them — the reversals back in other operating income, the
+    charges back in D&A, no net-provisions line — and nothing else moves.
+    A statement assembled before the ruling carries no block and passes
+    through unchanged."""
+    apl = statements.get("assembled_pl") or {}
+    block = apl.get("net_provisions")
+    if not isinstance(block, dict):
+        return statements
+    out = json.loads(json.dumps(statements))
+    pl = out["assembled_pl"]
+    pl["other_operating_income"] = round(pl["other_operating_income"] + block["reversals"]["value"], 2)
+    pl["depreciation"] = round(pl["depreciation"] + block["charges"]["value"], 2)
+    pl.pop("net_provisions")
+    return out
 
 
 #: plan/2 B4 repair (B4V-6): the reference engine (B3 over the repaired

@@ -8,12 +8,15 @@
 //   1. THE CHAIN — net turnover → other operating income → own work
 //      capitalised (72x) → cost of sales, with "Variația stocurilor de
 //      produse" (711) beside it, signed and with its provenance → other
-//      operating expenses → EBITDA → D&A → operating result → financial
-//      result → tax → net result = account 121 (or "not anchored"). On a
+//      operating expenses → EBITDA → D&A → net provisions (6812 + 6814 −
+//      7812 − 7814, outside EBITDA — owner ruling R2, 2026-09-28) →
+//      operating result → financial result → tax → net result = account
+//      121 (or "not anchored"). On a
 //      closed book the 711 line is DERIVED from account 121, so the chain
 //      closes by construction; the engine's note says so.
 //   2. THE ONE-LINE BRIDGE — EBITDA before the stock variation and own work
-//      capitalised · the stock variation · own work capitalised = EBITDA.
+//      capitalised · the stock variation · own work capitalised = EBITDA,
+//      then the served lines OUTSIDE EBITDA after it (net provisions).
 //   3. EBITDA → CORE EBITDA (the valuation basis): the served 758 and 781
 //      strips and the served core figure — on the one EBITDA.
 //
@@ -133,6 +136,14 @@ export function EbitdaReconciliationPanel({
                   </span>
                 );
               })}
+              {/* After EBITDA, outside it — the engine's label says so. */}
+              {recon.bridge.afterEbitda.map((p) => (
+                <span key={p.key} data-bridge-after={p.key}>
+                  <span className="text-ink-mute">{" · "}</span>
+                  {pickLang(p.label, lang)}{" "}
+                  <span className="tabular-nums text-ink">{money(p.value, true)}</span>
+                </span>
+              ))}
               {recon.bridge.refusal && (
                 <div className="mt-1 text-alert" data-testid="ebitda-recon-bridge-refused">
                   {reason(recon.bridge.refusal)}
@@ -206,7 +217,13 @@ function ReconRow({
   reason: (r: ServedRefusal | null | undefined) => string | null;
 }) {
   const { t } = useTranslation();
-  const component = line.key === "inventory_variation" || line.key === "capitalized_own_work";
+  // Signed as its effect on the result: the two components inside EBITDA
+  // and net provisions outside it (a net release prints "+").
+  const component =
+    line.key === "inventory_variation" || line.key === "capitalized_own_work" || line.key === "net_provisions";
+  // The account codes in the reader's language ("fără" / "excl."), where
+  // the engine words them apart — a code string, never a figure.
+  const accountCodes = (lang ?? "").toLowerCase().startsWith("ro") ? line.accounts : line.accountsEn ?? line.accounts;
   const notAnchored = line.key === "account_121" && line.status === "not_anchored";
   const refusal = line.value === null ? reason(line.refusal) : null;
   return (
@@ -219,10 +236,10 @@ function ReconRow({
     >
       <span>
         <NameWithGloss label={line.label} lang={lang} />
-        {line.accounts && (
-          <span className="ml-1.5 font-mono text-[10px] text-ink-mute">{line.accounts}</span>
+        {accountCodes && (
+          <span className="ml-1.5 font-mono text-[10px] text-ink-mute">{accountCodes}</span>
         )}
-        {component && line.provenanceLabel && (
+        {component && line.key !== "net_provisions" && line.provenanceLabel && (
           <span className="block text-[11.5px] font-normal text-ink-mute" data-testid="ebitda-recon-provenance">
             {pickLang(line.provenanceLabel, lang)}
           </span>

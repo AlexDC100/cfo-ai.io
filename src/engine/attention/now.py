@@ -10,7 +10,8 @@ WHAT IT READS — AND NOTHING ELSE
   * the served period body (`GET /api/period/{id}`): period facts, the
     account-121 anchor status, `statements.insights` (the deterministic
     findings; their model-authored `narrative` is never read), and — through
-    `sources` only — EBITDA and inventory days;
+    `sources` only — EBITDA, inventory days and the credit envelope's regime
+    (`assembled_metrics.credit.regime`, served verbatim as `credit_regime`);
   * the served comparatives document (`GET /api/period/{id}/comparatives`)
     with the same company's previous period of the same length;
   * the served sector-benchmark document
@@ -63,9 +64,6 @@ EXCLUDED_SOURCES = (
     "statements.insights[].narrative",
     "statements.insights[].claim",
 )
-
-_FEATURE_ACTIVE = "active"
-
 
 def _num(value: Any) -> Optional[float]:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -472,8 +470,7 @@ def _considered(cands: Sequence[Mapping[str, Any]]) -> List[Dict[str, Any]]:
 
 
 def _actions(pack: Mapping[str, Any], facts: Mapping[str, Any], prior: Mapping[str, Any],
-             mode: str, sector_reason: Optional[Mapping[str, Any]],
-             features: Mapping[str, Any]) -> List[Dict[str, Any]]:
+             mode: str, sector_reason: Optional[Mapping[str, Any]]) -> List[Dict[str, Any]]:
     labels = pack["actions"]
     out = []
     # A comparison is offered when one is being shown, or when the reader
@@ -494,16 +491,14 @@ def _actions(pack: Mapping[str, Any], facts: Mapping[str, Any], prior: Mapping[s
         out.append({"key": "add_prior_year", "label": dict(labels["add_prior_year"]["label"]),
                     "target": {"kind": "upload", "org_id": facts.get("org_id"),
                                "period_end": S.year_back(facts.get("period_end"))}})
-    bank_feature = labels["bank_export"].get("feature")
-    if bank_feature and features.get(bank_feature) == _FEATURE_ACTIVE:
-        out.append({"key": "bank_export", "label": dict(labels["bank_export"]["label"]),
-                    "requires_feature": bank_feature,
-                    "target": {"kind": "forecast_bank_export", "route": "/dashboard/forecast",
-                               "period_id": facts.get("id")}})
-    else:
-        out.append({"key": "cfo_report_pdf", "label": dict(labels["cfo_report_pdf"]["label"]),
-                    "target": {"kind": "report_pdf", "route": "/dashboard", "tab": "export",
-                               "period_id": facts.get("id")}})
+    # Ruling R4 (owner, 2026-09-28): "Exportă raportul pentru bancă" is the
+    # CFO Report PDF — the dashboard's export tab, whose PDF card posts the
+    # report to the renderer (/api/report/pdf) — and never the Forecast page,
+    # whatever the Forecast feature's status. The Forecast cockpit's own bank
+    # export is reachable from the Forecast page only.
+    out.append({"key": "bank_export", "label": dict(labels["bank_export"]["label"]),
+                "target": {"kind": "report_pdf", "route": "/dashboard", "tab": "export",
+                           "period_id": facts.get("id")}})
     if isinstance(sector_reason, Mapping) and sector_reason.get("code") == "caen_absent":
         out.append({"key": "set_industry", "label": dict(labels["set_industry"]["label"]),
                     "target": {"kind": "route", "route": "/benchmark",
@@ -519,7 +514,6 @@ def compose_attention(current_payload: Mapping[str, Any], *,
                       comparatives: Optional[Mapping[str, Any]] = None,
                       comparatives_reason: Optional[Mapping[str, Any]] = None,
                       sector: Optional[Mapping[str, Any]] = None,
-                      features: Optional[Mapping[str, Any]] = None,
                       pack: Optional[Mapping[str, Any]] = None) -> Dict[str, Any]:
     """The attention/1 document.
 
@@ -529,10 +523,10 @@ def compose_attention(current_payload: Mapping[str, Any], *,
     available_period_id, available_period_end}. `comparatives` is the served
     comparatives document for that pair (None when there is no pair or it
     was refused, with `comparatives_reason`). `sector` is the served
-    sector-benchmark document. `features` maps feature keys to their served
-    status (the registry `GET /api/features/status` serves)."""
+    sector-benchmark document. No action reads a feature's status (ruling
+    R4, 2026-09-28): the bank report is the CFO Report PDF whether or not the
+    Forecast feature is on."""
     pack = pack or load_pack()
-    features = features or {}
     facts = S.period_facts(current_payload)
     prior = dict(prior or {})
     usable_cmp = isinstance(comparatives, Mapping) and isinstance(comparatives.get("columns"), list)
@@ -631,11 +625,14 @@ def compose_attention(current_payload: Mapping[str, Any], *,
         "period": facts,
         "mode": mode,
         "prior": prior,
+        # The credit model's regime for this period (revision 5, owner
+        # ruling R1), the served envelope's block verbatim — the command bar
+        # prints it ONCE, with its finding. None under the standard model.
+        "credit_regime": S.credit_regime(current_payload),
         "items": items,
         "unfilled": unfilled,
         "deduped": deduped,
-        "actions": _actions(pack, facts, prior, mode, sector_reason if not sector_ok else None,
-                            features),
+        "actions": _actions(pack, facts, prior, mode, sector_reason if not sector_ok else None),
         "caveats": caveats,
         "sources": {
             "comparatives": cmp_source,

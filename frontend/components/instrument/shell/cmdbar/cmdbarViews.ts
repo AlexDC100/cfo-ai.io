@@ -563,7 +563,6 @@ export interface NowActionView {
   key: string;
   label: string;
   target: AttentionAction["target"];
-  requiresFeature: string | null;
 }
 
 export function nowActionView(ctx: ViewContext, action: AttentionAction): NowActionView {
@@ -571,6 +570,5 @@ export function nowActionView(ctx: ViewContext, action: AttentionAction): NowAct
     key: action.key,
     label: action.label[ctx.printer.lang],
     target: action.target,
-    requiresFeature: action.requires_feature ?? null,
   };
 }

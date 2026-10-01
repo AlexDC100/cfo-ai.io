@@ -448,7 +448,7 @@
     "current_total": 7533676.02,
     "from_label": "net income (statutory)",
     "prior_total": 1435533.59,
-    "reason": "prior net income + 10 steps == current net income to the cent",
+    "reason": "prior net income + 11 steps == current net income to the cent",
     "residual": 0.0,
     "statement": "PL",
     "steps": [
@@ -461,11 +461,11 @@
       "status": "delta"
      },
      {
-      "amount": -1016130.52,
-      "current": 390090.55,
+      "amount": -559801.74,
+      "current": 386101.85,
       "key": "pl.other_operating_income_total",
       "label": "Other operating income (EBITDA basis)",
-      "prior": 1406221.07,
+      "prior": 945903.59,
       "status": "delta"
      },
      {
@@ -501,11 +501,19 @@
       "status": "delta"
      },
      {
-      "amount": 740179.2,
-      "current": 2955346.39,
+      "amount": 482439.4,
+      "current": 2819963.03,
       "key": "pl.depreciation",
       "label": "Depreciation & amortisation",
-      "prior": 3695525.59,
+      "prior": 3302402.43,
+      "status": "delta"
+     },
+     {
+      "amount": -198588.98,
+      "current": 131394.66,
+      "key": "pl.net_provisions",
+      "label": "Net provisions (outside EBITDA)",
+      "prior": -67194.32,
       "status": "delta"
      },
      {
@@ -651,14 +659,30 @@
    },
    {
     "change_kind": "compared",
-    "current": 2955346.39,
+    "current": 2819963.03,
     "current_disclosure": "reported",
-    "delta": -740179.2,
-    "delta_pct": -0.200291,
+    "delta": -482439.4,
+    "delta_pct": -0.146087,
     "key": "pl.depreciation",
     "label": "Depreciation & amortisation",
     "note": "both periods reported Depreciation & amortisation",
-    "prior": 3695525.59,
+    "prior": 3302402.43,
+    "prior_disclosure": "reported",
+    "requires": "synthetic",
+    "statement": "PL",
+    "status": "compared",
+    "unit": "money"
+   },
+   {
+    "change_kind": "flip_to_positive",
+    "current": 131394.66,
+    "current_disclosure": "reported",
+    "delta": 198588.98,
+    "delta_pct": null,
+    "key": "pl.net_provisions",
+    "label": "Net provisions (outside EBITDA)",
+    "note": "both periods reported Net provisions (outside EBITDA); the change is flip to positive, so it is stated as an amount and carries no percentage",
+    "prior": -67194.32,
     "prior_disclosure": "reported",
     "requires": "synthetic",
     "statement": "PL",
@@ -667,14 +691,14 @@
    },
    {
     "change_kind": "compared",
-    "current": 11848065.27,
+    "current": 11844076.57,
     "current_disclosure": "reported",
-    "delta": 6667236.15,
-    "delta_pct": 1.286905,
+    "delta": 7123564.93,
+    "delta_pct": 1.509066,
     "key": "pl.ebitda",
     "label": "EBITDA",
     "note": "both periods reported EBITDA",
-    "prior": 5180829.12,
+    "prior": 4720511.64,
     "prior_disclosure": "reported",
     "requires": "synthetic",
     "statement": "PL",
@@ -1459,21 +1483,31 @@
    },
    {
     "base_key": "pl.revenue",
-    "current_share": 0.026673,
-    "delta_pts": -1.2429,
+    "current_share": 0.025451,
+    "delta_pts": -0.9491,
     "key": "pl.depreciation",
     "note": "share of pl.revenue in both periods",
-    "prior_share": 0.039102,
+    "prior_share": 0.034942,
     "statement": "PL",
     "status": "compared"
    },
    {
     "base_key": "pl.revenue",
-    "current_share": 0.106934,
-    "delta_pts": 5.2116,
+    "current_share": 0.001186,
+    "delta_pts": 0.1897,
+    "key": "pl.net_provisions",
+    "note": "share of pl.revenue in both periods",
+    "prior_share": -0.000711,
+    "statement": "PL",
+    "status": "compared"
+   },
+   {
+    "base_key": "pl.revenue",
+    "current_share": 0.106898,
+    "delta_pts": 5.695,
     "key": "pl.ebitda",
     "note": "share of pl.revenue in both periods",
-    "prior_share": 0.054818,
+    "prior_share": 0.049947,
     "statement": "PL",
     "status": "compared"
    },
@@ -1987,7 +2021,7 @@
      110798309.14
     ]
    },
-   "below_floor": 4,
+   "below_floor": 5,
    "deteriorated": [
     {
      "base_key": "bs.total_assets",
@@ -2511,13 +2545,13 @@
     "direction": "higher",
     "name": "ebitda",
     "unit": "RON",
-    "value": 5180829.12
+    "value": 4720511.64
    },
    {
     "direction": "higher",
     "name": "ebitda_cash",
     "unit": "RON",
-    "value": 5180829.12
+    "value": 4720511.64
    },
    {
     "direction": "higher",
@@ -2547,7 +2581,7 @@
     "direction": "higher",
     "name": "ebitda_statutory",
     "unit": "RON",
-    "value": 5180829.12
+    "value": 4720511.64
    },
    {
     "direction": "higher",
@@ -2571,7 +2605,7 @@
     "direction": "higher",
     "name": "ebitda_before_stock_variation",
     "unit": "RON",
-    "value": 4993979.59
+    "value": 4533662.11
    },
    {
     "direction": "neutral",
@@ -2589,7 +2623,7 @@
     "direction": "higher",
     "name": "ebitda_margin",
     "unit": "ratio",
-    "value": 0.0548
+    "value": 0.0499
    },
    {
     "direction": "higher",
@@ -2685,7 +2719,7 @@
     "direction": "neutral",
     "name": "other_income_781_reversals",
     "unit": "RON",
-    "value": 460317.48
+    "value": 0.0
    },
    {
     "direction": "higher",
@@ -2715,7 +2749,7 @@
     "direction": "lower",
     "name": "net_debt_to_ebitda",
     "unit": "ratio",
-    "value": -1.9543
+    "value": -2.1449
    },
    {
     "direction": "higher",
@@ -2889,7 +2923,7 @@
     "direction": "neutral",
     "name": "credit_model_revision",
     "unit": "revision",
-    "value": 3
+    "value": 5
    }
   ],
   "ratios": {
@@ -4318,8 +4352,8 @@
       "title_template": "Cash conversion cycle on 4111.01 / 301.201 / 401.01 at 33 days — above the 30 days strong rung of cash conversion cycle for mid-size inventory-heavy operator"
      },
      {
-      "body": "4511.01 (Ndqe te cnifmfy NLC 3299.59), 4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): credit composite in Dec 2024 — 79.3; credit composite in Dec 2025 — 81.0. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the credit model's letter ladder (CREDIT_LETTER_LADDER) under credit model revision 3. Source: period period-agras-fy2025; accounts 4511.01, 4111.01, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_letter_grade fires when AA rung of credit composite is at or above 80.0; observed 81.0. Impact: the credit composite against the AA rung, in notches of the 10.0-point band moves from 0.00 notches to 0.10 notches (+0.10 notches). The letter is how a mid-size inventory-heavy operator is graded in one word by the group treasury and the statutory auditor; credit letter grade on 4511.01 / 4111.01 / 401.01 moving a notch changes that grade. Do this: 1) Reconcile the credit letter grade movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4511.01, 4111.01, 401.01, from the financial controller (before the next board pack). 2) Confirm the move past the AA rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4511.01, 4111.01, 401.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
-      "body_template": "4511.01 (Ndqe te cnifmfy NLC 3299.59), 4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): credit composite in Dec 2024 — 79.3; credit composite in Dec 2025 — 81.0. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the credit model's letter ladder (CREDIT_LETTER_LADDER) under credit model revision 3. Source: period period-agras-fy2025; accounts 4511.01, 4111.01, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_letter_grade fires when AA rung of credit composite is at or above 80.0; observed 81.0. Impact: the credit composite against the AA rung, in notches of the 10.0-point band moves from 0.00 notches to 0.10 notches (+0.10 notches). The letter is how a mid-size inventory-heavy operator is graded in one word by the group treasury and the statutory auditor; credit letter grade on 4511.01 / 4111.01 / 401.01 moving a notch changes that grade. Do this: 1) Reconcile the credit letter grade movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4511.01, 4111.01, 401.01, from the financial controller (before the next board pack). 2) Confirm the move past the AA rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4511.01, 4111.01, 401.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body": "4511.01 (Ndqe te cnifmfy NLC 3299.59), 4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): credit composite in Dec 2024 — 79.3; credit composite in Dec 2025 — 81.0. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the credit model's letter ladder (CREDIT_LETTER_LADDER) under credit model revision 5. Source: period period-agras-fy2025; accounts 4511.01, 4111.01, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_letter_grade fires when AA rung of credit composite is at or above 80.0; observed 81.0. Impact: the credit composite against the AA rung, in notches of the 10.0-point band moves from 0.00 notches to 0.10 notches (+0.10 notches). The letter is how a mid-size inventory-heavy operator is graded in one word by the group treasury and the statutory auditor; credit letter grade on 4511.01 / 4111.01 / 401.01 moving a notch changes that grade. Do this: 1) Reconcile the credit letter grade movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4511.01, 4111.01, 401.01, from the financial controller (before the next board pack). 2) Confirm the move past the AA rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4511.01, 4111.01, 401.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
+      "body_template": "4511.01 (Ndqe te cnifmfy NLC 3299.59), 4111.01 (Kukipmk Tuoc - 5444.84 5444.84), 401.01 (Zchgynjhy ygbohgy - 940.40 940.40): credit composite in Dec 2024 — 79.3; credit composite in Dec 2025 — 81.0. Basis: the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the credit model's letter ladder (CREDIT_LETTER_LADDER) under credit model revision 5. Source: period period-agras-fy2025; accounts 4511.01, 4111.01, 401.01; assembled_canonical_v1; vs period period-carniprod-fy2024. Rule band_letter_grade fires when AA rung of credit composite is at or above 80.0; observed 81.0. Impact: the credit composite against the AA rung, in notches of the 10.0-point band moves from 0.00 notches to 0.10 notches (+0.10 notches). The letter is how a mid-size inventory-heavy operator is graded in one word by the group treasury and the statutory auditor; credit letter grade on 4511.01 / 4111.01 / 401.01 moving a notch changes that grade. Do this: 1) Reconcile the credit letter grade movement from Dec 2024 to Dec 2025 to the ledger — two-period balance listing for accounts 4511.01, 4111.01, 401.01, from the financial controller (before the next board pack). 2) Confirm the move past the AA rung comes from recurring trading, not a single posting — list of non-recurring entries on accounts 4511.01, 4111.01, 401.01 in Dec 2025, from the financial controller. Confidence medium — Cash-flow lines are indirect-method approximations built from a single period's balances; working-capital movements carry a wide band. Both periods are graded on the current band table and credit model revision (restated comparatives), a convention rather than the bands in force when the earlier period was filed. (profile inventory_operator/band_mid/fin_related_party_funded resolved from structure).",
       "category": "leverage",
       "contract_elements": {
        "action": {
@@ -4349,7 +4383,7 @@
         "comparison_basis": {
          "basis_unit": "score",
          "basis_value": 79.3,
-         "description": "the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the credit model's letter ladder (CREDIT_LETTER_LADDER) under credit model revision 3",
+         "description": "the same company's Dec 2025 (period period-agras-fy2025) against Dec 2024 (period period-carniprod-fy2024), both graded on the credit model's letter ladder (CREDIT_LETTER_LADDER) under credit model revision 5",
          "kind": "prior_period"
         },
         "figures": [
@@ -5073,6 +5107,7 @@
       "x1": 0.3683,
       "x2": 0.1903,
       "x3": 0.2264,
+      "x3_basis": null,
       "x4": 1.554,
       "z": 6.19,
       "zone": "safe"
@@ -5151,7 +5186,8 @@
      },
      "reason": null,
      "refused_subscores": {},
-     "revision": 3,
+     "regime": null,
+     "revision": 5,
      "subscores": {
       "altman": 100.0,
       "coverage": 95.0,
@@ -5180,6 +5216,7 @@
       "x1": 0.1132,
       "x2": -0.1073,
       "x3": 0.0118,
+      "x3_basis": null,
       "x4": 5.6337,
       "z": 6.39,
       "zone": "safe"
@@ -5275,7 +5312,8 @@
      },
      "reason": null,
      "refused_subscores": {},
-     "revision": 3,
+     "regime": null,
+     "revision": 5,
      "subscores": {
       "altman": 100.0,
       "coverage": 95.0,
@@ -5799,7 +5837,7 @@
       "pct_change": null,
       "reason_code": null,
       "unit": "pp",
-      "value": "+5.2"
+      "value": "+5.7"
      },
      "display_unit": "pct",
      "finding_id": null,
@@ -5830,7 +5868,7 @@
        {
         "name": "ebitda_margin",
         "source": "metrics.ebitda_margin",
-        "value": 0.0548
+        "value": 0.0499
        }
       ],
       "reason": {
@@ -5839,8 +5877,8 @@
         "industry_signal.block_sector_content"
        ]
       },
-      "value": 5.48,
-      "value_q": "5.5"
+      "value": 4.99,
+      "value_q": "5.0"
      }
     },
     {
@@ -6189,11 +6227,11 @@
        {
         "name": "ebitda",
         "source": "assembled_pl.ebitda",
-        "value": 11848065.27
+        "value": 11844076.57
        }
       ],
       "reason": null,
-      "value": 0.3072402326493936,
+      "value": 0.3073437011729822,
       "value_q": "0.31"
      },
      "delta": {
@@ -6246,7 +6284,7 @@
        {
         "name": "ebitda",
         "source": "assembled_pl.ebitda",
-        "value": 5180829.12
+        "value": 4720511.64
        }
       ],
       "reason": null,
@@ -6600,11 +6638,11 @@
        {
         "name": "dscr",
         "source": "metrics.dscr",
-        "value": 4.7819
+        "value": 4.7802
        }
       ],
       "reason": null,
-      "value": 4.7819,
+      "value": 4.7802,
       "value_q": "4.78"
      },
      "delta": {
@@ -6643,7 +6681,7 @@
        {
         "name": "ebitda",
         "source": "assembled_pl.ebitda",
-        "value": 5180829.12
+        "value": 4720511.64
        },
        {
         "name": "interestExpense",
@@ -6751,12 +6789,12 @@
        {
         "name": "dscr_with_lt_principal",
         "source": "metrics.dscr_with_lt_principal",
-        "value": 25.8701
+        "value": 25.8614
        }
       ],
       "reason": null,
-      "value": 25.8701,
-      "value_q": "25.87"
+      "value": 25.8614,
+      "value_q": "25.86"
      },
      "delta": {
       "favourable": null,
@@ -6794,7 +6832,7 @@
        {
         "name": "ebitda",
         "source": "assembled_pl.ebitda",
-        "value": 5180829.12
+        "value": 4720511.64
        },
        {
         "name": "interestExpense",
@@ -7411,10 +7449,10 @@
      },
      "delta": {
       "favourable": "deteriorated",
-      "pct_change": "+110.8",
+      "pct_change": "+109.8",
       "reason_code": null,
       "unit": "turns",
-      "value": "+2.16"
+      "value": "+2.35"
      },
      "display_unit": "x",
      "finding_id": null,
@@ -7449,12 +7487,12 @@
        {
         "name": "net_debt_to_ebitda",
         "source": "metrics.net_debt_to_ebitda",
-        "value": -1.9543
+        "value": -2.1449
        }
       ],
       "reason": null,
-      "value": -1.9543,
-      "value_q": "-1.95"
+      "value": -2.1449,
+      "value_q": "-2.14"
      }
     },
     {
@@ -7540,12 +7578,12 @@
        {
         "name": "ebitda_to_interest",
         "source": "metrics.ebitda_to_interest",
-        "value": 42.6296
+        "value": 42.6153
        }
       ],
       "reason": null,
-      "value": 42.6296,
-      "value_q": "42.63"
+      "value": 42.6153,
+      "value_q": "42.62"
      },
      "delta": {
       "favourable": null,
@@ -7824,7 +7862,7 @@
       "source": "general_sme_fallback",
       "table_sha256": "5fd90c0ea1cca27abf18dc5097082d258d561255254e00590f53c6c64eb58f12"
      },
-     "credit_model_revision": 3,
+     "credit_model_revision": 5,
      "currency": "RON",
      "methodology_version": null,
      "metrics_basis": "serve",
@@ -7850,7 +7888,7 @@
       "source": "general_sme_fallback",
       "table_sha256": "5fd90c0ea1cca27abf18dc5097082d258d561255254e00590f53c6c64eb58f12"
      },
-     "credit_model_revision": 3,
+     "credit_model_revision": 5,
      "currency": "RON",
      "methodology_version": null,
      "metrics_basis": "serve",

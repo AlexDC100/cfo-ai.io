@@ -1177,7 +1177,8 @@ def test_at_zero_growth_the_plans_first_year_reproduces_the_books_own_ebitda(nam
     components = (cents_from(book["inventory_variation"]["value"])
                   + cents_from(book["capitalized_own_work"]["value"]))
     assert step == components, (name, fmt(step), fmt(components))
-    stated = [n for n in projection.notes if "are not projected" in n]
+    # The stock-variation note (net provisions, R2, carry their own).
+    stated = [n for n in projection.notes if "are not projected" in n and "stock variation" in n]
     if components:
         assert len(stated) == 1 and fmt(components) in stated[0] \
             and fmt(cents_from(book["ebitda"])) in stated[0], (name, stated)
@@ -1201,6 +1202,17 @@ def test_at_zero_growth_the_plans_first_year_reproduces_the_books_pretax_result(
     # The plan projects net 711 and net 72x at 0 (ruling 2026-09-26): its
     # pre-tax result reproduces the book's BEFORE them.
     reported = cents_from(book["pretax_before_stock_variation"])
+    # ...and net provisions at 0 (owner ruling R2, 2026-09-28: the 6812 /
+    # 6814 charges less the 7812 / 7814 reversals, outside EBITDA, inside
+    # the book's operating result): the step is the served line, to the
+    # cent, and stated on the face of the projection with its figure.
+    net_provisions = cents_from(((book.get("net_provisions") or {}).get("value")) or 0.0)
+    reported += net_provisions
+    stated = [n for n in projection.notes if n.startswith("net provisions")]
+    if net_provisions:
+        assert len(stated) == 1 and fmt(abs(net_provisions)) in stated[0], (name, stated)
+    else:
+        assert not stated, (name, stated)
     opening = projection.opening
     allowed = resolution_bound(
         # capex (the one remaining share of revenue on the operating side)

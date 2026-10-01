@@ -69,7 +69,7 @@
   "period_id": "route-period-agras",
   "snapshot_id": "sha256-10b9c390378a05d332cf2e3b24323576f47ab333939f1c5836e41dbccaf4fa3d"
  },
- "body_hash": "sha256:4e167676a36926a1b893236951c42b5d60a0d8464a10b1d3aa001c552ef6087c",
+ "body_hash": "sha256:c1319deb13b4cf5a067598f68b6a62f80531c025548f8b2fd024dbf22d23173b",
  "client": {
   "analysis_debounce_ms": 600,
   "debounce_ms": 150,
@@ -222,7 +222,7 @@
      "evidence": [
       {
        "fact": "assembled_pl.depreciation",
-       "value_minor": 295534639
+       "value_minor": 281996303
       },
       {
        "fact": "assembled_pl.revenue",
@@ -238,7 +238,7 @@
     "sector": null,
     "sentence": {
      "code": "packs/forecast/levers.yaml#capex_maintenance_replaces_depreciation",
-     "text": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,955,346.39, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent"
+     "text": "maintenance-capital convention: capital expenditure replaces the depreciation charge of 2,819,963.03, carried as a share of revenue. A trial balance discloses no investment plan, so this is a convention, not a measurement of intent"
     },
     "source": null,
     "tier": "convention"
@@ -297,9 +297,9 @@
    "solve_step": "0.000001",
    "unit": "ratio_micros",
    "values": [
-    26673,
-    26673,
-    26673
+    25451,
+    25451,
+    25451
    ]
   },
   "depreciation_rate": {
@@ -316,7 +316,7 @@
          "authority": "assembled_pl",
          "fact": "assembled_pl.depreciation",
          "period_end": "2025-12-31",
-         "value_minor": 295534639
+         "value_minor": 281996303
         },
         {
          "authority": "canonical_bs",
@@ -343,13 +343,13 @@
       "sector": null,
       "sentence": {
        "code": "forecast.depreciation_rate_closing_nbv",
-       "text": "annual depreciation rate = charge 2,955,346.39 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base."
+       "text": "annual depreciation rate = charge 2,819,963.03 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base."
       },
       "source": null,
       "tier": "book"
      },
      "values": [
-      251979
+      240436
      ]
     },
     "macro": null,
@@ -363,7 +363,7 @@
        "authority": "assembled_pl",
        "fact": "assembled_pl.depreciation",
        "period_end": "2025-12-31",
-       "value_minor": 295534639
+       "value_minor": 281996303
       },
       {
        "authority": "canonical_bs",
@@ -390,7 +390,7 @@
     "sector": null,
     "sentence": {
      "code": "forecast.depreciation_rate_closing_nbv",
-     "text": "annual depreciation rate = charge 2,955,346.39 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base."
+     "text": "annual depreciation rate = charge 2,819,963.03 / closing net book value of property, plant, equipment and intangibles 11,728,539.67. The CLOSING base is used because this book carries no prior period from which an opening base could be taken, which overstates the rate on a growing asset base."
     },
     "source": null,
     "tier": "book"
@@ -450,7 +450,7 @@
    "solve_step": "0.000001",
    "unit": "ratio_micros",
    "values": [
-    251979
+    240436
    ]
   },
   "dio_cogs_days": {
@@ -2045,7 +2045,7 @@
          "authority": "assembled_pl",
          "fact": "assembled_pl.other_operating_income",
          "period_end": "2025-12-31",
-         "value_minor": 39009055
+         "value_minor": 38610185
         }
        ],
        "method": "level",
@@ -2060,15 +2060,15 @@
       "sector": null,
       "sentence": {
        "code": "other_operating_income_annual",
-       "text": "other operating income held at this book's own amount of 390,090.55: it scales with neither volume, growth nor inflation, and is spread across each plan year by days"
+       "text": "other operating income held at this book's own amount of 386,101.85: it scales with neither volume, growth nor inflation, and is spread across each plan year by days"
       },
       "source": null,
       "tier": "book"
      },
      "values": [
-      39009055,
-      39009055,
-      39009055
+      38610185,
+      38610185,
+      38610185
      ]
     },
     "macro": null,
@@ -2082,7 +2082,7 @@
        "authority": "assembled_pl",
        "fact": "assembled_pl.other_operating_income",
        "period_end": "2025-12-31",
-       "value_minor": 39009055
+       "value_minor": 38610185
       }
      ],
      "method": "level",
@@ -2097,7 +2097,7 @@
     "sector": null,
     "sentence": {
      "code": "other_operating_income_annual",
-     "text": "other operating income held at this book's own amount of 390,090.55: it scales with neither volume, growth nor inflation, and is spread across each plan year by days"
+     "text": "other operating income held at this book's own amount of 386,101.85: it scales with neither volume, growth nor inflation, and is spread across each plan year by days"
     },
     "source": null,
     "tier": "book"
@@ -2153,9 +2153,9 @@
    "solve_step": "0.01",
    "unit": "money_minor",
    "values": [
-    39009055,
-    39009055,
-    39009055
+    38610185,
+    38610185,
+    38610185
    ]
   },
   "pool_fixed_share.cost_of_sales": {
@@ -5418,7 +5418,7 @@
    "period": "FY2028"
   },
   {
-   "amount_minor": 3313098,
+   "amount_minor": 3279221,
    "driver_ids": [
     "other_operating_income_annual"
    ],
@@ -5430,7 +5430,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 2992475,
+   "amount_minor": 2961877,
    "driver_ids": [
     "other_operating_income_annual"
    ],
@@ -5442,7 +5442,7 @@
    "period": "2026-02"
   },
   {
-   "amount_minor": 3313098,
+   "amount_minor": 3279222,
    "driver_ids": [
     "other_operating_income_annual"
    ],
@@ -5454,7 +5454,7 @@
    "period": "2026-03"
   },
   {
-   "amount_minor": 3206224,
+   "amount_minor": 3173439,
    "driver_ids": [
     "other_operating_income_annual"
    ],
@@ -5466,7 +5466,7 @@
    "period": "2026-04"
   },
   {
-   "amount_minor": 3313098,
+   "amount_minor": 3279222,
    "driver_ids": [
     "other_operating_income_annual"
    ],
@@ -5478,7 +5478,7 @@
    "period": "2026-05"
   },
   {
-   "amount_minor": 3206223,
+   "amount_minor": 3173440,
    "driver_ids": [
     "other_operating_income_annual"
    ],
@@ -5490,7 +5490,7 @@
    "period": "2026-06"
   },
   {
-   "amount_minor": 3313098,
+   "amount_minor": 3279221,
    "driver_ids": [
     "other_operating_income_annual"
    ],
@@ -5502,7 +5502,7 @@
    "period": "2026-07"
   },
   {
-   "amount_minor": 3313098,
+   "amount_minor": 3279221,
    "driver_ids": [
     "other_operating_income_annual"
    ],
@@ -5514,7 +5514,7 @@
    "period": "2026-08"
   },
   {
-   "amount_minor": 3206224,
+   "amount_minor": 3173440,
    "driver_ids": [
     "other_operating_income_annual"
    ],
@@ -5526,7 +5526,7 @@
    "period": "2026-09"
   },
   {
-   "amount_minor": 3313097,
+   "amount_minor": 3279221,
    "driver_ids": [
     "other_operating_income_annual"
    ],
@@ -5538,7 +5538,7 @@
    "period": "2026-10"
   },
   {
-   "amount_minor": 3206224,
+   "amount_minor": 3173440,
    "driver_ids": [
     "other_operating_income_annual"
    ],
@@ -5550,7 +5550,7 @@
    "period": "2026-11"
   },
   {
-   "amount_minor": 3313098,
+   "amount_minor": 3279221,
    "driver_ids": [
     "other_operating_income_annual"
    ],
@@ -5562,7 +5562,7 @@
    "period": "2026-12"
   },
   {
-   "amount_minor": 39009055,
+   "amount_minor": 38610185,
    "driver_ids": [
     "other_operating_income_annual"
    ],
@@ -5574,7 +5574,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 39009055,
+   "amount_minor": 38610185,
    "driver_ids": [
     "other_operating_income_annual"
    ],
@@ -5586,7 +5586,7 @@
    "period": "FY2027"
   },
   {
-   "amount_minor": 39009055,
+   "amount_minor": 38610185,
    "driver_ids": [
     "other_operating_income_annual"
    ],
@@ -5598,7 +5598,7 @@
    "period": "FY2028"
   },
   {
-   "amount_minor": 93730712,
+   "amount_minor": 93696835,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -5629,7 +5629,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 84659997,
+   "amount_minor": 84629399,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -5660,7 +5660,7 @@
    "period": "2026-02"
   },
   {
-   "amount_minor": 93730714,
+   "amount_minor": 93696838,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -5691,7 +5691,7 @@
    "period": "2026-03"
   },
   {
-   "amount_minor": 90707141,
+   "amount_minor": 90674356,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -5722,7 +5722,7 @@
    "period": "2026-04"
   },
   {
-   "amount_minor": 93730710,
+   "amount_minor": 93696834,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -5753,7 +5753,7 @@
    "period": "2026-05"
   },
   {
-   "amount_minor": 90707142,
+   "amount_minor": 90674359,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -5784,7 +5784,7 @@
    "period": "2026-06"
   },
   {
-   "amount_minor": 93730711,
+   "amount_minor": 93696834,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -5815,7 +5815,7 @@
    "period": "2026-07"
   },
   {
-   "amount_minor": 93730711,
+   "amount_minor": 93696834,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -5846,7 +5846,7 @@
    "period": "2026-08"
   },
   {
-   "amount_minor": 90707141,
+   "amount_minor": 90674357,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -5877,7 +5877,7 @@
    "period": "2026-09"
   },
   {
-   "amount_minor": 93730711,
+   "amount_minor": 93696835,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -5908,7 +5908,7 @@
    "period": "2026-10"
   },
   {
-   "amount_minor": 90707141,
+   "amount_minor": 90674357,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -5939,7 +5939,7 @@
    "period": "2026-11"
   },
   {
-   "amount_minor": 93730712,
+   "amount_minor": 93696835,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -5970,7 +5970,7 @@
    "period": "2026-12"
   },
   {
-   "amount_minor": 1103603543,
+   "amount_minor": 1103204673,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6001,7 +6001,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 1130218405,
+   "amount_minor": 1129819535,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6032,7 +6032,7 @@
    "period": "FY2027"
   },
   {
-   "amount_minor": 1157498639,
+   "amount_minor": 1157099769,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6063,7 +6063,7 @@
    "period": "FY2028"
   },
   {
-   "amount_minor": -23659719,
+   "amount_minor": -22575882,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6080,7 +6080,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": -21410039,
+   "amount_minor": -20427509,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6097,7 +6097,7 @@
    "period": "2026-02"
   },
   {
-   "amount_minor": -23743086,
+   "amount_minor": -22651817,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6114,7 +6114,7 @@
    "period": "2026-03"
   },
   {
-   "amount_minor": -23018279,
+   "amount_minor": -21958602,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6131,7 +6131,7 @@
    "period": "2026-04"
   },
   {
-   "amount_minor": -23825774,
+   "amount_minor": -22727278,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6148,7 +6148,7 @@
    "period": "2026-05"
   },
   {
-   "amount_minor": -23096587,
+   "amount_minor": -22030137,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6165,7 +6165,7 @@
    "period": "2026-06"
   },
   {
-   "amount_minor": -23905016,
+   "amount_minor": -22799737,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6182,7 +6182,7 @@
    "period": "2026-07"
   },
   {
-   "amount_minor": -23944019,
+   "amount_minor": -22835455,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6199,7 +6199,7 @@
    "period": "2026-08"
   },
   {
-   "amount_minor": -23208568,
+   "amount_minor": -22132686,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6216,7 +6216,7 @@
    "period": "2026-09"
   },
   {
-   "amount_minor": -24018334,
+   "amount_minor": -22903611,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6233,7 +6233,7 @@
    "period": "2026-10"
   },
   {
-   "amount_minor": -23278947,
+   "amount_minor": -22197297,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6250,7 +6250,7 @@
    "period": "2026-11"
   },
   {
-   "amount_minor": -24089552,
+   "amount_minor": -22969055,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6267,7 +6267,7 @@
    "period": "2026-12"
   },
   {
-   "amount_minor": -281197920,
+   "amount_minor": -268209066,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6284,7 +6284,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": -284047781,
+   "amount_minor": -270821937,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6301,7 +6301,7 @@
    "period": "FY2027"
   },
   {
-   "amount_minor": -291508055,
+   "amount_minor": -277698986,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6318,7 +6318,7 @@
    "period": "FY2028"
   },
   {
-   "amount_minor": -1440477,
+   "amount_minor": -1374490,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6335,7 +6335,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": -1273232,
+   "amount_minor": -1216123,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6352,7 +6352,7 @@
    "period": "2026-02"
   },
   {
-   "amount_minor": -1382401,
+   "amount_minor": -1321588,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6369,7 +6369,7 @@
    "period": "2026-03"
   },
   {
-   "amount_minor": -1309177,
+   "amount_minor": -1252839,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6386,7 +6386,7 @@
    "period": "2026-04"
   },
   {
-   "amount_minor": -1324799,
+   "amount_minor": -1269017,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6403,7 +6403,7 @@
    "period": "2026-05"
   },
   {
-   "amount_minor": -1254626,
+   "amount_minor": -1203003,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6420,7 +6420,7 @@
    "period": "2026-06"
   },
   {
-   "amount_minor": -1269597,
+   "amount_minor": -1218537,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6437,7 +6437,7 @@
    "period": "2026-07"
   },
   {
-   "amount_minor": -1242426,
+   "amount_minor": -1193653,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6454,7 +6454,7 @@
    "period": "2026-08"
   },
   {
-   "amount_minor": -1176617,
+   "amount_minor": -1131560,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6471,7 +6471,7 @@
    "period": "2026-09"
   },
   {
-   "amount_minor": -1190656,
+   "amount_minor": -1146171,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6488,7 +6488,7 @@
    "period": "2026-10"
   },
   {
-   "amount_minor": -1127589,
+   "amount_minor": -1086547,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6505,7 +6505,7 @@
    "period": "2026-11"
   },
   {
-   "amount_minor": -1141044,
+   "amount_minor": -1100578,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6522,7 +6522,7 @@
    "period": "2026-12"
   },
   {
-   "amount_minor": -15132641,
+   "amount_minor": -14514106,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6539,7 +6539,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": -13147350,
+   "amount_minor": -12693796,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6556,7 +6556,7 @@
    "period": "FY2027"
   },
   {
-   "amount_minor": -9861438,
+   "amount_minor": -9668167,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6573,7 +6573,7 @@
    "period": "FY2028"
   },
   {
-   "amount_minor": 68630516,
+   "amount_minor": 69746463,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6608,7 +6608,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 61976726,
+   "amount_minor": 62985767,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6643,7 +6643,7 @@
    "period": "2026-02"
   },
   {
-   "amount_minor": 68605227,
+   "amount_minor": 69723433,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6678,7 +6678,7 @@
    "period": "2026-03"
   },
   {
-   "amount_minor": 66379685,
+   "amount_minor": 67462915,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6713,7 +6713,7 @@
    "period": "2026-04"
   },
   {
-   "amount_minor": 68580137,
+   "amount_minor": 69700539,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6748,7 +6748,7 @@
    "period": "2026-05"
   },
   {
-   "amount_minor": 66355929,
+   "amount_minor": 67441219,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6783,7 +6783,7 @@
    "period": "2026-06"
   },
   {
-   "amount_minor": 68556098,
+   "amount_minor": 69678560,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6818,7 +6818,7 @@
    "period": "2026-07"
   },
   {
-   "amount_minor": 68544266,
+   "amount_minor": 69667726,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6853,7 +6853,7 @@
    "period": "2026-08"
   },
   {
-   "amount_minor": 66321956,
+   "amount_minor": 67410111,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6888,7 +6888,7 @@
    "period": "2026-09"
   },
   {
-   "amount_minor": 68521721,
+   "amount_minor": 69647053,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6923,7 +6923,7 @@
    "period": "2026-10"
   },
   {
-   "amount_minor": 66300605,
+   "amount_minor": 67390513,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6958,7 +6958,7 @@
    "period": "2026-11"
   },
   {
-   "amount_minor": 68500116,
+   "amount_minor": 69627202,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -6993,7 +6993,7 @@
    "period": "2026-12"
   },
   {
-   "amount_minor": 807272982,
+   "amount_minor": 820481501,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -7028,7 +7028,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 833023274,
+   "amount_minor": 846303802,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -7063,7 +7063,7 @@
    "period": "FY2027"
   },
   {
-   "amount_minor": 856129146,
+   "amount_minor": 869732616,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -9138,7 +9138,7 @@
    "period": "FY2028"
   },
   {
-   "amount_minor": 69586063,
+   "amount_minor": 70702010,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -9187,7 +9187,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 62839801,
+   "amount_minor": 63848842,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -9236,7 +9236,7 @@
    "period": "2026-02"
   },
   {
-   "amount_minor": 69560775,
+   "amount_minor": 70678981,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -9285,7 +9285,7 @@
    "period": "2026-03"
   },
   {
-   "amount_minor": 67304408,
+   "amount_minor": 68387638,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -9334,7 +9334,7 @@
    "period": "2026-04"
   },
   {
-   "amount_minor": 69535684,
+   "amount_minor": 70656086,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -9383,7 +9383,7 @@
    "period": "2026-05"
   },
   {
-   "amount_minor": 67280653,
+   "amount_minor": 68365943,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -9432,7 +9432,7 @@
    "period": "2026-06"
   },
   {
-   "amount_minor": 69511645,
+   "amount_minor": 70634107,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -9481,7 +9481,7 @@
    "period": "2026-07"
   },
   {
-   "amount_minor": 69499813,
+   "amount_minor": 70623273,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -9530,7 +9530,7 @@
    "period": "2026-08"
   },
   {
-   "amount_minor": 67246680,
+   "amount_minor": 68334835,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -9579,7 +9579,7 @@
    "period": "2026-09"
   },
   {
-   "amount_minor": 69477269,
+   "amount_minor": 70602601,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -9628,7 +9628,7 @@
    "period": "2026-10"
   },
   {
-   "amount_minor": 67225328,
+   "amount_minor": 68315236,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -9677,7 +9677,7 @@
    "period": "2026-11"
   },
   {
-   "amount_minor": 69455663,
+   "amount_minor": 70582749,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -9726,7 +9726,7 @@
    "period": "2026-12"
   },
   {
-   "amount_minor": 818523782,
+   "amount_minor": 831732301,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -9775,7 +9775,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 844274078,
+   "amount_minor": 857554606,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -9824,7 +9824,7 @@
    "period": "FY2027"
   },
   {
-   "amount_minor": 867303805,
+   "amount_minor": 880907275,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -9873,7 +9873,7 @@
    "period": "FY2028"
   },
   {
-   "amount_minor": -11133770,
+   "amount_minor": -11312322,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -9922,7 +9922,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": -10054368,
+   "amount_minor": -10215814,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -9971,7 +9971,7 @@
    "period": "2026-02"
   },
   {
-   "amount_minor": -11129724,
+   "amount_minor": -11308637,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -10020,7 +10020,7 @@
    "period": "2026-03"
   },
   {
-   "amount_minor": -10768706,
+   "amount_minor": -10942022,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -10069,7 +10069,7 @@
    "period": "2026-04"
   },
   {
-   "amount_minor": -11125709,
+   "amount_minor": -11304974,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -10118,7 +10118,7 @@
    "period": "2026-05"
   },
   {
-   "amount_minor": -10764904,
+   "amount_minor": -10938551,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -10167,7 +10167,7 @@
    "period": "2026-06"
   },
   {
-   "amount_minor": -11121864,
+   "amount_minor": -11301457,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -10216,7 +10216,7 @@
    "period": "2026-07"
   },
   {
-   "amount_minor": -11119970,
+   "amount_minor": -11299724,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -10265,7 +10265,7 @@
    "period": "2026-08"
   },
   {
-   "amount_minor": -10759469,
+   "amount_minor": -10933573,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -10314,7 +10314,7 @@
    "period": "2026-09"
   },
   {
-   "amount_minor": -11116363,
+   "amount_minor": -11296417,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -10363,7 +10363,7 @@
    "period": "2026-10"
   },
   {
-   "amount_minor": -10756052,
+   "amount_minor": -10930437,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -10412,7 +10412,7 @@
    "period": "2026-11"
   },
   {
-   "amount_minor": -11112906,
+   "amount_minor": -11293240,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -10461,7 +10461,7 @@
    "period": "2026-12"
   },
   {
-   "amount_minor": -130963805,
+   "amount_minor": -133077168,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -10510,7 +10510,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": -135083852,
+   "amount_minor": -137208737,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -10559,7 +10559,7 @@
    "period": "FY2027"
   },
   {
-   "amount_minor": -138768609,
+   "amount_minor": -140945164,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -10608,7 +10608,7 @@
    "period": "FY2028"
   },
   {
-   "amount_minor": 58452293,
+   "amount_minor": 59389688,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -10657,7 +10657,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 52785433,
+   "amount_minor": 53633028,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -10706,7 +10706,7 @@
    "period": "2026-02"
   },
   {
-   "amount_minor": 58431051,
+   "amount_minor": 59370344,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -10755,7 +10755,7 @@
    "period": "2026-03"
   },
   {
-   "amount_minor": 56535702,
+   "amount_minor": 57445616,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -10804,7 +10804,7 @@
    "period": "2026-04"
   },
   {
-   "amount_minor": 58409975,
+   "amount_minor": 59351112,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -10853,7 +10853,7 @@
    "period": "2026-05"
   },
   {
-   "amount_minor": 56515749,
+   "amount_minor": 57427392,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -10902,7 +10902,7 @@
    "period": "2026-06"
   },
   {
-   "amount_minor": 58389781,
+   "amount_minor": 59332650,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -10951,7 +10951,7 @@
    "period": "2026-07"
   },
   {
-   "amount_minor": 58379843,
+   "amount_minor": 59323549,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11000,7 +11000,7 @@
    "period": "2026-08"
   },
   {
-   "amount_minor": 56487211,
+   "amount_minor": 57401262,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11049,7 +11049,7 @@
    "period": "2026-09"
   },
   {
-   "amount_minor": 58360906,
+   "amount_minor": 59306184,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11098,7 +11098,7 @@
    "period": "2026-10"
   },
   {
-   "amount_minor": 56469276,
+   "amount_minor": 57384799,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11147,7 +11147,7 @@
    "period": "2026-11"
   },
   {
-   "amount_minor": 58342757,
+   "amount_minor": 59289509,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11196,7 +11196,7 @@
    "period": "2026-12"
   },
   {
-   "amount_minor": 687559977,
+   "amount_minor": 698655133,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11245,7 +11245,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 709190226,
+   "amount_minor": 720345869,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11294,7 +11294,7 @@
    "period": "FY2027"
   },
   {
-   "amount_minor": 728535196,
+   "amount_minor": 739962111,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11343,7 +11343,7 @@
    "period": "FY2028"
   },
   {
-   "amount_minor": 148978815,
+   "amount_minor": 149945069,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11392,7 +11392,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 201209771,
+   "amount_minor": 203048598,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11441,7 +11441,7 @@
    "period": "2026-02"
   },
   {
-   "amount_minor": 259038803,
+   "amount_minor": 261843524,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11490,7 +11490,7 @@
    "period": "2026-03"
   },
   {
-   "amount_minor": 315004373,
+   "amount_minor": 318743654,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11539,7 +11539,7 @@
    "period": "2026-04"
   },
   {
-   "amount_minor": 372837417,
+   "amount_minor": 377542240,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11588,7 +11588,7 @@
    "period": "2026-05"
   },
   {
-   "amount_minor": 428806790,
+   "amount_minor": 434445844,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11637,7 +11637,7 @@
    "period": "2026-06"
   },
   {
-   "amount_minor": 486643679,
+   "amount_minor": 493247946,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11686,7 +11686,7 @@
    "period": "2026-07"
   },
   {
-   "amount_minor": 544482462,
+   "amount_minor": 552051781,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11735,7 +11735,7 @@
    "period": "2026-08"
   },
   {
-   "amount_minor": 600457269,
+   "amount_minor": 608960361,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11784,7 +11784,7 @@
    "period": "2026-09"
   },
   {
-   "amount_minor": 658299660,
+   "amount_minor": 667767505,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11833,7 +11833,7 @@
    "period": "2026-10"
   },
   {
-   "amount_minor": 714277885,
+   "amount_minor": 724679222,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11882,7 +11882,7 @@
    "period": "2026-11"
   },
   {
-   "amount_minor": 772123732,
+   "amount_minor": 783489541,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11931,7 +11931,7 @@
    "period": "2026-12"
   },
   {
-   "amount_minor": 772123732,
+   "amount_minor": 783489541,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -11980,7 +11980,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 1441723303,
+   "amount_minor": 1464790350,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -12029,7 +12029,7 @@
    "period": "FY2027"
   },
   {
-   "amount_minor": 2129441488,
+   "amount_minor": 2164513729,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -12768,7 +12768,7 @@
    "period": "FY2028"
   },
   {
-   "amount_minor": 1107612741,
+   "amount_minor": 1107517895,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -12785,7 +12785,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 1109440450,
+   "amount_minor": 1109263517,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -12802,7 +12802,7 @@
    "period": "2026-02"
   },
   {
-   "amount_minor": 1111424870,
+   "amount_minor": 1111160523,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -12819,7 +12819,7 @@
    "period": "2026-03"
   },
   {
-   "amount_minor": 1113304178,
+   "amount_minor": 1112958847,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -12836,7 +12836,7 @@
    "period": "2026-04"
   },
   {
-   "amount_minor": 1115205910,
+   "amount_minor": 1114780392,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -12853,7 +12853,7 @@
    "period": "2026-05"
   },
   {
-   "amount_minor": 1117006910,
+   "amount_minor": 1116507181,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -12870,7 +12870,7 @@
    "period": "2026-06"
   },
   {
-   "amount_minor": 1118829400,
+   "amount_minor": 1118256267,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -12887,7 +12887,7 @@
    "period": "2026-07"
   },
   {
-   "amount_minor": 1120612887,
+   "amount_minor": 1119969635,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -12904,7 +12904,7 @@
    "period": "2026-08"
   },
   {
-   "amount_minor": 1122301906,
+   "amount_minor": 1121593875,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -12921,7 +12921,7 @@
    "period": "2026-09"
   },
   {
-   "amount_minor": 1124011078,
+   "amount_minor": 1123239087,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -12938,7 +12938,7 @@
    "period": "2026-10"
   },
   {
-   "amount_minor": 1125629718,
+   "amount_minor": 1124798716,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -12955,7 +12955,7 @@
    "period": "2026-11"
   },
   {
-   "amount_minor": 1127267672,
+   "amount_minor": 1126378484,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -12972,7 +12972,7 @@
    "period": "2026-12"
   },
   {
-   "amount_minor": 1127267672,
+   "amount_minor": 1126378484,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -12989,7 +12989,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 1153713545,
+   "amount_minor": 1151825208,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -13006,7 +13006,7 @@
    "period": "FY2027"
   },
   {
-   "amount_minor": 1180461486,
+   "amount_minor": 1177801599,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -13023,7 +13023,7 @@
    "period": "FY2028"
   },
   {
-   "amount_minor": 65868536,
+   "amount_minor": 65934523,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -13040,7 +13040,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 64595304,
+   "amount_minor": 64718400,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -13057,7 +13057,7 @@
    "period": "2026-02"
   },
   {
-   "amount_minor": 63212903,
+   "amount_minor": 63396812,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -13074,7 +13074,7 @@
    "period": "2026-03"
   },
   {
-   "amount_minor": 61903726,
+   "amount_minor": 62143973,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -13091,7 +13091,7 @@
    "period": "2026-04"
   },
   {
-   "amount_minor": 60578927,
+   "amount_minor": 60874956,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -13108,7 +13108,7 @@
    "period": "2026-05"
   },
   {
-   "amount_minor": 59324301,
+   "amount_minor": 59671953,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -13125,7 +13125,7 @@
    "period": "2026-06"
   },
   {
-   "amount_minor": 58054704,
+   "amount_minor": 58453416,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -13142,7 +13142,7 @@
    "period": "2026-07"
   },
   {
-   "amount_minor": 56812278,
+   "amount_minor": 57259763,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -13159,7 +13159,7 @@
    "period": "2026-08"
   },
   {
-   "amount_minor": 55635661,
+   "amount_minor": 56128203,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -13176,7 +13176,7 @@
    "period": "2026-09"
   },
   {
-   "amount_minor": 54445005,
+   "amount_minor": 54982032,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -13193,7 +13193,7 @@
    "period": "2026-10"
   },
   {
-   "amount_minor": 53317416,
+   "amount_minor": 53895485,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -13210,7 +13210,7 @@
    "period": "2026-11"
   },
   {
-   "amount_minor": 52176372,
+   "amount_minor": 52794907,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -13227,7 +13227,7 @@
    "period": "2026-12"
   },
   {
-   "amount_minor": 52176372,
+   "amount_minor": 52794907,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -13244,7 +13244,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 39029022,
+   "amount_minor": 40101111,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -13261,7 +13261,7 @@
    "period": "FY2027"
   },
   {
-   "amount_minor": 29167584,
+   "amount_minor": 30432944,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -15783,7 +15783,7 @@
    "period": "FY2028"
   },
   {
-   "amount_minor": 805657055,
+   "amount_minor": 806594450,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -15832,7 +15832,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 858442488,
+   "amount_minor": 860227478,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -15881,7 +15881,7 @@
    "period": "2026-02"
   },
   {
-   "amount_minor": 916873539,
+   "amount_minor": 919597822,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -15930,7 +15930,7 @@
    "period": "2026-03"
   },
   {
-   "amount_minor": 973409241,
+   "amount_minor": 977043438,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -15979,7 +15979,7 @@
    "period": "2026-04"
   },
   {
-   "amount_minor": 1031819216,
+   "amount_minor": 1036394550,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -16028,7 +16028,7 @@
    "period": "2026-05"
   },
   {
-   "amount_minor": 1088334965,
+   "amount_minor": 1093821942,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -16077,7 +16077,7 @@
    "period": "2026-06"
   },
   {
-   "amount_minor": 1146724746,
+   "amount_minor": 1153154592,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -16126,7 +16126,7 @@
    "period": "2026-07"
   },
   {
-   "amount_minor": 1205104589,
+   "amount_minor": 1212478141,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -16175,7 +16175,7 @@
    "period": "2026-08"
   },
   {
-   "amount_minor": 1261591800,
+   "amount_minor": 1269879403,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -16224,7 +16224,7 @@
    "period": "2026-09"
   },
   {
-   "amount_minor": 1319952706,
+   "amount_minor": 1329185587,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -16273,7 +16273,7 @@
    "period": "2026-10"
   },
   {
-   "amount_minor": 1376421982,
+   "amount_minor": 1386570386,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -16322,7 +16322,7 @@
    "period": "2026-11"
   },
   {
-   "amount_minor": 1434764739,
+   "amount_minor": 1445859895,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -16371,7 +16371,7 @@
    "period": "2026-12"
   },
   {
-   "amount_minor": 1434764739,
+   "amount_minor": 1445859895,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -16420,7 +16420,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 2143954965,
+   "amount_minor": 2166205764,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -16469,7 +16469,7 @@
    "period": "FY2027"
   },
   {
-   "amount_minor": 2872490161,
+   "amount_minor": 2906167875,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -16698,7 +16698,7 @@
    "period": "FY2028"
   },
   {
-   "amount_minor": 4008329637,
+   "amount_minor": 4009267032,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -16748,7 +16748,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 4061115069,
+   "amount_minor": 4062900059,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -16798,7 +16798,7 @@
    "period": "2026-02"
   },
   {
-   "amount_minor": 4119546121,
+   "amount_minor": 4122270404,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -16848,7 +16848,7 @@
    "period": "2026-03"
   },
   {
-   "amount_minor": 4176081823,
+   "amount_minor": 4179716020,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -16898,7 +16898,7 @@
    "period": "2026-04"
   },
   {
-   "amount_minor": 4234491798,
+   "amount_minor": 4239067132,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -16948,7 +16948,7 @@
    "period": "2026-05"
   },
   {
-   "amount_minor": 4291007547,
+   "amount_minor": 4296494524,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -16998,7 +16998,7 @@
    "period": "2026-06"
   },
   {
-   "amount_minor": 4349397328,
+   "amount_minor": 4355827174,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -17048,7 +17048,7 @@
    "period": "2026-07"
   },
   {
-   "amount_minor": 4407777171,
+   "amount_minor": 4415150723,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -17098,7 +17098,7 @@
    "period": "2026-08"
   },
   {
-   "amount_minor": 4464264382,
+   "amount_minor": 4472551985,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -17148,7 +17148,7 @@
    "period": "2026-09"
   },
   {
-   "amount_minor": 4522625288,
+   "amount_minor": 4531858169,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -17198,7 +17198,7 @@
    "period": "2026-10"
   },
   {
-   "amount_minor": 4579094564,
+   "amount_minor": 4589242968,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -17248,7 +17248,7 @@
    "period": "2026-11"
   },
   {
-   "amount_minor": 4637437321,
+   "amount_minor": 4648532477,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -17298,7 +17298,7 @@
    "period": "2026-12"
   },
   {
-   "amount_minor": 4637437321,
+   "amount_minor": 4648532477,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -17348,7 +17348,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 5365042629,
+   "amount_minor": 5387293428,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -17398,7 +17398,7 @@
    "period": "FY2027"
   },
   {
-   "amount_minor": 6110338821,
+   "amount_minor": 6144016535,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -17448,7 +17448,7 @@
    "period": "FY2028"
   },
   {
-   "amount_minor": 2828057918,
+   "amount_minor": 2829024172,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -17498,7 +17498,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 2880288873,
+   "amount_minor": 2882127700,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -17548,7 +17548,7 @@
    "period": "2026-02"
   },
   {
-   "amount_minor": 2938117906,
+   "amount_minor": 2940922627,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -17598,7 +17598,7 @@
    "period": "2026-03"
   },
   {
-   "amount_minor": 2994083477,
+   "amount_minor": 2997822758,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -17648,7 +17648,7 @@
    "period": "2026-04"
   },
   {
-   "amount_minor": 3051916519,
+   "amount_minor": 3056621342,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -17698,7 +17698,7 @@
    "period": "2026-05"
   },
   {
-   "amount_minor": 3107885894,
+   "amount_minor": 3113524948,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -17748,7 +17748,7 @@
    "period": "2026-06"
   },
   {
-   "amount_minor": 3165722782,
+   "amount_minor": 3172327049,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -17798,7 +17798,7 @@
    "period": "2026-07"
   },
   {
-   "amount_minor": 3223561564,
+   "amount_minor": 3231130883,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -17848,7 +17848,7 @@
    "period": "2026-08"
   },
   {
-   "amount_minor": 3279536373,
+   "amount_minor": 3288039465,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -17898,7 +17898,7 @@
    "period": "2026-09"
   },
   {
-   "amount_minor": 3337378763,
+   "amount_minor": 3346846608,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -17948,7 +17948,7 @@
    "period": "2026-10"
   },
   {
-   "amount_minor": 3393356988,
+   "amount_minor": 3403758325,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -17998,7 +17998,7 @@
    "period": "2026-11"
   },
   {
-   "amount_minor": 3451202835,
+   "amount_minor": 3462568644,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -18048,7 +18048,7 @@
    "period": "2026-12"
   },
   {
-   "amount_minor": 3451202835,
+   "amount_minor": 3462568644,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -18098,7 +18098,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 4165509620,
+   "amount_minor": 4188576667,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -18148,7 +18148,7 @@
    "period": "FY2027"
   },
   {
-   "amount_minor": 4893919309,
+   "amount_minor": 4928991550,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -18948,7 +18948,7 @@
    "period": "FY2028"
   },
   {
-   "amount_minor": 2450860665,
+   "amount_minor": 2451798060,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -18998,7 +18998,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 2503646098,
+   "amount_minor": 2505431088,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -19048,7 +19048,7 @@
    "period": "2026-02"
   },
   {
-   "amount_minor": 2562077149,
+   "amount_minor": 2564801432,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -19098,7 +19098,7 @@
    "period": "2026-03"
   },
   {
-   "amount_minor": 2618612851,
+   "amount_minor": 2622247048,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -19148,7 +19148,7 @@
    "period": "2026-04"
   },
   {
-   "amount_minor": 2677022826,
+   "amount_minor": 2681598160,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -19198,7 +19198,7 @@
    "period": "2026-05"
   },
   {
-   "amount_minor": 2733538575,
+   "amount_minor": 2739025552,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -19248,7 +19248,7 @@
    "period": "2026-06"
   },
   {
-   "amount_minor": 2791928356,
+   "amount_minor": 2798358202,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -19298,7 +19298,7 @@
    "period": "2026-07"
   },
   {
-   "amount_minor": 2850308199,
+   "amount_minor": 2857681751,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -19348,7 +19348,7 @@
    "period": "2026-08"
   },
   {
-   "amount_minor": 2906795410,
+   "amount_minor": 2915083013,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -19398,7 +19398,7 @@
    "period": "2026-09"
   },
   {
-   "amount_minor": 2965156316,
+   "amount_minor": 2974389197,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -19448,7 +19448,7 @@
    "period": "2026-10"
   },
   {
-   "amount_minor": 3021625592,
+   "amount_minor": 3031773996,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -19498,7 +19498,7 @@
    "period": "2026-11"
   },
   {
-   "amount_minor": 3079968349,
+   "amount_minor": 3091063505,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -19548,7 +19548,7 @@
    "period": "2026-12"
   },
   {
-   "amount_minor": 3079968349,
+   "amount_minor": 3091063505,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -19598,7 +19598,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 3789158575,
+   "amount_minor": 3811409374,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -19648,7 +19648,7 @@
    "period": "FY2027"
   },
   {
-   "amount_minor": 4517693771,
+   "amount_minor": 4551371485,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -19698,7 +19698,7 @@
    "period": "FY2028"
   },
   {
-   "amount_minor": 4008329637,
+   "amount_minor": 4009267032,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -19748,7 +19748,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 4061115069,
+   "amount_minor": 4062900059,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -19798,7 +19798,7 @@
    "period": "2026-02"
   },
   {
-   "amount_minor": 4119546121,
+   "amount_minor": 4122270404,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -19848,7 +19848,7 @@
    "period": "2026-03"
   },
   {
-   "amount_minor": 4176081823,
+   "amount_minor": 4179716020,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -19898,7 +19898,7 @@
    "period": "2026-04"
   },
   {
-   "amount_minor": 4234491798,
+   "amount_minor": 4239067132,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -19948,7 +19948,7 @@
    "period": "2026-05"
   },
   {
-   "amount_minor": 4291007547,
+   "amount_minor": 4296494524,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -19998,7 +19998,7 @@
    "period": "2026-06"
   },
   {
-   "amount_minor": 4349397328,
+   "amount_minor": 4355827174,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -20048,7 +20048,7 @@
    "period": "2026-07"
   },
   {
-   "amount_minor": 4407777171,
+   "amount_minor": 4415150723,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -20098,7 +20098,7 @@
    "period": "2026-08"
   },
   {
-   "amount_minor": 4464264382,
+   "amount_minor": 4472551985,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -20148,7 +20148,7 @@
    "period": "2026-09"
   },
   {
-   "amount_minor": 4522625288,
+   "amount_minor": 4531858169,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -20198,7 +20198,7 @@
    "period": "2026-10"
   },
   {
-   "amount_minor": 4579094564,
+   "amount_minor": 4589242968,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -20248,7 +20248,7 @@
    "period": "2026-11"
   },
   {
-   "amount_minor": 4637437321,
+   "amount_minor": 4648532477,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -20298,7 +20298,7 @@
    "period": "2026-12"
   },
   {
-   "amount_minor": 4637437321,
+   "amount_minor": 4648532477,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -20348,7 +20348,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 5365042629,
+   "amount_minor": 5387293428,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -20398,7 +20398,7 @@
    "period": "FY2027"
   },
   {
-   "amount_minor": 6110338821,
+   "amount_minor": 6144016535,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -20448,7 +20448,7 @@
    "period": "FY2028"
   },
   {
-   "amount_minor": 58452293,
+   "amount_minor": 59389688,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -20497,7 +20497,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 52785433,
+   "amount_minor": 53633028,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -20546,7 +20546,7 @@
    "period": "2026-02"
   },
   {
-   "amount_minor": 58431051,
+   "amount_minor": 59370344,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -20595,7 +20595,7 @@
    "period": "2026-03"
   },
   {
-   "amount_minor": 56535702,
+   "amount_minor": 57445616,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -20644,7 +20644,7 @@
    "period": "2026-04"
   },
   {
-   "amount_minor": 58409975,
+   "amount_minor": 59351112,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -20693,7 +20693,7 @@
    "period": "2026-05"
   },
   {
-   "amount_minor": 56515749,
+   "amount_minor": 57427392,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -20742,7 +20742,7 @@
    "period": "2026-06"
   },
   {
-   "amount_minor": 58389781,
+   "amount_minor": 59332650,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -20791,7 +20791,7 @@
    "period": "2026-07"
   },
   {
-   "amount_minor": 58379843,
+   "amount_minor": 59323549,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -20840,7 +20840,7 @@
    "period": "2026-08"
   },
   {
-   "amount_minor": 56487211,
+   "amount_minor": 57401262,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -20889,7 +20889,7 @@
    "period": "2026-09"
   },
   {
-   "amount_minor": 58360906,
+   "amount_minor": 59306184,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -20938,7 +20938,7 @@
    "period": "2026-10"
   },
   {
-   "amount_minor": 56469276,
+   "amount_minor": 57384799,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -20987,7 +20987,7 @@
    "period": "2026-11"
   },
   {
-   "amount_minor": 58342757,
+   "amount_minor": 59289509,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21036,7 +21036,7 @@
    "period": "2026-12"
   },
   {
-   "amount_minor": 687559977,
+   "amount_minor": 698655133,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21085,7 +21085,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 709190226,
+   "amount_minor": 720345869,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21134,7 +21134,7 @@
    "period": "FY2027"
   },
   {
-   "amount_minor": 728535196,
+   "amount_minor": 739962111,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21183,7 +21183,7 @@
    "period": "FY2028"
   },
   {
-   "amount_minor": 23659719,
+   "amount_minor": 22575882,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21200,7 +21200,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 21410039,
+   "amount_minor": 20427509,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21217,7 +21217,7 @@
    "period": "2026-02"
   },
   {
-   "amount_minor": 23743086,
+   "amount_minor": 22651817,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21234,7 +21234,7 @@
    "period": "2026-03"
   },
   {
-   "amount_minor": 23018279,
+   "amount_minor": 21958602,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21251,7 +21251,7 @@
    "period": "2026-04"
   },
   {
-   "amount_minor": 23825774,
+   "amount_minor": 22727278,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21268,7 +21268,7 @@
    "period": "2026-05"
   },
   {
-   "amount_minor": 23096587,
+   "amount_minor": 22030137,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21285,7 +21285,7 @@
    "period": "2026-06"
   },
   {
-   "amount_minor": 23905016,
+   "amount_minor": 22799737,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21302,7 +21302,7 @@
    "period": "2026-07"
   },
   {
-   "amount_minor": 23944019,
+   "amount_minor": 22835455,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21319,7 +21319,7 @@
    "period": "2026-08"
   },
   {
-   "amount_minor": 23208568,
+   "amount_minor": 22132686,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21336,7 +21336,7 @@
    "period": "2026-09"
   },
   {
-   "amount_minor": 24018334,
+   "amount_minor": 22903611,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21353,7 +21353,7 @@
    "period": "2026-10"
   },
   {
-   "amount_minor": 23278947,
+   "amount_minor": 22197297,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21370,7 +21370,7 @@
    "period": "2026-11"
   },
   {
-   "amount_minor": 24089552,
+   "amount_minor": 22969055,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21387,7 +21387,7 @@
    "period": "2026-12"
   },
   {
-   "amount_minor": 281197920,
+   "amount_minor": 268209066,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21404,7 +21404,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 284047781,
+   "amount_minor": 270821937,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21421,7 +21421,7 @@
    "period": "FY2027"
   },
   {
-   "amount_minor": 291508055,
+   "amount_minor": 277698986,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21438,7 +21438,7 @@
    "period": "FY2028"
   },
   {
-   "amount_minor": 1440477,
+   "amount_minor": 1374490,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21455,7 +21455,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 1273232,
+   "amount_minor": 1216123,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21472,7 +21472,7 @@
    "period": "2026-02"
   },
   {
-   "amount_minor": 1382401,
+   "amount_minor": 1321588,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21489,7 +21489,7 @@
    "period": "2026-03"
   },
   {
-   "amount_minor": 1309177,
+   "amount_minor": 1252839,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21506,7 +21506,7 @@
    "period": "2026-04"
   },
   {
-   "amount_minor": 1324799,
+   "amount_minor": 1269017,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21523,7 +21523,7 @@
    "period": "2026-05"
   },
   {
-   "amount_minor": 1254626,
+   "amount_minor": 1203003,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21540,7 +21540,7 @@
    "period": "2026-06"
   },
   {
-   "amount_minor": 1269597,
+   "amount_minor": 1218537,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21557,7 +21557,7 @@
    "period": "2026-07"
   },
   {
-   "amount_minor": 1242426,
+   "amount_minor": 1193653,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21574,7 +21574,7 @@
    "period": "2026-08"
   },
   {
-   "amount_minor": 1176617,
+   "amount_minor": 1131560,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21591,7 +21591,7 @@
    "period": "2026-09"
   },
   {
-   "amount_minor": 1190656,
+   "amount_minor": 1146171,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21608,7 +21608,7 @@
    "period": "2026-10"
   },
   {
-   "amount_minor": 1127589,
+   "amount_minor": 1086547,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21625,7 +21625,7 @@
    "period": "2026-11"
   },
   {
-   "amount_minor": 1141044,
+   "amount_minor": 1100578,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21642,7 +21642,7 @@
    "period": "2026-12"
   },
   {
-   "amount_minor": 15132641,
+   "amount_minor": 14514106,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21659,7 +21659,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 13147350,
+   "amount_minor": 12693796,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -21676,7 +21676,7 @@
    "period": "FY2027"
   },
   {
-   "amount_minor": 9861438,
+   "amount_minor": 9668167,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -22473,7 +22473,7 @@
    "period": "FY2028"
   },
   {
-   "amount_minor": 57901617,
+   "amount_minor": 57689188,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -22522,7 +22522,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 75468704,
+   "amount_minor": 75276660,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -22571,7 +22571,7 @@
    "period": "2026-02"
   },
   {
-   "amount_minor": 83556538,
+   "amount_minor": 83343749,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -22620,7 +22620,7 @@
    "period": "2026-03"
   },
   {
-   "amount_minor": 80863157,
+   "amount_minor": 80657056,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -22669,7 +22669,7 @@
    "period": "2026-04"
   },
   {
-   "amount_minor": 83560550,
+   "amount_minor": 83347409,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -22718,7 +22718,7 @@
    "period": "2026-05"
   },
   {
-   "amount_minor": 80866960,
+   "amount_minor": 80660530,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -22767,7 +22767,7 @@
    "period": "2026-06"
   },
   {
-   "amount_minor": 83564395,
+   "amount_minor": 83350925,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -22816,7 +22816,7 @@
    "period": "2026-07"
   },
   {
-   "amount_minor": 83566289,
+   "amount_minor": 83352658,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -22865,7 +22865,7 @@
    "period": "2026-08"
   },
   {
-   "amount_minor": 80872394,
+   "amount_minor": 80665506,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -22914,7 +22914,7 @@
    "period": "2026-09"
   },
   {
-   "amount_minor": 83569897,
+   "amount_minor": 83355967,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -22963,7 +22963,7 @@
    "period": "2026-10"
   },
   {
-   "amount_minor": 80875812,
+   "amount_minor": 80668643,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23012,7 +23012,7 @@
    "period": "2026-11"
   },
   {
-   "amount_minor": 83573353,
+   "amount_minor": 83359142,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23061,7 +23061,7 @@
    "period": "2026-12"
   },
   {
-   "amount_minor": 958239666,
+   "amount_minor": 955727433,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23110,7 +23110,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 980093225,
+   "amount_minor": 977569470,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23159,7 +23159,7 @@
    "period": "FY2027"
   },
   {
-   "amount_minor": 1005974181,
+   "amount_minor": 1003398756,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23208,7 +23208,7 @@
    "period": "FY2028"
   },
   {
-   "amount_minor": -25727506,
+   "amount_minor": -24548823,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23223,7 +23223,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": -23237748,
+   "amount_minor": -22173131,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23238,7 +23238,7 @@
    "period": "2026-02"
   },
   {
-   "amount_minor": -25727506,
+   "amount_minor": -24548823,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23253,7 +23253,7 @@
    "period": "2026-03"
   },
   {
-   "amount_minor": -24897587,
+   "amount_minor": -23756926,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23268,7 +23268,7 @@
    "period": "2026-04"
   },
   {
-   "amount_minor": -25727506,
+   "amount_minor": -24548823,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23283,7 +23283,7 @@
    "period": "2026-05"
   },
   {
-   "amount_minor": -24897587,
+   "amount_minor": -23756926,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23298,7 +23298,7 @@
    "period": "2026-06"
   },
   {
-   "amount_minor": -25727506,
+   "amount_minor": -24548823,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23313,7 +23313,7 @@
    "period": "2026-07"
   },
   {
-   "amount_minor": -25727506,
+   "amount_minor": -24548823,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23328,7 +23328,7 @@
    "period": "2026-08"
   },
   {
-   "amount_minor": -24897587,
+   "amount_minor": -23756926,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23343,7 +23343,7 @@
    "period": "2026-09"
   },
   {
-   "amount_minor": -25727506,
+   "amount_minor": -24548823,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23358,7 +23358,7 @@
    "period": "2026-10"
   },
   {
-   "amount_minor": -24897587,
+   "amount_minor": -23756926,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23373,7 +23373,7 @@
    "period": "2026-11"
   },
   {
-   "amount_minor": -25727506,
+   "amount_minor": -24548823,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23388,7 +23388,7 @@
    "period": "2026-12"
   },
   {
-   "amount_minor": -302920638,
+   "amount_minor": -289042596,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23403,7 +23403,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": -310493654,
+   "amount_minor": -296268661,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23418,7 +23418,7 @@
    "period": "FY2027"
   },
   {
-   "amount_minor": -318255996,
+   "amount_minor": -303675377,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23658,7 +23658,7 @@
    "period": "FY2028"
   },
   {
-   "amount_minor": -25727506,
+   "amount_minor": -24548823,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23674,7 +23674,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": -23237748,
+   "amount_minor": -22173131,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23690,7 +23690,7 @@
    "period": "2026-02"
   },
   {
-   "amount_minor": -25727506,
+   "amount_minor": -24548823,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23706,7 +23706,7 @@
    "period": "2026-03"
   },
   {
-   "amount_minor": -24897587,
+   "amount_minor": -23756926,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23722,7 +23722,7 @@
    "period": "2026-04"
   },
   {
-   "amount_minor": -25727506,
+   "amount_minor": -24548823,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23738,7 +23738,7 @@
    "period": "2026-05"
   },
   {
-   "amount_minor": -24897587,
+   "amount_minor": -23756926,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23754,7 +23754,7 @@
    "period": "2026-06"
   },
   {
-   "amount_minor": -25727506,
+   "amount_minor": -24548823,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23770,7 +23770,7 @@
    "period": "2026-07"
   },
   {
-   "amount_minor": -25727506,
+   "amount_minor": -24548823,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23786,7 +23786,7 @@
    "period": "2026-08"
   },
   {
-   "amount_minor": -24897587,
+   "amount_minor": -23756926,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23802,7 +23802,7 @@
    "period": "2026-09"
   },
   {
-   "amount_minor": -25727506,
+   "amount_minor": -24548823,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23818,7 +23818,7 @@
    "period": "2026-10"
   },
   {
-   "amount_minor": -24897587,
+   "amount_minor": -23756926,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23834,7 +23834,7 @@
    "period": "2026-11"
   },
   {
-   "amount_minor": -25727506,
+   "amount_minor": -24548823,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23850,7 +23850,7 @@
    "period": "2026-12"
   },
   {
-   "amount_minor": -302920638,
+   "amount_minor": -289042596,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23866,7 +23866,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": -310493654,
+   "amount_minor": -296268661,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -23882,7 +23882,7 @@
    "period": "FY2027"
   },
   {
-   "amount_minor": -318255996,
+   "amount_minor": -303675377,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -26523,7 +26523,7 @@
    "period": "FY2028"
   },
   {
-   "amount_minor": 32174111,
+   "amount_minor": 33140365,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -26572,7 +26572,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 52230956,
+   "amount_minor": 53103529,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -26621,7 +26621,7 @@
    "period": "2026-02"
   },
   {
-   "amount_minor": 57829032,
+   "amount_minor": 58794926,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -26670,7 +26670,7 @@
    "period": "2026-03"
   },
   {
-   "amount_minor": 55965570,
+   "amount_minor": 56900130,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -26719,7 +26719,7 @@
    "period": "2026-04"
   },
   {
-   "amount_minor": 57833044,
+   "amount_minor": 58798586,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -26768,7 +26768,7 @@
    "period": "2026-05"
   },
   {
-   "amount_minor": 55969373,
+   "amount_minor": 56903604,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -26817,7 +26817,7 @@
    "period": "2026-06"
   },
   {
-   "amount_minor": 57836889,
+   "amount_minor": 58802102,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -26866,7 +26866,7 @@
    "period": "2026-07"
   },
   {
-   "amount_minor": 57838783,
+   "amount_minor": 58803835,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -26915,7 +26915,7 @@
    "period": "2026-08"
   },
   {
-   "amount_minor": 55974807,
+   "amount_minor": 56908580,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -26964,7 +26964,7 @@
    "period": "2026-09"
   },
   {
-   "amount_minor": 57842391,
+   "amount_minor": 58807144,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27013,7 +27013,7 @@
    "period": "2026-10"
   },
   {
-   "amount_minor": 55978225,
+   "amount_minor": 56911717,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27062,7 +27062,7 @@
    "period": "2026-11"
   },
   {
-   "amount_minor": 57845847,
+   "amount_minor": 58810319,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27111,7 +27111,7 @@
    "period": "2026-12"
   },
   {
-   "amount_minor": 655319028,
+   "amount_minor": 666684837,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27160,7 +27160,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 669599571,
+   "amount_minor": 681300809,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27209,7 +27209,7 @@
    "period": "FY2027"
   },
   {
-   "amount_minor": 687718185,
+   "amount_minor": 699723379,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27307,7 +27307,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 148978815,
+   "amount_minor": 149945069,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27356,7 +27356,7 @@
    "period": "2026-02"
   },
   {
-   "amount_minor": 201209771,
+   "amount_minor": 203048598,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27405,7 +27405,7 @@
    "period": "2026-03"
   },
   {
-   "amount_minor": 259038803,
+   "amount_minor": 261843524,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27454,7 +27454,7 @@
    "period": "2026-04"
   },
   {
-   "amount_minor": 315004373,
+   "amount_minor": 318743654,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27503,7 +27503,7 @@
    "period": "2026-05"
   },
   {
-   "amount_minor": 372837417,
+   "amount_minor": 377542240,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27552,7 +27552,7 @@
    "period": "2026-06"
   },
   {
-   "amount_minor": 428806790,
+   "amount_minor": 434445844,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27601,7 +27601,7 @@
    "period": "2026-07"
   },
   {
-   "amount_minor": 486643679,
+   "amount_minor": 493247946,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27650,7 +27650,7 @@
    "period": "2026-08"
   },
   {
-   "amount_minor": 544482462,
+   "amount_minor": 552051781,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27699,7 +27699,7 @@
    "period": "2026-09"
   },
   {
-   "amount_minor": 600457269,
+   "amount_minor": 608960361,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27748,7 +27748,7 @@
    "period": "2026-10"
   },
   {
-   "amount_minor": 658299660,
+   "amount_minor": 667767505,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27797,7 +27797,7 @@
    "period": "2026-11"
   },
   {
-   "amount_minor": 714277885,
+   "amount_minor": 724679222,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27895,7 +27895,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 772123732,
+   "amount_minor": 783489541,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27944,7 +27944,7 @@
    "period": "FY2027"
   },
   {
-   "amount_minor": 1441723303,
+   "amount_minor": 1464790350,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -27993,7 +27993,7 @@
    "period": "FY2028"
   },
   {
-   "amount_minor": 148978815,
+   "amount_minor": 149945069,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -28042,7 +28042,7 @@
    "period": "2026-01"
   },
   {
-   "amount_minor": 201209771,
+   "amount_minor": 203048598,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -28091,7 +28091,7 @@
    "period": "2026-02"
   },
   {
-   "amount_minor": 259038803,
+   "amount_minor": 261843524,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -28140,7 +28140,7 @@
    "period": "2026-03"
   },
   {
-   "amount_minor": 315004373,
+   "amount_minor": 318743654,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -28189,7 +28189,7 @@
    "period": "2026-04"
   },
   {
-   "amount_minor": 372837417,
+   "amount_minor": 377542240,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -28238,7 +28238,7 @@
    "period": "2026-05"
   },
   {
-   "amount_minor": 428806790,
+   "amount_minor": 434445844,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -28287,7 +28287,7 @@
    "period": "2026-06"
   },
   {
-   "amount_minor": 486643679,
+   "amount_minor": 493247946,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -28336,7 +28336,7 @@
    "period": "2026-07"
   },
   {
-   "amount_minor": 544482462,
+   "amount_minor": 552051781,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -28385,7 +28385,7 @@
    "period": "2026-08"
   },
   {
-   "amount_minor": 600457269,
+   "amount_minor": 608960361,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -28434,7 +28434,7 @@
    "period": "2026-09"
   },
   {
-   "amount_minor": 658299660,
+   "amount_minor": 667767505,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -28483,7 +28483,7 @@
    "period": "2026-10"
   },
   {
-   "amount_minor": 714277885,
+   "amount_minor": 724679222,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -28532,7 +28532,7 @@
    "period": "2026-11"
   },
   {
-   "amount_minor": 772123732,
+   "amount_minor": 783489541,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -28581,7 +28581,7 @@
    "period": "2026-12"
   },
   {
-   "amount_minor": 772123732,
+   "amount_minor": 783489541,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -28630,7 +28630,7 @@
    "period": "FY2026"
   },
   {
-   "amount_minor": 1441723303,
+   "amount_minor": 1464790350,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -28679,7 +28679,7 @@
    "period": "FY2027"
   },
   {
-   "amount_minor": 2129441488,
+   "amount_minor": 2164513729,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -28909,11 +28909,11 @@
   },
   {
    "code": "note",
-   "text": "the stock variation (711, Variația stocurilor de produse) and own work capitalised (72x) are not projected: 0 in every plan year. The actual year's EBITDA of 11,848,065.27 includes 1,071,687.03 of them (net 711 1,071,687.03, net 72x 0.00), so plan year one starts from the recurring EBITDA of 10,776,378.24."
+   "text": "the stock variation (711, Variația stocurilor de produse) and own work capitalised (72x) are not projected: 0 in every plan year. The actual year's EBITDA of 11,844,076.57 includes 1,071,687.03 of them (net 711 1,071,687.03, net 72x 0.00), so plan year one starts from the recurring EBITDA of 10,772,389.54."
   },
   {
-   "code": "note.measured_exposure_to_the_convention_above",
-   "text": "measured exposure to the convention above: of the 390,090.55 of other operating income this book reports, 3,988.70 is provision reversals (assembled_pl.other_income_781_reversals) — a non-cash credit this model projects forward as cash."
+   "code": "note",
+   "text": "net provisions and impairment adjustments (charges less reversals, outside EBITDA) are not projected: 0 in every plan year. The actual year's operating result carries a net charge of 131,394.66."
   },
   {
    "code": "note.prior_periods_are_not_read_in_this_build",
@@ -28936,7 +28936,7 @@
  "series": {
   "capex": [
    {
-    "amount_minor": -25727506,
+    "amount_minor": -24548823,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -28948,7 +28948,7 @@
     "period": "2026-01"
    },
    {
-    "amount_minor": -23237748,
+    "amount_minor": -22173131,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -28960,7 +28960,7 @@
     "period": "2026-02"
    },
    {
-    "amount_minor": -25727506,
+    "amount_minor": -24548823,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -28972,7 +28972,7 @@
     "period": "2026-03"
    },
    {
-    "amount_minor": -24897587,
+    "amount_minor": -23756926,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -28984,7 +28984,7 @@
     "period": "2026-04"
    },
    {
-    "amount_minor": -25727506,
+    "amount_minor": -24548823,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -28996,7 +28996,7 @@
     "period": "2026-05"
    },
    {
-    "amount_minor": -24897587,
+    "amount_minor": -23756926,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29008,7 +29008,7 @@
     "period": "2026-06"
    },
    {
-    "amount_minor": -25727506,
+    "amount_minor": -24548823,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29020,7 +29020,7 @@
     "period": "2026-07"
    },
    {
-    "amount_minor": -25727506,
+    "amount_minor": -24548823,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29032,7 +29032,7 @@
     "period": "2026-08"
    },
    {
-    "amount_minor": -24897587,
+    "amount_minor": -23756926,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29044,7 +29044,7 @@
     "period": "2026-09"
    },
    {
-    "amount_minor": -25727506,
+    "amount_minor": -24548823,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29056,7 +29056,7 @@
     "period": "2026-10"
    },
    {
-    "amount_minor": -24897587,
+    "amount_minor": -23756926,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29068,7 +29068,7 @@
     "period": "2026-11"
    },
    {
-    "amount_minor": -25727506,
+    "amount_minor": -24548823,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29080,7 +29080,7 @@
     "period": "2026-12"
    },
    {
-    "amount_minor": -310493654,
+    "amount_minor": -296268661,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29092,7 +29092,7 @@
     "period": "FY2027"
    },
    {
-    "amount_minor": -318255996,
+    "amount_minor": -303675377,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29106,7 +29106,7 @@
   ],
   "cash_before_funding": [
    {
-    "amount_minor": 148978815,
+    "amount_minor": 149945069,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29152,7 +29152,7 @@
     "period": "2026-01"
    },
    {
-    "amount_minor": 201209771,
+    "amount_minor": 203048598,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29198,7 +29198,7 @@
     "period": "2026-02"
    },
    {
-    "amount_minor": 259038803,
+    "amount_minor": 261843524,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29244,7 +29244,7 @@
     "period": "2026-03"
    },
    {
-    "amount_minor": 315004373,
+    "amount_minor": 318743654,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29290,7 +29290,7 @@
     "period": "2026-04"
    },
    {
-    "amount_minor": 372837417,
+    "amount_minor": 377542240,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29336,7 +29336,7 @@
     "period": "2026-05"
    },
    {
-    "amount_minor": 428806790,
+    "amount_minor": 434445844,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29382,7 +29382,7 @@
     "period": "2026-06"
    },
    {
-    "amount_minor": 486643679,
+    "amount_minor": 493247946,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29428,7 +29428,7 @@
     "period": "2026-07"
    },
    {
-    "amount_minor": 544482462,
+    "amount_minor": 552051781,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29474,7 +29474,7 @@
     "period": "2026-08"
    },
    {
-    "amount_minor": 600457269,
+    "amount_minor": 608960361,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29520,7 +29520,7 @@
     "period": "2026-09"
    },
    {
-    "amount_minor": 658299660,
+    "amount_minor": 667767505,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29566,7 +29566,7 @@
     "period": "2026-10"
    },
    {
-    "amount_minor": 714277885,
+    "amount_minor": 724679222,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29612,7 +29612,7 @@
     "period": "2026-11"
    },
    {
-    "amount_minor": 772123732,
+    "amount_minor": 783489541,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29658,7 +29658,7 @@
     "period": "2026-12"
    },
    {
-    "amount_minor": 1441723303,
+    "amount_minor": 1464790350,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29704,7 +29704,7 @@
     "period": "FY2027"
    },
    {
-    "amount_minor": 2129441488,
+    "amount_minor": 2164513729,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29752,7 +29752,7 @@
   ],
   "closing_cash": [
    {
-    "amount_minor": 148978815,
+    "amount_minor": 149945069,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29798,7 +29798,7 @@
     "period": "2026-01"
    },
    {
-    "amount_minor": 201209771,
+    "amount_minor": 203048598,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29844,7 +29844,7 @@
     "period": "2026-02"
    },
    {
-    "amount_minor": 259038803,
+    "amount_minor": 261843524,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29890,7 +29890,7 @@
     "period": "2026-03"
    },
    {
-    "amount_minor": 315004373,
+    "amount_minor": 318743654,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29936,7 +29936,7 @@
     "period": "2026-04"
    },
    {
-    "amount_minor": 372837417,
+    "amount_minor": 377542240,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -29982,7 +29982,7 @@
     "period": "2026-05"
    },
    {
-    "amount_minor": 428806790,
+    "amount_minor": 434445844,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30028,7 +30028,7 @@
     "period": "2026-06"
    },
    {
-    "amount_minor": 486643679,
+    "amount_minor": 493247946,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30074,7 +30074,7 @@
     "period": "2026-07"
    },
    {
-    "amount_minor": 544482462,
+    "amount_minor": 552051781,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30120,7 +30120,7 @@
     "period": "2026-08"
    },
    {
-    "amount_minor": 600457269,
+    "amount_minor": 608960361,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30166,7 +30166,7 @@
     "period": "2026-09"
    },
    {
-    "amount_minor": 658299660,
+    "amount_minor": 667767505,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30212,7 +30212,7 @@
     "period": "2026-10"
    },
    {
-    "amount_minor": 714277885,
+    "amount_minor": 724679222,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30258,7 +30258,7 @@
     "period": "2026-11"
    },
    {
-    "amount_minor": 772123732,
+    "amount_minor": 783489541,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30304,7 +30304,7 @@
     "period": "2026-12"
    },
    {
-    "amount_minor": 1441723303,
+    "amount_minor": 1464790350,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30350,7 +30350,7 @@
     "period": "FY2027"
    },
    {
-    "amount_minor": 2129441488,
+    "amount_minor": 2164513729,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30398,7 +30398,7 @@
   ],
   "depreciation": [
    {
-    "amount_minor": -23659719,
+    "amount_minor": -22575882,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30412,7 +30412,7 @@
     "period": "2026-01"
    },
    {
-    "amount_minor": -21410039,
+    "amount_minor": -20427509,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30426,7 +30426,7 @@
     "period": "2026-02"
    },
    {
-    "amount_minor": -23743086,
+    "amount_minor": -22651817,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30440,7 +30440,7 @@
     "period": "2026-03"
    },
    {
-    "amount_minor": -23018279,
+    "amount_minor": -21958602,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30454,7 +30454,7 @@
     "period": "2026-04"
    },
    {
-    "amount_minor": -23825774,
+    "amount_minor": -22727278,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30468,7 +30468,7 @@
     "period": "2026-05"
    },
    {
-    "amount_minor": -23096587,
+    "amount_minor": -22030137,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30482,7 +30482,7 @@
     "period": "2026-06"
    },
    {
-    "amount_minor": -23905016,
+    "amount_minor": -22799737,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30496,7 +30496,7 @@
     "period": "2026-07"
    },
    {
-    "amount_minor": -23944019,
+    "amount_minor": -22835455,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30510,7 +30510,7 @@
     "period": "2026-08"
    },
    {
-    "amount_minor": -23208568,
+    "amount_minor": -22132686,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30524,7 +30524,7 @@
     "period": "2026-09"
    },
    {
-    "amount_minor": -24018334,
+    "amount_minor": -22903611,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30538,7 +30538,7 @@
     "period": "2026-10"
    },
    {
-    "amount_minor": -23278947,
+    "amount_minor": -22197297,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30552,7 +30552,7 @@
     "period": "2026-11"
    },
    {
-    "amount_minor": -24089552,
+    "amount_minor": -22969055,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30566,7 +30566,7 @@
     "period": "2026-12"
    },
    {
-    "amount_minor": -284047781,
+    "amount_minor": -270821937,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30580,7 +30580,7 @@
     "period": "FY2027"
    },
    {
-    "amount_minor": -291508055,
+    "amount_minor": -277698986,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30596,7 +30596,7 @@
   ],
   "ebitda": [
    {
-    "amount_minor": 93730712,
+    "amount_minor": 93696835,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30624,7 +30624,7 @@
     "period": "2026-01"
    },
    {
-    "amount_minor": 84659997,
+    "amount_minor": 84629399,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30652,7 +30652,7 @@
     "period": "2026-02"
    },
    {
-    "amount_minor": 93730714,
+    "amount_minor": 93696838,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30680,7 +30680,7 @@
     "period": "2026-03"
    },
    {
-    "amount_minor": 90707141,
+    "amount_minor": 90674356,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30708,7 +30708,7 @@
     "period": "2026-04"
    },
    {
-    "amount_minor": 93730710,
+    "amount_minor": 93696834,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30736,7 +30736,7 @@
     "period": "2026-05"
    },
    {
-    "amount_minor": 90707142,
+    "amount_minor": 90674359,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30764,7 +30764,7 @@
     "period": "2026-06"
    },
    {
-    "amount_minor": 93730711,
+    "amount_minor": 93696834,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30792,7 +30792,7 @@
     "period": "2026-07"
    },
    {
-    "amount_minor": 93730711,
+    "amount_minor": 93696834,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30820,7 +30820,7 @@
     "period": "2026-08"
    },
    {
-    "amount_minor": 90707141,
+    "amount_minor": 90674357,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30848,7 +30848,7 @@
     "period": "2026-09"
    },
    {
-    "amount_minor": 93730711,
+    "amount_minor": 93696835,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30876,7 +30876,7 @@
     "period": "2026-10"
    },
    {
-    "amount_minor": 90707141,
+    "amount_minor": 90674357,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30904,7 +30904,7 @@
     "period": "2026-11"
    },
    {
-    "amount_minor": 93730712,
+    "amount_minor": 93696835,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30932,7 +30932,7 @@
     "period": "2026-12"
    },
    {
-    "amount_minor": 1130218405,
+    "amount_minor": 1129819535,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30960,7 +30960,7 @@
     "period": "FY2027"
    },
    {
-    "amount_minor": 1157498639,
+    "amount_minor": 1157099769,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -30990,7 +30990,7 @@
   ],
   "fcf": [
    {
-    "amount_minor": 32174111,
+    "amount_minor": 33140365,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -31036,7 +31036,7 @@
     "period": "2026-01"
    },
    {
-    "amount_minor": 52230956,
+    "amount_minor": 53103529,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -31082,7 +31082,7 @@
     "period": "2026-02"
    },
    {
-    "amount_minor": 57829032,
+    "amount_minor": 58794926,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -31128,7 +31128,7 @@
     "period": "2026-03"
    },
    {
-    "amount_minor": 55965570,
+    "amount_minor": 56900130,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -31174,7 +31174,7 @@
     "period": "2026-04"
    },
    {
-    "amount_minor": 57833044,
+    "amount_minor": 58798586,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -31220,7 +31220,7 @@
     "period": "2026-05"
    },
    {
-    "amount_minor": 55969373,
+    "amount_minor": 56903604,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -31266,7 +31266,7 @@
     "period": "2026-06"
    },
    {
-    "amount_minor": 57836889,
+    "amount_minor": 58802102,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -31312,7 +31312,7 @@
     "period": "2026-07"
    },
    {
-    "amount_minor": 57838783,
+    "amount_minor": 58803835,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -31358,7 +31358,7 @@
     "period": "2026-08"
    },
    {
-    "amount_minor": 55974807,
+    "amount_minor": 56908580,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -31404,7 +31404,7 @@
     "period": "2026-09"
    },
    {
-    "amount_minor": 57842391,
+    "amount_minor": 58807144,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -31450,7 +31450,7 @@
     "period": "2026-10"
    },
    {
-    "amount_minor": 55978225,
+    "amount_minor": 56911717,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -31496,7 +31496,7 @@
     "period": "2026-11"
    },
    {
-    "amount_minor": 57845847,
+    "amount_minor": 58810319,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -31542,7 +31542,7 @@
     "period": "2026-12"
    },
    {
-    "amount_minor": 669599571,
+    "amount_minor": 681300809,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -31588,7 +31588,7 @@
     "period": "FY2027"
    },
    {
-    "amount_minor": 687718185,
+    "amount_minor": 699723379,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -31636,7 +31636,7 @@
   ],
   "fcf_cumulative": [
    {
-    "amount_minor": 32174111,
+    "amount_minor": 33140365,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -31682,7 +31682,7 @@
     "period": "2026-01"
    },
    {
-    "amount_minor": 84405067,
+    "amount_minor": 86243894,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -31728,7 +31728,7 @@
     "period": "2026-02"
    },
    {
-    "amount_minor": 142234099,
+    "amount_minor": 145038820,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -31774,7 +31774,7 @@
     "period": "2026-03"
    },
    {
-    "amount_minor": 198199669,
+    "amount_minor": 201938950,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -31820,7 +31820,7 @@
     "period": "2026-04"
    },
    {
-    "amount_minor": 256032713,
+    "amount_minor": 260737536,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -31866,7 +31866,7 @@
     "period": "2026-05"
    },
    {
-    "amount_minor": 312002086,
+    "amount_minor": 317641140,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -31912,7 +31912,7 @@
     "period": "2026-06"
    },
    {
-    "amount_minor": 369838975,
+    "amount_minor": 376443242,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -31958,7 +31958,7 @@
     "period": "2026-07"
    },
    {
-    "amount_minor": 427677758,
+    "amount_minor": 435247077,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -32004,7 +32004,7 @@
     "period": "2026-08"
    },
    {
-    "amount_minor": 483652565,
+    "amount_minor": 492155657,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -32050,7 +32050,7 @@
     "period": "2026-09"
    },
    {
-    "amount_minor": 541494956,
+    "amount_minor": 550962801,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -32096,7 +32096,7 @@
     "period": "2026-10"
    },
    {
-    "amount_minor": 597473181,
+    "amount_minor": 607874518,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -32142,7 +32142,7 @@
     "period": "2026-11"
    },
    {
-    "amount_minor": 655319028,
+    "amount_minor": 666684837,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -32188,7 +32188,7 @@
     "period": "2026-12"
    },
    {
-    "amount_minor": 1324918599,
+    "amount_minor": 1347985646,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -32234,7 +32234,7 @@
     "period": "FY2027"
    },
    {
-    "amount_minor": 2012636784,
+    "amount_minor": 2047709025,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -33212,7 +33212,7 @@
   ],
   "net_income": [
    {
-    "amount_minor": 58452293,
+    "amount_minor": 59389688,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -33258,7 +33258,7 @@
     "period": "2026-01"
    },
    {
-    "amount_minor": 52785433,
+    "amount_minor": 53633028,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -33304,7 +33304,7 @@
     "period": "2026-02"
    },
    {
-    "amount_minor": 58431051,
+    "amount_minor": 59370344,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -33350,7 +33350,7 @@
     "period": "2026-03"
    },
    {
-    "amount_minor": 56535702,
+    "amount_minor": 57445616,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -33396,7 +33396,7 @@
     "period": "2026-04"
    },
    {
-    "amount_minor": 58409975,
+    "amount_minor": 59351112,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -33442,7 +33442,7 @@
     "period": "2026-05"
    },
    {
-    "amount_minor": 56515749,
+    "amount_minor": 57427392,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -33488,7 +33488,7 @@
     "period": "2026-06"
    },
    {
-    "amount_minor": 58389781,
+    "amount_minor": 59332650,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -33534,7 +33534,7 @@
     "period": "2026-07"
    },
    {
-    "amount_minor": 58379843,
+    "amount_minor": 59323549,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -33580,7 +33580,7 @@
     "period": "2026-08"
    },
    {
-    "amount_minor": 56487211,
+    "amount_minor": 57401262,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -33626,7 +33626,7 @@
     "period": "2026-09"
    },
    {
-    "amount_minor": 58360906,
+    "amount_minor": 59306184,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -33672,7 +33672,7 @@
     "period": "2026-10"
    },
    {
-    "amount_minor": 56469276,
+    "amount_minor": 57384799,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -33718,7 +33718,7 @@
     "period": "2026-11"
    },
    {
-    "amount_minor": 58342757,
+    "amount_minor": 59289509,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -33764,7 +33764,7 @@
     "period": "2026-12"
    },
    {
-    "amount_minor": 709190226,
+    "amount_minor": 720345869,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -33810,7 +33810,7 @@
     "period": "FY2027"
    },
    {
-    "amount_minor": 728535196,
+    "amount_minor": 739962111,
     "driver_ids": [
      "revenue_growth",
      "volume_index",
@@ -34817,7 +34817,7 @@
  },
  "strip": {
   "closing_cash": {
-   "amount_minor": 2129441488,
+   "amount_minor": 2164513729,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -34863,7 +34863,7 @@
    "lever_ids": []
   },
   "cumulative_fcf": {
-   "amount_minor": 2012636784,
+   "amount_minor": 2047709025,
    "driver_ids": [
     "revenue_growth",
     "volume_index",
@@ -34973,7 +34973,7 @@
  "summary": {
   "cash_trough": {
    "amount": {
-    "amount_minor": 148978815,
+    "amount_minor": 149945069,
     "driver_ids": [
      "revenue_growth",
      "volume_index",

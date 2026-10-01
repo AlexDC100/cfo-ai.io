@@ -25,9 +25,12 @@
 //
 // Both builders place: NET TURNOVER → OTHER OPERATING INCOME → own work
 // capitalised (72x) → OPERATING EXPENSES → the stock variation (711) → EBITDA
-// (with the engine's reconciliation line under it) → D&A → EBIT → FINANCIAL
-// ITEMS → profit before tax → tax → the net result, ending on account 121
-// where the trial balance carries it.
+// (with the engine's reconciliation line under it) → D&A → NET PROVISIONS
+// (owner ruling R2, 2026-09-28: 6812 + 6814 − 7812 − 7814, outside EBITDA,
+// served) → EBIT → FINANCIAL ITEMS → profit before tax → tax → the net
+// result, ending on account 121 where the trial balance carries it. Net
+// turnover holds 7411 (R3): the engine places its leaves in the turnover
+// bucket, so the family rows list it there.
 
 import {
   ApiLineItem,
@@ -99,7 +102,8 @@ interface BuildArgs {
 // Account-to-label table used to render the per-line labels next to the
 // account code on the line-item view. These are English labels.
 const ACCOUNT_LABELS: Record<string, string> = {
-  // Net turnover (70x − 709)
+  // Net turnover (70x − 709 + 7411 — owner ruling R3, 2026-09-28: the
+  // operating subsidies related to turnover sit inside it, F20 rd. 05)
   "701": "Sales of finished goods",
   "702": "Sales of semi-finished goods",
   "703": "Sales of residual products",
@@ -370,6 +374,42 @@ function stockVariationSection(served: ServedOneEbitda | null): PLSection | null
           stockDirection: c.value > 0 ? "increase" : "decrease",
         };
   return { role: "stockVariation", header: "", lines: [signed] };
+}
+
+/** NET PROVISIONS (owner ruling R2, 2026-09-28): the ruled charges (6812,
+ *  6814) less the ruled reversals (7812, 7814), OUTSIDE EBITDA, printed
+ *  between EBITDA and the operating result beside D&A — the engine's name,
+ *  its accounts in the chip. The amount is the served figure as the engine
+ *  signs it — a charge, like D&A beside it — and it PRINTS as D&A prints:
+ *  no effect sign, no colour; a net charge unsigned, a net release with
+ *  its minus ("6812 + 6814 − 7812 − 7814", as the label says). The row's
+ *  prior and Δ cells (`pl.net_provisions` off the comparatives endpoint)
+ *  are charge-signed too, so the three cells of the row read on ONE
+ *  convention (deploy-readiness review, 2026-09-29: the current cell
+ *  printed the effect sign — a net charge "−", a release "+" — beside a
+ *  charge-signed prior and Δ, and the signs flipped within the row). Null
+ *  on a payload the engine did not assemble under the ruling (its D&A
+ *  still holds the charges, its EBITDA the reversals) and on a period that
+ *  posted to none of the four accounts. */
+export function netProvisionsLine(served: ServedOneEbitda | null): PLLine | null {
+  const np = served?.netProvisions;
+  if (!np) return null;
+  if (Math.abs(np.charges) < HALF_CENT && Math.abs(np.reversals) < HALF_CENT) return null;
+  return {
+    accountCode: np.accounts,
+    label: np.name.en,
+    roName: roNameOf(np.name),
+    amount: np.value,
+    style: "item",
+    bucket: "netProvisions",
+  };
+}
+
+/** The D&A row's chip: the accounts the engine's reconciliation names for
+ *  it ("68x excl. 6812, 6814" since R2), else the bucket. */
+function depreciationChip(served: ServedOneEbitda | null, fallback: string): string {
+  const l = reconLine(served?.reconciliation, "depreciation");
+  return l?.accountsEn ?? l?.accounts ?? fallback;
 }
 
 /** Own work capitalised (72x): an operating line OUTSIDE turnover. On an
@@ -655,12 +695,16 @@ export function buildPLStatement(args: BuildArgs): PLStatement {
   // ── OTHER OPERATING INCOME (74x / 75x / 77x / 78x) ───────────────────
   // The otherIncome bucket's leaves, WITHOUT 711 (the line items carry its
   // gross credit turnover there — the production stocked, not the
-  // variation) and without 72x (own work capitalised has its own line).
+  // variation), without 72x (own work capitalised has its own line) and
+  // without the reversals the engine placed OUTSIDE EBITDA (R2: the served
+  // net-provisions block names them — 7812, 7814 — never typed here).
+  const outsideEbitda = served?.netProvisions?.reversalPrefixes ?? [];
   const otherFamilies: Record<string, number> = {};
   for (const li of items) {
     if (li.bucket !== "otherIncome") continue;
     const code = String(li.ro_account_code ?? "").replace(/[\s.\-/_]/g, "");
     if (!/^\d{3,}$/.test(code) || code.startsWith("711") || code.startsWith("72")) continue;
+    if (outsideEbitda.some((p) => code.startsWith(p))) continue;
     // A leaf with no amount is read as nothing — never as a zero row.
     if (typeof li.amount !== "number" || !Number.isFinite(li.amount)) continue;
     const family = code.slice(0, 3);
@@ -741,11 +785,17 @@ export function buildPLStatement(args: BuildArgs): PLStatement {
     ? { ebitda: served.ebitda, refusal: served.refusal }
     : payloadEbitda(has711, turnover, otherIncome, capitalized, totalCosts);
 
-  // ── D&A → EBIT ───────────────────────────────────────────────────────
+  // ── D&A → NET PROVISIONS → EBIT ──────────────────────────────────────
+  // D&A as served — since R2 (2026-09-28) without the 6812 / 6814 charges,
+  // which sit with their reversals on the net-provisions row below it.
   const depreciation = sv("depreciation") ?? sumByPrefix(items, "6811", "6812");
-  const depreciationLines: PLLine[] = depreciation
-    ? [{ accountCode: apl ? "681x" : "6811", label: labelFor("6811"), amount: depreciation, style: "item", bucket: "depreciationAmortization" }]
-    : [];
+  const provisionsLine = netProvisionsLine(served);
+  const depreciationLines: PLLine[] = [
+    ...(depreciation
+      ? [{ accountCode: apl ? depreciationChip(served, "681x") : "6811", label: labelFor("6811"), amount: depreciation, style: "item" as const, bucket: "depreciationAmortization" }]
+      : []),
+    ...(provisionsLine ? [provisionsLine] : []),
+  ];
 
   // ── FINANCIAL ITEMS (767 discounts received is financial) ────────────
   const dividendIncome = sumByPrefix(items, "7611", "7612", "762", "763");
@@ -1011,7 +1061,8 @@ function buildPLStatementFromAggregatesUnjudged(
           role: "otherOperatingIncome",
           header: "OTHER OPERATING INCOME",
           lines: [{
-            accountCode: reconLine(served?.reconciliation, "other_operating_income")?.accounts ?? "758",
+            accountCode: reconLine(served?.reconciliation, "other_operating_income")?.accountsEn
+              ?? reconLine(served?.reconciliation, "other_operating_income")?.accounts ?? "758",
             label: "Other operating income",
             amount: otherIncome,
             style: "item",
@@ -1109,15 +1160,19 @@ function buildPLStatementFromAggregatesUnjudged(
     subtotalBucket: "netFinancialResult",
   };
 
-  // ── D&A → EBIT ───────────────────────────────────────────────────────
+  // ── D&A → NET PROVISIONS → EBIT ──────────────────────────────────────
   const { ebit, ebitRefusal, pbt, pbtRefusal } = operatingTail(
     served, ebitda, ebitdaRefusal, dna, netFinancialResult);
+  const provisionsLine = netProvisionsLine(served);
   const depreciationSection: PLSection = {
     role: "depreciation",
     header: "",
-    lines: dna > 0
-      ? [{ accountCode: "6811", label: "Depreciation & amortization", amount: dna, style: "item", bucket: "depreciationAmortization" }]
-      : [],
+    lines: [
+      ...(dna > 0
+        ? [{ accountCode: depreciationChip(served, "6811"), label: "Depreciation & amortization", amount: dna, style: "item" as const, bucket: "depreciationAmortization" }]
+        : []),
+      ...(provisionsLine ? [provisionsLine] : []),
+    ],
     subtotalLabel: "EBIT",
     ...(ebit !== null ? { subtotalAmount: ebit } : ebitRefusal ? { subtotalRefusal: ebitRefusal } : {}),
     subtotalBucket: "ebit",

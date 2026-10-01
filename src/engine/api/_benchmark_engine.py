@@ -131,8 +131,10 @@ def _verdict(value: float, p25: Optional[float], p50: Optional[float], p75: Opti
 #: here so this module reads rows only. A period whose rows are stamped
 #: below it (or not at all) stored the EBITDA WITHOUT 711 / 72x under the
 #: same names: its EBITDA figures and its margins are REFUSED here until the
-#: period is reprocessed, never graded against the sector.
-ONE_EBITDA_REVISION = 3
+#: period is reprocessed, never graded against the sector. 4 since the
+#: 2026-09-28 rulings (R2 provisions outside EBITDA, R3 7411 in turnover):
+#: rows stamped 3 carry the previous EBITDA and turnover.
+ONE_EBITDA_REVISION = 4
 
 #: Stored rows that carry EBITDA or a figure built on it. On a stale period
 #: they are dropped from the company metrics (a pre-ruling figure is never
@@ -156,11 +158,14 @@ REFUSAL_MARGIN = "margin_not_meaningful"
 #: `net_income_statutory` row whose value is None.
 REFUSAL_NET_INCOME = "net_income_refused"
 _REFUSAL_TEXT = {
+    # Generic: the definition stamp has moved more than once, so the words
+    # name no content an earlier definition lacked (deploy-readiness review,
+    # 2026-09-29).
     REFUSAL_STALE: {
-        "ro": "Perioada a fost analizată înainte de definiția unică a EBITDA (cu variația stocurilor "
-              "de produse și producția imobilizată); cifra se recalculează la reprocesarea perioadei.",
-        "en": "The period was analysed before the one EBITDA definition (with the stock variation "
-              "and own work capitalised); the figure is recomputed when the period is reprocessed.",
+        "ro": "Perioada a fost analizată sub o definiție anterioară a EBITDA; cifra se "
+              "recalculează la reprocesarea perioadei.",
+        "en": "The period was analysed under an earlier EBITDA definition; the figure is "
+              "recomputed when the period is reprocessed.",
     },
     REFUSAL_EBITDA: {
         "ro": "EBITDA este refuzat pentru această perioadă: variația stocurilor de produse nu a "
@@ -486,7 +491,10 @@ NET_INCOME_SLOT = ("net_income_statutory", "net_income_operating")
 #: refusal on the company side and the "Compania ta" row, peer basis served.
 #: 5 (2026-09-27): a net result refused with 711 (no account 121) refuses the
 #: headline profit, the peer row and the net margin — never the build-up.
-REPORT_REVISION = 5
+#: 6 (2026-09-28, owner rulings R2 / R3): EBITDA without the 6812 / 6814
+#: charges and the 7812 / 7814 reversals, margins over a turnover that
+#: holds 7411 — a report cached under 5 graded the previous EBITDA.
+REPORT_REVISION = 6
 
 
 def headline_net_income_key(company_metrics: Dict[str, Any]) -> str:

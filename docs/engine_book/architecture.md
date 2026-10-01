@@ -45,7 +45,7 @@ graph LR
     pkg_confidence["confidence (5 modules)"]
     pkg_consensus["consensus (6 modules)"]
     pkg_core["core (9 modules)"]
-    pkg_country_packs["country_packs (20 modules)"]
+    pkg_country_packs["country_packs (21 modules)"]
     pkg_detection["detection (2 modules)"]
     pkg_dst["dst (4 modules)"]
     pkg_firm["firm (12 modules)"]
@@ -76,6 +76,7 @@ graph LR
     pkg_workspaces["workspaces (6 modules)"]
     pkg__root_ -->|1| pkg_api
     pkg__root_ -->|1| pkg_briefing
+    pkg__root_ -->|1| pkg_country_packs
     pkg__root_ -->|1| pkg_ratios
     pkg__root_ -->|1| pkg_storage
     pkg_ai -->|3| pkg_ai_lane
@@ -379,7 +380,7 @@ declaration is the supply-chain lock's job to reject).
 | `api` | anthropic (anthropic), fastapi (fastapi), httpx (httpx), openai (openai), openpyxl (openpyxl), pandas (pandas), pdfplumber (pdfplumber), pydantic (pydantic), sentry_sdk (sentry-sdk), sqlalchemy (sqlalchemy), stripe (stripe), xlrd (xlrd), yaml (pyyaml) |
 | `attention` | yaml (pyyaml) |
 | `briefing` | anthropic (anthropic) |
-| `country_packs` | fitz (pymupdf), openpyxl (openpyxl), pandas (pandas), pdfplumber (pdfplumber) |
+| `country_packs` | fitz (pymupdf), openpyxl (openpyxl), pandas (pandas), pdfplumber (pdfplumber), yaml (pyyaml) |
 | `firm` | yaml (pyyaml) |
 | `forecast` | yaml (pyyaml) |
 | `forecast_drivers` | yaml (pyyaml) |

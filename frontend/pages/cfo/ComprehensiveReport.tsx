@@ -104,6 +104,7 @@ import { CreditScoreCard, readCreditFromMetrics } from "@/components/cfo/CreditS
 import { useTranslation } from "react-i18next";
 import { ratioLabelForKey } from "@/lib/ratioTable";
 import { readInventoryDaysSplit } from "@/lib/inventoryDays";
+import { CF_ADD_BACK_LABEL_EN, addBackHoldsProvisionCharges } from "@/lib/buildCashFlowStatement";
 import { InventoryDaysSplit } from "@/components/cfo/ratios/InventoryDaysSplit";
 import { IndustryConfirmBanner } from "@/components/cfo/IndustryConfirmBanner";
 import { blocksSectorContent, readIndustrySignal } from "@/lib/industrySignal";
@@ -545,7 +546,7 @@ export default function ComprehensiveReport() {
           {/* ── 4. CASH FLOW ────────────────────────────────────────── */}
           <section id="cf" data-testid="report-section-4-cf">
             <SectionHeader number={4} title="Cash Flow Statement" />
-            <CashFlowTable cf={cf} currency={currency} origin={origin} />
+            <CashFlowTable cf={cf} plDepreciation={pl.depreciation} currency={currency} origin={origin} />
           </section>
 
           {/* ── 5. RATIOS ───────────────────────────────────────────── */}
@@ -870,6 +871,10 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
   // "Variația stocurilor de produse") sits beside cost of sales, signed as
   // its effect on the result; own work capitalised (72x) is an operating
   // line outside net turnover; both are inside EBITDA. 767 is financial.
+  // PROVISIONS SYMMETRIC (owner ruling R2, 2026-09-28): the ruled charges
+  // (6812, 6814) and reversals (7812, 7814) are OUTSIDE EBITDA; their net is
+  // its own step between D&A and EBIT, under the engine's name, signed as
+  // its effect on the result — so EBITDA − D&A − net provisions = EBIT foots.
   // The retired rows went with the old definitions: the "+ Capitalized own
   // work (722)" step after net profit (72x is above EBITDA now), the
   // "EBITDA (statutory, incl. 722)" memo (there is one EBITDA) and the
@@ -946,6 +951,12 @@ function PnlTable({ pl, currency, origin }: { pl: Record<string, number>; curren
     { label: "Operating expenses", val: negated(pl.opex_total), style: "indent", origin: neg("opex_total"), role: "step" },
     { label: "EBITDA", val: num(served?.ebitda), style: "highlight", origin: f("ebitda"), role: "subtotal", note: served?.ebitda == null ? refusalEn : null },
     { label: "Depreciation & amortization", val: negated(pl.depreciation), style: "indent", origin: neg("depreciation"), role: "step" },
+  );
+  const np = served?.netProvisions ?? null;
+  if (np && (Math.abs(np.charges) >= 0.005 || Math.abs(np.reversals) >= 0.005)) {
+    rows.push({ label: np.label.en, val: 0 - np.value, style: "indent", origin: neg("net_provisions.value"), role: "step" });
+  }
+  rows.push(
     { label: "EBIT", val: num(served?.ebit), style: "highlight", origin: f("ebit"), role: "subtotal", note: served?.ebit == null ? refusalEn : null },
     { label: "Net financial result", val: pl.net_financial_result, style: "indent", origin: f("net_financial_result"), role: "step" },
     { label: "Pre-tax profit", val: num(served?.pretax), style: "subtotal", origin: f("pretax"), role: "subtotal", note: served?.pretax == null ? refusalEn : null },
@@ -1177,7 +1188,14 @@ function BsHalf({ title, rows, totalLabel, totalValue, totalOrigin, reference, c
   );
 }
 
-function CashFlowTable({ cf, currency, origin }: { cf: Record<string, number | boolean | string[] | undefined>; currency: string; origin: ReportOrigin }) {
+function CashFlowTable({ cf, plDepreciation, currency, origin }: {
+  cf: Record<string, number | boolean | string[] | undefined>;
+  /** The P&L's D&A (`assembled_pl.depreciation`) — only to name the
+   *  add-back row for what it sums (owner ruling R2, 2026-09-28). */
+  plDepreciation: unknown;
+  currency: string;
+  origin: ReportOrigin;
+}) {
   const { displayCurrency } = useReportFmt(currency);
   const isApprox = Boolean(cf.is_approximated);
   const notes = Array.isArray(cf.approximation_notes) ? cf.approximation_notes : [];
@@ -1211,7 +1229,11 @@ function CashFlowTable({ cf, currency, origin }: { cf: Record<string, number | b
       title: "Operating",
       rows: [
         ["Net profit", n("net_profit"), f("net_profit"), "net_profit"],
-        ["+ Depreciation & amortization", n("depreciation"), f("depreciation")],
+        // The walk adds back all of 68x; since R2 the P&L's D&A leaves out
+        // the 6812 / 6814 charges — the row is named for what it sums.
+        [addBackHoldsProvisionCharges(n("depreciation"), plDepreciation)
+          ? CF_ADD_BACK_LABEL_EN.withProvisionCharges
+          : CF_ADD_BACK_LABEL_EN.depreciation, n("depreciation"), f("depreciation")],
         ["+ Provision movements", n("provision_movement"), f("provision_movement")],
         ["Δ Inventory", n("delta_inventory"), f("delta_inventory")],
         ["Δ Receivables", n("delta_receivables"), f("delta_receivables")],

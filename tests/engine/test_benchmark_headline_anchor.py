@@ -357,6 +357,29 @@ def test_rows_stamped_before_the_one_ebitda_refuse_every_ebitda_figure_and_both_
     assert head["refusals"]["ebitda"]["code"] == "period_predates_ebitda_definition"
 
 
+#: The stale refusal's words, pinned. GENERIC (deploy-readiness review of
+#: feat/rulings-2, 2026-09-29): rows stamped 3 (the 2026-09-26 definition —
+#: 711 / 72x ALREADY inside) are stale since R2 / R3 too, so words saying the
+#: period predates "the one EBITDA definition (with the stock variation …)"
+#: misdescribed them.
+STALE_WORDS = {
+    "ro": "Perioada a fost analizată sub o definiție anterioară a EBITDA; cifra se "
+          "recalculează la reprocesarea perioadei.",
+    "en": "The period was analysed under an earlier EBITDA definition; the figure is "
+          "recomputed when the period is reprocessed.",
+}
+
+
+@pytest.mark.parametrize("revision", [2, 3])
+def test_rows_on_an_earlier_definition_refuse_with_generic_words(revision):
+    rows, line_items, _served = _firm_metrics("agras")
+    stale = [dict(r, value=revision) if r["name"] == "credit_model_revision" else r for r in rows]
+    cm = be.compute_company_metrics(stale, line_items)
+    for k in ("ebitda", "ebitda_margin", "debt_to_ebitda", "net_margin"):
+        assert cm["refusals"][k]["code"] == "period_predates_ebitda_definition", k
+        assert cm["refusals"][k]["display"] == STALE_WORDS, cm["refusals"][k]
+
+
 def test_every_seeded_peer_records_the_basis_the_page_serves():
     """benchmarks_deep_seed.json records each peer's revenue basis; the page
     serves the basis the ONE classifier derives from the source (the DB rows
@@ -449,8 +472,11 @@ def test_a_period_with_no_reported_profit_refuses_instead_of_printing_zero():
 
 def test_a_reported_zero_profit_is_still_a_figure():
     """A company that filed exactly zero filed a number. Only ABSENCE refuses."""
+    # Rows on the CURRENT definition (revision 4 since the owner's rulings
+    # of 2026-09-28): a row stamped 3 carries the previous turnover and its
+    # margins are refused as stale, which is not what this law is about.
     metrics = be.compute_company_metrics([
-        {"name": "credit_model_revision", "value": 3, "unit": "revision"},
+        {"name": "credit_model_revision", "value": be.ONE_EBITDA_REVISION, "unit": "revision"},
         {"name": "revenue", "value": 84_000_000.0, "unit": None},
         {"name": "net_income", "value": 0.0, "unit": None},
     ], [])

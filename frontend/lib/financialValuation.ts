@@ -28,9 +28,10 @@ import {
 // decomposition, which canonical_bs does not carry.
 import { factsFrom } from "./servedFacts";
 import {
-  equityRefusalOf, netIncomeRefusalOf, plLevelsOf, readRefusal, type ServedRefusal,
+  equityRefusalOf, netIncomeRefusalOf, plLevelsOf, readNetProvisions, readRefusal, type ServedRefusal,
 } from "./servedOneEbitda";
 import { ratioLabelForKey } from "./ratioTable";
+import { readCreditRegime, type CreditRegime } from "./creditRegime";
 
 /** The Altman row's name: the one label authority ("Altman Z″", what the
  *  Ratios tab, the report cards and the workbook Ratios sheet print) for
@@ -264,12 +265,20 @@ export function runDcf(s: Statements): DcfResult {
   // Prefer the canonical views (`assembled_cf` / `assembled_pl`) when
   // the backend supplied them. Fall back to client-side derivations
   // only when canonical isn't available (sample mode).
+  //
+  // THE ADD-BACK THE CFO CARRIES, never a narrower one — the same ladder
+  // as the engine's DCF (`src/engine/api/_valuation.py`: cash flow's
+  // `depreciation`, then the P&L's, then the legacy mirror). Since the
+  // owner's R2 ruling (2026-09-28) `assembled_pl.depreciation` is D&A
+  // WITHOUT the 6812 / 6814 provision charges, while the CFO walk adds
+  // back all of 68x (`assembled_cf.depreciation`): subtracting the P&L
+  // figure left the charges inside the "maintenance capex" and moved this
+  // DCF off the engine's one printed on the same page.
   const canonicalCfo = s.assembled_cf?.cash_from_operating;
-  const canonicalDep = s.assembled_pl?.depreciation;
   const cfo = typeof canonicalCfo === "number" && Number.isFinite(canonicalCfo) ? canonicalCfo : cf.cfo;
-  const dep = typeof canonicalDep === "number"
-    ? canonicalDep
-    : s.incomeStatement.depreciationAmortization;
+  const dep = [s.assembled_cf?.depreciation, s.assembled_pl?.depreciation].find(
+    (v): v is number => typeof v === "number" && Number.isFinite(v),
+  ) ?? s.incomeStatement.depreciationAmortization;
   // Net debt — prefer canonical view, else legacy derivation.
   const canonicalDebt = s.assembled_bs?.total_debt;
   const canonicalCash = s.assembled_bs?.cash;
@@ -644,18 +653,25 @@ function canonical(s: Statements): {
     typeof pl.net_income_statutory === "number"
       ? pl.net_income_statutory
       : reportedLevel("netIncome") ?? t.netIncome;
+  // Net provisions (owner ruling R2, 2026-09-28): outside EBITDA, between it
+  // and the operating result; its charges are non-cash like D&A. 0 on a
+  // block assembled before the ruling (its D&A still held the charges).
+  const servedProvisions = readNetProvisions(s.assembled_pl);
+  const netProvisions = servedProvisions?.value ?? 0;
+  const provisionCharges = servedProvisions?.charges ?? 0;
   const ebitStatutory =
     typeof pl.operating_ebit === "number"
       ? pl.operating_ebit
       : typeof pl.ebitda_statutory === "number"
-        ? pl.ebitda_statutory - (pl.depreciation ?? s.incomeStatement.depreciationAmortization)
+        ? pl.ebitda_statutory - (pl.depreciation ?? s.incomeStatement.depreciationAmortization) - netProvisions
         : reportedLevel("ebit") ?? t.ebit;
   const ebitdaStatutory =
     typeof pl.ebitda_statutory === "number"
       ? pl.ebitda_statutory
       : reportedLevel("ebitda") ?? t.ebitda;
   // The engine's own EBIT; else the engine's own arithmetic for it
-  // (`ebit = ebitda − depreciation`, chart_of_accounts) when both served
+  // (`ebit = ebitda − depreciation − net provisions`, chart_of_accounts)
+  // when the served
   // operands are on the wire; else — a P&L block that carries neither, so
   // the engine's operand is simply not on this payload — the same ladder
   // `ebitStatutory` walks. That last rung never reaches a real engine
@@ -667,14 +683,14 @@ function canonical(s: Statements): {
     typeof pl.ebit === "number"
       ? pl.ebit
       : typeof pl.ebitda === "number" && typeof pl.depreciation === "number"
-        ? pl.ebitda - pl.depreciation
+        ? pl.ebitda - pl.depreciation - netProvisions
         : ebitStatutory;
   const cfo =
     typeof cf.cash_from_operating === "number"
       ? cf.cash_from_operating
       : netIncomeStatutory === null
         ? null
-        : netIncomeStatutory + (pl.depreciation ?? s.incomeStatement.depreciationAmortization);
+        : netIncomeStatutory + (pl.depreciation ?? s.incomeStatement.depreciationAmortization) + provisionCharges;
   return {
     plRefusal: t.plRefusal,
     netIncomeStatutory,
@@ -1389,6 +1405,14 @@ export interface CreditScoreResult {
    *  `RATING_BANDS`, so a printed document always shows WHICH ladder
    *  produced the letter beside it. NULL when the authority shipped none. */
   letterBands: Array<{ min: number; grade: string }> | null;
+  /** THE CREDIT REGIME the engine composed this grade under (credit model
+   *  revision 5, owner ruling R1): the stock-build regime — leverage,
+   *  coverage and DSCR on cash from operations, X3 before the stock
+   *  variation, the regime's weights — with its trigger figures and the
+   *  finding, as served (`assembled_metrics.credit.regime`). NULL under the
+   *  standard model and on the client fallback. Every surface that prints
+   *  the grade prints this ONCE (`CreditRegimeNote`). */
+  regime?: CreditRegime | null;
   components: {
     label: string;
     /** NULL when the envelope carried no sub-score for this component. */
@@ -1469,6 +1493,11 @@ export interface CreditSubscoreRefusal {
 }
 
 export interface CreditEnvelope {
+  /** Credit model revision 5: the stock-build regime block, or null
+   *  (the standard model). Read by `readCreditRegime`, never here. */
+  regime?: unknown;
+  /** Revision 5: what Altman X3 was computed on under the regime. */
+  altman_x3_basis?: { ro?: string | null; en?: string | null } | null;
   composite_score?: number | null;
   letter_grade?: string | null;
   letter_grade_bands?: Array<{ min: number; grade: string }> | null;
@@ -2295,6 +2324,8 @@ export function engineCreditResult(
     // documented `calculated_metrics` → envelope order.
     const altmanValue = altman.score;
     const altmanZone = altman.zone;
+    // Revision 5: the regime this grade was composed under, as served.
+    const regime = readCreditRegime(e.regime);
     const components: CreditScoreResult["components"] = [
       {
         label: altmanLabelOf(altman.variant),
@@ -2327,9 +2358,11 @@ export function engineCreditResult(
       // are 66.28× against 55.64× on agras) — but the name is now the
       // sub-score's, so no name carries two arithmetics.
       subscoreRow("Profitability sub-score 0–100 (ROE + net margin)", e, "profitability", weightBasis, metricsByName),
-      subscoreRow("Leverage sub-score 0–100 (net debt ÷ EBITDA)", e, "leverage", weightBasis, metricsByName),
-      subscoreRow("Interest-coverage sub-score 0–100 (EBIT ÷ interest)", e, "coverage", weightBasis, metricsByName),
-      subscoreRow("DSCR sub-score 0–100 (EBITDA ÷ debt service)", e, "dscr", weightBasis, metricsByName),
+      // Under the stock-build regime (revision 5) the three cash components
+      // divide cash from operations: the label prints the SERVED basis.
+      subscoreRow(`Leverage sub-score 0–100 (${regime?.componentBases.leverage?.en ?? "net debt ÷ EBITDA"})`, e, "leverage", weightBasis, metricsByName),
+      subscoreRow(`Interest-coverage sub-score 0–100 (${regime?.componentBases.coverage?.en ?? "EBIT ÷ interest"})`, e, "coverage", weightBasis, metricsByName),
+      subscoreRow(`DSCR sub-score 0–100 (${regime?.componentBases.dscr?.en ?? "EBITDA ÷ debt service"})`, e, "dscr", weightBasis, metricsByName),
       subscoreRow("Liquidity sub-score 0–100 (current + quick + cash)", e, "liquidity", weightBasis, metricsByName),
       subscoreRow("Equity-ratio sub-score 0–100", e, "equity", weightBasis, metricsByName),
     ];
@@ -2368,6 +2401,7 @@ export function engineCreditResult(
       // included — to treat "—" as a real grade.
       grade: engineLetter,
       letterBands: engineBands,
+      regime,
       components,
       altman,
       piotroski,

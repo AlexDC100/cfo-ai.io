@@ -36,6 +36,8 @@ import {
   type CreditModelId,
   type CreditScoreResult,
 } from "@/lib/financialValuation";
+import type { CreditRegime } from "@/lib/creditRegime";
+import { CreditRegimeNote } from "@/components/cfo/CreditRegimeNote";
 
 type SubKey = "altman" | "profitability" | "leverage" | "coverage" | "dscr" | "liquidity" | "equity";
 
@@ -134,6 +136,10 @@ export interface CreditScoreData {
   weights: Record<SubKey, number | null>;
   /** The reader's refusal sentence per row; NULL on a scored row. */
   refusals: Record<SubKey, string | null>;
+  /** The credit regime the grade was composed under (credit model
+   *  revision 5, owner ruling R1), as the shared reader served it; NULL
+   *  under the standard model. Printed ONCE on the card. */
+  regime?: CreditRegime | null;
 }
 
 // ── `compositeToGrade()` LIVED HERE AND IS DELETED ──────────────────
@@ -241,6 +247,7 @@ export function creditCardData(result: CreditScoreResult | null): CreditScoreDat
     modelLabel: result.modelLabel,
     letterSource: letter === null ? "absent" : ladder ? "letter_grade_bands" : "letter_grade",
     ladder,
+    regime: result.regime ?? null,
     altmanX1: result.altman.components.x1_wc_to_assets,
     altmanX2: result.altman.components.x2_re_to_assets,
     altmanX2Refusal: result.altman.componentRefusals?.x2
@@ -392,6 +399,8 @@ export function CreditScoreCard({ data }: Props) {
               carry, now on the fourth surface. When there is no letter,
               this states why instead. */}
           <CreditModelNote data={data} ladderText={ladderText} className="mt-1.5 max-w-[440px]" />
+          {/* THE CREDIT REGIME, ONCE (revision 5, owner ruling R1). */}
+          {data.regime ? <CreditRegimeNote regime={data.regime} testid="report-credit-regime" /> : null}
         </div>
         <div className="rounded-md border border-rule bg-bg-2/40 p-4 min-w-[220px]">
           <div className="text-[10.5px] uppercase tracking-[0.12em] text-ink-mute font-medium">

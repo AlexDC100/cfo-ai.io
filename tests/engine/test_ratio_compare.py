@@ -431,7 +431,13 @@ def test_get_period_serves_the_ratio_table_and_the_serve_time_credit(name):
     assert credit["composite_score"] == table["credit"]["composite"]
     assert credit["letter_grade"] == table["credit"]["letter"]
     assert credit["altman_z_score"] == table["credit"]["altman"]["z"]
-    assert credit["composite_weights"] == CM.CREDIT_COMPOSITE_WEIGHTS
+    # the model table, or — on the book the stock-build regime applies to
+    # (revision 5) — the regime's, the table the composite was built on
+    assert credit["composite_weights"] == table["credit"]["weights"]
+    assert credit["composite_weights"] == (
+        CM.CREDIT_COMPOSITE_WEIGHTS if credit.get("regime") is None
+        else CM.credit_pack()["stock_build_regime"]["weights"]), (name, credit["composite_weights"])
+    assert (credit.get("regime") is not None) == (name == "realestate"), (name, credit.get("regime"))
     persisted_env = SB.book(name).period.get("assembled_canonical_v1") or {}
     assert table["stamps"]["pack_provenance"] == persisted_env.get("pack_provenance"), (
         "%s: pack_provenance is not the persisted envelope's" % name)

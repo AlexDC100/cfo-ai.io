@@ -709,7 +709,9 @@ def test_an_ebitda_covenant_tests_the_one_ebitda_and_cites_its_components_beside
     case = cases["saga_10_col_agras"]
     apl = case["statements"]["assembled_pl"]
     one = apl["ebitda"]
-    assert one == pytest.approx(11_848_065.27, abs=0.01)
+    # R2 (2026-09-28): the 7814.01 reversal (3,988.70) sits outside EBITDA —
+    # 11,848,065.27 under the 2026-09-26 definition.
+    assert one == pytest.approx(11_844_076.57, abs=0.01)
     # Since the methodology's `reported` became the one EBITDA (a06e769f)
     # the gateway serves the same figure — one definition, two readers.
     assert _gateway_ebitda(case) == pytest.approx(one, abs=0.01)

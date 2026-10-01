@@ -348,6 +348,13 @@ def _walk(statement, from_label, to_label, cur_env, pri_env, total_field_key,
 #: and the MEASURED stock variation (net 711, "Variația stocurilor de
 #: produse", beside cost of sales, signed) are steps of their own — inside
 #: EBITDA, outside turnover — read from the blocks the assembler serves.
+#:
+#: PROVISIONS SYMMETRIC (owner ruling R2, 2026-09-28): the ruled charges
+#: (6812, 6814) and reversals (7812, 7814) are outside EBITDA — out of
+#: `other_operating_income` and out of `depreciation` — and walk as ONE
+#: step of their own, their net (`net_provisions.value`, signed as a
+#: charge). The accounts are the served block's (this package is
+#: jurisdiction-blind, E8: it names no account list).
 _PL_STEPS = (
     ("pl.revenue", "Net turnover", "assembled_pl", "revenue", +1),
     ("pl.other_operating_income_total", "Other operating income (EBITDA basis)",
@@ -359,6 +366,8 @@ _PL_STEPS = (
      "assembled_pl", "inventory_variation.value", +1),
     ("pl.opex_total", "Operating expenses", "assembled_pl", "opex_total", -1),
     ("pl.depreciation", "Depreciation & amortisation", "assembled_pl", "depreciation", -1),
+    ("pl.net_provisions", "Net provisions (outside EBITDA)",
+     "assembled_pl", "net_provisions.value", -1),
     ("pl.net_financial_result", "Net financial result", "assembled_pl", "net_financial_result", +1),
     ("pl.tax", "Income tax", "assembled_pl", "tax", -1),
 )

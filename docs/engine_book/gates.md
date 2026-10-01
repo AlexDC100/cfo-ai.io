@@ -13016,7 +13016,7 @@ item); the findings engine's CRITICAL_FINDING evidence still cites
 |---|---|
 | command | `python -m pytest tests/engine/test_briefing_definition.py -q -s` |
 | canary | `SCOPE briefing-definition: GET /api/period over the tenancy double` |
-| work count | `GATE-WORK briefing-definition units=N`, floor **8** (measured 8) |
+| work count | `GATE-WORK briefing-definition units=N`, floor **8** (measured 9 since 2026-09-29; 8 before) |
 
 **SCOPE** — design A9 (owner ruling 2026-09-26: net 711 and net 72x inside
 EBITDA, margins over turnover). A briefing is prose written once from the
@@ -13057,6 +13057,78 @@ FAILED tests/engine/test_briefing_definition.py::test_zz_scope - AssertionError
 CANNOT SEE: the page hiding the stale briefing (FE stage A7); the regenerate
 route's write under a real Anthropic call (it is the same upsert payload; the
 route is not driven here because it calls the model).
+
+### briefing-definition — the stale-definition words are GENERIC (deploy-readiness review of feat/rulings-2, 2026-09-29)
+
+**INCIDENT** — the EBITDA stamp moved twice (2026-09-26: 711 / 72x inside;
+2026-09-28, R2 / R3: provisions outside, 7411 in turnover). Four texts served
+for a stamp mismatch still named what the 2026-09-26 revision's predecessor
+lacked, so they MISDESCRIBED every period or briefing stamped 2026-09-26
+(which DID include 711 and 72x):
+- `pipeline.BRIEFING_PREVIOUS_DEFINITION_NOTE` — "written under the previous
+  EBITDA definition (without the stock variation and own work capitalised)";
+- `FactsGateway.ebitda()`'s `period_predates_ebitda_definition` —
+  "analysed before EBITDA included the stock variation (711) and own work
+  capitalised (72x)";
+- `_benchmark_engine` `REFUSAL_STALE` (rows stamped 2 AND 3 are stale since
+  R2) — "analysed before the one EBITDA definition (with the stock
+  variation …)";
+- the frontend fallback in `lib/briefingDefinition.ts`.
+
+**THE WORDS NOW** (pinned byte for byte): the briefing note RO "Comentariul
+a fost scris sub o definiție anterioară a EBITDA și este ascuns; reanalizați
+perioada pentru un comentariu nou." / EN "This briefing was written under an
+earlier EBITDA definition and is hidden; re-analyse the period for a new
+one." (the frontend fallback restates it); the gateway RO "Perioada a fost
+analizată sub o definiție anterioară a EBITDA; trebuie reanalizată înainte ca
+EBITDA să poată fi afișată." / EN "This period was analysed under an earlier
+EBITDA definition; it must be re-analysed before its EBITDA can be served.";
+the benchmark RO "Perioada a fost analizată sub o definiție anterioară a
+EBITDA; cifra se recalculează la reprocesarea perioadei." / EN "The period was
+analysed under an earlier EBITDA definition; the figure is recomputed when the
+period is reprocessed." Left alone, on purpose: texts about a genuinely
+different condition (`stock_variation.py`'s measurement refusals, R10b's
+refused-711 alert) and `_valuation.py`'s already-generic "saved under the
+previous EBITDA definition" flag.
+
+**LAWS** — `tests/engine/test_briefing_definition.py` (this gate; the note
+pinned, and a briefing stamped with every `EBITDA_DEFINITION_PREVIOUS_
+REVISIONS` entry gets it with no content word — 711, 72x, stock variation,
+provisions, 7411 — +1 unit); `tests/engine/test_facts_gateway.py` (a block on
+the 2026-09-26 stamp refuses with the generic words);
+`tests/engine/test_benchmark_headline_anchor.py` (rows stamped 2 and 3 refuse
+with them); `frontend/lib/__tests__/oneEbitdaSurfaceComponents.test.tsx` (the
+served note, and the fallback when the note is absent). The last three run in
+the full engine suite and full vitest.
+
+Source-edit plants (the pre-fix words, each alone, by `scratchpad/r2fix/
+plant.py`, restored byte-exact, sha256 checked), four of four RED:
+```
+PLANT briefing-note-names-the-2026-09-26-content (the pre-fix note): src/engine/api/pipeline.py
+  FAILED tests/engine/test_briefing_definition.py::test_the_status_of_a_stored_briefing
+  FAILED tests/engine/test_briefing_definition.py::test_a_briefing_stamped_with_an_earlier_revision_gets_the_generic_note
+  FAILED tests/engine/test_briefing_definition.py::test_a_briefing_written_before_the_ruling_is_served_as_such_through_the_real_route
+  FAILED tests/engine/test_briefing_definition.py::test_zz_scope - assert 4 >= 8
+  ========================= 4 failed, 2 passed in 2.14s ==========================
+  exit=1 -> RED ; file restored byte-exact (sha256 8dd27f36f548)
+PLANT gateway-refusal-names-711-72x (the pre-fix text_en / text_ro): src/engine/serving/facts.py
+  FAILED tests/engine/test_facts_gateway.py::test_ebitda_refuses_a_block_on_an_earlier_revision_with_generic_words
+  ========================= 1 failed, 22 passed in 0.95s =========================
+  exit=1 -> RED ; file restored byte-exact (sha256 0e38b1c2ece0)
+PLANT benchmark-stale-words-name-the-one-definition (the pre-fix display): src/engine/api/_benchmark_engine.py
+  FAILED tests/engine/test_benchmark_headline_anchor.py::test_rows_on_an_earlier_definition_refuse_with_generic_words[2]
+  FAILED tests/engine/test_benchmark_headline_anchor.py::test_rows_on_an_earlier_definition_refuse_with_generic_words[3]
+  ========================= 2 failed, 32 passed in 0.47s =========================
+  exit=1 -> RED ; file restored byte-exact (sha256 871545df82e1)
+PLANT fe-fallback-note-previous-definition (the pre-fix fallback): frontend/lib/briefingDefinition.ts
+  × frontend/lib/__tests__/oneEbitdaSurfaceComponents.test.tsx > a briefing written under the previous EBITDA definition is hidden with the engine's note > a hidden briefing served without its note: the fallback restates the engine's generic note 5ms
+  Tests  1 failed | 14 passed (15)
+  AssertionError: expected { …(2) } to deeply equal { …(2) }
+  exit=1 -> RED ; file restored byte-exact (sha256 089e1052d45f)
+```
+**REVERT** — the clean tree: `test_briefing_definition.py` 6 passed (GATE-WORK
+units=9), `test_facts_gateway.py` + `test_benchmark_headline_anchor.py` 57
+passed, `oneEbitdaSurfaceComponents.test.tsx` 15 passed.
 
 ## e2b-rewritten-laws (owner ruling 2026-09-26, design A6/A8)
 
@@ -13265,9 +13337,9 @@ REVERT (clean tree):
 
 | | |
 |---|---|
-| command | `npx vitest run --root . frontend/lib/__tests__/plOneEbitda.test.tsx --reporter=verbose` |
-| canary | `covers ten books, two of them refused`, `unanchored: every refused figure states the engine's reason, RO and EN`, `closed_no_activity: no stock-variation row, the remainder labelled, then account 121`, `renders the owner's name verbatim in Romanian, and with the engine's gloss in English` |
-| work count | `Tests N passed`, floor **50** (measured 58) |
+| command | `npx vitest run --root . frontend/lib/__tests__/plOneEbitda.test.tsx frontend/lib/__tests__/netProvisionsRowSign.test.tsx --reporter=verbose` |
+| canary | `covers eleven books, three of them refused`, `unanchored: every refused figure states the engine's reason, RO and EN`, `closed_no_activity: no stock-variation row, the remainder labelled, then account 121`, `renders the owner's name verbatim in Romanian, and with the engine's gloss in English`, `the served pair (current a net charge, prior a net release): the row prints current, prior and Δ charge-signed, as D&A prints its own` |
+| work count | `Tests N passed`, floor **60** (measured 66: plOneEbitda 63 + the net-provisions row 3; floor 50 / measured 58 before) |
 
 **INCIDENT** — the owner's ruling of 2026-09-26 (711 and 72x inside EBITDA
 and the operating result; 711 shown as "Variația stocurilor de produse" next
@@ -13352,13 +13424,62 @@ RED (plant) — Tests 2 failed | 68 passed (70) (plOneEbitda + refusalCarries)
 **REVERT** — the re-captured fixture restored: `Tests 58 passed (58)` on
 plOneEbitda.
 
+### pl-one-ebitda-page — the net-provisions row on one sign convention (deploy-readiness review of feat/rulings-2, 2026-09-29, ruling R2)
+
+**INCIDENT** — `netProvisionsLine` printed the CURRENT cell with its EFFECT
+sign (a net charge "−", a net release "+", coloured `pl-neg` / `pl-pos`),
+while the same row's prior and Δ cells (`CmpCells rowKey "netProvisions"`,
+the comparatives endpoint's charge-signed `pl.net_provisions`) print the
+charge-signed figures. On the committed pair (current a net charge of
+131,394.66, prior a net release of 67,194.32) the row read "−131,394.66 |
+−67,194.32 | +198,588.98": both periods with a minus and opposite meanings,
+the current red and the Δ green. D&A beside it prints its charge unsigned,
+uncoloured, every cell charge-signed.
+
+**LAW** (`frontend/lib/__tests__/netProvisionsRowSign.test.tsx`) — on the
+committed comparatives pair and on the same pair read the other way (a
+CONSTRUCTED mirror: the pair's own blocks and column swapped, so the current
+is the net release): the current cell prints the served charge-signed value
+as D&A prints its own (a minus only on a negative value, never a "+", no
+colour class), the prior cell the column's prior on the same rule, the Δ cell
+the column's Δ signed; the D&A row of the same render prints the same way.
+The printed report and the workbook are effect-signed on EVERY row, current
+and prior alike (`printedPl`: `0 − np.value`, the prior through the same
+printer) — consistent, unchanged.
+
+Plants, each applied alone to the worktree by `scratchpad/r2fix/plant.py`
+(restored byte-exact, sha256 checked), two of two RED:
+```
+PLANT effect-sign-on-the-current-cell (the pre-fix line: a net charge '−', a net release '+'): frontend/lib/buildPlStatement.ts
+  × frontend/lib/__tests__/netProvisionsRowSign.test.tsx > the net-provisions row — one sign convention across current, prior and Δ > the served pair (current a net charge, prior a net release): the row prints current, prior and Δ charge-signed, as D&A prints its own 97ms
+  × frontend/lib/__tests__/netProvisionsRowSign.test.tsx > the net-provisions row — one sign convention across current, prior and Δ > the pair read the other way (current a net release, prior a net charge — constructed): the row prints current, prior and Δ charge-signed, as D&A prints its own 27ms
+  Tests  2 failed | 1 passed (3)
+  AssertionError: current −131.394,66: expected '−' to be '' // Object.is equality
+  AssertionError: current +67.194,32: expected '+' to be '−' // Object.is equality
+  exit=1 -> RED ; file restored byte-exact (sha256 f3042d99c799)
+PLANT signed-level-on-the-current-cell (a '+' on a net charge, coloured): frontend/lib/buildPlStatement.ts
+  × frontend/lib/__tests__/netProvisionsRowSign.test.tsx > the net-provisions row — one sign convention across current, prior and Δ > the served pair (current a net charge, prior a net release): the row prints current, prior and Δ charge-signed, as D&A prints its own 98ms
+  × frontend/lib/__tests__/netProvisionsRowSign.test.tsx > the net-provisions row — one sign convention across current, prior and Δ > the pair read the other way (current a net release, prior a net charge — constructed): the row prints current, prior and Δ charge-signed, as D&A prints its own 26ms
+  Tests  2 failed | 1 passed (3)
+  AssertionError: current +131.394,66: expected '+' to be '' // Object.is equality
+  AssertionError: no effect colour on the current cell: expected 'pl-amount pl-neg' not to match /\bpl-(pos|neg)\b/
+  exit=1 -> RED ; file restored byte-exact (sha256 f3042d99c799)
+```
+**REVERT** — the clean tree: `Tests 66 passed (66)` (plOneEbitda +
+netProvisionsRowSign); the gate through `run_battery`'s own evaluation: PASS,
+units 66, floor 60, no canary missing.
+
+CANNOT SEE: whether the served figures are right (`provisions-symmetric`);
+the one-line reconciliation under EBITDA and the reconciliation panel (their
+own signed parts); pixels.
+
 ## one-ebitda
 
 | | |
 |---|---|
-| command | `npx vitest run --root . frontend/lib/__tests__/oneEbitdaSurfaces.test.tsx --reporter=verbose` |
-| canary | `covers eight served books, and on six of them the build-up before 711 / 72x differs from EBITDA`, `agras: the printed report, the workbook and the charts`, `realestate: Debt / EBITDA and the no-envelope credit model divide the served EBITDA` |
-| work count | `Tests N passed`, floor **20** (measured 25) |
+| command | `npx vitest run --root . frontend/lib/__tests__/oneEbitdaSurfaces.test.tsx frontend/lib/__tests__/provisionsAddBack.test.tsx frontend/pages/cfo/__tests__/comprehensiveReportAddBack.test.tsx --reporter=verbose` |
+| canary | `covers eight served books, and on six of them the build-up before 711 / 72x differs from EBITDA`, `agras: the printed report, the workbook and the charts`, `realestate: Debt / EBITDA and the no-envelope credit model divide the served EBITDA`, `three firm books post 6812 / 6814 charges: the cash flow's add-back exceeds the P&L's D&A by exactly them`, `carniprod: stabilised FCF = CFO − assembled_cf.depreciation, whatever the P&L's D&A`, `retail: the row is named for what it sums — the tab (EN, RO) and the workbook`, `carniprod posts 6812 / 6814 charges: the row holding all of 68x names them` |
+| work count | `Tests N passed`, floor **36** (measured 40: oneEbitdaSurfaces 25 + the R2 add-back 13 + /report §4 2; floor 20 / measured 25 before) |
 
 **INCIDENT** — the owner's ruling of 2026-09-26 (711 and 72x inside EBITDA
 and the operating result, one definition everywhere). Before stage F2 the
@@ -13418,6 +13539,113 @@ CANNOT SEE: whether the served figure is right (`net-711-rule`); a refused
 EBITDA (`refusal-carries`); a margin's denominator (`turnover-denominator`);
 the engine-side surfaces (credit model, valuation, briefing — their own
 gates); pixels.
+
+### one-ebitda — the non-cash add-back is the cash flow's, never the narrowed P&L D&A (deploy-readiness review of feat/rulings-2, 2026-09-29, ruling R2)
+
+**INCIDENT** — after R2 the engine serves `assembled_pl.depreciation` = 68x
+− 6812 − 6814 (the charges sit with their reversals on the net-provisions
+line) while `assembled_cf.depreciation` — the cash-flow walk's non-cash
+add-back — stays all of 68x; the engine's own DCF (`_valuation.py`) reads
+the cash flow's first, "never a narrower one". Two browser readers did not:
+1. `runDcf` (the Valuation tab; the workbook's Valuation sheet through
+   `financialExports.ts`) stabilised FCF as `cash_from_operating −
+   assembled_pl.depreciation`, leaving the charges inside the perpetuity base
+   (agras +135,383.36, carniprod +393,123.16, retail +350,361.72 on the firm
+   books) — a client DCF off the engine's printed on the same page;
+2. `buildCashFlowStatement` added back `pl.depreciation ?? cf.depreciation`:
+   the add-back and "CF before WC changes" short by the charges, the
+   difference in the "WC reconciliation (other unmodeled accounts)" plug. The
+   row holding all of 68x was named "Depreciation & amortization" on the tab,
+   /report §4 and the workbook's Cash Flow sheet.
+
+**LAW** (`frontend/lib/__tests__/provisionsAddBack.test.tsx`,
+`frontend/pages/cfo/__tests__/comprehensiveReportAddBack.test.tsx`) — on the
+four firm books (real engine output; agras, carniprod and retail post the
+charges, asserted: 68x − D&A = the served charges to the cent; realestate is
+the control): the DCF's base FCF is `cash_from_operating −
+assembled_cf.depreciation` to the cent, and base FCF, EV, equity and the
+terminal PV are identical whether the served P&L carries the narrowed D&A,
+the cash flow's (the pre-R2 shape) or none; the workbook's Valuation sheet
+prints that EV. The Cash Flow tab adds back `assembled_cf.depreciation`, CF
+before WC changes = the net result + it, and the row is named "+
+Depreciation, amortisation and provision charges (68x)" / "+ Amortizări și
+provizioane (68x)" exactly where the two figures differ (plain D&A on the
+control) — on the tab (EN, RO), /report §4 and the workbook's Cash Flow
+sheet (one helper, `addBackHoldsProvisionCharges`). The P&L tab's D&A line is
+untouched.
+
+Plants, each applied alone to the worktree by `scratchpad/r2fix/plant.py`
+(restored byte-exact, sha256 checked), six of six RED:
+```
+PLANT dcf-subtracts-the-narrowed-da (runDcf reads assembled_pl.depreciation first — the pre-fix read): frontend/lib/financialValuation.ts
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the DCF takes back the add-back its CFO carries > agras: stabilised FCF = CFO − assembled_cf.depreciation, whatever the P&L's D&A 4ms
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the DCF takes back the add-back its CFO carries > carniprod: stabilised FCF = CFO − assembled_cf.depreciation, whatever the P&L's D&A 0ms
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the DCF takes back the add-back its CFO carries > retail: stabilised FCF = CFO − assembled_cf.depreciation, whatever the P&L's D&A 0ms
+  Tests  3 failed | 12 passed (15)
+  AssertionError: agras: base FCF: expected 135383.36000000127 to be less than 0.005
+  AssertionError: carniprod: base FCF: expected 393123.1599999997 to be less than 0.005
+  AssertionError: retail: base FCF: expected 350361.7200000002 to be less than 0.005
+  exit=1 -> RED ; file restored byte-exact (sha256 84e59f18aa80)
+PLANT cf-tab-adds-back-the-narrowed-da (the pre-fix line: pl.depreciation ?? cf.depreciation): frontend/lib/buildCashFlowStatement.ts
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the Cash Flow tab adds back all of 68x and says so > agras: the add-back is assembled_cf.depreciation and CF before WC changes is built on it 3ms
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the Cash Flow tab adds back all of 68x and says so > agras: the row is named for what it sums — the tab (EN, RO) and the workbook 64ms
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the Cash Flow tab adds back all of 68x and says so > carniprod: the add-back is assembled_cf.depreciation and CF before WC changes is built on it 0ms
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the Cash Flow tab adds back all of 68x and says so > carniprod: the row is named for what it sums — the tab (EN, RO) and the workbook 11ms
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the Cash Flow tab adds back all of 68x and says so > retail: the add-back is assembled_cf.depreciation and CF before WC changes is built on it 0ms
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the Cash Flow tab adds back all of 68x and says so > retail: the row is named for what it sums — the tab (EN, RO) and the workbook 8ms
+  Tests  6 failed | 9 passed (15)
+  AssertionError: agras: the add-back: expected 135383.36000000034 to be less than 0.005
+  AssertionError: agras (en): expected '+ Depreciation & amortization' to be '+ Depreciation, amortisation and prov…' // Object.is equality
+  AssertionError: carniprod: the add-back: expected 393123.1599999997 to be less than 0.005
+  AssertionError: carniprod (en): expected '+ Depreciation & amortization' to be '+ Depreciation, amortisation and prov…' // Object.is equality
+  AssertionError: retail: the add-back: expected 350361.72 to be less than 0.005
+  AssertionError: retail (en): expected '+ Depreciation & amortization' to be '+ Depreciation, amortisation and prov…' // Object.is equality
+  exit=1 -> RED ; file restored byte-exact (sha256 2169e48d4d6e)
+PLANT cf-tab-row-named-da-over-68x (the tab's label key never widens): frontend/components/cfo/CashFlowStatementView.tsx
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the Cash Flow tab adds back all of 68x and says so > agras: the row is named for what it sums — the tab (EN, RO) and the workbook 66ms
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the Cash Flow tab adds back all of 68x and says so > carniprod: the row is named for what it sums — the tab (EN, RO) and the workbook 11ms
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the Cash Flow tab adds back all of 68x and says so > retail: the row is named for what it sums — the tab (EN, RO) and the workbook 8ms
+  Tests  3 failed | 12 passed (15)
+  AssertionError: agras (en): expected '+ Depreciation & amortization' to be '+ Depreciation, amortisation and prov…' // Object.is equality
+  AssertionError: carniprod (en): expected '+ Depreciation & amortization' to be '+ Depreciation, amortisation and prov…' // Object.is equality
+  AssertionError: retail (en): expected '+ Depreciation & amortization' to be '+ Depreciation, amortisation and prov…' // Object.is equality
+  exit=1 -> RED ; file restored byte-exact (sha256 ab62cf0a4ade)
+PLANT workbook-row-named-da-over-68x (the Cash Flow sheet's label never widens): frontend/lib/financialExports.ts
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the Cash Flow tab adds back all of 68x and says so > agras: the row is named for what it sums — the tab (EN, RO) and the workbook 79ms
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the Cash Flow tab adds back all of 68x and says so > carniprod: the row is named for what it sums — the tab (EN, RO) and the workbook 19ms
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the Cash Flow tab adds back all of 68x and says so > retail: the row is named for what it sums — the tab (EN, RO) and the workbook 18ms
+  Tests  3 failed | 12 passed (15)
+  AssertionError: agras: the workbook's Cash Flow row "+ Depreciation, amortisation and provision charges (68x)": expected undefined to be defined
+  AssertionError: carniprod: the workbook's Cash Flow row "+ Depreciation, amortisation and provision charges (68x)": expected undefined to be defined
+  AssertionError: retail: the workbook's Cash Flow row "+ Depreciation, amortisation and provision charges (68x)": expected undefined to be defined
+  exit=1 -> RED ; file restored byte-exact (sha256 85fce99228c2)
+PLANT report-row-named-da-over-68x (/report §4's label never widens): frontend/pages/cfo/ComprehensiveReport.tsx
+  × frontend/pages/cfo/__tests__/comprehensiveReportAddBack.test.tsx > /report §4 — the add-back row is named for what it sums (R2) > carniprod posts 6812 / 6814 charges: the row holding all of 68x names them 102ms
+  Tests  1 failed | 14 passed (15)
+  AssertionError: expected [ 'Net profit', …(20) ] to include '+ Depreciation, amortisation and prov…'
+  exit=1 -> RED ; file restored byte-exact (sha256 f75dc2f1104e)
+PLANT label-widens-on-every-book (the helper answers true whatever the figures): frontend/lib/buildCashFlowStatement.ts
+  × frontend/pages/cfo/__tests__/comprehensiveReportAddBack.test.tsx > /report §4 — the add-back row is named for what it sums (R2) > realestate posts none: the row is plain D&A 45ms
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the Cash Flow tab adds back all of 68x and says so > realestate: the add-back is assembled_cf.depreciation and CF before WC changes is built on it 4ms
+  × frontend/lib/__tests__/provisionsAddBack.test.tsx > provisions add-back — the Cash Flow tab adds back all of 68x and says so > realestate: the row is named for what it sums — the tab (EN, RO) and the workbook 9ms
+  Tests  3 failed | 12 passed (15)
+  AssertionError: realestate: the label flag: expected true to be false // Object.is equality
+  AssertionError: realestate (en): expected '+ Depreciation, amortisation and prov…' to be '+ Depreciation & amortization' // Object.is equality
+  AssertionError: expected [ 'Net profit', …(20) ] to include '+ Depreciation & amortization'
+  exit=1 -> RED ; file restored byte-exact (sha256 2169e48d4d6e)
+```
+**REVERT** — the clean tree: `Tests 40 passed (40)` (oneEbitdaSurfaces +
+provisionsAddBack + comprehensiveReportAddBack); the gate through
+`run_battery`'s own evaluation: PASS, units 40, floor 36, no canary missing.
+
+**Left open, stated rather than moved:** after the fix the client DCF's base
+is CFO − 68x = net result + the walk's provision movement + ΔWC; the engine's
+stabilised FCF is net result + ΔWC. They still differ by
+`assembled_cf.provision_movement` (agras 234,054.33) — a pre-existing
+difference of formula, not of the depreciation read, and not this finding's.
+
+CANNOT SEE: whether the served figures are right (`provisions-symmetric`);
+the engine's DCF (`valuation-one-ebitda`, `floor-valuation`); pixels.
 
 ## turnover-denominator
 
@@ -16992,3 +17220,970 @@ repeat window; 809/809 on three re-runs of the file); the two fixed files
 re-run: 160 passed. Hermetic `e2e/design/cmdbar.spec.ts` (chromium, the
 production bundle built per its header): 37 passed, G6 333 / 325 figures per
 company per language.
+
+## provisions-symmetric
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_provisions_symmetric.py tests/engine/test_boot_verify_pl_definition.py -q -s` |
+| canary | `SCOPE provisions-symmetric (owner ruling R2 2026-09-28, packs/ro/pl_definition.yaml)`, `BOOT-VERIFY pl_definition: committed, crossed-classes, missing, not-yaml, wrong-schema`, `PROVISIONS-BOOKS: no_provisions, prov_both, …`, `PROVISIONS-PLANTS: reversals-back-inside-ebitda, …, rebuild-loses-the-ruling` |
+| work count | `GATE-WORK provisions-symmetric units=(\d+)`, floor **100** (measured 117) |
+
+**INCIDENT** — the owner's ruling R2 (2026-09-28): "exclude both charges
+(6812/6814) and reversals (7812/7814) from EBITDA; show net provisions as its
+own reconciliation line." Before it the engine added the charges back with D&A
+(the depreciation bucket held all of 68x) while the reversals sat INSIDE EBITDA
+as other operating income: Scandia Food FY2025 carried 8,415,275.41 of 7814
+reversals inside its EBITDA while 2,042,470.24 of 6814 charges were outside it
+(specs-durable/ebitda711/measure.md, "Observed in passing"). And the
+methodology's operating result was `ebitda.reported − dap.net`, where the
+canonical dap aggregate holds every 78x reversal that `reported` had just added
+— the served EBIT less the reversals (Scandia 32,378,913.41 against the served
+40,794,188.82 on the regression baseline), a second EBIT nobody gated.
+
+**LAW** — the placement is data (`packs/ro/pl_definition.yaml`), applied once
+in `assemble_statements`. On five CONSTRUCTED books (SYNTHETIC — the net-711
+manufacturer with provision rows: both sides with the unruled 6813 / 7813
+beside them, charges only, reversals only, the analytic `6812.01` / `7812.04`
+and 6-digit `681401` / `781401` code forms, none), through the offline
+composition AND the real write path, GET /api/period and the briefing
+rebuild, against figures computed by hand from the rows: EBITDA holds neither
+side (the pre-ruling figure less the ruled reversals; other operating income
+without them); D&A is the depreciation bucket without the ruled charges; net
+provisions = charges − reversals per account, signed as a charge, named by the
+pack; EBIT is the PRE-RULING operating result to the cent and EBITDA − D&A −
+net provisions = EBIT on the served figures; the reconciliation chain carries
+the line between D&A and the operating result and foots, the one-line bridge
+carries it after EBITDA (`bridge.after_ebitda`); core and adjusted EBITDA are
+the pre-ruling figures (no reversal stripped twice); the methodology's
+`reported` / `strict` / operating result equal the in-code EBITDA / adjusted /
+EBIT; the credit model's `ebitda` and `operating_profit` rows read the same
+figures. The persisted leaves keep their classification (a charge is a
+depreciation leaf, a reversal an other-income leaf).
+
+In-file plants (PROVISIONS-PLANTS): the pack's reversals or charges replaced
+(the placement lost), EBIT recomputed as EBITDA − D&A, the methodology's
+operating result as `reported − dap.net`, and the served route rebuilt with the
+reversals back inside. Source-edit plants, each applied alone in a COPY of the
+tree by `scratchpad/r2p/plant.py` (restore byte-exact, sha256 checked):
+```
+PLANT reversals-back-inside-ebitda (the assembly reads other_inc whole): src/engine/country_packs/ro_romania/chart_of_accounts.py
+  exit=1 6 failed, 10 passed in 2.70s
+    FAILED tests/engine/test_provisions_symmetric.py::test_the_ruling_on_each_constructed_book[prov_both]
+    FAILED tests/engine/test_provisions_symmetric.py::test_the_ruling_on_each_constructed_book[prov_code_forms]
+    FAILED tests/engine/test_provisions_symmetric.py::test_the_ruling_on_each_constructed_book[prov_reversals_only]
+    FAILED tests/engine/test_provisions_symmetric.py::test_every_served_seam_carries_the_ruling[prov_both]
+    FAILED tests/engine/test_provisions_symmetric.py::test_every_served_seam_carries_the_ruling[prov_code_forms]
+    FAILED tests/engine/test_provisions_symmetric.py::test_zz_scope_and_work - As...
+  -> RED ; file restored byte-exact
+PLANT charges-back-inside-da (served D&A = all of 68x): src/engine/country_packs/ro_romania/chart_of_accounts.py
+  exit=1 7 failed, 9 passed in 2.24s
+    FAILED tests/engine/test_provisions_symmetric.py::test_the_ruling_on_each_constructed_book[prov_both]
+    FAILED tests/engine/test_provisions_symmetric.py::test_the_ruling_on_each_constructed_book[prov_charges_only]
+    FAILED tests/engine/test_provisions_symmetric.py::test_the_ruling_on_each_constructed_book[prov_code_forms]
+    FAILED tests/engine/test_provisions_symmetric.py::test_the_unruled_accounts_stay_where_they_were
+    FAILED tests/engine/test_provisions_symmetric.py::test_every_served_seam_carries_the_ruling[prov_both]
+    FAILED tests/engine/test_provisions_symmetric.py::test_every_served_seam_carries_the_ruling[prov_code_forms]
+    FAILED tests/engine/test_provisions_symmetric.py::test_zz_scope_and_work - As...
+  -> RED ; file restored byte-exact
+PLANT ebit-forgets-net-provisions (EBIT = EBITDA - D&A): src/engine/country_packs/ro_romania/chart_of_accounts.py
+  exit=1 7 failed, 9 passed in 2.41s
+    FAILED tests/engine/test_provisions_symmetric.py::test_the_ruling_on_each_constructed_book[prov_both]
+    FAILED tests/engine/test_provisions_symmetric.py::test_the_ruling_on_each_constructed_book[prov_charges_only]
+    FAILED tests/engine/test_provisions_symmetric.py::test_the_ruling_on_each_constructed_book[prov_code_forms]
+    FAILED tests/engine/test_provisions_symmetric.py::test_the_ruling_on_each_constructed_book[prov_reversals_only]
+    FAILED tests/engine/test_provisions_symmetric.py::test_every_served_seam_carries_the_ruling[prov_both]
+    FAILED tests/engine/test_provisions_symmetric.py::test_every_served_seam_carries_the_ruling[prov_code_forms]
+    FAILED tests/engine/test_provisions_symmetric.py::test_zz_scope_and_work - As...
+  -> RED ; file restored byte-exact
+PLANT methodology-operating-result = reported - dap.net (the pre-R2 formula): methodology/ro_ras_2025_v1.yaml
+  exit=1 4 failed, 12 passed in 2.42s
+    FAILED tests/engine/test_provisions_symmetric.py::test_the_ruling_on_each_constructed_book[prov_both]
+    FAILED tests/engine/test_provisions_symmetric.py::test_the_ruling_on_each_constructed_book[prov_code_forms]
+    FAILED tests/engine/test_provisions_symmetric.py::test_the_ruling_on_each_constructed_book[prov_reversals_only]
+    FAILED tests/engine/test_provisions_symmetric.py::test_zz_scope_and_work - As...
+  -> RED ; file restored byte-exact
+REVERT (clean tree) tests/engine/test_provisions_symmetric.py: exit=0 16 passed in 2.49s
+```
+
+**Measured beside it** (the committed corpus books and the Scandia FY2025
+regression baseline's book, through the real write path and GET
+/api/period): EBIT unchanged to the cent on every book; EBITDA moves by
+exactly the ruled reversals — Scandia Food FY2025 54,963,222.44 →
+46,547,947.03 (7814 8,415,275.41; net provisions −6,372,805.17), carniprod
+5,180,829.12 → 4,720,511.64, saga_10_col 5,487,501.33 → 5,433,196.35, retail
+2,263,417.48 → 2,185,482.87, agras 11,848,065.27 → 11,844,076.57; the
+developer and EEI post none. No credit letter or composite moves on any of
+them: the ratios on EBITDA move (Scandia debt / EBITDA 0.90 → 1.06, DSCR 2.98
+→ 2.52), and one sub-score moves off its value (retail DSCR 19.2 → 18.5) without
+moving its composite (20.6).
+
+**CANNOT SEE:** the browser surfaces (the P&L tab, the report, the printed
+P&L — `one-ebitda` / `pl-one-ebitda-page` hold those on the served fixtures);
+whether 6813 / 7813 belong outside too (not ruled).
+
+### provisions-symmetric — the pack is verified at BOOT (deploy-readiness review of feat/rulings-2, 2026-09-29)
+
+**INCIDENT** — `boot_verify.verify_config` checked the credit and the
+margin-meaning packs but not `packs/ro/pl_definition.yaml`, which
+`country_packs/ro_romania/pl_definition.definition()` reads LAZILY on the
+first Romanian period assembled. A container whose image lost the file (the
+2026-09-20 deploy lesson: `packs/` is runtime) or carried a malformed one
+passed the /health boot probe (CLAUDE.md §14 step 6) and failed every
+request that assembled a period.
+
+**LAW** (`tests/engine/test_boot_verify_pl_definition.py`, run by this gate)
+— `boot_verify.verify_pl_definition_pack()`, called from `verify_config`
+beside the credit pack check, raises a RuntimeError naming the pack when the
+file is missing, is not YAML (the loader lets `yaml.YAMLError` through; the
+boot check catches it too), carries the wrong `schema_version`, or lists a
+class-7 account among the charges; the committed pack passes. Each case reads
+a FRESH tmp directory through the loader's own override
+(`RO_PL_DEFINITION_PACKS_DIR`), the per-path `lru_cache` cleared before and
+after, and the committed pack is re-verified after each.
+
+Source-edit plants (each alone, `scratchpad/r2fix/plant.py`, restored
+byte-exact, sha256 checked), three of three RED:
+```
+PLANT boot-check-does-not-ask-the-pack (the pre-fix verify_config): src/engine/boot_verify.py
+  FAILED tests/engine/test_boot_verify_pl_definition.py::test_an_unusable_pack_fails_the_boot_check[crossed-classes]
+  FAILED tests/engine/test_boot_verify_pl_definition.py::test_an_unusable_pack_fails_the_boot_check[missing]
+  FAILED tests/engine/test_boot_verify_pl_definition.py::test_an_unusable_pack_fails_the_boot_check[not-yaml]
+  FAILED tests/engine/test_boot_verify_pl_definition.py::test_an_unusable_pack_fails_the_boot_check[wrong-schema]
+  FAILED tests/engine/test_boot_verify_pl_definition.py::test_zz_scope - Assert...
+  ========================= 5 failed, 1 passed in 0.47s ==========================
+  exit=1 -> RED ; file restored byte-exact (sha256 bb5dbc4e4906)
+PLANT boot-check-swallows-the-refusal (logs, comes up): src/engine/boot_verify.py
+  FAILED tests/engine/test_boot_verify_pl_definition.py::test_an_unusable_pack_fails_the_boot_check[crossed-classes]
+  FAILED tests/engine/test_boot_verify_pl_definition.py::test_an_unusable_pack_fails_the_boot_check[missing]
+  FAILED tests/engine/test_boot_verify_pl_definition.py::test_an_unusable_pack_fails_the_boot_check[not-yaml]
+  FAILED tests/engine/test_boot_verify_pl_definition.py::test_an_unusable_pack_fails_the_boot_check[wrong-schema]
+  FAILED tests/engine/test_boot_verify_pl_definition.py::test_zz_scope - Assert...
+  ========================= 5 failed, 1 passed in 0.48s ==========================
+  exit=1 -> RED ; file restored byte-exact (sha256 bb5dbc4e4906)
+PLANT boot-check-misses-a-yaml-syntax-error (only the pack error caught): src/engine/boot_verify.py
+  FAILED tests/engine/test_boot_verify_pl_definition.py::test_an_unusable_pack_fails_the_boot_check[not-yaml]
+  FAILED tests/engine/test_boot_verify_pl_definition.py::test_zz_scope - Assert...
+  ========================= 2 failed, 4 passed in 0.48s ==========================
+  exit=1 -> RED ; file restored byte-exact (sha256 bb5dbc4e4906)
+```
+**REVERT** — `6 passed` (`BOOT-VERIFY pl_definition: committed,
+crossed-classes, missing, not-yaml, wrong-schema`); the gate through
+`run_battery`'s own evaluation: see the measured runs below.
+
+**Measured green at f54b3f66 (deploy-readiness fixes of feat/rulings-2,
+2026-09-29 — the six findings):** the full engine suite 9297 passed, 39
+skipped, 2 xfailed (17:45; the run at f69e9e35 had 1 failed —
+`test_engine_book::test_regeneration_is_byte_identical`, the new
+boot_verify → country_packs edge, regenerated in f54b3f66); full vitest 263
+files, 4334 passed, 1 skipped; tsc — the 10 known capsuleAskGuard errors
+only; `vite build` (dist removed first) OK; root tests 6 failed, 124 passed,
+24 errors (environmental — `data/validation_fixture_categories.csv` absent
+from the worktree); through `run_battery`'s own evaluation (exit, work count,
+floor, canaries): one-ebitda 40, pl-one-ebitda-page 66, provisions-symmetric
+117, briefing-definition 9, turnover-7411 65, valuation-one-ebitda 23,
+refusal-carries 47, reprocess-periods-definition 99, export-ratio-anchor 15,
+turnover-denominator 8, credit-regime-surfaces 14, valuation-refused-override
+10, cmdbar-evidence 47, route-binding 3, no-plants 1114, floor-census 77,
+pack-lint 4, plan-gate-census 29 — all PASS; provenance-census red on its 11
+pre-existing findings, none new.
+
+## turnover-7411
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_turnover_7411.py -q -s` |
+| canary | `SCOPE turnover-7411 (owner ruling R3 2026-09-28, F20 rd. 05, packs/ro/pl_definition.yaml)`, `TURNOVER7411-BOOKS: only_7418, subsidy_7411, subsidy_7411_analytic`, `TURNOVER7411-PLANTS: …` |
+| work count | `GATE-WORK turnover-7411 units=(\d+)`, floor **55** (measured 65) |
+
+**INCIDENT** — the owner's ruling R3 (2026-09-28): "the statutory F20 includes
+operating subsidies related to turnover in cifra de afaceri netă. Include it;
+verify filed-turnover matching on any book with 7411." F20 rd. 01 = rd. 02 …
+rd. 05, rd. 05 = ct. 7411. The engine served turnover = 70x − 709 and routed
+7411 to other operating income (the classification pack's 74 catch-all).
+
+**NO REAL BOOK POSTS 7411.** Searched 2026-09-28 with the production parser:
+every corpus input, every tests/engine fixture workbook, the local client books
+(12 parseable). Two post 7418 (other operating subsidies — retail 403,020.86,
+Scandia Food FY2024 326,903.15), and 7418 STAYS outside turnover: their served
+turnover already equals the filed I13 to under 1 leu (measure.md T3), so R3
+moves neither. The witnesses are CONSTRUCTED.
+
+**LAW** — on the constructed witnesses (7411 as one leaf; as the analytics
+`7411.01` / `7411.02`; 7418 alone), through the offline composition and the
+real write path, GET /api/period and the briefing rebuild: served turnover =
+70x − 709 + 7411 = the witness's F20 rd. 01; the 7411 leaf is persisted in the
+turnover line (bucket `revenue`) and a rebuild from the stored rows reads the
+same turnover; 7418 stays other operating income; EBITDA does not move with the
+placement; adjusted EBITDA no longer strips 7411; the EBITDA margin, the
+methodology's `totals.revenue_net` and `FactsGateway.revenue()` are that
+turnover; the turnover line's leaves sum to it; the turnover accounts are the
+pack's ("70x − 709 + 7411").
+
+In-file plants (TURNOVER7411-PLANTS): the pack's prefix replaced (7411 left in
+other income), widened to 741 (7418 pulled in), and a rebuild that drops the
+placement. Source-edit plants (same runner):
+```
+PLANT 7411-left-in-other-income (placement dropped): src/engine/country_packs/ro_romania/chart_of_accounts.py
+  exit=1 6 failed, 3 passed in 1.19s
+    FAILED tests/engine/test_turnover_7411.py::test_the_ruling_on_each_constructed_book[subsidy_7411]
+    FAILED tests/engine/test_turnover_7411.py::test_the_ruling_on_each_constructed_book[subsidy_7411_analytic]
+    FAILED tests/engine/test_turnover_7411.py::test_the_real_write_path_and_every_served_seam[subsidy_7411]
+    FAILED tests/engine/test_turnover_7411.py::test_the_real_write_path_and_every_served_seam[subsidy_7411_analytic]
+    FAILED tests/engine/test_turnover_7411.py::test_plant_is_caught[7418-pulled-into-turnover-only_7418]
+    FAILED tests/engine/test_turnover_7411.py::test_zz_scope_and_work - Assertion...
+  -> RED ; file restored byte-exact
+PLANT 7418-pulled-into-turnover (the pack's prefix widened to 741): packs/ro/pl_definition.yaml
+  exit=1 6 failed, 3 passed in 1.23s
+    FAILED tests/engine/test_turnover_7411.py::test_the_ruling_on_each_constructed_book[only_7418]
+    FAILED tests/engine/test_turnover_7411.py::test_the_ruling_on_each_constructed_book[subsidy_7411]
+    FAILED tests/engine/test_turnover_7411.py::test_the_ruling_on_each_constructed_book[subsidy_7411_analytic]
+    FAILED tests/engine/test_turnover_7411.py::test_the_real_write_path_and_every_served_seam[subsidy_7411]
+    FAILED tests/engine/test_turnover_7411.py::test_the_real_write_path_and_every_served_seam[subsidy_7411_analytic]
+    FAILED tests/engine/test_turnover_7411.py::test_zz_scope_and_work - Assertion...
+  -> RED ; file restored byte-exact
+PLANT canonical-adapter-ignores-the-placement (methodology revenue_net without 7411): src/engine/country_packs/ro_romania/canonical_adapter.py
+  exit=1 5 failed, 4 passed in 1.24s
+    FAILED tests/engine/test_turnover_7411.py::test_the_ruling_on_each_constructed_book[subsidy_7411]
+    FAILED tests/engine/test_turnover_7411.py::test_the_ruling_on_each_constructed_book[subsidy_7411_analytic]
+    FAILED tests/engine/test_turnover_7411.py::test_the_real_write_path_and_every_served_seam[subsidy_7411]
+    FAILED tests/engine/test_turnover_7411.py::test_the_real_write_path_and_every_served_seam[subsidy_7411_analytic]
+    FAILED tests/engine/test_turnover_7411.py::test_zz_scope_and_work - Assertion...
+  -> RED ; file restored byte-exact
+REVERT (clean tree) tests/engine/test_turnover_7411.py: exit=0 9 passed in 1.70s
+```
+
+**CANNOT SEE:** a real filing with 7411 (none in any source we hold); the
+browser (the P&L tab lists the 741 family under turnover off the served
+bucket).
+
+## credit-stock-build
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_credit_stock_build_regime.py -q -s` |
+| canary | `SCOPE credit-stock-build (owner ruling R1 2026-09-28, packs/credit/model.yaml stock_build_regime)`, `STOCK-BUILD-BOOKS: agras, at_turnover_threshold, …, stock_build_profitable_before_build, zero_turnover`, `STOCK-BUILD-PLANTS: approximated-cash-read-as-measured, …, withheld-names-nothing, x3-keeps-the-stock-build` |
+| work count | `GATE-WORK credit-stock-build units=(\d+)`, floor **150** (measured 164; 134 before fixer round 1) |
+
+**INCIDENT** — the owner's ruling R1 (2026-09-28): "Scandia Română
+Development went CCC → B because 29.6M of construction now flows through 711.
+Accounting correct, credit signal wrong — cash went out, revenue was 162k.
+When 711 stock build exceeds turnover materially, the credit model must weight
+cash flow and liquidity, not EBITDA, and a finding must state: "EBITDA
+pozitivă din stocuri capitalizate — numerarul a fost consumat de
+construcție."" Under the one EBITDA (711 inside, 2026-09-26) the corpus
+developer's EBIT is +488,756.68 (net 711 +29,589,814.24 against turnover
+162,365.46): Altman X3 0.0059, Z'' 4.81 (sub-score 100), composite 41.5 B —
+a grade built on stock the company paid to build.
+
+**LAW** — credit model revision 5. The trigger is pack data
+(`packs/credit/model.yaml` `stock_build_regime.trigger`, loaded and validated
+by `credit_pack`; a pack without the block raises): a MEASURED net 711 > 0
+reaching net_711 / turnover >= 1.0 AND net_711 >= 0.10 x total operating
+expense (by multiplication — a zero turnover never divides). On a triggered
+book the three components that read EBITDA / EBIT are computed on the served
+cash from operations (`assembled_cf.cash_from_operating`): leverage = net
+debt / CFO, coverage = CFO / interest, DSCR = CFO / debt service. An
+APPROXIMATED CFO (`is_approximated` not exactly false) or a REFUSED one
+refuses them (`cash_from_operations_approximated` / `_refused`, RO + EN pack
+sentences) — never 0, never EBITDA — and the composite with them; a MEASURED
+CFO <= 0 takes the regime's declared bottom rung; debt-free with CFO > 0 takes
+R-D1 on cash. Altman X3 = (EBIT − net 711 − net 72x) / total assets, labelled
+from the pack. The composite is multiplied by the regime's weight table
+(liquidity 0.20, profitability 0.10, the rest unchanged; never renormalised).
+The served block (`credit.regime`, the envelope's `regime`) names the regime
+with its trigger tests (the share reached, the pack share), its cash basis and
+status, the component bases, the X3 basis and the finding: the owner's
+sentence verbatim (a literal in the gate), its English equivalent, severity
+high, the served net 711 / turnover / EBITDA / EBITDA before the stock
+variation, and CFO only when measured.
+
+`check()` reads all of it from the SERVED statements and the RAW pack YAML —
+never the model's `stock_build_regime` — and bands the cash components by
+hand (CLAUDE.md Appendix A §7). Witnesses: 11 CONSTRUCTED books (SYNTHETIC —
+a triggering developer with its cash flow approximated / refused / measured
+positive / measured negative / debt-free, a manufacturer, the turnover share
+AT and one cent BELOW its threshold, below the operating-cost share, a refused
+711, zero turnover) through the route's own builder; the 4 committed corpus
+books through the production write path + GET /api/period (realestate
+triggers; agras, carniprod, retail do not). Seams: the served envelope, the
+ratio table, the attention document's `credit_regime` and the briefing facts'
+`credit_regime` (text only — no nested money figure the FX conversion never
+sees) carry one regime. TC-10: a planted pack share (200) removes the regime
+from the developer; a planted weight table moves the composite.
+
+In-file plants (STOCK-BUILD-PLANTS): the approximated flag read as measured,
+the refusal answered with EBITDA, X3 keeping the stock build, the cash
+components on EBIT, the model weights under the regime, the finding
+paraphrased, the trigger decided on a constant. Source-edit plants, each
+applied alone in a COPY of the tree by `scratchpad/r1/plant_r1.py` (kept at
+specs-durable/rulings2_r1/plant_r1.py with its log; restore
+byte-exact, sha256 checked):
+```
+PLANT approximated-cash-read-as-measured (the is_approximated flag ignored): src/engine/ratios/credit_model.py
+  exit=1 6 failed, 20 passed in 3.72s
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[at_turnover_threshold]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_approximated]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[zero_turnover]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_the_real_books_through_the_route[realestate]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_every_seam_carries_one_regime
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_zz_scope_and_work
+  -> RED ; file restored byte-exact
+PLANT refusal-falls-back-to-ebitda (an unmeasured cash answered with EBITDA): src/engine/ratios/credit_model.py
+  exit=1 6 failed, 20 passed in 3.53s
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[at_turnover_threshold]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_approximated]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_cash_refused]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[zero_turnover]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_the_real_books_through_the_route[realestate]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_zz_scope_and_work
+  -> RED ; file restored byte-exact
+PLANT unmeasured-cash-read-as-zero (never 0: an approximated cash scored at the rung): src/engine/ratios/credit_model.py
+  exit=1 6 failed, 20 passed in 3.52s
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[at_turnover_threshold]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_approximated]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_cash_refused]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[zero_turnover]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_the_real_books_through_the_route[realestate]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_zz_scope_and_work
+  -> RED ; file restored byte-exact
+PLANT x3-keeps-the-stock-build (X3 on the one EBIT under the regime): src/engine/ratios/credit_model.py
+  exit=1 9 failed, 17 passed in 3.54s
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[at_turnover_threshold]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_approximated]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_cash_negative]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_cash_positive]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_cash_refused]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_debt_free]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[zero_turnover]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_thresholds_and_the_weights_are_read_from_the_pack
+  -> RED ; file restored byte-exact
+PLANT coverage-on-ebit (the regime's coverage divides EBIT): src/engine/ratios/credit_model.py
+  exit=1 3 failed, 23 passed in 3.55s
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_cash_positive]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_thresholds_and_the_weights_are_read_from_the_pack
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_zz_scope_and_work
+  -> RED ; file restored byte-exact
+PLANT model-weights-under-the-regime (the composite on the model table): src/engine/ratios/credit_model.py
+  exit=1 4 failed, 22 passed in 3.54s
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_cash_positive]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_debt_free]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_thresholds_and_the_weights_are_read_from_the_pack
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_zz_scope_and_work
+  -> RED ; file restored byte-exact
+PLANT threshold-hard-coded (the trigger reads a constant, not the pack share): src/engine/ratios/credit_model.py
+  exit=1 4 failed, 22 passed in 3.47s
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[at_turnover_threshold]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[zero_turnover]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_thresholds_and_the_weights_are_read_from_the_pack
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_zz_scope_and_work
+  -> RED ; file restored byte-exact
+PLANT finding-paraphrased (the pack's Romanian sentence reworded): packs/credit/model.yaml
+  exit=1 10 failed, 16 passed in 3.55s
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[at_turnover_threshold]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_approximated]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_cash_negative]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_cash_positive]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_cash_refused]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_debt_free]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[zero_turnover]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_the_real_books_through_the_route[realestate]
+  -> RED ; file restored byte-exact
+REVERT (clean tree) tests/engine/test_credit_stock_build_regime.py: exit=0 26 passed in 3.50s
+```
+
+**FIXER ROUND 1 (2026-09-28) — the sentence's premise.** The gate asserted the
+owner's sentence verbatim on EVERY triggering book and never that its premise
+held, so it was green over witnesses whose own figures contradicted it: the
+gate's builder with net 711 5,000,000, turnover 0 and EBIT −5,000,000 served
+EBITDA −4,850,000 under "Positive EBITDA from capitalised stock…";
+`stock_build_cash_positive` (CFO +5,000,000 measured) served "…the cash was
+consumed by construction."; a build on a 12,000,000 EBITDA (2,000,000 before
+the build) served "EBITDA pozitivă din stocuri capitalizate". THE LAW, now:
+the finding is served only when the SERVED figures say all three facts —
+EBITDA (2 dp) > 0, EBITDA before the stock variation and own work (2 dp) <= 0,
+no MEASURED cash from operations > 0 (pack data, `stock_build_regime.finding.
+premise`, validated by `credit_pack`). One fails → the regime stands, `finding`
+is null and `finding_withheld` names the failed tests with the served figure
+each read; the briefing's `credit_regime.finding` is null (the narrator states
+no sentence). `check()` reads the premise off the served statements itself
+(`expected_premise`), with a hand statement of which books state it
+(`STATES_FINDING`). New witnesses (SYNTHETIC): `stock_build_negative_ebitda`,
+`stock_build_negative_ebitda_cash_negative` (the bottom rung AND no sentence),
+`stock_build_profitable_before_build`; `stock_build_cash_positive` /
+`_debt_free` now withhold. A third seam: the briefing on two withheld books.
+Four new in-file plants: finding-sign-unchecked, finding-before-build-unchecked,
+finding-on-measured-positive-cash, withheld-names-nothing. On the committed
+corpus nothing moves: the developer's premise holds (EBITDA +550,976.12,
+before −29,038,838.12, CFO approximated), so its served block is
+byte-identical.
+
+WHAT THIS REDS ON NOW (TC-11): the sentence beside an EBITDA <= 0, beside an
+EBITDA positive before the build, or beside a measured CFO > 0; the sentence
+withheld while all three hold; a withheld finding that names no premise or
+the wrong one, or whose premise values are not the served figures; the
+sentence anywhere in a withheld block, or handed to the narrator.
+
+Source-edit plants, each alone (engine: a copy of the tree with config.yaml
+and supabase/, `specs-durable/rulings2_r1/plant_fixer_r1.py`; restored
+byte-exact, sha256 checked):
+```
+PLANT finding-sign-unchecked (EBITDA > 0 never tested): src/engine/ratios/credit_model.py
+  exit=1 4 failed, 29 passed in 4.03s
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_negative_ebitda]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_negative_ebitda_cash_negative]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_every_seam_carries_one_regime
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_zz_scope_and_work
+  -> RED ; file restored byte-exact
+PLANT finding-before-build-unchecked (EBITDA before the build <= 0 never tested): src/engine/ratios/credit_model.py
+  exit=1 2 failed, 31 passed in 3.81s
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_profitable_before_build]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_zz_scope_and_work
+  -> RED ; file restored byte-exact
+PLANT finding-on-measured-positive-cash (a measured CFO > 0 ignored): src/engine/ratios/credit_model.py
+  exit=1 5 failed, 28 passed in 3.80s
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_cash_positive]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_debt_free]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_every_seam_carries_one_regime
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_thresholds_and_the_weights_are_read_from_the_pack
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_zz_scope_and_work
+  -> RED ; file restored byte-exact
+PLANT premise-bypassed (the sentence on every triggering book, the pre-fix code): src/engine/ratios/credit_model.py
+  exit=1 8 failed, 25 passed in 3.81s
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_cash_positive]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_debt_free]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_negative_ebitda]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_negative_ebitda_cash_negative]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_profitable_before_build]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_every_seam_carries_one_regime
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_thresholds_and_the_weights_are_read_from_the_pack
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_zz_scope_and_work
+  -> RED ; file restored byte-exact
+PLANT withheld-names-nothing (the finding dropped silently): src/engine/ratios/credit_model.py
+  exit=1 7 failed, 26 passed in 3.84s
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_cash_positive]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_debt_free]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_negative_ebitda]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_negative_ebitda_cash_negative]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_ruling_on_each_constructed_book[stock_build_profitable_before_build]
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_the_thresholds_and_the_weights_are_read_from_the_pack
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_zz_scope_and_work
+  -> RED ; file restored byte-exact
+PLANT briefing-hands-an-empty-finding (the pre-fix briefing shape): src/engine/api/pipeline.py
+  exit=1 2 failed, 31 passed in 3.85s
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_every_seam_carries_one_regime
+    FAILED tests/engine/test_credit_stock_build_regime.py::test_zz_scope_and_work
+  -> RED ; file restored byte-exact
+PLANT dry-run-prints-a-refusal-as-a-dash (the pre-fix line): scripts/reprocess_periods_definition.py
+  exit=1 1 failed, 11 passed in 27.84s
+    FAILED tests/engine/test_reprocess_periods_definition.py::test_the_dry_run_names_the_stock_build_regime
+  -> RED ; file restored byte-exact
+PLANT dry-run-prints-no-withheld-premise: scripts/reprocess_periods_definition.py
+  exit=1 1 failed, 11 passed in 27.76s
+    FAILED tests/engine/test_reprocess_periods_definition.py::test_the_dry_run_names_the_stock_build_regime
+  -> RED ; file restored byte-exact
+REVERT (clean tree) tests/engine/test_credit_stock_build_regime.py: exit=0 33 passed in 3.80s
+REVERT (clean tree) tests/engine/test_reprocess_periods_definition.py: exit=0 12 passed in 27.56s
+```
+The reprocess dry run (gate `reprocess-periods-definition`) prints a fresh
+composite the engine refuses as `REFUSED (no composite, no letter)` — never
+"— —", which read as a re-grade to nothing — and a withheld finding as
+`finding withheld (the served figures contradict it): <keys>`.
+
+**Measured green at 3d94a282 (fixer round 1):** the full engine suite 9287
+passed, 39 skipped, 2 xfailed (22:12); full vitest 260 files, 4315 passed, 1
+skipped; tsc — the 10 known capsuleAskGuard errors only; root tests 6 failed,
+127 passed, 21 errors (the known environmental set); the narrowed battery
+(credit-stock-build 164, credit-regime-surfaces 14, reprocess-periods-definition
+99, ratio-credit-model, refusal-carries(-engine), briefing-definition,
+attention-rules / -served-only / -route, cmdbar-fixtures, cmdbar-surface 206,
+served-range, credit-boundary, no-plants) 15/16 green — provenance-census red
+on its 11 pre-existing findings, none new.
+
+**FINDING 3 (confirmed, NOT fixed — the owner's call).** Because the served
+cash flow is approximated on every book (`assemble_statements` hard-codes
+`is_approximated = True`), the regime's cash scoring never runs on a real book:
+the developer's re-grade is a REFUSAL (41.5 B → no letter), not a grade. Read
+as measured, every CFO <= 0 gives the same 33.9 CCC (Altman 66.5,
+profitability 0, leverage / coverage / DSCR 0, liquidity 45.4, equity 96.6 —
+measured at −3,945,493.79 and at −23,000,000). The approximation also
+misstates a developer's working capital: the book's own class-3 leaves move
++29,589,814.29 from the fiscal-year opening (`si`) to the close (`sf`), the
+served `delta_inventory` is −3,391,060.69 (5% of closing). Options for the
+owner: measure the working-capital movements from the trial balance's own
+opening balances (every book's cash flow changes), or grade the regime on the
+sign of the approximated CFO.
+
+**Measured beside it** (independent referee
+`specs-durable/rulings2_r1/referee_r1.py` on the PRE-R1 engine, 386048ce):
+the developer triggers (182.24x turnover, 101.1% of operating cost), X3
+0.0059 → −0.3489, Z'' 4.81 → 2.43 (grey; sub-score 100 → 66.5), composite
+41.5 B → REFUSED (the served cash flow is approximated on every book today,
+so the three cash components refuse). Read as if measured, the same
+approximated CFO (−3,945,493.79) would take the bottom rung and give 33.9 CCC
+on the regime's weights — the FE fixture's `developer_measured_cash` case
+carries exactly that (not served). agras, carniprod, retail: no regime,
+nothing moves.
+
+**CANNOT SEE:** whether the thresholds are the right ones (the owner's
+ruling); a real book with a MEASURED cash flow (none exists — the engine
+threads no prior-period trial balance, `is_approximated` is always true); the
+browser surfaces (vitest `creditRegimeSurfaces.test.tsx`).
+
+**FIXER ROUND 2 (2026-09-29) — finding 3 raised again: re-confirmed, still
+NOT fixed (the owner's call).** Nothing in the code moved; this records the
+re-check and the two figures the owner's options were missing. At 22dcd6ea,
+through the production write path and GET /api/period (read-only,
+`specs-durable/rulings2_fixer_r2/measure_head.py`), the developer serves
+regime `stock_build`, cash `approximated`, composite null, letter null, Z''
+2.43; every other local book serves no regime and the same composite and
+letter as the production tree 80c2e8b5. The dry run's line for it stays
+`credit 41.50 B z 4.81 -> REFUSED (no composite, no letter) z 2.43 (model
+revision 4 -> 5)` (pinned by `test_the_dry_run_names_the_stock_build_regime`).
+The coordinator's decision ("a CFO that is refused or approximated refuses
+those components") is what the code does; either way to a letter overrules
+it, so neither is taken here. Option (a), measured by the same assembler on
+the book's own fiscal-year opening (every class 6/7 row zeroed, every other
+row's closing set to its `si`; `specs-durable/rulings2_fixer_r2/option_a.py`,
+`blast_a_corpus.py`):
+```
+corpus realestate (the developer)  opening available (convention C)
+  served CFO (approximated)          -3,945,493.79   cf before WC -729,412.53
+  option (a) measured WC            -16,641,217.55   inventory +29,589,814.29
+  option (a) CFO                    -17,370,630.08   -> 33.9 CCC
+  balance-sheet cash identity CFO   -17,380,602.20   -> 33.9 CCC
+  served CFO read as measured        -3,945,493.79   -> 33.9 CCC
+  subscores (all three)  altman 66.5 · profitability 0 · leverage 0 ·
+                         coverage 0 · dscr 0 · liquidity 45.4 · equity 96.6
+option (a) on every corpus book (served CFO -> option (a) CFO, the move):
+  agras       10,234,999.93 ->    -582,914.30   -10,817,914.23   (sign flip)
+  carniprod    5,620,484.36 ->   8,260,952.30    +2,640,467.94
+  realestate  -3,945,493.79 -> -17,370,630.08   -13,425,136.29
+  retail       5,109,521.75 ->  16,181,995.86   +11,072,474.11
+```
+Indicative only: it reads every other current asset and liability as working
+capital (on the developer, other current liabilities move +20,534,602.28).
+So (a) is a cash-flow redesign across every book, not a credit fix; (b) — the
+sign of the approximated CFO — gives the same 33.9 CCC on the developer and
+moves nothing else. Both need the owner's ruling before the regime prints a
+letter.
+
+**Measured green at 1d639308 (fixer round 2):** the full engine suite 9287
+passed, 39 skipped, 2 xfailed (22:16); full vitest 260 files, 4315 passed, 1
+skipped; tsc — the 10 known capsuleAskGuard errors only; root tests 6 failed,
+127 passed, 21 errors (the known environmental set); the narrowed battery
+(credit-stock-build 164, credit-regime-surfaces 14, reprocess-periods-definition
+99, ratio-credit-model, refusal-carries(-engine), briefing-definition,
+attention-rules / -served-only / -route, cmdbar-fixtures, cmdbar-surface 206,
+served-range, credit-boundary, no-plants) 15/16 green — provenance-census red
+on its 11 pre-existing findings, none new.
+
+## credit-regime-surfaces
+
+| | |
+|---|---|
+| command | `npx vitest run frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx` |
+| canary | `developer (EN): one regime block, …`, `the hero states the refusal, not 'analysis pending', …`, `/report's credit card prints the regime once, …`, `CmdbarList renders it once at rest and not while typing`, `the documents and the command bar: the regime's label, no sentence` |
+| work count | vitest `Tests N passed`, floor **14** (measured 14; 11 before fixer round 1) |
+
+**LAW** — owner ruling R1: every surface that prints the grade prints the
+stock-build regime ONCE (`components/cfo/CreditRegimeNote.tsx`, a projection
+of `lib/creditRegime.readCreditRegime` over the served block): the Risks tab,
+the dashboard hero (under the regime the note stands in for the "Analysis
+pending — the health score will appear once this period's data is processed"
+line, which beside a finished, refused analysis was false; the note's cash
+status is the engine's reason, figure-free — every other absent score keeps
+the pending line, so no withheld figure is reprinted),
+/report's CreditScoreCard (`creditCardData` carries `regime`), the exported
+HTML report and the Excel workbook (`regimeDocumentText`, English like the
+documents), and the command bar's rest-state line (`regimeLine`, the
+finding's net 711 and turnover in the currency the engine served them in; not
+while typing). The owner's sentence is a literal in the test, in both
+languages. Under the regime the three cash components print the SERVED cash
+basis ("net debt ÷ cash from operations", …) and the rows the regime's served
+weights (liquidity 20%, profitability 10%); an approximated cash figure is
+stated ("not measured (approximated)"), never printed; a standard book prints
+no regime and the EBITDA / EBIT bases. Over the route's own bytes
+(`frontend/lib/__tests__/fixtures/served_credit_regime.json`, kept by
+`tests/engine/test_credit_regime_fe_fixture.py`,
+`CREDIT_REGIME_FE_FIXTURE_WRITE=1`).
+
+Source-edit plants, each applied alone in the worktree by
+`specs-durable/rulings2_r1/plant_fe.py` (vitest needs the worktree's
+node_modules; every file restored byte-exact, sha256 checked, in a finally):
+```
+PLANT risks-tab-prints-the-regime-twice: frontend/pages/cfo/FinancialStatements.tsx
+    × the Risks tab prints the regime once > developer (EN): one regime block, the finding, the refused composite, the cash bases 43ms
+    × the Risks tab prints the regime once > developer (RO): the owner's sentence verbatim 8ms
+    × the Risks tab prints the regime once > measured cash: the bottom rung, a composite on the regime's weights, the letter, the regime once 7ms
+    Tests  3 failed | 8 passed (11)
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+    FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > the Risks tab prints the regime once > developer (EN): one regime block, the finding, the refused composite, the cash bases
+  -> RED ; file restored byte-exact
+PLANT risks-tab-drops-the-regime: frontend/pages/cfo/FinancialStatements.tsx
+    × the Risks tab prints the regime once > developer (EN): one regime block, the finding, the refused composite, the cash bases 31ms
+    × the Risks tab prints the regime once > developer (RO): the owner's sentence verbatim 8ms
+    × the Risks tab prints the regime once > measured cash: the bottom rung, a composite on the regime's weights, the letter, the regime once 6ms
+    Tests  3 failed | 8 passed (11)
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+    FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > the Risks tab prints the regime once > developer (EN): one regime block, the finding, the refused composite, the cash bases
+  -> RED ; file restored byte-exact
+PLANT hero-says-analysis-pending: frontend/pages/cfo/FinancialStatements.tsx
+    × the hero and /report's card print the regime once > the hero states the refusal, not 'analysis pending', and the regime once 6ms
+    Tests  1 failed | 10 passed (11)
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > the hero and /report's card print the regime once > the hero states the refusal, not 'analysis pending', and the regime once
+  -> RED ; file restored byte-exact
+PLANT cash-components-labelled-on-ebitda: frontend/lib/financialValuation.ts
+    × the Risks tab prints the regime once > developer (EN): one regime block, the finding, the refused composite, the cash bases 44ms
+    Tests  1 failed | 10 passed (11)
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > the Risks tab prints the regime once > developer (EN): one regime block, the finding, the refused composite, the cash bases
+  -> RED ; file restored byte-exact
+PLANT note-prints-the-label-for-the-finding: frontend/components/cfo/CreditRegimeNote.tsx
+    × the Risks tab prints the regime once > developer (EN): one regime block, the finding, the refused composite, the cash bases 43ms
+    × the Risks tab prints the regime once > developer (RO): the owner's sentence verbatim 8ms
+    × the hero and /report's card print the regime once > /report's credit card prints the regime once, and none for a manufacturer 5ms
+    Tests  3 failed | 8 passed (11)
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+    FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > the Risks tab prints the regime once > developer (EN): one regime block, the finding, the refused composite, the cash bases
+  -> RED ; file restored byte-exact
+PLANT report-card-drops-the-regime: frontend/components/cfo/CreditScoreCard.tsx
+    × the hero and /report's card print the regime once > /report's credit card prints the regime once, and none for a manufacturer 3ms
+    Tests  1 failed | 10 passed (11)
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > the hero and /report's card print the regime once > /report's credit card prints the regime once, and none for a manufacturer
+  -> RED ; file restored byte-exact
+PLANT exported-report-drops-the-regime: frontend/lib/financialReport.ts
+    × the printed documents state the regime once > the exported report and the workbook: the regime and the finding for the developer, nothing for agras 97ms
+    Tests  1 failed | 10 passed (11)
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > the printed documents state the regime once > the exported report and the workbook: the regime and the finding for the developer, nothing for agras
+  -> RED ; file restored byte-exact
+PLANT workbook-drops-the-regime: frontend/lib/financialExports.ts
+    × the printed documents state the regime once > the exported report and the workbook: the regime and the finding for the developer, nothing for agras 102ms
+    Tests  1 failed | 10 passed (11)
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > the printed documents state the regime once > the exported report and the workbook: the regime and the finding for the developer, nothing for agras
+  -> RED ; file restored byte-exact
+PLANT cmdbar-prints-the-regime-while-typing: frontend/components/instrument/shell/cmdbar/CmdbarList.tsx
+    × the command bar prints the regime once, in the rest state > CmdbarList renders it once at rest and not while typing 6ms
+    Tests  1 failed | 10 passed (11)
+    ⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+    FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > the command bar prints the regime once, in the rest state > CmdbarList renders it once at rest and not while typing
+  -> RED ; file restored byte-exact
+REVERT (clean tree) frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx: exit=0 Tests  11 passed (11)
+```
+
+**FIXER ROUND 1 (2026-09-28) — a WITHHELD finding.** When the engine withholds
+the owner's sentence (its premise contradicted by the served figures; gate
+`credit-stock-build`), every surface prints the regime ONCE and the sentence
+NOWHERE, in both languages: the Risks tab, /report's card, the exported
+report, the command bar — whose `regimeLine` returned null without a finding
+and so would have dropped the regime altogether; it prints the served label
+alone. The regime note printed the measured cash in
+`finding?.figures[0]?.unit` — with no finding, the default RON on a EUR book;
+it prints in `regime.currency` (the finding's units, else the withheld
+premise's). Over a SYNTHETIC case in the route's own bytes,
+`served_credit_regime.json` `developer_withheld` (the gate's constructed book
+with EBITDA −8,850,000, CFO −8,000,000 measured). Plants, each alone in the
+worktree (`specs-durable/rulings2_r1/plant_fixer_r1.py fe`):
+```
+PLANT regime-line-null-without-finding (the command bar drops the regime): frontend/lib/creditRegime.ts
+  exit=1 ['Tests  1 failed | 13 passed (14)']
+    × a WITHHELD finding: the regime once, the owner's sentence nowhere > the documents and the command bar: the regime's label, no sentence 53ms
+    FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > a WITHHELD finding: the regime once, the owner's sentence nowhere > the documents and the command bar: the regime's label, no sentence
+  -> RED ; file restored byte-exact
+PLANT note-cash-in-default-currency (the pre-fix unit): frontend/components/cfo/CreditRegimeNote.tsx
+  exit=1 ['Tests  1 failed | 13 passed (14)']
+    × a WITHHELD finding: the regime once, the owner's sentence nowhere > the Risks tab (EN and RO) and /report's card print the regime once and no sentence 19ms
+    FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > a WITHHELD finding: the regime once, the owner's sentence nowhere > the Risks tab (EN and RO) and /report's card print the regime once and no sentence
+  -> RED ; file restored byte-exact
+PLANT reader-drops-the-withheld-block: frontend/lib/creditRegime.ts
+  exit=1 ['Tests  2 failed | 12 passed (14)']
+    × a WITHHELD finding: the regime once, the owner's sentence nowhere > the reader: the regime, no finding, the failed premise, the served currency 4ms
+    × a WITHHELD finding: the regime once, the owner's sentence nowhere > the Risks tab (EN and RO) and /report's card print the regime once and no sentence 17ms
+    FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > a WITHHELD finding: the regime once, the owner's sentence nowhere > the reader: the regime, no finding, the failed premise, the served currency
+    FAIL  frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx > a WITHHELD finding: the regime once, the owner's sentence nowhere > the Risks tab (EN and RO) and /report's card print the regime once and no sentence
+  -> RED ; file restored byte-exact
+REVERT (clean tree) frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx: exit=0 ['Tests  14 passed (14)']
+```
+
+**CANNOT SEE:** the Ask CFO AI chat (the briefing facts carry the regime; the
+chat snapshot does not yet); the Forecast bank export (closed).
+
+### reprocess-periods-definition — the 2026-09-28 revision (owner rulings R2, R3)
+
+`EBITDA_DEFINITION_REVISION` moved to
+`ebitda/2026-09-28:…,provisions-6812-6814-7812-7814-outside,7411-turnover`. A
+period stamped with the 2026-09-26 revision carries the evidence blocks, the
+running parser's stamp and figures a fresh run reproduces except EBITDA — and
+is NOT current: `test_a_period_stamped_with_the_previous_definition_is_reprocessed`
+(the dry run prints "definition <previous> -> <current>", "EBITDA
+11,848,065.27 -> 11,844,076.57", the net provisions and EBIT; the apply
+restamps it and rewrites its metric rows and valuations row; a second run is
+current). A turnover move of EXACTLY the 7411 the fresh run placed inside
+turnover, on an earlier-definition period with no filed figure named, is
+named as the ruling (`definition_7411`) and — since 2026-09-29, the owner's
+"verify filed-turnover matching on any book with 7411" — STILL blocks until
+the filed turnover is named with `--filed`; any other move, a move on a
+current-definition period, and a move away from a named filed figure block
+too (`test_a_turnover_move_of_exactly_the_placed_7411_is_named_and_waits_for_its_filed_figure`).
+Rewritten laws: the pinned Agras after-EBITDA 11,848,065.27 → 11,844,076.57
+(the 7814.01 reversal 3,988.70 outside). Measured 85 units; floor 50 → 80.
+
+**PLANT** — `_turnover_verdict`'s `definition_7411` branch removed (the
+7411 move reported `no_filed_figure`): RED — `1 failed, 10 passed`
+(`test_a_turnover_move_of_exactly_the_placed_7411_is_named_and_waits_for_its_filed_figure`:
+`assert 'no_filed_figure' == 'definition_7411'`). **REVERT** — `11 passed`.
+
+**PLANT (2026-09-29)** — `blocking()` given back `"definition_7411"` in its
+pass set (a 7411 move with no filed figure named passes the dry run): RED —
+`1 failed, 11 deselected`
+(`test_a_turnover_move_of_exactly_the_placed_7411_is_named_and_waits_for_its_filed_figure`).
+**REVERT** — `12 passed`. The production dry run of the candidate
+(2026-09-29, 10 periods) shows 7411 inside turnover 0.00 on every period, so
+no stored book is held by this law today.
+
+### Rulings R2 / R3 — the measured green runs at e8bb90fa (2026-09-28)
+
+Measured on the stage head, not asserted:
+
+- engine suite (`tests/engine`, 8 file shards + the nested `public/` and
+  `bench/` trees): **9,231 passed, 39 skipped, 2 xfailed, 0 failed**.
+- full vitest: **259 files, 4,296 passed, 1 skipped, 0 failed**.
+- `tsc --noEmit -p tsconfig.app.json`: the 10 known `capsuleAskGuard` errors,
+  no new one.
+- root `tests/` outside `tests/engine`: 6 failed + 21 errors, the known
+  missing-fixture set (`test_api`, `test_pricing_v3_atomicity`,
+  `test_statutory_104_prime_capital`, `test_validation_fixture`), 127 passed.
+- narrowed gates: provisions-symmetric 117 units, turnover-7411 65 units,
+  reprocess-periods-definition 85 units, gate canaries 13, floor-census PASS
+  (ratchet held), f31-parity GREEN (byte-identical on both fixtures),
+  engine-book clean, no-plants PASS, provenance-census its 11 pre-existing
+  findings, provenance-contrast PASS, F-A3.1 GREEN on every registered
+  fixture (EEI 0.0000 %, Scandia 0.1445 %).
+
+### Ruling R1 — the measured green runs at 7db8ff7d (2026-09-28)
+
+On `feat/rulings-2` at 7db8ff7d (the stock-build credit regime, credit model
+revision 5), every run in the worktree, nothing deployed:
+- full engine suite `pytest tests/engine -q`: **9260 passed, 39 skipped, 2
+  xfailed** (23:06);
+- full vitest: **260 files, 4307 passed, 1 skipped**;
+- `tsc --noEmit -p tsconfig.app.json`: the 10 known `capsuleAskGuard` errors,
+  nothing else;
+- root `tests/` (without `tests/engine`): 6 failed, 127 passed, 21 errors — the
+  known environmental set;
+- the narrowed battery (40 gates: credit-stock-build, credit-regime-surfaces,
+  ratio-credit-model, ratio-table, ratio-compare, ratio-band-findings,
+  served-range, credit-boundary, reprocess-periods-definition,
+  provisions-symmetric, turnover-7411, refusal-carries(-engine),
+  one-ebitda(-engine), net-711-rule, attention-rules / -served-only / -route,
+  cmdbar-fixtures / -surface / -evidence, evidence-lines, comparatives-route,
+  comparatives-depth-parity, briefing-definition, valuation-one-ebitda,
+  one-metric-one-formula, margin-meaning-page, pl-one-ebitda-page,
+  export-ratio-anchor, interest-coverage-one-operand, workspace-v2,
+  floor-census, f31-parity, bs-drift, engine-book, no-plants, stale-gates,
+  provenance-census): all green but `provenance-census`, which carries its 11
+  pre-existing findings (no new one); `interest-coverage-one-operand` was red
+  since R2 on its own canary and is repaired in 7db8ff7d;
+- F-A3.1 (`scripts/measure_bs_drift.py`): GREEN on every registered fixture;
+  F3.1-PARITY byte-identical on both fixtures.
+
+### attention-rules / attention-route / cmdbar-surface — ruling R4: the bank report is the CFO Report PDF (2026-09-28)
+
+**INCIDENT** — the owner's ruling R4 (2026-09-28): "«Exportă raportul pentru
+bancă» → the CFO Report PDF, not the Forecast page (Forecast is still
+closed)." attention/1 served `bank_export` with target
+`forecast_bank_export` (`/dashboard/forecast`) whenever the served registry
+had Forecast `active` (design C1's default), and a second action,
+`cfo_report_pdf`, otherwise; the command bar also typed a "bank-export" row
+to the Forecast. The laws pinned that: `test_actions_follow_the_companys_state`
+asserted `["compare_prior", "cfo_report_pdf"]` with Forecast off, and
+commandBar.test.tsx asserted the bank report was NOT offered. Both are
+REWRITTEN (TC-11), not skipped.
+
+**LAW** — attention-rules: in every action state (a prior one year back, two
+years back, the comparison switched off, no prior, the sector refused for want
+of a CAEN code) there is exactly ONE export action, `bank_export`, labelled
+with the owner's words (a literal in the test, and the raw pack YAML), whose
+target is `report_pdf` / `/dashboard` / tab `export` / this period; no action
+target names the Forecast; `compose_attention(features=…)` is a TypeError; the
+pack refuses a `feature` gate, a `target`, and a `cfo_report_pdf` action.
+attention-route: the same through `create_app()` with Forecast `active` and
+`coming_soon` in the SERVED registry. attention-served-only: the route hands
+the composer four documents and reads no registry. cmdbar-surface: the rest
+rows are the engine's actions in its order; the bank report opens the export
+tab with Forecast OFF and ON in the reader's registry; "banca", "bank",
+"export the bank report", "raportul pentru bancă", "exporta" each find ONE
+export row, the CFO Report PDF; a recent pick saved as `action:bank-export`
+before the ruling opens the export tab. The attention-rules bilingual-string
+floor is re-measured 60 -> 59 (the retired label); cmdbar-fixtures' four
+documents re-captured by `capture_attention.py` (only the action moved).
+
+Source-edit plants, each in a COPY TREE (`git archive` of 94fd82eb), reverted
+byte-exact before the next (runner `scratchpad/plantsA/run_plants.py`):
+```
+PLANT bank-export-to-the-forecast (the pre-ruling target): src/engine/attention/now.py
+    FAILED tests/engine/test_attention_rules.py::test_the_bank_report_is_the_cfo_report_pdf_never_the_forecast
+    FAILED tests/engine/test_attention_route_real_app.py::test_the_bank_report_is_the_cfo_report_pdf_whatever_the_forecast_registry_says[active]
+    FAILED tests/engine/test_attention_route_real_app.py::test_the_bank_report_is_the_cfo_report_pdf_whatever_the_forecast_registry_says[coming_soon]
+    ======================== 3 failed, 42 passed in 13.00s =========================
+  exit=1 -> RED ; file restored byte-exact
+PLANT second-export-action (the retired CFO-report row beside the bank report): src/engine/attention/now.py
+    FAILED tests/engine/test_attention_rules.py::test_actions_follow_the_companys_state
+    FAILED tests/engine/test_attention_rules.py::test_the_bank_report_is_the_cfo_report_pdf_never_the_forecast
+    ======================== 2 failed, 43 passed in 12.55s =========================
+  exit=1 -> RED ; file restored byte-exact
+PLANT composer-takes-features (a registry seam reopened): src/engine/attention/now.py
+    FAILED tests/engine/test_attention_rules.py::test_the_actions_cannot_read_the_feature_registry
+    ======================== 1 failed, 44 passed in 12.60s =========================
+  exit=1 -> RED ; file restored byte-exact
+PLANT pack-accepts-a-feature-gate (the label-only check dropped): src/engine/attention/pack.py
+    FAILED tests/engine/test_attention_rules.py::test_the_actions_cannot_read_the_feature_registry
+    ======================== 1 failed, 44 passed in 12.48s =========================
+  exit=1 -> RED ; file restored byte-exact
+PLANT pack-label-renamed (the owner's words replaced): packs/serving/attention.yaml
+    FAILED tests/engine/test_attention_rules.py::test_the_bank_report_is_the_cfo_report_pdf_never_the_forecast
+    FAILED tests/engine/test_attention_route_real_app.py::test_the_bank_report_is_the_cfo_report_pdf_whatever_the_forecast_registry_says[active]
+    FAILED tests/engine/test_attention_route_real_app.py::test_the_bank_report_is_the_cfo_report_pdf_whatever_the_forecast_registry_says[coming_soon]
+    ======================== 3 failed, 42 passed in 12.58s =========================
+  exit=1 -> RED ; file restored byte-exact
+REVERT (clean tree) test_attention_rules.py + test_attention_route_real_app.py + test_attention_served_only.py: exit=0 45 passed in 12.51s
+PLANT runner-sends-the-pdf-to-the-forecast: frontend/components/instrument/shell/CommandPalette.tsx
+    × ruling R4 — the bank report is the CFO Report PDF > at rest: "Exportă raportul pentru bancă" opens the export tab (Forecast coming_soon)
+    × ruling R4 — the bank report is the CFO Report PDF > at rest: "Exportă raportul pentru bancă" opens the export tab (Forecast active)
+    Tests  2 failed | 4 passed | 76 skipped (82)
+  exit=1 -> RED ; file restored byte-exact
+PLANT typed-bank-row-restored (a second export row): frontend/components/instrument/shell/CommandPalette.tsx
+    × ruling R4 — … > typed: every bank word finds ONE export row, the CFO Report PDF (Forecast coming_soon)
+    × ruling R4 — … > typed: every bank word finds ONE export row, the CFO Report PDF (Forecast active)
+    Tests  2 failed | 4 passed | 76 skipped (82)
+  exit=1 -> RED ; file restored byte-exact
+PLANT pre-ruling-recent-opens-the-forecast: frontend/components/instrument/shell/CommandPalette.tsx
+    × ruling R4 — … > a recent pick saved before the ruling (it opened the Forecast) opens the CFO Report PDF
+    Tests  1 failed | 5 passed | 76 skipped (82)
+  exit=1 -> RED ; file restored byte-exact
+PLANT reader-hides-the-bank-report-with-forecast-off: frontend/components/instrument/shell/CommandPalette.tsx
+    × cmdbar-swap — the empty state is THIS company's > the actions are the engine's, for this company's state
+    × ruling R4 — … > at rest: "Exportă raportul pentru bancă" opens the export tab (Forecast coming_soon)
+    Tests  2 failed | 4 passed | 76 skipped (82)
+  exit=1 -> RED ; file restored byte-exact
+REVERT (clean tree) commandBar.test.tsx -t "ruling R4|the actions are the engine": exit=0 Tests  6 passed | 76 skipped (82)
+```
+
+**CANNOT SEE:** whether the export tab's PDF card renders the PDF (the
+report-pdf gates and the renderer sidecar); the Forecast page's own "Exportă
+pentru bancă" (forecast-cockpit gates — it stays there, untouched).
+
+## supabase-read-retry
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_supabase_read_retry.py -q -s` |
+| canary | `test_a_read_that_times_out_once_is_retried_once_and_logged`, `test_a_read_that_times_out_twice_raises_after_exactly_one_retry`, `test_a_write_that_times_out_is_never_retried[insert]`, `test_a_write_that_times_out_is_never_retried[rpc]`, `test_a_read_failing_otherwise_is_not_retried`, `test_the_clients_one_get_is_the_retrying_helper_and_no_write_reaches_it` (junit test names) |
+| work count | junit tests, floor **16** (measured 16) |
+
+**INCIDENT** — two transient `httpx.ReadTimeout`s on production, 2026-09-28
+(specs-durable `ops_log.md`): 12:52Z the rulings deploy pre-flight's
+`reprocess_periods_definition.py` dry run died on `client.select("documents",
+id=eq.…)` (30 s client timeout); 13:03Z a period answered 500 on the running
+container and 200 seconds later. The same selects answer in 0.07–0.4 s
+between them. The owner's ruling R5: log them, and retry a READ once — never a
+write (a timed-out write may have landed).
+
+**LAW** — through the REAL `SupabaseClient` over an `httpx.MockTransport`: a
+select whose first GET times out answers on the second (two GETs, the same
+URL) with ONE WARNING line naming the table and the parameter NAMES — never a
+filter value, never the service key; a single-object read the same; two
+timeouts raise after exactly two GETs; each of insert, upsert, update, delete,
+rpc, signed_url, upload_object, delete_object that times out raises after ONE
+request with no WARNING (and that list IS the client's public write surface);
+a connect timeout, a connect error and an HTTP 500 on a read are not retried;
+the AST census holds the client's one raw `self._client.get` inside `_get`,
+reached only from `select`.
+
+Source-edit plants in the same copy tree:
+```
+PLANT no-retry: src/engine/api/_supabase.py
+    FAILED tests/engine/test_supabase_read_retry.py::test_a_read_that_times_out_once_is_retried_once_and_logged
+    FAILED tests/engine/test_supabase_read_retry.py::test_a_single_object_read_is_retried_the_same_way
+    FAILED tests/engine/test_supabase_read_retry.py::test_a_read_that_times_out_twice_raises_after_exactly_one_retry
+    ========================= 3 failed, 13 passed in 0.54s =========================
+  exit=1 -> RED ; file restored byte-exact
+PLANT retries-twice: src/engine/api/_supabase.py
+    FAILED tests/engine/test_supabase_read_retry.py::test_a_read_that_times_out_twice_raises_after_exactly_one_retry
+    ========================= 1 failed, 15 passed in 0.43s =========================
+  exit=1 -> RED ; file restored byte-exact
+PLANT retries-any-timeout (connect timeouts too): src/engine/api/_supabase.py
+    FAILED tests/engine/test_supabase_read_retry.py::test_a_read_failing_otherwise_is_not_retried[connect_timeout]
+    FAILED tests/engine/test_supabase_read_retry.py::test_the_clients_one_get_is_the_retrying_helper_and_no_write_reaches_it
+    ========================= 2 failed, 14 passed in 0.44s =========================
+  exit=1 -> RED ; file restored byte-exact
+PLANT silent-retry (no WARNING): src/engine/api/_supabase.py
+    FAILED tests/engine/test_supabase_read_retry.py::test_a_read_that_times_out_once_is_retried_once_and_logged
+    FAILED tests/engine/test_supabase_read_retry.py::test_a_single_object_read_is_retried_the_same_way
+    FAILED tests/engine/test_supabase_read_retry.py::test_a_read_that_times_out_twice_raises_after_exactly_one_retry
+    FAILED tests/engine/test_supabase_read_retry.py::test_the_clients_one_get_is_the_retrying_helper_and_no_write_reaches_it
+    ========================= 4 failed, 12 passed in 0.44s =========================
+  exit=1 -> RED ; file restored byte-exact
+PLANT log-carries-the-values: src/engine/api/_supabase.py
+    FAILED tests/engine/test_supabase_read_retry.py::test_a_read_that_times_out_once_is_retried_once_and_logged
+    ========================= 1 failed, 15 passed in 0.43s =========================
+  exit=1 -> RED ; file restored byte-exact
+PLANT a-write-retried (insert through the helper's loop): src/engine/api/_supabase.py
+    FAILED tests/engine/test_supabase_read_retry.py::test_a_write_that_times_out_is_never_retried[insert]
+    ========================= 1 failed, 15 passed in 0.43s =========================
+  exit=1 -> RED ; file restored byte-exact
+PLANT raw-get-bypasses-the-helper: src/engine/api/_supabase.py
+    FAILED tests/engine/test_supabase_read_retry.py::test_a_read_that_times_out_once_is_retried_once_and_logged
+    FAILED tests/engine/test_supabase_read_retry.py::test_a_single_object_read_is_retried_the_same_way
+    FAILED tests/engine/test_supabase_read_retry.py::test_a_read_that_times_out_twice_raises_after_exactly_one_retry
+    FAILED tests/engine/test_supabase_read_retry.py::test_the_clients_one_get_is_the_retrying_helper_and_no_write_reaches_it
+    ========================= 4 failed, 12 passed in 0.52s =========================
+  exit=1 -> RED ; file restored byte-exact
+REVERT (clean tree) tests/engine/test_supabase_read_retry.py: exit=0 16 passed in 0.38s
+```
+
+**CANNOT SEE:** whether a real PostgREST stall clears inside one retry (ops,
+not code); `_billing._user_email`'s auth-admin GET, which reaches into
+`client._client` directly and swallows its own failures (not the PostgREST
+read path the ruling names).
+
+### Rulings R4 / R5 — the measured green runs at 76ecc566 (2026-09-28)
+
+On `feat/rulings-2` at 76ecc566 (R4: the bank report is the CFO Report PDF; R5:
+Supabase read timeouts retried once), every run in the worktree, nothing
+deployed:
+- full engine suite `pytest tests/engine -q`: **9280 passed, 39 skipped, 2
+  xfailed**, 0 failed (21:46; R1 was 9260 — +16 supabase-read-retry, +2
+  attention-rules, +2 attention-route);
+- full vitest: **260 files, 4312 passed, 1 skipped** (+5 R4 laws in
+  commandBar.test.tsx);
+- `tsc --noEmit -p tsconfig.app.json`: the 10 known `capsuleAskGuard` errors,
+  nothing else; eslint clean on the three changed frontend files;
+- `vite build` (dist removed first): built; the hermetic bundle
+  (`VITE_SUPABASE_URL=http://harness.invalid`, `VITE_API_URL=http://engine.invalid`)
+  built and served on :4462, and `E2E_HERMETIC=1 playwright test
+  e2e/design/cmdbar.spec.ts e2e/design/cmdbar-typeopen.spec.ts
+  e2e/workspace-v2.spec.ts --project=chromium`: **50 passed, 8 skipped** (the
+  screenshot shots);
+- root `tests/` (without `tests/engine`): 6 failed, 127 passed, 21 errors — the
+  known environmental set, the same six names;
+- the narrowed battery (42 gates: R1's 40 + supabase-read-retry +
+  import-boundary): all green but `provenance-census`, on its 11
+  pre-existing findings (no new one). The first run redded supabase-read-retry
+  on two stdout canaries a junit gate cannot see (the battery reads a junit
+  gate's test names); they were replaced by test-name canaries and the gate
+  re-run green (16 tests), with attention-rules 31, attention-route 10,
+  cmdbar-surface 206 (floor raised 201 -> 206);
+- F-A3.1 (`scripts/measure_bs_drift.py`): GREEN on every registered fixture
+  (EEI 0.0000%, Scandia 0.1445%, Sibiu 0.9975% under its 1.0% threshold,
+  Frozen / RealEstate / Retail 0.0000%, Agras 0.1187%, Carniprod 0.0125%);
+  F3.1-PARITY byte-identical on both fixtures; engine book clean;
+  import-boundary holds (2103 files).
+- Read-only measurement on the 12 local real books (the real write path +
+  GET /api/period): R4 / R5 move no number — turnover, EBITDA, EBIT, CFO,
+  composite, letter, Z'', X3, sub-scores, weights and regime identical to the
+  R1 measurement on every book.

@@ -57,6 +57,11 @@ export interface CashFlowStatementFigures extends CashFlowStatementBase {
      *  missing there is no D&A figure, and a `0` on this line reads as
      *  "this company depreciates nothing". */
     depreciation: number | null;
+    /** True when the add-back is the engine's cash-flow figure (all of 68x)
+     *  and it holds more than the P&L's D&A — the 6812 / 6814 provision
+     *  charges the owner's R2 ruling (2026-09-28) moved to their own P&L
+     *  line. The row is then labelled for what it sums, not "D&A". */
+    depreciationIncludesProvisionCharges?: boolean;
     /** ABSENT when `depreciation` is — `netProfit + null` is `netProfit`,
      *  which silently drops the add-back. */
     cfBeforeWcChanges: number | null;

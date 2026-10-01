@@ -49,6 +49,7 @@ from engine.packs import CompiledPack
 from engine.packs.runtime import active_pack
 
 from engine.country_packs.ro_romania import parameters as _params
+from engine.country_packs.ro_romania import pl_definition as _pl_definition
 
 
 #: The stated reason every day-count refusal opens with.
@@ -948,7 +949,17 @@ def _band_definitions(industry: Optional[str] = None) -> Dict[str, object]:
 #: earlier definition can be recognised and re-served or flagged.
 #: 2026-09-26 (owner ruling): net 711 and net 72x inside EBITDA and the
 #: operating result, with their sign; 767 financial; margins over turnover.
-EBITDA_DEFINITION_REVISION = "ebitda/2026-09-26:711-72x-inside,767-financial"
+#: 2026-09-28 (owner rulings R2, R3): 6812 / 6814 charges AND 7812 / 7814
+#: reversals OUTSIDE EBITDA (net provisions, its own line; EBIT unchanged);
+#: 7411 inside net turnover (F20 rd. 05). A period stamped with the
+#: previous revision is not current (reprocess_periods_definition.py).
+EBITDA_DEFINITION_REVISION = (
+    "ebitda/2026-09-28:711-72x-inside,767-financial,"
+    "provisions-6812-6814-7812-7814-outside,7411-turnover")
+#: The revision before this one — named so the reprocess dry run can say
+#: which definition a stored period was written under.
+EBITDA_DEFINITION_PREVIOUS_REVISIONS = (
+    "ebitda/2026-09-26:711-72x-inside,767-financial",)
 
 _RECON_LABELS = {
     "turnover": ("Cifra de afaceri netă", "Net turnover", "70x − 709"),
@@ -999,15 +1010,22 @@ def _ebitda_reconciliation(
     net_result: Optional[float],
     account_121: Optional[float],
     refusal: Optional[Dict[str, object]],
+    net_provisions: float = 0.0,
 ) -> Dict[str, object]:
     """The reconciliation line (design A5), served wherever EBITDA is
     explained: turnover → other operating income → own work capitalised →
     cost of sales, with "Variația stocurilor de produse" (711) beside it,
     signed, with its provenance → other operating expenses → EBITDA → D&A →
-    operating result → financial result → tax → net result = account 121
-    (or "not anchored"). Every value is SIGNED as its effect on the result
-    and read from the one assembly — the renderer adds nothing. A refused
-    figure is None with the refusal beside it, never 0.00.
+    net provisions (R2, 2026-09-28: 6812 + 6814 − 7812 − 7814, outside
+    EBITDA) → operating result → financial result → tax → net result =
+    account 121 (or "not anchored"). Every value is SIGNED as its effect on
+    the result and read from the one assembly — the renderer adds nothing.
+    A refused figure is None with the refusal beside it, never 0.00.
+
+    `net_provisions` is signed as a CHARGE (charges − reversals); its line
+    is signed as its effect on the result (−charge). The names and account
+    lists the rulings changed (turnover, other operating income, D&A, net
+    provisions) are rendered from the P&L definition pack.
     """
     def _r(v: Optional[float]) -> Optional[float]:
         return None if v is None else round(float(v), 2)
@@ -1019,11 +1037,15 @@ def _ebitda_reconciliation(
         out.update(extra)
         return out
 
+    _dep_label = _pl_definition.depreciation_label()
+    _np_label = _pl_definition.net_provisions_label()
+    _ooi_accounts = _pl_definition.other_operating_income_accounts_label()
     inv = inventory_variation_block
     cap = capitalized_block
     lines: List[Dict[str, object]] = [
-        line("turnover", turnover),
-        line("other_operating_income", other_operating_income),
+        line("turnover", turnover, accounts=_pl_definition.turnover_accounts_label()),
+        line("other_operating_income", other_operating_income,
+             accounts=_ooi_accounts["ro"], accounts_en=_ooi_accounts["en"]),
         {"key": "capitalized_own_work", "label_ro": cap.get("line_name_ro"),
          "label_en": _BRIDGE_LABELS["capitalized_own_work"][1],
          "provenance_label_ro": cap.get("label_ro"), "provenance_label_en": cap.get("label_en"),
@@ -1038,7 +1060,14 @@ def _ebitda_reconciliation(
          "refusal": inv.get("refusal"), "beside": "cost_of_sales"},
         line("operating_expenses", -operating_expenses),
         line("ebitda", ebitda, subtotal=True, refusal=refusal),
-        line("depreciation", -depreciation),
+        line("depreciation", -depreciation,
+             label_ro=_dep_label["ro"], label_en=_dep_label["en"],
+             accounts=_dep_label["accounts_ro"], accounts_en=_dep_label["accounts_en"]),
+        # R2: charges − reversals, outside EBITDA, signed as its effect on
+        # the result (a net release is positive).
+        {"key": "net_provisions", "label_ro": _np_label["ro"], "label_en": _np_label["en"],
+         "accounts": _np_label["accounts"], "value": _r(-net_provisions),
+         "outside_ebitda": True},
         line("operating_result", ebit, subtotal=True, refusal=refusal),
         line("financial_result", financial_result),
         line("tax", -tax),
@@ -1061,6 +1090,16 @@ def _ebitda_reconciliation(
                          ("inventory_variation", v711),
                          ("capitalized_own_work", cap.get("value")),
                          ("ebitda", ebitda))
+        ],
+        # R2 (2026-09-28): the one-line bridge carries net provisions AFTER
+        # EBITDA, said to be outside it — the parts above still sum to
+        # EBITDA; this line is what stands between EBITDA and the
+        # operating result besides D&A.
+        "after_ebitda": [
+            {"key": "net_provisions",
+             "label_ro": _pl_definition.bridge_net_provisions_label()["ro"],
+             "label_en": _pl_definition.bridge_net_provisions_label()["en"],
+             "value": _r(-net_provisions), "outside_ebitda": True},
         ],
         "refusal": refusal,
     }
@@ -1221,7 +1260,30 @@ def assemble_statements(
         # the asset side. The override bucket carries sign=+1 by convention
         # (the extractor already produced a non-negative `amount` matching
         # the override-bucket's natural side).
+        # ── R3 (owner ruling 2026-09-28): 7411 INSIDE net turnover ──────
+        # The classification pack routes 7411 (operating subsidies related
+        # to turnover) to other operating income — WHAT the account is. The
+        # statutory F20 prints it inside cifra de afaceri netă (rd. 05 of
+        # rd. 01) — WHERE it sits. The placement is the P&L definition
+        # pack's (packs/ro/pl_definition.yaml), applied here, once, so the
+        # leaf and the turnover figure agree on every reader (evidence,
+        # coverage, the P&L tab's families, the legacy mirror). The leaf
+        # keeps what it was classified as beside its placement. A rebuild
+        # hands the persisted leaf back with `bucket_override="revenue"`
+        # (its stored bucket): that is this placement, recognised as such.
         override_bucket = raw.get("bucket_override")
+        placed_from: Optional[str] = None
+        if (override_bucket in (None, "", "revenue")
+                and _pl_definition.is_turnover_placement(code, rule.bucket)):
+            placed_from = rule.bucket
+            override_bucket = None
+            rule = MappingRule(
+                prefix=rule.prefix,
+                bucket="revenue",
+                sign=rule.sign,
+                description=rule.description + " (F20 rd. 05: inside net turnover)",
+            )
+
         if override_bucket:
             # Replace the rule in-flight so the downstream routing picks
             # the override bucket (a fresh MappingRule view — the pack's
@@ -1331,6 +1393,11 @@ def assemble_statements(
         # that don't trigger the fallback.
         if via_semantic:
             line_item["via_semantic_fallback"] = True
+        # R3: a leaf placed inside turnover says what it was classified as
+        # (in memory only — stage_persist's column whitelist drops both).
+        if placed_from is not None:
+            line_item["classified_bucket"] = placed_from
+            line_item["placement"] = "turnover"
         line_items.append(line_item)
 
     # Defensive sign normalization for liability/equity buckets.
@@ -1487,11 +1554,65 @@ def assemble_statements(
     tax = pl["taxExpense"]
     capitalized_bucket = pl.get("capitalizedOwnWork", 0.0)
 
+    # ── R2 (owner ruling 2026-09-28): PROVISIONS SYMMETRIC ──────────────
+    # The charges to provisions and current-asset impairment (6812, 6814)
+    # were added back with D&A while their reversals (7812, 7814) sat
+    # inside EBITDA as other operating income — Scandia Food FY2025 carried
+    # 8,415,275.41 of 7814 reversals inside EBITDA while 2,042,470.24 of
+    # 6814 charges were outside it. Both now sit OUTSIDE EBITDA; their net
+    # (charges − reversals) is its own line between EBITDA and the
+    # operating result, and D&A is what the depreciation bucket holds
+    # without the ruled charges. The operating result does not move:
+    #   EBIT = EBITDA − D&A − net provisions
+    #        = (build-up − reversals) − (68x − charges) − (charges − reversals)
+    #        = build-up − 68x          (the pre-ruling EBIT, to the cent).
+    # The accounts are the P&L definition pack's (packs/ro/
+    # pl_definition.yaml); a leaf counts only under the line the
+    # classification pack put it on (a charge is a depreciation leaf, a
+    # reversal an other-operating-income leaf). Every other 68x / 78x
+    # account stays where it was — not ruled.
+    _prov_def = _pl_definition.definition()["provisions"]
+    provision_charges_by_account: Dict[str, float] = {}
+    provision_reversals_by_account: Dict[str, float] = {}
+    # Every PL line item this assembly built carries its code and a numeric
+    # signed amount (the loop above skips a row without either), so both
+    # are read as they are — an absent one would be a bug, not a zero.
+    for li in line_items:
+        if li["statement"] != "PL":
+            continue
+        li_code = str(li["ro_account_code"])
+        li_bucket = li["canonical_bucket"]
+        if (li_bucket == _prov_def["charges_from_line"]
+                and _pl_definition.matches(li_code, _prov_def["charges"])):
+            target = provision_charges_by_account
+        elif (li_bucket == _prov_def["reversals_from_line"]
+                and _pl_definition.matches(li_code, _prov_def["reversals"])):
+            target = provision_reversals_by_account
+        else:
+            continue
+        if li_code not in target:
+            target[li_code] = 0.0
+        target[li_code] += float(li["amount"])
+    provision_charges = round(float(sum(provision_charges_by_account.values())), 2)
+    provision_reversals = round(float(sum(provision_reversals_by_account.values())), 2)
+    # Signed as a CHARGE: positive reduces the result, negative (a net
+    # release) raises it.
+    net_provisions = round(provision_charges - provision_reversals, 2)
+    # D&A on the P&L chain: the depreciation bucket without the ruled
+    # charges. `depreciation` (all of 68x as classified) stays the
+    # non-cash add-back of the cash-flow walk, the FCF proxy and the
+    # operating-cost total — none of them is ruled.
+    depreciation_da = round(depreciation - provision_charges, 2)
+    other_inc_in_ebitda = round(other_inc - provision_reversals, 2)
+
     # `other_inc` excludes 711 (routed to its own bucket) and 72x (own
     # bucket); 767 sits in financial income. These four are the build-up
-    # BEFORE the stock variation and the own work capitalised.
-    ebitda_before_stock_variation = revenue - cogs - opex + other_inc
-    ebit_before_stock_variation = ebitda_before_stock_variation - depreciation
+    # BEFORE the stock variation and the own work capitalised. The ruled
+    # reversals are outside it (R2); the operating result below it is
+    # taken on the whole of `other_inc` and all of 68x, so it is the same
+    # figure, to the cent, it was before the ruling.
+    ebitda_before_stock_variation = revenue - cogs - opex + other_inc_in_ebitda
+    ebit_before_stock_variation = revenue - cogs - opex + other_inc - depreciation
     pretax_before_stock_variation = ebit_before_stock_variation + fin_inc - fin_exp - interest
     net_income_operational = pretax_before_stock_variation - tax
 
@@ -1577,7 +1698,13 @@ def assemble_statements(
         pretax = None
     else:
         ebitda = ebitda_before_stock_variation + capitalized + net_711
-        ebit = ebitda - depreciation
+        # EBIT = EBITDA − D&A − net provisions (R2), computed on the
+        # pre-ruling terms so the operating result is the same figure to
+        # the cent: net 711 and 72x on top of the build-up that reads the
+        # whole of other operating income and all of 68x.
+        # (Evaluated left to right exactly as the pre-ruling
+        # `(build-up + 72x + 711) − 68x`, so the float is the same one.)
+        ebit = revenue - cogs - opex + other_inc + capitalized + net_711 - depreciation
         # 711 sits in the cost-of-sales block ("next to cost of sales");
         # 72x is an operating line OUTSIDE gross profit.
         gross_profit = revenue - cogs + net_711
@@ -1783,11 +1910,17 @@ def assemble_statements(
         for li in line_items
         if str(li.get("ro_account_code", "")).startswith("758")
     )
+    # The 781 reversals STILL INSIDE EBITDA (R2, 2026-09-28): the ruled
+    # 7812 / 7814 reversals are outside EBITDA already (their own net-
+    # provisions line), so the core / adjusted strips below subtract only
+    # what EBITDA still holds (7813, 7815, a bare 781…) — never a reversal
+    # twice. Core and adjusted EBITDA are therefore the same figures they
+    # were before the ruling.
     other_income_781_reversals = sum(
-        float(li.get("amount", 0) or 0)
+        float(li["amount"])
         for li in line_items
-        if str(li.get("ro_account_code", "")).startswith("781")
-    )
+        if str(li["ro_account_code"]).startswith("781")
+    ) - provision_reversals
     # ── F3.16-3b.6 Phase 2 (2026-05-26) — `other_op_income_lump` ─────
     # Widened scan that mirrors the canonical adapter's coverage of the
     # `other_op_income` aggregate. Per
@@ -1806,10 +1939,13 @@ def assemble_statements(
     # the canonical `other_op_income` aggregate. 78 (provision_reversals)
     # is also excluded because it has a separate subtract line
     # (`other_income_781_reversals`) in the adjusted_ebitda formula.
+    # R3 (2026-09-28): a 7411 leaf placed inside net turnover is turnover,
+    # not other operating income — the strip never removes it.
     other_op_income_lump = sum(
         float(li.get("amount", 0) or 0)
         for li in line_items
         if str(li.get("ro_account_code", "")).startswith(("74", "75", "77"))
+        and li.get("placement") != "turnover"
     )
     # Core EBITDA — statutory minus non-core operating credits. This is
     # the valuation basis the EBITDA multiple bridges to.
@@ -1865,18 +2001,66 @@ def assemble_statements(
 
     net_result_build = None if pretax is None else pretax - tax
 
+    # ── R2: the net-provisions line, as served (schema net_provisions/1) ─
+    # Its name and accounts are rendered from the P&L definition pack.
+    # `value` is signed as a CHARGE (charges − reversals): positive lowers
+    # the operating result, negative (a net release) raises it. Never
+    # refused: it is read off the leaves, independent of net 711.
+    _np_label = _pl_definition.net_provisions_label()
+    net_provisions_block: Dict[str, object] = {
+        "schema": "net_provisions/1",
+        "value": net_provisions,
+        "charges": {
+            "prefixes": list(_prov_def["charges"]),
+            "value": provision_charges,
+            "by_account": {k: round(v, 2) for k, v in sorted(provision_charges_by_account.items())},
+        },
+        "reversals": {
+            "prefixes": list(_prov_def["reversals"]),
+            "value": provision_reversals,
+            "by_account": {k: round(v, 2) for k, v in sorted(provision_reversals_by_account.items())},
+        },
+        "accounts": _np_label["accounts"],
+        # The line name alone (a statement row prints the accounts in its
+        # own chip) and the name with its accounts (a sentence prints it).
+        "name_ro": _prov_def["name"]["ro"],
+        "name_en": _prov_def["name"]["en"],
+        "label_ro": _np_label["ro"],
+        "label_en": _np_label["en"],
+        "outside_ebitda": True,
+    }
+    # ── R3: what net turnover holds, as served ──────────────────────────
+    _turnover_placed = round(float(sum(
+        float(li["amount"]) for li in line_items
+        if li.get("placement") == "turnover")), 2)
+    turnover_definition_block: Dict[str, object] = {
+        "accounts": _pl_definition.turnover_accounts_label(),
+        "extra_prefixes": list(_pl_definition.turnover_prefixes()),
+        # Σ of the 7411 leaves placed inside `turnover` (0.0 when the book
+        # posts none — then turnover is class 70 − 709 alone).
+        "placed_extra": _turnover_placed,
+        "source": _pl_definition.definition()["turnover"]["source"],
+    }
+
     assembled_pl_canonical = {
-        # Cifra de afaceri netă (class 70 − 709). Every margin and every
-        # growth figure divides by THIS — never by total operating revenue.
+        # Cifra de afaceri netă (class 70 − 709 + 7411, R3 2026-09-28).
+        # Every margin and every growth figure divides by THIS — never by
+        # total operating revenue.
         "revenue": round(revenue, 2),
         "turnover": round(revenue, 2),
+        "turnover_definition": turnover_definition_block,
         "cogs": round(cogs, 2),
         # Turnover − cost of sales + net 711 (the stock variation sits in
         # the cost-of-sales block). Refused with 711.
         "gross_profit": _r(gross_profit),
         "opex_total": round(opex, 2),
         "opex_third_party": round(sub_agg.get("opex_third_party", 0), 2),
-        "depreciation": round(depreciation, 2),
+        # D&A on the P&L chain — 68x WITHOUT the ruled provision charges
+        # (R2): EBIT = EBITDA − depreciation − net_provisions.value.
+        "depreciation": depreciation_da,
+        # R2: charges (6812, 6814) − reversals (7812, 7814), OUTSIDE
+        # EBITDA, its own line between EBITDA and the operating result.
+        "net_provisions": net_provisions_block,
         # ── THE ONE EBITDA and the operating result ─────────────────────
         "ebitda": _r(ebitda),
         "ebit": _r(ebit),
@@ -1958,7 +2142,9 @@ def assemble_statements(
         # exist and painted the gap glyph — while EBITDA two rows below
         # silently included it, which is why the column did not add up.
         # Emitted under the name the reader's row already carries.
-        "other_operating_income": round(other_inc, 2),
+        # R2/R3 (2026-09-28): without the ruled 7812 / 7814 reversals
+        # (outside EBITDA) — 7411 is not in the bucket at all (turnover).
+        "other_operating_income": other_inc_in_ebitda,
 
         # ── Reconstruction → filed (account 121) ────────────────────────
         # See the derivation above. `..._reconciliation_to_121` is the
@@ -1975,14 +2161,15 @@ def assemble_statements(
     # ── The reconciliation line (design A5), served beside EBITDA ────────
     assembled_pl_canonical["ebitda_reconciliation"] = _ebitda_reconciliation(
         turnover=revenue,
-        other_operating_income=other_inc,
+        other_operating_income=other_inc_in_ebitda,
         capitalized_block=capitalized_block,
         cost_of_sales=cogs,
         inventory_variation_block=inventory_variation_block,
         operating_expenses=opex,
         ebitda_before=ebitda_before_stock_variation,
         ebitda=ebitda,
-        depreciation=depreciation,
+        depreciation=depreciation_da,
+        net_provisions=net_provisions,
         ebit=ebit,
         financial_result=net_financial_result,
         pretax=pretax,
@@ -2454,6 +2641,17 @@ def assemble_statements(
                         "value": capitalized_block.get("value"),
                         "refusal": capitalized_block.get("refusal"),
                         "provenance": capitalized_block.get("provenance"),
+                    },
+                    # R2 (2026-09-28): the ruled reversals / charges the
+                    # canonical `provision_reversals` / dap leaves cannot
+                    # isolate (781 is one leaf; 6812 and 6814 two of dap's).
+                    "provision_reversals_outside_ebitda": {
+                        "value": provision_reversals,
+                        "provenance": "pl_definition:%s" % "+".join(_prov_def["reversals"]),
+                    },
+                    "provision_charges_outside_ebitda": {
+                        "value": provision_charges,
+                        "provenance": "pl_definition:%s" % "+".join(_prov_def["charges"]),
                     },
                 },
                 # Total equity short by a REFUSED year's result (critic

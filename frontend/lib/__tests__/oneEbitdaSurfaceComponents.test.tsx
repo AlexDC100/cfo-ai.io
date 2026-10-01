@@ -38,7 +38,13 @@ import { constructedBook, firmBook } from "./oneEbitdaSurfaceBooks";
 afterEach(() => cleanup());
 
 describe("a briefing written under the previous EBITDA definition is hidden with the engine's note", () => {
-  const NOTE = { ro: "Comentariul a fost scris sub definiția anterioară …", en: "This briefing was written under the previous EBITDA definition …" };
+  // The engine's note (pipeline.BRIEFING_PREVIOUS_DEFINITION_NOTE), GENERIC
+  // since the stamp moved twice (deploy-readiness review, 2026-09-29): it
+  // names no content an earlier definition lacked.
+  const NOTE = {
+    ro: "Comentariul a fost scris sub o definiție anterioară a EBITDA și este ascuns; reanalizați perioada pentru un comentariu nou.",
+    en: "This briefing was written under an earlier EBITDA definition and is hidden; re-analyse the period for a new one.",
+  };
   it("hidden: no body, the served note", () => {
     const v = briefingVisibility({
       body: "EBITDA was 10.8M …",
@@ -56,6 +62,14 @@ describe("a briefing written under the previous EBITDA definition is hidden with
   });
   it("no definition block (a sample): shown", () => {
     expect(briefingVisibility({ body: "prose" }).body).toBe("prose");
+  });
+  it("a hidden briefing served without its note: the fallback restates the engine's generic note", () => {
+    const v = briefingVisibility({
+      body: "EBITDA was 10.8M …",
+      definition: { written_under: "x-earlier", current_definition: "x", written_under_previous_definition: true, note: null },
+    });
+    expect(v.body).toBeNull();
+    expect(v.hiddenNote).toEqual(NOTE);
   });
 });
 

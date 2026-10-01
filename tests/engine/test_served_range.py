@@ -346,6 +346,12 @@ def test_one_ron_of_liabilities_is_not_a_capital_structure():
 EBITDA_REFUSED_BOOKS = ("scandia_baseline",)
 
 
+#: The corpus developer triggers the stock-build regime (revision 5, owner
+#: ruling R1): its single-period cash flow is approximated, so leverage,
+#: coverage and DSCR refuse on cash and the composite with them.
+STOCK_BUILD_BOOKS = ("realestate",)
+
+
 def test_the_scoring_books_serve_a_composite_inside_the_range_with_every_component():
     scored = 0
     for name in SB.ALL_BOOKS:
@@ -354,11 +360,18 @@ def test_the_scoring_books_serve_a_composite_inside_the_range_with_every_compone
             assert credit["composite"] is None and credit["letter"] is None, name
             assert set(v["code"] for v in credit["refused_subscores"].values()) == {"ebitda_refused"}, name
             continue
+        if name in STOCK_BUILD_BOOKS:
+            assert LAW.operands(body_of(name)["statements"])["stock_build"], name
+            assert credit["composite"] is None and credit["letter"] is None, name
+            assert {k: v["code"] for k, v in credit["refused_subscores"].items()} == {
+                k: "cash_from_operations_approximated" for k in ("leverage", "coverage", "dscr")}, name
+            continue
+        assert not LAW.operands(body_of(name)["statements"])["stock_build"], name
         assert credit["composite"] is not None and 0 <= credit["composite"] <= 100, (name, credit["composite"])
         assert credit["letter"] in LAW.LETTERS, name
         assert credit["refused_subscores"] == {}, name
         scored += 1
-    assert scored == 4
+    assert scored == 3
 
 
 def test_the_law_is_independent_of_the_product():

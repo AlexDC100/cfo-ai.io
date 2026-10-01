@@ -122,6 +122,17 @@ class Reader(object):
                 "unknown canonical view %r (have %r)" % (name, VIEW_ORDER))
         return _num(self._views[name].get(key))
 
+    def provision_charges(self) -> float:
+        """The ruled provision charges (6812, 6814) the P&L serves on its
+        net-provisions line (owner ruling R2, 2026-09-28) — non-cash, inside
+        the operating-cost total, outside D&A. 0.0 on a statement that
+        carries no such line (assembled before the ruling: its D&A still
+        held them)."""
+        block = self._views["pl"].get("net_provisions")
+        charges = block.get("charges") if isinstance(block, dict) else None
+        value = _num(charges.get("value")) if isinstance(charges, dict) else None
+        return value if value is not None else 0.0
+
     def equity_refusal(self) -> Optional[Dict[str, Any]]:
         """The engine's completeness refusal beside total equity, or None.
 

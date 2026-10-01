@@ -66,6 +66,17 @@ altman (X3), coverage, DSCR and — with net debt — leverage refuse as
 `ebitda_refused`, each naming the stock-variation cause, and the composite
 refuses with them. `_expected_refusals` reads that from the served
 `assembled_pl` itself, not from the model.
+
+REVISION 5 (2026-09-28, owner ruling R1, the STOCK-BUILD REGIME). On a book
+whose measured net 711 build reaches the pack's shares of net turnover and
+of total operating expense, leverage, coverage and DSCR are computed on the
+served cash from operations; the single-period cash flow is APPROXIMATED on
+every book today, so they refuse as `cash_from_operations_approximated` and
+the composite with them, and the served weights are the regime's table.
+`_expected_refusals` reads the trigger from the served `assembled_pl` and
+the RAW pack YAML (never the model's `stock_build_regime`), and the cash
+status from `assembled_cf.is_approximated`. The corpus developer
+(`saga_10_col_realestate`) is the real-book witness.
 """
 from __future__ import annotations
 
@@ -120,6 +131,24 @@ def _expected_refusals(statements: Dict[str, Any]) -> Dict[str, str]:
     interest = float(pl["interestExpense"])
     debt = float(bs["shortTermDebt"]) + float(bs["longTermDebt"])
     ebit, ebitda = _one_ebit_ebitda(statements)
+    regime = _regime_read(statements)
+    if regime is not None:
+        # Revision 5: the cash components read the served cash from
+        # operations — approximated or refused -> refused; measured and
+        # not positive -> the declared bottom rung (no refusal); measured
+        # and positive -> measured, or R-D1 on cash, or interest refusal.
+        cash_status, cash = regime
+        if cash_status != "measured":
+            code = (CM.CASH_FROM_OPERATIONS_REFUSED if cash_status == "refused"
+                    else CM.CASH_FROM_OPERATIONS_APPROXIMATED)
+            out["coverage"] = code
+            out["dscr"] = code
+            if debt - float(bs["cash"]) > 0:
+                out["leverage"] = code
+        elif cash > 0 and not interest > 0 and not (debt == 0 and interest == 0):
+            out["coverage"] = CM.INTEREST_EXPENSE_NOT_POSITIVE
+            out["dscr"] = CM.INTEREST_EXPENSE_NOT_POSITIVE
+        return out
     if ebit is None or ebitda is None:
         # the one EBITDA / operating result refused (revision 3)
         if "altman" not in out:
@@ -134,6 +163,44 @@ def _expected_refusals(statements: Dict[str, Any]) -> Dict[str, str]:
         out["coverage"] = CM.INTEREST_EXPENSE_NOT_POSITIVE
         out["dscr"] = CM.INTEREST_EXPENSE_NOT_POSITIVE
     return out
+
+
+def _raw_regime_pack() -> Dict[str, Any]:
+    import yaml
+
+    return yaml.safe_load((REPO / "packs" / "credit" / "model.yaml").read_text("utf-8"))["stock_build_regime"]
+
+
+def _regime_read(statements: Dict[str, Any]):
+    """THIS FILE'S reading of the stock-build trigger (revision 5): a
+    measured net 711 > 0 reaching BOTH pack shares, read off the served
+    `assembled_pl` and the raw pack YAML. `(cash_status, cash)` or None."""
+    apl = statements.get("assembled_pl") or {}
+    if "ebitda_definition" not in apl or apl.get("ebitda_refusal"):
+        return None
+    net = (apl.get("inventory_variation") or {}).get("value")
+    if not isinstance(net, (int, float)) or not net > 0:
+        return None
+    trig = _raw_regime_pack()["trigger"]
+    t1 = Decimal(str(trig["net_711_to_turnover"]["at_least"]))
+    t2 = Decimal(str(trig["net_711_to_operating_expense"]["at_least"]))
+    n = Decimal(repr(float(net)))
+    if not (n >= t1 * Decimal(repr(float(apl["turnover"])))
+            and n >= t2 * Decimal(repr(float(apl["total_operating_expense"])))):
+        return None
+    cf = statements.get("assembled_cf") or {}
+    cash = cf.get("cash_from_operating")
+    if not isinstance(cash, (int, float)):
+        return "refused", None
+    return ("measured" if cf.get("is_approximated") is False else "approximated"), float(cash)
+
+
+def _served_weights_expected(statements: Dict[str, Any]) -> Dict[str, float]:
+    """The weight table a block on these statements must serve: the model
+    table, or — under the stock-build regime — the raw pack's."""
+    if _regime_read(statements) is not None:
+        return {k: float(v) for k, v in _raw_regime_pack()["weights"].items()}
+    return dict(CM.CREDIT_COMPOSITE_WEIGHTS)
 
 
 def _one_ebit_ebitda(statements: Dict[str, Any]) -> Tuple[Any, Any]:
@@ -157,6 +224,11 @@ def _one_ebit_ebitda(statements: Dict[str, Any]) -> Tuple[Any, Any]:
 def _check_component(where: str, comp: Dict[str, Any]) -> None:
     for field in ("code", "component", "inputs", "text"):
         assert comp.get(field), "%s: refused component %r carries no %s" % (where, comp, field)
+    if {CM.CASH_FROM_OPERATIONS_APPROXIMATED, CM.CASH_FROM_OPERATIONS_REFUSED} & {
+            comp.get("code"), comp.get("cause")}:
+        # revision 5: the regime's sentence, in both languages, from the pack
+        assert comp.get("text_ro") and comp.get("text_en") and comp["text"] == comp["text_en"], (where, comp)
+        assert comp.get("regime") == "stock_build", (where, comp)
     if CM.EBITDA_REFUSED in (comp.get("code"), comp.get("cause")):
         # the stock-variation cause travels with the code, in both languages
         cause = comp.get("ebitda_refusal") or {}
@@ -180,8 +252,10 @@ def _check_block(where: str, credit: Dict[str, Any], statements: Dict[str, Any])
     for key in want:
         assert subs[key] is None, "%s: refused %s still serves %r" % (where, key, subs[key])
         _check_component(where, credit["refused_subscores"][key])
-    assert credit["weights"] == CM.CREDIT_COMPOSITE_WEIGHTS, (
-        "%s: served weights %s are not the model table — renormalised?" % (where, credit["weights"]))
+    want_w = _served_weights_expected(statements)
+    assert credit["weights"] == want_w, (
+        "%s: served weights %s are not the model's table %s — renormalised?"
+        % (where, credit["weights"], want_w))
     assert "model_weights" not in credit, "%s: a second weight vector is served again" % where
     if want:
         assert credit["composite"] is None and credit["letter"] is None, (
@@ -195,7 +269,7 @@ def _check_block(where: str, credit: Dict[str, Any], statements: Dict[str, Any])
             _check_component(where, comp)
             assert comp["cause"] == want[comp["component"]], (where, comp)
     else:
-        recomposed = sum(CM.CREDIT_COMPOSITE_WEIGHTS[k] * subs[k] for k in CM.CREDIT_COMPOSITE_WEIGHTS)
+        recomposed = sum(want_w[k] * subs[k] for k in want_w)
         assert abs(recomposed - credit["composite"]) <= 0.1, (
             "%s: composite %s is not the model weights x served sub-scores (%s)"
             % (where, credit["composite"], recomposed))

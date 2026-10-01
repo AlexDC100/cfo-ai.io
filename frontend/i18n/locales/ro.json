@@ -718,6 +718,8 @@
         "malformed_value": "Neafișat: valoarea servită nu poate fi citită pentru unitatea ei.",
         "unrecognised": "Neafișat: câmpul servit {{field}} are valoarea {{value}}, pe care acest cititor nu o recunoaște.",
         "ebitda_refused": "Necalculat: EBITDA și rezultatul din exploatare sunt refuzate pentru această perioadă, deoarece variația stocurilor de produse nu a putut fi măsurată.",
+        "cash_from_operations_approximated": "Nenotat: în regimul de credit construcție pe stoc, componenta se notează pe fluxul de numerar din exploatare, care este aproximat pentru această perioadă (fără balanța anului anterior); nu există scor compozit și nici rating.",
+        "cash_from_operations_refused": "Nenotat: în regimul de credit construcție pe stoc, componenta se notează pe fluxul de numerar din exploatare, care este refuzat pentru această perioadă; nu există scor compozit și nici rating.",
         "inventory_days_refused": "Necalculat: zilele de stoc pe tipuri de stoc sunt refuzate pentru această perioadă — motivul este afișat lângă cifră.",
         "basis_differs": "Necomparat: zilele de stoc ale celor două perioade sunt măsurate pe baze de stoc diferite, deci nu se afișează nici o variație, nici o mișcare de bandă — ar fi schimbarea bazei, nu a stocului."
       },
@@ -824,6 +826,7 @@
         "header": "ACTIVITĂȚI OPERAȚIONALE",
         "netProfit": "Profit net",
         "depreciation": "+ Amortizare & depreciere",
+        "depreciationAndProvisionCharges": "+ Amortizări și provizioane (68x)",
         "cfBeforeWc": "CF operațional înainte de variația CL",
         "wcChanges": "Variația capitalului de lucru:",
         "cashFromOperating": "Numerar din activități operaționale"
@@ -851,10 +854,10 @@
     "ebitdaRecon": {
       "eyebrow": "Reconcilierea EBITDA · o singură definiție",
       "title": "Cum se construiește EBITDA — de la cifra de afaceri netă la contul 121",
-      "lead": "O singură EBITDA: variația stocurilor de produse (711) și producția imobilizată (72x) sunt incluse, lângă costuri; reducerile comerciale primite (767) sunt financiare. Cifra de afaceri netă — baza fiecărei marje — nu include niciuna dintre ele.",
+      "lead": "O singură EBITDA: variația stocurilor de produse (711) și producția imobilizată (72x) sunt incluse, lângă costuri; provizioanele și ajustările — atât constituirile, cât și reluările — sunt în afara ei, pe o linie proprie înainte de rezultatul din exploatare; reducerile comerciale primite (767) sunt financiare. Cifra de afaceri netă — baza fiecărei marje — include subvențiile de exploatare aferente cifrei de afaceri și niciuna dintre celelalte.",
       "coreHeading": "EBITDA → EBITDA de bază (baza evaluării)",
       "less758": "Minus alte venituri din exploatare",
-      "less781": "Minus venituri din reluarea provizioanelor",
+      "less781": "Minus reluările de provizioane rămase în EBITDA",
       "coreTotal": "EBITDA de bază",
       "notServed": "Motorul nu a servit reconcilierea EBITDA pentru această perioadă.",
       "notAnchored": "contul 121 nu apare în balanță",

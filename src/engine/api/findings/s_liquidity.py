@@ -83,7 +83,11 @@ def detect_cash_tight(ctx: _base.Ctx) -> _base.Outcome:
     impact = None
     period_cash_cost = None
     if operating_expense is not None and depreciation is not None:
-        period_cash_cost = operating_expense - depreciation
+        # The ruled provision charges (6812, 6814) left D&A for their own
+        # net-provisions line (owner ruling R2, 2026-09-28) but are still
+        # inside the operating-cost total and still non-cash: they come
+        # out too, so the runway is the one it was before the ruling.
+        period_cash_cost = operating_expense - depreciation - r.provision_charges()
     if period_cash_cost:
         daily_cash_cost = _base.per_day(period_cash_cost, days)
         if daily_cash_cost:

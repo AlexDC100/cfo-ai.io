@@ -63,8 +63,8 @@
         "absence": null
       },
       "ebitda_margin": {
-        "value": 2.86,
-        "printed": "2.9",
+        "value": 2.77,
+        "printed": "2.8",
         "unit": "%",
         "verdict": "critical",
         "higher_is_better": true,
@@ -128,8 +128,8 @@
         "absence": null
       },
       "debt_to_ebitda": {
-        "value": 12.308383179933735,
-        "printed": "12.31",
+        "value": 12.74730176219592,
+        "printed": "12.75",
         "unit": "x",
         "verdict": "critical",
         "higher_is_better": false,
@@ -193,8 +193,8 @@
         "absence": null
       },
       "dscr": {
-        "value": 0.9349,
-        "printed": "0.93",
+        "value": 0.9027,
+        "printed": "0.90",
         "unit": "x",
         "verdict": "critical",
         "higher_is_better": true,
@@ -220,8 +220,8 @@
         }
       },
       "dscr_with_lt_principal": {
-        "value": 0.3834,
-        "printed": "0.38",
+        "value": 0.3702,
+        "printed": "0.37",
         "unit": "x",
         "verdict": "critical",
         "higher_is_better": true,
@@ -347,8 +347,8 @@
         "absence": null
       },
       "ebitda_margin": {
-        "value": 2.86,
-        "printed": "2.9",
+        "value": 2.77,
+        "printed": "2.8",
         "unit": "%",
         "verdict": "ungraded",
         "higher_is_better": null,
@@ -404,8 +404,8 @@
         "absence": null
       },
       "debt_to_ebitda": {
-        "value": 12.308383179933735,
-        "printed": "12.31",
+        "value": 12.74730176219592,
+        "printed": "12.75",
         "unit": "x",
         "verdict": "critical",
         "higher_is_better": false,
@@ -469,8 +469,8 @@
         "absence": null
       },
       "dscr": {
-        "value": 0.9349,
-        "printed": "0.93",
+        "value": 0.9027,
+        "printed": "0.90",
         "unit": "x",
         "verdict": "critical",
         "higher_is_better": true,
@@ -496,8 +496,8 @@
         }
       },
       "dscr_with_lt_principal": {
-        "value": 0.3834,
-        "printed": "0.38",
+        "value": 0.3702,
+        "printed": "0.37",
         "unit": "x",
         "verdict": "critical",
         "higher_is_better": true,
@@ -615,8 +615,8 @@
         "absence": null
       },
       "ebitda_margin": {
-        "value": 3.9182,
-        "printed": "3.9",
+        "value": 3.7949,
+        "printed": "3.8",
         "unit": "%",
         "verdict": "critical",
         "higher_is_better": true,
@@ -680,8 +680,8 @@
         "absence": null
       },
       "debt_to_ebitda": {
-        "value": 12.308383179933735,
-        "printed": "12.31",
+        "value": 12.74730176219592,
+        "printed": "12.75",
         "unit": "x",
         "verdict": "critical",
         "higher_is_better": false,
@@ -745,10 +745,10 @@
         "absence": null
       },
       "dscr": {
-        "value": 1.280813,
-        "printed": "1.28",
+        "value": 1.236699,
+        "printed": "1.24",
         "unit": "x",
-        "verdict": "healthy",
+        "verdict": "watch",
         "higher_is_better": true,
         "ladder": {
           "strong": 1.5,
@@ -772,8 +772,8 @@
         }
       },
       "dscr_with_lt_principal": {
-        "value": 0.5252580000000001,
-        "printed": "0.53",
+        "value": 0.507174,
+        "printed": "0.51",
         "unit": "x",
         "verdict": "critical",
         "higher_is_better": true,

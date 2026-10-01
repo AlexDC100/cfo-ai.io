@@ -158,7 +158,12 @@ export function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): s
     // and own work capitalised (72x) are inside it; turnover is 70x − 709.
     // A refused EBITDA is stated with the engine's reason — the assistant
     // must never be handed a number where the dashboard prints a refusal.
-    pushIf(lines, "Net turnover (cifra de afaceri netă, 70x − 709)", canonical.headline.revenue);
+    // The accounts turnover holds are the engine's (70x − 709 + 7411 since
+    // the owner's R3 ruling, 2026-09-28), read off the served block.
+    const turnoverDef = (assembledPlOf(p.statements) as { turnover_definition?: { accounts?: unknown } } | undefined)
+      ?.turnover_definition;
+    const turnoverAccounts = typeof turnoverDef?.accounts === "string" ? turnoverDef.accounts : "70x − 709";
+    pushIf(lines, `Net turnover (cifra de afaceri netă, ${turnoverAccounts})`, canonical.headline.revenue);
     if (canonical.ebitda.reported === null) {
       lines.push(
         `  · EBITDA: REFUSED — ${canonical.ebitda.refusal?.text.en ?? "the engine served no EBITDA for this period"} ` +
@@ -186,6 +191,12 @@ export function buildWorkspaceSnapshot(p: ReturnType<typeof useActivePeriod>): s
       }
     } else {
       lines.push("  (no 758/781 movements on file — Reported = Core for this period)");
+    }
+    // Net provisions — OUTSIDE EBITDA, between it and EBIT (owner ruling
+    // R2, 2026-09-28), under the engine's own label.
+    if (canonical.headline.netProvisions) {
+      pushIf(lines, `${canonical.headline.netProvisions.label.en} — outside EBITDA, between it and EBIT`,
+        canonical.headline.netProvisions.value);
     }
     pushIf(lines, "EBIT",                                      canonical.headline.ebit);
     if (canonical.netProfit.refusal) {

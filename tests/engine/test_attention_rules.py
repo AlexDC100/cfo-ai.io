@@ -28,6 +28,11 @@ WHAT IT REDS ON, AFTER THE REPAIR (TC-11):
     mode does not read; an empty slot without its reason;
   * a percentage across zero or a sign change;
   * an action that does not follow the company's state;
+  * (ruling R4) "Exportă raportul pentru bancă" anywhere but the CFO Report
+    PDF (the dashboard's export tab), in any state; a second export action
+    beside it; an action that reaches the Forecast page; an action that can
+    read the feature registry (a `features` argument, or a pack action
+    carrying a feature gate / a target / a name the composer does not use);
   * a sector or ratio subject whose name differs from the one the frontend
     prints for the same metric;
   * the same-length prior rule choosing another length, a later period, or
@@ -45,6 +50,7 @@ import random
 from pathlib import Path
 
 import pytest
+import yaml
 
 from engine.attention import compose_attention, load_pack, same_length_prior
 from engine.attention.sources import cut_of, year_back
@@ -56,6 +62,7 @@ FIX = REPO / "frontend" / "lib" / "__tests__" / "fixtures"
 PAIR = FIX / "comparatives" / "pair_served.json"
 SECTOR = FIX / "sectorBenchmark" / "served_pair.json"
 LOCALES = REPO / "frontend" / "i18n" / "locales"
+PACK_PATH = REPO / "packs" / "serving" / "attention.yaml"
 
 PRIOR_FOUND = {"rule": "same_company_previous_period_same_length", "requested": "auto",
                "status": "found", "period_id": "period-prior", "period_start": "2024-01-01",
@@ -78,7 +85,6 @@ def _sector(which="with_prior"):
 
 def _compose(cur, **kw):
     kw.setdefault("prior", PRIOR_FOUND)
-    kw.setdefault("features", {"forecast": "active"})
     return compose_attention(cur, **kw)
 
 
@@ -133,7 +139,9 @@ def test_the_pack_loads_and_every_served_string_is_bilingual():
     texts += [d["subject"] for d in pack["insights"]["detectors"].values()]
     texts += [a["label"] for a in pack["actions"].values()]
     texts += list(pack["caveats"].values())
-    assert len(texts) >= 60, len(texts)
+    # Measured 59: ruling R4 (2026-09-28) retired the second export label
+    # ("Exportă raportul CFO (PDF)") — the bank report IS the CFO Report PDF.
+    assert len(texts) >= 59, len(texts)
     for t in texts:
         assert set(t) == {"ro", "en"} and t["ro"].strip() and t["en"].strip(), t
     ro = " ".join(t["ro"] for t in texts)
@@ -660,8 +668,6 @@ def test_actions_follow_the_companys_state():
     two_back = dict(PRIOR_FOUND, period_end="2023-12-31")
     assert keys(_compose(cur, prior=two_back, comparatives=cmp, sector=sector))[0] == \
         "compare_previous_period"
-    assert keys(_compose(cur, comparatives=cmp, sector=sector, features={"forecast": "coming_soon"})) \
-        == ["compare_prior", "cfo_report_pdf"]
     off = dict(PRIOR_FOUND, status="off", period_id=None, period_start=None, period_end=None,
                available_period_id="period-prior", available_period_end="2024-12-31")
     doc = _compose(cur, prior=off, sector=sector)
@@ -674,6 +680,91 @@ def test_actions_follow_the_companys_state():
         assert 2 <= len(doc["actions"]) <= 3
         for a in doc["actions"]:
             assert set(a["label"]) == {"ro", "en"}
+
+
+# ── ruling R4 (owner, 2026-09-28): the bank report is the CFO Report PDF ──
+#
+# "«Exportă raportul pentru bancă» → the CFO Report PDF, not the Forecast
+# page (Forecast is still closed)." The owner's label is a LITERAL here, not
+# read from the pack, so a pack edit that renames the action reds too.
+
+OWNER_BANK_LABEL_RO = "Exportă raportul pentru bancă"
+#: The CFO Report PDF: the dashboard's export tab, whose PDF card posts the
+#: report to the renderer (frontend FinancialStatements, POST /api/report/pdf).
+CFO_REPORT_PDF = {"kind": "report_pdf", "route": "/dashboard", "tab": "export"}
+
+
+def _every_action_state():
+    """Every state the composer chooses actions for, on served documents: a
+    prior one year back, a prior two years back, the comparison switched off
+    (with its way back), no prior at all, and the sector refused for want of
+    a CAEN code (the third action)."""
+    cur, cmp = _pair()
+    sector = _sector()
+    off = dict(PRIOR_FOUND, status="off", period_id=None, period_start=None, period_end=None,
+               available_period_id="period-prior", available_period_end="2024-12-31")
+    no_caen = {"status": "refused", "reason": {"code": "caen_absent", "inputs": []}}
+    return {
+        "prior_found": _compose(cur, comparatives=cmp, sector=sector),
+        "prior_two_back": _compose(cur, prior=dict(PRIOR_FOUND, period_end="2023-12-31"),
+                                   comparatives=cmp, sector=sector),
+        "comparison_off": _compose(cur, prior=off, sector=sector),
+        "no_prior": _compose(cur, prior=PRIOR_ABSENT, sector=sector),
+        "no_caen": _compose(cur, prior=PRIOR_ABSENT, sector=no_caen),
+    }
+
+
+def test_the_bank_report_is_the_cfo_report_pdf_never_the_forecast():
+    pack = load_pack()
+    raw = yaml.safe_load(PACK_PATH.read_text(encoding="utf-8"))
+    assert raw["actions"]["bank_export"]["label"]["ro"] == OWNER_BANK_LABEL_RO
+    states = _every_action_state()
+    assert "set_industry" in [a["key"] for a in states["no_caen"]["actions"]], \
+        "the no-CAEN world must reach the third action, or it proves nothing"
+    for name, doc in states.items():
+        exports = [a for a in doc["actions"] if a["key"] == "bank_export"]
+        assert len(exports) == 1, (name, [a["key"] for a in doc["actions"]])
+        bank = exports[0]
+        assert bank["label"] == pack["actions"]["bank_export"]["label"], name
+        assert bank["label"]["ro"] == OWNER_BANK_LABEL_RO, name
+        assert {k: bank["target"].get(k) for k in CFO_REPORT_PDF} == CFO_REPORT_PDF, (name, bank)
+        assert bank["target"]["period_id"] == doc["period"]["id"], name
+        assert "requires_feature" not in bank, name
+        # No action of any state reaches the Forecast page, by kind or route.
+        for a in doc["actions"]:
+            flat = json.dumps(a["target"], sort_keys=True).lower()
+            assert "forecast" not in flat, (name, a)
+        # One export action: the retired "Exportă raportul CFO (PDF)" is not a
+        # second row beside it.
+        assert [a["target"]["kind"] for a in doc["actions"]].count("report_pdf") == 1, name
+
+
+def test_the_actions_cannot_read_the_feature_registry():
+    """No input lets the Forecast registry reach an action: the composer
+    takes no feature statuses, and the pack refuses an action carrying a
+    feature gate or a target, and any action the composer does not name."""
+    cur, cmp = _pair()
+    with pytest.raises(TypeError):
+        compose_attention(cur, prior=PRIOR_FOUND, comparatives=cmp, sector=_sector(),
+                          features={"forecast": "active"})
+    from engine.attention.pack import AttentionPackError, _validate
+
+    def planted(mutate):
+        pack = yaml.safe_load(PACK_PATH.read_text(encoding="utf-8"))
+        mutate(pack)
+        return pack
+
+    with pytest.raises(AttentionPackError, match="label only"):
+        _validate(planted(lambda p: p["actions"]["bank_export"].update(feature="forecast")),
+                  "planted")
+    with pytest.raises(AttentionPackError, match="label only"):
+        _validate(planted(lambda p: p["actions"]["bank_export"].update(
+            target={"route": "/dashboard/forecast"})), "planted")
+    with pytest.raises(AttentionPackError, match="not composed by the engine"):
+        _validate(planted(lambda p: p["actions"].update(
+            cfo_report_pdf={"label": {"ro": "Exportă raportul CFO (PDF)",
+                                      "en": "Export the CFO report (PDF)"}})), "planted")
+    _validate(planted(lambda p: None), "clean")  # the committed pack itself passes
 
 
 # ── the same-length prior (the dashboard's default comparison) ───────────
