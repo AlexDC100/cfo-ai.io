@@ -8316,6 +8316,43 @@ d4f2b5c _forecast_history cache: False
 the eight gate files copied onto d4f2b5c: 33 failed, 3 passed, 6 errors
 ```
 
+### plan-gate-census — the vitest canaries in the form the battery reads (release r-rulings2, 2026-10-01)
+
+**INCIDENT** — main (57101c80, owner ruling 2026-09-29) changed every canary
+of the battery's `vitest` gate from the bare test path to the line
+`scripts/check_vitest.mjs` prints for it, `"<path>: ran"` — the bare path
+also matched `"<path>: NEVER RAN"`, which kept a retired file a "seen"
+canary for a week. `scripts/check_plan_gates.py` was not told: it still
+asked for the bare literal among the gate's canaries, so the census was RED
+on main itself (`vitest:B1` changeKind / signFlip, `vitest:B6`
+forecastFactsReader / forecastMagnitude — four claims "not among battery
+gate 'vitest''s canaries") and the merged release inherited it (measured
+through `run_battery.main`, narrowed: 39/40 gates green, this one red).
+Rewriting `plan_gates.json` to the `: ran` form is not the repair — the same
+entry is also checked against the runner's own CANARIES array, which holds
+the bare path.
+
+**LAW** — `RUNNER_GATE_CANARY = {"vitest": "%s: ran"}`: a plan entry's
+canary on the vitest runner must appear in the battery gate's canaries AS
+THE RUNNER PRINTS IT, and bare in `check_vitest.mjs`'s CANARIES; any other
+runner keeps the bare literal. `plan_gates.json` is unchanged.
+
+**PLANT, observed RED, then REVERT** —
+
+```
+PLANT bare-vitest-canary: scripts/run_battery.py
+      ("frontend/lib/__tests__/changeKind.test.ts: ran" -> "frontend/lib/__tests__/changeKind.test.ts")
+$ python scripts/check_plan_gates.py      exit 1
+FAIL — 1 plan gate claim(s) not backed by the battery and its plant log:
+  · plan_gates.json entry 'vitest:B1': canary 'frontend/lib/__tests__/changeKind.test.ts: ran' is not among battery gate 'vitest''s canaries
+REVERT (file restored byte-exact): exit 0
+PASS — every listed plan gate is registered, planted and scoped.
+```
+
+**AFTER THE REPAIR this reds on:** a vitest gate canary written bare again
+(the vacuous form); a plan entry's file missing from the runner's CANARIES
+or from the gate's `: ran` lines.
+
 ## forecast-server-side
 
 | | |
