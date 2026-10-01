@@ -13,8 +13,10 @@ period.
 
 LAW. ``verify_config`` (what ``create_app`` runs through
 ``verify_config_safe``) raises a RuntimeError naming the pack when the file is
-missing, is not YAML, carries the wrong schema, or crosses classes (a charge
-that is not a class-6 account); with the committed pack it passes. Each case
+missing, is not YAML, is not UTF-8 (review 2026-10-01: it escaped as a bare
+UnicodeDecodeError, without the boot message), carries the wrong schema, or
+crosses classes (a charge that is not a class-6 account); with the committed
+pack it passes. Each case
 reads a FRESH tmp directory through the loader's own override
 (``RO_PL_DEFINITION_PACKS_DIR``), with the loader's per-path cache cleared
 before and after, so no case can pass on another's cached pack.
@@ -27,7 +29,7 @@ turnover-7411); the container's real boot (§14 step 6 boot probe).
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 import pytest
 
@@ -51,10 +53,12 @@ def boot_env(monkeypatch):
     pld._load.cache_clear()
 
 
-def _pack_dir(tmp_path: Path, name: str, text: Optional[str]) -> Path:
+def _pack_dir(tmp_path: Path, name: str, text: Optional[Union[str, bytes]]) -> Path:
     d = tmp_path / name
     d.mkdir()
-    if text is not None:
+    if isinstance(text, bytes):
+        (d / pld.PACK_NAME).write_bytes(text)
+    elif text is not None:
         (d / pld.PACK_NAME).write_text(text, encoding="utf-8")
     return d
 
@@ -74,6 +78,9 @@ def _crossed_classes() -> str:
 CASES = {
     "missing": None,
     "not-yaml": "schema_version: [unclosed\n  turnover: {\n",
+    # The committed pack behind a UTF-16 byte-order mark: valid YAML in the
+    # wrong encoding, so the read itself fails.
+    "not-utf8": b"\xff\xfe" + _committed_text().encode("utf-8"),
     "wrong-schema": _committed_text().replace("ro_pl_definition/1", "ro_pl_definition/0"),
     "crossed-classes": _crossed_classes(),
 }

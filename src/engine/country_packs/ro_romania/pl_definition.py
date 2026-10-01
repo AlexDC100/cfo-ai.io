@@ -94,9 +94,15 @@ def _str(raw: Any, where: str) -> str:
 @functools.lru_cache(maxsize=4)
 def _load(path: str) -> Dict[str, Any]:
     try:
-        raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+        text = Path(path).read_text(encoding="utf-8")
     except OSError as exc:
         raise PlDefinitionPackError("%s: cannot be read (%s)" % (PACK_FILE, exc))
+    except UnicodeDecodeError as exc:
+        # A pack that is not UTF-8 is unusable like a missing one — named, so
+        # the boot check says which file (review 2026-10-01: it escaped as a
+        # bare UnicodeDecodeError and the operator lost the boot message).
+        raise PlDefinitionPackError("%s: is not valid UTF-8 (%s)" % (PACK_FILE, exc))
+    raw = yaml.safe_load(text)
     if not isinstance(raw, Mapping) or raw.get("schema_version") != SCHEMA:
         raise PlDefinitionPackError("%s: schema_version %r is required" % (PACK_FILE, SCHEMA))
     t = raw.get("turnover") or {}
