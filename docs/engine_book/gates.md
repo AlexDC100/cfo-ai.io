@@ -18394,3 +18394,39 @@ The upload-type PRE-FLIGHT (`specs-durable/upload_type_preflight.py`, run
 inside the built image before the switch) drives the same four files through
 `stage_extract` + `stage_map` with no model, no network and no writes, and
 prints the routes' verdict beside the pipeline's.
+
+### release r-rulings2 — the measured runs at 0f876c93 (2026-10-01)
+
+Measured on the release head (main e043845c + feat/rulings-2 c8bd1123 + the
+two upload-type commits), not asserted:
+
+- full engine suite (`pytest tests/engine`, the owner's untracked `files/`
+  books linked into the worktree for the run, never committed): **9,324
+  passed, 39 skipped, 2 xfailed, 0 failed** (the rulings lineage measured
+  9,297 at f54b3f66; +27 upload-type tests). The first run on the merge
+  commit had 3 failed — the FE regime fixture stale against main's pack
+  wording (re-captured by its writer, e3452f42) and two calendar-dependent
+  quota-restore tests red since 2026-10-01 (6c6c23a7).
+- full vitest: **264 files, 4,384 passed, 1 skipped, 0 failed**.
+- `tsc --noEmit -p tsconfig.app.json`: the 10 known `capsuleAskGuard`
+  errors, no new one. `vite build` (dist removed first): OK.
+- through `run_battery.main` narrowed to the 40 gates this release touches
+  (exit, work count, floor, canaries): **40/40 PASS** — route-binding 3,
+  upload-real-type 27, workspace-v2 29, forecast-route 54, plan-gate-census
+  29, valuation-one-ebitda 23, briefing-definition 9,
+  reprocess-periods-definition 99, provisions-symmetric 117, turnover-7411
+  65, credit-stock-build 164, supabase-read-retry 16,
+  forecast-served-sentences 166, forecast-cockpit-page 96, forecast-cockpit
+  14,982, margin-meaning 188, margin-meaning-page 18, pl-one-ebitda-page 66,
+  one-ebitda 40, export-ratio-anchor 15, turnover-denominator 8,
+  refusal-carries 47, credit-regime-surfaces 19, valuation-refused-override
+  10, floor-census 77, attention-rules 31, attention-route 10,
+  cmdbar-fixtures 6, cmdbar-surface 216, ui-language-figures 35,
+  cmdbar-evidence 47, interest-coverage-one-operand 8, bs-drift 7, pack-lint
+  4, engine-book 6, test-env-isolation 14, no-plants 1,116,
+  provenance-census 815 (the 11 listed burn-down findings, none new), tsc
+  1,022, vitest 4,385. The first narrowed run had plan-gate-census red
+  (inherited from main, repaired in 0f876c93).
+- the upload-type pre-flight (`specs-durable/upload_type_preflight.py`) run
+  locally against this worktree: 7 checks PASS, exit 0; its guard-disabled
+  plant: 3 FAIL, exit 1.
