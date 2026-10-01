@@ -34,7 +34,8 @@ import { foreignNumber } from "@/test/numberLanguage";
 
 const REPO = resolve(__dirname, "../../..");
 
-/** A served canonical balance sheet, as GET /api/period carries it. */
+/** A served canonical balance sheet, as GET /api/period carries it. Every
+ *  figure in this file is invented — no book's numbers are used. */
 function canonical(status: string, difference: number, assets: number) {
   return {
     schema_version: "bs_v2",
@@ -69,21 +70,21 @@ describe("report footer — only what is true for this report", () => {
 
   it("F2 an imbalanced book: that status and the served difference to the cent", () => {
     const en = reportFooterLines({
-      statements: { canonical_bs: canonical("MATERIAL_IMBALANCE", -12253.38, 4_250_401.72) },
+      statements: { canonical_bs: canonical("MATERIAL_IMBALANCE", -1234.56, 500_000) },
       currency: "RON", briefingShown: false, language: "en",
     });
     expect(en.machineStatus).toBe("MATERIAL_IMBALANCE");
     expect(en.balance).toMatch(/Material imbalance/);
     expect(en.balance).not.toMatch(/passed|Balanced\b/);
-    expect(plain(en.differenceLine)).toContain("-12,253.38 RON");
+    expect(plain(en.differenceLine)).toContain("-1,234.56 RON");
     expect(foreignNumber(plain(en.differenceLine), "en")).toBeNull();
 
     // the figure follows the reader's language; the code stays after it
     const ro = reportFooterLines({
-      statements: { canonical_bs: canonical("MATERIAL_IMBALANCE", -12253.38, 4_250_401.72) },
+      statements: { canonical_bs: canonical("MATERIAL_IMBALANCE", -1234.56, 500_000) },
       currency: "RON", briefingShown: false, language: "ro",
     });
-    expect(plain(ro.differenceLine)).toContain("-12.253,38 RON");
+    expect(plain(ro.differenceLine)).toContain("-1.234,56 RON");
     expect(foreignNumber(plain(ro.differenceLine), "ro")).toBeNull();
     expect(plain(ro.differenceLine)).not.toMatch(/\blei\b|RON\s*-?\d/);
 
@@ -105,11 +106,11 @@ describe("report footer — only what is true for this report", () => {
 
   it("F3 a served verdict without its totals block still prints the served status and difference", () => {
     const f = reportFooterLines({
-      statements: { canonical_bs: { status: "MATERIAL_IMBALANCE", difference: -12253.38 } },
+      statements: { canonical_bs: { status: "MATERIAL_IMBALANCE", difference: -1234.56 } },
       currency: "RON", briefingShown: false, language: "en",
     });
     expect(f.machineStatus).toBe("MATERIAL_IMBALANCE");
-    expect(plain(f.differenceLine)).toContain("-12,253.38 RON");
+    expect(plain(f.differenceLine)).toContain("-1,234.56 RON");
     const none = reportFooterLines({
       statements: { canonical_bs: { status: "MINOR_DRIFT" } },
       currency: "RON", briefingShown: false, language: "en",

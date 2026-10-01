@@ -18626,7 +18626,7 @@ PLANT LP4   src/engine/…/trial_balance_parser.py — one comment line appended
      (committed aa54546242055ef7…, tree bd1ad5c7378a1106…). Re-measure: python scripts/build_engine_proof.py
 PLANT EP-C  frontend/data/engineProof.json — a fixture label written into `how`
   pytest -k names_no_company                                 exit 1
-  E  AssertionError: engineProof.json names calibration book(s): ['carniprod']
+  E  AssertionError: engineProof.json names calibration book(s): ['<the label>']
 PLANT EP-D  scripts/build_engine_proof.py — the scope guard removed
             (`if not full and not args.check:` -> `if False:`)
   pytest -k refuses_to_write                                 exit 1
@@ -18727,7 +18727,7 @@ PLANT LP7  lib/engineProof.ts PROOF_CHECK_ORDER without "turnover_equals_filing"
   × L3 (en), L3 (ro) → expected [ 'rerun_identical', …(3) ] to deeply equal [ 'rerun_identical', …(4) ]
 PLANT EP-C a fixture label in the JSON
   × L1 names no company and publishes no company's figure
-    → engineProof.json names a calibration book: expected [ 'Carniprod', 'carniprod' ] to deeply equal []
+    → engineProof.json names a calibration book: expected [ '<the label>', … ] to deeply equal []
 REVERT (clean tree): Tests 32 passed (32) — GATE-WORK landing-proof figures=539
 ```
 
@@ -18837,7 +18837,9 @@ PLANT PC9   hero.body EN: "22 ratios" -> "100+ ratios", image not regenerated
 PLANT PC10  ComprehensiveReport.tsx footer: "Numbers reconcile to the source trial balance within 0.5%." typed back
   × F5 → text typed into the report footer: "Numbers reconcile to the source trial balance within 0.5%."
 PLANT PC11  lib/reportFooter.ts: the difference printed as 0 whatever was served
-  × F2 → expected 'Assets − (Equity + Liabilities) = 0.0…' to contain '-12,253.38 RON'
+  × F2 → expected 'Assets − (Equity + Liabilities) = 0.0…' to contain '-1,234.56 RON'
+  × F3 a served verdict without its totals block still prints the served status and difference
+  (re-run after the footer law's figures were replaced with invented ones)
 PLANT PC12  JurisdictionSelect: `disabled={code !== current}` removed
   × C1b (en) → HU ("Hungary") can be chosen; × C1b (ro) → HU ("Ungaria") can be chosen
   × G5 the dropdown disables every other-country row it does not already carry
@@ -18939,3 +18941,8 @@ touch `src/engine` and `packs`; the digest in `engineProof.json` will not be
 the merged tree's, and `landing-proof` L2 and `engine-proof` EP5 will red
 until `python scripts/build_engine_proof.py` is run on the merged tree (≈40 s,
 needs the local calibration books) and the file committed.
+
+`engine-proof` on a checkout WITHOUT the local calibration books (measured
+in this worktree with the links removed): **7 passed in 25.33 s** — `SCOPE
+engine-proof committed_corpus_only — 2 check(s), 11 subject(s) re-measured`,
+with the notice naming the three checks compared by identity only.

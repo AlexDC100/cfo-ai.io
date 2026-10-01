@@ -231,6 +231,23 @@ def _pack():
     return get_pack("RO")
 
 
+#: The one book that exists only as an extraction (no source file): its
+#: label in the drift script, which is also its key in FILED_TURNOVER_RON.
+EXTRACTION_ONLY = "EEI"
+
+
+def _drift_loaders(D: Any) -> List[Tuple[str, Any]]:
+    """The drift script's roster, read off the script — its labels and its
+    `load_<label>` functions — so this file lists no book of its own."""
+    out = []
+    for short in D._PER_FIXTURE_THRESHOLD:
+        loader = getattr(D, "load_%s" % short.lower(), None)
+        if loader is None:
+            raise ProofError("measure_bs_drift has no loader for %r" % short)
+        out.append((short, loader))
+    return out
+
+
 # ── (a) the same file gives the same output ────────────────────────────
 
 
@@ -351,17 +368,12 @@ def check_balance(full: bool) -> Tuple[Optional[Dict[str, Any]], Dict[str, str]]
     # of total assets. Kept only so the worst case is stated.
     drift: Dict[str, float] = {}
     ro_coa = D._load_ro_coa()
-    loaders = (
-        ("EEI", D.load_eei), ("Scandia", D.load_scandia), ("Sibiu", D.load_sibiu),
-        ("Frozen", D.load_frozen), ("RealEstate", D.load_realestate),
-        ("Agras", D.load_agras), ("Carniprod", D.load_carniprod),
-        ("Retail", D.load_retail),
-    )
+    loaders = _drift_loaders(D)
     for short, loader in loaders:
         with _quiet():
             accts, name, sq = loader()
-            if short == "EEI":
-                fps["EEI"] = _accounts_fingerprint(accts)
+            if short == EXTRACTION_ONLY:
+                fps[short] = _accounts_fingerprint(accts)
                 accts = D._normalize_for_assembler(accts, ro_coa)
             pct = D.measure(name, accts, source_quality=sq)
         if pct is None:
@@ -473,7 +485,7 @@ def check_turnover(full: bool, served: List[Dict[str, Any]],
         key = "corpus_" + b["case"].replace("saga_10_col_", "")
         if key in FILED_TURNOVER_RON and b["turnover"] is not None:
             measured[key] = float(b["turnover"])
-    if "EEI" in FILED_TURNOVER_RON:
+    if EXTRACTION_ONLY in FILED_TURNOVER_RON:
         with _quiet():
             accts, _name, _sq = D.load_eei()
             ro_coa = D._load_ro_coa()
@@ -482,7 +494,7 @@ def check_turnover(full: bool, served: List[Dict[str, Any]],
                 company_name="proof", currency="RON", period_label="FY2025")
         tv = ((res.get("statements") or {}).get("assembled_pl") or {}).get("turnover")
         if tv is not None:
-            measured["EEI"] = float(tv)
+            measured[EXTRACTION_ONLY] = float(tv)
 
     missing = sorted(set(FILED_TURNOVER_RON) - set(measured))
     if missing:
@@ -524,19 +536,14 @@ def check_ebitda(full: bool) -> Optional[Dict[str, Any]]:
     import measure_bs_drift as D
 
     ro_coa = D._load_ro_coa()
-    loaders = (
-        ("EEI", D.load_eei), ("Scandia", D.load_scandia), ("Sibiu", D.load_sibiu),
-        ("Frozen", D.load_frozen), ("RealEstate", D.load_realestate),
-        ("Agras", D.load_agras), ("Carniprod", D.load_carniprod),
-        ("Retail", D.load_retail),
-    )
+    loaders = _drift_loaders(D)
     M.SERVED["n"] = 0
     M.SERVED["bridge"] = 0
     books = ok_count = 0
     for short, loader in loaders:
         with _quiet():
             accts, name, _sq = loader()
-            if short == "EEI":
+            if short == EXTRACTION_ONLY:
                 accts = D._normalize_for_assembler(accts, ro_coa)
             result = ro_coa.assemble_statements(
                 accts, company_name=name, currency="RON", period_label="FY2025",

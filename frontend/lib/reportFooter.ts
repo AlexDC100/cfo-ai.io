@@ -52,7 +52,7 @@ export interface ReportFooterLines {
   machineStatus: string;
 }
 
-/** "−12,253.38 RON" / "−12.253,38 RON": the figure in the reader's number
+/** "-1,234.56 RON" / "-1.234,56 RON": the figure in the reader's number
  *  format, the ISO code after it. */
 function amountWithCode(n: number, currency: string, language: string): string {
   const fmt = new Intl.NumberFormat(moneyLocaleFor(language), {
