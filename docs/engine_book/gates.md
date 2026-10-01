@@ -18816,8 +18816,8 @@ the tree), not asserted:
 Two review rounds of the release left seven findings open; the coordinator
 ruled on each (D1–D6). Every one was reproduced on the release tip eeafcadb
 before it was touched, every law was plant-proven (the plant applied, the law
-run red, the bytes restored and their sha256 checked — `r3fix/plants.py`, 24
-plants, 24 red), and the full battery was run, not a narrowed one.
+run red, the bytes restored and their sha256 checked — `r3fix/plants.py`, 26
+plants, 26 red), and the full battery was run, not a narrowed one.
 
 **upload-real-type — one upload policy, read by real type (D1).** The owner's
 expectation: "Carniprod canary as balanta.pdf is read; a balance PDF as .xls
@@ -18846,10 +18846,16 @@ is read; a Word file refused both ways."
   `parse_trial_balance` and `_xlsx_to_text` both raise on all three, and the
   person was told, in English under a "RuntimeError:" prefix, to "Save As →
   Excel Workbook" a CSV). The .pdf and spreadsheet names now share one rule.
-  Legacy code-page text (cp1250, or UTF-8 cut mid-character by the sniffer's
-  window) is sniffed as text, so the advice is "rename it to .csv". The
-  model-key precondition is checked after the type guard and after the PDF
-  re-entry.
+  Legacy code-page text is sniffed as text, so the advice is "rename it to
+  .csv" — NARROWLY: a UTF-8 file cut mid-character by the sniffer's window,
+  or bytes that decode in cp1250 with every character above ASCII a letter
+  or an ordinary typographic mark. (The first form of the rule called any
+  non-UTF-8 bytes without a control byte "text"; the complete battery found
+  a stored scan whose bytes are a bare PNG signature refused on the image
+  branch, and `reprocess_periods_definition` answering `extract_failed`
+  where the run needs the model. A PNG's first byte decodes to a per-mille
+  sign, a JPEG's to a diacritic mark — symbols, not letters.) The model-key
+  precondition is checked after the type guard and after the PDF re-entry.
 - (d) the upload card's routes (`_uploads.format_mismatch`, called by
   `/api/uploads/identify` and `/commit`) drop their own table (`_COMPATIBLE`)
   and return `_upload_type.upload_refusal` — `classify` → `sniff_container` →
@@ -18883,7 +18889,9 @@ is read; a Word file refused both ways."
   own table for one pair (3); the spreadsheet branch waving text / archives
   through (4); the picker offering .pptx (1 engine, 2 browser); the routes
   ignoring the language (1); legacy code-page text unnameable (3); the
-  pipeline classifying by its own rule (1); a PDF refused on the text
+  text rule wide again — any non-UTF-8 bytes "text" (2, the reprocess law
+  among them); the pipeline classifying by its own rule (1); a PDF refused
+  on the text
   branches (9); the empty-file answer in the route's own English (1); the
   card treating a type refusal as a retryable failure (3); identify not
   sending the language (1).
@@ -19002,3 +19010,72 @@ amounts) are prompt text handed to the model, not figures the reader sees;
 the verdict stays LACKS_SILENT and nothing is added to the burn-down. The
 gate was RED on the release tip (count drift) and passes at 818 sites with
 the 11 listed findings.
+
+**What the COMPLETE battery found beside the seven findings (D6).** The first
+complete run (139 gates, at d0b085d1) was 131 green. Each red, and what was
+done:
+
+- `pytest` — 3 failed. One was this round's own (the wide text rule, above —
+  fixed, with `reprocess-periods-definition`, the second red gate). Two were
+  `test_check_served_periods::test_it_drives_the_real_handler` ("asked
+  ['document_quota_ledger']") and `test_launch_anonymous_egress` (a
+  `test.supabase.co` call charged to GET /api/features/status), both green
+  alone: `server.create_app()` starts the quota ledger's maintenance daemon
+  once per process when the Supabase variables are set, tests set
+  placeholders, and the thread then ticks every 60 s through whatever HTTP
+  double the test running at that moment has installed. The 2026-10-01 run
+  recorded the same leak in `test_public_egress`; which test is hit depends
+  on timing. Not introduced by this release. FIXED: `tests/engine/conftest.py`
+  sets the engine's own switch (`ENGINE_QUOTA_LEDGER_MAINTENANCE=0`); the
+  daemon's logic stays tested through `maintenance_tick`. Law
+  (`test_suite_hermetic_daemons.py`, 3): the real `create_app()` under the
+  placeholders leaves no thread; a positive control starts and stops it with
+  the switch on. Plant (the switch removed) → 3 red.
+- `forecast-scenarios-active`, `floor-sku-portfolio` — built the real app
+  without `CFO_AI_SKIP_BOOT_VERIFY`, so they failed as their own gates on any
+  host without a .env (the low finding of round 2; green in the full suite
+  only because another test leaks the switch). FIXED: they set it themselves;
+  6 and 48 green on a clean worktree.
+- `tsc` — four NEW type errors, in this round's two new law files (typed
+  fields of `Statements.assembled_pl` cast straight to a JSON record). FIXED;
+  the 10 known `capsuleAskGuard` errors, 0 new.
+- `hermetic` — "NOT REPRODUCIBLE": `scenariosEngine.test.tsx` passed in one
+  environment, failed in the other and did not do it again on the gate's own
+  confirmation re-run — a flaky test this round did not touch. Green on the
+  second complete run.
+- `playwright` — REFUSED before running: `e2e/design/cmdbar.spec.ts` names
+  `http://x.invalid` (a base for `new URL()`), which the gate's static scan
+  refuses. RED ON PRODUCTION'S TREE 7641c755 TOO, with the identical message
+  (`node scripts/check_playwright.mjs` in a separate clone at that commit,
+  exit 1); the spec last changed on main (9dbd2b86). Not fixed here: past the
+  scan the gate needs the running stack this host does not have.
+- `public-sitemaps` — VACUOUS (not a failure, not evidence): no ingested
+  public data on this host. The same on production's tree here.
+
+### release r-rulings2 — review round 3: the measured runs at 6286f0be (2026-10-02)
+
+Measured on the release head after the fixes above (eight commits on
+eeafcadb), not asserted. `src/engine/api/_features.py` is byte-identical to
+production's (7641c755).
+
+- THE COMPLETE BATTERY (`python scripts/run_battery.py`, all 139 gates, the
+  owner's untracked `files/` books linked into the worktree for the run and
+  removed after, never committed): **137 green, 1 red, 1 vacuous**. Red:
+  `playwright` — red on production's tree too (above). Vacuous:
+  `public-sitemaps` (above). Every other gate green, among them: pytest
+  9,417 (the full engine suite, exit 0), corpus-replay 18, upload-real-type
+  173, route-binding 3, workspace-v2 29, reprocess-periods-definition 99,
+  forecast-scenarios-active 6, floor-sku-portfolio 48, provisions-symmetric
+  117, turnover-7411 65, credit-stock-build 164, credit-regime-surfaces 24,
+  pl-one-ebitda-page 100, one-ebitda 65, cmdbar-surface 216,
+  ui-language-figures 35, provenance-census 818 (the 11 listed burn-down
+  findings, none new), plan-gate-census 29, floor-census 77, stale-gates
+  938, no-plants 1,117, test-env-isolation 14, engine-book 6, hermetic 14,
+  tsc 1,030 files (10 known errors, 0 new), vitest 4,462 (the full frontend
+  suite), npm-build 3,647 modules.
+- `vite build` with `dist` removed first: OK.
+- root tests (`pytest tests --ignore=tests/engine`): 124 passed, 6 failed, 24
+  errors — the missing-fixture-file gaps of this host; the failing set is
+  IDENTICAL, test for test, on production's tree 7641c755 (30 = 30).
+- the upload-type pre-flight against this worktree: **11 checks PASS, exit
+  0**; its plants as recorded above.
