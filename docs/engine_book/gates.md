@@ -18480,9 +18480,9 @@ deployed:
 
 | | |
 |---|---|
-| command | `python -m pytest tests/engine/test_upload_real_type.py -q` |
+| command | `python -m pytest tests/engine/test_upload_real_type.py tests/engine/test_workspace_uploads.py -q` (the second file since review round 3, 2026-10-02: the upload card's routes at the HTTP seam) |
 | canary | junit test names: `test_a_docx_named_pdf_is_refused_before_the_paid_path`, `test_an_excel_balance_named_pdf_is_READ_not_refused`, `test_a_balance_pdf_named_xls_is_READ_not_refused`, `test_a_docx_named_xlsx_is_refused_before_the_paid_path`, `test_an_honestly_named_docx_is_refused_through_the_real_branch`, `test_the_guard_still_runs_when_the_first_download_fails`, `test_the_failure_handler_stores_the_sentence_without_a_class_name`, `test_a_legacy_word_doc_is_refused_under_every_name_before_any_reader`, `test_the_pdf_branch_refuses_what_none_of_its_readers_opens`, `test_a_workbook_the_positional_reader_declines_never_reaches_the_claude_pdf_lane`, `test_a_mimetype_entry_that_lies_about_its_size_is_not_inflated`, `test_the_real_branch_answers_in_the_language_the_run_carries` |
-| work count | junit tests, floor **88** (measured 27 at release r-rulings2, 88 after the 2026-10-01 review round) |
+| work count | junit tests, floor **173** (measured 27 at release r-rulings2, 88 after the 2026-10-01 review round, 173 after review round 3 — "upload-real-type — one upload policy, read by real type" at the end of this chapter) |
 
 **INCIDENT** — 2026-09-23: a prospect uploaded
 `balanta_de_verificare_07.2025.pdf`, a Word document renamed (PK zip header,
@@ -18635,7 +18635,13 @@ the spreadsheet fallback — deliberate, so no real .xls is ever refused; text
 and unnameable bytes on a text branch, and a real PDF on the PDF lane, still
 reach the model (a top-up of Anthropic credit stays a separate blocker); the
 public-records probe and the AI-lane jurisdiction gate on the .pdf branch run
-on the bytes the guard has already let through. The upload ROUTES — `/api/uploads/identify` and `/commit`
+on the bytes the guard has already let through.
+
+*(SUPERSEDED 2026-10-02 — the rest of this paragraph describes the state the
+round-3 review found and the coordinator ruled on: the routes now take the
+pipeline guard's own verdict, read both files and refuse a Word file under
+any name. See "upload-real-type — one upload policy, read by real type"
+below. Kept as the record of what was open.)* The upload ROUTES — `/api/uploads/identify` and `/commit`
 refuse a name/bytes mismatch before storage with their own check
 (`engine.api._uploads.format_mismatch`, gated in
 `test_workspace_uploads.py`), and they REFUSE the two cases this gate holds
@@ -18804,3 +18810,195 @@ the tree), not asserted:
   18, plan-gate-census 29, floor-census 77, pack-lint 4, ui-language-figures
   35, provenance-census 815 (the 11 listed burn-down findings, none new),
   engine-book 6, test-env-isolation 14, no-plants 1,116, stale-gates 930.
+
+### release r-rulings2 — review round 3: the seven open findings (2026-10-02)
+
+Two review rounds of the release left seven findings open; the coordinator
+ruled on each (D1–D6). Every one was reproduced on the release tip eeafcadb
+before it was touched, every law was plant-proven (the plant applied, the law
+run red, the bytes restored and their sha256 checked — `r3fix/plants.py`, 24
+plants, 24 red), and the full battery was run, not a narrowed one.
+
+**upload-real-type — one upload policy, read by real type (D1).** The owner's
+expectation: "Carniprod canary as balanta.pdf is read; a balance PDF as .xls
+is read; a Word file refused both ways."
+
+- THE HIGH FINDING, reproduced through the real `stage_extract` + `stage_map`
+  on synthetic books (PyMuPDF, an invented company): a five-pair balanta PDF
+  named .xls or .xlsx was served as `pdf_positional` with ONE account,
+  MATERIAL_IMBALANCE; the credit-first variant with its account-121 anchor
+  sign-flipped; the off-by-a-cent variant partially. Named .pdf the first is
+  read whole (`saga_10_col`, BALANCED) and the other two are refused for good
+  (`BalantaPdfRefusedError`). The spreadsheet fast-path sent `%PDF` bytes to
+  the positional ingester and accepted on "any rows"; the strict text-line
+  reader ran on the .pdf branch only. Production (7641c755) behaves the same.
+- (a) PDF bytes are read as a PDF on EVERY branch: `stage_extract` re-enters
+  its own .pdf branch with the bytes (`_stage_extract_by_real_type`), so the
+  read is the same statements a .pdf name runs — byte-identical extraction or
+  the identical refusal, by construction (`_upload_type.reads_as_pdf`). A
+  displaced `%PDF-` header counts on the .pdf and spreadsheet branches; on the
+  text and image branches only when the file also ends `%%EOF` (a CSV that
+  mentions "%PDF-" stays a CSV).
+- (b) a workbook named .pdf reads as the workbook (unchanged), now held equal
+  to the same bytes named .xlsx on two corpus books.
+- (c) the spreadsheet branch refuses by name what none of its readers opens:
+  text, unnameable bytes and a zip with no Open XML manifest (measured:
+  `parse_trial_balance` and `_xlsx_to_text` both raise on all three, and the
+  person was told, in English under a "RuntimeError:" prefix, to "Save As →
+  Excel Workbook" a CSV). The .pdf and spreadsheet names now share one rule.
+  Legacy code-page text (cp1250, or UTF-8 cut mid-character by the sniffer's
+  window) is sniffed as text, so the advice is "rename it to .csv". The
+  model-key precondition is checked after the type guard and after the PDF
+  re-entry.
+- (d) the upload card's routes (`_uploads.format_mismatch`, called by
+  `/api/uploads/identify` and `/commit`) drop their own table (`_COMPATIBLE`)
+  and return `_upload_type.upload_refusal` — `classify` → `sniff_container` →
+  `refused_on` → `mismatch_message`, the composition the pipeline's guards are
+  made of. `/identify` takes `output_language`; an empty file answers in the
+  guard's sentence. The browser's own table (`lib/fileKind`, which refused the
+  two files before the engine saw them) is removed: the card sends every
+  accepted file to the engine and prints its sentence verbatim, final.
+- (e) `frontend/lib/uploadAccept.ts` no longer offers .ppt / .pptx (the
+  dashboard's budget-deck interception of a dropped .pptx is unchanged; its
+  target page is hidden).
+- LAWS (`tests/engine/test_upload_real_type.py`, 105;
+  `tests/engine/test_workspace_uploads.py`, 68, added to the gate): five
+  strict-layout books (five-pair, credit-first, off-by-a-cent, four-pair,
+  eight-figure) under ten other names equal to the .pdf-named outcome —
+  canonical JSON of the payload, or exception class and sentence; the three
+  books of the finding stated outright under .xls and .xlsx (an equality of
+  two wrong reads would pass the first law); workbook-as-.pdf equal to .xlsx;
+  the routes' verdict equal to the pipeline GUARD's over a matrix of 18 real
+  byte bodies × 11 names (198 pairs), with the sentence, EN and RO, driven
+  through the real `stage_extract` stopped at its first reader; the owner's
+  three files at both layers; the classifier is one function; the picker
+  against the engine's refusal set; the HTTP seam (status, body, language,
+  nothing ran before the refusal). Two laws that pinned the old behaviour
+  ("a PDF named .csv is told to rename it", "text and unnameable bytes keep
+  today's behaviour" — the second asserted model-client construction as law)
+  are replaced, each saying so (TC-11). The route tests' stand-in for "a
+  workbook" was four magic bytes and a phrase — a cut-off archive no reader
+  opens; it is a genuine minimal Open XML container now.
+- PLANTS (red count): no re-entry — the finding restored (13); the routes'
+  own table for one pair (3); the spreadsheet branch waving text / archives
+  through (4); the picker offering .pptx (1 engine, 2 browser); the routes
+  ignoring the language (1); legacy code-page text unnameable (3); the
+  pipeline classifying by its own rule (1); a PDF refused on the text
+  branches (9); the empty-file answer in the route's own English (1); the
+  card treating a type refusal as a retryable failure (3); identify not
+  sending the language (1).
+- Measured 88 → 173, floor 88 → 173, nine canaries added.
+- CANNOT SEE: a workbook on the .pdf branch still takes the .pdf branch's
+  acceptance gate (anchor or ≥ 50 accounts) and skips the statutory F30 / C1
+  steps of the spreadsheet branch — a small or statutory workbook named .pdf
+  is refused there with "rename it to .xlsx", which is correct advice, not a
+  wrong read; a workbook under a text name is refused with the same advice
+  rather than read. A .heic sent through the upload CARD is not converted in
+  the browser (the dashboard path converts it to JPEG) and reaches the text
+  lane as unnameable bytes — pre-existing, not a type the guard refuses by
+  name, flagged to the owner. Zip payload folders are still matched as
+  substrings and a password-protected workbook is still named an .xls (the
+  two remaining low wording findings of round 2).
+
+**The upload-type PRE-FLIGHT (D5)** — `specs-durable/upload_type_preflight.py`
+— now judges every case at BOTH layers and carries the finding's own books:
+(a) the canary workbook as balanta.pdf and (b) a balance PDF as balanta.xls
+must be read by the pipeline AND by the upload card's routes ((b)
+byte-identical to the .pdf-named extraction); (c) / (d) a Word document, and
+(e) / (f) a LEGACY Word .doc — an OLE2 compound file with a `WordDocument`
+stream built in memory, proven to be sniffed `doc_ole2` before the case is
+trusted, because the image carries no tests/ fixture — named .pdf and under
+its own name, must be refused before any reader or model call, by the routes
+too, in the same sentence; (g) a five-pair balanta PDF built in memory
+(PyMuPDF, an invented company) named balanta.xls must be read WHOLE by the
+strict reader, byte-identical to its .pdf-named read, and (h) its
+credit-first variant must be REFUSED in the strict reader's sentence, as
+under .pdf. (g) / (h) were added because case (b) cannot see the HIGH
+finding: its positional corpus PDF reads the same either way (measured — the
+no-re-entry plant left a nine-check pre-flight green). Still write-nothing,
+no network, no model, exit non-zero on any failure. Run locally against the
+worktree: **11 checks PASS, exit 0**. Its plants, each on a scratch copy of
+the tree, never the worktree: against the pre-fix tip eeafcadb → 8 FAIL, exit
+1 (the routes refuse (a) and (b), answer (c) / (e) in another sentence and
+let (d) / (f) through; (g) is served as `pdf_positional` with one account and
+(h) with its anchor negative); the legacy .doc label dropped from the
+no-reader set → 3 FAIL; the routes refusing a workbook named .pdf → (a)
+FAIL; no re-entry → (g) and (h) FAIL; a model client constructed → 9 FAIL
+(every case and the "no model client constructed" line); a host resolved →
+the "no network" line FAILS alone; a file written under the repo → the
+"nothing written" line FAILS alone.
+
+**pl-one-ebitda-page — net provisions, one convention per row, everywhere
+(D2).**
+
+- /report §2's table printed the EFFECT under the engine's CHARGE label —
+  agras "… (6812 + 6814 − 7812 − 7814) −131,395", a label that evaluates to
+  +131,394.66. It prints the engine's name with the effect's arithmetic
+  through `netProvisionsEffectLabel`, the one composition the printed report
+  and the workbook use.
+- The reconciliation panel's chain row (Valuation tab, /report §1) printed
+  the engine's full label AND the effect chip — two opposite arithmetics on
+  one row. For net provisions it prints the served block's name without
+  accounts beside the chip.
+- THE LAW reads the row's FULL TEXT (`frontend/test/netProvisionsArithmetic
+  .ts`): any account arithmetic in it evaluates, over the served by-account
+  amounts, to the figure the row prints, and the printed sign is the
+  figure's. Held on: the P&L tab's row, its compare cells (prior over the
+  prior's accounts, Δ their difference) and the line under EBITDA; the
+  panel's chain row (exactly one arithmetic) and bridge; /report §1 and §2
+  with the page mounted whole and the panel not mocked; the printed report
+  (the HTML document) and the workbook (the P&L sheet) read back from the
+  documents the builders produce. Three firm books (two a net charge, one a
+  net release), EN and RO; realestate posts none and prints no row. The
+  earlier law read one named chip (`[data-recon-accounts]`) and stayed green
+  on both defects.
+- The low ones: the P&L tab's served chips print in the reader's language
+  ("68x fără 6812, 6814" / "68x excl. 6812, 6814" — `PLLine.accountCodeRo`,
+  picked by the view); the compare cells' Δ%, share and points take the UI
+  language through `moneyLocaleFor` (decimal comma, "p.p."), same digits.
+- New files in the gate: `netProvisionsEverySurface.test.tsx` (19),
+  `pages/cfo/__tests__/comprehensiveReportNetProvisions.test.tsx` (7);
+  `netProvisionsRowSign.test.tsx` 9 → 11.
+- PLANTS (red count): /report §2 back on the charge label (6); the panel row
+  on the engine's full label (6); the shared effect label returning the
+  charge label (6); the P&L row printing its effect under the charge
+  arithmetic (4); the chips English whatever the language (3); the printers
+  ignoring the language (2); the cells not passing it (1).
+- Measured 72 → 100, floor 72 → 100, five canaries added.
+- CANNOT SEE: the section HEADERS of the P&L tab ("OPERATING EXPENSES (excl.
+  D&A)") are the builder's own English words in both languages — not a served
+  chip, pre-existing, outside this ruling; whether the served figures are
+  right (provisions-symmetric).
+
+**one-ebitda — Budget Variance reads the served chain; the Learn add-back is
+named (D2 low, D3).**
+
+- `buildActualLines` computed the Actual column's EBIT as EBITDA less the
+  income statement's whole 68x bucket, which still holds the 6812 / 6814
+  charges, against a served EBITDA that no longer holds the 7812 / 7814
+  reversals: short by exactly the reversals since R2 (agras 3,988.70; the
+  Scandia baseline 8,415,275.41). The page is hidden (`_features.py`:
+  variance) — wrong all the same, and it feeds the "last year from a period"
+  column. On a period the engine assembled nothing is subtracted in the
+  browser: EBIT is `assembled_pl.ebit`, D&A `assembled_pl.depreciation`, and
+  a net-provisions row (charge-signed, printed only where a column carries
+  it) sits between them, so the three rows foot. A payload the engine did not
+  assemble keeps its one-bucket arithmetic.
+- The CFO and FCF Learn popovers printed the all-68x add-back under "D&A";
+  one token (`addBackToken`) names it for the provision charges it holds, EN
+  and RO, by `addBackHoldsProvisionCharges`.
+- Laws: `comparison/__tests__/varianceServedChain.test.ts` (8, four firm
+  books: the three figures are the served ones, the rows foot, the witnesses
+  show the old subtraction short by the served reversals on three books, a
+  refused EBITDA refuses EBIT); `learnAddBackToken.test.ts` (4).
+- PLANTS (red count): EBIT as EBITDA less all of 68x (3); the D&A row from
+  the 68x bucket (3); no net-provisions row (4); the token always "D&A" (3).
+- Measured 53 → 65, floor 50 → 65, three canaries added.
+
+**provenance-census (D4).** `design_review/PROVENANCE_CENSUS.json`: Chat.tsx
+5 → 8 sites — the three formatter calls 78e962fe added to
+`buildWorkspaceSnapshot` (the credit composite, two stock-build regime
+amounts) are prompt text handed to the model, not figures the reader sees;
+the verdict stays LACKS_SILENT and nothing is added to the burn-down. The
+gate was RED on the release tip (count drift) and passes at 818 sites with
+the 11 listed findings.

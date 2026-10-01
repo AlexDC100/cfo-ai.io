@@ -1443,10 +1443,16 @@ def test_the_classifier_is_the_one_the_pipeline_runs():
     classify by the same rule the pipeline does."""
     from engine.api import pipeline as P
 
-    for name, mime in _NAMES + [("Balanta.PDF", ""), ("balanta.xlsm", "application/vnd.ms-excel.sheet.macroEnabled.12"),
-                                ("raport.csv", "application/vnd.ms-excel"), ("scan.jpeg", ""), ("note.txt", "")]:
+    by_mime_alone = [("upload", "application/pdf"), ("upload", _XLSX_MIME), ("upload", "text/csv"),
+                     ("upload", "image/png"), ("upload", "image/jpeg"), ("upload", "text/plain")]
+    for name, mime in _NAMES + by_mime_alone + [
+            ("Balanta.PDF", ""), ("balanta.xlsm", "application/vnd.ms-excel.sheet.macroEnabled.12"),
+            ("raport.csv", "application/vnd.ms-excel"), ("scan.jpeg", ""), ("note.txt", "")]:
         doc = {"original_filename": name, "mime_type": mime}
         assert P._classify_file(doc) == ut.classify(name, mime), (name, mime)
+    # The MIME type alone picks a branch when the name says nothing.
+    assert [ut.classify(n, m) for n, m in by_mime_alone] == [
+        "pdf", "xlsx", "csv", "image_png", "image_jpeg", "text"]
     assert ut.classify("balanta.xls", "application/vnd.ms-excel") == "xlsx"
     assert ut.classify("raport.csv", "application/vnd.ms-excel") == "csv"
     assert ut.classify(None, None) == "unknown"

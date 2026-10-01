@@ -322,13 +322,38 @@ def _engine_gates() -> List[Gate]:
         # a non-PDF the positional reader declined never reaches the Claude
         # PDF lane; the ODF `mimetype` read is bounded on what is read; the
         # sentence is in the uploader's language. Measured 88 tests.
+        # ONE UPLOAD POLICY, READ BY REAL TYPE (coordinator ruling
+        # 2026-10-02, review round 3): PDF bytes are read by the .pdf
+        # branch's own readers under EVERY name — the strict text-line
+        # reader first, its refusal final — so a five-pair balanta named
+        # .xls is no longer served with one account or its net profit
+        # sign-flipped (the HIGH finding: three books under ten names,
+        # byte-identical to the .pdf-named read or the identical refusal);
+        # a workbook named .pdf reads as the same bytes named .xlsx; the
+        # spreadsheet branch refuses by name the text / unnameable / archive
+        # bytes none of its readers opens; the upload card's routes
+        # (/api/uploads/identify, /commit) take the pipeline guard's own
+        # verdict and sentence (`_upload_type.upload_refusal`) over a
+        # 198-pair matrix, EN and RO, and at the HTTP seam
+        # (test_workspace_uploads.py, now in this gate); the picker offers
+        # no type the engine refuses by name. Measured 173 tests.
         # Plant log: gates.md "upload-real-type".
         Gate("upload-real-type",
-             [PY, "-m", "pytest", "tests/engine/test_upload_real_type.py", "-q"],
-             work_junit=True, floor=88, units="tests",
+             [PY, "-m", "pytest", "tests/engine/test_upload_real_type.py",
+              "tests/engine/test_workspace_uploads.py", "-q"],
+             work_junit=True, floor=173, units="tests",
              canaries=("test_a_docx_named_pdf_is_refused_before_the_paid_path",
                        "test_an_excel_balance_named_pdf_is_READ_not_refused",
                        "test_a_balance_pdf_named_xls_is_READ_not_refused",
+                       "test_pdf_bytes_are_read_by_the_pdf_readers_under_every_name",
+                       "test_the_five_pair_books_of_the_high_finding_under_a_spreadsheet_name",
+                       "test_a_workbook_named_pdf_reads_as_the_same_bytes_named_xlsx",
+                       "test_the_spreadsheet_branch_refuses_by_name_what_none_of_its_readers_opens",
+                       "test_one_upload_policy_the_routes_verdict_is_the_pipeline_guards",
+                       "test_the_owners_three_files_at_the_routes_and_in_the_pipeline",
+                       "test_the_upload_picker_offers_no_type_the_engine_refuses_by_name",
+                       "test_the_two_files_the_pipeline_reads_are_read_by_the_card",
+                       "test_the_refusal_is_in_the_language_the_card_is_read_in",
                        "test_a_docx_named_xlsx_is_refused_before_the_paid_path",
                        "test_an_honestly_named_docx_is_refused_through_the_real_branch",
                        "test_the_guard_still_runs_when_the_first_download_fails",
@@ -1374,11 +1399,24 @@ def _engine_gates() -> List[Gate]:
         # (report + workbook) state the EFFECT's arithmetic beside the effect
         # they print — the label evaluates to the figure. Measured 68 -> 72,
         # floor 66 -> 72.
+        # Review round 3 (coordinator ruling D2, 2026-10-02): ONE CONVENTION
+        # PER ROW, EVERYWHERE — on every surface that prints the row (the
+        # P&L tab and its compare cells, the Valuation tab's panel, /report
+        # §1 and §2, the printed report and the workbook read back from the
+        # documents) ANY account arithmetic in the row's FULL TEXT evaluates
+        # to the figure it prints (frontend/test/netProvisionsArithmetic.ts;
+        # the earlier law read one named chip and missed /report §2's charge
+        # label over the effect and the panel row stating both
+        # arithmetics); the P&L tab's served chips ("fără" / "excl.") and
+        # the compare cells' percent, share and points print in the
+        # reader's language. Measured 72 -> 100, floor 72 -> 100.
         Gate("pl-one-ebitda-page",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/lib/__tests__/plOneEbitda.test.tsx",
-              "frontend/lib/__tests__/netProvisionsRowSign.test.tsx", "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=72,
+              "frontend/lib/__tests__/netProvisionsRowSign.test.tsx",
+              "frontend/lib/__tests__/netProvisionsEverySurface.test.tsx",
+              "frontend/pages/cfo/__tests__/comprehensiveReportNetProvisions.test.tsx", "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=100,
              units="P&L-tab tests (served subtotals, the 711 row, refusals RO/EN, 72x, the 121 remainder, the reconciliation line, the panel, retired copy, the net-provisions row's sign on the row, the line, the panel and the printed P&L)",
              canaries=("covers eleven books, three of them refused",
                        "unanchored: every refused figure states the engine's reason, RO and EN",
@@ -1387,7 +1425,12 @@ def _engine_gates() -> List[Gate]:
                        "the served pair (current a net charge, prior a net release): the row prints current, prior and Δ charge-signed, as D&A prints its own",
                        "the served pair (current a net charge, prior a net release): the reconciliation line above the row prints net provisions on the row's convention, EN and RO",
                        "the served pair (current a net charge): the panel's bridge after EBITDA prints the P&L tab's figure, and its chain row's arithmetic is its figure, EN and RO",
-                       "the served pair (current a net charge): the printed P&L (report + workbook) — the row's arithmetic is its figure, the bridge after EBITDA the P&L tab's charge")),
+                       "the served pair (current a net charge): the printed P&L (report + workbook) — the row's arithmetic is its figure, the bridge after EBITDA the P&L tab's charge",
+                       "agras (en): the Valuation tab's panel — the chain row states ONE arithmetic, its figure's",
+                       "carniprod: the printed report and the workbook — the row read back from each document",
+                       "agras (ro): §2's row and §1's chain row each print the figure their own text states",
+                       "agras: \"fără\" for a Romanian reader, \"excl.\" for an English one — D&A and other operating income",
+                       "the rendered rows: the net-provisions row's share cell and D&A's Δ% cell, RO and EN")),
         # ── owner ruling 2026-09-26, design A8 (stage F2): the three surface
         # gates. Every other frontend surface — deriveTotals, computeRatios,
         # canonicalMetrics, the dashboard headline / canon / configurable
@@ -1413,12 +1456,21 @@ def _engine_gates() -> List[Gate]:
         # from the comparison's prior; no D&A-only explainer over the widened
         # row; the second step of the add-back order; /report's printed
         # figure; the alert trace hint. Measured 40 -> 53, floor 36 -> 50.
+        # Review round 3 (coordinator rulings D2 / D3, 2026-10-02): Budget
+        # Variance's Actual column READS the served EBITDA -> EBIT chain (it
+        # computed EBIT as EBITDA less all of 68x, short by the 7812 / 7814
+        # reversals since R2 — a hidden page, wrong all the same), with D&A
+        # from assembled_pl and a net-provisions row; the CFO and FCF Learn
+        # popovers name the all-68x add-back for the provision charges it
+        # holds. Measured 53 -> 65, floor 50 -> 65.
         Gate("one-ebitda",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/lib/__tests__/oneEbitdaSurfaces.test.tsx",
               "frontend/lib/__tests__/provisionsAddBack.test.tsx",
-              "frontend/pages/cfo/__tests__/comprehensiveReportAddBack.test.tsx", "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=50,
+              "frontend/pages/cfo/__tests__/comprehensiveReportAddBack.test.tsx",
+              "frontend/lib/comparison/__tests__/varianceServedChain.test.ts",
+              "frontend/lib/__tests__/learnAddBackToken.test.ts", "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=65,
              units="surface tests (every browser surface prints the served EBITDA on eight served books; the R2 add-back)",
              canaries=("covers eight served books, and on six of them the build-up before 711 / 72x differs from EBITDA",
                        "agras: the printed report, the workbook and the charts",
@@ -1431,7 +1483,10 @@ def _engine_gates() -> List[Gate]:
                        "a book posting no charges compared with one that does: the widened name, from the prior column",
                        "retail: Simple mode's glossary tooltip and the D&A learn popover only over plain D&A",
                        "carniprod: the tile from the engine's fcf_breakdown and from the client fallback, EN and RO",
-                       "the depreciation fact's hint: the pack's D&A name, none of the ruled provision accounts")),
+                       "the depreciation fact's hint: the pack's D&A name, none of the ruled provision accounts",
+                       "the witnesses: three books post reversals, so EBITDA − all of 68x is NOT the served operating result",
+                       "agras: EBIT, D&A and net provisions are the served figures, and the rows foot",
+                       "realestate posts none: the token stays plain D&A, and is the P&L's D&A")),
         # ── design A8 (stage G1): exportRatioFormulas' DISCRIMINATING scope
         # was made vacuous by the 121 bridge — on the four firm books the
         # build-up + the served 711 IS account 121, so a net-income ratio
