@@ -2498,8 +2498,12 @@ def _frontend_gates() -> List[Gate]:
         # accuracy copy, on a typed accuracy claim anywhere in the landing
         # strings / page meta / manifest, and on a proof measured on a
         # different engine tree (stale proof: the digest of src/engine + packs
-        # is recomputed here). Whether the JSON's counts are TRUE is
-        # `engine-proof`. Plant log: docs/engine_book/gates.md "landing-proof".
+        # is recomputed here). L8 (2026-10-02, the merge with the public
+        # sample): mounts the real /sample page too and reds when its list of
+        # checks is not the proof block's — same checks, same order, same
+        # words — or when the block's link names a fragment that page does
+        # not carry. Whether the JSON's counts are TRUE is `engine-proof`.
+        # Plant log: docs/engine_book/gates.md "landing-proof".
         Gate("landing-proof",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/lib/__tests__/landingProof.test.tsx",
@@ -2515,6 +2519,7 @@ def _frontend_gates() -> List[Gate]:
                        "L5 the accuracy block carries tokens, never a digit",
                        "L5 no accuracy claim is typed anywhere in the landing copy, the page meta or the manifest",
                        "L7 the listing counts are the JSON's, on the card and in the FAQ",
+                       "L8 the public sample lists the same checks in the same words, and the proof block's link lands on them",
                        "prints no calibration count that is not a pair the engine proof measured")),
         # PUBLIC-CLAIMS — no coverage claim stronger than the tests (owner,
         # 2026-10-01: "any European country" on the headline card, a row of
@@ -2524,7 +2529,8 @@ def _frontend_gates() -> List[Gate]:
         # the signed-in pricing table, the in-app coverage table, the upload
         # dialog's country dropdown and the non-Romanian refusal in both
         # languages, and reads the page title / meta / manifest / runtime meta
-        # / share-image record / upload dictionaries / plan bullets, and reds
+        # / share-image record / upload dictionaries / plan bullets / the
+        # public sample page's copy (/sample), and reds
         # on: a country or region claimed beyond Romania; an accounting-
         # software name not in a tested row backed by a real file; an input
         # format outside the tested rows that is not marked AI-read or

@@ -20,12 +20,13 @@
 // answer it with a directory listing refusal instead of the app.
 
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { setLanguage } from "@/i18n";
 import { Logo } from "@/components/cfo/Logo";
 import { LegalFooter } from "@/components/cfo/LegalFooter";
+import { proofRows, type ProofCheckId } from "@/lib/engineProof";
 import { printDaysQ } from "@/lib/inventoryDays";
 import { moneyLocaleFor } from "@/lib/money";
 import {
@@ -133,6 +134,15 @@ export default function PublicSample() {
   const data = SAMPLE;
   const other: SampleLang = lang === "ro" ? "en" : "ro";
   const [allAccounts, setAllAccounts] = useState(false);
+  const { hash } = useLocation();
+
+  // The landing's proof block links to /sample#checks: the router does not
+  // scroll to a fragment by itself.
+  useEffect(() => {
+    if (!hash) return;
+    const target = document.getElementById(hash.slice(1));
+    if (target && typeof target.scrollIntoView === "function") target.scrollIntoView();
+  }, [hash]);
 
   useEffect(() => {
     const prevTitle = document.title;
@@ -163,6 +173,36 @@ export default function PublicSample() {
   const servedFile = (key: "served_current" | "served_prior" | "served_comparatives") =>
     cards.find((c) => c.key === key)!.file.name;
   const origin = (file: string, pointer: string) => `${file} · ${pointer}`;
+
+  // THE LANDING'S PROOF LIST, ON THIS BOOK. What each check is comes from
+  // engineProof.json through lib/engineProof — the sentence the landing's
+  // proof block prints, in the same order — and what it reads on the
+  // fictional book comes from the served verdicts above. Nothing is decided
+  // here: the gate `public-sample` (S4) holds the book to these checks.
+  const ebitdaVariant = (key: string): number =>
+    v.ebitda.variants.find((variant) => variant.key === key)!.engine;
+  const checkReading: Record<ProofCheckId, string> = {
+    rerun_identical: S.checks.rerun_identical,
+    balance_sheet_closes: fill(S.checks.balance_sheet_closes, {
+      status: (lang === "ro" ? v.balance.display_ro : v.balance.display_en) ?? v.balance.status,
+      assets: money(v.balance.assets),
+      liabilities: money(v.balance.equity_plus_liabilities),
+      difference: money(v.balance.served_difference),
+    }),
+    net_income_equals_121: fill(S.checks.net_income_equals_121, {
+      served: money(v.anchor.net_income_statutory),
+      account121: money(v.anchor.account_121),
+    }),
+    turnover_equals_filing: fill(S.checks.turnover_equals_filing, {
+      turnover: money(figure(current, "net_turnover")),
+    }),
+    ebitda_variants_agree: fill(S.checks.ebitda_variants_agree, {
+      reported: money(ebitdaVariant("reported")),
+      strict: money(ebitdaVariant("strict")),
+      cash: money(ebitdaVariant("cash")),
+      difference: money(v.ebitda.max_difference),
+    }),
+  };
 
   const labelTitle = (label: SampleLabel): string => {
     if (S.labelTitles[label.key]) return S.labelTitles[label.key];
@@ -355,6 +395,34 @@ export default function PublicSample() {
             </table>
           </div>
         </Section>
+
+        {/* ── the landing's proof list, on this book ───────────────── */}
+        <div id="checks" className="scroll-mt-6">
+          <Section id="checks" title={S.checksTitle} lede={S.checksLede}>
+            <ol className="overflow-hidden rounded-lg border border-rule">
+              {proofRows(lang).map((row, i) => (
+                <li
+                  key={row.id}
+                  data-testid={`sample-check-${row.id}`}
+                  data-proof-check={row.id}
+                  className={`px-4 py-3 ${i > 0 ? "border-t border-rule-soft" : ""}`}
+                >
+                  <p data-proof-what className="text-[13.5px] font-medium leading-relaxed text-ink">
+                    {row.what}
+                  </p>
+                  <p data-check-reading className="mt-1 text-[13px] leading-relaxed text-ink-soft">
+                    {checkReading[row.id]}
+                  </p>
+                </li>
+              ))}
+            </ol>
+            <p className="mt-3 text-[12.5px]">
+              <Link to="/" className="text-ink-soft underline underline-offset-2 hover:text-ink">
+                {S.checksProofLink}
+              </Link>
+            </p>
+          </Section>
+        </div>
 
         {/* ── the verdicts ─────────────────────────────────────────── */}
         <Section id="verdicts" title={S.verdictsTitle} lede={S.verdictsLede}>

@@ -18674,8 +18674,8 @@ is not an independent recomputation, and the page's wording says so.
 | | |
 |---|---|
 | command | `npx vitest run --root . frontend/lib/__tests__/landingProof.test.tsx frontend/lib/__tests__/shippedClaimsMatchCode.test.ts --reporter=verbose` |
-| canary | test names `L1 carries five dated checks, each saying what is checked, in both languages`, `L1 names no company and publishes no company's figure`, `L2 the tree digest, parser version and EBITDA definition are the working tree's`, `L3 the proof block prints the JSON: headline, what is checked, date, caption figures`, `L4 the FAQ's proof answer prints only numbers the JSON holds`, `L5 the accuracy block carries tokens, never a digit`, `L5 no accuracy claim is typed anywhere in the landing copy, the page meta or the manifest`, `L7 the listing counts are the JSON's, on the card and in the FAQ`, `prints no calibration count that is not a pair the engine proof measured` |
-| work count | `GATE-WORK landing-proof figures=N`, floor **400** (measured 539: every figure compared plus every copy line scanned) |
+| canary | test names `L1 carries five dated checks, each saying what is checked, in both languages`, `L1 names no company and publishes no company's figure`, `L2 the tree digest, parser version and EBITDA definition are the working tree's`, `L3 the proof block prints the JSON: headline, what is checked, date, caption figures`, `L4 the FAQ's proof answer prints only numbers the JSON holds`, `L5 the accuracy block carries tokens, never a digit`, `L5 no accuracy claim is typed anywhere in the landing copy, the page meta or the manifest`, `L7 the listing counts are the JSON's, on the card and in the FAQ`, `L8 the public sample lists the same checks in the same words, and the proof block's link lands on them`, `prints no calibration count that is not a pair the engine proof measured` |
+| work count | `GATE-WORK landing-proof figures=N`, floor **400** (measured 539 before the public sample was merged, 559 with L8: every figure compared plus every copy line scanned) |
 
 **INCIDENT** — the same as `engine-proof`: "eight" in the sentence, "9 / 9"
 in the block beside it, both typed.
@@ -18731,7 +18731,37 @@ PLANT EP-C a fixture label in the JSON
 REVERT (clean tree): Tests 32 passed (32) — GATE-WORK landing-proof figures=539
 ```
 
-**AFTER THE REPAIR this reds on (TC-11):** any digit typed into
+**L8 — THE SAMPLE PAGE AND THE PROOF BLOCK SAY ONE THING (added at the merge
+with `fix/landing-sample`, 2026-10-02).** The proof block ends with "See these
+checks on the sample report". Before the merge the two pages were written
+apart: the sample named its verdicts in its own words ("Net profit and account
+121", the cash variant as "numerar" where the proof list says "cash"), and
+nothing on it was the list the link promised. The sample page now carries
+that list (`#checks`): the five checks in `PROOF_CHECK_ORDER`, each sentence
+read from `engineProof.json` through `lib/engineProof.proofRows` — the same
+call the landing makes — followed by what the check reads on the fictional
+book, from the served verdicts in `publicSample.json`. The page still decides
+nothing: whether the book HOLDS each check is `public-sample` S4. The
+turnover check says in words that it does not apply (a fictional company
+files nothing) and what the gate holds the turnover to instead. L8 mounts
+both pages in both languages and compares the lists as rendered; the block's
+link must be `/sample#<fragment>` and the fragment must be an element of the
+sample page that contains the list.
+
+```
+PLANT LP8a PublicSample.tsx: the EBITDA check's sentence with "cash" -> "numerar"
+  × L8 (en), L8 (ro) → the sample page's checks are not the proof block's, word for word
+  Tests  2 failed | 14 passed (16)
+PLANT LP8b PublicSample.tsx: proofRows(lang).slice(1) (a check dropped)
+  × L8 (en), L8 (ro) → expected [ {…}, {…}, {…}, …(1) ] to deeply equal [ …(5) ]
+PLANT LP8c Landing.tsx: the proof block's link href="/sample#proof"
+  × L8 (en), L8 (ro) → /sample has no #proof: expected null not to be null
+REVERT (clean diff): Tests 16 passed (16) — GATE-WORK landing-proof figures=559
+```
+
+**AFTER THE REPAIR this reds on (TC-11):** the sample page wording a check
+its own way, dropping or reordering one, or the proof block's link naming a
+fragment the sample page does not carry (L8); any digit typed into
 `defensible.*`; "all eight within 1%", "9 / 9", "four of eight", "re-run on
 every deploy" or any typed accuracy claim in the landing copy, the page meta
 or the manifest; a caption or FAQ number that is not in the JSON; the
@@ -18851,6 +18881,24 @@ PLANT PC15  FAQ: "Romania and Hungary today: …"
   × C1 (en); × G4 the landing copy names no country but Romania as readable
 REVERT (clean tree): Tests 34 passed (34) — GATE-WORK public-claims units=2708 · GATE-WORK report-footer laws=5
 (a sixth footer law — a served verdict without its totals block — was added after the plants; the gate now prints laws=6)
+```
+
+**THE PUBLIC SAMPLE PAGE IS A HARVESTED SURFACE (added at the merge with
+`fix/landing-sample`, 2026-10-02).** `/sample` did not exist when the gate was
+written, so its copy was read by nothing. Its string table
+(`pages/cfo/sampleStrings.ts`, both languages, title and meta description
+included) is now harvested as `sample[<lang>]` and held to C1–C3, with a floor
+entry so a harvest that stops reading it reds. It CANNOT see the files
+published under `public/sample/` (the served JSON carries the engine's
+internal layout id for the four-pair layout, which is an identifier, not a
+claim; the report HTML is the product's own export) — those are held by
+`public-sample` and `public-sample-page`.
+
+```
+PLANT PC16  sampleStrings[en].downloadsLede: "Open the trial balance from any European country, …"
+  × C1 (en) → a coverage claim beyond Romania that is not negated
+  Tests  1 failed | 24 passed (25)
+REVERT (clean diff): Tests 25 passed (25) — GATE-WORK public-claims units=3102
 ```
 
 **THE THREE LINTS THAT ENCODED THE OVERCLAIM, AND WHAT EACH FAILS ON NOW

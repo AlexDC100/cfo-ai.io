@@ -49,6 +49,26 @@ export interface SampleStrings {
   ratiosLede: string;
   ratio: string;
 
+  /** THE LANDING'S PROOF LIST, ON THIS BOOK. What each check IS is not
+   *  written here: the page prints `what_en` / `what_ro` of
+   *  frontend/data/engineProof.json — the same sentence the landing's proof
+   *  block prints — so the two pages cannot word one check two ways. These
+   *  strings only say what the check reads on the fictional book. */
+  checksTitle: string;
+  checksLede: string;
+  checksProofLink: string;
+  checks: {
+    rerun_identical: string;
+    /** {status} {assets} {liabilities} {difference} */
+    balance_sheet_closes: string;
+    /** {served} {account121} */
+    net_income_equals_121: string;
+    /** {turnover} */
+    turnover_equals_filing: string;
+    /** {reported} {strict} {cash} {difference} */
+    ebitda_variants_agree: string;
+  };
+
   verdictsTitle: string;
   verdictsLede: string;
   verdict: {
@@ -217,6 +237,23 @@ const EN: SampleStrings = {
   ratiosTitle: "Ratios and credit",
   ratiosLede: "Printed at the engine's own precision, with the band it graded each one into.",
   ratio: "Ratio",
+
+  checksTitle: "The home page's checks, on this book",
+  checksLede:
+    "The same checks, in the same words, as the proof block on the home page. There they are counted over real trial balances; here is what each one reads on the fictional book.",
+  checksProofLink: "Back to the proof block on the home page",
+  checks: {
+    rerun_identical:
+      "On this book: the release gate (public-sample) rebuilds every file on this page from the two trial balances and compares each one byte for byte; two rebuilds in a row are identical.",
+    balance_sheet_closes:
+      "On this book: {status}. Assets {assets}, equity plus liabilities {liabilities}, difference {difference}.",
+    net_income_equals_121:
+      "On this book: net income served {served}; account 121 closes at {account121}.",
+    turnover_equals_filing:
+      "Does not apply to this book: a fictional company files nothing with the Ministry of Finance. In its place, the release gate holds the served net turnover, {turnover}, to the ledger the generator wrote.",
+    ebitda_variants_agree:
+      "On this book: reported {reported}, strict {strict}, cash {cash}. Largest difference between the methodology and the code: {difference}.",
+  },
 
   verdictsTitle: "The engine's verdicts on this book",
   verdictsLede: "Copied from the served document. None of these is decided by this page.",
@@ -470,6 +507,23 @@ const RO: SampleStrings = {
   ratiosLede: "La precizia motorului, fiecare cu banda în care a fost încadrat.",
   ratio: "Indicator",
 
+  checksTitle: "Verificările de pe pagina principală, pe această balanță",
+  checksLede:
+    "Aceleași verificări, cu aceleași cuvinte, ca în blocul de probă de pe pagina principală. Acolo sunt numărate pe balanțe reale; aici vezi ce arată fiecare pe balanța fictivă.",
+  checksProofLink: "Înapoi la blocul de probă de pe pagina principală",
+  checks: {
+    rerun_identical:
+      "Pe această balanță: verificarea de lansare (public-sample) reconstruiește fiecare fișier de pe pagină din cele două balanțe și îl compară octet cu octet; două reconstrucții la rând sunt identice.",
+    balance_sheet_closes:
+      "Pe această balanță: {status}. Active {assets}, capitaluri proprii plus datorii {liabilities}, diferență {difference}.",
+    net_income_equals_121:
+      "Pe această balanță: rezultat net afișat {served}; contul 121 se închide la {account121}.",
+    turnover_equals_filing:
+      "Nu se aplică acestei balanțe: o firmă fictivă nu depune nimic la Ministerul Finanțelor. În locul ei, verificarea de lansare ține cifra de afaceri netă afișată, {turnover}, egală cu registrul scris de generator.",
+    ebitda_variants_agree:
+      "Pe această balanță: raportat {reported}, strict {strict}, cash {cash}. Cea mai mare diferență dintre metodologie și cod: {difference}.",
+  },
+
   verdictsTitle: "Verdictele motorului pentru această balanță",
   verdictsLede: "Copiate din documentul servit. Pagina aceasta nu decide niciunul.",
   verdict: {
@@ -488,7 +542,8 @@ const RO: SampleStrings = {
     ebitdaBody: "{value}, cu variația stocurilor inclusă.",
     ebitdaVariants:
       "Trei variante denumite sunt calculate fiecare de două ori, de stratul de metodologie și de codul motorului. Cea mai mare diferență dintre cele două, aici: {difference}.",
-    ebitdaVariantNames: { reported: "raportat", strict: "strict", cash: "numerar" },
+    // "cash", as the proof list (engineProof.json what_ro) names the variant
+    ebitdaVariantNames: { reported: "raportat", strict: "strict", cash: "cash" },
     creditTitle: "Credit",
     creditBody: "{letter}, scor compus {composite} din 100. Altman Z″ {z}: {zone}.",
     zones: { safe: "zona sigură", grey: "zona gri", distress: "zona de dificultate" },

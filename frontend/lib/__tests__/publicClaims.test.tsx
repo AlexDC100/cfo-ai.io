@@ -18,7 +18,7 @@
 //   its description / Open Graph / Twitter tags, the web manifest, the
 //   runtime meta the language hook writes, the share image's text record
 //   and alt, the in-app upload copy, the plan bullets, the non-Romanian
-//   refusal dialog — and holds:
+//   refusal dialog, the public sample page's copy (/sample) — and holds:
 //
 //   C1  no country or region is claimed as covered other than Romania;
 //   C2  no accounting-software name that is not in a TESTED row backed by a
@@ -85,6 +85,7 @@ import {
 } from "@/lib/pricingConfig";
 import { friendlyDocumentError, parseUploadRefusal } from "@/lib/uploadRefusals";
 import { landingStringsFor } from "@/pages/cfo/landingStrings";
+import { SAMPLE_STRINGS } from "@/pages/cfo/sampleStrings";
 import { renderLanding, setLanguage, textOf, type SurfaceLang } from "@/test/publicSurfaces";
 
 const navigateSpy = vi.fn();
@@ -213,6 +214,8 @@ async function harvest(lang: SurfaceLang): Promise<Line[]> {
       out.push({ where: `planFeatures.${key}[${lang}]`, text: bulletText(b, lang) });
     }
   }
+  // 5b. the public sample page (/sample): its own copy, title and meta
+  flat(SAMPLE_STRINGS[lang], "", `sample[${lang}]`, out);
   // 6. meta the hook writes, the refusal default, the coverage data itself
   out.push({ where: `META_DESCRIPTION.${lang}`, text: META_DESCRIPTION[lang] });
   if (lang === "en") {
@@ -332,7 +335,7 @@ describe.each(LANGS)("public-claims · every surface (%s)", (lang) => {
     const lines = await harvest(lang);
     // Floors — a harvest that stops reading a surface must not pass.
     expect(lines.length, "harvest collapsed").toBeGreaterThan(400);
-    for (const prefix of ["landing[", "pricing-table[", "coverage-table[", "non-ro-dialog[", `${lang}.json pricing`, "planFeatures.multi", "META_DESCRIPTION"]) {
+    for (const prefix of ["landing[", "pricing-table[", "coverage-table[", "non-ro-dialog[", `${lang}.json pricing`, "planFeatures.multi", "sample[", "META_DESCRIPTION"]) {
       expect(lines.some((l) => l.where.startsWith(prefix)), `nothing harvested from ${prefix}`).toBe(true);
     }
     if (lang === "en") {

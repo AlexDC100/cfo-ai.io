@@ -584,7 +584,7 @@ const proofStrip = (L: LandingStrings, langCode: string) => `
           </div>`).join("")}
         </div>
         <p style="margin:14px 0 0;font-family:var(--mono);font-size:11px;letter-spacing:.02em;line-height:1.6;color:var(--ink-mute);border-top:1px solid var(--rule-soft);padding-top:12px">${L.defensible.proof.note}</p>
-        <a href="/sample" data-act="sample" data-sample-link="proof" style="margin-top:12px;display:inline-flex;align-items:center;gap:6px;font-size:13px">${L.sample.proofCta} →</a>
+        <a href="/sample#checks" data-act="sample" data-sample-link="proof" style="margin-top:12px;display:inline-flex;align-items:center;gap:6px;font-size:13px">${L.sample.proofCta} →</a>
       </div>`;
 
 // ── Coverage table — beside the upload step ──────────────────────────────
@@ -1212,8 +1212,15 @@ export default function Landing() {
     if (act === "billing:monthly") { e.preventDefault(); setBillingCycle("monthly"); return; }
     if (act === "billing:yearly") { e.preventDefault(); setBillingCycle("yearly"); return; }
     // The public sample (a fictional company's trial balance and its full
-    // report) — a real route, reached without a full page load.
-    if (act === "sample") { e.preventDefault(); navigate("/sample"); return; }
+    // report) — a real route, reached without a full page load. The link in
+    // the proof block carries the fragment of the sample's own list of these
+    // checks (/sample#checks); the others open the page at its top.
+    if (act === "sample") {
+      e.preventDefault();
+      const href = el.getAttribute("href") ?? "";
+      navigate(href.startsWith("/sample") ? href : "/sample");
+      return;
+    }
     if (act === "signup:solo") { e.preventDefault(); navigate("/signup?plan=solo"); return; }
     if (act === "signup:business") { e.preventDefault(); navigate("/signup?plan=business"); return; }
     if (act.startsWith("scroll:")) { e.preventDefault(); scrollTo(act.slice(7)); return; }

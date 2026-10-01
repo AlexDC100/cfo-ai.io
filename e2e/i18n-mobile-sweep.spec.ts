@@ -7,7 +7,7 @@
 //
 // Two run modes (the app's public/authed split):
 //   SWEEP_MODE=public (default) — dev server with test mode OFF; walks
-//     the logged-out pages: / , /pricing , /login , /signup , /404.
+//     the logged-out pages: / , /pricing , /sample , /login , /signup , /404.
 //   SWEEP_MODE=authed — dev server with VITE_PUBLIC_TEST_MODE=1 (and the
 //     engine running with PUBLIC_TEST_MODE=1); walks the authed app.
 //
@@ -29,6 +29,9 @@ const LANGS = ["en", "ro"] as const;
 const PUBLIC_PAGES: Record<string, string> = {
   landing: "/",
   pricing: "/pricing",
+  // the public sample (2026-10-01): a fictional company's trial balance and
+  // the report generated from it — public, no sign-in, both languages
+  sample: "/sample",
   login: "/login",
   signup: "/signup",
   notfound: "/definitely-not-a-page-404",

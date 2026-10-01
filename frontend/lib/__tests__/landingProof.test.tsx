@@ -28,7 +28,10 @@
 //       in the landing copy, the page meta or the manifest;
 //   L6  every token resolves, in both languages, and none reaches a reader;
 //   L7  the listing counts on the public-company card and in the FAQ are
-//       the JSON's.
+//       the JSON's;
+//   L8  the public sample (/sample) lists THE SAME checks, in the same
+//       order and the same words, as the proof block, and the block's
+//       link lands on that list (the fragment exists on the sample page).
 //
 // WHAT IT REDS ON, AFTER THE REPAIR (TC-11)
 //   · a digit typed into `defensible.*` or into an accuracy sentence
@@ -38,7 +41,10 @@
 //   · the JSON edited by hand without re-measuring, or the engine changed
 //     without re-measuring (digest mismatch) — L2;
 //   · a check dropped from the page or from the JSON — L1, L3;
-//   · "re-run on every deploy" or any cadence the proof does not carry — L5.
+//   · "re-run on every deploy" or any cadence the proof does not carry — L5;
+//   · the sample page wording a check its own way, dropping or reordering
+//     one, or the proof block's link pointing at a fragment the sample page
+//     does not carry — L8.
 //
 // WHAT IT CANNOT SEE (TC-11)
 //   · whether the JSON's counts are TRUE. That is `engine-proof`
@@ -52,12 +58,14 @@ import { createHash } from "node:crypto";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 
-import { cleanup } from "@testing-library/react";
+import { cleanup, render } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { afterAll, afterEach, describe, expect, it, vi } from "vitest";
 
 import proof from "@/data/engineProof.json";
 import { ENGINE_PROOF, fillProofDeep, hasProofToken, proofDate } from "@/lib/engineProof";
 import { LANDING_STRINGS, landingStringsFor } from "@/pages/cfo/landingStrings";
+import PublicSample from "@/pages/cfo/PublicSample";
 import { META_DESCRIPTION } from "@/hooks/useHtmlLangSync";
 import { foreignNumber } from "@/test/numberLanguage";
 import { numbersIn, renderLanding, setLanguage, textOf, type SurfaceLang } from "@/test/publicSurfaces";
@@ -257,8 +265,50 @@ describe.each(LANGS)("landing-proof · the rendered landing (%s)", (lang) => {
       expect(/\blei\b/i.test(caption), `${c.id}: "lei"`).toBe(false);
     }
     expect(textOf(strip)).not.toMatch(/every deploy|fiecare instalare|latest battery|ultima baterie/i);
-    // the block links to the public sample
-    expect(strip?.querySelector('a[href="/sample"]'), "no link to /sample in the proof block").not.toBeNull();
+    // the block links to the public sample's list of these checks (L8
+    // holds the fragment to the sample page)
+    expect(strip?.querySelector('a[href^="/sample"][data-sample-link="proof"]'),
+      "no link to /sample in the proof block").not.toBeNull();
+  });
+
+  it("L8 the public sample lists the same checks in the same words, and the proof block's link lands on them", async () => {
+    const root = await renderLanding(lang);
+    const strip = root.querySelector("#proof-strip") as Element;
+    const onLanding = [...strip.querySelectorAll("[data-proof-check]")].map((row) => ({
+      id: row.getAttribute("data-proof-check"),
+      what: textOf(row.querySelector("[data-proof-what]")),
+    }));
+    const href = strip.querySelector('a[data-sample-link="proof"]')?.getAttribute("href") ?? "";
+    cleanup();
+
+    const sample = render(
+      <MemoryRouter initialEntries={[href]}>
+        <PublicSample />
+      </MemoryRouter>,
+    );
+    const list = sample.getByTestId("sample-checks");
+    const onSample = [...list.querySelectorAll("[data-proof-check]")].map((row) => ({
+      id: row.getAttribute("data-proof-check"),
+      what: textOf(row.querySelector("[data-proof-what]")),
+    }));
+    expect(onLanding.length, "the proof block lists no check").toBe(CHECK_IDS.length);
+    expect(onSample, `${lang}: the sample page's checks are not the proof block's, word for word`).toEqual(onLanding);
+    // each check says what it reads on the fictional book, in this language
+    for (const row of list.querySelectorAll("[data-proof-check]")) {
+      const reading = textOf(row.querySelector("[data-check-reading]"));
+      expect(reading.length, `${row.getAttribute("data-proof-check")}: no reading on the sample`).toBeGreaterThan(40);
+      expect(reading, "an unfilled placeholder").not.toMatch(/\{\w+\}/);
+      expect(foreignNumber(reading, lang), `${lang}: other language's number format`).toBeNull();
+      expect(/\blei\b/i.test(reading), `"lei"`).toBe(false);
+      figuresChecked += 1;
+    }
+    // the link's fragment is an element of the sample page
+    const [path, fragment] = href.split("#");
+    expect(path).toBe("/sample");
+    expect(fragment, "the proof block's link names no fragment of the sample page").toBeTruthy();
+    expect(sample.container.querySelector(`#${fragment}`), `/sample has no #${fragment}`).not.toBeNull();
+    expect(sample.container.querySelector(`#${fragment}`)?.contains(list)).toBe(true);
+    figuresChecked += onSample.length;
   });
 
   it("L4 the FAQ's proof answer prints only numbers the JSON holds", async () => {
