@@ -49,6 +49,7 @@ from ..storage import PostgresAdapter, create_engine_from_url
 from ._benchmarks import build_router as create_benchmarks_router
 from ._billing import build_router as create_billing_router
 from ._capsule_tools import build_router as create_capsule_router
+from ._custom_solutions import build_router as create_custom_solutions_router
 from ._dashboard import build_router as create_dashboard_router
 from ._features import build_router as create_features_router
 from ._forecast_routes import build_router as create_forecast_router
@@ -811,6 +812,9 @@ def create_app(
     # drain. All app-originated mail goes through Resend (see _email.py).
     # Auth emails (reset/confirm) are delivered by Supabase via Resend SMTP.
     app.include_router(create_newsletter_router())
+    # Custom solutions (AutoMasters, …) — the operator links accounts to a
+    # bespoke solution; verified-id allowlist, fails closed when empty.
+    app.include_router(create_custom_solutions_router())
     # ─── PUBLIC MARKETS — MOUNTED ONLY WHEN EXPLICITLY ENABLED ───
     #
     # NASDAQ-6 — public-company routes (/api/public/search,

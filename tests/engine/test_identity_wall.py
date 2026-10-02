@@ -197,6 +197,8 @@ DECLARED = {
     ("POST", "/api/workspaces/cron/purge-expired"): "operator: ENGINE_API_TOKEN, fails closed (test_cron_auth)",
     ("POST", "/api/newsletter/broadcast"): "operator: PRICING_ADMIN_USER_IDS on the VERIFIED user id",
     ("POST", "/api/newsletter/drain-renewals"): "operator: PRICING_ADMIN_USER_IDS on the VERIFIED user id",
+    ("POST", "/api/admin/custom-solutions/{key}/grants"): "operator: PLATFORM_ADMIN_USER_IDS / PRICING_ADMIN_USER_IDS on the VERIFIED user id",
+    ("DELETE", "/api/admin/custom-solutions/{key}/grants/{user_id}"): "operator: PLATFORM_ADMIN_USER_IDS / PRICING_ADMIN_USER_IDS on the VERIFIED user id",
     ("POST", "/api/public/intelligence/refresh-filings-cache"): "operator: walled, fails closed (public wave)",
     ("POST", "/api/public/intelligence/signals/manual"): "operator: walled, fails closed (public wave)",
     ("POST", "/api/public/ro/companies/{cui}/teardown"): "operator: _require_operator token (public_ro)",
