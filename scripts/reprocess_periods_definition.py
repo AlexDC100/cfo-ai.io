@@ -255,15 +255,26 @@ def _fresh_view(assembled: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[st
 
 
 def _stored_valuation(valuation_row: Optional[Dict[str, Any]],
-                      user_row: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+                      user_rows: Optional[List[Dict[str, Any]]]) -> Dict[str, Any]:
     """The stored `valuations` row as the rewrite judges it: its
-    `ebitda_used` and primary method, and the user's saved EBITDA override
-    (the user's figure — a row persisted on it is the user's, not stale)."""
+    `ebitda_used` and primary method, and the saved EBITDA override it was
+    persisted on (a user's figure — a row persisted on it is that user's,
+    not stale).
+
+    `user_valuation_assumptions` holds one row PER USER per period, so
+    EVERY member's row is considered — never "the first row of the period"
+    (tenancy hotfix 2026-10-02): the override reported is the one the stored
+    row equals, else the first saved one. Since that hotfix the PUT route
+    persists the ENGINE'S figures, so a row on a user's override can only be
+    one written before it."""
     row = valuation_row or {}
+    stored = _num(row.get("ebitda_used"))
+    saved = [e for e in (_num((r or {}).get("ebitda_used")) for r in (user_rows or [])) if e is not None]
+    on = next((e for e in saved if stored is not None and abs(stored - e) < 0.005), None)
     return {"has_row": bool(valuation_row),
-            "ebitda_used": _num(row.get("ebitda_used")),
+            "ebitda_used": stored,
             "primary_method": row.get("primary_method"),
-            "user_ebitda": _num((user_row or {}).get("ebitda_used"))}
+            "user_ebitda": on if on is not None else (saved[0] if saved else None)}
 
 
 def _valuation_current(stored: Dict[str, Any], fresh_ebitda: Optional[float]) -> bool:
@@ -323,8 +334,7 @@ def reprocess_period(period: Dict[str, Any], *, apply: bool, force: bool = False
                                   filters={"period_id": "eq.%s" % period["id"]}) or []
     org = org_rows[0] if org_rows else {"id": period.get("org_id")}
     row["before"] = _stored_view(period, metric_rows)
-    row["valuation"] = _stored_valuation(valuation_rows[0] if valuation_rows else None,
-                                         user_rows[0] if user_rows else None)
+    row["valuation"] = _stored_valuation(valuation_rows[0] if valuation_rows else None, user_rows)
     if doc is None or doc.get("deleted_at"):
         row.update(status=REFUSED, reason="document_missing")
         return row

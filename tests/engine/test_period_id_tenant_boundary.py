@@ -180,3 +180,142 @@ def test_the_delete_sweep_is_not_vacuous():
         and n.args[0].value == "financial_periods"
     )
     assert found >= 1, "no financial_periods delete found — the sweep guards nothing"
+
+
+# ── Tenancy hotfix 2026-10-02: two more service-role reads keyed by a ─────
+# browser-written column, found by sweeping for the valuation-override class.
+#
+# 1. `_period_move._live_siblings` read `documents` by `period_id` alone. A
+#    row of ANOTHER workspace pointing at this period came back as a sibling,
+#    was picked as the rebuild document (analysed, newest) and the victim's
+#    period was wiped and re-pointed at it on the victim's own move.
+# 2. POST /api/sales-datasets/{id}/rerun read `documents` by the dataset
+#    row's `document_id` alone and signed the object against the foreign
+#    document's OWN org — another workspace's workbook was downloaded and its
+#    per-category DIO written into the caller's SKU rows.
+#
+# REDS ON, with the defects repaired (TC-11): either read losing `org_id`; a
+# foreign row surviving when the store ignores the filter; a signed URL
+# minted for a document outside the dataset's org.
+# CANNOT SEE: the live row-level policies of `documents` / `sales_datasets`;
+# the `_correction_rerun` branch that starts a run on an unreadable row.
+
+class _DocStore:
+    """A service-role stand-in over `documents` that HONOURS `eq.` /
+    `is.null` filters (or, with `honour=False`, ignores them — the store
+    must not be the only wall) and records every select."""
+
+    def __init__(self, rows, honour=True):
+        self.rows, self.honour, self.selects = rows, honour, []
+
+    def select(self, table, *, filters=None, **_):
+        self.selects.append((table, dict(filters or {})))
+        if not self.honour:
+            return [dict(r) for r in self.rows]
+        out = []
+        for r in self.rows:
+            ok = True
+            for k, v in (filters or {}).items():
+                v = str(v)
+                if v.startswith("eq.") and str(r.get(k)) != v[3:]:
+                    ok = False
+                if v == "is.null" and r.get(k) is not None:
+                    ok = False
+            if ok:
+                out.append(dict(r))
+        return out
+
+
+PERIOD = "period-of-mine"
+_PLANTED = {"id": "doc-planted", "org_id": THEIRS, "period_id": PERIOD, "deleted_at": None,
+            "status": "analyzed", "updated_at": "2099-01-01T00:00:00Z"}
+_GENUINE = {"id": "doc-sibling", "org_id": MINE, "period_id": PERIOD, "deleted_at": None,
+            "status": "analyzed", "updated_at": "2025-01-01T00:00:00Z"}
+_MOVED = {"id": "doc-moved", "org_id": MINE, "period_id": PERIOD, "deleted_at": None,
+          "status": "analyzed", "updated_at": "2025-02-01T00:00:00Z"}
+_FROM = {"id": PERIOD, "org_id": MINE}
+
+
+@pytest.mark.parametrize("honour", [True, False])
+def test_another_workspaces_document_is_never_a_sibling_of_my_period(honour):
+    store = _DocStore([_PLANTED, _GENUINE, _MOVED], honour=honour)
+    siblings = _period_move._live_siblings(store, _FROM, "doc-moved")
+    assert [s["id"] for s in siblings] == ["doc-sibling"], siblings
+    table, filters = store.selects[-1]
+    assert table == "documents" and filters.get("org_id") == "eq.%s" % MINE, filters
+    assert filters.get("period_id") == "eq.%s" % PERIOD
+
+
+def test_a_planted_foreign_document_leaves_a_lone_period_with_no_sibling():
+    """Without a genuine sibling the plan must be the honest one (no
+    sibling → the period is deleted), not a rebuild from the plant."""
+    store = _DocStore([_PLANTED, _MOVED])
+    assert _period_move._live_siblings(store, _FROM, "doc-moved") == []
+    assert _period_move.pick_rebuild_document([]) is None
+
+
+def _sales_world(monkeypatch, document_org):
+    """The real router; a dataset of MINE whose `document_id` names a
+    document of `document_org`. Records admin selects and signed URLs."""
+    import contextlib
+
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from engine.api import pipeline as P
+
+    tables = {
+        "sales_datasets": [{"id": "ds-1", "org_id": MINE, "document_id": "doc-wb"}],
+        "documents": [{"id": "doc-wb", "org_id": document_org,
+                       "storage_path": "%s/workbook.xlsx" % document_org, "deleted_at": None}],
+        "sku_aggregates": [{"id": "agg-1", "dataset_id": "ds-1", "product_name": "SKU 1", "category": "CAT",
+                            "niv_krn": 100.0, "gm_krn": 30.0, "days_inventory_on_hand": None}],
+    }
+    seen = {"selects": [], "signed": [], "updates": []}
+
+    class _Admin:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return None
+
+        def select(self, table, *, filters=None, **_):
+            seen["selects"].append((table, dict(filters or {})))
+            return _DocStore(tables.get(table, [])).select(table, filters=filters)
+
+        def signed_url(self, bucket, path, *, org_id, expires_in=300):
+            seen["signed"].append({"path": path, "org_id": org_id})
+            return "https://storage.invalid/%s" % path
+
+        def update(self, table, patch, *, filters=None):
+            seen["updates"].append((table, dict(patch)))
+
+    monkeypatch.setattr(P._supabase, "admin", lambda *a, **k: _Admin())
+    monkeypatch.setattr(P._supabase, "per_user", lambda *a, **k: _Admin())
+    monkeypatch.setattr(P._org, "verified_user_id", lambda jwt: "user-mine")
+    monkeypatch.setattr(P._org, "require_org_member", lambda jwt, org_id: "user-mine")
+
+    def _no_network(url, **_):
+        raise RuntimeError("the test fetches nothing")
+    monkeypatch.setattr(P.httpx, "get", _no_network)
+    app = FastAPI()
+    app.include_router(P.build_router())
+    resp = TestClient(app).post("/api/sales-datasets/ds-1/rerun", headers={"Authorization": "Bearer t"})
+    return resp, seen
+
+
+def test_a_dataset_pointing_at_another_workspaces_document_signs_nothing(monkeypatch):
+    resp, seen = _sales_world(monkeypatch, THEIRS)
+    assert resp.status_code == 200, resp.text[:300]
+    assert seen["signed"] == [], "a signed URL was minted for another workspace's file: %s" % seen["signed"]
+    doc_reads = [f for t, f in seen["selects"] if t == "documents"]
+    assert doc_reads and all(f.get("org_id") == "eq.%s" % MINE for f in doc_reads), doc_reads
+    assert not any("days_inventory_on_hand" in patch for _t, patch in seen["updates"])
+
+
+def test_a_dataset_in_its_own_workspace_still_signs_its_own_workbook(monkeypatch):
+    """The positive control: the fix must not stop the legitimate re-extract."""
+    resp, seen = _sales_world(monkeypatch, MINE)
+    assert resp.status_code == 200, resp.text[:300]
+    assert seen["signed"] == [{"path": "%s/workbook.xlsx" % MINE, "org_id": MINE}], seen["signed"]
