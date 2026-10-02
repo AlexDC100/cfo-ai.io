@@ -68,6 +68,29 @@ describe("POST /api/uploads/identify", () => {
     expect(() => normalizeIdentify({ identity: {} })).toThrow(UploadApiError);
   });
 
+  // One upload policy (2026-10-02): the engine refuses a file no reader
+  // opens in a sentence the card prints verbatim, so identify is told the
+  // language the card is read in, and the refusal travels with the engine's
+  // own code — the card tells it from a failed request by that.
+  it("sends `output_language`, and a type refusal carries the engine's code and sentence", async () => {
+    const sentence =
+      "This file 'a.pdf' is named .pdf but its contents are a Word document (.docx), so no reader can open it as .pdf. To fix it: …";
+    fetchMock.mockResolvedValue(json(422, { detail: { code: "format_mismatch", kind: "docx", message: sentence } }));
+    const err = await identifyUpload(new File(["x"], "a.pdf"), null).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(UploadApiError);
+    expect((err as UploadApiError).message).toBe(sentence);
+    expect((err as UploadApiError).code).toBe("format_mismatch");
+    expect((err as UploadApiError).httpStatus).toBe(422);
+    const [, init] = fetchMock.mock.calls[0]!;
+    expect((init.body as FormData).get("output_language")).toMatch(/^(en|ro)$/);
+  });
+
+  it("an error without a code carries none", async () => {
+    fetchMock.mockResolvedValue(json(500, { detail: "boom" }));
+    const err = await identifyUpload(new File(["x"], "a.pdf"), null).catch((e: unknown) => e);
+    expect((err as UploadApiError).code).toBeNull();
+  });
+
   // A new account's first balance: its empty, CUI-less workspace becomes the
   // company (live walkthrough, 2026-09-26) — the reason travels as the engine
   // said it, never folded into "new company".

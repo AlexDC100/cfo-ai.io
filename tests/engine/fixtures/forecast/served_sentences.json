@@ -629,6 +629,13 @@
   "text": "moving tax rate changes no figure in this plan"
  },
  {
+  "code": "net_provisions",
+  "kinds": [
+   "unserved"
+  ],
+  "text": "net provisions and impairment adjustments (charges less reversals, outside EBITDA) are not projected: they are nil in every plan year, so plan pre-tax result and net profit leave out the actual year's net charge or release"
+ },
+ {
   "code": "convention_rejected",
   "kinds": [
    "driver.ladder"

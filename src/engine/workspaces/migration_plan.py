@@ -1689,7 +1689,8 @@ def facts_from_documents(tables: Mapping[str, List[Mapping[str, Any]]],
         did, org = str(d["id"]), str(d["org_id"])
         content, exists, err = fetch(d)
         sha = hashlib.sha256(content).hexdigest() if content else None
-        ident = identify_document(content or b"", d.get("original_filename") or "", registry=registry)
+        ident = identify_document(content or b"", d.get("original_filename") or "", registry=registry,
+                                  mime=d.get("mime_type"))
         rule = match_known_identity(rules, user_id=owner.get(org) or d.get("uploaded_by"),
                                     content_sha256=sha or d.get("content_hash"),
                                     filename=d.get("original_filename"))

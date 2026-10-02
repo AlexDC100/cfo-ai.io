@@ -336,6 +336,43 @@ export function readNetProvisions(assembledPl: unknown): ServedNetProvisions | n
   };
 }
 
+/** The net-provisions accounts written as the arithmetic of the figure's
+ *  EFFECT on the result — reversals less charges, "7812 + 7814 − 6812 −
+ *  6814" — from the prefixes the engine served.
+ *
+ *  The engine's own `accounts` ("6812 + 6814 − 7812 − 7814") is the CHARGE
+ *  arithmetic: it belongs beside the charge figure (the P&L row, the bridge
+ *  after EBITDA). A surface that prints net provisions as its effect — a
+ *  chain that sums to the operating result, every cost in it negative —
+ *  printed that charge arithmetic over the opposite figure (review
+ *  2026-10-01: agras "6812 + 6814 − 7812 − 7814 … −131,394.66", which the
+ *  label itself evaluates to +131,394.66). Under this string the label's
+ *  arithmetic IS the printed figure. Codes only — no figure is built here.
+ *  Null when the engine served no prefixes. */
+export function netProvisionsEffectAccounts(np: ServedNetProvisions): string | null {
+  const minus = "−";
+  const parts: string[] = [];
+  np.reversalPrefixes.forEach((p, i) => parts.push(i === 0 ? p : `+ ${p}`));
+  np.chargePrefixes.forEach((p) => parts.push(parts.length === 0 ? `${minus}${p}` : `${minus} ${p}`));
+  return parts.length > 0 ? parts.join(" ") : null;
+}
+
+/** THE ROW'S LABEL WHERE IT PRINTS ITS EFFECT — the engine's name and, in
+ *  brackets, the effect's arithmetic: "Net provisions and impairment
+ *  adjustments (7812 + 7814 − 6812 − 6814)". ONE composition for every
+ *  surface that prints net provisions effect-signed in a column that sums to
+ *  the operating result (the printed report and the workbook through
+ *  `printedPl`, /report §2's table): the engine's own `label` carries the
+ *  CHARGE arithmetic and must never stand beside the effect (review
+ *  2026-10-02: /report §2 printed agras "… (6812 + 6814 − 7812 − 7814)
+ *  −131,395", a label that evaluates to +131,394.66). Without served
+ *  prefixes the name stands alone — never the charge arithmetic. */
+export function netProvisionsEffectLabel(np: ServedNetProvisions, lang: "ro" | "en"): string {
+  const effect = netProvisionsEffectAccounts(np);
+  const name = lang === "ro" ? np.name.ro : np.name.en;
+  return effect ? `${name} (${effect})` : name;
+}
+
 export function readServedOneEbitda(assembledPl: unknown): ServedOneEbitda | null {
   if (!isRec(assembledPl)) return null;
   const apl = assembledPl;

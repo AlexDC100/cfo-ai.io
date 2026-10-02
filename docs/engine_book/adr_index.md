@@ -8,3 +8,5 @@
 |---|---|
 | [`ADR-ai-spend-breaker.md`](../decisions/ADR-ai-spend-breaker.md) | ADR — AI decision engine: model registry, per-role spend breaker, advisory pass (D3) |
 | [`ADR-corpus-history-sibiu.md`](../decisions/ADR-corpus-history-sibiu.md) | ADR — Non-anonymized Sibiu trial-balance PDF in git history |
+| [`DESIGN-2026-10-01-dcf-engine.md`](../decisions/DESIGN-2026-10-01-dcf-engine.md) | Design 2026-10-01 — Phase 2.3: the client-side valuation moves into the engine (`dcf/1`) |
+| [`TICKET-2026-10-01-nav-cascade-engine.md`](../decisions/TICKET-2026-10-01-nav-cascade-engine.md) | Ticket 2026-10-01 — the CRE NAV cascade moves into the engine |

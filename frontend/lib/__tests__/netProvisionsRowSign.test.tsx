@@ -37,10 +37,19 @@
 // the current cell; a prior or Δ cell off the engine's column; the
 // reconciliation line's net-provisions part printing another sign or
 // another figure than the row.
+// The Valuation tab's reconciliation panel (/report Section 1 too) and the
+// printed report / workbook (printedPl) are held by the second describe
+// block below (review 2026-10-01).
+// D2 (coordinator ruling 2026-10-02): on the row and its COMPARE CELLS, any
+// account arithmetic in the row's full text evaluates to the printed figure
+// — the current cell over the current period's served accounts, the prior
+// cell over the prior's, Δ their difference (frontend/test/
+// netProvisionsArithmetic.ts; every other surface is held on the firm books
+// by netProvisionsEverySurface.test.tsx and, for /report, pages/cfo/
+// __tests__/comprehensiveReportNetProvisions.test.tsx). And the row's share
+// and Δ% cells print in the reader's language — the third describe block.
 // CANNOT SEE: whether the served figures are right (provisions-symmetric);
-// the printed report / workbook and the Valuation tab's reconciliation panel
-// (effect-signed on every line, the chain's D&A included — printedPl,
-// EbitdaReconciliationPanel); pixels.
+// pixels.
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { cleanup } from "@testing-library/react";
 
@@ -52,6 +61,8 @@ import { PLStatementView } from "@/components/cfo/PLStatementView";
 import { pickPLBuilder } from "@/lib/buildPlStatement";
 import type { ComparativeColumnDto, ComparativesResponse } from "@/lib/comparatives";
 import type { Statements } from "@/lib/financialReport";
+
+import { evaluateArithmetic, rowProblems } from "@/test/netProvisionsArithmetic";
 
 import pairJson from "./fixtures/comparatives/pair_served.json";
 
@@ -175,6 +186,28 @@ describe("the net-provisions row — one sign convention across current, prior a
         expect(digits(np.delta), "delta digits").toBe(digitsOf(col.delta as number));
         expect(glyph(np.delta), `delta ${np.delta}`).toBe((col.delta as number) > 0 ? "+" : MINUS);
 
+        // D2: ANY arithmetic in the row's full text is the printed figure —
+        // the current cell over this period's served accounts, the prior
+        // cell over the prior period's, Δ their difference.
+        const rowEl = rowFor(container, "pl.net_provisions");
+        const copy = rowEl.cloneNode(true) as HTMLElement;
+        copy.querySelectorAll(".pl-amount, .cmp-cells").forEach((n) => n.remove());
+        const rowText = (copy.textContent ?? "").replace(/\s+/g, " ").trim();
+        const block = (pair.current_body.statements.assembled_pl as unknown as Rec).net_provisions as Rec;
+        const priorBlock = (pair.comparatives.prior_statements as { assembled_pl: Rec }).assembled_pl
+          .net_provisions as Rec;
+        expect(rowProblems({ surface: "P&L row, current", text: rowText, value: served, printed: np.current }, block))
+          .toEqual([]);
+        expect(rowProblems(
+          { surface: "P&L row, prior cell", text: rowText, value: col.prior as number, printed: np.prior }, priorBlock,
+        )).toEqual([]);
+        const expr = (block.accounts as string);
+        expect(rowText, "the row states the engine's arithmetic").toContain(expr);
+        expect(
+          Math.round((evaluateArithmetic(expr, block) - evaluateArithmetic(expr, priorBlock)) * 100) / 100,
+          "Δ is the arithmetic's own difference",
+        ).toBeCloseTo(col.delta as number, 2);
+
         // The pattern the row follows: D&A, the charge beside it.
         const da = printed(rowFor(container, "pl.depreciation"));
         const daCol = column(pair, "pl.depreciation");
@@ -218,4 +251,219 @@ describe("the net-provisions row — one sign convention across current, prior a
       }
     });
   }
+});
+
+// ── THE VALUATION TAB'S RECONCILIATION PANEL, /report SECTION 1, AND THE
+// PRINTED REPORT / WORKBOOK (review 2026-10-01) ──────────────────────────
+//
+// THE DEFECT. The same served bridge printed net provisions with opposite
+// signs on two tabs of one dashboard: the P&L tab's line (fixed above) the
+// served charge, the panel the engine's effect-signed part — agras
+// "131,394.66" there, "−131,394.66" here, under labels that both say
+// "6812 + 6814 − 7812 − 7814", whose own arithmetic is the charge. The
+// panel's chain row and the printed P&L row did the same.
+//
+// LAW, on the served pair and its mirror, EN and RO:
+//   · the panel's bridge part after EBITDA prints THE P&L TAB'S STRING — the
+//     served charge, unsigned, uncoloured — under the engine's label;
+//   · the panel's CHAIN row and the printed P&L row (report + workbook) keep
+//     the effect (the chain sums to the operating result, every cost
+//     negative), and the account arithmetic printed beside each EVALUATES TO
+//     THE PRINTED FIGURE: each prefix replaced by the served by-account
+//     amounts it names, the expression equals the figure to the cent;
+//   · the printed one-line bridge carries the P&L tab's charge after EBITDA.
+// REDS ON: the panel's after-part printing the effect sign or another figure
+// than the P&L tab; a chain / printed row whose stated arithmetic and printed
+// figure disagree in sign or amount.
+import { EbitdaReconciliationPanel } from "@/components/cfo/EbitdaReconciliationPanel";
+import { printedPl } from "@/lib/printedPl";
+
+/** The served by-account amounts a prefix names (charges and reversals). */
+function amountsOf(np: Rec): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const side of ["charges", "reversals"] as const) {
+    const by = ((np[side] as Rec).by_account ?? {}) as Record<string, number>;
+    for (const [acct, v] of Object.entries(by)) out.set(acct, v);
+  }
+  return out;
+}
+
+/** Evaluate "a + b − c − d" over account prefixes, each replaced by the sum
+ *  of the served by-account amounts under it. */
+function evaluate(expr: string, np: Rec): number {
+  const amounts = amountsOf(np);
+  const tokens = expr.replace(/−/g, " − ").replace(/\+/g, " + ").trim().split(/\s+/);
+  let sign = 1;
+  let total = 0;
+  for (const tok of tokens) {
+    if (tok === "+") { sign = 1; continue; }
+    if (tok === "−") { sign = -1; continue; }
+    expect(tok, `"${tok}" in "${expr}" is an account prefix`).toMatch(/^\d{3,6}$/);
+    let sum = 0;
+    for (const [acct, v] of amounts) if (acct.startsWith(tok)) sum += v;
+    total += sign * sum;
+  }
+  return Math.round(total * 100) / 100;
+}
+
+/** A printed signed money string read back: sign glyph and its digits. */
+const readBack = (s: string | null | undefined) =>
+  (glyph(s) === MINUS ? -1 : 1) * Number(digits(s)) / 100;
+
+/** The pair with the chain line travelling with its swapped block. */
+function mirroredChain(): Pair {
+  const p = mirrored();
+  const apl = p.current_body.statements.assembled_pl as unknown as Rec;
+  const line = ((apl.ebitda_reconciliation as Rec).lines as Rec[]).find((l) => l.key === "net_provisions")!;
+  line.value = -((apl.net_provisions as Rec).value as number);
+  return p;
+}
+
+describe("net provisions on the Valuation tab's panel and the printed P&L — one convention per surface", () => {
+  const CASES: Array<[string, () => Pair]> = [
+    ["the served pair (current a net charge)", served],
+    ["the pair read the other way (current a net release — constructed)", mirroredChain],
+  ];
+
+  for (const [name, make] of CASES) {
+    it(`${name}: the panel's bridge after EBITDA prints the P&L tab's figure, and its chain row's arithmetic is its figure, EN and RO`, async () => {
+      const pair = make();
+      const apl = pair.current_body.statements.assembled_pl as unknown as Rec;
+      const npBlock = apl.net_provisions as Rec;
+      const servedValue = npBlock.value as number;
+      // Non-vacuity: the served chain line is the EFFECT, the opposite sign.
+      const chainLine = ((apl.ebitda_reconciliation as Rec).lines as Rec[]).find((l) => l.key === "net_provisions")!;
+      expect(Math.sign(chainLine.value as number), "the served chain line is effect-signed").toBe(-Math.sign(servedValue));
+      expect(evaluate(npBlock.accounts as string, npBlock), "the engine's arithmetic is the CHARGE").toBeCloseTo(servedValue, 2);
+      try {
+        for (const lang of ["en", "ro"] as const) {
+          await i18n.changeLanguage(lang);
+          const pl = renderPl(pair);
+          const plLine = pl.container
+            .querySelector<HTMLElement>('[data-testid="pl-ebitda-bridge"] [data-bridge-after="net_provisions"] .pl-bridge-value')!;
+          const plString = plLine.textContent;
+          cleanup();
+
+          const { container } = renderWithProviders(
+            <EbitdaReconciliationPanel statements={pair.current_body.statements} currency="RON" />,
+          );
+          const after = container.querySelector<HTMLElement>(
+            '[data-testid="ebitda-recon-bridge"] [data-bridge-after="net_provisions"]',
+          );
+          expect(after, `${lang}: the panel's bridge carries net provisions after EBITDA`).not.toBeNull();
+          expect(after!.textContent, `${lang}: the engine's label`).toContain("6812 + 6814 − 7812 − 7814");
+          const value = after!.querySelector<HTMLElement>("[data-bridge-value]")!;
+          expect(value.textContent, `${lang}: the panel prints the P&L tab's string`).toBe(plString);
+          expect(glyph(value.textContent), `${lang}: ${value.textContent}`).toBe(levelGlyph(servedValue));
+          expect(Number(value.getAttribute("data-bridge-value"))).toBe(servedValue);
+
+          const row = container.querySelector<HTMLElement>('[data-recon-line="net_provisions"]')!;
+          const accounts = row.querySelector<HTMLElement>('[data-recon-accounts="net_provisions"]')?.textContent ?? "";
+          const figure = row.querySelector<HTMLElement>(".text-right")?.textContent ?? "";
+          expect(accounts, `${lang}: the chain row states the effect's arithmetic`).toBe("7812 + 7814 − 6812 − 6814");
+          expect(readBack(figure), `${lang}: the chain row prints the effect`).toBeCloseTo(-servedValue, 2);
+          expect(evaluate(accounts, npBlock), `${lang}: "${accounts}" evaluates to the printed ${figure}`)
+            .toBeCloseTo(readBack(figure), 2);
+          cleanup();
+        }
+      } finally {
+        await i18n.changeLanguage("en");
+        cleanup();
+      }
+    });
+
+    it(`${name}: the printed P&L (report + workbook) — the row's arithmetic is its figure, the bridge after EBITDA the P&L tab's charge`, () => {
+      const pair = make();
+      const apl = pair.current_body.statements.assembled_pl as unknown as Rec;
+      const npBlock = apl.net_provisions as Rec;
+      const servedValue = npBlock.value as number;
+      const ppl = printedPl(pair.current_body.statements);
+      const row = ppl.rows.find((r) => r.key === "net_provisions")!;
+      expect(row, "the printed P&L carries the net-provisions row").toBeDefined();
+      const m = /\(([^()]*)\)\s*$/.exec(row.label);
+      expect(m, `the row names its accounts: ${row.label}`).not.toBeNull();
+      expect(row.label.startsWith(npBlock.name_en as string), row.label).toBe(true);
+      expect(row.value).toBeCloseTo(-servedValue, 2);
+      expect(evaluate(m![1], npBlock), `"${m![1]}" evaluates to the printed ${row.value}`).toBeCloseTo(row.value as number, 2);
+      // The one-line bridge: after EBITDA, the charge as the P&L tab prints it.
+      const level = `${servedValue < 0 ? MINUS : ""}${Math.round(Math.abs(servedValue)).toLocaleString("en-US")}`;
+      const segment = (ppl.bridge ?? "").split(" · ").find((x) => x.includes(npBlock.label_en as string)) ?? "";
+      expect(segment, `the bridge carries net provisions after EBITDA: ${ppl.bridge}`).not.toBe("");
+      expect(segment.endsWith(` ${level}`), `"${segment}" ends on the P&L tab's charge ${level}`).toBe(true);
+      expect(segment.startsWith("+ "), `"${segment}" carries no effect sign`).toBe(false);
+    });
+  }
+});
+
+// ── THE ROW'S SHARE AND Δ% CELLS IN THE READER'S LANGUAGE (review 2026-10-02,
+// low; §26) ──────────────────────────────────────────────────────────────
+//
+// The compare columns printed "0.1%" and "+0.2 pp" to a Romanian reader,
+// beside money printed "131.394,66": the three printers of lib/comparatives
+// (`formatDeltaPct`, `formatShare`, `formatPts`) used toFixed and an English
+// unit whatever the language. They take the UI language now — the decimal
+// comma and "p.p." (the ratio table's word) in Romanian — through the one
+// mapping, `moneyLocaleFor`. Same digits; only the mark and the word move.
+// REDS ON: a decimal point or " pp" in a Romanian compare cell; a decimal
+// comma or "p.p." in an English one; the digits differing between the two.
+import { formatDeltaPct, formatPts, formatShare } from "@/lib/comparatives";
+
+describe("the compare cells' percent, share and points print in the reader's language", () => {
+  it("the printers: same digits, the language's decimal mark and unit word", () => {
+    expect(formatDeltaPct(0.1234)).toBe("+12.3%");
+    expect(formatDeltaPct(0.1234, "en")).toBe("+12.3%");
+    expect(formatDeltaPct(0.1234, "ro")).toBe("+12,3%");
+    expect(formatDeltaPct(-0.05, "ro-RO")).toBe("-5,0%");
+    expect(formatShare(0.0012, "en")).toBe("0.1%");
+    expect(formatShare(0.0012, "ro")).toBe("0,1%");
+    expect(formatPts(0.2, "en")).toBe("+0.2 pp");
+    expect(formatPts(0.2, "ro")).toBe("+0,2 p.p.");
+    expect(formatPts(-1.25, "ro")).toBe("-1,3 p.p.");
+    expect(formatDeltaPct(null, "ro")).toBeNull();
+    expect(formatShare(null, "ro")).toBeNull();
+    expect(formatPts(null, "ro")).toBeNull();
+  });
+
+  it("the rendered rows: the net-provisions row's share cell and D&A's Δ% cell, RO and EN", async () => {
+    const pair = served();
+    const read = (container: HTMLElement, key: string) => {
+      const cells = Array.from(
+        rowFor(container, key).querySelectorAll<HTMLElement>(".cmp-cells > .cmp-cell"),
+      ).map((c) => c.textContent ?? "");
+      // prior, Δ, Δ%, share (+ points) — the four columns of COLUMNS.
+      return { pct: cells[2] ?? "", share: cells[3] ?? "" };
+    };
+    try {
+      await i18n.changeLanguage("ro");
+      const ro = renderPl(pair);
+      const roNp = read(ro.container, "pl.net_provisions");
+      const roDa = read(ro.container, "pl.depreciation");
+      cleanup();
+      await i18n.changeLanguage("en");
+      const en = renderPl(pair);
+      const enNp = read(en.container, "pl.net_provisions");
+      const enDa = read(en.container, "pl.depreciation");
+
+      // Non-vacuity: the cells carry a share with a decimal, and a percent.
+      expect(enNp.share, "the row's share cell").toMatch(/\d\.\d%/);
+      expect(enDa.pct, "D&A's Δ% cell").toMatch(/\d\.\d%/);
+      expect(enNp.share).toContain(" pp");
+
+      expect(roNp.share, `RO share: ${roNp.share}`).toMatch(/\d,\d%/);
+      expect(roNp.share).not.toMatch(/\d\.\d/);
+      expect(roNp.share).toContain(" p.p.");
+      expect(roNp.share).not.toMatch(/ pp\b/);
+      expect(roDa.pct, `RO Δ%: ${roDa.pct}`).toMatch(/\d,\d%/);
+      expect(roDa.pct).not.toMatch(/\d\.\d/);
+      expect(enNp.share).not.toMatch(/\d,\d%/);
+      expect(enNp.share).not.toContain("p.p.");
+
+      // The same digits either way.
+      expect(roNp.share.replace(/\D/g, "")).toBe(enNp.share.replace(/\D/g, ""));
+      expect(roDa.pct.replace(/\D/g, "")).toBe(enDa.pct.replace(/\D/g, ""));
+    } finally {
+      await i18n.changeLanguage("en");
+      cleanup();
+    }
+  });
 });

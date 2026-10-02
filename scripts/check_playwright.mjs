@@ -42,14 +42,28 @@
  *   · any test failing that is not in the baseline;
  *   · the ran count falling below the floor (specs that stopped running);
  *   · the skip rate rising above the ceiling (a suite going quiet);
- *   · `E2E_BASE_URL` pointing anywhere but localhost;
- *   · the runner producing no JSON report at all.
+ *   · `E2E_BASE_URL` (the app) or `E2E_ENGINE_URL` (the engine) pointing
+ *     anywhere but localhost;
+ *   · STACK NOT RUNNING — the app, or the engine's /health, not answering.
+ *     It is probed BEFORE the runner starts and the refusal names which
+ *     one was silent; no test runs and no failure count is printed
+ *     (with nothing on :5173 this gate used to report "349 failing");
+ *   · an argument it does not know (it used to run the whole suite);
+ *   · the runner producing no JSON report at all;
+ *   · ZERO TESTS COLLECTED — a report that holds no test (see the block
+ *     below the walk). It has its own message, and `--write-baseline`
+ *     refuses on it instead of recording an empty baseline.
  * ══ WHAT IT CANNOT SEE ════════════════════════════════════════════════
  *   · anything behind `E2E_REAL=1`, which needs a seeded workspace.
  *     Those specs are COUNTED as skipped and the ceiling holds their
  *     number steady; they are not run here.
  *
- * Run:  node scripts/check_playwright.mjs [--write-baseline]
+ *   · whether the stack that answers is the commit under test, or which
+ *     database it points at — the probe hears an answer, not a version.
+ *
+ * Run:  node scripts/check_playwright.mjs            run and compare
+ *       node scripts/check_playwright.mjs --probe    is the stack up? (no test)
+ *       node scripts/check_playwright.mjs --write-baseline   run, then record
  */
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -58,6 +72,29 @@ import { join } from "node:path";
 
 const BASELINE = "design_review/PLAYWRIGHT_BASELINE.txt";
 const WRITE = process.argv.includes("--write-baseline");
+// `--probe` answers one question — is the stack this gate needs running? —
+// and exits without starting the runner.
+const PROBE_ONLY = process.argv.includes("--probe");
+
+// AN UNKNOWN FLAG IS REFUSED. This script had no --help, and any flag it did
+// not know (`--help`, `--list`, a typo of `--write-baseline`) fell through
+// and ran the whole suite — forty minutes against a stack, three against
+// none — as if nothing had been asked.
+{
+  const KNOWN = new Set(["--write-baseline", "--probe"]);
+  const unknown = process.argv.slice(2).filter((a) => !KNOWN.has(a));
+  if (unknown.length) {
+    console.log("PLAYWRIGHT GATE");
+    console.log("=".repeat(62));
+    console.log(
+      `REFUSED — unknown argument(s): ${unknown.join(" ")}. This gate takes ` +
+        "no argument (run the suite and compare with the baseline), " +
+        "`--probe` (is the stack running? — starts nothing) or " +
+        "`--write-baseline` (run, then record the failing set).",
+    );
+    process.exit(1);
+  }
+}
 
 // Measured 2026-09-09; both derived from a completed run and recorded by
 // `--write-baseline`, never guessed.
@@ -110,6 +147,68 @@ if (!/^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(base)) {
         "baseURL (--project=prod when you deliberately mean the live site).",
     );
     process.exit(1);
+  }
+}
+
+// THE STACK MUST ANSWER BEFORE THE RUNNER STARTS. With nothing listening on
+// the dev server's port every navigation fails, and this gate used to print
+// the result as a verdict on the product: "353 ran, 349 failing (new 178)" in
+// three minutes (measured 2026-10-02, no stack). That is not a suite result,
+// it is "nothing on :5173" — and `--write-baseline` on such a run would have
+// recorded 349 failures as known. Both origins are probed; either one silent
+// is a refusal that names it, and no test is run.
+const ENGINE = (process.env.E2E_ENGINE_URL ?? "http://127.0.0.1:8000").replace(/\/+$/, "");
+if (!/^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(ENGINE)) {
+  console.log("PLAYWRIGHT GATE");
+  console.log("=".repeat(62));
+  console.log(
+    `REFUSED — E2E_ENGINE_URL is ${JSON.stringify(ENGINE)}. The engine this ` +
+      "gate probes is a local one only.",
+  );
+  process.exit(1);
+}
+{
+  const answers = async (url, needOk) => {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 4000);
+    try {
+      const r = await fetch(url, { signal: ctl.signal, redirect: "manual" });
+      return needOk ? (r.ok ? null : `answered HTTP ${r.status}`) : null;
+    } catch (err) {
+      return String(err?.cause?.code ?? err?.name ?? err).replace(/^AbortError$/, "no answer in 4 s");
+    } finally {
+      clearTimeout(timer);
+    }
+  };
+  // The dev server: any HTTP answer means something is serving the app.
+  // The engine: /health must answer 200 — a port that is open and failing
+  // is not a stack either.
+  const silent = [];
+  const web = await answers(base, false);
+  if (web) silent.push(`the app at ${base} (${web})`);
+  const api = await answers(`${ENGINE}/health`, true);
+  if (api) silent.push(`the engine at ${ENGINE}/health (${api})`);
+  if (silent.length) {
+    console.log("PLAYWRIGHT GATE");
+    console.log("=".repeat(62));
+    console.log("GATE-WORK playwright-stack answering=0");
+    console.log("");
+    console.log(
+      "REFUSED — STACK NOT RUNNING. Not answering: " + silent.join("; ") + ". " +
+        "No test was run and nothing was measured. Start the Vite dev server " +
+        "and the engine from the commit under test, both against the LOCAL " +
+        "test Supabase (never a hosted project), then run this gate again. " +
+        "E2E_BASE_URL and E2E_ENGINE_URL name the two origins; both must be " +
+        "local. `--probe` checks the stack without running a test.",
+    );
+    process.exit(1);
+  }
+  if (PROBE_ONLY) {
+    console.log("PLAYWRIGHT GATE");
+    console.log("=".repeat(62));
+    console.log("GATE-WORK playwright-stack answering=2");
+    console.log(`PROBE — the stack is answering: ${base} and ${ENGINE}/health. No test was run.`);
+    process.exit(0);
   }
 }
 
@@ -168,10 +267,66 @@ const walk = (node, file) => {
 };
 for (const s of report.suites ?? []) walk(s, s.file);
 
+// ZERO TESTS COLLECTED IS ITS OWN RED, AND IT COMES BEFORE THE BASELINE.
+//
+// A report with no test in it is not a quiet suite, it is no suite. Two
+// causes are measured (Playwright 1.59.1, 2026-10-02):
+//   · ONE spec that throws while it is being collected empties the WHOLE
+//     run — the other 44 files contribute nothing either;
+//   · a second copy of @playwright/test on the resolution path does the
+//     same to every file ("did not expect test.describe() to be called
+//     here"). A stray `node_modules/node_modules` link did exactly that in
+//     every worktree: 0 tests in 0 files, in 3 s.
+// Before this block the run fell through to the skip-rate ceiling and
+// printed "100.0% of tests skipped … the suite is going quiet" — the wrong
+// diagnosis, nothing was skipped — and `--write-baseline` on such a run
+// WROTE AN EMPTY BASELINE, exited 0 and advised PW_FLOOR_RAN=0: every
+// later run would then have passed against it. The same class as the
+// vacuous canaries: a verdict over nothing is never a pass.
+if (ran + skipped === 0) {
+  const words = (report.errors ?? [])
+    .map((e) => String(e?.message ?? e?.value ?? "").split("\n")[0].trim())
+    .filter(Boolean);
+  console.log("PLAYWRIGHT GATE");
+  console.log("=".repeat(62));
+  console.log(
+    `GATE-WORK playwright units=0 floor=${FLOOR_RAN} label=e2e-tests-run ` +
+      `skipped=0 collected=0`,
+  );
+  console.log("");
+  console.log(
+    "FAIL — ZERO TESTS COLLECTED. The runner wrote a report and it holds no " +
+      "test: nothing ran and nothing was skipped, so nothing was measured. " +
+      "One spec that throws while it is being collected empties the whole " +
+      "run, and so does a second copy of @playwright/test on the resolution " +
+      "path (a `node_modules/node_modules` link).",
+  );
+  if (words.length) {
+    const distinct = [...new Set(words)];
+    console.log(`  the runner's own words (${words.length} error(s), ${distinct.length} distinct):`);
+    for (const w of distinct.slice(0, 8)) {
+      console.log(`  · ${w} (×${words.filter((x) => x === w).length})`);
+    }
+  } else {
+    console.log("  the runner gave no error — run `npx playwright test --project=chromium --list` to see what it collects.");
+  }
+  if (WRITE) {
+    console.log(
+      `  ${BASELINE} was NOT rewritten: a baseline recorded from this run ` +
+        "would be empty, and every later run would pass against it.",
+    );
+  }
+  process.exit(1);
+}
+
 failures.sort();
 if (WRITE) {
-  writeFileSync(BASELINE, failures.join("\n") + (failures.length ? "\n" : ""));
-  console.log(`wrote ${BASELINE} — ${failures.length} known failure(s), ${ran} ran, ${skipped} skipped`);
+  // The baseline is a SET of keys ("spec :: title"). Two tests with one title
+  // in one spec share a key; written twice (171 lines, 165 distinct on
+  // 2026-09-09) the file's line count overstated what is known.
+  const distinct = [...new Set(failures)];
+  writeFileSync(BASELINE, distinct.join("\n") + (distinct.length ? "\n" : ""));
+  console.log(`wrote ${BASELINE} — ${distinct.length} known failure(s), ${ran} ran, ${skipped} skipped`);
   console.log(`set PW_FLOOR_RAN=${Math.floor(ran * 0.9)} in run_battery.py`);
   process.exit(0);
 }

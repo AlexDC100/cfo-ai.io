@@ -46,6 +46,7 @@ import type { PeriodLineItem } from "@/lib/activePeriod";
 import { authOrgHeaders } from "@/lib/apiHeaders";
 import { useCompanyPeriods, type CompanyPeriods, type OrgPeriod } from "@/lib/orgPeriods";
 import { ROUNDED_MONEY_ZERO_FLOOR, type ChangeKind } from "@/lib/changeKind";
+import { moneyLocaleFor } from "@/lib/money";
 import type {
   ExportComparisonState,
   PriorServedFigures,
@@ -742,23 +743,34 @@ export function bsOpeningFill(doc: ComparativesResponse): BsOpeningFill | null {
 
 // ── Formatting ───────────────────────────────────────────────────────
 
+// EVERY FIGURE IN THE READER'S LANGUAGE (§26). The three printers below take
+// the UI language: a Romanian reader gets the decimal comma and "p.p." (the
+// ratio table's word), not "0.1%" / "+0.2 pp" beside money printed "1.234,56".
+// The locale comes from the ONE mapping, `moneyLocaleFor`. The digits are the
+// same — only the decimal mark and the unit word follow the language. With
+// no language the bytes are the English ones (the command bar localises its
+// own copy; the report is English by contract).
+const isRomanian = (language?: string | null): boolean => moneyLocaleFor(language) === "ro-RO";
+const decimalMark = (fixed: string, language?: string | null): string =>
+  isRomanian(language) ? fixed.replace(".", ",") : fixed;
+
 /** Δ% as the engine gave it, or null (the caller prints the reason). */
-export function formatDeltaPct(v: number | null): string | null {
+export function formatDeltaPct(v: number | null, language?: string | null): string | null {
   if (v === null || !Number.isFinite(v)) return null;
   const pct = v * 100;
   const sign = pct > 0 ? "+" : "";
-  return `${sign}${pct.toFixed(1)}%`;
+  return `${sign}${decimalMark(pct.toFixed(1), language)}%`;
 }
 
-export function formatShare(v: number | null): string | null {
+export function formatShare(v: number | null, language?: string | null): string | null {
   if (v === null || !Number.isFinite(v)) return null;
-  return `${(v * 100).toFixed(1)}%`;
+  return `${decimalMark((v * 100).toFixed(1), language)}%`;
 }
 
-export function formatPts(v: number | null): string | null {
+export function formatPts(v: number | null, language?: string | null): string | null {
   if (v === null || !Number.isFinite(v)) return null;
   const sign = v > 0 ? "+" : "";
-  return `${sign}${v.toFixed(1)} pp`;
+  return `${sign}${decimalMark(v.toFixed(1), language)} ${isRomanian(language) ? "p.p." : "pp"}`;
 }
 
 export function detailLevelLabelKey(level: DetailLevelName | string): string {

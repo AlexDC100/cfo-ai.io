@@ -570,9 +570,9 @@
     },
     "frontend/pages/cfo/Chat.tsx": {
       "bucket": "LACKS_SILENT",
-      "sites": 5,
+      "sites": 8,
       "affordances": 0,
-      "why": "OPENED 2026-09-04. Both sites build the chat CONTEXT string handed to the model (a gap % and a number formatter for prose) — a prompt, not a figure the reader hovers. Nothing claimed."
+      "why": "OPENED 2026-09-04. Both sites build the chat CONTEXT string handed to the model (a gap % and a number formatter for prose) — a prompt, not a figure the reader hovers. Nothing claimed. RE-MEASURED 2026-10-02 (5 -> 8): commit 78e962fe added three formatter calls to buildWorkspaceSnapshot — the credit composite score (fmtNum) and the two stock-build regime amounts (printRegimeAmount, bound to English). They are the same kind of site: prompt text handed to the model inside the workspace snapshot, not a figure the reader sees or hovers, so the verdict stays LACKS_SILENT and nothing is added to the burn-down."
     },
     "frontend/pages/cfo/ComprehensiveReport.tsx": {
       "bucket": "HAS_SHOWS",

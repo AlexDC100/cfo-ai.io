@@ -634,14 +634,25 @@ def _live_siblings(
 ) -> List[Dict[str, Any]]:
     if not isinstance(from_period, dict):
         return []
+    # THE TENANT IS IN THE FILTER (tenancy hotfix 2026-10-02). `client` is
+    # the service role and `documents.period_id` is browser-writable: a
+    # member of another workspace can point a row of THEIR org at this
+    # period. Read by `period_id` alone, that row came back as a sibling,
+    # was picked as the rebuild document (analysed, newest) and the period
+    # every member of THIS workspace reads was wiped and re-pointed at it.
+    # `from_period` was tenant-checked by `_period_row` against the moved
+    # document's org, so its `org_id` is the authorized one.
+    org_id = from_period.get("org_id")
     rows = client.select(
         "documents",
         filters={
             "period_id": "eq.%s" % from_period.get("id"),
+            "org_id": "eq.%s" % org_id,
             "deleted_at": "is.null",
         },
     )
-    return [r for r in rows if str(r.get("id") or "") != document_id]
+    return [r for r in rows
+            if str(r.get("id") or "") != document_id and str(r.get("org_id")) == str(org_id)]
 
 
 def _safe_delete(client: Any, table: str, period_id: str) -> None:

@@ -2361,10 +2361,19 @@ export function altmanRatio(credit: CreditScoreResult): Ratio {
   // The arithmetic, spelled from the reader's own coefficients rather than
   // re-typed here, so a re-weighted model moves the printed formula with
   // the number it produced.
+  //
+  // THE X3 TERM IS NAMED AS THE ENGINE NAMES IT. Under the stock-build
+  // credit regime X3 is not EBIT ÷ total assets, and the engine serves what
+  // it is (`a.x3Basis`). This printed "(EBIT ÷ total assets)" beside a Z″
+  // computed on another numerator: a reader recomputing the printed formula
+  // from the document's own EBIT and assets got 4.81 (safe) under a printed
+  // 2.43 (grey) — review round 3, 2026-10-02.
+  const x3Term = a.x3Basis ? "X3" : "(EBIT ÷ total assets)";
+  const x3Stated = a.x3Basis ? ` — ${a.x3Basis.en}` : "";
   const formula =
     `6.56 × (working capital ÷ total assets) + 3.26 × (retained earnings ÷ total assets) ` +
-    `+ 6.72 × (EBIT ÷ total assets) + 1.05 × (book equity ÷ total liabilities) ` +
-    `— ${a.variant} emerging-markets variant, computed by ${credit.model}`;
+    `+ 6.72 × ${x3Term} + 1.05 × (book equity ÷ total liabilities) ` +
+    `— ${a.variant} emerging-markets variant, computed by ${credit.model}${x3Stated}`;
   if (a.score === null || a.zone === null) {
     return {
       key: ALTMAN_RATIO_KEY,
@@ -5386,6 +5395,17 @@ export function renderReportHtml(
     const scoreHeadline = credit.score === null
       ? (refusedHeadline("credit_composite") ?? creditScoreFigure) : creditScoreFigure;
     const letterHeadline = credit.rating ?? refusedHeadline("letter_grade") ?? UNREPORTED_WORD;
+    // WHY THERE IS NO LETTER, under the card's headline. A composite the
+    // ENGINE refused states the engine's reason — the regime's own cash
+    // refusal when that is the reason (the stock-build regime grades only on
+    // measured cash), else the served composite refusal. Only a period the
+    // engine never scored prints the extraction note: that note says "a
+    // limit of the extraction", which is false of a book the engine read
+    // whole and refused to grade (review round 3, 2026-10-02 — the letter
+    // card said so directly above the block stating the refusal).
+    const letterAbsentNote = credit.compositeRefusal?.stated
+      ? (credit.regime?.cash?.refusal?.text.en ?? credit.compositeRefusal.sentence)
+      : VERDICT_UNAVAILABLE_NOTE;
     return `
     <div class="grid grid-3">
       <div class="ratio-card">
@@ -5397,7 +5417,7 @@ export function renderReportHtml(
       <div class="ratio-card">
         <div class="label">${escapeHtml(servedRatioLabel("letter_grade", null, null))}</div>
         <div class="value${credit.rating === null ? " unreported" : ""}" data-report-credit-letter data-model="${escapeHtml(credit.rating === null ? "none" : credit.model)}">${escapeHtml(letterHeadline)}</div>
-        <div class="meta">${escapeHtml(credit.rating === null ? VERDICT_UNAVAILABLE_NOTE : credit.modelLabel)}</div>
+        <div class="meta" data-report-credit-letter-note>${escapeHtml(credit.rating === null ? letterAbsentNote : credit.modelLabel)}</div>
         ${ratioCmpCardTable("letter_grade", servedRatioLabel("letter_grade", null, null), credit.rating ?? UNREPORTED_WORD, credit.rating ?? UNREPORTED_WORD)}
       </div>
       ${ratioCard(altman)}

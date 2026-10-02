@@ -1116,9 +1116,12 @@ const SWITCH_WITHIN_MS = 5_000;
 const HELD_GRACE_MS = 2_000;
 
 /** The company a URL pins: `?org=`, its period's company, or the company
- *  page — none for /settings, a bare /dashboard, /benchmark with no period. */
+ *  page — none for /settings, a bare /dashboard, /benchmark with no period.
+ *  The second argument is only the PARSE BASE for a relative URL, never a
+ *  request; it is localhost because the playwright gate's static scan refuses
+ *  any other origin named in spec code (scripts/check_playwright.mjs). */
 function companyOfUrl(url: string): string | null {
-  const u = new URL(url, "http://x.invalid");
+  const u = new URL(url, "http://localhost");
   const org = u.searchParams.get("org");
   if (org) return org;
   const period = u.searchParams.get("period");

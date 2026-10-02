@@ -1127,7 +1127,24 @@ export interface AltmanResult {
     /** Why this row has no value, when the ENGINE refused it — printed in
      *  the value and weighted cells, never a bare dash. */
     refusal?: { code: string; text: { en: string; ro: string } } | null;
+    /** The row's label AS THE ENGINE SERVED IT, in both languages — set on
+     *  the X3 row under a credit regime that computes X3 on another basis
+     *  (`x3Basis` below). `label` is then its English; a surface in the UI
+     *  language prints this one. */
+    labelServed?: { en: string; ro: string } | null;
   }>;
+  /** WHAT X3 WAS COMPUTED ON, when it is NOT EBIT ÷ total assets — the
+   *  engine's own words (`assembled_metrics.credit.altman_x3_basis`). Under
+   *  the stock-build regime (credit model revision 5, owner ruling R1) X3
+   *  is (EBIT − net 711 − net 72x) ÷ total assets, and design decision R1
+   *  says it "is labelled so". Review round 3 (2026-10-02): the Risks tab,
+   *  /report §7 and the printed report's Altman formula all printed the
+   *  regime's figure under the standard label — "EBIT / Total assets …
+   *  −0.3489" on a book whose EBIT ÷ assets is 0.0059 — so a reader
+   *  recomputing the printed formula got Z″ 4.81 (safe), not the 2.43
+   *  (grey) beside it. NULL or absent: the standard basis. Every surface
+   *  that names the X3 term reads this. */
+  x3Basis?: { en: string; ro: string } | null;
   /** A component the ENGINE refused, with its typed reason: X2 when total
    *  equity excludes a refused year's result (no account 121, net 711
    *  refused, the sheet short by the missing result); X3 when the
@@ -1820,11 +1837,29 @@ function altmanFromEngine(
     }
     : null;
   if (x2Refusal) merged.altman_x2 = null;
-  const out = merged.altman_z_score !== null
+  const read = merged.altman_z_score !== null
     ? altmanReaderOf(merged)
     // No engine score. Emit the components the engine DID send (so the
     // breakdown table still shows what is known) with no score and no zone.
     : altmanReaderOf(merged, /* refuseScore */ true);
+  // The X3 term is named as the ENGINE names it when it served a basis
+  // other than EBIT ÷ total assets (the stock-build regime): the row's
+  // label is the served sentence, never the standard literal over the
+  // regime's figure. Both languages or neither — a half-served basis is
+  // not a label.
+  const basis = e.altman_x3_basis;
+  const x3Basis =
+    basis && typeof basis.en === "string" && basis.en.trim() && typeof basis.ro === "string" && basis.ro.trim()
+      ? { en: basis.en.trim(), ro: basis.ro.trim() }
+      : null;
+  const out: AltmanResult = x3Basis
+    ? {
+        ...read,
+        x3Basis,
+        weightedComponents: read.weightedComponents.map((w, i) =>
+          i === 2 ? { ...w, label: x3Basis.en, labelServed: x3Basis } : w),
+      }
+    : read;
   // X3 and X4 absent beside the engine's refusal of the Altman component
   // carry that sentence (X4 on equity short by the refused result carries
   // X2's: equity is its numerator).

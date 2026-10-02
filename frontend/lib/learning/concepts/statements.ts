@@ -10,6 +10,7 @@
 // `BSStatementView`) + the 4 KpiTiles in FinancialStatements.
 
 import type { Concept } from "./_schema";
+import { addBackToken } from "./addBackToken";
 
 // ─── Cash Flow concepts ───────────────────────────────────────────────────
 
@@ -138,7 +139,8 @@ const operating_cash_flow: Concept = {
       tokens: [
         { type: "value", value: m.netProfit ?? 0, conceptKey: "net_profit", label: "Net Profit", format: "currency" },
         { type: "operator", op: "+" },
-        { type: "value", value: m.depreciation ?? 0, conceptKey: "depreciation_amortization", label: "D&A", format: "currency" },
+        // The cash flow's add-back — all of 68x — named for what it sums.
+        addBackToken(ctx),
         { type: "operator", op: "+" },
         { type: "value", value: m.workingCapitalChanges ?? 0, conceptKey: "working_capital_changes", label: "ΔWC", format: "currency" },
       ],

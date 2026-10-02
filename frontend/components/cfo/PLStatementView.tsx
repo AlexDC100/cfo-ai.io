@@ -493,7 +493,11 @@ function PLLineView({ line, currency }: { line: PLLine; currency: string }) {
   // "607 [607]" reads as a bug.
   const split = line.accountCode ? null : splitAccountParen(line.label);
   const labelText = split?.code ? split.text : line.label;
-  const rawChip = line.accountCode ?? split?.code;
+  // The chip in the reader's language where the engine words it apart
+  // ("68x fără 6812, 6814" / "68x excl. 6812, 6814") — a code string, never
+  // a figure. `line.accountCode` stays the key the term map reads.
+  const romanianUi = (lang ?? "").toLowerCase().startsWith("ro");
+  const rawChip = (romanianUi ? line.accountCodeRo : undefined) ?? line.accountCode ?? split?.code;
   const chipCode = rawChip && rawChip !== labelText.trim() ? rawChip : undefined;
 
   return (

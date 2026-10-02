@@ -352,11 +352,15 @@ class UploadedFileTypeMismatchError(UserFacingUploadError):
     inherits `UserFacingUploadError`; without it the handler would prefix
     the class name onto the sentence. See `_upload_type`.
 
-    Refuses only what reaches NO reader (`_upload_type.REACHES_NO_READER`,
-    plus a PDF on the branches whose readers cannot take one). It must
-    never refuse a container a reader downstream would have parsed:
-    `parse_trial_balance` dispatches on magic bytes, so an Excel balance
-    named .pdf and a balance PDF named .xls are both read today.
+    Refuses only what reaches NO reader on the branch the file is on
+    (`_upload_type.refused_on`: `REACHES_NO_READER` everywhere, plus what
+    that branch's own readers cannot open). It must never refuse a
+    container a reader would have parsed: an Excel balance named .pdf is
+    read as the workbook it is, and PDF bytes are read by the .pdf
+    branch's readers under every name (`_upload_type.reads_as_pdf`). The
+    upload card's routes take the same verdict from the same module
+    (`_upload_type.upload_refusal`). The sentence is in the uploader's
+    language (`documents.detected_language`).
     """
 
 
@@ -539,6 +543,78 @@ def _verify_user_may_write_period(jwt: str, period_id: str) -> Dict[str, Any]:
     return rows[0]
 
 
+def _caller_valuation_assumptions(jwt: str, period_id: str, *,
+                                  client: Any = None) -> Optional[Dict[str, Any]]:
+    """THE CALLER'S OWN saved valuation overrides for one period, or None.
+
+    `user_valuation_assumptions` is a per-USER table (key `user_id` +
+    `period_id`): two members of one workspace each hold their own row for
+    the same period. It is read through the CALLER'S client (row-level
+    security), with the caller's VERIFIED user id in the filter, and a row
+    that is not the caller's is dropped — never under the service role,
+    never by period alone, never "the first row".
+
+    Hotfix 2026-10-02 (tenancy): `valuation/recompute` and
+    `briefing/regenerate` read this table with the admin client by
+    `period_id` only and took `rows[0]`, so a member was served a valuation
+    computed on ANOTHER member's EBITDA, multiple, debt and cash; GET
+    /api/period read it by period alone and relied on a policy this
+    repository does not define.
+
+    The tenant is carried by the period: every caller reads the period
+    under its own wall first (a per-user select of `financial_periods`), and
+    the table itself has no org column to filter on.
+    """
+    def _read(c: Any) -> Optional[Dict[str, Any]]:
+        user_id = str(c.get_user(jwt)["id"])
+        rows = c.select(
+            "user_valuation_assumptions",
+            filters={"period_id": f"eq.{period_id}", "user_id": f"eq.{user_id}"},
+        ) or []
+        own = [r for r in rows if str(r.get("user_id")) == user_id]
+        return own[0] if own else None
+
+    if client is not None:
+        return _read(client)
+    with _supabase.per_user(jwt) as own_client:
+        return _read(own_client)
+
+
+def _period_source_document(client: Any, period: Dict[str, Any]) -> Dict[str, Any]:
+    """The document a period was analysed from, for the narrator — read with
+    the TENANT in the filter, never "the first row carrying this period_id".
+
+    `documents.period_id` is browser-writable: a member of another workspace
+    can point a row of THEIR org at this period, and a period routinely
+    holds several rows of its own (a replaced month keeps its `period_id`
+    and only gains `deleted_at`; other uploads are pinned to the month).
+    The regenerate route read `documents` under the service role by
+    `period_id` alone and took `rows[0]` — any of those — as "the document"
+    whose filename and language the narrator is told (tenancy hotfix
+    2026-10-02). Order: the period's own `source_document_id` in the
+    period's org; else the oldest live document of that org filed on the
+    period; else a stub carrying the org.
+    """
+    org_id = period.get("org_id")
+    org_filter = f"eq.{org_id}"
+    source_id = period.get("source_document_id")
+    if source_id:
+        rows = client.select(
+            "documents", filters={"id": f"eq.{source_id}", "org_id": org_filter}, limit=1)
+        own = [r for r in (rows or []) if str(r.get("org_id")) == str(org_id)]
+        if own:
+            return own[0]
+    rows = client.select(
+        "documents",
+        filters={"period_id": f"eq.{period.get('id')}", "org_id": org_filter,
+                 "deleted_at": "is.null"},
+        order="created_at.asc", limit=1)
+    own = [r for r in (rows or []) if str(r.get("org_id")) == str(org_id)]
+    if own:
+        return own[0]
+    return {"id": "regenerate", "org_id": org_id, "language": "en"}
+
+
 def _require_member(jwt: str, org_id: Optional[str]) -> str:
     """`_org.require_org_member`, looked up at call time — for handlers
     that bind a LOCAL name `_org` further down (review/reanalyze does) and
@@ -695,22 +771,13 @@ Begin."""
 
 
 def _classify_file(doc: Dict[str, Any]) -> str:
-    """Returns 'pdf' | 'xlsx' | 'csv' | 'image_jpeg' | 'image_png' | 'text' | 'unknown'."""
-    mime = (doc.get("mime_type") or "").lower()
-    name = (doc.get("original_filename") or "").lower()
-    if mime == "application/pdf" or name.endswith(".pdf"):
-        return "pdf"
-    if "spreadsheet" in mime or name.endswith(".xlsx") or name.endswith(".xls"):
-        return "xlsx"
-    if mime == "text/csv" or name.endswith(".csv"):
-        return "csv"
-    if mime == "image/jpeg" or name.endswith((".jpg", ".jpeg")):
-        return "image_jpeg"
-    if mime == "image/png" or name.endswith(".png"):
-        return "image_png"
-    if mime.startswith("text/") or name.endswith(".txt"):
-        return "text"
-    return "unknown"
+    """Returns 'pdf' | 'xlsx' | 'csv' | 'image_jpeg' | 'image_png' | 'text' | 'unknown'.
+
+    The branch the upload's NAME and MIME type claim. The rule itself lives
+    in `_upload_type.classify` — the one authority the upload routes read
+    too — so the pipeline and the upload card classify one way."""
+    from . import _upload_type as _ut
+    return _ut.classify(doc.get("original_filename"), doc.get("mime_type"))
 
 
 def _detect_spreadsheet_format(spreadsheet_bytes: bytes) -> str:
@@ -1150,9 +1217,41 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
       - JPG/PNG  → image content block
       - Plain text → text content block
     Anything else falls back to text after best-effort UTF-8 decoding.
+
+    READ BY REAL TYPE (2026-10-02). The name picks the branch, the BYTES
+    pick the readers: PDF bytes found on any other branch re-enter the
+    .pdf branch of the one body below (`_stage_extract_by_real_type`), so
+    they are read by the very same code a .pdf name runs — the strict
+    text-line balanta reader with its final refusal, the positional reader
+    under the .pdf acceptance gate, the PDF model lane — and yield the
+    same extraction or the same refusal. The mirror holds too: WORKBOOK
+    bytes found on the .pdf branch re-enter the spreadsheet branch, so a
+    workbook named .pdf is read by the code an .xlsx name runs — the
+    statutory F30/F10 detector, the trial-balance reader, the workbook
+    rendered as text for the model — to the same extraction or the same
+    failure. Not a second copy of either branch: the same statements.
     """
+    return _stage_extract_by_real_type(doc, None)
+
+
+def _stage_extract_by_real_type(
+    doc: Dict[str, Any], _pdf_bytes_in_hand: Optional[bytes],
+    _workbook_bytes_in_hand: Optional[bytes] = None,
+) -> Dict[str, Any]:
+    """`stage_extract`'s body. `_pdf_bytes_in_hand` and
+    `_workbook_bytes_in_hand` are set only by this function's own re-entry
+    (PDF bytes found on a non-.pdf branch; workbook bytes found on the .pdf
+    branch) — each selects the branch the BYTES belong to and hands it the
+    stored file already read. At most one is set, and a re-entry never
+    re-enters: PDF bytes are not a workbook and a workbook is not PDF bytes
+    (`_upload_type.reads_as_pdf` / `reads_as_workbook`)."""
     storage_path: str = doc["storage_path"]
-    kind = _classify_file(doc)
+    if _workbook_bytes_in_hand is not None:
+        kind = "xlsx"
+    elif _pdf_bytes_in_hand is not None:
+        kind = "pdf"
+    else:
+        kind = _classify_file(doc)
 
     # PDF still uses the existing parser (it has the canonical RO trial-balance
     # rubric in its system prompt — re-using avoids drift between two prompts).
@@ -1168,14 +1267,19 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
         # Detection runs locally on extracted text — zero Claude tokens
         # spent on the wrong format.
         try:
-            with _supabase.admin() as admin_client:
-                signed_for_text = admin_client.signed_url(
-                    "documents", storage_path,
-                    org_id=doc.get("org_id"), expires_in=300)
-            with httpx.Client(timeout=30.0) as http:
-                _r = http.get(signed_for_text)
-                _r.raise_for_status()
-                _pdf_bytes = _r.content
+            if _pdf_bytes_in_hand is not None:
+                # PDF bytes that arrived under another name: the branch that
+                # found them already holds the stored file.
+                _pdf_bytes = _pdf_bytes_in_hand
+            else:
+                with _supabase.admin() as admin_client:
+                    signed_for_text = admin_client.signed_url(
+                        "documents", storage_path,
+                        org_id=doc.get("org_id"), expires_in=300)
+                with httpx.Client(timeout=30.0) as http:
+                    _r = http.get(signed_for_text)
+                    _r.raise_for_status()
+                    _pdf_bytes = _r.content
             try:
                 from pypdf import PdfReader  # type: ignore
             except ImportError:
@@ -1288,19 +1392,20 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
         # come back as "Claude extraction failed: your credit balance is
         # too low" — our billing blamed for the user's extension.
         #
-        # REFUSES ONLY WHAT NO READER ON THIS BRANCH CAN OPEN, which is a
-        # narrower set than "not a PDF". `pack.parse_trial_balance` (the
-        # next reader, ~40 lines below) dispatches on BYTES, not on the
-        # extension: `%PDF` goes to the PyMuPDF ingester and everything
-        # else to `parse_trial_balance_file`, whose first act is
-        # `detect_excel_format` ("Filename extensions lie; the first 8
-        # bytes don't"). So an .xlsx or legacy .xls balance stored under a
-        # .pdf name is read deterministically today, anchored and free —
-        # measured: corpus/saga_10_col_carniprod as `balanta.pdf` yields
-        # 367 accounts, account-121 anchor 1,435,533.59. Refusing those
-        # would delete a working upload and say "no reader can open it"
-        # while the branch's own reader does. The Office formats below
-        # genuinely reach no reader, and are the incident.
+        # REFUSES ONLY WHAT NO READER CAN OPEN UNDER A .pdf NAME, which is a
+        # narrower set than "not a PDF". An .xlsx or legacy .xls balance
+        # stored under a .pdf name is READ — deterministically, anchored
+        # and free (measured: corpus/saga_10_col_carniprod as `balanta.pdf`
+        # yields 367 accounts, account-121 anchor 1,435,533.59) — by the
+        # spreadsheet branch, which this function re-enters with the bytes
+        # just below the guard (`reads_as_workbook`). Refusing those would
+        # delete a working upload and say "no reader can open it" while a
+        # reader does. What is refused is decided
+        # by `_upload_type.refused_on("pdf", …)` — the Office formats
+        # (the incident, legacy .doc / .ppt included), an empty file, a
+        # zip with no Open XML manifest (openpyxl needs one), and text or
+        # unnameable bytes that carry no `%PDF-` anywhere — the one policy
+        # both guard sites read.
         #
         # The bytes are normally the ones downloaded above. When THAT
         # download failed the guard used to be skipped — while the Claude
@@ -1331,19 +1436,47 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
         if _pdf_bytes_for_sniff is not None:
             from . import _upload_type as _ut
             _real = _ut.sniff_container(_pdf_bytes_for_sniff)
-            if _real in _ut.REACHES_NO_READER:
+            if _ut.refused_on("pdf", _real, _pdf_bytes_for_sniff):
                 logger.info(
                     "[stage_extract] %r is named .pdf but its bytes are %s "
                     "— refusing before any reader or model call",
                     doc.get("original_filename") or "(no filename)", _real,
                 )
+                # In the uploader's language: /api/pipeline/run writes the
+                # UI language into detected_language before the run.
                 raise UploadedFileTypeMismatchError(
                     _ut.mismatch_message(
                         _ut.claimed_extension(doc.get("original_filename"), "pdf"),
                         _real,
                         filename=doc.get("original_filename") or None,
+                        language=doc.get("detected_language"),
                     )
                 )
+            # ── A workbook is read as a workbook, whatever it is named ──
+            # The guard above lets workbook bytes through, because a
+            # workbook named .pdf IS read (the upload card's routes answer
+            # so too — one policy). It is read by the SPREADSHEET branch:
+            # this function re-enters it with the bytes, so the outcome is
+            # the one the same bytes get under their own .xlsx / .xls name.
+            #
+            # WHY (review 2026-10-02, round 3). This branch used to hand a
+            # workbook to its positional reader under the .pdf acceptance
+            # gate ("account 121 or ≥ 50 accounts") and refuse whatever
+            # that declined, late, as "named .pdf but its contents are an
+            # Excel workbook". So a small balanced balance (20 accounts, no
+            # 121) and a statutory F30/F10 return — both READ under their
+            # own names — were refused under a .pdf name, after the card
+            # had said the file is read and the object, the row and the
+            # reservation existed. The statutory detector and the
+            # spreadsheet branch's acceptance lived there only. They still
+            # do: these bytes now GO there.
+            if _ut.reads_as_workbook("pdf", _real):
+                logger.info(
+                    "[stage_extract] %r is named .pdf but its bytes are a "
+                    "workbook (%s) — reading it on the spreadsheet branch",
+                    doc.get("original_filename") or "(no filename)", _real,
+                )
+                return _stage_extract_by_real_type(doc, None, _pdf_bytes_for_sniff)
 
         # ── AI-lane jurisdiction gate (PDF) ─────────────────────────
         # Resolver BEFORE lane selection. Uses the bytes already
@@ -1537,6 +1670,17 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
                 type(e).__name__,
             )
 
+        # ── The Claude PDF lane reads PDFs only ─────────────────────
+        # What gets this far IS PDF bytes: the type guard above refused
+        # everything no reader on this branch opens, and a workbook left
+        # for the spreadsheet branch (`reads_as_workbook`) before either
+        # reader here ran — so nothing that is not a PDF is ever sent to
+        # Anthropic as `application/pdf` (the 2026-09-23 incident's lane;
+        # until 2026-10-02 a workbook the positional reader declined was
+        # stopped HERE, late, with a refusal the upload card could not
+        # know). The one exception is the guard's own: when the stored
+        # file could not be fetched for the type check, the branches run
+        # unguarded, as before.
         with _supabase.admin() as admin_client:
             signed = admin_client.signed_url(
                 "documents", storage_path,
@@ -1561,18 +1705,44 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
         return _stamp_llm_extraction(out)
 
     # Everything else: download bytes, build a Claude message, parse the JSON.
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise RuntimeError("ANTHROPIC_API_KEY not configured.")
+    if _workbook_bytes_in_hand is not None:
+        # Workbook bytes that arrived under a .pdf name: the .pdf branch
+        # that found them already holds the stored file.
+        file_bytes = _workbook_bytes_in_hand
+    else:
+        with _supabase.admin() as admin_client:
+            signed = admin_client.signed_url(
+                "documents", storage_path,
+                org_id=doc.get("org_id"), expires_in=300)
+        with httpx.Client(timeout=30.0) as http:
+            r = http.get(signed)
+            r.raise_for_status()
+            file_bytes = r.content
 
-    with _supabase.admin() as admin_client:
-        signed = admin_client.signed_url(
-            "documents", storage_path,
-            org_id=doc.get("org_id"), expires_in=300)
-    with httpx.Client(timeout=30.0) as http:
-        r = http.get(signed)
-        r.raise_for_status()
-        file_bytes = r.content
+    # ── PDF bytes are read as a PDF, whatever the file is named ─────
+    # Before anything on this branch reads them — and before this branch's
+    # own preconditions (the model key, the size ceiling), which the .pdf
+    # branch does not have: the read must be the one the same bytes get
+    # under a .pdf name, to the byte, or the same refusal.
+    #
+    # WHY (review 2026-10-02, HIGH). The spreadsheet fast-path below hands
+    # `%PDF` bytes to the positional ingester and accepts on "any rows".
+    # A five-pair balanta PDF named .xls was served with ONE account
+    # (account 121), MATERIAL_IMBALANCE; the credit-first variant with its
+    # net profit sign-flipped (a profit served as a loss); the off-by-a-cent
+    # one partially — all three books the .pdf branch reads whole or
+    # refuses for good (`BalantaPdfRefusedError`). The strict text-line
+    # reader and the "anchor or ≥ 50 accounts" gate lived on the .pdf
+    # branch only. They still do: these bytes now GO there.
+    from . import _upload_type as _ut
+    _real_kind = _ut.sniff_container(file_bytes)
+    if _ut.reads_as_pdf(kind, _real_kind, file_bytes):
+        logger.info(
+            "[stage_extract] %r is classified as %s but its bytes are a PDF "
+            "— reading it on the .pdf branch",
+            doc.get("original_filename") or "(no filename)", kind,
+        )
+        return _stage_extract_by_real_type(doc, file_bytes)
 
     if len(file_bytes) > 25 * 1024 * 1024:
         raise RuntimeError(f"File too large ({len(file_bytes)/1_000_000:.1f} MB) — 25 MB ceiling.")
@@ -1590,24 +1760,33 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
     # form, and guarding only the renamed case would have left it.
     #
     # THE REFUSAL SET IS PER-BRANCH, and derived from what that branch's
-    # readers actually accept rather than from the extension:
-    #   · Office documents (Word / PowerPoint / OpenDocument) reach no
+    # readers actually accept rather than from the extension — one policy,
+    # `_upload_type.refused_on`, read by both guard sites:
+    #   · Office documents (Word / PowerPoint / OpenDocument, legacy .doc
+    #     and .ppt included), a binary .xlsb and an empty file reach no
     #     reader anywhere — always refused.
-    #   · A PDF is refused everywhere EXCEPT the xlsx branch, whose
-    #     `pack.parse_trial_balance` routes `%PDF` bytes to the PyMuPDF
-    #     ingester: a RAS balance PDF stored as .xls is read there today
-    #     (measured: corpus/pdf_positional as `balanta.xls` → 249 rows).
-    # Everything else — text mistaken for a workbook, an unrecognised
-    # zip, bytes we cannot name — keeps today's behaviour exactly,
-    # because those can still succeed downstream and a refusal here
-    # would take away an upload that works. This path carries every
-    # trial balance in production; it is not the place to guess.
-    from . import _upload_type as _ut
-    _real_kind = _ut.sniff_container(file_bytes)
-    _refused_here = set(_ut.REACHES_NO_READER)
-    if kind != "xlsx":
-        _refused_here.add(_ut.PDF)
-    if _real_kind in _refused_here:
+    #   · PDF bytes never reach this guard: they were sent to the .pdf
+    #     branch above (`reads_as_pdf`), under every name.
+    #   · The xlsx branch reads workbooks — any Open XML zip through
+    #     openpyxl, OLE2 through xlrd — and nothing else: a zip with no
+    #     Open XML manifest, text (a CSV or an HTML export named .xls) and
+    #     unnameable bytes reach no reader there (measured 2026-10-02:
+    #     `parse_trial_balance` and `_xlsx_to_text` both raise, and the
+    #     person was told, in English and under a "RuntimeError:" prefix,
+    #     to "Save As → Excel Workbook" a CSV). They are refused by name,
+    #     with the fix — "rename it to .csv".
+    #   · The csv / text / image / unknown branches read text (or an
+    #     image) only, so a workbook, a legacy Office file or any archive
+    #     is refused there — measured before this: an Excel balance named
+    #     balanta.csv went to the model as 172,681 characters of zip
+    #     bytes. The image branch refuses text too.
+    # Text and unnameable bytes keep today's behaviour on the text
+    # branches (a UTF-16 CSV sniffs "unknown"; every real PNG or JPEG
+    # does too), because those can still succeed downstream and a
+    # refusal here would take away an upload that works. This path
+    # carries every trial balance in production; it is not the place to
+    # guess.
+    if _ut.refused_on(kind, _real_kind, file_bytes):
         logger.info(
             "[stage_extract] %r classified as %s but its bytes are %s "
             "— refusing before any reader or model call",
@@ -1618,8 +1797,17 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
                 _ut.claimed_extension(doc.get("original_filename"), kind),
                 _real_kind,
                 filename=doc.get("original_filename") or None,
+                language=doc.get("detected_language"),
             )
         )
+
+    # The model key is this branch's precondition — checked AFTER the type
+    # guard, so a file no reader opens is told what it is, not that a key
+    # is missing, and after the PDF re-entry, whose deterministic readers
+    # need no key (as under a .pdf name).
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise RuntimeError("ANTHROPIC_API_KEY not configured.")
 
     # ── AI-lane jurisdiction gate (xlsx/csv/text/image) ──────────────
     # Resolver BEFORE lane selection: HU/OTHER documents route to the
@@ -2344,7 +2532,14 @@ def _company_cui_of_org(admin_client: Any, org_id: Any) -> Optional[str]:
 def _document_company_cui(doc: Dict[str, Any]) -> Optional[str]:
     """The CUI the document's OWN header states (`company_identity`, no
     registry), or None when it states none or its bytes cannot be read.
-    Absent evidence never refuses anything."""
+    Absent evidence never refuses anything.
+
+    The identifier is given the document's name AND its declared MIME type
+    (`mime_type`) — what `_classify_file` picks this run's branch from — so
+    it reads the bytes on the branch `stage_extract` read them on. With the
+    name alone, a PDF stored as `balanta` / application/pdf was analysed by
+    the pipeline and had no CUI here: another company's book replaced a
+    served month (review round 4, 2026-10-02)."""
     try:
         with _supabase.admin() as admin_client:
             signed = admin_client.signed_url("documents", doc["storage_path"],
@@ -2354,7 +2549,8 @@ def _document_company_cui(doc: Dict[str, Any]) -> Optional[str]:
             r.raise_for_status()
             content = r.content
         from engine.workspaces.company_identity import identify_document
-        identity = identify_document(content, str(doc.get("original_filename") or ""), registry=None)
+        identity = identify_document(content, str(doc.get("original_filename") or ""), registry=None,
+                                     mime=doc.get("mime_type"))
         digits = "".join(ch for ch in str(identity.cui or "") if ch.isdigit())
         return digits or None
     except Exception:  # noqa: BLE001
@@ -2373,7 +2569,7 @@ def _served_document_cui(admin_client: Any, served_row: Dict[str, Any], org_id: 
         rows = admin_client.select(
             "documents",
             filters={"id": f"eq.{source_id}", "org_id": f"eq.{org_id}"},
-            columns="id,org_id,storage_path,original_filename",
+            columns="id,org_id,storage_path,original_filename,mime_type",
             limit=1,
         ) or []
     except Exception:  # noqa: BLE001 — unreadable is "cannot prove", not a failure
@@ -8945,13 +9141,25 @@ def build_router() -> APIRouter:
             try:
                 doc_id = ds_row.get("document_id")
                 if doc_id:
-                    docs = ac.select("documents", filters={"id": f"eq.{doc_id}"}, single=True)
+                    # THE TENANT IS IN THE FILTER (tenancy hotfix 2026-10-02):
+                    # `sales_datasets.document_id` is a COLUMN of the dataset
+                    # row, not the object the wall above authorized — a row
+                    # pointing at another workspace's document returned that
+                    # document here, and the signed URL was then checked
+                    # against the foreign document's OWN org (trivially
+                    # true). Both now name the dataset's org, which
+                    # `require_org_member` authorized for this caller.
+                    docs = ac.select(
+                        "documents",
+                        filters={"id": f"eq.{doc_id}", "org_id": f"eq.{ds_row['org_id']}"},
+                        single=True)
+                    docs = [d for d in (docs or []) if str(d.get("org_id")) == str(ds_row["org_id"])]
                     if docs:
                         storage_path = docs[0].get("storage_path")
                         if storage_path:
                             signed = ac.signed_url(
                                 "documents", storage_path,
-                                org_id=docs[0].get("org_id"), expires_in=300)
+                                org_id=ds_row["org_id"], expires_in=300)
                             r = httpx.get(signed, timeout=60.0)
                             r.raise_for_status()
                             xlsx_bytes = r.content
@@ -9633,14 +9841,17 @@ def build_router() -> APIRouter:
 
             # Per-user assumption overrides — only returned if the user has
             # saved any. Dashboard merges these on top of engine defaults.
+            # The CALLER'S row only: user id in the filter, not the period
+            # alone (`_caller_valuation_assumptions`).
             try:
-                ua_rows = client.select(
-                    "user_valuation_assumptions",
-                    filters={"period_id": f"eq.{period_id}"},
-                    single=True,
-                )
-                user_assumptions = ua_rows[0] if ua_rows else None
-            except Exception:  # noqa: BLE001
+                user_assumptions = _caller_valuation_assumptions(jwt, period_id, client=client)
+            except Exception as exc:  # noqa: BLE001
+                # Swallowed, but never silent: the period is served on the
+                # engine's figures and the reader must be able to find out why.
+                logger.warning(
+                    "[/api/period] the caller's valuation overrides were not read "
+                    "for period %s (%s: %s) — served on the engine's figures, "
+                    "user_assumptions null", period_id, type(exc).__name__, exc)
                 user_assumptions = None
 
         # Re-assemble Statements from line_items so the frontend doesn't need
@@ -10507,9 +10718,23 @@ def build_router() -> APIRouter:
                 payload,
                 on_conflict="user_id,period_id",
             )
-        # Recompute and re-persist the valuation row reflecting the user's
-        # overrides, so the dashboard can re-read /api/period/:id and see
-        # the new numbers without any client-side math.
+        # Re-persist the period's valuation row on the ENGINE'S figures — NOT
+        # on this caller's overrides (tenancy hotfix 2026-10-02; owner ruling
+        # "the engine's result is shared, overrides are per user only").
+        # `valuations` is ONE row per period that every member reads; this
+        # block used to compute it with the saver's EBITDA / multiple / debt
+        # / cash, so the row carried one member's typed figures, and another
+        # member was served them whenever the fresh recompute fell back to
+        # the row (`row_benchmarks` read the saver's multiple as the peer
+        # P50; `lawful_stored_row` served or printed the rest). The saver's
+        # own view is unchanged whenever a recompute runs: GET /api/period
+        # recomputes on the served statements with the CALLER'S own overrides
+        # on top, including the benchmark-table-down retry over the row's
+        # peer multiples. When NO recompute runs at all (compute fails on
+        # both attempts, or the row carries no peer multiple and the table is
+        # down) the saver is served the ENGINE'S lawful row beside their own
+        # saved `user_assumptions` (before this fix: the row their own save
+        # had written).
         try:
             with _supabase.admin() as admin_client:
                 periods_admin = admin_client.select(
@@ -10539,12 +10764,6 @@ def build_router() -> APIRouter:
                     result = _valuation.compute_valuation(
                         industry_key=_valuation_industry_key(org, assembled, line_items),
                         statements=assembled,
-                        user_assumptions={
-                            "ebitda_used": payload["ebitda_used"],
-                            "multiple_used": payload["multiple_used"],
-                            "debt_used": payload["debt_used"],
-                            "cash_used": payload["cash_used"],
-                        },
                     )
                     _valuation.persist_valuation(period_id, period["org_id"], result)
         except Exception:  # noqa: BLE001
@@ -10708,17 +10927,16 @@ def build_router() -> APIRouter:
             # GET path never served.
             assembled = _rebuild_assembled_for_briefing(line_items, period, org, client=admin_client)["statements"]
 
-            # Layer the user's saved EBITDA/multiple/debt/cash overrides
+            # Layer the CALLER'S saved EBITDA/multiple/debt/cash overrides
             # underneath the recompute's DCF overrides — same precedence
             # the GET endpoint uses, so toggling DCF inputs doesn't
-            # silently revert the user's persisted EBITDA choice.
-            ua_rows = admin_client.select(
-                "user_valuation_assumptions",
-                filters={"period_id": f"eq.{period_id}"},
-            )
+            # silently revert the user's persisted EBITDA choice. The
+            # caller's own row (their client, their user id in the filter):
+            # this was an admin read by period only, first row taken, and
+            # served one member a valuation on another member's figures.
+            ua = _caller_valuation_assumptions(jwt, period_id)
             user_assumptions = None
-            if ua_rows:
-                ua = ua_rows[0]
+            if ua:
                 user_assumptions = {
                     "ebitda_used":   ua.get("ebitda_used"),
                     "multiple_used": ua.get("multiple_used"),
@@ -10802,9 +11020,17 @@ def build_router() -> APIRouter:
                 "statement_line_items",
                 filters={"period_id": f"eq.{period_id}"},
             )
+            # THE TENANT IS IN THE FILTER (tenancy hotfix 2026-10-02) on every
+            # period-keyed read below whose table carries `org_id`:
+            # `period_id` on those tables is a column a member of ANOTHER
+            # workspace can write on their own rows (the insert policies
+            # check the row's own org only), so "by period" alone could
+            # return a foreign row to the narrator of this workspace's
+            # shared briefing.
+            _org_filter = f"eq.{period['org_id']}"
             metric_rows = admin_client.select(
                 "calculated_metrics",
-                filters={"period_id": f"eq.{period_id}"},
+                filters={"period_id": f"eq.{period_id}", "org_id": _org_filter},
             )
             # calculated_metrics columns are name/value/unit/direction
             # (NOT metric_name/metric_value — the earlier shape was an F2.8
@@ -10821,18 +11047,10 @@ def build_router() -> APIRouter:
             ]
             valuation_rows = admin_client.select(
                 "valuations",
-                filters={"period_id": f"eq.{period_id}"},
+                filters={"period_id": f"eq.{period_id}", "org_id": _org_filter},
             )
             valuation = valuation_rows[0] if valuation_rows else None
-            doc_rows = admin_client.select(
-                "documents",
-                filters={"period_id": f"eq.{period_id}"},
-            )
-            doc = doc_rows[0] if doc_rows else {
-                "id": "regenerate",
-                "org_id": period["org_id"],
-                "language": "en",
-            }
+            doc = _period_source_document(admin_client, period)
             # `language` (optional query param, 2026-08-04): the FE passes
             # the ACTIVE UI language so a user who switched EN↔RO can pull
             # the briefing into the language they're reading the app in —
@@ -10850,21 +11068,22 @@ def build_router() -> APIRouter:
             # THE STORED valuations ROW IS NOT THE VALUATION the narrator
             # cites (the one-EBITDA law, critic 2026-09-27): the same
             # choice GET /api/period makes — a fresh recompute on these
-            # statements with the user's saved overrides, else the row
-            # only as far as `lawful_stored_row` allows it. The row the
-            # engine wrote under the previous definition carried an
-            # EV/EBITDA equity on the old EBITDA, which a regenerated
-            # briefing (stamped with TODAY's definition) would cite.
+            # statements, else the row only as far as `lawful_stored_row`
+            # allows it. The row the engine wrote under the previous
+            # definition carried an EV/EBITDA equity on the old EBITDA,
+            # which a regenerated briefing (stamped with TODAY's
+            # definition) would cite.
+            #
+            # NO USER OVERRIDE (hotfix 2026-10-02, owner ruling "the engine's
+            # result is shared, overrides are per user only"): the briefing
+            # is ONE row every member of the workspace reads. This route
+            # read `user_valuation_assumptions` with the admin client by
+            # period only and handed the FIRST row — whichever member's —
+            # to the narrator, so one member's typed EBITDA / multiple /
+            # debt / cash was written into the shared briefing.
             if valuation:
-                try:
-                    ua_rows = admin_client.select(
-                        "user_valuation_assumptions",
-                        filters={"period_id": f"eq.{period_id}"},
-                    ) or []
-                except Exception:  # noqa: BLE001
-                    ua_rows = []
                 _fresh_val, valuation = _fresh_or_lawful_valuation(
-                    valuation, ua_rows[0] if ua_rows else None,
+                    valuation, None,
                     assembled.get("statements"), org=org,
                     line_items=assembled.get("lineItems") or line_items)
 

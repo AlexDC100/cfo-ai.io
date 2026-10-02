@@ -74,13 +74,30 @@ export function buildActualLines(
   const revenue = num(canon.operatingRevenue);
   const cogs = num(metrics.cogs);
   const ebitda = num(canon.ebitda);
-  const dep = num(metrics.depreciation);
   // THE ONE EBITDA (owner ruling 2026-09-26): gross profit is the served
   // figure (turnover − cost of sales ± the stock variation 711) — `revenue
-  // − cogs` left 711 out of it — and EBIT is EBITDA − D&A on the served
-  // EBITDA. A refused EBITDA refuses both (null), never a rebuilt figure.
+  // − cogs` left 711 out of it. A refused EBITDA refuses it (null), never a
+  // rebuilt figure.
   const grossProfit = canon.ebitda === null ? null : num(canon.grossProfit);
-  const ebit = ebitda !== null && dep !== null ? ebitda - dep : null;
+  // EBITDA → EBIT, AS SERVED (owner ruling R2, 2026-09-28). The engine's
+  // chain is EBITDA − D&A − net provisions = the operating result, with D&A
+  // WITHOUT the 6812 / 6814 charges and their net (less the 7812 / 7814
+  // reversals) on its own line outside EBITDA. This function used to compute
+  // EBIT here as EBITDA − `metrics.depreciation` — the income statement's
+  // whole 68x, which still holds those charges — against an EBITDA that no
+  // longer holds the reversals: on Scandia's baseline 32,898,302.52 against
+  // a served operating result of 41,313,577.93 (review 2026-10-02). On a
+  // period the engine assembled every figure of the chain is read, none
+  // subtracted in the browser: D&A is `assembled_pl.depreciation`, net
+  // provisions the served block's value, EBIT `assembled_pl.ebit` (null
+  // when the engine refused it). Only a payload the engine did NOT assemble
+  // (an in-statement historical year) keeps its own arithmetic — it has one
+  // D&A bucket and no provisions split to disagree with.
+  const dep = canon.served ? num(metrics.plDepreciation) : num(metrics.depreciation);
+  const netProvisions = canon.served ? num(metrics.netProvisions) : null;
+  const ebit = canon.served
+    ? num(canon.ebit)
+    : ebitda !== null && dep !== null ? ebitda - dep : null;
   return {
     operating_revenue: revenue,
     cogs,
@@ -88,6 +105,7 @@ export function buildActualLines(
     opex: num(metrics.opex),
     ebitda,
     depreciation: dep,
+    net_provisions: netProvisions,
     ebit,
     net_financial_result: num(metrics.netFinancialResult),
     income_tax: num(metrics.incomeTax),
@@ -125,12 +143,22 @@ function rowDelta(
   return { d, sentiment: sentimentFor(d, { invert: !higherIsBetter }) };
 }
 
-/** Build the full variance row set for the table. */
+/** Build the full variance row set for the table. The net-provisions row is
+ *  printed only where a column carries it: a book posting none, on a period
+ *  assembled before the ruling or against a budget that has no such line,
+ *  gets no empty row between D&A and EBIT. */
 export function buildVarianceRows(
   actual: Record<VarianceLineKey, number | null>,
   dataset: ComparisonDataset | null,
 ): VarianceRow[] {
-  return VARIANCE_LINES.map((def) => {
+  const carried = (v: number | null | undefined): boolean =>
+    typeof v === "number" && Number.isFinite(v) && Math.abs(v) >= 0.005;
+  return VARIANCE_LINES.filter((def) =>
+    def.key !== "net_provisions" ||
+    carried(actual.net_provisions) ||
+    carried(dataset?.budget.net_provisions) ||
+    carried(dataset?.lastYear.net_provisions),
+  ).map((def) => {
     const a = actual[def.key] ?? null;
     const b = dataset ? num(dataset.budget[def.key]) : null;
     const ly = dataset ? num(dataset.lastYear[def.key]) : null;

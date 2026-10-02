@@ -9,11 +9,30 @@ SAME source tree.
 from __future__ import annotations
 
 import importlib.util
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, Tuple
 
 import pytest
+
+# HERMETIC — NO PROCESS-WIDE DAEMON OUTLIVES THE TEST THAT BUILT THE APP.
+# `server.create_app()` starts the quota ledger's maintenance daemon once
+# per process whenever the Supabase variables are set (many tests set
+# placeholders). It then ticks every 60 s for the rest of the pytest
+# process, issuing `document_quota_ledger` requests through whatever HTTP
+# double the test running AT THAT MOMENT has installed: a later test that
+# counts requests or hosts goes red for a request it never made. Measured in
+# the full battery of 2026-10-02 — `test_check_served_periods` ("asked
+# ['document_quota_ledger']") and `test_launch_anonymous_egress` (a
+# `test.supabase.co` call charged to GET /api/features/status), both green
+# alone; the 2026-10-01 run recorded the same leak in `test_public_egress`.
+# Which test is hit depends on timing, so the full gate was red at random.
+# The engine's own switch turns the daemon off for the suite (and for the
+# subprocesses a test spawns); the daemon's logic is tested through
+# `_quota_ledger.maintenance_tick`, called directly. Law:
+# test_suite_hermetic_daemons.py.
+os.environ.setdefault("ENGINE_QUOTA_LEDGER_MAINTENANCE", "0")
 
 REPO = Path(__file__).resolve().parents[2]
 SRC = REPO / "src"

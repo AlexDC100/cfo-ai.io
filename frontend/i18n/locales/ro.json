@@ -3330,7 +3330,8 @@
       "avg_personnel_cost": "costul mediu pe angajat nu este servit: are nevoie de un număr de angajați pe care balanța nu îl are",
       "segment_growth": "creșterea pe segmente nu este servită: veniturile nu sunt împărțite pe segmente în balanță",
       "policy_rate_shift": "o schimbare a dobânzii de politică monetară nu este servită: balanța nu spune care datorii se reevaluează cu ea",
-      "stock_variation": "variația stocurilor de produse și producția capitalizată nu se proiectează: sunt zero în anii de plan, așa că primul an de plan pornește de la EBITDA anului de bază fără ele"
+      "stock_variation": "variația stocurilor de produse și producția capitalizată nu se proiectează: sunt zero în anii de plan, așa că primul an de plan pornește de la EBITDA anului de bază fără ele",
+      "net_provisions": "provizioanele și ajustările nete (cheltuieli minus reluări, în afara EBITDA) nu se proiectează: sunt zero în anii de plan, așa că rezultatul înainte de impozit și profitul net din plan nu includ cheltuiala sau reluarea netă a anului de bază"
     },
     "formula": {
       "cumulativeFcf": "suma numerarului din exploatare și din investiții pe perioadele servite",
@@ -3818,29 +3819,7 @@
       "commit": "N-am putut salva fișierul. Nu s-a analizat nimic.",
       "cancelled": "Analiza n-a pornit.",
       "offline": "Serviciul de analiză nu răspunde. Încearcă din nou peste un minut.",
-      "wrongKindHint": "Numele fișierului spune una și conținutul alta. Exportă balanța din nou din programul de contabilitate sau alege fișierul original.",
-      "kind": {
-        "docx_not_pdf": "Acesta este un document Word, nu un PDF",
-        "xlsx_not_pdf": "Acesta este un registru Excel, nu un PDF",
-        "pptx_not_pdf": "Aceasta este o prezentare PowerPoint, nu un PDF",
-        "pdf_not_xlsx": "Acesta este un PDF, nu un registru Excel",
-        "pdf_not_xls": "Acesta este un PDF, nu un registru Excel",
-        "docx_not_xlsx": "Acesta este un document Word, nu un registru Excel",
-        "docx_not_xls": "Acesta este un document Word, nu un registru Excel",
-        "generic": "Acesta este {{actual}}, nu {{declared}}"
-      },
-      "kindNames": {
-        "pdf": "un PDF",
-        "docx": "un document Word",
-        "xlsx": "un registru Excel",
-        "xls": "un registru Excel",
-        "pptx": "o prezentare PowerPoint",
-        "ppt": "o prezentare PowerPoint",
-        "zip": "o arhivă ZIP",
-        "ole": "un document Office mai vechi",
-        "image": "o imagine",
-        "csv": "un fișier CSV"
-      }
+      "wrongKindTitle": "Nu putem citi fișierul acesta"
     },
     "progress": {
       "title": "Analizez {{company}}",

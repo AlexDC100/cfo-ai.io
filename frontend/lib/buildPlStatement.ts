@@ -405,11 +405,19 @@ export function netProvisionsLine(served: ServedOneEbitda | null): PLLine | null
   };
 }
 
-/** The D&A row's chip: the accounts the engine's reconciliation names for
- *  it ("68x excl. 6812, 6814" since R2), else the bucket. */
-function depreciationChip(served: ServedOneEbitda | null, fallback: string): string {
-  const l = reconLine(served?.reconciliation, "depreciation");
-  return l?.accountsEn ?? l?.accounts ?? fallback;
+/** A row's account chip as the engine's reconciliation words it, in BOTH
+ *  languages: `accountCode` the English wording ("68x excl. 6812, 6814"
+ *  since R2), `accountCodeRo` the Romanian one the engine serves ("68x fără
+ *  6812, 6814") — only where the two differ. The builder does not know the
+ *  reader's language; the view picks (review 2026-10-02: the Romanian P&L
+ *  tab printed the English "excl."). Else the bucket's own code. */
+function servedChip(
+  served: ServedOneEbitda | null, lineKey: string, fallback: string,
+): { accountCode: string; accountCodeRo?: string } {
+  const l = reconLine(served?.reconciliation, lineKey);
+  const en = l?.accountsEn ?? l?.accounts ?? fallback;
+  const ro = l?.accounts ?? null;
+  return ro && ro !== en ? { accountCode: en, accountCodeRo: ro } : { accountCode: en };
 }
 
 /** Own work capitalised (72x): an operating line OUTSIDE turnover. On an
@@ -792,7 +800,7 @@ export function buildPLStatement(args: BuildArgs): PLStatement {
   const provisionsLine = netProvisionsLine(served);
   const depreciationLines: PLLine[] = [
     ...(depreciation
-      ? [{ accountCode: apl ? depreciationChip(served, "681x") : "6811", label: labelFor("6811"), amount: depreciation, style: "item" as const, bucket: "depreciationAmortization" }]
+      ? [{ ...(apl ? servedChip(served, "depreciation", "681x") : { accountCode: "6811" }), label: labelFor("6811"), amount: depreciation, style: "item" as const, bucket: "depreciationAmortization" }]
       : []),
     ...(provisionsLine ? [provisionsLine] : []),
   ];
@@ -1061,8 +1069,7 @@ function buildPLStatementFromAggregatesUnjudged(
           role: "otherOperatingIncome",
           header: "OTHER OPERATING INCOME",
           lines: [{
-            accountCode: reconLine(served?.reconciliation, "other_operating_income")?.accountsEn
-              ?? reconLine(served?.reconciliation, "other_operating_income")?.accounts ?? "758",
+            ...servedChip(served, "other_operating_income", "758"),
             label: "Other operating income",
             amount: otherIncome,
             style: "item",
@@ -1169,7 +1176,7 @@ function buildPLStatementFromAggregatesUnjudged(
     header: "",
     lines: [
       ...(dna > 0
-        ? [{ accountCode: depreciationChip(served, "6811"), label: "Depreciation & amortization", amount: dna, style: "item" as const, bucket: "depreciationAmortization" }]
+        ? [{ ...servedChip(served, "depreciation", "6811"), label: "Depreciation & amortization", amount: dna, style: "item" as const, bucket: "depreciationAmortization" }]
         : []),
       ...(provisionsLine ? [provisionsLine] : []),
     ],

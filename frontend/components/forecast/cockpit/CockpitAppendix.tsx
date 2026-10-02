@@ -88,8 +88,9 @@ function Statement({
                   <td className={`sticky left-0 bg-surface px-3 py-1.5 ${strong ? "font-medium text-ink" : "text-ink-soft"}`}>
                     {pick(row.label, lang)}
                     {row.notProjected ? (
-                      // Year-0-only line (711 / 72x): the engine's own words
-                      // for why the plan years hold 0.
+                      // Year-0-only line (711 / 72x inside EBITDA, net
+                      // provisions outside it): the engine's own words for
+                      // why the plan years hold 0.
                       <div data-testid={`forecast-row-not-projected-${row.line}`} className="text-[10.5px] text-ink-mute leading-snug">
                         {pick(row.notProjected, lang)}
                       </div>

@@ -31,7 +31,6 @@ design/capsule-craft-surface.spec.ts :: the accent underline IS present, so focu
 design/capsule-craft.spec.ts :: G5.a — the observer registers a planted shift
 design/capsule-craft.spec.ts :: four top-level interactive elements, and the Capsule is one of them
 design/capsule-craft.spec.ts :: no row's trailing text is parked against the right edge, in any family
-design/capsule-craft.spec.ts :: no row's trailing text is parked against the right edge, in any family
 design/capsule.spec.ts :: live census on /chat
 design/capsule.spec.ts :: live census on /dashboard
 design/capsule.spec.ts :: the header lane's own sanctioned set agrees with this budget
@@ -91,14 +90,9 @@ f61-demo-variance.prod.spec.ts :: /dashboard/variance route is NOT orphaned — 
 f61-demo-variance.prod.spec.ts :: dashboard greets with the Meridian demo + Snapshot/Trend toggle
 golden-path.spec.ts :: Dashboard is financial-first, not inventory-first
 launch-public-live.prod.spec.ts :: / loads clean
-launch-public-live.prod.spec.ts :: / loads clean
-launch-public-live.prod.spec.ts :: /contact-sales loads clean
 launch-public-live.prod.spec.ts :: /contact-sales loads clean
 launch-public-live.prod.spec.ts :: /login loads clean
-launch-public-live.prod.spec.ts :: /login loads clean
 launch-public-live.prod.spec.ts :: /pricing loads clean
-launch-public-live.prod.spec.ts :: /pricing loads clean
-launch-public-live.prod.spec.ts :: /signup loads clean
 launch-public-live.prod.spec.ts :: /signup loads clean
 launch-public-live.prod.spec.ts :: public-companies is not a working screen for an anonymous visitor
 launch-route-cut.spec.ts :: LR1/LR2 /benchmark — CUT

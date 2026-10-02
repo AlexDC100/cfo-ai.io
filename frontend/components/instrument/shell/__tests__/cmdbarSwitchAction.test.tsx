@@ -182,9 +182,11 @@ const A25 = AGRAS.period.period.id as string;
 const OWNER: Record<string, string> = { [S25]: ORG_S.id, [A25]: ORG_A.id };
 
 /** The company a URL pins: `?org=`, else its period's company, else the
- *  company page's id — or none (/settings, a bare /dashboard). */
+ *  company page's id — or none (/settings, a bare /dashboard). The second
+ *  argument is only the PARSE BASE for a relative URL, never a request; it is
+ *  localhost, as in the live twin (e2e/design/cmdbar.spec.ts companyOfUrl). */
 function companyOf(url: string): string | null {
-  const u = new URL(url, "http://x.invalid");
+  const u = new URL(url, "http://localhost");
   const org = u.searchParams.get("org");
   if (org) return org;
   const period = u.searchParams.get("period");

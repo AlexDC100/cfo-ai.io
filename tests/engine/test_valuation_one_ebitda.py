@@ -349,6 +349,11 @@ def _get_valuation(bk, monkeypatch, row: Dict[str, Any],
         db.tables.setdefault("user_valuation_assumptions", [])
         if user_row is not None:
             db.tables["user_valuation_assumptions"].append(dict(user_row))
+            # The world says WHO the caller is: since the tenancy hotfix
+            # (2026-10-02) the route reads the CALLER'S row — user id in the
+            # filter — not "the row of this period"
+            # (test_valuation_overrides_tenancy.py holds that law).
+            db.get_user = lambda _jwt: {"id": user_row["user_id"]}
         resp = client.get("/api/period/%s" % bk.period_id, headers=AUTH)
     finally:
         ctx.__exit__(None, None, None)

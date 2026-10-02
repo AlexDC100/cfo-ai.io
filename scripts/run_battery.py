@@ -288,9 +288,10 @@ def _engine_gates() -> List[Gate]:
         # their Stripe subscription. Under the service role RLS does not
         # apply, so the FILTER is the access control — a guard sitting in
         # an earlier early-return is one edit away from being bypassed.
-        # These three suites are the permanent form of that sweep: the
-        # storage seam, the period seam, and a static census that fails any
-        # NEW unfiltered service-role call on a tenant table. Plant log:
+        # These four suites are the permanent form of that sweep: the
+        # storage seam, the period seam, a static census that fails any
+        # NEW unfiltered service-role call on a tenant table, and cross-org
+        # reads against the real app. Plant log:
         # docs/engine_book/gates.md
         Gate("tenant-boundary",
              [PY, "-m", "pytest",
@@ -298,11 +299,15 @@ def _engine_gates() -> List[Gate]:
               "tests/engine/test_period_id_tenant_boundary.py",
               "tests/engine/test_service_role_tenant_filter.py",
               "tests/engine/test_cross_org_reads.py", "-q"],
-             work_junit=True, floor=35, units="tests",
+             # + the period-move sibling and sales-rerun laws (tenancy
+             # hotfix 2026-10-02): measured 47, floor 41.
+             work_junit=True, floor=41, units="tests",
              canaries=("test_another_orgs_path_is_refused_for_every_operation",
                        "test_make_active_refuses_a_period_in_another_workspace",
                        "test_every_unfiltered_service_role_call_is_declared",
-                       "test_a_member_of_another_workspace_cannot_read_org_a1")),
+                       "test_a_member_of_another_workspace_cannot_read_org_a1",
+                       "test_another_workspaces_document_is_never_a_sibling_of_my_period",
+                       "test_a_dataset_pointing_at_another_workspaces_document_signs_nothing")),
         Gate("route-binding",
              [PY, "-m", "pytest", "tests/engine/test_route_bindings.py", "-q"],
              work_junit=True, floor=3, units="tests",
@@ -369,17 +374,102 @@ def _engine_gates() -> List[Gate]:
         # dispatch on magic bytes); text and unnameable bytes keep today's
         # behaviour; the guard refetches when the first download failed; the
         # failure handler stores the sentence without a class name. Measured
-        # 27 tests.  Plant log: gates.md "upload-real-type".
+        # 27 tests. The 2026-10-01 review round: a legacy Word .doc / .ppt is
+        # told apart from an .xls by its OLE2 directory and refused under
+        # every name; each branch refuses what none of ITS readers opens
+        # (`_upload_type.refused_on` — text / empty / an archive on the .pdf
+        # branch, a workbook / PDF / OLE2 / archive on the text branches);
+        # a non-PDF the positional reader declined never reaches the Claude
+        # PDF lane; the ODF `mimetype` read is bounded on what is read; the
+        # sentence is in the uploader's language. Measured 88 tests.
+        # ONE UPLOAD POLICY, READ BY REAL TYPE (coordinator ruling
+        # 2026-10-02, review round 3): PDF bytes are read by the .pdf
+        # branch's own readers under EVERY name — the strict text-line
+        # reader first, its refusal final — so a five-pair balanta named
+        # .xls is no longer served with one account or its net profit
+        # sign-flipped (the HIGH finding: three books under ten names,
+        # byte-identical to the .pdf-named read or the identical refusal);
+        # a workbook named .pdf reads as the same bytes named .xlsx; the
+        # spreadsheet branch refuses by name the text / unnameable / archive
+        # bytes none of its readers opens; the upload card's routes
+        # (/api/uploads/identify, /commit) take the pipeline guard's own
+        # verdict and sentence (`_upload_type.upload_refusal`) over a
+        # 198-pair matrix, EN and RO, and at the HTTP seam
+        # (test_workspace_uploads.py, now in this gate); the picker offers
+        # no type the engine refuses by name. Measured 173 tests.
+        # REVIEW ROUND 4 (2026-10-02): read by real type in BOTH directions
+        # and at every layer. A workbook named .pdf leaves the .pdf branch
+        # for the spreadsheet branch (`reads_as_workbook`), so a small
+        # balance and a statutory F30/F10 return read as under .xlsx instead
+        # of being refused late, after the card said "read" (the equality
+        # law now runs four books and the MIME-only claim); the positional
+        # reader's acceptance gate is held from below under every name (a
+        # dialect book without its 121 row); the routes' matrix carries rows
+        # where the declared MIME type alone picks the branch; and the
+        # company IDENTIFIER reads its bytes, not its name (HIGH: a workbook
+        # named .pdf was "unreadable", filed in the company on screen, and
+        # walked through the cross-company wall — see workspace-v2).
+        # Measured 177 tests.
+        # REVIEW ROUND 5 (2026-10-02): the identifier's dispatch IS the
+        # pipeline's label (`sniff_container`), and it is handed the declared
+        # MIME type — two crafted byte shapes ("PK" + bytes + a PDF; a PDF
+        # with bytes at both ends whose branch the MIME type picks) were PDFs
+        # to the pipeline and "unreadable" to the identifier, and walked
+        # through the takeover wall. One law over three bodies x nineteen
+        # (name, MIME) pairs, through the routes' seam too. Measured 178.
+        # Plant log: gates.md "upload-real-type".
         Gate("upload-real-type",
-             [PY, "-m", "pytest", "tests/engine/test_upload_real_type.py", "-q"],
-             work_junit=True, floor=27, units="tests",
+             [PY, "-m", "pytest", "tests/engine/test_upload_real_type.py",
+              "tests/engine/test_workspace_uploads.py", "-q"],
+             work_junit=True, floor=178, units="tests",
              canaries=("test_a_docx_named_pdf_is_refused_before_the_paid_path",
                        "test_an_excel_balance_named_pdf_is_READ_not_refused",
                        "test_a_balance_pdf_named_xls_is_READ_not_refused",
+                       "test_pdf_bytes_are_read_by_the_pdf_readers_under_every_name",
+                       "test_the_five_pair_books_of_the_high_finding_under_a_spreadsheet_name",
+                       "test_a_workbook_named_pdf_reads_as_the_same_bytes_named_xlsx",
+                       "test_the_spreadsheet_branch_refuses_by_name_what_none_of_its_readers_opens",
+                       "test_one_upload_policy_the_routes_verdict_is_the_pipeline_guards",
+                       "test_the_owners_three_files_at_the_routes_and_in_the_pipeline",
+                       "test_the_upload_picker_offers_no_type_the_engine_refuses_by_name",
+                       "test_the_two_files_the_pipeline_reads_are_read_by_the_card",
+                       "test_the_refusal_is_in_the_language_the_card_is_read_in",
                        "test_a_docx_named_xlsx_is_refused_before_the_paid_path",
                        "test_an_honestly_named_docx_is_refused_through_the_real_branch",
                        "test_the_guard_still_runs_when_the_first_download_fails",
-                       "test_the_failure_handler_stores_the_sentence_without_a_class_name")),
+                       "test_the_failure_handler_stores_the_sentence_without_a_class_name",
+                       "test_a_legacy_word_doc_is_refused_under_every_name_before_any_reader",
+                       "test_the_pdf_branch_refuses_what_none_of_its_readers_opens",
+                       "test_a_workbook_named_pdf_never_reaches_the_claude_pdf_lane",
+                       "test_the_positional_readers_acceptance_gate_holds_under_every_name",
+                       "test_the_identity_of_an_upload_is_read_from_its_bytes_under_every_name",
+                       "test_the_identifier_reads_every_upload_on_the_branch_the_pipeline_reads_it_on",
+                       "test_a_mimetype_entry_that_lies_about_its_size_is_not_inflated",
+                       "test_the_real_branch_answers_in_the_language_the_run_carries")),
+        # A MEMBER IS NEVER SERVED ANOTHER MEMBER'S VALUATION OVERRIDES
+        # (tenancy hotfix 2026-10-02). `user_valuation_assumptions` is a
+        # per-USER table; valuation/recompute and briefing/regenerate read
+        # it under the service role by period only and took the first row.
+        # Two members of one workspace through the REAL routes, over a
+        # per-user client that applies NO row-level security (the code's
+        # own filter is the wall under test); the caller's own row still
+        # applies; the workspace-wide briefing is narrated on the engine's
+        # valuation; no read of the table is under the service role or
+        # without the user in the filter; the ONE shared valuations row is
+        # persisted on the engine's figures (a save writes none of the
+        # saver's); the regenerate route's period-keyed reads name the
+        # tenant and the narrator's document is the period's own. Measured
+        # 13. Plant log: docs/engine_book/gates.md
+        # "valuation-overrides-tenancy".
+        Gate("valuation-overrides-tenancy",
+             [PY, "-m", "pytest", "tests/engine/test_valuation_overrides_tenancy.py", "-q"],
+             work_junit=True, floor=13, units="tests",
+             canaries=("test_recompute_never_serves_another_members_overrides",
+                       "test_each_member_is_served_their_own_overrides",
+                       "test_the_briefing_is_narrated_on_the_engines_valuation_whoever_regenerates",
+                       "test_the_override_table_is_never_read_under_the_service_role_or_without_the_user",
+                       "test_a_save_persists_the_engines_figures_in_the_shared_row",
+                       "test_the_narrator_is_told_the_periods_own_document_and_no_foreign_row")),
         # WORKSPACE-V2 — the redesign's engine gates (one company per
         # workspace, keyed by CUI) on the REAL create_app() and the REAL
         # identifier: G1 a file lands in the company its header names, G2 the
@@ -392,12 +482,32 @@ def _engine_gates() -> List[Gate]:
         # `vitest`; the e2e half needs a hermetic build (gates.md). Floor 29
         # = the measured 24 + 5, exact (2026-09-26: + the same-month takeover
         # gates, the no-CUI refusal, the dead-letter replay, the card's
-        # confirmed extra). Plant log: docs/engine_book/gates.md.
+        # confirmed extra). Review round 4 (2026-10-02): the .pdf-NAMED twins
+        # of G1 and of the G4 cross-company wall — a workbook named .pdf is
+        # identified by its bytes, lands in the company its header names and
+        # never replaces another company's month. Measured 31, floor 31.
+        # Review round 5 (2026-10-02): the PDF twins, in the two byte shapes
+        # the pipeline reads as a PDF and the identifier did not — G1 through
+        # the real routes (5 rows: the declared MIME type is handed to the
+        # identifier), the G4 wall under 8 (shape, name, MIME) rows with a
+        # clean-PDF control, the same company's PDF still replacing the month
+        # (2 — the pipeline READS both shapes), and the month's own document
+        # of a company without a CUI read with its `mime_type` (1); /commit
+        # hands the MIME type over too (a pre-CUI workspace takes the CUI of
+        # its own PDF, 2 rows). Measured 49, floor 49.
+        # Plant log: docs/engine_book/gates.md.
         Gate("workspace-v2",
              [PY, "-m", "pytest", "tests/engine/test_workspace_v2_gates.py",
               "tests/engine/test_no_empty_period_creators.py", "-q"],
-             work_junit=True, floor=29, units="tests",
+             work_junit=True, floor=49, units="tests",
              canaries=("test_g1_an_agras_file_dropped_on_a_scandia_page_lands_in_agras",
+                       "test_g1_an_agras_workbook_named_pdf_is_identified_by_its_bytes_and_lands_in_agras",
+                       "test_g1_an_agras_pdf_is_identified_on_the_branch_the_pipeline_reads_it_on_and_lands_in_agras",
+                       "test_g1_a_workspace_from_before_cuis_takes_the_cui_of_its_own_pdf_whatever_mime_named_it",
+                       "test_g4_a_same_month_file_of_another_company_never_replaces_the_month",
+                       "test_g4_a_same_month_pdf_of_another_company_never_replaces_the_month",
+                       "test_g4_a_same_month_pdf_of_the_same_company_still_replaces_the_month",
+                       "test_g4_the_month_of_a_company_without_a_cui_is_its_own_pdfs_whatever_mime_named_it",
                        "test_g2_a_2017_file_name_whose_period_line_says_2025_is_2025",
                        "test_g3_the_same_file_twice_is_stored_analysed_and_counted_once",
                        "test_g4_the_production_check_finds_the_empty_periods_of_a_snapshot",
@@ -1256,6 +1366,7 @@ def _engine_gates() -> List[Gate]:
               "frontend/pages/cfo/__tests__/scenariosEngine.test.tsx",
               "frontend/lib/__tests__/featuresPreview.test.ts",
               "frontend/lib/__tests__/forecastSentencesRo.test.ts",
+              "frontend/components/forecast/__tests__/forecastNetProvisionsStep.test.tsx",
               "--reporter=verbose"],
              # + forecastSentencesRo (RO + EN): every sentence of the engine's
              # served inventory comes out in Romanian under the digit law and
@@ -1263,13 +1374,19 @@ def _engine_gates() -> List[Gate]:
              # cache (featuresPreview); + the refused DIO driver in its
              # own words, the Romanian mirror held to the pack
              # (feat/inventory-days, 2026-09-28). Measured 73, floor 60.
+             # + the review round of release r-rulings2 (2026-10-01, ruling
+             # R2): the step the plan does not project — net provisions — on
+             # the Forecast appendix (row + sentence, EN and RO), the
+             # not-modelled list and the Scenarios lever rail in the reader's
+             # language, over the engine's captured bytes. Measured 77.
              work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=60,
              units="page tests (F1 year 0, F5 placeholders, F6 saved scenarios, preview opt-in, served-sentence language)",
              canaries=("gate F1: year 0 is the dashboard's headline",
                        "gate F5 on the Forecast statements",
                        "gate F5: no dash and no zero where the engine served a figure",
                        "gate F6: a saved scenario survives reload and belongs to its company",
-                       "comes out in Romanian, digits exactly the served ones, no English left")),
+                       "comes out in Romanian, digits exactly the served ones, no English left",
+                       "the Scenarios lever rail's unserved sentence: Romanian by its served code, English as served")),
         # The engine half of RO + EN: the committed inventory of every
         # sentence the two pages paint (tests/engine/fixtures/forecast/
         # served_sentences.json) IS what the real route serves on the corpus
@@ -1343,7 +1460,10 @@ def _engine_gates() -> List[Gate]:
              canaries=("SCOPE forecast-cockpit (forecast-scenarios-live)",
                        "C-F1 books: agras, carniprod, retail, realestate",
                        "C-F10 agras: 13 levers, scale held across 4 moved answers",
-                       "C-ONE-ENGINE agras: 550 figures agree between the cockpit and the scenario route")),
+                       "C-ONE-ENGINE agras: 550 figures agree between the cockpit and the scenario route",
+                       # review round 2026-10-01 (ruling R2): the year-0-only
+                       # net-provisions row on the books that carry them
+                       "C-NP books carrying net provisions: agras, carniprod, retail")),
         # MARGIN-MEANING (2026-09-26): ONE rule for when a margin over turnover
         # is not meaningful — turnover negligible against operating activity
         # (packs/ratios/margin_meaning.yaml, engine.ratios.margin_meaning) —
@@ -1400,18 +1520,44 @@ def _engine_gates() -> List[Gate]:
         # reconciliation line under EBITDA prints net provisions on the row's
         # convention (the row's served figure, no effect sign), EN and RO,
         # on the pair and its mirror. Measured 66 -> 68, floor 60 -> 66.
+        # Its review round (2026-10-01): the Valuation tab's panel (/report
+        # Section 1 too) prints the bridge after EBITDA as the P&L tab does
+        # (the served charge), and the panel's chain row and the printed P&L
+        # (report + workbook) state the EFFECT's arithmetic beside the effect
+        # they print — the label evaluates to the figure. Measured 68 -> 72,
+        # floor 66 -> 72.
+        # Review round 3 (coordinator ruling D2, 2026-10-02): ONE CONVENTION
+        # PER ROW, EVERYWHERE — on every surface that prints the row (the
+        # P&L tab and its compare cells, the Valuation tab's panel, /report
+        # §1 and §2, the printed report and the workbook read back from the
+        # documents) ANY account arithmetic in the row's FULL TEXT evaluates
+        # to the figure it prints (frontend/test/netProvisionsArithmetic.ts;
+        # the earlier law read one named chip and missed /report §2's charge
+        # label over the effect and the panel row stating both
+        # arithmetics); the P&L tab's served chips ("fără" / "excl.") and
+        # the compare cells' percent, share and points print in the
+        # reader's language. Measured 72 -> 100, floor 72 -> 100.
         Gate("pl-one-ebitda-page",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/lib/__tests__/plOneEbitda.test.tsx",
-              "frontend/lib/__tests__/netProvisionsRowSign.test.tsx", "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=66,
-             units="P&L-tab tests (served subtotals, the 711 row, refusals RO/EN, 72x, the 121 remainder, the reconciliation line, the panel, retired copy, the net-provisions row's sign on the row and the line)",
+              "frontend/lib/__tests__/netProvisionsRowSign.test.tsx",
+              "frontend/lib/__tests__/netProvisionsEverySurface.test.tsx",
+              "frontend/pages/cfo/__tests__/comprehensiveReportNetProvisions.test.tsx", "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=100,
+             units="P&L-tab tests (served subtotals, the 711 row, refusals RO/EN, 72x, the 121 remainder, the reconciliation line, the panel, retired copy, the net-provisions row's sign on the row, the line, the panel and the printed P&L)",
              canaries=("covers eleven books, three of them refused",
                        "unanchored: every refused figure states the engine's reason, RO and EN",
                        "closed_no_activity: no stock-variation row, the remainder labelled, then account 121",
                        "renders the owner's name verbatim in Romanian, and with the engine's gloss in English",
                        "the served pair (current a net charge, prior a net release): the row prints current, prior and Δ charge-signed, as D&A prints its own",
-                       "the served pair (current a net charge, prior a net release): the reconciliation line above the row prints net provisions on the row's convention, EN and RO")),
+                       "the served pair (current a net charge, prior a net release): the reconciliation line above the row prints net provisions on the row's convention, EN and RO",
+                       "the served pair (current a net charge): the panel's bridge after EBITDA prints the P&L tab's figure, and its chain row's arithmetic is its figure, EN and RO",
+                       "the served pair (current a net charge): the printed P&L (report + workbook) — the row's arithmetic is its figure, the bridge after EBITDA the P&L tab's charge",
+                       "agras (en): the Valuation tab's panel — the chain row states ONE arithmetic, its figure's",
+                       "carniprod: the printed report and the workbook — the row read back from each document",
+                       "agras (ro): §2's row and §1's chain row each print the figure their own text states",
+                       "agras: \"fără\" for a Romanian reader, \"excl.\" for an English one — D&A and other operating income",
+                       "the rendered rows: the net-provisions row's share cell and D&A's Δ% cell, RO and EN")),
         # ── owner ruling 2026-09-26, design A8 (stage F2): the three surface
         # gates. Every other frontend surface — deriveTotals, computeRatios,
         # canonicalMetrics, the dashboard headline / canon / configurable
@@ -1437,12 +1583,21 @@ def _engine_gates() -> List[Gate]:
         # from the comparison's prior; no D&A-only explainer over the widened
         # row; the second step of the add-back order; /report's printed
         # figure; the alert trace hint. Measured 40 -> 53, floor 36 -> 50.
+        # Review round 3 (coordinator rulings D2 / D3, 2026-10-02): Budget
+        # Variance's Actual column READS the served EBITDA -> EBIT chain (it
+        # computed EBIT as EBITDA less all of 68x, short by the 7812 / 7814
+        # reversals since R2 — a hidden page, wrong all the same), with D&A
+        # from assembled_pl and a net-provisions row; the CFO and FCF Learn
+        # popovers name the all-68x add-back for the provision charges it
+        # holds. Measured 53 -> 65, floor 50 -> 65.
         Gate("one-ebitda",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/lib/__tests__/oneEbitdaSurfaces.test.tsx",
               "frontend/lib/__tests__/provisionsAddBack.test.tsx",
-              "frontend/pages/cfo/__tests__/comprehensiveReportAddBack.test.tsx", "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=50,
+              "frontend/pages/cfo/__tests__/comprehensiveReportAddBack.test.tsx",
+              "frontend/lib/comparison/__tests__/varianceServedChain.test.ts",
+              "frontend/lib/__tests__/learnAddBackToken.test.ts", "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=65,
              units="surface tests (every browser surface prints the served EBITDA on eight served books; the R2 add-back)",
              canaries=("covers eight served books, and on six of them the build-up before 711 / 72x differs from EBITDA",
                        "agras: the printed report, the workbook and the charts",
@@ -1455,7 +1610,10 @@ def _engine_gates() -> List[Gate]:
                        "a book posting no charges compared with one that does: the widened name, from the prior column",
                        "retail: Simple mode's glossary tooltip and the D&A learn popover only over plain D&A",
                        "carniprod: the tile from the engine's fcf_breakdown and from the client fallback, EN and RO",
-                       "the depreciation fact's hint: the pack's D&A name, none of the ruled provision accounts")),
+                       "the depreciation fact's hint: the pack's D&A name, none of the ruled provision accounts",
+                       "the witnesses: three books post reversals, so EBITDA − all of 68x is NOT the served operating result",
+                       "agras: EBIT, D&A and net provisions are the served figures, and the rows foot",
+                       "realestate posts none: the token stays plain D&A, and is the P&L's D&A")),
         # ── design A8 (stage G1): exportRatioFormulas' DISCRIMINATING scope
         # was made vacuous by the 121 bridge — on the four firm books the
         # build-up + the served 711 IS account 121, so a net-income ratio
@@ -1549,13 +1707,32 @@ def _engine_gates() -> List[Gate]:
         # printer bound to the bar's language; expected strings stated, the
         # rendered note read by the independent detector
         # (frontend/test/numberLanguage.ts). Measured 19 tests, floor 19.
+        # Review round (2026-10-01): the Ask CFO AI workspace snapshot is a
+        # regime surface too — the served label, the owner's finding EN + RO
+        # (none where withheld), the cash refusal, the composite / letter or
+        # their refusal through `engineCreditResult`, and the engine's margin
+        # refusal on the margin rows (chatSnapshotCreditRegime). Measured 24,
+        # floor 24.
+        # Review round 4 (2026-10-02): a letter the engine REFUSED is refused
+        # in the engine's words in the exported report too (never the
+        # extraction note, the "no band ladder" sentence or "points of the
+        # composite were given up"), and Altman X3 is labelled with the basis
+        # it was computed on — on the Risks tab, /report's card and the
+        # printed formula the X3 row's stated arithmetic evaluates to the
+        # figure beside it. Measured 33, floor 33.
         # Plant log: gates.md "credit-regime-surfaces".
         Gate("credit-regime-surfaces",
              ["npx", "vitest", "run", "--root", ".",
-              "frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx", "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=19,
-             units="surface tests (the regime once, the owner's sentence, the cash bases, the reader's language)",
+              "frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx",
+              "frontend/pages/cfo/__tests__/chatSnapshotCreditRegime.test.ts", "--reporter=verbose"],
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=33,
+             units="surface tests (the regime once, the owner's sentence, the cash bases, the reader's language, the chat snapshot)",
              canaries=("developer (EN): one regime block, the finding, the refused composite, the cash bases",
+                       # review round 4 (2026-10-02): the refused letter's
+                       # words, and the X3 basis
+                       "the developer's document: no extraction note, no 'no ladder', no 'points given up' — the served refusal instead",
+                       "the exported report: the Altman formula's X3 term evaluates to the Z″ printed beside it, and the regime sentence states the basis",
+                       "the Risks tab's Altman table (ro): the X3 row's stated arithmetic is the X3 it prints",
                        "the hero states the refusal, not 'analysis pending', and the regime once",
                        "/report's credit card prints the regime once, and none for a manufacturer",
                        "CmdbarList renders it once at rest and not while typing",
@@ -1564,7 +1741,10 @@ def _engine_gates() -> List[Gate]:
                        "bound to a language, the amount prints that language whatever the UI language — the code after the figure",
                        "GATE-WORK credit-regime-ui-language en figures=",
                        "GATE-WORK credit-regime-ui-language ro figures=",
-                       "the documents are English by contract: under a Romanian UI the regime sentence still prints English figures")),
+                       "the documents are English by contract: under a Romanian UI the regime sentence still prints English figures",
+                       # review round 2026-10-01: the chat snapshot
+                       "the developer: the regime EN + RO, the owner's finding verbatim, the cash refusal, the composite REFUSED",
+                       "the withheld finding: the regime once, the owner's sentence in neither language")),
         Gate("valuation-refused-override",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/components/cfo/__tests__/valuationRefusedOverride.test.tsx", "--reporter=verbose"],
@@ -2094,6 +2274,18 @@ def _engine_gates() -> List[Gate]:
                        "different coverage: 2",
                        "retail             EBIT 786579.83",
                        "SCOPE coverage popover corpus fixture")),
+        # The battery's own preflight (the nested node_modules link) and the
+        # playwright gate's refusals — unknown flag, stack not running — run
+        # for real against local recorders. No suite is started.
+        Gate("battery-preflight",
+             [PY, "-m", "pytest", "tests/engine/test_battery_preflight.py",
+              "tests/engine/test_playwright_gate_refusals.py", "-q"],
+             work_junit=True, floor=16, units="tests",
+             canaries=("test_a_planted_nested_link_stops_the_battery_before_any_gate",
+                       "test_the_main_checkout_has_no_nested_node_modules_today",
+                       "test_nothing_listening_is_stack_not_running_never_a_failure_count",
+                       "test_an_unknown_flag_is_refused_and_runs_nothing",
+                       "test_the_baseline_file_holds_each_key_once")),
         Gate("cron-auth",
              [PY, "-m", "pytest", "tests/engine/test_cron_auth.py", "-q"],
              work_junit=True, floor=8, units="tests",
@@ -2936,6 +3128,71 @@ def _write_record(gates: Dict[str, Dict[str, object]], notices: List[str]) -> Op
         return None
 
 
+# ──────────────────────────────────────────────────────────────────────
+# PREFLIGHT — the nested node_modules link
+#
+# Every worktree links its node_modules to the main checkout's. `ln -s
+# <main>/node_modules <worktree>/node_modules` run a SECOND time on a
+# worktree that already has the link follows the existing link and creates
+# the new one INSIDE the target: <main>/node_modules/node_modules. A second
+# copy of @playwright/test is then on the resolution path of every checkout
+# and Playwright collects zero tests in zero files — and the link came back
+# within the hour on 2026-10-02, after it had been removed. So the battery
+# looks before it runs anything: the link present is a RED with its own
+# name, never a quiet cause of some other gate's number.
+#
+# The rule for whoever makes the link: `ln -sfn` (replace, never follow),
+# never a bare `ln -s` on a path that may already exist.
+# ──────────────────────────────────────────────────────────────────────
+
+def _main_checkout() -> Path:
+    """The MAIN checkout of this repository — the tree every worktree's
+    node_modules link points into. In the main checkout it is REPO."""
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            cwd=REPO, capture_output=True, text=True, timeout=30)
+        common = Path(proc.stdout.strip())
+        if proc.returncode == 0 and common.name == ".git":
+            return common.parent
+    except (OSError, subprocess.SubprocessError):
+        pass
+    return REPO
+
+
+def nested_node_modules(checkouts) -> List[Path]:
+    """Every `node_modules/node_modules` that exists under the given
+    checkouts — as a link (live or broken) or as a directory — each real
+    location once. A worktree whose node_modules is itself a link reaches
+    the same entry as the main checkout (the path is resolved through the
+    link), so it is named once, at its real location."""
+    found: List[Path] = []
+    seen = set()
+    for root in checkouts:
+        outer = Path(root) / "node_modules"
+        if not os.path.lexists(outer / "node_modules"):
+            continue
+        key = os.path.join(os.path.realpath(outer), "node_modules")
+        if key not in seen:
+            seen.add(key)
+            found.append(Path(key))
+    return found
+
+
+def preflight() -> List[str]:
+    """What must be true before any gate runs; a non-empty list is a RED
+    and no gate is started."""
+    problems = []
+    for nested in nested_node_modules([_main_checkout(), REPO]):
+        problems.append(
+            "nested-node-modules: %s exists. A second copy of every package "
+            "is then on the resolution path of every checkout (Playwright "
+            "collects ZERO tests). It is made by a bare `ln -s` run twice on "
+            "a worktree's node_modules link. Remove that one entry "
+            "(`rm %s`), and link worktrees with `ln -sfn`." % (nested, nested))
+    return problems
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--engine-only", action="store_true",
@@ -2957,6 +3214,17 @@ def main(argv: Optional[List[str]] = None) -> int:
             print("%-22s %-18s %8d  %-28s %s"
                   % (g.name, g.source, g.floor, g.units, ", ".join(g.canaries) or "—"))
         return 0
+
+    problems = preflight()
+    if problems:
+        print("BATTERY PREFLIGHT")
+        print("=" * 62)
+        for problem in problems:
+            print("RED — %s" % problem)
+        print("")
+        print("FAIL — the battery did not start: %d preflight problem(s), "
+              "0 gates run." % len(problems))
+        return 1
 
     results: Dict[str, Dict[str, object]] = {}
     notices: List[str] = []

@@ -318,6 +318,9 @@ def _recompute(monkeypatch, body: Dict[str, Any]):
     monkeypatch.setattr(V, "load_valuation_benchmarks", _stub_benchmarks)
     bk = _corpus_book("agras")
     with ANCHOR._routed(bk, monkeypatch) as (client, _db):
+        # The route reads the CALLER'S saved overrides (tenancy hotfix
+        # 2026-10-02), so this world must say who is calling.
+        _db.get_user = lambda _jwt: {"id": ANCHOR.REANALYZE_USER}
         return client.post("/api/period/%s/valuation/recompute" % bk.period_id,
                            json=body, headers={"Authorization": "Bearer test"})
 

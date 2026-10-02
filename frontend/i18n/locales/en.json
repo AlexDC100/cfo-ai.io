@@ -3304,7 +3304,8 @@
       "avg_personnel_cost": "average personnel cost is not served: it needs a headcount the book does not carry",
       "segment_growth": "growth by segment is not served: revenue is not split by segment in the book",
       "policy_rate_shift": "a policy-rate shift is not served: the book does not say which of its debt reprices with the policy rate",
-      "stock_variation": "the stock variation (Variația stocurilor de produse) and own work capitalised are not projected: they are nil in every plan year, so plan year one starts from the actual year's EBITDA before them"
+      "stock_variation": "the stock variation (Variația stocurilor de produse) and own work capitalised are not projected: they are nil in every plan year, so plan year one starts from the actual year's EBITDA before them",
+      "net_provisions": "net provisions and impairment adjustments (charges less reversals, outside EBITDA) are not projected: they are nil in every plan year, so plan pre-tax result and net profit leave out the actual year's net charge or release"
     },
     "formula": {
       "cumulativeFcf": "sum of operating and investing cash over the served periods",
@@ -3788,29 +3789,7 @@
       "commit": "We couldn't save the file. Nothing was analysed.",
       "cancelled": "The analysis didn't start.",
       "offline": "The analysis service isn't answering. Try again in a minute.",
-      "wrongKindHint": "The file's name says one thing and its contents another. Export the trial balance again from your accounting software, or pick the original file.",
-      "kind": {
-        "docx_not_pdf": "This is a Word document, not a PDF",
-        "xlsx_not_pdf": "This is an Excel workbook, not a PDF",
-        "pptx_not_pdf": "This is a PowerPoint presentation, not a PDF",
-        "pdf_not_xlsx": "This is a PDF, not an Excel workbook",
-        "pdf_not_xls": "This is a PDF, not an Excel workbook",
-        "docx_not_xlsx": "This is a Word document, not an Excel workbook",
-        "docx_not_xls": "This is a Word document, not an Excel workbook",
-        "generic": "This is {{actual}}, not {{declared}}"
-      },
-      "kindNames": {
-        "pdf": "a PDF",
-        "docx": "a Word document",
-        "xlsx": "an Excel workbook",
-        "xls": "an Excel workbook",
-        "pptx": "a PowerPoint presentation",
-        "ppt": "a PowerPoint presentation",
-        "zip": "a ZIP archive",
-        "ole": "an older Office document",
-        "image": "an image",
-        "csv": "a CSV file"
-      }
+      "wrongKindTitle": "We can't read this file"
     },
     "progress": {
       "title": "Analysing {{company}}",

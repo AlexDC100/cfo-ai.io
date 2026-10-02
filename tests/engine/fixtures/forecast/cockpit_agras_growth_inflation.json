@@ -1436,6 +1436,10 @@
   {
    "id": "stock_variation",
    "sentence": "the stock variation (Variația stocurilor de produse) and own work capitalised are not projected: they are nil in every plan year, so plan year one starts from the actual year's EBITDA before them"
+  },
+  {
+   "id": "net_provisions",
+   "sentence": "net provisions and impairment adjustments (charges less reversals, outside EBITDA) are not projected: they are nil in every plan year, so plan pre-tax result and net profit leave out the actual year's net charge or release"
   }
  ],
  "numbers": {
@@ -1567,8 +1571,8 @@
  },
  "period_id": "c-cur",
  "pins": {
-  "body_hash": "sha256:67074e9a831639f4bf5e61e33eeeed468a8c80c2ec3050ba7812e5907508f713",
-  "cockpit_pack": "sha256:f2d970708529c7550ad029cf7f76d55a00f276acd6ea3e88881daa731a5f3cd7",
+  "body_hash": "sha256:87292780b619fd034f59ec7391159f08b982702c5926248f94b8fa16f38328f0",
+  "cockpit_pack": "sha256:22891b33eace4b9e3013286fea5ff8d4f3f99f11604d2368c404628652236b73",
   "engine_version": "0.1.0",
   "macro_pack": "sha256:786eec084a31392dca0f4be9c16faff90fcf6532c94bc8ed5823d5a05ff548b3",
   "margin_pack": "sha256:3f3ff11899d173b7ea4a399f5ac7a6194a25466e0220df07132bb2b161a071c9",
@@ -3407,6 +3411,52 @@
        "ro": "balanța anului de bază nu separă această linie așa cum o separă proiecția"
       }
      }
+    }
+   },
+   {
+    "label": {
+     "en": "Net provisions and impairment adjustments",
+     "ro": "Provizioane și ajustări nete"
+    },
+    "line": "pl.net_provisions",
+    "not_projected": {
+     "code": "net_provisions_not_projected",
+     "text": {
+      "en": "net provisions and impairment adjustments are not projected: 0 in every plan year; the actual year carries them in its pre-tax result and net profit",
+      "ro": "provizioanele și ajustările nete nu se proiectează: 0 în anii de plan; anul de bază le include în rezultatul înainte de impozit și în profitul net"
+     }
+    },
+    "values": [
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2026"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2027"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2028"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2029"
+     },
+     {
+      "amount_minor": 0,
+      "kind": "projected",
+      "period": "FY2030"
+     }
+    ],
+    "year0": {
+     "amount_minor": -13139466,
+     "kind": "actual",
+     "period": "FY2025"
     }
    },
    {

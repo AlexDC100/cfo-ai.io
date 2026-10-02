@@ -447,6 +447,11 @@ lines:
   pl.ebitda: {ro: "EBITDA", en: "EBITDA"}
   pl.depreciation: {ro: "Amortizarea imobilizărilor corporale", en: "Depreciation"}
   pl.amortisation: {ro: "Amortizarea imobilizărilor necorporale", en: "Amortisation"}
+  # Year 0 only (owner ruling R2, 2026-09-28): outside EBITDA, inside the
+  # actual year's operating, pre-tax and net result; projected at 0 in every
+  # plan year. Printed as its effect, like every cost here, so the label
+  # carries no account arithmetic.
+  pl.net_provisions: {ro: "Provizioane și ajustări nete", en: "Net provisions and impairment adjustments"}
   pl.ebit: {ro: "Rezultat din exploatare (EBIT)", en: "Operating result (EBIT)"}
   pl.interest_expense_debt: {ro: "Dobânzi la datorii", en: "Interest on debt"}
   pl.interest_expense_funding_line: {ro: "Dobânzi la linia de credit", en: "Interest on the credit line"}
@@ -512,6 +517,15 @@ stock_variation_step:
   code: "stock_variation_not_projected"
   ro: "variația stocurilor de produse și producția capitalizată nu se proiectează: 0 în anii de plan"
   en: "the stock variation and own work capitalised are not projected: 0 in every plan year"
+
+# Net provisions (owner ruling R2, 2026-09-28): outside EBITDA, inside the
+# actual year's operating, pre-tax and net result, and not projected — the
+# step from the actual year's pre-tax result and net profit to plan year
+# one's, said beside the year-0 figure (review 2026-10-01).
+net_provisions_step:
+  code: "net_provisions_not_projected"
+  ro: "provizioanele și ajustările nete nu se proiectează: 0 în anii de plan; anul de bază le include în rezultatul înainte de impozit și în profitul net"
+  en: "net provisions and impairment adjustments are not projected: 0 in every plan year; the actual year carries them in its pre-tax result and net profit"
 
 # ── the bridge from base (gate F9) ──────────────────────────────────────
 # Every step is a difference of cumulative served flows (case minus base)

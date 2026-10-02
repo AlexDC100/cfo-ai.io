@@ -8,6 +8,7 @@
 // Mirrors the methodology in CLAUDE.md Appendix A §5–§7.
 
 import type { Concept, FormulaToken } from "./_schema";
+import { addBackToken } from "./addBackToken";
 // THE zone mapping — the same function `zoneFor` backs, and therefore the
 // same one behind the Risks-tab chip, the credit component sentence, the
 // workbook and the printed report. See `altman_z_score` below for what
@@ -1098,7 +1099,8 @@ const free_cash_flow: Concept = {
       tokens: [
         { type: "value", value: m.netProfit ?? 0, conceptKey: "net_profit", label: "Net Profit", format: "currency" },
         { type: "operator", op: "+" },
-        { type: "value", value: m.depreciation ?? 0, conceptKey: "depreciation_amortization", label: "D&A", format: "currency" },
+        // The cash flow's add-back — all of 68x — named for what it sums.
+        addBackToken(ctx),
         { type: "operator", op: "−" },
         { type: "value", value: Math.abs(m.capex ?? 0), conceptKey: "capex", label: "Capex", format: "currency" },
       ],

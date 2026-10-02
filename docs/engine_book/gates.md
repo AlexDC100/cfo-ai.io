@@ -1703,6 +1703,78 @@ Verdict: **PROVEN RED**
 
 ---
 
+## capsule-brief
+
+**Registered 2026-10-02 — RETIRED WITH ITS SURFACE; not a battery gate, and
+not fixed.** `scripts/check_capsule_brief.mjs` (the static half of the
+Capsule brief's gates N1–N8, written 2026-09-01, edb4201d) is invoked by
+nothing — no battery gate, no npm script, no CI job — and exits 1 with five
+violations (measured on main e043845c plus the three commits of this change,
+none of which touches its inputs). Its subject was
+the Capsule's RESTING surface and its in-place Tier-0 answer. Commit 94277aea
+(2026-09-27, "⌘K rebuilt") removed both from the product: "The Capsule's
+resting tiles …, its hard-coded covenant chip and its in-place answer mode
+are gone from ⌘K." The command bar (CLAUDE.md §25) answers from the served
+documents through `shell/cmdbar/*` and is gated by `cmdbar-fixtures`,
+`cmdbar-surface` and `cmdbar-evidence`.
+
+The five violations, as printed (`GATE-WORK capsule-brief units=106 floor=30`,
+`FAIL check_capsule_brief — 5 violation(s)`), and the verdict on each:
+
+| # | violation | verdict |
+|---|---|---|
+| B1 | No `<CapsuleEmptyState` element in `CommandPalette.tsx` | RETIRED — surface replaced by the command bar. Nothing mounts `CapsuleEmptyState`; the `capsuleEmpty` barrel has no importer. |
+| B2 | NO TILE BUILDER IS REGISTERED (0 tiles measured 2026-09-01) | RETIRED — surface replaced by the command bar. The tiles were never built, and the resting state they belonged to is gone. |
+| B3 | The typing-state row slice (`const visible = out.slice(0, N)`) not found in `CommandPalette.tsx` | RETIRED — surface replaced by the command bar. The old typing list is gone; the bar's rows are `cmdbar/*`'s. |
+| B3 | NO TILE CAP IS DECLARED (`MAX_TILES`) | RETIRED — surface replaced by the command bar. No tiles, so no cap to hold. |
+| B4 | 8/78 account codes the fact index names do not resolve through `matchFactKeys` (205, 397, 4281, 446, 462, 481, 496, 532; the dead set moves with the active period) | RETIRED WITH THE SURFACE — the defect is real in the code and NO MOUNTED SURFACE CAN REACH IT. No ticket filed. See below. |
+
+**B4 — does the command bar still reach `capsuleTier0` /
+`capsuleFactIndex`? No.** Checked before retiring it, by reading the import
+graph in both directions (three independent traces, then three attempts to
+refute the answer; none refuted it), and by grep on this tree:
+
+* `CommandPalette` is mounted once, unconditionally
+  (`components/cfo/AppShell.tsx:539`), and its imports name neither
+  `lib/capsuleTier0` nor `lib/capsuleFactIndex`, nor `useCapsuleAnswer`,
+  `CapsuleAnswerPanel` or the `capsuleEmpty` barrel (94277aea removed them
+  and their call sites). Typing goes `buildCmdbarIndex` → `searchCmdbar`,
+  whose account entries are the served period body's `line_items`; Enter runs
+  a row, ⌘/Ctrl+Enter hands the question to the chat.
+* Every non-test importer of `lib/capsuleTier0` is `import type` — erased at
+  build (`capsuleTier0Turn.ts:62`, `useCapsuleAnswer.ts:30`,
+  `CapsuleAccountCard.tsx:47`, `lib/capsuleAskCorpus.ts:52`). `resolveTier0`,
+  `buildFactIndex` and `matchFactKeys` have no caller outside `__tests__` and
+  this script.
+* `useCapsuleAnswer` occurs once in the repo — its own definition. The other
+  value importers of `capsuleFactIndex` (`CapsuleAccountCard`,
+  `CapsuleFactTiles`) take helpers that never read the term index, and are
+  themselves unmounted.
+* No flag, lazy `import()`, `import.meta.glob` or worker leads there; no
+  other surface (chat, evidence drawer, pages) names either module.
+
+The mechanism B4 describes IS still in the file
+(`lib/capsuleFactIndex.ts:965-973`): `buildTermIndex` adds the label and
+account codes of `refs[0]` only — the active period's version of a statement
+line — so a code named only by another period's version of the same row
+never enters the term index. It is recorded here because **the day anything
+value-imports `capsuleTier0` or `buildFactIndex` again, this is a product
+defect on arrival**: "term index must cover all periods' codes, not the
+active period's". Until then it is a defect in code nothing runs.
+
+**CANNOT SEE / not done:** what the production BUNDLE contains was not
+inspected (nothing was built for this check — the verdict is from source);
+the unmounted modules (`lib/capsuleTier0.ts`, `lib/capsuleFactIndex.ts`,
+`capsuleAnswer/useCapsuleAnswer.ts`, `capsuleTier0Turn.ts`,
+`CapsuleAnswerPanel.tsx`, `capsuleEmpty/CapsuleEmptyState.tsx`,
+`CapsuleFactTiles.tsx`, `CapsuleAccountCard.tsx`) and their tests were left
+in place — deleting them is product code and its own decision; the script
+itself was not changed and still exits 1. Its live half,
+`e2e/design/capsule-brief.spec.ts`, is in the playwright baseline as six
+known failures (N1, N2/N4, N3, N5, N6, N7).
+
+---
+
 ## narrative-units
 
 U1/U3 — a narrative sentence must not carry its own currency label or build its own money numeral. One claim, one currency.
@@ -4839,6 +4911,235 @@ tests to passing and 28 to failing: a two-way swing of 59 on a net of 3.
 Identify the build before trusting a baseline; the scope of a measurement
 is part of its verdict (TC-13).
 
+### 2026-10-02 — the scan's false positive, and ZERO TESTS COLLECTED
+
+**The gate was red in 0.1 s on every tree, so the e2e suite was gated by
+nothing.** From cb8d128f (2026-09-27) `e2e/design/cmdbar.spec.ts` carried
+`new URL(url, "http://x.invalid")` in `companyOfUrl` — the PARSE BASE of a
+relative URL, never a request — and the static scan above refused it on
+main, on release/r-rulings2 and on production's tree 7641c755:
+
+```
+REFUSED — these specs name an absolute non-local origin in code, so they
+reach it regardless of E2E_BASE_URL:
+  e2e/design/cmdbar.spec.ts: http://x.invalid
+```
+
+Repaired in the spec, not in the scan (e95f4e68): the base is
+`"http://localhost"`; `companyOfUrl` reads only `searchParams` and
+`pathname`, so its answers are unchanged. The vitest twin
+(`cmdbarSwitchAction.test.tsx` `companyOf`, outside this scan) names the same
+base (4cebbbf6; 30 passed). The scan still refuses a real request:
+
+| plant | output | exit |
+|---|---|---|
+| the old literal back in `companyOfUrl` | `REFUSED … e2e/design/cmdbar.spec.ts: http://x.invalid` | 1, 0.09 s |
+| `request.get("https://cfo-ai.io/")` in `learning-landing-onboarding.spec.ts` (the PLANT above) | `REFUSED … e2e/learning-landing-onboarding.spec.ts: https://cfo-ai.io` | 1, 0.08 s |
+| no plant | 45 specs scanned, 0 offenders; the gate proceeds to the run | — |
+
+**ZERO TESTS COLLECTED is its own red (e8073bba).** Past the scan, the first
+run in a worktree collected nothing: `0 ran, 0 skipped`, in 3 s. Cause: a
+stray link `node_modules/node_modules -> <main checkout>/node_modules`
+(dated 2026-09-15) in the main checkout. A worktree's copy of `node_modules`
+carries it, the runner loads `playwright` through the link and the specs
+load `@playwright/test` from the copy — two instances, and every file dies
+with "Playwright Test did not expect test.describe() to be called here".
+The link was removed from the main checkout on 2026-10-02 (it is gitignored;
+no commit) — **and it was back fifty minutes later** (removed 19:31, found
+again dated 20:22, removed again). How it is made, reproduced in a scratch
+directory: `ln -s <main>/node_modules <worktree>/node_modules` run a SECOND
+time, on a worktree that already has the link, follows the existing link and
+creates the new one INSIDE the directory it points to —
+`<main>/node_modules/node_modules`. Every session that prepares a scratch
+worktree this way and repeats the command re-makes it; `ln -sfn` (or a
+`[ -e ]` guard) does not. Which session re-made it at 20:22 was not
+established. It is harmless to the main checkout itself (resolution finds
+the real packages first) and empties the run only in a COPY of
+`node_modules`, which is why this gate — not a habit — is what holds it.
+A second measured cause, on Playwright 1.59.1: ONE spec that
+throws while it is being collected empties the WHOLE run, not its own file.
+
+Before e8073bba a zero-collection run was reported as the wrong defect, and
+could be recorded as a baseline:
+
+```
+GATE-WORK playwright units=0 floor=0 label=e2e-tests-run skipped=0 skip_rate=100.0%
+  0 ran, 0 skipped; 0 failing (baseline 165, new 0, healed 165)
+FAIL — 1 problem(s):
+  · 100.0% of tests skipped, ceiling 75% — the suite is going quiet
+
+$ node scripts/check_playwright.mjs --write-baseline
+wrote design_review/PLAYWRIGHT_BASELINE.txt — 0 known failure(s), 0 ran, 0 skipped
+set PW_FLOOR_RAN=0 in run_battery.py                      (exit 0; 171 lines deleted)
+```
+
+Now `ran + skipped === 0` is refused before the baseline is read or written.
+
+**PLANT C1** — one tracked spec throws at collection
+(`throw new Error("PLANTED — …")` as the first line of
+`e2e/golden-path.spec.ts`). **RED:**
+
+```
+GATE-WORK playwright units=0 floor=0 label=e2e-tests-run skipped=0 collected=0
+
+FAIL — ZERO TESTS COLLECTED. The runner wrote a report and it holds no test:
+nothing ran and nothing was skipped, so nothing was measured. One spec that
+throws while it is being collected empties the whole run, and so does a
+second copy of @playwright/test on the resolution path (a
+`node_modules/node_modules` link).
+  the runner's own words (1 error(s), 1 distinct):
+  · Error: PLANTED — this spec throws while it is being collected (×1)
+```
+
+**PLANT C1 + `--write-baseline`** — exit 1, the same refusal, and
+`design_review/PLAYWRIGHT_BASELINE.txt was NOT rewritten: a baseline
+recorded from this run would be empty, and every later run would pass
+against it.` The file's sha256 is unchanged (`7bd47725139d42f7…`).
+
+**PLANT C2** — the link back, in one worktree. **RED:** ZERO TESTS COLLECTED,
+`the runner's own words (46 error(s), 5 distinct)`: `did not expect
+test.describe() to be called here (×30)`, `test.use() (×7)`, `test.skip() can
+only be called inside test, describe block or fixture (×5)`, `test() (×3)`,
+`No tests found (×1)`.
+
+**REVERT** — spec restored, link removed: `npx playwright test
+--project=chromium --list` collects `429 tests in 45 files`, and a collecting
+run does not enter the new branch (the no-stack run below, measured again on
+e8073bba).
+
+**What a host WITHOUT the stack prints — environmental, not the suite.**
+With nothing on :5173 and no engine, twice (e95f4e68, 202 s; e8073bba,
+175 s):
+
+```
+GATE-WORK playwright units=353 floor=0 label=e2e-tests-run skipped=76 skip_rate=17.7%
+  353 ran, 76 skipped; 349 failing (baseline 165, new 178, healed 0)
+FAIL — 1 problem(s):
+  · 178 NEW failing test(s)
+```
+
+Two things this measurement corrects in the text above:
+
+* **The floor does not catch a dead dev server.** "A ran-count below the
+  floor (the dev server was down and the suite measured nothing)" is not what
+  happens: with nothing on :5173, 353 tests RAN — and failed. A dead stack is
+  caught by the NEW failures, never by the floor (305) or the skip ceiling.
+  The floor and ZERO TESTS COLLECTED catch a suite that stopped being
+  collected, which is a different defect.
+* **The baseline file is 171 lines and 165 distinct entries.** Six titles
+  are written twice (one `design/capsule-craft.spec.ts` row and the five
+  `launch-public-live.prod.spec.ts` "… loads clean" rows): a `file :: title`
+  key cannot tell two tests of one title apart. The gate reads the file as a
+  set, hence "baseline 165".
+
+**NOT MEASURED — the baseline against a stack (Phase 5.4, held for the main
+session).** The recorded baseline is still the 2026-09-09 one (339 ran / 29
+skipped / 171 known failures); the suite now collects 429 tests where that
+run saw 368, so 61 tests have never been measured against a stack by this
+gate. Nothing in this change moved the baseline. To measure it:
+
+* a QUIET machine — no other session, no pytest, iCloud sync paused (the
+  2026-10-02 attempts ran at a load average of 17–80);
+* the stack LOCAL only: the Vite dev server on http://localhost:5173, the
+  engine on :8000 started from the commit under test, both pointed at the
+  local test Supabase (http://127.0.0.1:54321) — never the production
+  project. `E2E_BASE_URL` must stay a localhost origin or the gate refuses;
+* `node scripts/check_playwright.mjs` — read `ran / skipped / failing
+  (baseline, new, healed)`; move the baseline with `--write-baseline` only
+  when the owner agrees it should move, and set the battery floor from the
+  line it prints.
+
+One attempt to start that stack from a side session did not get as far as a
+measurement (the app's preview launcher cannot read under `~/Desktop`; the
+engine, started from a copy outside it, had not answered `/health` when the
+attempt was stopped) — so no stack figure is recorded here, and how long a
+full run takes against a stack is not known from this session.
+
+**CANNOT SEE:** a spec that fails to be collected while others still are —
+if that can happen on a later Playwright, the report's `errors` are not read
+on a non-empty run, and the missing file is caught only by the floor.
+
+## battery-preflight
+
+Owner ruling 2026-10-02, three follow-ups to the playwright repair.
+
+**What it holds.** `tests/engine/test_battery_preflight.py` (8) and
+`tests/engine/test_playwright_gate_refusals.py` (9), run for real — the
+battery's own `main()` and the real `node scripts/check_playwright.mjs`
+against local HTTP recorders on free ports. No browser and no suite: every
+case ends at a refusal or at `--probe`.
+
+1. **The nested `node_modules/node_modules` link stops the battery.**
+   `scripts/run_battery.py` `preflight()` runs at the start of every battery
+   run, before any gate: `<main checkout>/node_modules/node_modules` (or the
+   same entry in the checkout under test) present, as a link, a broken link
+   or a directory, is `RED — nested-node-modules: <path> exists`, exit 1,
+   `0 gates run`. The link is made by a bare `ln -s <main>/node_modules
+   <worktree>/node_modules` run a second time on a worktree that already has
+   the link: the existing link is followed and the new one is created inside
+   the target. **Rule: worktree links are made with `ln -sfn`, never a bare
+   `ln -s` on a path that may exist.** No tracked script makes that link (the
+   sessions do), so the rule is held by the state it would leave behind.
+2. **The playwright gate probes its stack before the runner.** The app
+   (`E2E_BASE_URL`, default `http://localhost:5173`) must answer and the
+   engine's `/health` (`E2E_ENGINE_URL`, default `http://127.0.0.1:8000`)
+   must answer 200; either silent is `REFUSED — STACK NOT RUNNING`, naming
+   which, exit 1, no test run and no failure count. Measured before, with no
+   stack: `353 ran / 76 skipped / 349 failing (new 178)` in three minutes —
+   "nothing on :5173" printed as a verdict on the product. After, same host:
+
+   ```
+   GATE-WORK playwright-stack answering=0
+   REFUSED — STACK NOT RUNNING. Not answering: the app at http://localhost:5173
+   (ECONNREFUSED); the engine at http://127.0.0.1:8000/health (ECONNREFUSED).
+   No test was run and nothing was measured.
+   ```
+
+   `--probe` answers the same question and exits 0 without starting the
+   runner. An argument the script does not know is refused (it had no
+   `--help`; any unknown flag ran the whole suite). A non-local
+   `E2E_ENGINE_URL` is refused, not probed.
+3. **The baseline is a set.** `design_review/PLAYWRIGHT_BASELINE.txt` held
+   171 lines, 165 distinct (two tests with one title in one spec share a
+   key); it is now 165 lines, membership unchanged, and `--write-baseline`
+   writes each key once.
+
+**What it reds on after the fix (TC-11):** the battery starting a gate while
+the nested entry exists; the entry existing in this repository's main
+checkout now; the playwright gate starting the runner, or printing a count
+of tests, with the app or the engine not answering; a refusal that does not
+name the silent origin; an engine whose `/health` answers an error taken for
+a stack; an unknown flag running anything; a baseline key recorded twice.
+
+**Scope and what it cannot see:** it runs no e2e test, so it says nothing
+about the suite. The probe hears an answer, not a version: that the stack is
+the commit under test, and that it points at the local test Supabase, are
+the operator's. Who made a link, or a bare `ln -s` in a prompt or a shell
+history, is invisible; only the nested entry is.
+
+**PLANT → RED → REVERT** (2026-10-02, each applied alone to the committed
+files, each file restored byte-exact by sha256; `scratchpad/hyg_plants.sh`):
+
+| plant | RED |
+|---|---|
+| P1 `if problems and False:` — the battery starts gates past a red preflight | `1 failed` — `test_a_planted_nested_link_stops_the_battery_before_any_gate` |
+| P2 the nested entry keyed per checkout, not at its real location | `1 failed` — `test_the_incident_shape_is_found_ln_s_run_twice` |
+| P3 the stack probe refuses nothing | `1 failed` in 40.7 s — "the gate was still running after 40s … it started the runner" (the process group is killed) |
+| P4 an unknown flag falls through | `1 failed` in 40.7 s — same message |
+| P5 any answer from `/health` counts as a stack | `1 failed` in 40.7 s — same message |
+| P6 a non-local engine origin is probed | `1 failed` — the refusal is no longer `REFUSED — E2E_ENGINE_URL is …` |
+| P7 the writer records duplicates again | `1 failed` — `test_the_baseline_file_holds_each_key_once` |
+
+A first P2 (the worktree's link "not read through") stayed GREEN: the branch
+it disabled was dead — `os.path.lexists` already resolves the outer link —
+and the branch was removed rather than kept unprovable. REVERT of every
+plant: `17 passed`.
+
+**Measured:** `battery-preflight` 17 tests (floor 16). The `playwright` gate
+on a host with no stack is now RED with `STACK NOT RUNNING` in 0.3 s. **The
+suite's baseline against a stack is still NOT MEASURED** — it needs a quiet
+machine and the local test Supabase; see `## playwright`, 2026-10-02.
+
 ## tenant-boundary
 
 The anatomy behind two P0s found an hour apart on 2026-09-09: **a
@@ -4846,7 +5147,7 @@ browser-written column consumed by raw value inside a service-role
 operation, behind a wall that checks a different object.** Under the
 service role RLS does not apply, so THE FILTER IS THE ACCESS CONTROL.
 
-Three suites, 41 tests, floor 35: the storage seam
+Four suites, 47 tests, floor 41: the storage seam
 (`test_storage_tenant_paths.py`), the period seam
 (`test_period_id_tenant_boundary.py`), a static census over every
 service-role call (`test_service_role_tenant_filter.py`), and cross-org
@@ -4908,6 +5209,46 @@ left all five cross-org read tests GREEN — those routes are guarded by RLS
 in the per-user client, not by that call. A plant that does not red is not
 evidence the gate is weak; it is evidence the plant was aimed at the wrong
 thing. It was replaced with Plant D, which reds.
+
+### tenant-boundary — period-move siblings and the sales rerun name the tenant (tenancy hotfix, 2026-10-02)
+
+Two more service-role reads keyed by a browser-written column, found by the
+sweep for the valuation-override class (41 candidates, each adversarially
+verified; `specs-durable/hotfix_overrides_tenancy/sweep_2026-10-02.json`):
+
+- `_period_move._live_siblings` read `documents` by `period_id` alone. A row
+  of ANOTHER workspace pointing at this period came back as a sibling, was
+  picked as the rebuild document (analysed, newest), and on the victim's own
+  move the period was wiped and re-pointed at it.
+- `POST /api/sales-datasets/{id}/rerun` read `documents` by the dataset row's
+  `document_id` alone and signed the object against the foreign document's
+  OWN org (so `assert_tenant_path` passed trivially) — another workspace's
+  workbook was downloaded and its per-category DIO written into the caller's
+  SKU rows.
+
+Both now name the authorized org in the filter AND drop any returned row of
+another org (the store must not be the only wall). Production held no row of
+either shape on 2026-10-02 (63 documents, 5 datasets, 0 cross-workspace
+pointers; read-only).
+
+Laws (in `tests/engine/test_period_id_tenant_boundary.py`, measured 15 tests,
+the gate 47): `test_another_workspaces_document_is_never_a_sibling_of_my_period`
+(with a store that honours filters and one that ignores them),
+`test_a_planted_foreign_document_leaves_a_lone_period_with_no_sibling`,
+`test_a_dataset_pointing_at_another_workspaces_document_signs_nothing`,
+`test_a_dataset_in_its_own_workspace_still_signs_its_own_workbook`.
+
+**PLANT** (each alone, by `hotfix_plants.py`, restored byte-exact):
+
+| plant | RED |
+|---|---|
+| P12 siblings read by period alone (no tenant, no check) | `3 failed, 25 passed` |
+| P13 siblings keep the filter but trust whatever the store returns | `1 failed, 27 passed` — the filter-ignoring store |
+| P14 sales rerun reads the document by id alone and signs against the document's own org | `1 failed, 27 passed` |
+
+**REVERT** — both files restored byte-exact; `28 passed`. **CANNOT SEE:** the
+live policies of `documents` / `sales_datasets`; the `_correction_rerun`
+branch that starts a run on a row it could not read.
 
 ## floor-public-score
 
@@ -9549,6 +9890,31 @@ the mirror; a new refusal code in the pack with no Romanian mirror entry; the
 Romanian rendering dropping the reason's words for its code. **It cannot see**
 whether the pack's Romanian reads well.
 
+
+### forecast-f-page — the net-provisions step on the Forecast and Scenarios pages (review of release r-rulings2, 2026-10-01, ruling R2)
+
+**LAW** (`frontend/components/forecast/__tests__/forecastNetProvisionsStep.test.tsx`,
+over the engine's captured `cockpit_agras_base.json` and
+`fp1_2_agras_served.json`) — the Forecast appendix prints the year-0-only
+"Provizioane și ajustări nete" row with the engine's not-projected sentence
+beside it, in English and in Romanian; the "not modelled" list and the
+Scenarios lever rail print the unserved `net_provisions` sentence in the
+reader's language (Romanian from `forecast.served.net_provisions` by its served
+code, `lib/forecastSentences` FIXED_CODES; English as served).
+
+Plants (`scratchpad/r2fix3/plants_fe.py`, each applied alone, restored
+byte-exact), two of two RED:
+```
+PLANT fixed-code-missing: exit 1 ['Tests  2 failed | 2 passed (4)']
+    × net provisions — the step from year 0 the plan does not project > ro: the appendix prints the row with the engine's sentence, and the not-modelled list says it 48ms
+    × net provisions — the step from year 0 the plan does not project > the Scenarios lever rail's unserved sentence: Romanian by its served code, English as served 9ms
+PLANT appendix-note-dropped: exit 1 ['Tests  2 failed | 2 passed (4)']
+    × net provisions — the step from year 0 the plan does not project > en: the appendix prints the row with the engine's sentence, and the not-modelled list says it 110ms
+    × net provisions — the step from year 0 the plan does not project > ro: the appendix prints the row with the engine's sentence, and the not-modelled list says it 39ms
+restored
+```
+**REVERT** — the clean tree: forecast-f-page PASS, 77 tests.
+
 ## forecast-served-sentences
 
 | | |
@@ -9998,6 +10364,63 @@ code; p95 slider latency over budget. **It cannot see** what the page paints
 (the frontend gates), network latency to Supabase in production, the owner's
 books unless FORECAST_LOCAL_SCANDIA is set, or whether a forecast is a GOOD
 one.
+
+
+### forecast-cockpit — net provisions, the step from year 0 the plan does not project (review of release r-rulings2, 2026-10-01, ruling R2)
+
+**INCIDENT** — net provisions (6812 + 6814 − 7812 − 7814) sit outside EBITDA
+but inside the actual year's operating, pre-tax and net result, and every plan
+year projects them at 0. The only sentence that said so was in
+`project._notes`, served in `GET /api/forecast` `notes`, which no page paints;
+the cockpit payload never mentioned provisions (`year0_step` and
+`_YEAR0_ONLY` covered 711 / 72x only). On the calibration book (a net release
+of 6,372,805.17) the review measured plan-year-one pre-tax and net profit well
+below year 0's while revenue grew 2.5% and EBITDA rose — the release dropped,
+unexplained, beside the year-0 column.
+
+**LAW** (`test_c_net_provisions_the_plan_drops_are_said_beside_year_zero`,
+the four corpus books through the real route) — where the served book carries
+net provisions (agras, carniprod and retail do; realestate does not), the
+statements carry a year-0-only `pl.net_provisions` row
+(`cockpit._YEAR0_ONLY`, now a line -> pack-sentence map): year 0 the served
+figure as its effect on the result (a net charge negative, like every cost in
+the table; the label "Provizioane și ajustări nete" / "Net provisions and
+impairment adjustments" carries no account arithmetic), 0 in every plan year,
+the pack's `net_provisions_step` sentence EN + RO beside it, after D&A and
+before EBIT; no row where the book carries none. Every book's "not modelled"
+list (`packs/forecast/levers.yaml#unserved`, also the forecast GET's
+`client.unserved` the Scenarios lever rail prints) names it.
+`test_c_net_provisions_law_is_not_vacuous` reds if no book reached the row.
+The committed cockpit and fp1.2 fixtures were re-captured by their own writers
+(`scripts/gen_cockpit_fixtures.py`, `scripts/gen_fp1_2_fixtures.py`): the new
+row, the unserved entry and the pins, nothing else.
+
+Plants (`scratchpad/r2fix3/plants_py.py`, each applied alone, restored
+byte-exact), three of three RED:
+```
+PLANT net-provisions-not-a-year0-row: exit 1 ['================== 4 failed, 1 passed, 46 deselected in 4.51s ==================']
+    tests/engine/test_forecast_cockpit.py::test_c_net_provisions_the_plan_drops_are_said_beside_year_zero[agras]
+    tests/engine/test_forecast_cockpit.py::test_c_net_provisions_the_plan_drops_are_said_beside_year_zero[carniprod]
+    tests/engine/test_forecast_cockpit.py::test_c_net_provisions_the_plan_drops_are_said_beside_year_zero[retail]
+    tests/engine/test_forecast_cockpit.py::test_c_net_provisions_law_is_not_vacuous
+PLANT year0-on-the-charge-sign: exit 1 ['================== 4 failed, 1 passed, 46 deselected in 4.32s ==================']
+    tests/engine/test_forecast_cockpit.py::test_c_net_provisions_the_plan_drops_are_said_beside_year_zero[agras]
+    tests/engine/test_forecast_cockpit.py::test_c_net_provisions_the_plan_drops_are_said_beside_year_zero[carniprod]
+    tests/engine/test_forecast_cockpit.py::test_c_net_provisions_the_plan_drops_are_said_beside_year_zero[retail]
+    tests/engine/test_forecast_cockpit.py::test_c_net_provisions_law_is_not_vacuous
+PLANT unserved-sentence-dropped: exit 1 ['================== 4 failed, 1 passed, 46 deselected in 4.30s ==================']
+    tests/engine/test_forecast_cockpit.py::test_c_net_provisions_the_plan_drops_are_said_beside_year_zero[agras]
+    tests/engine/test_forecast_cockpit.py::test_c_net_provisions_the_plan_drops_are_said_beside_year_zero[carniprod]
+    tests/engine/test_forecast_cockpit.py::test_c_net_provisions_the_plan_drops_are_said_beside_year_zero[retail]
+    tests/engine/test_forecast_cockpit.py::test_c_net_provisions_the_plan_drops_are_said_beside_year_zero[realestate]
+restored
+```
+**REVERT** — the clean tree: through `run_battery.main` narrowed to
+forecast-cockpit, forecast-served-sentences, forecast-f-page and
+forecast-cockpit-page: 4/4 PASS (forecast-cockpit 15,054 units).
+
+CANNOT SEE: whether projecting net provisions at 0 is the right model — the
+owner's ruling; the page's own rendering (forecast-f-page).
 
 ## forecast-scenarios-active
 
@@ -13404,8 +13827,8 @@ REVERT (clean tree):
 | | |
 |---|---|
 | command | `npx vitest run --root . frontend/lib/__tests__/plOneEbitda.test.tsx frontend/lib/__tests__/netProvisionsRowSign.test.tsx --reporter=verbose` |
-| canary | `covers eleven books, three of them refused`, `unanchored: every refused figure states the engine's reason, RO and EN`, `closed_no_activity: no stock-variation row, the remainder labelled, then account 121`, `renders the owner's name verbatim in Romanian, and with the engine's gloss in English`, `the served pair (current a net charge, prior a net release): the row prints current, prior and Δ charge-signed, as D&A prints its own` |
-| work count | `Tests N passed`, floor **60** (measured 66: plOneEbitda 63 + the net-provisions row 3; floor 50 / measured 58 before) |
+| canary | `covers eleven books, three of them refused`, `unanchored: every refused figure states the engine's reason, RO and EN`, `closed_no_activity: no stock-variation row, the remainder labelled, then account 121`, `renders the owner's name verbatim in Romanian, and with the engine's gloss in English`, `the served pair (current a net charge, prior a net release): the row prints current, prior and Δ charge-signed, as D&A prints its own`, `the served pair (current a net charge, prior a net release): the reconciliation line above the row prints net provisions on the row's convention, EN and RO`, `the served pair (current a net charge): the panel's bridge after EBITDA prints the P&L tab's figure, and its chain row's arithmetic is its figure, EN and RO`, `the served pair (current a net charge): the printed P&L (report + workbook) — the row's arithmetic is its figure, the bridge after EBITDA the P&L tab's charge` |
+| work count | `Tests N passed`, floor **72** (measured 72: plOneEbitda 63 + netProvisionsRowSign 9; 68 / floor 66 before the 2026-10-01 review round; floor 50 / measured 58 at first) |
 
 **INCIDENT** — the owner's ruling of 2026-09-26 (711 and 72x inside EBITDA
 and the operating result; 711 shown as "Variația stocurilor de produse" next
@@ -13538,6 +13961,58 @@ units 66, floor 60, no canary missing.
 CANNOT SEE: whether the served figures are right (`provisions-symmetric`);
 the one-line reconciliation under EBITDA and the reconciliation panel (their
 own signed parts); pixels.
+
+### pl-one-ebitda-page — the Valuation tab's panel and the printed P&L (review of release r-rulings2, 2026-10-01, ruling R2)
+
+**INCIDENT** — after the P&L tab's reconciliation line was put on the row's
+convention (8572c0ea), the SAME served bridge still printed net provisions
+with the opposite sign on another tab of the same dashboard: the
+`EbitdaReconciliationPanel` (Valuation tab `#ebitda-bridge`, and /report
+Section 1) printed the engine's effect-signed after-EBITDA part — agras
+"… (6812 + 6814 − 7812 − 7814) — outside EBITDA −131,394.66" against the P&L
+tab's "131,394.66", RO "−131.394,66"; Scandia's release "+6,372,805" against
+"−6,372,805.17". The panel's chain row printed −131,394.66 under the same
+"6812 + 6814 − 7812 − 7814", and the printed report / workbook row
+(`printedPl`, `0 − np.value` under `np.label.en`) the same — a label whose own
+arithmetic is the charge over the figure of its effect.
+
+**LAW** (second describe block of `netProvisionsRowSign.test.tsx`, on the pair
+and its constructed mirror, EN and RO) — the panel's bridge part after EBITDA
+prints THE P&L TAB'S STRING (the served charge, unsigned, uncoloured, under
+the engine's label); the panel's CHAIN row keeps the effect, because the chain
+sums to the operating result with every cost negative, and the accounts
+beside it are written as the effect's arithmetic
+(`servedOneEbitda.netProvisionsEffectAccounts`: "7812 + 7814 − 6812 − 6814",
+from the served prefixes); the printed P&L row does the same
+("Net provisions and impairment adjustments (7812 + 7814 − 6812 − 6814)",
+`0 − np.value`); the printed one-line bridge carries the P&L tab's charge after
+EBITDA. The test EVALUATES each stated expression — every prefix replaced by
+the served by-account amounts it names — and holds it equal to the printed
+figure to the cent, so a label and its figure can no longer disagree in sign.
+
+Plants (`scratchpad/r2fix3/plants_fe.py`, each applied alone, restored
+byte-exact), four of four RED:
+```
+PLANT panel-after-part-effect-signed: exit 1 ['Tests  2 failed | 7 passed (9)']
+    × net provisions on the Valuation tab's panel and the printed P&L — one convention per surface > the served pair (current a net charge): the panel's bridge after EBITDA prints the P&L tab's figure, and its chain row's ar
+    × net provisions on the Valuation tab's panel and the printed P&L — one convention per surface > the pair read the other way (current a net release — constructed): the panel's bridge after EBITDA prints the P&L tab's fig
+PLANT panel-chain-charge-arithmetic: exit 1 ['Tests  2 failed | 7 passed (9)']
+    × net provisions on the Valuation tab's panel and the printed P&L — one convention per surface > the served pair (current a net charge): the panel's bridge after EBITDA prints the P&L tab's figure, and its chain row's ar
+    × net provisions on the Valuation tab's panel and the printed P&L — one convention per surface > the pair read the other way (current a net release — constructed): the panel's bridge after EBITDA prints the P&L tab's fig
+PLANT printed-row-charge-label: exit 1 ['Tests  2 failed | 7 passed (9)']
+    × net provisions on the Valuation tab's panel and the printed P&L — one convention per surface > the served pair (current a net charge): the printed P&L (report + workbook) — the row's arithmetic is its figure, the bridg
+    × net provisions on the Valuation tab's panel and the printed P&L — one convention per surface > the pair read the other way (current a net release — constructed): the printed P&L (report + workbook) — the row's arithmet
+PLANT printed-bridge-effect-signed: exit 1 ['Tests  2 failed | 7 passed (9)']
+    × net provisions on the Valuation tab's panel and the printed P&L — one convention per surface > the served pair (current a net charge): the printed P&L (report + workbook) — the row's arithmetic is its figure, the bridg
+    × net provisions on the Valuation tab's panel and the printed P&L — one convention per surface > the pair read the other way (current a net release — constructed): the printed P&L (report + workbook) — the row's arithmet
+restored
+```
+**REVERT** — the clean tree: `Tests 72 passed (72)`; through
+`run_battery.main` narrowed to the gate: PASS, 72 tests, floor 72, no canary
+missing.
+
+CANNOT SEE: whether the served figures are right (`provisions-symmetric`);
+pixels; the Forecast cockpit's statements (their own gate).
 
 ## one-ebitda
 
@@ -17848,9 +18323,9 @@ on its 11 pre-existing findings, none new.
 
 | | |
 |---|---|
-| command | `npx vitest run frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx` |
-| canary | `developer (EN): one regime block, …`, `the hero states the refusal, not 'analysis pending', …`, `/report's credit card prints the regime once, …`, `CmdbarList renders it once at rest and not while typing`, `the documents and the command bar: the regime's label, no sentence` |
-| work count | vitest `Tests N passed`, floor **19** (measured 19 at release r-rulings2; 14 on the rulings lineage; 11 before fixer round 1) |
+| command | `npx vitest run frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx frontend/pages/cfo/__tests__/chatSnapshotCreditRegime.test.ts` |
+| canary | `developer (EN): one regime block, …`, `the hero states the refusal, not 'analysis pending', …`, `/report's credit card prints the regime once, …`, `CmdbarList renders it once at rest and not while typing`, `the documents and the command bar: the regime's label, no sentence`, `the developer: the regime EN + RO, the owner's finding verbatim, the cash refusal, the composite REFUSED`, `the withheld finding: the regime once, the owner's sentence in neither language`, `the developer's document: no extraction note, no 'no ladder', no 'points given up' — the served refusal instead`, `the exported report: the Altman formula's X3 term evaluates to the Z″ printed beside it, and the regime sentence states the basis`, `the Risks tab's Altman table (ro): the X3 row's stated arithmetic is the X3 it prints` |
+| work count | vitest `Tests N passed`, floor **33** (measured 33 after review round 4, 2026-10-02 — the refused letter's words and the X3 basis, 9 tests; 24 after the 2026-10-01 review round, the chat snapshot's 5; 19 at release r-rulings2; 14 on the rulings lineage; 11 before fixer round 1) |
 
 **LAW** — owner ruling R1: every surface that prints the grade prints the
 stock-build regime ONCE (`components/cfo/CreditRegimeNote.tsx`, a projection
@@ -18214,6 +18689,52 @@ the binding is held by the pure law (a bound printer under both UI languages)
 and by the source reading `{ lang }`. The engine's own bilingual sentences
 (the regime's labels, the cash refusal) — they are served text, not figures.
 
+
+### credit-regime-surfaces — the Ask CFO AI workspace snapshot (review of release r-rulings2, 2026-10-01)
+
+**INCIDENT** — `buildWorkspaceSnapshot` (`frontend/pages/cfo/Chat.tsx`), the
+grounding the chat edge function puts into its system prompt as
+`dataset_summary`, had no reference to credit or the regime. For the corpus
+developer the stored `credit_composite` row is NULL and was skipped silently
+(`m.value === null → continue`), while the sub-scores that did score and the
+EBITDA-based ratios reached the assistant, and `ebitda_margin` — a margin the
+engine refuses (`margin_not_meaningful`) — reached it as a figure. The regime
+rode only the briefing facts, and after the no-model reprocess every briefing
+is hidden as written under the previous definition: the assistant had neither
+the owner's sentence nor why there was no letter.
+
+**LAW** (`frontend/pages/cfo/__tests__/chatSnapshotCreditRegime.test.ts`, over
+the served envelopes of `served_credit_regime.json`) — the snapshot reads the
+grade through the one reader the Risks tab, the hero and /report use
+(`engineCreditResult`): the composite and letter, or "Composite and letter:
+REFUSED — <the Risks tab's sentence>", and the `credit_composite` row REFUSED
+with the same sentence, never skipped; under the regime, its served label EN +
+RO, the component bases, the cash refusal EN + RO (or the measured cash
+figure), and the owner's finding EN + RO verbatim with its served figures —
+nowhere when the engine WITHHELD it; the engine's margin refusal on every
+margin row (`MARGIN_CONCEPT_KEYS`), in the engine's words.
+
+Plants (`scratchpad/r2fix3/plants_fe.py`, each applied alone, restored
+byte-exact), four of four RED:
+```
+PLANT no-credit-section: exit 1 ['Tests  4 failed | 1 passed (5)']
+    × the chat snapshot carries the engine's grade, its refusal and the stock-build regime > the developer: the regime EN + RO, the owner's finding verbatim, the cash refusal, the composite REFUSED 22ms
+    × the chat snapshot carries the engine's grade, its refusal and the stock-build regime > the withheld finding: the regime once, the owner's sentence in neither language 1ms
+    × the chat snapshot carries the engine's grade, its refusal and the stock-build regime > measured cash: the composite and letter as served, the cash figure, no refusal 2ms
+    × the chat snapshot carries the engine's grade, its refusal and the stock-build regime > the manufacturer (standard model): no regime line, its letter 2ms
+PLANT null-composite-skipped: exit 1 ['Tests  1 failed | 4 passed (5)']
+    × the chat snapshot carries the engine's grade, its refusal and the stock-build regime > the developer: the regime EN + RO, the owner's finding verbatim, the cash refusal, the composite REFUSED 47ms
+PLANT margin-refusal-ignored: exit 1 ['Tests  1 failed | 4 passed (5)']
+    × the chat snapshot carries the engine's grade, its refusal and the stock-build regime > the developer: every margin the engine refuses is stated refused, in its words, never a percent 5ms
+PLANT withheld-finding-paraphrased: exit 1 ['Tests  1 failed | 4 passed (5)']
+    × the chat snapshot carries the engine's grade, its refusal and the stock-build regime > the withheld finding: the regime once, the owner's sentence in neither language 4ms
+restored
+```
+**REVERT** — the clean tree: through `run_battery.main` narrowed to the gate:
+PASS, 24 tests, floor 24, no canary missing.
+
+CANNOT SEE: what the model answers with the snapshot (the edge function); the
+briefing's own copy of the regime.
 ## supabase-read-retry
 
 | | |
@@ -18329,9 +18850,9 @@ deployed:
 
 | | |
 |---|---|
-| command | `python -m pytest tests/engine/test_upload_real_type.py -q` |
-| canary | junit test names: `test_a_docx_named_pdf_is_refused_before_the_paid_path`, `test_an_excel_balance_named_pdf_is_READ_not_refused`, `test_a_balance_pdf_named_xls_is_READ_not_refused`, `test_a_docx_named_xlsx_is_refused_before_the_paid_path`, `test_an_honestly_named_docx_is_refused_through_the_real_branch`, `test_the_guard_still_runs_when_the_first_download_fails`, `test_the_failure_handler_stores_the_sentence_without_a_class_name` |
-| work count | junit tests, floor **27** (measured 27 at release r-rulings2) |
+| command | `python -m pytest tests/engine/test_upload_real_type.py tests/engine/test_workspace_uploads.py -q` (the second file since review round 3, 2026-10-02: the upload card's routes at the HTTP seam) |
+| canary | junit test names: `test_a_docx_named_pdf_is_refused_before_the_paid_path`, `test_an_excel_balance_named_pdf_is_READ_not_refused`, `test_a_balance_pdf_named_xls_is_READ_not_refused`, `test_a_docx_named_xlsx_is_refused_before_the_paid_path`, `test_an_honestly_named_docx_is_refused_through_the_real_branch`, `test_the_guard_still_runs_when_the_first_download_fails`, `test_the_failure_handler_stores_the_sentence_without_a_class_name`, `test_a_legacy_word_doc_is_refused_under_every_name_before_any_reader`, `test_the_pdf_branch_refuses_what_none_of_its_readers_opens`, `test_a_workbook_named_pdf_never_reaches_the_claude_pdf_lane` (review round 4; it replaces `test_a_workbook_the_positional_reader_declines_never_reaches_the_claude_pdf_lane`, which pinned the late refusal), `test_the_positional_readers_acceptance_gate_holds_under_every_name`, `test_the_identity_of_an_upload_is_read_from_its_bytes_under_every_name`, `test_the_identifier_reads_every_upload_on_the_branch_the_pipeline_reads_it_on` (review round 5), `test_a_mimetype_entry_that_lies_about_its_size_is_not_inflated`, `test_the_real_branch_answers_in_the_language_the_run_carries` |
+| work count | junit tests, floor **178** (measured 27 at release r-rulings2, 88 after the 2026-10-01 review round, 173 after review round 3 — "upload-real-type — one upload policy, read by real type" — 177 after review round 4 and 178 after review round 5, all at the end of this chapter) |
 
 **INCIDENT** — 2026-09-23: a prospect uploaded
 `balanta_de_verificare_07.2025.pdf`, a Word document renamed (PK zip header,
@@ -18347,9 +18868,10 @@ was registered.
 
 **LAW** — `engine.api._upload_type` (pure: bytes in, a label out) names the
 real container; `stage_extract` refuses ONLY what reaches no reader on the
-branch it is on — Word / PowerPoint / OpenDocument everywhere
-(`REACHES_NO_READER`), a PDF everywhere except the spreadsheet branch (whose
-`parse_trial_balance` routes `%PDF` to the PyMuPDF ingester) — before the
+branch it is on (`_upload_type.refused_on`, since the 2026-10-01 review
+round below; at the hotfix: Word / PowerPoint / OpenDocument everywhere,
+`REACHES_NO_READER`, and a PDF everywhere except the spreadsheet branch,
+whose `parse_trial_balance` routes `%PDF` to the PyMuPDF ingester) — before the
 AI-lane gate, every deterministic reader and the Claude lane, with a sentence
 naming the real type and the fix (`UploadedFileTypeMismatchError`, a
 `UserFacingUploadError`: the failure handler of `_run_pipeline_stages` stores
@@ -18396,15 +18918,100 @@ E       AssertionError: stage_extract constructed an Anthropic client — this u
 REVERT (clean tree): PASS upload-real-type (6.0s, 27 tests) — BATTERY: PASS — 1/1 gates green
 ```
 
-**AFTER THE REPAIR this reds on (TC-11):** an Office document reaching any
-reader, the AI lane or a model call on any branch; the refusal naming the
-wrong type or none, or mentioning credit / billing / Claude; the honest
-`.docx` told it was misnamed; an Excel balance named .pdf or a balance PDF
-named .xls refused (the readers read them); text or unnameable bytes refused;
-the guard skipped when the first download failed; the class name stored in
-front of the sentence.
+**REVIEW ROUND 2026-10-01 — what the guard above still let through**, each
+reproduced on the release head before the repair (the review's 247-run
+matrix through the real `stage_extract`: 119 runs reached a paid call before,
+45 after — every one of them text or unnameable bytes on a text branch, or a
+real PDF on the PDF lane; no run that was READ before is read differently):
 
-**CANNOT SEE:** the upload ROUTES — `/api/uploads/identify` and `/commit`
+- **A legacy Word .doc passed under every name.** `sniff_container` called
+  every OLE2 file XLS_OLE2, which no branch refuses; a real Word 97 file
+  (`textutil`, committed as `tests/engine/fixtures/upload_type/word97_textutil.doc`)
+  named `balanta.pdf` reached the Claude PDF lane and, on an empty balance,
+  stored the 2026-09-23 incident's sentence word for word. `_ole2_flavour`
+  now reads the ROOT of the compound file's directory with the same
+  `xlrd.compdoc` xlrd itself uses: `Workbook` / `Book` → XLS_OLE2 (it wins
+  over anything else), `WordDocument` → DOC_OLE2, `PowerPoint Document` →
+  PPT_OLE2, anything unreadable or unnamed → XLS_OLE2 (a real .xls is never
+  refused). DOC_OLE2 and PPT_OLE2 joined `REACHES_NO_READER`, with a binary
+  `.xlsb` (openpyxl and xlrd both refuse it) and an EMPTY file.
+- **Files no reader on their branch opens still went to the model.** One
+  policy, `_upload_type.refused_on(kind, real, bytes)`, read by both guard
+  sites: the .pdf branch also refuses text and unnameable bytes with no
+  `%PDF-` anywhere (a header pushed past the sniff window is a PDF to
+  pdfminer and the model) and a zip with no Open XML manifest (openpyxl needs
+  `[Content_Types].xml`); the csv / text / image / unknown branches refuse a
+  PDF, a workbook, an OLE2 file and any archive (the Excel book named
+  balanta.csv went to the model as 172,681 characters of zip bytes); the
+  image branch refuses text too; the spreadsheet branch refuses nothing
+  beyond `REACHES_NO_READER`. A cut-off Word / PowerPoint zip is named by the
+  payload folders in its local headers, the window the route reads.
+- **The Claude PDF lane is reached only by PDF bytes.** A workbook the
+  positional reader DECLINED on the .pdf branch (not a trial balance, a
+  damaged .xls, an unrecognised Office zip) was sent to Anthropic as
+  `application/pdf`; it is refused there, by name ("rename it to .xlsx" puts
+  a workbook where the spreadsheet branch's readers take it).
+- **The ODF `mimetype` bound was on the DECLARED size**, which an archive
+  can lie about: `zf.read()` inflated the whole stream first (+201 MB peak
+  for a 199 KB upload). The read is now bounded (`fh.read(257)`); measured
+  with tracemalloc, 67 MB → 0.2 MB for the law's 47 KB archive.
+- **The sentence was English only** (§26). `mismatch_message(…, language=)`
+  reads `documents.detected_language`, which `/api/pipeline/run` fills with
+  the UI language before the run; `_ADVICE_RO` answers every label in
+  Romanian (informal tu, comma-below ș / ț). Two more shapes: a file with NO
+  extension is told what its contents are and how to name it (never "this
+  app cannot read" a PDF), and an empty file is told it is empty.
+
+```
+PLANT ole2-all-xls (_ole2_flavour returns XLS_OLE2 first)
+      12 failed, 76 passed — the legacy .doc under all six names, the .ppt
+      under three, the builder's Word / PowerPoint rows, the real Word 97 file
+PLANT no-residual-pdf-lane-guard (the PDF_MAGIC check before the lane disabled)
+      1 failed — test_a_workbook_the_positional_reader_declines_never_reaches_the_claude_pdf_lane
+PLANT unbounded-mimetype-read (zf.read("mimetype") restored)
+      1 failed — test_a_mimetype_entry_that_lies_about_its_size_is_not_inflated
+PLANT refusal-sets-not-widened (refused_on = REACHES_NO_READER, + PDF off the xlsx/pdf branches)
+      15 failed — the .pdf-branch set, the workbook on six text-branch names,
+      an archive / OLE2 on four text-branch names
+PLANT language-ignored (_is_romanian returns False)
+      8 failed — every Romanian law, the real branch in RO
+PLANT pdf-anywhere-ignored (the .pdf branch refuses unknown bytes even with %PDF- in them)
+      1 failed — test_the_pdf_branch_still_reads_a_pdf_whose_header_sits_past_the_window
+REVERT (clean tree): PASS upload-real-type (12.2s, 88 tests) — BATTERY: PASS — 1/1 gates green
+```
+
+**AFTER THE REPAIR this reds on (TC-11):** an Office document — Word,
+PowerPoint, OpenDocument, a legacy .doc or .ppt, a binary .xlsb — reaching
+any reader, the AI lane or a model call on any branch, under any name; an
+empty file reaching anything; a PDF, a workbook, an OLE2 file or an archive
+reaching a text reader; text or unnameable bytes without `%PDF-` reaching the
+PDF readers; a non-PDF reaching the Claude PDF lane after the positional
+reader declined it; a real .xls (a root `Workbook` / `Book`) refused on the
+spreadsheet branch; a real PDF refused (its header past the sniff window
+included); the `mimetype` read inflating a stream that lies about its size;
+the refusal naming the wrong type or none, or mentioning credit / billing /
+Claude; a Romanian reader told it in English (or an English one in
+Romanian), a label answered in one language only, the cedilla ş / ţ; a file
+with no extension told the app "cannot read" a PDF; the honest `.docx` told
+it was misnamed; an Excel balance named .pdf or a balance PDF named .xls
+refused (the readers read them); text or unnameable bytes refused on the
+spreadsheet branch, or text / UTF-16 / a PNG under its own name refused; the
+guard skipped when the first download failed; the class name stored in front
+of the sentence.
+
+**CANNOT SEE:** a Word file with a `Workbook` stream at its ROOT (not inside
+`ObjectPool`, where an embedded sheet lives) is read as an .xls and reaches
+the spreadsheet fallback — deliberate, so no real .xls is ever refused; text
+and unnameable bytes on a text branch, and a real PDF on the PDF lane, still
+reach the model (a top-up of Anthropic credit stays a separate blocker); the
+public-records probe and the AI-lane jurisdiction gate on the .pdf branch run
+on the bytes the guard has already let through.
+
+*(SUPERSEDED 2026-10-02 — the rest of this paragraph describes the state the
+round-3 review found and the coordinator ruled on: the routes now take the
+pipeline guard's own verdict, read both files and refuse a Word file under
+any name. See "upload-real-type — one upload policy, read by real type"
+below. Kept as the record of what was open.)* The upload ROUTES — `/api/uploads/identify` and `/commit`
 refuse a name/bytes mismatch before storage with their own check
 (`engine.api._uploads.format_mismatch`, gated in
 `test_workspace_uploads.py`), and they REFUSE the two cases this gate holds
@@ -18412,7 +19019,16 @@ the pipeline to READ (an Excel workbook named .pdf: "This is an Excel
 workbook, not a PDF."; a PDF named .xls: "This is a PDF, not an Excel
 workbook."). The two layers disagree on those two files; this gate holds the
 pipeline's half only (the pipeline is also reached by direct-storage uploads
-through `/api/pipeline/run`, retries and recover-stuck). Also unseen: the
+through `/api/pipeline/run`, retries and recover-stuck). **So a pre-flight
+PASS on (a) "canary workbook as balanta.pdf" and (b) "balance PDF as .xls"
+does NOT mean those files work through the workspace upload card** — the
+card goes through `/api/uploads/identify` + `/commit`, which answer them with
+a 422 and a rename instruction before storage; they are read only on the
+dashboard path (`uploadDocument` → `/api/pipeline/run`), retry and
+recover-stuck. Aligning the two (`_uploads._COMPATIBLE` allowing xlsx / ole
+under .pdf and pdf under .xls / .xlsx, or keeping the route's instruction as
+the product answer) is the OWNER's decision, raised at the 2026-10-01 review
+and not taken here. Also unseen: the
 public-records probe (pypdf text extraction) that runs on the .pdf branch's
 downloaded bytes BEFORE this guard — it fails on a non-PDF and logs, costs
 nothing and calls no model; and with `ANTHROPIC_API_KEY` UNSET the non-PDF
@@ -18564,6 +19180,786 @@ the tree), not asserted:
   18, plan-gate-census 29, floor-census 77, pack-lint 4, ui-language-figures
   35, provenance-census 815 (the 11 listed burn-down findings, none new),
   engine-book 6, test-env-isolation 14, no-plants 1,116, stale-gates 930.
+
+### release r-rulings2 — review round 3: the seven open findings (2026-10-02)
+
+Two review rounds of the release left seven findings open; the coordinator
+ruled on each (D1–D6). Every one was reproduced on the release tip eeafcadb
+before it was touched, every law was plant-proven (the plant applied, the law
+run red, the bytes restored and their sha256 checked — `r3fix/plants.py`, 26
+plants, 26 red), and the full battery was run, not a narrowed one.
+
+**upload-real-type — one upload policy, read by real type (D1).** The owner's
+expectation: "Carniprod canary as balanta.pdf is read; a balance PDF as .xls
+is read; a Word file refused both ways."
+
+- THE HIGH FINDING, reproduced through the real `stage_extract` + `stage_map`
+  on synthetic books (PyMuPDF, an invented company): a five-pair balanta PDF
+  named .xls or .xlsx was served as `pdf_positional` with ONE account,
+  MATERIAL_IMBALANCE; the credit-first variant with its account-121 anchor
+  sign-flipped; the off-by-a-cent variant partially. Named .pdf the first is
+  read whole (`saga_10_col`, BALANCED) and the other two are refused for good
+  (`BalantaPdfRefusedError`). The spreadsheet fast-path sent `%PDF` bytes to
+  the positional ingester and accepted on "any rows"; the strict text-line
+  reader ran on the .pdf branch only. Production (7641c755) behaves the same.
+- (a) PDF bytes are read as a PDF on EVERY branch: `stage_extract` re-enters
+  its own .pdf branch with the bytes (`_stage_extract_by_real_type`), so the
+  read is the same statements a .pdf name runs — byte-identical extraction or
+  the identical refusal, by construction (`_upload_type.reads_as_pdf`). A
+  displaced `%PDF-` header counts on the .pdf and spreadsheet branches; on the
+  text and image branches only when the file also ends `%%EOF` (a CSV that
+  mentions "%PDF-" stays a CSV).
+- (b) a workbook named .pdf reads as the workbook (unchanged), now held equal
+  to the same bytes named .xlsx on two corpus books.
+- (c) the spreadsheet branch refuses by name what none of its readers opens:
+  text, unnameable bytes and a zip with no Open XML manifest (measured:
+  `parse_trial_balance` and `_xlsx_to_text` both raise on all three, and the
+  person was told, in English under a "RuntimeError:" prefix, to "Save As →
+  Excel Workbook" a CSV). The .pdf and spreadsheet names now share one rule.
+  Legacy code-page text is sniffed as text, so the advice is "rename it to
+  .csv" — NARROWLY: a UTF-8 file cut mid-character by the sniffer's window,
+  or bytes that decode in cp1250 with every character above ASCII a letter
+  or an ordinary typographic mark. (The first form of the rule called any
+  non-UTF-8 bytes without a control byte "text"; the complete battery found
+  a stored scan whose bytes are a bare PNG signature refused on the image
+  branch, and `reprocess_periods_definition` answering `extract_failed`
+  where the run needs the model. A PNG's first byte decodes to a per-mille
+  sign, a JPEG's to a diacritic mark — symbols, not letters.) The model-key
+  precondition is checked after the type guard and after the PDF re-entry.
+- (d) the upload card's routes (`_uploads.format_mismatch`, called by
+  `/api/uploads/identify` and `/commit`) drop their own table (`_COMPATIBLE`)
+  and return `_upload_type.upload_refusal` — `classify` → `sniff_container` →
+  `refused_on` → `mismatch_message`, the composition the pipeline's guards are
+  made of. `/identify` takes `output_language`; an empty file answers in the
+  guard's sentence. The browser's own table (`lib/fileKind`, which refused the
+  two files before the engine saw them) is removed: the card sends every
+  accepted file to the engine and prints its sentence verbatim, final.
+- (e) `frontend/lib/uploadAccept.ts` no longer offers .ppt / .pptx (the
+  dashboard's budget-deck interception of a dropped .pptx is unchanged; its
+  target page is hidden).
+- LAWS (`tests/engine/test_upload_real_type.py`, 105;
+  `tests/engine/test_workspace_uploads.py`, 68, added to the gate): five
+  strict-layout books (five-pair, credit-first, off-by-a-cent, four-pair,
+  eight-figure) under ten other names equal to the .pdf-named outcome —
+  canonical JSON of the payload, or exception class and sentence; the three
+  books of the finding stated outright under .xls and .xlsx (an equality of
+  two wrong reads would pass the first law); workbook-as-.pdf equal to .xlsx;
+  the routes' verdict equal to the pipeline GUARD's over a matrix of 18 real
+  byte bodies × 11 names (198 pairs), with the sentence, EN and RO, driven
+  through the real `stage_extract` stopped at its first reader; the owner's
+  three files at both layers; the classifier is one function; the picker
+  against the engine's refusal set; the HTTP seam (status, body, language,
+  nothing ran before the refusal). Two laws that pinned the old behaviour
+  ("a PDF named .csv is told to rename it", "text and unnameable bytes keep
+  today's behaviour" — the second asserted model-client construction as law)
+  are replaced, each saying so (TC-11). The route tests' stand-in for "a
+  workbook" was four magic bytes and a phrase — a cut-off archive no reader
+  opens; it is a genuine minimal Open XML container now.
+- PLANTS (red count): no re-entry — the finding restored (13); the routes'
+  own table for one pair (3); the spreadsheet branch waving text / archives
+  through (4); the picker offering .pptx (1 engine, 2 browser); the routes
+  ignoring the language (1); legacy code-page text unnameable (3); the
+  text rule wide again — any non-UTF-8 bytes "text" (2, the reprocess law
+  among them); the pipeline classifying by its own rule (1); a PDF refused
+  on the text
+  branches (9); the empty-file answer in the route's own English (1); the
+  card treating a type refusal as a retryable failure (3); identify not
+  sending the language (1).
+- Measured 88 → 173, floor 88 → 173, nine canaries added.
+- CANNOT SEE: a workbook on the .pdf branch still takes the .pdf branch's
+  acceptance gate (anchor or ≥ 50 accounts) and skips the statutory F30 / C1
+  steps of the spreadsheet branch — a small or statutory workbook named .pdf
+  is refused there with "rename it to .xlsx", which is correct advice, not a
+  wrong read; a workbook under a text name is refused with the same advice
+  rather than read. A .heic sent through the upload CARD is not converted in
+  the browser (the dashboard path converts it to JPEG) and reaches the text
+  lane as unnameable bytes — pre-existing, not a type the guard refuses by
+  name, flagged to the owner. Zip payload folders are still matched as
+  substrings and a password-protected workbook is still named an .xls (the
+  two remaining low wording findings of round 2).
+
+**The upload-type PRE-FLIGHT (D5)** — `specs-durable/upload_type_preflight.py`
+— now judges every case at BOTH layers and carries the finding's own books:
+(a) the canary workbook as balanta.pdf and (b) a balance PDF as balanta.xls
+must be read by the pipeline AND by the upload card's routes ((b)
+byte-identical to the .pdf-named extraction); (c) / (d) a Word document, and
+(e) / (f) a LEGACY Word .doc — an OLE2 compound file with a `WordDocument`
+stream built in memory, proven to be sniffed `doc_ole2` before the case is
+trusted, because the image carries no tests/ fixture — named .pdf and under
+its own name, must be refused before any reader or model call, by the routes
+too, in the same sentence; (g) a five-pair balanta PDF built in memory
+(PyMuPDF, an invented company) named balanta.xls must be read WHOLE by the
+strict reader, byte-identical to its .pdf-named read, and (h) its
+credit-first variant must be REFUSED in the strict reader's sentence, as
+under .pdf. (g) / (h) were added because case (b) cannot see the HIGH
+finding: its positional corpus PDF reads the same either way (measured — the
+no-re-entry plant left a nine-check pre-flight green). Still write-nothing,
+no network, no model, exit non-zero on any failure. Run locally against the
+worktree: **11 checks PASS, exit 0**. Its plants, each on a scratch copy of
+the tree, never the worktree: against the pre-fix tip eeafcadb → 8 FAIL, exit
+1 (the routes refuse (a) and (b), answer (c) / (e) in another sentence and
+let (d) / (f) through; (g) is served as `pdf_positional` with one account and
+(h) with its anchor negative); the legacy .doc label dropped from the
+no-reader set → 3 FAIL; the routes refusing a workbook named .pdf → (a)
+FAIL; no re-entry → (g) and (h) FAIL; a model client constructed → 9 FAIL
+(every case and the "no model client constructed" line); a host resolved →
+the "no network" line FAILS alone; a file written under the repo → the
+"nothing written" line FAILS alone.
+
+**pl-one-ebitda-page — net provisions, one convention per row, everywhere
+(D2).**
+
+- /report §2's table printed the EFFECT under the engine's CHARGE label —
+  agras "… (6812 + 6814 − 7812 − 7814) −131,395", a label that evaluates to
+  +131,394.66. It prints the engine's name with the effect's arithmetic
+  through `netProvisionsEffectLabel`, the one composition the printed report
+  and the workbook use.
+- The reconciliation panel's chain row (Valuation tab, /report §1) printed
+  the engine's full label AND the effect chip — two opposite arithmetics on
+  one row. For net provisions it prints the served block's name without
+  accounts beside the chip.
+- THE LAW reads the row's FULL TEXT (`frontend/test/netProvisionsArithmetic
+  .ts`): any account arithmetic in it evaluates, over the served by-account
+  amounts, to the figure the row prints, and the printed sign is the
+  figure's. Held on: the P&L tab's row, its compare cells (prior over the
+  prior's accounts, Δ their difference) and the line under EBITDA; the
+  panel's chain row (exactly one arithmetic) and bridge; /report §1 and §2
+  with the page mounted whole and the panel not mocked; the printed report
+  (the HTML document) and the workbook (the P&L sheet) read back from the
+  documents the builders produce. Three firm books (two a net charge, one a
+  net release), EN and RO; realestate posts none and prints no row. The
+  earlier law read one named chip (`[data-recon-accounts]`) and stayed green
+  on both defects.
+- The low ones: the P&L tab's served chips print in the reader's language
+  ("68x fără 6812, 6814" / "68x excl. 6812, 6814" — `PLLine.accountCodeRo`,
+  picked by the view); the compare cells' Δ%, share and points take the UI
+  language through `moneyLocaleFor` (decimal comma, "p.p."), same digits.
+- New files in the gate: `netProvisionsEverySurface.test.tsx` (19),
+  `pages/cfo/__tests__/comprehensiveReportNetProvisions.test.tsx` (7);
+  `netProvisionsRowSign.test.tsx` 9 → 11.
+- PLANTS (red count): /report §2 back on the charge label (6); the panel row
+  on the engine's full label (6); the shared effect label returning the
+  charge label (6); the P&L row printing its effect under the charge
+  arithmetic (4); the chips English whatever the language (3); the printers
+  ignoring the language (2); the cells not passing it (1).
+- Measured 72 → 100, floor 72 → 100, five canaries added.
+- CANNOT SEE: the section HEADERS of the P&L tab ("OPERATING EXPENSES (excl.
+  D&A)") are the builder's own English words in both languages — not a served
+  chip, pre-existing, outside this ruling; whether the served figures are
+  right (provisions-symmetric).
+
+**one-ebitda — Budget Variance reads the served chain; the Learn add-back is
+named (D2 low, D3).**
+
+- `buildActualLines` computed the Actual column's EBIT as EBITDA less the
+  income statement's whole 68x bucket, which still holds the 6812 / 6814
+  charges, against a served EBITDA that no longer holds the 7812 / 7814
+  reversals: short by exactly the reversals since R2 (agras 3,988.70; the
+  Scandia baseline 8,415,275.41). The page is hidden (`_features.py`:
+  variance) — wrong all the same, and it feeds the "last year from a period"
+  column. On a period the engine assembled nothing is subtracted in the
+  browser: EBIT is `assembled_pl.ebit`, D&A `assembled_pl.depreciation`, and
+  a net-provisions row (charge-signed, printed only where a column carries
+  it) sits between them, so the three rows foot. A payload the engine did not
+  assemble keeps its one-bucket arithmetic.
+- The CFO and FCF Learn popovers printed the all-68x add-back under "D&A";
+  one token (`addBackToken`) names it for the provision charges it holds, EN
+  and RO, by `addBackHoldsProvisionCharges`.
+- Laws: `comparison/__tests__/varianceServedChain.test.ts` (8, four firm
+  books: the three figures are the served ones, the rows foot, the witnesses
+  show the old subtraction short by the served reversals on three books, a
+  refused EBITDA refuses EBIT); `learnAddBackToken.test.ts` (4).
+- PLANTS (red count): EBIT as EBITDA less all of 68x (3); the D&A row from
+  the 68x bucket (3); no net-provisions row (4); the token always "D&A" (3).
+- Measured 53 → 65, floor 50 → 65, three canaries added.
+
+**provenance-census (D4).** `design_review/PROVENANCE_CENSUS.json`: Chat.tsx
+5 → 8 sites — the three formatter calls 78e962fe added to
+`buildWorkspaceSnapshot` (the credit composite, two stock-build regime
+amounts) are prompt text handed to the model, not figures the reader sees;
+the verdict stays LACKS_SILENT and nothing is added to the burn-down. The
+gate was RED on the release tip (count drift) and passes at 818 sites with
+the 11 listed findings.
+
+**What the COMPLETE battery found beside the seven findings (D6).** The first
+complete run (139 gates, at d0b085d1) was 131 green. Each red, and what was
+done:
+
+- `pytest` — 3 failed. One was this round's own (the wide text rule, above —
+  fixed, with `reprocess-periods-definition`, the second red gate). Two were
+  `test_check_served_periods::test_it_drives_the_real_handler` ("asked
+  ['document_quota_ledger']") and `test_launch_anonymous_egress` (a
+  `test.supabase.co` call charged to GET /api/features/status), both green
+  alone: `server.create_app()` starts the quota ledger's maintenance daemon
+  once per process when the Supabase variables are set, tests set
+  placeholders, and the thread then ticks every 60 s through whatever HTTP
+  double the test running at that moment has installed. The 2026-10-01 run
+  recorded the same leak in `test_public_egress`; which test is hit depends
+  on timing. Not introduced by this release. FIXED: `tests/engine/conftest.py`
+  sets the engine's own switch (`ENGINE_QUOTA_LEDGER_MAINTENANCE=0`); the
+  daemon's logic stays tested through `maintenance_tick`. Law
+  (`test_suite_hermetic_daemons.py`, 3): the real `create_app()` under the
+  placeholders leaves no thread; a positive control starts and stops it with
+  the switch on. Plant (the switch removed) → 3 red.
+- `forecast-scenarios-active`, `floor-sku-portfolio` — built the real app
+  without `CFO_AI_SKIP_BOOT_VERIFY`, so they failed as their own gates on any
+  host without a .env (the low finding of round 2; green in the full suite
+  only because another test leaks the switch). FIXED: they set it themselves;
+  6 and 48 green on a clean worktree.
+- `tsc` — four NEW type errors, in this round's two new law files (typed
+  fields of `Statements.assembled_pl` cast straight to a JSON record). FIXED;
+  the 10 known `capsuleAskGuard` errors, 0 new.
+- `hermetic` — "NOT REPRODUCIBLE": `scenariosEngine.test.tsx` passed in one
+  environment, failed in the other and did not do it again on the gate's own
+  confirmation re-run — a flaky test this round did not touch. Green on the
+  second complete run.
+- `playwright` — REFUSED before running: `e2e/design/cmdbar.spec.ts` names
+  `http://x.invalid` (a base for `new URL()`), which the gate's static scan
+  refuses. RED ON PRODUCTION'S TREE 7641c755 TOO, with the identical message
+  (`node scripts/check_playwright.mjs` in a separate clone at that commit,
+  exit 1); the spec last changed on main (9dbd2b86). Not fixed here: past the
+  scan the gate needs the running stack this host does not have.
+- `public-sitemaps` — VACUOUS (not a failure, not evidence): no ingested
+  public data on this host. The same on production's tree here.
+
+### release r-rulings2 — review round 3: the measured runs at 6286f0be (2026-10-02)
+
+Measured on the release head after the fixes above (eight commits on
+eeafcadb), not asserted. `src/engine/api/_features.py` is byte-identical to
+production's (7641c755).
+
+- THE COMPLETE BATTERY (`python scripts/run_battery.py`, all 139 gates, the
+  owner's untracked `files/` books linked into the worktree for the run and
+  removed after, never committed): **137 green, 1 red, 1 vacuous**. Red:
+  `playwright` — red on production's tree too (above). Vacuous:
+  `public-sitemaps` (above). Every other gate green, among them: pytest
+  9,417 (the full engine suite, exit 0), corpus-replay 18, upload-real-type
+  173, route-binding 3, workspace-v2 29, reprocess-periods-definition 99,
+  forecast-scenarios-active 6, floor-sku-portfolio 48, provisions-symmetric
+  117, turnover-7411 65, credit-stock-build 164, credit-regime-surfaces 24,
+  pl-one-ebitda-page 100, one-ebitda 65, cmdbar-surface 216,
+  ui-language-figures 35, provenance-census 818 (the 11 listed burn-down
+  findings, none new), plan-gate-census 29, floor-census 77, stale-gates
+  938, no-plants 1,117, test-env-isolation 14, engine-book 6, hermetic 14,
+  tsc 1,030 files (10 known errors, 0 new), vitest 4,462 (the full frontend
+  suite), npm-build 3,647 modules.
+- `vite build` with `dist` removed first: OK.
+- root tests (`pytest tests --ignore=tests/engine`): 124 passed, 6 failed, 24
+  errors — the missing-fixture-file gaps of this host; the failing set is
+  IDENTICAL, test for test, on production's tree 7641c755 (30 = 30).
+- the upload-type pre-flight against this worktree: **11 checks PASS, exit
+  0**; its plants as recorded above.
+
+### release r-rulings2 — review round 4 (2026-10-02): the seven findings of the third review
+
+The third review of the release (after round 3's eight commits) left seven
+findings: one HIGH and two MEDIUM on the upload policy, two MEDIUM on the
+surfaces, two MEDIUM on the gates. Each was reproduced before it was touched;
+every new law was plant-proven on a scratch copy of the tree (the engine
+plants) or with the file backed up, restored in `finally` and sha-checked
+(the frontend plants); nothing was planted in the committed tree.
+
+**upload-real-type / workspace-v2 — WHO the file is about is read from its
+bytes (HIGH).**
+
+- REPRODUCED. `company_identity.extract_document_text` tested
+  `name.endswith(".pdf")` before the container signatures. Every workbook of
+  the corpus, identified under five names: readable and identified under
+  .xlsx / .xls / .csv / no extension, `unreadable` — no CUI, no company, no
+  period — under .pdf (14 workbooks of 14). Round 3 made the card's routes
+  ADMIT a workbook named .pdf, so the dispatch became reachable from the
+  card: with the name-first dispatch planted back, the corpus book of one
+  company named balanta.pdf and dropped on another company's page is offered
+  the company ON SCREEN and one tap stores and analyses it there; and the
+  same-month file of another company named balanta.pdf passes the
+  cross-company wall (`pipeline._document_company_cui` reads the CUI through
+  the same identifier), is analysed, and replaces the month. On production's
+  tree the routes refuse the file ("This is an Excel workbook, not a PDF."),
+  so neither was reachable there.
+- FIX. The identifier dispatches on bytes, in the pipeline's own order
+  (`_upload_type.sniff_container`): a zip to the workbook reader, OLE2 to the
+  legacy one, then PDF bytes as the pipeline reads them (`reads_as_pdf` — a
+  header behind leading bytes included, under every name); a `.pdf` name is
+  consulted last, for bytes nothing above names.
+- LAWS. `test_the_identity_of_an_upload_is_read_from_its_bytes_under_every_
+  name` (a workbook, a PDF, a PDF behind 2,000 leading bytes — the identity
+  under each name equals the one under the file's own);
+  `test_g1_an_agras_workbook_named_pdf_is_identified_by_its_bytes_and_lands_
+  in_agras` (identify → commit → the five stages through the real app: the
+  identity equals the .xlsx-named one field by field, the file lands and is
+  analysed in the company its header names, the company on screen holds
+  nothing of it); `test_g4_a_same_month_file_of_another_company_never_
+  replaces_the_month` now runs under balanta.xlsx AND balanta.pdf, and also
+  asserts the month's own document is not archived and the refused file is
+  not counted.
+- PLANT (the name-first dispatch restored): all three red, 3 failed / 4
+  passed of the selection; the identity law, the G1 twin and the .pdf-named
+  G4 twin — the .xlsx-named G4 stays green, which is why the finding was
+  invisible.
+
+**upload-real-type — a workbook named .pdf is read on the spreadsheet branch
+(MEDIUM: route verdict ≠ pipeline verdict).**
+
+- REPRODUCED (plant: the re-dispatch below switched off). A small balanced
+  balance (20 accounts, no account 121) and a statutory F30/F10 return are
+  READ under .xlsx and, named .pdf, went through the .pdf branch's positional
+  reader under ITS acceptance gate ("account 121 or ≥ 50 accounts"), were
+  declined, and were refused late — after the routes had answered "read" and
+  the object, the row and the reservation existed. Round 3's equality law ran
+  two FULL trial balances only and recorded this under CANNOT SEE.
+- FIX. Read by real type in BOTH directions: workbook bytes found on the .pdf
+  branch re-enter the spreadsheet branch of the one body
+  (`_upload_type.reads_as_workbook`; `_stage_extract_by_real_type`), exactly
+  as PDF bytes found on another branch re-enter the .pdf one. The outcome is
+  the one the same bytes get named .xlsx / .xls — the statutory detector, the
+  trial-balance reader on the spreadsheet branch's acceptance, the workbook
+  rendered as text for the model, or the same failure. The .pdf branch's late
+  refusal ("no reader took its bytes — refusing before the Claude PDF lane")
+  is removed: nothing reaches that point that is not PDF bytes, so the type
+  guard is the ONLY type refusal and the routes' verdict is the pipeline's.
+- LAWS. `test_a_workbook_named_pdf_reads_as_the_same_bytes_named_xlsx` runs
+  four books — the two corpus trial balances, a small balanced balance
+  (asserted to BE below the .pdf gate: under 50 accounts, no anchor) and a
+  statutory return (read as `statutory_f30_f10`) — under .pdf, under .pdf
+  with a spreadsheet MIME, under NO extension with a PDF MIME, and under
+  .xls: canonical JSON equal to the .xlsx-named payload.
+  `test_a_workbook_named_pdf_never_reaches_the_claude_pdf_lane` REPLACES the
+  law that pinned the late refusal (TC-11, said in its docstring): four
+  workbook bodies the readers decline (not a balance, an unrecognised Open
+  XML zip, a junk OLE2 workbook, an OLE2 EncryptedPackage) have, named .pdf,
+  the outcome of their own name — never a type refusal, never the PDF model
+  lane.
+- PLANT (re-dispatch off): the small balance, the statutory return and the
+  never-the-PDF-lane law red (3 of 5); the two full books stay green.
+
+**upload-real-type — the positional reader's acceptance gate, from below
+(MEDIUM, gates lens).**
+
+- REPRODUCED. The gate loosened for re-entered PDF bytes only (`… or
+  _pdf_bytes_in_hand is not None`) left the 173-test gate green: the five
+  books of the equality law are settled by the strict reader and the corpus
+  positional PDF has 192 accounts.
+- LAW. `test_the_positional_readers_acceptance_gate_holds_under_every_name`:
+  the synthetic book in the positional ingester's dialect as printed (served
+  as `pdf_positional` with its anchor) and without its account-121 row and
+  that row's counterpart (no anchor, under 50 accounts: declined, the .pdf
+  branch's model lane — the fixture's tripwire), each under ten other names
+  equal to the .pdf-named outcome. Both are asserted to name the
+  `five_pair_positional` layout, so the strict reader settles neither.
+- PLANT (the loosened gate): the new law red, the 13 older laws of the
+  selection green — the finding, measured.
+
+**upload-real-type — the routes' matrix has rows the MIME type decides
+(MEDIUM, pre-flight coverage).** `test_one_upload_policy_the_routes_verdict_
+is_the_pipeline_guards` adds four names with no extension (declared
+application/pdf, a spreadsheet type, text/csv, image/png) to the eleven, and
+asserts the declared type alone changes the verdict for at least six pairs.
+PLANT (the route classifies without the declared MIME): red — the law that
+was green under this plant in the third review.
+
+**The upload-type PRE-FLIGHT** (`specs-durable/upload_type_preflight.py`): 11
+checks → **17**. The third review planted eighteen policy defects; seven
+stayed green, and so did the HIGH finding.
+
+- THE ROUTES ARE THE REAL ONES: the endpoint functions of
+  /api/uploads/identify and /api/uploads/commit from `build_router()`, called
+  with the upload, its declared MIME type and the reader's language — three
+  seams replaced (the bearer check, the registry, the store; reaching the
+  store IS "read"). The helper they call is still asked; all three must agree.
+- (a) also holds the canary's IDENTITY under balanta.pdf equal to its
+  identity under .xlsx (compared, never printed).
+- (i) the balance PDF named .xlsx and .csv, byte-identical to the .pdf-named
+  read; (j) a CSV named .xls refused by name; (k) the canary named .csv
+  refused by name; (l) a Word document named .pdf for a Romanian reader,
+  refused in Romanian by the pipeline and the routes in one sentence; (m)
+  the canary with no extension, declared application/pdf — read at both
+  layers; (n) a small balanced balance named .pdf, byte-identical to its
+  .xlsx-named read.
+- Run against this worktree: **17 checks PASS, exit 0** (34 s). Against
+  production's tree 7641c755: CANNOT RUN, exit 2 (that pipeline carries no
+  type guard) — by design, never a pass.
+- PLANTS, each on a scratch copy, restored and sha-checked: **24 of 24 red**
+  — the eleven the third review found red; the seven it found GREEN (text
+  let through on the spreadsheet branch → (j); a workbook let through on a
+  text branch → (k); the re-dispatch kept for .xls only, and off on the text
+  branches → (i); /identify and /commit not consulting the verdict → seven
+  cases, "the routes disagree among themselves"; the route classifying
+  without the MIME → (m); a Romanian reader answered in English → (l)); the
+  two of this round (the identifier by name → (a); the workbook re-dispatch
+  off → (n)); and four tripwires (a host resolved, a file written, a write
+  through the storage admin from the pipeline, and from a route).
+
+**credit-regime-surfaces — a letter the engine REFUSED, in the engine's words
+(MEDIUM, surfaces).**
+
+- REPRODUCED on the release head's own bytes (the new laws run against an
+  untouched copy of the tree: 9 failed of 9). The exported report of the
+  corpus developer — regime stock-build, cash approximated, composite and
+  letter refused under ruling R1; production graded this book, so the refusal
+  is what the release puts in the developer's document — printed, on the
+  letter card, "Not enough of the source book was recognised … a limit of
+  the extraction" directly above the block stating the refusal; on page one,
+  "the engine emitted no letter grade and no band ladder to derive one from"
+  in a document that prints the ladder; and under the composite chart, "31.1
+  points of the composite were given up across the 7 weighted terms" with
+  three terms refused and no composite.
+- FIX. When the composite refusal is STATED, the letter card's note and page
+  one's "Why this verdict" print the served refusal — the regime's own cash
+  refusal when that is the reason, else the composite refusal's sentence;
+  the extraction note and the no-ladder sentence stay for a period the engine
+  never scored. The chart note counts the terms that scored against their
+  own ceilings and says how many did not ("3 of the 7 terms were not scored,
+  so there is no composite: the 4 that scored sit 31.1 points below their own
+  ceilings together").
+- LAW + CONTROL: the developer's document contains none of the three strings
+  and its letter note IS the served cash refusal; the graded manufacturer
+  keeps its model label and its "points of the composite were given up
+  across the 7 weighted terms".
+- PLANTS: the extraction note back on the letter card; "no band ladder" on
+  page one; refused terms counted as points given up — each 1 red.
+
+**credit-regime-surfaces — Altman X3 is labelled with the basis it was
+computed on (MEDIUM, surfaces; design decision R1: "is labelled so").**
+
+- REPRODUCED. Under the regime the engine serves X3 on the operating result
+  before the stock variation and own work, with the basis in both languages;
+  the Risks tab's table, /report §7 and the printed report's Altman formula
+  printed that figure under the standard "EBIT / assets" label, and the
+  printed report and the workbook stated the basis nowhere. On the corpus
+  developer the standard formula evaluates, over the report's own EBIT and
+  assets, to another zone than the Z″ printed beside it.
+- FIX. The one Altman reader carries the served basis
+  (`AltmanResult.x3Basis`, from `assembled_metrics.credit.altman_x3_basis`):
+  the Risks tab's X3 row and /report's X3 row print it in the reader's
+  language; the printed formula names the term "X3" and states the served
+  basis after the model; `regimeDocumentText` — the report's regime block and
+  the workbook's "Credit regime" row — states it once, in English.
+- THE LAW reads the arithmetic the X3 row STATES out of the label it prints
+  and evaluates it over the served figures: equal to the X3 printed beside it
+  (four decimals on the Risks tab, two on the card), EN and RO; the printed
+  formula evaluates to the Z″ the document prints. Control: the manufacturer
+  keeps "EBIT / assets".
+- PLANTS: the reader dropping the basis (5 red); the Risks tab printing the
+  English label under a Romanian UI (1); the card's literal (2); the
+  formula's literal (1); the document sentence without the basis (2).
+- SEEN, NOT CHANGED (identical arithmetic on production's tree): the credit
+  model divides X1–X3 by the asset lines of the statements' `balanceSheet`
+  block, which on the corpus manufacturer sum 0.12 % below the served
+  `assembled_bs.total_assets`; EBIT ÷ the served total assets is 0.2262
+  beside a served X3 of 0.2264. The control is held to three decimals for
+  that reason, and the difference is reported to the owner.
+
+**playwright (MEDIUM, gates) — not changed in this release, as the finding
+prescribes.** Re-measured: `node scripts/check_playwright.mjs` on production's
+tree 7641c755 and on this head prints the same refusal (`e2e/design/cmdbar.
+spec.ts: http://x.invalid`, the parse base of `new URL()` in `companyOfUrl`),
+exit 1 in 0.1 s. Past the static scan the gate runs the whole chromium
+project against a local stack this host does not have, so the one-line repair
+(a localhost base, or a scan that skips a `new URL(x, base)` parse base)
+belongs with a recorded run on a host that has the stack — a separate change.
+
+Floors: upload-real-type 173 → 177 (three canaries added, one renamed);
+workspace-v2 29 → 31 (two canaries added); credit-regime-surfaces 24 → 33
+(three canaries added). Round 3's CANNOT SEE line "a workbook on the .pdf
+branch still takes the .pdf branch's acceptance gate … a small or statutory
+workbook named .pdf is refused there" is superseded by this round.
+
+### release r-rulings2 — review round 5 (2026-10-02): the identifier's dispatch is the pipeline's, and the pre-flight holds a PDF's identity
+
+The fourth review left two findings on the upload lens, both MEDIUM. Round
+4's own commits (a609242c, 37d3ea4e, f36e7517) had not been verified by
+anyone but their author; the fourth review did that and ran the complete
+battery on f36e7517 in a clone (137 green, `playwright` red as on production's
+tree, `public-sitemaps` vacuous — pytest 9,423, upload-real-type 177,
+workspace-v2 31). Both findings were reproduced before anything was touched;
+every law below was plant-proven on a scratch copy of the tree (the plant
+applied, the laws and the pre-flight run, the file restored and its sha-256
+compared — nothing was planted in the committed tree).
+
+**upload-real-type / workspace-v2 — the identifier read the bytes its own
+way, and never saw the declared MIME type (MEDIUM; a measured bypass of the
+cross-company takeover wall).**
+
+Graded MEDIUM by the review, not HIGH, and left so: no ERP and no PDF writer
+produces either byte shape, every real file is identified alike, and the
+uploader is a member who can replace the month anyway. The grading is the
+coordinator's to overrule.
+
+- REPRODUCED on f36e7517, three ways. (1) The identifier, asked directly for
+  a balance PDF built in memory under an invented company's header: `b"PK"`
+  + 100 bytes + the PDF sniffs `pdf` and the pipeline's policy reads it as a
+  PDF under every name; the identifier answers `unreadable` under every name
+  (`BadZipFile` — it tested `content[:2] == b"PK"`, the sniffer demands the
+  four-byte signature). The same PDF behind 2,000 bytes and ahead of 3,000
+  more sniffs `text`; the pipeline reads it as a PDF on the pdf and xlsx
+  branches; the identifier reads it named .pdf / .xls and answers
+  `unreadable` for (`balanta`, application/pdf), (`balanta.csv`,
+  application/pdf) and (`balanta`, the xlsx type) — it called
+  `classify(filename, None)`. (2) This round's pre-flight (below) run against
+  the untouched f36e7517 tree: FAIL, exit 1 — /api/uploads/identify, /commit
+  and `pipeline._document_company_cui` each read no CUI off both shapes.
+  (3) End to end, as plants P1 and P2 of the table below (each restores one
+  half of the f36e7517 dispatch): the other company's PDF is ANALYSED over
+  the served month.
+- FIX. `company_identity.extract_document_text(content, filename, mime)`
+  dispatches on the pipeline's own label — `_upload_type.sniff_container`:
+  `XLSX` / `OOXML_UNKNOWN` to the workbook reader, `XLS_OLE2` to the legacy
+  one — then `reads_as_pdf(classify(filename, mime), real, content)`; a
+  `.pdf` name is still consulted last. There is no second reading of the
+  magic bytes. `identify_document(…, mime=)` takes the declared type and
+  every caller that holds one hands it over: both upload routes through
+  `_uploads.identify(…, mime=)` and its seam, the wall's reader
+  (`pipeline._document_company_cui`: `doc["mime_type"]`), the read of the
+  month's own document (`_served_document_cui`: `mime_type` added to its
+  select), and the migration planner. The MIME type picks a READER; nothing
+  of the identity is taken from it.
+- LAWS.
+  `test_the_identifier_reads_every_upload_on_the_branch_the_pipeline_reads_
+  it_on` (upload-real-type): three PDF bodies (clean, behind "PK", bytes at
+  both ends) × nineteen (name, MIME) pairs — wherever the pipeline's policy
+  reads the bytes as a PDF, the identity is the clean PDF's, asked of
+  `identify_document` and through the routes' seam; a workbook's identity is
+  its own under all nineteen. Non-vacuity is asserted: both shapes are what
+  the finding says, the first two bodies are PDFs under every pair, and
+  three pairs of the third are PDFs by the MIME type ALONE.
+  workspace-v2, on the real app:
+  `test_g1_an_agras_pdf_is_identified_on_the_branch_the_pipeline_reads_it_on_
+  and_lands_in_agras` (5 rows: identify through the real route equals the
+  .pdf-named identity, the file lands and is ANALYSED in the company its
+  header names, the company on screen holds nothing);
+  `test_g4_a_same_month_pdf_of_another_company_never_replaces_the_month` (8
+  rows, the first a clean-PDF control: the run fails on the wall's own
+  sentence; the month, its rows, what it serves, its document and the meter
+  are untouched);
+  `test_g4_a_same_month_pdf_of_the_same_company_still_replaces_the_month` (2
+  rows — the pipeline READS both shapes, so the wall is the only thing in the
+  way, and it refuses only a provable other company);
+  `test_g4_the_month_of_a_company_without_a_cui_is_its_own_pdfs_whatever_
+  mime_named_it` (the month's own document read with its `mime_type`);
+  `test_g1_a_workspace_from_before_cuis_takes_the_cui_of_its_own_pdf_
+  whatever_mime_named_it` (2 rows: /commit hands the MIME type over too).
+  The wall's assertions are one helper now (`_assert_the_wall_held`), shared
+  by the workbook law of round 4 and the PDF one.
+- PLANTS, each on the scratch copy, restored and sha-checked (8 of 8 red; the
+  pristine copy first: identity laws 2 passed, the workspace-v2 selection 23
+  passed, the pre-flight 19 PASS):
+
+  | plant | identity laws (2) | workspace-v2 selection (23) | pre-flight |
+  |---|---|---|---|
+  | P1 `content[:2] == b"PK"` back in the identifier | 1 red | 5 red (G1 ×2, the wall ×3 — every "PK" row) | (p) red, exit 1 |
+  | P2 the identifier classifies with no MIME type | 1 red | 8 red (G1 ×3, the wall ×3, the no-CUI month, the pre-CUI workspace) | (p) red, exit 1 |
+  | P3 the routes' seam drops the MIME type | 1 red | 4 red (G1 ×3, the pre-CUI workspace) | (p) red, exit 1 |
+  | P3b /api/uploads/identify does not hand it over | green | 3 red (G1 ×3) | (p) red, exit 1 |
+  | P3c /api/uploads/commit does not hand it over | green | 1 red (the pre-CUI workspace) | (p) red, exit 1 |
+  | P4 the wall's reader drops `mime_type` | green | 4 red (the wall ×3, the no-CUI month) | (p) red, exit 1 |
+  | P5 the month's own document selected without `mime_type` | green | 1 red (the no-CUI month) | green — see CANNOT SEE |
+  | P6 a PDF named .xls / .xlsx identified by its name (the fourth review's `p1b`) | 2 red | green (no row of the selection is a clean PDF under a spreadsheet name) | (o) and (p) red, exit 1 |
+
+**The upload-type PRE-FLIGHT did not hold a PDF's identity (MEDIUM).**
+
+- REPRODUCED. The fourth review planted P6 on f36e7517 and the pre-flight
+  answered `PASS (17 checks, 0 failed)`, exit 0
+  (`preflight_plant_p1b_pdf_identity_by_name.out`): its one identity check
+  was case (a), the canary WORKBOOK under .pdf against .xlsx. The battery
+  held the plant (the round-4 identity law reds); the pre-flight is the only
+  check that runs inside the built image before the switch.
+- FIX (`specs-durable/upload_type_preflight.py`, outside the repository):
+  17 checks → **19**.
+  (o) a balance PDF built in memory under an INVENTED company's header (its
+  CUI made valid with the engine's own control digit), named .xls, .xlsx,
+  .csv and — with no extension — declared application/pdf: the identity it
+  has under .pdf, never `unreadable`.
+  (p) the same PDF in the two byte shapes above, under four and five (name,
+  MIME) pairs: the pipeline READS each (`stage_extract`, byte-identical to
+  the .pdf-named read of the same bytes), and each is identified as the
+  clean PDF.
+  Both are held at THREE layers, each the real one: `identify_document`
+  with the name and the declared type; what /api/uploads/identify and
+  /commit computed for the upload (their own call of `_uploads.identify` is
+  recorded on its way out — the endpoints are called as before, nothing is
+  re-implemented, and a route that asks the identifier more or less than
+  once fails by name); and the CUI the takeover wall reads off the stored
+  document (`pipeline._document_company_cui`, through the two storage seams
+  `stage_extract` reads through). Nothing of a client's is printed: the
+  company is invented.
+- RUNS. Against the release head: **19 checks PASS, exit 0**. Against the
+  untouched f36e7517 tree: FAIL (p), exit 1 — the first finding, seen by the
+  pre-flight. Against production's tree 7641c755: CANNOT RUN, exit 2, as
+  before (that pipeline carries no type guard).
+- PLANTS: the eight of the table above — seven red in the pre-flight, P6
+  among them (the plant it passed in the fourth review).
+- CANNOT SEE. P5: the pre-flight serves no store, and
+  `_served_document_cui` reads the month's own document row through one; the
+  battery holds it (workspace-v2, 1 red).
+
+**SEEN, NOT CHANGED** (outside the two findings; reported to the owner).
+
+- The period a PDF's title block prints is offered by the card only for a
+  PDF whose header sits at offset 0 (`_uploads.printed_period_of_pdf` tests
+  `content[:4] == b"%PDF"`). For both crafted shapes the card asks for the
+  period — under every name alike, so it is not an identity that differs by
+  name, and the pipeline reads the document's period at persist either way.
+  The G1 law compares every identity field but the period for that reason.
+- The identifier has no reader for TEXT: a CSV that prints another company's
+  header is `unreadable` to it, and the takeover wall holds nothing against
+  it (measured by the fourth review on f36e7517; the identifier of
+  production's tree has no text reader either — read, not run there).
+
+**THE MEASURED RUNS at 96667c7b** (a83206ba the fix, its laws and the
+battery's floors; 96667c7b the /commit law). Run on a clone of the release
+branch at that commit, `node_modules` linked and the owner's untracked
+`files/` books linked into the CLONE for the run (never copied, never
+committed); each gate through the battery's own code, floors and canaries
+(`scripts/run_battery.py`, the gate list filtered).
+`src/engine/api/_features.py` is byte-identical to production's (7641c755).
+
+- upload-real-type **178** tests (floor 177 → 178, one canary added);
+  workspace-v2 **49** (floor 31 → 49, four canaries added);
+  reprocess-periods-definition 99 (it reads the workspace-v2 tenancy
+  double); route-binding 3; credit-stock-build 164.
+- pytest — the full engine suite — **9,442** tests, exit 0, 1,120 s (9,423 on
+  f36e7517; + 19 = this round's laws). `test_gate_canaries.py` rides in it,
+  and was run again over this chapter's final text: 13 passed.
+- one-ebitda 65; pl-one-ebitda-page 100; credit-regime-surfaces 33;
+  provenance-census 818 figure render sites (the 11 listed burn-down
+  findings, none new); tsc 1,030 project files (10 known errors, 0 new);
+  vitest — the full frontend suite — **4,471**.
+- floor-census 77; no-plants 1,117; stale-gates 938; engine-book 6 pages,
+  byte-identical.
+- the upload-type pre-flight: **19 checks PASS, exit 0** (32 s).
+- NOT RUN in this round: the other gates of the battery (the complete
+  battery ran on f36e7517 in the fourth review, above; this round changed the
+  identifier, its three callers and two test files) and `playwright` (red on
+  production's tree too, round 4).
+
+## valuation-overrides-tenancy
+
+A member is never served another member's valuation overrides — not by a
+read, and not through an artifact the whole workspace reads.
+`user_valuation_assumptions` is a per-USER table (`user_id` + `period_id`,
+no org column): two members of one workspace each save their own EBITDA /
+multiple / debt / cash for the same period. In the code production ran until
+the hotfix of 2026-10-02:
+
+- `POST /api/period/{id}/valuation/recompute` and
+  `POST /api/period/{id}/briefing/regenerate` read the table with the
+  SERVICE ROLE by `period_id` alone and took the first row — any member who
+  could see the period was answered a valuation computed on another member's
+  figures, and the workspace-wide briefing was narrated on them (the
+  frontend auto-fires regenerate on a language mismatch: no click needed);
+- `GET /api/period/{id}` read it by period alone through the caller's
+  client — correct only under a row-level policy this repository does not
+  define;
+- `PUT …/valuation-assumptions` re-persisted the ONE shared `valuations` row
+  computed on the saver's overrides, so the row carried one member's typed
+  figures and every fallback that reads the row (`row_benchmarks`: the
+  saver's multiple as the "peer" P50; `lawful_stored_row`: the saver's debt,
+  cash, or EBITDA in the refusal text) handed them to another member;
+- the regenerate route also read `documents` by `period_id` alone and took
+  `rows[0]` as "the document" the narrator is told about, and
+  `calculated_metrics` / `valuations` by period alone — `period_id` on those
+  tables is a column a member of another workspace can write on their own
+  rows.
+
+The census declaration that covered the admin read said "the period passed
+`_verify_user_may_write_period`" — false for the recompute route, which never
+called that wall.
+
+MEASURED ON PRODUCTION (read-only, 2026-10-02, before the deploy): the
+override table held 0 rows and each of the 24 workspaces had exactly one
+member — the path was open in code and nobody had been served another
+member's figures. A read-only probe on the running image (two synthetic rows
+overlaid in memory on a stored period) reproduced all of it:
+`specs-durable/hotfix_overrides_tenancy/prod_probe_before.out`.
+
+The repair: ONE reader, `pipeline._caller_valuation_assumptions` — the
+caller's client, the caller's verified user id in the filter, any row that is
+not the caller's dropped; the regenerate route passes NO user override (owner
+ruling 2026-10-02: the engine's result is shared, overrides are per user
+only); the PUT persists the engine's figures; `pipeline._period_source_document`
+reads the period's own source document with the org in the filter; the
+`("pipeline.py", "user_valuation_assumptions", "select")` declaration is
+deleted from `tests/engine/test_service_role_tenant_filter.py`, so a DIRECT
+service-role select of the table — a call on a name bound by
+`with _supabase.admin() as X`, the table as a string literal, in a top-level
+module of `src/engine/api` — reds in `tenant-boundary` too. The census does
+not follow a client passed as an argument, a module in a sub-package or
+outside `src/engine/api`, a table name held in a variable, or a filter whose
+text merely contains `org_id`.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_valuation_overrides_tenancy.py -q` |
+| work count | junit-xml, floor **13** tests (measured 13); the table-read test floors its own subject (≥ 1 recorded read; measured 2: GET and recompute) |
+| canary | `test_recompute_never_serves_another_members_overrides`, `test_each_member_is_served_their_own_overrides`, `test_the_briefing_is_narrated_on_the_engines_valuation_whoever_regenerates`, `test_the_override_table_is_never_read_under_the_service_role_or_without_the_user`, `test_a_save_persists_the_engines_figures_in_the_shared_row`, `test_the_narrator_is_told_the_periods_own_document_and_no_foreign_row` |
+
+**SCOPE.** The real pipeline router over the agras corpus book; two members
+(A, B) of its workspace with REAL ES256 bearers; B's and A's rows carry
+figures no engine computation yields, so finding one in a response says whose
+row was read. The per-user client of this world applies NO row-level security
+— a read that names no user returns every member's row — and every select is
+recorded with the client it came through. The shared-row law compares the row
+after a save with the row a reset (no override) persists, and re-reads the
+period as the OTHER member with the benchmark table down. The regenerate law
+plants another workspace's `documents`, `calculated_metrics` and `valuations`
+rows FIRST on the period.
+
+**GREEN** — exit `0`: `13 passed`.
+
+**PLANT** — twelve, each applied ALONE to `src/engine/api/pipeline.py` by
+`specs-durable/hotfix_overrides_tenancy/hotfix_plants.py` (which runs this
+file and `test_period_id_tenant_boundary.py` together: 28 tests), the file
+restored byte-exact after each (sha256 asserted):
+
+| plant | RED |
+|---|---|
+| P0 the pre-fix file (main's `pipeline.py` verbatim) | `13 failed, 15 passed` |
+| P1 recompute reads by period only under the service role, first row | `5 failed, 23 passed` |
+| P2 regenerate hands the first row of any member to the narrator | `3 failed, 25 passed` |
+| P3 the helper reads by period alone (no user in the filter, no own-row check) | `7 failed, 21 passed` |
+| P4 the helper's filter no longer names the caller and it trusts what comes back | `4 failed, 24 passed` |
+| P5 the helper serves nobody's overrides (returns `None`) | `3 failed, 25 passed` — the positive controls |
+| P6 regenerate hands the CALLER'S own override to the shared briefing | `2 failed, 26 passed` |
+| P7 the PUT persists the saver's overrides into the shared `valuations` row | `2 failed, 26 passed` — `…persists_the_engines_figures_in_the_shared_row`, `…benchmark_table_down…` |
+| P8 regenerate takes the first `documents` row carrying the period id | `2 failed, 26 passed` |
+| P9 regenerate reads `calculated_metrics` by period alone | `1 failed, 27 passed` |
+| P10 regenerate reads `valuations` by period alone | `1 failed, 27 passed` |
+| P11 the source-document helper drops the org from both reads and trusts the rows | `2 failed, 26 passed` |
+
+**RED** — every plant exits `1` (full output with the failing test names:
+`specs-durable/hotfix_overrides_tenancy/hotfix_plants.out`).
+
+**REVERT** — `pipeline.py` restored byte-exact; exit `0`: `28 passed`; no
+`# PLANT` marker left. Verdict: proven RED, twelve of twelve.
+
+**After the repair it reds on:** a read of `user_valuation_assumptions` under
+the admin client, or a per-user read of it without `user_id` in the filter, ON
+THE THREE ROUTES THIS FILE DRIVES (GET /api/period, valuation/recompute,
+briefing/regenerate) and in the one reader they share; the regenerate route passing any member's
+override to the narrator; the caller's own row no longer applying; the PUT
+persisting a saver's figure into the shared row; a regenerate read of
+`documents` / `calculated_metrics` / `valuations` without `org_id`, or one
+that takes a foreign row.
+
+**CANNOT SEE:** the tables' real row-level policies (no DDL in the repository
+for `valuations` / `user_valuation_assumptions`); a service-role read of the
+table in any other route or module when it is not the direct form the census
+recognises (measured 2026-10-02 by adversarial review: a new route reading
+through a helper handed the admin client, and a direct admin read in
+`src/engine/api/findings/`, pass both gates — a names census over `src/` is
+the follow-up); the served-periods DATA gate (`check_served_periods.py`),
+which has no caller identity and so serves every period WITHOUT saved
+overrides — it no longer exercises the override path as it incidentally did
+before 2026-10-02 for single-saver periods; rows already persisted on a
+member's override before the fix (production held none); figures a browser
+computes from the served payload; the other reads the sweep of 2026-10-02
+confirmed and did not repair here
+(`specs-durable/hotfix_overrides_tenancy/sweep_2026-10-02.json`): the non-RO
+plan gate reading the subscription of whoever `documents.uploaded_by` names,
+the journal `asof` chain keyed by content hash alone (unreachable while
+`ENGINE_JOURNAL_DIR` is unset), the firm digest cron and the founder
+renewal-reminder recipient (both behind flags / an operator bearer), and the
+unauthenticated `/api/cfo/decisions` demo store.
 
 ---
 

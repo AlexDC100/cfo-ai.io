@@ -209,6 +209,9 @@ class CockpitPack(object):
         step = raw.get("stock_variation_step") or {}
         self.stock_variation_step = {"code": str(step.get("code") or ""),
                                      "text": _two(step, "stock_variation_step")}
+        np_step = raw.get("net_provisions_step") or {}
+        self.net_provisions_step = {"code": str(np_step.get("code") or ""),
+                                    "text": _two(np_step, "net_provisions_step")}
         self.dscr = dict(raw.get("dscr") or {})
         self.dscr_formula = _two(self.dscr.get("formula"), "dscr.formula")
         self.cases = [CaseSpec(c, "cases[%d]" % i, ids) for i, c in enumerate(raw.get("cases") or [])]
@@ -1699,6 +1702,9 @@ _YEAR0_PL = {
     "pl.inventory_variation": lambda h: h.inventory_variation,
     "pl.capitalized_own_work": lambda h: h.capitalized_own_work,
     "pl.ebitda": lambda h: h.ebitda,
+    # Signed as its effect on the result, like every cost in this table (a
+    # net charge negative); the label carries no account arithmetic.
+    "pl.net_provisions": lambda h: None if h.net_provisions is None else -h.net_provisions,
     "pl.interest_income": lambda h: h.interest_income,
     "pl.pretax_result": lambda h: h.pretax,
     "pl.income_tax": lambda h: None if h.income_tax is None else -h.income_tax,
@@ -1706,9 +1712,32 @@ _YEAR0_PL = {
 }
 
 
-#: Lines the actual year carries INSIDE its EBITDA and no plan year projects
-#: (net 711 and net 72x — owner ruling 2026-09-26, design A6).
-_YEAR0_ONLY = ("pl.inventory_variation", "pl.capitalized_own_work")
+#: Lines the actual year carries and no plan year projects, each with the
+#: pack sentence that says so beside it: net 711 and net 72x, INSIDE the
+#: actual year's EBITDA (owner ruling 2026-09-26, design A6), and net
+#: provisions (6812 + 6814 − 7812 − 7814), OUTSIDE it but inside its
+#: operating, pre-tax and net result (owner ruling R2, 2026-09-28).
+#:
+#: Net provisions joined on the 2026-10-01 review: the plan years project
+#: them at 0 (`project._notes` said so in a note no page paints), so on a
+#: book with a net release plan-year-one pre-tax fell below the actual
+#: year's while revenue and EBITDA rose (the calibration book: a
+#: 6,372,805.17 release) — with nothing on the Forecast page naming the step.
+_YEAR0_ONLY = {
+    "pl.inventory_variation": "stock_variation_step",
+    "pl.capitalized_own_work": "stock_variation_step",
+    "pl.net_provisions": "net_provisions_step",
+}
+
+
+def _year0_only_shown(line: str, history: Any) -> bool:
+    """Whether a year-0-only line is printed: the stock variation and own
+    work when the actual year carried either (or its EBITDA was refused —
+    the refusal is then said on the row); net provisions when the actual
+    year carried a net charge or release."""
+    if line == "pl.net_provisions":
+        return bool(history.net_provisions)
+    return history.stock_variation_step() != 0
 
 
 def _statements(pack: CockpitPack, agg: Sequence[Tuple[int, str, Dict[str, int]]],
@@ -1729,8 +1758,8 @@ def _statements(pack: CockpitPack, agg: Sequence[Tuple[int, str, Dict[str, int]]
             not_projected = line in _YEAR0_ONLY
             if line not in agg[0][2] and not not_projected:
                 continue
-            if not_projected and history.stock_variation_step() == 0:
-                # Nothing to show: the actual year carried neither line.
+            if not_projected and not _year0_only_shown(line, history):
+                # Nothing to show: the actual year did not carry the line.
                 continue
             if section == "pl":
                 y0 = _YEAR0_PL.get(line)
@@ -1749,8 +1778,9 @@ def _statements(pack: CockpitPack, agg: Sequence[Tuple[int, str, Dict[str, int]]
                           for _n, label_, a in agg]
             row = {"line": line, "label": dict(label), "values": values}
             if not_projected:
-                row["not_projected"] = {"code": pack.stock_variation_step["code"],
-                                        "text": dict(pack.stock_variation_step["text"])}
+                step_text = getattr(pack, _YEAR0_ONLY[line])
+                row["not_projected"] = {"code": step_text["code"],
+                                        "text": dict(step_text["text"])}
             if zero is not None:
                 row["year0"] = dict(zero, period="FY%s" % year0)
             rows.append(row)

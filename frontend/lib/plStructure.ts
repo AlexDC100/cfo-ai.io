@@ -31,6 +31,11 @@ export type LineSign = "positive" | "negative" | "neutral";
 export interface PLLine {
   /** Romanian account code, e.g. "706", "6024". Undefined for subtotals. */
   accountCode?: string;
+  /** The same chip as the engine words it for a Romanian reader, where the
+   *  two differ ("68x fără 6812, 6814" beside "68x excl. 6812, 6814"). The
+   *  view prints it in the Romanian interface; `accountCode` stays the
+   *  English wording and the key the term map reads. */
+  accountCodeRo?: string;
   /** Line description, e.g. "Rental & lease income". */
   label: string;
   /** Line amount; undefined for headers and for a REFUSED figure (then
