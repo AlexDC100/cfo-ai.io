@@ -2597,10 +2597,16 @@ def _frontend_gates() -> List[Gate]:
               "frontend/lib/__tests__/reportFooter.test.ts",
               "frontend/lib/__tests__/globalPositioning.test.ts",
               "--reporter=verbose"],
-             work_rx=r"GATE-WORK public-claims units=(\d+)", floor=3000,
+             # measured 10,863 on 2026-10-02 (every text node of the rendered
+             # pages, five more namespaces, both dictionaries whole)
+             work_rx=r"GATE-WORK public-claims units=(\d+)", floor=9000,
              units="copy lines and claims examined",
              no_skips=True,
              canaries=("C1 claims no country or region as covered but Romania",
+                       # the third review (2026-10-02)
+                       "C2 no accounting-software name is typed into any component, page or dictionary",
+                       "C3 a guide card lists only formats read on a real book, or says it is not tested on a real file",
+                       "C10 the page title, description and manifest claim Romanian trial balances",
                        "C1 the detector: negation must govern the claim; every country is a country",
                        "C3 offers no document type but a trial balance as an input, unless it says AI-read or not supported",
                        "C4 the table prints the denominator: files read, files refused, in the reader's date format",

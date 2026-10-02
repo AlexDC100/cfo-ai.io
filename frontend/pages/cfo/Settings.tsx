@@ -972,7 +972,7 @@ function SecurityCard({ email, onSignOut }: { email: string | null; onSignOut: (
 
 function IntegrationsStub() {
   const items = [
-    { icon: SettingsIcon, title: "ERP connector", description: "Live SKU + inventory feed from SAP, Odoo, NetSuite, Sage." },
+    { icon: SettingsIcon, title: "ERP connector", description: "Live SKU + inventory feed from your ERP." },
     { icon: Sparkle,      title: "Slack",         description: "Daily briefings + alerts in your team channel." },
     { icon: Mail,         title: "Email",         description: "Weekly executive briefing + critical alert escalation." },
   ];

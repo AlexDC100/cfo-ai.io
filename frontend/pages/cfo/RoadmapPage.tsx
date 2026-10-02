@@ -27,7 +27,7 @@ const NEXT_UP: RoadmapEntry[] = [
   {
     title: "ERP integration",
     description:
-      "Direct sync from Saga, WinMentor, and SAP. No more manual trial-balance uploads.",
+      "Direct sync from your accounting software. No more manual trial-balance uploads.",
     status: "in-design",
   },
   {

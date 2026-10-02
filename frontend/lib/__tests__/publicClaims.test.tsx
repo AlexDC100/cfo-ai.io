@@ -74,6 +74,33 @@
 //   · a book count typed into coverage.json (2 → 20): a count is the
 //     proof's or a dated record's, and the row must equal it.
 //
+// THIRD REVIEW, 2026-10-02 — WHAT THE SECOND VERSION STILL LET THROUGH,
+// each planted and observed GREEN, each RED now:
+//   · a claim written as nationality adjectives ("French, Polish, Dutch and
+//     Austrian trial balances are read too", "balanțe … austriece, grecești
+//     și poloneze") or as a sub-region ("the Balkans, Benelux and the
+//     Nordics"): the vocabulary was country NAMES. Demonyms and sub-regions
+//     are in it now, in both languages;
+//   · a claim inside <strong>: the landing harvest was a TAG LIST. Every
+//     text node of every rendered page is read now (a TreeWalker), joined
+//     per block so a sentence that runs through a <strong> is read whole;
+//   · "Works for companies across Europe, GDPR-compliant.": any sentence
+//     containing "GDPR" or "infrastructure" was excused. The exemption is
+//     now the three known data-residency lines, read from the copy at their
+//     keys, and only their own characters are set aside;
+//   · the /workspace and upload-flow copy (`ws`, `wsV2`), the tab hints
+//     (`tabs`) and `errors`: outside the harvest, offering ".xlsx / .xls",
+//     "a photo" and "financial statements". They are harvested with floors,
+//     and /sample and /contact-sales are rendered;
+//   · a software name in a component the typed file list did not name
+//     (SourceQualityBanner.tsx). C2 reads every .tsx under components/cfo
+//     and pages/cfo and both dictionaries whole; the vocabulary includes
+//     every name coverage.json or the proof carries; a row may name software
+//     only with a battery gate and a real-book count behind it;
+//   · a guide CARD ("Statutory ANAF filing — XLSX (Formular F30 + F10)"):
+//     a title and a format, no verb, so C3 never read it as an offer. The
+//     cards are held by structure (C3, the guide cards).
+//
 // WHAT IT CANNOT SEE (TC-11)
 //   · whether a tested row's evidence gate actually exercises that layout —
 //     it checks the gate EXISTS in the battery and, where the row is tied to
@@ -81,17 +108,32 @@
 //   · the pixels of the share image (it compares the generator's text
 //     record with the hero; regenerate with scripts/build_og_image.mjs);
 //   · e-mails and the server-rendered storefront templates;
-//   · coverage implied without a region word, a software name, a format
-//     or a document type;
-//   · an accounting-software name that is not on its list — the software
-//     vocabulary is a DENY-LIST of names (it cannot know every product);
+//   · coverage implied without a region word, a demonym, a sub-region, a
+//     software name, a format or a document type ("wherever you keep your
+//     books", "for any company"), or with one this file's lists do not hold
+//     (a city, a currency, a language: "books kept in Hungarian forints");
+//   · "English" / "engleză": the interface language, deliberately not a
+//     demonym here;
+//   · an accounting-software name that is on no list — the vocabulary is a
+//     DENY-LIST (typed names + every name coverage.json or the proof
+//     carries); a product nobody listed passes. Eight names that are also
+//     ordinary words (Senior, Sage, Nexus, Crystal, Mentor, Dynamics,
+//     Charisma, Socrate) are read as software only beside the vocabulary of
+//     software (export, ERP, software, accounting system);
+//   · C1 and C3 on pages behind a session: the dashboard, /workspace and
+//     the upload flow are read through their dictionaries, not rendered;
+//     text typed into THEIR JSX is seen only by C2 (software names);
+//   · the "Sales / trading analysis" guide card: the SKU workbook of
+//     /products is not a financial document and has no coverage row;
+//   · the feature registry's own descriptions (served by the backend) and
+//     /public-companies, whose copy legitimately names other markets;
 //   · whether a dated record is TRUE: it holds a count to its record, and
 //     the record says who measured what and when — it cannot re-run a
 //     measurement taken on files that are not in the repository.
 //
 // Plant log: docs/engine_book/gates.md, "public-claims".
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
@@ -113,19 +155,19 @@ import { MonthlyBillEstimator } from "@/components/cfo/pricing/MonthlyBillEstima
 import { COMING_SOON_PLAN_IDS, SELLABLE_PLAN_IDS, isOnSalePlanId } from "@/lib/plans";
 import { META_DESCRIPTION, META_IMAGE_ALT, META_TITLE } from "@/hooks/useHtmlLangSync";
 import { coverageView, evidenceText, type CoverageRowData } from "@/lib/coverage";
-import Pricing from "@/pages/cfo/Pricing";
-import Signup from "@/pages/cfo/Signup";
 import { bulletText, planFeatureBulletsFor, planKeysWithFeatures } from "@/lib/planFeatures";
 import {
   __clearPricingConfigForTest,
   __setPricingConfigForTest,
-  type PlanConfig,
   type PricingPublicConfig,
 } from "@/lib/pricingConfig";
 import { friendlyDocumentError, parseUploadRefusal } from "@/lib/uploadRefusals";
 import { landingStringsFor } from "@/pages/cfo/landingStrings";
 import { SAMPLE_STRINGS } from "@/pages/cfo/sampleStrings";
-import { renderLanding, setLanguage, textOf, type SurfaceLang } from "@/test/publicSurfaces";
+import {
+  PRICING_CONFIG_FIXTURE, renderLanding, renderPublicPage, setLanguage, textNodes, textOf,
+  type SurfaceLang,
+} from "@/test/publicSurfaces";
 
 const navigateSpy = vi.fn();
 vi.mock("react-router-dom", async (orig) => ({
@@ -158,32 +200,10 @@ interface CoverageRecordRow {
 const RECORDS = (coverageRecords as unknown as { records: CoverageRecordRow[] }).records;
 const TESTED = ROWS.filter((r) => r.category === "tested");
 
-// ── the pricing config the signed-in table renders from ───────────────
-function plan(p: Partial<PlanConfig> & { key: PlanConfig["key"] }): PlanConfig {
-  return {
-    display_name: p.key, blurb: "", price_eur: 0, recurring: false, requires_card: false,
-    included_docs: 1, extra_doc_eur: null, chat_daily_cap: null, chat_monthly_cap: null,
-    window_days: null, ...p,
-  } as PlanConfig;
-}
-// The blurbs are the backend's, verbatim (_pricing_config.py) — including
-// the Multi-Country one the card must NOT show.
-const CONFIG: PricingPublicConfig = {
-  plans: [
-    plan({ key: "trial" }),
-    plan({ key: "intro", price_eur: 0.99, window_days: 7 }),
-    plan({ key: "solo", display_name: "RO Solo", price_eur: 4.99, recurring: true, purchasable: true,
-      included_docs: 3, extra_doc_eur: 1.49, max_workspaces: 1, allows_non_ro: false,
-      blurb: "Three Romanian analyses per month, extras at €1.49/doc." }),
-    plan({ key: "pro", display_name: "Pro", price_eur: 9.99, recurring: true, purchasable: true,
-      included_docs: 15, extra_doc_eur: 0.99, max_workspaces: 5, allows_non_ro: false,
-      blurb: "Fifteen Romanian analyses per month, extras at €0.99/doc." }),
-    plan({ key: "multi", display_name: "Multi-Country", price_eur: 16.99, recurring: true, purchasable: true,
-      included_docs: 15, extra_doc_eur: 0.99, max_workspaces: 5, allows_non_ro: true,
-      included_nonro_docs: 8, extra_nonro_doc_eur: 1.49,
-      blurb: "Fifteen analyses per month plus eight non-Romanian documents included; overages metered." }),
-  ],
-};
+// The pricing config the pricing table renders from — the backend's values
+// and blurbs, verbatim, including the Multi-Country one the card must NOT
+// show (frontend/test/publicSurfaces).
+const CONFIG: PricingPublicConfig = PRICING_CONFIG_FIXTURE;
 
 // ── harvest ───────────────────────────────────────────────────────────
 
@@ -200,19 +220,43 @@ function flat(obj: unknown, path: string, where: string, out: Line[]): void {
 /** The dictionary namespaces an upload, pricing, signup or coverage surface
  *  reads. `pricingX` (the /pricing hero), `pricingFaq` and `authX` (the
  *  signup card) were not here until 2026-10-02 — which is how "Upload one
- *  trial balance, balance sheet, or P&L" and "Free tier" stayed public. */
+ *  trial balance, balance sheet, or P&L" and "Free tier" stayed public.
+ *  `ws` / `wsV2` (the /workspace drop zones), `tabs` (the disabled-tab hints
+ *  on the dashboard), `errors` and `contactSales` joined in the third review:
+ *  ".xlsx / .xls", "PDF, Excel, CSV or a photo" and "upload a financial
+ *  statement" were in them, unread, and a planted "Drop your trial balance
+ *  from Germany, France or Poland" passed. Each has a floor in C1. */
 const UPLOAD_NAMESPACES = [
   "dash", "dashboard", "upload", "expectedFormat", "tmpl", "pricing", "coverage",
   "pricingX", "pricingFaq", "authX", "cookieConsent",
+  "ws", "wsV2", "tabs", "errors", "contactSales",
 ];
 
-/** Own text of every element under `root` that carries any. */
-function ownTexts(root: Element, selector: string, where: string, out: Line[]): void {
-  for (const el of root.querySelectorAll(selector)) {
-    const own = [...el.childNodes].filter((n) => n.nodeType === 3)
-      .map((n) => n.textContent ?? "").join(" ").replace(/\s+/g, " ").trim();
-    if (own.length > 2) out.push({ where: `${where} <${el.tagName.toLowerCase()}>`, text: own });
+/** Tags whose text continues the sentence of the element around them. */
+const INLINE = new Set([
+  "A", "ABBR", "B", "CODE", "EM", "I", "MARK", "SMALL", "SPAN", "STRONG", "SUB", "SUP", "TIME", "U",
+]);
+
+/** EVERY text node under `root`, joined per block: a sentence that runs
+ *  through a <strong> or an <a> is read whole, and nothing is skipped
+ *  because of the tag it sits in. (The first harvest was a tag list —
+ *  "h1,h2,h3,p,li,a,button,span,div,time" — and a claim typed inside
+ *  <strong> passed.) */
+function blockTexts(root: Element, where: string, out: Line[]): number {
+  const blocks = new Map<Element, string[]>();
+  let nodes = 0;
+  for (const node of textNodes(root)) {
+    nodes += 1;
+    let block: Element = node.element;
+    while (block !== root && INLINE.has(block.tagName) && block.parentElement) block = block.parentElement;
+    const parts = blocks.get(block) ?? [];
+    parts.push(node.text);
+    blocks.set(block, parts);
   }
+  for (const [block, parts] of blocks) {
+    out.push({ where: `${where} <${block.tagName.toLowerCase()}>`, text: parts.join(" ").replace(/\s+/g, " ").trim() });
+  }
+  return nodes;
 }
 
 function indexHtmlLines(): Line[] {
@@ -236,24 +280,14 @@ const OG_RECORD = join(REPO, "public/og/homepage.json");
  *  language. The rendered surfaces are harvested as TEXT off the DOM. */
 async function harvest(lang: SurfaceLang): Promise<Line[]> {
   const out: Line[] = [];
-  // 1. the public landing, as rendered
+  // 1. the public landing, as rendered — every text node
   const landing = await renderLanding(lang);
-  for (const el of landing.querySelectorAll("h1,h2,h3,p,li,a,button,span,div,time")) {
-    // leaf-ish text only: an element whose own child nodes carry text
-    const own = [...el.childNodes]
-      .filter((n) => n.nodeType === 3)
-      .map((n) => n.textContent ?? "").join(" ").replace(/\s+/g, " ").trim();
-    if (own.length > 2) out.push({ where: `landing[${lang}] <${el.tagName.toLowerCase()}>`, text: own });
-  }
+  blockTexts(landing, `landing[${lang}]`, out);
   cleanup();
   // 2. the signed-in pricing table, as rendered
   __setPricingConfigForTest(CONFIG);
   const table = render(<MemoryRouter><PricingTableV2 /></MemoryRouter>);
-  for (const el of table.container.querySelectorAll("h3,p,li,span,button,a")) {
-    const own = [...el.childNodes].filter((n) => n.nodeType === 3)
-      .map((n) => n.textContent ?? "").join(" ").replace(/\s+/g, " ").trim();
-    if (own.length > 2) out.push({ where: `pricing-table[${lang}] <${el.tagName.toLowerCase()}>`, text: own });
-  }
+  blockTexts(table.container, `pricing-table[${lang}]`, out);
   cleanup();
   // 3. the in-app coverage table and the refusal dialog, as rendered
   const cov = render(<MemoryRouter><CoverageTable showHeading /></MemoryRouter>);
@@ -262,15 +296,15 @@ async function harvest(lang: SurfaceLang): Promise<Line[]> {
   render(<MemoryRouter><NonRoUpgradeDialog open onClose={() => {}} serverMessage="Non-RO documents are included on the Multi-Country plan." /></MemoryRouter>);
   out.push({ where: `non-ro-dialog[${lang}]`, text: textOf(screen.getByTestId("non-ro-upgrade-dialog")) });
   cleanup();
-  // 3b. the /pricing page as a signed-out visitor gets it — the hero, the
-  //     billing toggle, the plan cards, the FAQ — and the /signup page
-  __setPricingConfigForTest(CONFIG);
-  const pricing = render(<MemoryRouter initialEntries={["/pricing"]}><Pricing /></MemoryRouter>);
-  ownTexts(pricing.container, "h1,h2,h3,p,li,span,button,a,summary,div,footer", `pricing-page[${lang}]`, out);
-  cleanup();
-  const signup = render(<MemoryRouter initialEntries={["/signup"]}><Signup /></MemoryRouter>);
-  ownTexts(signup.container, "h1,h2,h3,p,li,span,button,a,label,div,footer", `signup-page[${lang}]`, out);
-  cleanup();
+  // 3b. the pages a visitor reaches with no session, as rendered: /pricing
+  //     (hero, billing toggle, plan cards, estimator, FAQ), /signup,
+  //     /sample and /contact-sales — every text node of each
+  for (const page of ["pricing", "signup", "sample", "contact-sales"] as const) {
+    const root = await renderPublicPage(page, lang);
+    blockTexts(root, `${page}-page[${lang}]`, out);
+    cleanup();
+    __clearPricingConfigForTest();
+  }
   // 4. upload / pricing copy in the dictionaries
   const dict = (lang === "ro" ? ro : en) as Record<string, unknown>;
   for (const ns of UPLOAD_NAMESPACES) flat(dict[ns], ns, `${lang}.json`, out);
@@ -329,7 +363,50 @@ const BEYOND_WORDS = new RegExp(
   ].join("|"),
   "i",
 );
-const BEYOND_ABBREVIATIONS = /\b(?:EU|UE|USA|US|UK|UAE|EAU|SUA|IFRS)\b/;
+const BEYOND_ABBREVIATIONS = /\b(?:EU|UE|USA|US|UK|UAE|EAU|SUA|IFRS|DACH|CEE|EMEA|MENA|APAC|LATAM)\b/;
+
+/** DEMONYMS — "French, Polish, Dutch and Austrian trial balances are read
+ *  too" and "Balanțe românești, austriece, grecești și poloneze" named no
+ *  country and passed (2026-10-02). The runtime can name countries
+ *  (Intl.DisplayNames) but not their adjectives, so these are typed: every
+ *  European nationality and the large ones beyond. English ones are matched
+ *  CASE-SENSITIVELY — "Polish" is a nationality, "polish" is a verb.
+ *  ("English" / "engleză" is the interface language and is not here.) */
+const DEMONYMS_EN = new RegExp(
+  "\\b(?:" + [
+    "Albanian", "American", "Australian", "Austrian", "Belgian", "Bosnian", "Brazilian", "British", "Bulgarian",
+    "Canadian", "Chinese", "Croatian", "Cypriot", "Czech", "Danish", "Dutch", "Estonian", "Finnish", "French",
+    "Georgian", "Greek", "Hungarian", "Icelandic", "Indian", "Irish", "Israeli", "Italian", "Japanese", "Latvian",
+    "Lithuanian", "Luxembourgish", "Macedonian", "Maltese", "Mexican", "Moldovan", "Montenegrin", "Norwegian",
+    "Polish", "Portuguese", "Russian", "Scottish", "Serbian", "Slovak", "Slovenian", "Spanish", "Swedish", "Swiss",
+    "Turkish", "Ukrainian", "Welsh",
+  ].join("|") + ")s?\\b",
+);
+const DEMONYMS_RO = new RegExp(
+  "(?<![\\p{L}-])(?:" + [
+    "albanez", "american", "australian", "austriac", "austriec", "belgian", "bosniac", "brazilian", "britanic",
+    "bulgar", "bulgăr", "canadian", "chinez", "cipriot", "croat", "danez", "elvețian", "eston", "finlandez",
+    "francez", "georgian", "greceșt", "grecesc", "indian", "irlandez", "islandez", "israelian", "italian",
+    "italien", "japonez", "leton", "lituanian", "luxemburghez", "macedonean", "maltez", "mexican", "moldovene",
+    "muntenegrean", "norvegian", "olandez", "polonez", "portughez", "rusesc", "ruseșt", "scoțian", "sârb",
+    "slovac", "sloven", "spaniol", "suedez", "turcesc", "turceșt", "ucrainean", "unguresc", "ungureșt",
+  ].join("|") + ")\\p{L}*|(?<![\\p{L}-])(?:ceh|grec|turc|rus)(?:ă|e|i|ii|ilor)?(?![\\p{L}-])",
+  "iu",
+);
+
+/** SUB-REGIONS and continents — "Also reads books from the Balkans, Benelux
+ *  and the Nordics" named no country either. */
+const SUBREGIONS = new RegExp(
+  "(?<![\\p{L}-])(?:" + [
+    "balkans?", "balcani\\p{L}*", "balcanic\\p{L}*", "benelux", "nordics?", "nordic countries", "țările nordice",
+    "nordic\\p{L}*", "scandinavia\\p{L}*", "scandinav\\p{L}*", "baltics?", "baltic states", "țările baltice",
+    "baltic\\p{L}*", "iberia\\p{L}*", "iberic\\p{L}*", "eurozone", "zona euro", "schengen", "visegr[aá]d",
+    "mediterranean", "mediteranean\\p{L}*", "caucasus", "caucaz\\p{L}*", "middle east", "orientul mijlociu",
+    "asia\\p{L}*", "africa\\p{L}*", "north america", "south america", "latin america", "america de nord",
+    "america de sud", "america latină", "oceania", "abroad", "overseas", "(?:în|din) străinătate",
+  ].join("|") + ")(?![\\p{L}-])",
+  "iu",
+);
 
 /** EVERY country and region the runtime can name, in English and Romanian,
  *  minus Romania — generated, not typed. The first version listed eleven
@@ -361,7 +438,8 @@ const REGIONS = new RegExp(
 
 const BEYOND_ROMANIA = {
   exec(sentence: string): RegExpExecArray | null {
-    return BEYOND_WORDS.exec(sentence) ?? BEYOND_ABBREVIATIONS.exec(sentence) ?? REGIONS.exec(sentence);
+    return BEYOND_WORDS.exec(sentence) ?? BEYOND_ABBREVIATIONS.exec(sentence) ?? REGIONS.exec(sentence)
+      ?? DEMONYMS_EN.exec(sentence) ?? DEMONYMS_RO.exec(sentence) ?? SUBREGIONS.exec(sentence);
   },
 };
 
@@ -407,15 +485,33 @@ function unexcusedClaim(sentence: string): { hit: string; clause: string } | nul
   return null;
 }
 
-/** A region word that is not about coverage: where data is stored, where
- *  the model provider is, the GDPR badge. */
-const NOT_COVERAGE = new RegExp(
-  [
-    "infrastructure", "infrastructură", "GDPR", "model provider", "furnizorului nostru de model",
-    "made in the eu", "creat în ue",
-  ].join("|"),
-  "i",
-);
+/** A REGION WORD THAT IS NOT ABOUT COVERAGE — where data is stored, where
+ *  the model provider is, the "Made in the EU" mark. Until 2026-10-02 this
+ *  was a regex over the whole SENTENCE ("GDPR", "infrastructure" …), and
+ *  "Works for companies across Europe, GDPR-compliant." passed on its last
+ *  word. It is now the KNOWN LINES, read from the copy at the keys that hold
+ *  them — the footer's mark and the sentences of the data-security answer
+ *  that name a region — and only those characters are set aside: whatever
+ *  else stands in the sentence is still read. */
+function dataResidencyLines(lang: SurfaceLang): string[] {
+  const L = landingStringsFor(lang);
+  const plain = (text: string) => text.replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
+  const security = L.faq.items.filter((item) => item.a.includes("{privacy}"));
+  if (security.length !== 1) throw new Error(`${lang}: expected one data-security answer, found ${security.length}`);
+  const lines = [
+    ...plain(L.footer.madeIn).split(/\s·\s/),
+    ...sentencesOf(plain(security[0].a.split("{privacy}")[0])),
+  ].map((line) => line.trim()).filter((line) => BEYOND_ROMANIA.exec(line));
+  return lines;
+}
+/** `sentence` with the known data-residency lines taken out — only on the
+ *  landing, where they are printed. */
+function withoutDataResidency(sentence: string, where: string, lang: SurfaceLang): string {
+  if (!where.startsWith("landing[")) return sentence;
+  let out = sentence;
+  for (const line of dataResidencyLines(lang)) out = out.split(line).join(" ");
+  return out;
+}
 
 /** STRUCTURALLY NEGATIVE SURFACES — places whose own heading says "not
  *  supported yet" / "coming soon", so a line inside them is not a claim
@@ -424,6 +520,10 @@ const NOT_COVERAGE = new RegExp(
 const NEGATIVE_SURFACE: Array<{ where: RegExp; why: string }> = [
   { where: /\.json pricing\.(comingSoon\w*|nonRoBlocked\w*)$/, why: "the coming-soon plan's and the refusal's own dictionary keys" },
   { where: /^non-ro-dialog\[/, why: "the refusal dialog, held to its wording by C7" },
+  {
+    where: /\.json wsV2\.errors\.kind(?:Names)?\./,
+    why: "the names of the file kinds the upload flow REFUSES, composed into its wrong-type message (\"This is an image, not a PDF\")",
+  },
 ];
 
 /** Named exemptions — each one a string a reader meets that is NOT a claim
@@ -436,17 +536,36 @@ const EXEMPT: Array<{ where: RegExp; text: RegExp; why: string }> = [
   },
 ];
 
-const SOFTWARE = [
+const SOFTWARE_NAMES = [
   "SAGA", "WinMENTOR", "WinMentor", "Mentor", "SmartBill", "Smart Bill", "NEXTUP", "NextUp", "CIEL",
   "SAP", "Crystal Reports", "Crystal", "SceptrumERP", "Sceptrum", "ContSal", "Oblio", "FGO",
   "Charisma", "Navision", "Dynamics", "QuickBooks", "Xero", "Sage", "DATEV", "Odoo", "Senior",
   "Nexus", "WizCount", "Facturis", "Pluriva", "Keez", "SocrateCloud", "Socrate", "Entersoft",
   "Softone", "Lexware", "NetSuite", "Zoho", "FreshBooks",
 ];
+/** THE VOCABULARY GROWS WITH THE DATA: every name any coverage row lists
+ *  and every exporter name the proof found in a real file is a software
+ *  name too — so a name that is NOT on the typed list becomes visible the
+ *  moment someone writes it into coverage.json, and is then allowed only
+ *  through a tested row with a real-file gate (C4). A product nobody ever
+ *  listed stays invisible: this is still a deny-list. */
+const SOFTWARE = [...new Set([
+  ...SOFTWARE_NAMES,
+  ...ROWS.flatMap((r) => r.software),
+  ...Object.keys((proof as unknown as { software: { real_files: Record<string, number> } }).software.real_files),
+])];
+/** Names that are also ordinary words ("Senior accountant", "a sage
+ *  choice", "crystal clear"): a software name only beside the vocabulary of
+ *  software. */
+const ORDINARY_WORDS = new Set(["Senior", "Sage", "Nexus", "Crystal", "Mentor", "Dynamics", "Charisma", "Socrate"]);
+const SOFTWARE_CONTEXT =
+  /\bexport\w*|\bERP\b|\bsoftware\b|\bsoft(?:ul|uri)?\b|accounting (?:system|package|program)|program(?:ul)? de contabilitate|\bfrom your\b|\bdin\b.{0,12}\b(?:program|aplicați)/i;
 // A DENY-LIST: it reds on a name it knows. A product it has never heard of
 // passes — stated under "cannot see".
 const softwareIn = (text: string): string[] =>
   SOFTWARE.filter((name) => new RegExp(`(?<![\\w-])${name.replace(/ /g, "\\s?")}(?![\\w-])`, "i").test(text))
+    .filter((name) => !ORDINARY_WORDS.has(name)
+      || (new RegExp(`(?<![\\w-])${name}(?![\\w-])`).test(text) && SOFTWARE_CONTEXT.test(text)))
     // "Mentor" inside "WinMENTOR" is one name, not two
     .filter((name, _i, all) => !(name === "Mentor" && all.some((o) => /winmentor/i.test(o))))
     .filter((name) => !(name === "Crystal" && /crystal reports/i.test(text) === false && !/\bcrystal\b/i.test(text)));
@@ -456,6 +575,9 @@ const softwareIn = (text: string): string[] =>
  *  counts.) */
 const UNTESTED_FORMAT =
   /\bscanned\b|\bscanat\w*|\bphotos?\b|\bfotografi\w*|\bimages?\b|\bimagine\b|\bimagini\b|\.xls\b|\bxls\b|\bdocx\b|\bpptx?\b|\bjpe?g\b|\bpng\b|\bheic\b|\bOCR\b/i;
+/** Words that contain a format word and are not one: "o imagine de
+ *  ansamblu" is an overview, not an image file. */
+const IDIOMS = /\bimagine de ansamblu\b|\bimagine (?:clară|completă|fidelă)\b/giu;
 const AI_OR_NEGATED_RX = new RegExp(
   `\\bAI\\b|${NEGATED.source}|real-file test|test pe fișier real|\\bnu scanat\\w*|not a scan`, "i");
 /** Does the sentence say the thing is AI-read or unavailable? The product's
@@ -522,6 +644,11 @@ describe.each(LANGS)("public-claims · every surface (%s)", (lang) => {
       // added 2026-10-02 — surfaces the first version never read
       ["pricing-page[", 40], ["signup-page[", 10], [`${lang}.json pricingX.`, 30],
       [`${lang}.json pricingFaq.`, 12], [`${lang}.json authX.`, 30],
+      // the third review: the rendered sample and contact pages, and the
+      // upload namespaces of /workspace, the upload flow and the tab hints
+      ["sample-page[", 150], ["contact-sales-page[", 12],
+      [`${lang}.json ws.`, 100], [`${lang}.json wsV2.`, 120], [`${lang}.json tabs.`, 12],
+      [`${lang}.json errors.`, 9], [`${lang}.json contactSales.`, 24],
     ] as const) {
       const n = lines.filter((l) => l.where.startsWith(prefix)).length;
       expect(n, `only ${n} line(s) harvested from ${prefix} (floor ${floor})`).toBeGreaterThanOrEqual(floor);
@@ -538,11 +665,13 @@ describe.each(LANGS)("public-claims · every surface (%s)", (lang) => {
       }
     }
     const offenders: string[] = [];
+    let residencyLinesSeen = 0;
     for (const line of lines) {
-      for (const sentence of sentencesOf(line.text)) {
-        if (!BEYOND_ROMANIA.exec(sentence)) continue;
+      for (const whole of sentencesOf(line.text)) {
+        if (!BEYOND_ROMANIA.exec(whole)) continue;
         unitsChecked += 1;
-        if (NOT_COVERAGE.test(sentence)) continue;
+        const sentence = withoutDataResidency(whole, line.where, lang);
+        if (sentence !== whole) residencyLinesSeen += 1;
         const claim = unexcusedClaim(sentence);
         if (!claim) continue;
         // The plan's own name, alone, on its coming-soon card.
@@ -553,6 +682,9 @@ describe.each(LANGS)("public-claims · every surface (%s)", (lang) => {
       }
     }
     expect(offenders, "a coverage claim beyond Romania that its own clause does not negate").toEqual([]);
+    // the data-residency lines are on the landing — the allowance is not a dead list
+    expect(dataResidencyLines(lang).length, "the known data-residency lines").toBe(3);
+    expect(residencyLinesSeen, "no data-residency line was found on the landing").toBeGreaterThanOrEqual(3);
     unitsChecked += lines.length;
   });
 
@@ -566,6 +698,17 @@ describe.each(LANGS)("public-claims · every surface (%s)", (lang) => {
       "A trial balance from Romania, Austria or Greece as an Excel .xlsx sheet.",
       "Balanțe din Austria, Grecia sau Olanda.",
       "International coverage is planned.",
+      // the third review's plants: nationality adjectives, sub-regions, and
+      // a claim beside the word GDPR
+      "French, Polish, Dutch and Austrian trial balances are read too.",
+      "Balanțe românești, austriece, grecești și poloneze",
+      "Romanian, Austrian and Greek trial balance as CSV",
+      "Also reads books from the Balkans, Benelux and the Nordics.",
+      "Works for companies across Europe, GDPR-compliant.",
+      "Works across Europe.",
+      "Made in the EU · reads German and Swiss books",
+      "Drop your trial balance from Germany, France or Poland",
+      "Citim și balanțe din țările nordice și din Balcani.",
     ];
     const green = [
       "Files from other countries are not supported yet, and the Multi-Country plan is not available.",
@@ -574,9 +717,13 @@ describe.each(LANGS)("public-claims · every surface (%s)", (lang) => {
       "Fișierele din alte țări nu sunt încă suportate.",
       "A file from another country is not analysed correctly today, on any plan.",
       "Upload a Romanian trial balance.",
+      "Balanță de verificare românească",
+      "Please polish the wording of this note.",
+      // the known data-residency lines, exactly as the landing prints them
+      ...dataResidencyLines(lang),
     ];
     const offends = (text: string) =>
-      sentencesOf(text).some((s) => !NOT_COVERAGE.test(s) && unexcusedClaim(s) !== null);
+      sentencesOf(text).some((s) => unexcusedClaim(withoutDataResidency(s, "landing[x]", lang)) !== null);
     for (const text of red) expect(offends(text), `should be RED: ${text}`).toBe(true);
     for (const text of green) expect(offends(text), `should be green: ${text}`).toBe(false);
     expect(REGION_NAMES.length, "the region vocabulary collapsed").toBeGreaterThan(400);
@@ -610,10 +757,11 @@ describe.each(LANGS)("public-claims · every surface (%s)", (lang) => {
     let seen = 0;
     for (const line of lines) {
       for (const sentence of sentencesOf(line.text)) {
-        const hit = UNTESTED_FORMAT.exec(sentence);
+        const hit = UNTESTED_FORMAT.exec(sentence.replace(IDIOMS, " "));
         if (!hit) continue;
         seen += 1;
         if (AI_OR_NEGATED.test(sentence)) continue;
+        if (NEGATIVE_SURFACE.some((n) => n.where.test(line.where))) continue;
         offenders.push(`${line.where}: "${hit[0]}" in "${sentence.slice(0, 180)}"`);
       }
     }
@@ -683,21 +831,43 @@ describe.each(LANGS)("public-claims · the upload dialog's country dropdown (%s)
 
 // ── literals the dictionaries do not hold ─────────────────────────────
 
+/** Every .tsx under `rel`, recursively, tests excluded. */
+function tsxUnder(rel: string): string[] {
+  const out: string[] = [];
+  const walk = (dir: string) => {
+    for (const name of readdirSync(join(REPO, dir))) {
+      const child = `${dir}/${name}`;
+      if (statSync(join(REPO, child)).isDirectory()) {
+        if (name !== "__tests__") walk(child);
+      } else if (name.endsWith(".tsx") && !/\.test\.tsx$/.test(name)) out.push(child);
+    }
+  };
+  walk(rel);
+  return out.sort();
+}
+
 describe("public-claims · component literals", () => {
-  it("C2 no accounting-software name is typed into an upload or marketing component", () => {
+  it("C2 no accounting-software name is typed into any component, page or dictionary", () => {
+    // EVERY component and page, not a typed list: the first version named
+    // eleven files and SourceQualityBanner.tsx ("extended-layout
+    // SAGA/WinMENTOR exports") was not one of them.
+    const components = tsxUnder("frontend/components/cfo");
+    const pages = tsxUnder("frontend/pages/cfo");
+    expect(components.length, "the component walk collapsed").toBeGreaterThan(150);
+    expect(pages.length, "the page walk collapsed").toBeGreaterThan(25);
     const files = [
-      "frontend/pages/cfo/FinancialStatements.tsx",
-      "frontend/pages/cfo/Landing.tsx",
+      ...components, ...pages,
       "frontend/pages/cfo/landingStrings.ts",
-      "frontend/pages/cfo/Workspace.tsx",
-      "frontend/components/cfo/products/TemplateDownloadCard.tsx",
-      "frontend/components/cfo/PricingTableV2.tsx",
-      "frontend/components/cfo/CoverageTable.tsx",
-      "frontend/components/cfo/pricing/NonRoUpgradeDialog.tsx",
+      "frontend/pages/cfo/sampleStrings.ts",
       "frontend/lib/planFeatures.ts",
       "frontend/lib/uploadRefusals.ts",
+      "frontend/lib/coverage.ts",
       "frontend/hooks/useHtmlLangSync.ts",
     ];
+    for (const must of ["frontend/components/cfo/SourceQualityBanner.tsx", "frontend/pages/cfo/Workspace.tsx",
+      "frontend/components/cfo/upload/UploadFlowHost.tsx", "frontend/pages/cfo/FinancialStatements.tsx"]) {
+      expect(files, `${must} is not in the scan`).toContain(must);
+    }
     const allowed = allowedSoftware();
     const offenders: string[] = [];
     for (const rel of files) {
@@ -709,13 +879,32 @@ describe("public-claims · component literals", () => {
       // after an expression (`}`): `{" "}SAGA, SmartBill … are supported.`
       // was typed after a `}` and the first version of this scan skipped it.
       for (const m of src.matchAll(/"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`[^`]*`|(?<=[>}])[^<>{}]+(?=[<{])/g)) {
+        // an import path, a route or a class list is not copy
+        if (/^["'`](?:@\/|\.{1,2}\/|\/)[\w@/.-]*["'`]$/.test(m[0])) continue;
         for (const name of softwareIn(m[0])) {
           if (!allowed.has(name.toLowerCase())) offenders.push(`${rel}: "${name}" in ${m[0].slice(0, 120)}`);
         }
       }
       unitsChecked += 1;
     }
+    // BOTH DICTIONARIES, WHOLE — every namespace, not the upload ones only
+    for (const [lang, dict] of [["en", en], ["ro", ro]] as const) {
+      const lines: Line[] = [];
+      flat(dict, "", `${lang}.json`, lines);
+      expect(lines.length, `${lang}.json was not read`).toBeGreaterThan(3000);
+      for (const line of lines) {
+        for (const name of softwareIn(line.text)) {
+          if (!allowed.has(name.toLowerCase())) offenders.push(`${line.where}: "${name}" in "${line.text.slice(0, 120)}"`);
+        }
+      }
+      unitsChecked += lines.length;
+    }
     expect(offenders).toEqual([]);
+    // the detector: ordinary words are not software, software beside its vocabulary is
+    expect(softwareIn("Partner, CFO, Senior accountant…")).toEqual([]);
+    expect(softwareIn("Export it from Senior ERP")).toEqual(["Senior"]);
+    expect(softwareIn("extended-layout SAGA/WinMENTOR exports")).toEqual(expect.arrayContaining(["SAGA", "WinMENTOR"]));
+    expect(softwareIn("Drop your SAGA, SmartBill, NEXTUP or CIEL export").length).toBeGreaterThanOrEqual(4);
   });
 });
 
@@ -787,6 +976,9 @@ describe("public-claims · coverage.json", () => {
       }
       if (r.software.length > 0) {
         expect(typeof r.real_books === "number" && !!r.real_books_proof, `${r.id}: names ${r.software.join(", ")} without a gate-backed real file`).toBe(true);
+        // …and a battery gate that reads that real file: a dated record is a
+        // person's measurement, and does not prove whose export a file is
+        expect(gates.length, `${r.id}: names ${r.software.join(", ")} with no battery gate as evidence`).toBeGreaterThan(0);
       }
     }
     for (const r of ROWS) {
@@ -902,6 +1094,88 @@ describe("public-claims · the upload zone", () => {
     const src = readFileSync(join(REPO, "frontend/pages/cfo/FinancialStatements.tsx"), "utf8");
     expect(src).toContain("<CoverageDisclosure />");
     expect(src).toContain('from "@/components/cfo/CoverageTable"');
+  });
+});
+
+// ── C3, the guide cards ───────────────────────────────────────────────
+//
+// The dashboard's "Expected format" grid is a set of CARDS — a title, a
+// format line, what the report shows. C3 reads sentences that OFFER a
+// document ("upload a …", "… are read too"); a card offers one with no verb
+// at all, so "Statutory ANAF filing — XLSX (Formular F30 + F10) … the legally
+// certified numbers" stood above the drop zone while coverage.json said that
+// document has no real-file test. The law is on the card's STRUCTURE:
+//
+//   · the trial-balance card prints the formats lib/coverage derives (read
+//     on a real book) and the derived "accepted, not yet tested" line;
+//   · any other card either carries coverage.json's untested-document note,
+//     or is on the short list below, each entry with its reason;
+//   · the words of a card name no format that was not read on a real book,
+//     unless the card carries that note.
+
+/** Cards that are not a document the statement engine reads. */
+const GUIDE_CARDS_NOT_ENGINE_INPUT: Record<string, string> = {
+  "dash.docPublicRecords": "rendered only when PUBLIC_RECORDS_ENABLED is true; the flag is false (asserted below)",
+  "dash.docSales": "the SKU workbook of /products — another pipeline, not a financial document; coverage.json has no row for it (stated under CANNOT SEE)",
+};
+
+describe("public-claims · the upload guide cards", () => {
+  it("C3 a guide card lists only formats read on a real book, or says it is not tested on a real file", () => {
+    const src = readFileSync(join(REPO, "frontend/pages/cfo/FinancialStatements.tsx"), "utf8")
+      .replace(/\{\/\*[\s\S]*?\*\/\}/g, " ").replace(/\/\*[\s\S]*?\*\//g, " ");
+    const start = src.indexOf('data-testid="upload-document-guide"');
+    expect(start, "the guide grid is gone from the dashboard").toBeGreaterThan(0);
+    const grid = src.slice(start, src.indexOf("</div>", start));
+    const cards = [...grid.matchAll(/<DocGuideCard\b([\s\S]*?)\/>/g)].map((m) => m[1]);
+    expect(cards.length, "guide cards found").toBeGreaterThanOrEqual(3);
+    const prop = (card: string, name: string): string | null =>
+      new RegExp(`\\b${name}=(\\{[^}]*\\}|"[^"]*")`).exec(card)?.[1] ?? null;
+    const realFormats = new Set(
+      TESTED.filter((r) => typeof r.real_books === "number" && r.real_books > 0).flatMap((r) => r.formats.map((f) => f.toUpperCase())));
+    expect([...realFormats].sort()).toEqual(["PDF", "XLSX"]);
+    const FORMAT_WORD = /\b(XLSX|XLS|CSV|PDF|DOCX?|JPE?G|PNG|TXT|XML|ODS)\b/g;
+    const UNTESTED_WORDS = /no real-file test|not yet tested on a real file|fără un test pe fișier real|netestat\p{L}* pe un fișier real/iu;
+    let derived = 0;
+    for (const card of cards) {
+      const title = /t\("([^"]+)"\)/.exec(prop(card, "title") ?? "")?.[1];
+      expect(title, `a guide card whose title is not a dictionary key: ${card.slice(0, 80)}`).toBeTruthy();
+      const format = prop(card, "format");
+      const note = prop(card, "note");
+      const words = (lang: "en" | "ro"): string => {
+        const dash = ((lang === "ro" ? ro : en) as unknown as { dash: Record<string, string> }).dash;
+        const base = (title as string).replace(/^dash\./, "");
+        return Object.entries(dash).filter(([k]) => k.startsWith(base)).map(([, v]) => v).join(" · ");
+      };
+      if (format === "{uploadGuide.testedFormats}") {
+        // the trial-balance card: formats and the untested line are derived
+        expect(note, `${title}: the derived untested line is not on the card`).toBe("{uploadGuide.untestedLine}");
+        for (const lang of LANGS) {
+          for (const m of words(lang).matchAll(FORMAT_WORD)) {
+            expect(realFormats.has(m[1].toUpperCase()), `${title} (${lang}) names ${m[1]}, which no real book was read in`).toBe(true);
+            unitsChecked += 1;
+          }
+        }
+        derived += 1;
+        continue;
+      }
+      if (title! in GUIDE_CARDS_NOT_ENGINE_INPUT) { unitsChecked += 1; continue; }
+      // any other card states a format of its own: it must say it is untested
+      expect(note, `${title}: a guide card with a typed format (${format}) and no "not yet tested on a real file" note`)
+        .toBe("{uploadGuide.untestedDocument}");
+      for (const lang of LANGS) {
+        expect(UNTESTED_WORDS.test(words(lang)), `${title} (${lang}): its words do not say it has no real-file test`).toBe(true);
+        expect(words(lang), `${title} (${lang}): "certified" on an untested document`).not.toMatch(/certif/i);
+        unitsChecked += 1;
+      }
+    }
+    expect(derived, "no card prints the derived formats").toBe(1);
+    // the reasons on the exemption list are still true
+    const features = readFileSync(join(REPO, "frontend/config/features.ts"), "utf8");
+    expect(features).toMatch(/export const PUBLIC_RECORDS_ENABLED = false as boolean;/);
+    expect(grid).toMatch(/\{PUBLIC_RECORDS_ENABLED && \(\s*<DocGuideCard\s+title=\{t\("dash\.docPublicRecords"\)\}/);
+    // the note the cards carry is coverage.json's
+    const guide = (coverage as unknown as { upload_guide: Record<string, string> }).upload_guide;
+    expect(UNTESTED_WORDS.test(guide.untested_document_en) && UNTESTED_WORDS.test(guide.untested_document_ro)).toBe(true);
   });
 });
 
