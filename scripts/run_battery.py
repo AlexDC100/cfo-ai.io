@@ -1749,7 +1749,7 @@ def _engine_gates() -> List[Gate]:
              # the composer takes no feature statuses and the pack refuses an
              # action carrying a feature gate / a target / an unknown name
              # (measured 31).
-             work_junit=True, floor=29, units="tests",
+             work_junit=True, floor=31, units="tests",
              canaries=("test_other_equity_is_never_the_biggest_movement_on_the_served_pair",
                        "test_the_bank_report_is_the_cfo_report_pdf_never_the_forecast",
                        "test_the_actions_cannot_read_the_feature_registry",
