@@ -73,9 +73,16 @@ def world(monkeypatch):
         # (feat/ws-migration a14d0269) — the caller's oldest live membership
         # when no X-Org-Id is sent — so the double carries what that
         # resolution reads (`_org.default_org_for_user`).
-        "memberships": [{"user_id": OWNER, "org_id": ORG, "created_at": "2026-01-01T00:00:00+00:00"},
-                        {"user_id": OWNER, "org_id": ORG_B, "created_at": "2026-02-01T00:00:00+00:00"},
-                        {"user_id": OTHER_USER, "org_id": ORG, "created_at": "2026-01-02T00:00:00+00:00"}],
+        # role: the non-RO gate of a re-run reads the plan of the WORKSPACE's
+        # owner (owner ruling 2026-10-02) — these rows carried no role, so an
+        # owner lookup found nobody. OWNER owns both companies; OTHER_USER is
+        # a colleague in the first.
+        "memberships": [{"user_id": OWNER, "org_id": ORG, "role": "owner",
+                         "created_at": "2026-01-01T00:00:00+00:00"},
+                        {"user_id": OWNER, "org_id": ORG_B, "role": "owner",
+                         "created_at": "2026-02-01T00:00:00+00:00"},
+                        {"user_id": OTHER_USER, "org_id": ORG, "role": "member",
+                         "created_at": "2026-01-02T00:00:00+00:00"}],
         "organizations": [{"id": ORG, "archived_at": None}, {"id": ORG_B, "archived_at": None}],
         "financial_periods": [{"id": PERIOD, "org_id": ORG, "period_end": "2025-12-31"}],
         "documents": [],

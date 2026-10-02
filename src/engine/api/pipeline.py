@@ -1003,52 +1003,71 @@ def _enforce_nonro_plan_gate(doc: Dict[str, Any]) -> None:
     exact seam where the jurisdiction resolver routes a document into
     the AI lane (jurisdiction != RO).
 
-    · USAGE_LIMITS_ENABLED off (prod today) → strictly inert: returns
-      before any plan/state read.
-    · Plan without non-RO entitlement (trial/intro/solo/pro) → raises
-      NonRoNotIncludedError whose message is the TYPED refusal JSON
-      ({"error": "non_ro_not_included", "upgrade_to": "multi", ...}).
-      The generic failure handler persists it into `documents.error`,
-      the generic release path frees the doc-slot reservation, and the
-      FE matches `non_ro_not_included` to render an upgrade prompt
-      instead of a failure card.
-    · multi → reserves the non-RO meter and stamps the documents row
-      (`nonro_doc`, `nonro_metered_extra`) so `_commit_pipeline_quota`
-      can commit/release the meter from the daemon thread.
+    · USAGE_LIMITS_ENABLED off → strictly inert: returns before any
+      plan/state read. (It is ON in production — measured 2026-09-10,
+      `_usage_gate.reserve_nonro_document`.)
+    · REFUSED → raises NonRoNotIncludedError whose message is a NEUTRAL
+      CODE and nothing else (`_usage_gate.stored_nonro_refusal`):
+          {"error": "non_ro_not_included"}    the plan does not include them
+          {"error": "nonro_quota_exhausted"}  the month's non-RO allowance is used
+          {"error": "metering_unavailable"}   the plan / meter could not be read
+      The generic failure handler persists it into `documents.error`
+      (`NonRoNotIncludedError: {"error": "<code>"}`), the generic release
+      path frees the doc-slot reservation, and each viewer's browser
+      renders the sentence from the code. NEVER `plan_key`, a plan's
+      name, `message` or `upgrade_to` (owner ruling 2026-10-02):
+      `documents.error` is a shared row — every member of the workspace
+      and every firm viewer reads it — and those fields published one
+      person's plan to their colleagues, from BOTH branches below.
+    · ALLOWED on a run that reserves → reserves the non-RO meter and
+      stamps the documents row (`nonro_doc`, `nonro_metered_extra`); the
+      meter is settled by `_commit_pipeline_quota` from the run's ledger
+      entry.
 
-    ONLY THE FIRST, METERED RUN RESERVES (2026-09-21, verifier P-E). The
-    non-RO meter is reserved — and so committed and billed — only when THIS
-    run holds a document-slot reservation in the ledger (a first analysis
-    through /run, a recovery, the firm landing), and under that verified
-    reserver. A run that holds none — /retry, the ai-lane force-reextract,
-    a period-move re-run — re-analyses a document already counted: the plan
-    still gates it (the typed refusal), but nothing is reserved or counted.
-    It used to reserve and register on every run: a retry of an analysed
-    non-RO document on Multi at the included cap moved nonro uploads 8→9 and
-    metered `extra_nonro` again.
+    WHOSE PLAN — two branches, and neither reads `documents.uploaded_by`
+    (a column the browser writes: any member can PATCH it to any user id,
+    or to NULL):
+
+    1. THE RUN HOLDS A DOCUMENT SLOT (a first analysis through /run, a
+       recovery, the firm landing): the verified RESERVER's own plan and
+       meter (`_doc_slot_holder` — the in-process ledger, never the row).
+       Only this run reserves the non-RO meter (verifier P-E, 2026-09-21):
+       it used to reserve on every run, and a retry of an analysed non-RO
+       document on Multi at the included cap moved nonro uploads 8→9 and
+       metered `extra_nonro` again.
+
+    2. THE RUN HOLDS NONE (/retry or a correction of a counted book, the
+       ai-lane force-reextract, /run of a counted book, an operator
+       script): it re-analyses a document already counted, so nothing is
+       reserved or counted — and the WORKSPACE's plan gates it
+       (`_usage_gate.workspace_nonro_refusal`): the plan of the owner of
+       `doc["org_id"]`. The caller's membership in that workspace is the
+       re-run route's own wall (`_verify_user_may_write_document`,
+       `_org.require_org_member`); this thread carries no caller. FAILS
+       CLOSED: a document with no `org_id`, or a workspace with no owner
+       row, is refused.
+
+       Until 2026-10-02 this branch read the subscription of whoever
+       `uploaded_by` named — a non-member's Multi plan entitled the run, a
+       colleague's Solo plan refused the Multi owner's own workspace, and
+       a NULL `uploaded_by` (the uploader's account deleted: `on delete
+       set null`) passed with no plan check at all.
     """
     from . import _usage_gate as _ug
     if not _ug.enforcement_enabled():
         return
     holder = _doc_slot_holder(str(doc.get("id") or ""))
     if holder is None:
-        user_id = doc.get("uploaded_by")
-        if not user_id:
+        code = _ug.workspace_nonro_refusal(doc.get("org_id"))
+        if code is None:
             return
-        refusal = _ug.nonro_entitlement_refusal(str(user_id))
-        if refusal is None:
-            return
-        payload = dict(refusal.refusal or {"error": "non_ro_not_included"})
-        payload["plan_key"] = refusal.plan_key
-        payload["message"] = refusal.message
-        raise _ug.NonRoNotIncludedError(json.dumps(payload, ensure_ascii=False))
-    user_id = holder
-    decision = _ug.reserve_nonro_document(str(user_id))
+        raise _ug.NonRoNotIncludedError(_ug.stored_nonro_refusal(code))
+    decision = _ug.reserve_nonro_document(str(holder))
     if decision.kind in ("allowed", "disabled"):
         if decision.kind == "allowed":
             # Settled with THIS run by `_commit_pipeline_quota` (the ledger),
             # never from the row stamp a later re-run would still carry.
-            _register_nonro_reservation(str(doc.get("id")), user_id=str(user_id),
+            _register_nonro_reservation(str(doc.get("id")), user_id=str(holder),
                                         was_extra=bool(decision.was_extra))
             try:
                 with _supabase.admin() as ac:
@@ -1064,11 +1083,14 @@ def _enforce_nonro_plan_gate(doc: Dict[str, Any]) -> None:
                     "commit will be skipped)", doc.get("id"),
                 )
         return
-    # refused (typed upgrade prompt) or blocked (monthly non-RO cap).
-    payload = dict(decision.refusal or {"error": "nonro_quota_exhausted"})
-    payload["plan_key"] = decision.plan_key
-    payload["message"] = decision.message
-    raise _ug.NonRoNotIncludedError(json.dumps(payload, ensure_ascii=False))
+    # Refused (the reserver's plan does not include non-RO documents, or
+    # the meter could not be reached) or blocked (the monthly non-RO cap).
+    # The decision's `plan_key` and `message` are the RESERVER's own plan:
+    # they are never stored. `decision.refusal` is a dict or a bare string
+    # (`metering_unavailable`) — `nonro_refusal_code` reads both; a
+    # `dict(decision.refusal)` here stored a ValueError's text.
+    raise _ug.NonRoNotIncludedError(
+        _ug.stored_nonro_refusal(_ug.nonro_refusal_code(decision)))
 
 
 def _maybe_route_ai_lane(
@@ -1097,7 +1119,8 @@ def _maybe_route_ai_lane(
         return None
     # 2026-08 tiers — non-RO documents are a plan entitlement (multi
     # only). Inert when USAGE_LIMITS_ENABLED is off; raises the typed
-    # refusal (→ documents.error) when the plan doesn't include non-RO.
+    # refusal (→ documents.error, a neutral code) when the reserver's plan
+    # — or, on a re-run, the WORKSPACE's — doesn't include non-RO.
     _enforce_nonro_plan_gate(doc)
     logger.info(
         "[stage_extract] AI lane engaged: jurisdiction=%s source=%s "
@@ -5303,8 +5326,9 @@ def _commit_pipeline_quota(document_id: str, *, success: bool) -> None:
         # Non-RO meter — reserved mid-run by `_enforce_nonro_plan_gate`,
         # settled with the run under the same success-only discipline.
         if run.nonro_reserved and run.nonro_user:
-            # The non-RO reservation was made under `documents.uploaded_by`,
-            # which the BROWSER writes: it settles only against a member of
+            # The non-RO reservation is the verified reserver's
+            # (`_doc_slot_holder`, never `documents.uploaded_by`, which the
+            # BROWSER writes); it still settles only against a member of
             # the document's own organization (P0 family, 2026-09-09).
             nonro_success = settle_as_success
             if nonro_success:
@@ -5314,8 +5338,8 @@ def _commit_pipeline_quota(document_id: str, *, success: bool) -> None:
                 doc_org = str((found[0] if found else {}).get("org_id") or "").strip()
                 if not doc_org or not _org.user_is_member(run.nonro_user, doc_org):
                     logger.error(
-                        "[security] REFUSED non-RO commit: document=%s names "
-                        "uploaded_by=%r who is not a member of its org=%r",
+                        "[security] REFUSED non-RO commit: document=%s was reserved "
+                        "by user=%r, who is not a member of its org=%r",
                         document_id, run.nonro_user, doc_org,
                     )
                     nonro_success = False

@@ -94,6 +94,57 @@ def member_org_ids(user_id: str) -> List[str]:
     return [str(r["org_id"]) for r in rows or [] if r.get("org_id")]
 
 
+#: The membership role that OWNS a workspace. Every path that creates one
+#: inserts exactly one such row for its creator (schema_phase3.sql:142,
+#: `create_workspace`, the firm client import); the schema does not
+#: constrain it to one.
+OWNER_ROLE = "owner"
+
+
+def workspace_owner_ids(org_id: Optional[str]) -> List[str]:
+    """The user ids holding the OWNER role in `org_id`, oldest first.
+
+    WHY IT EXISTS (owner ruling 2026-10-02): the WORKSPACE's plan gates a
+    re-run, never whoever `documents.uploaded_by` names — a column the
+    browser writes (`documents member update`, schema_phase3.sql:211, has
+    no column restriction). Billing is per user and there is no
+    workspace-level plan row, so "the workspace's plan" is its OWNER's
+    (`_usage_gate.workspace_nonro_refusal`), and this is the one resolver
+    of who that is, read from the document's own `org_id`.
+
+    · Filtered on `role = owner` AND re-checked on the returned rows.
+      NEVER `order=role.asc, limit=1` (the shape at `_billing.py`'s
+      renewal recipient): 'admin' sorts before 'owner', so that returns
+      the firm's responsible accountant, not the owner.
+    · Ordered `created_at.asc` so the answer is stable.
+    · Service role: `memberships` RLS is `auth.uid() = user_id`, a
+      per-user client sees only its own rows — and this is called from the
+      daemon thread, which carries no JWT at all.
+    · A blank org answers [] WITHOUT a read — an unfiltered `memberships`
+      read under the service role would answer every workspace's owner.
+    · A read failure RAISES: the caller decides what an unreadable owner
+      means (the entitlement gate refuses), it is never "no owner".
+    """
+    org = str(org_id or "").strip()
+    if not org:
+        return []
+    with _supabase.admin() as ac:
+        rows = ac.select(
+            "memberships",
+            filters={"org_id": f"eq.{org}", "role": f"eq.{OWNER_ROLE}"},
+            columns="user_id,org_id,role,created_at",
+            order="created_at.asc",
+        )
+    owners: List[str] = []
+    for row in rows or []:
+        user = str(row.get("user_id") or "").strip()
+        if (user and user not in owners
+                and str(row.get("org_id") or "") == org
+                and str(row.get("role") or "") == OWNER_ROLE):
+            owners.append(user)
+    return owners
+
+
 def verified_user_id(jwt: str) -> str:
     """`resolve_user_id` with the PUBLIC_TEST_MODE seam every other identity
     helper carries: under test mode the shared test user stands in (its
