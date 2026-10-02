@@ -18481,8 +18481,8 @@ deployed:
 | | |
 |---|---|
 | command | `python -m pytest tests/engine/test_upload_real_type.py tests/engine/test_workspace_uploads.py -q` (the second file since review round 3, 2026-10-02: the upload card's routes at the HTTP seam) |
-| canary | junit test names: `test_a_docx_named_pdf_is_refused_before_the_paid_path`, `test_an_excel_balance_named_pdf_is_READ_not_refused`, `test_a_balance_pdf_named_xls_is_READ_not_refused`, `test_a_docx_named_xlsx_is_refused_before_the_paid_path`, `test_an_honestly_named_docx_is_refused_through_the_real_branch`, `test_the_guard_still_runs_when_the_first_download_fails`, `test_the_failure_handler_stores_the_sentence_without_a_class_name`, `test_a_legacy_word_doc_is_refused_under_every_name_before_any_reader`, `test_the_pdf_branch_refuses_what_none_of_its_readers_opens`, `test_a_workbook_named_pdf_never_reaches_the_claude_pdf_lane` (review round 4; it replaces `test_a_workbook_the_positional_reader_declines_never_reaches_the_claude_pdf_lane`, which pinned the late refusal), `test_the_positional_readers_acceptance_gate_holds_under_every_name`, `test_the_identity_of_an_upload_is_read_from_its_bytes_under_every_name`, `test_a_mimetype_entry_that_lies_about_its_size_is_not_inflated`, `test_the_real_branch_answers_in_the_language_the_run_carries` |
-| work count | junit tests, floor **177** (measured 27 at release r-rulings2, 88 after the 2026-10-01 review round, 173 after review round 3 — "upload-real-type — one upload policy, read by real type" — and 177 after review round 4, both at the end of this chapter) |
+| canary | junit test names: `test_a_docx_named_pdf_is_refused_before_the_paid_path`, `test_an_excel_balance_named_pdf_is_READ_not_refused`, `test_a_balance_pdf_named_xls_is_READ_not_refused`, `test_a_docx_named_xlsx_is_refused_before_the_paid_path`, `test_an_honestly_named_docx_is_refused_through_the_real_branch`, `test_the_guard_still_runs_when_the_first_download_fails`, `test_the_failure_handler_stores_the_sentence_without_a_class_name`, `test_a_legacy_word_doc_is_refused_under_every_name_before_any_reader`, `test_the_pdf_branch_refuses_what_none_of_its_readers_opens`, `test_a_workbook_named_pdf_never_reaches_the_claude_pdf_lane` (review round 4; it replaces `test_a_workbook_the_positional_reader_declines_never_reaches_the_claude_pdf_lane`, which pinned the late refusal), `test_the_positional_readers_acceptance_gate_holds_under_every_name`, `test_the_identity_of_an_upload_is_read_from_its_bytes_under_every_name`, `test_the_identifier_reads_every_upload_on_the_branch_the_pipeline_reads_it_on` (review round 5), `test_a_mimetype_entry_that_lies_about_its_size_is_not_inflated`, `test_the_real_branch_answers_in_the_language_the_run_carries` |
+| work count | junit tests, floor **178** (measured 27 at release r-rulings2, 88 after the 2026-10-01 review round, 173 after review round 3 — "upload-real-type — one upload policy, read by real type" — 177 after review round 4 and 178 after review round 5, all at the end of this chapter) |
 
 **INCIDENT** — 2026-09-23: a prospect uploaded
 `balanta_de_verificare_07.2025.pdf`, a Word document renamed (PK zip header,
@@ -19293,3 +19293,171 @@ workspace-v2 29 → 31 (two canaries added); credit-regime-surfaces 24 → 33
 (three canaries added). Round 3's CANNOT SEE line "a workbook on the .pdf
 branch still takes the .pdf branch's acceptance gate … a small or statutory
 workbook named .pdf is refused there" is superseded by this round.
+
+### release r-rulings2 — review round 5 (2026-10-02): the identifier's dispatch is the pipeline's, and the pre-flight holds a PDF's identity
+
+The fourth review left two findings on the upload lens, both MEDIUM. Round
+4's own commits (a609242c, 37d3ea4e, f36e7517) had not been verified by
+anyone but their author; the fourth review did that and ran the complete
+battery on f36e7517 in a clone (137 green, `playwright` red as on production's
+tree, `public-sitemaps` vacuous — pytest 9,423, upload-real-type 177,
+workspace-v2 31). Both findings were reproduced before anything was touched;
+every law below was plant-proven on a scratch copy of the tree (the plant
+applied, the laws and the pre-flight run, the file restored and its sha-256
+compared — nothing was planted in the committed tree).
+
+**upload-real-type / workspace-v2 — the identifier read the bytes its own
+way, and never saw the declared MIME type (MEDIUM; a measured bypass of the
+cross-company takeover wall).**
+
+Graded MEDIUM by the review, not HIGH, and left so: no ERP and no PDF writer
+produces either byte shape, every real file is identified alike, and the
+uploader is a member who can replace the month anyway. The grading is the
+coordinator's to overrule.
+
+- REPRODUCED on f36e7517, three ways. (1) The identifier, asked directly for
+  a balance PDF built in memory under an invented company's header: `b"PK"`
+  + 100 bytes + the PDF sniffs `pdf` and the pipeline's policy reads it as a
+  PDF under every name; the identifier answers `unreadable` under every name
+  (`BadZipFile` — it tested `content[:2] == b"PK"`, the sniffer demands the
+  four-byte signature). The same PDF behind 2,000 bytes and ahead of 3,000
+  more sniffs `text`; the pipeline reads it as a PDF on the pdf and xlsx
+  branches; the identifier reads it named .pdf / .xls and answers
+  `unreadable` for (`balanta`, application/pdf), (`balanta.csv`,
+  application/pdf) and (`balanta`, the xlsx type) — it called
+  `classify(filename, None)`. (2) This round's pre-flight (below) run against
+  the untouched f36e7517 tree: FAIL, exit 1 — /api/uploads/identify, /commit
+  and `pipeline._document_company_cui` each read no CUI off both shapes.
+  (3) End to end, as plants P1 and P2 of the table below (each restores one
+  half of the f36e7517 dispatch): the other company's PDF is ANALYSED over
+  the served month.
+- FIX. `company_identity.extract_document_text(content, filename, mime)`
+  dispatches on the pipeline's own label — `_upload_type.sniff_container`:
+  `XLSX` / `OOXML_UNKNOWN` to the workbook reader, `XLS_OLE2` to the legacy
+  one — then `reads_as_pdf(classify(filename, mime), real, content)`; a
+  `.pdf` name is still consulted last. There is no second reading of the
+  magic bytes. `identify_document(…, mime=)` takes the declared type and
+  every caller that holds one hands it over: both upload routes through
+  `_uploads.identify(…, mime=)` and its seam, the wall's reader
+  (`pipeline._document_company_cui`: `doc["mime_type"]`), the read of the
+  month's own document (`_served_document_cui`: `mime_type` added to its
+  select), and the migration planner. The MIME type picks a READER; nothing
+  of the identity is taken from it.
+- LAWS.
+  `test_the_identifier_reads_every_upload_on_the_branch_the_pipeline_reads_
+  it_on` (upload-real-type): three PDF bodies (clean, behind "PK", bytes at
+  both ends) × nineteen (name, MIME) pairs — wherever the pipeline's policy
+  reads the bytes as a PDF, the identity is the clean PDF's, asked of
+  `identify_document` and through the routes' seam; a workbook's identity is
+  its own under all nineteen. Non-vacuity is asserted: both shapes are what
+  the finding says, the first two bodies are PDFs under every pair, and
+  three pairs of the third are PDFs by the MIME type ALONE.
+  workspace-v2, on the real app:
+  `test_g1_an_agras_pdf_is_identified_on_the_branch_the_pipeline_reads_it_on_
+  and_lands_in_agras` (5 rows: identify through the real route equals the
+  .pdf-named identity, the file lands and is ANALYSED in the company its
+  header names, the company on screen holds nothing);
+  `test_g4_a_same_month_pdf_of_another_company_never_replaces_the_month` (8
+  rows, the first a clean-PDF control: the run fails on the wall's own
+  sentence; the month, its rows, what it serves, its document and the meter
+  are untouched);
+  `test_g4_a_same_month_pdf_of_the_same_company_still_replaces_the_month` (2
+  rows — the pipeline READS both shapes, so the wall is the only thing in the
+  way, and it refuses only a provable other company);
+  `test_g4_the_month_of_a_company_without_a_cui_is_its_own_pdfs_whatever_
+  mime_named_it` (the month's own document read with its `mime_type`);
+  `test_g1_a_workspace_from_before_cuis_takes_the_cui_of_its_own_pdf_
+  whatever_mime_named_it` (2 rows: /commit hands the MIME type over too).
+  The wall's assertions are one helper now (`_assert_the_wall_held`), shared
+  by the workbook law of round 4 and the PDF one.
+- PLANTS, each on the scratch copy, restored and sha-checked (8 of 8 red; the
+  pristine copy first: identity laws 2 passed, the workspace-v2 selection 23
+  passed, the pre-flight 19 PASS):
+
+  | plant | identity laws (2) | workspace-v2 selection (23) | pre-flight |
+  |---|---|---|---|
+  | P1 `content[:2] == b"PK"` back in the identifier | 1 red | 5 red (G1 ×2, the wall ×3 — every "PK" row) | (p) red, exit 1 |
+  | P2 the identifier classifies with no MIME type | 1 red | 8 red (G1 ×3, the wall ×3, the no-CUI month, the pre-CUI workspace) | (p) red, exit 1 |
+  | P3 the routes' seam drops the MIME type | 1 red | 4 red (G1 ×3, the pre-CUI workspace) | (p) red, exit 1 |
+  | P3b /api/uploads/identify does not hand it over | green | 3 red (G1 ×3) | (p) red, exit 1 |
+  | P3c /api/uploads/commit does not hand it over | green | 1 red (the pre-CUI workspace) | (p) red, exit 1 |
+  | P4 the wall's reader drops `mime_type` | green | 4 red (the wall ×3, the no-CUI month) | (p) red, exit 1 |
+  | P5 the month's own document selected without `mime_type` | green | 1 red (the no-CUI month) | green — see CANNOT SEE |
+  | P6 a PDF named .xls / .xlsx identified by its name (the fourth review's `p1b`) | 2 red | green (no row of the selection is a clean PDF under a spreadsheet name) | (o) and (p) red, exit 1 |
+
+**The upload-type PRE-FLIGHT did not hold a PDF's identity (MEDIUM).**
+
+- REPRODUCED. The fourth review planted P6 on f36e7517 and the pre-flight
+  answered `PASS (17 checks, 0 failed)`, exit 0
+  (`preflight_plant_p1b_pdf_identity_by_name.out`): its one identity check
+  was case (a), the canary WORKBOOK under .pdf against .xlsx. The battery
+  held the plant (the round-4 identity law reds); the pre-flight is the only
+  check that runs inside the built image before the switch.
+- FIX (`specs-durable/upload_type_preflight.py`, outside the repository):
+  17 checks → **19**.
+  (o) a balance PDF built in memory under an INVENTED company's header (its
+  CUI made valid with the engine's own control digit), named .xls, .xlsx,
+  .csv and — with no extension — declared application/pdf: the identity it
+  has under .pdf, never `unreadable`.
+  (p) the same PDF in the two byte shapes above, under four and five (name,
+  MIME) pairs: the pipeline READS each (`stage_extract`, byte-identical to
+  the .pdf-named read of the same bytes), and each is identified as the
+  clean PDF.
+  Both are held at THREE layers, each the real one: `identify_document`
+  with the name and the declared type; what /api/uploads/identify and
+  /commit computed for the upload (their own call of `_uploads.identify` is
+  recorded on its way out — the endpoints are called as before, nothing is
+  re-implemented, and a route that asks the identifier more or less than
+  once fails by name); and the CUI the takeover wall reads off the stored
+  document (`pipeline._document_company_cui`, through the two storage seams
+  `stage_extract` reads through). Nothing of a client's is printed: the
+  company is invented.
+- RUNS. Against the release head: **19 checks PASS, exit 0**. Against the
+  untouched f36e7517 tree: FAIL (p), exit 1 — the first finding, seen by the
+  pre-flight. Against production's tree 7641c755: CANNOT RUN, exit 2, as
+  before (that pipeline carries no type guard).
+- PLANTS: the eight of the table above — seven red in the pre-flight, P6
+  among them (the plant it passed in the fourth review).
+- CANNOT SEE. P5: the pre-flight serves no store, and
+  `_served_document_cui` reads the month's own document row through one; the
+  battery holds it (workspace-v2, 1 red).
+
+**SEEN, NOT CHANGED** (outside the two findings; reported to the owner).
+
+- The period a PDF's title block prints is offered by the card only for a
+  PDF whose header sits at offset 0 (`_uploads.printed_period_of_pdf` tests
+  `content[:4] == b"%PDF"`). For both crafted shapes the card asks for the
+  period — under every name alike, so it is not an identity that differs by
+  name, and the pipeline reads the document's period at persist either way.
+  The G1 law compares every identity field but the period for that reason.
+- The identifier has no reader for TEXT: a CSV that prints another company's
+  header is `unreadable` to it, and the takeover wall holds nothing against
+  it (measured by the fourth review on f36e7517; the identifier of
+  production's tree has no text reader either — read, not run there).
+
+**THE MEASURED RUNS at 96667c7b** (a83206ba the fix, its laws and the
+battery's floors; 96667c7b the /commit law). Run on a clone of the release
+branch at that commit, `node_modules` linked and the owner's untracked
+`files/` books linked into the CLONE for the run (never copied, never
+committed); each gate through the battery's own code, floors and canaries
+(`scripts/run_battery.py`, the gate list filtered).
+`src/engine/api/_features.py` is byte-identical to production's (7641c755).
+
+- upload-real-type **178** tests (floor 177 → 178, one canary added);
+  workspace-v2 **49** (floor 31 → 49, four canaries added);
+  reprocess-periods-definition 99 (it reads the workspace-v2 tenancy
+  double); route-binding 3; credit-stock-build 164.
+- pytest — the full engine suite — **9,442** tests, exit 0, 1,120 s (9,423 on
+  f36e7517; + 19 = this round's laws). `test_gate_canaries.py` rides in it,
+  and was run again over this chapter's final text: 13 passed.
+- one-ebitda 65; pl-one-ebitda-page 100; credit-regime-surfaces 33;
+  provenance-census 818 figure render sites (the 11 listed burn-down
+  findings, none new); tsc 1,030 project files (10 known errors, 0 new);
+  vitest — the full frontend suite — **4,471**.
+- floor-census 77; no-plants 1,117; stale-gates 938; engine-book 6 pages,
+  byte-identical.
+- the upload-type pre-flight: **19 checks PASS, exit 0** (32 s).
+- NOT RUN in this round: the other gates of the battery (the complete
+  battery ran on f36e7517 in the fourth review, above; this round changed the
+  identifier, its three callers and two test files) and `playwright` (red on
+  production's tree too, round 4).
