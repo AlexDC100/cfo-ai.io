@@ -415,6 +415,36 @@ def _engine_gates() -> List[Gate]:
                        "test_the_override_table_is_never_read_under_the_service_role_or_without_the_user",
                        "test_a_save_persists_the_engines_figures_in_the_shared_row",
                        "test_the_narrator_is_told_the_periods_own_document_and_no_foreign_row")),
+        # THE WORKSPACE'S PLAN GATES A RE-RUN, AND THE STORED REFUSAL NAMES
+        # NOBODY'S (owner ruling 2026-10-02). A run that holds no document
+        # slot read the subscription of whoever `documents.uploaded_by`
+        # named — a column the browser writes: a non-member's Multi plan
+        # entitled the run, a colleague's Solo plan refused the Multi
+        # owner's workspace, a NULL passed with no check; and
+        # `documents.error` (read by every member) carried `plan_key` and a
+        # plan-named sentence from both branches. Driven through the REAL
+        # `_run_pipeline_sync` -> stage_extract -> the gate -> the failure
+        # handler -> `_admin_set_status`, over a PostgREST double that
+        # records every read: the owner's plan decides and the id on the
+        # row is asked nothing; no owner / no org / an unreadable owner are
+        # refused; the owner is resolved by role, never by sort order; the
+        # stored string is the code alone; the unreachable meter stores its
+        # code, not a ValueError; the first metered run stays gated by its
+        # reserver; a non-member's /retry is 403. Measured 35. Plant log:
+        # docs/engine_book/gates.md "entitlement-workspace-plan".
+        Gate("entitlement-workspace-plan",
+             [PY, "-m", "pytest", "tests/engine/test_entitlement_workspace_plan.py", "-q"],
+             work_junit=True, floor=35, units="tests",
+             canaries=("test_the_workspace_owners_plan_decides_whoever_uploaded_by_names",
+                       "test_a_null_uploader_is_gated_by_the_workspace_not_waved_through",
+                       "test_a_workspace_with_no_owner_row_is_refused",
+                       "test_a_document_with_no_workspace_is_refused",
+                       "test_the_owner_is_resolved_by_role_never_by_sort_order",
+                       "test_a_refused_rerun_stores_the_code_and_no_plan",
+                       "test_a_refused_first_run_stores_the_code_and_no_plan",
+                       "test_an_unreachable_meter_stores_its_code_not_a_value_error",
+                       "test_the_gate_never_reads_uploaded_by",
+                       "test_a_rerun_is_refused_to_a_caller_who_is_not_a_member")),
         # WORKSPACE-V2 — the redesign's engine gates (one company per
         # workspace, keyed by CUI) on the REAL create_app() and the REAL
         # identifier: G1 a file lands in the company its header names, G2 the

@@ -19926,8 +19926,163 @@ member's override before the fix (production held none); figures a browser
 computes from the served payload; the other reads the sweep of 2026-10-02
 confirmed and did not repair here
 (`specs-durable/hotfix_overrides_tenancy/sweep_2026-10-02.json`): the non-RO
-plan gate reading the subscription of whoever `documents.uploaded_by` names,
+plan gate reading the subscription of whoever `documents.uploaded_by` names
+(repaired since — gate `entitlement-workspace-plan` below),
 the journal `asof` chain keyed by content hash alone (unreachable while
 `ENGINE_JOURNAL_DIR` is unset), the firm digest cron and the founder
 renewal-reminder recipient (both behind flags / an operator bearer), and the
 unauthenticated `/api/cfo/decisions` demo store.
+
+## entitlement-workspace-plan
+
+The WORKSPACE's plan gates a re-run, never whoever `documents.uploaded_by`
+names — and what the refusal stores on the shared row names nobody's plan.
+Owner ruling 2026-10-02: "the WORKSPACE's plan gates a re-run, never whoever
+uploaded_by names; the caller must be a member. Never write plan names into
+the shared documents.error — store a neutral code, render the message per
+viewer."
+
+THE DEFECT (tenancy sweep 2026-10-02; measured offline on the release head by
+running the real gate). Non-Romanian documents are a plan entitlement
+(Multi-Country only). The gate — `pipeline._enforce_nonro_plan_gate` — runs on
+the daemon thread, which carries only the document id. A run that holds a
+document slot (a first analysis) was, and is, gated by its verified reserver.
+A run that holds none — `/retry` or a correction of a counted book, the
+ai-lane force-reextract, `/run` of a counted book, an operator script — read
+the subscription of whoever `documents.uploaded_by` named. The browser writes
+that column: the `documents member update` policy has no column restriction.
+
+- `uploaded_by` = a Multi user who is not a member → the run was entitled by
+  a stranger's plan; the only read was `subscriptions user_id=eq.<that id>`,
+  zero `memberships` reads;
+- `uploaded_by` = a colleague on Solo → the Multi owner's own workspace was
+  refused;
+- `uploaded_by` NULL (the uploader's account deleted — `on delete set null` —
+  or one PATCH) → the gate RETURNED before any plan read;
+- the refusal stored, in `documents.error` — a row every member of the
+  workspace and every firm viewer reads —
+  `NonRoNotIncludedError: {"error": "non_ro_not_included", "upgrade_to":
+  "multi", "plan_key": "solo", "message": "Non-Romanian documents aren't
+  included in the RO Solo plan. …"}`, and from the reserving branch
+  `{"error": "nonro_quota_exhausted", "plan_key": "multi", "message": "You've
+  used all 8 non-Romanian documents included in the Multi-Country plan this
+  month."}`;
+- an unreachable meter (`reserve_nonro_document` answers the bare STRING
+  `metering_unavailable`) stored `ValueError: dictionary update sequence
+  element #0 has length 1; 2 is required` — the pipeline did
+  `dict(decision.refusal)`.
+
+Two tests pinned the defect as the law and were REWRITTEN, not deleted:
+`test_pricing_tiers.py::test_pipeline_nonro_gate_no_user_is_noop` (it asserted
+that a NULL `uploaded_by` passes with enforcement on — now
+`…_no_workspace_is_refused`) and
+`…::test_pipeline_nonro_gate_a_rerun_reserves_nothing_but_is_still_gated` (it
+answered the plan of whatever id the gate asked about).
+
+THE REPAIR. "The workspace's plan" is the plan of the workspace's OWNER:
+billing is per user and no workspace carries a plan row, and the owner is the
+account that created the workspace under its own plan's caps.
+
+- `_org.workspace_owner_ids(org)` — `memberships {org_id: eq.<org>, role:
+  eq.owner}` under the service role, `created_at.asc`, the role and the org
+  re-checked on the returned rows; a blank org reads nothing. Never
+  `order=role.asc, limit=1`: 'admin' sorts before 'owner'.
+- `_usage_gate.workspace_nonro_refusal(org)` — entitled when ANY owner is
+  operator-exempt (`enforced_for` false) or on a plan that `allows_non_ro`
+  (through `_plan_state.get_plan_state`); no owner row, or no `org_id` →
+  `non_ro_not_included` (fail closed); the owner lookup itself failing →
+  `metering_unavailable`.
+- `_enforce_nonro_plan_gate` — the holder-less branch reads `doc["org_id"]`,
+  never `doc["uploaded_by"]`. BOTH branches raise
+  `_usage_gate.stored_nonro_refusal(<code>)`, so `documents.error` is exactly
+  `NonRoNotIncludedError: {"error": "<code>"}` with `<code>` one of
+  `non_ro_not_included` · `nonro_quota_exhausted` · `metering_unavailable` —
+  no `plan_key`, no `message`, no `upgrade_to`. Each viewer's browser renders
+  the sentence from the code (`frontend/lib/uploadRefusals.ts`).
+- The first, metered run is unchanged in WHO is gated (the verified reserver's
+  own plan and meter); the caller's own HTTP 402 / 429 bodies keep their shape.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_entitlement_workspace_plan.py -q` |
+| work count | junit-xml, floor **35** tests (measured 35) |
+| canary | `test_the_workspace_owners_plan_decides_whoever_uploaded_by_names`, `test_a_null_uploader_is_gated_by_the_workspace_not_waved_through`, `test_a_workspace_with_no_owner_row_is_refused`, `test_a_document_with_no_workspace_is_refused`, `test_the_owner_is_resolved_by_role_never_by_sort_order`, `test_a_refused_rerun_stores_the_code_and_no_plan`, `test_a_refused_first_run_stores_the_code_and_no_plan`, `test_an_unreachable_meter_stores_its_code_not_a_value_error`, `test_the_gate_never_reads_uploaded_by`, `test_a_rerun_is_refused_to_a_caller_who_is_not_a_member` |
+
+**SCOPE.** Nothing of the gate is stubbed. `_run_pipeline_sync` →
+`_run_pipeline_stages` → the real `stage_extract` over a Hungarian ledger
+(the real jurisdiction resolver routes it by its language; no
+`jurisdiction_hint`) → `_maybe_route_ai_lane` → `_enforce_nonro_plan_gate` →
+`workspace_nonro_refusal` → `workspace_owner_ids` and the real
+`get_plan_state`, over `dedupe_fakes.FakeDB` extended to RECORD every select →
+the real failure handler → the real `_admin_set_status` → `documents.error`.
+Two seams are replaced: the storage download, and `ai_lane.run_ai_lane`,
+which raises `_ReachedTheAiLane` — "the gate let the run through" is the
+stored class name, not an inference. The expected stored strings are literals
+in the test, never taken from the function that prints them; the words
+forbidden on the shared row (`plan_key`, `message`, `upgrade_to`, every plan's
+display name and quoted key) are derived from the pricing config. The
+"asked nothing" law is floored on its subject: each matrix row asserts the
+owner's subscription WAS read (exactly `[OWNER]`) before asserting the id on
+the row appears in no filter of any table.
+
+**GREEN** — exit `0`: `35 passed`.
+
+**PLANT** — fourteen, each applied ALONE by
+`specs-durable/hotfix2/entitlement_plants.py` (which runs the gate's command),
+the file restored byte-exact after each (sha256 asserted). P1–P4 are the four
+the hotfix spec names; the rest are the neighbours a repair could slide into.
+
+| plant | file | RED |
+|---|---|---|
+| P0 the three pre-fix files verbatim (`pipeline.py`, `_usage_gate.py`, `_org.py` at d265e0b1) | — | `33 failed, 2 passed` |
+| P1 the re-run branch reads the plan of whoever `uploaded_by` names again (NULL returns) | `pipeline.py` | `22 failed, 13 passed` — the whole matrix, `…null_uploader…`, `…never_reads_uploaded_by`, `…no_owner_row…`, `…no_workspace…` |
+| P2 `plan_key` and the plan-named `message` back in the stored payload (reserving branch) | `pipeline.py` | `4 failed, 31 passed` — `…refused_first_run_stores_the_code_and_no_plan` ×2, `…unreachable_meter…`, `…first_metered_run…` |
+| P2b `upgrade_to` back in every stored refusal | `_usage_gate.py` | `20 failed, 15 passed` |
+| P3 the owner picked by sort order: `memberships` by org, `order=role.asc`, `limit=1`, no role check (the `_billing.py` renewal-recipient shape) | `_org.py` | `17 failed, 18 passed` — `…resolved_by_role_never_by_sort_order` ×2 among them |
+| P3b the same read with the role still re-checked on the rows | `_org.py` | `16 failed, 19 passed` |
+| P4 a workspace with no owner row passes | `_usage_gate.py` | `1 failed, 34 passed` — `test_a_workspace_with_no_owner_row_is_refused` |
+| P5 a document with no `org_id` passes | `_usage_gate.py` | `1 failed, 34 passed` — `test_a_document_with_no_workspace_is_refused` |
+| P6 the seam does `dict(decision.refusal)` again | `pipeline.py` | `1 failed, 34 passed` — `test_an_unreachable_meter_stores_its_code_not_a_value_error` |
+| P7 an unreadable owner lookup waves the run through | `_usage_gate.py` | `1 failed, 34 passed` — `test_an_unreadable_owner_lookup_is_refused_with_its_code` |
+| P8 ANY member's plan entitles the workspace (role neither filtered nor re-checked) | `_org.py` | `15 failed, 20 passed` |
+| P9 only the oldest owner is asked (`limit=1`) | `_org.py` | `2 failed, 33 passed` — `…any_owner_entitles…[solo-multi-True]`, `…owner_resolver_trusts_no_row…` |
+| P10 the operator exemption taken from `uploaded_by`'s account | `pipeline.py` | `2 failed, 33 passed` — `…exempt_uploader_does_not`, `…never_reads_uploaded_by` |
+| P11 a blank workspace read unfiltered (every workspace's owner answers) | `_org.py` | `1 failed, 34 passed` — `test_the_owner_resolver_trusts_no_row_it_did_not_ask_for` |
+| P12 the first, metered run gated by the workspace owner instead of its reserver | `pipeline.py` | `1 failed, 34 passed` — `test_the_first_metered_run_is_gated_by_its_reserver_not_the_owner` |
+
+**RED** — every plant exits `1` (full output with every failing test name:
+`specs-durable/hotfix2/entitlement_plants.out`).
+
+**REVERT** — the three files restored byte-exact (sha256 compared before and
+after the whole run); exit `0`: `35 passed`; no `# PLANT` marker left in
+`src`. Verdict: proven RED, fourteen of fourteen.
+
+**After the repair it reds on:** a read of `documents.uploaded_by` at the gate
+(a row that traps the key, in both branches); any subscription read other than
+the workspace owner's on a holder-less run; a non-member's or a non-owner
+member's plan deciding; a NULL `uploaded_by`, a workspace with no owner row, a
+document with no `org_id`, or an unreadable owner lookup passing; the owner
+found by sort order, by `limit=1`, or without the role; the stored string
+being anything but `NonRoNotIncludedError: {"error": "<one of three codes>"}`
+from either branch; the reserving branch gated by anyone but its verified
+reserver; a non-member's `/api/pipeline/retry` answering anything but 403.
+
+**CANNOT SEE:** production — whether `USAGE_LIMITS_ENABLED` is on today,
+whether any workspace has zero or several owners, whether any document has
+ever reached this gate; the real `memberships` / `documents` row-level
+policies (the double applies none — it serves `admin()` and `per_user()`
+alike, so the route test proves the membership READ is the wall, not the 404
+visibility read before it); what `get_plan_state` itself decides — a
+subscription whose `status` is `canceled` still entitles, a row with `tier`
+NULL and `plan='professional'` (what the signup trigger writes) resolves to
+Multi-Country, and a failed subscriptions read degrades to the trial plan and
+REFUSES a Multi owner's workspace (all three pre-existing, now inherited at
+workspace level); the other entries that reach the gate holder-less (the
+ai-lane reextract route, move-period / make-active, the two operator scripts)
+— they share the daemon-thread seam this drives, but only `/retry` is driven
+as a route; the firm landing, whose reserver is `requested_by`; rows ALREADY
+stored with a plan name (production is believed to hold none — not measured);
+the browser, which can still WRITE `documents.error`; how the code is
+rendered (gate `briefing-explicit-regenerate` owns `friendlyDocumentError`);
+the caller's own HTTP 402 / 429 bodies, which carry the caller's own plan by
+design.
