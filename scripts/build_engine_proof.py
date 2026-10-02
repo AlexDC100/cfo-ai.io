@@ -89,6 +89,7 @@ import hashlib
 import io
 import json
 import re
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -735,6 +736,57 @@ def _strip_dates(obj: Any) -> Any:
     return obj
 
 
+def last_engine_commit_date() -> Optional[str]:
+    """The UTC calendar day of the last commit that touched the engine
+    identity roots (src/engine, packs), or None when git cannot say."""
+    try:
+        out = subprocess.run(
+            ["git", "log", "-1", "--format=%ct", "--"] + list(IDENTITY_ROOTS),
+            cwd=str(REPO), capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    stamp = out.stdout.strip()
+    if out.returncode != 0 or not stamp.isdigit():
+        return None
+    return datetime.fromtimestamp(int(stamp), tz=timezone.utc).strftime("%Y-%m-%d")
+
+
+def date_problems(committed: Dict[str, Any], today: str,
+                  engine_commit_day: Optional[str]) -> List[str]:
+    """THE PROOF'S DATE IS PRINTED ON THE LANDING PAGE, per check and in the
+    FAQ, and until 2026-10-02 nothing held it: `--check` strips dates before
+    comparing, so a file hand-dated 2027-01-01 passed with the books
+    present. A date is real when
+      · it is a calendar day, and not after today (UTC);
+      · it is not before the last commit that touched src/engine or packs —
+        the engine it speaks for did not exist earlier;
+      · every check carries the SAME day as the file: the script measures
+        them in one run and stamps them together."""
+    problems: List[str] = []
+    top = committed.get("measured_at")
+    if not isinstance(top, str) or not re.fullmatch(r"\d{4}-\d{2}-\d{2}", top):
+        return ["measured_at: %r is not a calendar day" % (top,)]
+    try:
+        datetime.strptime(top, "%Y-%m-%d")
+    except ValueError:
+        return ["measured_at: %s is not a calendar day" % top]
+    if top > today:
+        problems.append("measured_at: the proof is dated %s, which is after today (%s UTC)" % (top, today))
+    if engine_commit_day is None:
+        problems.append(
+            "measured_at: git could not name the last commit touching %s, so the date cannot "
+            "be held to the engine it speaks for" % " / ".join(IDENTITY_ROOTS))
+    elif top < engine_commit_day:
+        problems.append(
+            "measured_at: the proof is dated %s, before the last commit touching %s (%s) — it "
+            "was not measured on this engine" % (top, " / ".join(IDENTITY_ROOTS), engine_commit_day))
+    for c in committed.get("checks", []):
+        if c.get("measured_at") != top:
+            problems.append("checks.%s.measured_at: %s is not the file's date %s — the checks are "
+                            "measured in one run" % (c.get("id"), c.get("measured_at"), top))
+    return problems
+
+
 def _dump(doc: Dict[str, Any]) -> str:
     return json.dumps(doc, indent=2, ensure_ascii=False) + "\n"
 
@@ -860,6 +912,9 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 1
         committed = json.loads(out.read_text(encoding="utf-8"))
         problems = compare(measured, committed, full)
+        # the dates are stripped from the comparison above (a re-measurement
+        # on another day is the same proof); they are held on their own
+        problems += date_problems(committed, today, last_engine_commit_date())
         if not full:
             skipped = [c["id"] for c in committed.get("checks", [])
                        if c["id"] not in {m["id"] for m in measured["checks"]}]

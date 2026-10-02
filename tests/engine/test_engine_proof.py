@@ -42,6 +42,17 @@ the pipeline's property invariants, and harvests them from test files)
       battery must run where files/ is present.
   EP8  a piece of accounting software is "proven" only by a committed real
       file that prints its name.
+  EP9  THE DATE IS REAL (2026-10-02). The landing prints the proof's date
+      beside every check and in the FAQ; `--check` strips dates before it
+      compares, so a file hand-dated 2027-01-01 passed this gate and
+      `landing-proof` with the books present. Every `measured_at` is a
+      calendar day no later than today (UTC) and no earlier than the last
+      commit that touched src/engine or packs; each check carries the
+      file's own day; and `--check` itself fails on any of these.
+      CANNOT SEE: whether the proof was really measured ON that day — a
+      date inside the window is accepted; the counts are held by EP1 / EP7,
+      the engine by EP5. Needs git history (a shallow clone without the
+      engine's last commit is a red, not a pass).
 
 PLANTS (docs/engine_book/gates.md, "engine-proof"):
   A  a count edited by hand in the JSON            → EP1 red
@@ -51,6 +62,8 @@ PLANTS (docs/engine_book/gates.md, "engine-proof"):
   F  a count edited by hand on a checkout without the books
                                                    → EP7 skipped, battery red
   G  a software name added to the proof by hand    → EP1 red
+  H  measured_at hand-edited to a future day, to a day before the engine's
+     last commit, or on one check only            → EP9 and EP1 red
 """
 from __future__ import annotations
 
@@ -59,6 +72,7 @@ import json
 import re
 import subprocess
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -163,6 +177,53 @@ def test_software_is_proven_only_by_a_committed_real_file(proof):
         assert name in script.EXPORTER_NAMES, name
     # the detector is alive: the one real PDF export names its exporter
     assert "WinMENTOR" in software["proven"], software
+
+
+# ── EP9 ────────────────────────────────────────────────────────────────
+
+
+def test_the_proofs_dates_are_real(proof, check_run):
+    script = _load_script()
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    engine_day = script.last_engine_commit_date()
+    assert engine_day is not None, (
+        "git could not name the last commit touching src/engine or packs — the proof's date "
+        "cannot be held to the engine it speaks for on this checkout")
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}", engine_day)
+    top = proof["measured_at"]
+    assert top <= today, "the proof is dated %s, after today (%s UTC)" % (top, today)
+    assert top >= engine_day, (
+        "STALE DATE — the proof is dated %s; src/engine or packs was last committed on %s. "
+        "Re-measure: python scripts/build_engine_proof.py" % (top, engine_day))
+    for c in proof["checks"]:
+        assert c["measured_at"] == top, (
+            "%s is dated %s; the proof is dated %s — the checks are measured in one run"
+            % (c["id"], c["measured_at"], top))
+    assert script.date_problems(proof, today, engine_day) == []
+
+    # THE DETECTOR — the three hand edits, each on a copy of the committed proof
+    def edited(**top_level):
+        doc = json.loads(json.dumps(proof))
+        doc.update(top_level)
+        return doc
+
+    tomorrow = (datetime.now(timezone.utc) + timedelta(days=1)).strftime("%Y-%m-%d")
+    future = edited(measured_at=tomorrow)
+    for c in future["checks"]:
+        c["measured_at"] = tomorrow
+    assert any("after today" in p for p in script.date_problems(future, today, engine_day))
+    before = (datetime.strptime(engine_day, "%Y-%m-%d") - timedelta(days=1)).strftime("%Y-%m-%d")
+    stale = edited(measured_at=before)
+    for c in stale["checks"]:
+        c["measured_at"] = before
+    assert any("before the last commit" in p for p in script.date_problems(stale, today, engine_day))
+    one = edited()
+    one["checks"][0]["measured_at"] = before
+    assert any("is not the file's date" in p for p in script.date_problems(one, today, engine_day))
+    assert script.date_problems(edited(measured_at="2026-13-45"), today, engine_day)
+    assert any("git could not name" in p for p in script.date_problems(proof, today, None))
+    # …and `--check` runs it: the module's one re-measurement did not complain
+    assert "measured_at:" not in check_run.stdout, check_run.stdout[-1500:]
 
 
 # ── EP2 ────────────────────────────────────────────────────────────────

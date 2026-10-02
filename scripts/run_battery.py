@@ -2311,7 +2311,7 @@ def _engine_gates() -> List[Gate]:
         Gate("engine-proof",
              # -rs: the PARTIAL skip prints its reason in the tail the battery shows
              [PY, "-m", "pytest", "tests/engine/test_engine_proof.py", "-q", "-rs"],
-             # floor == the number of laws (9). EP7 SKIPS on a checkout
+             # floor == the number of laws (10). EP7 SKIPS on a checkout
              # without the local calibration books, where three of the five
              # checks cannot be re-measured — and junit work is tests minus
              # skips, so this gate CANNOT print PASS there. It used to: a
@@ -2319,8 +2319,10 @@ def _engine_gates() -> List[Gate]:
              # → 0.1) and a pasted engine digest passed it, landing-proof and
              # public-claims on 2026-10-02. Run the release battery where
              # files/ is present.
-             work_junit=True, floor=9, units="tests",
+             # 10 since EP9 (the proof's dates, 2026-10-02).
+             work_junit=True, floor=10, units="tests",
              canaries=("test_rerunning_the_proof_script_agrees_with_the_committed_file",
+                       "test_the_proofs_dates_are_real",
                        "test_every_check_was_re_measured_on_this_checkout",
                        "test_software_is_proven_only_by_a_committed_real_file",
                        "test_the_committed_file_is_a_full_dated_proof",
