@@ -1029,21 +1029,104 @@ def _process_event(event: Dict[str, Any]) -> None:
 # ─── Renewal-reminder cron ─────────────────────────────────────────────────
 
 
+#: The mail queue the renewal cron writes and POST /api/newsletter/
+#: drain-renewals sends from (schema_phase_newsletter.sql).
+RENEWAL_QUEUE_TABLE = "renewal_email_queue"
+
+
+def renewal_recipient(client: Any, sub: Dict[str, Any]) -> Optional[str]:
+    """The user a renewal reminder for `sub` is addressed to — THE PAYER.
+
+    Billing is per user (CLAUDE.md §16): a row written by the tier model
+    carries `user_id`, and that user is the recipient. A legacy founder row
+    is keyed by workspace (`org_id`, no `user_id`): its payer is the
+    workspace's OWNER, the oldest one. Nobody else is ever chosen.
+
+    Until 2026-10-02 this was "the first `memberships` row of the workspace
+    ordered `role.asc`" — 'admin' sorts before 'owner', and the firm model
+    writes a client's responsible accountant into the client workspace as
+    'admin' (`import_firm_client`), so the reminder (renewal date, price)
+    went to the accountant, or to any teammate, instead of the subscriber.
+    Gate: tests/engine/test_scheduled_mail_renewals.py.
+    """
+    user_id = sub.get("user_id")
+    if user_id:
+        return str(user_id)
+    org_id = sub.get("org_id")
+    if not org_id:
+        return None
+    owners = client.select(
+        "memberships",
+        filters={"org_id": f"eq.{org_id}", "role": "eq.owner"},
+        columns="user_id,org_id,role,created_at",
+        order="created_at.asc,user_id.asc",
+        limit=1,
+    )
+    return str(owners[0]["user_id"]) if owners and owners[0].get("user_id") else None
+
+
+def renewal_still_due(sub: Optional[Dict[str, Any]], renewal_date: str,
+                      today: Optional[str] = None) -> Optional[str]:
+    """None when `sub` still renews on `renewal_date`; otherwise WHY a
+    reminder for that date must not go out. Asked by the cron before it
+    queues and by the drain before it sends — the drain is an operator
+    action that can run days after the cron, and "we'll charge the card on
+    file" is a statement about the subscription as it is THEN."""
+    if not sub:
+        return "the subscription no longer exists"
+    if sub.get("status") != "active":
+        return "the subscription is %s" % (sub.get("status") or "not active")
+    if sub.get("cancel_at_period_end"):
+        return "the subscription is set to cancel at the period end"
+    if str(sub.get("current_period_end") or "")[:10] != str(renewal_date or "")[:10]:
+        return "the subscription no longer renews on %s" % (renewal_date or "that date")
+    day = today or datetime.now(timezone.utc).date().isoformat()
+    if str(renewal_date or "")[:10] < day:
+        return "the renewal date %s has passed" % renewal_date
+    return None
+
+
+def _renewal_already_queued(client: Any, subscription_id: Any, template: str,
+                            renewal_date: str) -> bool:
+    """One reminder per (subscription, template, renewal date) — whatever
+    its row's status: a sent, a failed and a still-queued row all mean the
+    cron has already spoken for this date. Raises when the queue cannot be
+    read (the caller then queues NOTHING: an unreadable record is not an
+    empty one)."""
+    rows = client.select(
+        RENEWAL_QUEUE_TABLE,
+        filters={"subscription_id": f"eq.{subscription_id}", "template": f"eq.{template}"},
+        columns="id,payload",
+    )
+    for row in rows or []:
+        payload = row.get("payload") or {}
+        if str((payload.get("vars") or {}).get("renewal_date") or "")[:10] == renewal_date:
+            return True
+    return False
+
+
 def send_founder_renewal_reminders(days_ahead: int) -> Dict[str, Any]:
     """Find all `is_founder=true, status='active'` subscriptions whose
-    current_period_end falls within the target day, and queue one email each.
-    Idempotency comes from the per-(sub, day) marker — callers schedule a
-    cron at T-14 and T-3.
+    current_period_end falls within the target day, and queue one email each
+    — to the PAYER (:func:`renewal_recipient`), never for a subscription
+    that is cancelling, and ONCE per (subscription, template, renewal date):
+    a second run on the same day, a retry or a second scheduler queues
+    nothing more. (The docstring used to claim a "per-(sub, day) marker";
+    no such marker existed and every run queued another reminder.)
 
-    The email-sending side is a stub: drops a structured payload into a
-    `renewal_email_queue` table (or logs when the table is missing). Wire
-    your transactional-email provider (Resend / Postmark / SES) to drain it.
+    The email-sending side is a queue: a structured payload goes into
+    `renewal_email_queue`, drained by POST /api/newsletter/drain-renewals,
+    which re-reads the subscription and re-resolves the recipient before it
+    sends. Nothing is queued without an address, and a row that could not be
+    written is counted as `not_queued`, never as queued.
     """
     from datetime import timedelta
     today = datetime.now(timezone.utc).date()
     target_start = (today + timedelta(days=days_ahead)).isoformat()
     target_end = (today + timedelta(days=days_ahead + 1)).isoformat()
+    template = "renewal_reminder_t14" if days_ahead >= 7 else "renewal_reminder_t3"
 
+    queued = already = cancelling = no_recipient = not_queued = 0
     with _supabase.admin() as client:
         subs = client.select(
             "subscriptions",
@@ -1057,21 +1140,32 @@ def send_founder_renewal_reminders(days_ahead: int) -> Dict[str, Any]:
         # two filters on the same column via the dict shape.
         subs = [s for s in subs if (s.get("current_period_end") or "") < target_end]
 
-        queued = 0
         for sub in subs:
-            org_id = sub["org_id"]
-            mems = client.select(
-                "memberships",
-                filters={"org_id": f"eq.{org_id}"},
-                limit=1,
-                order="role.asc",
-            )
-            user_id = mems[0]["user_id"] if mems else None
-            if not user_id:
+            renewal_date = (sub.get("current_period_end") or "")[:10]
+            if renewal_still_due(sub, renewal_date, today.isoformat()) is not None:
+                cancelling += 1
                 continue
-            email = _user_email(user_id) or ""
+            user_id = renewal_recipient(client, sub)
+            email = (_user_email(user_id) or "").strip() if user_id else ""
+            if not email:
+                # No payer on record, or no address for them: nothing is
+                # queued. (An address-less row used to be queued and then
+                # skipped by every drain, forever, at the head of the queue.)
+                no_recipient += 1
+                continue
+            if not sub.get("id"):
+                not_queued += 1
+                continue
+            try:
+                if _renewal_already_queued(client, sub["id"], template, renewal_date):
+                    already += 1
+                    continue
+            except Exception:  # noqa: BLE001 — fail CLOSED: no record, no mail
+                logger.exception("[billing] renewal queue unreadable; nothing queued for %s",
+                                 sub.get("id"))
+                not_queued += 1
+                continue
 
-            template = "renewal_reminder_t14" if days_ahead >= 7 else "renewal_reminder_t3"
             payload = {
                 "to": email,
                 "template": template,
@@ -1081,13 +1175,14 @@ def send_founder_renewal_reminders(days_ahead: int) -> Dict[str, Any]:
                     else "Your CFO AI subscription renews in 3 days at €99"
                 ),
                 "vars": {
-                    "renewal_date": (sub.get("current_period_end") or "")[:10],
+                    "renewal_date": renewal_date,
                     "renewal_price": "€99",
                     "manage_url": f"{os.environ.get('APP_URL', '')}/settings/billing",
+                    "days_ahead": days_ahead,
                 },
             }
             try:
-                client.insert("renewal_email_queue", {
+                client.insert(RENEWAL_QUEUE_TABLE, {
                     "subscription_id": sub.get("id"),
                     "send_at": _now_iso(),
                     "template": template,
@@ -1095,13 +1190,21 @@ def send_founder_renewal_reminders(days_ahead: int) -> Dict[str, Any]:
                     "sent_at": None,
                 }, returning=False)
                 queued += 1
-            except Exception:  # noqa: BLE001
-                # Queue table may not exist yet — log the email so an
-                # operator can wire delivery later.
-                logger.info("[billing] renewal email pending (queue missing): %s", payload)
-                queued += 1
+            except Exception as exc:  # noqa: BLE001
+                # The dedupe index (schema_phase_email_idempotency.sql)
+                # refusing a second row IS the idempotency working; anything
+                # else is a queue that did not take the row. Neither is
+                # "queued", and the recipient's address is not logged.
+                if "23505" in str(exc) or "renewal_email_queue_dedupe_uidx" in str(exc):
+                    already += 1
+                else:
+                    logger.warning("[billing] renewal reminder NOT queued for subscription %s "
+                                   "(%s): %s", sub.get("id"), template, type(exc).__name__)
+                    not_queued += 1
 
-    return {"days_ahead": days_ahead, "queued": queued, "target_date": target_start}
+    return {"days_ahead": days_ahead, "queued": queued, "target_date": target_start,
+            "already_queued": already, "not_renewing": cancelling,
+            "no_recipient": no_recipient, "not_queued": not_queued}
 
 
 # ─── Router factory ────────────────────────────────────────────────────────
