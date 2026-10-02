@@ -17954,8 +17954,8 @@ on its 11 pre-existing findings, none new.
 | | |
 |---|---|
 | command | `npx vitest run frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx frontend/pages/cfo/__tests__/chatSnapshotCreditRegime.test.ts` |
-| canary | `developer (EN): one regime block, …`, `the hero states the refusal, not 'analysis pending', …`, `/report's credit card prints the regime once, …`, `CmdbarList renders it once at rest and not while typing`, `the documents and the command bar: the regime's label, no sentence`, `the developer: the regime EN + RO, the owner's finding verbatim, the cash refusal, the composite REFUSED`, `the withheld finding: the regime once, the owner's sentence in neither language` |
-| work count | vitest `Tests N passed`, floor **24** (measured 24 after the 2026-10-01 review round, the chat snapshot's 5; 19 at release r-rulings2; 14 on the rulings lineage; 11 before fixer round 1) |
+| canary | `developer (EN): one regime block, …`, `the hero states the refusal, not 'analysis pending', …`, `/report's credit card prints the regime once, …`, `CmdbarList renders it once at rest and not while typing`, `the documents and the command bar: the regime's label, no sentence`, `the developer: the regime EN + RO, the owner's finding verbatim, the cash refusal, the composite REFUSED`, `the withheld finding: the regime once, the owner's sentence in neither language`, `the developer's document: no extraction note, no 'no ladder', no 'points given up' — the served refusal instead`, `the exported report: the Altman formula's X3 term evaluates to the Z″ printed beside it, and the regime sentence states the basis`, `the Risks tab's Altman table (ro): the X3 row's stated arithmetic is the X3 it prints` |
+| work count | vitest `Tests N passed`, floor **33** (measured 33 after review round 4, 2026-10-02 — the refused letter's words and the X3 basis, 9 tests; 24 after the 2026-10-01 review round, the chat snapshot's 5; 19 at release r-rulings2; 14 on the rulings lineage; 11 before fixer round 1) |
 
 **LAW** — owner ruling R1: every surface that prints the grade prints the
 stock-build regime ONCE (`components/cfo/CreditRegimeNote.tsx`, a projection
@@ -18481,8 +18481,8 @@ deployed:
 | | |
 |---|---|
 | command | `python -m pytest tests/engine/test_upload_real_type.py tests/engine/test_workspace_uploads.py -q` (the second file since review round 3, 2026-10-02: the upload card's routes at the HTTP seam) |
-| canary | junit test names: `test_a_docx_named_pdf_is_refused_before_the_paid_path`, `test_an_excel_balance_named_pdf_is_READ_not_refused`, `test_a_balance_pdf_named_xls_is_READ_not_refused`, `test_a_docx_named_xlsx_is_refused_before_the_paid_path`, `test_an_honestly_named_docx_is_refused_through_the_real_branch`, `test_the_guard_still_runs_when_the_first_download_fails`, `test_the_failure_handler_stores_the_sentence_without_a_class_name`, `test_a_legacy_word_doc_is_refused_under_every_name_before_any_reader`, `test_the_pdf_branch_refuses_what_none_of_its_readers_opens`, `test_a_workbook_the_positional_reader_declines_never_reaches_the_claude_pdf_lane`, `test_a_mimetype_entry_that_lies_about_its_size_is_not_inflated`, `test_the_real_branch_answers_in_the_language_the_run_carries` |
-| work count | junit tests, floor **173** (measured 27 at release r-rulings2, 88 after the 2026-10-01 review round, 173 after review round 3 — "upload-real-type — one upload policy, read by real type" at the end of this chapter) |
+| canary | junit test names: `test_a_docx_named_pdf_is_refused_before_the_paid_path`, `test_an_excel_balance_named_pdf_is_READ_not_refused`, `test_a_balance_pdf_named_xls_is_READ_not_refused`, `test_a_docx_named_xlsx_is_refused_before_the_paid_path`, `test_an_honestly_named_docx_is_refused_through_the_real_branch`, `test_the_guard_still_runs_when_the_first_download_fails`, `test_the_failure_handler_stores_the_sentence_without_a_class_name`, `test_a_legacy_word_doc_is_refused_under_every_name_before_any_reader`, `test_the_pdf_branch_refuses_what_none_of_its_readers_opens`, `test_a_workbook_named_pdf_never_reaches_the_claude_pdf_lane` (review round 4; it replaces `test_a_workbook_the_positional_reader_declines_never_reaches_the_claude_pdf_lane`, which pinned the late refusal), `test_the_positional_readers_acceptance_gate_holds_under_every_name`, `test_the_identity_of_an_upload_is_read_from_its_bytes_under_every_name`, `test_a_mimetype_entry_that_lies_about_its_size_is_not_inflated`, `test_the_real_branch_answers_in_the_language_the_run_carries` |
+| work count | junit tests, floor **177** (measured 27 at release r-rulings2, 88 after the 2026-10-01 review round, 173 after review round 3 — "upload-real-type — one upload policy, read by real type" — and 177 after review round 4, both at the end of this chapter) |
 
 **INCIDENT** — 2026-09-23: a prospect uploaded
 `balanta_de_verificare_07.2025.pdf`, a Word document renamed (PK zip header,
@@ -19079,3 +19079,217 @@ production's (7641c755).
   IDENTICAL, test for test, on production's tree 7641c755 (30 = 30).
 - the upload-type pre-flight against this worktree: **11 checks PASS, exit
   0**; its plants as recorded above.
+
+### release r-rulings2 — review round 4 (2026-10-02): the seven findings of the third review
+
+The third review of the release (after round 3's eight commits) left seven
+findings: one HIGH and two MEDIUM on the upload policy, two MEDIUM on the
+surfaces, two MEDIUM on the gates. Each was reproduced before it was touched;
+every new law was plant-proven on a scratch copy of the tree (the engine
+plants) or with the file backed up, restored in `finally` and sha-checked
+(the frontend plants); nothing was planted in the committed tree.
+
+**upload-real-type / workspace-v2 — WHO the file is about is read from its
+bytes (HIGH).**
+
+- REPRODUCED. `company_identity.extract_document_text` tested
+  `name.endswith(".pdf")` before the container signatures. Every workbook of
+  the corpus, identified under five names: readable and identified under
+  .xlsx / .xls / .csv / no extension, `unreadable` — no CUI, no company, no
+  period — under .pdf (14 workbooks of 14). Round 3 made the card's routes
+  ADMIT a workbook named .pdf, so the dispatch became reachable from the
+  card: with the name-first dispatch planted back, the corpus book of one
+  company named balanta.pdf and dropped on another company's page is offered
+  the company ON SCREEN and one tap stores and analyses it there; and the
+  same-month file of another company named balanta.pdf passes the
+  cross-company wall (`pipeline._document_company_cui` reads the CUI through
+  the same identifier), is analysed, and replaces the month. On production's
+  tree the routes refuse the file ("This is an Excel workbook, not a PDF."),
+  so neither was reachable there.
+- FIX. The identifier dispatches on bytes, in the pipeline's own order
+  (`_upload_type.sniff_container`): a zip to the workbook reader, OLE2 to the
+  legacy one, then PDF bytes as the pipeline reads them (`reads_as_pdf` — a
+  header behind leading bytes included, under every name); a `.pdf` name is
+  consulted last, for bytes nothing above names.
+- LAWS. `test_the_identity_of_an_upload_is_read_from_its_bytes_under_every_
+  name` (a workbook, a PDF, a PDF behind 2,000 leading bytes — the identity
+  under each name equals the one under the file's own);
+  `test_g1_an_agras_workbook_named_pdf_is_identified_by_its_bytes_and_lands_
+  in_agras` (identify → commit → the five stages through the real app: the
+  identity equals the .xlsx-named one field by field, the file lands and is
+  analysed in the company its header names, the company on screen holds
+  nothing of it); `test_g4_a_same_month_file_of_another_company_never_
+  replaces_the_month` now runs under balanta.xlsx AND balanta.pdf, and also
+  asserts the month's own document is not archived and the refused file is
+  not counted.
+- PLANT (the name-first dispatch restored): all three red, 3 failed / 4
+  passed of the selection; the identity law, the G1 twin and the .pdf-named
+  G4 twin — the .xlsx-named G4 stays green, which is why the finding was
+  invisible.
+
+**upload-real-type — a workbook named .pdf is read on the spreadsheet branch
+(MEDIUM: route verdict ≠ pipeline verdict).**
+
+- REPRODUCED (plant: the re-dispatch below switched off). A small balanced
+  balance (20 accounts, no account 121) and a statutory F30/F10 return are
+  READ under .xlsx and, named .pdf, went through the .pdf branch's positional
+  reader under ITS acceptance gate ("account 121 or ≥ 50 accounts"), were
+  declined, and were refused late — after the routes had answered "read" and
+  the object, the row and the reservation existed. Round 3's equality law ran
+  two FULL trial balances only and recorded this under CANNOT SEE.
+- FIX. Read by real type in BOTH directions: workbook bytes found on the .pdf
+  branch re-enter the spreadsheet branch of the one body
+  (`_upload_type.reads_as_workbook`; `_stage_extract_by_real_type`), exactly
+  as PDF bytes found on another branch re-enter the .pdf one. The outcome is
+  the one the same bytes get named .xlsx / .xls — the statutory detector, the
+  trial-balance reader on the spreadsheet branch's acceptance, the workbook
+  rendered as text for the model, or the same failure. The .pdf branch's late
+  refusal ("no reader took its bytes — refusing before the Claude PDF lane")
+  is removed: nothing reaches that point that is not PDF bytes, so the type
+  guard is the ONLY type refusal and the routes' verdict is the pipeline's.
+- LAWS. `test_a_workbook_named_pdf_reads_as_the_same_bytes_named_xlsx` runs
+  four books — the two corpus trial balances, a small balanced balance
+  (asserted to BE below the .pdf gate: under 50 accounts, no anchor) and a
+  statutory return (read as `statutory_f30_f10`) — under .pdf, under .pdf
+  with a spreadsheet MIME, under NO extension with a PDF MIME, and under
+  .xls: canonical JSON equal to the .xlsx-named payload.
+  `test_a_workbook_named_pdf_never_reaches_the_claude_pdf_lane` REPLACES the
+  law that pinned the late refusal (TC-11, said in its docstring): four
+  workbook bodies the readers decline (not a balance, an unrecognised Open
+  XML zip, a junk OLE2 workbook, an OLE2 EncryptedPackage) have, named .pdf,
+  the outcome of their own name — never a type refusal, never the PDF model
+  lane.
+- PLANT (re-dispatch off): the small balance, the statutory return and the
+  never-the-PDF-lane law red (3 of 5); the two full books stay green.
+
+**upload-real-type — the positional reader's acceptance gate, from below
+(MEDIUM, gates lens).**
+
+- REPRODUCED. The gate loosened for re-entered PDF bytes only (`… or
+  _pdf_bytes_in_hand is not None`) left the 173-test gate green: the five
+  books of the equality law are settled by the strict reader and the corpus
+  positional PDF has 192 accounts.
+- LAW. `test_the_positional_readers_acceptance_gate_holds_under_every_name`:
+  the synthetic book in the positional ingester's dialect as printed (served
+  as `pdf_positional` with its anchor) and without its account-121 row and
+  that row's counterpart (no anchor, under 50 accounts: declined, the .pdf
+  branch's model lane — the fixture's tripwire), each under ten other names
+  equal to the .pdf-named outcome. Both are asserted to name the
+  `five_pair_positional` layout, so the strict reader settles neither.
+- PLANT (the loosened gate): the new law red, the 13 older laws of the
+  selection green — the finding, measured.
+
+**upload-real-type — the routes' matrix has rows the MIME type decides
+(MEDIUM, pre-flight coverage).** `test_one_upload_policy_the_routes_verdict_
+is_the_pipeline_guards` adds four names with no extension (declared
+application/pdf, a spreadsheet type, text/csv, image/png) to the eleven, and
+asserts the declared type alone changes the verdict for at least six pairs.
+PLANT (the route classifies without the declared MIME): red — the law that
+was green under this plant in the third review.
+
+**The upload-type PRE-FLIGHT** (`specs-durable/upload_type_preflight.py`): 11
+checks → **17**. The third review planted eighteen policy defects; seven
+stayed green, and so did the HIGH finding.
+
+- THE ROUTES ARE THE REAL ONES: the endpoint functions of
+  /api/uploads/identify and /api/uploads/commit from `build_router()`, called
+  with the upload, its declared MIME type and the reader's language — three
+  seams replaced (the bearer check, the registry, the store; reaching the
+  store IS "read"). The helper they call is still asked; all three must agree.
+- (a) also holds the canary's IDENTITY under balanta.pdf equal to its
+  identity under .xlsx (compared, never printed).
+- (i) the balance PDF named .xlsx and .csv, byte-identical to the .pdf-named
+  read; (j) a CSV named .xls refused by name; (k) the canary named .csv
+  refused by name; (l) a Word document named .pdf for a Romanian reader,
+  refused in Romanian by the pipeline and the routes in one sentence; (m)
+  the canary with no extension, declared application/pdf — read at both
+  layers; (n) a small balanced balance named .pdf, byte-identical to its
+  .xlsx-named read.
+- Run against this worktree: **17 checks PASS, exit 0** (34 s). Against
+  production's tree 7641c755: CANNOT RUN, exit 2 (that pipeline carries no
+  type guard) — by design, never a pass.
+- PLANTS, each on a scratch copy, restored and sha-checked: **24 of 24 red**
+  — the eleven the third review found red; the seven it found GREEN (text
+  let through on the spreadsheet branch → (j); a workbook let through on a
+  text branch → (k); the re-dispatch kept for .xls only, and off on the text
+  branches → (i); /identify and /commit not consulting the verdict → seven
+  cases, "the routes disagree among themselves"; the route classifying
+  without the MIME → (m); a Romanian reader answered in English → (l)); the
+  two of this round (the identifier by name → (a); the workbook re-dispatch
+  off → (n)); and four tripwires (a host resolved, a file written, a write
+  through the storage admin from the pipeline, and from a route).
+
+**credit-regime-surfaces — a letter the engine REFUSED, in the engine's words
+(MEDIUM, surfaces).**
+
+- REPRODUCED on the release head's own bytes (the new laws run against an
+  untouched copy of the tree: 9 failed of 9). The exported report of the
+  corpus developer — regime stock-build, cash approximated, composite and
+  letter refused under ruling R1; production graded this book, so the refusal
+  is what the release puts in the developer's document — printed, on the
+  letter card, "Not enough of the source book was recognised … a limit of
+  the extraction" directly above the block stating the refusal; on page one,
+  "the engine emitted no letter grade and no band ladder to derive one from"
+  in a document that prints the ladder; and under the composite chart, "31.1
+  points of the composite were given up across the 7 weighted terms" with
+  three terms refused and no composite.
+- FIX. When the composite refusal is STATED, the letter card's note and page
+  one's "Why this verdict" print the served refusal — the regime's own cash
+  refusal when that is the reason, else the composite refusal's sentence;
+  the extraction note and the no-ladder sentence stay for a period the engine
+  never scored. The chart note counts the terms that scored against their
+  own ceilings and says how many did not ("3 of the 7 terms were not scored,
+  so there is no composite: the 4 that scored sit 31.1 points below their own
+  ceilings together").
+- LAW + CONTROL: the developer's document contains none of the three strings
+  and its letter note IS the served cash refusal; the graded manufacturer
+  keeps its model label and its "points of the composite were given up
+  across the 7 weighted terms".
+- PLANTS: the extraction note back on the letter card; "no band ladder" on
+  page one; refused terms counted as points given up — each 1 red.
+
+**credit-regime-surfaces — Altman X3 is labelled with the basis it was
+computed on (MEDIUM, surfaces; design decision R1: "is labelled so").**
+
+- REPRODUCED. Under the regime the engine serves X3 on the operating result
+  before the stock variation and own work, with the basis in both languages;
+  the Risks tab's table, /report §7 and the printed report's Altman formula
+  printed that figure under the standard "EBIT / assets" label, and the
+  printed report and the workbook stated the basis nowhere. On the corpus
+  developer the standard formula evaluates, over the report's own EBIT and
+  assets, to another zone than the Z″ printed beside it.
+- FIX. The one Altman reader carries the served basis
+  (`AltmanResult.x3Basis`, from `assembled_metrics.credit.altman_x3_basis`):
+  the Risks tab's X3 row and /report's X3 row print it in the reader's
+  language; the printed formula names the term "X3" and states the served
+  basis after the model; `regimeDocumentText` — the report's regime block and
+  the workbook's "Credit regime" row — states it once, in English.
+- THE LAW reads the arithmetic the X3 row STATES out of the label it prints
+  and evaluates it over the served figures: equal to the X3 printed beside it
+  (four decimals on the Risks tab, two on the card), EN and RO; the printed
+  formula evaluates to the Z″ the document prints. Control: the manufacturer
+  keeps "EBIT / assets".
+- PLANTS: the reader dropping the basis (5 red); the Risks tab printing the
+  English label under a Romanian UI (1); the card's literal (2); the
+  formula's literal (1); the document sentence without the basis (2).
+- SEEN, NOT CHANGED (identical arithmetic on production's tree): the credit
+  model divides X1–X3 by the asset lines of the statements' `balanceSheet`
+  block, which on the corpus manufacturer sum 0.12 % below the served
+  `assembled_bs.total_assets`; EBIT ÷ the served total assets is 0.2262
+  beside a served X3 of 0.2264. The control is held to three decimals for
+  that reason, and the difference is reported to the owner.
+
+**playwright (MEDIUM, gates) — not changed in this release, as the finding
+prescribes.** Re-measured: `node scripts/check_playwright.mjs` on production's
+tree 7641c755 and on this head prints the same refusal (`e2e/design/cmdbar.
+spec.ts: http://x.invalid`, the parse base of `new URL()` in `companyOfUrl`),
+exit 1 in 0.1 s. Past the static scan the gate runs the whole chromium
+project against a local stack this host does not have, so the one-line repair
+(a localhost base, or a scan that skips a `new URL(x, base)` parse base)
+belongs with a recorded run on a host that has the stack — a separate change.
+
+Floors: upload-real-type 173 → 177 (three canaries added, one renamed);
+workspace-v2 29 → 31 (two canaries added); credit-regime-surfaces 24 → 33
+(three canaries added). Round 3's CANNOT SEE line "a workbook on the .pdf
+branch still takes the .pdf branch's acceptance gate … a small or statutory
+workbook named .pdf is refused there" is superseded by this round.
