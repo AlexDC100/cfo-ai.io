@@ -557,6 +557,11 @@ const RULES: Rule[] = [
       const scale = annualScale(f);
       // GUARD 1 — the prize must reach the ladder's lowest graded rung.
       if (!clearsFloor(savings50bps, scale.value, BANDS.annualMoney)) return null;
+      // "ADJUSTED" ONLY WHERE SOMETHING WAS ADJUSTED. The adjusted ratio adds
+      // dividends from participations to EBITDA; on a book with none it IS
+      // the plain Debt/EBITDA the report's own card prints, and calling it
+      // "adjusted" told the reader of a figure that had been worked on.
+      const adjusted = has(f.pl.dividend_income) && f.pl.dividend_income > 0 ? "adjusted " : "";
       const graded = grade(
         savings50bps,
         "Interest saved per 50bps",
@@ -570,7 +575,7 @@ const RULES: Rule[] = [
       return {
         ruleKey: "refinance_opportunity",
         graded,
-        title: `Refinance window: DSCR ${fx(dscr, 2)}× and adjusted Debt/EBITDA ${fx(dteAdj, 2)}× are bankable`,
+        title: `Refinance window: DSCR ${fx(dscr, 2)}× and ${adjusted}Debt/EBITDA ${fx(dteAdj, 2)}× are bankable`,
         factsCited: {
           dscr,
           debt_to_ebitda_adjusted: dteAdj,
@@ -581,7 +586,7 @@ const RULES: Rule[] = [
           result_below_operating_line: belowLine,
         },
         rationaleFallback:
-          `DSCR ${fx(dscr, 2)}× and adjusted Debt/EBITDA ${fx(dteAdj, 2)}× ` +
+          `DSCR ${fx(dscr, 2)}× and ${adjusted}Debt/EBITDA ${fx(dteAdj, 2)}× ` +
           // A zero here used to print as "(including RON 0 dividend
           // income from participations)" — a parenthetical citing an
           // absence as though it were a measured contribution.
@@ -593,7 +598,10 @@ const RULES: Rule[] = [
           `is worth testing against competing offers — every 50bps saved is ${RON(savings50bps)}/year. ` +
           ladderSentence(graded.materiality),
         actionsFallback: [
-          "Request indicative term sheets from 2–3 alternative lenders (BCR, ING Romania, Banca Transilvania) for refinancing 30-50% of the current balance.",
+          // No bank is named: an export is handed to third parties, and a
+          // generated document recommending three named banks reads as an
+          // endorsement nobody made.
+          "Request indicative term sheets from 2–3 alternative lenders for refinancing 30-50% of the current balance.",
           "Frame as syndication, not full replacement, to keep the existing lender relationship intact.",
           "Time the refinance to before the next major capex drawdown so the new lender prices the post-capex cash flow profile.",
           // SECTOR-NEUTRAL. This rule declares no `industries`, so it fires
@@ -1069,7 +1077,13 @@ const RULES: Rule[] = [
           // adopt are the tiers they were just measured on.
           `Implement three-tier monthly tracking: GREEN (DSCR > ${MONITORING_TIERS.green.dscr.toFixed(2)}× / D-EBITDA < ${MONITORING_TIERS.green.dte.toFixed(1)}×), ` +
             `AMBER (${MONITORING_TIERS.amber.dscr.toFixed(2)}-${MONITORING_TIERS.green.dscr.toFixed(2)}× / ${MONITORING_TIERS.green.dte.toFixed(1)}-${MONITORING_TIERS.amber.dte.toFixed(1)}×), ` +
-            `RED (< ${MONITORING_TIERS.amber.dscr.toFixed(2)}× / > ${MONITORING_TIERS.amber.dte.toFixed(1)}×).`,
+            `RED (< ${MONITORING_TIERS.amber.dscr.toFixed(2)}× / > ${MONITORING_TIERS.amber.dte.toFixed(1)}×). ` +
+            // THE TIERS ARE NOT THE REPORT'S BANDS, and the card says so. The
+            // same report grades Debt/EBITDA on the engine's band table
+            // (critical above 4.5× on the general table) while this line
+            // proposes GREEN below 5.5× — a level the report calls critical
+            // would sit in the dashboard's green tier with no word about why.
+            `These tiers are a lender-covenant convention for early warning, set around the covenant levels a lender typically tests — they are not the bands this report grades the same ratios on, which are printed beside each ratio.`,
           "AMBER triggers management review; RED triggers proactive lender engagement before the formal covenant test.",
           "Wire the dashboard to the monthly close; ~2 hours of bookkeeping per month to maintain.",
         ],

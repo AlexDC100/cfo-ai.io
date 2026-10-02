@@ -27,7 +27,9 @@ export interface SampleStrings {
   fictionalTitle: string;
   /** {fiscalCode} {tradeRegister} */
   fictionalBody: string;
-  facts: { activity: string; years: string; accounts: string; asOf: string };
+  facts: { activity: string; industry: string; years: string; accounts: string; asOf: string };
+  /** The link under the known-issues box to the published arithmetic. */
+  knownIssuesFile: string;
   /** {current} {prior} */
   yearsValue: string;
   /** {n} {period} */
@@ -64,7 +66,7 @@ export interface SampleStrings {
     rerun_identical: string;
     /** {status} {assets} {liabilities} {difference} */
     balance_sheet_closes: string;
-    /** {served} {account121} */
+    /** {served} {account121} {derived} {accounts} {stockOpening} {stockClosing} {stockMovement} */
     net_income_equals_121: string;
     /** {turnover} */
     turnover_equals_filing: string;
@@ -119,6 +121,10 @@ export interface SampleStrings {
   /** The page's own note on two labels that say a prior period is missing
    *  while one is published here. {prior} */
   labelsPriorNote: string;
+  /** The page's own note on the engine's sentence "the reconciliation plug
+   *  … so closing cash still ties to the BS", which is false for this book.
+   *  {impliedOpening} {priorClosing} {prior} */
+  labelsCashNote: string;
   engineWords: string;
   engineWordsEnglishOnly: string;
   kinds: Record<string, string>;
@@ -152,6 +158,8 @@ export interface SampleStrings {
   engineTitle: string;
   engine: Record<string, string>;
   notIncludedTitle: string;
+  /** The first item takes {briefingNote}: the briefing's availability from
+   *  coverage.json, in brackets, or nothing when it is available. */
   notIncluded: string[];
 
   ctaTitle: string;
@@ -175,10 +183,12 @@ const EN: SampleStrings = {
     "No client trial balance was used here, anonymised or otherwise. The fiscal code {fiscalCode} fails the Romanian checksum on purpose, so it can match no real company, and the trade-register number {tradeRegister} does not exist.",
   facts: {
     activity: "Activity",
+    industry: "Workspace industry, as the report's cover prints it",
     years: "Financial years",
     accounts: "Accounts",
     asOf: "Generated",
   },
+  knownIssuesFile: "The engine's figure, the ledger's figure and the accounts behind each sum:",
   yearsValue: "{current} and {prior}",
   accountsValue: "{n} in {period}",
 
@@ -199,7 +209,7 @@ const EN: SampleStrings = {
     },
     report_html: {
       title: "Exported report (HTML)",
-      body: "The product's own export of this book, with two changes for a public file: a fictional-company notice is added and the confidentiality line is removed. It has no valuation section, no sector benchmarks and no AI briefing. The exported report is in English.",
+      body: "The product's own export of this book, with three changes for a public file: a fictional-company notice and the known-issues box are added, and the confidentiality line is removed. It has no valuation section, no sector benchmarks and no AI briefing. The exported report is in English.",
     },
     report_pdf: {
       title: "Exported report (PDF)",
@@ -213,9 +223,13 @@ const EN: SampleStrings = {
       title: "Uncertainty labels (JSON)",
       body: "Each approximation, derivation, basis and refusal, in the engine's own words.",
     },
+    known_issues: {
+      title: "Known issues (JSON)",
+      body: "What the report gets wrong on this book: the engine's figure, the ledger's figure and the accounts behind each sum.",
+    },
     served_current: {
       title: "Served document, current year (JSON)",
-      body: "What the engine's API returned for the period. Every figure on this page is read from it.",
+      body: "What the engine's API returned for the period. The engine's figures for this year on this page are read from it.",
     },
     served_prior: {
       title: "Served document, prior year (JSON)",
@@ -256,11 +270,11 @@ const EN: SampleStrings = {
   checksProofLink: "Back to the proof block on the home page",
   checks: {
     rerun_identical:
-      "On this book: the release gate (public-sample) rebuilds every file on this page from the two trial balances and compares each one byte for byte; two rebuilds in a row are identical.",
+      "On this book: release gates rebuild this page's files from the two trial balances. The workbooks, the served documents, the mapping, the labels and the known-issues file are compared byte for byte (gate public-sample), and so is the HTML report (gate public-sample-page). The PDF is compared by its pages and its text (gate public-sample-pdf), because a PDF's bytes depend on the browser that printed it. Two rebuilds in a row are identical.",
     balance_sheet_closes:
       "On this book: {status}. Assets {assets}, equity plus liabilities {liabilities}, difference {difference}.",
     net_income_equals_121:
-      "On this book: net income served {served}; account 121 closes at {account121}.",
+      "On this book: net income served {served}; account 121 closes at {account121}. On a closed book this equality holds by construction — the engine takes net income from account 121 and derives the stock-variation line as the step to it — so on this book it cannot fail. The real cross-check is the derived line against the ledger: the engine derived a stock variation of {derived}; work in progress and finished goods (accounts {accounts}) went from {stockOpening} to {stockClosing}, a movement of {stockMovement}.",
     turnover_equals_filing:
       "Does not apply to this book: a fictional company files nothing with the Ministry of Finance. In its place, the release gate holds the served net turnover, {turnover}, to the ledger the generator wrote.",
     ebitda_variants_agree:
@@ -313,6 +327,8 @@ const EN: SampleStrings = {
     "{n} notes the engine attached to this book: what is approximated, derived, on a stated basis, refused or not assessed, and what it checked and found clear.",
   labelsPriorNote:
     "Two of these labels say a prior period is missing, although {prior} is published on this page. They are quoted as the engine wrote them: its cash-flow reconstruction and its Piotroski score do not read a prior period yet. The two-year comparison above does.",
+  labelsCashNote:
+    "One of them also says a reconciliation plug captures the residual \"so closing cash still ties to the BS\". That sentence is false for this book: the served cash flow has no plug line, and its net change implies an opening cash balance of {impliedOpening}, against {priorClosing} at the end of {prior}. It is quoted because it is what the engine wrote; the known issues at the top of this page give the ledger's figures.",
   engineWords: "The engine's words",
   engineWordsEnglishOnly: "The engine's words (it has this sentence in English only)",
   kinds: {
@@ -430,7 +446,7 @@ const EN: SampleStrings = {
     "scripts/build_public_sample_report.mjs builds the report with the product's own report builder and prints the PDF.",
   ],
   howGate:
-    "A release gate (public-sample) rebuilds everything and fails when a published file differs from the rebuild.",
+    "Release gates rebuild everything. public-sample fails when a workbook, a served document, the mapping, the labels or the known-issues file differs from the rebuild by one byte, and it repeats the known-issues arithmetic from the published workbook. public-sample-page holds the HTML report to the bytes the report builder produces. public-sample-pdf holds the PDF to its pages and its text.",
   engineTitle: "Engine that produced it",
   engine: {
     parser_version: "Trial-balance parser",
@@ -442,7 +458,7 @@ const EN: SampleStrings = {
   },
   notIncludedTitle: "Not in this sample",
   notIncluded: [
-    "The narrative briefing. In the product it is written by an AI model; this sample is built without one.",
+    "The narrative briefing. In the product it is written by an AI model{briefingNote}; this sample is built without one.",
     "The valuation view of the signed-in report page.",
     "Sector benchmarks from public filings.",
     "A cash-flow statement built from both years. The engine estimates cash flow from one year's balances today.",
@@ -469,10 +485,12 @@ const RO: SampleStrings = {
     "Aici nu a fost folosită nicio balanță de client, anonimizată sau nu. Codul fiscal {fiscalCode} nu trece intenționat de cifra de control, deci nu poate corespunde niciunei firme reale, iar numărul de la registrul comerțului {tradeRegister} nu există.",
   facts: {
     activity: "Activitate",
+    industry: "Industria spațiului de lucru, așa cum apare pe coperta raportului",
     years: "Exerciții financiare",
     accounts: "Conturi",
     asOf: "Generat",
   },
+  knownIssuesFile: "Cifra motorului, cifra din registru și conturile din spatele fiecărei sume:",
   yearsValue: "{current} și {prior}",
   accountsValue: "{n} în {period}",
 
@@ -493,7 +511,7 @@ const RO: SampleStrings = {
     },
     report_html: {
       title: "Raportul exportat (HTML)",
-      body: "Exportul produsului pentru această balanță, cu două modificări pentru un fișier public: am adăugat mențiunea că firma este fictivă și am scos linia de confidențialitate. Nu are secțiune de evaluare, comparații cu sectorul sau rezumat scris de AI. Raportul exportat este în engleză.",
+      body: "Exportul produsului pentru această balanță, cu trei modificări pentru un fișier public: am adăugat mențiunea că firma este fictivă și caseta cu probleme cunoscute și am scos linia de confidențialitate. Nu are secțiune de evaluare, comparații cu sectorul sau rezumat scris de AI. Raportul exportat este în engleză.",
     },
     report_pdf: {
       title: "Raportul exportat (PDF)",
@@ -507,9 +525,13 @@ const RO: SampleStrings = {
       title: "Etichete de incertitudine (JSON)",
       body: "Fiecare aproximare, derivare, bază de calcul și refuz, în cuvintele motorului.",
     },
+    known_issues: {
+      title: "Probleme cunoscute (JSON)",
+      body: "Ce greșește raportul pe această balanță: cifra motorului, cifra din registru și conturile din spatele fiecărei sume.",
+    },
     served_current: {
       title: "Documentul servit, anul curent (JSON)",
-      body: "Ce a returnat API-ul motorului pentru perioadă. Fiecare cifră de pe pagina aceasta este citită din el.",
+      body: "Ce a returnat API-ul motorului pentru perioadă. Cifrele motorului pentru acest an, de pe pagina aceasta, sunt citite din el.",
     },
     served_prior: {
       title: "Documentul servit, anul precedent (JSON)",
@@ -550,11 +572,11 @@ const RO: SampleStrings = {
   checksProofLink: "Înapoi la blocul de probă de pe pagina principală",
   checks: {
     rerun_identical:
-      "Pe această balanță: verificarea de lansare (public-sample) reconstruiește fiecare fișier de pe pagină din cele două balanțe și îl compară octet cu octet; două reconstrucții la rând sunt identice.",
+      "Pe această balanță: verificările de lansare reconstruiesc fișierele de pe pagină din cele două balanțe. Fișierele Excel, documentele servite, maparea, etichetele și fișierul cu probleme cunoscute sunt comparate octet cu octet (verificarea public-sample), la fel și raportul HTML (verificarea public-sample-page). PDF-ul este comparat pe pagini și pe text (verificarea public-sample-pdf), pentru că octeții unui PDF depind de browserul care l-a tipărit. Două reconstrucții la rând sunt identice.",
     balance_sheet_closes:
       "Pe această balanță: {status}. Active {assets}, capitaluri proprii plus datorii {liabilities}, diferență {difference}.",
     net_income_equals_121:
-      "Pe această balanță: rezultat net afișat {served}; contul 121 se închide la {account121}.",
+      "Pe această balanță: rezultat net afișat {served}; contul 121 se închide la {account121}. Pe o balanță închisă, această egalitate se obține prin construcție — motorul ia rezultatul net din contul 121 și derivă linia de variație a stocurilor ca pas până la el — deci aici nu poate pica. Verificarea reală este linia derivată față de registru: motorul a derivat o variație a stocurilor de {derived}; producția în curs și produsele finite (conturile {accounts}) au trecut de la {stockOpening} la {stockClosing}, o mișcare de {stockMovement}.",
     turnover_equals_filing:
       "Nu se aplică acestei balanțe: o firmă fictivă nu depune nimic la Ministerul Finanțelor. În locul ei, verificarea de lansare ține cifra de afaceri netă afișată, {turnover}, egală cu registrul scris de generator.",
     ebitda_variants_agree:
@@ -608,6 +630,8 @@ const RO: SampleStrings = {
     "Notele pe care motorul le-a atașat acestei balanțe ({n}): ce este aproximat, derivat, calculat pe o bază declarată, refuzat sau neevaluat și ce a verificat fără să găsească nimic.",
   labelsPriorNote:
     "Două dintre aceste etichete spun că lipsește o perioadă precedentă, deși {prior} este publicat pe această pagină. Sunt citate așa cum le-a scris motorul: reconstrucția fluxului de numerar și scorul Piotroski nu citesc încă o perioadă precedentă. Comparația pe doi ani de mai sus o citește.",
+  labelsCashNote:
+    "Una dintre ele mai spune că o linie de reconciliere preia diferența, „so closing cash still ties to the BS” (astfel încât numerarul final să se lege de bilanț). Propoziția aceasta este falsă pentru această balanță: fluxul de numerar servit nu are o astfel de linie, iar variația lui netă presupune un sold inițial de numerar de {impliedOpening}, față de {priorClosing} la sfârșitul {prior}. Este citată pentru că așa a scris-o motorul; problemele cunoscute de la începutul paginii dau cifrele din registru.",
   engineWords: "Cuvintele motorului",
   engineWordsEnglishOnly: "Cuvintele motorului (are această frază doar în engleză)",
   kinds: {
@@ -725,7 +749,7 @@ const RO: SampleStrings = {
     "scripts/build_public_sample_report.mjs construiește raportul cu generatorul de rapoarte al produsului și tipărește PDF-ul.",
   ],
   howGate:
-    "O verificare de lansare (public-sample) reconstruiește totul și pică atunci când un fișier publicat diferă de reconstrucție.",
+    "Verificările de lansare reconstruiesc totul. public-sample pică atunci când un fișier Excel, un document servit, maparea, etichetele sau fișierul cu probleme cunoscute diferă de reconstrucție cu un singur octet și repetă aritmetica problemelor cunoscute din fișierul Excel publicat. public-sample-page ține raportul HTML egal cu octeții produși de generatorul de rapoarte. public-sample-pdf ține PDF-ul egal pe pagini și pe text.",
   engineTitle: "Motorul care l-a produs",
   engine: {
     parser_version: "Cititorul de balanțe",
@@ -737,7 +761,7 @@ const RO: SampleStrings = {
   },
   notIncludedTitle: "Ce nu conține acest exemplu",
   notIncluded: [
-    "Rezumatul narativ. În produs îl scrie un model AI; exemplul acesta este construit fără niciun model.",
+    "Rezumatul narativ. În produs îl scrie un model AI{briefingNote}; exemplul acesta este construit fără niciun model.",
     "Secțiunea de evaluare din pagina de raport pentru utilizatori autentificați.",
     "Comparațiile cu sectorul, din situațiile financiare publice.",
     "O situație a fluxurilor de numerar construită din ambii ani. Astăzi motorul estimează fluxul de numerar din soldurile unui singur an.",

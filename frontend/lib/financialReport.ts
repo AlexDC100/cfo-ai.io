@@ -3583,6 +3583,52 @@ export interface ReportOptions {
    *  as that calendar day whatever the machine's timezone. Default: today,
    *  in the reader's own timezone. */
   generatedOn?: string | null;
+  /** "Known issues in this report" — a box printed before the executive
+   *  summary, and one line on the cover pointing at it. The public sample
+   *  passes the three defects its own report exposes, in English and in
+   *  Romanian (lib/publicSampleKnownIssues); a customer's export passes
+   *  none. Words and figures are the caller's: this renderer only places
+   *  them, escaped. */
+  knownIssues?: ReportKnownIssues | null;
+}
+
+export interface ReportKnownIssues {
+  /** One block per language, in print order. */
+  blocks: Array<{
+    lang: string;
+    title: string;
+    lede: string;
+    items: Array<{ id: string; title: string; body: string }>;
+    closing: string;
+  }>;
+  /** The cover's line. Empty when there is nothing to list. */
+  coverLine: string;
+}
+
+/** The known-issues box. Nothing when there is no issue to list. */
+function knownIssuesHtml(known: ReportKnownIssues | null): string {
+  if (!known || !known.blocks.some((b) => b.items.length > 0)) return "";
+  const blocks = known.blocks
+    .filter((b) => b.items.length > 0)
+    .map(
+      (b) => `
+    <div class="known-issues-block" lang="${escapeHtml(b.lang)}" data-report-known-issues-lang="${escapeHtml(b.lang)}">
+      <h2 class="known-issues-title">${escapeHtml(b.title)}</h2>
+      <p class="known-issues-lede">${escapeHtml(b.lede)}</p>
+      <ol class="known-issues-list">${b.items
+        .map(
+          (item) => `
+        <li data-report-known-issue="${escapeHtml(item.id)}"><strong>${escapeHtml(item.title)}.</strong> ${escapeHtml(item.body)}</li>`,
+        )
+        .join("")}
+      </ol>
+      <p class="known-issues-closing">${escapeHtml(b.closing)}</p>
+    </div>`,
+    )
+    .join("");
+  return `
+  <section class="known-issues" id="known-issues" data-report-known-issues="${known.blocks[0]?.items.length ?? 0}" aria-label="Known issues in this report">${blocks}
+  </section>`;
 }
 
 export function renderReportHtml(
@@ -3595,6 +3641,7 @@ export function renderReportHtml(
 ): string {
   const confidential = options.confidential !== false;
   const notice = options.notice ?? null;
+  const knownIssues = options.knownIssues ?? null;
   const t = deriveTotals(s);
   // servedFacts gateway — the report's BS totals + the balance-status
   // footer read the served envelope; this renderer never branches on
@@ -5678,6 +5725,7 @@ export function renderReportHtml(
     statusLine: bsStatusLine,
     confidential,
     notice: notice?.long ?? null,
+    knownIssuesLine: knownIssues?.coverLine || null,
   })}
 
   ${contentsPage(SECTIONS)}
@@ -5694,6 +5742,7 @@ export function renderReportHtml(
     ${industryDisputeNote}
   </div>
   ${notice ? `<div class="doc-notice" data-report-notice="body">${escapeHtml(notice.long)}</div>` : ""}
+  ${knownIssuesHtml(knownIssues)}
 
   ${section(
     "sec-exec",
@@ -5704,8 +5753,8 @@ export function renderReportHtml(
     <strong>Overall verdict:</strong> ${escapeHtml(overallVerdict)}
   </div>
   ${voiced(
-    `<strong>How to read this document.</strong> Every figure is traceable: hover any ratio for its formula, the accounts behind it and the snapshot it came from. Charts never carry a number their own table does not print, and a figure the filing did not report is stated as a gap rather than shown as zero.`,
-    `<strong>How to read this.</strong> Every number here comes from your own books, and you can check any of them: hover a number to see the sum behind it. If something is missing from the filing, we say so instead of putting a zero in its place.`,
+    `<strong>How to read this document.</strong> Every figure is traceable: in the HTML version of this report, hover any ratio for its formula, the accounts behind it and the snapshot it came from. Charts never carry a number their own table does not print, and a figure the ${authorship.documentWord} did not carry is stated as a gap rather than shown as zero.`,
+    `<strong>How to read this.</strong> Every number here comes from the uploaded ${authorship.documentWord}, and you can check any of them: in the HTML version of this report, hover a number to see the sum behind it. If something is missing from the ${authorship.documentWord}, we say so instead of putting a zero in its place.`,
   )}
   <div class="grid grid-4">
     <div class="ratio-card">
@@ -5848,7 +5897,7 @@ export function renderReportHtml(
     Figures are computed from the ${authorship.documentWord} uploaded for the period. Ratios follow standard lender conventions (Altman Z-Score, DSCR, debt-to-EBITDA, etc.); benchmarks are indicative and industry-dependent. Where the underlying trial-balance reconciliation gap exceeds tolerance, the affected figure is annotated in the relevant statement above. <span data-report-authorship="${authorship.readBy}">${escapeHtml(authorshipSentence)}</span>${provenanceNote}
   </aside>
   ${voiced(
-    `<strong>Charts.</strong> Every chart is generated with this document, from the same served figures the statements above print, and carries its own table &mdash; no chart is the only place a number appears. A chart whose inputs the filing did not carry is replaced by a card naming the missing input, never by an empty axis.`,
+    `<strong>Charts.</strong> Every chart is generated with this document, from the same served figures the statements above print, and carries its own table &mdash; no chart is the only place a number appears. A chart whose inputs the ${authorship.documentWord} did not carry is replaced by a card naming the missing input, never by an empty axis.`,
     `<strong>About the charts.</strong> Each chart comes with the table of numbers behind it, so nothing is only in a picture. If we did not have the data for a chart, we say what is missing instead of drawing an empty one.`,
   )}
   `,

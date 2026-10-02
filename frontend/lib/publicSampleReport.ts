@@ -20,6 +20,10 @@
 //     in English and Romanian;
 //   · the prepared-on day is the sample's `as_of`, printed as that calendar
 //     day on every machine.
+//   · what the report is known to get wrong on this book — a "Known issues
+//     in this report" box before the executive summary and a line on the
+//     cover, in English and Romanian (lib/publicSampleKnownIssues; the
+//     figures are public/sample/known_issues_fy2025.json's).
 // These are `ReportOptions` — inputs about the document, not figures in it.
 //
 // Two readers: `scripts/build_public_sample_report.mjs` (writes the file)
@@ -29,7 +33,8 @@
 
 import type { ComparativesResponse } from "@/lib/comparatives";
 import { buildReportHtml } from "@/lib/financialExports";
-import type { ReportOptions, Statements } from "@/lib/financialReport";
+import type { ReportKnownIssues, ReportOptions, Statements } from "@/lib/financialReport";
+import { knownIssuesCoverLine, knownIssuesText, type KnownIssue } from "@/lib/publicSampleKnownIssues";
 import { ratioSurfacesOf } from "@/lib/useRatioSurfaces";
 
 /** The fields of a `GET /api/period/{id}` body this module reads. */
@@ -79,10 +84,26 @@ export const SAMPLE_REPORT_NOTICE = {
   short: "Fictional company — generated sample · Companie fictivă — exemplu generat",
 } as const;
 
+/** The "Known issues in this report" box, in English then Romanian — the
+ *  report is English by contract, and this is the one block (with the
+ *  notice) a reader of either language must not miss. `issues` is the list
+ *  of public/sample/known_issues_fy2025.json. */
+export function sampleKnownIssues(issues: readonly KnownIssue[]): ReportKnownIssues {
+  return {
+    blocks: [knownIssuesText(issues, "en"), knownIssuesText(issues, "ro")],
+    coverLine: knownIssuesCoverLine(issues.length),
+  };
+}
+
 /** What the sample says about the document: not confidential, fictional,
- *  prepared on the sample's as-of day. */
-export function sampleReportOptions(asOf: string): ReportOptions {
-  return { confidential: false, notice: SAMPLE_REPORT_NOTICE, generatedOn: asOf };
+ *  prepared on the sample's as-of day, and what it is known to get wrong. */
+export function sampleReportOptions(asOf: string, issues: readonly KnownIssue[]): ReportOptions {
+  return {
+    confidential: false,
+    notice: SAMPLE_REPORT_NOTICE,
+    generatedOn: asOf,
+    knownIssues: sampleKnownIssues(issues),
+  };
 }
 
 /** The whole report document, as the Export tab writes it to disk, with
@@ -92,7 +113,8 @@ export function sampleReportHtml(
   prior: ServedPeriodBody,
   comparatives: ComparativesResponse,
   asOf: string,
+  issues: readonly KnownIssue[],
 ): string {
   const { statements, envelopes } = exportInputsOf(current, prior, comparatives);
-  return buildReportHtml(statements, envelopes, sampleReportOptions(asOf));
+  return buildReportHtml(statements, envelopes, sampleReportOptions(asOf, issues));
 }

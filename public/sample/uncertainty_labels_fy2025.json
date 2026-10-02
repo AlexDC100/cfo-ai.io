@@ -5,6 +5,15 @@
   "notice_en": "Fictional company — a generated sample, not a real entity.",
   "notice_ro": "Companie fictivă — exemplu generat, nu o entitate reală."
  },
+ "known_issues": {
+  "file": "known_issues_fy2025.json",
+  "labels": [
+   "cash_flow_approximated_1",
+   "cash_flow_approximated_2"
+  ],
+  "note_en": "The cash-flow labels are quoted as the engine wrote them, and one sentence in them is false for this book: no reconciliation plug is served, and closing cash does not tie to the prior year's balance sheet through the estimated movements. The ledger's figures are in known_issues_fy2025.json.",
+  "note_ro": "Etichetele despre fluxul de numerar sunt citate așa cum le-a scris motorul, iar o propoziție din ele este falsă pentru această balanță: nu este servită nicio linie de reconciliere, iar numerarul final nu se leagă de bilanțul anului precedent prin mișcările estimate. Cifrele din registru sunt în known_issues_fy2025.json."
+ },
  "labels": [
   {
    "area": "cash_flow",
@@ -195,5 +204,5 @@
   }
  ],
  "period": "FY2025",
- "schema": "public_sample_labels/2"
+ "schema": "public_sample_labels/3"
 }

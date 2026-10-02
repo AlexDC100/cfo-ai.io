@@ -50,6 +50,7 @@ import i18n from "@/i18n";
 import { pageTexts } from "@/lib/__tests__/pdfText";
 import { sampleReportHtml, type ServedPeriodBody } from "@/lib/publicSampleReport";
 import type { ComparativesResponse } from "@/lib/comparatives";
+import { knownIssuesText, type KnownIssue } from "@/lib/publicSampleKnownIssues";
 import { foreignNumber, plainSpaces } from "@/test/numberLanguage";
 
 import {
@@ -82,6 +83,9 @@ const COMPARATIVES = readJson<ComparativesResponse>(servedName("served_document"
 const CONFIG = JSON.parse(readFileSync(resolve(REPO, "scripts/public_sample_config.json"), "utf-8")) as {
   as_of: string;
 };
+/** What the report gets wrong on this book — the PUBLISHED list (the page
+ *  data carries a copy; P10 holds the two equal). */
+const KNOWN_ISSUES = readJson<{ issues: KnownIssue[] }>(servedName("known_issues", 0)).issues;
 
 /** RFC 6901, plus `key=value` to pick one object out of a list — the same
  *  reader scripts/build_public_sample.py writes the pointers for. */
@@ -372,7 +376,7 @@ describe("P4 every download is a published file", () => {
   it("each card links a file under public/sample, at its stated size", async () => {
     await renderPage("en");
     const cards = fileKeys(SAMPLE);
-    expect(cards.length).toBe(9);
+    expect(cards.length).toBe(10);
     for (const { key, file } of cards) {
       const link = screen.getByTestId(`sample-file-${key}`) as HTMLAnchorElement;
       expect(link.getAttribute("href")).toBe(`/sample/${file.name}`);
@@ -390,7 +394,7 @@ describe("P5 / P6 the published report is the product's own export", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(`${CONFIG.as_of}T12:00:00Z`));
     try {
-      const rebuilt = sampleReportHtml(CURRENT, PRIOR, COMPARATIVES, CONFIG.as_of);
+      const rebuilt = sampleReportHtml(CURRENT, PRIOR, COMPARATIVES, CONFIG.as_of, KNOWN_ISSUES);
       expect(rebuilt.length).toBe(committed.length);
       expect(rebuilt === committed, "public/sample report HTML differs from a rebuild").toBe(true);
     } finally {
@@ -417,6 +421,101 @@ describe("P5 / P6 the published report is the product's own export", () => {
     const text = pages.join(" ").replace(/\s+/g, " ");
     expect(text).toContain(SAMPLE.company.name);
     for (const value of cards.slice(0, 4)) expect(text, `the PDF does not print ${value}`).toContain(value);
+  });
+});
+
+// ── P10 — nothing known-false is published unflagged ──────────────────
+//
+// The sample exposed three engine defects that are fixed in the engine's
+// own releases. Until each ships, the page AND the report open with a
+// "Known issues in this report" box whose figures are the generator's
+// (public/sample/known_issues_fy2025.json — gate public-sample S11 repeats
+// the ledger arithmetic from the published workbook).
+//
+// WHAT THIS REDS ON (TC-11): the box missing from the page or the report,
+// or not at the top; an issue of the published list with no line; an
+// amount in a line that is not a number of that issue (a typed figure);
+// the page's copy of the list differing from the published file; either
+// language missing from the report; the report's cover not pointing at it.
+// WHAT IT CANNOT SEE: whether the ledger arithmetic is right (S11), or
+// whether an issue nobody listed exists.
+
+function numbersIn(node: unknown, out: number[] = []): number[] {
+  if (typeof node === "number") out.push(node);
+  else if (node && typeof node === "object") Object.values(node).forEach((v) => numbersIn(v, out));
+  return out;
+}
+
+/** Every "<figure> RON" in `text`, parsed in the reader's number format. */
+function amountsIn(text: string, lang: SampleLang): number[] {
+  const out: number[] = [];
+  for (const m of plainSpaces(text).matchAll(/(-?\d[\d.,]*\d) RON/g)) {
+    const raw = lang === "ro" ? m[1].replace(/\./g, "").replace(",", ".") : m[1].replace(/,/g, "");
+    out.push(Number(raw));
+  }
+  return out;
+}
+
+describe("P10 the known issues open the page and the report", () => {
+  it("the page's list is the published file's, and it is not empty while the engine has these defects", () => {
+    expect(SAMPLE.known_issues).toEqual(KNOWN_ISSUES);
+    expect(KNOWN_ISSUES.length).toBeGreaterThan(0);
+  });
+
+  it.each(LANGS)("the page prints every issue above the files, each amount a figure of that issue — %s", async (lang) => {
+    await renderPage(lang);
+    const box = screen.getByTestId("sample-known-issues");
+    const downloads = screen.getByTestId("sample-downloads");
+    expect(
+      box.compareDocumentPosition(downloads) & Node.DOCUMENT_POSITION_FOLLOWING,
+      "the known-issues box is not above the downloads",
+    ).toBeTruthy();
+    const words = knownIssuesText(KNOWN_ISSUES, lang);
+    expect(within(box).getByText(words.title)).toBeTruthy();
+    for (const issue of KNOWN_ISSUES) {
+      const line = within(box).getByTestId(`sample-known-issue-${issue.id}`);
+      const text = line.textContent ?? "";
+      const own = numbersIn(issue).map((n) => Math.round(n * 100) / 100);
+      const printed = amountsIn(text, lang);
+      expect(printed.length, `${issue.id}: no amount printed`).toBeGreaterThan(2);
+      for (const amount of printed) {
+        expect(own, `${lang} ${issue.id}: ${amount} is not a figure of the issue`).toContain(amount);
+        figuresChecked += 1;
+      }
+      expect(foreignNumber(plainSpaces(text), lang), `${lang} ${issue.id}`).toBeNull();
+    }
+    const file = screen.getByTestId("sample-known-issues-file") as HTMLAnchorElement;
+    expect(file.getAttribute("href")).toBe(`/sample/${servedName("known_issues", 0)}`);
+  });
+
+  it("the report prints the box before the executive summary, in English and Romanian, and the cover points at it", () => {
+    const committed = readFileSync(resolve(PUBLIC_SAMPLE, servedName("report_html", 0)), "utf-8");
+    const doc = new DOMParser().parseFromString(committed, "text/html");
+    const box = doc.querySelector("[data-report-known-issues]:not(.cover-known-issues)");
+    const exec = doc.querySelector("#sec-exec");
+    expect(box, "the report has no known-issues box").not.toBeNull();
+    expect(exec, "the report has no executive summary").not.toBeNull();
+    expect(
+      (box as Element).compareDocumentPosition(exec as Element) & Node.DOCUMENT_POSITION_FOLLOWING,
+      "the box is not before the executive summary",
+    ).toBeTruthy();
+    for (const lang of LANGS) {
+      const block = (box as Element).querySelector(`[data-report-known-issues-lang="${lang}"]`);
+      expect(block, `the report's box has no ${lang} block`).not.toBeNull();
+      const words = knownIssuesText(KNOWN_ISSUES, lang);
+      const text = plainSpaces((block as Element).textContent ?? "").replace(/\s+/g, " ");
+      expect(text).toContain(words.title);
+      for (const item of words.items) {
+        expect(text, `${lang}: the report does not print "${item.title}"`).toContain(plainSpaces(item.body));
+      }
+      expect(
+        (block as Element).querySelectorAll("[data-report-known-issue]").length,
+      ).toBe(KNOWN_ISSUES.length);
+    }
+    const cover = doc.querySelector('#cover [data-report-known-issues="cover"]');
+    expect(cover?.textContent ?? "").toContain(`${KNOWN_ISSUES.length} known issue`);
+    // page 1 says the company does not exist
+    expect(doc.querySelector('#cover [data-report-notice="cover"]')?.textContent ?? "").toContain("Fictional company");
   });
 });
 

@@ -44,6 +44,8 @@ import {
   type SampleRatio,
 } from "@/lib/publicSample";
 import { ratioLabelForKey } from "@/lib/ratioTable";
+import { aiFeatureNote } from "@/lib/engineProof";
+import { knownIssuesText, type KnownIssue } from "@/lib/publicSampleKnownIssues";
 
 import { fill, sampleLangOf, sampleStringsFor } from "./sampleStrings";
 
@@ -189,9 +191,18 @@ export default function PublicSample() {
       liabilities: money(v.balance.equity_plus_liabilities),
       difference: money(v.balance.served_difference),
     }),
+    // On a closed book the equality is by construction; the reading says
+    // so and prints the real cross-check beside it — the derived 711 line
+    // against the ledger's movement of work in progress and finished goods
+    // (computed by the generator from the published trial balance).
     net_income_equals_121: fill(S.checks.net_income_equals_121, {
       served: money(v.anchor.net_income_statutory),
       account121: money(v.anchor.account_121),
+      derived: money(v.stock_variation.value),
+      accounts: v.stock_variation.ledger_stock_movement.accounts.join(" + "),
+      stockOpening: money(v.stock_variation.ledger_stock_movement.opening),
+      stockClosing: money(v.stock_variation.ledger_stock_movement.closing),
+      stockMovement: money(v.stock_variation.ledger_stock_movement.value),
     }),
     turnover_equals_filing: fill(S.checks.turnover_equals_filing, {
       turnover: money(figure(current, "net_turnover")),
@@ -203,6 +214,20 @@ export default function PublicSample() {
       difference: money(v.ebitda.max_difference),
     }),
   };
+
+  // WHAT THIS REPORT GETS WRONG ON THIS BOOK — printed at the top of the
+  // page (and of the report). The list and every figure in it are the
+  // generator's (public/sample/known_issues_fy2025.json); the words are
+  // lib/publicSampleKnownIssues, shared with the report.
+  const issues = data.known_issues as unknown as KnownIssue[];
+  const known = knownIssuesText(issues, lang);
+  const knownIssuesFileName = cards.find((c) => c.key === "known_issues")!.file.name;
+  const cashIssue = issues.find((i) => i.id === "cash_flow_estimated");
+  // The briefing's availability, from coverage.json — never a typed word.
+  const briefingAvailability = aiFeatureNote("briefing", lang);
+  const briefingNote = briefingAvailability
+    ? ` (${briefingAvailability.charAt(0).toLowerCase()}${briefingAvailability.slice(1)})`
+    : "";
 
   const labelTitle = (label: SampleLabel): string => {
     if (S.labelTitles[label.key]) return S.labelTitles[label.key];
@@ -280,9 +305,46 @@ export default function PublicSample() {
           </p>
         </div>
 
+        {/* ── what this report gets wrong ──────────────────────────── */}
+        {known.items.length > 0 ? (
+          <section
+            id="known-issues"
+            data-testid="sample-known-issues"
+            aria-labelledby="sample-known-issues-h"
+            className="mt-6 max-w-[860px] rounded-lg border-2 border-alert bg-surface p-5"
+          >
+            <h2 id="sample-known-issues-h" className="text-[17px] font-semibold text-ink">
+              {known.title}
+            </h2>
+            <p className="mt-2 text-[13px] leading-relaxed text-ink-soft">{known.lede}</p>
+            <ol className="mt-3 list-decimal space-y-3 pl-5 text-[13px] leading-relaxed text-ink">
+              {known.items.map((item) => (
+                <li key={item.id} data-testid={`sample-known-issue-${item.id}`}>
+                  <span className="font-medium">{item.title}.</span>{" "}
+                  <span className="text-ink-soft">{item.body}</span>
+                </li>
+              ))}
+            </ol>
+            <p className="mt-3 text-[13px] leading-relaxed text-ink-soft">{known.closing}</p>
+            <p className="mt-2 text-[12.5px] text-ink-soft">
+              {S.knownIssuesFile}{" "}
+              <a
+                href={`${SAMPLE_FILES_BASE}${knownIssuesFileName}`}
+                data-testid="sample-known-issues-file"
+                className="font-mono text-[12px] text-brand-d underline underline-offset-2"
+              >
+                {knownIssuesFileName}
+              </a>
+            </p>
+          </section>
+        ) : null}
+
         <dl className="mt-6 grid max-w-[760px] grid-cols-1 gap-x-8 gap-y-3 text-[13px] sm:grid-cols-2">
           {[
             [S.facts.activity, `CAEN ${company.caen} · ${lang === "ro" ? company.caen_name_ro : company.caen_name_en}`],
+            // The industry the report's cover prints is the workspace's
+            // setting, read from the served document — not the CAEN code.
+            [S.facts.industry, company.industry_as_served.display],
             [S.facts.years, fill(S.yearsValue, { current: current.label, prior: prior.label })],
             [S.facts.accounts, fill(S.accountsValue, { n: integer(current.accounts, lang), period: current.label })],
             [S.facts.asOf, asOfDate(data.as_of, lang)],
@@ -565,6 +627,15 @@ export default function PublicSample() {
               {fill(S.labelsPriorNote, { prior: prior.label })}
             </p>
           ) : null}
+          {cashIssue ? (
+            <p data-testid="sample-labels-cash-note" className="mb-4 max-w-[720px] text-[13px] leading-relaxed text-ink-soft">
+              {fill(S.labelsCashNote, {
+                impliedOpening: money(cashIssue.engine.implied_opening_cash),
+                priorClosing: money(cashIssue.ledger.cash_opening),
+                prior: prior.label,
+              })}
+            </p>
+          ) : null}
           <ul className="space-y-3">
             {labels.map((label) => {
               const { text, quotedIn } = labelQuote(label, lang);
@@ -680,7 +751,7 @@ export default function PublicSample() {
             <Card testId="sample-not-included" title={S.notIncludedTitle}>
               <ul className="list-disc space-y-1.5 pl-4 text-[13px] text-ink-soft">
                 {S.notIncluded.map((item) => (
-                  <li key={item}>{item}</li>
+                  <li key={item}>{fill(item, { briefingNote })}</li>
                 ))}
               </ul>
             </Card>

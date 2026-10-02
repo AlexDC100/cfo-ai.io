@@ -310,7 +310,7 @@ export function cashWalk(i: ChartInputs): ChartBlock {
     table: rowsTable(rows, i.s.currency),
     caption:
       (approx
-        ? "The engine flags this reconstruction as approximated (`assembled_cf.is_approximated`), which is why the bars are hatched: the working-capital and investing steps are inferred from period-end balances, not from movement detail."
+        ? "The engine flags this reconstruction as approximated (`assembled_cf.is_approximated`), which is why the bars are hatched: the working-capital, investing and financing steps are estimated from period-end balances, not from movement detail."
         : "Each step is a served cash-flow aggregate; the steps sum to the net movement.") + tie,
   };
 }

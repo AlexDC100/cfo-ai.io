@@ -84,6 +84,9 @@ export interface CoverFacts {
   /** A notice printed under the title — the public sample's "Fictional
    *  company — generated sample". Null on a customer's export. */
   notice: string | null;
+  /** One line under the notice pointing at the "Known issues in this
+   *  report" box — the public sample's. Null when the report lists none. */
+  knownIssuesLine?: string | null;
 }
 
 export function coverPage(c: CoverFacts): string {
@@ -95,6 +98,9 @@ export function coverPage(c: CoverFacts): string {
     <div class="cover-period">${esc(c.period)}</div>${
       c.notice ? `
     <div class="cover-notice" data-report-notice="cover">${esc(c.notice)}</div>` : ""
+    }${
+      c.knownIssuesLine ? `
+    <div class="cover-known-issues" data-report-known-issues="cover">${esc(c.knownIssuesLine)}</div>` : ""
     }
     <dl class="cover-facts">
       <dt>Reporting currency</dt><dd>${esc(c.currency)}</dd>
@@ -203,6 +209,13 @@ export function shellCss(): string {
     .cover-period { font-family: var(--serif); font-size: 17pt; color: ${INK_SOFT}; margin-bottom: 34px; }
     .cover-notice, .doc-notice { border: 1.5px solid ${INK}; padding: 9px 12px; font-size: 10pt; font-weight: 600; line-height: 1.4; color: ${INK}; margin: -14px 0 26px; }
     .doc-notice { margin: 0 0 16px; }
+    .cover-known-issues { border: 1.5px solid ${INK}; border-left-width: 6px; padding: 8px 12px; font-size: 9.5pt; font-weight: 600; line-height: 1.4; color: ${INK}; margin: -14px 0 26px; }
+    .known-issues { border: 1.5px solid ${INK}; border-left-width: 6px; padding: 14px 16px 6px; margin: 0 0 22px; color: ${INK}; }
+    .known-issues-block + .known-issues-block { border-top: 1px solid ${RULE}; margin-top: 12px; padding-top: 12px; }
+    h2.known-issues-title { font-family: var(--sans); font-size: 11pt; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; margin: 0 0 6px; border: none; padding: 0; color: ${INK}; }
+    .known-issues-lede, .known-issues-closing { font-size: 9.5pt; line-height: 1.45; margin: 0 0 8px; color: ${INK_SOFT}; }
+    .known-issues-list { margin: 0 0 8px; padding-left: 20px; font-size: 9.5pt; line-height: 1.5; }
+    .known-issues-list li { margin: 0 0 7px; }
     .cover-facts { display: grid; grid-template-columns: 168px 1fr; gap: 7px 18px; margin: 0 0 30px; font-size: 10pt; border-top: 1px solid ${RULE}; padding-top: 18px; }
     .cover-facts dt { color: ${INK_MUTE}; text-transform: uppercase; letter-spacing: 0.10em; font-size: 8.25pt; padding-top: 2px; }
     .cover-facts dd { margin: 0; color: ${INK}; }

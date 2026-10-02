@@ -84,6 +84,7 @@ SERVED_PERIOD = "served_period_fy%d.json"
 SERVED_COMPARATIVES = "served_comparatives_fy2025_vs_fy2024.json"
 MAPPING_CSV = "account_mapping_fy2025.csv"
 LABELS_JSON = "uncertainty_labels_fy2025.json"
+KNOWN_ISSUES_JSON = "known_issues_fy2025.json"
 REPORT_HTML = "sample_report_fy2025.html"
 REPORT_PDF = "sample_report_fy2025.pdf"
 
@@ -271,7 +272,8 @@ def ratios_of(comparatives: Dict[str, Any]) -> List[Dict[str, Any]]:
     return out
 
 
-def verdicts_of(period_body: Dict[str, Any], prior_body: Dict[str, Any]) -> Dict[str, Any]:
+def verdicts_of(period_body: Dict[str, Any], prior_body: Dict[str, Any],
+                rows: Sequence[Any]) -> Dict[str, Any]:
     """The engine's own verdicts on the book, copied — never re-decided."""
     st = period_body["statements"]
     cbs = st["canonical_bs"]
@@ -317,6 +319,12 @@ def verdicts_of(period_body: Dict[str, Any], prior_body: Dict[str, Any]) -> Dict
             "refusal": variation["refusal"],
             "label_ro": variation["label_ro"],
             "label_en": variation["label_en"],
+            # THE REAL CROSS-CHECK of the derived line: the movement of work
+            # in progress and finished goods on the published ledger. On a
+            # closed book "net income equals account 121" holds by
+            # construction (the 711 line is the bridge to 121), so the page
+            # prints this beside it.
+            "ledger_stock_movement": ledger_stock_movement(rows),
         },
         "ebitda": ebitda_verdict(period_body),
         "credit": {
@@ -383,6 +391,251 @@ def cash_flow_verdict(period_body: Dict[str, Any], prior_body: Dict[str, Any]) -
         "prior_closing_cash": opening,
         "pointer_cash": cash_pointer,
         "balance_sheet_movement": round(closing - opening, 2) + 0.0,
+    }
+
+
+# ── 3b. what this report gets wrong on this book ──────────────────────
+#
+# The sample is the product's real output, and three things in it are
+# wrong or misleading — defects of the ENGINE (tickets exist; engine code
+# is fixed in its own releases), not of the sample. Nothing known-false is
+# published unflagged: /sample and the report itself open with a "Known
+# issues in this report" box, and each line of it carries the figure the
+# engine served beside the figure the LEDGER gives.
+#
+# Every ledger figure below is arithmetic on the published trial balance —
+# named accounts, a named column — done here, by the generator, and held by
+# gate `public-sample` (S11), which re-reads the published workbook cell by
+# cell and repeats the sums. No figure is typed: not here, not in the page,
+# not in the report.
+#
+# AN ISSUE LEAVES THE LIST BY ITSELF. Each is included only while the
+# engine's figure still differs from the ledger's; when a fix ships, the
+# rebuild drops the line and S11 reds until the sample is regenerated.
+
+#: Row columns of `build_public_sample_tb.Row`.
+_SI_D, _SI_C, _R_D, _R_C, _SF_D, _SF_C = 2, 3, 4, 5, 8, 9
+
+CASH_ACCOUNTS = ("5121", "5124", "5311")
+STOCK_OF_PRODUCTION = ("331", "341", "345", "348")
+DEPRECIABLE_TANGIBLE = ("212", "213", "214")
+TANGIBLE_DEPRECIATION = ("281",)
+KNOWN_ISSUES_SCHEMA = "public_sample_known_issues/1"
+
+
+def _ledger_sum(rows: Sequence[Any], prefixes: Sequence[str], column: int) -> "Any":
+    """Σ of one trial-balance column over the accounts starting with any of
+    `prefixes` — Decimal, to the cent."""
+    total = TB.ZERO
+    for row in rows:
+        if any(str(row[0]).startswith(p) for p in prefixes):
+            total += row[column]
+    return total
+
+
+def _money(value: Any) -> float:
+    return float(TB.D(value)) + 0.0
+
+
+def ledger_stock_movement(rows: Sequence[Any]) -> Dict[str, Any]:
+    """The year's movement of work in progress and finished goods — closing
+    debit balance less opening debit balance of 331 / 341 / 345 / 348. On a
+    closed book the engine DERIVES the 711 line (account 711 itself reads
+    zero); this is the ledger figure that derivation must equal."""
+    closing = _ledger_sum(rows, STOCK_OF_PRODUCTION, _SF_D) - _ledger_sum(rows, STOCK_OF_PRODUCTION, _SF_C)
+    opening = _ledger_sum(rows, STOCK_OF_PRODUCTION, _SI_D) - _ledger_sum(rows, STOCK_OF_PRODUCTION, _SI_C)
+    used = sorted({str(r[0]) for r in rows if any(str(r[0]).startswith(p) for p in STOCK_OF_PRODUCTION)})
+    return {"value": _money(closing - opening), "opening": _money(opening), "closing": _money(closing),
+            "accounts": used}
+
+
+def _cash_flow_issue(rows: Sequence[Any], current: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    cf = current["statements"]["assembled_cf"]
+    opening = _ledger_sum(rows, CASH_ACCOUNTS, _SI_D) - _ledger_sum(rows, CASH_ACCOUNTS, _SI_C)
+    closing = _ledger_sum(rows, CASH_ACCOUNTS, _SF_D) - _ledger_sum(rows, CASH_ACCOUNTS, _SF_C)
+    movement = closing - opening
+    additions = (_ledger_sum(rows, ("20", "21", "23"), _R_D) - _ledger_sum(rows, ("231",), _R_C))
+    paid_fixed = _ledger_sum(rows, ("404",), _R_D)
+    drawn = _ledger_sum(rows, ("1621",), _R_C)
+    repaid = _ledger_sum(rows, ("1621",), _R_D)
+    lease = _ledger_sum(rows, ("167",), _R_D)
+    line = ((_ledger_sum(rows, ("5191",), _SF_C) - _ledger_sum(rows, ("5191",), _SF_D))
+            - (_ledger_sum(rows, ("5191",), _SI_C) - _ledger_sum(rows, ("5191",), _SI_D)))
+    dividends = _ledger_sum(rows, ("457",), _R_D)
+    interest = _ledger_sum(rows, ("666",), _R_D)
+    financing = drawn - repaid - lease + line - dividends - interest
+    engine_net = cf["net_change_in_cash"]
+    if not cf["is_approximated"] and abs(engine_net - _money(movement)) < 0.01:
+        return None
+    return {
+        "id": "cash_flow_estimated",
+        "engine": {
+            "is_approximated": cf["is_approximated"],
+            "net_change_in_cash": engine_net,
+            "cash_from_investing": cf["cash_from_investing"],
+            "cash_from_financing": cf["cash_from_financing"],
+            "cash_from_operating": cf["cash_from_operating"],
+            "implied_opening_cash": round(cf["closing_cash_actual"] - engine_net, 2) + 0.0,
+            "pointers": {
+                "net_change_in_cash": "/statements/assembled_cf/net_change_in_cash",
+                "cash_from_investing": "/statements/assembled_cf/cash_from_investing",
+                "cash_from_financing": "/statements/assembled_cf/cash_from_financing",
+                "cash_from_operating": "/statements/assembled_cf/cash_from_operating",
+                "closing_cash_actual": "/statements/assembled_cf/closing_cash_actual",
+            },
+        },
+        "ledger": {
+            "cash_opening": _money(opening),
+            "cash_closing": _money(closing),
+            "cash_movement": _money(movement),
+            "fixed_asset_additions_ex_vat": _money(additions),
+            "paid_to_fixed_asset_suppliers": _money(paid_fixed),
+            "loans_drawn": _money(drawn),
+            "loans_repaid": _money(repaid),
+            "lease_repaid": _money(lease),
+            "credit_line_change": _money(line),
+            "dividends": _money(dividends),
+            "interest": _money(interest),
+            "financing": _money(financing),
+            "arithmetic": {
+                "cash_opening": "opening debit balance of 5121 + 5124 + 5311",
+                "cash_closing": "closing debit balance of 5121 + 5124 + 5311",
+                "fixed_asset_additions_ex_vat": "debit movement of classes 20, 21 and 23 less the credit movement of 231 (the transfer out of construction in progress)",
+                "paid_to_fixed_asset_suppliers": "debit movement of 404",
+                "loans_drawn": "credit movement of 1621",
+                "loans_repaid": "debit movement of 1621",
+                "lease_repaid": "debit movement of 167",
+                "credit_line_change": "closing credit balance of 5191 less its opening credit balance",
+                "dividends": "debit movement of 457",
+                "interest": "debit movement of 666",
+                "financing": "loans drawn − loans repaid − lease repaid + credit line change − dividends − interest",
+            },
+        },
+    }
+
+
+def _quick_ratio_issue(current: Dict[str, Any], comparatives: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    table_pointer = "/ratios/rows/key=quick_ratio/current"
+    side = pointer(comparatives, table_pointer)
+    operands = {op["name"]: op["value"] for op in side["operands"]}
+    finding_pointer = "/statements/insights/insights/id=liquidity_quality"
+    try:
+        finding = pointer(current, finding_pointer)
+    except KeyError:
+        return None
+    measure = [m for m in finding["measures"] if m["key"] == "quick_ratio"]
+    if not measure or abs(measure[0]["value"] - side["value"]) < 0.0005:
+        return None
+    facts = {f["name"]: f["value"] for f in finding["facts"]}
+    cash, receivables = operands["cash"], operands["accountsReceivable"]
+    liabilities = operands["current_liabilities"]
+    current_assets = facts["assembled_bs.total_current_assets"]
+    inventory = facts["assembled_bs.inventory"]
+    table_value = (cash + receivables) / liabilities
+    finding_value = (current_assets - inventory) / liabilities
+    if abs(table_value - side["value"]) > 1e-9 or abs(finding_value - measure[0]["value"]) > 1e-9:
+        raise RuntimeError("the two quick ratios are no longer the two definitions the known-issues "
+                           "box describes — re-read the engine's change before publishing")
+    return {
+        "id": "quick_ratio_two_definitions",
+        "finding_id": finding["id"],
+        "finding_title": finding["title"],
+        "finding_measure_label": measure[0]["label"],
+        "ratio_table": {
+            "value": side["value"], "value_q": side["value_q"],
+            "cash": cash, "trade_receivables": receivables, "current_liabilities": liabilities,
+            "pointer": table_pointer, "document": SERVED_COMPARATIVES,
+        },
+        "finding": {
+            "value": measure[0]["value"],
+            "current_assets": current_assets, "inventory": inventory, "current_liabilities": liabilities,
+            "pointer": finding_pointer + "/measures/key=quick_ratio/value",
+            "document": SERVED_PERIOD % CURRENT_YEAR,
+        },
+    }
+
+
+def _asset_age_issue(rows: Sequence[Any], current: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    finding_pointer = "/statements/insights/insights/id=asset_age"
+    try:
+        finding = pointer(current, finding_pointer)
+    except KeyError:
+        return None
+    measures = {m["key"]: m["value"] for m in finding["measures"]}
+    gross = _ledger_sum(rows, DEPRECIABLE_TANGIBLE, _SF_D)
+    accumulated = _ledger_sum(rows, TANGIBLE_DEPRECIATION, _SF_C) - _ledger_sum(rows, TANGIBLE_DEPRECIATION, _SF_D)
+    charge = _ledger_sum(rows, TANGIBLE_DEPRECIATION, _R_C)
+    land = _ledger_sum(rows, ("211",), _SF_D)
+    in_progress = _ledger_sum(rows, ("231",), _SF_D)
+    intangibles_net = (_ledger_sum(rows, ("20",), _SF_D)
+                       - (_ledger_sum(rows, ("280",), _SF_C) - _ledger_sum(rows, ("280",), _SF_D)))
+    remaining = gross - accumulated
+    share = float(accumulated / gross)
+    years = float(remaining / charge)
+    if abs(share - measures["depreciated_share"]) < 0.0005 and abs(years - measures["remaining_book_life"]) < 0.05:
+        return None
+    return {
+        "id": "asset_age_bases",
+        "finding_id": finding["id"],
+        "finding_title": finding["title"],
+        "engine": {
+            "depreciated_share": measures["depreciated_share"],
+            "remaining_book_life_years": measures["remaining_book_life"],
+            "net_book_value": measures["net_book_value"],
+            "gross_ppe": measures["gross_ppe"],
+            "annual_charge": measures["annual_da"],
+            "pointer": finding_pointer + "/measures",
+        },
+        "ledger": {
+            "depreciable_tangible_gross": _money(gross),
+            "accumulated_depreciation": _money(accumulated),
+            "remaining_net_book_value": _money(remaining),
+            "annual_depreciation_charge": _money(charge),
+            "depreciated_share": round(share, 6),
+            "remaining_life_years": round(years, 6),
+            "land": _money(land),
+            "construction_in_progress": _money(in_progress),
+            "intangibles_net": _money(intangibles_net),
+            "arithmetic": {
+                "depreciable_tangible_gross": "closing debit balance of 212 + 2131 + 2133 + 214",
+                "accumulated_depreciation": "closing credit balance of 2812 + 2813 + 2814",
+                "annual_depreciation_charge": "credit movement of 2812 + 2813 + 2814",
+                "depreciated_share": "accumulated depreciation ÷ depreciable tangible gross",
+                "remaining_life_years": "(gross − accumulated depreciation) ÷ the year's depreciation charge",
+                "land": "closing debit balance of 211",
+                "construction_in_progress": "closing debit balance of 231",
+                "intangibles_net": "closing debit balance of 208 less the closing credit balance of 2808",
+            },
+        },
+    }
+
+
+def known_issues(rows: Sequence[Any], current: Dict[str, Any],
+                 comparatives: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """The issues this report has on this book — each one only while the
+    engine's figure still differs from the ledger's."""
+    found = [_cash_flow_issue(rows, current), _quick_ratio_issue(current, comparatives),
+             _asset_age_issue(rows, current)]
+    return [issue for issue in found if issue is not None]
+
+
+def known_issues_document(rows: Sequence[Any], current: Dict[str, Any],
+                          comparatives: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "schema": KNOWN_ISSUES_SCHEMA,
+        "company": {
+            "name": TB.COMPANY_NAME,
+            "fictional": True,
+            "notice_en": "Fictional company — a generated sample, not a real entity.",
+            "notice_ro": "Companie fictivă — exemplu generat, nu o entitate reală.",
+        },
+        "period": "FY%d" % CURRENT_YEAR,
+        "about": ("What the sample report gets wrong on this book. `engine` is what the engine served "
+                  "(each figure with the pointer it was read from); `ledger` is arithmetic on the published "
+                  "trial balance, with the accounts and the column of every sum under `arithmetic`. An "
+                  "issue is listed only while the two differ; the sample is regenerated when a fix ships."),
+        "trial_balance": TB.workbook_filename(CURRENT_YEAR),
+        "issues": known_issues(rows, current, comparatives),
     }
 
 
@@ -801,6 +1054,14 @@ def company_block() -> Dict[str, Any]:
     }
 
 
+def industry_as_served(period_body: Dict[str, Any]) -> Dict[str, Any]:
+    """The industry the report's cover prints — read from the served
+    document (the workspace's setting), with the pointer it came from."""
+    path = "/statements/industry"
+    return {"display": pointer(period_body, path), "pointer": path,
+            "document": SERVED_PERIOD % CURRENT_YEAR}
+
+
 # ── the file set ──────────────────────────────────────────────────────
 
 def engine_files() -> "OrderedDict[str, bytes]":
@@ -815,8 +1076,10 @@ def engine_files() -> "OrderedDict[str, bytes]":
         files[SERVED_PERIOD % year] = canonical_json(served["periods"][year]).encode("utf-8")
     files[SERVED_COMPARATIVES] = canonical_json(served["comparatives"]).encode("utf-8")
     files[MAPPING_CSV] = mapping_csv(mapping_rows(CURRENT_YEAR, current))
-    files[LABELS_JSON] = canonical_json({
-        "schema": "public_sample_labels/2",
+    rows = TB.build_books()[CURRENT_YEAR]["rows"]
+    issues = known_issues_document(rows, current, served["comparatives"])  # type: ignore[arg-type]
+    labels_document: Dict[str, Any] = {
+        "schema": "public_sample_labels/3",
         "company": {
             "name": TB.COMPANY_NAME,
             "fictional": True,
@@ -825,7 +1088,25 @@ def engine_files() -> "OrderedDict[str, bytes]":
         },
         "period": "FY%d" % CURRENT_YEAR,
         "labels": uncertainty_labels(current, served["comparatives"]),
-    }).encode("utf-8")
+    }
+    if any(issue["id"] == "cash_flow_estimated" for issue in issues["issues"]):
+        # The labels are the engine's sentences, quoted. One of them is
+        # false for this book, and a file that quotes it says so.
+        labels_document["known_issues"] = {
+            "file": KNOWN_ISSUES_JSON,
+            "labels": sorted(label["key"] for label in labels_document["labels"]
+                             if label["key"].startswith("cash_flow_approximated")),
+            "note_en": ("The cash-flow labels are quoted as the engine wrote them, and one sentence in them is "
+                        "false for this book: no reconciliation plug is served, and closing cash does not tie "
+                        "to the prior year's balance sheet through the estimated movements. The ledger's "
+                        "figures are in %s." % KNOWN_ISSUES_JSON),
+            "note_ro": ("Etichetele despre fluxul de numerar sunt citate așa cum le-a scris motorul, iar o "
+                        "propoziție din ele este falsă pentru această balanță: nu este servită nicio linie de "
+                        "reconciliere, iar numerarul final nu se leagă de bilanțul anului precedent prin "
+                        "mișcările estimate. Cifrele din registru sunt în %s." % KNOWN_ISSUES_JSON),
+        }
+    files[LABELS_JSON] = canonical_json(labels_document).encode("utf-8")
+    files[KNOWN_ISSUES_JSON] = canonical_json(issues).encode("utf-8")
     return files
 
 
@@ -838,6 +1119,7 @@ PUBLISHED: Tuple[Tuple[str, str], ...] = (
     (REPORT_PDF, "report_pdf"),
     (MAPPING_CSV, "mapping"),
     (LABELS_JSON, "labels"),
+    (KNOWN_ISSUES_JSON, "known_issues"),
     (SERVED_PERIOD % CURRENT_YEAR, "served_document"),
     (SERVED_PERIOD % PRIOR_YEAR, "served_document"),
     (SERVED_COMPARATIVES, "served_document"),
@@ -862,7 +1144,7 @@ def page_data(directory: Path) -> Dict[str, Any]:
     return {
         "schema": SCHEMA,
         "as_of": config()["as_of"],
-        "company": company_block(),
+        "company": dict(company_block(), industry_as_served=industry_as_served(current)),
         "engine": engine_identity(current),
         "served_document": SERVED_PERIOD % CURRENT_YEAR,
         "periods": {
@@ -874,7 +1156,10 @@ def page_data(directory: Path) -> Dict[str, Any]:
                       "figures": figures_of(prior)},
         },
         "ratios": ratios_of(comparatives),
-        "verdicts": verdicts_of(current, prior),
+        "verdicts": verdicts_of(current, prior, books[CURRENT_YEAR]["rows"]),  # type: ignore[arg-type]
+        # Read back from the PUBLISHED file: the page and the report print
+        # one list, and it is the one a reader can download.
+        "known_issues": json.loads((directory / KNOWN_ISSUES_JSON).read_text(encoding="utf-8"))["issues"],
         "labels": uncertainty_labels(current, comparatives),
         "mapping": mapping_rows(CURRENT_YEAR, current),
         "files": files,

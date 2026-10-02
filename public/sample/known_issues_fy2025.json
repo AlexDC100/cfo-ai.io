@@ -1,0 +1,116 @@
+{
+ "about": "What the sample report gets wrong on this book. `engine` is what the engine served (each figure with the pointer it was read from); `ledger` is arithmetic on the published trial balance, with the accounts and the column of every sum under `arithmetic`. An issue is listed only while the two differ; the sample is regenerated when a fix ships.",
+ "company": {
+  "fictional": true,
+  "name": "CONSERVE EXEMPLU FICTIV SRL",
+  "notice_en": "Fictional company — a generated sample, not a real entity.",
+  "notice_ro": "Companie fictivă — exemplu generat, nu o entitate reală."
+ },
+ "issues": [
+  {
+   "engine": {
+    "cash_from_financing": -475090.51,
+    "cash_from_investing": -207447.75,
+    "cash_from_operating": 801062.26,
+    "implied_opening_cash": 108262.8,
+    "is_approximated": true,
+    "net_change_in_cash": 118524.0,
+    "pointers": {
+     "cash_from_financing": "/statements/assembled_cf/cash_from_financing",
+     "cash_from_investing": "/statements/assembled_cf/cash_from_investing",
+     "cash_from_operating": "/statements/assembled_cf/cash_from_operating",
+     "closing_cash_actual": "/statements/assembled_cf/closing_cash_actual",
+     "net_change_in_cash": "/statements/assembled_cf/net_change_in_cash"
+    }
+   },
+   "id": "cash_flow_estimated",
+   "ledger": {
+    "arithmetic": {
+     "cash_closing": "closing debit balance of 5121 + 5124 + 5311",
+     "cash_opening": "opening debit balance of 5121 + 5124 + 5311",
+     "credit_line_change": "closing credit balance of 5191 less its opening credit balance",
+     "dividends": "debit movement of 457",
+     "financing": "loans drawn − loans repaid − lease repaid + credit line change − dividends − interest",
+     "fixed_asset_additions_ex_vat": "debit movement of classes 20, 21 and 23 less the credit movement of 231 (the transfer out of construction in progress)",
+     "interest": "debit movement of 666",
+     "lease_repaid": "debit movement of 167",
+     "loans_drawn": "credit movement of 1621",
+     "loans_repaid": "debit movement of 1621",
+     "paid_to_fixed_asset_suppliers": "debit movement of 404"
+    },
+    "cash_closing": 226786.8,
+    "cash_movement": -9848.42,
+    "cash_opening": 236635.22,
+    "credit_line_change": -20000.0,
+    "dividends": 100000.0,
+    "financing": -123171.34,
+    "fixed_asset_additions_ex_vat": 640890.85,
+    "interest": 164171.34,
+    "lease_repaid": 63000.0,
+    "loans_drawn": 420000.0,
+    "loans_repaid": 196000.0,
+    "paid_to_fixed_asset_suppliers": 740906.91
+   }
+  },
+  {
+   "finding": {
+    "current_assets": 3286458.08,
+    "current_liabilities": 1683726.68,
+    "document": "served_period_fy2025.json",
+    "inventory": 1656139.72,
+    "pointer": "/statements/insights/insights/id=liquidity_quality/measures/key=quick_ratio/value",
+    "value": 0.968279697272
+   },
+   "finding_id": "liquidity_quality",
+   "finding_measure_label": "Quick ratio as reported",
+   "finding_title": "Headline liquidity leans on receivables that are not trade",
+   "id": "quick_ratio_two_definitions",
+   "ratio_table": {
+    "cash": 226786.8,
+    "current_liabilities": 1683726.68,
+    "document": "served_comparatives_fy2025_vs_fy2024.json",
+    "pointer": "/ratios/rows/key=quick_ratio/current",
+    "trade_receivables": 1382531.56,
+    "value": 0.9558073641738576,
+    "value_q": "0.96"
+   }
+  },
+  {
+   "engine": {
+    "annual_charge": 400705.85,
+    "depreciated_share": 0.404521601381,
+    "gross_ppe": 5412514.27,
+    "net_book_value": 3241585.45,
+    "pointer": "/statements/insights/insights/id=asset_age/measures",
+    "remaining_book_life_years": 8.08968835868
+   },
+   "finding_id": "asset_age",
+   "finding_title": "Asset base is late in its depreciation life",
+   "id": "asset_age_bases",
+   "ledger": {
+    "accumulated_depreciation": 2189478.94,
+    "annual_depreciation_charge": 393195.66,
+    "arithmetic": {
+     "accumulated_depreciation": "closing credit balance of 2812 + 2813 + 2814",
+     "annual_depreciation_charge": "credit movement of 2812 + 2813 + 2814",
+     "construction_in_progress": "closing debit balance of 231",
+     "depreciable_tangible_gross": "closing debit balance of 212 + 2131 + 2133 + 214",
+     "depreciated_share": "accumulated depreciation ÷ depreciable tangible gross",
+     "intangibles_net": "closing debit balance of 208 less the closing credit balance of 2808",
+     "land": "closing debit balance of 211",
+     "remaining_life_years": "(gross − accumulated depreciation) ÷ the year's depreciation charge"
+    },
+    "construction_in_progress": 97773.16,
+    "depreciable_tangible_gross": 5004741.11,
+    "depreciated_share": 0.437481,
+    "intangibles_net": 18550.12,
+    "land": 310000.0,
+    "remaining_life_years": 7.159952,
+    "remaining_net_book_value": 2815262.17
+   }
+  }
+ ],
+ "period": "FY2025",
+ "schema": "public_sample_known_issues/1",
+ "trial_balance": "balanta_exemplu_fictiv_31.12.2025.xlsx"
+}

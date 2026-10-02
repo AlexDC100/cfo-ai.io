@@ -50,6 +50,7 @@ export const REPORT_PDF = "sample_report_fy2025.pdf";
 const SERVED_CURRENT = "served_period_fy2025.json";
 const SERVED_PRIOR = "served_period_fy2024.json";
 const SERVED_COMPARATIVES = "served_comparatives_fy2025_vs_fy2024.json";
+const KNOWN_ISSUES = "known_issues_fy2025.json";
 
 function argValue(flag) {
   const i = process.argv.indexOf(flag);
@@ -103,8 +104,12 @@ async function loadFromRepo() {
     const current = readJson(join(DIR, SERVED_CURRENT));
     const prior = readJson(join(DIR, SERVED_PRIOR));
     const comparatives = readJson(join(DIR, SERVED_COMPARATIVES));
+    // What the report is known to get wrong on this book — written by the
+    // first half of the build from the published ledger; printed in a box
+    // before the executive summary.
+    const issues = readJson(join(DIR, KNOWN_ISSUES)).issues;
     const html = withFixedClock(CONFIG.as_of, () =>
-      builder.sampleReportHtml(current, prior, comparatives, CONFIG.as_of),
+      builder.sampleReportHtml(current, prior, comparatives, CONFIG.as_of, issues),
     );
     return {
       html,

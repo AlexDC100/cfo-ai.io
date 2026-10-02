@@ -22,7 +22,7 @@ import type { Rates } from "@/lib/rates";
 
 export type SampleLang = "en" | "ro";
 
-/** The page's nine file cards. */
+/** The page's ten file cards. */
 export type FileKey =
   | "trial_balance_current"
   | "trial_balance_prior"
@@ -30,6 +30,7 @@ export type FileKey =
   | "report_pdf"
   | "mapping"
   | "labels"
+  | "known_issues"
   | "served_current"
   | "served_prior"
   | "served_comparatives";
@@ -132,6 +133,7 @@ export function fileKeys(data: PublicSampleData): Array<{ key: FileKey; file: Sa
     { key: "report_pdf", file: of("report_pdf")[0] },
     { key: "mapping", file: of("mapping")[0] },
     { key: "labels", file: of("labels")[0] },
+    { key: "known_issues", file: of("known_issues")[0] },
     { key: "served_current", file: servedCurrent },
     { key: "served_prior", file: servedPrior },
     { key: "served_comparatives", file: servedCmp },

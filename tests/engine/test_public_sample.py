@@ -53,7 +53,14 @@ WHAT THIS GATE REDS ON, once the product is correct (TC-11):
       not say the company is fictional; or the report carries a sentence
       that is false for a public, model-free sample ("AI-assisted",
       "Confidential", "as filed" / "filed close", "implying an opening
-      balance").
+      balance");
+  S11 a known issue's "ledger" figure is not what the PUBLISHED workbook
+      gives (every sum is repeated here from the workbook's own cells), an
+      "engine" figure is not the served document's, the page's list is not
+      the published file's, or the estimated cash flow is published with
+      no issue listed; the stock movement the page prints beside the
+      account-121 reading is not the workbook's, or the derived 711 line
+      no longer equals it.
 
 WHAT IT CANNOT SEE: the report's HTML and PDF. Those are built by the
 product's TypeScript — `frontend/pages/cfo/__tests__/publicSample.test.tsx`
@@ -179,7 +186,7 @@ def test_s1_the_fiscal_code_cannot_belong_to_a_real_company():
 
 
 def test_s2_every_published_engine_file_is_a_byte_identical_rebuild(rebuilt):
-    assert len(rebuilt) == 7, sorted(rebuilt)
+    assert len(rebuilt) == 8, sorted(rebuilt)
     stale = [name for name, data in rebuilt.items()
              if not (PUBLIC / name).is_file() or (PUBLIC / name).read_bytes() != data]
     assert not stale, (
@@ -499,6 +506,173 @@ def test_s6_the_cash_movement_beside_the_estimate_is_the_two_balance_sheets(serv
         "the cycle's inventory term is the period-end one, printed on its own")
 
 
+# ── S11 — the known issues are the ledger's arithmetic ────────────────
+#
+# The sample exposed three defects of the engine (an estimated cash flow
+# that contradicts the ledgers, a finding's quick ratio on another
+# definition, an asset-age finding whose bases include land, construction
+# in progress and intangibles). They are published FLAGGED: /sample and the
+# report open with a "Known issues in this report" box, and each line
+# carries the ledger's figure beside the engine's. This law is what makes
+# "the ledger's figure" true: it reads the PUBLISHED workbook cell by cell
+# (openpyxl — not the generator's rows) and repeats every sum on its own.
+
+
+def _published_ledger(year: int) -> Dict[str, Tuple[float, ...]]:
+    """{account: (opening D, opening C, movement D, movement C, total D,
+    total C, closing D, closing C)} read from the published workbook."""
+    import openpyxl
+
+    sheet = openpyxl.load_workbook(PUBLIC / TB.workbook_filename(year), read_only=True)[TB.SHEET_NAME]
+    out: Dict[str, Tuple[float, ...]] = {}
+    for row in sheet.iter_rows(values_only=True):
+        code = row[0]
+        if isinstance(code, str) and code.isdigit():
+            assert code not in out, "account %s is listed twice" % code
+            out[code] = tuple(float(v or 0) for v in row[2:10])
+    assert len(out) >= 80, "only %d accounts read from the published workbook" % len(out)
+    return out
+
+
+def _over(ledger: Dict[str, Tuple[float, ...]], prefixes: Tuple[str, ...], column: int) -> float:
+    return sum(values[column] for code, values in ledger.items() if code.startswith(prefixes))
+
+
+_OPEN_D, _OPEN_C, _MOVE_D, _MOVE_C, _CLOSE_D, _CLOSE_C = 0, 1, 2, 3, 6, 7
+
+
+def test_s11_the_known_issues_are_listed_and_the_page_carries_the_published_list(page_data, served):
+    published = json.loads((PUBLIC / B.KNOWN_ISSUES_JSON).read_text(encoding="utf-8"))
+    assert published["schema"] == B.KNOWN_ISSUES_SCHEMA
+    assert published["company"]["fictional"] is True
+    assert page_data["known_issues"] == published["issues"], (
+        "the /sample page would print a known-issues list that is not the published file's")
+    ids = [issue["id"] for issue in published["issues"]]
+    # While the engine estimates cash flow without the prior period, the
+    # issue MUST be listed: an approximated cash flow published with no
+    # flag is what this law exists to stop.
+    cf = served[B.CURRENT_YEAR]["statements"]["assembled_cf"]
+    cash = page_data["verdicts"]["cash_flow"]
+    if cf["is_approximated"] or abs(cf["net_change_in_cash"] - cash["balance_sheet_movement"]) > CENT:
+        assert "cash_flow_estimated" in ids, "the estimated cash flow is published without its known issue"
+    assert ids == sorted(set(ids), key=ids.index), "an issue is listed twice"
+
+
+def test_s11_every_ledger_figure_of_a_known_issue_is_repeated_from_the_published_workbook(served):
+    issues = {issue["id"]: issue
+              for issue in json.loads((PUBLIC / B.KNOWN_ISSUES_JSON).read_text(encoding="utf-8"))["issues"]}
+    ledger = _published_ledger(B.CURRENT_YEAR)
+    prior = _published_ledger(B.PRIOR_YEAR)
+    checked = 0
+
+    def same(stated: float, recomputed: float, what: str) -> None:
+        nonlocal checked
+        assert abs(stated - recomputed) < CENT, "%s: stated %r, the published workbook gives %r" % (
+            what, stated, recomputed)
+        checked += 1
+
+    cash_codes = ("5121", "5124", "5311")
+    if "cash_flow_estimated" in issues:
+        issue = issues["cash_flow_estimated"]
+        led, eng = issue["ledger"], issue["engine"]
+        opening = _over(ledger, cash_codes, _OPEN_D) - _over(ledger, cash_codes, _OPEN_C)
+        closing = _over(ledger, cash_codes, _CLOSE_D) - _over(ledger, cash_codes, _CLOSE_C)
+        same(led["cash_opening"], opening, "cash at the start of the year")
+        # …which is the PRIOR workbook's closing cash, not just this one's opening column
+        same(led["cash_opening"], _over(prior, cash_codes, _CLOSE_D) - _over(prior, cash_codes, _CLOSE_C),
+             "cash at the end of the prior year")
+        same(led["cash_closing"], closing, "cash at the end of the year")
+        same(led["cash_movement"], closing - opening, "the year's cash movement")
+        same(led["fixed_asset_additions_ex_vat"],
+             _over(ledger, ("20", "21", "23"), _MOVE_D) - _over(ledger, ("231",), _MOVE_C),
+             "fixed-asset additions")
+        same(led["paid_to_fixed_asset_suppliers"], _over(ledger, ("404",), _MOVE_D), "paid to fixed-asset suppliers")
+        drawn = _over(ledger, ("1621",), _MOVE_C)
+        repaid = _over(ledger, ("1621",), _MOVE_D)
+        lease = _over(ledger, ("167",), _MOVE_D)
+        line = ((_over(ledger, ("5191",), _CLOSE_C) - _over(ledger, ("5191",), _CLOSE_D))
+                - (_over(ledger, ("5191",), _OPEN_C) - _over(ledger, ("5191",), _OPEN_D)))
+        dividends = _over(ledger, ("457",), _MOVE_D)
+        interest = _over(ledger, ("666",), _MOVE_D)
+        for key, value in (("loans_drawn", drawn), ("loans_repaid", repaid), ("lease_repaid", lease),
+                           ("credit_line_change", line), ("dividends", dividends), ("interest", interest)):
+            same(led[key], value, key)
+        same(led["financing"], drawn - repaid - lease + line - dividends - interest, "financing on the ledger")
+        # the engine's side is the served document's, through its own pointers
+        doc = served[B.CURRENT_YEAR]
+        for key in ("net_change_in_cash", "cash_from_investing", "cash_from_financing", "cash_from_operating"):
+            assert eng[key] == B.pointer(doc, eng["pointers"][key]), key
+            checked += 1
+        same(eng["implied_opening_cash"],
+             B.pointer(doc, eng["pointers"]["closing_cash_actual"]) - eng["net_change_in_cash"],
+             "the opening cash the engine's net change implies")
+        # and the issue is REAL: the engine's net change is not the ledger's
+        assert abs(eng["net_change_in_cash"] - led["cash_movement"]) > CENT or eng["is_approximated"]
+
+    if "quick_ratio_two_definitions" in issues:
+        issue = issues["quick_ratio_two_definitions"]
+        table, finding = issue["ratio_table"], issue["finding"]
+        side = B.pointer(served["comparatives"], table["pointer"])
+        assert side["value"] == table["value"] and side["value_q"] == table["value_q"]
+        assert B.pointer(served[B.CURRENT_YEAR], finding["pointer"]) == finding["value"]
+        assert abs((table["cash"] + table["trade_receivables"]) / table["current_liabilities"]
+                   - table["value"]) < 1e-9, "the ratio table's quick ratio is not cash + trade receivables"
+        assert abs((finding["current_assets"] - finding["inventory"]) / finding["current_liabilities"]
+                   - finding["value"]) < 1e-9, "the finding's quick ratio is not current assets less inventory"
+        same(table["cash"], _over(ledger, cash_codes, _CLOSE_D) - _over(ledger, cash_codes, _CLOSE_C),
+             "cash in the quick ratio")
+        assert abs(table["value"] - finding["value"]) >= 0.0005, "the two quick ratios agree — the issue is stale"
+        checked += 4
+
+    if "asset_age_bases" in issues:
+        issue = issues["asset_age_bases"]
+        led, eng = issue["ledger"], issue["engine"]
+        gross = _over(ledger, ("212", "213", "214"), _CLOSE_D)
+        accumulated = _over(ledger, ("281",), _CLOSE_C) - _over(ledger, ("281",), _CLOSE_D)
+        charge = _over(ledger, ("281",), _MOVE_C)
+        same(led["depreciable_tangible_gross"], gross, "depreciable tangible assets, gross")
+        same(led["accumulated_depreciation"], accumulated, "accumulated depreciation")
+        same(led["annual_depreciation_charge"], charge, "the year's depreciation charge")
+        same(led["remaining_net_book_value"], gross - accumulated, "remaining net book value")
+        same(led["land"], _over(ledger, ("211",), _CLOSE_D), "land")
+        same(led["construction_in_progress"], _over(ledger, ("231",), _CLOSE_D), "construction in progress")
+        same(led["intangibles_net"],
+             _over(ledger, ("20",), _CLOSE_D) - (_over(ledger, ("280",), _CLOSE_C) - _over(ledger, ("280",), _CLOSE_D)),
+             "intangible assets, net")
+        assert abs(led["depreciated_share"] - accumulated / gross) < 1e-6
+        assert abs(led["remaining_life_years"] - (gross - accumulated) / charge) < 1e-6
+        measures = {m["key"]: m["value"] for m in B.pointer(served[B.CURRENT_YEAR], eng["pointer"])}
+        assert measures["depreciated_share"] == eng["depreciated_share"]
+        assert measures["remaining_book_life"] == eng["remaining_book_life_years"]
+        assert measures["net_book_value"] == eng["net_book_value"]
+        # the engine's bases DO include what the box says they include
+        same(eng["gross_ppe"], gross + led["land"] + led["construction_in_progress"],
+             "the finding's gross base = depreciable tangible + land + construction in progress")
+        checked += 5
+    assert checked >= 12 * min(1, len(issues)), "only %d figures were repeated from the workbook" % checked
+    print("GATE-WORK public-sample known-issue figures=%d issues=%d" % (checked, len(issues)))
+
+
+def test_s11_the_stock_movement_beside_the_121_reading_is_the_published_ledgers(page_data, served, books):
+    """On a closed book "net income equals account 121" holds by
+    construction; the page prints the real cross-check beside it — the
+    derived 711 line against the movement of work in progress and finished
+    goods. That movement is re-read here from the published workbook."""
+    stated = page_data["verdicts"]["stock_variation"]["ledger_stock_movement"]
+    ledger = _published_ledger(B.CURRENT_YEAR)
+    codes = ("331", "341", "345", "348")
+    opening = _over(ledger, codes, _OPEN_D) - _over(ledger, codes, _OPEN_C)
+    closing = _over(ledger, codes, _CLOSE_D) - _over(ledger, codes, _CLOSE_C)
+    assert abs(stated["opening"] - opening) < CENT and abs(stated["closing"] - closing) < CENT
+    assert abs(stated["value"] - (closing - opening)) < CENT
+    assert stated["accounts"] == sorted(code for code in ledger if code.startswith(codes))
+    # the cross-check itself: the engine's DERIVED line equals the ledger's movement
+    derived = served[B.CURRENT_YEAR]["statements"]["assembled_pl"]["inventory_variation"]["value"]
+    assert abs(derived - stated["value"]) < CENT, (
+        "the derived 711 line (%r) is not the ledger's stock movement (%r)" % (derived, stated["value"]))
+    assert abs(float(books[B.CURRENT_YEAR]["facts"]["stock_variation_711"]) - stated["value"]) < CENT
+
+
 # ── S7 — the page is reachable, signed out, by URL ────────────────────
 
 
@@ -597,6 +771,10 @@ def test_s9_the_report_is_the_same_bytes_under_another_locale_and_timezone():
 _FALSE_ON_A_PUBLIC_SAMPLE = (
     r"AI-assisted", r"Confidential", r"\bas filed\b", r"filed close", r"company filed",
     r"implying an opening balance", r"at any level of effort",
+    # 2026-10-02, the third review: the source of this report is a trial
+    # balance, nobody's "own books" and no "filing"; nothing in it was
+    # adjusted; a generated document names no bank.
+    r"\bthe filing\b", r"your own books", r"\badjusted Debt/EBITDA", r"Banca Transilvania|ING Romania|\bBCR\b",
 )
 
 

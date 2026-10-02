@@ -328,12 +328,15 @@ def _engine_gates() -> List[Gate]:
         Gate("public-sample",
              # -rs: a skipped law prints its reason in the tail the battery shows
              [PY, "-m", "pytest", "tests/engine/test_public_sample.py", "-q", "-rs"],
-             # floor == the number of laws (measured 29): a skipped law is a
-             # red, because junit work is tests minus skips. S9 skips where
-             # node is absent — the report cannot be rebuilt there, and that
-             # is not a pass.
-             work_junit=True, floor=29, units="tests",
+             # floor == the number of laws (measured 32 — S11, the known
+             # issues' ledger arithmetic, added three on 2026-10-02): a skipped
+             # law is a red, because junit work is tests minus skips. S9 skips
+             # where node is absent — the report cannot be rebuilt there, and
+             # that is not a pass.
+             work_junit=True, floor=32, units="tests",
              canaries=("test_s1_the_current_year_opens_with_the_prior_years_closing",
+                       "test_s11_every_ledger_figure_of_a_known_issue_is_repeated_from_the_published_workbook",
+                       "test_s11_the_known_issues_are_listed_and_the_page_carries_the_published_list",
                        "test_s6_no_caveat_the_engine_stated_is_left_off_the_label_list",
                        "test_s6_every_mapped_balance_sheet_account_names_its_served_row",
                        "test_s6_each_pl_account_names_the_served_line_it_sums_into",
@@ -2689,7 +2692,8 @@ def _frontend_gates() -> List[Gate]:
         Gate("public-sample-page",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/pages/cfo/__tests__/publicSample.test.tsx", "--reporter=verbose"],
-             work_rx=r"GATE-WORK public-sample-page figures=(\d+)", floor=100,
+             # measured 194 on 2026-10-02 (the known-issues box added 60)
+             work_rx=r"GATE-WORK public-sample-page figures=(\d+)", floor=150,
              units="printed figures held to the served document",
              no_skips=True,
              canaries=("GATE-WORK public-sample-page figures=",
@@ -2698,6 +2702,7 @@ def _frontend_gates() -> List[Gate]:
                        "each ratio and composite, both years",
                        "the committed HTML is a byte-identical rebuild from the committed served documents",
                        "the committed PDF prints that report's headline figures",
+                       "the report prints the box before the executive summary, in English and Romanian, and the cover points at it",
                        "renders with no session, no provider and no network call")),
         Gate("public-sample-pdf",
              ["node", "scripts/build_public_sample_report.mjs", "--check"],
