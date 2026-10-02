@@ -591,9 +591,23 @@ export function creditContributions(i: ChartInputs): ChartBlock {
       breach: c.contribution !== null && ceiling !== null && ceiling > 0 && c.contribution / ceiling < 0.34,
     };
   });
-  const lost = rows
-    .filter((r) => r.value !== null && r.ceiling !== null)
-    .reduce((a, r) => a + ((r.ceiling as number) - (r.value as number)), 0);
+  const scored = rows.filter((r) => r.value !== null && r.ceiling !== null);
+  const lost = scored.reduce((a, r) => a + ((r.ceiling as number) - (r.value as number)), 0);
+  const weighted = rows.filter((r) => r.ceiling !== null).length;
+  // A TERM THE ENGINE REFUSED GAVE UP NOTHING — it was not scored, and with
+  // it the composite is refused: there is no composite for points to be
+  // "given up" from. The note then counts the terms that DID score, against
+  // their own ceilings, and says what the others are (review round 3,
+  // 2026-10-02: the stock-build book printed "31.1 points of the composite
+  // were given up across the 7 weighted terms" with three terms refused and
+  // no composite).
+  const unscored = comps.filter((c) => c.contribution === null).length;
+  const pale = "The pale bar is the most each term could contribute at its weight; the filled bar is what it did contribute.";
+  const marked = "the marked rows are the ones that gave up more than two-thirds of their own ceiling";
+  const caption =
+    unscored === 0
+      ? `${pale} ${lost.toFixed(1)} points of the composite were given up across the ${weighted} weighted terms, and ${marked}.`
+      : `${pale} ${unscored} of the ${rows.length} terms ${unscored === 1 ? "was" : "were"} not scored, so there is no composite: the ${scored.length} that scored sit ${lost.toFixed(1)} points below their own ceilings together, and ${marked}.`;
   return {
     id: "chart-credit-contrib",
     title,
@@ -601,7 +615,7 @@ export function creditContributions(i: ChartInputs): ChartBlock {
     svg: contributionBars("chart-credit-contrib", title, rows),
     rows,
     table: rowsTable(rows, "points"),
-    caption: `The pale bar is the most each term could contribute at its weight; the filled bar is what it did contribute. ${lost.toFixed(1)} points of the composite were given up across the ${rows.filter((r) => r.ceiling !== null).length} weighted terms, and the marked rows are the ones that gave up more than two-thirds of their own ceiling.`,
+    caption,
   };
 }
 

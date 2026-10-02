@@ -269,7 +269,11 @@ export function printRegimeAmount(value: number, unit: string | null, lang?: Reg
  *  documents' language, so the figures are bound to English numbering
  *  whatever the UI language (a Romanian reader's export never prints
  *  "13,6 mil. RON" inside an English sentence) — each figure in its served
- *  currency, an unmeasured one by its status. One sentence, never a second
+ *  currency, an unmeasured one by its status — and WHAT ALTMAN X3 WAS
+ *  COMPUTED ON, as served (review round 3, 2026-10-02: the documents printed
+ *  the regime's X3 and Z″ and stated the basis nowhere, so a reader
+ *  recomputing "EBIT ÷ total assets" from the report's own figures got
+ *  another Z″ than the one printed). One sentence, never a second
  *  computation. */
 export function regimeDocumentText(regime: CreditRegime): string {
   const f = regime.finding;
@@ -277,5 +281,6 @@ export function regimeDocumentText(regime: CreditRegime): string {
     (x) => `${x.label.en}: ${x.value === null ? `not measured (${x.status})` : printRegimeAmount(x.value, x.unit, "en")}`,
   );
   const cash = regime.cash?.refusal ? ` ${regime.cash.refusal.text.en}` : "";
-  return `${regime.label.en}. ${f ? f.text.en : ""}${figs.length ? ` ${figs.join(" · ")}.` : ""}${cash}`.trim();
+  const x3 = regime.altmanX3Label ? ` Altman ${regime.altmanX3Label.en}.` : "";
+  return `${regime.label.en}. ${f ? f.text.en : ""}${figs.length ? ` ${figs.join(" · ")}.` : ""}${cash}${x3}`.trim();
 }

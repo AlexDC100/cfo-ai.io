@@ -1607,14 +1607,26 @@ def _engine_gates() -> List[Gate]:
         # their refusal through `engineCreditResult`, and the engine's margin
         # refusal on the margin rows (chatSnapshotCreditRegime). Measured 24,
         # floor 24.
+        # Review round 4 (2026-10-02): a letter the engine REFUSED is refused
+        # in the engine's words in the exported report too (never the
+        # extraction note, the "no band ladder" sentence or "points of the
+        # composite were given up"), and Altman X3 is labelled with the basis
+        # it was computed on — on the Risks tab, /report's card and the
+        # printed formula the X3 row's stated arithmetic evaluates to the
+        # figure beside it. Measured 33, floor 33.
         # Plant log: gates.md "credit-regime-surfaces".
         Gate("credit-regime-surfaces",
              ["npx", "vitest", "run", "--root", ".",
               "frontend/pages/cfo/__tests__/creditRegimeSurfaces.test.tsx",
               "frontend/pages/cfo/__tests__/chatSnapshotCreditRegime.test.ts", "--reporter=verbose"],
-             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=24,
+             work_rx=r"Tests\s+(?:\d+ failed \| )?(\d+) passed", floor=33,
              units="surface tests (the regime once, the owner's sentence, the cash bases, the reader's language, the chat snapshot)",
              canaries=("developer (EN): one regime block, the finding, the refused composite, the cash bases",
+                       # review round 4 (2026-10-02): the refused letter's
+                       # words, and the X3 basis
+                       "the developer's document: no extraction note, no 'no ladder', no 'points given up' — the served refusal instead",
+                       "the exported report: the Altman formula's X3 term evaluates to the Z″ printed beside it, and the regime sentence states the basis",
+                       "the Risks tab's Altman table (ro): the X3 row's stated arithmetic is the X3 it prints",
                        "the hero states the refusal, not 'analysis pending', and the regime once",
                        "/report's credit card prints the regime once, and none for a manufacturer",
                        "CmdbarList renders it once at rest and not while typing",

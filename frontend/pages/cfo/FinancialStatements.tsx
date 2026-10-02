@@ -6495,7 +6495,13 @@ export function RisksPanel({
               <tbody>
                 {altman.weightedComponents.map((c, i) => (
                   <tr key={i} className="border-t border-rule">
-                    <td className="py-2 px-3 text-ink">{c.label}</td>
+                    {/* A label the ENGINE served (X3 under a credit regime
+                        that computes it on another basis) prints in the
+                        reader's language — never the standard literal
+                        over the regime's figure. */}
+                    <td className="py-2 px-3 text-ink" data-testid={`risks-altman-x${i + 1}-label`}>
+                      {c.labelServed ? pickLang(c.labelServed, i18n.language) : c.label}
+                    </td>
                     <td className="py-2 px-3 text-right font-mono tabular-nums text-ink-soft">{c.coefficient.toFixed(3)}</td>
                     {c.value === null && c.refusal ? (
                       // The engine's reason, in the value and weighted cells —

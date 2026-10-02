@@ -437,9 +437,17 @@ export function buildExecutiveSummary(
     letter: credit.rating,
     score: credit.score,
     model: credit.modelLabel,
+    // WHY THERE IS NO LETTER. A composite the ENGINE refused states the
+    // engine's reason — the regime's cash refusal when that is the reason,
+    // else the served composite refusal. "No letter grade and no band ladder"
+    // is said only of a period the engine never scored: on a refused book the
+    // same document prints the ladder a few lines down (review round 3,
+    // 2026-10-02).
     unavailable:
       credit.rating === null
-        ? "the engine emitted no letter grade and no band ladder to derive one from for this period"
+        ? credit.compositeRefusal?.stated
+          ? (credit.regime?.cash?.refusal?.text.en ?? credit.compositeRefusal.sentence)
+          : "the engine emitted no letter grade and no band ladder to derive one from for this period"
         : null,
     facts,
   };
