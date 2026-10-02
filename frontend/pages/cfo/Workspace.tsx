@@ -22,6 +22,7 @@
 
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { Trans, useTranslation } from "react-i18next";
+import { uploadGuideView } from "@/lib/coverage";
 import { NavLink, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -778,7 +779,7 @@ function StepRules() {
 // route needs an authenticated workspace (engine PUBLIC_TEST_MODE), which
 // the battery does not run with, so this is where that path is gated.
 export function StepUpload({ busy, onUpload }: { busy: boolean; onUpload: (f: File) => void }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
 
@@ -832,7 +833,7 @@ export function StepUpload({ busy, onUpload }: { busy: boolean; onUpload: (f: Fi
             <h3 className="text-[14px] font-semibold text-ink">
               {dragOver ? t("files.dropToUpload") : t("ws.dropWorkbook")}
             </h3>
-            <p className="text-[12px] text-ink-soft mt-1">{t("ws.uploadFormats")}</p>
+            <p className="text-[12px] text-ink-soft mt-1">{uploadGuideView(i18n.language).formatsLine} {t("dash.sizeLimit")}</p>
             <button
               type="button"
               onClick={() => inputRef.current?.click()}

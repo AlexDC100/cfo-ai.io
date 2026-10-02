@@ -88,6 +88,15 @@ export interface CoverageData {
   rows: CoverageRowData[];
   untested_note_en: string;
   untested_note_ro: string;
+  upload_guide: {
+    accepted_untested_formats: string[];
+    tested_on_real_en: string;
+    tested_on_real_ro: string;
+    untested_formats_en: string;
+    untested_formats_ro: string;
+    untested_document_en: string;
+    untested_document_ro: string;
+  };
 }
 
 export const COVERAGE = coverageJson as unknown as CoverageData;
@@ -270,5 +279,73 @@ export function coverageView(lang: string): CoverageView {
     untestedNote: l === "ro" ? COVERAGE.untested_note_ro : COVERAGE.untested_note_en,
     words: { evidence: w.evidence, asOf: w.asOf, colWhat: w.colWhat, colTestedOn: w.colTestedOn },
     asOf: proofDate(COVERAGE.as_of, l),
+  };
+}
+
+// ── The in-app upload guide ────────────────────────────────────────────
+//
+// The dashboard's "Expected format" grid, its drop zone, the /workspace
+// drop zone and the upload flow's hint each typed their own format list:
+// "XLSX · CSV · PDF", "PDF · XLSX · XLS · CSV", "PDF, Excel, CSV or a
+// photo". coverage.json says CSV passes on constructed files only, .xls has
+// no real-file test and a photo needs the AI reader. The lists are now
+// DERIVED from the rows, so a surface cannot offer a format as plainly as a
+// tested one when the table says otherwise.
+
+export interface UploadGuideView {
+  /** "XLSX · PDF" — formats of a tested row read on at least one real book. */
+  testedFormats: string;
+  /** "CSV · XLS" — accepted by the uploader, no real-file test. */
+  untestedFormats: string;
+  /** "XLSX · PDF — tested on real trial balances. CSV · XLS — accepted,
+   *  not yet tested on a real file." */
+  formatsLine: string;
+  /** "CSV · XLS — accepted, not yet tested on a real file." */
+  untestedLine: string;
+  /** For a document card (the statutory filing): "Accepted, not yet tested
+   *  on a real file". */
+  untestedDocument: string;
+  /** The AI reader's availability word, lower case ("currently
+   *  unavailable"), or "" when it is available. */
+  aiReader: string;
+}
+
+export function uploadGuideView(lang: string): UploadGuideView {
+  const l = langOf(lang);
+  const guide = COVERAGE.upload_guide;
+  const tested: string[] = [];
+  const untested: string[] = [];
+  const testedRows = COVERAGE.rows.filter((r) => r.category === "tested");
+  for (const row of testedRows) {
+    const books = realBooksOf(row);
+    if (typeof books === "number" && books > 0) {
+      for (const f of row.formats) if (!tested.includes(f)) tested.push(f);
+    }
+  }
+  for (const row of testedRows) {
+    for (const f of row.formats) if (!tested.includes(f) && !untested.includes(f)) untested.push(f);
+  }
+  for (const f of guide.accepted_untested_formats) {
+    if (tested.includes(f)) {
+      throw new Error(`coverage.json upload_guide lists "${f}" as untested, but a tested row read it on a real book`);
+    }
+    if (!untested.includes(f)) untested.push(f);
+  }
+  const show = (formats: string[]) => formats.map((f) => f.toUpperCase()).join(" · ");
+  const testedFormats = show(tested);
+  const untestedFormats = show(untested);
+  const testedWords = l === "ro" ? guide.tested_on_real_ro : guide.tested_on_real_en;
+  const untestedWords = l === "ro" ? guide.untested_formats_ro : guide.untested_formats_en;
+  const untestedLine = untested.length ? `${untestedFormats} — ${untestedWords}.` : "";
+  const ai = COVERAGE.rows.find((r) => r.id === "ai_read");
+  const aiWords =
+    ai?.availability === "unavailable" ? ((l === "ro" ? ai.availability_ro : ai.availability_en) ?? "") : "";
+  return {
+    testedFormats,
+    untestedFormats,
+    formatsLine: `${testedFormats} — ${testedWords}.${untestedLine ? ` ${untestedLine}` : ""}`,
+    untestedLine,
+    untestedDocument: l === "ro" ? guide.untested_document_ro : guide.untested_document_en,
+    aiReader: aiWords ? aiWords.charAt(0).toLowerCase() + aiWords.slice(1) : "",
   };
 }

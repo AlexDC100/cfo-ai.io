@@ -134,6 +134,18 @@
   ],
   "untested_note_en": "Legacy .xls sheets and ANAF F30 + F10 workbooks are accepted by the uploader but have no real-file test yet, so neither is listed as tested.",
   "untested_note_ro": "Foile .xls vechi și formularele ANAF F30 + F10 în Excel sunt acceptate la încărcare, dar nu au încă un test pe fișier real, deci niciuna nu este trecută ca testată.",
+  "upload_guide": {
+    "about": "What the in-app upload surfaces print about formats (lib/coverage.uploadGuideView): the dashboard's 'Expected format' grid and drop zone, the /workspace drop zone and the upload flow's zone hint. TESTED formats are derived — the formats of every tested row that was read on at least one real book. UNTESTED formats are the formats of tested rows that passed on constructed files only, plus `accepted_untested_formats` (accepted by the uploader, no real-file test — the same statement as `untested_note_*`). No format is typed on those surfaces.",
+    "accepted_untested_formats": [
+      "xls"
+    ],
+    "tested_on_real_en": "tested on real trial balances",
+    "tested_on_real_ro": "testate pe balanțe reale",
+    "untested_formats_en": "accepted, not yet tested on a real file",
+    "untested_formats_ro": "acceptate, încă netestate pe un fișier real",
+    "untested_document_en": "Accepted, not yet tested on a real file",
+    "untested_document_ro": "Acceptat, încă netestat pe un fișier real"
+  },
   "ai_features": {
     "about": "Ask CFO AI (chat) and the written briefing are produced by an AI model. THE BRIEFING is written through the SAME model credential as the AI document reader above (the engine's narration stage and the reader read one key), so while the reader row is unavailable the briefing is unavailable too. CHAT runs as a separate function with its own secret. Whether either answers today can only be measured in production. `availability` is 'available', 'unavailable' or 'unverified'. NEITHER non-available state is silent: every surface that sells the feature (the landing's module card and plan bullets, /pricing's plan cards and FAQ, /sample) prints the wording below — 'unavailable' as it stands, 'unverified' with the date of `unverified_since` filled in. `measured` records what was read, when and how. The owner sets each after running one chat turn and one briefing in production.",
     "chat": {

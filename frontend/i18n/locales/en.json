@@ -278,7 +278,7 @@
     "unauthorized": "Session expired. Please sign in again.",
     "serverError": "Something went wrong on our side. Our team has been notified.",
     "fileTooLarge": "File too large. Maximum size: {{max}}.",
-    "unsupportedFormat": "Unsupported file format. Use XLSX, PDF, or CSV.",
+    "unsupportedFormat": "Unsupported file format. Use an Excel sheet (.xlsx) or a PDF with a text layer.",
     "parseError": "Could not read this file.",
     "uploadFailed": "Upload failed.",
     "saveFailed": "Could not save changes.",
@@ -1486,7 +1486,6 @@
     "debugSimulate": "Debug: simulate scan",
     "dropFileToUpload": "Drop your file to upload",
     "dropNextMonth": "Drop next month's trial balance",
-    "formatsLimit": "XLSX · CSV · PDF · up to 25 MB",
     "import": "Import",
     "uploadedFiles": "Uploaded files",
     "previewFile": "Preview {{name}}",
@@ -1510,14 +1509,14 @@
     "statusComputing": "Computing ratios…",
     "statusNarrating": "Generating insights…",
     "docTb": "Trial balance (balanță de verificare)",
-    "docTbShows": "Per-account drilldown, full P&L + BS + cash flow reconciliation, 22 ratios, valuation, credit score, peer benchmarks",
+    "docTbShows": "Per-account drilldown, P&L, balance sheet, a cash-flow estimate, ratios, valuation, credit score and peer benchmarks",
     "docTbWhere1": "Your accounting software",
     "docTbWhere2": "Export → Balanță de verificare → XLSX or PDF (10-column layout)",
     "docPublicRecords": "Public records summary",
     "docPublicRecordsShows": "Multi-year history (up to 20 years): revenue, profit, debt, equity, employees. Deterministic, no LLM. Renders in /multi-year-history.",
     "pdfOnly": "PDF only",
     "docStatutory": "Statutory ANAF filing",
-    "docStatutoryShows": "Aggregate P&L + BS from the annual filing. Less detail than a trial balance (no account-level drilldown) but the legally certified numbers.",
+    "docStatutoryShows": "Aggregate P&L and balance sheet from the annual filing, with less detail than a trial balance (no account-level drilldown) — accepted by the uploader, with no real-file test yet.",
     "docStatutoryWhere1": "Spațiul privat virtual (ANAF) → Bilanț contabil → download XLSX",
     "docStatutoryWhere2": "Your accountant's archive — the annual filing they sent to ANAF",
     "docSales": "Sales / trading analysis",
@@ -1670,7 +1669,8 @@
     "narrativeUnavailable": "The AI briefing is temporarily unavailable — the analysis numbers below are unaffected. It will regenerate automatically on the next scan or currency/language switch.",
     "notAvailableShort": "—",
     "zoneNotComputable": "Not computable",
-    "creditNotComputable": "Not enough of the source book was recognised to compute a rating."
+    "creditNotComputable": "Not enough of the source book was recognised to compute a rating.",
+    "sizeLimit": "Up to 25 MB."
   },
   "tabs": {
     "pl": "P&L",
@@ -1680,14 +1680,14 @@
     "valuation": "Valuation",
     "risks": "Risks & credit",
     "export": "Export",
-    "hint_pl": "Needs a P&L, trial balance, or annual report — ",
-    "hint_balance_sheet": "Needs a balance sheet, trial balance, or annual report — ",
-    "hint_cash_flow": "Needs a balance sheet + P&L (or trial balance) — ",
-    "hint_ratios": "Needs a balance sheet, P&L, or trial balance — ",
-    "hint_valuation": "Needs a balance sheet AND P&L — ",
-    "hint_risks": "Needs a balance sheet, P&L, or trial balance — ",
-    "hint_recommendations": "Needs a balance sheet, P&L, or trial balance — ",
-    "hint_suffix": "upload a financial statement or load a sample to enable this view."
+    "hint_pl": "Needs a Romanian trial balance — ",
+    "hint_balance_sheet": "Needs a Romanian trial balance — ",
+    "hint_cash_flow": "Needs a Romanian trial balance — ",
+    "hint_ratios": "Needs a Romanian trial balance — ",
+    "hint_valuation": "Needs a Romanian trial balance — ",
+    "hint_risks": "Needs a Romanian trial balance — ",
+    "hint_recommendations": "Needs a Romanian trial balance — ",
+    "hint_suffix": "upload one to enable this view."
   },
   "ws": {
     "settingsEyebrow": "Workspace settings",
@@ -1715,12 +1715,11 @@
     "stepRulesTitle": "Set your decision rules",
     "stepRulesBody": "These rules classify every product into Protect / Watch / Wind down. Pick a preset or tune the thresholds — you can always change them later from Products.",
     "stepUploadTitle": "Upload your data",
-    "stepUploadBody": "Drop your trial balance (balanță de verificare) or financial statements. CFO AI parses the accounts and builds the period's analysis.",
+    "stepUploadBody": "Drop your Romanian trial balance (balanță de verificare). CFO AI reads the accounts and builds the period's analysis.",
     "unsupportedFile": "Unsupported file",
-    "unsupportedFileDesc": "Drop a PDF, Excel (.xlsx / .xls) or .csv file.",
+    "unsupportedFileDesc": "Drop an Excel sheet (.xlsx) or a PDF with a text layer.",
     "importing": "Importing your workbook…",
     "dropWorkbook": "Drop your workbook here",
-    "uploadFormats": "PDF · XLSX · XLS · CSV · up to 25 MB",
     "notSignedIn": "Not signed in.",
     "cantDeleteFile": "Couldn't delete \"{{name}}\".",
     "currentMonthUndeletable": "{{label}} is the current month — it can't be deleted.",
@@ -3695,7 +3694,7 @@
   "wsV2": {
     "home": {
       "title": "Your companies",
-      "subtitle": "Drop a trial balance or a set of financial statements. We read the company, the period and the industry from the document itself.",
+      "subtitle": "Drop a Romanian trial balance (balanță de verificare). We read the company, the period and the industry from the document itself.",
       "empty": "No companies yet. Drop your first document above.",
       "cui": "CUI {{cui}}",
       "noCui": "No CUI yet",
@@ -3711,13 +3710,14 @@
     },
     "drop": {
       "zoneTitle": "Drop a file here",
-      "zoneHint": "or choose one from your computer · PDF, Excel, CSV or a photo",
+      "zoneHint": "or choose one from your computer · {{formats}}",
       "choose": "Choose a file",
       "overlayTitle": "Let go to analyse it",
       "overlayHint": "We check which company it belongs to before anything is saved.",
       "nextYear": "Add {{year}}",
       "nextYearHint": "Drop the {{year}} file here",
-      "busy": "Reading the document…"
+      "busy": "Reading the document…",
+      "zoneHintAi": "A scan or a photo needs the AI reader — {{status}}."
     },
     "card": {
       "readingTitle": "Reading the document…",
@@ -3783,7 +3783,7 @@
       "upgrade": "View plans"
     },
     "errors": {
-      "unsupported": "We can't read this kind of file. Use PDF, Excel (.xlsx, .xls), CSV or a photo.",
+      "unsupported": "We can't read this kind of file. Use an Excel sheet (.xlsx) or a PDF with a text layer.",
       "identify": "We couldn't read the file.",
       "commit": "We couldn't save the file. Nothing was analysed.",
       "cancelled": "The analysis didn't start.",

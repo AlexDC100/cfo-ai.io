@@ -118,6 +118,7 @@ import { CoverageDisclosure } from "@/components/cfo/CoverageTable";
 // The checks that run on every upload — ONE sentence, shared with the
 // landing (lib/uploadChecks): the two surfaces used to name different pairs.
 import { uploadChecksSentence } from "@/lib/uploadChecks";
+import { uploadGuideView } from "@/lib/coverage";
 import { CashFlowStatementView } from "@/components/cfo/CashFlowStatementView";
 import { EvidenceDrawer } from "@/components/cfo/evidence/EvidenceDrawer";
 import { NavValuationView } from "@/components/cfo/NavValuationView";
@@ -4444,7 +4445,7 @@ function DashboardAddMonthZone({
   /** Hide the "Add another month" eyebrow (the modal supplies its own title). */
   hideHeader?: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [dragActive, setDragActive] = useState(false);
   const staged = stagedFiles.length > 0;
   const isLocalhost =
@@ -4497,7 +4498,7 @@ function DashboardAddMonthZone({
               <h3 className="text-[15px] font-semibold text-ink">
                 {dragActive ? t("dash.dropFileToUpload") : t("dash.dropNextMonth")}
               </h3>
-              <p className="text-[12px] text-ink-soft mt-1">{t("dash.formatsLimit")}</p>
+              <p className="text-[12px] text-ink-soft mt-1">{uploadGuideView(i18n.language).formatsLine} {t("dash.sizeLimit")}</p>
               <button
                 type="button"
                 onClick={onTriggerFile}
@@ -4620,7 +4621,10 @@ function UploadAndSamplePanel({
    *  complete" card so the user confirms the hand-off into State B. */
   onViewResults: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  // The formats this surface names are coverage.json's (tested on real
+  // books / accepted and untested) — never a list typed here.
+  const uploadGuide = uploadGuideView(i18n.language);
   // Drag-over state — drives the dropzone's "file hovering" styling and the
   // "Drop your file to upload" affordance text.
   const [dragActive, setDragActive] = useState(false);
@@ -4695,7 +4699,8 @@ function UploadAndSamplePanel({
       <div className="w-full grid grid-cols-1 sm:grid-cols-3 gap-2" data-testid="upload-document-guide">
         <DocGuideCard
           title={t("dash.docTb")}
-          format="XLSX · CSV · PDF"
+          format={uploadGuide.testedFormats}
+          note={uploadGuide.untestedLine}
           shows={t("dash.docTbShows")}
           where={[
             { label: t("dash.docTbWhere1"), href: null },
@@ -4720,6 +4725,7 @@ function UploadAndSamplePanel({
         <DocGuideCard
           title={t("dash.docStatutory")}
           format="XLSX (Formular F30 + F10)"
+          note={uploadGuide.untestedDocument}
           shows={t("dash.docStatutoryShows")}
           where={[
             { label: t("dash.docStatutoryWhere1"), href: "https://anaf.ro" },
@@ -4821,7 +4827,7 @@ function UploadAndSamplePanel({
                 {dragActive ? t("dash.dropFileToUpload") : t("dash.dropTrialBalanceHere")}
               </h3>
               <p className="text-[12.5px] text-ink-soft mt-1">
-                {t("dash.formatsLimit")}
+                {uploadGuide.formatsLine} {t("dash.sizeLimit")}
               </p>
               {/* Same treatment as the sidebar's ACTIVE tab: animated
                   teal gradient fill + brand border. */}
@@ -5104,9 +5110,13 @@ function UploadHeroCallout() {
 // Document-guide card. One row in the "what can I upload" expandable.
 // `tone` colors the left border: best (green — most data unlocked), ok
 // (neutral), free (blue — free public source, frictionless onboarding).
-function DocGuideCard({ title, format, shows, where, tone }: {
+function DocGuideCard({ title, format, note, shows, where, tone }: {
   title: string;
   format: string;
+  /** A coverage statement under the format line, from coverage.json
+   *  (lib/coverage.uploadGuideView) — "accepted, not yet tested on a real
+   *  file". Never typed at the call site. */
+  note?: string;
   shows: string;
   where: Array<{ label: string; href: string | null }>;
   tone: "best" | "ok" | "free";
@@ -5129,6 +5139,9 @@ function DocGuideCard({ title, format, shows, where, tone }: {
         </span>
       </div>
       <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-soft font-medium mb-1.5">{format}</div>
+      {note ? (
+        <p data-testid="doc-guide-coverage-note" className="text-[11px] text-ink-mute leading-snug mb-1.5">{note}</p>
+      ) : null}
       <p className="text-[11.5px] text-ink-soft leading-relaxed mb-2">{shows}</p>
       <div className="text-[10.5px] uppercase tracking-[0.08em] text-ink-soft font-medium mb-1">{t("dash.whereToGet")}</div>
       <ul className="space-y-0.5">

@@ -672,7 +672,7 @@ describe("confirmation card", () => {
     renderHome();
     await dropOnHome("notes.docx");
     expect(await screen.findByTestId("upload-card-error-view")).toHaveTextContent(
-      "We can't read this kind of file. Use PDF, Excel (.xlsx, .xls), CSV or a photo.",
+      "We can't read this kind of file. Use an Excel sheet (.xlsx) or a PDF with a text layer.",
     );
     expect(api.identifyUpload).not.toHaveBeenCalled();
   });

@@ -37,6 +37,7 @@ import { Loader2, Plus, UploadCloud } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { FINANCIAL_UPLOAD_ACCEPT } from "@/lib/uploadAccept";
+import { uploadGuideView } from "@/lib/coverage";
 import { startUploadFlow, useUploadFlow } from "@/lib/uploadFlow";
 
 // ── Who else may use the primitives ────────────────────────────────────
@@ -160,7 +161,15 @@ export interface UploadDropProps {
 }
 
 export function UploadDrop({ variant, onScreenOrgId, year, className, children }: UploadDropProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  // The formats named under the zone are coverage.json's — the tested ones,
+  // and what a scan or a photo needs — never a list typed here ("PDF,
+  // Excel, CSV or a photo" offered three things the table calls untested
+  // or unavailable).
+  const guide = uploadGuideView(i18n.language);
+  const zoneHint =
+    t("wsV2.drop.zoneHint", { formats: guide.testedFormats }) +
+    (guide.aiReader ? `. ${t("wsV2.drop.zoneHintAi", { status: guide.aiReader })}` : "");
   const inputRef = useRef<HTMLInputElement>(null);
   const [active, setActive] = useState(false);
   const flow = useUploadFlow();
@@ -206,7 +215,7 @@ export function UploadDrop({ variant, onScreenOrgId, year, className, children }
           {year ? t("wsV2.drop.nextYear", { year }) : t("wsV2.drop.zoneTitle")}
         </span>
         <span className="text-[11px] leading-snug text-ink-mute">
-          {year ? t("wsV2.drop.nextYearHint", { year }) : t("wsV2.drop.zoneHint")}
+          {year ? t("wsV2.drop.nextYearHint", { year }) : zoneHint}
         </span>
       </div>
       </>
@@ -234,7 +243,7 @@ export function UploadDrop({ variant, onScreenOrgId, year, className, children }
         <>
           <UploadCloud size={22} strokeWidth={1.5} className="mb-2 text-ink-soft" aria-hidden />
           <p className="text-[15px] font-semibold text-ink">{t("wsV2.drop.zoneTitle")}</p>
-          <p className="mt-1 max-w-[46ch] text-[12.5px] text-ink-soft">{t("wsV2.drop.zoneHint")}</p>
+          <p className="mt-1 max-w-[46ch] text-[12.5px] text-ink-soft">{zoneHint}</p>
           {children}
           <button
             type="button"
