@@ -246,14 +246,17 @@ DECLARED = {
     # public by design: no tenant data behind them
     ("POST", "/api/cfo/cash"): "public demo: computes from the request body (\"Demo Company\")",
     ("POST", "/api/cfo/profit"): "public demo: computes from the request body",
-    ("POST", "/api/cfo/today"): "public demo: computes from the request body",
+    # /today also PERSISTED the body's recommendations into the shared SQLite
+    # store and answered top_actions from it — for anyone — until 2026-10-02;
+    # the reason below was false while it said only "computes from the body".
+    ("POST", "/api/cfo/today"): "public demo: computes from the request body; stores nothing without the operator bearer (test_public_demo_store)",
     ("POST", "/api/cfo/products"): "public demo: computes from the request body",
     ("POST", "/api/cfo/exports/action-list"): "public demo: computes from the request body",
     ("POST", "/api/cfo/exports/board-summary"): "public demo: computes from the request body",
-    ("POST", "/api/cfo/decisions/{rec_id}/status"): "public demo: legacy SKU adapter, 503 without it; no Supabase tenant table",
+    ("POST", "/api/cfo/decisions/{rec_id}/status"): "operator: require_operator engine bearer, fails closed (test_public_demo_store)",
     ("POST", "/api/contact-sales"): "public form: writes a contact row, no tenant data",
     ("POST", "/api/newsletter/subscribe"): "public: double opt-in subscription",
-    ("POST", "/api/sessions/track"): "public by design (low-sensitivity session log)",
+    ("POST", "/api/sessions/track"): "public write into the operator-only session log (a typed name, the observed address, the device string: personal data; its reader is walled, test_hotfix_anonymous_leaks)",
     ("POST", "/api/stripe/webhook"): "Stripe-signed webhook",
     ("POST", "/api/public/companies/compare"): "public market surface: no tenant data",
     ("POST", "/api/public/companies/{ticker}/refresh"): "public market surface: shielded cache bust, no tenant data",

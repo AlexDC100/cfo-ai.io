@@ -1061,16 +1061,27 @@ def create_app(
 
 
 def _make_auth_dependency(env_var: str) -> Callable[[Optional[str]], None]:
-    """Build a Depends() that checks a Bearer token.
+    """Build a Depends() that checks a Bearer token. FAILS CLOSED.
 
-    If the env var is unset, auth is DISABLED — useful for local dev and tests
-    but a deployment-time misconfiguration in prod. The README warns about this.
+    Until 2026-10-02 an unset env var DISABLED the check ("useful for local
+    dev and tests"), which made `GET /decisions/{run_date}` an anonymous
+    reader of the shared store's `daily_decisions` — and `POST /run-daily`
+    an anonymous writer of it — on any deployment that forgot the token.
+    Production sets it, so nothing was exposed; the rule is the one
+    tests/engine/test_cron_auth.py states for the scheduler routes: where
+    running unauthenticated is worse than not running, an unconfigured
+    deployment refuses (503), it does not open.
+    Gate: tests/engine/test_public_demo_store.py.
     """
     expected = os.environ.get(env_var)
 
     def check(authorization: Optional[str] = Header(None)) -> None:
-        if expected is None:
-            return  # auth disabled
+        if not expected:
+            raise HTTPException(
+                status_code=503,
+                detail="%s is not configured; refusing to serve an "
+                       "operator-only route on an unconfigured deployment." % env_var,
+            )
         if not authorization or not authorization.startswith("Bearer "):
             raise HTTPException(status_code=401, detail="Missing bearer token")
         token = authorization.removeprefix("Bearer ").strip()

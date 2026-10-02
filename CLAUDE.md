@@ -1729,6 +1729,68 @@ report and alert bodies) are NOT converted — a separate ruling.
   (the list only shrinks). `GATE-WORK provenance-burndown open=N` prints
   every run; the count is reported weekly (`weekly` rows in the file).
 
+## 27. The shared SQLite store — what it may hold (2026-10-02)
+
+Owner ticket: "public demo routes — confirm the shared SQLite store holds no
+real user data." The store is `engine.db` (`sqlite:////app/data/engine.db`,
+`Dockerfile` CMD; the `backend_data` volume), opened by `create_app()` through
+`PostgresAdapter` (`src/engine/storage/postgres.py`). Six tables, **no user or
+workspace column on any of them**; only `server.py` and `cfo_ai.py` hold the
+adapter. Customer books never touch it — uploads, the pipeline, periods,
+chats and preferences are Supabase.
+
+**The rule: a table that cannot tell one customer's row from another's holds
+no customer's row, and is read only with the operator bearer.**
+
+| table | written by | read by | may hold |
+|---|---|---|---|
+| `recommendations` | `POST /api/cfo/today`, operator bearer only | `GET /api/cfo/decisions`, `POST /api/cfo/decisions/{id}/status`: operator bearer | the operator's own SKU queue (the legacy single-tenant engine) |
+| `daily_decisions` | `POST /run-daily`: engine bearer | `GET /decisions/{run_date}`: engine bearer | the same engine's daily output |
+| `category_metrics`, `master_skus` | no route (`insert_categories` has no caller outside tests; `master_skus` has no writer) | `/run-daily` | its inputs |
+| `chat_messages` | nothing (`insert_chat_message` has no caller) | nothing | nothing |
+| `session_log` | `POST /api/sessions/track`, **anonymous** | `GET /api/sessions`: operator bearer | a typed name, the address Caddy observed, the device string — personal data |
+
+What was wrong until this date: `POST /api/cfo/today` is public and persisted
+the BODY's recommendations by default, `GET /api/cfo/decisions` returned every
+row to anyone and `POST …/status` let anyone rewrite one — measured on the
+real app, one client read another's SKU back. No screen of the current
+frontend calls those three (the `cfoApi` wrappers have no call site), so it
+was open to a direct caller. Now: the six `/api/cfo` POST routes compute from
+the body and store nothing without the engine bearer; the queue and the two
+legacy bearer routes fail closed (503) where `ENGINE_API_TOKEN` is unset —
+an unset token used to DISABLE the legacy check.
+
+Gate `public-demo-store` (`tests/engine/test_public_demo_store.py`): a
+customer-shaped row planted in every table is returned by no route of the
+real app without the operator bearer; no such request changes any table but
+`session_log`; a seventh table reds until it is planted. **A new table in
+this store, or a new route handed the adapter, goes through that gate
+first — and anything that belongs to a customer goes to Supabase with
+`org_id`, never here.**
+
+The other SQLite files on the volume are separate stores with their own
+gates: `public_ro.db` (open filings; `funnel_events` takes an anonymous
+write of event kind, CUI, path, UTM and a salted IP hash, and has no public
+reader), `public_market.db` (provider feeds), and the registry name index
+(public names only, built read-only from `public_ro.db`).
+
+**Open, the owner's to decide:** (1) `session_log` still collects from any
+browser carrying the legacy `aicfo.user.v1` key (`App.tsx`
+`heartbeatIfIdentified`); `setUserName` and `fetchSessions` have no call
+site, so the roster it fed is dead — retire the heartbeat, the route and the
+rows together. (2) Rows written to `recommendations` before this deploy stay
+in the file. What production holds was NOT measured in this work (no probe
+was run). `docker exec cfo-ai-backend python3 /app/scripts/check_public_store.py`
+prints counts, column names and date ranges only — read-only, exit 3 when a
+table that should be empty is not — then clear the table.
+(3) `GET /api/canonical-categories` is public and serves DIO / CCC / DSO /
+DPO / stored real margin per category from the workbook the `Dockerfile` CMD
+names (`files/Trading_analysis_YTDOct'25_LV.xlsx`, described in `server.py`
+as "the largest real SKU dataset in this repo"). The file is not tracked in
+git; whether the production host carries it — and so whether the route
+serves a real company's category figures or an empty list — was not
+measured. Not in this store, not changed here.
+
 ---
 
 # 📘 Appendix A — Full Financial Analysis Methodology
