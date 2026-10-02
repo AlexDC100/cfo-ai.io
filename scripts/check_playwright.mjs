@@ -43,7 +43,10 @@
  *   · the ran count falling below the floor (specs that stopped running);
  *   · the skip rate rising above the ceiling (a suite going quiet);
  *   · `E2E_BASE_URL` pointing anywhere but localhost;
- *   · the runner producing no JSON report at all.
+ *   · the runner producing no JSON report at all;
+ *   · ZERO TESTS COLLECTED — a report that holds no test (see the block
+ *     below the walk). It has its own message, and `--write-baseline`
+ *     refuses on it instead of recording an empty baseline.
  * ══ WHAT IT CANNOT SEE ════════════════════════════════════════════════
  *   · anything behind `E2E_REAL=1`, which needs a seeded workspace.
  *     Those specs are COUNTED as skipped and the ceiling holds their
@@ -167,6 +170,58 @@ const walk = (node, file) => {
   }
 };
 for (const s of report.suites ?? []) walk(s, s.file);
+
+// ZERO TESTS COLLECTED IS ITS OWN RED, AND IT COMES BEFORE THE BASELINE.
+//
+// A report with no test in it is not a quiet suite, it is no suite. Two
+// causes are measured (Playwright 1.59.1, 2026-10-02):
+//   · ONE spec that throws while it is being collected empties the WHOLE
+//     run — the other 44 files contribute nothing either;
+//   · a second copy of @playwright/test on the resolution path does the
+//     same to every file ("did not expect test.describe() to be called
+//     here"). A stray `node_modules/node_modules` link did exactly that in
+//     every worktree: 0 tests in 0 files, in 3 s.
+// Before this block the run fell through to the skip-rate ceiling and
+// printed "100.0% of tests skipped … the suite is going quiet" — the wrong
+// diagnosis, nothing was skipped — and `--write-baseline` on such a run
+// WROTE AN EMPTY BASELINE, exited 0 and advised PW_FLOOR_RAN=0: every
+// later run would then have passed against it. The same class as the
+// vacuous canaries: a verdict over nothing is never a pass.
+if (ran + skipped === 0) {
+  const words = (report.errors ?? [])
+    .map((e) => String(e?.message ?? e?.value ?? "").split("\n")[0].trim())
+    .filter(Boolean);
+  console.log("PLAYWRIGHT GATE");
+  console.log("=".repeat(62));
+  console.log(
+    `GATE-WORK playwright units=0 floor=${FLOOR_RAN} label=e2e-tests-run ` +
+      `skipped=0 collected=0`,
+  );
+  console.log("");
+  console.log(
+    "FAIL — ZERO TESTS COLLECTED. The runner wrote a report and it holds no " +
+      "test: nothing ran and nothing was skipped, so nothing was measured. " +
+      "One spec that throws while it is being collected empties the whole " +
+      "run, and so does a second copy of @playwright/test on the resolution " +
+      "path (a `node_modules/node_modules` link).",
+  );
+  if (words.length) {
+    const distinct = [...new Set(words)];
+    console.log(`  the runner's own words (${words.length} error(s), ${distinct.length} distinct):`);
+    for (const w of distinct.slice(0, 8)) {
+      console.log(`  · ${w} (×${words.filter((x) => x === w).length})`);
+    }
+  } else {
+    console.log("  the runner gave no error — run `npx playwright test --project=chromium --list` to see what it collects.");
+  }
+  if (WRITE) {
+    console.log(
+      `  ${BASELINE} was NOT rewritten: a baseline recorded from this run ` +
+        "would be empty, and every later run would pass against it.",
+    );
+  }
+  process.exit(1);
+}
 
 failures.sort();
 if (WRITE) {
