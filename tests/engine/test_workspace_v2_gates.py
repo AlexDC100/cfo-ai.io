@@ -535,6 +535,32 @@ def test_g1_an_agras_pdf_is_identified_on_the_branch_the_pipeline_reads_it_on_an
         "G1: something of the Agras PDF (%s as %r) landed in Scandia" % (shape, filename)
 
 
+@pytest.mark.parametrize("filename,mime", [("balanta.pdf", PDF_MIME), ("balanta", PDF_MIME)],
+                         ids=["named-.pdf (control)", "named-by-its-MIME-type"])
+def test_g1_a_workspace_from_before_cuis_takes_the_cui_of_its_own_pdf_whatever_mime_named_it(
+        app, gw, filename, mime):
+    """/api/uploads/commit reads the identity too (best-effort): a workspace
+    created before companies were keyed by CUI adopts the CUI its own
+    document prints (`_after_commit_to_existing`). The commit route holds
+    the declared MIME type and must hand it to the identifier, as /identify
+    does: Agras's PDF stored as `balanta` / application/pdf is read by the
+    pipeline, and its CUI is the company's.
+
+    Reds on: /commit asking the identifier with the name alone (the PDF is
+    "unreadable" to it, and the workspace stays without a CUI — the state in
+    which the takeover wall has only the month's own file to go by)."""
+    (bag,) = [r["prefs"] for r in gw.db.rows("org_prefs") if r["org_id"] == ORG_AGRAS]
+    gw.db.update("org_prefs", {"prefs": dict((k, v) for k, v in bag.items() if k != "cui")},
+                 filters={"org_id": "eq.%s" % ORG_AGRAS})
+    content = PDF_SHAPES["pdf_junk_both_ends"](balance_pdf_of("AGRAS SRL", CUI_AGRAS))
+    c = commit(app, content, filename, mime=mime, target_org_id=ORG_AGRAS, period_end="2025-12-31",
+               output_language="ro")
+    assert c.status_code == 200 and c.json()["status"] == "queued" and c.json()["org_id"] == ORG_AGRAS, c.text[:300]
+    (bag,) = [r["prefs"] for r in gw.db.rows("org_prefs") if r["org_id"] == ORG_AGRAS]
+    assert bag.get("cui") == CUI_AGRAS, \
+        "the commit of (%r, %r) did not read the document's CUI: %r" % (filename, mime, bag)
+
+
 def test_g1_scandia_on_screen_never_captures_a_cui_it_does_not_hold(app, gw):
     """The mirror: a Scandia file dropped on the AGRAS page lands in Scandia."""
     content = agras_workbook(cui=CUI_SCANDIA, name="SCANDIA FOOD SRL")

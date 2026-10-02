@@ -408,16 +408,18 @@ def _engine_gates() -> List[Gate]:
         # identifier), the G4 wall under 8 (shape, name, MIME) rows with a
         # clean-PDF control, the same company's PDF still replacing the month
         # (2 — the pipeline READS both shapes), and the month's own document
-        # of a company without a CUI read with its `mime_type` (1).
-        # Measured 47, floor 47.
+        # of a company without a CUI read with its `mime_type` (1); /commit
+        # hands the MIME type over too (a pre-CUI workspace takes the CUI of
+        # its own PDF, 2 rows). Measured 49, floor 49.
         # Plant log: docs/engine_book/gates.md.
         Gate("workspace-v2",
              [PY, "-m", "pytest", "tests/engine/test_workspace_v2_gates.py",
               "tests/engine/test_no_empty_period_creators.py", "-q"],
-             work_junit=True, floor=47, units="tests",
+             work_junit=True, floor=49, units="tests",
              canaries=("test_g1_an_agras_file_dropped_on_a_scandia_page_lands_in_agras",
                        "test_g1_an_agras_workbook_named_pdf_is_identified_by_its_bytes_and_lands_in_agras",
                        "test_g1_an_agras_pdf_is_identified_on_the_branch_the_pipeline_reads_it_on_and_lands_in_agras",
+                       "test_g1_a_workspace_from_before_cuis_takes_the_cui_of_its_own_pdf_whatever_mime_named_it",
                        "test_g4_a_same_month_file_of_another_company_never_replaces_the_month",
                        "test_g4_a_same_month_pdf_of_another_company_never_replaces_the_month",
                        "test_g4_a_same_month_pdf_of_the_same_company_still_replaces_the_month",
