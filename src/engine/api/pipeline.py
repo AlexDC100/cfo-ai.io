@@ -543,6 +543,78 @@ def _verify_user_may_write_period(jwt: str, period_id: str) -> Dict[str, Any]:
     return rows[0]
 
 
+def _caller_valuation_assumptions(jwt: str, period_id: str, *,
+                                  client: Any = None) -> Optional[Dict[str, Any]]:
+    """THE CALLER'S OWN saved valuation overrides for one period, or None.
+
+    `user_valuation_assumptions` is a per-USER table (key `user_id` +
+    `period_id`): two members of one workspace each hold their own row for
+    the same period. It is read through the CALLER'S client (row-level
+    security), with the caller's VERIFIED user id in the filter, and a row
+    that is not the caller's is dropped — never under the service role,
+    never by period alone, never "the first row".
+
+    Hotfix 2026-10-02 (tenancy): `valuation/recompute` and
+    `briefing/regenerate` read this table with the admin client by
+    `period_id` only and took `rows[0]`, so a member was served a valuation
+    computed on ANOTHER member's EBITDA, multiple, debt and cash; GET
+    /api/period read it by period alone and relied on a policy this
+    repository does not define.
+
+    The tenant is carried by the period: every caller reads the period
+    under its own wall first (a per-user select of `financial_periods`), and
+    the table itself has no org column to filter on.
+    """
+    def _read(c: Any) -> Optional[Dict[str, Any]]:
+        user_id = str(c.get_user(jwt)["id"])
+        rows = c.select(
+            "user_valuation_assumptions",
+            filters={"period_id": f"eq.{period_id}", "user_id": f"eq.{user_id}"},
+        ) or []
+        own = [r for r in rows if str(r.get("user_id")) == user_id]
+        return own[0] if own else None
+
+    if client is not None:
+        return _read(client)
+    with _supabase.per_user(jwt) as own_client:
+        return _read(own_client)
+
+
+def _period_source_document(client: Any, period: Dict[str, Any]) -> Dict[str, Any]:
+    """The document a period was analysed from, for the narrator — read with
+    the TENANT in the filter, never "the first row carrying this period_id".
+
+    `documents.period_id` is browser-writable: a member of another workspace
+    can point a row of THEIR org at this period, and a period routinely
+    holds several rows of its own (a replaced month keeps its `period_id`
+    and only gains `deleted_at`; other uploads are pinned to the month).
+    The regenerate route read `documents` under the service role by
+    `period_id` alone and took `rows[0]` — any of those — as "the document"
+    whose filename and language the narrator is told (tenancy hotfix
+    2026-10-02). Order: the period's own `source_document_id` in the
+    period's org; else the oldest live document of that org filed on the
+    period; else a stub carrying the org.
+    """
+    org_id = period.get("org_id")
+    org_filter = f"eq.{org_id}"
+    source_id = period.get("source_document_id")
+    if source_id:
+        rows = client.select(
+            "documents", filters={"id": f"eq.{source_id}", "org_id": org_filter}, limit=1)
+        own = [r for r in (rows or []) if str(r.get("org_id")) == str(org_id)]
+        if own:
+            return own[0]
+    rows = client.select(
+        "documents",
+        filters={"period_id": f"eq.{period.get('id')}", "org_id": org_filter,
+                 "deleted_at": "is.null"},
+        order="created_at.asc", limit=1)
+    own = [r for r in (rows or []) if str(r.get("org_id")) == str(org_id)]
+    if own:
+        return own[0]
+    return {"id": "regenerate", "org_id": org_id, "language": "en"}
+
+
 def _require_member(jwt: str, org_id: Optional[str]) -> str:
     """`_org.require_org_member`, looked up at call time — for handlers
     that bind a LOCAL name `_org` further down (review/reanalyze does) and
@@ -9069,13 +9141,25 @@ def build_router() -> APIRouter:
             try:
                 doc_id = ds_row.get("document_id")
                 if doc_id:
-                    docs = ac.select("documents", filters={"id": f"eq.{doc_id}"}, single=True)
+                    # THE TENANT IS IN THE FILTER (tenancy hotfix 2026-10-02):
+                    # `sales_datasets.document_id` is a COLUMN of the dataset
+                    # row, not the object the wall above authorized — a row
+                    # pointing at another workspace's document returned that
+                    # document here, and the signed URL was then checked
+                    # against the foreign document's OWN org (trivially
+                    # true). Both now name the dataset's org, which
+                    # `require_org_member` authorized for this caller.
+                    docs = ac.select(
+                        "documents",
+                        filters={"id": f"eq.{doc_id}", "org_id": f"eq.{ds_row['org_id']}"},
+                        single=True)
+                    docs = [d for d in (docs or []) if str(d.get("org_id")) == str(ds_row["org_id"])]
                     if docs:
                         storage_path = docs[0].get("storage_path")
                         if storage_path:
                             signed = ac.signed_url(
                                 "documents", storage_path,
-                                org_id=docs[0].get("org_id"), expires_in=300)
+                                org_id=ds_row["org_id"], expires_in=300)
                             r = httpx.get(signed, timeout=60.0)
                             r.raise_for_status()
                             xlsx_bytes = r.content
@@ -9757,14 +9841,17 @@ def build_router() -> APIRouter:
 
             # Per-user assumption overrides — only returned if the user has
             # saved any. Dashboard merges these on top of engine defaults.
+            # The CALLER'S row only: user id in the filter, not the period
+            # alone (`_caller_valuation_assumptions`).
             try:
-                ua_rows = client.select(
-                    "user_valuation_assumptions",
-                    filters={"period_id": f"eq.{period_id}"},
-                    single=True,
-                )
-                user_assumptions = ua_rows[0] if ua_rows else None
-            except Exception:  # noqa: BLE001
+                user_assumptions = _caller_valuation_assumptions(jwt, period_id, client=client)
+            except Exception as exc:  # noqa: BLE001
+                # Swallowed, but never silent: the period is served on the
+                # engine's figures and the reader must be able to find out why.
+                logger.warning(
+                    "[/api/period] the caller's valuation overrides were not read "
+                    "for period %s (%s: %s) — served on the engine's figures, "
+                    "user_assumptions null", period_id, type(exc).__name__, exc)
                 user_assumptions = None
 
         # Re-assemble Statements from line_items so the frontend doesn't need
@@ -10631,9 +10718,23 @@ def build_router() -> APIRouter:
                 payload,
                 on_conflict="user_id,period_id",
             )
-        # Recompute and re-persist the valuation row reflecting the user's
-        # overrides, so the dashboard can re-read /api/period/:id and see
-        # the new numbers without any client-side math.
+        # Re-persist the period's valuation row on the ENGINE'S figures — NOT
+        # on this caller's overrides (tenancy hotfix 2026-10-02; owner ruling
+        # "the engine's result is shared, overrides are per user only").
+        # `valuations` is ONE row per period that every member reads; this
+        # block used to compute it with the saver's EBITDA / multiple / debt
+        # / cash, so the row carried one member's typed figures, and another
+        # member was served them whenever the fresh recompute fell back to
+        # the row (`row_benchmarks` read the saver's multiple as the peer
+        # P50; `lawful_stored_row` served or printed the rest). The saver's
+        # own view is unchanged whenever a recompute runs: GET /api/period
+        # recomputes on the served statements with the CALLER'S own overrides
+        # on top, including the benchmark-table-down retry over the row's
+        # peer multiples. When NO recompute runs at all (compute fails on
+        # both attempts, or the row carries no peer multiple and the table is
+        # down) the saver is served the ENGINE'S lawful row beside their own
+        # saved `user_assumptions` (before this fix: the row their own save
+        # had written).
         try:
             with _supabase.admin() as admin_client:
                 periods_admin = admin_client.select(
@@ -10663,12 +10764,6 @@ def build_router() -> APIRouter:
                     result = _valuation.compute_valuation(
                         industry_key=_valuation_industry_key(org, assembled, line_items),
                         statements=assembled,
-                        user_assumptions={
-                            "ebitda_used": payload["ebitda_used"],
-                            "multiple_used": payload["multiple_used"],
-                            "debt_used": payload["debt_used"],
-                            "cash_used": payload["cash_used"],
-                        },
                     )
                     _valuation.persist_valuation(period_id, period["org_id"], result)
         except Exception:  # noqa: BLE001
@@ -10832,17 +10927,16 @@ def build_router() -> APIRouter:
             # GET path never served.
             assembled = _rebuild_assembled_for_briefing(line_items, period, org, client=admin_client)["statements"]
 
-            # Layer the user's saved EBITDA/multiple/debt/cash overrides
+            # Layer the CALLER'S saved EBITDA/multiple/debt/cash overrides
             # underneath the recompute's DCF overrides — same precedence
             # the GET endpoint uses, so toggling DCF inputs doesn't
-            # silently revert the user's persisted EBITDA choice.
-            ua_rows = admin_client.select(
-                "user_valuation_assumptions",
-                filters={"period_id": f"eq.{period_id}"},
-            )
+            # silently revert the user's persisted EBITDA choice. The
+            # caller's own row (their client, their user id in the filter):
+            # this was an admin read by period only, first row taken, and
+            # served one member a valuation on another member's figures.
+            ua = _caller_valuation_assumptions(jwt, period_id)
             user_assumptions = None
-            if ua_rows:
-                ua = ua_rows[0]
+            if ua:
                 user_assumptions = {
                     "ebitda_used":   ua.get("ebitda_used"),
                     "multiple_used": ua.get("multiple_used"),
@@ -10926,9 +11020,17 @@ def build_router() -> APIRouter:
                 "statement_line_items",
                 filters={"period_id": f"eq.{period_id}"},
             )
+            # THE TENANT IS IN THE FILTER (tenancy hotfix 2026-10-02) on every
+            # period-keyed read below whose table carries `org_id`:
+            # `period_id` on those tables is a column a member of ANOTHER
+            # workspace can write on their own rows (the insert policies
+            # check the row's own org only), so "by period" alone could
+            # return a foreign row to the narrator of this workspace's
+            # shared briefing.
+            _org_filter = f"eq.{period['org_id']}"
             metric_rows = admin_client.select(
                 "calculated_metrics",
-                filters={"period_id": f"eq.{period_id}"},
+                filters={"period_id": f"eq.{period_id}", "org_id": _org_filter},
             )
             # calculated_metrics columns are name/value/unit/direction
             # (NOT metric_name/metric_value — the earlier shape was an F2.8
@@ -10945,18 +11047,10 @@ def build_router() -> APIRouter:
             ]
             valuation_rows = admin_client.select(
                 "valuations",
-                filters={"period_id": f"eq.{period_id}"},
+                filters={"period_id": f"eq.{period_id}", "org_id": _org_filter},
             )
             valuation = valuation_rows[0] if valuation_rows else None
-            doc_rows = admin_client.select(
-                "documents",
-                filters={"period_id": f"eq.{period_id}"},
-            )
-            doc = doc_rows[0] if doc_rows else {
-                "id": "regenerate",
-                "org_id": period["org_id"],
-                "language": "en",
-            }
+            doc = _period_source_document(admin_client, period)
             # `language` (optional query param, 2026-08-04): the FE passes
             # the ACTIVE UI language so a user who switched EN↔RO can pull
             # the briefing into the language they're reading the app in —
@@ -10974,21 +11068,22 @@ def build_router() -> APIRouter:
             # THE STORED valuations ROW IS NOT THE VALUATION the narrator
             # cites (the one-EBITDA law, critic 2026-09-27): the same
             # choice GET /api/period makes — a fresh recompute on these
-            # statements with the user's saved overrides, else the row
-            # only as far as `lawful_stored_row` allows it. The row the
-            # engine wrote under the previous definition carried an
-            # EV/EBITDA equity on the old EBITDA, which a regenerated
-            # briefing (stamped with TODAY's definition) would cite.
+            # statements, else the row only as far as `lawful_stored_row`
+            # allows it. The row the engine wrote under the previous
+            # definition carried an EV/EBITDA equity on the old EBITDA,
+            # which a regenerated briefing (stamped with TODAY's
+            # definition) would cite.
+            #
+            # NO USER OVERRIDE (hotfix 2026-10-02, owner ruling "the engine's
+            # result is shared, overrides are per user only"): the briefing
+            # is ONE row every member of the workspace reads. This route
+            # read `user_valuation_assumptions` with the admin client by
+            # period only and handed the FIRST row — whichever member's —
+            # to the narrator, so one member's typed EBITDA / multiple /
+            # debt / cash was written into the shared briefing.
             if valuation:
-                try:
-                    ua_rows = admin_client.select(
-                        "user_valuation_assumptions",
-                        filters={"period_id": f"eq.{period_id}"},
-                    ) or []
-                except Exception:  # noqa: BLE001
-                    ua_rows = []
                 _fresh_val, valuation = _fresh_or_lawful_valuation(
-                    valuation, ua_rows[0] if ua_rows else None,
+                    valuation, None,
                     assembled.get("statements"), org=org,
                     line_items=assembled.get("lineItems") or line_items)
 

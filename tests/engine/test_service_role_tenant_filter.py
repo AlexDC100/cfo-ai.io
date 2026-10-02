@@ -95,8 +95,14 @@ DECLARED_UNFILTERED = {
     ("pipeline.py", "alerts", "upsert"): "server-built rows for an authorized period.",
     ("pipeline.py", "alerts", "delete"): "document-keyed; authorized upstream.",
     ("pipeline.py", "valuations", "select"): "period-keyed; authorized upstream.",
-    ("pipeline.py", "user_valuation_assumptions", "select"):
-        "period-keyed; the period passed _verify_user_may_write_period.",
+    # NO service-role SELECT of `user_valuation_assumptions` is declared, and
+    # none may be added: it is a per-USER table, and the two admin reads that
+    # stood here ("period-keyed; the period passed
+    # _verify_user_may_write_period" — false for valuation/recompute, which
+    # never called that wall) took the first row of ANY member and served it
+    # to the caller (tenancy hotfix 2026-10-02). It is read only through
+    # `pipeline._caller_valuation_assumptions`: the caller's client, the
+    # caller's user id in the filter (gate valuation-overrides-tenancy).
     ("pipeline.py", "user_valuation_assumptions", "upsert"): "same period authorization.",
     ("pipeline.py", "user_valuation_assumptions", "delete"): "same period authorization.",
     ("pipeline.py", "sku_analyses", "upsert"):
