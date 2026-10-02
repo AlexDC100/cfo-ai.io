@@ -392,17 +392,35 @@ def _read_pdf(content: bytes) -> DocumentText:
 
 def extract_document_text(content: bytes, filename: Optional[str] = None) -> DocumentText:
     """Header lines, sheet names and an account-row count, or an
-    ``unreadable`` result naming why. Never raises."""
+    ``unreadable`` result naming why. Never raises.
+
+    READ BY REAL TYPE — the BYTES pick the reader, never the name (review
+    2026-10-02, HIGH). This used to test ``name.endswith(".pdf")`` first, so
+    a workbook named balanta.pdf — a file the upload card and the pipeline
+    both READ since the one upload policy — went to the PDF text reader,
+    came back ``unreadable`` with no CUI, and (a) the card filed it in the
+    company on screen and (b) ``pipeline._document_company_cui`` found no CUI
+    to hold against the month's owner, so the cross-company takeover wall
+    let another company's book replace a served month. The order is the
+    pipeline's own (``engine.api._upload_type.sniff_container``): the
+    offset-0 container signatures decide first — a zip to the workbook
+    reader, OLE2 to the legacy one — then PDF bytes as the pipeline reads
+    them (``reads_as_pdf``: ``%PDF-`` within the first 1,024 bytes, or a
+    header pushed further in on the branch the name leads to). A ``.pdf``
+    name is consulted LAST, for bytes nothing above names: the PDF reader
+    gets its try and its failure is the ``unreadable`` answer."""
     if not content:
         return DocumentText(False, read_error="no bytes")
     name = (filename or "").lower()
     try:
-        if content[:4] == b"%PDF" or name.endswith(".pdf"):
-            return _read_pdf(content)
         if content[:2] == b"PK":
             return _read_xlsx(content)
         if content[:8] == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1":
             return _read_xls(content)
+        from engine.api import _upload_type as _ut  # noqa: WPS433 — lazy (pipeline cycle); pure
+        if _ut.reads_as_pdf(_ut.classify(filename, None), _ut.sniff_container(content), content) \
+                or name.endswith(".pdf"):
+            return _read_pdf(content)
     except Exception as exc:  # noqa: BLE001 — an unreadable file is an answer
         return DocumentText(False, read_error="%s: %s" % (type(exc).__name__, str(exc)[:160]))
     return DocumentText(False, read_error="unsupported format")

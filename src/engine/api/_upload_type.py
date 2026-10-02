@@ -15,8 +15,10 @@ ONE UPLOAD POLICY, READ BY REAL TYPE (coordinator ruling 2026-10-02).
 This module is the ONE authority on what an upload is and whether any
 reader opens it: `classify` (the branch its name claims), `sniff_container`
 (what its bytes are), `reads_as_pdf` (the bytes go through the .pdf
-branch's readers whatever the name says), `refused_on` (no reader on the
-branch opens them) and `upload_refusal` (the verdict and the sentence).
+branch's readers whatever the name says), `reads_as_workbook` (workbook
+bytes named .pdf go through the spreadsheet branch's readers), `refused_on`
+(no reader on the branch opens them) and `upload_refusal` (the verdict and
+the sentence).
 `pipeline.stage_extract` reads it at both guard sites and the workspace
 upload card's routes (`_uploads`, /api/uploads/identify and /commit) read
 the SAME function — what the pipeline reads the card reads, what it
@@ -340,6 +342,37 @@ def reads_as_pdf(kind: str, real: str, file_bytes: bytes) -> bool:
     return False
 
 
+#: The containers the spreadsheet branch's readers open: any Open XML zip
+#: through openpyxl (it finds the workbook part through `[Content_Types].xml`,
+#: so an unrecognised Open XML zip is tried too) and OLE2 through xlrd.
+_WORKBOOK_CONTAINERS = frozenset({XLSX, XLS_OLE2, OOXML_UNKNOWN})
+
+
+def reads_as_workbook(kind: str, real: str) -> bool:
+    """True when these bytes are read by the SPREADSHEET branch's readers on
+    `stage_extract`'s `kind` branch: a workbook under its own name, and a
+    workbook named .pdf — the mirror of `reads_as_pdf`. `stage_extract`
+    re-enters its spreadsheet branch with the bytes, so a workbook named
+    .pdf yields the extraction the same bytes yield named .xlsx or .xls —
+    the statutory F30/F10 detector, the trial-balance reader on the
+    spreadsheet branch's own acceptance, the workbook rendered as text for
+    the model — or the same failure.
+
+    (Before 2026-10-02, review round 3, the .pdf branch read a workbook with
+    its positional reader under the .pdf acceptance gate — account 121 or 50
+    accounts — and refused what that declined: a small balanced balance and
+    a statutory F30/F10 return, both read under their own names, were refused
+    as "named .pdf but its contents are an Excel workbook" AFTER the upload
+    card had answered that the file is read. One verdict now, at both
+    layers, and one read.)
+
+    NOT on the text and image branches: a workbook named .csv, .txt or .png
+    is refused there by name (`_CONTAINERS_NO_TEXT_READER`) — the person
+    chose a text or image type, and the fix is said in one sentence.
+    """
+    return kind in ("pdf", "xlsx") and real in _WORKBOOK_CONTAINERS
+
+
 def refused_on(kind: str, real: str, file_bytes: bytes) -> bool:
     """True when NO reader on `stage_extract`'s `kind` branch can open a
     file whose bytes are `real` — the one policy every guard site reads
@@ -351,10 +384,11 @@ def refused_on(kind: str, real: str, file_bytes: bytes) -> bool:
     · everywhere — `REACHES_NO_READER` is refused, and bytes that
       `reads_as_pdf` are never refused: the .pdf branch's readers read them.
     · `pdf` and `xlsx` — the same answer, because the two names lead to the
-      same two families of reader: PDF bytes to the .pdf branch's readers,
-      and a workbook to `parse_trial_balance`, which opens any zip through
-      openpyxl (it needs `[Content_Types].xml`) and OLE2 through xlrd on
-      either branch. So XLSX, OOXML_UNKNOWN and XLS_OLE2 are read. A zip
+      same two families of reader: PDF bytes to the .pdf branch's readers
+      (`reads_as_pdf`) and a workbook to the spreadsheet branch's
+      (`reads_as_workbook`), which open any zip through openpyxl (it needs
+      `[Content_Types].xml`) and OLE2 through xlrd. So XLSX, OOXML_UNKNOWN
+      and XLS_OLE2 are read. A zip
       with no Open XML manifest is not, and text or unnameable bytes are
       not: measured 2026-10-02 on the spreadsheet branch, `_xlsx_to_text`
       and `parse_trial_balance` both raise on them and the AI lane's

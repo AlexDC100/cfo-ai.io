@@ -338,21 +338,25 @@ def _headers(user: str = USER, org: Optional[str] = None) -> Dict[str, str]:
     return out
 
 
-def identify(app, content: bytes, filename: str, *, org: Optional[str] = ORG_SCANDIA):
+PDF_MIME = "application/pdf"
+
+
+def identify(app, content: bytes, filename: str, *, org: Optional[str] = ORG_SCANDIA, mime: str = XLSX):
     return _http(app).post("/api/uploads/identify", headers=_headers(USER, org),
-                           files={"file": (filename, content, XLSX)})
+                           files={"file": (filename, content, mime)})
 
 
-def commit(app, content: bytes, filename: str, **form: Any):
+def commit(app, content: bytes, filename: str, *, mime: str = XLSX, **form: Any):
     data = dict((k, v if isinstance(v, str) else json.dumps(v)) for k, v in form.items() if v is not None)
     return _http(app).post("/api/uploads/commit", headers=_headers(USER),
-                           files={"file": (filename, content, XLSX)}, data=data)
+                           files={"file": (filename, content, mime)}, data=data)
 
 
-def one_tap(app, content: bytes, filename: str, *, on_screen: str = ORG_SCANDIA) -> Dict[str, Any]:
+def one_tap(app, content: bytes, filename: str, *, on_screen: str = ORG_SCANDIA,
+            mime: str = XLSX) -> Dict[str, Any]:
     """What the card's one primary button sends: identify, then commit the
     identity exactly as the card shows it."""
-    r = identify(app, content, filename, org=on_screen)
+    r = identify(app, content, filename, org=on_screen, mime=mime)
     assert r.status_code == 200, r.text[:400]
     ident = r.json()
     target = ident["target"]
@@ -363,7 +367,7 @@ def one_tap(app, content: bytes, filename: str, *, on_screen: str = ORG_SCANDIA)
         form["create_company"] = {"name": target["name"], "cui": ident["identity"]["cui"],
                                   "caen_code": ident["identity"]["caen_code"],
                                   "industry_key": ident["identity"]["industry_key"]}
-    c = commit(app, content, filename, **form)
+    c = commit(app, content, filename, mime=mime, **form)
     assert c.status_code == 200, c.text[:400]
     return {"identify": ident, "commit": c.json()}
 
@@ -399,6 +403,48 @@ def test_g1_an_agras_file_dropped_on_a_scandia_page_lands_in_agras(app, gw):
     assert (gw.docs(org_id=ORG_SCANDIA), gw.objects(ORG_SCANDIA)) == before_scandia, \
         "G1: something of the Agras file landed in Scandia"
     assert gw.enqueued == [doc["id"]] and gw.meter.reserved == [USER]
+
+
+def test_g1_an_agras_workbook_named_pdf_is_identified_by_its_bytes_and_lands_in_agras(app, gw):
+    """Review round 3 (2026-10-02), HIGH. Since the one upload policy the
+    card's routes ADMIT a workbook named .pdf (the pipeline reads it). The
+    identifier chose its reader by NAME, so the same Agras workbook named
+    balanta.pdf came back "unreadable" — no CUI, no company, no period —
+    the card offered the company ON SCREEN, and one tap stored and analysed
+    Agras's book in Scandia, which then served Agras's turnover. (On
+    production's tree the routes refused the file, so neither was reachable.)
+
+    The identity is the bytes': named .pdf, the file is identified exactly
+    as under .xlsx, lands in Agras, is analysed there, and Scandia holds
+    nothing of it.
+
+    Reds on: a workbook named .pdf identified by its name (no CUI, or the
+    on-screen company as the target); anything of it stored or analysed in
+    the company on screen."""
+    content = agras_workbook()
+    as_xlsx = identify(app, content, "balanta.xlsx", org=ORG_SCANDIA)
+    assert as_xlsx.status_code == 200, as_xlsx.text[:300]
+    before_scandia = (gw.docs(org_id=ORG_SCANDIA), gw.objects(ORG_SCANDIA), gw.db.rows("financial_periods"))
+    out = one_tap(app, content, "balanta.pdf", on_screen=ORG_SCANDIA, mime=PDF_MIME)
+    ident, done = out["identify"], out["commit"]
+    assert ident["identity"]["cui"] == CUI_AGRAS, ident["identity"]
+    assert ident["identity"]["sources"]["cui"]["signal"] == "document_header_cui", ident["identity"]["sources"]
+    for field in ("cui", "company_name", "period_end", "document_kind", "caen_code", "industry_key"):
+        assert ident["identity"][field] == as_xlsx.json()["identity"][field], \
+            "the identity's %s differs by NAME: %r as .pdf, %r as .xlsx" % (
+                field, ident["identity"][field], as_xlsx.json()["identity"][field])
+    assert ident["identity"]["document_kind"] == "trial_balance", ident["identity"]
+    assert ident["target"] == {"org_id": ORG_AGRAS, "name": "Agras SRL", "is_new": False,
+                               "reason": "cui_match"}, ident["target"]
+    assert done["status"] == "queued" and done["org_id"] == ORG_AGRAS, done
+    doc = run_analysis(gw, done["document_id"])
+    assert doc["status"] == "analyzed" and doc["org_id"] == ORG_AGRAS, (doc["status"], doc.get("error"))
+    (period,) = gw.db.rows("financial_periods")
+    assert period["org_id"] == ORG_AGRAS and period["source_document_id"] == doc["id"], period
+    assert (gw.docs(org_id=ORG_SCANDIA), gw.objects(ORG_SCANDIA)) == before_scandia[:2], \
+        "G1: something of the Agras file named .pdf landed in Scandia"
+    assert [p for p in gw.db.rows("financial_periods") if p["org_id"] == ORG_SCANDIA] == \
+        [p for p in before_scandia[2] if p["org_id"] == ORG_SCANDIA]
 
 
 def test_g1_scandia_on_screen_never_captures_a_cui_it_does_not_hold(app, gw):
@@ -863,17 +909,27 @@ def test_g4_a_same_month_reupload_whose_run_fails_leaves_the_month_serving_the_f
         "the first run counted, the failed one released"
 
 
-def test_g4_a_same_month_file_of_another_company_never_replaces_the_month(app, gw):
+@pytest.mark.parametrize("filename,mime", [("balanta.xlsx", XLSX), ("balanta.pdf", PDF_MIME)])
+def test_g4_a_same_month_file_of_another_company_never_replaces_the_month(app, gw, filename, mime):
+    """…under ANY name the file is read under. The .pdf-named twin (review
+    round 3, 2026-10-02, HIGH): the wall reads the document's CUI through
+    the identifier, which chose its reader by name — Scandia's workbook
+    named balanta.pdf had no CUI to the wall, was analysed, replaced
+    Agras's December (the served revenue became Scandia's, the first
+    document archived `superseded_by`) and the meter committed twice."""
     first = _analysed_month(app, gw, agras_workbook())
     org_id = first["doc"]["org_id"]
     # Scandia's book, committed into Agras by an explicit choice on the card
     # (the route lets a member file anything into their own company). The
     # persist layer is the belt and braces: December belongs to CUI 46355095.
     scandia = book_workbook(SCANDIA_BOOK, name="SCANDIA FOOD SRL", cui=CUI_SCANDIA)
-    c = commit(app, scandia, "balanta.xlsx", target_org_id=org_id, period_end="2025-12-31", output_language="ro")
+    c = commit(app, scandia, filename, mime=mime, target_org_id=org_id, period_end="2025-12-31",
+               output_language="ro")
     assert c.status_code == 200 and c.json()["status"] == "queued" and c.json()["org_id"] == org_id, c.text[:300]
     refused = run_analysis(gw, c.json()["document_id"])
-    assert refused["status"] == "failed", (refused["status"], refused.get("error"))
+    assert refused["status"] == "failed", \
+        "G4: another company's file named %s was analysed over the month: %r" % (
+            filename, (refused["status"], refused.get("error")))
     message = str(refused.get("error") or "")
     assert CUI_SCANDIA in message and CUI_AGRAS in message, message
     assert not re.match(r"^\w*(Error|Exception|Refused)\w*:", message), \
@@ -887,6 +943,11 @@ def test_g4_a_same_month_file_of_another_company_never_replaces_the_month(app, g
     assert _rows_under(gw, period["id"]) == first["rows"]
     assert _served(app, org_id, period["id"]) == first["served"]
     assert refused["period_id"] is None
+    (kept,) = gw.docs(id=first["doc"]["id"])
+    assert kept["status"] == "analyzed" and kept["deleted_at"] is None, \
+        "G4: the month's own document was archived by another company's file: %r" % kept
+    assert gw.meter.committed == [(USER, False)], \
+        "G4: the refused file was counted: %r" % (gw.meter.committed,)
     from engine.workspaces.migration_plan import empty_live_periods
     assert empty_live_periods(gw.db.tables) == []
 

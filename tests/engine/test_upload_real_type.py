@@ -974,21 +974,53 @@ def test_the_pdf_branch_still_reads_a_pdf_whose_header_sits_past_the_window(pdf_
             pytest.fail(f"a real PDF with leading junk was refused: {e}")
 
 
-def test_a_workbook_the_positional_reader_declines_never_reaches_the_claude_pdf_lane(pdf_upload, readers):
-    """The type guard lets a workbook through on the .pdf branch — the
-    positional reader opens workbooks by their bytes (the Carniprod law
-    above). A workbook that is NOT a trial balance is declined there, and
-    the release head then sent it to Anthropic as `application/pdf`. It is
-    refused instead, with the fix: take the workbook's own name."""
-    msg = _refused(pdf_upload, _real_xlsx(), "rezultate.pdf")
-    assert "Excel workbook" in msg and "rename it to .xlsx" in msg, msg
-    assert readers["parse_trial_balance"] >= 1, "the positional reader must still get its turn"
-    assert pdf_upload.calls["claude_lane"] == 0  # type: ignore[attr-defined]
-    # ...and an unrecognised Open XML zip and a junk OLE2 workbook the same way.
-    for content in (_zip_of({"[Content_Types].xml": b"<Types/>", "workbook.xml": b"<w/>"}),
-                    _cfb({"Workbook": b"\x09\x08" + b"x" * 600})):
-        _refused(pdf_upload, content, "balanta.pdf")
-    assert pdf_upload.calls["claude_lane"] == 0  # type: ignore[attr-defined]
+def test_a_workbook_named_pdf_never_reaches_the_claude_pdf_lane(pdf_upload, readers):
+    """THIS TEST REPLACES ONE THAT PINNED A SECOND VERDICT
+    (`test_a_workbook_the_positional_reader_declines_never_reaches_the_
+    claude_pdf_lane`, review round 2): it asserted that a workbook the .pdf
+    branch's positional reader declined is REFUSED there, late — "is named
+    .pdf but its contents are an Excel workbook" — after the upload card's
+    routes had answered that the file is read (review round 3: route verdict
+    ≠ pipeline verdict, and another outcome by name, for six workbook
+    bodies). A workbook named .pdf now leaves the .pdf branch at the type
+    guard for the spreadsheet branch (`_upload_type.reads_as_workbook`), so:
+
+      · it NEVER reaches the Claude PDF lane (`financial_statements.
+        build_router`) — nothing that is not a PDF is sent to Anthropic as
+        `application/pdf`, the 2026-09-23 incident's lane;
+      · its outcome is the one the same bytes get under their own name —
+        here, for a workbook that is not a balance, the spreadsheet branch's
+        own fallback (the workbook rendered as text for the model: the
+        fixture's client tripwire), and for a workbook neither reader opens
+        the same failure as under .xls / .xlsx.
+
+    Reds on: workbook bytes on the .pdf branch reaching the PDF model lane;
+    a refusal under .pdf of a workbook the card says is read; any outcome
+    that differs from the same bytes named .xlsx / .xls."""
+    bodies = {
+        "a workbook that is not a balance": (_real_xlsx(), "balanta.xlsx", _XLSX_MIME),
+        "an unrecognised Open XML zip": (_zip_of({"[Content_Types].xml": b"<Types/>", "workbook.xml": b"<w/>"}),
+                                         "balanta.xlsx", _XLSX_MIME),
+        "a junk OLE2 workbook": (_cfb({"Workbook": b"\x09\x08" + b"x" * 600}), "balanta.xls",
+                                 "application/vnd.ms-excel"),
+        "a password-protected workbook (OLE2 EncryptedPackage)": (
+            _cfb({"EncryptedPackage": b"e" * 600, "EncryptionInfo": b"i" * 200}), "balanta.xls",
+            "application/vnd.ms-excel"),
+    }
+    for label, (content, own_name, own_mime) in bodies.items():
+        assert ut.reads_as_workbook("pdf", ut.sniff_container(content)), label
+        own = _outcome(pdf_upload, content, own_name, own_mime)
+        as_pdf = _outcome(pdf_upload, content, "balanta.pdf", "application/pdf")
+        assert as_pdf == own, (label, as_pdf[:3], own[:3])
+        assert as_pdf[1] != "UploadedFileTypeMismatchError", (label, as_pdf)
+        assert "financial_statements" not in str(as_pdf[-1]), (label, as_pdf)
+    # The workbook that is not a balance, stated outright: the spreadsheet
+    # branch's readers had their turn and its own fallback was reached —
+    # as a workbook rendered as text, never as `application/pdf`.
+    not_a_balance = _outcome(pdf_upload, _real_xlsx(), "rezultate.pdf", "application/pdf")
+    assert not_a_balance[:2] == ("refused", "AssertionError"), not_a_balance
+    assert "constructed an Anthropic client" in not_a_balance[2], not_a_balance
+    assert readers["parse_trial_balance"] >= 1, "the trial-balance reader must still get its turn"
 
 
 @pytest.mark.parametrize("name", ["balanta.csv", "balanta.txt", "balanta.png", "balanta.zip",
@@ -1211,6 +1243,17 @@ _NAMES = [
 ]
 
 
+#: A name that claims nothing: the declared MIME type alone picks the branch
+#: (`classify`). Review round 3: no row of the matrix had the MIME decide, so
+#: a route that classified by the NAME only stayed green under every law.
+_BY_MIME_ALONE = [
+    ("balanta", "application/pdf"),
+    ("balanta", _XLSX_MIME),
+    ("balanta", "text/csv"),
+    ("balanta", "image/png"),
+]
+
+
 def _canonical(parsed: Dict[str, Any]) -> str:
     import json
     return json.dumps(parsed, sort_keys=True, default=str, ensure_ascii=False)
@@ -1281,16 +1324,208 @@ def test_the_five_pair_books_of_the_high_finding_under_a_spreadsheet_name(pdf_up
     assert pdf_upload.calls["claude_lane"] == 0  # type: ignore[attr-defined]
 
 
-@pytest.mark.parametrize("rel", ["saga_10_col_carniprod/input.xlsx", "saga_10_col/input.xlsx"])
-def test_a_workbook_named_pdf_reads_as_the_same_bytes_named_xlsx(pdf_upload, rel):
-    """D1(b): workbook bytes on the .pdf branch are read as the workbook —
-    the same payload the same bytes yield under their own .xlsx name."""
-    content = _corpus(rel)
+def _small_balance_xlsx() -> bytes:
+    """A small, balanced SAGA 10-column balance: 20 accounts, NO account 121
+    and no class 6/7 — below the .pdf branch's positional acceptance gate
+    ("account 121 or ≥ 50 accounts"), read under its own name. Invented
+    accounts and figures."""
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.append(["BLN_CONT", "BLN_DENUMIRE", "SI DEBIT", "SI CREDIT", "RL DEBIT", "RL CREDIT",
+               "RC DEBIT", "RC CREDIT", "SF DEBIT", "SF CREDIT"])
+    debit = [("211", "Terenuri", 100000), ("212", "Constructii", 200000), ("2131", "Echipamente", 50000),
+             ("301", "Materii prime", 20000), ("371", "Marfuri", 30000), ("4111", "Clienti", 40000),
+             ("4426", "TVA deductibila", 5000), ("5121", "Conturi la banci in lei", 45000),
+             ("5311", "Casa in lei", 5000), ("471", "Cheltuieli in avans", 5000)]
+    credit = [("1012", "Capital subscris varsat", 200000), ("1061", "Rezerve legale", 20000),
+              ("1068", "Alte rezerve", 30000), ("117", "Rezultatul reportat", 50000),
+              ("162", "Credite bancare pe termen lung", 80000), ("401", "Furnizori", 60000),
+              ("404", "Furnizori de imobilizari", 20000), ("421", "Personal - salarii datorate", 15000),
+              ("4311", "Contributii", 10000), ("4427", "TVA colectata", 15000)]
+    for code, name, v in debit:
+        ws.append([code, name, v, 0, 0, 0, v, 0, v, 0])
+    for code, name, v in credit:
+        ws.append([code, name, 0, v, 0, 0, 0, v, 0, v])
+    b = io.BytesIO()
+    wb.save(b)
+    return b.getvalue()
+
+
+def _statutory_xlsx() -> bytes:
+    """A statutory return as a workbook: an F30 profit-and-loss sheet and an
+    F10 balance-sheet sheet with the form's own row labels and row numbers.
+    Invented figures. The statutory detector runs on the spreadsheet branch
+    only; the trial-balance reader refuses these sheets."""
+    from openpyxl import Workbook
+
+    f30 = {1: "Cifra de afaceri netă (rd. 02+03-04+05+06)",
+           2: "Producţia vândută (ct.701+702+703+704+705+706+708)",
+           3: "Venituri din vânzarea mărfurilor (ct. 707)",
+           4: "Reduceri comerciale acordate (ct. 709)",
+           13: "Alte venituri din exploatare (ct.751+758+7815)",
+           16: "VENITURI DIN EXPLOATARE – TOTAL (rd. 01+07-08+09+10+11+12+13)",
+           17: "Cheltuieli cu materiile prime şi materialele consumabile (ct.601+602)",
+           19: "Alte cheltuieli externe (cu energie şi apă)(ct.605)",
+           20: "Cheltuieli privind mărfurile (ct.607)",
+           22: "Cheltuieli cu personalul (rd. 23+24), din care:",
+           23: "Salarii şi indemnizaţii (ct.641+642+643+644)",
+           24: "Cheltuieli cu asigurările şi protecţia socială (ct.645+646)",
+           26: "Cheltuieli (ct.6811+6813+6817)",
+           31: "Alte cheltuieli de exploatare (rd. 32 la 38)",
+           32: "Cheltuieli privind prestaţiile externe (ct.611+612+613+614+621+622+623+624+625+626+627+628)",
+           42: "CHELTUIELI DE EXPLOATARE – TOTAL (rd. 17 la 20-21+22+25+28+31+39)",
+           43: "PROFITUL SAU PIERDEREA DIN EXPLOATARE: - Profit (rd. 16-42)",
+           52: "VENITURI FINANCIARE – TOTAL (rd. 45+47+49+50+51)",
+           56: "Cheltuieli privind dobânzile (ct.666)",
+           62: "CHELTUIELI FINANCIARE – TOTAL (rd. 53+56+58+59)",
+           65: "PROFITUL SAU PIERDEREA BRUT(Ă): - Profit (rd. 61-62)",
+           69: "Impozitul pe profit (ct.691)",
+           70: "PROFITUL SAU PIERDEREA NET(Ă) A EXERCIŢIULUI FINANCIAR: - Profit (rd. 65-66-67-68-69)"}
+    f10 = {6: "IMOBILIZĂRI NECORPORALE TOTAL (rd.01 la 06)",
+           17: "IMOBILIZĂRI CORPORALE TOTAL (rd. 07 la 16)",
+           25: "ACTIVE IMOBILIZATE – TOTAL (rd. 06+17+24)",
+           30: "STOCURI TOTAL (rd. 26 la 29)",
+           36: "CREANŢE TOTAL (rd. 31 la 35)",
+           42: "IV. CASA ŞI CONTURI LA BĂNCI (din ct. 508+ct. 5112+512+531+532+541+542)",
+           43: "ACTIVE CIRCULANTE – TOTAL (rd. 30+36+41+42)",
+           56: "D. DATORII: SUMELE CARE TREBUIE PLĂTITE ÎNTR-O PERIOADĂ DE PÂNĂ LA 1 AN TOTAL (rd. 45 la 52)",
+           81: "1. Capital subscris vărsat (ct. 1012)",
+           91: "IV. REZERVE TOTAL (ct. 106)",
+           103: "VI. PROFITUL SAU PIERDEREA EXERCIŢIULUI FINANCIAR SOLD C (ct. 121)",
+           106: "CAPITALURI PROPRII – TOTAL",
+           109: "CAPITALURI – TOTAL (rd. 106+107+108)"}
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "F30"
+    ws.append(["CONTUL DE PROFIT ŞI PIERDERE la data de 31.12.2025"])
+    ws.append(["Denumirea indicatorilor", "Nr. rd.", "2024", "2025"])
+    for rd in sorted(f30):
+        ws.append([f30[rd], f"{rd:02d}", 1000.0 * rd, 1100.0 * rd])
+    ws2 = wb.create_sheet("F10")
+    ws2.append(["BILANŢ la data de 31.12.2025"])
+    ws2.append(["Denumirea elementului", "Nr. rd.", "2024", "2025"])
+    for rd in sorted(f10):
+        ws2.append([f10[rd], f"{rd:02d}" if rd < 100 else str(rd), 2000.0 * rd, 2100.0 * rd])
+    b = io.BytesIO()
+    wb.save(b)
+    return b.getvalue()
+
+
+#: (book, the reader that takes it under its own name, its account floor).
+_WORKBOOKS_READ_UNDER_THEIR_OWN_NAME = [
+    ("the Carniprod canary", "saga_10_col", 100),
+    ("the corpus SAGA book", "saga_10_col", 100),
+    # Below the .pdf branch's positional gate — refused under .pdf before
+    # 2026-10-02 round 3, read under .xlsx.
+    ("a small balanced balance", "saga_10_col", 15),
+    # The statutory detector lives on the spreadsheet branch only.
+    ("a statutory F30/F10 return", "statutory_f30_f10", 1),
+]
+
+
+def _workbook_body(book: str) -> bytes:
+    return {
+        "the Carniprod canary": lambda: _corpus("saga_10_col_carniprod/input.xlsx"),
+        "the corpus SAGA book": lambda: _corpus("saga_10_col/input.xlsx"),
+        "a small balanced balance": _small_balance_xlsx,
+        "a statutory F30/F10 return": _statutory_xlsx,
+    }[book]()
+
+
+@pytest.mark.parametrize("book,source_format,min_accounts", _WORKBOOKS_READ_UNDER_THEIR_OWN_NAME)
+def test_a_workbook_named_pdf_reads_as_the_same_bytes_named_xlsx(pdf_upload, book, source_format, min_accounts):
+    """D1(b): workbook bytes named .pdf are read as the workbook — the same
+    payload the same bytes yield under their own .xlsx name, to the byte.
+
+    Round 3 (2026-10-02): the first form of this law ran two FULL trial
+    balances only, and held while a small balanced balance (20 accounts, no
+    account 121) and a statutory F30/F10 return — both read under .xlsx —
+    were refused under .pdf, late, after the upload card had answered that
+    the file is read. Both are here now, and the .pdf claim made by the MIME
+    type alone (a name with no extension).
+
+    Reds on: a workbook named .pdf read by anything but the spreadsheet
+    branch's readers (a different payload by a byte), refused, or sent to
+    the model while its .xlsx-named twin is read."""
+    content = _workbook_body(book)
     as_xlsx = _outcome(pdf_upload, content, "balanta.xlsx", _XLSX_MIME)
-    as_pdf = _outcome(pdf_upload, content, "balanta.pdf", "application/pdf")
-    assert as_xlsx[0] == "read", as_xlsx[:2]
-    assert as_pdf == as_xlsx
+    assert as_xlsx[0] == "read", as_xlsx[:3]
+    import json as _json
+    payload = _json.loads(as_xlsx[1])
+    assert (payload.get("extraction") or {}).get("source_format") == source_format, payload.get("extraction")
+    assert (payload.get("extraction") or {}).get("method") == "deterministic", payload.get("extraction")
+    assert len(payload.get("accounts") or []) >= min_accounts, len(payload.get("accounts") or [])
+    if book == "a small balanced balance":
+        # Non-vacuity: this book IS below the .pdf branch's positional gate
+        # ("account 121 or ≥ 50 accounts") — the read the .pdf name lost.
+        assert len(payload["accounts"]) < 50 and not payload.get("statutory_net_profit_anchor"), (
+            len(payload["accounts"]), payload.get("statutory_net_profit_anchor"))
+    for name, mime in (("balanta.pdf", "application/pdf"),
+                       ("balanta.pdf", _XLSX_MIME),         # the browser's own guess beside a .pdf name
+                       ("balanta", "application/pdf"),      # the MIME type alone claims a PDF
+                       ("balanta.xls", "application/vnd.ms-excel")):
+        assert _outcome(pdf_upload, content, name, mime) == as_xlsx, (book, name, mime)
     assert pdf_upload.calls["claude_lane"] == 0  # type: ignore[attr-defined]
+
+
+# ── the positional reader's acceptance gate holds under every name ──
+
+def _positional_books(monkeypatch) -> Dict[str, bytes]:
+    """The synthetic book in the positional ingester's dialect
+    (test_pdf_balanta_stage_extract — an invented company, invented
+    figures): as it is, and without its account-121 row and that row's
+    counterpart — 24 undotted accounts and no anchor, below the .pdf
+    branch's acceptance gate ("account 121 or ≥ 50 accounts")."""
+    pytest.importorskip("fitz")
+    import test_pdf_balanta_stage_extract as PB
+
+    PB._on_parser(monkeypatch, "tb_parser_v6")
+    lines = PB._positional_dialect_lines()
+    below = [l for l in lines if not (l.startswith("121 ") or l.startswith("5311 "))]
+    assert len(below) == len(lines) - 2, "the dialect book lost its 121 / 5311 rows — this law would be vacuous"
+    return {"positional": PB._pdf_bytes(lines), "positional_below_the_gate": PB._pdf_bytes(below)}
+
+
+def test_the_positional_readers_acceptance_gate_holds_under_every_name(pdf_upload, monkeypatch):
+    """D1(a), the MIDDLE clause: "…then the positional reader under the .pdf
+    branch's own acceptance gate". Review round 3 (gates lens): the equality
+    law above ran five books that the STRICT reader settles, and the corpus
+    positional PDF has 192 accounts — so no book reached the gate from
+    below, and the gate loosened for re-entered PDF bytes only (accept on
+    "any rows", the mechanism of the HIGH finding for non-strict layouts)
+    left the whole gate GREEN.
+
+    Two books in the positional ingester's dialect: as printed (served by
+    the positional reader, with the account-121 anchor), and without its
+    121 row (no anchor, under 50 accounts: the gate DECLINES it and the
+    .pdf branch goes on to its model lane — here, the fixture's tripwire).
+    Under every name the outcome is the .pdf-named one.
+
+    Reds on: the below-the-gate book SERVED under any name (a partial
+    balance with no anchor); any name's outcome differing from .pdf's."""
+    from engine.country_packs.ro_romania import pdf_balanta_text
+
+    books = _positional_books(monkeypatch)
+    for label, content in books.items():
+        # Non-vacuity: neither book names a strict layout, so the strict
+        # reader settles nothing and the positional reader's gate decides.
+        assert pdf_balanta_text.read_balanta_text_verdict(content).layout == \
+            pdf_balanta_text.LAYOUT_FIVE_PAIR_POSITIONAL, label
+    as_pdf = {label: _outcome(pdf_upload, content, "balanta.pdf", "application/pdf")
+              for label, content in books.items()}
+    import json as _json
+    served = _json.loads(as_pdf["positional"][1])
+    assert (served.get("extraction") or {}).get("source_format") == "pdf_positional", served.get("extraction")
+    assert served.get("statutory_net_profit_anchor") is not None
+    below = as_pdf["positional_below_the_gate"]
+    assert below[:2] == ("refused", "AssertionError") and "reached the Claude lane" in below[2], \
+        "the book below the gate was not declined by the .pdf branch's positional gate: %r" % (below[:2],)
+    for name, mime in [n for n in _NAMES if n[0] != "balanta.pdf"]:
+        for label, content in books.items():
+            other = _outcome(pdf_upload, content, name, mime)
+            assert other == as_pdf[label], (label, name, other[:2], as_pdf[label][:2])
 
 
 def test_the_pdf_rule_on_the_text_branches_needs_the_file_to_end_like_a_pdf():
@@ -1345,11 +1580,12 @@ class _PastTheGuard(BaseException):
 def reached(monkeypatch):
     """Stops stage_extract at the FIRST reader or lane it hands a document
     to — "refused by the GUARD" means the refusal came with none of them
-    reached (the .pdf branch has one later refusal, after its readers
-    declined a workbook; that one is not the guard's and the routes cannot
-    know it). Stopping there, rather than counting and reading on, is what
-    keeps a 198-pair matrix affordable: what a reader then makes of the file
-    is the other laws' subject."""
+    reached. (The guard is the ONLY type refusal since round 3: the .pdf
+    branch's later one, after its readers declined a workbook, is gone — a
+    workbook named .pdf is read on the spreadsheet branch.) Stopping there,
+    rather than counting and reading on, is what keeps the matrix
+    affordable: what a reader then makes of the file is the other laws'
+    subject."""
     from engine.api import pipeline as P
 
     seen: Dict[str, int] = {"n": 0}
@@ -1395,14 +1631,24 @@ def test_one_upload_policy_the_routes_verdict_is_the_pipeline_guards(pdf_upload,
     English and in Romanian. Driven through the REAL stage_extract, not
     through `refused_on` (comparing the policy with itself proves nothing).
 
+    The matrix carries rows where the declared MIME type ALONE picks the
+    branch (a name with no extension): a route that classified by the name
+    only would answer those differently from the pipeline.
+
     Plant-proven (docs/engine_book/gates.md, upload-real-type): the routes'
-    old table restored for one pair reds this."""
+    old table restored for one pair reds this; so does a route that drops
+    the declared MIME type."""
     from engine.api import _uploads
 
     bodies = _policy_bodies()
-    refused = read = 0
+    refused = read = mime_decided = 0
     for label, content in bodies.items():
-        for name, mime in _NAMES:
+        for name, mime in _NAMES + _BY_MIME_ALONE:
+            if (name, mime) in _BY_MIME_ALONE:
+                # Non-vacuity for the MIME rows: the declared type, and
+                # nothing else, changes the answer for this body.
+                mime_decided += (_uploads.format_mismatch(name, content, mime) is None) != (
+                    _uploads.format_mismatch(name, content, "application/octet-stream") is None)
             guard = _guard_verdict(pdf_upload, reached, content, name, mime)
             route = _uploads.format_mismatch(name, content, mime)
             assert (route is None) == (guard is None), (
@@ -1419,8 +1665,10 @@ def test_one_upload_policy_the_routes_verdict_is_the_pipeline_guards(pdf_upload,
             ro_route = _uploads.format_mismatch(name, content, mime, "ro")
             assert ro_route is not None and ro_route[1] == ro_guard, (label, name, ro_route, ro_guard)
             assert "Ca să rezolvi:" in ro_route[1] and "To fix it" not in ro_route[1], ro_route[1]
-    # Non-vacuity: the matrix exercises both answers, many times.
+    # Non-vacuity: the matrix exercises both answers, many times, and the
+    # declared MIME type alone decides the verdict for several pairs.
     assert refused >= 60 and read >= 40, (refused, read)
+    assert mime_decided >= 6, mime_decided
 
 
 def test_the_owners_three_files_at_the_routes_and_in_the_pipeline(pdf_upload):
@@ -1445,6 +1693,59 @@ def test_the_owners_three_files_at_the_routes_and_in_the_pipeline(pdf_upload):
             pdf_upload(docx, name, None, mime)
         assert str(e.value) == hit[1]
     assert pdf_upload.calls["claude_lane"] == 0  # type: ignore[attr-defined]
+
+
+# ── WHO the file is about is read from its bytes too ───────────────
+
+def test_the_identity_of_an_upload_is_read_from_its_bytes_under_every_name():
+    """Review round 3 (2026-10-02), HIGH. The company identifier
+    (`company_identity.extract_document_text`) chose its reader by NAME —
+    `name.endswith(".pdf")` before the container signatures — so a workbook
+    named balanta.pdf, which the upload card and the pipeline both READ
+    since the one upload policy, was "unreadable" to the identifier: no CUI,
+    no company, no period. Two consequences, both measured: the card filed
+    the file in the company ON SCREEN (and that company then served the
+    other company's turnover), and the cross-company takeover wall
+    (`pipeline._document_company_cui`) had no CUI to hold against the
+    month's owner and let the month be replaced
+    (tests/engine/test_workspace_v2_gates.py carries both, end to end).
+
+    The identity is the BYTES': the same under every name the file is read
+    under. Reds on: a workbook identified differently (or not at all) under
+    a .pdf name; a PDF identified only under a .pdf name; a PDF whose header
+    sits behind leading bytes identified under one name and not another."""
+    from engine.workspaces.company_identity import extract_document_text, identify_document
+    from ws_migration_fixture import balance_pdf, balance_xlsx, valid_cui
+
+    cui = valid_cui("2000001")
+    header = ["Alfa Exemplu SRL", "Cod fiscal: RO%s" % cui, "Balanta de verificare la data de 31.12.2025"]
+
+    book = balance_xlsx(header)
+    assert ut.sniff_container(book) == ut.XLSX
+    own = identify_document(book, "balanta.xlsx")
+    # Non-vacuity: under its own name the workbook IS identified.
+    assert own.cui == cui and own.document_kind == "trial_balance" and own.period_end == "2025-12-31", own
+    assert own.sources["cui"]["signal"] == "document_header_cui", own.sources
+    for name in ("balanta.pdf", "balanta.xls", "BALANTA.PDF"):
+        assert extract_document_text(book, name).readable, name
+        got = identify_document(book, name)
+        assert (got.cui, got.company_name, got.period_end, got.document_kind) == \
+            (own.cui, own.company_name, own.period_end, own.document_kind), (name, got)
+        assert got.sources["cui"] == own.sources["cui"], (name, got.sources)
+
+    pdf = balance_pdf(header)
+    assert ut.sniff_container(pdf) == ut.PDF
+    as_pdf = identify_document(pdf, "balanta.pdf")
+    assert as_pdf.cui == cui and as_pdf.document_kind != "unreadable", as_pdf
+    behind_junk = b"J" * 2000 + pdf
+    assert ut.sniff_container(behind_junk) in (ut.TEXT, ut.UNKNOWN)
+    junk_as_pdf = identify_document(behind_junk, "balanta.pdf")
+    for name in ("balanta.xls", "balanta.xlsx", "balanta.csv"):
+        got = identify_document(pdf, name)
+        assert (got.cui, got.company_name, got.period_end, got.document_kind) == \
+            (as_pdf.cui, as_pdf.company_name, as_pdf.period_end, as_pdf.document_kind), (name, got)
+        junk = identify_document(behind_junk, name)
+        assert (junk.cui, junk.document_kind) == (junk_as_pdf.cui, junk_as_pdf.document_kind), (name, junk)
 
 
 def test_the_classifier_is_the_one_the_pipeline_runs():

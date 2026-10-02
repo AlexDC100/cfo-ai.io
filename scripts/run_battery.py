@@ -337,11 +337,24 @@ def _engine_gates() -> List[Gate]:
         # 198-pair matrix, EN and RO, and at the HTTP seam
         # (test_workspace_uploads.py, now in this gate); the picker offers
         # no type the engine refuses by name. Measured 173 tests.
+        # REVIEW ROUND 4 (2026-10-02): read by real type in BOTH directions
+        # and at every layer. A workbook named .pdf leaves the .pdf branch
+        # for the spreadsheet branch (`reads_as_workbook`), so a small
+        # balance and a statutory F30/F10 return read as under .xlsx instead
+        # of being refused late, after the card said "read" (the equality
+        # law now runs four books and the MIME-only claim); the positional
+        # reader's acceptance gate is held from below under every name (a
+        # dialect book without its 121 row); the routes' matrix carries rows
+        # where the declared MIME type alone picks the branch; and the
+        # company IDENTIFIER reads its bytes, not its name (HIGH: a workbook
+        # named .pdf was "unreadable", filed in the company on screen, and
+        # walked through the cross-company wall — see workspace-v2).
+        # Measured 177 tests.
         # Plant log: gates.md "upload-real-type".
         Gate("upload-real-type",
              [PY, "-m", "pytest", "tests/engine/test_upload_real_type.py",
               "tests/engine/test_workspace_uploads.py", "-q"],
-             work_junit=True, floor=173, units="tests",
+             work_junit=True, floor=177, units="tests",
              canaries=("test_a_docx_named_pdf_is_refused_before_the_paid_path",
                        "test_an_excel_balance_named_pdf_is_READ_not_refused",
                        "test_a_balance_pdf_named_xls_is_READ_not_refused",
@@ -360,7 +373,9 @@ def _engine_gates() -> List[Gate]:
                        "test_the_failure_handler_stores_the_sentence_without_a_class_name",
                        "test_a_legacy_word_doc_is_refused_under_every_name_before_any_reader",
                        "test_the_pdf_branch_refuses_what_none_of_its_readers_opens",
-                       "test_a_workbook_the_positional_reader_declines_never_reaches_the_claude_pdf_lane",
+                       "test_a_workbook_named_pdf_never_reaches_the_claude_pdf_lane",
+                       "test_the_positional_readers_acceptance_gate_holds_under_every_name",
+                       "test_the_identity_of_an_upload_is_read_from_its_bytes_under_every_name",
                        "test_a_mimetype_entry_that_lies_about_its_size_is_not_inflated",
                        "test_the_real_branch_answers_in_the_language_the_run_carries")),
         # WORKSPACE-V2 — the redesign's engine gates (one company per
@@ -375,12 +390,18 @@ def _engine_gates() -> List[Gate]:
         # `vitest`; the e2e half needs a hermetic build (gates.md). Floor 29
         # = the measured 24 + 5, exact (2026-09-26: + the same-month takeover
         # gates, the no-CUI refusal, the dead-letter replay, the card's
-        # confirmed extra). Plant log: docs/engine_book/gates.md.
+        # confirmed extra). Review round 4 (2026-10-02): the .pdf-NAMED twins
+        # of G1 and of the G4 cross-company wall — a workbook named .pdf is
+        # identified by its bytes, lands in the company its header names and
+        # never replaces another company's month. Measured 31, floor 31.
+        # Plant log: docs/engine_book/gates.md.
         Gate("workspace-v2",
              [PY, "-m", "pytest", "tests/engine/test_workspace_v2_gates.py",
               "tests/engine/test_no_empty_period_creators.py", "-q"],
-             work_junit=True, floor=29, units="tests",
+             work_junit=True, floor=31, units="tests",
              canaries=("test_g1_an_agras_file_dropped_on_a_scandia_page_lands_in_agras",
+                       "test_g1_an_agras_workbook_named_pdf_is_identified_by_its_bytes_and_lands_in_agras",
+                       "test_g4_a_same_month_file_of_another_company_never_replaces_the_month",
                        "test_g2_a_2017_file_name_whose_period_line_says_2025_is_2025",
                        "test_g3_the_same_file_twice_is_stored_analysed_and_counted_once",
                        "test_g4_the_production_check_finds_the_empty_periods_of_a_snapshot",

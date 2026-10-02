@@ -1152,20 +1152,34 @@ def stage_extract(doc: Dict[str, Any]) -> Dict[str, Any]:
     they are read by the very same code a .pdf name runs — the strict
     text-line balanta reader with its final refusal, the positional reader
     under the .pdf acceptance gate, the PDF model lane — and yield the
-    same extraction or the same refusal. Not a second copy of the branch:
-    the same statements.
+    same extraction or the same refusal. The mirror holds too: WORKBOOK
+    bytes found on the .pdf branch re-enter the spreadsheet branch, so a
+    workbook named .pdf is read by the code an .xlsx name runs — the
+    statutory F30/F10 detector, the trial-balance reader, the workbook
+    rendered as text for the model — to the same extraction or the same
+    failure. Not a second copy of either branch: the same statements.
     """
     return _stage_extract_by_real_type(doc, None)
 
 
 def _stage_extract_by_real_type(
     doc: Dict[str, Any], _pdf_bytes_in_hand: Optional[bytes],
+    _workbook_bytes_in_hand: Optional[bytes] = None,
 ) -> Dict[str, Any]:
-    """`stage_extract`'s body. `_pdf_bytes_in_hand` is set only by this
-    function's own re-entry (PDF bytes found on a non-.pdf branch) — it
-    selects the .pdf branch and hands it the stored file already read."""
+    """`stage_extract`'s body. `_pdf_bytes_in_hand` and
+    `_workbook_bytes_in_hand` are set only by this function's own re-entry
+    (PDF bytes found on a non-.pdf branch; workbook bytes found on the .pdf
+    branch) — each selects the branch the BYTES belong to and hands it the
+    stored file already read. At most one is set, and a re-entry never
+    re-enters: PDF bytes are not a workbook and a workbook is not PDF bytes
+    (`_upload_type.reads_as_pdf` / `reads_as_workbook`)."""
     storage_path: str = doc["storage_path"]
-    kind = "pdf" if _pdf_bytes_in_hand is not None else _classify_file(doc)
+    if _workbook_bytes_in_hand is not None:
+        kind = "xlsx"
+    elif _pdf_bytes_in_hand is not None:
+        kind = "pdf"
+    else:
+        kind = _classify_file(doc)
 
     # PDF still uses the existing parser (it has the canonical RO trial-balance
     # rubric in its system prompt — re-using avoids drift between two prompts).
@@ -1306,18 +1320,15 @@ def _stage_extract_by_real_type(
         # come back as "Claude extraction failed: your credit balance is
         # too low" — our billing blamed for the user's extension.
         #
-        # REFUSES ONLY WHAT NO READER ON THIS BRANCH CAN OPEN, which is a
-        # narrower set than "not a PDF". `pack.parse_trial_balance` (the
-        # next reader, ~40 lines below) dispatches on BYTES, not on the
-        # extension: `%PDF` goes to the PyMuPDF ingester and everything
-        # else to `parse_trial_balance_file`, whose first act is
-        # `detect_excel_format` ("Filename extensions lie; the first 8
-        # bytes don't"). So an .xlsx or legacy .xls balance stored under a
-        # .pdf name is read deterministically today, anchored and free —
-        # measured: corpus/saga_10_col_carniprod as `balanta.pdf` yields
-        # 367 accounts, account-121 anchor 1,435,533.59. Refusing those
-        # would delete a working upload and say "no reader can open it"
-        # while the branch's own reader does. What is refused is decided
+        # REFUSES ONLY WHAT NO READER CAN OPEN UNDER A .pdf NAME, which is a
+        # narrower set than "not a PDF". An .xlsx or legacy .xls balance
+        # stored under a .pdf name is READ — deterministically, anchored
+        # and free (measured: corpus/saga_10_col_carniprod as `balanta.pdf`
+        # yields 367 accounts, account-121 anchor 1,435,533.59) — by the
+        # spreadsheet branch, which this function re-enters with the bytes
+        # just below the guard (`reads_as_workbook`). Refusing those would
+        # delete a working upload and say "no reader can open it" while a
+        # reader does. What is refused is decided
         # by `_upload_type.refused_on("pdf", …)` — the Office formats
         # (the incident, legacy .doc / .ppt included), an empty file, a
         # zip with no Open XML manifest (openpyxl needs one), and text or
@@ -1350,9 +1361,8 @@ def _stage_extract_by_real_type(
                     doc.get("original_filename") or "(no filename)",
                 )
                 _pdf_bytes_for_sniff = None
-        from . import _upload_type as _pdf_type
         if _pdf_bytes_for_sniff is not None:
-            _ut = _pdf_type
+            from . import _upload_type as _ut
             _real = _ut.sniff_container(_pdf_bytes_for_sniff)
             if _ut.refused_on("pdf", _real, _pdf_bytes_for_sniff):
                 logger.info(
@@ -1370,6 +1380,31 @@ def _stage_extract_by_real_type(
                         language=doc.get("detected_language"),
                     )
                 )
+            # ── A workbook is read as a workbook, whatever it is named ──
+            # The guard above lets workbook bytes through, because a
+            # workbook named .pdf IS read (the upload card's routes answer
+            # so too — one policy). It is read by the SPREADSHEET branch:
+            # this function re-enters it with the bytes, so the outcome is
+            # the one the same bytes get under their own .xlsx / .xls name.
+            #
+            # WHY (review 2026-10-02, round 3). This branch used to hand a
+            # workbook to its positional reader under the .pdf acceptance
+            # gate ("account 121 or ≥ 50 accounts") and refuse whatever
+            # that declined, late, as "named .pdf but its contents are an
+            # Excel workbook". So a small balanced balance (20 accounts, no
+            # 121) and a statutory F30/F10 return — both READ under their
+            # own names — were refused under a .pdf name, after the card
+            # had said the file is read and the object, the row and the
+            # reservation existed. The statutory detector and the
+            # spreadsheet branch's acceptance lived there only. They still
+            # do: these bytes now GO there.
+            if _ut.reads_as_workbook("pdf", _real):
+                logger.info(
+                    "[stage_extract] %r is named .pdf but its bytes are a "
+                    "workbook (%s) — reading it on the spreadsheet branch",
+                    doc.get("original_filename") or "(no filename)", _real,
+                )
+                return _stage_extract_by_real_type(doc, None, _pdf_bytes_for_sniff)
 
         # ── AI-lane jurisdiction gate (PDF) ─────────────────────────
         # Resolver BEFORE lane selection. Uses the bytes already
@@ -1564,35 +1599,16 @@ def _stage_extract_by_real_type(
             )
 
         # ── The Claude PDF lane reads PDFs only ─────────────────────
-        # The type guard above lets a workbook, a legacy .xls and an Open
-        # XML zip through, because the positional `parse_trial_balance`
-        # just above opens those by their magic bytes. When it has
-        # DECLINED one (a workbook that is not a trial balance, a damaged
-        # .xls), the lane below would send it to Anthropic as
-        # `application/pdf` — which it can never be: the request fails
-        # after it is made, on an empty balance with the 2026-09-23
-        # incident's "credit balance is too low" (review 2026-10-01: a
-        # junk OLE2 workbook and an unrecognised Office zip named .pdf
-        # both reached it). Bytes with no `%PDF-` anywhere stop here, by
-        # name, with the fix — "rename it to .xlsx" puts a workbook on the
-        # spreadsheet branch, whose readers and model fallback take it.
-        if (_pdf_bytes_for_sniff is not None
-                and _pdf_type.PDF_MAGIC not in _pdf_bytes_for_sniff):
-            _real_lane = _pdf_type.sniff_container(_pdf_bytes_for_sniff)
-            logger.info(
-                "[stage_extract] %r is named .pdf, no reader took its %s "
-                "bytes — refusing before the Claude PDF lane",
-                doc.get("original_filename") or "(no filename)", _real_lane,
-            )
-            raise UploadedFileTypeMismatchError(
-                _pdf_type.mismatch_message(
-                    _pdf_type.claimed_extension(doc.get("original_filename"), "pdf"),
-                    _real_lane,
-                    filename=doc.get("original_filename") or None,
-                    language=doc.get("detected_language"),
-                )
-            )
-
+        # What gets this far IS PDF bytes: the type guard above refused
+        # everything no reader on this branch opens, and a workbook left
+        # for the spreadsheet branch (`reads_as_workbook`) before either
+        # reader here ran — so nothing that is not a PDF is ever sent to
+        # Anthropic as `application/pdf` (the 2026-09-23 incident's lane;
+        # until 2026-10-02 a workbook the positional reader declined was
+        # stopped HERE, late, with a refusal the upload card could not
+        # know). The one exception is the guard's own: when the stored
+        # file could not be fetched for the type check, the branches run
+        # unguarded, as before.
         with _supabase.admin() as admin_client:
             signed = admin_client.signed_url(
                 "documents", storage_path,
@@ -1617,14 +1633,19 @@ def _stage_extract_by_real_type(
         return _stamp_llm_extraction(out)
 
     # Everything else: download bytes, build a Claude message, parse the JSON.
-    with _supabase.admin() as admin_client:
-        signed = admin_client.signed_url(
-            "documents", storage_path,
-            org_id=doc.get("org_id"), expires_in=300)
-    with httpx.Client(timeout=30.0) as http:
-        r = http.get(signed)
-        r.raise_for_status()
-        file_bytes = r.content
+    if _workbook_bytes_in_hand is not None:
+        # Workbook bytes that arrived under a .pdf name: the .pdf branch
+        # that found them already holds the stored file.
+        file_bytes = _workbook_bytes_in_hand
+    else:
+        with _supabase.admin() as admin_client:
+            signed = admin_client.signed_url(
+                "documents", storage_path,
+                org_id=doc.get("org_id"), expires_in=300)
+        with httpx.Client(timeout=30.0) as http:
+            r = http.get(signed)
+            r.raise_for_status()
+            file_bytes = r.content
 
     # ── PDF bytes are read as a PDF, whatever the file is named ─────
     # Before anything on this branch reads them — and before this branch's
