@@ -58,6 +58,7 @@ import {
   signedDocumentUrl,
 } from "@/lib/supabase";
 import { alreadyUploadedHref } from "@/lib/alreadyUploaded";
+import { DocRefusalReason } from "@/components/cfo/DocRefusalReason";
 import { useToast } from "@/hooks/use-toast";
 import { useUploadEnqueue } from "@/hooks/useUploadEnqueue";
 import { formatDateOnly, formatDateTime } from "@/lib/locale";
@@ -895,7 +896,7 @@ function DocRowItem({ doc }: { doc: DocRow }) {
   return (
     <li
       data-testid="doc-row"
-      className={`group flex items-center gap-1.5 text-[11.5px] ${doc.is_active ? "text-ink-soft" : "text-ink-mute line-through"}`}
+      className={`group flex flex-wrap items-center gap-x-1.5 text-[11.5px] ${doc.is_active ? "text-ink-soft" : "text-ink-mute line-through"}`}
     >
       <FileText size={9} strokeWidth={1.75} className="text-ink-mute shrink-0" />
       {renaming ? (
@@ -997,6 +998,9 @@ function DocRowItem({ doc }: { doc: DocRow }) {
         </AlertDialogContent>
       </AlertDialog>
       {upload.dialog}
+      {/* Why a re-run was refused by the company's plan — the stored
+          neutral code, rendered for this viewer (lib/uploadRefusals). */}
+      {!renaming && <DocRefusalReason status={doc.status} error={doc.error} />}
     </li>
   );
 }

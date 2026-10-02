@@ -429,7 +429,8 @@ export type EnqueuePipelineResult =
     }
   // 2026-08 tier restructure — non-Romanian document on a plan without
   // the Multi-Country entitlement. Typed refusal, not an error: the FE
-  // renders it as an upgrade prompt (NonRoUpgradeDialog).
+  // renders it as an upgrade prompt (NonRoUpgradeDialog). `message` is the
+  // refusal code's sentence (lib/uploadRefusals), never the server's.
   | { kind: "non_ro_blocked"; upgradeTo: string; message: string }
   // 2026-09-21 — the document duplicates a live one of this account, company
   // and period. The server archived it; nothing was analysed or counted. The
@@ -675,10 +676,12 @@ export function subscribeToDocumentStatus(
 ): () => void {
   if (!client) return () => {};
   const activeClient = client;
-  // 2026-08 — the pipeline persists typed refusals (non-RO gate) as raw
-  // JSON into documents.error. Humanize at this seam so EVERY consumer
-  // (scan card, toasts, DocumentChip) renders the friendly copy instead
-  // of a JSON blob. Non-refusal errors pass through untouched.
+  // The pipeline persists a plan refusal as a NEUTRAL CODE in
+  // documents.error (owner ruling 2026-10-02 — never a plan name, the row
+  // is shared by every member). Render it at this seam, per viewer, in the
+  // viewer's language, so EVERY consumer (scan card, toasts, DocumentChip)
+  // prints the code's sentence instead of a JSON blob. Other errors pass
+  // through untouched.
   const emit = (row: DocumentRow) => {
     if (row?.error) {
       let friendly: string | null = null;

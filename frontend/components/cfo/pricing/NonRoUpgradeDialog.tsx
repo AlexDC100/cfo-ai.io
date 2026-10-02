@@ -8,6 +8,12 @@
 // how the FE renders that refusal — an upgrade prompt with a direct
 // path to /pricing, NOT a destructive error toast: the user did
 // nothing wrong, the plan just doesn't include the capability.
+//
+// It prints the refusal CODE's own copy and nothing else. It used to
+// print the server's message under it, and that message named a plan
+// ("…aren't included in the RO Solo plan") in English whatever the
+// reader's language (owner ruling 2026-10-02: the message is rendered
+// per viewer from the code).
 
 import { Globe2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -25,11 +31,9 @@ import {
 interface Props {
   open: boolean;
   onClose: () => void;
-  /** Optional server-supplied detail line, shown under the standard copy. */
-  serverMessage?: string | null;
 }
 
-export function NonRoUpgradeDialog({ open, onClose, serverMessage }: Props) {
+export function NonRoUpgradeDialog({ open, onClose }: Props) {
   const navigate = useNavigate();
   const { t } = useTranslation();
 
@@ -45,15 +49,6 @@ export function NonRoUpgradeDialog({ open, onClose, serverMessage }: Props) {
             {t("pricing.nonRoBlockedDesc")}
           </DialogDescription>
         </DialogHeader>
-
-        {serverMessage && (
-          <p
-            data-testid="non-ro-server-message"
-            className="text-[12px] text-ink-mute leading-relaxed"
-          >
-            {serverMessage}
-          </p>
-        )}
 
         <DialogFooter className="gap-2 sm:gap-2">
           <button

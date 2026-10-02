@@ -126,19 +126,28 @@ describe("workspaceCapReached", () => {
 });
 
 describe("parseUploadRefusal", () => {
-  it("recognizes the FastAPI detail envelope", () => {
+  // Rewritten 2026-10-02 (owner ruling: render the message per viewer from
+  // the CODE). This test used to pin the server's `message` being carried in
+  // the parsed refusal — and that message named the caller's plan. The law
+  // now: the envelope is recognised, and `message` is the code's own
+  // sentence, never the server's. Full EN + RO table:
+  // lib/__tests__/uploadRefusalCodes.test.ts.
+  it("recognizes the FastAPI detail envelope, and carries the code's sentence — not the server's message", () => {
+    const serverMessage = "Non-Romanian documents aren't included in the RO Solo plan.";
     const r = parseUploadRefusal({
       detail: {
         error: "non_ro_not_included",
         upgrade_to: "multi",
-        message: "Non-Romanian documents require Multi-Country.",
+        message: serverMessage,
       },
     });
     expect(r).toEqual({
       kind: "non_ro_blocked",
       upgradeTo: "multi",
-      message: "Non-Romanian documents require Multi-Country.",
+      message:
+        "This looks like a non-Romanian filing. Analysing documents from other jurisdictions is included on the Multi-Country plan.",
     });
+    expect(r?.message).not.toContain("Solo");
   });
 
   it("recognizes the bare top-level shape", () => {
@@ -186,14 +195,20 @@ describe("friendlyDocumentError", () => {
     expect(friendlyDocumentError(undefined)).toBeUndefined();
   });
 
-  it("surfaces the server message for the non-RO monthly cap", () => {
-    const capped = JSON.stringify({
-      error: "nonro_quota_exhausted",
-      message: "You've used all 8 non-RO documents this month.",
-    });
-    expect(friendlyDocumentError(capped)).toBe(
-      "You've used all 8 non-RO documents this month.",
-    );
+  // Rewritten 2026-10-02. This test pinned the frontend twin of the defect
+  // the owner ruled on: "surfaces the server message for the non-RO monthly
+  // cap" — and the server's message named the plan ("…included in the
+  // Multi-Country plan this month"), to every member of the company. The
+  // law now: the code's own sentence, with or without a server message, and
+  // never the raw blob.
+  it("prints the non-RO monthly cap's own sentence, never the server message", () => {
+    const serverMessage = "You've used all 8 non-RO documents included in the Multi-Country plan this month.";
+    const capped = JSON.stringify({ error: "nonro_quota_exhausted", message: serverMessage });
+    const sentence = "This company has used all the non-Romanian documents included this month.";
+    expect(friendlyDocumentError(capped)).toBe(sentence);
+    expect(friendlyDocumentError(capped)).not.toContain(serverMessage);
+    // what the engine stores from now on: the code alone
+    expect(friendlyDocumentError('NonRoNotIncludedError: {"error": "nonro_quota_exhausted"}')).toBe(sentence);
   });
 });
 
