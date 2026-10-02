@@ -96,6 +96,12 @@ def _benchmarks(monkeypatch):
 
 OTHER_ORG = "99999999-9999-4999-8999-999999999999"
 
+#: The EXPLICIT regenerate body (hotfix 2026-10-02, owner ruling "explicit,
+#: metered action"). The bodiless shape these tests used to POST is inert now
+#: — it answers the stored briefing and never reaches the narrator, so every
+#: law below about what the narrator is handed would hold vacuously on it.
+EXPLICIT_REGENERATE = {"intent": "user"}
+
 
 def _bearer(user_id: str) -> Dict[str, str]:
     return {"Authorization": "Bearer %s" % mint_jwt(user_id, "%s@example.test" % user_id[-4:])}
@@ -282,7 +288,8 @@ def test_each_member_is_served_their_own_overrides(order, monkeypatch):
 @pytest.mark.parametrize("caller", [USER_A, USER_B])
 def test_the_briefing_is_narrated_on_the_engines_valuation_whoever_regenerates(caller, monkeypatch):
     with _world(monkeypatch, [_row(USER_B, B_ROW), _row(USER_A, A_ROW)]) as (client, _db, bk, _log, narrated):
-        resp = client.post("/api/period/%s/briefing/regenerate" % bk.period_id, headers=_bearer(caller))
+        resp = client.post("/api/period/%s/briefing/regenerate" % bk.period_id, json=EXPLICIT_REGENERATE,
+                           headers=_bearer(caller))
         assert resp.status_code == 200, resp.text[:400]
     assert len(narrated) == 1
     handed = narrated[0]["valuation"]
@@ -299,7 +306,8 @@ def test_the_override_table_is_never_read_under_the_service_role_or_without_the_
     with _world(monkeypatch, [_row(USER_B, B_ROW), _row(USER_A, A_ROW)]) as (client, _db, bk, log, _n):
         _served(client, bk, USER_A)
         _recompute(client, bk, USER_A)
-        resp = client.post("/api/period/%s/briefing/regenerate" % bk.period_id, headers=_bearer(USER_A))
+        resp = client.post("/api/period/%s/briefing/regenerate" % bk.period_id, json=EXPLICIT_REGENERATE,
+                           headers=_bearer(USER_A))
         assert resp.status_code == 200, resp.text[:400]
     reads = [(who, filters) for who, table, filters in log if table == TABLE]
     assert reads, "no read of the override table was recorded: the scan is vacuous"
@@ -380,7 +388,8 @@ def test_the_narrator_is_told_the_periods_own_document_and_no_foreign_row(monkey
         db.tables["valuations"][:0] = [
             {"period_id": bk.period_id, "org_id": OTHER_ORG, "primary_method": "ev_ebitda",
              "ebitda_used": 99_000_000.0, "multiple_ebitda_p50": 19.5}]
-        resp = client.post("/api/period/%s/briefing/regenerate" % bk.period_id, headers=_bearer(USER_A))
+        resp = client.post("/api/period/%s/briefing/regenerate" % bk.period_id, json=EXPLICIT_REGENERATE,
+                           headers=_bearer(USER_A))
         assert resp.status_code == 200, resp.text[:400]
     assert len(narrated) == 1
     told = narrated[0]
@@ -405,13 +414,15 @@ def test_without_a_source_document_the_narrator_gets_the_orgs_oldest_live_docume
             {"id": "doc-deleted", "org_id": bk.org["id"], "period_id": bk.period_id,
              "original_filename": "replaced.xlsx", "deleted_at": "2025-02-01T00:00:00Z",
              "created_at": "2024-01-01T00:00:00Z"}]
-        resp = client.post("/api/period/%s/briefing/regenerate" % bk.period_id, headers=_bearer(USER_A))
+        resp = client.post("/api/period/%s/briefing/regenerate" % bk.period_id, json=EXPLICIT_REGENERATE,
+                           headers=_bearer(USER_A))
         assert resp.status_code == 200, resp.text[:400]
         stub_doc = narrated[-1]["doc"]
         db.tables["documents"].append(
             {"id": "doc-live", "org_id": bk.org["id"], "period_id": bk.period_id,
              "original_filename": "live.xlsx", "deleted_at": None, "created_at": "2025-03-01T00:00:00Z"})
-        resp = client.post("/api/period/%s/briefing/regenerate" % bk.period_id, headers=_bearer(USER_A))
+        resp = client.post("/api/period/%s/briefing/regenerate" % bk.period_id, json=EXPLICIT_REGENERATE,
+                           headers=_bearer(USER_A))
         assert resp.status_code == 200, resp.text[:400]
         live_doc = narrated[-1]["doc"]
     assert stub_doc["id"] == "regenerate" and stub_doc["org_id"] == bk.org["id"], stub_doc

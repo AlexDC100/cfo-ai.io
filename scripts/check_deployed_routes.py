@@ -101,7 +101,10 @@ PROBES = [
     ("POST", "/api/documents/duplicate-check", {"content_hash": "0" * 64}),
     ("POST", "/api/period/%s/reextract" % ZERO, {}),
     ("POST", "/api/period/%s/review/reanalyze" % ZERO, {}),
-    ("POST", "/api/period/%s/briefing/regenerate" % ZERO, {}),
+    # The EXPLICIT shape (hotfix 2026-10-02). `{}` would be refused 422 by the
+    # body model, several frames before the verifier — the very blind spot
+    # this script's header describes; the body below reaches the wall (401).
+    ("POST", "/api/period/%s/briefing/regenerate" % ZERO, {"intent": "user"}),
     ("DELETE", "/api/period/%s" % ZERO, None),
     ("PATCH", "/api/documents/%s" % ZERO, {"period_id": ZERO}),
     ("DELETE", "/api/documents/%s" % ZERO, None),
