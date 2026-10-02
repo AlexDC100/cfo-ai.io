@@ -5118,7 +5118,7 @@ browser-written column consumed by raw value inside a service-role
 operation, behind a wall that checks a different object.** Under the
 service role RLS does not apply, so THE FILTER IS THE ACCESS CONTROL.
 
-Three suites, 41 tests, floor 35: the storage seam
+Four suites, 47 tests, floor 41: the storage seam
 (`test_storage_tenant_paths.py`), the period seam
 (`test_period_id_tenant_boundary.py`), a static census over every
 service-role call (`test_service_role_tenant_filter.py`), and cross-org
@@ -5180,6 +5180,46 @@ left all five cross-org read tests GREEN — those routes are guarded by RLS
 in the per-user client, not by that call. A plant that does not red is not
 evidence the gate is weak; it is evidence the plant was aimed at the wrong
 thing. It was replaced with Plant D, which reds.
+
+### tenant-boundary — period-move siblings and the sales rerun name the tenant (tenancy hotfix, 2026-10-02)
+
+Two more service-role reads keyed by a browser-written column, found by the
+sweep for the valuation-override class (41 candidates, each adversarially
+verified; `specs-durable/hotfix_overrides_tenancy/sweep_2026-10-02.json`):
+
+- `_period_move._live_siblings` read `documents` by `period_id` alone. A row
+  of ANOTHER workspace pointing at this period came back as a sibling, was
+  picked as the rebuild document (analysed, newest), and on the victim's own
+  move the period was wiped and re-pointed at it.
+- `POST /api/sales-datasets/{id}/rerun` read `documents` by the dataset row's
+  `document_id` alone and signed the object against the foreign document's
+  OWN org (so `assert_tenant_path` passed trivially) — another workspace's
+  workbook was downloaded and its per-category DIO written into the caller's
+  SKU rows.
+
+Both now name the authorized org in the filter AND drop any returned row of
+another org (the store must not be the only wall). Production held no row of
+either shape on 2026-10-02 (63 documents, 5 datasets, 0 cross-workspace
+pointers; read-only).
+
+Laws (in `tests/engine/test_period_id_tenant_boundary.py`, measured 15 tests,
+the gate 47): `test_another_workspaces_document_is_never_a_sibling_of_my_period`
+(with a store that honours filters and one that ignores them),
+`test_a_planted_foreign_document_leaves_a_lone_period_with_no_sibling`,
+`test_a_dataset_pointing_at_another_workspaces_document_signs_nothing`,
+`test_a_dataset_in_its_own_workspace_still_signs_its_own_workbook`.
+
+**PLANT** (each alone, by `hotfix_plants.py`, restored byte-exact):
+
+| plant | RED |
+|---|---|
+| P12 siblings read by period alone (no tenant, no check) | `3 failed, 25 passed` |
+| P13 siblings keep the filter but trust whatever the store returns | `1 failed, 27 passed` — the filter-ignoring store |
+| P14 sales rerun reads the document by id alone and signs against the document's own org | `1 failed, 27 passed` |
+
+**REVERT** — both files restored byte-exact; `28 passed`. **CANNOT SEE:** the
+live policies of `documents` / `sales_datasets`; the `_correction_rerun`
+branch that starts a run on a row it could not read.
 
 ## floor-public-score
 
@@ -17293,3 +17333,132 @@ repeat window; 809/809 on three re-runs of the file); the two fixed files
 re-run: 160 passed. Hermetic `e2e/design/cmdbar.spec.ts` (chromium, the
 production bundle built per its header): 37 passed, G6 333 / 325 figures per
 company per language.
+
+## valuation-overrides-tenancy
+
+A member is never served another member's valuation overrides — not by a
+read, and not through an artifact the whole workspace reads.
+`user_valuation_assumptions` is a per-USER table (`user_id` + `period_id`,
+no org column): two members of one workspace each save their own EBITDA /
+multiple / debt / cash for the same period. In the code production ran until
+the hotfix of 2026-10-02:
+
+- `POST /api/period/{id}/valuation/recompute` and
+  `POST /api/period/{id}/briefing/regenerate` read the table with the
+  SERVICE ROLE by `period_id` alone and took the first row — any member who
+  could see the period was answered a valuation computed on another member's
+  figures, and the workspace-wide briefing was narrated on them (the
+  frontend auto-fires regenerate on a language mismatch: no click needed);
+- `GET /api/period/{id}` read it by period alone through the caller's
+  client — correct only under a row-level policy this repository does not
+  define;
+- `PUT …/valuation-assumptions` re-persisted the ONE shared `valuations` row
+  computed on the saver's overrides, so the row carried one member's typed
+  figures and every fallback that reads the row (`row_benchmarks`: the
+  saver's multiple as the "peer" P50; `lawful_stored_row`: the saver's debt,
+  cash, or EBITDA in the refusal text) handed them to another member;
+- the regenerate route also read `documents` by `period_id` alone and took
+  `rows[0]` as "the document" the narrator is told about, and
+  `calculated_metrics` / `valuations` by period alone — `period_id` on those
+  tables is a column a member of another workspace can write on their own
+  rows.
+
+The census declaration that covered the admin read said "the period passed
+`_verify_user_may_write_period`" — false for the recompute route, which never
+called that wall.
+
+MEASURED ON PRODUCTION (read-only, 2026-10-02, before the deploy): the
+override table held 0 rows and each of the 24 workspaces had exactly one
+member — the path was open in code and nobody had been served another
+member's figures. A read-only probe on the running image (two synthetic rows
+overlaid in memory on a stored period) reproduced all of it:
+`specs-durable/hotfix_overrides_tenancy/prod_probe_before.out`.
+
+The repair: ONE reader, `pipeline._caller_valuation_assumptions` — the
+caller's client, the caller's verified user id in the filter, any row that is
+not the caller's dropped; the regenerate route passes NO user override (owner
+ruling 2026-10-02: the engine's result is shared, overrides are per user
+only); the PUT persists the engine's figures; `pipeline._period_source_document`
+reads the period's own source document with the org in the filter; the
+`("pipeline.py", "user_valuation_assumptions", "select")` declaration is
+deleted from `tests/engine/test_service_role_tenant_filter.py`, so a DIRECT
+service-role select of the table — a call on a name bound by
+`with _supabase.admin() as X`, the table as a string literal, in a top-level
+module of `src/engine/api` — reds in `tenant-boundary` too. The census does
+not follow a client passed as an argument, a module in a sub-package or
+outside `src/engine/api`, a table name held in a variable, or a filter whose
+text merely contains `org_id`.
+
+| | |
+|---|---|
+| command | `python -m pytest tests/engine/test_valuation_overrides_tenancy.py -q` |
+| work count | junit-xml, floor **13** tests (measured 13); the table-read test floors its own subject (≥ 1 recorded read; measured 2: GET and recompute) |
+| canary | `test_recompute_never_serves_another_members_overrides`, `test_each_member_is_served_their_own_overrides`, `test_the_briefing_is_narrated_on_the_engines_valuation_whoever_regenerates`, `test_the_override_table_is_never_read_under_the_service_role_or_without_the_user`, `test_a_save_persists_the_engines_figures_in_the_shared_row`, `test_the_narrator_is_told_the_periods_own_document_and_no_foreign_row` |
+
+**SCOPE.** The real pipeline router over the agras corpus book; two members
+(A, B) of its workspace with REAL ES256 bearers; B's and A's rows carry
+figures no engine computation yields, so finding one in a response says whose
+row was read. The per-user client of this world applies NO row-level security
+— a read that names no user returns every member's row — and every select is
+recorded with the client it came through. The shared-row law compares the row
+after a save with the row a reset (no override) persists, and re-reads the
+period as the OTHER member with the benchmark table down. The regenerate law
+plants another workspace's `documents`, `calculated_metrics` and `valuations`
+rows FIRST on the period.
+
+**GREEN** — exit `0`: `13 passed`.
+
+**PLANT** — twelve, each applied ALONE to `src/engine/api/pipeline.py` by
+`specs-durable/hotfix_overrides_tenancy/hotfix_plants.py` (which runs this
+file and `test_period_id_tenant_boundary.py` together: 28 tests), the file
+restored byte-exact after each (sha256 asserted):
+
+| plant | RED |
+|---|---|
+| P0 the pre-fix file (main's `pipeline.py` verbatim) | `13 failed, 15 passed` |
+| P1 recompute reads by period only under the service role, first row | `5 failed, 23 passed` |
+| P2 regenerate hands the first row of any member to the narrator | `3 failed, 25 passed` |
+| P3 the helper reads by period alone (no user in the filter, no own-row check) | `7 failed, 21 passed` |
+| P4 the helper's filter no longer names the caller and it trusts what comes back | `4 failed, 24 passed` |
+| P5 the helper serves nobody's overrides (returns `None`) | `3 failed, 25 passed` — the positive controls |
+| P6 regenerate hands the CALLER'S own override to the shared briefing | `2 failed, 26 passed` |
+| P7 the PUT persists the saver's overrides into the shared `valuations` row | `2 failed, 26 passed` — `…persists_the_engines_figures_in_the_shared_row`, `…benchmark_table_down…` |
+| P8 regenerate takes the first `documents` row carrying the period id | `2 failed, 26 passed` |
+| P9 regenerate reads `calculated_metrics` by period alone | `1 failed, 27 passed` |
+| P10 regenerate reads `valuations` by period alone | `1 failed, 27 passed` |
+| P11 the source-document helper drops the org from both reads and trusts the rows | `2 failed, 26 passed` |
+
+**RED** — every plant exits `1` (full output with the failing test names:
+`specs-durable/hotfix_overrides_tenancy/hotfix_plants.out`).
+
+**REVERT** — `pipeline.py` restored byte-exact; exit `0`: `28 passed`; no
+`# PLANT` marker left. Verdict: proven RED, twelve of twelve.
+
+**After the repair it reds on:** a read of `user_valuation_assumptions` under
+the admin client, or a per-user read of it without `user_id` in the filter, ON
+THE THREE ROUTES THIS FILE DRIVES (GET /api/period, valuation/recompute,
+briefing/regenerate) and in the one reader they share; the regenerate route passing any member's
+override to the narrator; the caller's own row no longer applying; the PUT
+persisting a saver's figure into the shared row; a regenerate read of
+`documents` / `calculated_metrics` / `valuations` without `org_id`, or one
+that takes a foreign row.
+
+**CANNOT SEE:** the tables' real row-level policies (no DDL in the repository
+for `valuations` / `user_valuation_assumptions`); a service-role read of the
+table in any other route or module when it is not the direct form the census
+recognises (measured 2026-10-02 by adversarial review: a new route reading
+through a helper handed the admin client, and a direct admin read in
+`src/engine/api/findings/`, pass both gates — a names census over `src/` is
+the follow-up); the served-periods DATA gate (`check_served_periods.py`),
+which has no caller identity and so serves every period WITHOUT saved
+overrides — it no longer exercises the override path as it incidentally did
+before 2026-10-02 for single-saver periods; rows already persisted on a
+member's override before the fix (production held none); figures a browser
+computes from the served payload; the other reads the sweep of 2026-10-02
+confirmed and did not repair here
+(`specs-durable/hotfix_overrides_tenancy/sweep_2026-10-02.json`): the non-RO
+plan gate reading the subscription of whoever `documents.uploaded_by` names,
+the journal `asof` chain keyed by content hash alone (unreachable while
+`ENGINE_JOURNAL_DIR` is unset), the firm digest cron and the founder
+renewal-reminder recipient (both behind flags / an operator bearer), and the
+unauthenticated `/api/cfo/decisions` demo store.

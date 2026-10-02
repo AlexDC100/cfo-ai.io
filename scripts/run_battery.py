@@ -279,9 +279,10 @@ def _engine_gates() -> List[Gate]:
         # their Stripe subscription. Under the service role RLS does not
         # apply, so the FILTER is the access control — a guard sitting in
         # an earlier early-return is one edit away from being bypassed.
-        # These three suites are the permanent form of that sweep: the
-        # storage seam, the period seam, and a static census that fails any
-        # NEW unfiltered service-role call on a tenant table. Plant log:
+        # These four suites are the permanent form of that sweep: the
+        # storage seam, the period seam, a static census that fails any
+        # NEW unfiltered service-role call on a tenant table, and cross-org
+        # reads against the real app. Plant log:
         # docs/engine_book/gates.md
         Gate("tenant-boundary",
              [PY, "-m", "pytest",
@@ -289,17 +290,45 @@ def _engine_gates() -> List[Gate]:
               "tests/engine/test_period_id_tenant_boundary.py",
               "tests/engine/test_service_role_tenant_filter.py",
               "tests/engine/test_cross_org_reads.py", "-q"],
-             work_junit=True, floor=35, units="tests",
+             # + the period-move sibling and sales-rerun laws (tenancy
+             # hotfix 2026-10-02): measured 47, floor 41.
+             work_junit=True, floor=41, units="tests",
              canaries=("test_another_orgs_path_is_refused_for_every_operation",
                        "test_make_active_refuses_a_period_in_another_workspace",
                        "test_every_unfiltered_service_role_call_is_declared",
-                       "test_a_member_of_another_workspace_cannot_read_org_a1")),
+                       "test_a_member_of_another_workspace_cannot_read_org_a1",
+                       "test_another_workspaces_document_is_never_a_sibling_of_my_period",
+                       "test_a_dataset_pointing_at_another_workspaces_document_signs_nothing")),
         Gate("route-binding",
              [PY, "-m", "pytest", "tests/engine/test_route_bindings.py", "-q"],
              work_junit=True, floor=3, units="tests",
              canaries=("test_no_mutating_route_demands_its_body_as_a_query_param",
                        "test_no_request_model_is_nested_inside_a_function_under_future_annotations",
                        "test_the_full_openapi_schema_generates")),
+        # A MEMBER IS NEVER SERVED ANOTHER MEMBER'S VALUATION OVERRIDES
+        # (tenancy hotfix 2026-10-02). `user_valuation_assumptions` is a
+        # per-USER table; valuation/recompute and briefing/regenerate read
+        # it under the service role by period only and took the first row.
+        # Two members of one workspace through the REAL routes, over a
+        # per-user client that applies NO row-level security (the code's
+        # own filter is the wall under test); the caller's own row still
+        # applies; the workspace-wide briefing is narrated on the engine's
+        # valuation; no read of the table is under the service role or
+        # without the user in the filter; the ONE shared valuations row is
+        # persisted on the engine's figures (a save writes none of the
+        # saver's); the regenerate route's period-keyed reads name the
+        # tenant and the narrator's document is the period's own. Measured
+        # 13. Plant log: docs/engine_book/gates.md
+        # "valuation-overrides-tenancy".
+        Gate("valuation-overrides-tenancy",
+             [PY, "-m", "pytest", "tests/engine/test_valuation_overrides_tenancy.py", "-q"],
+             work_junit=True, floor=13, units="tests",
+             canaries=("test_recompute_never_serves_another_members_overrides",
+                       "test_each_member_is_served_their_own_overrides",
+                       "test_the_briefing_is_narrated_on_the_engines_valuation_whoever_regenerates",
+                       "test_the_override_table_is_never_read_under_the_service_role_or_without_the_user",
+                       "test_a_save_persists_the_engines_figures_in_the_shared_row",
+                       "test_the_narrator_is_told_the_periods_own_document_and_no_foreign_row")),
         # WORKSPACE-V2 — the redesign's engine gates (one company per
         # workspace, keyed by CUI) on the REAL create_app() and the REAL
         # identifier: G1 a file lands in the company its header names, G2 the
