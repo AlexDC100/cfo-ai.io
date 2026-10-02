@@ -2611,7 +2611,19 @@ def _frontend_gates() -> List[Gate]:
                        "C3 offers no document type but a trial balance as an input, unless it says AI-read or not supported",
                        "C4 the table prints the denominator: files read, files refused, in the reader's date format",
                        "F6 who read the document is the served extraction method, never a universal sentence",
-                       "F7 the export closes under the same law, and the published sample prints none of the retired sentences",
+                       # THE REPORT-FOOTER LAW IS POSITIVE (2026-10-02): every
+                       # law is a canary by name, and the count below is printed
+                       # from a counter of laws that RAN — F5 could be
+                       # un-registered with the gate green while "laws=8" was a
+                       # string literal
+                       "F1 a balanced book: the engine's verdict and a zero difference, no tolerance",
+                       "F3 a period with no engine verdict says so, and prints no difference",
+                       "F3 a served verdict without its totals block still prints the served status and difference",
+                       "F4 credits the narrative only when a briefing is shown, and names no model version",
+                       "F5 the report page's closing region is the footer and its three served lines, nothing typed",
+                       "F7 the export's closing templates are the expected ones, and no retired sentence is typed in its source",
+                       "F8 the published sample's closing blocks are exactly the builder's output for the served document",
+                       "F9 no closing block states a percentage or a tolerance, in any words",
                        "C1b every row but Romania sits in a group that says not supported, and cannot be chosen",
                        "C2 names no accounting software that is not a tested row's, backed by a real file",
                        "C3 offers no input format outside the tested rows unless it says AI-read or not supported",
@@ -2621,7 +2633,7 @@ def _frontend_gates() -> List[Gate]:
                        "C7 says other countries are not supported yet, offers the coverage table, sells nothing",
                        "C8 the section count a plan sells is the count the report renders",
                        "C9 the share image's text is the hero's; its alt says what the image says",
-                       "GATE-WORK report-footer laws=8",
+                       "GATE-WORK report-footer laws=10 registered=10",
                        "F2 an imbalanced book: that status and the served difference to the cent",
                        "lib/markets.ts is gone and nothing imports it")),
         # `npx tsc --noEmit` sat here and CHECKED ZERO FILES. The root
