@@ -143,6 +143,7 @@ import { resolve, join, extname, dirname } from "node:path";
 import en from "@/i18n/locales/en.json";
 import ro from "@/i18n/locales/ro.json";
 import { landingStringsFor } from "@/pages/cfo/landingStrings";
+import { PLAN_PRICES_EUR } from "@/lib/price";
 
 const REPO = resolve(__dirname, "../../..");
 const FRONTEND = join(REPO, "frontend");
@@ -1180,12 +1181,12 @@ describe("shipped claims match the code", () => {
     // can read must be one `_pricing_config.py` actually charges: a plan
     // price, an overage price, or zero.
     //
-    // Landing.tsx is included by NUMERIC CONSTANT, not by string
-    // harvest: it builds its pricing cards as `€${SOLO_MONTHLY}` from
-    // `const SOLO_MONTHLY = 4.99`, so the digits never appear inside a
-    // string literal and the copy sweep cannot see them. Measured today
-    // they are right (4.99 / 9.99, matching solo / pro); the point of
-    // the assertion is that they stay right when the backend changes.
+    // The landing's amounts are included by NUMERIC CONSTANT, not by
+    // string harvest: its cards and bullets print `{price.<name>}` tokens
+    // filled from `PLAN_PRICES_EUR` (lib/price.ts — the one price printer,
+    // 2026-10-02), so the digits never appear inside a string literal and
+    // the copy sweep cannot see them. The point of the assertion is that
+    // they stay right when the backend changes.
     const charged = new Set<number>([0]);
     const cfg = readFileSync(PRICING_CONFIG_PY, "utf8");
     for (const m of cfg.matchAll(/_env_float\(\s*"[A-Z_]+"\s*,\s*(\d+(?:\.\d+)?)\s*\)/g)) {
@@ -1197,8 +1198,12 @@ describe("shipped claims match the code", () => {
 
     // (a) Prices written into marketing copy, either currency order.
     for (const line of MARKETING.filter(isPureMarketing)) {
-      for (const m of line.text.matchAll(/€\s*(\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)\s*€/g)) {
-        const raw = (m[1] ?? m[2]).replace(",", ".");
+      // Symbol before, symbol after, or the product standard: the ISO
+      // code after the figure ("4.99 EUR" / "4,99 EUR", CLAUDE.md §26).
+      for (const m of line.text.matchAll(
+        /€\s*(\d+(?:[.,]\d+)?)|(\d+(?:[.,]\d+)?)\s*€|(\d+(?:[.,]\d+)?)[\s\u00a0]*EUR\b/g,
+      )) {
+        const raw = (m[1] ?? m[2] ?? m[3]).replace(",", ".");
         const value = Number(raw);
         if (charged.has(value)) continue;
         offenders.push(
@@ -1209,22 +1214,39 @@ describe("shipped claims match the code", () => {
       }
     }
 
-    // (b) The landing's own price constants.
+    // (b) The landing's price table (lib/price.PLAN_PRICES_EUR) — every
+    // amount, and the landing must hold no amount of its own beside it.
+    const amounts = Object.entries(PLAN_PRICES_EUR);
+    expect(
+      amounts.length,
+      "lib/price.PLAN_PRICES_EUR is empty — if the landing's prices moved, " +
+        "point this assertion at whatever now holds the numbers",
+    ).toBeGreaterThanOrEqual(6);
+    for (const [name, amount] of amounts) {
+      if (charged.has(amount)) continue;
+      offenders.push(
+        `lib/price.PLAN_PRICES_EUR.${name} = ${amount} — _pricing_config.py charges ` +
+          `[${[...charged].sort((a, b) => a - b).join(", ")}]`,
+      );
+    }
     const landing = stripComments(
       readFileSync(join(FRONTEND, "pages/cfo/Landing.tsx"), "utf8"),
     );
-    const consts = [...landing.matchAll(/const\s+([A-Z0-9_]*MONTHLY[A-Z0-9_]*)\s*=\s*(\d+(?:\.\d+)?)/g)];
-    expect(
-      consts.length,
-      "Landing.tsx declares no *MONTHLY* price constant — if the pricing cards " +
-        "were rebuilt, point this assertion at whatever now holds the numbers",
-    ).toBeGreaterThan(0);
-    for (const [, name, raw] of consts) {
-      if (charged.has(Number(raw))) continue;
+    for (const m of landing.matchAll(/const\s+([A-Z0-9_]*(?:MONTHLY|PRICE|EUR)[A-Z0-9_]*)\s*=\s*(\d+(?:\.\d+)?)/g)) {
       offenders.push(
-        `Landing.tsx ${name} = ${raw} — _pricing_config.py charges ` +
-          `[${[...charged].sort((a, b) => a - b).join(", ")}]`,
+        `Landing.tsx ${m[1]} = ${m[2]} is a typed amount — the landing's prices are ` +
+          `lib/price.PLAN_PRICES_EUR, printed by formatPrice`,
       );
+    }
+    // No euro SYMBOL in the landing or pricing copy: the product standard
+    // is the code after the figure, printed by lib/price.formatPrice.
+    const isPriceCopy = (line: Line): boolean =>
+      isPureMarketing(line) ||
+      /^(?:en|ro)\.json (?:pricing|pricingX|pricingFaq|contactSales|authX)\./.test(line.where);
+    for (const line of MARKETING.filter(isPriceCopy)) {
+      if (line.text.includes("€")) {
+        offenders.push(`${line.where} prints a euro symbol — prices go through lib/price.formatPrice\n      "${line.text.slice(0, 160)}"`);
+      }
     }
 
     expect(offenders.join("\n")).toBe("");

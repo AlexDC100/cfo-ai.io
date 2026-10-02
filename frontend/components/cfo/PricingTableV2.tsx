@@ -211,7 +211,7 @@ export function PricingTableV2({
             features={planFeatureBulletsFor(p.key)}
             lang={i18n.language}
             ctaLabel={t("pricing.startPlan", { name: p.display_name })}
-            extraDocCopy={t("pricing.extraDoc", { price: formatEur(p.extra_doc_eur ?? 0) })}
+            extraDocCopy={t("pricing.extraDoc", { price: formatEur(p.extra_doc_eur ?? 0, i18n.language) })}
             comingSoon={isComingSoonPlan(p.key)}
             onPick={() => handlePick(p.key)}
             submitting={submitting === p.key}
@@ -291,7 +291,20 @@ function PlanCard({
   onPick: () => void;
   submitting: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  // THE BLURB IS THE DICTIONARY'S, filled with the config's numbers. The
+  // server sends an English sentence with a typed "€1.49" in it; rendering
+  // that put English prose and an English-format price on the Romanian
+  // page. `pricing.blurb.<plan>` exists for every plan on sale; a plan
+  // without one (a tier added on the server first) falls back to the
+  // server's sentence rather than to nothing.
+  const blurbKey = `pricing.blurb.${plan.key}`;
+  const blurb = i18n.exists(blurbKey)
+    ? t(blurbKey, {
+        count: plan.included_docs,
+        extra: formatEur(plan.extra_doc_eur ?? 0, i18n.language),
+      })
+    : plan.blurb;
   return (
     <article
       data-testid={`pricing-plan-${plan.key}`}
@@ -338,7 +351,7 @@ function PlanCard({
             data-testid={`pricing-plan-${plan.key}-blurb`}
             className="mt-1 text-[12.5px] text-ink-soft leading-snug"
           >
-            {comingSoon ? t("pricing.multiComingSoonBlurb") : plan.blurb}
+            {comingSoon ? t("pricing.multiComingSoonBlurb") : blurb}
           </p>
         </header>
 
@@ -352,14 +365,14 @@ function PlanCard({
                 : "text-[40px] text-ink"}
             `}
           >
-            {formatEur(plan.price_eur)}
+            {formatEur(plan.price_eur, i18n.language)}
           </span>
           <span className="text-[13px] text-ink-soft">{t("pricing.perMonth")}</span>
         </div>
         <p className="mt-1 text-[11.5px] text-ink-mute">
           {comingSoon
             ? t("pricing.notOnSaleYet")
-            : t("pricing.trialThen", { price: formatEur(plan.price_eur) })}
+            : t("pricing.chargedFrom", { price: formatEur(plan.price_eur, i18n.language) })}
         </p>
 
         <ul

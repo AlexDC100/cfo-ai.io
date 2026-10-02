@@ -231,7 +231,9 @@ describe("the registry this gate reads", () => {
 const NULL_KEY_BULLETS_EN = [
   "HTML and Excel report export",
   "1 workspace",
-  "Valuation module",
+  // 2026-10-02: "Valuation module" left the list with the line itself —
+  // the valuation is not gated by plan, so no card sells it as a tier
+  // feature (lib/planFeatures.ts, "A CARD LISTS WHAT THE PLAN CHANGES").
   "Up to 5 workspaces",
   "Everything in Pro",
   // 2026-10-01: replaced "Any accounting jurisdiction" — Multi-Country is

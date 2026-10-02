@@ -28,6 +28,7 @@
 
 import { useMemo, useState } from "react";
 import { UploadCloud } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import {
   type PlanConfig,
@@ -43,6 +44,9 @@ interface Props {
 
 export function MonthlyBillEstimator({ config }: Props) {
   const [docs, setDocs] = useState(7);
+  // Every word is the dictionary's (`pricing.est.*`, both languages); the
+  // card was typed in English here until 2026-10-02.
+  const { t } = useTranslation();
 
   // Purchasable recurring plans only — trial/intro never appear (they're
   // acquisition-only, no "estimated monthly bill" concept), and retired
@@ -61,14 +65,13 @@ export function MonthlyBillEstimator({ config }: Props) {
     >
       <header className="text-center max-w-[640px] mx-auto mb-8">
         <div className="text-[10.5px] uppercase tracking-[0.16em] text-ink-mute font-medium">
-          Estimate your monthly bill
+          {t("pricing.est.eyebrow")}
         </div>
         <h2 className="mt-2 font-serif text-[26px] sm:text-[32px] leading-[1.1] text-ink">
-          Match how your team actually works.
+          {t("pricing.est.title")}
         </h2>
         <p className="mt-3 text-[13px] text-ink-soft">
-          Slide to your real numbers — we'll show what each plan costs.
-          Estimates only; you only get charged for extras you confirm.
+          {t("pricing.est.sub")}
         </p>
       </header>
 
@@ -81,12 +84,12 @@ export function MonthlyBillEstimator({ config }: Props) {
           <Slider
             icon={UploadCloud}
             testId="estimator-docs-slider"
-            label="Financial documents per month"
+            label={t("pricing.est.sliderLabel")}
             value={docs}
             min={1}
             max={100}
             onChange={setDocs}
-            valueLabel={`${docs} ${docs === 1 ? "document" : "documents"}`}
+            valueLabel={t("pricing.est.docs", { count: docs })}
           />
         </div>
 
@@ -174,6 +177,8 @@ function PlanEstimate({
   plan: PlanConfig;
   docs: number;
 }) {
+  const { t, i18n } = useTranslation();
+  const lang = i18n.language;
   const extras = Math.max(0, docs - plan.included_docs);
   const extraEur = plan.extra_doc_eur ?? 0;
   const extrasCharge = extras * extraEur;
@@ -192,22 +197,22 @@ function PlanEstimate({
           data-testid={`estimator-${plan.key}-total`}
           className="text-[20px] font-semibold text-ink tabular-nums"
         >
-          {formatEur(total)}
-          <span className="ml-1 text-[11px] font-normal text-ink-soft">/ mo</span>
+          {formatEur(total, lang)}
+          <span className="ml-1 text-[11px] font-normal text-ink-soft">{t("pricing.perMonthShort")}</span>
         </div>
       </header>
       <ul className="text-[12.5px] text-ink-soft space-y-1">
         <li className="flex justify-between">
-          <span>Base ({plan.included_docs} included)</span>
-          <span className="tabular-nums">{formatEur(plan.price_eur)}</span>
+          <span>{t("pricing.est.base", { count: plan.included_docs })}</span>
+          <span className="tabular-nums">{formatEur(plan.price_eur, lang)}</span>
         </li>
         <li className="flex justify-between">
           <span>
             {extras > 0
-              ? `${extras} extra ${extras === 1 ? "document" : "documents"} × ${formatEur(extraEur)}`
-              : "0 extra documents"}
+              ? t("pricing.est.extras", { count: extras, price: formatEur(extraEur, lang) })
+              : t("pricing.est.noExtras")}
           </span>
-          <span className="tabular-nums">{formatEur(extrasCharge)}</span>
+          <span className="tabular-nums">{formatEur(extrasCharge, lang)}</span>
         </li>
       </ul>
     </article>

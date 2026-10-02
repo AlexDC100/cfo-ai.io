@@ -20,6 +20,8 @@
 
 import proofJson from "@/data/engineProof.json";
 import coverageJson from "@/data/coverage.json";
+import { uploadChecksSentence } from "@/lib/uploadChecks";
+import { PLAN_PRICES_EUR, formatPrice } from "@/lib/price";
 
 export type ProofLang = "en" | "ro";
 
@@ -122,11 +124,49 @@ interface CoverageRowLite {
   availability_ro?: string;
 }
 
+interface AiFeature {
+  availability: string;
+  as_of: string;
+  /** ISO date; required when `availability` is "unverified". */
+  unverified_since?: string;
+}
+
 interface AiFeatures {
-  chat?: { availability: string; as_of: string };
-  briefing?: { availability: string; as_of: string };
+  chat?: AiFeature;
+  briefing?: AiFeature;
   unavailable_en?: string;
   unavailable_ro?: string;
+  /** Carries `{date}` — the feature's `unverified_since`, formatted. */
+  unverified_en?: string;
+  unverified_ro?: string;
+}
+
+/** What a public surface prints beside a model-written feature (chat, the
+ *  briefing): nothing when it is AVAILABLE, the unavailable wording when it
+ *  is UNAVAILABLE, and a dated "availability not verified since …" when
+ *  nobody has measured it. "unverified" used to render as nothing — a
+ *  feature sold without a word while its last question had no answer.
+ *  A state this function does not know THROWS: a typo in coverage.json
+ *  must not turn into silence either. */
+export function aiFeatureNote(key: "chat" | "briefing", lang: string): string {
+  const l = langOf(lang);
+  const ai = (coverageJson as { ai_features?: AiFeatures }).ai_features;
+  const feature = ai?.[key];
+  if (!feature) throw new Error(`coverage.json ai_features carries no "${key}"`);
+  if (feature.availability === "available") return "";
+  if (feature.availability === "unavailable") {
+    const words = l === "ro" ? ai?.unavailable_ro : ai?.unavailable_en;
+    if (!words) throw new Error("coverage.json ai_features carries no unavailable wording");
+    return words;
+  }
+  if (feature.availability === "unverified") {
+    const words = l === "ro" ? ai?.unverified_ro : ai?.unverified_en;
+    if (!words || !words.includes("{date}") || !feature.unverified_since) {
+      throw new Error(`coverage.json ai_features.${key} is "unverified" without a dated wording`);
+    }
+    return words.replace("{date}", proofDate(feature.unverified_since, l));
+  }
+  throw new Error(`coverage.json ai_features.${key}.availability "${feature.availability}" is not a known state`);
 }
 
 /** Every token the copy may use, formatted for `lang`. Built from the JSON
@@ -186,17 +226,22 @@ export function proofTokens(lang: string): Record<string, string> {
       out[`coverage.${row.id}.availability_lc`] = text.charAt(0).toLowerCase() + text.slice(1);
     }
   }
-  // The model-written features (chat, briefing). Empty unless coverage.json
-  // says the feature is UNAVAILABLE — then the card and each quota line say
-  // so. `.status` is a sentence after a full stop, `.suffix` a tail on a
-  // list item.
-  const ai = (coverageJson as { ai_features?: AiFeatures }).ai_features;
+  // The model-written features (chat, briefing). Empty ONLY when
+  // coverage.json says the feature is available; "unavailable" and
+  // "unverified" both print (aiFeatureNote). `.status` is a sentence after a
+  // full stop, `.suffix` a tail on a list item.
   for (const key of ["chat", "briefing"] as const) {
-    const down = ai?.[key]?.availability === "unavailable";
-    const words = (l === "ro" ? ai?.unavailable_ro : ai?.unavailable_en) ?? "";
-    out[`coverage.${key}.status`] = down && words ? ` ${words}.` : "";
-    out[`coverage.${key}.suffix`] =
-      down && words ? ` — ${words.charAt(0).toLowerCase()}${words.slice(1)}` : "";
+    const note = aiFeatureNote(key, l);
+    out[`coverage.${key}.status`] = note ? ` ${note}.` : "";
+    out[`coverage.${key}.suffix`] = note ? ` — ${note.charAt(0).toLowerCase()}${note.slice(1)}` : "";
+  }
+  // The checks that run on every upload — ONE sentence for the landing and
+  // the app (lib/uploadChecks).
+  out["checks.upload"] = uploadChecksSentence(l);
+  // Plan prices, through the one price printer (lib/price): "4.99 EUR" /
+  // "4,99 EUR" — the code after the figure, never a symbol.
+  for (const [name, amount] of Object.entries(PLAN_PRICES_EUR)) {
+    out[`price.${name}`] = formatPrice(amount, l);
   }
   return out;
 }

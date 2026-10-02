@@ -940,7 +940,6 @@
     "badgeStarter": "Best for owners",
     "badgePro": "Most popular",
     "perMonth": "/ month",
-    "trialThen": "7-day free trial, then {{price}} / month",
     "aboveQuota": "Above quota: {{copy}}",
     "extraDoc": "{{price}} per extra document, shown and confirmed before processing",
     "currentPlan": "Current plan",
@@ -980,7 +979,24 @@
     "usageThisMonth": "this month",
     "multiComingSoonBlurb": "Coming soon — international coverage is not available yet. Today CFO AI reads Romanian trial balances only.",
     "notOnSaleYet": "Not on sale yet",
-    "comingSoonCta": "Coming soon"
+    "comingSoonCta": "Coming soon",
+    "chargedFrom": "Charged from the day you subscribe. The free trial is separate: one document, 7 days, no card.",
+    "blurb": {
+      "solo": "{{count}} Romanian documents a month; each extra one is {{extra}}.",
+      "pro": "{{count}} Romanian documents a month; each extra one is {{extra}}."
+    },
+    "est": {
+      "eyebrow": "Estimate your monthly bill",
+      "title": "See what each plan costs for your volume.",
+      "sub": "Move the slider to the number of documents you upload in a month. These are estimates; an extra document is charged only after you confirm it.",
+      "sliderLabel": "Financial documents per month",
+      "docs_one": "{{count}} document",
+      "docs_other": "{{count}} documents",
+      "base": "Base ({{count}} included)",
+      "extras_one": "{{count}} extra document × {{price}}",
+      "extras_other": "{{count}} extra documents × {{price}}",
+      "noExtras": "0 extra documents"
+    }
   },
   "account": {
     "fallbackName": "Account",
@@ -1324,7 +1340,7 @@
     "heroSuffix": "the full financial picture",
     "heroFallbackSubtitle": "Every statement rebuilt from your trial balance — P&L, balance sheet and cash flow — with ratios, valuation, a credit-risk score and ranked recommendations. Explore each in the tabs below.",
     "heroBodyExported": "exported from your accounting software as a Romanian trial balance",
-    "heroBodyTail": "This is the document the full analysis is built for: P&L, Balance Sheet, Cash Flow, Ratios, Valuation, Risk, and Recommendations are all reconstructed from it. Every upload is checked — the balance sheet must close and the source's debits and credits must agree — and any difference is shown on the report.",
+    "heroBodyTail": "This is the document the full analysis is built for: the P&L, the balance sheet, a cash-flow estimate, ratios, valuation, risk and recommendations are all built from it.",
     "askCfoAiPrompt": "What will CFO AI do with my trial balance? Walk me through the analysis I'll get after uploading — P&L, balance sheet, ratios, valuation, risks.",
     "invoiceRegister": "Invoice register",
     "loadedPeriod": "Loaded period",
@@ -1417,7 +1433,7 @@
     "qualityPassedLink": "Quality checks passed · About data accuracy",
     "accCleanTitle": "Quality checks passed.",
     "accCleanPre": "Extraction reconciles within",
-    "accCleanPost": "on this document. The balance sheet closes and the source's debits and credits agree — those are the two checks run on every upload. Cross-check the headline figures (revenue, EBITDA, net profit, debt, equity) against your source before a board-level or external decision.",
+    "accCleanPost": "on this document. {{checks}} Cross-check the headline figures (revenue, EBITDA, net profit, debt, equity) against your source before a board-level or external decision.",
     "accWatchTitle": "Verify before external use.",
     "accSrcImbalancePre": "Your source trial balance has a",
     "accImbalanceBold": "{{pct}}% debit / credit imbalance",
@@ -1431,7 +1447,7 @@
     "accProblemBsTail": "— accounts may be missing or misclassified.",
     "accProblemTail": "Headline numbers below (revenue, EBITDA, net profit, debt, equity) may not match your source. Resolve the source-data issue before any external use.",
     "accUnknownTitle": "About data accuracy.",
-    "accUnknownBody": "Each upload is checked against its source trial balance: the balance sheet must close and debits must equal credits. If anything is off, you'll see a specific warning here naming the issue (source imbalance, account misclassification, etc.). Headline numbers can always be cross-checked against your source.",
+    "accUnknownBody": "{{checks}} If anything is off, you'll see a specific warning here naming the issue (source imbalance, account misclassification, etc.). Headline numbers can always be cross-checked against your source.",
     "statutoryDetected": "Statutory format detected (Formular F30 + F10).",
     "statutoryBody": "Headline figures (revenue, EBITDA, debt, equity) extracted from your filed financial statements.",
     "statutoryWhatsNot": "What's not available with this format",
@@ -3902,7 +3918,7 @@
       "a": "You will see the extra-document price before processing. CFO AI never charges silently."
     },
     "introSubscription": {
-      "q": "Is the €0.99 Intro Unlock a subscription?",
+      "q": "Is the {{introPrice}} Intro Unlock a subscription?",
       "a": "No. It is a one-time 7-day unlock for one extra document."
     },
     "rollover": {
@@ -3917,5 +3933,36 @@
       "q": "Are Ask CFO AI messages capped?",
       "a": "Yes. Each plan carries a daily and a monthly message cap, shown on its card and in the app. Chat is capped rather than metered — it is never billed per message. Its answers are written by an AI model.{{chatStatus}}"
     }
+  },
+  "contactSales": {
+    "eyebrow": "Contact sales",
+    "navPricing": "Pricing",
+    "navHome": "Home",
+    "title": "Let's talk about a larger rollout",
+    "sub": "Tell us how you work. We reply by email with a proposal — no high-pressure pitch.",
+    "doneTitle": "Got it — talk soon",
+    "doneBody": "We've logged your inquiry and sent you a confirmation email. In the meantime, you're welcome to try RO Solo or Pro. There is also a one-time {{introPrice}} unlock that opens a single document for 7 days — it is not a subscription and not a first month.",
+    "backToPricing": "Back to pricing",
+    "name": "Your name",
+    "email": "Work email",
+    "company": "Company",
+    "role": "Your role",
+    "rolePlaceholder": "Partner, CFO, Senior accountant…",
+    "numCompanies": "How many companies do you analyze regularly?",
+    "choose": "Choose…",
+    "useCase": "What's your main use case?",
+    "useCasePlaceholder": "e.g., monthly reporting for several SME clients, due diligence on acquisition targets, a family-group view…",
+    "preferred": "Preferred contact",
+    "byEmail": "Email",
+    "byPhone": "Phone call",
+    "byVideo": "Video call (Google Meet)",
+    "phone": "Phone",
+    "send": "Send",
+    "sending": "Sending…",
+    "consent": "By submitting, you agree we'll email you about plans and pricing. We don't sell your data.",
+    "missingTitle": "Missing fields",
+    "missingBody": "Please share your name and a valid email so we can reply.",
+    "failedTitle": "Couldn't send",
+    "failedBody": "Please email {{email}} directly."
   }
 }

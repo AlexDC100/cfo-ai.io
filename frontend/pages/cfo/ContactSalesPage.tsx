@@ -9,9 +9,11 @@
 
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Logo } from "@/components/cfo/Logo";
 import { useToast } from "@/hooks/use-toast";
 import { SITE } from "@/config/site";
+import { PLAN_PRICES_EUR, formatPrice } from "@/lib/price";
 
 interface FormState {
   name: string;
@@ -40,13 +42,17 @@ export default function ContactSalesPage() {
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
   const { toast } = useToast();
+  // Every word is the dictionary's (`contactSales.*`, both languages). The
+  // page was English-only until 2026-10-02 and promised a reply "within 4
+  // business hours" — a service level nothing in the product measures.
+  const { t, i18n } = useTranslation();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!form.name.trim() || !form.email.trim() || !form.email.includes("@")) {
       toast({
-        title: "Missing fields",
-        description: "Please share your name and a valid email so we can reply.",
+        title: t("contactSales.missingTitle"),
+        description: t("contactSales.missingBody"),
         variant: "destructive",
       });
       return;
@@ -64,9 +70,8 @@ export default function ContactSalesPage() {
       setDone(true);
     } catch (err) {
       toast({
-        title: "Couldn't send",
-        description:
-          `Please email ${SITE.supportEmail} directly — we'll get back to you within 4 business hours.`,
+        title: t("contactSales.failedTitle"),
+        description: t("contactSales.failedBody", { email: SITE.supportEmail }),
         variant: "destructive",
       });
     } finally {
@@ -80,15 +85,15 @@ export default function ContactSalesPage() {
         <Link to="/" className="flex items-center gap-3">
           <Logo size={26} compact />
           <span className="hidden sm:inline-flex text-[10.5px] uppercase tracking-[0.18em] text-ink-soft pl-3 border-l border-rule">
-            Contact Sales
+            {t("contactSales.eyebrow")}
           </span>
         </Link>
         <div className="flex items-center gap-3">
           <Link to="/pricing" className="text-[13px] text-ink-soft hover:text-ink">
-            Pricing
+            {t("contactSales.navPricing")}
           </Link>
           <Link to="/" className="text-[13px] text-ink-soft hover:text-ink">
-            Home
+            {t("contactSales.navHome")}
           </Link>
         </div>
       </header>
@@ -99,49 +104,47 @@ export default function ContactSalesPage() {
               sells trial / intro / starter / RO Solo / Pro / Multi-Country;
               "Professional" and "Business" are legacy ALIASES, not products,
               and this page is public and linked from /roadmap. */}
-          Let's talk about a larger rollout
+          {t("contactSales.title")}
         </h1>
         <p className="mt-3 text-[14.5px] text-ink-soft">
-          Tell us about your workflow. We'll reply within 4 business hours with
-          a tailored proposal — no high-pressure pitch.
+          {t("contactSales.sub")}
         </p>
 
         {done ? (
           <div className="mt-8 rounded-xl border border-brand/30 bg-brand/5 p-6">
             <h2 className="text-[18px] font-semibold text-ink">
-              Got it — talk soon
+              {t("contactSales.doneTitle")}
             </h2>
             <p className="mt-2 text-[13.5px] text-ink-soft leading-relaxed">
-              We've logged your inquiry and sent you a confirmation email. In
-              the meantime, you're welcome to try RO Solo or Pro. There is
-              also a one-time €0.99 unlock that opens a single document for
-              7 days — it is not a subscription and not a first month.
+              {t("contactSales.doneBody", {
+                introPrice: formatPrice(PLAN_PRICES_EUR.intro, i18n.language),
+              })}
             </p>
             <div className="mt-4 flex gap-3">
               <Link
                 to="/pricing"
                 className="px-3 py-1.5 rounded-lg border border-rule text-[13px] hover:bg-surface-hover"
               >
-                Back to pricing
+                {t("contactSales.backToPricing")}
               </Link>
               <Link
                 to="/"
                 className="px-3 py-1.5 rounded-lg bg-ink text-bg text-[13px] hover:bg-ink/90"
               >
-                Home
+                {t("contactSales.navHome")}
               </Link>
             </div>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="mt-8 space-y-4">
             <Field
-              label="Your name"
+              label={t("contactSales.name")}
               required
               value={form.name}
               onChange={(v) => setForm({ ...form, name: v })}
             />
             <Field
-              label="Work email"
+              label={t("contactSales.email")}
               type="email"
               required
               value={form.email}
@@ -149,13 +152,13 @@ export default function ContactSalesPage() {
             />
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Field
-                label="Company"
+                label={t("contactSales.company")}
                 value={form.company}
                 onChange={(v) => setForm({ ...form, company: v })}
               />
               <Field
-                label="Your role"
-                placeholder="Partner, CFO, Senior accountant…"
+                label={t("contactSales.role")}
+                placeholder={t("contactSales.rolePlaceholder")}
                 value={form.role}
                 onChange={(v) => setForm({ ...form, role: v })}
               />
@@ -163,7 +166,7 @@ export default function ContactSalesPage() {
 
             <label className="block">
               <span className="text-[12.5px] text-ink-soft">
-                How many companies do you analyze regularly?
+                {t("contactSales.numCompanies")}
               </span>
               <select
                 value={form.num_companies}
@@ -172,7 +175,7 @@ export default function ContactSalesPage() {
                 }
                 className="mt-1 w-full rounded-lg border border-rule bg-surface px-3 py-2 text-[13.5px] text-ink"
               >
-                <option value="">Choose…</option>
+                <option value="">{t("contactSales.choose")}</option>
                 <option value="1-3">1-3</option>
                 <option value="4-10">4-10</option>
                 <option value="11-25">11-25</option>
@@ -182,20 +185,20 @@ export default function ContactSalesPage() {
 
             <label className="block">
               <span className="text-[12.5px] text-ink-soft">
-                What's your main use case?
+                {t("contactSales.useCase")}
               </span>
               <textarea
                 value={form.use_case}
                 onChange={(e) => setForm({ ...form, use_case: e.target.value })}
                 rows={4}
-                placeholder="e.g., monthly reporting for 8 SME clients, due diligence on acquisition targets, family-group consolidated view…"
+                placeholder={t("contactSales.useCasePlaceholder")}
                 className="mt-1 w-full rounded-lg border border-rule bg-surface px-3 py-2 text-[13.5px] text-ink resize-y"
               />
             </label>
 
             <label className="block">
               <span className="text-[12.5px] text-ink-soft">
-                Preferred contact
+                {t("contactSales.preferred")}
               </span>
               <select
                 value={form.preferred_contact}
@@ -207,15 +210,15 @@ export default function ContactSalesPage() {
                 }
                 className="mt-1 w-full rounded-lg border border-rule bg-surface px-3 py-2 text-[13.5px] text-ink"
               >
-                <option value="email">Email</option>
-                <option value="phone">Phone call</option>
-                <option value="video_call">Video call (Google Meet)</option>
+                <option value="email">{t("contactSales.byEmail")}</option>
+                <option value="phone">{t("contactSales.byPhone")}</option>
+                <option value="video_call">{t("contactSales.byVideo")}</option>
               </select>
             </label>
 
             {form.preferred_contact !== "email" && (
               <Field
-                label="Phone"
+                label={t("contactSales.phone")}
                 type="tel"
                 value={form.phone}
                 onChange={(v) => setForm({ ...form, phone: v })}
@@ -227,11 +230,10 @@ export default function ContactSalesPage() {
               disabled={submitting}
               className="w-full mt-2 py-3 rounded-lg bg-ink text-bg text-[14px] font-medium hover:bg-ink/90 transition-colors disabled:opacity-60"
             >
-              {submitting ? "Sending…" : "Send"}
+              {submitting ? t("contactSales.sending") : t("contactSales.send")}
             </button>
             <p className="text-[11.5px] text-ink-soft text-center">
-              By submitting, you agree we'll email you about plans and pricing.
-              We don't share your data with anyone.
+              {t("contactSales.consent")}
             </p>
           </form>
         )}

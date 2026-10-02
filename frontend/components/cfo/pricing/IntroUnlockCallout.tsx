@@ -14,6 +14,7 @@
 // period rate.
 
 import { Sparkles, Zap } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 import { type PlanConfig, formatEur } from "@/lib/pricingConfig";
 
@@ -27,6 +28,10 @@ interface Props {
 }
 
 export function IntroUnlockCallout({ plan, onUnlock }: Props) {
+  // Every word is the dictionary's (`pricing.intro*`, both languages). The
+  // strip was typed in English here until 2026-10-02, so the Romanian
+  // /pricing showed an English block between two Romanian ones.
+  const { t, i18n } = useTranslation();
   // Defence-in-depth: refuse to render if backend somehow returned
   // a `recurring: true` intro plan (would violate spec §6 hard rule).
   // The is_recurring_eligible_for_stripe_subscription guard already
@@ -63,15 +68,15 @@ export function IntroUnlockCallout({ plan, onUnlock }: Props) {
         </span>
         <div className="min-w-0">
           <div className="font-medium text-[14px] text-ink leading-tight">
-            Need one more analysis?
+            {t("pricing.introTitle")}
           </div>
           <p className="text-[12.5px] text-ink-soft leading-snug mt-0.5">
-            Unlock one extra document for {windowDays} days.{" "}
+            {t("pricing.introDesc", { days: windowDays })}{" "}
             <span
               data-testid="intro-not-a-subscription"
               className="font-medium text-ink-soft/90"
             >
-              Not a subscription.
+              {t("pricing.introNotSubscription")}
             </span>
           </p>
         </div>
@@ -83,13 +88,13 @@ export function IntroUnlockCallout({ plan, onUnlock }: Props) {
             data-testid="intro-price"
             className="text-[16px] font-semibold text-ink tabular-nums"
           >
-            {formatEur(plan.price_eur)}
+            {formatEur(plan.price_eur, i18n.language)}
           </div>
           <div
             data-testid="intro-cadence"
             className="text-[10.5px] uppercase tracking-[0.1em] text-ink-mute"
           >
-            One-time · {windowDays}-day window
+            {t("pricing.introCadence", { days: windowDays })}
           </div>
         </div>
         <button
@@ -104,7 +109,7 @@ export function IntroUnlockCallout({ plan, onUnlock }: Props) {
           "
         >
           <Sparkles size={12} strokeWidth={2} />
-          Unlock one document
+          {t("pricing.introCta")}
         </button>
       </div>
     </div>

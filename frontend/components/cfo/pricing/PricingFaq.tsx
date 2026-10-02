@@ -26,6 +26,7 @@ import { ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { proofTokens } from "@/lib/engineProof";
+import { PLAN_PRICES_EUR, formatPrice } from "@/lib/price";
 
 /** The questions, in order. `key` is the dictionary entry under
  *  `pricingFaq`; `testId` is stable for the copy gates. */
@@ -46,6 +47,9 @@ export function PricingFaq() {
   const values = {
     aiStatus: tokens["coverage.ai_read.availability_lc"] ?? t("pricingFaq.aiReaderAvailable"),
     chatStatus: tokens["coverage.chat.status"] ?? "",
+    // The intro price through the one price printer — the question used to
+    // carry a typed "€0.99" / "0,99 €".
+    introPrice: formatPrice(PLAN_PRICES_EUR.intro, i18n.language),
   };
   return (
     <section
@@ -80,7 +84,7 @@ export function PricingFaq() {
                   outline-none focus-visible:ring-2 focus-visible:ring-brand/40 rounded-md
                 "
               >
-                <span className="flex-1">{t(`pricingFaq.${item.key}.q`)}</span>
+                <span className="flex-1">{t(`pricingFaq.${item.key}.q`, values)}</span>
                 <ChevronDown
                   size={14}
                   strokeWidth={2}

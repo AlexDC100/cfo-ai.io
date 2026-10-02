@@ -42,6 +42,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { confirmExtraDoc, PlanApiError } from "@/lib/planState";
+import { formatEur } from "@/lib/pricingConfig";
 import { useToast } from "@/hooks/use-toast";
 
 /** WHAT is being confirmed — exactly one of the two:
@@ -92,7 +93,7 @@ export function ExtraDocConfirmDialog({
 
   const eurLabel =
     extraDocEur !== null && extraDocEur !== undefined
-      ? `€${extraDocEur.toFixed(2)}`
+      ? formatEur(extraDocEur)
       : "the per-document extra rate";
 
   async function handleConfirm() {

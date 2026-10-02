@@ -37,6 +37,7 @@ import { pickLanguageWithProfileSync, SUPPORTED_LANGUAGES } from "@/i18n";
 import { LEGAL_ENTITY, legalDocPath, socialLinks } from "@/lib/legalConfig";
 import { openCookieSettings } from "@/components/cfo/CookieBanner";
 import { proofRows } from "@/lib/engineProof";
+import { PLAN_PRICES_EUR, formatPrice } from "@/lib/price";
 import { coverageView, type CoverageCategory } from "@/lib/coverage";
 import { landingStringsFor, type LandingStrings } from "./landingStrings";
 
@@ -290,17 +291,16 @@ type BillingCycle = "monthly" | "yearly";
 
 // 2026-08 tier restructure: RO Solo / Pro / Multi-Country — must match
 // the in-app /pricing page (backend _pricing_config.py is the source of
-// truth; these are marketing-copy mirrors).
-const SOLO_MONTHLY = 4.99;
-const BUSINESS_MONTHLY = 9.99;
+// truth; lib/price.PLAN_PRICES_EUR is the landing's mirror, held to the
+// backend by shippedClaimsMatchCode).
+const SOLO_MONTHLY = PLAN_PRICES_EUR.solo;
+const BUSINESS_MONTHLY = PLAN_PRICES_EUR.pro;
 
-/** A card's price in ONE format per language — the same one the card's own
- *  bullets use ("€1.49 per extra" / "1,49 € per extra"). The Romanian page
- *  used to print "€4.99" over a list saying "1,49 €". */
-const cardPrice = (amount: number, langCode: string): string =>
-  langCode.toLowerCase().startsWith("ro")
-    ? `${amount.toFixed(2).replace(".", ",")}\u00a0€`
-    : `€${amount.toFixed(2)}`;
+/** A card's price through THE price printer (lib/price): "4.99 EUR" /
+ *  "4,99 EUR" — the code after the figure, the reader's number format, the
+ *  same string /pricing prints. The landing used to print "€4.99" in
+ *  English and "4,99 €" in Romanian while /pricing printed "€4.99" in both. */
+const cardPrice = (amount: number, langCode: string): string => formatPrice(amount, langCode);
 
 const billingToggle = (cycle: BillingCycle) => `
   <div style="display:flex;justify-content:center;margin-bottom:28px">

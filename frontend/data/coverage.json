@@ -1,7 +1,7 @@
 {
   "schema": "coverage/2",
-  "as_of": "2026-10-01",
-  "about": "THE ONLY SOURCE of coverage wording on any public or upload surface (landing, pricing, FAQ, page title and description, manifest, the in-app upload zone). A row may be in `tested` only with evidence: battery gate ids (`evidence.gates`), or a dated record of a measurement no committed gate can re-run (`evidence.record`, an id of frontend/data/coverageRecords.json). `real_books` is a count of DISTINCT real trial balances that were READ, or the string 'constructed test files only'; `real_files_refused` counts real files of the row's kind that the reader refused. A count comes from engineProof.json `formats` (`real_books_proof`) or from the row's record — never typed alone (gate public-claims C4). Notes carry tokens, never a count: {read} {refused} {held} {record_date}. Software names may appear only in `software` of a tested row, and only names engineProof.json `software.proven` holds. The owner flips `availability` on the AI row when the model has credit again.",
+  "as_of": "2026-10-02",
+  "about": "THE ONLY SOURCE of coverage wording on any public or upload surface (landing, pricing, FAQ, page title and description, manifest, the in-app upload zone). A row may be in `tested` only with evidence: battery gate ids (`evidence.gates`), or a dated record of a measurement no committed gate can re-run (`evidence.record`, an id of frontend/data/coverageRecords.json). `real_books` is a count of DISTINCT real trial balances that were READ, or the string 'constructed test files only'; `real_files_refused` counts real files of the row's kind that the reader refused. A count comes from engineProof.json `formats` (`real_books_proof`) or from the row's record — never typed alone (gate public-claims C4). Notes carry tokens, never a count: {read} {refused} {held} {record_date}. Software names may appear only in `software` of a tested row, and only names engineProof.json `software.proven` holds. The owner flips `availability` on the AI row when the model has credit again. The untested-formats note is rendered by the in-app upload guide as well (lib/coverage.uploadGuideView).",
   "rows": [
     {
       "id": "xlsx_10_column",
@@ -135,17 +135,22 @@
   "untested_note_en": "Legacy .xls sheets and ANAF F30 + F10 workbooks are accepted by the uploader but have no real-file test yet, so neither is listed as tested.",
   "untested_note_ro": "Foile .xls vechi și formularele ANAF F30 + F10 în Excel sunt acceptate la încărcare, dar nu au încă un test pe fișier real, deci niciuna nu este trecută ca testată.",
   "ai_features": {
-    "about": "Ask CFO AI (chat) and the written briefing are produced by an AI model, through a different credential from the AI document reader above. Whether they answer today can only be measured in production: `availability` is 'available', 'unavailable' or 'unverified' (nobody has measured since `as_of`). When it is 'unavailable' the landing prints the wording below on the Ask CFO AI card and on each chat quota line. The owner sets it after running one chat turn and one briefing in production.",
+    "about": "Ask CFO AI (chat) and the written briefing are produced by an AI model. THE BRIEFING is written through the SAME model credential as the AI document reader above (the engine's narration stage and the reader read one key), so while the reader row is unavailable the briefing is unavailable too. CHAT runs as a separate function with its own secret. Whether either answers today can only be measured in production. `availability` is 'available', 'unavailable' or 'unverified'. NEITHER non-available state is silent: every surface that sells the feature (the landing's module card and plan bullets, /pricing's plan cards and FAQ, /sample) prints the wording below — 'unavailable' as it stands, 'unverified' with the date of `unverified_since` filled in. `measured` records what was read, when and how. The owner sets each after running one chat turn and one briefing in production.",
     "chat": {
       "availability": "unverified",
-      "as_of": "2026-10-02"
+      "as_of": "2026-10-02",
+      "unverified_since": "2026-09-29",
+      "measured": "Read-only on production on 2026-10-02, no model call: the last Ask CFO AI question, asked on 2026-09-29, has no stored answer. Nobody has run a chat turn since."
     },
     "briefing": {
-      "availability": "unverified",
-      "as_of": "2026-10-02"
+      "availability": "unavailable",
+      "as_of": "2026-10-02",
+      "measured": "Read-only on production on 2026-10-02, no model call: the last AI briefing was written on 2026-09-26. The briefing uses the same model credential as the AI document reader, whose row above is unavailable."
     },
     "unavailable_en": "Currently unavailable",
     "unavailable_ro": "Indisponibil momentan",
-    "owner_action": "Run one Ask CFO AI turn and generate one briefing in production; set each availability to 'available' or 'unavailable' and its as_of to that day."
+    "unverified_en": "Availability not verified since {date}",
+    "unverified_ro": "Disponibilitate neverificată din {date}",
+    "owner_action": "Run one Ask CFO AI turn and generate one briefing in production; set each availability to 'available' or 'unavailable' and its as_of to that day (drop `unverified_since` when the state is no longer 'unverified')."
   }
 }

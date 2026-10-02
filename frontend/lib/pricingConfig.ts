@@ -13,6 +13,9 @@
 
 import { useEffect, useState } from "react";
 
+import i18n from "@/i18n";
+import { formatPrice } from "@/lib/price";
+
 const API_URL =
   (import.meta.env.VITE_API_URL as string | undefined) ?? "http://127.0.0.1:8000";
 
@@ -146,15 +149,16 @@ export function getPricingConfigSync(): PricingPublicConfig | null {
 // Helpers shared across the Pricing page + Settings card
 // ─────────────────────────────────────────────────────────────────────
 
-export function formatEur(amount: number, opts?: { dp?: number; trailZero?: boolean }): string {
-  const dp = opts?.dp ?? 2;
-  const v = amount.toFixed(dp);
-  // Trim trailing .00 when caller wants compact display (e.g., "€14.99 / mo"
-  // stays full, but "€0" or "€15" can drop the decimals).
-  if (opts?.trailZero === false && v.endsWith("." + "0".repeat(dp))) {
-    return `€${Math.trunc(amount)}`;
-  }
-  return `€${v}`;
+/** A price in the ACTIVE UI language, through the one price printer
+ *  (lib/price.formatPrice): "4.99 EUR" in English, "4,99 EUR" in Romanian —
+ *  the ISO code after the figure, never a symbol (CLAUDE.md §26). Until
+ *  2026-10-02 this returned "€4.99" whatever the language, so the Romanian
+ *  /pricing printed English-format prices above a FAQ that printed
+ *  "0,99 €". Pass `lang` where the caller already holds the language (a
+ *  component that re-renders on a language switch); without it the i18n
+ *  instance's current language is read. */
+export function formatEur(amount: number, lang?: string | null): string {
+  return formatPrice(amount, lang ?? i18n.language);
 }
 
 export function planByKey(cfg: PricingPublicConfig | null, key: PlanKey): PlanConfig | null {

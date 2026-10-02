@@ -940,7 +940,6 @@
     "badgeStarter": "Ideal pentru antreprenori",
     "badgePro": "Cel mai popular",
     "perMonth": "/ lună",
-    "trialThen": "7 zile gratuit, apoi {{price}} / lună",
     "aboveQuota": "Peste cotă: {{copy}}",
     "extraDoc": "{{price}} per document suplimentar, afișat și confirmat înainte de procesare",
     "currentPlan": "Planul curent",
@@ -980,7 +979,26 @@
     "usageThisMonth": "luna aceasta",
     "multiComingSoonBlurb": "În curând — acoperirea internațională nu este încă disponibilă. Astăzi CFO AI citește doar balanțe de verificare românești.",
     "notOnSaleYet": "Încă nu este de vânzare",
-    "comingSoonCta": "În curând"
+    "comingSoonCta": "În curând",
+    "chargedFrom": "Se taxează din ziua în care te abonezi. Proba gratuită este separată: un document, 7 zile, fără card.",
+    "blurb": {
+      "solo": "{{count}} documente românești pe lună; fiecare document suplimentar costă {{extra}}.",
+      "pro": "{{count}} documente românești pe lună; fiecare document suplimentar costă {{extra}}."
+    },
+    "est": {
+      "eyebrow": "Estimează-ți factura lunară",
+      "title": "Vezi cât costă fiecare plan la volumul tău.",
+      "sub": "Mută cursorul la numărul de documente pe care le încarci într-o lună. Sunt estimări; un document suplimentar se taxează doar după ce îl confirmi.",
+      "sliderLabel": "Documente financiare pe lună",
+      "docs_one": "{{count}} document",
+      "docs_other": "{{count}} de documente",
+      "base": "Bază ({{count}} incluse)",
+      "extras_one": "{{count}} document suplimentar × {{price}}",
+      "extras_other": "{{count}} de documente suplimentare × {{price}}",
+      "noExtras": "0 documente suplimentare",
+      "docs_few": "{{count}} documente",
+      "extras_few": "{{count}} documente suplimentare × {{price}}"
+    }
   },
   "account": {
     "fallbackName": "Cont",
@@ -1327,7 +1345,7 @@
     "heroSuffix": "imaginea financiară completă",
     "heroFallbackSubtitle": "Fiecare situație reconstruită din balanța dvs. de verificare — cont de profit și pierdere, bilanț și flux de numerar — cu indicatori, evaluare, un scor de risc de credit și recomandări ierarhizate. Explorați-le în filele de mai jos.",
     "heroBodyExported": "exportat din programul tău de contabilitate ca balanță de verificare românească",
-    "heroBodyTail": "Acesta este documentul pe care se bazează întreaga analiză: contul de profit și pierdere, bilanțul, fluxul de numerar, indicatorii, evaluarea, riscul și recomandările sunt toate reconstruite din el. Fiecare încărcare este verificată — bilanțul trebuie să se închidă, iar debitele și creditele din sursă trebuie să corespundă — și orice diferență este afișată în raport.",
+    "heroBodyTail": "Acesta este documentul pe care se bazează întreaga analiză: contul de profit și pierdere, bilanțul, o estimare a fluxului de numerar, indicatorii, evaluarea, riscul și recomandările sunt toate construite din el.",
     "askCfoAiPrompt": "Ce va face CFO AI cu balanța mea de verificare? Prezintă-mi analiza pe care o voi primi după încărcare — cont de profit și pierdere, bilanț, indicatori, evaluare, riscuri.",
     "invoiceRegister": "Registru de facturi",
     "loadedPeriod": "Perioadă încărcată",
@@ -1422,7 +1440,7 @@
     "qualityPassedLink": "Verificări de calitate trecute · Despre acuratețea datelor",
     "accCleanTitle": "Verificări de calitate trecute.",
     "accCleanPre": "Extragerea se reconciliază în limita a",
-    "accCleanPost": "pentru acest document. Bilanțul se închide, iar debitele și creditele din sursă corespund — acestea sunt cele două verificări rulate la fiecare încărcare. Verifică cifrele principale (venituri, EBITDA, profit net, datorii, capitaluri proprii) față de sursă înainte de o decizie de consiliu sau externă.",
+    "accCleanPost": "pentru acest document. {{checks}} Verifică cifrele principale (venituri, EBITDA, profit net, datorii, capitaluri proprii) față de sursă înainte de o decizie de consiliu sau externă.",
     "accWatchTitle": "Verificați înainte de utilizare externă.",
     "accSrcImbalancePre": "Balanța de verificare sursă are un",
     "accImbalanceBold": "dezechilibru debit / credit de {{pct}}%",
@@ -1436,7 +1454,7 @@
     "accProblemBsTail": "— este posibil ca unele conturi să lipsească sau să fie clasificate greșit.",
     "accProblemTail": "Cifrele principale de mai jos (venituri, EBITDA, profit net, datorii, capitaluri proprii) pot să nu corespundă sursei. Rezolvați problema datelor sursă înainte de orice utilizare externă.",
     "accUnknownTitle": "Despre acuratețea datelor.",
-    "accUnknownBody": "Fiecare încărcare este verificată față de balanța de verificare sursă: bilanțul trebuie să se închidă, iar debitele trebuie să fie egale cu creditele. Dacă ceva nu este în regulă, vei vedea aici un avertisment specific care numește problema (dezechilibru în sursă, clasificare greșită a conturilor etc.). Cifrele principale pot fi oricând verificate față de sursă.",
+    "accUnknownBody": "{{checks}} Dacă ceva nu este în regulă, vei vedea aici un avertisment specific care numește problema (dezechilibru în sursă, clasificare greșită a conturilor etc.). Cifrele principale pot fi oricând verificate față de sursă.",
     "statutoryDetected": "Format statutar detectat (Formular F30 + F10).",
     "statutoryBody": "Cifrele principale (venituri, EBITDA, datorii, capitaluri proprii) extrase din situațiile financiare depuse.",
     "statutoryWhatsNot": "Ce nu este disponibil cu acest format",
@@ -3930,7 +3948,7 @@
       "a": "Vezi prețul documentului suplimentar înainte de procesare. CFO AI nu taxează niciodată fără să te anunțe."
     },
     "introSubscription": {
-      "q": "Deblocarea Intro de 0,99 € este un abonament?",
+      "q": "Deblocarea Intro de {{introPrice}} este un abonament?",
       "a": "Nu. Este o deblocare unică, pe 7 zile, pentru un document suplimentar."
     },
     "rollover": {
@@ -3945,5 +3963,36 @@
       "q": "Mesajele Ask CFO AI au o limită?",
       "a": "Da. Fiecare plan are o limită zilnică și una lunară de mesaje, afișate pe cardul lui și în aplicație. Chatul este limitat, nu contorizat — nu se facturează niciodată per mesaj. Răspunsurile sunt scrise de un model AI.{{chatStatus}}"
     }
+  },
+  "contactSales": {
+    "eyebrow": "Contact vânzări",
+    "navPricing": "Prețuri",
+    "navHome": "Acasă",
+    "title": "Hai să vorbim despre o implementare mai mare",
+    "sub": "Spune-ne cum lucrezi. Îți răspundem pe e-mail cu o propunere — fără presiune de vânzare.",
+    "doneTitle": "Am primit — vorbim în curând",
+    "doneBody": "Ți-am înregistrat cererea și ți-am trimis un e-mail de confirmare. Între timp, poți încerca RO Solo sau Pro. Există și o deblocare unică de {{introPrice}}, care deschide un singur document timp de 7 zile — nu este un abonament și nu este o primă lună.",
+    "backToPricing": "Înapoi la prețuri",
+    "name": "Numele tău",
+    "email": "E-mail de serviciu",
+    "company": "Companie",
+    "role": "Rolul tău",
+    "rolePlaceholder": "Partener, director financiar, contabil senior…",
+    "numCompanies": "Câte companii analizezi în mod regulat?",
+    "choose": "Alege…",
+    "useCase": "Care este principalul tău caz de utilizare?",
+    "useCasePlaceholder": "de ex., raportare lunară pentru mai mulți clienți IMM, due diligence pentru achiziții, o imagine de ansamblu a unui grup de firme…",
+    "preferred": "Cum preferi să te contactăm",
+    "byEmail": "E-mail",
+    "byPhone": "Apel telefonic",
+    "byVideo": "Apel video (Google Meet)",
+    "phone": "Telefon",
+    "send": "Trimite",
+    "sending": "Se trimite…",
+    "consent": "Prin trimitere, ești de acord să îți scriem pe e-mail despre planuri și prețuri. Nu îți vindem datele.",
+    "missingTitle": "Câmpuri lipsă",
+    "missingBody": "Scrie-ne numele tău și o adresă de e-mail validă, ca să îți putem răspunde.",
+    "failedTitle": "Nu s-a putut trimite",
+    "failedBody": "Scrie-ne direct la {{email}}."
   }
 }

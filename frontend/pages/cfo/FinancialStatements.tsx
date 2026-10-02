@@ -115,6 +115,9 @@ import {
   jurisdictionHintFromSelection,
 } from "@/components/cfo/JurisdictionSelect";
 import { CoverageDisclosure } from "@/components/cfo/CoverageTable";
+// The checks that run on every upload — ONE sentence, shared with the
+// landing (lib/uploadChecks): the two surfaces used to name different pairs.
+import { uploadChecksSentence } from "@/lib/uploadChecks";
 import { CashFlowStatementView } from "@/components/cfo/CashFlowStatementView";
 import { EvidenceDrawer } from "@/components/cfo/evidence/EvidenceDrawer";
 import { NavValuationView } from "@/components/cfo/NavValuationView";
@@ -1898,7 +1901,7 @@ function FinancialStatementsInner() {
                   <span className="inline-flex items-center align-middle text-[10px] uppercase tracking-[0.08em] font-semibold text-ink bg-bg-2 border border-rule-strong rounded-full px-2 py-0.5">XLSX</span>
                   {" "}{t("common.or")}{" "}
                   <span className="inline-flex items-center align-middle text-[10px] uppercase tracking-[0.08em] font-semibold text-ink bg-bg-2 border border-rule-strong rounded-full px-2 py-0.5">PDF</span>
-                  , {t("dash.heroBodyExported")}. {t("dash.heroBodyTail")}{" "}
+                  , {t("dash.heroBodyExported")}. {t("dash.heroBodyTail")} {uploadChecksSentence(i18n.language)}{" "}
                   {/* The five accounting-software names that used to be
                       listed here (SAGA, WinMentor, SmartBill, NEXTUP, CIEL)
                       are gone: no real export proves any of them. What is
@@ -3517,7 +3520,7 @@ interface AccuracyBannerProps {
 }
 
 function AccuracyBanner({ assembledBs, sourceDataQuality, canonicalBs }: AccuracyBannerProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   // THE DIAL — Simple mode shows the one-time trust hint next to the chip.
   // Hook lives above the early returns (hook-count stability).
   const isSimple = useIsSimple();
@@ -3593,7 +3596,7 @@ function AccuracyBanner({ assembledBs, sourceDataQuality, canonicalBs }: Accurac
           <strong className="font-mono tabular-nums">
             {(Math.floor(worstPct * 100) / 100).toFixed(2)}%
           </strong>{" "}
-          {t("dash.accCleanPost")}
+          {t("dash.accCleanPost", { checks: uploadChecksSentence(i18n.language) })}
         </>
       )}
       {band === "watch" && (
@@ -3636,7 +3639,7 @@ function AccuracyBanner({ assembledBs, sourceDataQuality, canonicalBs }: Accurac
       {band === "unknown" && (
         <>
           <strong className="text-ink">{t("dash.accUnknownTitle")}</strong>{" "}
-          {t("dash.accUnknownBody")}
+          {t("dash.accUnknownBody", { checks: uploadChecksSentence(i18n.language) })}
         </>
       )}
     </div>
