@@ -1,4 +1,4 @@
-# Landing page — public-company preview assets
+# Landing page — public-company preview assets (kept out of public/: it used to ship with the site)
 
 The Public Company Intelligence showcase on `/` looks for these files
 when rendering the preview frame:

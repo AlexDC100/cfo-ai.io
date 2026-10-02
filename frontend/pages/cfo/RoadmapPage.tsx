@@ -123,8 +123,9 @@ export default function RoadmapPage() {
           Product Roadmap
         </h1>
         <p className="mt-3 text-[14.5px] text-ink-soft max-w-[560px]">
-          What we're building. Honest target dates — these slip; we'd rather
-          under-promise than refund.
+          What we're building, in the order we expect to build it. No dates
+          are promised here — they slip, and we'd rather under-promise than
+          refund.
         </p>
 
         <RoadmapSection title="Next up" entries={NEXT_UP} />

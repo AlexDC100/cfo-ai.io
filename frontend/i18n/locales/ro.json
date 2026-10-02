@@ -1394,7 +1394,7 @@
     "nothingToExportBody": "Încărcați un exemplu sau o situație financiară pentru a activa exporturile HTML și Excel.",
     "pickSampleOrUpload": "Alegeți un exemplu sau încărcați",
     "exportHtmlTitle": "Raport de analiză financiară HTML",
-    "exportHtmlBody": "HTML într-un singur fișier — se deschide în orice browser, se tipărește curat în PDF. Include bilanțul, contul de profit și pierdere, toți cei 22 de indicatori cu verdicte, linia Altman Z″, ratingul de credit și evaluarea riscului de faliment (cu modelul care le-a produs) și recomandări prioritizate.",
+    "exportHtmlBody": "HTML într-un singur fișier — se deschide în orice browser, se tipărește curat în PDF. Include bilanțul, contul de profit și pierdere, indicatorii cu verdictele lor, linia Altman Z″, ratingul de credit și evaluarea riscului de faliment (cu modelul care le-a produs) și recomandări prioritizate.",
     "exportXlsxTitle": "Registru Excel",
     "exportXlsxBody": "Model xlsx cu 9 foi: copertă, cont de profit și pierdere, bilanț, indicatori, flux de numerar, evaluare (WACC + DCF + Graham), credit și risc, recomandări și datele din spatele fiecărui grafic din document.",
     "exportPdfTitle": "Raport PDF",

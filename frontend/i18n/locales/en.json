@@ -1387,7 +1387,7 @@
     "nothingToExportBody": "Load a sample or upload a financial statement to enable HTML and Excel exports.",
     "pickSampleOrUpload": "Pick a sample or upload",
     "exportHtmlTitle": "HTML financial analysis report",
-    "exportHtmlBody": "Single-file HTML — opens in any browser, prints to PDF cleanly. Includes balance sheet, P&L, all 22 ratios with verdicts, the Altman Z″ row, the credit grade and distress assessment (naming the model that produced them), and prioritized recommendations.",
+    "exportHtmlBody": "Single-file HTML — opens in any browser, prints to PDF cleanly. Includes balance sheet, P&L, the ratios with their verdicts, the Altman Z″ row, the credit grade and distress assessment (naming the model that produced them), and prioritized recommendations.",
     "exportXlsxTitle": "Excel workbook",
     "exportXlsxBody": "9-sheet xlsx model: cover, P&L, balance sheet, ratios, cash flow, valuation (WACC + DCF + Graham), credit & risk, recommendations, and the chart data behind every figure the document draws.",
     "exportPdfTitle": "PDF report",
