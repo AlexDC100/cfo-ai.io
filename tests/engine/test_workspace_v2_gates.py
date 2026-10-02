@@ -127,6 +127,41 @@ def agras_workbook(*, period_line: Optional[str] = "Balanta de verificare la dat
     return book_workbook(AGRAS_BOOK, name=name, cui=cui, period_line=period_line)
 
 
+def balance_pdf_of(name: str, cui: str) -> bytes:
+    """A balance PDF under a company's header: the synthetic five-pair book of
+    tests/engine/test_pdf_balanta_stage_extract.py (PyMuPDF, invented
+    figures, "Decembrie 2025" in its title block) — a book the pipeline's
+    strict text-line reader reads whole, with no model."""
+    import test_pdf_balanta_stage_extract as PB
+
+    lines = []
+    for line in PB._synthetic_five_pair_lines():
+        if line.startswith("Societate:"):
+            line = "Societate: %s" % name
+        elif line.startswith("C.U.I:"):
+            line = "C.U.I: RO%s" % cui
+        lines.append(line)
+    return PB._pdf_bytes(lines)
+
+
+#: The byte shapes of review round 4 (2026-10-02). Neither comes out of an
+#: ERP or a PDF writer; both are PDFs to the pipeline and were "unreadable"
+#: to the identifier, so the takeover wall had no CUI to hold.
+#:  · pdf_behind_PK — "PK" + 100 bytes + the PDF: the sniffer demands the
+#:    four-byte zip signature, so this is a PDF under EVERY name.
+#:  · pdf_junk_both_ends — the header past the sniffer's 1,024-byte window
+#:    and the trailer ahead of the last 2,048 bytes: a PDF to the pipeline
+#:    exactly where the branch is pdf or xlsx, and the branch of a name with
+#:    no extension is the declared MIME type's.
+PDF_SHAPES = {
+    "pdf": lambda pdf: pdf,
+    "pdf_behind_PK": lambda pdf: b"PK" + b"J" * 100 + pdf,
+    "pdf_junk_both_ends": lambda pdf: b"J" * 2000 + pdf + b"\n" + b"K" * 3000,
+}
+XLS_MIME = "application/vnd.ms-excel"
+OCTET = "application/octet-stream"
+
+
 # ══════════════════════════════════════════════════════════════════════
 # The double: every table the migrations declare, production-shaped
 # ══════════════════════════════════════════════════════════════════════
@@ -445,6 +480,59 @@ def test_g1_an_agras_workbook_named_pdf_is_identified_by_its_bytes_and_lands_in_
         "G1: something of the Agras file named .pdf landed in Scandia"
     assert [p for p in gw.db.rows("financial_periods") if p["org_id"] == ORG_SCANDIA] == \
         [p for p in before_scandia[2] if p["org_id"] == ORG_SCANDIA]
+
+
+@pytest.mark.parametrize("shape,filename,mime", [
+    ("pdf_behind_PK", "balanta.pdf", PDF_MIME),
+    ("pdf_behind_PK", "balanta.xls", "application/vnd.ms-excel"),
+    ("pdf_junk_both_ends", "balanta", PDF_MIME),
+    ("pdf_junk_both_ends", "balanta.csv", PDF_MIME),
+    ("pdf_junk_both_ends", "balanta", XLSX),
+])
+def test_g1_an_agras_pdf_is_identified_on_the_branch_the_pipeline_reads_it_on_and_lands_in_agras(
+        app, gw, shape, filename, mime):
+    """Review round 4 (2026-10-02). Two byte shapes the pipeline reads as a
+    PDF and the identifier answered "unreadable" for (`PDF_SHAPES`): the
+    card offered the company ON SCREEN and one tap stored and analysed
+    Agras's PDF in Scandia. Through the real routes — /api/uploads/identify
+    is handed the declared MIME type by the browser, and must hand it to the
+    identifier: the pipeline picks its branch from the name AND that type.
+
+    Reds on: the identifier reading the magic bytes its own way ("PK" as a
+    zip); the identifier, the route or the seam between them classifying by
+    the name alone; anything of the file stored or analysed in the company
+    on screen."""
+    clean = balance_pdf_of("AGRAS SRL", CUI_AGRAS)
+    content = PDF_SHAPES[shape](clean)
+    as_pdf = identify(app, clean, "balanta.pdf", org=ORG_SCANDIA, mime=PDF_MIME)
+    assert as_pdf.status_code == 200 and as_pdf.json()["identity"]["cui"] == CUI_AGRAS, as_pdf.text[:300]
+    before_scandia = (gw.docs(org_id=ORG_SCANDIA), gw.objects(ORG_SCANDIA))
+
+    r = identify(app, content, filename, org=ORG_SCANDIA, mime=mime)
+    assert r.status_code == 200, r.text[:300]
+    ident = r.json()
+    # The period is not compared: the title block's printed period is read
+    # off a PDF whose header sits at offset 0 only, under every name alike.
+    for field in ("cui", "company_name", "document_kind", "caen_code", "industry_key"):
+        assert ident["identity"][field] == as_pdf.json()["identity"][field], \
+            "%s as (%r, %r): the identity's %s is %r, the same PDF named balanta.pdf has %r" % (
+                shape, filename, mime, field, ident["identity"][field], as_pdf.json()["identity"][field])
+    assert ident["identity"]["sources"]["cui"]["signal"] == "document_header_cui", ident["identity"]["sources"]
+    assert ident["target"] == {"org_id": ORG_AGRAS, "name": "Agras SRL", "is_new": False,
+                               "reason": "cui_match"}, ident["target"]
+
+    c = commit(app, content, filename, mime=mime, target_org_id=ident["target"]["org_id"],
+               period_end="2025-12-31", output_language="ro")
+    assert c.status_code == 200 and c.json()["status"] == "queued" and c.json()["org_id"] == ORG_AGRAS, c.text[:300]
+    doc = run_analysis(gw, c.json()["document_id"])
+    # Non-vacuity: the pipeline READS these bytes (with a model that answers
+    # every request "no credit" — the extraction is the strict reader's): the
+    # identity is of a file that is analysed, not of one refused anyway.
+    assert doc["status"] == "analyzed" and doc["org_id"] == ORG_AGRAS, (doc["status"], doc.get("error"))
+    (period,) = gw.db.rows("financial_periods")
+    assert period["org_id"] == ORG_AGRAS and period["source_document_id"] == doc["id"], period
+    assert (gw.docs(org_id=ORG_SCANDIA), gw.objects(ORG_SCANDIA)) == before_scandia, \
+        "G1: something of the Agras PDF (%s as %r) landed in Scandia" % (shape, filename)
 
 
 def test_g1_scandia_on_screen_never_captures_a_cui_it_does_not_hold(app, gw):
@@ -927,9 +1015,18 @@ def test_g4_a_same_month_file_of_another_company_never_replaces_the_month(app, g
                output_language="ro")
     assert c.status_code == 200 and c.json()["status"] == "queued" and c.json()["org_id"] == org_id, c.text[:300]
     refused = run_analysis(gw, c.json()["document_id"])
+    _assert_the_wall_held(app, gw, first, refused, "named %s" % filename)
+
+
+def _assert_the_wall_held(app, gw: GateWorld, first: Dict[str, Any], refused: Dict[str, Any], what: str) -> None:
+    """Another company's file (Scandia's CUI) met Agras's served month: the
+    run FAILED on the wall's own sentence, and the month, its rows, what it
+    serves, its document and the meter are exactly as the first analysis
+    left them."""
+    org_id = first["doc"]["org_id"]
     assert refused["status"] == "failed", \
-        "G4: another company's file named %s was analysed over the month: %r" % (
-            filename, (refused["status"], refused.get("error")))
+        "G4: another company's file %s was analysed over the month: %r" % (
+            what, (refused["status"], refused.get("error")))
     message = str(refused.get("error") or "")
     assert CUI_SCANDIA in message and CUI_AGRAS in message, message
     assert not re.match(r"^\w*(Error|Exception|Refused)\w*:", message), \
@@ -950,6 +1047,97 @@ def test_g4_a_same_month_file_of_another_company_never_replaces_the_month(app, g
         "G4: the refused file was counted: %r" % (gw.meter.committed,)
     from engine.workspaces.migration_plan import empty_live_periods
     assert empty_live_periods(gw.db.tables) == []
+
+
+#: (shape, name, declared MIME type). The first row is the CONTROL — a clean
+#: PDF under its own name, which the wall held before round 4 too.
+_WALL_PDFS = [
+    ("pdf", "balanta.pdf", PDF_MIME),
+    ("pdf_behind_PK", "balanta.pdf", PDF_MIME),
+    ("pdf_behind_PK", "balanta.xls", XLS_MIME),
+    ("pdf_behind_PK", "balanta", OCTET),
+    ("pdf_junk_both_ends", "balanta.pdf", PDF_MIME),
+    ("pdf_junk_both_ends", "balanta", PDF_MIME),
+    ("pdf_junk_both_ends", "balanta.csv", PDF_MIME),
+    ("pdf_junk_both_ends", "balanta", XLSX),
+]
+
+
+@pytest.mark.parametrize("shape,filename,mime", _WALL_PDFS,
+                         ids=["%s|%s|%s" % (s_, n, m.split("/")[-1][:12]) for s_, n, m in _WALL_PDFS])
+def test_g4_a_same_month_pdf_of_another_company_never_replaces_the_month(app, gw, shape, filename, mime):
+    """Review round 4 (2026-10-02), a measured bypass of this wall. The wall
+    reads the document's CUI through the identifier
+    (`pipeline._document_company_cui`). On the two byte shapes of
+    `PDF_SHAPES` the pipeline read Scandia's PDF and the identifier answered
+    "unreadable": no CUI, the run was ANALYSED, Agras's December was
+    replaced, its own document archived and the meter committed twice —
+    under all eleven names for the "PK" shape, and for the other wherever
+    the declared MIME type alone (or against the extension) picks the
+    branch.
+
+    Reds on: the identifier's dispatch differing from the pipeline's on a
+    byte shape; `_document_company_cui` not handing the identifier the
+    document's `mime_type`."""
+    first = _analysed_month(app, gw, agras_workbook())
+    org_id = first["doc"]["org_id"]
+    content = PDF_SHAPES[shape](balance_pdf_of("SCANDIA FOOD SRL", CUI_SCANDIA))
+    c = commit(app, content, filename, mime=mime, target_org_id=org_id, period_end="2025-12-31",
+               output_language="ro")
+    assert c.status_code == 200 and c.json()["status"] == "queued" and c.json()["org_id"] == org_id, c.text[:300]
+    refused = run_analysis(gw, c.json()["document_id"])
+    _assert_the_wall_held(app, gw, first, refused, "(%s) as (%r, %r)" % (shape, filename, mime))
+
+
+@pytest.mark.parametrize("shape,filename,mime", [
+    ("pdf_behind_PK", "balanta.pdf", PDF_MIME),
+    ("pdf_junk_both_ends", "balanta", PDF_MIME),
+])
+def test_g4_a_same_month_pdf_of_the_same_company_still_replaces_the_month(app, gw, shape, filename, mime):
+    """The other half, and the non-vacuity of the law above: the pipeline
+    READS both byte shapes — the SAME company's PDF in that shape is
+    analysed and becomes the month. So for another company's, the wall is
+    the only thing in the way; and the wall refuses only a provable other
+    company."""
+    first = _analysed_month(app, gw, agras_workbook())
+    org_id = first["doc"]["org_id"]
+    content = PDF_SHAPES[shape](balance_pdf_of("AGRAS SRL", CUI_AGRAS))
+    c = commit(app, content, filename, mime=mime, target_org_id=org_id, period_end="2025-12-31",
+               output_language="ro")
+    assert c.status_code == 200 and c.json()["status"] == "queued", c.text[:300]
+    replaced = run_analysis(gw, c.json()["document_id"])
+    assert replaced["status"] == "analyzed", (replaced["status"], replaced.get("error"))
+    (period,) = gw.db.rows("financial_periods")
+    assert period["id"] == first["period"]["id"] and period["source_document_id"] == replaced["id"], period
+
+
+def test_g4_the_month_of_a_company_without_a_cui_is_its_own_pdfs_whatever_mime_named_it(app, gw):
+    """`_served_document_cui`: for a company with no CUI on file, the month's
+    OWN document is the evidence of whose month it is — read through the
+    same identifier, so it needs that document's `mime_type` too. Agras's
+    December is served from a PDF stored as `balanta` / application/pdf (the
+    declared type alone picks its branch); Scandia's workbook must not
+    replace it.
+
+    Reds on: the select of the month's own document dropping `mime_type`
+    (the wall then finds no CUI on either record and lets the month go)."""
+    own = PDF_SHAPES["pdf_junk_both_ends"](balance_pdf_of("AGRAS SRL", CUI_AGRAS))
+    c = commit(app, own, "balanta", mime=PDF_MIME, target_org_id=ORG_AGRAS, period_end="2025-12-31",
+               output_language="ro")
+    assert c.status_code == 200 and c.json()["status"] == "queued", c.text[:300]
+    doc = run_analysis(gw, c.json()["document_id"])
+    assert doc["status"] == "analyzed", (doc["status"], doc.get("error"))
+    (period,) = gw.db.rows("financial_periods")
+    first = {"doc": doc, "period": copy.deepcopy(period), "rows": _rows_under(gw, period["id"]),
+             "served": _served(app, ORG_AGRAS, period["id"])}
+    (bag,) = [r["prefs"] for r in gw.db.rows("org_prefs") if r["org_id"] == ORG_AGRAS]
+    gw.db.update("org_prefs", {"prefs": dict((k, v) for k, v in bag.items() if k != "cui")},
+                 filters={"org_id": "eq.%s" % ORG_AGRAS})
+    scandia = book_workbook(SCANDIA_BOOK, name="SCANDIA FOOD SRL", cui=CUI_SCANDIA)
+    c = commit(app, scandia, "balanta.xlsx", target_org_id=ORG_AGRAS, period_end="2025-12-31", output_language="ro")
+    assert c.status_code == 200 and c.json()["status"] == "queued", c.text[:300]
+    refused = run_analysis(gw, c.json()["document_id"])
+    _assert_the_wall_held(app, gw, first, refused, "over a month served from a PDF named by its MIME type")
 
 
 def test_g4_a_same_month_file_of_another_company_never_replaces_the_month_of_a_company_without_a_cui(app, gw):

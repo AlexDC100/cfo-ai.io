@@ -390,7 +390,8 @@ def _read_pdf(content: bytes) -> DocumentText:
     return DocumentText(True, tuple(header), (), accounts, chars)
 
 
-def extract_document_text(content: bytes, filename: Optional[str] = None) -> DocumentText:
+def extract_document_text(content: bytes, filename: Optional[str] = None,
+                          mime: Optional[str] = None) -> DocumentText:
     """Header lines, sheet names and an account-row count, or an
     ``unreadable`` result naming why. Never raises.
 
@@ -401,25 +402,43 @@ def extract_document_text(content: bytes, filename: Optional[str] = None) -> Doc
     came back ``unreadable`` with no CUI, and (a) the card filed it in the
     company on screen and (b) ``pipeline._document_company_cui`` found no CUI
     to hold against the month's owner, so the cross-company takeover wall
-    let another company's book replace a served month. The order is the
-    pipeline's own (``engine.api._upload_type.sniff_container``): the
-    offset-0 container signatures decide first — a zip to the workbook
-    reader, OLE2 to the legacy one — then PDF bytes as the pipeline reads
-    them (``reads_as_pdf``: ``%PDF-`` within the first 1,024 bytes, or a
-    header pushed further in on the branch the name leads to). A ``.pdf``
-    name is consulted LAST, for bytes nothing above names: the PDF reader
-    gets its try and its failure is the ``unreadable`` answer."""
+    let another company's book replace a served month.
+
+    THE DISPATCH IS THE PIPELINE'S OWN LABEL, not a second reading of the
+    magic bytes (review round 4, 2026-10-02). ``_upload_type.sniff_container``
+    names the container; a workbook label (``XLSX`` / ``OOXML_UNKNOWN``) goes
+    to the workbook reader, ``XLS_OLE2`` to the legacy one, and bytes the
+    pipeline reads as a PDF on the branch the NAME AND THE DECLARED MIME
+    TYPE lead to (``reads_as_pdf(classify(filename, mime), …)``) go to the
+    PDF reader. Two byte shapes had the round-3 dispatch answer differently
+    from the pipeline, and both walked through the takeover wall:
+
+    · it tested ``content[:2] == b"PK"``, where the sniffer demands the
+      four-byte zip signature. ``b"PK"`` + junk + a balance PDF is a PDF to
+      the pipeline under every name; here it went to the workbook reader and
+      came back ``unreadable``.
+    · it classified with no MIME type. A PDF whose header sits past the
+      sniffer's window and whose trailer sits before the last 2,048 bytes is
+      a PDF to the pipeline exactly where the branch is ``pdf`` or ``xlsx``
+      — and the branch of a name with no extension is the declared MIME
+      type's. Named ``balanta`` with ``application/pdf`` the pipeline read
+      it and this function answered ``unreadable``.
+
+    ``mime`` is the type the upload declared (the routes hold it; a stored
+    document carries it as ``mime_type``). A ``.pdf`` name is consulted LAST,
+    for bytes nothing above names: the PDF reader gets its try and its
+    failure is the ``unreadable`` answer."""
     if not content:
         return DocumentText(False, read_error="no bytes")
     name = (filename or "").lower()
     try:
-        if content[:2] == b"PK":
-            return _read_xlsx(content)
-        if content[:8] == b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1":
-            return _read_xls(content)
         from engine.api import _upload_type as _ut  # noqa: WPS433 — lazy (pipeline cycle); pure
-        if _ut.reads_as_pdf(_ut.classify(filename, None), _ut.sniff_container(content), content) \
-                or name.endswith(".pdf"):
+        real = _ut.sniff_container(content)
+        if real in (_ut.XLSX, _ut.OOXML_UNKNOWN):
+            return _read_xlsx(content)
+        if real == _ut.XLS_OLE2:
+            return _read_xls(content)
+        if _ut.reads_as_pdf(_ut.classify(filename, mime), real, content) or name.endswith(".pdf"):
             return _read_pdf(content)
     except Exception as exc:  # noqa: BLE001 — an unreadable file is an answer
         return DocumentText(False, read_error="%s: %s" % (type(exc).__name__, str(exc)[:160]))
@@ -1159,14 +1178,19 @@ def identify_text(doc: DocumentText, filename: Optional[str], *, registry: Any =
     )
 
 
-def identify_document(content: bytes, filename: str, *, registry: Any = None) -> CompanyIdentity:
+def identify_document(content: bytes, filename: str, *, registry: Any = None,
+                      mime: Optional[str] = None) -> CompanyIdentity:
     """Who and when a stored document is about, from its own bytes.
 
     ``registry`` is an ``engine.public_ro.store.PublicRoStore`` (or anything
     with its ``get_company(cui)`` / ``search_companies(q, limit)``), or None.
+    ``mime`` is the MIME type the upload declared (``documents.mime_type``):
+    with the name it picks the branch the pipeline reads the bytes on, and
+    the identifier reads them on the same one (``extract_document_text``).
+    It picks a READER only — nothing of the identity is taken from it.
     Empty or unreadable bytes still yield an identity — from the filename
     alone, with ``document_kind="unreadable"``."""
-    doc = extract_document_text(content, filename)
+    doc = extract_document_text(content, filename, mime)
     ident = identify_text(doc, filename, registry=registry)
     if doc.read_error:
         srcs = dict(ident.sources)

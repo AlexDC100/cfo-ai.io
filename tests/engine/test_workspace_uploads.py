@@ -286,7 +286,7 @@ def world(app, monkeypatch):
                                  "display_name_ro": "Industria alimentara"})
     w = World(db)
 
-    def _identify(content: bytes, filename: str, registry: Any) -> Any:
+    def _identify(content: bytes, filename: str, registry: Any, mime: Any = None) -> Any:
         w.identify_calls.append(filename)
         return w.identities[filename]
 

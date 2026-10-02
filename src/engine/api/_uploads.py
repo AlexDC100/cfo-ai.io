@@ -296,10 +296,12 @@ def start_name_index_warmup() -> Optional[threading.Thread]:
     return thread
 
 
-def _identify_document(content: bytes, filename: str, registry: Any) -> Any:
-    """The seam to `engine.workspaces.company_identity.identify_document`."""
+def _identify_document(content: bytes, filename: str, registry: Any, mime: Optional[str] = None) -> Any:
+    """The seam to `engine.workspaces.company_identity.identify_document`.
+    `mime`: the type the upload declared — with the name it picks the branch
+    the pipeline reads the bytes on, and the identifier reads them there."""
     from engine.workspaces.company_identity import identify_document
-    return identify_document(content, filename, registry=registry)
+    return identify_document(content, filename, registry=registry, mime=mime)
 
 
 #: The period signals that mean "the header detector found none in the
@@ -361,16 +363,23 @@ def _with_printed_period(raw: Any, content: bytes) -> Any:
     return shaped
 
 
-def identify(content: bytes, filename: str, *, printed_period: bool = True) -> Dict[str, Any]:
+def identify(content: bytes, filename: str, *, mime: Optional[str] = None,
+             printed_period: bool = True) -> Dict[str, Any]:
     """Run the identifier over the file with the registry open, and shape
     its answer. Raises 503 when the identifier itself is not installed.
+    `mime`: the MIME type the upload declared. The pipeline classifies by
+    name AND declared type (`_upload_type.classify`), so the identifier is
+    given both: a PDF named `balanta` and declared application/pdf is read
+    by the pipeline, and was "unreadable" here while this was called with
+    the name alone (review round 4, 2026-10-02) — no CUI, the company on
+    screen offered, and no CUI for the takeover wall to hold.
     `printed_period`: read the balanta reader's printed period when the
     header detector found none (the commit, which takes its period from
     the card, skips it)."""
     registry = _open_registry()
     try:
         try:
-            raw = _identify_document(content, filename, registry)
+            raw = _identify_document(content, filename, registry, mime)
         except ImportError:
             logger.exception("[uploads] company identification is not installed")
             raise HTTPException(503, {"code": "identification_unavailable",
@@ -969,7 +978,7 @@ def build_router() -> APIRouter:
         # (`output_language`, the same field /commit takes).
         _refuse_format_mismatch(filename, content, _mime, output_language)
         content_hash = hashlib.sha256(content).hexdigest()
-        identity = identify(content, filename)
+        identity = identify(content, filename, mime=_mime)
         with _supabase.per_user(jwt) as client:
             if identity.get("industry_key") and not identity.get("industry_label"):
                 identity["industry_label"], _ro = _industry_label(client, identity["industry_key"])
@@ -1041,7 +1050,7 @@ def build_router() -> APIRouter:
         # the CUI a pre-CUI workspace can adopt. Never a reason to refuse.
         # The period is the card's (`period_end`), so the reader is not asked.
         try:
-            identity = identify(content, filename, printed_period=False)
+            identity = identify(content, filename, mime=mime, printed_period=False)
         except Exception:  # noqa: BLE001
             logger.exception("[uploads] identification during commit failed (non-fatal)")
             identity = {"cui": None, "company_name": None, "sources": {}}

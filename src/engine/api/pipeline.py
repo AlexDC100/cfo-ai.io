@@ -2460,7 +2460,14 @@ def _company_cui_of_org(admin_client: Any, org_id: Any) -> Optional[str]:
 def _document_company_cui(doc: Dict[str, Any]) -> Optional[str]:
     """The CUI the document's OWN header states (`company_identity`, no
     registry), or None when it states none or its bytes cannot be read.
-    Absent evidence never refuses anything."""
+    Absent evidence never refuses anything.
+
+    The identifier is given the document's name AND its declared MIME type
+    (`mime_type`) — what `_classify_file` picks this run's branch from — so
+    it reads the bytes on the branch `stage_extract` read them on. With the
+    name alone, a PDF stored as `balanta` / application/pdf was analysed by
+    the pipeline and had no CUI here: another company's book replaced a
+    served month (review round 4, 2026-10-02)."""
     try:
         with _supabase.admin() as admin_client:
             signed = admin_client.signed_url("documents", doc["storage_path"],
@@ -2470,7 +2477,8 @@ def _document_company_cui(doc: Dict[str, Any]) -> Optional[str]:
             r.raise_for_status()
             content = r.content
         from engine.workspaces.company_identity import identify_document
-        identity = identify_document(content, str(doc.get("original_filename") or ""), registry=None)
+        identity = identify_document(content, str(doc.get("original_filename") or ""), registry=None,
+                                     mime=doc.get("mime_type"))
         digits = "".join(ch for ch in str(identity.cui or "") if ch.isdigit())
         return digits or None
     except Exception:  # noqa: BLE001
@@ -2489,7 +2497,7 @@ def _served_document_cui(admin_client: Any, served_row: Dict[str, Any], org_id: 
         rows = admin_client.select(
             "documents",
             filters={"id": f"eq.{source_id}", "org_id": f"eq.{org_id}"},
-            columns="id,org_id,storage_path,original_filename",
+            columns="id,org_id,storage_path,original_filename,mime_type",
             limit=1,
         ) or []
     except Exception:  # noqa: BLE001 — unreadable is "cannot prove", not a failure

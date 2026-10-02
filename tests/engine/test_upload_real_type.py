@@ -1748,6 +1748,115 @@ def test_the_identity_of_an_upload_is_read_from_its_bytes_under_every_name():
         assert (junk.cui, junk.document_kind) == (junk_as_pdf.cui, junk_as_pdf.document_kind), (name, junk)
 
 
+#: Names the round-4 review measured beside the eleven: a name whose branch
+#: the declared MIME type picks AGAINST its extension, and one it picks alone.
+_IDENTITY_NAMES = _NAMES + _BY_MIME_ALONE + [
+    ("balanta.csv", "application/pdf"),
+    ("balanta.csv", "application/vnd.ms-excel"),
+    ("BALANTA.XLS", "application/octet-stream"),
+    ("balanta.pdf", "application/octet-stream"),
+]
+
+
+def test_the_identifier_reads_every_upload_on_the_branch_the_pipeline_reads_it_on():
+    """Review round 4 (2026-10-02), MEDIUM — a measured bypass of the
+    cross-company takeover wall on two byte shapes. The round-3 identifier
+    read the magic bytes a SECOND time, its own way, and classified with no
+    MIME type; on both shapes it answered ``unreadable`` (no CUI) for a file
+    the pipeline reads, so the card offered the company on screen and the
+    wall had nothing to hold against the month's owner
+    (tests/engine/test_workspace_v2_gates.py carries both, end to end):
+
+    · ``b"PK"`` + junk + a balance PDF. The sniffer demands the four-byte zip
+      signature, so this is a PDF to the pipeline under EVERY name; the
+      identifier tested ``content[:2] == b"PK"`` and sent it to the workbook
+      reader. (A regression against production for the .pdf name, which
+      tested the name first.)
+    · a balance PDF behind 2,000 leading bytes and ahead of 3,000 trailing
+      ones: no ``%PDF-`` in the sniffer's window and no ``%%EOF`` in the
+      trailer window, so the pipeline reads it as a PDF exactly where the
+      branch is ``pdf`` or ``xlsx`` — and for a name with no extension, or
+      one the declared type overrides, the branch is the MIME type's. The
+      identifier never saw the MIME type.
+
+    THE LAW. For every body and every (name, declared MIME type): where the
+    pipeline's own policy reads the bytes as a PDF
+    (``reads_as_pdf(classify(name, mime), sniff_container(bytes), bytes)``)
+    the identifier reads the PDF's identity — the one the clean PDF has under
+    balanta.pdf; and a workbook's identity is its own under every pair.
+
+    Reds on: a second reading of the magic bytes in the identifier that
+    disagrees with ``sniff_container``; the identifier classified without the
+    MIME type; a caller that does not hand it over (the seam
+    ``_uploads.identify`` is asked too)."""
+    from engine.api import _uploads
+    from engine.workspaces.company_identity import identify_document
+    from ws_migration_fixture import balance_pdf, balance_xlsx, valid_cui
+
+    cui = valid_cui("2000001")
+    header = ["Alfa Exemplu SRL", "Cod fiscal: RO%s" % cui, "Balanta de verificare la data de 31.12.2025"]
+    pdf = balance_pdf(header)
+    book = balance_xlsx(header)
+
+    def who(ident: Any) -> tuple:
+        return (ident.cui, ident.company_name, ident.period_end, ident.document_kind)
+
+    as_pdf = who(identify_document(pdf, "balanta.pdf", mime="application/pdf"))
+    as_book = who(identify_document(book, "balanta.xlsx", mime=_XLSX_MIME))
+    assert as_pdf[0] == cui and as_pdf[3] == "trial_balance", as_pdf       # non-vacuity: both ARE identified
+    assert as_book[0] == cui and as_book[3] == "trial_balance", as_book
+
+    bodies = {
+        "pdf": pdf,
+        "pdf_behind_PK": b"PK" + b"J" * 100 + pdf,
+        "pdf_junk_both_ends": b"J" * 2000 + pdf + b"\n" + b"K" * 3000,
+    }
+    # The shapes are what the finding says they are — else the law proves nothing.
+    assert ut.sniff_container(bodies["pdf_behind_PK"]) == ut.PDF
+    both = bodies["pdf_junk_both_ends"]
+    assert ut.sniff_container(both) in (ut.TEXT, ut.UNKNOWN)
+    assert ut.PDF_MAGIC not in both[:ut.PDF_MAGIC_WINDOW] and b"%%EOF" not in both[-2048:]
+
+    read_as_pdf: Dict[str, list] = {}
+    for label, body in bodies.items():
+        real = ut.sniff_container(body)
+        for name, mime in _IDENTITY_NAMES:
+            if not ut.reads_as_pdf(ut.classify(name, mime), real, body):
+                continue
+            read_as_pdf.setdefault(label, []).append((name, mime))
+            got = who(identify_document(body, name, mime=mime))
+            assert got == as_pdf, \
+                "%s as (%r, %r): the pipeline reads these bytes as a PDF, the identifier answers %r" % (
+                    label, name, mime, got[3])
+            # …and through the seam the card's routes call.
+            shaped = _identify_through_the_routes_seam(_uploads, body, name, mime)
+            assert (shaped["cui"], shaped["document_kind"]) == (as_pdf[0], as_pdf[3]), (label, name, mime, shaped)
+
+    # Non-vacuity: a PDF and a PDF behind "PK" are PDFs under EVERY pair; the
+    # third shape under the pdf / xlsx branches only — and the declared MIME
+    # type ALONE puts it there for three of the pairs.
+    assert len(read_as_pdf["pdf"]) == len(_IDENTITY_NAMES) == len(read_as_pdf["pdf_behind_PK"])
+    by_branch = read_as_pdf["pdf_junk_both_ends"]
+    assert ("balanta.csv", "text/csv") not in by_branch and ("balanta", "text/csv") not in by_branch
+    for pair in (("balanta", "application/pdf"), ("balanta.csv", "application/pdf"), ("balanta", _XLSX_MIME)):
+        assert pair in by_branch, pair
+        assert not ut.reads_as_pdf(ut.classify(pair[0], None), ut.sniff_container(both), both), pair
+
+    for name, mime in _IDENTITY_NAMES:
+        assert who(identify_document(book, name, mime=mime)) == as_book, (name, mime)
+
+
+def _identify_through_the_routes_seam(_uploads: Any, body: bytes, name: str, mime: str) -> Dict[str, Any]:
+    """`_uploads.identify` as /api/uploads/identify and /commit call it — the
+    registry not opened (opening it can create a database file)."""
+    opened = _uploads._open_registry
+    _uploads._open_registry = lambda: None
+    try:
+        return _uploads.identify(body, name, mime=mime, printed_period=False)
+    finally:
+        _uploads._open_registry = opened
+
+
 def test_the_classifier_is_the_one_the_pipeline_runs():
     """`pipeline._classify_file` is `_upload_type.classify` — the routes
     classify by the same rule the pipeline does."""

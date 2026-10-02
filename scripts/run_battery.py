@@ -350,11 +350,18 @@ def _engine_gates() -> List[Gate]:
         # named .pdf was "unreadable", filed in the company on screen, and
         # walked through the cross-company wall — see workspace-v2).
         # Measured 177 tests.
+        # REVIEW ROUND 5 (2026-10-02): the identifier's dispatch IS the
+        # pipeline's label (`sniff_container`), and it is handed the declared
+        # MIME type — two crafted byte shapes ("PK" + bytes + a PDF; a PDF
+        # with bytes at both ends whose branch the MIME type picks) were PDFs
+        # to the pipeline and "unreadable" to the identifier, and walked
+        # through the takeover wall. One law over three bodies x nineteen
+        # (name, MIME) pairs, through the routes' seam too. Measured 178.
         # Plant log: gates.md "upload-real-type".
         Gate("upload-real-type",
              [PY, "-m", "pytest", "tests/engine/test_upload_real_type.py",
               "tests/engine/test_workspace_uploads.py", "-q"],
-             work_junit=True, floor=177, units="tests",
+             work_junit=True, floor=178, units="tests",
              canaries=("test_a_docx_named_pdf_is_refused_before_the_paid_path",
                        "test_an_excel_balance_named_pdf_is_READ_not_refused",
                        "test_a_balance_pdf_named_xls_is_READ_not_refused",
@@ -376,6 +383,7 @@ def _engine_gates() -> List[Gate]:
                        "test_a_workbook_named_pdf_never_reaches_the_claude_pdf_lane",
                        "test_the_positional_readers_acceptance_gate_holds_under_every_name",
                        "test_the_identity_of_an_upload_is_read_from_its_bytes_under_every_name",
+                       "test_the_identifier_reads_every_upload_on_the_branch_the_pipeline_reads_it_on",
                        "test_a_mimetype_entry_that_lies_about_its_size_is_not_inflated",
                        "test_the_real_branch_answers_in_the_language_the_run_carries")),
         # WORKSPACE-V2 — the redesign's engine gates (one company per
@@ -394,14 +402,26 @@ def _engine_gates() -> List[Gate]:
         # of G1 and of the G4 cross-company wall — a workbook named .pdf is
         # identified by its bytes, lands in the company its header names and
         # never replaces another company's month. Measured 31, floor 31.
+        # Review round 5 (2026-10-02): the PDF twins, in the two byte shapes
+        # the pipeline reads as a PDF and the identifier did not — G1 through
+        # the real routes (5 rows: the declared MIME type is handed to the
+        # identifier), the G4 wall under 8 (shape, name, MIME) rows with a
+        # clean-PDF control, the same company's PDF still replacing the month
+        # (2 — the pipeline READS both shapes), and the month's own document
+        # of a company without a CUI read with its `mime_type` (1).
+        # Measured 47, floor 47.
         # Plant log: docs/engine_book/gates.md.
         Gate("workspace-v2",
              [PY, "-m", "pytest", "tests/engine/test_workspace_v2_gates.py",
               "tests/engine/test_no_empty_period_creators.py", "-q"],
-             work_junit=True, floor=31, units="tests",
+             work_junit=True, floor=47, units="tests",
              canaries=("test_g1_an_agras_file_dropped_on_a_scandia_page_lands_in_agras",
                        "test_g1_an_agras_workbook_named_pdf_is_identified_by_its_bytes_and_lands_in_agras",
+                       "test_g1_an_agras_pdf_is_identified_on_the_branch_the_pipeline_reads_it_on_and_lands_in_agras",
                        "test_g4_a_same_month_file_of_another_company_never_replaces_the_month",
+                       "test_g4_a_same_month_pdf_of_another_company_never_replaces_the_month",
+                       "test_g4_a_same_month_pdf_of_the_same_company_still_replaces_the_month",
+                       "test_g4_the_month_of_a_company_without_a_cui_is_its_own_pdfs_whatever_mime_named_it",
                        "test_g2_a_2017_file_name_whose_period_line_says_2025_is_2025",
                        "test_g3_the_same_file_twice_is_stored_analysed_and_counted_once",
                        "test_g4_the_production_check_finds_the_empty_periods_of_a_snapshot",
