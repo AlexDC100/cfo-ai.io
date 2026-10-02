@@ -137,9 +137,9 @@
     },
     "frontend/components/cfo/PricingTableV2.tsx": {
       "bucket": "LACKS_SILENT",
-      "sites": 3,
+      "sites": 4,
       "affordances": 0,
-      "why": "OPENED 2026-09-04; RE-STATED 2026-10-01 (4 -> 3 sites) when Multi-Country became coming-soon and its non-RO overage line (one formatEur call) left the card. formatEur() over the static price list on the pricing page. Nothing served, nothing claimed."
+      "why": "OPENED 2026-09-04; RE-STATED 2026-10-01 (4 -> 3 sites) when Multi-Country became coming-soon and its non-RO overage line (one formatEur call) left the card. formatEur() over the static price list on the pricing page. Nothing served, nothing claimed. RE-STATED 2026-10-02 (3 -> 4): the plan blurb is now a dictionary sentence filled with the config's extra-document price through formatEur (the server's English blurb carried a typed \"€1.49\"). A list price, not a figure of a company."
     },
     "frontend/components/cfo/PublicRecordsQuickCard.tsx": {
       "bucket": "HAS_MISSING",
@@ -600,9 +600,9 @@
     },
     "frontend/pages/cfo/Landing.tsx": {
       "bucket": "LACKS_SILENT",
-      "sites": 8,
+      "sites": 7,
       "affordances": 0,
-      "why": "OPENED 2026-09-04. The marketing site's ticker strip — synthetic numbers computed from a seed (`(price * 137) % 900`). Nothing to claim, and claiming would be the worst bucket. RESTATED 2026-10-02 (6 -> 8): the two plan-card prices now print through cardPrice() so the Romanian page shows one price format (it printed \"€4.99\" over a list saying \"1,49 €\"). They are the plans' list prices — the constants beside them, held to the backend's pricing config by shippedClaimsMatchCode — not figures of a company: there is no source cell to name."
+      "why": "OPENED 2026-09-04. The marketing site's ticker strip — synthetic numbers computed from a seed (`(price * 137) % 900`). Nothing to claim, and claiming would be the worst bucket. RESTATED 2026-10-02 (6 -> 8): the two plan-card prices now print through cardPrice() so the Romanian page shows one price format (it printed \"€4.99\" over a list saying \"1,49 €\"). They are the plans' list prices — the constants beside them, held to the backend's pricing config by shippedClaimsMatchCode — not figures of a company: there is no source cell to name. RESTATED 2026-10-02 (8 -> 7): cardPrice() is now one call of lib/price.formatPrice (\"4.99 EUR\" / \"4,99 EUR\", the code after the figure) instead of two toFixed() branches; the bullets' prices are {price.*} tokens filled from the same table."
     },
     "frontend/pages/cfo/MultiYearHistory.tsx": {
       "bucket": "HAS_SHOWS",
@@ -657,6 +657,18 @@
       "sites": 1,
       "affordances": 0,
       "why": "OPENED 2026-09-04. THE CURRENCY STORE. One formatAmountFrom() inside the useAmountFormatter binding every other surface calls — it converts and spells whatever it is handed and holds no payload, exactly as ui/Money.tsx does. Callers that have an origin wrap the result."
+    },
+    "frontend/components/cfo/pricing/PricingFaq.tsx": {
+      "bucket": "LACKS_SILENT",
+      "sites": 1,
+      "affordances": 0,
+      "why": "OPENED 2026-10-02. One formatPrice() call: the intro unlock's list price inside the FAQ question (it was a typed \"€0.99\" / \"0,99 €\"). A list price held to the backend's pricing config by shippedClaimsMatchCode — not a figure of a company; nothing to claim."
+    },
+    "frontend/pages/cfo/ContactSalesPage.tsx": {
+      "bucket": "LACKS_SILENT",
+      "sites": 1,
+      "affordances": 0,
+      "why": "OPENED 2026-10-02. One formatPrice() call: the intro unlock's list price in the confirmation text (it was a typed \"€0.99\"). A list price held to the backend's pricing config by shippedClaimsMatchCode — not a figure of a company; nothing to claim."
     }
   },
   "absent_leaf": {

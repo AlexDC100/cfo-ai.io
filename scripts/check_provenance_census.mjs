@@ -271,6 +271,9 @@ const FORMATTERS = {
   formatMoneyFrom: "frontend/lib/money.ts",
   formatCitedFact: "frontend/lib/narrativeMoney.tsx",
   formatEur: "frontend/lib/pricingConfig.ts",
+  // 2026-10-02 — the ONE price printer ("4.99 EUR" / "4,99 EUR"); formatEur
+  // delegates to it, the landing and the pricing FAQ call it directly.
+  formatPrice: "frontend/lib/price.ts",
   formatTokens: "frontend/lib/tokenUsage.ts",
   // ── plan/2 B1 (plan_contract_v2 section 7) ──────────────────────────
   // The comparatives Δ % / share / pp spellers (named unrostered in
@@ -719,6 +722,10 @@ const SURFACES = {
       "frontend/components/cfo/UpcomingInvoicePreview.tsx",
       "frontend/components/cfo/pricing/IntroUnlockCallout.tsx",
       "frontend/components/cfo/pricing/MonthlyBillEstimator.tsx",
+      // 2026-10-02 — the intro unlock's list price, through formatPrice():
+      // in the pricing FAQ's question and in /contact-sales' confirmation.
+      "frontend/components/cfo/pricing/PricingFaq.tsx",
+      "frontend/pages/cfo/ContactSalesPage.tsx",
       // 2026-09-08 — the "Selected plan" chip on /signup. One formatEur()
       // over the live config's price_eur; a price list entry, not a
       // figure from a company's envelope (same reading as AccountMenu).

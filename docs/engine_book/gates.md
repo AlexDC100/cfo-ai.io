@@ -19813,3 +19813,44 @@ after — not asserted:
   it); the engine prints two quick ratios and a depreciated share whose base
   includes construction in progress; 36 `dash.*` Romanian strings are still
   in the formal register.
+
+### landing trust — third review, the truth half (2026-10-02): the laws the copy changes added
+
+The third review's truth decisions (T1–T9) changed copy, the sample and the
+pricing page. These are the laws that came with them; the hardening of the
+existing gates (the rendered-text laws, the positive footer law, the raw-byte
+scans) is the next commit series and is recorded under each gate's own
+heading.
+
+| law | where | what it holds | measured |
+|---|---|---|---|
+| S11 (three tests) | `tests/engine/test_public_sample.py`, gate `public-sample` | every "ledger" figure of `public/sample/known_issues_fy2025.json` is repeated from the PUBLISHED workbook's cells (openpyxl, not the generator's rows); every "engine" figure is the served document's through its pointer; the page's list is the published file's; an estimated cash flow cannot be published with no issue listed; the stock movement printed beside the account-121 reading is the workbook's and equals the derived 711 line | 32 laws (was 29), 36 figures repeated, 3 issues |
+| P10 (four tests) | `frontend/pages/cfo/__tests__/publicSample.test.tsx`, gate `public-sample-page` | the known-issues box is on /sample above the files, in EN and RO, each amount in a line is a number of that issue; the report HTML carries the box before the executive summary in both languages and the cover points at it; page 1 says the company is fictional | 194 printed figures (was 134) |
+| `price.test.ts` | `frontend/lib/__tests__/` (rides in `vitest`) | the one price printer: code after the figure, the reader's number format, no symbol, the same locale rule as lib/money; every `{price.*}` token is the table's; the one checks sentence is what the landing prints three times and what the app's receipt takes, and no surface counts the checks in words of its own | 7 tests |
+| `uploadGuide.test.ts` | `frontend/lib/__tests__/` (rides in `vitest`) | the in-app upload surfaces' formats are derived from coverage.json (tested on a real book / accepted and untested); no format list, untested document type or sample offer is typed back into `ws`, `wsV2`, `tabs` | 3 tests |
+| shippedClaimsMatchCode, price law | `frontend/lib/__tests__/` | `lib/price.PLAN_PRICES_EUR` against `_pricing_config.py`; the code-after-figure form is parsed; a euro symbol in landing or pricing copy is red; the landing holds no typed amount of its own | 18 tests |
+
+PLANTS (each applied alone in the working tree, run, reverted; 2026-10-02):
+
+| plant | result |
+|---|---|
+| `known_issues_fy2025.json`: `ledger.financing` −123171.34 → −123171.35 | `public-sample` RED twice — "financing on the ledger: stated -123171.35, the published workbook gives -123171.34" (S11) and "the /sample page would print a known-issues list that is not the published file's" (S11) |
+| `lib/publicSampleKnownIssues.ts`: the `{additions}` token of the English cash-flow line replaced by a typed "650,000.00 RON" | `public-sample-page` RED three times — "en cash_flow_estimated: 650000 is not a figure of the issue" (P10), the report's box no longer equals the words (P10), and "public/sample report HTML differs from a rebuild" (P5) |
+
+WHAT THESE LAWS CANNOT SEE
+  · S11 repeats arithmetic; it does not know whether an issue nobody listed
+    exists. The three listed came from two adversarial reviews, not from a
+    detector.
+  · S11's account lists (cash = 5121 + 5124 + 5311; depreciable tangible =
+    212 + 213x + 214) are written twice, in the generator and in the law. A
+    chart change in the fictional ledger must be made in both; a missed one
+    is a red, not a silent pass.
+  · P10 parses "<figure> RON" amounts; a ratio (0.9558×), a percentage or a
+    year count typed into a sentence is held only by the report's
+    byte-identical rebuild, which reds on any change but does not say why.
+  · `uploadGuide.test.ts` reads dictionaries. A format typed into JSX is
+    seen only where `public-claims` renders the surface.
+  · Nothing holds the AI-availability dates of coverage.json to a
+    measurement: `chat` is "not verified since 2026-09-29" and `briefing` is
+    "unavailable" because a person read production on 2026-10-02. The owner
+    sets both after one chat turn and one briefing.
