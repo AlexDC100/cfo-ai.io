@@ -329,6 +329,13 @@ def _published_texts() -> Iterator[Tuple[str, str]]:
             yield path.name, path.read_text(encoding="utf-8")
 
 
+def _fail(message: str) -> None:
+    """Fail with `message` and NOTHING ELSE — no traceback, no introspected
+    values. The S5 laws find a client's label or a real fiscal code; printing
+    what they found would put it in a CI log."""
+    pytest.fail(message, pytrace=False)
+
+
 def _client_labels() -> List[str]:
     """The labels of the REAL books this repository holds, read off their
     file and directory names at run time — never typed (scripts/
@@ -380,12 +387,15 @@ def test_s5_no_client_label_appears_in_a_published_file():
     parts = _published_parts()
     for name, text in parts:
         hit = pattern.search(text)
-        # The label itself is not printed: a failure log is not the place
-        # for a client's name either. Its position is enough to find it.
-        assert hit is None, (
-            "%s carries the label of a real book this repository holds, at character %d "
-            "(%d characters long). Find where it comes from and remove it at the source."
-            % (name, hit.start(), len(hit.group(0))))
+        # THE LABEL ITSELF IS NOT PRINTED: a failure log is not the place for
+        # a client's name either. Its position is enough to find it. (Until
+        # 2026-10-02 this was `assert hit is None, …` — and pytest's own
+        # introspection printed the match object, label included, under the
+        # message. `_fail` raises with the message alone.)
+        if hit is not None:
+            _fail("%s carries the label of a real book this repository holds, at character %d "
+                  "(%d characters long). Find where it comes from and remove it at the source."
+                  % (name, hit.start(), len(hit.group(0))))
     files, members, pdf = _scan_floor(parts)
     print("GATE-WORK public-sample-scan files=%d workbook_members=%d pdf_parts=%d labels=%d"
           % (files, members, pdf, len(labels)))
@@ -419,19 +429,24 @@ def test_s5_document_properties_carry_the_product_name_only():
             for field in ("creator", "lastModifiedBy"):
                 # the product's name (alone or with the sample's own
                 # "fictional example" mark) or the writing library's default
-                # — never a person, never a client
-                assert (getattr(props, field) or "") in ("", "CFO AI", "CFO AI - exemplu fictiv", "openpyxl"), (
-                    "%s: %s is %r — a workbook's author is the product, the writing library, or nobody"
-                    % (rel, field, getattr(props, field)))
+                # — never a person, never a client. The value is not printed.
+                value = getattr(props, field) or ""
+                if value not in ("", "CFO AI", "CFO AI - exemplu fictiv", "openpyxl"):
+                    _fail("%s: the %s property (%d characters) is not the product's name — a "
+                          "workbook's author is the product, the writing library, or nobody"
+                          % (rel, field, len(value)))
             for field in ("subject", "keywords", "category", "description", "contentStatus", "identifier"):
-                assert not (getattr(props, field) or ""), (
-                    "%s: the %s property is set (%d characters) — nothing of ours writes one"
-                    % (rel, field, len(str(getattr(props, field)))))
+                value = str(getattr(props, field) or "")
+                if value:
+                    _fail("%s: the %s property is set (%d characters) — nothing of ours writes one"
+                          % (rel, field, len(value)))
             seen += 1
         elif path.suffix == ".pdf":
             info = dict(PdfReader(io.BytesIO(path.read_bytes())).metadata or {})
             for key in ("/Author", "/Subject", "/Keywords"):
-                assert not info.get(key), "%s: the PDF's %s is set — the report writes none" % (rel, key)
+                if info.get(key):
+                    _fail("%s: the PDF's %s is set (%d characters) — the report writes none"
+                          % (rel, key, len(str(info.get(key)))))
             seen += 1
     assert seen >= 8, "only %d documents with properties were examined" % seen
 
@@ -447,14 +462,14 @@ def test_s5_the_only_fiscal_code_and_register_number_are_the_fictional_ones():
     for name, text in _published_parts():
         for match in _FISCAL_CODE.finditer(text):
             seen_code += 1
-            assert match.group(1) == fictional, (
-                "%s carries a fiscal code that is not the sample's fictional one, at "
-                "character %d" % (name, match.start()))
+            if match.group(1) != fictional:
+                _fail("%s carries a fiscal code that is not the sample's fictional one, at "
+                      "character %d" % (name, match.start()))
         for match in _TRADE_REGISTER.finditer(text):
             seen_register += 1
-            assert re.sub(r"\s", "", match.group(0)) == TB.TRADE_REGISTER, (
-                "%s carries a trade-register number that is not the sample's fictional one, "
-                "at character %d" % (name, match.start()))
+            if re.sub(r"\s", "", match.group(0)) != TB.TRADE_REGISTER:
+                _fail("%s carries a trade-register number that is not the sample's fictional one, "
+                      "at character %d" % (name, match.start()))
     assert seen_code >= 4 and seen_register >= 4, (
         "the fictional identifiers were found %d / %d times — the scan read nothing"
         % (seen_code, seen_register))
