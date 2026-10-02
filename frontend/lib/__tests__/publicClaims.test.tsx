@@ -489,21 +489,23 @@ function unexcusedClaim(sentence: string): { hit: string; clause: string } | nul
  *  the model provider is, the "Made in the EU" mark. Until 2026-10-02 this
  *  was a regex over the whole SENTENCE ("GDPR", "infrastructure" …), and
  *  "Works for companies across Europe, GDPR-compliant." passed on its last
- *  word. It is now the KNOWN LINES, read from the copy at the keys that hold
- *  them — the footer's mark and the sentences of the data-security answer
- *  that name a region — and only those characters are set aside: whatever
- *  else stands in the sentence is still read. */
-function dataResidencyLines(lang: SurfaceLang): string[] {
-  const L = landingStringsFor(lang);
-  const plain = (text: string) => text.replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
-  const security = L.faq.items.filter((item) => item.a.includes("{privacy}"));
-  if (security.length !== 1) throw new Error(`${lang}: expected one data-security answer, found ${security.length}`);
-  const lines = [
-    ...plain(L.footer.madeIn).split(/\s·\s/),
-    ...sentencesOf(plain(security[0].a.split("{privacy}")[0])),
-  ].map((line) => line.trim()).filter((line) => BEYOND_ROMANIA.exec(line));
-  return lines;
-}
+ *  word. It is now THREE LINES PER LANGUAGE, WRITTEN OUT HERE: only these
+ *  exact characters are set aside, and whatever else stands in the sentence
+ *  is still read. A line of the copy that is reworded stops being exempt
+ *  and is read as a claim until this list is changed on purpose. */
+const DATA_RESIDENCY_LINES: Record<SurfaceLang, string[]> = {
+  en: [
+    "Made in the EU",
+    "Your data is stored on EU-region infrastructure with row-level security so only your account can access it.",
+    "Where a document or a question is processed by the AI model, that content is sent to our model provider in the United States.",
+  ],
+  ro: [
+    "Creat în UE",
+    "Datele tale sunt stocate pe infrastructură din regiunea UE, cu securitate la nivel de rând, astfel încât doar contul tău le poate accesa.",
+    "Atunci când un document sau o întrebare este procesată de modelul AI, acel conținut este trimis furnizorului nostru de model din Statele Unite.",
+  ],
+};
+const dataResidencyLines = (lang: SurfaceLang): string[] => DATA_RESIDENCY_LINES[lang];
 /** `sentence` with the known data-residency lines taken out — only on the
  *  landing, where they are printed. */
 function withoutDataResidency(sentence: string, where: string, lang: SurfaceLang): string {
