@@ -18573,7 +18573,7 @@ the tree), not asserted:
 |---|---|
 | command | `python -m pytest tests/engine/test_engine_proof.py -q -rs` |
 | canary | junit test names: `test_rerunning_the_proof_script_agrees_with_the_committed_file`, `test_every_check_was_re_measured_on_this_checkout`, `test_software_is_proven_only_by_a_committed_real_file`, `test_the_committed_file_is_a_full_dated_proof`, `test_books_are_counted_once`, `test_the_public_file_names_no_company_and_no_company_figure`, `test_the_engine_identity_is_this_trees`, `test_the_script_refuses_to_write_a_proof_over_the_committed_subset` |
-| work count | junit tests minus skips, floor **9** = the number of laws (was 7 until the second review, 2026-10-02: on a checkout without the local calibration books one law skips, so the gate cannot pass there); the script's own line `GATE-WORK engine-proof checks=5 subjects=29 scope=full` |
+| work count | junit tests minus skips, floor **10** = the number of laws (9 until EP9, the third review; 7 until the second review, 2026-10-02: on a checkout without the local calibration books one law skips, so the gate cannot pass there); the script's own line `GATE-WORK engine-proof checks=5 subjects=29 scope=full` |
 
 **INCIDENT** — 2026-10-01, the first public review of the landing page. One
 sentence said "reconciles all eight calibration fixtures … four of eight to
@@ -18738,13 +18738,61 @@ present re-measures every count and passes if they are unchanged — the
 proof's content is then true for that tree, though its date is the earlier
 one.
 
+### engine-proof — third review (2026-10-02): EP9, the proof's date is real
+
+**INCIDENT** — the landing prints the proof's date beside every check and in
+the FAQ ("measured 2 Oct 2026"). `scripts/build_engine_proof.py --check`
+strips every `measured_at` before it compares (a re-measurement on another
+day is the same proof), and no law read the dates. A verifier hand-edited the
+top-level `measured_at` to 2027-01-01 with the local books present:
+`engine-proof` PASS (9 tests, scope full), `landing-proof` PASS. The committed
+file at that moment said 2026-10-01 while the build report said the proof had
+been re-measured on 2026-10-02.
+
+**LAW (EP9)** — every `measured_at` is a calendar day; it is not after today
+(UTC); it is not before the last commit that touched `src/engine` or `packs`
+(`git log -1 --format=%ct -- src/engine packs`, read as a UTC day — the
+engine the proof speaks for did not exist earlier); each check carries the
+file's own day (the script measures them in one run and stamps them
+together). `build_engine_proof.py --check` reports each of these as a failure
+of its own (`date_problems`), so EP1 reds with it. The gate's floor is 10.
+
+**SCOPE** — `frontend/data/engineProof.json`: the top-level date and the five
+checks' dates, against the clock and the repository's history.
+
+**MEASURED** (2026-10-02, books linked): `PASS engine-proof (32.0s, 10
+tests)`, scope full, 5 checks / 29 subjects re-measured; the proof is dated
+2026-10-02, the engine's last commit 2026-10-01.
+
+**PLANT / RED** — each applied alone in a scratch copy with the local books
+linked, through the battery's own `main` narrowed to the gate:
+
+| plant | result |
+|---|---|
+| E1 — the file hand-dated 2027-01-01, top level and every check | `FAIL engine-proof` — 3 failed, 7 passed: "the proof is dated 2027-01-01, after today (2026-10-02 UTC)" (EP9), the `--check` run exits 1 (EP1), and EP7 with it |
+| E2 — hand-dated 2026-09-08 | `FAIL engine-proof` — "STALE DATE — the proof is dated 2026-09-08; src/engine or packs was last committed on 2026-10-01. Re-measure: python scripts/build_engine_proof.py" |
+| E3 — one of the six dates edited (the file's own, 2026-10-01), the checks left | `FAIL engine-proof` — "rerun_identical is dated 2026-10-02; the proof is dated 2026-10-01 — the checks are measured in one run" |
+
+`landing-proof` stayed GREEN on all three (4,365 units): it holds the page to
+the file, not the file's date to the calendar. That is this gate's job, and
+the reason the two are separate gates.
+
+**REVERT** — `PASS engine-proof (32.0s, 10 tests)`.
+
+**CANNOT SEE (EP9):** whether the proof was really measured ON its date — any
+day between the engine's last commit and today is accepted; the counts are
+held by EP1 / EP7 and the engine by EP5. A checkout without git history (a
+shallow clone that lacks the engine's last commit, a tarball) cannot pass:
+the law fails there rather than guess. Uncommitted engine changes are EP5's
+(the digest), not this law's.
+
 ## landing-proof
 
 | | |
 |---|---|
 | command | `npx vitest run --root . frontend/lib/__tests__/landingProof.test.tsx frontend/lib/__tests__/shippedClaimsMatchCode.test.ts --reporter=verbose` |
 | canary | test names `L1 carries five dated checks, each saying what is checked, in both languages`, `L1 names no company and publishes no company's figure`, `L2 the tree digest, parser version and EBITDA definition are the working tree's`, `L3 the proof block prints the JSON: headline, what is checked, date, caption figures`, `L4 the FAQ's proof answer prints only numbers the JSON holds`, `L5 the accuracy block carries tokens, never a digit`, `L5 no accuracy claim is typed anywhere in the landing copy, the page meta or the manifest`, `L7 the listing counts are the JSON's, on the card and in the FAQ`, `L8 the public sample lists the same checks in the same words, and the proof block's link lands on them`, `prints no calibration count that is not a pair the engine proof measured` |
-| work count | `GATE-WORK landing-proof figures=N`, floor **900** (measured 1,255 after the second review; 400 / 559 before it); any skipped test fails the gate |
+| work count | `GATE-WORK landing-proof figures=N`, floor **3,500** (measured 4,365 after the third review, which added L12; 900 / 1,255 after the second; 400 / 559 before it); any skipped test fails the gate |
 
 **INCIDENT** — the same as `engine-proof`: "eight" in the sentence, "9 / 9"
 in the block beside it, both typed.
@@ -18936,13 +18984,120 @@ token binding); a promise about the visitor's file worded without naming the
 file; whether a speed that is one day printed WITH a measurement is true —
 there is no such measurement yet.
 
+### landing-proof — third review (2026-10-02): L12, every text node of every public page
+
+**INCIDENT** — the accuracy laws (L3–L5) read the proof block and the
+landing's string table. Each of these, typed alone, left `landing-proof` and
+`public-claims` GREEN:
+
+- markup, above the proof block: `<p>Verified on 9 of 9 real books — every
+  balance sheet reconciles within 0.1%.</p>` (L5 read `LANDING_STRINGS` only;
+  L3 only inside `#proof-strip`);
+- a number WORD in the accuracy block: "…all nine real books are
+  byte-identical." (L5's rule was "no digit");
+- words outside the fixed vocabulary: "We tested 20 real company books and
+  every one matched.", "Tested on 40 real company books, all correct.",
+  "Correct on 100% of the books we tested." (the vocabulary had no test /
+  correct / match / verify);
+- other public pages: /pricing hero "…≤1% drift on all 9 of 9 calibration
+  books", /signup "99.9% accurate on 9 of 9 calibration books", /sample title
+  "…accurate on 12 of 12 real books, within 0.1% drift".
+
+**LAW (L12)** — the gate mounts the landing, /pricing, /signup, /sample and
+/contact-sales in English and Romanian and reads EVERY TEXT NODE (a
+TreeWalker — `frontend/test/publicSurfaces.textNodes`). Outside the exempt
+regions a node carries
+
+- no percentage (on /sample: no percentage beside a measuring word — its
+  ratios are the fictional company's and are held by `public-sample-page`
+  P11);
+- no "N of M" / "N din M" / "N out of M" / "N / M", in digits or words;
+- no digit and no number word in the same clause as books, balanțe, fixtures,
+  tested, verified, correct, accurate (and testat-, verificat-, corect-,
+  acurat-, precis-, calibr-);
+
+unless the node IS a string of the copy that carries proof tokens, filled
+(its numbers came from engineProof.json; what is TYPED in such a string is
+read by the raw scan). The same rules read the raw strings, tokens removed,
+of the landing, the `pricing` / `pricingX` / `pricingFaq` / `authX` /
+`contactSales` dictionaries, the plan bullets and the sample page
+(`frontend/test/accuracyClaims.ts`). Account and class numbers, calendar
+dates and rates ("3 trial balances / month") are removed before a sentence is
+read.
+
+**EXEMPT REGIONS** — each must exist on the page, or the law fails:
+
+| page | region | why |
+|---|---|---|
+| landing | `#proof-strip` | the proof block, held figure by figure by L3 / L9 |
+| landing | `#coverage` | the coverage table, held by `public-claims` C4 / C5 |
+| landing | `[data-hero-mock]` | the hero's illustrative dashboard; the note under it says "Illustrative dashboard" and L12 asserts the note is on the page |
+| landing | `#cfo-ticker-board` | the hero's decorative ticker (aria-hidden, random moves) — part of the same illustration |
+| /sample | `[data-engine-words]` | the engine's own sentences, quoted; held to the served document by `public-sample` S6 |
+
+Two allowances on /sample, each checked against the page data before it is
+used: "the two trial balances" / "cele două balanțe" (the count of
+trial-balance files in publicSample.json is two) and the composite score
+"N of 100" (N is the served composite).
+
+**SCOPE AND MEASURED COVERAGE** (2026-10-02) — text nodes read per language:
+landing 174 (after the exemptions), /pricing 105, /signup 41, /sample 517,
+/contact-sales 26; 1,376 raw copy lines; 17 token-filled strings, 1 of them
+met on the rendered landing (the FAQ's proof answer). `GATE-WORK
+landing-proof figures=4365` (was 1,263), floor **3,500**; 23 tests in the file
+under 17 law names, every one a canary — L6 and L11 included.
+
+**PLANT / RED** — each applied alone in a scratch copy, through the battery's
+own `main` narrowed to `landing-proof`:
+
+| plant | RED |
+|---|---|
+| A1 — `<p>Verified on 9 of 9 real books — every balance sheet reconciles within 0.1%.</p>` typed above the proof block in `Landing.tsx` | `/ (en) #trust <p>: count "9 … Verified" in "Verified on 9 of 9 real books"` |
+| A2 — `<p><strong>All nine real books are byte-identical.</strong></p>` in the markup | `/ (en) #trust <strong>: count "nine … books" in "All nine real books are byte-identical."` |
+| A3 — FAQ answer: "We tested 20 real company books and every one matched." | `landingStrings[en].faq.items[1].a: count "2 … tested" …` (rendered and raw: 2 laws) |
+| A4 — how-it-works step: "Correct on 100% of the books we tested." | `landingStrings[en].how.steps[1].body: count "1 … Correct" …` |
+| A5 — `en.json pricingX.hero_sub`: "Reconciled to your source to ≤1% drift on all 9 of 9 calibration books." | `en.json pricingX.hero_sub: count "1 … calibration" …` |
+| A6 — `ro.json authX.subtitle_sign_up_page`: "Testat pe 40 de balanțe reale, toate corecte." | `ro.json authX.subtitle_sign_up_page: count "4 … Testat" …` |
+| A7 — /sample title: "A fictional company, accurate on 12 of 12 real books, within 0.1% drift" | `sampleStrings[en].title: count "1 … accurate" …` |
+| A8b — `<p>Tested on 40 real company books, all correct.</p>` typed into the /pricing hero's JSX (no dictionary) | `/pricing (en) @pricing-zero-friction-hero <p>: count "4 … Tested" …` |
+| A9 — the rendered L12 law marked `it.skip` | `WORK BELOW FLOOR — examined 2639 …, floor 3500` and `SKIPPED LAW — 2 test(s) of this gate were skipped` |
+| A10 — "L6 no token reaches a reader" renamed away | `DISCOVERY BROKEN — canary absent from the gate's own output: 'L6 no token reaches a reader'` |
+
+A VACUOUS PLANT, recorded: A8 first went into the `<h1>` of the signed-in
+header of `Pricing.tsx` — a branch a visitor is never served — and the gate
+stayed GREEN, correctly: it reads what a visitor gets. A8b is the same
+sentence in the hero a visitor does get.
+
+**REVERT** — `PASS landing-proof (2.4s, 4365 figures, text nodes and copy
+lines held to the proof)`.
+
+**CANNOT SEE (L12)** — recorded, not chased further:
+
+- accuracy wording with no number in it ("highly accurate", "always right",
+  "every book we tried");
+- a count parted from its measuring word by a dash, a colon or a bracket
+  ("Tested — on 40 files"), or beside a word that is not in the vocabulary
+  ("40 companies' ledgers, all fine");
+- a number written in words above the list (two … twenty, the tens, hundred,
+  thousand, dozen; două … douăzeci, zeci, sute, mii);
+- "one" / "un" / "o": articles as often as counts, deliberately not numbers;
+- text in an image, a canvas, a `title` / `aria-label` attribute or a CSS
+  `content:` string; text a page adds after a click (an opened FAQ item is in
+  the DOM and is read; a dialog that is not mounted is not);
+- the hero mock and the ticker: exempt by region. A claim typed INSIDE the
+  mock is read by nobody; the region is labelled illustrative on the page;
+- pages behind a session, e-mails and the server-rendered storefront;
+- whether a token-filled number stands beside the right noun: that is L9 for
+  the captions; the FAQ's sentence is held to the proof's numbers by L4, not
+  to their meaning.
+
 ## public-claims
 
 | | |
 |---|---|
 | command | `npx vitest run --root . frontend/lib/__tests__/publicClaims.test.tsx frontend/lib/__tests__/reportFooter.test.ts frontend/lib/__tests__/globalPositioning.test.ts --reporter=verbose` |
 | canary | test names `C1 claims no country or region as covered but Romania`, `C1b every row but Romania sits in a group that says not supported, and cannot be chosen`, `C2 names no accounting software that is not a tested row's, backed by a real file`, `C3 offers no input format outside the tested rows unless it says AI-read or not supported`, `C4 every tested row has evidence a reader can check, a dated count the proof agrees with`, `C5 renders every row beside the upload step, with what it was tested on and when`, `C6 the landing card is marked coming soon and starts no checkout`, `C7 says other countries are not supported yet, offers the coverage table, sells nothing`, `C8 the section count a plan sells is the count the report renders`, `C9 the share image's text is the hero's; its alt says what the image says`, `F2 an imbalanced book: that status and the served difference to the cent`, `lib/markets.ts is gone and nothing imports it`, and the line `GATE-WORK report-footer laws=8`, and (second review) `C1 the detector: negation must govern the claim; every country is a country`, `C3 offers no document type but a trial balance as an input, unless it says AI-read or not supported`, `C4 the table prints the denominator: files read, files refused, in the reader's date format`, `F6 who read the document is the served extraction method, never a universal sentence`, `F7 the export closes under the same law, and the published sample prints none of the retired sentences` |
-| work count | `GATE-WORK public-claims units=N`, floor **3000** (measured 3,713 after the second review; 2,000 / 2,708 before it); any skipped test fails the gate |
+| work count | `GATE-WORK public-claims units=N`, floor **9,000** (measured 10,863 after the third review; 3,000 / 3,713 after the second; 2,000 / 2,708 before it); any skipped test fails the gate; `GATE-WORK report-footer laws=10 registered=10` is a canary |
 
 **INCIDENT** — 2026-10-01, the same review. The headline module card read
 "Ministry-of-Finance filings, accountant exports, annual reports — from any
@@ -19348,6 +19503,222 @@ until the owner runs one chat turn and one briefing in production); the
 signed-in dashboard's own Romanian register (36 `dash.*` strings are still in
 the formal register — not a coverage claim, and not swept here).
 
+### public-claims — third review (2026-10-02): every text node, every component, both dictionaries; demonyms, sub-regions, guide cards
+
+**INCIDENT** — each of these, planted alone, left `public-claims`,
+`global-positioning` and `landing-proof` GREEN:
+
+- nationality adjectives: "French, Polish, Dutch and Austrian trial balances
+  are read too."; "Balanțe românești, austriece, grecești și poloneze"; a
+  TESTED coverage row relabelled "Romanian, Austrian and Greek trial balance
+  as CSV…" (the vocabulary was country names);
+- `<strong>`: "Works across Europe." and a market row in `Landing.tsx` — the
+  landing harvest was the selector `h1,h2,h3,p,li,a,button,span,div,time`;
+- "Works for companies across Europe, GDPR-compliant." — any sentence holding
+  "GDPR" or "infrastructure" was excused;
+- "Also reads books from the Balkans, Benelux and the Nordics.";
+- the /workspace and upload-flow copy: `ws`, `wsV2` and `tabs` were outside
+  the harvest and offered ".xlsx / .xls", "a photo" and "financial
+  statements"; "Drop your trial balance from Germany, France or Poland" and
+  "Drop your SAGA, SmartBill, NEXTUP or CIEL export" passed there;
+- `SourceQualityBanner.tsx` named SAGA and WinMENTOR: the software scan was a
+  typed list of eleven files;
+- the dashboard's guide card "Statutory ANAF filing — XLSX (Formular F30 +
+  F10) … the legally certified numbers": a title and a format, no verb, so
+  C3's "offered as an input" never matched.
+
+**LAW, as changed**
+
+- THE HARVEST of a rendered page is every text node (a TreeWalker), joined
+  per block so a sentence that runs through `<strong>` or `<a>` is read
+  whole. Rendered: the landing, the signed-in pricing table, /pricing,
+  /signup, /sample, /contact-sales, the in-app coverage table, the refusal
+  dialog.
+- C1's vocabulary: every region name the runtime knows (Intl, EN + RO) and,
+  typed, 50 English demonyms (case-sensitive: "Polish", not "polish"), 55
+  Romanian demonym stems and four short ones (ceh, grec, turc, rus), and the sub-regions and continents (Balkans,
+  Benelux, Nordics, Scandinavia, Baltics, Iberia, the eurozone, Schengen,
+  Visegrád, the Mediterranean, the Caucasus, the Middle East, Asia, Africa,
+  the Americas, Oceania, "abroad", "overseas", "în / din străinătate"; DACH,
+  CEE, EMEA, MENA, APAC, LATAM).
+- THE DATA-RESIDENCY EXEMPTION is three lines per language, written out in
+  the law ("Made in the EU", the EU-region infrastructure sentence, the
+  model-provider-in-the-United-States sentence, and their Romanian
+  counterparts). Only those exact characters are set aside, and only on the
+  landing; the rest of the sentence is still read; a reworded line stops
+  being exempt.
+- NAMESPACES: `ws`, `wsV2`, `tabs`, `errors`, `contactSales` join the
+  harvest, each with a floor.
+- C2 reads every `.tsx` under `frontend/components/cfo` (153 files) and
+  `frontend/pages/cfo` (32), six string modules, and BOTH DICTIONARIES WHOLE.
+  The vocabulary is the typed list plus every name any coverage row or the
+  proof carries. Eight names that are also ordinary words are software only
+  beside the vocabulary of software. A row may name software only with a
+  real-book count tied to the proof AND at least one battery gate (C4).
+- C3, THE GUIDE CARDS: read off `FinancialStatements.tsx` by structure — the
+  trial-balance card prints `uploadGuide.testedFormats` and the derived
+  untested line; any other card carries coverage.json's
+  "accepted, not yet tested on a real file" note and its words say so in both
+  languages, or is on a two-entry list with its reason (the public-records
+  card, behind a flag asserted false; the sales workbook of /products); the
+  trial-balance card's words name no format outside the ones read on a real
+  book.
+
+**SCOPE AND MEASURED COVERAGE** (2026-10-02, per language) — 2,012 harvested
+lines (EN): landing 295 blocks, pricing table 43, /pricing 87, /signup 23,
+/sample 366, /contact-sales 21, dictionaries `dash` 335, `ws` 131, `wsV2`
+150, `tabs` 15, `errors` 11, `contactSales` 29, `pricing` 57, `pricingX` 43,
+`pricingFaq` 16, `authX` 47, plan bullets 30, sample strings 223, meta /
+manifest / share-image text 15. C2: 185 component and page files, 6 modules,
+two dictionaries. `GATE-WORK public-claims units=10863` (was 3,713), floor
+**9,000**; 31 tests in the file.
+
+**WHAT THE WIDENED GATE FOUND** — C2, on its first run over every component:
+software names on three planned-integration surfaces — the Command Center's
+connector hints ("SAP · Dynamics · NetSuite · Odoo", "SAGA · ContabilTM ·
+Xero · QuickBooks"), the roadmap entry ("Direct sync from Saga, WinMentor,
+and SAP"), and an unrendered settings stub. All three name no product now.
+
+**PLANT / RED** — each applied alone in a scratch copy, through the battery's
+own `main` narrowed to `public-claims`:
+
+| plant | RED |
+|---|---|
+| B1 — how-it-works step: "French, Polish, Dutch and Austrian trial balances are read too." | `landing[en] <p>: "French" in the clause "French" of "French, Polish, Dutch and Austrian …"` |
+| B2 — RO hero note: "Balanțe românești, austriece, grecești și poloneze." | `landing[ro] <p>: "austriece" in the clause "austriece" …` |
+| B3 — a tested row's `label_en`: "Romanian, Austrian and Greek trial balance as CSV…" | `coverage-table[en]: "Austrian" in the clause "Austrian and Greek trial balance as CSV" …` |
+| B4 — `<p><strong>Works across Europe.</strong> <strong>Romania · Austria · Greece · Poland · Germany</strong></p>` in `Landing.tsx` | `landing[en] <p>: "Germany" in the clause "Germany" of "Germany"` (and the items before it) |
+| B5 — the footer mark replaced by "Works for companies across Europe, GDPR-compliant." | `landing[en] <div>: "Europe" in the clause "Language Works for companies across Europe" …` |
+| B5b — the footer mark reworded "Made for all of Europe · GDPR-compliant" | `landing[en] <div>: "Europe" in the clause "Language Made for all of Europe" …` |
+| B6 — FAQ: "Also reads books from the Balkans, Benelux and the Nordics." | `landing[en] <p>: "Balkans" in the clause "Also reads books from the Balkans" …` |
+| B7 — `en.json ws.stepUploadBody`: "Drop your trial balance from Germany, France or Poland." | `en.json ws.stepUploadBody: "Germany" in the clause …` |
+| B8 — `ro.json wsV2.home.subtitle`: "Încarcă exportul din SAGA, SmartBill, NEXTUP sau CIEL." | `ro.json wsV2.home.subtitle: "CIEL" in "Încarcă exportul din SAGA, SmartBill, NEXTUP sau CIEL. …"` (C2) |
+| B9 — `en.json ws.stepUploadBody`: "…as PDF, Excel (.xlsx / .xls), CSV or a photo." | `en.json ws.stepUploadBody: ".xls" in "Drop your Romanian trial balance as PDF, Excel (.xlsx / .xls), CSV or a photo."` (C3) |
+| B10 — `SourceQualityBanner.tsx`: "extended-layout SAGA/WinMENTOR exports that snapshot mid-reconciliation" | C2 component scan: the banner's JSX text, naming SAGA |
+| B11 — `coverage.json`: `pdf_text_layer.software = ["WinMENTOR"]` (a dated record, no gate, no proof count) | C4: "names WinMENTOR without a gate-backed real file" |
+| B12 — the untested note removed from the statutory F30 + F10 card | C3 guide: `dash.docStatutory: a guide card with a typed format ("XLSX (Formular F30 + F10)") and no "not yet tested on a real file" note` |
+| B13 — `en.json dash.docTbWhere2`: "…→ XLSX, CSV or PDF (10-column layout)" | C3 guide: `dash.docTb (en) names CSV, which no real book was read in` |
+| B14 — law C10 renamed away | `DISCOVERY BROKEN — canary absent from the gate's own output: 'C10 the page title, description and manifest claim Romanian trial balances'` |
+
+A HOLE THE PLANTS FOUND IN THIS ROUND'S OWN FIRST DRAFT: the residency
+exemption was first read from the copy at its keys. Plant B5 replaced the
+footer mark with a claim, the claim became a "known line", and the gate went
+red only because the detector's own list happened to contain that sentence.
+The lines are now exact strings in the law, and B5 / B5b red on the harvest.
+
+**REVERT** — `PASS public-claims (3.1s, 10863 copy lines and claims
+examined)`.
+
+**CANNOT SEE** — recorded, not chased further:
+
+- coverage implied without a region word, a demonym, a sub-region, a software
+  name, a format or a document type ("wherever you keep your books", "for any
+  company"), or with a word on none of the lists: a city ("companies in
+  Vienna"), a currency ("books kept in forints"), a language ("Hungarian-
+  language exports" IS caught; "exports in Magyar" is not), a demonym the
+  list lacks;
+- "English" / "engleză" — the interface language, deliberately not a demonym;
+- a software name on no list: the vocabulary is a deny-list (39 typed names
+  plus whatever coverage.json and the proof carry). A product nobody listed
+  passes;
+- an ordinary-word name (Senior, Sage, Nexus, Crystal, Mentor, Dynamics,
+  Charisma, Socrate) used as software WITHOUT a word of software beside it
+  ("we read Sage");
+- C1 and C3 on pages behind a session — the dashboard, /workspace, the upload
+  flow — are read through their dictionaries, not rendered: a claim typed
+  into THEIR JSX is seen only by C2 (software names);
+- /public-companies: its copy legitimately names other markets (US filings);
+  its Romanian line is held by a string comparison in the truth round, not
+  by this harvest;
+- the feature registry's descriptions, served by the backend (they still name
+  products for planned connectors);
+- the "Sales / trading analysis" guide card: the SKU workbook of /products
+  has no coverage row;
+- a guide card added OUTSIDE the grid `data-testid="upload-document-guide"`;
+- whether a tested row's evidence gate really exercises that layout, and
+  whether a dated record is true.
+
+### report-footer — third review (2026-10-02): the law is positive
+
+(Part of battery gate `public-claims`: `frontend/lib/__tests__/reportFooter.test.ts`.)
+
+**INCIDENT** — F1–F7 were a list of retired phrases. The same false sentence
+in new words reached the published sample with every gate GREEN:
+
+- export: `financialReport.ts` footer += "All numbers tie to the source trial
+  balance within 1%.", the sample fully rebuilt — the sentence was in the
+  published HTML and PDF; `public-claims`, `public-sample-page`,
+  `public-sample` and `public-sample-pdf` all PASS (the byte-identical rebuild
+  agrees with whatever the builder says);
+- page: a `<p>` directly above the footer element in `ComprehensiveReport.tsx`
+  (F5 read the first `<footer>` only);
+- builder: `generated` += "Every number ties out to the source file, to the
+  cent." (F1 forbade `%`, "within" and "reconcile to the source");
+- F5 UN-REGISTERED with the retired sentence typed back into the page footer:
+  PASS at 3,713 units. The canary "GATE-WORK report-footer laws=8" was a
+  string literal printed by F7.
+
+**LAW**
+
+- F1–F4, F6: the builder's lines EQUAL the expected strings for each reading
+  (code + trial balance, code + other document, AI model, AI layout, not
+  stated), each verdict, the briefing and the browser-valuation clauses — the
+  strings are written out in the law, a second copy. The builder returns four
+  fields and no fifth.
+- F5: the page's closing region — everything after its last numbered section
+  — is the `<footer>` and four served expressions, with no typed text; no
+  tolerance is typed anywhere in the page's JSX.
+- F7: the SOURCE of the export's `<footer class="footer">` and of its
+  `<aside class="basis-note">` equals the expected template, character for
+  character.
+- F8: THE PUBLISHED SAMPLE'S CLOSING BLOCKS — from the "Basis of Preparation"
+  heading to the end of the footer — are exactly: the basis sentences,
+  `basisAuthorshipSentence(served, {aiNarrative: false})`, the provenance
+  note built from the served extraction block (sheet, method, mapping pack),
+  the two chart notes, the provenance popover's labels, and the footer with
+  the sample's date and the fictional-company notice. Nothing else.
+- F9: no line of any reading × verdict × briefing × valuation × language
+  (490 lines examined) and no closing block of the sample states a percentage
+  or a tolerance, in any words (`%`, "within", "to the cent", "ties (out) to",
+  "reconciles to", "accurate to", "tolerance of", ±, ≤).
+- THE COUNT IS A COUNTER: each law registers through `law()` and is counted
+  when it RAN; the file prints `GATE-WORK report-footer laws=10
+  registered=10`, which is the battery's canary, and every law is a canary by
+  name.
+
+**PLANT / RED** (scratch copy, the battery's `main` narrowed to
+`public-claims`; where a plant says "rebuilt", the sample was rebuilt by
+`scripts/build_public_sample_report.mjs` so that the byte-identical rebuild
+agrees with the plant):
+
+| plant | RED |
+|---|---|
+| C1 — builder: `generated` += " Every number ties out to the source file, to the cent." | 6 laws: F1, F2, F3, F4, F6 on the exact line, F9 on `"ties out to"` |
+| C7 — builder: `generated` += " Prepared with care." (no tolerance word at all) | 5 laws (F1, F2, F3, F4, F6), on the exact line: `Received: "Generated by CFO AI. … no AI model read or produced these figures. Prepared wi…"` |
+| C2 — `<p>All figures reconcile to the source trial balance within 1%. See Section 6.</p>` above the page's footer | F5: `text typed into the report's closing region: "All figures reconcile to the source trial balance within 1%. See Section 6."` |
+| C3 — export footer += "All numbers tie to the source trial balance within 1%.", sample and page data REBUILT | `public-sample` PASS (33), `public-sample-page` PASS (802) — and `public-claims` FAIL: F7 (source template), F8 (closing blocks), F9 (`"tie to"`) |
+| C8 — export footer += " · Reviewed by our analysts" (no tolerance word), sample HTML rebuilt | F7 and F8: `expect(sampleClosingText()).toBe(…)` |
+| C4 — basis note += "Every statement is accurate to the leu.", sample HTML rebuilt | F7, F8, F9 (`"accurate to"`) |
+| C5 — F5's `law(` renamed away | `DISCOVERY BROKEN — canary absent …: "F5 the report page's closing region is the footer and its three served lines, nothing typed"` |
+| C6 — F8 as `it.skip` | `DISCOVERY BROKEN — canary absent …: 'GATE-WORK report-footer laws=10 registered=10'` and `SKIPPED LAW — 1 test(s)` |
+
+**REVERT** — `PASS public-claims (3.1s, 10863 copy lines and claims
+examined)`.
+
+**CANNOT SEE** — recorded, not chased further:
+
+- a false sentence typed into a SECTION of the report (an insight, a
+  recommendation, a statement note) rather than its closing blocks: the
+  sample's sections are held by the byte-identical rebuild
+  (`public-sample-page` P5), which reds on a change and does not judge it;
+- a customer's own export: its closing blocks are checked through the builder
+  and the published sample, not on any other book;
+- the page's footer as RENDERED: F5 reads `ComprehensiveReport.tsx`'s source.
+  A component that renders text after the footer from another file is not in
+  the region;
+- whether the served difference and the served extraction method are right
+  (`bs-drift`; the engine stamps the method).
+
 ## public-sample
 
 **The request (owner, 2026-10-01, after the first public review).** A
@@ -19547,6 +19918,82 @@ lines also disagree with the ledger); the two quick ratios the report prints
 in the engine) and the 40.5% depreciated share whose base includes
 construction in progress: both are engine wording, quoted as served.
 
+### public-sample — third review (2026-10-02): S5 reads every byte a published file can carry a word in
+
+**INCIDENT** — S5 read cell values and three document properties of the files
+directly under `public/sample`, and two of the three example workbooks. With
+a client label derived at run time and never printed, a verifier found GREEN
+on all three sample gates for: the label in the `subject` and `keywords` of
+the four published workbooks (8 occurrences in `docProps/core.xml`); the label
+in the PDF's `/Author` and `/Subject`; `public/sample/extra/notes.txt`; and a
+label plus "CUI RO 12345674" typed into `public/examples/
+example_sales_analysis.xlsx`. And `public/templates/` — two downloadable
+workbooks, one of which carried a client's brand and figures since June — was
+read by no gate at all.
+
+**LAW (S5, three tests)** — `scripts/public_bytes.py` yields every place a
+word can sit in a published file, and S5 reads all of them under
+`public/sample`, `public/examples` and `public/templates`, recursively, plus
+the page's data:
+
+- any file: its raw bytes (Latin-1, and once more with NUL bytes removed —
+  UTF-16 strings);
+- a workbook (any ZIP container): the archive comment, every member's name,
+  every member decompressed — sheets, shared strings, `docProps/core.xml`
+  and `app.xml`, custom properties, comments, defined names;
+- the PDF: the text layer page by page, the info dictionary, the XMP packet,
+  and the file's bytes with the compressed stream bodies cut out.
+
+No client label (the labels are derived from the real books' file names,
+`scripts/client_labels.py`); no fiscal code and no trade-register number but
+the fictional ones; a workbook's creator / last-modified-by is the product's
+name, the sample's own "fictional example" mark, the writing library's
+default, or empty; `subject`, `keywords`, `category`, `description` are
+empty; the PDF has no `/Author`, `/Subject`, `/Keywords`. Floors inside the
+law: 16 files, 60 workbook members, 18 PDF parts; the parts must include
+`docProps/core.xml`, `docProps/app.xml` and the PDF's `info`, `xmp` and
+`objects`.
+
+A FAILURE PRINTS A POSITION, NEVER WHAT WAS FOUND. The first run of these
+plants showed pytest's own introspection printing the matched label under
+the message (`assert <re.Match …> is None`). The S5 laws now fail through
+one helper — the message alone, no traceback, no introspected value.
+
+**SCOPE AND MEASURED COVERAGE** (2026-10-02) — `GATE-WORK public-sample-scan
+files=16 workbook_members=80 pdf_parts=32`: 10 files under `public/sample`,
+3 under `public/examples`, 2 under `public/templates`, the page data; 7
+workbooks (80 members), 1 PDF (29 pages + info + XMP + objects). 5 labels
+derived from the committed tree, 6 with the local books linked. `PASS
+public-sample (13.4s, 33 tests)`, floor **33**.
+
+**PLANT / RED** — each applied alone in a scratch copy with the local books
+linked; the label is derived inside the plant and is never typed:
+
+| plant | RED |
+|---|---|
+| D1 — the generator writes a label into `subject` and `keywords`; workbooks, served documents and page data REBUILT (so S2 agrees) | `…balanta_exemplu_fictiv_31.12.2024.xlsx!docProps/core.xml carries the label of a real book this repository holds, at character 388 (5 characters long)` and `…: the subject property is set (5 characters) — nothing of ours writes one` — `public-sample-page` and `public-sample-pdf` PASS |
+| D2 — `/Author` and `/Subject` of the published PDF set to a label (text layer untouched) | `…sample_report_fy2025.pdf!info carries the label …, at character 188` and `the PDF's /Author is set (9 characters) — the report writes none` — `public-sample-pdf` PASS (29 pages, text identical) |
+| D3 — `public/sample/extra/notes.txt` | `public/sample/extra/notes.txt carries the label …, at character 18` |
+| D4 — a label and "CUI RO 12345674" in a cell of `public/examples/example_sales_analysis.xlsx` | `…example_sales_analysis.xlsx!xl/worksheets/sheet1.xml carries the label …` and `… carries a fiscal code that is not the sample's fictional one, at character 2679` |
+| D5 — a label in the `keywords` / `subject` of `public/templates/bvb_financials_template.xlsx` | `…bvb_financials_template.xlsx!docProps/core.xml carries the label …` and `the subject property is set (5 characters)` |
+
+**REVERT** — `PASS public-sample (13.8s, 33 tests)`.
+
+**CANNOT SEE (S5)** — recorded, not chased further:
+
+- a client's name that is in no real book's file name (the labels are derived
+  from those names): a brand, a retailer, a person;
+- a word split across two XML runs of a workbook (`<t>ab</t><t>c</t>`), or
+  written with a look-alike character;
+- pixels: an image inside a workbook or the PDF;
+- the PDF's compressed streams other than its text layer (fonts, images, a
+  form field, an embedded file);
+- a published file OUTSIDE the three directories: `public/og`, `public/logos`,
+  `public/geo`, `public/icons` (images and a map) — `bundle-labels` reads
+  their text forms under `dist/`;
+- a real fiscal code written WITHOUT a marker ("RO", "CUI", "CIF", "c.f.")
+  in front of it.
+
 ## public-sample-page
 
 The `/sample` page and the published report, held to the COMMITTED served
@@ -19555,7 +20002,7 @@ documents (`frontend/pages/cfo/__tests__/publicSample.test.tsx`).
 | | |
 |---|---|
 | command | `npx vitest run --root . frontend/pages/cfo/__tests__/publicSample.test.tsx --reporter=verbose` |
-| work count | `GATE-WORK public-sample-page figures=(\d+)`, floor **100** (measured 126) |
+| work count | `GATE-WORK public-sample-page figures=(\d+)`, floor **650** (measured 802 after the third review, which added P11; 150 / 194 after the truth round; 100 / 126 at first) |
 | canary | the GATE-WORK line and six titles named in `scripts/run_battery.py` |
 
 **What it fails on, now that the product is correct (TC-11):**
@@ -19630,6 +20077,59 @@ REVERT (each): Tests 21 passed (21) — GATE-WORK public-sample-page figures=134
 engine changes the cycle's basis — P9 then reds on its own precondition
 ("the printed rows foot to the cycle — the note is not needed").
 
+### public-sample-page — third review (2026-10-02): P11, every number in the page's own words
+
+**INCIDENT** — a file card's body on /sample extended with "Net turnover
+9,876,543.21 RON, net profit 1,234,567.89 RON." — `public-sample-page` PASS
+(134 figures), `landing-proof` and `public-claims` PASS. The own-voice law
+checked a number's FORMAT (no figure in the other language's shape); P1 / P2
+hold only the figures the page is built to print, each through its pointer.
+A typed figure has no pointer.
+
+**LAW (P11)** — the page is rendered in each language with the mapping open;
+every text node outside the engine's sentences quoted in the other language
+and the monospaced identifiers is read; every number in it is one of:
+
+- a value of `frontend/data/publicSample.json` — any number in it, or inside
+  one of its strings, at the precision the page prints, as it stands or as a
+  percentage of a stored fraction;
+- a size in KB of a file that JSON lists; a count of one of its own lists;
+- a calendar year (1990–2100) or the parts of a date;
+- an account or class number of the chart: an account of the mapping, or a
+  number NAMED as an account or a class ("classes 6 and 7", "accounts 331 +
+  345");
+- a number of the proof's sentences the page quotes (engineProof.json).
+
+**SCOPE AND MEASURED COVERAGE** (2026-10-02) — 327 numbers read on the
+English page, 281 on the Romanian one (fewer: the engine's English sentences
+are set aside there); 803 values in the JSON's numbers and strings.
+`GATE-WORK public-sample-page figures=802` (was 194), floor **650**.
+
+**PLANT / RED** (scratch copy, the battery's `main` narrowed):
+
+| plant | RED |
+|---|---|
+| F1 — the file card's body += "Net turnover 9,876,543.21 RON, net profit 1,234,567.89 RON." | `FAIL public-sample-page` — `en: number(s) in the page's own words that are no value of publicSample.json, no account and no year — a figure typed into the copy: ["9,876,543.21", "1,234,567.89"]`; `landing-proof` and `public-claims` PASS (it is no accuracy claim and no coverage claim) |
+| F2 — P11 as `it.skip` | `WORK BELOW FLOOR — examined 194 …, floor 650` and `SKIPPED LAW — 2 test(s) of this gate were skipped` |
+
+**REVERT** — `PASS public-sample-page (2.6s, 802 printed figures held to the
+served document)`.
+
+**CANNOT SEE (P11)** — recorded, not chased further:
+
+- a typed number that EQUALS a value the JSON holds: a "20" typed where the
+  label count is 20, a typed "2025", a typed "121". Small integers are
+  everywhere in the page data, so a small typed integer passes;
+- whether a JSON value is printed beside the right noun: a built figure is
+  held to its pointer by P1 / P2; a typed SENTENCE that reuses a real figure
+  under another name ("net profit 6,369,207.10 RON", which is the turnover)
+  passes;
+- a number written in words;
+- the engine's sentences quoted on the page (they are the served document's,
+  held by `public-sample` S6) and the monospaced identifiers (file names,
+  versions, pointers);
+- the report: its numbers are held by the byte-identical rebuild (P5).
+
 ## public-sample-pdf
 
 `node scripts/build_public_sample_report.mjs --check` — rebuilds the report
@@ -19699,8 +20199,8 @@ to a rebuild`, `public sample report: PASS`.
 | | |
 |---|---|
 | command | `python scripts/check_bundle_labels.py` (after `npm-build`) |
-| canary | `BUNDLE LABELS: PASS`, `identifier match(es)` |
-| work count | `GATE-WORK bundle-labels files=N`, floor **50** (measured 127 built text files) |
+| canary | `BUNDLE LABELS: PASS`, `no identifier is exempt`, `workbook(s) and PDF(s) opened` (until the third review: `identifier match(es)`) |
+| work count | `GATE-WORK bundle-labels files=N`, floor **100** (measured 138: text files, workbooks and PDFs; 50 / 127 text files before the third review) |
 
 **INCIDENT** — 2026-10-02. The production bundle every visitor downloads
 (`dist/assets/index-*.js`) carried the label of a client's book six times:
@@ -19766,6 +20266,69 @@ inside an image; the server-rendered storefront. And it does not judge the
 identifier it excuses: the report page's stylesheet namespace is a
 calibration book's short label (162 occurrences as a CSS variable / class
 prefix) — an internal name, never prose, left as it is and stated here.
+(SUPERSEDED the same day by the third review, below: the namespace is renamed
+and the identifier exemption is deleted.)
+
+### bundle-labels — third review (2026-10-02): workbooks and PDFs are opened; no identifier is exempt
+
+**INCIDENT** — (1) the gate read text suffixes only. `dist/templates/` held
+two spreadsheets naming a client — one with the client's brand, a retailer
+and volume figures on a product row — and the gate printed "PASS — 127
+file(s) under dist/ carry no client label". (2) A label beside a hyphen was
+excused as "an identifier": a dictionary string "…measured on the
+<label>-Food pack" passed, counted as identifier 163. (3) The excuse covered
+162 real occurrences: a calibration book's three-letter label shipped in the
+public stylesheet as a namespace (`--<label>-ink`, `.<label>-table`).
+
+**LAW, as changed**
+
+- every file under `dist/` that can carry a word is read: text files as
+  before (plus `.csv`, `.md`), and every workbook / ZIP container and PDF
+  through `scripts/public_bytes.py` — each member decompressed, the document
+  properties, the PDF's text layer, info dictionary, XMP and objects. A part
+  is named in a failure: `dist/templates/x.xlsx!xl/worksheets/sheet1.xml at
+  character N`;
+- THE IDENTIFIER EXEMPTION IS DELETED. A label between two non-letters is a
+  hit, hyphen or not. The stylesheet namespace is renamed (`--ctrl-*` /
+  `.ctrl-*`, `frontend/styles/controllerBoard.css`; no component used the
+  classes), so nothing needs the excuse;
+- the place-name list (one county) stays, with its reason;
+- fewer than 5 workbooks / PDFs opened is exit 2: the published templates,
+  examples and sample must be in the build.
+
+| | |
+|---|---|
+| canary | `BUNDLE LABELS: PASS`, `no identifier is exempt`, `workbook(s) and PDF(s) opened` |
+| work count | `GATE-WORK bundle-labels files=N`, floor **100** (measured 138: 130 text files, 8 workbooks / PDFs, 249 parts) |
+
+**PLANT / RED** — real `npm run build` in a scratch copy each time, the label
+derived inside the plant:
+
+| plant | RED |
+|---|---|
+| the tree BEFORE the namespace rename, exemption deleted | `BUNDLE LABELS: FAIL — a real book's label is in the production bundle (162 place(s))`, all in `dist/assets/index-*.css` (3 characters long) |
+| D6 — a dictionary string "Measured on the <label>-Food pack." | `dist/assets/index-*.js at character 104652 (5 characters long)` — 1 place |
+| D7 — a label in a cell of `public/templates/cfo_ai_upload_template.xlsx` | `dist/templates/cfo_ai_upload_template.xlsx!xl/worksheets/sheet1.xml at character 5023 (5 characters long)` |
+| D8 — the label back as a custom property (`--<label>-ink`) in the stylesheet | every occurrence of the property in `dist/assets/index-*.css`, each "(3 characters long)" |
+
+`npm-build` PASS (3,660 modules) on each; the label is never printed.
+
+**REVERT** — `PASS npm-build (10.0s, 3660 modules transformed)`, `PASS
+bundle-labels (1.8s, 138 built files read (text, workbooks, PDFs))`:
+`BUNDLE LABELS: PASS — 138 file(s) under dist/ carry no client label: 8
+workbook(s) and PDF(s) opened, 249 part(s) read; no identifier is exempt (3
+place-name match(es) are a town, not a client)`.
+
+**CANNOT SEE** — recorded, not chased further:
+
+- a client's name that is in no fixture's file name;
+- a label inside an image or a font; a pre-compressed copy (`.gz` / `.br`) —
+  the same bytes as the file beside it, which is read;
+- a word split across two XML runs of a workbook;
+- the server-rendered storefront and e-mails;
+- A MINIFIED IDENTIFIER THAT HAPPENS TO SPELL A THREE-LETTER LABEL is a red
+  here, by design: with no exemption, the position is printed and a person
+  reads it. None occurs in the measured build.
 
 ### landing trust — second review (2026-10-02): the measured green runs
 
@@ -19854,3 +20417,83 @@ WHAT THESE LAWS CANNOT SEE
     measurement: `chat` is "not verified since 2026-09-29" and `briefing` is
     "unavailable" because a person read production on 2026-10-02. The owner
     sets both after one chat turn and one briefing.
+
+### landing trust — third review, the gates half (2026-10-02): scope, and the measured runs
+
+**What this round did** — decision G of the third review: make the laws
+positive, then stop. Each law is recorded under its own gate above
+(`engine-proof` EP9; `landing-proof` L12; `public-claims` — every text node,
+every component, both dictionaries, demonyms, sub-regions, guide cards — and
+the positive report-footer law; `public-sample` S5 over every published
+byte; `public-sample-page` P11; `bundle-labels` with workbooks and PDFs
+opened and no identifier exempt), with its scope, its measured coverage, the
+plants and an explicit "cannot see" list. THIS IS THE LAST HARDENING ROUND:
+the evasion variants that remain are the ones on those lists, recorded and
+not chased further.
+
+T9 — `attention-rules` floor is 31 (restored in the truth round). Compared
+programmatically against `21c54704`: 139 shared gates, no floor lowered, no
+canary lost, no `no_skips` dropped; 7 gates are new on the branch.
+
+**PLANTS** — 47 plants, each applied alone in a scratch copy of the tree
+(never in the working tree), run through the battery's own `main` narrowed to
+the plant's gates, then reverted by re-syncing the copy; a client label is
+derived inside the plant and never typed. 46 RED as recorded above, 1
+vacuous and recorded as such (A8). After the reverts every gate involved is
+GREEN.
+
+**THE COMPLETE BATTERY** — `python scripts/run_battery.py`, all 146 gates, on
+the branch with the owner's local calibration books linked into `files/` for
+the run and removed after, and with the working tree's own `node_modules`
+(the worktree no longer writes through a link into another checkout):
+
+```
+BATTERY: FAIL — 142/146 gates green, 1 VACUOUS (public-sitemaps)
+```
+
+| the runs the task names | measured |
+|---|---|
+| full engine suite (`pytest`, tests/engine) | `PASS pytest (1137.9s, 9368 tests)` |
+| full vitest (`check_vitest.mjs`) | `PASS vitest (25.9s, 4504 frontend unit tests)` |
+| `tsc` (`check_tsc.mjs`) | `PASS tsc (14.8s, 1044 project files typechecked)` — the 10 known errors of its baseline, 0 new |
+| vite build | `PASS npm-build (10.4s, 3660 modules transformed)` |
+| the gates of this branch | `engine-proof` 10 tests (scope full: 5 checks, 29 subjects), `public-sample` 33, `landing-proof` 4,365, `public-claims` 10,863, `public-sample-page` 802, `public-sample-pdf` 29 pages, `bundle-labels` 138 files |
+| others | `attention-rules` 31, `provenance-census` 827, `global-positioning` 1,001 files, `corpus-policy` 4,969 tracked files, `hermetic` 14, `determinism` 9 fixtures × 5, `bs-drift` 7 fixtures, `corpus-replay` 18 cases |
+
+THE THREE RED GATES, each RED IN THE SAME WORDS ON THE BASE `21c54704` (run
+there through the same narrowed battery, in a clone of that commit with the
+same books linked):
+
+| gate | red on the branch and on the base | why |
+|---|---|---|
+| `forecast-scenarios-active` | `1 failed, 5 passed` — `[boot_verify] FATAL — critical env vars missing: ['VITE_SUPABASE_URL', 'VITE_SUPABASE_ANON_KEY', 'SUPABASE_SERVICE_ROLE_KEY']` | a worktree has no `.env`; the gate builds the real app. With three placeholder values pointing at an unreachable local address (no cloud, no network): `PASS forecast-scenarios-active (1.6s, 6 tests)`. The same test passes inside the full `pytest` gate, where an earlier test has set the environment |
+| `floor-sku-portfolio` | `2 failed, 36 passed, 10 errors` — the same `boot_verify` refusal | the same cause; with the placeholders: `PASS floor-sku-portfolio (3.2s, 48 tests)` |
+| `playwright` | `REFUSED — these specs name an absolute non-local origin in code …: e2e/design/cmdbar.spec.ts: http://x.invalid` | a spec on the base names a non-local origin; the gate refuses before it runs anything. Repaired on the main line after this branch's base; not this branch's file. The gate also needs a dev server and an engine in test posture, which this round did not start (no cloud project may be reached from here) |
+
+`public-sitemaps` is VACUOUS on this host (no storefront database), on the
+base as well; the battery does not count it as evidence.
+
+**After the complete run** two things changed and were re-run on their own:
+four more laws of `publicClaims.test.tsx` became canaries (with them every
+law of that file is one), and this page was written. Re-run through the
+narrowed battery, **10/10 PASS**: `public-claims` 10,863, `landing-proof`
+4,365, `engine-book` 6 pages, `stale-gates` 948 files, `no-plants` 1,128
+files, `floor-census` 77, `plan-gate-census` 29, `provenance-census` 827,
+`global-positioning` 1,001, `corpus-policy` 4,969 tracked files; and
+`tests/engine/test_gate_canaries.py` on its own: 13 passed.
+
+**Not run:** the Playwright suite itself (see above).
+
+**WHAT THE WHOLE SET CANNOT SEE** — one line each; the detail is under each
+gate:
+
+- a claim with no number, no region word and no format in it;
+- text in images, attributes, canvases and e-mails; the server-rendered
+  storefront; pages behind a session, except through their dictionaries;
+- a client's name that is in no real book's file name; pixels; split XML
+  runs;
+- whether the proof was measured on its date, within the window the law
+  allows;
+- a typed number that equals one the sample's data already holds;
+- whether a hand-set record is true: the AI-availability states of
+  coverage.json and the dated coverage records are a person's measurement.

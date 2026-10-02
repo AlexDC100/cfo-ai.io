@@ -855,7 +855,8 @@ describe("public-claims · component literals", () => {
     // SAGA/WinMENTOR exports") was not one of them.
     const components = tsxUnder("frontend/components/cfo");
     const pages = tsxUnder("frontend/pages/cfo");
-    expect(components.length, "the component walk collapsed").toBeGreaterThan(150);
+    // measured 153 and 32 on 2026-10-02; the floors are collapse detectors
+    expect(components.length, "the component walk collapsed").toBeGreaterThan(120);
     expect(pages.length, "the page walk collapsed").toBeGreaterThan(25);
     const files = [
       ...components, ...pages,

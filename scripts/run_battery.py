@@ -2615,6 +2615,12 @@ def _frontend_gates() -> List[Gate]:
                        "C2 no accounting-software name is typed into any component, page or dictionary",
                        "C3 a guide card lists only formats read on a real book, or says it is not tested on a real file",
                        "C10 the page title, description and manifest claim Romanian trial balances",
+                       # …and the four laws of the file that were no canary:
+                       # with them, every law of publicClaims.test.tsx is
+                       "C5 renders the same rows in the in-app table",
+                       "C5 the in-app upload zone opens the coverage table and lists no software",
+                       "C6 the signed-in pricing table marks it coming soon; its button cannot start a checkout",
+                       "C6 a ?plan=multi signup link selects nothing, and the bill estimator prices only plans on sale",
                        "C1 the detector: negation must govern the claim; every country is a country",
                        "C3 offers no document type but a trial balance as an input, unless it says AI-read or not supported",
                        "C4 the table prints the denominator: files read, files refused, in the reader's date format",
